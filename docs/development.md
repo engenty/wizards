@@ -381,8 +381,8 @@ are encrypted where secret (`STORE_ENC_KEY`), and go when unused for `STORE_TTL_
 ## Connectors
 
 Built in, as engenty ships them: Gmail, Google Drive, Calendar and Contacts, Outlook, OneDrive,
-Slack, GitHub (sign-in with OAuth — set the client in `.env`, see `.env.example`), HubSpot and S3
-(the person enters a token or keys). The settings show which are set up. Google needs the APIs
+Slack, GitHub (sign-in with OAuth — set the client in `.env`, see `.env.example`), HubSpot, S3 and
+SMTP (the person enters a token, keys or a mailbox password). The settings show which are set up. Google needs the APIs
 enabled and the scopes on the consent screen; a connection asks only for what the wizard's
 actions need.
 
@@ -424,6 +424,29 @@ marketplace (default `https://engenty.ai/wizards`, `off` = none).
 - **MCP**: `list_starters` searches the marketplace (without a query: its starters),
   `get_starter` hands over an entry's wizard. The authoring guide's example is the runtime's own
   (`apps/runtime/src/authoring/example.ts`).
+## Sharing a result
+
+A finished result has the link, the downloads — and share targets that send or publish it. The
+person picks one on the result ("Teilen"), connects the account it sends with, checks the form
+and sends; what happens shows live, and a sign-in or a confirmation is asked for in the same sheet.
+
+| Target | What it does | Needs |
+|---|---|---|
+| `email` | the picked files as attachments | the person's mailbox (any over SMTP; Gmail or Outlook with their OAuth client and the scope `gmail.send` / `Mail.Send`) — or `SMTP_URL` + `MAIL_FROM`, then no account |
+| `storage:<connector>` | the picked files into a folder | Google Drive (`drive.file`), OneDrive (`Files.ReadWrite`), S3 |
+| `slack` | a message in a channel, with the link to the result when `APP_URL` is public | the Slack OAuth client |
+| `connector:<connector>` | an agent does what the person describes, with the connector's actions; every change asks first | any connector that can write — every imported one is offered |
+| `browser` | an agent posts it on a website in the wizard's browser; the person signs in themselves and confirms before it goes public | Chromium |
+
+Without anything in the wizard, a result offers the targets that need no model; the two an agent
+drives are offered to the signed-in owner only, as they spend the wizard's credits. A result step
+can list its own (`share`: target, a name, prefilled values with `{{templates}}`) — then exactly
+those are offered, to everyone. With `SMTP_URL` a visitor sends three mails per run from the
+server's address.
+
+A target is one object (`ShareTarget` in `apps/runtime/src/sharing/types.ts`): what account it
+needs, its form, and `send`. To add one, write it in `apps/runtime/src/sharing/targets/` and name
+it in `apps/runtime/src/sharing/index.ts`; the share sheet and the editor show it without changes.
 
 ## Build wizards from your own AI client
 
@@ -558,5 +581,6 @@ reach only servers on the internet: for them a wizard runs on engenty.ai, not on
 | MCP server for authoring (tools, token/API-key gate) | `apps/runtime/src/mcp/` |
 | Live editor (SSE stream, merge of concurrent edits) | `apps/runtime/src/routes/wizard-stream.ts`, `apps/web/src/studio/live.tsx` |
 | Claude Code plugin template | `plugin/`, `apps/runtime/src/plugin.ts` |
-| Share sheet and shared result page | `apps/web/src/share/` |
+| Share targets: e-mail, cloud folders, Slack, connectors, websites; the jobs that send | `packages/shared/src/sharing.ts`, `apps/runtime/src/sharing/`, `apps/runtime/src/connectors/smtp.ts` |
+| Share sheet (link, targets step by step) and shared result page | `apps/web/src/share/` |
 | Changelog and open-source credits: generated from the commits and the dependencies, shown in the studio's footer | `cliff.toml`, `scripts/release.mjs`, `scripts/write-about-data.mjs`, `apps/web/src/about/` |

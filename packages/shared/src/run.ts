@@ -8,6 +8,7 @@ import {
   type Step,
   type WizardDefinition,
 } from "./definition.js";
+import type { ShareJobView } from "./sharing.js";
 import type { ConnectionView, ListDef, ListRow } from "./store.js";
 import type { Surface } from "./surface.js";
 import { type Gap, type Line, lineText, type Texts, type TextTable, textOf } from "./texts.js";
@@ -121,6 +122,8 @@ export interface ConfirmAsk extends AskBase {
   action: { id: string; summary: string; destructive: boolean };
   /** What would be sent, as readable JSON. */
   input: string;
+  /** Asked for this one thing: there is nothing to allow for the rest of the run. */
+  once?: boolean;
 }
 
 /** What a running step asks the person; the step waits for the answer. */
@@ -203,6 +206,7 @@ const NOTES_EN = {
   looksAtPage: "Looking at the page",
   waitsForSignIn: "Waiting for you to sign in to {name}",
   downloads: "Downloading {name}",
+  attaches: "Attaching {name}",
   runs: "Running: {command}",
   python: "Running Python",
   runsProgram: "Working through the data in one go",
@@ -530,6 +534,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   looksAtPage: "Sieht sich die Seite an",
   waitsForSignIn: "Wartet auf deine Anmeldung bei {name}",
   downloads: "Lädt {name} herunter",
+  attaches: "Hängt {name} an",
   runs: "Führt aus: {command}",
   runsProgram: "Arbeitet die Daten in einem Zug durch",
   python: "Führt Python aus",
@@ -941,6 +946,8 @@ export interface RunView {
   shareUrl: string | null;
   /** When the run and its shared link are deleted; null = kept. */
   expiresAt: string | null;
+  /** The result on its way to a share target, or the last one that arrived or failed. */
+  shareJob: ShareJobView | null;
 }
 
 /** How a run in the viewer's language shows. */

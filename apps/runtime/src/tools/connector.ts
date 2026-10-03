@@ -11,7 +11,7 @@ import { attempt, clip, type FileKeeper } from "./shared.js";
 import { resolveFile } from "./store.js";
 
 const FILE_NOTE =
-  " File content never passes through you: returned content is kept as a file and you get its path; to send a kept file, give `file:<path>` where an input asks for `*_base64`.";
+  " File content never passes through you: returned content is kept as a file and you get its path; to send a file, give `file:<path>` of a kept file or `file:result:<step>.<format>` of a result where an input asks for `*_base64`.";
 
 /** Above this many actions a connector is offered as "find an action, then call it". */
 const DIRECT_TOOLS = 24;
@@ -112,7 +112,8 @@ function asks(connection: ConnectionDef, action: ConnectorAction): boolean {
   return (connection.policy?.[action.id] ?? (action.group === "read" ? "allow" : "ask")) === "ask";
 }
 
-async function toolsOf(connection: ConnectionDef, ctx: StepContext, files: FileKeeper) {
+/** One connection's actions as tools — for a step that lists it, or a share job that sends through it. */
+export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files: FileKeeper) {
   const projectId = ctx.project.id;
   const id = connection.connector ?? "";
   let resolved = await resolveConnector(projectId, id);

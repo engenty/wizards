@@ -1,7 +1,7 @@
 ---
 title: Run a wizard
 description: What you see when you open a wizard's link, on a computer or a phone.
-version: 0.5.0
+version: 0.7.10
 ---
 
 ## From the link to the result
@@ -90,9 +90,26 @@ everything” deletes it. Anything nobody used for 400 days is deleted by itself
 
 ## Share a result
 
-“Share” on the result page makes a link to the result. You can copy it, send it by email or hand
-it to another app. When you ran the wizard over its link, the result and its link are kept for 7
-days. “Withdraw link” ends the link earlier.
+“Share” on the result page opens the ways to pass the result on. “Link” makes a link to the
+result: copy it, send it by email or hand it to another app. When you ran the wizard over its
+link, the result and its link are kept for 7 days. “Withdraw link” ends the link earlier.
+
+The other tiles send or publish the result itself. Each one walks you through its steps: the
+account it sends with (“Account”), what goes along and where it goes (“What & where”), then
+“Send”. What happens shows in the same window, and “Recent” lists what was sent before. An
+account you connect is kept for your next run, encrypted. “What this wizard remembers” lists it.
+
+| Tile | Does | Needs |
+|---|---|---|
+| “Email” | Sends the files you pick as attachments to one or more addresses | Your mailbox: Gmail, Outlook or any mailbox over SMTP. Where the server sends from an address of its own, no account |
+| Google Drive, OneDrive, S3 | Saves the files into a folder, which is created if it doesn’t exist yet | The account |
+| “Slack” | Posts your message with the link to the result in a channel | Your Slack account |
+| A connected service | An AI agent does what you describe in the service, with its actions, and asks before every change | The account, and a few minutes |
+| “Website” | The wizard opens the site in its browser, and an AI agent posts there what you describe. You sign in yourself, and it asks for your leave before anything goes public | A few minutes. LinkedIn, X, Facebook, Instagram and Meta Ads are ready as presets |
+
+Which tiles a result offers is the wizard’s choice, see [The result](./steps.md#the-result).
+Without one, every tile that needs no AI agent is there for everyone with the link. The agent
+tiles are there for the wizard’s owner in the studio, as they spend the wizard’s credits.
 
 Media made by a model carries an “AI-generated” label. Whoever publishes it has to label it as
 AI-generated. The file already carries the marking.

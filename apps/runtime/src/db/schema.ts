@@ -14,6 +14,7 @@ import type {
 } from "@engenty-wizards/shared/projects";
 import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty-wizards/shared/run";
 import type { RunnerSettings } from "@engenty-wizards/shared/runners";
+import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty-wizards/shared/sharing";
 import type { TranslationMemory } from "@engenty-wizards/shared/translation";
 import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
 import { sql } from "drizzle-orm";
@@ -306,6 +307,30 @@ export const deviceCall = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("device_call_req").on(t.reqId), index("device_call_run").on(t.runId)],
+);
+
+/** One result sent or published to a share target: what was asked, what happened, where it is. */
+export const shareJob = sqliteTable(
+  "share_job",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    tenantId: text("tenant_id").notNull(),
+    /** The share target's id, and its name and icon when it was sent. */
+    target: text("target").notNull(),
+    name: text("name").notNull(),
+    icon: text("icon").$type<ShareIcon>().notNull(),
+    status: text("status", { enum: ["running", "done", "failed", "cancelled"] }).notNull(),
+    request: text("request", { mode: "json" }).$type<ShareRequest>().notNull(),
+    events: text("events", { mode: "json" }).$type<ShareJobView["events"]>().notNull().default([]),
+    result: text("result", { mode: "json" }).$type<ShareJobView["result"]>(),
+    error: text("error"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("share_job_run").on(t.runId, t.createdAt)],
 );
 
 /** What each step of a run cost, in credit micros: the measurements estimates are made from. */

@@ -1,7 +1,7 @@
 ---
 title: Steps
 description: What a wizard is made of – pages, AI steps, generated media, widgets, reviews and the result.
-version: 0.5.0
+version: 0.7.10
 ---
 
 A wizard runs its steps from top to bottom. The last step is always the result.
@@ -178,6 +178,18 @@ Each entry of the result page names a step and the formats the person can downlo
 | AI step, data | JSON, CSV, Excel, Markdown |
 | AI step, collected files | ZIP |
 | List | Excel, CSV, JSON, Markdown; ZIP with the files its rows name |
+
+Under “Send & publish” the step says where a person can send or publish the result with one
+button, besides the link and the downloads (see [Share a result](./run.md#share-a-result)):
+
+| Choice | Means |
+|---|---|
+| “Default” | Every target that needs no AI agent: email, cloud folders, Slack. In the studio you see the agent targets too |
+| “Own list” | Only the targets you list, in this order, each with its own name on the result page and prefilled fields. An agent target then runs for everyone with the link, on your credits |
+| “Off” | The result has only the link and the downloads |
+
+Prefilled fields take the placeholders of instructions: `{{email}}` for a field, `{{steps.offer}}`
+for a step’s output, `{{brand.name}}` for the space.
 
 ## Branches
 

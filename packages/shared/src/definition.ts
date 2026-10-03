@@ -3,6 +3,7 @@ import { z } from "zod";
 import { tableColumnsSchema } from "./engenty/data-tables/index.js";
 import { readNumber } from "./numbers.js";
 import { type ObjectShape, outputShapeSchema, shapeOfFields } from "./shape.js";
+import { isShareTargetId } from "./sharing.js";
 import { CONNECTION_KINDS } from "./store.js";
 import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
 
@@ -858,11 +859,27 @@ export const deliverableSchema = z.object({
   formats: z.array(z.enum(FORMATS)).min(1),
 });
 
+/** One share target the result offers, with what its form starts with. */
+export const shareOptionSchema = z.object({
+  /** "email", "slack", "browser", "storage:<connector>" or "connector:<connector>". */
+  target: z.string().min(1),
+  /** How the result names it, e.g. "Auf LinkedIn posten". Default: the target's own name. */
+  label: z.string().optional(),
+  /** Prefills the target's form by field id. Templates: {{field}}, {{steps.id}}, {{brand.name}}. */
+  values: z.record(z.string(), z.string()).optional(),
+});
+export type ShareOption = z.infer<typeof shareOptionSchema>;
+
 export const resultStepSchema = z.object({
   ...stepBase,
   type: z.literal("result"),
   message: z.string().optional(),
   deliverables: z.array(deliverableSchema),
+  /**
+   * Where the person can send or publish the result besides the link and the downloads. Left
+   * out: the targets that need no model. An empty list: none.
+   */
+  share: z.array(shareOptionSchema).max(12).optional(),
 });
 
 export const stepSchema = z.discriminatedUnion("type", [
@@ -1658,6 +1675,17 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
             });
           } else if (list && sharedLists.has(list)) {
             issues.push({ stepId: step.id, message: notShown(list) });
+          }
+        }
+        for (const option of step.share ?? []) {
+          if (!isShareTargetId(option.target)) {
+            issues.push({
+              stepId: step.id,
+              message: `Unknown share target "${option.target}": use email, slack, browser, storage:<connector> or connector:<connector>.`,
+            });
+          }
+          for (const value of Object.values(option.values ?? {})) {
+            checkTemplate(step, value);
           }
         }
         break;

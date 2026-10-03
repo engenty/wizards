@@ -234,6 +234,7 @@ import {
   writeDraft,
 } from "../services/wizards.js";
 import { readSetting, writeSetting } from "../settings.js";
+import { projectShareTargets } from "../sharing/index.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
@@ -1241,6 +1242,11 @@ export const studio = new Hono<Vars>()
       "content-disposition": `attachment; filename="${name}"`,
       "cache-control": "private, no-store",
     });
+  })
+  // The share targets a result of this wizard can name, for the editor.
+  .get("/wizards/:id/share-targets", async (c) => {
+    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
+    return c.json(await projectShareTargets(w.projectId, requestLang(c)));
   })
   .get("/wizards/:id", async (c) => {
     const user = c.get("user");

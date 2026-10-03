@@ -669,11 +669,7 @@ function Result({
         </div>
         {ShareResultButton && view.shown.some((x) => x.output) ? (
           <div className="max-sm:basis-full">
-            <ShareResultButton
-              runId={view.id}
-              title={`${step.title} · ${view.wizard.title}`}
-              initial={view.shareUrl ? { url: view.shareUrl, expiresAt: view.expiresAt } : null}
-            />
+            <ShareResultButton view={view} title={`${step.title} · ${view.wizard.title}`} />
           </div>
         ) : null}
       </div>

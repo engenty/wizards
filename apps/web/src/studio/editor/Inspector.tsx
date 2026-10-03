@@ -76,6 +76,7 @@ import { ModelClassControl, StepCost, useEstimate } from "./estimate";
 import { conditionText, percent } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
 import { stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
+import { ShareEditor } from "./ShareEditor";
 import { SurfaceBody } from "./SurfaceEditor";
 
 type Update = (next: WizardDefinition) => void;
@@ -1084,6 +1085,9 @@ function StepBody({
                 </div>
               );
             })}
+          </Section>
+          <Section title={t("inspector.share")}>
+            <ShareEditor wizardId={wizardId} step={step} set={set} />
           </Section>
         </>
       );

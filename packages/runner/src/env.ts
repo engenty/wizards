@@ -1,3 +1,4 @@
+import type { RunView } from "@engenty-wizards/shared/run";
 import type { ComponentType } from "react";
 import { type Api, createApi } from "./api.js";
 import { type Lang, setRunnerLang } from "./i18n.js";
@@ -36,9 +37,9 @@ export interface MascotProps {
 }
 
 export interface ShareResultProps {
-  runId: string;
+  /** The finished run: what it made, its link, a share job at work. */
+  view: RunView;
   title: string;
-  initial: { url: string; expiresAt: string | null } | null;
 }
 
 export interface RunnerEnv {
