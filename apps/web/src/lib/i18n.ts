@@ -1105,6 +1105,9 @@ const de: Record<Key, Line> = {
   "pro.held.plan": "Nicht in deinem Paket",
   "pro.held.release": "Wird für diese Version neu geladen",
   "pro.held.unconfirmed": "Paket nicht bestätigt – online prüfen",
+  "pro.failed":
+    "Die Pro-Module ließen sich nicht laden ({error}). Läuft noch eine ältere Version? Starte engenty wizards neu.",
+  "pro.retry": "Nochmal",
   "integrate.nav": "Einbinden",
   "integrate.title": "Deine Wizards in deinen KI-Apps",
   "integrate.intro":
@@ -3081,6 +3084,9 @@ const en = {
   "pro.held.plan": "Not in your plan",
   "pro.held.release": "Downloading again for this version",
   "pro.held.unconfirmed": "Plan not confirmed – go online to check",
+  "pro.failed":
+    "The Pro modules did not load ({error}). Is an older version still running? Restart engenty wizards.",
+  "pro.retry": "Try again",
   "integrate.nav": "Integrate",
   "integrate.title": "Your wizards in your AI apps",
   "integrate.intro":
