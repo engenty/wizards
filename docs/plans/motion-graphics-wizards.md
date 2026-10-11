@@ -217,6 +217,92 @@ en, unlisted) is the first on it: topic + material → research (high, web) → 
 review → voice → film (9:16 or 16:9, standard, the explainer style kit as
 `kit/explainer-kit.zip`, 3.7 MB) → review with change requests → result.
 
+## Faster films: build once, compose per run (planned)
+
+Today every run starts from the kit as a *bar to reach*: the client reads it, copies its helpers,
+maps the brand and writes the whole film as code. Only HyperFrames, the skills and the sound
+catalog are kept between runs.
+
+**Measured** (local install v0.2.21, explainer wizard, 9:16, 34 s, Sonnet medium, 2026-10-06):
+
+| Phase | Time | What happened |
+|---|---|---|
+| Folder setup | 1:15 | skills copied, kit unpacked, HyperFrames installed (first film only), `init` |
+| Reading | 1:35 | BRIEF, input, `SHOWCASE.md`, `reel.js` and the kit's helpers read in pieces; transcribe (23 s) |
+| Writing | 4:30 | one `film.js` of 46 KB (30 k output tokens) plus nine scene files — the scenes and their timing |
+| Checking | 2:45 | 4 snapshots, 3 checks, a draft render; a fix for the brand (below) |
+| Final render | < 0:10 | the runtime's |
+| **Step** | **10:35** | |
+
+The brand cost a round: the space's colours are named in German ("Primär (Logo & Text)",
+"Hintergrund"), `theme.js` matches English role words, and the film came out black and white
+until the client renamed them in its copy. Every run in this space would pay that again.
+
+### 1. The template ships a base project
+
+The kit becomes a ready HyperFrames project instead of a showcase to imitate:
+
+- `base/` in the kit zip: `index.html` with the theme started, `assets/` (theme, kit, ui,
+  character, mascot, type, flow, camera — today's helpers, unchanged), fonts, and **scene
+  templates** for the explainer's beats: problem (busy UI), the person, the helper arrives, product
+  UI simplified, flow/steps, result, sign-off with logo and recap. Each is a function
+  `scene(tl, root, { lines, words, text, picture })` that times itself to the voice line it gets.
+- `PARTS.md` (one page) instead of `SHOWCASE.md` as the first read: the scene templates, their
+  options, and when a new scene is worth writing. `SHOWCASE.md` and the stills stay for scenes
+  the templates do not cover.
+- The runtime copies `base/` into `film/` (instead of `hyperframes init`) and writes
+  `film/timing.json` from the voice (lines and words, transcribed once by the runtime, not the
+  client).
+- The client's task becomes: pick a template per beat, fill text and pictures, write only what is
+  new. The rules say so; a film that only uses templates is fine.
+- Made once with Opus max from the explainer kit (about an hour); the kit zip grows from 3.7 MB
+  by little (code, no renders).
+
+Changes: `prepareFilmFolder` (base instead of init, `timing.json`), `CLAUDE.md` rules, kit
+format documented in the authoring guide (`base/`, `PARTS.md`), the explainer entry's kit.
+
+### 2. A brand base per space
+
+What depends only on the space's brand is made once and kept:
+
+- `brand/theme.json`: the space's colours mapped to the kit's roles (accent, background, ink,
+  surfaces, on-accent), with text-safe variants and fonts — decided once by the client (it
+  understands "Primär", "Hintergrund"), checked by a snapshot, then fixed.
+- The logo prepared for the sign-off (SVG cleaned, light/dark variants) and the mascot in the
+  brand's colours.
+- Kept with the project's files under `films/brand-base/<kit>/`, keyed by a hash of brand.json
+  plus the kit's version; a changed brand or kit makes it again. The first film in a space pays
+  1–2 minutes for it as a small turn of its own before the film; later films copy it.
+
+Changes: a `brandBase` turn in `runFilmStep` before the film turn, storage next to the project's
+brand, `theme.js` reads `theme.json` first and its name matching stays the fallback.
+
+### 3. The second format from the first
+
+`film16` today is a second film from scratch. Instead it starts from the first film's folder:
+
+- A film step may name `from: "steps.film"`: its folder is a copy of that step's `film/` (code,
+  assets, timing), resized with HyperFrames' format, and the client's task is "lay this out for
+  16:9" — the scenes, timing and sound stay.
+- When the first film is not there (the branch skipped it), the step makes its film as today.
+
+In the explainer the branch becomes: always the 9:16 film, then 16:9 from it when asked — or the
+person picks one format and the other is offered at the end.
+
+Changes: `from` in `filmStepSchema` (a film step earlier in the flow), `prepareFilmFolder`
+copies, the explainer entry's flow.
+
+### Expected
+
+| | Today | With 1–3 |
+|---|---|---|
+| First film in a space | 10–15 min | 6–9 min (brand base included) |
+| Next films | 10–15 min | 4–7 min |
+| Second format | 10–15 min | 2–4 min |
+
+Writing drops the most (templates instead of 46 KB of new code), reading by a minute, the brand
+round goes away. Checking stays — it is what keeps the film clean.
+
 ## Runtime changes made (open repo, uncommitted)
 
 Made for the first attempt; all stay useful:
@@ -298,7 +384,8 @@ Today: no step output is reused across runs; the project keeps brand (name, colo
 facts, lists and kept files persist per wizard and person. The commercial captures the same
 website again on every run.
 
-Proposal: the capture and `frame.md` of a brand are kept with the project and reused while the
+For films see "Faster films" above (brand base per space). Otherwise:
+the capture and `frame.md` of a brand are kept with the project and reused while the
 website has not changed — a "brand kit" run done once, read by every film. A `project_write`
 tool (confirmed by the person) or `keep` on a step (reuse its output while the same inputs
 repeat, with an age limit).
