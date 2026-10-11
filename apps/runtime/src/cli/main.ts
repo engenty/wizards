@@ -31,7 +31,7 @@ ${line(command(), "show the status and a menu (start, stop, update…); runs the
 ${more("(needs a terminal)")}
 ${line(`${command()} start`, "start it in this terminal and open the studio (Ctrl-C stops it)")}
 ${line(`${command()} studio`, "open the studio, starting it in the background if needed")}
-${line(`${command()} setup`, "set up your engenty account, an AI client, ffmpeg and start at login")}
+${line(`${command()} setup`, "set up your engenty account, an AI client, ffmpeg, a decision model and start at login")}
 ${line(`${command()} account`, "show your engenty account; add sign-in or sign-out to change it")}
 ${line(`${command()} open`, "sign this browser in to the running studio (--print: only print the link)")}
 ${line(`${command()} status`, "show what’s installed and running")}

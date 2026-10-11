@@ -11,9 +11,10 @@ import { type CallMeta, costOf, systemOneAccess, textModel } from "../models.js"
 
 /**
  * Every decision a run makes goes through here, on the classifier class. A decision model
- * (System One: Jev through the credits, an AI Gateway key or a TypeSafe key) answers first, with
- * probabilities. What it cannot answer — no way to one, a failure, a question it leaves open —
- * the class's language model answers as structured output: slower and dearer, the same shapes.
+ * (System One: Jev through the credits, an AI Gateway key or a TypeSafe key, or Clef-flash in
+ * the local Ollama) answers first, with probabilities. What it cannot answer — no way to one, a
+ * failure, a question it leaves open — the class's language model answers as structured output:
+ * slower and dearer, the same shapes.
  * Only when both fail does the decision fail, and with it the step.
  */
 

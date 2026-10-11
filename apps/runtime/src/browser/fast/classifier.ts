@@ -110,12 +110,14 @@ export function validateChoiceAnswer(answer: unknown, ids: Iterable<string>): Ch
 const RETRYABLE = new Set([429, 503, 529]);
 
 /**
- * The run's way to a decision model (credits, an AI Gateway key or a TypeSafe key), or null
- * when there is none — then the fast loop is not offered.
+ * The run's way to a hosted decision model (credits, an AI Gateway key or a TypeSafe key), or
+ * null when there is none — then the fast loop is not offered. Clef in the local Ollama is not
+ * taken: a page's elements are more than its 26 options, and on a laptop one step took over a
+ * minute (base M4), where the agent's own browser tools take seconds.
  */
 export async function classifierClient(signal?: AbortSignal): Promise<ClassifierClient | null> {
   const access = await systemOneAccess().catch(() => null);
-  if (!access) {
+  if (!access || access.local) {
     return null;
   }
   return {
@@ -137,7 +139,8 @@ export async function classifierClient(signal?: AbortSignal): Promise<Classifier
           return (await res.json()) as SystemOneResponse;
         }
         if (!(RETRYABLE.has(res.status) && attempt < 2)) {
-          throw new Error(`The decision model answered ${res.status}.`);
+          const why = (await res.text().catch(() => "")).trim().slice(0, 300);
+          throw new Error(`The decision model answered ${res.status}${why ? `: ${why}` : ""}`);
         }
       }
     },

@@ -1,7 +1,8 @@
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, totalmem } from "node:os";
 import { delimiter, join } from "node:path";
 import * as p from "@clack/prompts";
+import { LOCAL_DECISION_MODEL } from "../decision-model.js";
 import { accountStep } from "./account.js";
 import { autostartForStatus, setAutostart } from "./autostart.js";
 import { installClient, installCommand } from "./clients.js";
@@ -27,6 +28,15 @@ import {
   suggestedClient,
   vendorApp,
 } from "./machine.js";
+import {
+  DECISION_MODEL_GB,
+  freeGb,
+  installOllama,
+  ollamaState,
+  pullModel,
+  servesDecisions,
+  startOllama,
+} from "./ollama.js";
 import { runningRuntime, settings } from "./start.js";
 import { badge, busy, cmd, cyan, dim, tilde } from "./ui.js";
 
@@ -180,6 +190,100 @@ async function toolsStep(interactive: boolean): Promise<"cancelled" | undefined>
     } else {
       task.error(`ffmpeg didn’t install. ${tail.split("\n").pop() ?? ""}`);
     }
+  }
+}
+
+const gb = (bytes: number) => (bytes / 2 ** 30).toFixed(1);
+
+/**
+ * A decision model on this computer: Ollama with Cloudflare's Clef-flash. It answers a wizard's
+ * decisions (which branch, which option) without a key or credits. Asked, never assumed: it is a
+ * download of about 11 GB.
+ */
+async function decisionModelStep(
+  paths: Layout,
+  interactive: boolean,
+): Promise<"cancelled" | undefined> {
+  const state = await ollamaState();
+  if (state.version && !servesDecisions(state.version)) {
+    p.log.warn(
+      `Ollama ${state.version} is too old for a decision model (it needs 0.35 or newer).\n${dim(`Update Ollama, then run ${cmd("setup")} again.`)}`,
+    );
+    return;
+  }
+  if (state.model) {
+    p.log.success(`Decision model: ${state.model} ${dim(`in Ollama ${state.version}`)}`);
+    return;
+  }
+  const what = state.path ? `Clef-flash into Ollama` : "Ollama with Clef-flash";
+  if (!interactive) {
+    p.log.info(
+      dim(
+        `Optional: a decision model on this computer (${what}, about ${DECISION_MODEL_GB} GB). To add it: ${cmd("setup")}`,
+      ),
+    );
+    return;
+  }
+  const free = await freeGb();
+  if (free !== null && free < DECISION_MODEL_GB + 2) {
+    p.log.warn(
+      `There isn’t room for a decision model: it needs about ${DECISION_MODEL_GB + 2} GB and ${free} GB are free.`,
+    );
+    return;
+  }
+  const memory = Math.round(totalmem() / 2 ** 30);
+  const answer = await p.confirm({
+    message: `Install a decision model on this computer? ${what} makes the wizards’ decisions (which branch, which option) here, without a key or credits. About ${DECISION_MODEL_GB} GB${memory < 16 ? `; it needs 16 GB of memory and this computer has ${memory}` : ""}.`,
+    initialValue: false,
+  });
+  if (cancelled(answer)) {
+    return "cancelled";
+  }
+  if (!answer) {
+    p.log.info(dim(`To add it later: ${cmd("setup")}`));
+    return;
+  }
+
+  let { path: ollama, version } = state;
+  if (!ollama) {
+    if (process.platform === "linux") {
+      p.log.info("Ollama’s own installer runs now and asks for your password.");
+    }
+    const task = p.taskLog({ title: "Installing Ollama", limit: 6 });
+    const outcome = await installOllama(paths, (line) => task.message(line));
+    if (!outcome.ok) {
+      task.error(`Ollama didn’t install. ${outcome.message}`);
+      return;
+    }
+    task.success(`Ollama installed ${dim(tilde(outcome.message))}`);
+    // Linux's installer starts it as a service already.
+    ({ path: ollama, version } = await ollamaState());
+  }
+  if (!version) {
+    const spinner = p.spinner();
+    spinner.start("Starting Ollama");
+    version = await startOllama(ollama, paths);
+    if (!version) {
+      spinner.error(`Ollama isn’t answering. Start it, then run ${cmd("setup")} again.`);
+      return;
+    }
+    if (!servesDecisions(version)) {
+      spinner.error(`Ollama ${version} is too old for a decision model (it needs 0.35 or newer).`);
+      return;
+    }
+    spinner.stop(`Ollama ${version} is running`);
+  }
+  const spinner = p.spinner();
+  spinner.start(`Downloading ${LOCAL_DECISION_MODEL}`);
+  try {
+    await pullModel(LOCAL_DECISION_MODEL, (done, total) =>
+      spinner.message(`Downloading ${LOCAL_DECISION_MODEL}  ${gb(done)} of ${gb(total)} GB`),
+    );
+    spinner.stop(`Decision model: ${LOCAL_DECISION_MODEL} ${dim(`in Ollama ${version}`)}`);
+  } catch (error) {
+    spinner.error(
+      `${LOCAL_DECISION_MODEL} didn’t download. ${(error as Error).message}\n${dim(`To try again: ${cyan(`ollama pull ${LOCAL_DECISION_MODEL}`)}`)}`,
+    );
   }
 }
 
@@ -362,7 +466,7 @@ async function howToUse(paths: Layout) {
 
 /**
  * The guided setup: the account this computer joins, then what this machine has, what is
- * missing, and what to install — an AI client to think with, ffmpeg, starting at login. It
+ * missing, and what to install — an AI client to think with, ffmpeg, a decision model, starting at login. It
  * starts nothing; it ends with what runs and how to start, stop and check it. Returns false
  * when it was stopped.
  */
@@ -384,6 +488,9 @@ export async function setup(paths: Layout, options: SetupOptions): Promise<boole
     return false;
   }
   if ((await toolsStep(interactive)) === "cancelled") {
+    return false;
+  }
+  if ((await decisionModelStep(paths, interactive)) === "cancelled") {
     return false;
   }
   if ((await autostartStep(paths, interactive)) === "cancelled") {

@@ -40,6 +40,7 @@ import {
   type TranscriptionModel,
 } from "ai";
 import { accountToken, linkedAccount } from "./auth/account.js";
+import { ollamaDecisionModel, ollamaRoot } from "./decision-model.js";
 import { DeviceModel, deviceThinks } from "./engine/device.js";
 import { env } from "./env.js";
 import {
@@ -873,12 +874,31 @@ export interface SystemOneAccess {
   headers: Record<string, string>;
   /** Null: the gateway of the credits picks the model of the classifier class. */
   model: string | null;
+  /**
+   * Clef in Ollama on this machine: free, but a laptop takes tens of seconds for a web page's
+   * worth of state, and it offers at most 26 options per question.
+   */
+  local?: boolean;
+}
+
+/** What the local Ollama held at the last look, so a decision does not ask it every time. */
+let localDecision: { url: string; model: string | null; at: number } | null = null;
+
+/** The decision model in the local Ollama (Clef-flash, pulled by the setup), looked up once a minute. */
+async function localDecisionModel(url: string): Promise<string | null> {
+  if (localDecision?.url === url && Date.now() - localDecision.at < 60_000) {
+    return localDecision.model;
+  }
+  const model = await ollamaDecisionModel(url);
+  localDecision = { url, model, at: Date.now() };
+  return model;
 }
 
 /**
- * The way to TypeSafe's Jev, a classifier that answers typed questions with probabilities and
- * writes no text: the credits on a Manage-App's runtime; alone, an AI Gateway key, a TypeSafe
- * key, or the linked account's credits. Null when there is none.
+ * The way to a decision model, one that answers typed questions with probabilities and writes
+ * no text: the credits on a Manage-App's runtime; alone, TypeSafe's Jev through an AI Gateway
+ * key or a TypeSafe key, then Clef-flash in Ollama on this machine, then Jev on the linked
+ * account's credits. Null when there is none.
  */
 export async function systemOneAccess(): Promise<SystemOneAccess | null> {
   const cfg = await config();
@@ -908,6 +928,17 @@ export async function systemOneAccess(): Promise<SystemOneAccess | null> {
       url: "https://api.typesafe.ai/v1/systemone",
       headers: { authorization: `Bearer ${env.typesafeKey}` },
       model: "jev-latest",
+    };
+  }
+  // Free, and nothing leaves the machine: before the credits.
+  const ollama = cfg.settings.ollamaUrl ?? env.ollamaUrl;
+  const local = await localDecisionModel(ollama);
+  if (local) {
+    return {
+      url: `${ollamaRoot(ollama)}/v1/systemone`,
+      headers: {},
+      model: local,
+      local: true,
     };
   }
   const access = await creditAccess(cfg, false).catch(() => null);
