@@ -97,6 +97,12 @@ the runtime asks with its service key and keeps the answer of `GET` a minute.
 | `DELETE /v1/tenants/:id/channels/requests` | → `{ withdrawn }` · takes the open request back |
 | `POST /v1/tenants/:id/channels/usage` | `{ kind: "sms" \| "call" \| "whatsapp", quantity, idempotencyKey, runId? }` → `{ credits }` · what the number carried, booked at the Manage-App's prices: `sms` by segment, sent or received, `call` by started minute, `whatsapp` by message sent · the same key books once · the number's monthly price the Manage-App books itself |
 
+### Clients of the public run API
+
+| Call | Answer |
+|---|---|
+| `GET /v1/clients` | `{ clients: [{ id, name, runsPerHour, revoked }], unknown: { allow, runsPerHour } }` · which clients (`x-wizards-client`, docs/content/dev/api.md) may start runs on the Manage-App's runtimes and how many an hour across all visitors (`null` = no cap); `unknown` is what an id not in the list gets. Fetched at the start and hourly; a `404` means no list, and every client may start runs. Not yet built in the Manage-App: docs/plans/api-clients.md |
+
 ## Manage-App → runtime
 
 `Authorization: Bearer <service key of the runtime>`.

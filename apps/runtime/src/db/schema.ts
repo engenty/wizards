@@ -230,6 +230,8 @@ export const run = sqliteTable(
      * (`data-page` of the embed tag, else the page's own address); null on the wizard's link.
      */
     origin: text("origin"),
+    /** The client that started it over the public API (`x-wizards-client`): web, app, cli, or a registered id. */
+    client: text("client"),
     status: text("status", {
       enum: ["waiting_input", "running", "done", "failed", "cancelled"],
     }).notNull(),
