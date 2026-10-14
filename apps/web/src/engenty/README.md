@@ -95,3 +95,9 @@ The www lobby, cast and heading mascots use the shared Jelly defaults. Larger
 agent avatars in the app (56px and above), hiring previews and onboarding
 characters use the same renderer; compact navigation marks remain SVG.
 Wizard's large theme-aware `Mascot` instances also use the shared renderer.
+
+## Licence
+
+The figures themselves (`engenty.tsx`, `colors.ts`, `forms.ts`, `goggles.tsx`, `helmet.tsx`,
+`logo.tsx`, `goose-helmet-fit.ts` and the helmet's mesh and livery in `assets/`) are CC BY 4.0; the renderers and motion in this folder are FSL-1.1-MIT. Using the figures as a brand
+is governed by [TRADEMARKS.md](../../../../TRADEMARKS.md).

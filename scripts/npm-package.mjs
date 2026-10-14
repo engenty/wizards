@@ -92,6 +92,8 @@ for (const path of [
   "plugin",
   "bin",
   "LICENSE",
+  "LICENSE-FIGURES",
+  "TRADEMARKS.md",
   "README.md",
 ]) {
   cpSync(join(root, path), join(stage, path), { recursive: true });
@@ -201,13 +203,14 @@ writeFileSync(
       version,
       description: `${DESCRIPTION} The runtime, which \`npx wizards\` installs.`,
       ...about,
+      license: `${pkg.license} AND CC-BY-4.0`,
       type: "module",
       bin: { wizards: "bin/wizards.mjs" },
       engines: pkg.engines,
       // Windows has no installer yet (bin/wizards.mjs says so): npm refuses at once instead of
       // installing for many minutes first.
       os: ["darwin", "linux"],
-      files: ["apps", "bin", "modules", "plugin"],
+      files: ["apps", "bin", "modules", "plugin", "LICENSE-FIGURES", "TRADEMARKS.md"],
       dependencies: sorted(Object.keys(dependencies).filter((name) => !OPTIONAL.includes(name))),
       optionalDependencies: sorted(OPTIONAL.filter((name) => name in dependencies)),
       bundleDependencies: bundled,
@@ -224,7 +227,7 @@ mkdirSync(join(launcherStage, "bin"), { recursive: true });
 cpSync(join(root, "bin", "wizards.mjs"), join(launcherStage, "bin", "wizards.mjs"));
 chmodSync(join(launcherStage, "bin", "wizards.mjs"), 0o755);
 cpSync(join(root, "apps", "web", "public", "install.sh"), join(launcherStage, "install.sh"));
-for (const file of ["LICENSE", "README.md"]) {
+for (const file of ["LICENSE", "LICENSE-FIGURES", "TRADEMARKS.md", "README.md"]) {
   cpSync(join(root, file), join(launcherStage, file));
 }
 writeFileSync(
@@ -237,8 +240,9 @@ writeFileSync(
       ...about,
       type: "module",
       bin: { wizards: "bin/wizards.mjs" },
+      license: `${pkg.license} AND CC-BY-4.0`,
       os: ["darwin", "linux"],
-      files: ["bin", "install.sh"],
+      files: ["bin", "install.sh", "LICENSE-FIGURES", "TRADEMARKS.md"],
     },
     null,
     2,

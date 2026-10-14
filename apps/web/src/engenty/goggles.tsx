@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CC-BY-4.0
 // Flat SVG icon goggles. Volumetric coat goggles live in coat-goggles.ts.
 import type { EngentyKind } from "./colors";
 import { ENGENTY_FORMS } from "./forms";
