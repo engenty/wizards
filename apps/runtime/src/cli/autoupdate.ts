@@ -92,11 +92,21 @@ export interface Policy {
  */
 export function autoUpdatePolicy(
   paths: Layout,
-  options: { installed: boolean; env?: NodeJS.ProcessEnv; note?: InstallNote },
+  options: {
+    installed: boolean;
+    env?: NodeJS.ProcessEnv;
+    note?: InstallNote;
+    platform?: NodeJS.Platform;
+  },
 ): Policy {
   const env = options.env ?? process.env;
   if (!options.installed) {
     return { on: false, reason: "only an install made by install.sh updates itself" };
+  }
+  // The version folders switch through symbolic links, which Windows makes only for an
+  // administrator or in developer mode; there `wizards update` runs install.ps1 instead.
+  if ((options.platform ?? process.platform) === "win32") {
+    return { on: false, reason: "not on Windows yet: wizards update" };
   }
   if (
     truthy(env.WIZARDS_DISABLE_AUTOUPDATE ?? readEnvFile(paths.envFile).WIZARDS_DISABLE_AUTOUPDATE)

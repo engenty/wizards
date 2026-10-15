@@ -132,7 +132,7 @@ async function windowsState(): Promise<Autostart> {
     await run("schtasks", ["/Query", "/TN", TASK], { timeout: 10_000 });
     return { on: true, how: TASK_HOW };
   } catch {
-    return existsSync(startupShortcut())
+    return present(startupShortcut())
       ? { on: true, how: STARTUP_HOW }
       : { on: false, how: TASK_HOW };
   }
@@ -204,13 +204,15 @@ export async function autostartState(paths: Layout): Promise<Autostart> {
   if (!["darwin", "linux", "win32"].includes(process.platform)) {
     return { unavailable: `not on ${process.platform}` };
   }
+  if (process.platform === "win32") {
+    return installedByScript(paths)
+      ? windowsState()
+      : { unavailable: "only for installs made with the install script" };
+  }
   const file = process.platform === "darwin" ? LOGIN_ITEM : unitFile();
   const there = present(file);
   if (!there && !installedByScript(paths)) {
     return { unavailable: "only for installs made with the install script" };
-  }
-  if (process.platform === "win32") {
-    return windowsState();
   }
   if (process.platform === "darwin") {
     return { on: there, how: MAC_HOW };
