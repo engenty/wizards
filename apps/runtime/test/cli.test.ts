@@ -7,7 +7,13 @@ import { loginItemText, unitText } from "../src/cli/autostart.js";
 import { installCommand } from "../src/cli/clients.js";
 import { inherited, runtimeEnv, runtimePath } from "../src/cli/environment.js";
 import { layout, readEnvFile, wizardsHome } from "../src/cli/home.js";
-import { CLIENTS, findChrome, nodeIsCurrent, suggestedClient } from "../src/cli/machine.js";
+import {
+  CLIENTS,
+  findChrome,
+  findOnPath,
+  nodeIsCurrent,
+  suggestedClient,
+} from "../src/cli/machine.js";
 import { entryUrl, readSecret } from "../src/cli/start.js";
 import { clearRunning, readRunning, writeRunning } from "../src/running.js";
 
@@ -89,6 +95,23 @@ describe("what the runtime inherits from the terminal", () => {
     expect(runtimeEnv(layout("/h"), start, shell, { SECRETS: "" }, "darwin").SECRETS).toBeUndefined();
     expect(runtimeEnv(layout("/h"), start, { ...shell, SECRETS: "file" }, {}, "darwin").SECRETS).toBe(
       "file",
+    );
+  });
+
+  it("puts the clients first on Windows too, with where Claude Code and Cursor Agent install", () => {
+    const env = {
+      PATH: "C:\\Windows\\system32",
+      USERPROFILE: "C:\\Users\\x",
+      LOCALAPPDATA: "C:\\Users\\x\\AppData\\Local",
+    };
+    expect(runtimePath(layout("C:\\h"), env, "C:\\h\\tools\\node\\node.exe", "win32")).toBe(
+      [
+        layout("C:\\h").clients,
+        "C:\\h\\tools\\node",
+        "C:\\Windows\\system32",
+        "C:\\Users\\x\\.local\\bin",
+        "C:\\Users\\x\\AppData\\Local\\cursor-agent",
+      ].join(";"),
     );
   });
 
@@ -184,6 +207,18 @@ describe("the machine", () => {
 
 });
 
+describe("finding a command", () => {
+  it("takes the endings in PATHEXT on Windows, and only a file that may run elsewhere", () => {
+    writeFileSync(join(dir, "codex.cmd"), "@echo off\n");
+    writeFileSync(join(dir, "codex"), "#!/bin/sh\n");
+    expect(findOnPath("codex", dir, "win32", ".EXE;.CMD")).toMatch(/codex\.cmd$/i);
+    expect(findOnPath("codex.cmd", dir, "win32", ".EXE;.CMD")).toMatch(/codex\.cmd$/i);
+    expect(findOnPath("claude", dir, "win32", ".EXE;.CMD")).toBeNull();
+    // Not executable: no command on macOS or Linux.
+    expect(findOnPath("codex", dir, "linux")).toBeNull();
+  });
+});
+
 describe("the AI clients", () => {
   const codex = CLIENTS.find((c) => c.id === "codex");
   const claude = CLIENTS.find((c) => c.id === "claude");
@@ -197,6 +232,20 @@ describe("the AI clients", () => {
     );
     expect(claude && installCommand(claude, layout("/h"))).toBe(
       "curl -fsSL https://claude.ai/install.sh | bash",
+    );
+  });
+
+  it("installs on Windows with PowerShell: the vendor's install.ps1, npm with a quoted prefix", () => {
+    const home = layout("C:\\Users\\a b\\.engenty\\wizards");
+    expect(claude && installCommand(claude, home, "win32")).toBe(
+      "irm https://claude.ai/install.ps1 | iex",
+    );
+    const cursor = CLIENTS.find((c) => c.id === "cursor");
+    expect(cursor && installCommand(cursor, home, "win32")).toBe(
+      "irm 'https://cursor.com/install?win32=true' | iex",
+    );
+    expect(codex && installCommand(codex, home, "win32")).toMatch(
+      /^npm install --global --prefix '.*a b.*clients' @openai\/codex$/,
     );
   });
 

@@ -95,6 +95,20 @@ export function entryUrl(
 
 /** Opens an address in the person's browser; false when this machine has none to open it with. */
 export function openBrowser(url: string): boolean {
+  if (process.platform === "win32") {
+    // The default browser, through the shell's own handler: no cmd.exe, which would read the
+    // link's & as the start of another command.
+    const rundll32 = join(process.env.SystemRoot || "C:\\Windows", "System32", "rundll32.exe");
+    try {
+      spawn(rundll32, ["url.dll,FileProtocolHandler", url], {
+        stdio: "ignore",
+        detached: true,
+      }).unref();
+      return true;
+    } catch {
+      return false;
+    }
+  }
   const opener =
     process.platform === "darwin"
       ? "open"

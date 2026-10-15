@@ -1,4 +1,4 @@
-import { basename, delimiter, dirname, join } from "node:path";
+import { basename, delimiter, dirname, join, win32 } from "node:path";
 import { isCI } from "./autoupdate.js";
 import type { Layout } from "./home.js";
 
@@ -61,7 +61,27 @@ export function inherited(env: NodeJS.ProcessEnv): Record<string, string> {
  * The PATH of the runtime: AI clients the setup installed and the Node that runs this command
  * come first — a client installed with npm is a script that asks for `node`.
  */
-export function runtimePath(paths: Layout, env: NodeJS.ProcessEnv, node = process.execPath) {
+export function runtimePath(
+  paths: Layout,
+  env: NodeJS.ProcessEnv,
+  node = process.execPath,
+  platform: NodeJS.Platform = process.platform,
+) {
+  if (platform === "win32") {
+    // npm puts a prefix's commands in the prefix itself on Windows. Claude Code installs into
+    // ~\.local\bin and Cursor Agent into %LOCALAPPDATA%\cursor-agent; both add that to the
+    // user's PATH, which a process started before the install does not see.
+    const p = win32;
+    const home = env.USERPROFILE ?? "";
+    const entries = [
+      paths.clients,
+      p.dirname(node),
+      ...(env.PATH ?? env.Path ?? "").split(";"),
+      home && p.join(home, ".local", "bin"),
+      env.LOCALAPPDATA && p.join(env.LOCALAPPDATA, "cursor-agent"),
+    ];
+    return [...new Set(entries.filter(Boolean))].join(";");
+  }
   const entries = [
     join(paths.clients, "bin"),
     dirname(node),

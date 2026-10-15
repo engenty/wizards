@@ -1,19 +1,19 @@
-import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 // The search for a browser is shared with env.ts, so the runtime uses the one the setup found.
 import { findChrome, findOnPath } from "../render/browser-path.js";
 import { runtimePath } from "./environment.js";
+import { runFile as run } from "./exec.js";
 import type { Layout } from "./home.js";
 
 export { findChrome, findOnPath };
 
-const run = promisify(execFile);
-
 /** How the setup installs an AI client: with npm into the install's own prefix, or by the vendor's script. */
-export type ClientInstall = { kind: "npm"; pkg: string } | { kind: "script"; url: string };
+export type ClientInstall =
+  | { kind: "npm"; pkg: string }
+  /** `url` for `curl | bash`; `windows` for PowerShell's `irm | iex`. */
+  | { kind: "script"; url: string; windows: string };
 
 export interface Client {
   id: "codex" | "claude" | "gemini" | "cursor";
@@ -41,7 +41,11 @@ export const CLIENTS: readonly Client[] = [
     name: "Claude Code",
     bin: "claude",
     account: "Claude",
-    install: { kind: "script", url: "https://claude.ai/install.sh" },
+    install: {
+      kind: "script",
+      url: "https://claude.ai/install.sh",
+      windows: "https://claude.ai/install.ps1",
+    },
     app: "Claude",
   },
   {
@@ -56,7 +60,11 @@ export const CLIENTS: readonly Client[] = [
     name: "Cursor Agent",
     bin: "cursor-agent",
     account: "Cursor",
-    install: { kind: "script", url: "https://cursor.com/install" },
+    install: {
+      kind: "script",
+      url: "https://cursor.com/install",
+      windows: "https://cursor.com/install?win32=true",
+    },
     app: "Cursor",
   },
 ];

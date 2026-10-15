@@ -1,16 +1,21 @@
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { join } from "node:path";
-import { promisify } from "node:util";
+import { runFile } from "../cli/exec.js";
 import { layout } from "../cli/home.js";
 import type { EnvSpec, HarnessAuth } from "./types.js";
 
-export const run = promisify(execFile);
+export const run = runFile;
 
 let shellEnv: Promise<Record<string, string>> | null = null;
 
 /** The person's login shell, asked once: a desktop app and a bare dev server start without its variables. */
 export function loginShellEnv(): Promise<Record<string, string>> {
   shellEnv ??= new Promise<Record<string, string>>((done) => {
+    // Windows has no login shell to ask: the runtime's own environment is the person's.
+    if (process.platform === "win32") {
+      done({});
+      return;
+    }
     const shell = process.env.SHELL || "/bin/zsh";
     // In a session of its own, away from the terminal `wizards` runs in: an interactive
     // shell takes over that terminal for its job control and keeps it when it ends, and Ctrl-C
