@@ -62,6 +62,7 @@ export function pickEnv(
   passThrough: RegExp,
   /** Folders before the shell's PATH: the clients the setup installed. */
   first: string[] = [],
+  platform: NodeJS.Platform = process.platform,
 ): NodeJS.ProcessEnv {
   const picked: NodeJS.ProcessEnv = {};
   const source = Object.keys(shell).length ? shell : own;
@@ -70,18 +71,33 @@ export function pickEnv(
       picked[key] = value;
     }
   }
-  const path = [...first, ...(shell.PATH ?? "").split(":"), ...(own.PATH ?? "").split(":")].filter(
-    Boolean,
-  );
+  const windows = platform === "win32";
+  if (windows) {
+    for (const [key, value] of Object.entries(own)) {
+      if (WINDOWS_BASE.test(key) && value) {
+        picked[key] = value;
+      }
+    }
+  }
+  const sep = windows ? ";" : ":";
+  const ownPath = own.PATH ?? own.Path ?? "";
+  const path = [...first, ...(shell.PATH ?? "").split(sep), ...ownPath.split(sep)].filter(Boolean);
   return {
     ...picked,
-    PATH: [...new Set(path)].join(":"),
+    PATH: [...new Set(path)].join(sep),
     HOME: own.HOME,
     USER: own.USER,
     LANG: "en_US.UTF-8",
     TERM: "dumb",
   };
 }
+
+/**
+ * What a Windows program needs of the environment to start at all: the system's folders, the
+ * user's folders, and how commands are found and run (a .cmd needs ComSpec).
+ */
+const WINDOWS_BASE =
+  /^(SystemRoot|SystemDrive|windir|ComSpec|PATHEXT|TEMP|TMP|USERPROFILE|USERNAME|USERDOMAIN|HOMEDRIVE|HOMEPATH|APPDATA|LOCALAPPDATA|ProgramData|ProgramFiles|ProgramFiles\(x86\)|ProgramW6432|CommonProgramFiles|CommonProgramFiles\(x86\)|CommonProgramW6432|COMPUTERNAME|OS|PROCESSOR_ARCHITECTURE|NUMBER_OF_PROCESSORS)$/i;
 
 export function stripKeys(env: NodeJS.ProcessEnv, keyVars: string[]): NodeJS.ProcessEnv {
   const bare = { ...env };
@@ -91,8 +107,21 @@ export function stripKeys(env: NodeJS.ProcessEnv, keyVars: string[]): NodeJS.Pro
   return bare;
 }
 
-/** Where the setup installs clients from npm, whoever started this runtime. */
-const installed = () => [join(layout().clients, "bin")];
+/**
+ * Where the setup installs clients, whoever started this runtime: npm's prefix (on Windows the
+ * prefix itself), and on Windows where Claude Code and Cursor Agent put themselves.
+ */
+const installed = () => {
+  if (process.platform !== "win32") {
+    return [join(layout().clients, "bin")];
+  }
+  const { USERPROFILE: home, LOCALAPPDATA: local } = process.env;
+  return [
+    layout().clients,
+    ...(home ? [join(home, ".local", "bin")] : []),
+    ...(local ? [join(local, "cursor-agent")] : []),
+  ];
+};
 
 export interface ResolvedEnv {
   env: NodeJS.ProcessEnv;

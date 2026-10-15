@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
-import { runtimePath } from "./environment.js";
+import { runtimePath, withPath } from "./environment.js";
 import { type Logged, runLogged } from "./exec.js";
 import type { Layout } from "./home.js";
 import { type Client, findOnPath } from "./machine.js";
@@ -49,7 +49,7 @@ export function installClient(
   onLine?: (line: string) => void,
 ): Promise<Logged> {
   const logFile = join(paths.logs, "install.log");
-  const env = { ...process.env, PATH: runtimePath(paths, process.env) };
+  const env = withPath(process.env, runtimePath(paths, process.env));
   if (client.install.kind === "script" && process.platform === "win32") {
     const [shell, ...args] = POWERSHELL;
     return runLogged(shell, [...args, installCommand(client, paths)], { env, logFile, onLine });

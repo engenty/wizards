@@ -12,6 +12,7 @@ import {
   installedByScript,
   isCheckout,
   type Layout,
+  layout,
   packageVersion,
   readInstallNote,
   writeInstallNote,
@@ -285,6 +286,16 @@ function pathLine(): { file: string; line: string } {
 
 /** An install made by install.sh has its command in `~/.local/bin`: is that on the PATH? */
 async function pathStep(interactive: boolean): Promise<"cancelled" | undefined> {
+  if (process.platform === "win32") {
+    // install.ps1 put the command's folder on the user's PATH; a terminal opened before it
+    // does not see that.
+    const bin = layout().bin.toLowerCase();
+    const path = (process.env.PATH ?? "").toLowerCase().split(";");
+    if (installedByScript() && !path.includes(bin)) {
+      p.log.info(`Open a new terminal to use the ${cyan("wizards")} command.`);
+    }
+    return;
+  }
   const local = join(homedir(), ".local", "bin");
   if (!installedByScript() || (process.env.PATH ?? "").split(delimiter).includes(local)) {
     return;

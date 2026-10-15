@@ -69,6 +69,23 @@ export function packageVersion(): string {
   return running ?? "0.0.0";
 }
 
+/** The `wizards` command install.sh (on Windows install.ps1) writes: `bin/wizards`, `bin\\wizards.cmd`. */
+export function commandFile(paths: Layout, platform: NodeJS.Platform = process.platform): string {
+  return join(paths.bin, platform === "win32" ? "wizards.cmd" : "wizards");
+}
+
+/**
+ * The Node and the script of an install made by the installer: what its command runs. They stay
+ * where they are across updates (`tools/node` follows the Node of the version).
+ */
+export function installedScript(paths: Layout, platform: NodeJS.Platform = process.platform) {
+  const win = platform === "win32";
+  return {
+    node: join(paths.tools, "node", win ? "node.exe" : "bin/node"),
+    script: join(paths.runtime, "node_modules", "wizards", "bin", "wizards.mjs"),
+  };
+}
+
 /** How this copy got here: by install.sh into the home folder, or by npm/npx or a checkout. */
 export function installedByScript(paths: Layout = layout()): boolean {
   try {

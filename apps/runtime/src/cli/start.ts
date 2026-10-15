@@ -8,12 +8,20 @@ import { type Running, readRunning } from "../running.js";
 import { RESTART_EXIT } from "../update.js";
 import { applyPendingUpdate, autoUpdatePolicy, notesUrl } from "./autoupdate.js";
 import { runtimeEnv } from "./environment.js";
-import { installedByScript, type Layout, packageRoot, readEnvFile } from "./home.js";
+import {
+  commandFile,
+  installedByScript,
+  installedScript,
+  type Layout,
+  packageRoot,
+  readEnvFile,
+} from "./home.js";
 import { findOnPath } from "./machine.js";
 import { cmd, cyan, dim, live, tilde } from "./ui.js";
 
 const DEFAULT_PORT = 24368;
-const START_TIMEOUT_MS = 60_000;
+// Windows on Arm runs the runtime's x64 Node emulated, and a first start there takes longer.
+const START_TIMEOUT_MS = process.platform === "win32" ? 180_000 : 60_000;
 
 /** The settings this install starts with: its `.env`, overridden by the terminal's variables. */
 export function settings(paths: Layout, env: NodeJS.ProcessEnv = process.env) {
@@ -138,17 +146,27 @@ function show(url: string, entry: string, open: boolean) {
   }
 }
 
-/** The command of this install, as it is on disk now: `wizards <args>`. */
+/**
+ * The command of this install, as it is on disk now: `wizards <args>`. On Windows its Node and
+ * script, which is what wizards.cmd runs, without a console window of its own.
+ */
 function spawnCommand(paths: Layout, args: string[], options: SpawnOptions): ChildProcess {
-  const wrapper = join(paths.bin, "wizards");
+  const wrapper = commandFile(paths);
+  if (existsSync(wrapper) && process.platform === "win32") {
+    const { node, script } = installedScript(paths);
+    return spawn(node, [script, ...args], { ...options, windowsHide: true });
+  }
   return existsSync(wrapper)
     ? spawn(wrapper, args, options)
-    : spawn(process.execPath, [join(packageRoot, "bin/wizards.mjs"), ...args], options);
+    : spawn(process.execPath, [join(packageRoot, "bin/wizards.mjs"), ...args], {
+        ...options,
+        windowsHide: true,
+      });
 }
 
 /**
  * `wizards start --no-open` detached from this terminal, its output in logs/runtime.log; the
- * runtime once it answers, or null when it ended or did not answer within a minute.
+ * runtime once it answers, or null when it ended or did not answer in time.
  */
 export async function startInBackground(paths: Layout): Promise<Running | null> {
   const { dataDir } = settings(paths);
@@ -265,7 +283,7 @@ export async function start(
   while (exited === null && !(await healthy(port))) {
     if (Date.now() - began > START_TIMEOUT_MS) {
       child.kill("SIGTERM");
-      console.error("engenty wizards didn’t respond within 60 seconds.");
+      console.error(`engenty wizards didn’t respond within ${START_TIMEOUT_MS / 1000} seconds.`);
       return 1;
     }
     await new Promise((wait) => setTimeout(wait, 150));

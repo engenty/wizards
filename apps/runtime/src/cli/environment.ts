@@ -91,6 +91,21 @@ export function runtimePath(
   return [...new Set(entries.filter(Boolean))].join(delimiter);
 }
 
+/**
+ * An environment with this PATH, once: Windows names it Path, and a copy holding both leaves to
+ * chance which one a program gets.
+ */
+export function withPath(env: NodeJS.ProcessEnv, path: string): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (key.toUpperCase() !== "PATH") {
+      out[key] = value;
+    }
+  }
+  out.PATH = path;
+  return out;
+}
+
 export interface RuntimeStart {
   port: number;
   /** The origin people open. */

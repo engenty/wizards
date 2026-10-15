@@ -147,6 +147,10 @@ export function applyUpdate(): UpdateStatus["applying"] {
   const child = spawn(process.execPath, [join(packageRoot, "bin/wizards.mjs"), "update"], {
     cwd: paths.home,
     stdio: ["ignore", log, log],
+    // On Windows the update stops this runtime for its locked files, and a child that is not
+    // detached ends with its parent there; the update starts the new version itself.
+    detached: process.platform === "win32",
+    windowsHide: true,
   });
   child.on("error", () => {
     applying = "failed";

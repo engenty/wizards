@@ -3,9 +3,10 @@
 // one installed instead of a syntax error.
 //
 // A copy from npm (`npx wizards`, `npm install -g wizards`) is the way to the install, not the
-// install itself. On macOS and Linux it installs engenty wizards into ~/.engenty/wizards with the
-// installer it carries (apps/web/dist/install.sh: its own Node, the runtime, the `wizards`
-// command), brings an older install there up to its own version, and hands the command to it.
+// install itself. It installs engenty wizards into ~/.engenty/wizards with the installer it
+// carries (apps/web/dist/install.sh, on Windows install.ps1: its own Node, the runtime, the
+// `wizards` command), brings an older install there up to its own version, and hands the command
+// to it.
 // What needs no install (--version, --help, validate, mcp) runs here, as long as this Node can.
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
@@ -23,7 +24,8 @@ const home = join(
   "wizards",
 );
 const runtime = join(home, "runtime");
-const wrapper = join(home, "bin", "wizards");
+const windows = process.platform === "win32";
+const wrapper = join(home, "bin", windows ? "wizards.cmd" : "wizards");
 // uninstall: never installs or hands over first; the install it takes away may no longer run.
 const RUN_HERE = ["help", "validate", "mcp", "uninstall"];
 const tilde = (path) =>
@@ -80,7 +82,12 @@ function isInstall() {
 function terminalEnv() {
   const env = {};
   for (const [key, value] of Object.entries(process.env)) {
-    if (!key.startsWith("npm_") && !["INIT_CWD", "NODE", "COLOR"].includes(key)) {
+    // PATH comes after, once: Windows calls it Path, and two of them would leave one to chance.
+    if (
+      !key.startsWith("npm_") &&
+      !["INIT_CWD", "NODE", "COLOR"].includes(key) &&
+      key.toUpperCase() !== "PATH"
+    ) {
       env[key] = value;
     }
   }
@@ -93,19 +100,26 @@ function terminalEnv() {
 
 /** The installer this copy carries, for its own version; true when it ran to its end. */
 function install(version, quiet) {
-  const result = spawnSync(
-    "bash",
-    [join(root, "apps", "web", "dist", "install.sh"), "--no-setup"],
-    {
-      // A command whose output is read (validate --json, mcp) keeps its stdout to itself.
-      stdio: ["ignore", quiet ? 2 : "inherit", "inherit"],
-      env: {
-        ...terminalEnv(),
-        // The same package npm just ran; ENGENTY_WIZARDS_PACKAGE stays an override for tests.
-        ENGENTY_WIZARDS_PACKAGE: process.env.ENGENTY_WIZARDS_PACKAGE || `wizards@${version}`,
-      },
+  const installer = windows
+    ? [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        join(root, "apps", "web", "dist", "install.ps1"),
+        "-NoSetup",
+      ]
+    : ["bash", join(root, "apps", "web", "dist", "install.sh"), "--no-setup"];
+  const result = spawnSync(installer[0], installer.slice(1), {
+    // A command whose output is read (validate --json, mcp) keeps its stdout to itself.
+    stdio: ["ignore", quiet ? 2 : "inherit", "inherit"],
+    env: {
+      ...terminalEnv(),
+      // The same package npm just ran; ENGENTY_WIZARDS_PACKAGE stays an override for tests.
+      ENGENTY_WIZARDS_PACKAGE: process.env.ENGENTY_WIZARDS_PACKAGE || `wizards@${version}`,
     },
-  );
+  });
   return result.status === 0;
 }
 
@@ -130,10 +144,24 @@ function runs() {
   }
 }
 
+/**
+ * The installed command with these arguments. On Windows its Node and script, which is what
+ * wizards.cmd runs: a .cmd file starts only through cmd.exe, which would read the arguments again.
+ */
+function installedCommand(argv) {
+  return windows
+    ? [
+        join(home, "tools", "node", "node.exe"),
+        [join(runtime, "node_modules", "wizards", "bin", "wizards.mjs"), ...argv],
+      ]
+    : [wrapper, argv];
+}
+
 /** Runs the installed command with these arguments; its exit code. */
 function handOver() {
   return new Promise((done) => {
-    const child = spawn(wrapper, args, { stdio: "inherit", env: terminalEnv() });
+    const [file, argv] = installedCommand(args);
+    const child = spawn(file, argv, { stdio: "inherit", env: terminalEnv() });
     // Ctrl-C reaches the installed command as well (same terminal); this one waits for it.
     process.on("SIGINT", () => undefined);
     process.on("SIGTERM", () => child.kill("SIGTERM"));
@@ -151,20 +179,7 @@ if (command === "version") {
   process.exit(0);
 }
 const checkout = existsSync(join(root, "pnpm-workspace.yaml"));
-// Windows has no installer yet, and the setup, the service and the AI clients are written for
-// macOS and Linux: it says so instead of half working. What needs no install still runs.
-if (process.platform === "win32" && !checkout && !RUN_HERE.includes(command)) {
-  console.error(
-    "engenty wizards for Windows is coming soon.\n\n" +
-      "Until then it runs in WSL (Windows Subsystem for Linux). In PowerShell:\n\n" +
-      "  wsl --install\n\n" +
-      "then, in the Ubuntu terminal that opens:\n\n" +
-      "  curl -fsSL https://engenty.ai/install.sh | bash\n\n" +
-      "https://engenty.ai/docs/user/install\n",
-  );
-  process.exit(1);
-}
-const fromNpm = process.platform !== "win32" && !checkout && !isInstall();
+const fromNpm = !checkout && !isInstall();
 if (fromNpm && command !== "uninstall" && (!currentNode || !RUN_HERE.includes(command))) {
   const own = versionOf(root) || "0.0.0";
   const installed = existsSync(wrapper)
@@ -173,15 +188,25 @@ if (fromNpm && command !== "uninstall" && (!currentNode || !RUN_HERE.includes(co
   if (!installed || older(installed, own)) {
     const quiet = RUN_HERE.includes(command);
     const running = installed && runs();
-    if (install(own, quiet)) {
-      // What runs is still the old version: it starts again as the new one.
-      if (running) {
-        spawnSync(wrapper, ["restart"], {
-          stdio: ["ignore", quiet ? 2 : "inherit", "inherit"],
-          env: terminalEnv(),
-        });
-      }
-    } else if (currentNode && !installed) {
+    const installedRun = (argv) => {
+      const [file, all] = installedCommand(argv);
+      spawnSync(file, all, {
+        stdio: ["ignore", quiet ? 2 : "inherit", "inherit"],
+        env: terminalEnv(),
+      });
+    };
+    // Windows keeps the files of a running program locked: the runtime stops for the update.
+    if (running && windows) {
+      installedRun(["stop"]);
+    }
+    const done = install(own, quiet);
+    // What ran is still the old version: it starts again as the new one.
+    if (running && windows) {
+      installedRun(["start", "--background", "--no-open"]);
+    } else if (running && done) {
+      installedRun(["restart"]);
+    }
+    if (!done && currentNode && !installed) {
       console.error(
         `The install into ${tilde(home)} failed; this time engenty wizards runs from npm.\n`,
       );
@@ -207,7 +232,9 @@ if (!currentNode) {
   console.error(
     `engenty wizards needs Node.js 24.11 or newer. This is ${process.version}.\n` +
       "The installer brings its own and leaves yours alone:\n\n" +
-      "  curl -fsSL https://engenty.ai/install.sh | bash\n",
+      (windows
+        ? "  irm https://engenty.ai/install.ps1 | iex\n"
+        : "  curl -fsSL https://engenty.ai/install.sh | bash\n"),
   );
   process.exit(1);
 }

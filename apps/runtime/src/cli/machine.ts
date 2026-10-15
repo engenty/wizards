@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 // The search for a browser is shared with env.ts, so the runtime uses the one the setup found.
 import { findChrome, findOnPath } from "../render/browser-path.js";
-import { runtimePath } from "./environment.js";
+import { runtimePath, withPath } from "./environment.js";
 import { runFile as run } from "./exec.js";
 import type { Layout } from "./home.js";
 
@@ -99,7 +99,7 @@ async function versionOf(file: string, path: string): Promise<string | null> {
   try {
     const { stdout } = await run(file, ["--version"], {
       timeout: 10_000,
-      env: { ...process.env, PATH: path, TERM: "dumb" },
+      env: { ...withPath(process.env, path), TERM: "dumb" },
     });
     const line = stdout.trim().split("\n").pop()?.trim() ?? "";
     return line.match(/\d+\.\d+[\w.+-]*/)?.[0] ?? (line || null);
