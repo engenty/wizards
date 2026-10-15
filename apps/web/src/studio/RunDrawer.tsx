@@ -28,8 +28,10 @@ function store(key: string, value: string) {
   }
 }
 
-/** The drawer's width, dragged at its left edge, and whether it fills the window; remembered per browser. */
-function useDrawerWidth() {
+/** The drawer's width, dragged at its inner edge, and whether it fills the window; remembered per browser. */
+function useDrawerWidth(side: "left" | "right") {
+  /** +1 when dragging right widens the drawer. */
+  const dir = side === "left" ? 1 : -1;
   const [width, setWidth] = useState(() => {
     const n = Number(stored(WIDTH_KEY));
     return n ? Math.min(Math.max(n, WIDTH_MIN), widthMax()) : WIDTH_DEFAULT;
@@ -48,7 +50,7 @@ function useDrawerWidth() {
     e.preventDefault();
     const startX = e.clientX;
     const startW = width;
-    const move = (ev: PointerEvent) => set(startW + startX - ev.clientX);
+    const move = (ev: PointerEvent) => set(startW + dir * (ev.clientX - startX));
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -62,12 +64,9 @@ function useDrawerWidth() {
   };
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const step = e.shiftKey ? 64 : 16;
-    if (e.key === "ArrowLeft") {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       e.preventDefault();
-      set(width + step);
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      set(width - step);
+      set(width + (e.key === "ArrowRight" ? dir : -dir) * step);
     }
   };
   return {
@@ -132,24 +131,30 @@ export function LookSwitch({
 }
 
 /**
- * A run opened beside the page: dragged wider or narrower at its left edge, or filling the
- * browser window with the expand button. `header` is what the bar shows before its buttons.
+ * A run opened beside the page, from the right unless `side` says left: dragged wider or narrower
+ * at its inner edge, or filling the browser window with the expand button. `header` is what the
+ * bar shows before its buttons.
  */
 export function RunDrawer({
   header,
   actions,
+  side = "right",
   onClose,
   children,
 }: {
   header: ReactNode;
   actions?: ReactNode;
+  side?: "left" | "right";
   onClose: () => void;
   children: ReactNode;
 }) {
-  const drawer = useDrawerWidth();
+  const drawer = useDrawerWidth(side);
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-[oklch(20%_0.01_60/0.22)] backdrop-blur-[1px]"
+      className={cn(
+        "fixed inset-0 z-50 flex bg-[oklch(20%_0.01_60/0.22)] backdrop-blur-[1px]",
+        side === "left" ? "justify-start" : "justify-end",
+      )}
       onClick={onClose}
     >
       <div
@@ -172,7 +177,10 @@ export function RunDrawer({
             onPointerDown={drawer.onPointerDown}
             onKeyDown={drawer.onKeyDown}
             onDoubleClick={drawer.reset}
-            className="group -left-2.5 absolute inset-y-0 z-10 hidden w-5 cursor-col-resize outline-none sm:block"
+            className={cn(
+              "group absolute inset-y-0 z-10 hidden w-5 cursor-col-resize outline-none sm:block",
+              side === "left" ? "-right-2.5" : "-left-2.5",
+            )}
           >
             <span className="-translate-y-1/2 absolute top-1/2 left-[7px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
           </div>

@@ -68,7 +68,7 @@ function storedPane(): number {
   }
 }
 
-/** The side pane's width on wide screens, dragged at its left edge; remembered per browser. */
+/** The side pane's width on wide screens, dragged at its right edge; remembered per browser. */
 function usePaneWidth() {
   const [width, setWidth] = useState(storedPane);
   const set = useCallback((next: number) => {
@@ -84,7 +84,7 @@ function usePaneWidth() {
     e.preventDefault();
     const startX = e.clientX;
     const startW = width;
-    const move = (ev: PointerEvent) => set(startW + startX - ev.clientX);
+    const move = (ev: PointerEvent) => set(startW + ev.clientX - startX);
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -98,10 +98,10 @@ function usePaneWidth() {
   };
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const step = e.shiftKey ? 64 : 16;
-    if (e.key === "ArrowLeft") {
+    if (e.key === "ArrowRight") {
       e.preventDefault();
       set(width + step);
-    } else if (e.key === "ArrowRight") {
+    } else if (e.key === "ArrowLeft") {
       e.preventDefault();
       set(width - step);
     }
@@ -552,7 +552,7 @@ export function EditorPage() {
         </span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row-reverse">
         <section className="relative min-h-0 flex-1 overflow-hidden">
           {hasIssues && !building ? (
             <div className="absolute top-3 right-3 left-3 z-10 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1 ring-rose/30">
@@ -664,7 +664,7 @@ export function EditorPage() {
         <aside
           ref={sheet.ref}
           className={cn(
-            "relative flex h-(--sheet) min-h-0 w-full shrink-0 flex-col rounded-t-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)] lg:h-auto lg:w-(--pane) lg:rounded-tr-none",
+            "relative flex h-(--sheet) min-h-0 w-full shrink-0 flex-col rounded-t-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)] lg:h-auto lg:w-(--pane) lg:rounded-tl-none",
             !sheet.dragging &&
               "max-lg:motion-safe:transition-[height] max-lg:motion-safe:duration-200",
           )}
@@ -699,10 +699,10 @@ export function EditorPage() {
             onPointerDown={pane.onPointerDown}
             onKeyDown={pane.onKeyDown}
             onDoubleClick={pane.reset}
-            className="group -left-5 absolute inset-y-0 z-10 hidden w-5 cursor-col-resize outline-none lg:block"
+            className="group -right-5 absolute inset-y-0 z-10 hidden w-5 cursor-col-resize outline-none lg:block"
           >
             {/* The grip sits just outside the pane, beside its edge, clear of its scrollbar. */}
-            <span className="-translate-y-1/2 absolute top-1/2 left-[7px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
+            <span className="-translate-y-1/2 absolute top-1/2 right-[7px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
           </div>
           <nav
             ref={tabsRef}
@@ -777,6 +777,7 @@ export function EditorPage() {
       {drawerRun ? (
         <RunDrawer
           header={<Chip>{t("run.testChip")}</Chip>}
+          side="left"
           actions={
             <>
               <LookSwitch look={look} onChange={setLook} />
