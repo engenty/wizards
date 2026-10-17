@@ -49,46 +49,51 @@ export const startAnswerSchema = z.union([
   z.unknown(),
 ]);
 
-export const startSchema = z
-  .object({
-    id: z.string().min(1),
-    kind: z.enum(START_KINDS),
-    on: z.boolean().default(true),
-    schedule: scheduleSchema.optional(),
-    /** The address shows its token once; only the hash stays. */
-    webhook: z.object({ tokenHash: z.string().min(1) }).optional(),
-    record: z
-      .object({
-        /** `table:<id>` for a table of the space, `<plugin>:<kind>` for a plugin's records. */
-        source: z.string().min(1),
-        event: z.enum(RECORD_EVENTS),
-        column: z.string().optional(),
-        value: z.unknown().optional(),
-      })
-      .refine((r) => r.event !== "became" || (r.column && r.value !== undefined), {
-        message: "A 'became' start names the column and the value.",
-      })
-      .optional(),
-    wizard: z.object({ id: z.string().min(1) }).optional(),
-    /** Field id → what fills it. A field left out is asked of the owner when required. */
-    answers: z.record(z.string(), startAnswerSchema).default({}),
-    /** Confirm asks (a write into a connected service) are answered "done". */
-    allowChanges: z.boolean().default(false),
-    /** Reviews pass with "Looks good". */
-    passReviews: z.boolean().default(true),
-    /** Whose runs they are: the person who made the start. Their store, their notices. */
-    owner: z.string().optional(),
-    /** When the start was made: a schedule waits for its first time after it. */
-    createdAt: z.string().optional(),
-    lastRunAt: z.string().optional(),
-    /** Failed runs in a row; three pause the start. */
-    failures: z.number().int().min(0).default(0),
-    pausedReason: z.string().optional(),
-  })
-  .refine((s) => s[s.kind] !== undefined, {
-    message: "A start carries the settings of its kind.",
-  });
+/** A start carries the settings of its kind: a schedule start its `schedule`, and so on. */
+const ofItsKind = (s: { kind: StartKind } & Record<string, unknown>) => s[s.kind] !== undefined;
+const OF_ITS_KIND = { message: "A start carries the settings of its kind." };
+
+const startObject = z.object({
+  id: z.string().min(1),
+  kind: z.enum(START_KINDS),
+  on: z.boolean().default(true),
+  schedule: scheduleSchema.optional(),
+  /** The address shows its token once; only the hash stays. */
+  webhook: z.object({ tokenHash: z.string().min(1) }).optional(),
+  record: z
+    .object({
+      /** `table:<id>` for a table of the space, `<plugin>:<kind>` for a plugin's records. */
+      source: z.string().min(1),
+      event: z.enum(RECORD_EVENTS),
+      column: z.string().optional(),
+      value: z.unknown().optional(),
+    })
+    .refine((r) => r.event !== "became" || (r.column && r.value !== undefined), {
+      message: "A 'became' start names the column and the value.",
+    })
+    .optional(),
+  wizard: z.object({ id: z.string().min(1) }).optional(),
+  /** Field id → what fills it. A field left out is asked of the owner when required. */
+  answers: z.record(z.string(), startAnswerSchema).default({}),
+  /** Confirm asks (a write into a connected service) are answered "done". */
+  allowChanges: z.boolean().default(false),
+  /** Reviews pass with "Looks good". */
+  passReviews: z.boolean().default(true),
+  /** Whose runs they are: the person who made the start. Their store, their notices. */
+  owner: z.string().optional(),
+  /** When the start was made: a schedule waits for its first time after it. */
+  createdAt: z.string().optional(),
+  lastRunAt: z.string().optional(),
+  /** Failed runs in a row; three pause the start. */
+  failures: z.number().int().min(0).default(0),
+  pausedReason: z.string().optional(),
+});
+
+export const startSchema = startObject.refine(ofItsKind, OF_ITS_KIND);
 export type WizardStart = z.infer<typeof startSchema>;
+
+/** A start as a tool takes it: without an id for a new one. */
+export const startInputSchema = startObject.partial({ id: true }).refine(ofItsKind, OF_ITS_KIND);
 
 export const startsSchema = z.array(startSchema).max(20);
 

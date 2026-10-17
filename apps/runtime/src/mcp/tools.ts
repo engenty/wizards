@@ -1,3 +1,4 @@
+import { describeStart, startInputSchema } from "@engenty-wizards/shared/starts";
 import type { CallToolResult, McpServer, ToolCallback } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { authoringGuide } from "../authoring/guide.js";
@@ -20,6 +21,7 @@ import {
   startTestRun,
   testRunReport,
 } from "../services/runs.js";
+import { listStarts, setStarts } from "../services/starts.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import {
   createWizard,
@@ -465,6 +467,48 @@ Returns the new revision and the issues.`,
         shareUrl: shareUrl(w.shareToken),
       };
     },
+  );
+
+  // --- starts: what begins a run without a person ---------------------------------
+  tool(
+    "list_starts",
+    "wizards:read",
+    {
+      title: "List starts",
+      description:
+        "The wizard's starts: what begins a run without a person opening the link (a schedule today). Each with the sentence the studio shows for it.",
+      input: z.object({ wizardId: z.string() }),
+      readOnly: true,
+    },
+    async ({ wizardId }) => ({
+      starts: (await listStarts(who.userId, wizardId)).map((s) => ({
+        ...s,
+        text: describeStart(s, "en"),
+      })),
+    }),
+  );
+
+  tool(
+    "set_starts",
+    "wizards:publish",
+    {
+      title: "Set starts",
+      description:
+        'Replace the wizard\'s starts. A start of kind "schedule" names every: hour | day | week (with weekday 0–6, 0 = Sunday) | month (with day 1–28), time "HH:MM" and an IANA tz. "answers" fills the first page\'s fields by id with literal values; a required field without a value makes the run wait for the owner. "allowChanges" lets the run write into connected services without asking; "passReviews" (default true) accepts reviews. Leave "id" out for a new start; keep it to change one. An empty list removes them all.',
+      input: z.object({
+        wizardId: z.string(),
+        starts: z.array(startInputSchema).max(20),
+      }),
+    },
+    async ({ wizardId, starts }) => ({
+      starts: (
+        await setStarts(
+          who.userId,
+          wizardId,
+          starts.map((s) => ({ ...s, id: s.id ?? `new-${Math.random().toString(36).slice(2)}` })),
+        )
+      ).map((s) => ({ ...s, text: describeStart(s, "en") })),
+    }),
   );
 
   // --- test runs ---------------------------------------------------------------

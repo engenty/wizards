@@ -1,5 +1,6 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import type { Lang } from "@engenty-wizards/shared/definition";
+import { describeStart, startInputSchema } from "@engenty-wizards/shared/starts";
 import { SURFACE_GUIDE } from "@engenty-wizards/shared/surface";
 import { isTextMime } from "@engenty-wizards/shared/workspace";
 import { Agent } from "@mastra/core/agent";
@@ -31,6 +32,7 @@ import {
 import { pluginToolsOf } from "../plugins/registry.js";
 import { htmlToMarkdown } from "../render/convert.js";
 import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
+import { listStarts, setStarts } from "../services/starts.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import { editWizard, ownedWizard, writeDraft } from "../services/wizards.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -86,6 +88,8 @@ function systemPrompt(
   return `You design wizards for "engenty wizards": a page-by-page flow an end user walks through, where AI steps research, write, draw images, render video, build documents, dashboards and interactive widgets, or write into other systems.
 
 You talk to the ADMIN who builds the wizard. Answer in the admin's language, briefly and warmly. Never mention JSON, ids, schemas, files or templates to them — talk about pages, questions, steps, the widget and results.
+
+A wizard can also start by itself, without anyone opening its link ("every Monday at 8", "each morning"): that is a START, kept beside the wizard, not a step. When the admin asks for one, call set_starts (read list_starts first when there may be others) and fill the first page's fields from what they said; what they did not say, the run asks them for. Tell them where it shows: in the share dialog under "Starts by itself".
 
 ${SCHEMA_DOC}
 ${PRINCIPLES}
@@ -196,6 +200,38 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
       inputSchema: z.object({}),
       execute: async () =>
         attempt(async () => ({ connectors: await listConnectors(await projectId()) })),
+    }),
+    list_starts: createTool({
+      id: "list_starts",
+      description:
+        "The wizard's starts: what begins a run without a person opening the link (a schedule today), each with the sentence the studio shows for it.",
+      inputSchema: z.object({}),
+      execute: async () =>
+        attempt(async () => ({
+          starts: (await listStarts(userId, wizardId)).map((s) => ({
+            ...s,
+            text: describeStart(s, "en"),
+          })),
+        })),
+    }),
+    set_starts: createTool({
+      id: "set_starts",
+      description:
+        'Replace the wizard\'s starts. A start of kind "schedule" names every: hour | day | week (weekday 0–6, 0 = Sunday) | month (day 1–28), time "HH:MM" and an IANA tz (the admin\'s zone unless they say another). "answers" fills the first page\'s fields by id with literal values the admin gave; a required field without a value makes the run wait for the admin. "allowChanges" lets the run write into connected services without asking (only when the admin said so); "passReviews" (default true) accepts reviews. Leave "id" out for a new start; keep it to change one. Only a published wizard runs: say so when it is not.',
+      inputSchema: z.object({ starts: z.array(startInputSchema).max(20) }),
+      execute: async ({ starts }) =>
+        attempt(async () => ({
+          starts: (
+            await setStarts(
+              userId,
+              wizardId,
+              starts.map((s) => ({
+                ...s,
+                id: s.id ?? `new-${Math.random().toString(36).slice(2)}`,
+              })),
+            )
+          ).map((s) => ({ ...s, text: describeStart(s, "en") })),
+        })),
     }),
     replace_wizard: createTool({
       id: "replace_wizard",
