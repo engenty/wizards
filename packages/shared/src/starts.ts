@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { Lang } from "./definition.js";
+import { type Line, type Texts, textOf } from "./texts.js";
 
 /**
  * A start is what begins a run without a person opening the link: a clock, an address another
@@ -240,7 +242,74 @@ export function scheduleDue(schedule: Schedule, last: Date | null, since: Date, 
 
 // --- words ---------------------------------------------------------------------------------
 
-export type StartLang = "de" | "en";
+type StartTextKey =
+  | "hour"
+  | "day"
+  | "week"
+  | "month"
+  | "webhook"
+  | "added"
+  | "became"
+  | "changed"
+  | "wizard"
+  | "sunday"
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday";
+
+// Wording: docs/copy-style.md. Check with `pnpm copy:check`.
+const STARTS_EN: Record<StartTextKey, Line> = {
+  hour: "Every hour",
+  day: "Every day at {time}",
+  week: "Every {weekday} at {time}",
+  month: "On the {day} of each month at {time}",
+  webhook: "When something arrives at the address",
+  added: "When a row is added to {source}",
+  became: "When {column} in {source} becomes “{value}”",
+  changed: "When a row in {source} changes",
+  wizard: "When {wizard} finishes",
+  sunday: "Sunday",
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday",
+};
+
+const STARTS_DE: Record<StartTextKey, Line> = {
+  hour: "Jede Stunde",
+  day: "Jeden Tag um {time}",
+  week: "Jeden {weekday} um {time}",
+  month: "Am {day}. jedes Monats um {time}",
+  webhook: "Wenn etwas an der Adresse eintrifft",
+  added: "Wenn eine Zeile zu {source} kommt",
+  became: "Wenn in {source} „{column}“ zu „{value}“ wird",
+  changed: "Wenn sich eine Zeile in {source} ändert",
+  wizard: "Wenn {wizard} fertig ist",
+  sunday: "Sonntag",
+  monday: "Montag",
+  tuesday: "Dienstag",
+  wednesday: "Mittwoch",
+  thursday: "Donnerstag",
+  friday: "Freitag",
+  saturday: "Samstag",
+};
+
+const STARTS_TEXTS: Texts<StartTextKey> = { en: STARTS_EN, de: STARTS_DE };
+
+const WEEKDAY_KEYS: StartTextKey[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
 
 /** Labels the sentence needs from outside the start: a table's title, a wizard's title. */
 export interface StartLabels {
@@ -248,65 +317,46 @@ export interface StartLabels {
   wizard?: string;
 }
 
-const DE_WEEKDAYS = [
-  "Sonntag",
-  "Montag",
-  "Dienstag",
-  "Mittwoch",
-  "Donnerstag",
-  "Freitag",
-  "Samstag",
-];
-const EN_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-function describeSchedule(s: Schedule, de: boolean) {
-  switch (s.every) {
-    case "hour":
-      return de ? "Jede Stunde" : "Every hour";
-    case "day":
-      return de ? `Jeden Tag um ${s.time}` : `Every day at ${s.time}`;
-    case "week": {
-      const wd = (de ? DE_WEEKDAYS : EN_WEEKDAYS)[s.weekday ?? 0];
-      return de ? `Jeden ${wd} um ${s.time}` : `Every ${wd} at ${s.time}`;
-    }
-    case "month":
-      return de
-        ? `Am ${s.day}. jedes Monats um ${s.time}`
-        : `On the ${ordinal(s.day ?? 1)} of each month at ${s.time}`;
+/** The day of the month as the language writes it: "1st", "1." */
+function dayText(day: number, lang: Lang) {
+  if (lang === "de") {
+    return String(day);
   }
+  const rest = day % 10;
+  const teen = day % 100 >= 11 && day % 100 <= 13;
+  return `${day}${teen ? "th" : rest === 1 ? "st" : rest === 2 ? "nd" : rest === 3 ? "rd" : "th"}`;
 }
 
 /** One sentence per start, the one the share dialog shows: "Jeden Montag um 08:00". */
-export function describeStart(start: WizardStart, lang: StartLang, labels: StartLabels = {}) {
-  const de = lang === "de";
+export function describeStart(start: WizardStart, lang: Lang, labels: StartLabels = {}) {
+  const say = (key: StartTextKey, params?: Record<string, string | number | undefined>) =>
+    textOf(STARTS_TEXTS, key, lang, params);
   switch (start.kind) {
-    case "schedule":
-      return start.schedule ? describeSchedule(start.schedule, de) : "";
+    case "schedule": {
+      const s = start.schedule;
+      if (!s) {
+        return "";
+      }
+      return say(s.every, {
+        time: s.time,
+        weekday: say(WEEKDAY_KEYS[s.weekday ?? 0] ?? "sunday"),
+        day: dayText(s.day ?? 1, lang),
+      });
+    }
     case "webhook":
-      return de ? "Wenn etwas an der Adresse eintrifft" : "When something arrives at the address";
+      return say("webhook");
     case "record": {
       const r = start.record;
-      const src = labels.source ?? r?.source ?? "";
+      const source = labels.source ?? r?.source ?? "";
       if (r?.event === "added") {
-        return de ? `Wenn eine Zeile zu ${src} kommt` : `When a row is added to ${src}`;
+        return say("added", { source });
       }
       if (r?.event === "became") {
-        return de
-          ? `Wenn in ${src} „${r.column}“ zu „${String(r.value)}“ wird`
-          : `When ${r.column} in ${src} becomes "${String(r.value)}"`;
+        return say("became", { source, column: r.column, value: String(r.value) });
       }
-      return de ? `Wenn sich eine Zeile in ${src} ändert` : `When a row in ${src} changes`;
+      return say("changed", { source });
     }
-    case "wizard": {
-      const w = labels.wizard ?? start.wizard?.id ?? "";
-      return de ? `Wenn ${w} fertig ist` : `When ${w} finishes`;
-    }
+    case "wizard":
+      return say("wizard", { wizard: labels.wizard ?? start.wizard?.id ?? "" });
   }
-}
-
-function ordinal(n: number) {
-  const rest = n % 10;
-  const teen = n % 100 >= 11 && n % 100 <= 13;
-  const suffix = teen ? "th" : rest === 1 ? "st" : rest === 2 ? "nd" : rest === 3 ? "rd" : "th";
-  return `${n}${suffix}`;
 }

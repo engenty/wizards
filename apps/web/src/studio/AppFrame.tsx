@@ -45,6 +45,7 @@ import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/Stu
 import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner, InstallDialog } from "./InstallBanner";
 import { LangSwitch } from "./LangSwitch";
+import { NoticesBell } from "./Notices";
 import { spaceGroups, withParts } from "./project-sections";
 import { settingsSections } from "./settings-sections";
 import { setAreaSlot, setSpaceSidebar, useHasSideMenu, useSpaceSidebar } from "./side-menu";
@@ -788,6 +789,7 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
         <Trail />
         {children}
       </div>
+      <NoticesBell />
       <CreditsPill me={me} />
     </header>
   );
