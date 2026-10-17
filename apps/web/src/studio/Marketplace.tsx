@@ -1,17 +1,18 @@
-import type { StepType } from "@engenty-wizards/shared/definition";
+import type { Lang, StepType } from "@engenty-wizards/shared/definition";
 import {
-  CAPABILITIES,
+  CAPABILITY_IDS,
   type Capability,
-  COST_TIERS,
-  INDUSTRIES,
+  INDUSTRY_IDS,
   type Industry,
-  ITEM_FORMATS,
+  ITEM_FORMAT_IDS,
   type ItemFormat,
-  MARKETPLACE_PLANS,
+  MARKETPLACE_PLAN_IDS,
+  type MarketGroup,
   type MarketplaceEntry,
   type MarketplacePage,
   type MarketplacePlan,
-  USE_CASES,
+  marketLabel,
+  USE_CASE_IDS,
   type UseCase,
 } from "@engenty-wizards/shared/marketplace";
 import type { OutlineStep, WizardOutline } from "@engenty-wizards/shared/marketplace-entry";
@@ -72,6 +73,7 @@ import { Mascot } from "../brand";
 import { ENGENTY_FILL, ENGENTY_KIND_FILL, type EngentyKind } from "../engenty/colors";
 import { api } from "../lib/api";
 import { lang, t } from "../lib/i18n";
+import { useCurrentProject, useMayCreate } from "../lib/session";
 import { useTheme } from "../lib/theme";
 import { Button, Card, Chip, cn, Dialog, Spinner } from "../ui";
 import { TYPE_TONE } from "./editor/meta";
@@ -84,7 +86,7 @@ const FlowPreview = lazy(() => import("./FlowPreview"));
 type EntryDetail = MarketplaceEntry & WizardOutline;
 
 /** What a search answers: a page of entries, and whether the marketplace answered. */
-interface SearchPage extends MarketplacePage<MarketplaceEntry> {
+export interface SearchPage extends MarketplacePage<MarketplaceEntry> {
   offline: boolean;
   /** The capabilities this install has no model for. */
   unavailable: Capability[];
@@ -99,8 +101,10 @@ interface Filters {
 }
 const NO_FILTERS: Filters = { useCase: "", industry: "", format: "", capability: "", plan: "" };
 
-type Labels = Record<string, { de: string; en: string }>;
-const label = (labels: Labels, id: string) => labels[id]?.[lang] ?? id;
+const label = (group: MarketGroup, id: string) => marketLabel(group, id, lang);
+
+/** The currency coin the cost is drawn with, by the language the person reads. */
+const COINS: Record<Lang, typeof CircleEuro> = { en: CircleDollarSign, de: CircleEuro };
 
 /** An estimate as one says it: one significant digit — 111 is "about 100", 27 "about 30". */
 function roughly(credits: number): number {
@@ -114,7 +118,7 @@ function roughly(credits: number): number {
 function costLine(e: MarketplaceEntry): string {
   return e.credits
     ? t("market.credits", { n: roughly(e.credits.credits) })
-    : COST_TIERS[e.costTier][lang];
+    : label("cost", e.costTier);
 }
 
 const FORMAT_ICONS: Record<ItemFormat, LucideIcon> = {
@@ -130,7 +134,7 @@ const FORMAT_ICONS: Record<ItemFormat, LucideIcon> = {
 /** A format as its icon; the name is there for a pointer and a screen reader. */
 function FormatIcon({ format, className }: { format: ItemFormat; className?: string }) {
   const Icon = FORMAT_ICONS[format];
-  const name = label(ITEM_FORMATS, format);
+  const name = label("format", format);
   return (
     <span title={name} className="inline-flex">
       <Icon className={className} aria-label={name} role="img" />
@@ -144,7 +148,7 @@ const TIERS = ["low", "medium", "high"] as const;
 function CostCoins({ entry }: { entry: MarketplaceEntry }) {
   const coins = TIERS.indexOf(entry.costTier) + 1;
   // A euro where the app speaks German, a dollar where it speaks English.
-  const Coin = lang === "de" ? CircleEuro : CircleDollarSign;
+  const Coin = COINS[lang];
   return (
     <span title={costLine(entry)} className="inline-flex items-center gap-1">
       <span aria-hidden="true" className="inline-flex shrink-0">
@@ -158,13 +162,13 @@ function CostCoins({ entry }: { entry: MarketplaceEntry }) {
           </span>
         ))}
       </span>
-      {COST_TIERS[entry.costTier][lang]}
+      {label("cost", entry.costTier)}
     </span>
   );
 }
 
 /** An entry that needs the Pro plan: its wizard uses plugins that come with Pro. */
-function ProChip() {
+export function ProChip() {
   return (
     <Chip tone="ember" title={t("market.proHint")}>
       {t("market.pro")}
@@ -206,12 +210,17 @@ function EntryCard({ entry, onOpen }: { entry: MarketplaceEntry; onOpen: () => v
         <Mascot kind={entry.avatar} size={68} />
       </span>
       <div className="min-w-0 pr-20">
-        <div className="flex items-center gap-1.5 font-display font-semibold text-[0.9375rem]">
+        {/* A block, not a flex row: Safari sizes a card too short for a title that wraps in a flex row. */}
+        <div className="font-display font-semibold text-[0.9375rem]">
           {entry.title}
-          {entry.plan === "pro" ? <ProChip /> : null}
+          {entry.plan === "pro" ? (
+            <span className="ml-1.5 inline-flex align-middle">
+              <ProChip />
+            </span>
+          ) : null}
           {entry.starred ? (
             <Star
-              className="size-3.5 shrink-0 fill-amber text-amber"
+              className="ml-1.5 inline size-3.5 fill-amber align-[-2px] text-amber"
               aria-label={t("market.starred")}
             />
           ) : null}
@@ -262,7 +271,7 @@ function Fact({ title, children }: { title: string; children: ReactNode }) {
 
 /** Capabilities by name, as one says them in a sentence. */
 const capabilityList = (capabilities: Capability[]) =>
-  capabilities.map((c) => label(CAPABILITIES, c)).join(", ");
+  capabilities.map((c) => label("capability", c)).join(", ");
 
 const CAPABILITY_ICONS: Record<Capability, LucideIcon> = {
   text: PenLine,
@@ -406,7 +415,7 @@ function FadeScroll({ className, children }: { className?: string; children: Rea
 }
 
 /** `fallback`: the entry as the list has it, shown until the marketplace has answered. */
-function EntryDialog({
+export function EntryDialog({
   id,
   fallback,
   onClose,
@@ -582,7 +591,7 @@ function EntryDialog({
                               missing ? "text-rose" : optional ? "text-amber" : "text-cobalt",
                             )}
                           />
-                          {label(CAPABILITIES, c)}
+                          {label("capability", c)}
                           {missing ? (
                             <span className="text-[0.75rem] text-rose">
                               {t("market.unavailable")}
@@ -807,7 +816,7 @@ function FilterMenu({
 }
 
 /** A value once it has stopped changing for a moment: what is typed, when the typing pauses. */
-function useSettled<T>(value: T, ms: number): T {
+export function useSettled<T>(value: T, ms: number): T {
   const [settled, setSettled] = useState(value);
   useEffect(() => {
     const timer = setTimeout(() => setSettled(value), ms);
@@ -855,7 +864,7 @@ export function MarketplaceHits({
         {t("market.hits")}
         {search.isFetching ? <Spinner className="size-3.5" /> : null}
       </h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-col gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3">
         {entries.map((e) => (
           <EntryCard key={e.id} entry={e} onOpen={() => setPicked(e.id)} />
         ))}
@@ -872,6 +881,48 @@ export function MarketplaceHits({
 }
 
 /**
+ * Templates the studio assistant shows under an answer: the gallery's cards, each opening as in
+ * the gallery; a wizard made of one opens in the editor.
+ */
+export function MarketplaceCards({ entries }: { entries: MarketplaceEntry[] }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const { project } = useCurrentProject();
+  const mayCreate = useMayCreate() && Boolean(project) && !project?.readOnly;
+  const [picked, setPicked] = useState<string | null>(null);
+  const create = useMutation({
+    mutationFn: (starterId: string) =>
+      api.post<{ id: string }>("/api/studio/wizards", { projectId: project!.id, starterId, lang }),
+    onSuccess: async ({ id }) => {
+      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: ["wizards"] });
+      setPicked(null);
+      navigate(`/edit/${id}`);
+    },
+  });
+  return (
+    // Two side by side where the chat is wide enough, one under the other in the sidebar.
+    <div className="@container mt-3">
+      <div className="flex flex-col gap-4 @xl:grid @xl:grid-cols-2">
+        {entries.map((e) => (
+          <EntryCard key={e.id} entry={e} onOpen={() => setPicked(e.id)} />
+        ))}
+      </div>
+      {create.error ? (
+        <p className="mt-2 text-[0.8125rem] text-rose">{(create.error as Error).message}</p>
+      ) : null}
+      <EntryDialog
+        id={picked}
+        fallback={entries.find((e) => e.id === picked) ?? null}
+        onClose={() => setPicked(null)}
+        onUse={mayCreate ? (entry) => !create.isPending && create.mutate(entry.id) : undefined}
+        busy={create.isPending}
+      />
+    </div>
+  );
+}
+
+/**
  * The marketplace as a person browses it: a search the marketplace answers live, the ways to
  * narrow it, the starred entries, and a card per entry that opens with what the wizard makes,
  * needs and costs. Without a connection it shows what this machine keeps.
@@ -880,18 +931,40 @@ export function MarketplaceBrowser({
   onUse,
   busy,
   open: opened,
+  search: searchFor,
+  onGuestOpen,
 }: {
   /** Makes a wizard of an entry; left out where nothing is made, the entries are only shown. */
   onUse?: (entry: MarketplaceEntry) => void;
   busy?: boolean;
   /** An entry to open at once (a link from the gallery). */
   open?: string | null;
+  /** Words to search for, handed in from outside (the wish on the start page); each hand-in sets the field. */
+  search?: { text: string } | null;
+  /**
+   * Someone not signed in (the studio's start page for guests): the gallery's public list, no
+   * stars, and an entry opens by signing in first.
+   */
+  onGuestOpen?: (entry: MarketplaceEntry) => void;
 }) {
   const [query, setQuery] = useState("");
+  useEffect(() => {
+    if (searchFor) {
+      setQuery(searchFor.text);
+    }
+  }, [searchFor]);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [starred, setStarred] = useState(false);
   const [picked, setPicked] = useState<string | null>(opened ?? null);
   const q = useSettled(query.trim(), 250);
+  // On a phone a search brings its field to the top, so the results below it are on screen.
+  const field = useRef<HTMLLabelElement>(null);
+  useEffect(() => {
+    const el = field.current;
+    if (q && el && window.matchMedia("(max-width: 639px)").matches) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [q]);
 
   const search = useInfiniteQuery({
     queryKey: ["marketplace", lang, q, filters, starred],
@@ -908,7 +981,7 @@ export function MarketplaceBrowser({
       if (starred) {
         params.set("starred", "1");
       }
-      return api.get<SearchPage>(`/api/studio/marketplace?${params}`);
+      return api.get<SearchPage>(`/api/${onGuestOpen ? "guest" : "studio"}/marketplace?${params}`);
     },
     initialPageParam: 0,
     getNextPageParam: (last, pages) => {
@@ -923,40 +996,49 @@ export function MarketplaceBrowser({
   const thinking = query.trim() !== q || (search.isFetching && !search.isFetchingNextPage);
 
   /** The options of one filter, each with what it would leave of the list. */
-  const options = (key: keyof Filters, labels: Labels, icon?: (id: string) => ReactNode) =>
-    Object.keys(labels)
+  const options = (
+    key: keyof Filters,
+    group: MarketGroup,
+    ids: readonly string[],
+    icon?: (id: string) => ReactNode,
+  ) =>
+    ids
       // An option no entry has at all is not offered.
       .filter(
         (id) => (first?.facets[key] as Record<string, number> | undefined)?.[id] !== undefined,
       )
       .map((id) => ({
         value: id,
-        label: label(labels, id),
+        label: label(group, id),
         icon: icon?.(id),
         count: (first?.facets[key] as Record<string, number>)[id] ?? 0,
         unavailable: key === "capability" && unavailable.has(id as Capability),
       }));
 
   const unavailable = new Set(first?.unavailable ?? []);
-  const useCases = options("useCase", USE_CASES);
+  const useCases = options("useCase", "useCase", USE_CASE_IDS);
   const menus: { key: keyof Filters; name: string; options: FilterOption[] }[] = [
-    { key: "industry", name: t("market.industry"), options: options("industry", INDUSTRIES) },
+    {
+      key: "industry",
+      name: t("market.industry"),
+      options: options("industry", "industry", INDUSTRY_IDS),
+    },
     {
       key: "format",
       name: t("market.format"),
-      options: options("format", ITEM_FORMATS, (id) => (
+      options: options("format", "format", ITEM_FORMAT_IDS, (id) => (
         <FormatIcon format={id as ItemFormat} className="size-4 text-ink-3" />
       )),
     },
     {
       key: "plan",
       name: t("market.plan"),
-      options: options("plan", MARKETPLACE_PLANS),
+      options: options("plan", "plan", MARKETPLACE_PLAN_IDS),
     },
     {
       key: "capability",
       name: t("market.capability"),
-      options: options("capability", CAPABILITIES, (id) => {
+      options: options("capability", "capability", CAPABILITY_IDS, (id) => {
         const Icon = CAPABILITY_ICONS[id as Capability];
         return <Icon className="size-4 text-ink-3" />;
       }),
@@ -1006,7 +1088,10 @@ export function MarketplaceBrowser({
 
   return (
     <div>
-      <label className="relative mx-auto flex h-10 max-w-md items-center gap-2.5 rounded-full bg-card px-4 shadow-soft ring-1 ring-border-soft transition focus-within:ring-2 focus-within:ring-focus sm:h-11">
+      <label
+        ref={field}
+        className="relative mx-auto flex h-10 max-w-md scroll-mt-4 items-center gap-2.5 rounded-full bg-card px-4 shadow-soft ring-1 ring-border-soft transition focus-within:ring-2 focus-within:ring-focus sm:h-11"
+      >
         {thinking ? (
           <Spinner className="size-4 shrink-0 text-ink-3" />
         ) : (
@@ -1039,15 +1124,17 @@ export function MarketplaceBrowser({
             {u.label}
           </button>
         ))}
-        <button
-          type="button"
-          aria-pressed={starred}
-          onClick={() => setStarred(!starred)}
-          className={chip(starred)}
-        >
-          <Star className={cn("size-3.5", starred && "fill-amber text-amber")} />
-          {t("market.starred")}
-        </button>
+        {onGuestOpen ? null : (
+          <button
+            type="button"
+            aria-pressed={starred}
+            onClick={() => setStarred(!starred)}
+            className={chip(starred)}
+          >
+            <Star className={cn("size-3.5", starred && "fill-amber text-amber")} />
+            {t("market.starred")}
+          </button>
+        )}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-2 sm:mt-6">
         {starred
@@ -1088,9 +1175,14 @@ export function MarketplaceBrowser({
         </span>
       </div>
       {shown.length ? (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        // On a phone a column, not a one-track grid: Safari can size a grid row too short.
+        <div className="mt-4 flex flex-col gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((e) => (
-            <EntryCard key={e.id} entry={e} onOpen={() => setPicked(e.id)} />
+            <EntryCard
+              key={e.id}
+              entry={e}
+              onOpen={() => (onGuestOpen ? onGuestOpen(e) : setPicked(e.id))}
+            />
           ))}
         </div>
       ) : (

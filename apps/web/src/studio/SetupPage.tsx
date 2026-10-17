@@ -1,21 +1,31 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Cloud, RefreshCw } from "lucide-react";
 import { type CSSProperties, useState } from "react";
 import { useNavigate } from "react-router";
 import { Mascot } from "../brand";
 import { EngentyLogoMark } from "../engenty/logo";
 import { api } from "../lib/api";
 import { useConfig, useFeature } from "../lib/features";
-import { t } from "../lib/i18n";
-import { type HarnessStatus, type LocalModels, useMe } from "../lib/session";
+import { lang, t } from "../lib/i18n";
+import {
+  type AppleStatus,
+  type HarnessStatus,
+  type LocalModels,
+  useCurrentProject,
+  useMe,
+  withoutApple,
+} from "../lib/session";
 import { useGround, usePreferredTheme } from "../lib/theme";
 import { Button, cn } from "../ui";
+import { LinkStatus, useAccountLink } from "./Account";
 import { HarnessPanel, ModelTest } from "./Harness";
 import { LangSwitch } from "./LangSwitch";
 import { OwnModels, openExternal } from "./LocalRuntime";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 type Source = LocalModels["source"];
+/** What the setup offers: a source, or Apple Intelligence — the short classes bound on this Mac. */
+type Pick = Source | "apple";
 
 /** The ground the setup stands on and the text on white, as on the landing page. */
 const GROUND = "oklch(50% 0.2 262)";
@@ -74,14 +84,30 @@ const EASE = "ease-[cubic-bezier(0.3,0.7,0.2,1)]";
 const HOST = 220;
 
 /** Each choice has a host of its own: a new choice brings a new face along with its content. */
-const HOSTS: Record<Source, string> = {
+const HOSTS: Record<Pick, string> = {
   codex: "dome",
   claude: "oval",
-  gemini: "wedge",
+  antigravity: "wedge",
   cursor: "sprout",
   own: "bean",
   account: "drop",
+  apple: "pebble",
 };
+
+/** What the Apple choice says at its end: ready, or why it waits. */
+function appleNote(apple: AppleStatus): string {
+  if (apple.available) {
+    return t("models.optAppleNote");
+  }
+  switch (apple.reason) {
+    case "off":
+      return t("models.appleOff");
+    case "loading":
+      return t("models.appleLoading");
+    default:
+      return t("models.appleDevice");
+  }
+}
 
 /**
  * A line of the list's heading: as wide as its text and shifted, not laid out, to the middle —
@@ -296,11 +322,25 @@ export function SetupPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const config = useConfig();
+  const accountOn = useFeature("account");
+  const { project } = useCurrentProject();
+  // The account: signed in during the install, or here; its credits are a way to think too.
+  const linking = useAccountLink(Boolean(me.data?.account?.signedIn));
   const [picked, setPicked] = useState(ownPicked);
   // A narrow page shows the opened choice alone; the person goes back to the choices from there.
   const [listOpen, setListOpen] = useState(false);
   const choose = useMutation({
-    mutationFn: (source: Source) => api.put("/api/studio/local/models", { source }),
+    // Apple Intelligence is the short classes bound on this Mac; the source stays and keeps High
+    // and Highest. Another choice after it unbinds them.
+    mutationFn: (pick: Pick) =>
+      api.put(
+        "/api/studio/local/models",
+        pick === "apple"
+          ? { bindings: { classifier: "apple:default", standard: "apple:default" } }
+          : pick === "own"
+            ? { source: "own", bindings: { classifier: "", standard: "" } }
+            : { source: pick, bindings: withoutApple(me.data?.models?.bindings ?? {}) },
+      ),
     onSuccess: async (_saved, source) => {
       // First what the server now says, then the move: the choice opens on its own state,
       // never for a moment on the source it replaced.
@@ -328,13 +368,31 @@ export function SetupPage() {
   const clients = [...me.data.harnesses].sort((a, b) => rank(a) - rank(b));
   const installed = clients.filter((h) => h.version !== null);
   // A first start has nothing chosen yet; a source picked earlier (here or in the settings) stays picked.
-  const selected: Source | null =
-    picked || me.data.setupDone || models.source !== "own" ? models.source : null;
+  const apple = me.data.apple;
+  const appleChosen = models.bindings.standard?.startsWith("apple:");
+  const selected: Pick | null = appleChosen
+    ? "apple"
+    : picked || me.data.setupDone || models.source !== "own"
+      ? models.source
+      : null;
   const client = me.data.harnesses.find((h) => h.id === selected);
+  // Beside Apple the source stays: High and Highest think on the client or the credits picked before.
+  const keeps =
+    models.source === "account"
+      ? t("models.creditsName")
+      : (me.data.harnesses.find((h) => h.id === models.source)?.name ?? null);
   const works = me.data.setupDone;
   const hasKey = Object.values(models.keys).some(Boolean);
-  // Connect, test, done: where the chosen source stands.
-  const stage = works ? 2 : client ? (client.auth === "none" ? 0 : 1) : hasKey ? 1 : 0;
+  // Connect, test, done: where the chosen source stands. Apple has nothing to connect.
+  const stage = works
+    ? 2
+    : client
+      ? client.auth === "none"
+        ? 0
+        : 1
+      : selected === "apple" || selected === "account" || hasKey
+        ? 1
+        : 0;
   const heading = works
     ? t("setup.h.done")
     : client
@@ -343,7 +401,7 @@ export function SetupPage() {
         : client.auth === "none"
           ? t("setup.h.signIn", { name: client.name })
           : t("setup.h.test")
-      : hasKey
+      : selected === "apple" || selected === "account" || hasKey
         ? t("setup.h.test")
         : t("setup.h.keys");
   const site = siteOn ? config.data?.site : null;
@@ -432,7 +490,74 @@ export function SetupPage() {
                 {t("setup.sub")}
               </p>
             </div>
+            {accountOn ? (
+              <div className="mt-5 flex items-center gap-3.5 rounded-2xl bg-(color:--panel) px-4 py-3.5 ring-(color:--panel-ring) ring-1">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-(color:--pick) font-semibold text-(color:--pick-ink) text-[0.9375rem]">
+                  {me.data.account?.signedIn ? (
+                    (me.data.account.name || me.data.account.email).slice(0, 1).toUpperCase()
+                  ) : (
+                    <Cloud className="size-4.5" />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  {me.data.account?.signedIn ? (
+                    <>
+                      <p className="font-medium text-[0.9375rem]">
+                        {t("setup.accountLinked", {
+                          name: me.data.account.name || me.data.account.email,
+                        })}
+                      </p>
+                      <p className="text-(color:--on)/75 text-[0.8125rem]">
+                        {[
+                          me.data.account.team,
+                          me.data.account.credits === null
+                            ? null
+                            : t("setup.accountCredits", {
+                                credits: me.data.account.credits.toLocaleString(lang),
+                              }),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-[0.9375rem]">{t("setup.account")}</p>
+                      <p className="text-(color:--on)/75 text-[0.8125rem] leading-snug">
+                        {t("setup.accountText")}
+                      </p>
+                      <LinkStatus {...linking} />
+                    </>
+                  )}
+                </div>
+                {me.data.account?.signedIn ? null : (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    busy={linking.link.isPending}
+                    onClick={() => linking.link.mutate({})}
+                  >
+                    {t("account.signIn")}
+                  </Button>
+                )}
+              </div>
+            ) : null}
             <div className="mt-5 flex flex-col gap-2.5">
+              {me.data.account?.signedIn ? (
+                <Choice
+                  selected={marked === "account"}
+                  title={t("setup.creditsChoice")}
+                  description={t("setup.creditsDesc")}
+                  note={
+                    me.data.account.credits === null
+                      ? undefined
+                      : t("setup.accountCredits", {
+                          credits: me.data.account.credits.toLocaleString(lang),
+                        })
+                  }
+                  onPick={() => choose.mutate("account")}
+                />
+              ) : null}
               {clients.map((h, i) => (
                 <Choice
                   key={h.id}
@@ -450,6 +575,15 @@ export function SetupPage() {
                   onPick={() => choose.mutate(h.id)}
                 />
               ))}
+              {apple?.supported ? (
+                <Choice
+                  selected={marked === "apple"}
+                  title={t("models.optApple")}
+                  description={t("setup.appleDesc")}
+                  note={appleNote(apple)}
+                  onPick={() => choose.mutate("apple")}
+                />
+              ) : null}
               <Choice
                 selected={marked === "own"}
                 title={t("local.sourceOwn")}
@@ -492,7 +626,18 @@ export function SetupPage() {
                   <Mascot kind={HOSTS[selected]} size={120} fluffy coat="fur" />
                 </div>
                 <div className="min-h-[6.5rem]">
-                  <Stages name={client?.name ?? t("local.sourceOwn")} at={stage} done={works} />
+                  <Stages
+                    name={
+                      client?.name ??
+                      (selected === "apple"
+                        ? t("models.optApple")
+                        : selected === "account"
+                          ? t("setup.creditsChoice")
+                          : t("local.sourceOwn"))
+                    }
+                    at={stage}
+                    done={works}
+                  />
                   <h2
                     key={heading}
                     className="mt-2 animate-rise pr-32 font-display font-semibold text-[clamp(28px,3vw,40px)] leading-[1.06] tracking-[-0.03em]"
@@ -503,11 +648,22 @@ export function SetupPage() {
                 <div className="mt-5 rounded-2xl bg-(color:--panel) p-5 ring-(color:--panel-ring) ring-1 sm:p-6">
                   {client ? (
                     <HarnessPanel me={me.data} id={client.id} autoTest={!works} />
-                  ) : (
+                  ) : selected === "apple" ? (
                     <div className="flex flex-col gap-5">
-                      <OwnModels models={models} />
-                      <ModelTest />
+                      <p className="text-[0.875rem] text-ink-2 leading-relaxed">
+                        {keeps ? t("setup.appleHintKeeps", { way: keeps }) : t("setup.appleHint")}
+                      </p>
+                      <ModelTest auto={!works && apple?.available === true} />
                     </div>
+                  ) : selected === "account" ? (
+                    <div className="flex flex-col gap-5">
+                      <p className="text-[0.875rem] text-ink-2 leading-relaxed">
+                        {t("setup.creditsDesc")}
+                      </p>
+                      <ModelTest auto={!works} />
+                    </div>
+                  ) : (
+                    <OwnModels models={models} />
                   )}
                 </div>
                 <div className="mt-9">
@@ -560,7 +716,13 @@ export function SetupPage() {
           a place, marked with the wordmark's dot at its own size, for what belongs there later. */}
       <footer className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 pb-6 text-(color:--on)/55 text-[0.75rem] sm:pb-8">
         <span>
-          © {new Date().getFullYear()} engenty · {t("setup.local")}
+          engenty ·{" "}
+          {me.data.account?.signedIn
+            ? t("setup.thisComputer", {
+                space: project?.name ?? "",
+                team: me.data.account.team ?? me.data.account.name,
+              })
+            : t("setup.local")}
         </span>
         <span className="flex items-center gap-5">
           {site ? <FooterLink href={site}>{new URL(site).host}</FooterLink> : null}

@@ -10,9 +10,12 @@ import { deleteSetting, readSetting, writeSetting } from "../settings.js";
  * browser at the Manage-App, the code comes back to this server on the loopback interface. The
  * account is optional; it unlocks credits through the gateway and publishing to the cloud.
  */
-const CLIENT = { id: "wizards-desktop" };
+export const CLIENT = { id: "wizards-desktop" };
 const REFRESH = "account.refresh";
-const SCOPE = "openid profile email offline_access wizards:read wizards:write wizards:publish";
+export const SCOPE =
+  "openid profile email offline_access wizards:read wizards:write wizards:publish";
+/** The team of the linked account as the Manage-App last named it, for lines that must not wait on it. */
+const TEAM = "account.team";
 
 export interface LinkedAccount {
   userId: string;
@@ -68,7 +71,11 @@ export async function startLink(
 
 let cached: { token: string; expiresAt: number } | null = null;
 
-async function keep(tokens: TokenSet): Promise<LinkedAccount> {
+/**
+ * Keeps what the token endpoint handed out: the refresh token in the vault, the account in the
+ * settings. The browser flow (finishLink) and the device flow (device.ts) end here alike.
+ */
+export async function keep(tokens: TokenSet): Promise<LinkedAccount> {
   const claims = unverifiedClaims(tokens.access_token);
   if (!claims) {
     throw new Error("The account's token names no tenant.");
@@ -161,6 +168,36 @@ export async function unlink(): Promise<void> {
   cached = null;
   await vaultDelete(REFRESH);
   await deleteSetting("account");
+  await deleteSetting(TEAM);
+}
+
+export interface KnownTeam {
+  tenantId: string;
+  name: string;
+  balanceCredits: number;
+  /** When the Manage-App last said so. */
+  at: string;
+}
+
+/** The team as the Manage-App last named it: `wizards status` and the menu show it without a round trip. */
+export function knownTeam(): Promise<KnownTeam | null> {
+  return readSetting<KnownTeam>(TEAM);
+}
+
+let rememberedTeam: string | null = null;
+
+async function rememberTeam(tenant: { id: string; name: string; balanceCredits: number }) {
+  const same = `${tenant.id}\n${tenant.name}\n${tenant.balanceCredits}`;
+  if (same === rememberedTeam) {
+    return;
+  }
+  rememberedTeam = same;
+  await writeSetting(TEAM, {
+    tenantId: tenant.id,
+    name: tenant.name,
+    balanceCredits: tenant.balanceCredits,
+    at: new Date().toISOString(),
+  } satisfies KnownTeam);
 }
 
 /** Balance and tenants of the linked account, straight from the Manage-App. */
@@ -185,5 +222,12 @@ export async function accountOverview(): Promise<{
     headers: { authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(10_000),
   }).catch(() => null);
-  return res?.ok ? ((await res.json()) as never) : null;
+  if (!res?.ok) {
+    return null;
+  }
+  const overview = (await res.json()) as Awaited<ReturnType<typeof accountOverview>>;
+  if (overview?.tenant) {
+    await rememberTeam(overview.tenant).catch(() => undefined);
+  }
+  return overview;
 }

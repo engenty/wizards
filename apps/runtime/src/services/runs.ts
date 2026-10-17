@@ -8,11 +8,13 @@ import {
   slotText,
   wizardLang,
 } from "@engenty-wizards/shared/definition";
+import { note } from "@engenty-wizards/shared/run";
 import { and, count, desc, eq, gte, inArray, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
-import { answerAsk, unattended } from "../engine/asks.js";
-import { emitEvent, recentEvents, subscribe } from "../engine/events.js";
+import { answerAsk } from "../engine/asks.js";
+import { emitEvent, recentEvents, watchRun } from "../engine/events.js";
+import { fieldErrorsIn } from "../engine/input.js";
 import {
   cancel,
   createRun,
@@ -26,7 +28,7 @@ import {
   reviewStep,
   submitPage,
 } from "../engine/runner.js";
-import { ModelUnavailableError } from "../model-errors.js";
+import { ModelUnavailableError, saidOf } from "../model-errors.js";
 import { signedUrl } from "../secrets/signing.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { notFound, ServiceError } from "./errors.js";
@@ -45,7 +47,7 @@ export async function startTestRun(
   const w = await ownedWizard(userId, wizardId);
   const { definition, files } = await requireClean(w);
   if (!(await canSpend())) {
-    throw new ServiceError("no_credits", "Dein Guthaben ist aufgebraucht.");
+    throw new ServiceError("no_credits", note("creditsUsedUp"));
   }
   const runId = await createRun({
     wizardId: w.id,
@@ -54,8 +56,9 @@ export async function startTestRun(
     version: null,
     mode: "test",
     userId,
+    unattended: Boolean(autopilot),
   }).catch((err) => {
-    throw err instanceof ModelUnavailableError ? new ServiceError("refused", err.message) : err;
+    throw err instanceof ModelUnavailableError ? new ServiceError("refused", saidOf(err)) : err;
   });
   if (autopilot) {
     fly(runId, autopilot.answers, autopilot.acceptReviews);
@@ -65,12 +68,10 @@ export async function startTestRun(
 
 function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boolean) {
   autopilots.add(runId);
-  unattended.add(runId);
   let busy = false;
   let again = false;
   const land = () => {
     autopilots.delete(runId);
-    unattended.delete(runId);
     unsubscribe();
     clearTimeout(timeout);
   };
@@ -112,15 +113,19 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
     } catch (err) {
       const message =
         err instanceof RunInputError
-          ? `Antworten fehlen oder passen nicht: ${err.errors.map((e) => `${e.field} – ${e.message}`).join("; ")}`
-          : (err as Error).message;
+          ? note("answersMissing", {
+              answers: err.errors.map((e) =>
+                note("fieldError", { field: e.field, message: e.message }),
+              ),
+            })
+          : saidOf(err);
       await emitEvent(runId, null, "error", message).catch(() => undefined);
       land();
     } finally {
       busy = false;
     }
   };
-  const unsubscribe = subscribe(runId, () => {
+  const unsubscribe = watchRun(runId, () => {
     void step();
   });
   const timeout = setTimeout(land, 30 * 60_000);
@@ -129,15 +134,16 @@ function fly(runId: string, answers: Record<string, unknown>, acceptReviews: boo
 
 /**
  * A run the caller may see: any test run of their tenant, or a run they started themselves
- * from an MCP client (run_wizard). `test` narrows it to test runs.
+ * from an MCP client (run_wizard). `test` narrows it to test runs; `live` takes every live run of
+ * the tenant, what visitors started (the results `/api/v1/runs` lists with `runs:read`).
  */
-async function ownedRun(userId: string, runId: string, only?: "test"): Promise<RunRow> {
+async function ownedRun(userId: string, runId: string, only?: "test" | "live"): Promise<RunRow> {
   const run = await db.query.run.findFirst({
     where: and(
       eq(schema.run.id, runId),
       eq(schema.run.tenantId, currentTenant()),
-      only === "test"
-        ? eq(schema.run.mode, "test")
+      only
+        ? eq(schema.run.mode, only)
         : or(eq(schema.run.mode, "test"), eq(schema.run.userId, userId)),
     ),
   });
@@ -169,7 +175,7 @@ export async function waitRun(load: () => Promise<RunRow>, seconds: number): Pro
   let run = await load();
   while (moving(run) && Date.now() < deadline) {
     await new Promise<void>((resolve) => {
-      const unsubscribe = subscribe(run.id, () => {
+      const unsubscribe = watchRun(run.id, () => {
         unsubscribe();
         clearTimeout(timer);
         resolve();
@@ -188,13 +194,13 @@ async function waitWhileMoving(
   userId: string,
   runId: string,
   seconds: number,
-  only?: "test",
+  only?: "test" | "live",
 ): Promise<RunRow> {
   const deadline = Date.now() + seconds * 1000;
   let run = await ownedRun(userId, runId, only);
   while (moving(run) && Date.now() < deadline) {
     await new Promise<void>((resolve) => {
-      const unsubscribe = subscribe(runId, () => {
+      const unsubscribe = watchRun(runId, () => {
         unsubscribe();
         clearTimeout(timer);
         resolve();
@@ -334,7 +340,12 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
 }
 
 /** What a run did so far, for a client without the run page: outputs, links, cost, errors. */
-export async function runReport(userId: string, runId: string, waitSeconds = 0, only?: "test") {
+export async function runReport(
+  userId: string,
+  runId: string,
+  waitSeconds = 0,
+  only?: "test" | "live",
+) {
   return runReportOf(await waitWhileMoving(userId, runId, waitSeconds, only));
 }
 
@@ -412,10 +423,10 @@ export const testRunReport = (userId: string, runId: string, waitSeconds = 0) =>
 /** A command the run refused, as a tool error the client can act on. */
 export function refusedInput(err: unknown): never {
   if (err instanceof RunInputError) {
-    throw new ServiceError("invalid", err.message, { fields: err.errors });
+    throw new ServiceError("invalid", saidOf(err), { fields: fieldErrorsIn(err.errors, "en") });
   }
   if (err instanceof RunConflict) {
-    throw new ServiceError("refused", err.message);
+    throw new ServiceError("refused", saidOf(err));
   }
   throw err;
 }
@@ -433,7 +444,7 @@ export async function startRun(
   if (w.publishedVersion === null) {
     throw new ServiceError(
       "refused",
-      "This wizard is not published yet. Publish it, or try the draft with start_test_run.",
+      "This wizard isn’t published yet. Publish it, or try the draft with start_test_run.",
     );
   }
   const version = await db.query.wizardVersion.findFirst({
@@ -446,7 +457,7 @@ export async function startRun(
     throw notFound();
   }
   if (!(await canSpend())) {
-    throw new ServiceError("no_credits", "Dein Guthaben ist aufgebraucht.");
+    throw new ServiceError("no_credits", note("creditsUsedUp"));
   }
   const runId = await createRun({
     wizardId: w.id,
@@ -457,10 +468,10 @@ export async function startRun(
     userId,
   }).catch((err) => {
     if (err instanceof ModelUnavailableError) {
-      throw new ServiceError("refused", err.message);
+      throw new ServiceError("refused", saidOf(err));
     }
     if (err instanceof NoCreditsError) {
-      throw new ServiceError("no_credits", "Dein Guthaben ist aufgebraucht.");
+      throw new ServiceError("no_credits", note("creditsUsedUp"));
     }
     throw err;
   });
@@ -477,7 +488,7 @@ export async function startRun(
     return { runId, refused: null };
   } catch (err) {
     if (err instanceof RunInputError) {
-      return { runId, refused: err.errors };
+      return { runId, refused: fieldErrorsIn(err.errors, "en") };
     }
     throw err;
   }
@@ -521,8 +532,8 @@ export async function answerRunAsk(
   answer: "allow" | "skip",
 ) {
   await ownedRun(userId, runId);
-  if (!answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" })) {
-    throw new ServiceError("refused", "This question is no longer open.");
+  if (!(await answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" }))) {
+    throw new ServiceError("refused", { code: "askClosed" });
   }
 }
 

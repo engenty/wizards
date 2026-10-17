@@ -6,7 +6,7 @@ import {
   type NextRule,
   type WizardDefinition,
 } from "./definition.js";
-import type { ItemFormat, MarketplaceLang } from "./marketplace.js";
+import { type ItemFormat, type MarketplaceLang, marketLabel } from "./marketplace.js";
 
 // What a marketplace entry shows of its wizard: the flow in steps, and what a person takes along
 // at the end. The app's dialog and the marketplace's pages read the same.
@@ -46,22 +46,22 @@ function condition(definition: WizardDefinition, rule: NextRule, lang: Marketpla
     return rule.ask;
   }
   if (rule.when === undefined) {
-    return lang === "de" ? "sonst" : "otherwise";
+    return marketLabel("outline", "otherwise", lang);
   }
-  return conditionsOf(rule.when)
-    .map((c) => conditionText(definition, c, lang))
-    .join(lang === "de" ? " und " : " and ");
+  const parts = conditionsOf(rule.when).map((c) => conditionText(definition, c, lang));
+  return parts.length
+    ? parts.reduce((first, second) => marketLabel("outline", "and", lang, { first, second }))
+    : "";
 }
 
 function conditionText(definition: WizardDefinition, c: Condition, lang: MarketplaceLang): string {
   const { field, op, value } = c;
   const name =
     allFields(definition).find((f) => f.id === field)?.label ?? field.split(".").pop() ?? field;
-  const de = lang === "de";
   // A toggle is often labelled "Mit …" already.
   const bare = name.replace(/^(mit|with)\s+/i, "");
-  const without = de ? `ohne ${bare}` : `without ${bare}`;
-  const withIt = de ? `mit ${bare}` : `with ${bare}`;
+  const without = marketLabel("outline", "without", lang, { name: bare });
+  const withIt = marketLabel("outline", "with", lang, { name: bare });
   // A toggle reads better as with / without than as "= true".
   if (typeof value === "boolean" && (op === "equals" || op === "notEquals")) {
     return (op === "equals") === value ? withIt : without;
@@ -83,7 +83,7 @@ function conditionText(definition: WizardDefinition, c: Condition, lang: Marketp
     case "lt":
       return `${name} < ${shown}`;
     case "contains":
-      return de ? `${name} enthält ${shown}` : `${name} contains ${shown}`;
+      return marketLabel("outline", "contains", lang, { name, value: shown });
   }
 }
 

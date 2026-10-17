@@ -1,7 +1,1253 @@
 [
   {
+    "version": "v0.7.8",
+    "timestamp": 1792271999,
+    "commits": [
+      {
+        "id": "8d49416",
+        "message": "a film starts from a kit's base project and keeps the space's brand between runs (#55)",
+        "group": "Added",
+        "scope": "film",
+        "breaking": false
+      },
+      {
+        "id": "2e32541",
+        "message": "a decision model on the person's own machine (#54)",
+        "group": "Added",
+        "scope": "setup",
+        "breaking": false
+      },
+      {
+        "id": "20828bb",
+        "message": "the Pro modules section says why it could not load and offers to try again (#53)",
+        "group": "Fixed",
+        "scope": "plugins",
+        "breaking": false
+      },
+      {
+        "id": "00d252d",
+        "message": "code mode keeps to a step budget, off paid tools and large answers (#50)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "f2acdc5",
+        "message": "editor pane on the left, test run beside the diagram with a live log (#52)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.7",
+    "timestamp": 1792263907,
+    "commits": [
+      {
+        "id": "4b6e71a",
+        "message": "run wizards inside OpenUI chats (#43)",
+        "group": "Added",
+        "scope": "openui",
+        "breaking": false
+      },
+      {
+        "id": "94b6cd5",
+        "message": "code mode – a step's tools from one program in QuickJS (#49)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "b1c29bb",
+        "message": "triggers and starts – a wizard that starts by itself (#46)",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.6",
+    "timestamp": 1792250533,
+    "commits": [
+      {
+        "id": "b730bc5",
+        "message": "sandbox engines installed apart from the package, starting with agentOS 0.4 (#45)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.5",
+    "timestamp": 1792246541,
+    "commits": [
+      {
+        "id": "4164d75",
+        "message": "`npx wizards` downloads a small launcher; the runtime is published as @engenty/wizards-runtime (#39)",
+        "group": "Added",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.4",
+    "timestamp": 1792239952,
+    "commits": [
+      {
+        "id": "dc773cd",
+        "message": "one package for code outside the repo, @engenty/wizards, with plugins at /plugin (#44)",
+        "group": "Changed",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "a51221e",
+        "message": "wizards in generative UI chats",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "9c08359",
+        "message": "replace Gemini CLI with Antigravity as the Google AI client (#42)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "4896ef8",
+        "message": "test each own key on its own, without picking models (#41)",
+        "group": "Added",
+        "scope": "setup",
+        "breaking": false
+      },
+      {
+        "id": "bcd9a04",
+        "message": "onboarding for people on their own, browser Back, and answers that survive a reload (#40)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.3",
+    "timestamp": 1792067211,
+    "commits": [
+      {
+        "id": "85184a6",
+        "message": "template cards on a phone in a column with a block title (Safari cut the footer off a card whose title wraps); a search brings its field to the top so results show",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "03026c9",
+        "message": "onboarding sign-in a new person can finish or skip (#38)",
+        "group": "Fixed",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.2",
+    "timestamp": 1792064386,
+    "commits": [
+      {
+        "id": "1f29bc7",
+        "message": "on a phone the read-only note leaves the top (a lock on the tabs instead); with the keyboard up the run page drops its bar, shrinks the title and keeps the focused field above Weiter",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.1",
+    "timestamp": 1792058130,
+    "commits": [
+      {
+        "id": "5842af1",
+        "message": "clearer setup and menu wording, and an Uninstall menu entry (#37)",
+        "group": "Fixed",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.0",
+    "timestamp": 1792054768,
+    "commits": [
+      {
+        "id": "024c719",
+        "message": "auto-update the installed wizards in the background (#34)",
+        "group": "Added",
+        "scope": "cli",
+        "breaking": false
+      },
+      {
+        "id": "293c813",
+        "message": "wizards uninstall (#33)",
+        "group": "Added",
+        "scope": "cli",
+        "breaking": false
+      },
+      {
+        "id": "c97269b",
+        "message": "one implementation for helpers whose copies drifted (#29)",
+        "group": "Changed",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.6.2",
+    "timestamp": 1792048992,
+    "commits": [
+      {
+        "id": "f1ada78",
+        "message": "a wizard's own language is any real language – `lang` in the schema is a two-letter code (JSON Schema v1: pattern ^[a-z]{2}$, no longer en|de), validateWizard says when it names no real language (isRealLanguage, Intl.DisplayNames). wizardLang gives the code; engenty's own strings read it through textLang (English where they lack it), dates and numbers through localeOf, speech through speechLocaleOf. The studio's language menu offers the languages of Europe (WIZARD_LANGS). A wizard written in a language outside LANGS loads the runner's words in it. Fix: translations sent the texts' own keys as schema property names, which Claude refuses (only letters, digits, _ . -); calls now use t0, t1, … and map them back",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.6.1",
+    "timestamp": 1792048786,
+    "commits": [
+      {
+        "id": "1c77c99",
+        "message": "MIT license notice in the wizard and package JSON Schemas",
+        "group": "Added",
+        "scope": "schema",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.6.0",
+    "timestamp": 1792048468,
+    "commits": [
+      {
+        "id": "99532b8",
+        "message": "a yes/no never reads true or false; progress only while an answer streams",
+        "group": "Fixed",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "fb191d6",
+        "message": "prompts design results first; json steps report what they write",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "7e8c786",
+        "message": "a json result without a view shows things as cards, not tables",
+        "group": "Added",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "fa87af4",
+        "message": "agent steps return nested data through output.schema",
+        "group": "Added",
+        "scope": "results",
+        "breaking": false
+      },
+      {
+        "id": "e6f3680",
+        "message": "result views that read like an app, themed from the brand",
+        "group": "Added",
+        "scope": "runner",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.13",
+    "timestamp": 1792047776,
+    "commits": [
+      {
+        "id": "cdb0308",
+        "message": "a wizard in the viewer's own language, translated on request – the page opens in the wizard's language (`wizardLang`) and, where the viewer reads another (`viewerLang`: any language, from the browser or the time zone), offers it in the studio's two-sided pill (LangPill, LangSwitch now built on it), the pick kept in the browser. One structured call per wizard and language on the `standard` class at effort low (gpt-6-luna today, measured against cheaper text models in docs/plans/wizard-translation.md), kept per wizard as original text → translation (`wizard_translation`, machine or author), so later viewers read it and a republish translates only changed texts; answers that lose a placeholder or a translated definition that fails the schema or the validator are not kept. Choices keep their values and show `labels[value]`; ids, branches, AI instructions and slot dates are never sent. The runner's words in languages outside LANGS are translated once per runtime (`ui_translation`, chunked calls, plural forms per Intl.PluralRules) – the runner table moves to shared/runner-texts with the runner pages' 57 studio lines. Runs carry `run.lang`: the view shows the translation, AI steps write in that language, a switch mid-run keeps what is made, a finished result can be translated (`state.translated`). Authors turn it off per wizard (`wizard.translate`, synced to the cloud copy) and correct a language line by line in Share → Settings. \"The wizard doesn't match the schema.\" goes through the runtime's string table (ServerLine on NotedError)",
+        "group": "Added",
+        "scope": "runner",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.12",
+    "timestamp": 1792047437,
+    "commits": [
+      {
+        "id": "9727faf",
+        "message": "the first visit asks what the team uses engenty for (guessed from the address: free mail personal, a club's domain a club, else a business) and the questions that fit, sends the answers to the Manage-App (PUT /api/studio/team/profile), and takes a website's address or just its name",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "b590768",
+        "message": "engenty.wizards under the door's engenty and at the foot of the guests' start page",
+        "group": "Fixed",
+        "scope": "brand",
+        "breaking": false
+      },
+      {
+        "id": "db8b878",
+        "message": "review findings – runner exports, own keys fail closed, one secret reader, run cleanup, CI checks (#28)",
+        "group": "Fixed",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "e3fbc08",
+        "message": "remove hard-coded German, widen copy-check (#31)",
+        "group": "Fixed",
+        "scope": "copy",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.11",
+    "timestamp": 1792044141,
+    "commits": [
+      {
+        "id": "c197da3",
+        "message": "on the new-wizard page (and the guests' start page) the mic is an outlined \"Sprechen\" button at the start of the row, its menu opening to the right; on a phone the guests' top bar shows the mark, the language and \"Anmelden\" only",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.10",
+    "timestamp": 1792043151,
+    "commits": [
+      {
+        "id": "c9d5d9c",
+        "message": "the light/dark pick is shared with the account pages (cookie engenty_theme on the parent domain, also what a first visit shows), and the guests' start page ends like the landing page – engenty and the legal pages, no version",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "c131cb2",
+        "message": "voice input on the start page for guests – the browser's own speech recognition, nothing sent to the server without an account; where the browser has none, no microphone button",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.9",
+    "timestamp": 1792042754,
+    "commits": [
+      {
+        "id": "085cfe3",
+        "message": "the npm package `wizards` is for macOS and Linux only (os in its package.json) – on Windows npm refuses within a minute or two instead of an install of twenty minutes that ends in a crash",
+        "group": "Fixed",
+        "scope": "cli",
+        "breaking": false
+      },
+      {
+        "id": "59adc45",
+        "message": "`npx wizards` on Windows says engenty wizards for Windows is coming soon and how to run it in WSL meanwhile, instead of an npm install of several minutes that ends in a crash (no libsql build for Windows on Arm; no installer, service or AI client lookup for Windows yet); --version, --help, validate and mcp still run",
+        "group": "Fixed",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.8",
+    "timestamp": 1792042356,
+    "commits": [
+      {
+        "id": "f17a541",
+        "message": "every line in a string table, a new language needs only translations – shared/texts (MIT) holds the table shape (English has every line, a language may lack some), plural forms by Intl.PluralRules on {count}/{n}, numbers written the language's way. RUN_NOTES becomes one table per language and takes the ~160 bilingual() lines as notes (note(code, params), gaps may hold other notes and lists); bilingual() and the \"text\" code are gone. The runtime gets its own table (apps/runtime/src/texts.ts, serverText, say(c, key) for inLang) for answers, assistant activity lines, first-space and new-wizard words. Marketplace labels, provider notes, basic facts and product credits move into language-first tables or the studio's strings; SPEECH_LOCALES joins LOCALES; the voice conversation's rules are written in English and name the language to speak. Studio and runner t() pick plural forms; copy-check reads them form by form",
+        "group": "Added",
+        "scope": "i18n",
+        "breaking": false
+      },
+      {
+        "id": "7e6e0b7",
+        "message": "one language list, the person's own language beside English – LANGS, Lang, LANG_NAMES, LOCALES, isLang, langOf and localLang in shared/definition replace every \"de\" | \"en\" and z.enum([\"de\", \"en\"]). The studio starts in the person's pick, else the first browser language engenty speaks other than English, else the language of the time zone's country, else English; requestLang reads the whole Accept-Language list the same way. Each language has its own strings, what one lacks is said in English (studio and runner). LangSwitch holds English and that own language and shows nothing without one; the account page picks among all languages (LangPick). JSON Schema v1 regenerated (enum order only); local-lang.test.ts covers the pick",
+        "group": "Added",
+        "scope": "i18n",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.7",
+    "timestamp": 1792040765,
+    "commits": [
+      {
+        "id": "b03a448",
+        "message": "someone not signed in gets the new-wizard page instead of the door – the wish and the gallery (GET /api/guest/marketplace, no stars or plugins), \"Build\" signs in with the wish along and keeps it; the team's first visit shows it, and \"new\" builds it once the person is in",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.6",
+    "timestamp": 1792037961,
+    "commits": [
+      {
+        "id": "86406a6",
+        "message": "curly quotes around the menu entry, as the copy style wants",
+        "group": "Docs",
+        "scope": "install",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.5",
+    "timestamp": 1792037726,
+    "commits": [
+      {
+        "id": "0996111",
+        "message": "sign-out ends the account's sign-in too – the studio's sign-in page no longer signs the person in again by itself",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.4",
+    "timestamp": 1792013713,
+    "commits": [
+      {
+        "id": "a317c97",
+        "message": "the editor on a phone – the pane is a sheet over the whole room or folded, and the row under the header has \"Ablauf\" (folds it to the diagram and back) with Test and Share as icons; the tab Chat is Assistent, the Steps tab has the chat's composer too (on every screen), a swipe left or right goes to the next or the previous step, the tab in effect scrolls into view, the zoom bar is gone on a phone, and the wizard's menu has vertical dots at the very right. The home page drops the offer to install on one's own computer",
+        "group": "Added",
+        "scope": "editor",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.3",
+    "timestamp": 1792013490,
+    "commits": [
+      {
+        "id": "ce3ee90",
+        "message": "`npx wizards` installs, sets up and runs the studio – a copy from npm (npx, npm i -g) on macOS and Linux installs engenty wizards into ~/.engenty/wizards with the install.sh it carries (own Node, runtime, the `wizards` command), brings an older install up to its own version and restarts a runtime that runs, then hands every command to the installed `wizards`; a Node older than 24.11 gets the same instead of a refusal; --version, --help, validate and mcp still run from npm; node-pty is an optional dependency of the package, so npx installs on a Linux without a compiler; the install page names `npx wizards` beside the curl installer",
+        "group": "Added",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.2",
+    "timestamp": 1792012368,
+    "commits": [
+      {
+        "id": "8abf854",
+        "message": "on a phone the sheet opens over the whole room, and the tab Ablauf folds it to the diagram – a drag near the top takes all of it, the tabs scroll sideways where they do not fit",
+        "group": "Added",
+        "scope": "editor",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.1",
+    "timestamp": 1792011399,
+    "commits": [
+      {
+        "id": "c3e81a2",
+        "message": "keys a plugin holds across tenants – server.claims takes, puts, drops and finds keys of the plugin's own, each for one tenant at a time (control table plugin_claim, migration 0009): a keyword on a number every tenant shares, who last wrote to it, a number a tenant connected; holder gives the tenant's ref for a shared route's inTenant. channels.book takes whatsapp, by message sent. Documented in the server, routes and reference pages and the manage contract; managed.test.ts covers two tenants holding one key",
+        "group": "Added",
+        "scope": "plugins",
+        "breaking": false
+      },
+      {
+        "id": "88bb270",
+        "message": "a copy style guide, with every word people read brought to it (#23)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "73f59e7",
+        "message": "patch vulnerable dependencies from pnpm audit (#22)",
+        "group": "Fixed",
+        "scope": "deps",
+        "breaking": false
+      },
+      {
+        "id": "f34acbd",
+        "message": "one SSRF range check, pinned connections, closed DevTools origins (#21)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "0aed1cc",
+        "message": "keep run uploads to allowlisted types and never serve them as pages (#20)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "e80770d",
+        "message": "commit the regenerated COPYRIGHTS.md with the release (#18)",
+        "group": "Fixed",
+        "scope": "release",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.5.0",
+    "timestamp": 1791995088,
+    "commits": [
+      {
+        "id": "ed997dd",
+        "message": "mark spaces synced from a local install (#17)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "1c5b90f",
+        "message": "English names in the source for Wissen and its parts; packages keep pages under files/knowledge/ (#13)",
+        "group": "Changed",
+        "scope": "knowledge",
+        "breaking": true
+      }
+    ]
+  },
+  {
+    "version": "v0.4.7",
+    "timestamp": 1791989799,
+    "commits": [
+      {
+        "id": "daf3f8a",
+        "message": "the header of /new takes about half its height on a phone – below md the fluffy engenty is scaled to 84px (Mascot draws a flat one below 120), the title is 1.5rem on one line and the gaps are smaller",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "c5699d1",
+        "message": "Goose behind a release switch `goose`, off by default – AppFrame leaves out the assistant's dock, its sidebar and its highlights until the switch is on; the .features template names it",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.4.6",
+    "timestamp": 1791985917,
+    "commits": [
+      {
+        "id": "5a26b60",
+        "message": "a channel is set up inside the share dialog – a runner's problem may say its kind (setup, waiting, plan) with the row's note and the plan that has it, so a row says \"Nummer angefragt\" without a button or \"Ab Pro\" with \"Pro ansehen\" instead of \"Noch nicht eingerichtet\"; studio.registerShareSetup gives a plugin the view \"Einrichten\" opens, inside the dialog at its height with a back arrow, its buttons at the dialog's foot (Actions) and done(banner) back to the rows, and a banner of the runner's news above them (notice); QrCode for a plugin's studio half; channels say whether the plan has a number of its own (allowed). Documented in the runners, studio, server and reference pages and the manage contract; plugins.test.ts covers the problem kinds",
+        "group": "Added",
+        "scope": "share",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.4.5",
+    "timestamp": 1791977859,
+    "commits": [
+      {
+        "id": "7a8ccbb",
+        "message": "the authoring guide says when a step goes without the store's file tools, and the check for kept files reads one row – guide.ts no longer promises files_list, read_document and scan_documents to every agent step (an installed client gets them only where there is something to read), and buildStepTools asks hasStoreFiles instead of loading every kept file",
+        "group": "Fixed",
+        "scope": "harness",
+        "breaking": false
+      },
+      {
+        "id": "ed98f4a",
+        "message": "a tool-less step on an installed client answers without the MCP bridge – a step that declares no tools or connections, got no uploads and whose wizard keeps no lists and no files no longer gets the store's file tools (files_list, read_document, scan_documents), so without other tools (Wissen, a workspace file) the client starts no bridge for the call; harness.test.ts covers both",
+        "group": "Performance",
+        "scope": "harness",
+        "breaking": false
+      },
+      {
+        "id": "35c437e",
+        "message": "a list keeps its rows in the order they came – a new row is stamped after every row the list holds, so two saves in one millisecond no longer tie and swap places by their random ids (a shared list across saves, a person's list even within one save); the flaky \"a shared list\" test met exactly that (#12)",
+        "group": "Fixed",
+        "scope": "store",
+        "breaking": false
+      },
+      {
+        "id": "aa6352b",
+        "message": "keep the picked language with the person and share it with the account pages (#5)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "92249a4",
+        "message": "English is the base language everywhere; the studio follows the picked language, not the browser's (#4)",
+        "group": "Added",
+        "scope": "i18n",
+        "breaking": false
+      },
+      {
+        "id": "849831d",
+        "message": "the space sidebar's state stands in a module of its own (side-menu.ts), so a plugin page that imports MenuPage no longer pulls the studio into its typecheck; the wizard menu imports base relatively; the cloud test expects a lone runtime's first space to be \"Local Space\"",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "a779c74",
+        "message": "one menu at the left – a page with a menu of its own (the space's areas, the settings, a plugin page through the new MenuPage) draws it into the sidebar while that is open, else at its own left; the top bar runs across the sidebar and the page with the toggle, the space's name and the trail, open or closed; the space menu opens fixed under the name, so the sidebar no longer cuts it off, and its actions are a line glyph and a word",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "f9a74a9",
+        "message": "the space sidebar – a toggle left of the space's name opens it (animated, closed below 1024 px, the toggle never moves); it holds Wizards, New wizard and the space's parts under SPACE, and in an area of the space page that area's own menu instead, so one menu stands at the left; the space's name opens the space menu (the spaces, Wizards in space, Add wizard, Edit space name in a dialog) with a computer or cloud icon after it; the area menu's top level is \"Space\" with a way back to the wizards; the list is titled \"Wizards in <space>\"; the breadcrumb starts with a slash; a wizard has a ⋯ menu on its card and in the editor (Duplicate, Export, Delete behind a confirm dialog, admins only); the assistant is one card – the open chat or the last turn above the bar, the handle always on top, Goose perched once on top of it, 600 px wide, a taller input",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "fbb7b45",
+        "message": "the studio has no footer – version and changelog stay in the About dialog behind the mark – and Goose perches on top of the assistant's bar only while it is in use (focused, open, working or live), rising in animated, instead of standing beside it",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "fa8ec67",
+        "message": "the space chooser has no \"Add space\" row at the plan's limit, the chevron shows only where there is something to switch to or add, and the menu opens under the chevron",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "2835e00",
+        "message": "a new wizard starts as a step-by-step wizard only, with a + beside the channel button and \"How should it run?\" as the question, the hint stands below the input, dark is the default theme (System stays a pick), the top bar has no wordmark, the space name is plain text and only its chevron opens the chooser, and a local install's first space is called \"Local Space\"",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "70de829",
+        "message": "the sign-in page gets the logo, the theme and language switches and a footer with the version; the headline and the sub line are the new wish text in both languages, the hint is shorter and points to wizards open --print",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.4.4",
+    "timestamp": 1791958258,
+    "commits": [
+      {
+        "id": "5fb73c6",
+        "message": "numbers of the Manage-App and routes for every tenant – server.channels gives a plugin the tenant's numbers (get, request, withdraw) and books what they carry (book: SMS segments, call minutes, priced by the Manage-App) through the runtime's service key; registerSharedRoute, sharedUrl and publicRef give a service that posts to one webhook for all tenants one address (/api/public/plugins/<id>/shared/…), whose handler enters a tenant by the ref the call carries (inTenant). The calls GET/POST/DELETE /v1/tenants/:id/channels(/requests) and POST /v1/tenants/:id/channels/usage are in docs/manage-contract.md, the SDK in the plugin docs; managed.test.ts covers both",
+        "group": "Added",
+        "scope": "plugins",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.4.3",
+    "timestamp": 1791920366,
+    "commits": [
+      {
+        "id": "5b66f17",
+        "message": "the wizard's live voice no longer interrupts itself – the microphone asks for echo cancellation, and the session filters input as far-field with a higher speech threshold (0.7) and 600 ms of silence to end a turn",
+        "group": "Fixed",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "afe2e05",
+        "message": "live voice no longer hears itself – the recognition starts fresh when the voice ends, what sounds like the voice is ignored for 3 s after it, the echo check compares plain words and takes 75 % as a match, and the microphone asks for echo cancellation",
+        "group": "Fixed",
+        "scope": "assistant",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.4.2",
+    "timestamp": 1791919585,
+    "commits": [
+      {
+        "id": "7cc53df",
+        "message": "WhatsApp, SMS and calls leave the open repository – modules/whatsapp, modules/sms and modules/calls and their tests are gone, the runtime's image no longer copies them and the plugin lists in the tests shrink; what they are built on stays in the runtime and the SDK (runners with problem and address, the thread door, server.speech.conversation(), registerShareSection). The plugin docs say what a messenger or call plugin does instead of naming the modules, \"Test and share\" describes WhatsApp, SMS and calls as channels of engenty.ai, and the two channel plans note the move",
+        "group": "Changed",
+        "scope": "modules",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.4.1",
+    "timestamp": 1791917461,
+    "commits": [
+      {
+        "id": "651cde7",
+        "message": "a colour is added as a row in place, and the assets are \"Brand Assets\" with a round search field; plugins get a part of the space page of their own (registerSpacePart, useSpaceMenu), the space's brand (useSpace().brand, server.spaces.brand), a block for the steps that write documents and dashboards (registerSpaceContext steps: [\"html\"]), pictures and PDFs for generate (files), and the space page's pieces from @engenty-wizards/web/ui",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.4.0",
+    "timestamp": 1791914731,
+    "commits": [
+      {
+        "id": "5fc08ba",
+        "message": "a plain sign-in lands in the studio as well – noted with the manage commit",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "7924be2",
+        "message": "after the sign-up the account pages send a new account to the studio – the plan's note on the landing is settled",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "377b9a9",
+        "message": "the account becomes the front door – a cloud studio's first visit is a wizard of four pages (the team's name, the website read into the space, first documents, the space explained), the setup on a computer starts with the account (a device code in the terminal, the panel and \"engenty credits\" as an engine on the setup page), install.sh --local and wizards account keep and name the install without one, the cloud home offers the computer with the install mail, and the docs start with \"Create an account\"",
+        "group": "Added",
+        "scope": "onboarding",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.3.8",
+    "timestamp": 1791899167,
+    "commits": [
+      {
+        "id": "e98284d",
+        "message": "the studio assistant is Goose and takes what is written while it works – Enter sends a message into the running answer, which reads it before its next step (or goes on with it after its answer), ⌘↩ queues it for after the answer, \"Jetzt senden\" stops and sends at once, Stop stands where Send does; the chat at the bottom moves by its grip, stays where it is put and snaps to the middle or the right near the bottom and into the sidebar near the right side, the handle on top sets the thread's height and folds it, ✕ closes it into the engenty at the lower right, which opens it where it stood (the small card is gone); \"New chat\" clears at once and writes the old chat's summary meanwhile, the next turn waits for it; developer mode (ASSISTANT_DEV here, the platform's admins when managed) shows each step's model, tokens, time and cost, the tools' arguments and results, the context window, and the turns' timeline, prompt and events to copy or download",
+        "group": "Added",
+        "scope": "assistant",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.3.7",
+    "timestamp": 1791887859,
+    "commits": [
+      {
+        "id": "1a79f0d",
+        "message": "Info & Marke becomes a brand book – Fakten right after Basis, one \"Hinzufügen\" menu in each section's head and trash on hover; Logos: the standard logos first, optional sections with when to use them, a logo from a URL (a picture, or the logos found on a page to pick); Farben: sections of colours, gradients (linear, radial or conic, angle, colour stops, CSS read and written, PNG download) or patterns (pictures tiled or filling), colours read off a page's stylesheet (oklch and hsl too); Typografie: fonts with what they are for and their weights, previewed from Bunny Fonts, an optional type scale, fonts read off a page's CSS; Assets: sections as tabs with search and view beside them, from a URL or a page's pictures, and PDFs, fonts, Lottie and 3D models taken too; rules as rows with a sign (bullet, do, don't, to check, important, numbered) for logos, colours and type; the studio assistant fills all of it only where a source says so (set_logo_sections, set_asset_sections, set_typography, set_gradients, set_rules), and every AI step and the film step get it with the brand",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.3.6",
+    "timestamp": 1791884448,
+    "commits": [
+      {
+        "id": "f9e1456",
+        "message": "\"Veröffentlichen\" is gone – the first share publishes (the dialog says \"Beim Teilen veröffentlicht\", or what to fix first), and later changes go live from \"Änderungen live schalten\" in the editor's top bar: a dialog with what changed since the version people run (the wizard, each step by its title and part, the order, the files), whether exactly this draft was tested, that runs under way keep their version, what a run costs now, then \"Live schalten\"; the runtime answers it at /wizards/:id/changes",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.3.5",
+    "timestamp": 1791872682,
+    "commits": [
+      {
+        "id": "c922964",
+        "message": "the share dialog starts over – who may open the wizard (anyone with the link, or only you), how others reach it by the channels it was made for, each with its own link or number to copy (SMS and WhatsApp show keyword and number from the runner's new `address`), and \"Link kopieren\"; QR code (any way's link, print, download), website (what it shows, where on the page, the tag; WordPress by plugin or as a package without an account), the gear (runs a day, each channel's keyword, a new link) and \"Ändern\" (the new-wizard page's channel list) open inside it with a way back; a draft, unpublished changes, a local install without an account and a cloud that lacks something say so on top; in the editor sharing stays at hand while there is something to publish",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "b297fb3",
+        "message": "on the new-wizard page pictures and files sit above the wish, as in a chat's input",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.3.4",
+    "timestamp": 1791867663,
+    "commits": [
+      {
+        "id": "f6818fd",
+        "message": "the channel menu on the new-wizard page grows out of the button that opened it and fades in; still where motion is reduced",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "02e8330",
+        "message": "the new-wizard page asks how the wizard runs and shows what is there already – \"Läuft als\" above the wish picks the channels (in the browser: Wizard in Schritten, Chat, Live Voice, Video Call; on the phone: Anruf, WhatsApp; by message: SMS, WhatsApp; one stays on), saved as the wizard's runners and named in the first message, which the guide tells the assistant to build for; the box takes files (+, paste, drop; pictures as thumbnails, names made fit for the workspace), dictation and the build button; while the wish is typed, up to ten of the space's wizards and templates that come close are listed, Pro marked, the rest one line that searches the gallery; the example chips are gone",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.3.3",
+    "timestamp": 1791845668,
+    "commits": [
+      {
+        "id": "355cb97",
+        "message": "every page checked against v0.3.2 – the wizards menu (Start as service, Service settings, an update that restarts what runs), the version line at the top of Settings → Account, the templates the assistant shows as cards, the wizard format's code under MIT, the server page's clone folder (wizards)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.3.2",
+    "timestamp": 1791836815,
+    "commits": [
+      {
+        "id": "5aeddad",
+        "message": "templates the assistant recommends show as the gallery's cards under its answer – a new show_templates tool sends them as a card of the studio's own, kept with the chat; a card opens the gallery's dialog and makes a wizard of it in the space",
+        "group": "Added",
+        "scope": "assistant",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.3.1",
+    "timestamp": 1791812932,
+    "commits": [
+      {
+        "id": "efc3934",
+        "message": "studio, doors and runner share one /data volume – the tenant databases are files there while the Manage-App's TENANT_DB_PROVISIONER is none, so with a volume per role each process saw a tenant of its own: a wizard published in the studio was not found on the doors, and the runner never found the runs it claimed",
+        "group": "Fixed",
+        "scope": "cloud",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.3.0",
+    "timestamp": 1791811863,
+    "commits": [
+      {
+        "id": "ab35b50",
+        "message": "the web is cut into studio and doors – RUNTIME_ROLE studio serves the makers' half (sign-in, authoring, MCP, the sync API, the studio's pages), doors the customers' half (the wizards' pages, their API, shared results, the plugins' public routes, the app links); web is both, all adds the runner; the runs' API, the connect callback and the app's files serve both halves. PUBLIC_URL names the doors' origin when it is not APP_URL: wizard and result links, link previews, the embed script, public logos and icons, a plugin's public address and the AI app widget carry it, /api/config tells it and the studio's own link to a wizard uses it. compose.cloud.yaml runs runtime (studio), doors and runner from one image; docs/plans/runner-process.md says which paths go where",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.61",
+    "timestamp": 1791806444,
+    "commits": [
+      {
+        "id": "a7e01b4",
+        "message": "the account settings say the version on top – one line in the first card (Lokale Installation, the linked account or the cloud): the version, which opens the About dialog with what is new, and on a runtime that runs alone whether it is the newest, the newer one with Aktualisieren, and the check again; the About dialog and that line share about/UpdateCheck.tsx; no link to the GitHub release any more",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "542a901",
+        "message": "an update from the About dialog no longer ends on {\"error\":\"Interner Fehler\"} – packageVersion() reads package.json once, so a runtime still running the old code goes on saying its own version while the installer replaces its files, and the studio reloads only once the new one answers instead of into the old process whose index.html is gone",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.60",
+    "timestamp": 1791802895,
+    "commits": [
+      {
+        "id": "ae9f070",
+        "message": "the opened assistant at the bottom no longer grows past the page – its dock covers the column, so the chat's max height has a height to measure against",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.59",
+    "timestamp": 1791802205,
+    "commits": [
+      {
+        "id": "ae940c1",
+        "message": "the menu tells what an update did – a runtime that runs restarts into the new version inside the update, and the menu ends with the commands used most instead of claiming `wizards` opens the new version; \"Start\" is \"Start as service\", and starting at login moved into \"Service settings\" with a yes/no question",
+        "group": "Fixed",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.58",
+    "timestamp": 1791756854,
+    "commits": [
+      {
+        "id": "8552943",
+        "message": "with web and runner apart, the phone still thinks for a run and plugins hear of its changes – the device's offer is run.device_offer and each call a device_call row in the tenant database, which the runner polls for the answer and any web's stream sends to the phone; watchRun hands on event rows another process wrote, each once, and tells of new device calls; the plugins' runs.subscribe uses it",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.57",
+    "timestamp": 1791752566,
+    "commits": [
+      {
+        "id": "dbb1e2f",
+        "message": "the runner is its own process – RUNTIME_ROLE web | runner | all (a runtime that runs alone stays one process). The line of runs lives in the control database: run_index gained owner and seen, a runner claims a run in one statement that counts the tenant's held runs against its limit, reports every 10 s, hears of a cancel the web wrote and hands its runs back when it stops; a runner silent for 30 s loses them. A step's question and the person's answer go through the run's row (run.answer; run.unattended marks an autopilot), so the web that takes the answer need not be the process that asked. watchRun tells the stream, the autopilot and waitWhileMoving of changes another process made within a second. Runners register with an address (table runner, RUNNER_URL); the web hands a run's browser screen and acts on it to the runner holding it. compose.cloud.yaml runs web and runner apart. docs/plans/runner-process.md",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.56",
+    "timestamp": 1791738274,
+    "commits": [
+      {
+        "id": "e2e9e8d",
+        "message": "every page describes v0.2.56",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "00f92fc",
+        "message": "every page checked against v0.2.55 – the wizard format's example in English, the WordPress page's key link to the new Integrate page",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "e7e0b65",
+        "message": "a wizard package's errors in English like the definition's issues – wizards validate, the studio's import and the runner's check (which the WordPress plugin carries) said them in German",
+        "group": "Fixed",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "04a7c61",
+        "message": "Apple Intelligence keeps High and Highest on their way; the WordPress import follows the shared check and a thinking step gets the pages that match it",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "1881010",
+        "message": "Apple Intelligence leaves High and Highest on their way, a visitor reads the runtime's answers in their language",
+        "group": "Fixed",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "8a4470f",
+        "message": "every page checked against v0.2.50",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "c41c615",
+        "message": "a live conversation only where the wizard has it on, the browser the setup found, plugin runs without device signals, the WordPress plugin's download",
+        "group": "Fixed",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "d2038e8",
+        "message": "every page checked against v0.2.48, public pages only, versions tracked",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.55",
+    "timestamp": 1791733250,
+    "commits": [
+      {
+        "id": "a2a25b2",
+        "message": "an AI app names spaces and wizards, not their ids – list_projects says where each space comes from (from: \"your computer\" for one a local install sent, \"here\"), list_wizards gives each wizard its space's name and origin, and the tools' descriptions and the server's instructions say ids are for the tools only; claude.ai had listed two spaces both called \"Meine Wizards\" by their ids",
+        "group": "Fixed",
+        "scope": "mcp",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.54",
+    "timestamp": 1791732778,
+    "commits": [
+      {
+        "id": "00a132d",
+        "message": "the JSON Schemas live at engenty.ai/schema/v1/wizard.json and …/v1/wizard-package.json – one folder per definition version, names that say what they hold; the docs site answers /schema/* by asking itself for its public files (Next rewrites past its basePath only to a full URL), the proxy sends /schema to it; /docs/schema/wizard/1.json and …/wizard-package/1.json are gone",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.53",
+    "timestamp": 1791732563,
+    "commits": [
+      {
+        "id": "3ca9071",
+        "message": "Einbinden starts with what it is for and the apps found here, and every app walks through numbered steps to its first sentence in the chat – a start page with one card and one button per app on this computer and an \"Über engenty.ai\" card; the menu groups the apps (on this computer, through engenty.ai, more apps folded; in the cloud: in the browser, on your computer) with a legend for its dots; an app's page shows what it gets in plain words (wizards in the chat, the wizard as a window or as text) and three steps – add, restart, try – instead of the stage bar and a spinner, the config path behind Details, the address with an API key as a link for another computer; once an app called a tool it offers first sentences with the space's own wizard. claude.ai and ChatGPT on a local install lead to the engenty account (or Claude Desktop) instead of a dead end, and with an account linked or in the cloud they get four steps: open the connector settings, name and address, sign in and allow (with a preview of the consent page), a first sentence with its checks. The runtime asks the Manage-App (POST /v1/grants/check, kept 30 s) whether the grant behind an OAuth token still stands, so \"Trennen\" on the account page, leaving the team or a lock-out end an app's access at once; no answer refuses the token. \"Verbundene Systeme (MCP)\" is \"Verbundene Systeme\", the note against mixing them up is gone, the studio's new strings say API Key",
+        "group": "Added",
+        "scope": "integrate",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.52",
+    "timestamp": 1791732208,
+    "commits": [
+      {
+        "id": "c011ee1",
+        "message": "the package check takes the .wizard format's names from shared (wizard-package.ts) – extension, media type, format, wizard.json and files/ are written down once; check.ts still exports PACKAGE_EXTENSION and PACKAGE_MIME for its hosts; COPYRIGHTS.md lists ajv, the schema test's",
+        "group": "Changed",
+        "scope": "runner",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.51",
+    "timestamp": 1791731739,
+    "commits": [
+      {
+        "id": "881c4d0",
+        "message": "a published JSON Schema for wizards and `wizards validate` – pnpm schema writes the definition's and a package's wizard.json schema from the Zod schemas the app parses with (packages/shared/src/json-schema.ts) into the docs site, served at engenty.ai/docs/schema/wizard/1.json and …/wizard-package/1.json; objects take no unknown key there, which the app would drop without a word; the export writes \"$schema\" into every wizard.json. `wizards validate <path…>` checks a .wizard file, an unpacked package or a wizard's JSON as the import does, offline and without an account (--json, exit 1 on issues); a project's connectors, MCP servers and plugins stay checked on import. The package format moved to shared (wizard-package.ts), its reading to services/package-file.ts so the CLI loads no database; shape issues name the step everywhere (parseWizard). A test keeps the published schemas equal to a fresh run and checks them with ajv. docs/content/dev/wizard-format.md",
+        "group": "Added",
+        "scope": "format",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.50",
+    "timestamp": 1791729742,
+    "commits": [
+      {
+        "id": "58e02a9",
+        "message": "the runtime image installs the runner package's dependencies – its package.json was missing from the manifests, so vite was not there to build it and v0.2.49's image failed",
+        "group": "Fixed",
+        "scope": "deploy",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.2.49",
+    "timestamp": 1791729025,
+    "commits": [
+      {
+        "id": "3e5a8e2",
+        "message": "a written output's PDF made in the browser where the server writes none – on a standalone host (the WordPress plugin, standalone: true in its RunnerEnv) the PDF button lays an agent's Markdown or JSON out with pdfmake and Roboto (packages/runner/src/pdf.ts, loaded on the first click, about 1.5 MB), saves the file and hands it to the share sheet; an HTML download there is a page to print, opened beside the run; the fit no longer counts a written text's PDF as a need (web-event and web-dayplan run as is), a document's PDF stays the browser's print; tests for the content tree and a render through the library's server build; the credits list pdfmake; the plan records the change",
+        "group": "Added",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "163b3ad",
+        "message": "the plugin's source strings are English with German as de_DE; what make-json does to a built file named admin.js and why the bundle is app.js",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "9b21051",
+        "message": "the plugin repository is public as engenty/engenty-wizards-wp-plugin; what Plugin Check found and what changed for wordpress.org, the listing's assets, and what the submission still needs from the user",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "5e3d7f4",
+        "message": "the no-key path shown through Ollama on the site, the Word branch and the prompt filter as deviations recorded",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "fdabceb",
+        "message": "checkpoints 7 and 8 shown on the test site (the pull against a stubbed account, the Word branch closed and the open way run), the photo run, the step timeout and the Ollama finding; the login-shell test of the harness gets twenty seconds on a loaded machine",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "78ac7f1",
+        "message": "the site runs web_fetch and http itself, so the check counts them as no need; a package takes the project's pages along on request (knowledgeSnapshot: files/wissen/<path>.md with title and path in front, 60 000 characters a page and 2 MB in all, the manifest's knowledge field, ?knowledge=1 on the package route and the studio's export, the share dialog's Wissen mitnehmen switch); the runner names what a closed choice lacks on a site, an engenty account among the groups; the plan records the second round, the real-provider runs and what stays open",
+        "group": "Added",
+        "scope": "standalone",
+        "breaking": false
+      },
+      {
+        "id": "ffe81b1",
+        "message": "the start texts live in the runner package, api is exported for hosts, widgets count as a need of the runtime; the plan records what was built on the WordPress side, what changed against it and what is open",
+        "group": "Added",
+        "scope": "standalone",
+        "breaking": false
+      },
+      {
+        "id": "e5bf002",
+        "message": "the check and the runner package – standaloneFit/needs/standaloneEntry in shared (fit.ts, the steps every run passes through and the closed choices lifted there, requirements.ts on them); documents and dashboards count as text the standalone runner writes, a PDF as the browser's print; @engenty-wizards/runner (MIT) holds the runner's components, UI primitives, texts and env, RunnerBody takes a RunSource, the studio configures it and uses the package (one copy), a Vite build with React external and a scoped runner.css for hosts without Tailwind; /api/v1/wizards lists standalone per wizard and /wizards/:id/package hands the published version over; the share dialog's WordPress section with the gallery's Braucht list and the package download, Einbinden's Ohne Konto line; pnpm templates:export writes every marketplace template as a .wizard with its fit, the release attaches templates and the runner",
+        "group": "Added",
+        "scope": "standalone",
+        "breaking": false
+      },
+      {
+        "id": "b660d72",
+        "message": "standalone mode of the WordPress plugin – wizards run on the site without an account: the browser follows the flow and draws, PHP keeps the prompts and the run and calls WordPress 7.0's AI Client once per thinking step with the site's Connectors provider; one shared check (needs, standaloneFit) labels every wizard full / with less / needs an account in the studio and on upload; the start stays the hero, 'Eigene KI erstellen' opens the choice between an engenty account and local with the site's own provider, local sites pick from wizards shipped with the plugin and run them without credits; tables, routes, the PHP ports line for line, files, phases, checkpoints, what is open; mockups on the design canvas",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "645bbed",
+        "message": "connecting by hand with an address and an API Key",
+        "group": "Docs",
+        "scope": "wordpress",
+        "breaking": false
+      },
+      {
+        "id": "47e70bf",
+        "message": "the plugin's repository is engenty/engenty-wizards-wordpress – the studio's download link, the docs page and the plan",
+        "group": "Docs",
+        "scope": "wordpress",
+        "breaking": false
+      },
+      {
+        "id": "77c9ff9",
+        "message": "what the WordPress plugin calls – /api/v1/me (account, plan, plugins and the ones the plan lacks, spaces, credits, the studio's and the account's addresses), /wizards (published with token, ID and icon; drafts without), POST /wizards from a template published at once, /templates, /runs and /runs/:id with scope runs:read (live runs with the answers by the fields' labels, the e-mail, the page they started on), /space and POST /space/site (a website's own statements fill the space's empty details, its pages go into Wissen under the origin wordpress, the space assistant reads the rest; a job to ask after), /plugins/:id/* calling a plugin's routes as the token's person and answering 403 plugin for a plan without it; run.origin from embed.js's data-page (migration 0011); embed.js has a bubble at the bottom right with data-text and data-color; the share dialog offers it as a third mode; Settings → Integrate → WordPress; docs page WordPress and the contract's section on clients of an account; the plan says what was built",
+        "group": "Added",
+        "scope": "api",
+        "breaking": false
+      },
+      {
+        "id": "b6ccc62",
+        "message": "how the WordPress plugin is built – its own public GPL repository engenty-wordpress with the PHP, block and admin app laid out; the eight runtime changes in order with the files and what they reuse; seven steps with a checkpoint each; what is left out",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "11fba36",
+        "message": "the WordPress plugin – a client of a runtime (engenty.ai or an own server), never PHP: block, shortcode, Elementor widget, PHP function and a bubble render the embed tag; the admin lists wizards, results and the Pro plugins' contacts and bookings through a PHP proxy with the key; what the runtime needs (/api/v1/me, /wizards, /runs, plugin routes with a key, run.origin, a bubble mode), phases and open decisions; mockups on the canvas",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "5d7780c",
+        "message": "scanning one tap away on the add sheet – a glass tile with a QR frame under the ID entry opens the scanner, where the room below the ID was empty; the switch above stays",
+        "group": "Added",
+        "scope": "app",
+        "breaking": false
+      },
+      {
+        "id": "7c2f1bc",
+        "message": "voice notes on the Mac read any browser's recording in the right language – a WebM or Ogg recording becomes WAV through ffmpeg before SpeechAnalyzer reads it, and a note carries the runner's language (AudioValue.lang) so the Mac listens in it instead of its own; checked end to end with spoken audio: the transcript and Apple's answer are about the call and the invoice that were said",
+        "group": "Added",
+        "scope": "models",
+        "breaking": false
+      },
+      {
+        "id": "7d839da",
+        "message": "the tab bar as glass that shows – the capsule gets a light tint and answers a touch with the glass's shimmer, and the active tab sits under a clear-glass lens that slides to the tab just picked (a plain pill where there is no Liquid Glass); Glass takes a tint and a clear kind",
+        "group": "Added",
+        "scope": "app",
+        "breaking": false
+      },
+      {
+        "id": "7b71d7e",
+        "message": "Apple's local models – what the iOS simulator showed: the 26.5 runtime answers a run's Standard step on the phone, 26.2 fails with ModelManagerError 1026 and the runtime falls back; no simulator holds speech assets, so transcription is verified on the Mac",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "81a5fa6",
+        "message": "Apple's models on the phone and voice notes on the Mac – an Expo module in Swift (the same Shared.swift as the Mac helper) gives the runner bridge `transcribe` (SpeechAnalyzer, iOS 26) and `think` (Apple Intelligence, where switched on), named to a page only where the phone has them; the runner writes a recording down on the phone before the field keeps it and offers the phone for a run's Classifier and Standard calls, which the runtime sends over the run's stream as `device` events and takes back by POST, falling back to its own way when the phone does not answer in time, errs, the prompt is too long, or the step declared tools or has uploads; the Mac's helper writes voice notes down as well (`apple:transcribe`, offered under Voice notes); the recorder prefers AAC where the phone transcribes",
+        "group": "Added",
+        "scope": "app",
+        "breaking": false
+      },
+      {
+        "id": "3d38313",
+        "message": "Apple Intelligence on this Mac as a model – the on-device model of macOS 26 answers the Classifier and Standard classes through a Swift helper (wizards-apple: status, guided generation from the step's JSON schema), shown in the setup and under Text & Denken only on a Mac with Apple silicon on macOS 26, picked once Apple Intelligence is switched on; High and Highest keep their way; nothing leaves the Mac. The release builds the helper on a macOS 26 runner and packs it in; the plan for the phone side (transcription, then text over the app's bridge) is in docs/plans/local-models-apple.md",
+        "group": "Added",
+        "scope": "models",
+        "breaking": false
+      },
+      {
+        "id": "8d90e30",
+        "message": "COPYRIGHTS.md – who owns the code, the FSL-1.1-MIT terms in one paragraph, the marks, what is not ours (the Commission's AI labels) and every third-party package with its licence; pnpm about:data --credits writes that part beside the About page's credits, with the docs site and the development tooling the page leaves out",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.2.48",
-    "timestamp": 1791709282,
+    "timestamp": 1791709286,
     "commits": [
       {
         "id": "07357e1",

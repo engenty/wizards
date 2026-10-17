@@ -16,7 +16,7 @@ export const localDebugRoutes = new Hono()
   .use(async (c, next) => {
     const ticket = c.req.header(LOCAL_MCP_HEADER) ?? "";
     if (managed || !localTicketExpiry(env.authSecret, ticket, Date.now(), "local-debug")) {
-      return c.json({ error: "unauthorized" }, 401);
+      return c.json({ error: "This ticket isn’t valid.", code: "unauthorized" }, 401);
     }
     await next();
   })

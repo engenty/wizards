@@ -1,3 +1,4 @@
+import { Markdown } from "@engenty-wizards/runner";
 import { slotText, type WizardDefinition } from "@engenty-wizards/shared/definition";
 import type { RunView } from "@engenty-wizards/shared/run";
 import { App, type McpUiHostContext } from "@modelcontextprotocol/ext-apps";
@@ -22,7 +23,6 @@ import {
 import { Mascot } from "../brand";
 import { setRemoteRuntime, withBase } from "../lib/base";
 import { eventText, lang, setLang, t } from "../lib/i18n";
-import { Markdown } from "../runner/outputs";
 import { RunnerBody } from "../runner/RunnerView";
 import { FlowCanvas } from "../studio/editor/FlowDiagram";
 import {

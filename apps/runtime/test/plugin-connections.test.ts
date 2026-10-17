@@ -171,7 +171,7 @@ describe("plugin connections", () => {
       const res = await app.fetch(
         new Request(`http://localhost:5181/api/connect/callback?code=c${i}&state=${encodeURIComponent(state)}`),
       );
-      expect(await res.text()).toContain("Verbunden");
+      expect(await res.text()).toContain("Connected");
     }
     const list = await inTenant(() => cal().list(space));
     expect(list).toHaveLength(1);

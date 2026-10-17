@@ -1,21 +1,26 @@
+import { versionChanges } from "@engenty-wizards/shared/changes";
 import {
+  type Lang,
   pluginToolOf,
+  shapeIssues,
   type ValidationIssue,
   validateWizard,
   type WizardDefinition,
   wizardSchema,
 } from "@engenty-wizards/shared/definition";
+import { note } from "@engenty-wizards/shared/run";
 import type { RunnerSettings } from "@engenty-wizards/shared/runners";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import type { z } from "zod";
 import { applyOps, OpError, type WizardOp } from "../authoring/ops.js";
 import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
+import { saidOf } from "../model-errors.js";
 import { pluginToolsOf } from "../plugins/registry.js";
 import { dropLinks, putLink } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { serverText } from "../texts.js";
 import { requireAdmin, requireBuild, requireWritable, requireWritableProject } from "./access.js";
 import { changedSteps, emitDraftChanged } from "./draft-events.js";
 import { notFound, ServiceError } from "./errors.js";
@@ -30,24 +35,35 @@ export type WizardRow = typeof schema.wizard.$inferSelect;
 /** Who wrote: the studio, or an admin's own MCP client (named after its API key). */
 export type Writer = { source: "studio" } | { source: "mcp"; client: string };
 
-const BLANK: WizardDefinition = {
-  version: 1,
-  title: "Neuer Wizard",
-  description: "",
-  avatar: "round",
-  steps: [
-    {
-      id: "start",
-      type: "page",
-      title: "Los geht's",
-      fields: [{ id: "input", label: "Worum geht es?", kind: "textarea", required: true }],
-    },
-    { id: "done", type: "result", title: "Fertig", deliverables: [] },
-  ],
-};
+/** The wizard a new one starts as, in the language of whoever makes it. */
+function blankWizard(lang: Lang): WizardDefinition {
+  return {
+    version: 1,
+    title: serverText(lang, "newWizard"),
+    description: "",
+    avatar: "round",
+    lang,
+    steps: [
+      {
+        id: "start",
+        type: "page",
+        title: serverText(lang, "newWizardStart"),
+        fields: [
+          {
+            id: "input",
+            label: serverText(lang, "newWizardAsk"),
+            kind: "textarea",
+            required: true,
+          },
+        ],
+      },
+      { id: "done", type: "result", title: serverText(lang, "newWizardDone"), deliverables: [] },
+    ],
+  };
+}
 
 export const studioUrl = (wizardId: string) => `${env.appUrl}/studio/edit/${wizardId}`;
-export const shareUrl = (token: string) => `${env.appUrl}/w/${token}`;
+export const shareUrl = (token: string) => `${env.publicUrl}/w/${token}`;
 const newShareToken = () => nanoid(14);
 
 export async function ownedWizard(_userId: string, wizardId: string): Promise<WizardRow> {
@@ -82,6 +98,8 @@ export function wizardSummary(w: WizardRow) {
     dailyRunLimit: w.dailyRunLimit,
     /** How it is offered; null: the link opens the page, the chat is on beside it. */
     runners: w.runners,
+    /** Its page offers it in the viewer's language, translated on request. */
+    translate: w.translate,
     stepCount: w.draft.steps.length,
     updatedAt: w.updatedAt.toISOString(),
   };
@@ -153,7 +171,7 @@ async function pluginIssues(draft: WizardDefinition) {
       if (!known.has(id)) {
         issues.push({
           stepId: step.id,
-          message: `Step "${step.id}": tool "${id}" is not available here — the plugin "${named.plugin}" is not installed or has no such tool.`,
+          message: `Step “${step.id}”: the tool “${id}” isn’t available here – the plugin “${named.plugin}” isn’t installed or has no such tool.`,
         });
       }
     }
@@ -202,6 +220,33 @@ export async function wizardState(w: WizardRow) {
   };
 }
 
+/**
+ * What "Änderungen live schalten" says: the version people run, what the draft changes of it,
+ * and the latest test run of exactly this draft and its files.
+ */
+export async function draftChanges(w: WizardRow) {
+  const published = await publishedVersion(w);
+  const files = await draftFiles(w.id);
+  const draft = JSON.stringify(w.draft);
+  const tests = await db.query.run.findMany({
+    where: and(eq(schema.run.wizardId, w.id), eq(schema.run.mode, "test")),
+    orderBy: [desc(schema.run.createdAt)],
+    columns: { id: true, definition: true, files: true, createdAt: true, status: true },
+    limit: 20,
+  });
+  const tested = tests.find(
+    (r) => JSON.stringify(r.definition) === draft && sameFiles(r.files, files),
+  );
+  return {
+    version: published?.version ?? null,
+    published: published?.definition ?? null,
+    changes: published ? versionChanges(published, { definition: w.draft, files }) : [],
+    tested: tested
+      ? { runId: tested.id, at: tested.createdAt.toISOString(), status: tested.status }
+      : null,
+  };
+}
+
 export async function wizardMessages(wizardId: string) {
   return db.query.wizardMessage.findMany({
     where: eq(schema.wizardMessage.wizardId, wizardId),
@@ -227,12 +272,6 @@ export async function addMessage(
   return id;
 }
 
-function stepLabel(raw: unknown, index: number): string {
-  const steps = (raw as { steps?: unknown[] } | null)?.steps;
-  const id = (steps?.[index] as { id?: unknown } | undefined)?.id;
-  return typeof id === "string" ? `steps[${index}] "${id}"` : `steps[${index}]`;
-}
-
 /** The schema check every write passes. Validator issues are allowed in a draft; a wrong shape is not. */
 export function parseDraft(
   raw: unknown,
@@ -240,22 +279,15 @@ export function parseDraft(
 ): { draft: WizardDefinition; issues: ValidationIssue[] } {
   const parsed = wizardSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new ServiceError("invalid", "The wizard does not match the schema.", {
-      issues: shapeIssues(parsed.error, raw),
-    });
+    throw new ServiceError(
+      "invalid",
+      { server: "schemaMismatch" },
+      {
+        issues: shapeIssues(parsed.error, raw),
+      },
+    );
   }
   return { draft: parsed.data, issues: validateWizard(parsed.data, files) };
-}
-
-export function shapeIssues(error: z.ZodError, raw: unknown): ValidationIssue[] {
-  return error.issues.map((i) => {
-    const [head, index, ...rest] = i.path;
-    const where =
-      head === "steps" && typeof index === "number"
-        ? [stepLabel(raw, index), ...rest].join(".")
-        : i.path.join(".");
-    return { message: `${where || "wizard"}: ${i.message}` };
-  });
 }
 
 export async function createWizard(
@@ -281,12 +313,19 @@ export async function createWizard(
     ? await marketplaceWizard(input.starterId, asLang(input.lang))
     : undefined;
   if (input.starterId && !starter) {
-    throw new ServiceError("invalid", `There is no starter "${input.starterId}".`);
+    throw new ServiceError("invalid", note("unknownTemplate", { starterId: input.starterId }));
   }
+  const maker = input.lang?.toLowerCase().startsWith("de") ? "de" : "en";
   const { draft, issues } =
     input.definition !== undefined
       ? parseDraft(input.definition)
-      : { draft: starter?.definition ?? structuredClone(BLANK), issues: [] };
+      : starter
+        ? // A starter names the language it is written in, where its definition does not.
+          {
+            draft: { ...starter.definition, lang: starter.definition.lang ?? starter.language },
+            issues: [],
+          }
+        : { draft: blankWizard(maker), issues: [] };
   const fromStarter = input.definition === undefined ? starter : undefined;
   const id = nanoid(12);
   const shareToken = newShareToken();
@@ -314,10 +353,7 @@ export async function createWizard(
   } else if (fromStarter) {
     await addMessage(id, {
       role: "assistant",
-      content:
-        fromStarter.language === "en"
-          ? `I have set up the template "${fromStarter.title}" for you. Test it at the top right – or tell me what should be different.`
-          : `Ich habe die Vorlage „${fromStarter.title}“ für dich angelegt. Teste sie rechts oben – oder sag mir, was anders sein soll.`,
+      content: serverText(fromStarter.language, "templateSetUp", { title: fromStarter.title }),
     });
   }
   return { id, revision: 0, issues, studioUrl: studioUrl(id) };
@@ -350,7 +386,7 @@ export async function writeDraft(
     .returning({ revision: schema.wizard.revision });
   if (!row) {
     const current = await ownedWizard(userId, wizardId);
-    throw new ServiceError("revision_conflict", "Der Wizard wurde inzwischen geändert.", {
+    throw new ServiceError("revision_conflict", note("wizardChangedMeantime"), {
       revision: current.revision,
     });
   }
@@ -377,7 +413,7 @@ export async function editWizard(
 ) {
   const w = await writableWizard(userId, wizardId);
   if (w.revision !== input.baseRevision) {
-    throw new ServiceError("revision_conflict", "Der Wizard wurde inzwischen geändert.", {
+    throw new ServiceError("revision_conflict", note("wizardChangedMeantime"), {
       revision: w.revision,
     });
   }
@@ -386,7 +422,7 @@ export async function editWizard(
     definition = applyOps(w.draft, input.ops);
   } catch (err) {
     if (err instanceof OpError) {
-      throw new ServiceError("invalid", err.message);
+      throw new ServiceError("invalid", saidOf(err));
     }
     throw err;
   }
@@ -406,6 +442,7 @@ export async function updateWizardSettings(
     dailyRunLimit?: number;
     projectId?: string;
     runners?: RunnerSettings;
+    translate?: boolean;
   },
 ) {
   const w = await writableWizard(userId, wizardId);
@@ -471,7 +508,7 @@ export async function requireClean(w: WizardRow) {
     files.map((f) => f.path),
   );
   if (issues.length) {
-    throw new ServiceError("has_issues", "Der Wizard hat noch Fehler.", { issues });
+    throw new ServiceError("has_issues", note("wizardStillErrors"), { issues });
   }
   return { definition: w.draft, files };
 }

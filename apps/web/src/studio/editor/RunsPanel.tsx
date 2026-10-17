@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import { lang, t } from "../../lib/i18n";
+import { type Key, lang, t } from "../../lib/i18n";
 import { Chip, Empty } from "../../ui";
 
 interface RunRow {
@@ -14,12 +14,12 @@ interface RunRow {
   stepTitle: string | null;
 }
 
-const STATUS: Record<string, string> = {
-  waiting_input: "wartet",
-  running: "läuft",
-  done: "fertig",
-  failed: "Fehler",
-  cancelled: "abgebrochen",
+const STATUS: Record<string, Key> = {
+  waiting_input: "runs.status.waiting_input",
+  running: "runs.status.running",
+  done: "runs.status.done",
+  failed: "runs.status.failed",
+  cancelled: "runs.status.cancelled",
 };
 
 export function RunsPanel({
@@ -50,10 +50,14 @@ export function RunsPanel({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-[0.875rem]">
               {fmt.format(new Date(r.createdAt))}
-              {r.mode === "test" ? <Chip>Test</Chip> : <Chip tone="live">Live v{r.version}</Chip>}
+              {r.mode === "test" ? (
+                <Chip>{t("run.testChip")}</Chip>
+              ) : (
+                <Chip tone="live">Live v{r.version}</Chip>
+              )}
             </div>
             <div className="truncate text-[0.75rem] text-ink-3">
-              {STATUS[r.status] ?? r.status}
+              {STATUS[r.status] ? t(STATUS[r.status]) : r.status}
               {r.stepTitle && r.status !== "done" ? ` · ${r.stepTitle}` : ""}
             </div>
           </div>

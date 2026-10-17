@@ -1,13 +1,29 @@
-import type { ModelClass, WizardDefinition } from "@engenty-wizards/shared/definition";
-import type { BrandColor, ProjectFact } from "@engenty-wizards/shared/projects";
+import {
+  type ModelClass,
+  TEXT_CLASSES,
+  type WizardDefinition,
+} from "@engenty-wizards/shared/definition";
+import type {
+  AssetSection,
+  BrandColor,
+  BrandFont,
+  BrandGradient,
+  BrandPattern,
+  BrandRule,
+  ColorSection,
+  LogoSection,
+  ProjectFact,
+  TextStyle,
+} from "@engenty-wizards/shared/projects";
 import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { ApiError, api } from "./api";
 import { STUDIO, withBase } from "./base";
+import { type Lang, setLang, storedLang } from "./i18n";
 
 /** An AI client installed on this machine that can think for the app, on its own subscription. */
-export type HarnessId = "claude" | "codex" | "gemini" | "cursor";
+export type HarnessId = "claude" | "codex" | "antigravity" | "cursor";
 
 export interface HarnessStatus {
   id: HarnessId;
@@ -30,7 +46,27 @@ export interface LocalModels {
   source: HarnessId | "account" | "own";
   bindings: Record<ModelClass, string>;
   ollamaUrl: string;
-  keys: { gateway: boolean; openai: boolean; anthropic: boolean };
+  /** Which providers have a key stored, by provider id. */
+  keys: Partial<Record<string, boolean>>;
+}
+
+/** Apple Intelligence as the runtime sees it: supported by the machine, answering, or why not. */
+export interface AppleStatus {
+  supported: boolean;
+  available: boolean;
+  reason: "device" | "os" | "missing" | "off" | "loading" | null;
+}
+
+/**
+ * Apple Intelligence thinks the text classes bound to it (`apple:default`) beside any source, so
+ * picking another way for text unbinds them; voice notes (`apple:transcribe`) stay.
+ */
+export function withoutApple(
+  bindings: Partial<Record<ModelClass, string>>,
+): Partial<Record<ModelClass, string>> {
+  return Object.fromEntries(
+    TEXT_CLASSES.filter((c) => bindings[c]?.startsWith("apple:")).map((c) => [c, ""]),
+  );
 }
 
 /** What the person says about themselves; the avatar shows the name's initials. */
@@ -54,6 +90,8 @@ export function initialsOf(name: string): string {
 export interface Me {
   user: { id: string; name: string; email: string; image?: string | null };
   profile: UserProfile;
+  /** The language the person picked, kept with them; null until they pick one. */
+  lang: Lang | null;
   tenant: {
     id: string;
     role: "owner" | "admin" | "member";
@@ -62,6 +100,8 @@ export interface Me {
   };
   /** The plan's feature switches; alone, everything is on. `ownKeys`: own API keys here. */
   features: Record<string, boolean>;
+  /** The studio assistant's developer mode may be switched on (ASSISTANT_DEV; platform admins when managed). */
+  assistantDev?: boolean;
   /** `managed`: signed in at the Manage-App. `local`: this runtime runs alone (desktop app, own machine). */
   mode: "managed" | "local";
   /** The tenant's balance; null where no credits are involved. */
@@ -72,6 +112,8 @@ export interface Me {
   account: {
     name: string;
     email: string;
+    /** The team the account's space belongs to; null while the Manage-App has not answered. */
+    team: string | null;
     credits: number | null;
     /** What of the credits ends on a date, the nearest first. */
     expiring: ExpiringCredits[];
@@ -81,12 +123,16 @@ export interface Me {
     signedIn: boolean;
   } | null;
   models: LocalModels | null;
+  /** Apple Intelligence on this Mac: offered where the machine can run it, picked once it answers. */
+  apple: AppleStatus | null;
   /** The AI clients this runtime can think with — installed or not, and how each is signed in. */
   harnesses: HarnessStatus[];
   /** Installed AI clients whose subscription can answer the studio chat. */
   subscriptions: "claude"[];
   /** A runtime that runs alone walks the person through its setup on first start. */
   setupDone: boolean;
+  /** The cloud studio's first visit: the short wizard that names the team and fills the space. */
+  onboarding: boolean;
   /** What answers the studio chat. */
   chatEngine: "models" | "claude";
   aiReady: boolean;
@@ -138,6 +184,38 @@ export function spendableCredits(me: Me): number | null {
   return me.models?.source === "account" ? (me.account?.credits ?? null) : null;
 }
 
+/** Switches the language and keeps it with the person: another browser or device opens in it. */
+export function usePickLang() {
+  const qc = useQueryClient();
+  return (next: Lang) => {
+    setLang(next);
+    qc.setQueryData<Me | null>(["me"], (me) => (me ? { ...me, lang: next } : me));
+    void api.put("/api/studio/lang", { lang: next }).catch(() => undefined);
+  };
+}
+
+/**
+ * Once the person is known, the language they picked anywhere wins over this browser's. A pick
+ * this browser kept from before goes to them once, so nobody loses theirs.
+ */
+export function useAccountLang(me: Me | null | undefined) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!me) {
+      return;
+    }
+    if (me.lang) {
+      setLang(me.lang);
+      return;
+    }
+    const kept = storedLang();
+    if (kept) {
+      qc.setQueryData<Me | null>(["me"], (now) => (now ? { ...now, lang: kept } : now));
+      void api.put("/api/studio/lang", { lang: kept }).catch(() => undefined);
+    }
+  }, [me, qc]);
+}
+
 export function useMe() {
   return useQuery({
     queryKey: ["me"],
@@ -158,7 +236,21 @@ export function useMe() {
 export interface Project {
   id: string;
   name: string;
-  brand: { name?: string; about?: string; colors?: BrandColor[] };
+  brand: {
+    name?: string;
+    about?: string;
+    colors?: BrandColor[];
+    colorSections?: ColorSection[];
+    gradients?: BrandGradient[];
+    patterns?: BrandPattern[];
+    colorRules?: BrandRule[];
+    logoSections?: LogoSection[];
+    assetSections?: AssetSection[];
+    fonts?: BrandFont[];
+    textStyles?: TextStyle[];
+    typeRules?: BrandRule[];
+    logoRules?: BrandRule[];
+  };
   facts: ProjectFact[];
   mcpServers: { id: string; name: string; url: string; headers?: Record<string, string> }[];
   wizardCount: number;
@@ -233,6 +325,8 @@ export interface WizardSummary {
   dailyRunLimit: number;
   /** How it is offered: the runner its link opens, the ones switched on. Null: steps, chat beside it. */
   runners: { default: string; enabled: string[] } | null;
+  /** Its page offers it in the viewer's language, translated on request. */
+  translate: boolean;
   stepCount: number;
   updatedAt: string;
   /**
@@ -330,22 +424,82 @@ export function readOnlyError(err: unknown): string | null {
   return err instanceof ApiError && err.body?.code === "read_only" ? err.message : null;
 }
 
-export function useRefreshMe() {
-  const qc = useQueryClient();
-  return () => qc.invalidateQueries({ queryKey: ["me"] });
-}
-
 export async function signOut() {
-  await fetch(withBase("/api/auth/sign-out"), {
+  const res = await fetch(withBase("/api/auth/sign-out"), {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
     body: "{}",
   });
-  window.location.href = `${STUDIO}/`;
+  const { account } = (await res.json().catch(() => ({}))) as { account?: string | null };
+  if (!account) {
+    window.location.href = `${STUDIO}/`;
+    return;
+  }
+  // Signed in through the account: that sign-in ends as well, and the account sends the browser
+  // back to the studio's start page.
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = account;
+  const back = document.createElement("input");
+  back.type = "hidden";
+  back.name = "return";
+  back.value = `${window.location.origin}${STUDIO}/`;
+  form.append(back);
+  document.body.append(form);
+  form.submit();
 }
 
-/** Sign-in happens at the Manage-App; it sends the person back to `returnTo`. */
-export function signIn(returnTo = window.location.pathname) {
-  window.location.href = withBase(`/api/auth/login?return=${encodeURIComponent(returnTo)}`);
+/**
+ * Sign-in happens at the Manage-App; it sends the person back to `returnTo`. A `wish` (the
+ * guest start page's) goes along, so the sign-in page shows what is about to be built.
+ */
+export function signIn(returnTo = window.location.pathname, wish?: string) {
+  const query = new URLSearchParams({ return: returnTo });
+  if (wish?.trim()) {
+    query.set("wish", wish.trim());
+  }
+  window.location.href = withBase(`/api/auth/login?${query}`);
+}
+
+// What a guest asked to be built on the start page, kept in this browser across the sign-in
+// (and the team's first visit) until the new-wizard page has built it.
+const WISH_KEY = "wizards.wish";
+/** A wish older than this is not built any more: the person has moved on. */
+const WISH_DAYS = 1;
+
+export function keepWish(text: string) {
+  try {
+    localStorage.setItem(WISH_KEY, JSON.stringify({ text, at: Date.now() }));
+  } catch {
+    // Without storage the wish still travels in the sign-in's way back.
+  }
+}
+
+/** The wish a guest asked to be built, or null. */
+export function pendingWish(): string | null {
+  try {
+    const kept = JSON.parse(localStorage.getItem(WISH_KEY) ?? "null") as {
+      text?: unknown;
+      at?: unknown;
+    } | null;
+    if (
+      typeof kept?.text === "string" &&
+      typeof kept.at === "number" &&
+      Date.now() - kept.at < WISH_DAYS * 86_400_000
+    ) {
+      return kept.text;
+    }
+  } catch {
+    // Nothing readable is nothing kept.
+  }
+  return null;
+}
+
+export function dropWish() {
+  try {
+    localStorage.removeItem(WISH_KEY);
+  } catch {
+    // Nothing to drop.
+  }
 }

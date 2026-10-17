@@ -50,7 +50,7 @@ async function install(): Promise<string> {
     { cwd: home, timeoutMs: 10 * 60_000 },
   );
   if (code !== 0 || !existsSync(entry)) {
-    throw new Error(`HyperFrames konnte nicht installiert werden: ${out.slice(-400)}`);
+    throw new Error(`HyperFrames could not be installed: ${out.slice(-400)}`);
   }
   return entry;
 }

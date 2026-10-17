@@ -5,7 +5,8 @@ import { assertPublicUrl } from "../tools/net-guard.js";
 /**
  * One Chromium for the whole server: the engenty-browser container over CDP when
  * `BROWSER_CDP_URL` is set, else a local headless Chrome. Every user of it opens
- * its own context, so runs never share cookies or storage.
+ * its own context, so runs never share cookies or storage. Service workers are blocked: their
+ * requests would not pass a context's route guard.
  */
 let browserPromise: Promise<Browser> | null = null;
 
@@ -37,10 +38,19 @@ export async function newContext(
   options: Parameters<Browser["newContext"]>[0] = {},
 ): Promise<BrowserContext> {
   const browser = await getBrowser();
-  return browser.newContext({ viewport: { width: 1280, height: 900 }, ...options });
+  return browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: "block",
+    ...options,
+  });
 }
 
-const hostChecks = new Map<string, Promise<boolean>>();
+/**
+ * Verdicts are kept only briefly: a name's addresses can change, and a page that rebinds its own
+ * name to a private address must not ride on an old "public".
+ */
+const HOST_CHECK_TTL_MS = 30_000;
+const hostChecks = new Map<string, { at: number; check: Promise<boolean> }>();
 
 function publicHost(url: string): Promise<boolean> {
   let host: string;
@@ -49,23 +59,26 @@ function publicHost(url: string): Promise<boolean> {
   } catch {
     return Promise.resolve(false);
   }
-  let check = hostChecks.get(host);
-  if (!check) {
-    check = assertPublicUrl(url).then(
-      () => true,
-      () => false,
-    );
-    hostChecks.set(host, check);
-    if (hostChecks.size > 2000) {
-      hostChecks.clear();
-    }
+  const now = Date.now();
+  const cached = hostChecks.get(host);
+  if (cached && now - cached.at < HOST_CHECK_TTL_MS) {
+    return cached.check;
+  }
+  const check = assertPublicUrl(url).then(
+    () => true,
+    () => false,
+  );
+  hostChecks.set(host, { at: now, check });
+  if (hostChecks.size > 2000) {
+    hostChecks.clear();
   }
   return check;
 }
 
 /**
  * A context for browsing the web on a person's behalf: every request, whoever started it (the
- * agent, a redirect, the person clicking), may only reach public hosts.
+ * agent, a redirect, the person clicking), may only reach public hosts over http(s). Pages may
+ * still use their own data: and blob: URLs; every other scheme (file:, ftp:, ...) is refused.
  */
 export async function webContext(
   options: Parameters<Browser["newContext"]>[0] = {},
@@ -73,7 +86,7 @@ export async function webContext(
   const context = await newContext({ acceptDownloads: true, ...options });
   await context.route("**/*", async (route) => {
     const url = route.request().url();
-    if (!/^https?:/i.test(url) || (await publicHost(url))) {
+    if (/^(data|blob):/i.test(url) || (/^https?:/i.test(url) && (await publicHost(url)))) {
       await route.continue();
     } else {
       await route.abort("blockedbyclient");

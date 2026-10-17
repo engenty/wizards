@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 // What a space keeps as data: tables with typed columns and pages of markdown, the space's own
 // or one of its wizards'; and its results, searched and filtered.
@@ -106,7 +106,7 @@ describe("a table of the space", () => {
     expect(next.cells).toEqual({ name: "Ahorn" });
   });
 
-  it("is listed in Wissen with its rows, not in Daten, and goes with its rows", async () => {
+  it("is listed in Knowledge with its rows, not in Data, and goes with its rows", async () => {
     await send("POST", `/api/studio/tables/${tableId}/rows`, { cells: { name: "Birke" } });
     const data = await json(send("GET", `/api/studio/projects/${spaceId}/data`));
     expect(data.tables).toEqual([]);
@@ -239,6 +239,26 @@ describe("a shared list", () => {
     expect(clash.status).toBe(400);
   });
 
+  it("keeps its rows in the order they came, also when two saves fall in one millisecond", async () => {
+    const client = await import("../src/db/client");
+    const store = await import("../src/store/index");
+    const queue = { ...leads, id: "queue", title: "Warteschlange", key: undefined };
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.UTC(2026, 9, 14, 12));
+    try {
+      await client.withTenant("local", async () => {
+        for (const who of ["a", "b", "c", "d", "e"]) {
+          await store.saveRows({ wizardId, holder: `v:${who}` }, queue, [
+            { email: `${who}@example.com`, anliegen: who },
+          ]);
+        }
+        const rows = await store.listRows({ wizardId, holder: "v:x" }, queue);
+        expect(rows.map((r) => r.cells.anliegen)).toEqual(["a", "b", "c", "d", "e"]);
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("is never shown to the person running the wizard", async () => {
     const { validateWizard } = await import("@engenty-wizards/shared/definition");
     const issues = validateWizard({
@@ -340,7 +360,7 @@ describe("the space's own data from a local install", () => {
           tables: [{ id: taken.id, title: "x", columns: sent.tables[0].columns, rows: [] }],
           pages: [],
         }),
-      ).rejects.toThrow("vergeben");
+      ).rejects.toThrow("already in use");
       // A space made here is not one a local install sends.
       await expect(spaces.syncSpaceData(spaceId, { tables: [], pages: [] })).rejects.toThrow();
     });

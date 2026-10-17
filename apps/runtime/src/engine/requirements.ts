@@ -5,17 +5,29 @@ import {
   isDecidedField,
   isDecisionStep,
   isOtherwise,
+  type Lang,
   MODEL_CLASSES,
   type ModelClass,
   type NextRule,
   type PageStep,
-  ruleMatches,
   type Step,
   type WizardDefinition,
 } from "@engenty-wizards/shared/definition";
+import {
+  closedChoicesFor,
+  openValue,
+  otherwiseIndex,
+  unavoidableFrom,
+  unavoidableSteps,
+} from "@engenty-wizards/shared/fit";
 import type { Capability } from "@engenty-wizards/shared/marketplace";
-import type { ClosedChoice, MissingModel } from "@engenty-wizards/shared/run";
+import type { ClosedChoice, MissingModel, RunNote, Said } from "@engenty-wizards/shared/run";
+import { note, saidText } from "@engenty-wizards/shared/run";
 import { classProblem, filmClient } from "../models.js";
+
+// The steps every run passes through, and the choices that lead around a missing model, are
+// pure and shared (packages/shared/src/fit.ts): the standalone check uses the same.
+export { openValue, unavoidableFrom, unavoidableSteps };
 
 /**
  * What a wizard needs of the models before a run starts: each class its steps call, and whether
@@ -51,7 +63,7 @@ function ownClasses(step: Step): ModelClass[] {
       if (step.output.format === "json") {
         classes.push("classifier");
       }
-      if (step.output.surface && !classes.includes("standard")) {
+      if (step.output.surface === true && !classes.includes("standard")) {
         classes.push("standard");
       }
       return classes;
@@ -85,76 +97,6 @@ export function optionalStepClasses(step: Step): ModelClass[] {
     !stepClasses(step).includes("audio")
     ? ["audio"]
     : [];
-}
-
-/** The steps every run passes through: without one of them the end is not reachable. */
-export function unavoidableSteps(def: WizardDefinition): Set<string> {
-  return def.steps.length ? unavoidableFrom(def, def.steps[0].id, {}) : new Set();
-}
-
-/**
- * The steps every path from `from` to the end passes through. A rule on an answer in `known`
- * goes one way; a rule on anything else may go either way.
- */
-export function unavoidableFrom(
-  def: WizardDefinition,
-  from: string,
-  known: Record<string, unknown>,
-): Set<string> {
-  const index = new Map(def.steps.map((s, i) => [s.id, i]));
-  const start = index.get(from) ?? 0;
-  const successors = (i: number): number[] => {
-    const out: number[] = [];
-    for (const rule of def.steps[i].next ?? []) {
-      if (isOtherwise(rule)) {
-        continue;
-      }
-      const target = rule.goto === "end" ? def.steps.length : (index.get(rule.goto) ?? -1);
-      if (rule.ask || !conditionsOf(rule.when).every((c) => c.field in known)) {
-        if (target >= 0) {
-          out.push(target);
-        }
-        continue;
-      }
-      if (ruleMatches(rule, known)) {
-        // The first rule that matches decides; nothing after it is tried.
-        return target >= 0 ? [...out, target] : out;
-      }
-    }
-    // No rule matching goes on to the "otherwise" step, else the next (or ends after the last).
-    out.push(otherwiseIndex(def, i, index));
-    return out;
-  };
-  const reachesEnd = (without: number): boolean => {
-    if (without === start) {
-      return false;
-    }
-    const seen = new Set<number>([start]);
-    const queue = [start];
-    while (queue.length) {
-      const i = queue.shift()!;
-      if (i >= def.steps.length) {
-        return true;
-      }
-      for (const j of successors(i)) {
-        if (j !== without && !seen.has(j)) {
-          seen.add(j);
-          queue.push(j);
-        }
-      }
-    }
-    return false;
-  };
-  return new Set(def.steps.filter((_, i) => !reachesEnd(i)).map((s) => s.id));
-}
-
-/** Where step `i` goes when none of its rules holds, as an index; the length = the end. */
-function otherwiseIndex(def: WizardDefinition, i: number, index: Map<string, number>): number {
-  const goto = def.steps[i].next?.find(isOtherwise)?.goto;
-  if (goto === undefined) {
-    return i + 1;
-  }
-  return goto === "end" ? def.steps.length : (index.get(goto) ?? i + 1);
 }
 
 /** What the branches taken so far say about an answer. */
@@ -327,8 +269,19 @@ export async function stepsWithoutModel(def: WizardDefinition): Promise<Set<stri
   );
 }
 
+/** A missing class whose problem is said in both languages, until it is read in one. */
+export type MissingModelSaid = Omit<MissingModel, "problem"> & { problem: Said };
+
+/** The classes this wizard needs that this runtime cannot serve, in a language; empty = every step can run. */
+export async function missingModels(
+  def: WizardDefinition,
+  lang: Lang = "en",
+): Promise<MissingModel[]> {
+  return (await missingModelsSaid(def)).map((m) => ({ ...m, problem: saidText(m.problem, lang) }));
+}
+
 /** The classes this wizard needs that this runtime cannot serve; empty = every step can run. */
-export async function missingModels(def: WizardDefinition): Promise<MissingModel[]> {
+export async function missingModelsSaid(def: WizardDefinition): Promise<MissingModelSaid[]> {
   const unavoidable = unavoidableSteps(def);
   const needs = new Map<ModelClass, { step: Step; required: boolean }[]>();
   for (const step of def.steps) {
@@ -339,7 +292,7 @@ export async function missingModels(def: WizardDefinition): Promise<MissingModel
       needs.set(cls, [...(needs.get(cls) ?? []), { step, required: false }]);
     }
   }
-  const missing: MissingModel[] = [];
+  const missing: MissingModelSaid[] = [];
   // A film runs on an installed client only, whatever serves its class otherwise.
   for (const step of def.steps) {
     if (step.type !== "film") {
@@ -371,14 +324,19 @@ export async function missingModels(def: WizardDefinition): Promise<MissingModel
 }
 
 /** The message a run that cannot start gives, naming the steps and why. */
-export function blockingMessage(missing: MissingModel[]): string | null {
+export function blockingMessage(missing: MissingModelSaid[]): RunNote | null {
   const blocking = missing.filter((m) => m.blocking);
   if (!blocking.length) {
     return null;
   }
   return blocking
-    .map((m) => `${m.steps.map((s) => `„${s.title}“`).join(", ")}: ${m.problem}`)
-    .join(" ");
+    .map((m) =>
+      note("blockedSteps", {
+        steps: m.steps.map((s) => note("quoted", { text: s.title })),
+        problem: m.problem,
+      }),
+    )
+    .reduce((first, second) => note("joined", { first, second }));
 }
 
 /** The class a marketplace capability stands for; the rest need no model of their own. */
@@ -444,24 +402,6 @@ export function optionalCapabilities(def: WizardDefinition): Set<Capability> {
   return optional;
 }
 
-/** The choices a page offers: each select's options, a toggle's on and off. */
-interface Choice {
-  field: string;
-  values: (string | boolean)[];
-}
-
-function choicesOf(step: PageStep): Choice[] {
-  return step.fields.flatMap((f): Choice[] => {
-    if (f.kind === "select" && f.options?.length) {
-      return [{ field: f.id, values: f.options }];
-    }
-    if (f.kind === "toggle") {
-      return [{ field: f.id, values: [true, false] }];
-    }
-    return [];
-  });
-}
-
 /**
  * The answers on a page that lead to a step this runtime has no model for: with them the run
  * would stop there, after what came before was paid for. The answers given already count; the
@@ -478,45 +418,11 @@ export async function closedChoices(
   if (!missing.size) {
     return {};
   }
-  const byId = new Map(def.steps.map((s) => [s.id, s]));
-  const known = Object.fromEntries(
-    Object.entries(values).filter(([id]) => !step.fields.some((f) => f.id === id)),
+  return closedChoicesFor(
+    def,
+    step,
+    values,
+    (s) => stepClasses(s).filter((cls) => missing.has(cls)),
+    (field) => (missing.has("audio") && field.kind === "audio" ? ["audio"] : null),
   );
-  const out: Record<string, ClosedChoice> = {};
-  // A voice note nothing here can listen to: the field is closed as a whole.
-  if (missing.has("audio")) {
-    for (const field of step.fields) {
-      if (field.kind === "audio") {
-        out[field.id] = { values: [], classes: ["audio"] };
-      }
-    }
-  }
-  for (const choice of choicesOf(step)) {
-    const closed: ClosedChoice = { values: [], classes: [] };
-    for (const value of choice.values) {
-      const ahead = unavoidableFrom(def, step.id, { ...known, [choice.field]: value });
-      const lacking = [...ahead].flatMap((id) => {
-        const s = byId.get(id);
-        return s ? stepClasses(s).filter((cls) => missing.has(cls)) : [];
-      });
-      if (lacking.length) {
-        closed.values.push(value);
-        closed.classes = [...new Set([...closed.classes, ...lacking])];
-      }
-    }
-    if (closed.values.length && closed.values.length < choice.values.length) {
-      out[choice.field] = closed;
-    }
-  }
-  return out;
-}
-
-/** The answer a closed choice gets instead: its first value that stays open. */
-export function openValue(
-  step: PageStep,
-  field: string,
-  closed: ClosedChoice,
-): string | boolean | undefined {
-  const choice = choicesOf(step).find((c) => c.field === field);
-  return choice?.values.find((v) => !closed.values.some((c) => String(c) === String(v)));
 }

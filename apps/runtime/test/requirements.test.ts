@@ -1,9 +1,11 @@
 import type { ModelClass, WizardDefinition } from "@engenty-wizards/shared/definition";
+import { noteText } from "@engenty-wizards/shared/run";
 import { describe, expect, it, vi } from "vitest";
 import {
   blockingMessage,
   closedChoices,
   missingModels,
+  missingModelsSaid,
   mostAlongOnePath,
   optionalCapabilities,
   unavoidableSteps,
@@ -12,7 +14,9 @@ import {
 const unavailable = new Set<ModelClass>();
 vi.mock("../src/models", () => ({
   classProblem: async (cls: ModelClass) =>
-    unavailable.has(cls) ? `Für ${cls} ist kein Modell eingerichtet.` : null,
+    unavailable.has(cls)
+      ? { code: "noModelFor", params: { makes: cls } }
+      : null,
 }));
 
 /** The property video's shape: voice and video sit behind a choice, the photos do not. */
@@ -69,7 +73,7 @@ describe("what a wizard needs of the models before it starts", () => {
       ["speech", false],
       ["video", false],
     ]);
-    expect(blockingMessage(missing)).toBeNull();
+    expect(blockingMessage(await missingModelsSaid(tour))).toBeNull();
   });
 
   it("refuses the start when a step on every path cannot run", async () => {
@@ -79,14 +83,17 @@ describe("what a wizard needs of the models before it starts", () => {
     expect(missing).toEqual([
       {
         cls: "image",
-        problem: "Für image ist kein Modell eingerichtet.",
+        problem: "No model is set up for image.",
         steps: [{ id: "staged", title: "Fotos aufbereiten" }],
         blocking: true,
       },
     ]);
-    expect(blockingMessage(missing)).toBe(
+    const blocked = blockingMessage(await missingModelsSaid(tour));
+    expect(blocked && noteText(blocked, "de")).toBe(
       "„Fotos aufbereiten“: Für image ist kein Modell eingerichtet.",
     );
+    expect(blocked && noteText(blocked, "en")).toBe("“Fotos aufbereiten”: No model is set up for image.");
+    expect((await missingModels(tour, "de"))[0].problem).toBe("Für image ist kein Modell eingerichtet.");
   });
 });
 

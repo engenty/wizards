@@ -30,7 +30,7 @@ function put(path: string, content: string) {
 
 put(
   "notify.ts",
-  `import type { WizardsPluginFactory } from "@engenty-wizards/plugin-sdk";
+  `import type { WizardsPluginFactory } from "@engenty/wizards/plugin";
 const plugin: WizardsPluginFactory = (wizards) => {
   wizards.server.on("run.done", ({ run, wizard, values }) => {
     ((globalThis as any).__notified ??= []).push({ run: run.id, mode: run.mode, title: wizard.title, values });
@@ -69,7 +69,7 @@ export const entry = sqliteTable("guestbook_entry", {
 `,
 );
 put("guestbook/src/greeting.ts", `export const GREETING = "hello";\n`);
-const guestbook = (extra = "") => `import { definePlugin } from "@engenty-wizards/plugin-sdk";
+const guestbook = (extra = "") => `import { definePlugin } from "@engenty/wizards/plugin";
 import { count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { GREETING } from "./greeting";
@@ -147,6 +147,7 @@ export default definePlugin((wizards) => {
     id: "welcome",
     title: "Willkommen",
     description: "Fragt Gäste nach ihrem Namen.",
+    language: "de",
     definition: {
       title: "Willkommen",
       steps: [
@@ -162,6 +163,7 @@ put("guestbook/src/plugin.ts", guestbook());
 put("guestbook/dist/client.js", "var __wizardsPlugin_guestbook = function () {};\n");
 put("guestbook/dist/client.css", "[data-plugin=guestbook] .x{color:red}\n");
 
+// Written against the name plugins imported before `@engenty/wizards/plugin`: it still loads.
 put(
   "kiosk.ts",
   `import { definePlugin } from "@engenty-wizards/plugin-sdk";
@@ -195,6 +197,8 @@ export default definePlugin(({ server }) => {
       waits: true,
       handoff: ["sms"],
     },
+    // What the test sets: none, a text, or one with its kind.
+    problem: () => (globalThis as { phoneProblem?: unknown }).phoneProblem ?? null,
   });
   server.registerPublicRoute({
     method: "POST",
@@ -284,7 +288,7 @@ describe("finding and loading plugins", () => {
       .loadedPlugins()
       .map((p) => p.source.id)
       .sort();
-    expect(ids).toEqual(["broken", "calls", "guestbook", "kiosk", "notify", "sms", "whatsapp"]);
+    expect(ids).toEqual(["broken", "guestbook", "kiosk", "notify"]);
     expect(registry.loadedPlugin("guestbook")?.source.manifest).toMatchObject({
       name: "Guestbook",
       version: "1.2.3",
@@ -380,10 +384,7 @@ describe("a plugin's tables", () => {
       expect(Number(rows.rows[0].n)).toBe(0);
       const ran = await client.db.run("SELECT plugin, name FROM plugin_migration");
       expect(ran.rows.map((r) => `${r.plugin}/${r.name}`)).toEqual([
-        "calls/0001_init.sql",
         "guestbook/0001_init.sql",
-        "sms/0001_init.sql",
-        "whatsapp/0001_init.sql",
       ]);
     });
   });
@@ -491,7 +492,7 @@ describe("a plugin's tools", () => {
       return wizards.draftIssues(await wizards.ownedWizard("local", created.id));
     });
     expect(issues.map((i) => i.message).filter((m) => m.includes("plugin"))).toEqual([
-      expect.stringContaining('"crm.lookup"'),
+      expect.stringContaining("“crm.lookup”"),
     ]);
   });
 });
@@ -577,7 +578,7 @@ describe("while the runtime runs", () => {
     );
     rmSync(join(pluginsDir, "notify.ts"));
     const { plugins } = await json(send("POST", "/api/studio/plugins/-/reload"));
-    expect(plugins.map((p: any) => p.id).sort()).toEqual(["broken", "calls", "guestbook", "hello", "kiosk", "sms", "whatsapp"]);
+    expect(plugins.map((p: any) => p.id).sort()).toEqual(["broken", "guestbook", "hello", "kiosk"]);
     expect(await json(get("/api/studio/plugins/hello/"))).toEqual({ hello: "hello" });
   });
 
@@ -595,7 +596,7 @@ describe("while the runtime runs", () => {
         .loadedPlugins()
         .map((p) => p.source.id)
         .sort(),
-    ).toEqual(["broken", "calls", "guestbook", "kiosk", "later", "sms", "whatsapp"]);
+    ).toEqual(["broken", "guestbook", "kiosk", "later"]);
     expect(registry.loadedPlugin("guestbook")!.generation).toBe(before);
     // Told once: the second look found nothing new.
     expect(seen).toEqual([{ id: null }]);
@@ -628,6 +629,15 @@ describe("a plugin's starters", () => {
     const detail = await json(get("/api/studio/marketplace/guestbook.welcome?lang=de"));
     expect(detail).toMatchObject({ id: "guestbook.welcome", plugin: { name: "Guestbook" } });
     expect(detail.files.sort()).toEqual(["data/bytes.bin", "notes/greeting.txt"]);
+  });
+
+  it("are not shown to someone not signed in, who still gets the gallery", async () => {
+    const res = await get("/api/guest/marketplace?lang=de", "");
+    expect(res.status).toBe(200);
+    const page = await res.json();
+    expect(Array.isArray(page.entries)).toBe(true);
+    expect(page.entries.some((e: any) => e.plugin || e.starred)).toBe(false);
+    expect((await get("/api/studio/marketplace?lang=de", "")).status).toBe(401);
   });
 
   it("make a wizard with their definition and files", async () => {
@@ -699,9 +709,6 @@ describe("a plugin's runners", () => {
       "chat",
       "talk",
       "video",
-      "call",
-      "sms",
-      "whatsapp",
       "kiosk",
       "phone",
     ]);
@@ -710,6 +717,28 @@ describe("a plugin's runners", () => {
       plugin: "kiosk",
       problem: null,
     });
+    // A problem is a text to set up, or says its kind: waiting for someone, not in the plan.
+    const phone = async (problem: unknown) => {
+      (globalThis as { phoneProblem?: unknown }).phoneProblem = problem;
+      const runners = await json(get("/api/studio/runners"));
+      return runners.find((r: { id: string }) => r.id === "phone");
+    };
+    expect(await phone(null)).toMatchObject({ problem: null });
+    expect(await phone("Keine Nummer")).toMatchObject({ problem: "Keine Nummer", problemKind: "setup" });
+    expect(
+      await phone({ text: "Angefragt", kind: "waiting", note: { de: "Nummer angefragt", en: "Number asked for" } }),
+    ).toMatchObject({
+      problem: "Angefragt",
+      problemKind: "waiting",
+      problemNote: { de: "Nummer angefragt", en: "Number asked for" },
+      problemPlan: null,
+    });
+    expect(await phone({ text: "Ab Pro", kind: "plan", plan: "Pro" })).toMatchObject({
+      problemKind: "plan",
+      problemNote: null,
+      problemPlan: "Pro",
+    });
+    (globalThis as { phoneProblem?: unknown }).phoneProblem = null;
     const found = registry.loadedPlugin("kiosk")!.runners;
     expect([...found.keys()]).toEqual(["kiosk", "phone"]);
     expect(found.get("kiosk")!.info).toMatchObject({ kind: "page", plugin: "kiosk" });
@@ -786,7 +815,7 @@ describe("a plugin's runners", () => {
         }),
       ),
     );
-    expect(body.refused).toEqual([{ field: "name", message: "Pflichtfeld" }]);
+    expect(body.refused).toEqual([{ field: "name", message: "Required" }]);
     expect(body.report.waitingFor.page).toBe("start");
   });
 });

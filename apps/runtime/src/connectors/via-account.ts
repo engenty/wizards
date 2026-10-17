@@ -1,6 +1,8 @@
+import { note } from "@engenty-wizards/shared/run";
 import { accountToken } from "../auth/account.js";
 import type { OAuth2Tokens } from "../engenty/connections-sdk/oauth2.js";
 import { env } from "../env.js";
+import { NotedError } from "../model-errors.js";
 
 /*
  * Google accounts on a local install without an OAuth client of its own: the Manage-App of the
@@ -11,7 +13,7 @@ import { env } from "../env.js";
 const base = () => `${env.local.accountUrl}/v1/connect`;
 
 /** Something the person can mend or retry; the message is for them. */
-export class AccountConnectError extends Error {}
+export class AccountConnectError extends NotedError {}
 
 let offered: { at: number; google: boolean } | null = null;
 
@@ -32,9 +34,7 @@ export async function googleThroughAccount(): Promise<boolean> {
 async function call<T>(path: string, body: unknown): Promise<T> {
   const token = await accountToken();
   if (!token) {
-    throw new AccountConnectError(
-      "Verbinde zuerst dein engenty-Konto (Einstellungen → Konto), dann lässt sich Google hier verbinden.",
-    );
+    throw new AccountConnectError(note("connectEngentyAccountFirst"));
   }
   const res = await fetch(`${base()}${path}`, {
     method: "POST",
@@ -43,18 +43,16 @@ async function call<T>(path: string, body: unknown): Promise<T> {
     signal: AbortSignal.timeout(20_000),
   }).catch(() => null);
   if (!res) {
-    throw new AccountConnectError(
-      "Dein engenty-Konto ist gerade nicht erreichbar. Bitte später noch einmal.",
-    );
+    throw new AccountConnectError(note("engentyAccountNotReached"));
   }
   const data = (await res.json().catch(() => ({}))) as T & { code?: string; error?: string };
   if (!res.ok) {
     throw new AccountConnectError(
       data.code === "invalid_grant"
-        ? "Google nimmt diese Verbindung nicht mehr an. Bitte das Konto neu verbinden."
+        ? note("googleNoLongerAccepts")
         : data.code === "not_configured"
-          ? "Google lässt sich über dein engenty-Konto gerade nicht verbinden."
-          : `Verbinden über dein engenty-Konto hat nicht geklappt (${data.code ?? res.status}).`,
+          ? note("googleNotConnectedThrough")
+          : note("viaAccountFailed", { code: data.code ?? res.status }),
     );
   }
   return data;

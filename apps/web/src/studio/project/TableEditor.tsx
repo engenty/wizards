@@ -8,6 +8,7 @@ import {
   type SpaceTable,
   type SpaceTableRow,
 } from "@engenty-wizards/shared/space-data";
+import { cellValue } from "@engenty-wizards/shared/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -51,17 +52,6 @@ function draftOf(column: TableColumn, value: unknown): string {
     return local.toISOString().slice(0, 16);
   }
   return String(value);
-}
-
-/** What is sent for what a person typed; the runtime checks it against the column. */
-function cellValue(column: TableColumn, draft: string): unknown {
-  if (draft.trim() === "") {
-    return null;
-  }
-  if (column.type === "date" && column.format.kind === "datetime") {
-    return new Date(draft).toISOString();
-  }
-  return draft;
 }
 
 const cellField =

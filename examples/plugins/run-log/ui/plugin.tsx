@@ -1,4 +1,4 @@
-import { defineStudioPlugin } from "@engenty-wizards/plugin-sdk/studio";
+import { defineStudioPlugin } from "@engenty/wizards/plugin/studio";
 import { Button, Card, Chip, Empty, Spinner } from "@engenty-wizards/web/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListChecks } from "lucide-react";
@@ -21,7 +21,7 @@ interface Log {
 const TONE = { done: "live", failed: "warn", cancelled: "neutral" } as const;
 
 /**
- * The studio half of the example: a section of the space page under Ergebnisse, which leads to
+ * The studio half of the example: a section of the space page under Results, which leads to
  * a page of the whole log, and a section of the settings. All read the plugin's own routes.
  */
 export default defineStudioPlugin((studio) => {

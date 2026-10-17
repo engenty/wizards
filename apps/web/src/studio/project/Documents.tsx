@@ -1,12 +1,13 @@
+import { Markdown } from "@engenty-wizards/runner";
+import { formatBytes } from "@engenty-wizards/shared/numbers";
 import type { ProjectFileView } from "@engenty-wizards/shared/projects";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";
-import { t } from "../../lib/i18n";
-import { Markdown } from "../../runner/outputs";
+import { lang, t } from "../../lib/i18n";
 import { Card, cn, IconButton, Spinner } from "../../ui";
-import { fileSize, fileUrl, useFileActions, useProjectFiles } from "./data";
+import { fileUrl, useFileActions, useProjectFiles } from "./data";
 import { Description } from "./Files";
 import { KnowledgeHeader, useKnowledge } from "./Knowledge";
 
@@ -30,14 +31,18 @@ function typeLabel(file: ProjectFileView): string {
 }
 
 const meta = (file: ProjectFileView) =>
-  [typeLabel(file), file.pages ? t("project.pages", { n: file.pages }) : null, fileSize(file.size)]
+  [
+    typeLabel(file),
+    file.pages ? t("project.pages", { n: file.pages }) : null,
+    formatBytes(file.size),
+  ]
     .filter(Boolean)
     .join(" · ");
 
 const TEXT_LIMIT = 200_000;
 
 /**
- * A file of Wissen that is no page and no table, opened: its Kategorien, its description, the
+ * A file of Knowledge that is no page and no table, opened: its categories, its description, the
  * file itself where the browser can show it (a PDF, a picture), and the text the models read.
  */
 export function FileView({
@@ -177,8 +182,8 @@ function FileText({ projectId, file }: { projectId: string; file: ProjectFileVie
       {text.data.chars > text.data.text.length ? (
         <p className="mt-3 text-[0.8125rem] text-ink-3">
           {t("project.textCut", {
-            shown: text.data.text.length.toLocaleString(),
-            total: text.data.chars.toLocaleString(),
+            shown: text.data.text.length.toLocaleString(lang),
+            total: text.data.chars.toLocaleString(lang),
           })}
         </p>
       ) : null}

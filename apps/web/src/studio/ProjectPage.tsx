@@ -1,9 +1,11 @@
-import { Layers, LayoutGrid, Puzzle, WandSparkles } from "lucide-react";
+import { Home, Layers, LayoutGrid, Puzzle, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
 import { useCurrentProject, useManyProjects } from "../lib/session";
-import { PluginFrame, useStudioPlugins } from "../plugins/host";
+import { PluginFrame, SpacePartFrame, useStudioPlugins } from "../plugins/host";
 import { cn, Empty } from "../ui";
 import { scrollRoot, useCrumbs } from "./AppFrame";
 import { useAssistantPage } from "./assistant/page";
@@ -24,6 +26,7 @@ import {
   projectSections,
   type SpaceGroupId,
   spaceGroups,
+  withParts,
 } from "./project-sections";
 import {
   BackRow,
@@ -37,6 +40,7 @@ import {
   useNarrow,
   useStepDirection,
 } from "./settings-menu";
+import { useSideMenuSlot } from "./side-menu";
 
 /**
  * The section in view: the last whose top passed the upper third of the page's scroll
@@ -120,11 +124,11 @@ function SectionRows({
 }
 
 /**
- * The space at /space/<part>: what all its wizards share, in four parts — Info & Marke, Wissen,
- * Daten and Ergebnisse. The left container shows one level at a time, as the settings do: the
+ * The space at /space/<part>: what all its wizards share, in four parts — Info & brand, Knowledge,
+ * Data and Results. The left container shows one level at a time, as the settings do: the
  * parts, or the menu of the part that is open, which jumps to its sections and marks the one in
- * view (Ergebnisse: picks a wizard). On a phone the parts, a part's menu and the page take
- * turns. Plugins add sections to a part; each plugin's stand under its name.
+ * view (Results: picks a wizard). On a phone the parts, a part's menu and the page take
+ * turns. Plugins add sections to a part, each plugin's under its name, and parts of their own.
  */
 export function ProjectPage() {
   const { group: param } = useParams();
@@ -142,34 +146,46 @@ export function ProjectPage() {
   // own menu again.
   const [upAt, setUpAt] = useState<string | null>(null);
   const group: SpaceGroupId | undefined = isSpaceGroup(param) ? param : undefined;
+  // A plugin's part: it draws itself, and says its menu.
+  const part = group ? undefined : plugins.spaceParts.find((p) => p.id === param);
+  const open = group ?? part?.id;
   // The folder in the top bar opens the space at its parts, with the first one beside them;
   // picking a part opens its menu.
   const atParts = (location.state as { parts?: boolean } | null)?.parts === true;
-  const entries = spaceGroups().map((g) => ({ ...g, to: `/space/${g.id}` }));
-  const entry = entries.find((e) => e.id === group);
+  const entries = withParts(spaceGroups(), plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
+  const entry = entries.find((e) => e.id === open);
   const show = params.get("show");
   // A phone: 0 the parts, 1 the part's menu, 2 the page.
-  const phone = !group ? 0 : show ? 2 : 1;
-  const level = narrow ? Math.min(phone, 1) : group && upAt !== group && !atParts ? 1 : 0;
+  const phone = !open ? 0 : show ? 2 : 1;
+  const level = narrow ? Math.min(phone, 1) : open && upAt !== open && !atParts ? 1 : 0;
   const levelStep = useStepDirection(level);
   const pageStep = useStepDirection(phone);
   const menu = useMemo(() => ({ slot, narrow, setDetail }), [slot, narrow]);
   const title = project ? project.brand.name?.trim() || project.name : t("nav.project");
+  const areaSlot = useSideMenuSlot();
+  const inSidebar = Boolean(areaSlot) && !narrow;
 
-  const sections = group && group !== "results" ? projectSections(group, plugins) : [];
+  // Typography waits behind its switch.
+  const off = useFeature("typography") ? [] : ["typography"];
+  const partMenu = part ? (plugins.spaceMenus[part.id] ?? []) : [];
+  const sections = part
+    ? [{ plugin: null, label: null, sections: partMenu }]
+    : group && group !== "results"
+      ? projectSections(group, plugins, off)
+      : [];
   const added = group ? projectSections(group, plugins).filter((g) => g.plugin) : [];
   const anchors = [...sections, ...(group === "results" ? added : [])].flatMap((g) =>
     g.sections.map((s) => s.id),
   );
   const inView = useSectionInView(anchors);
-  // Ergebnisse: of one wizard (`?show=<id>`), or of all.
+  // Results: of one wizard (`?show=<id>`), or of all.
   const wizardId = group === "results" && show && show !== "all" ? show : null;
   const [filter, setFilter] = useState<ResultsFilter>(NO_FILTER);
   const results = useResults(group === "results" ? project?.id : undefined, wizardId, filter);
   const wizardTitle = results.data?.wizards.find((w) => w.id === wizardId)?.title;
-  // Daten: a table (`?show=t:<id>`) or a page (`p:<id>`), or all of them. Wissen: also a file
-  // (`f:`), a Kategorie (`c:`), one of its values (`v:`) or a plugin's section (`s:`), which in
-  // Wissen is a page of its own; a plain `show` is a section's anchor.
+  // Data: a table (`?show=t:<id>`) or a page (`p:<id>`), or all of them. Knowledge: also a file
+  // (`f:`), a category (`c:`), one of its values (`v:`) or a plugin's section (`s:`), which in
+  // Knowledge is a page of its own; a plain `show` is a section's anchor.
   const picked =
     group === "data" && show && show !== "all"
       ? show
@@ -179,7 +195,7 @@ export function ProjectPage() {
   const pickedSection = picked?.startsWith("s:")
     ? plugins.spaceSections.find((x) => x.id === picked.slice(2))
     : undefined;
-  // Wissen: a page, a table or a file, opened.
+  // Knowledge: a page, a table or a file, opened.
   const item = group === "knowledge" && picked && /^[ptf]:/.test(picked) ? picked : null;
   const spaceData = useSpaceData(group === "data" ? project?.id : undefined);
   const knowledge = useKnowledge(group === "knowledge" ? project?.id : undefined);
@@ -214,8 +230,8 @@ export function ProjectPage() {
     p: "page",
     t: "table",
     f: "file",
-    c: "kategorie",
-    v: "kategorie value",
+    c: "category",
+    v: "category value",
     s: "plugin section",
   };
   useAssistantPage({
@@ -252,18 +268,18 @@ export function ProjectPage() {
   const scrolled = useRef("");
   // biome-ignore lint/correctness/useExhaustiveDependencies: drawn sections arrive with the project and the plugins.
   useEffect(() => {
-    const key = `${group}#${target}`;
+    const key = `${open}#${target}`;
     if (target && scrolled.current !== key && document.getElementById(target)) {
       scrolled.current = key;
       requestAnimationFrame(() => scrollToSection(target, false));
     }
-  }, [group, target, project?.id, plugins.spaceSections]);
+  }, [open, target, project?.id, plugins.spaceSections, partMenu.length]);
 
-  if (!group) {
+  if (!open) {
     // The space was one page: `/space#documents` opens the part the section is in now.
     const id = hash.slice(1);
     const of = id ? groupOfSection(id, plugins) : null;
-    // A plugin's section of Wissen is a page of its own.
+    // A plugin's section of Knowledge is a page of its own.
     if (of === "knowledge" && plugins.spaceSections.some((x) => x.id === id)) {
       return <Navigate to={`/space/knowledge?show=s:${id}`} replace />;
     }
@@ -275,7 +291,8 @@ export function ProjectPage() {
         />
       );
     }
-    if (id && plugins.status !== "ready") {
+    // A plugin's part, or a plugin's section: known once the plugins are in.
+    if ((id || param) && plugins.status !== "ready") {
       return null;
     }
     // A phone starts at the parts.
@@ -293,11 +310,11 @@ export function ProjectPage() {
       navigate({ search: `?show=${id}` });
       return;
     }
-    scrolled.current = `${group}#${id}`;
+    scrolled.current = `${open}#${id}`;
     scrollToSection(id, true);
     navigate({ search: "", hash: id }, { replace: true });
   };
-  // Ergebnisse and Daten pick what the page shows: on a phone a step deeper, beside the menu in place.
+  // Results and Data pick what the page shows: on a phone a step deeper, beside the menu in place.
   const pick = (id: string) =>
     narrow
       ? setParams({ show: id })
@@ -319,35 +336,57 @@ export function ProjectPage() {
   // On a phone the menu marks nothing: a row opens the page.
   const marked = narrow ? undefined : inView;
 
+  // The area's menu: in the sidebar while that is open, else at the page's left.
+  const menuBody = (
+    <>
+      <LevelHead
+        title={title}
+        open={level === 1 ? (entry ?? null) : null}
+        onBack={() => (narrow ? navigate("/space") : setUpAt(open ?? null))}
+        // The house's own name in the bar, and the way back to the wizards.
+        root={{
+          icon: Home,
+          label: t("nav.project"),
+          backLabel: t("nav.wizards"),
+          onBack: () => navigate("/"),
+        }}
+      />
+      <div key={level} className={cn(stepClass(levelStep))}>
+        {level === 0 ? (
+          <LevelList
+            entries={entries}
+            current={narrow ? undefined : entry}
+            onPick={() => setUpAt(null)}
+          />
+        ) : (
+          <div ref={setSlot} />
+        )}
+      </div>
+    </>
+  );
   return (
     <SettingsMenuContext.Provider value={menu}>
+      {inSidebar && areaSlot ? createPortal(menuBody, areaSlot) : null}
       <div className="animate-rise">
-        <div className="grid gap-6 md:grid-cols-[13.5rem_minmax(0,1fr)] md:gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
-          <aside
-            className={cn(
-              "min-w-0 md:sticky md:top-6 md:self-start",
-              narrow && phone === 2 && "hidden",
-              narrow && pageStep === "back" && stepClass("back"),
-            )}
-          >
-            <LevelHead
-              title={title}
-              open={level === 1 ? (entry ?? null) : null}
-              onBack={() => (narrow ? navigate("/space") : setUpAt(group ?? null))}
-            />
-            <div key={level} className={cn(stepClass(levelStep))}>
-              {level === 0 ? (
-                <LevelList
-                  entries={entries}
-                  current={narrow ? undefined : entry}
-                  onPick={() => setUpAt(null)}
-                />
-              ) : (
-                <div ref={setSlot} />
+        <div
+          className={cn(
+            "grid gap-6",
+            !inSidebar &&
+              "md:grid-cols-[13.5rem_minmax(0,1fr)] md:gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10",
+          )}
+        >
+          {inSidebar ? null : (
+            <aside
+              className={cn(
+                "min-w-0 md:sticky md:top-6 md:self-start",
+                narrow && phone === 2 && "hidden",
+                narrow && pageStep === "back" && stepClass("back"),
               )}
-            </div>
-          </aside>
-          {group ? (
+            >
+              {menuBody}
+            </aside>
+          )}
+          {open ? (
             <div
               className={cn(
                 "min-w-0",
@@ -359,7 +398,7 @@ export function ProjectPage() {
                 <div className="mb-3">
                   <BackRow
                     label={entry?.label ?? title}
-                    onBack={() => navigate(`/space/${group}`)}
+                    onBack={() => navigate(`/space/${open}`)}
                   />
                 </div>
               ) : null}
@@ -565,6 +604,13 @@ export function ProjectPage() {
                   )}
                   {group === "info" ? pluginSections(added) : null}
                 </ProjectSettings>
+              ) : null}
+              {project && part ? (
+                <PluginFrame of={part}>
+                  <SpacePartFrame key={project.id} part={part.id}>
+                    <part.component />
+                  </SpacePartFrame>
+                </PluginFrame>
               ) : null}
               {project && group === "data" ? (
                 <div className="flex flex-col gap-9 pb-20">

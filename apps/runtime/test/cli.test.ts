@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,7 +7,8 @@ import { loginItemText, unitText } from "../src/cli/autostart.js";
 import { installCommand } from "../src/cli/clients.js";
 import { inherited, runtimeEnv, runtimePath } from "../src/cli/environment.js";
 import { layout, readEnvFile, wizardsHome } from "../src/cli/home.js";
-import { CLIENTS, nodeIsCurrent, suggestedClient } from "../src/cli/machine.js";
+import { CLIENTS, findChrome, nodeIsCurrent, suggestedClient } from "../src/cli/machine.js";
+import { entryUrl, readSecret } from "../src/cli/start.js";
 import { clearRunning, readRunning, writeRunning } from "../src/running.js";
 
 let dir: string;
@@ -119,6 +120,25 @@ describe("the ticket of the local one-time link", () => {
   });
 });
 
+describe("the secret the command signs with", () => {
+  it("is APP_SECRET of the install's .env, else the data folder's; never the terminal's", () => {
+    const paths = layout(dir);
+    expect(readSecret(paths, {})).toBeNull();
+    expect(entryUrl({ url: "http://localhost:8891" }, paths, {})).toBe("http://localhost:8891/");
+    // The runtime the command starts never sees the terminal's APP_SECRET.
+    expect(readSecret(paths, { APP_SECRET: "from-terminal" })).toBeNull();
+    mkdirSync(paths.data, { recursive: true });
+    writeFileSync(join(paths.data, "secret"), "from-file\n");
+    expect(readSecret(paths, {})).toBe("from-file");
+    expect(readSecret(paths, { APP_SECRET: "from-terminal" })).toBe("from-file");
+    expect(entryUrl({ url: "http://localhost:8891" }, paths, {})).toMatch(/\/api\/local\/enter\?t=/);
+    writeFileSync(paths.envFile, "APP_SECRET=from-env-file\n");
+    expect(readSecret(paths, { APP_SECRET: "from-terminal" })).toBe("from-env-file");
+    writeFileSync(join(dir, ".env.local"), "APP_SECRET=from-env-local\n");
+    expect(readSecret(paths, {})).toBe("from-env-local");
+  });
+});
+
 describe("the note of a running runtime", () => {
   const note = { port: 8891, url: "http://localhost:8891", startedAt: "2026-10-04T00:00:00.000Z" };
 
@@ -150,6 +170,18 @@ describe("the machine", () => {
     expect(nodeIsCurrent("22.20.0")).toBe(false);
   });
 
+  it("finds the browser the runtime starts: CHROME_PATH, else one on the machine", () => {
+    const home = mkdtempSync(join(tmpdir(), "wizards-chrome-"));
+    const browser = join(home, "chromium");
+    writeFileSync(browser, "#!/bin/sh\n", { mode: 0o755 });
+    expect(findChrome({ CHROME_PATH: browser })).toBe(browser);
+    expect(findChrome({ CHROME_PATH: join(home, "gone") })).toBeNull();
+    if (process.platform !== "darwin") {
+      expect(findChrome({ PATH: home })).toBe(browser);
+    }
+    rmSync(home, { recursive: true, force: true });
+  });
+
 });
 
 describe("the AI clients", () => {
@@ -169,8 +201,10 @@ describe("the AI clients", () => {
   });
 
   it("suggests the first when no vendor app says otherwise", () => {
-    const missing = CLIENTS.filter((c) => c.id !== "codex" && !c.app).map((client) => ({ client }));
-    expect(suggestedClient(missing)?.client.id).toBe("gemini");
+    const missing = CLIENTS.filter((c) => c.id !== "codex").map((c) => ({
+      client: { ...c, app: undefined },
+    }));
+    expect(suggestedClient(missing)?.client.id).toBe("claude");
     expect(suggestedClient([])).toBeNull();
   });
 });

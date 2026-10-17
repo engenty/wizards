@@ -1,10 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 @import "@xyflow/react/dist/base.css";
 @import "tailwindcss";
-@import "./theme.css";
+@import "@engenty-wizards/runner/theme.css";
 @import "./shadcn-ember.css";
 
 @source "../";
+@source "../../../../packages/runner/src";
 
 /* The app bar is the shell's ground: in light one step below the page's paper, so the page
    beside it reads as the raised card. Dark sets its own step, below the stage (`.dark` below). */
@@ -13,11 +14,12 @@
 }
 
 /* Dark is not the near-black of the base palette: the page takes the deep
-   colour of an engenty (`--stage`, set per wizard by `useStage`), the ground
+   colour of an engenty (`--engenty-stage`, set per wizard by `useStage`), the ground
    the jelly coat is made for. Every surface and ink step derives from it, so
    a wizard's page, cards and text all carry its hue. */
 .dark {
-  --stage: oklch(34% 0.14 264);
+  /* A brand's own ground first, then the wizard's engenty, then the cobalt one. */
+  --stage: var(--brand-stage, var(--engenty-stage, oklch(34% 0.14 264)));
   --raw-background: var(--stage);
   --raw-sidebar: oklch(from var(--stage) calc(l - 0.04) c h);
   --paper: oklch(from var(--stage) l c h);
@@ -111,6 +113,28 @@ a,
   /* With the keyboard up the bar sits on it; the home indicator is covered. */
   .keyboard-open .action-bar {
     padding-bottom: 0.75rem;
+  }
+  /* With the keyboard up the field being typed in comes first: what frames the page shrinks
+     or goes, and a focused field is scrolled to above the bar, not under it. */
+  .keyboard-open .action-bar {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  .keyboard-open .kb-hide {
+    display: none;
+  }
+  .keyboard-open .kb-tight {
+    padding-top: 1rem;
+  }
+  .keyboard-open .kb-title {
+    margin-bottom: 1rem;
+  }
+  .keyboard-open .kb-title h1 {
+    font-size: 1.25rem;
+  }
+  .keyboard-open :is(input, textarea, select, [contenteditable]) {
+    scroll-margin-top: 1rem;
+    scroll-margin-bottom: calc(var(--kb, 0px) + 5rem);
   }
 }
 
@@ -303,6 +327,17 @@ a,
   animation: rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
 }
 
+/* A menu that opens under its button: it grows out of the button and fades in. */
+@keyframes unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.94);
+  }
+}
+.animate-unfold {
+  animation: unfold 0.2s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+
 /* The project assistant, once its card is scrolled away: it comes in from the lower edge. */
 @keyframes dock {
   from {
@@ -347,6 +382,25 @@ a,
 }
 .animate-step-back {
   animation: step-back 0.2s ease-out backwards;
+}
+
+/* The editor's test run: its card comes in from the right; a view switched to fades in. */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+.animate-slide-in {
+  animation: slide-in 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out backwards;
 }
 
 @keyframes breathe {
@@ -421,10 +475,13 @@ dialog.media-sheet::backdrop {
 
 @media (prefers-reduced-motion: reduce) {
   .animate-rise,
+  .animate-unfold,
   .animate-dock,
   .animate-settle,
   .animate-step-deeper,
   .animate-step-back,
+  .animate-slide-in,
+  .animate-fade-in,
   .animate-breathe,
   .animate-pulse-dot,
   .animate-typing {

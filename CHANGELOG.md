@@ -4,6 +4,248 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.7.8] - 2026-10-17
+- ADDED **[film]** A film starts from a kit's base project and keeps the space's brand between runs (#55)
+- ADDED **[setup]** A decision model on the person's own machine (#54)
+- ADDED **[runtime]** Code mode keeps to a step budget, off paid tools and large answers (#50)
+- ADDED **[studio]** Editor pane on the left, test run beside the diagram with a live log (#52)
+- FIXED **[plugins]** The Pro modules section says why it could not load and offers to try again (#53)
+
+## [0.7.7] - 2026-10-17
+- ADDED **[openui]** Run wizards inside OpenUI chats (#43)
+- ADDED **[runtime]** Code mode – a step's tools from one program in QuickJS (#49)
+- DOCS **[plans]** Triggers and starts – a wizard that starts by itself (#46)
+
+## [0.7.6] - 2026-10-17
+- ADDED **[runtime]** Sandbox engines installed apart from the package, starting with agentOS 0.4 (#45)
+
+## [0.7.5] - 2026-10-17
+- ADDED **[cli]** `npx wizards` downloads a small launcher; the runtime is published as @engenty/wizards-runtime (#39)
+
+## [0.7.4] - 2026-10-17
+- ADDED **[runtime]** Replace Gemini CLI with Antigravity as the Google AI client (#42)
+- ADDED **[setup]** Test each own key on its own, without picking models (#41)
+- CHANGED One package for code outside the repo, @engenty/wizards, with plugins at /plugin (#44)
+- DOCS **[plans]** Wizards in generative UI chats
+- FIXED **[studio]** Onboarding for people on their own, browser Back, and answers that survive a reload (#40)
+
+## [0.7.3] - 2026-10-15
+- FIXED **[studio]** Template cards on a phone in a column with a block title (Safari cut the footer off a card whose title wraps); a search brings its field to the top so results show
+- FIXED **[cli]** Onboarding sign-in a new person can finish or skip (#38)
+
+## [0.7.2] - 2026-10-15
+- FIXED **[studio]** On a phone the read-only note leaves the top (a lock on the tabs instead); with the keyboard up the run page drops its bar, shrinks the title and keeps the focused field above Weiter
+
+## [0.7.1] - 2026-10-15
+- FIXED **[cli]** Clearer setup and menu wording, and an Uninstall menu entry (#37)
+
+## [0.7.0] - 2026-10-15
+- ADDED **[cli]** Auto-update the installed wizards in the background (#34)
+- ADDED **[cli]** Wizards uninstall (#33)
+- CHANGED One implementation for helpers whose copies drifted (#29)
+
+## [0.6.2] - 2026-10-15
+- ADDED **[format]** A wizard's own language is any real language – `lang` in the schema is a two-letter code (JSON Schema v1: pattern ^[a-z]{2}$, no longer en|de), validateWizard says when it names no real language (isRealLanguage, Intl.DisplayNames). wizardLang gives the code; engenty's own strings read it through textLang (English where they lack it), dates and numbers through localeOf, speech through speechLocaleOf. The studio's language menu offers the languages of Europe (WIZARD_LANGS). A wizard written in a language outside LANGS loads the runner's words in it. Fix: translations sent the texts' own keys as schema property names, which Claude refuses (only letters, digits, _ . -); calls now use t0, t1, … and map them back
+
+## [0.6.1] - 2026-10-15
+- ADDED **[schema]** MIT license notice in the wizard and package JSON Schemas
+
+## [0.6.0] - 2026-10-15
+- ADDED **[runtime]** Prompts design results first; json steps report what they write
+- ADDED **[runner]** A json result without a view shows things as cards, not tables
+- ADDED **[results]** Agent steps return nested data through output.schema
+- ADDED **[runner]** Result views that read like an app, themed from the brand
+- FIXED **[runner]** A yes/no never reads true or false; progress only while an answer streams
+
+## [0.5.13] - 2026-10-15
+- ADDED **[runner]** A wizard in the viewer's own language, translated on request – the page opens in the wizard's language (`wizardLang`) and, where the viewer reads another (`viewerLang`: any language, from the browser or the time zone), offers it in the studio's two-sided pill (LangPill, LangSwitch now built on it), the pick kept in the browser. One structured call per wizard and language on the `standard` class at effort low (gpt-6-luna today, measured against cheaper text models in docs/plans/wizard-translation.md), kept per wizard as original text → translation (`wizard_translation`, machine or author), so later viewers read it and a republish translates only changed texts; answers that lose a placeholder or a translated definition that fails the schema or the validator are not kept. Choices keep their values and show `labels[value]`; ids, branches, AI instructions and slot dates are never sent. The runner's words in languages outside LANGS are translated once per runtime (`ui_translation`, chunked calls, plural forms per Intl.PluralRules) – the runner table moves to shared/runner-texts with the runner pages' 57 studio lines. Runs carry `run.lang`: the view shows the translation, AI steps write in that language, a switch mid-run keeps what is made, a finished result can be translated (`state.translated`). Authors turn it off per wizard (`wizard.translate`, synced to the cloud copy) and correct a language line by line in Share → Settings. "The wizard doesn't match the schema." goes through the runtime's string table (ServerLine on NotedError)
+
+## [0.5.12] - 2026-10-15
+- ADDED **[studio]** The first visit asks what the team uses engenty for (guessed from the address: free mail personal, a club's domain a club, else a business) and the questions that fit, sends the answers to the Manage-App (PUT /api/studio/team/profile), and takes a website's address or just its name
+- FIXED **[brand]** Engenty.wizards under the door's engenty and at the foot of the guests' start page
+- FIXED Review findings – runner exports, own keys fail closed, one secret reader, run cleanup, CI checks (#28)
+- FIXED **[copy]** Remove hard-coded German, widen copy-check (#31)
+
+## [0.5.11] - 2026-10-15
+- ADDED **[studio]** On the new-wizard page (and the guests' start page) the mic is an outlined "Sprechen" button at the start of the row, its menu opening to the right; on a phone the guests' top bar shows the mark, the language and "Anmelden" only
+
+## [0.5.10] - 2026-10-15
+- ADDED **[studio]** Voice input on the start page for guests – the browser's own speech recognition, nothing sent to the server without an account; where the browser has none, no microphone button
+- FIXED **[studio]** The light/dark pick is shared with the account pages (cookie engenty_theme on the parent domain, also what a first visit shows), and the guests' start page ends like the landing page – engenty and the legal pages, no version
+
+## [0.5.9] - 2026-10-15
+- FIXED **[cli]** The npm package `wizards` is for macOS and Linux only (os in its package.json) – on Windows npm refuses within a minute or two instead of an install of twenty minutes that ends in a crash
+- FIXED **[cli]** `npx wizards` on Windows says engenty wizards for Windows is coming soon and how to run it in WSL meanwhile, instead of an npm install of several minutes that ends in a crash (no libsql build for Windows on Arm; no installer, service or AI client lookup for Windows yet); --version, --help, validate and mcp still run
+
+## [0.5.8] - 2026-10-15
+- ADDED **[i18n]** Every line in a string table, a new language needs only translations – shared/texts (MIT) holds the table shape (English has every line, a language may lack some), plural forms by Intl.PluralRules on {count}/{n}, numbers written the language's way. RUN_NOTES becomes one table per language and takes the ~160 bilingual() lines as notes (note(code, params), gaps may hold other notes and lists); bilingual() and the "text" code are gone. The runtime gets its own table (apps/runtime/src/texts.ts, serverText, say(c, key) for inLang) for answers, assistant activity lines, first-space and new-wizard words. Marketplace labels, provider notes, basic facts and product credits move into language-first tables or the studio's strings; SPEECH_LOCALES joins LOCALES; the voice conversation's rules are written in English and name the language to speak. Studio and runner t() pick plural forms; copy-check reads them form by form
+- ADDED **[i18n]** One language list, the person's own language beside English – LANGS, Lang, LANG_NAMES, LOCALES, isLang, langOf and localLang in shared/definition replace every "de" | "en" and z.enum(["de", "en"]). The studio starts in the person's pick, else the first browser language engenty speaks other than English, else the language of the time zone's country, else English; requestLang reads the whole Accept-Language list the same way. Each language has its own strings, what one lacks is said in English (studio and runner). LangSwitch holds English and that own language and shows nothing without one; the account page picks among all languages (LangPick). JSON Schema v1 regenerated (enum order only); local-lang.test.ts covers the pick
+
+## [0.5.7] - 2026-10-15
+- ADDED **[studio]** Someone not signed in gets the new-wizard page instead of the door – the wish and the gallery (GET /api/guest/marketplace, no stars or plugins), "Build" signs in with the wish along and keeps it; the team's first visit shows it, and "new" builds it once the person is in
+
+## [0.5.6] - 2026-10-15
+- DOCS **[install]** Curly quotes around the menu entry, as the copy style wants
+
+## [0.5.5] - 2026-10-15
+- FIXED **[studio]** Sign-out ends the account's sign-in too – the studio's sign-in page no longer signs the person in again by itself
+
+## [0.5.4] - 2026-10-14
+- ADDED **[editor]** The editor on a phone – the pane is a sheet over the whole room or folded, and the row under the header has "Ablauf" (folds it to the diagram and back) with Test and Share as icons; the tab Chat is Assistent, the Steps tab has the chat's composer too (on every screen), a swipe left or right goes to the next or the previous step, the tab in effect scrolls into view, the zoom bar is gone on a phone, and the wizard's menu has vertical dots at the very right. The home page drops the offer to install on one's own computer
+
+## [0.5.3] - 2026-10-14
+- ADDED **[cli]** `npx wizards` installs, sets up and runs the studio – a copy from npm (npx, npm i -g) on macOS and Linux installs engenty wizards into ~/.engenty/wizards with the install.sh it carries (own Node, runtime, the `wizards` command), brings an older install up to its own version and restarts a runtime that runs, then hands every command to the installed `wizards`; a Node older than 24.11 gets the same instead of a refusal; --version, --help, validate and mcp still run from npm; node-pty is an optional dependency of the package, so npx installs on a Linux without a compiler; the install page names `npx wizards` beside the curl installer
+
+## [0.5.2] - 2026-10-14
+- ADDED **[editor]** On a phone the sheet opens over the whole room, and the tab Ablauf folds it to the diagram – a drag near the top takes all of it, the tabs scroll sideways where they do not fit
+
+## [0.5.1] - 2026-10-14
+- ADDED **[plugins]** Keys a plugin holds across tenants – server.claims takes, puts, drops and finds keys of the plugin's own, each for one tenant at a time (control table plugin_claim, migration 0009): a keyword on a number every tenant shares, who last wrote to it, a number a tenant connected; holder gives the tenant's ref for a shared route's inTenant. channels.book takes whatsapp, by message sent. Documented in the server, routes and reference pages and the manage contract; managed.test.ts covers two tenants holding one key
+- ADDED **[studio]** A copy style guide, with every word people read brought to it (#23)
+- FIXED **[deps]** Patch vulnerable dependencies from pnpm audit (#22)
+- FIXED **[runtime]** One SSRF range check, pinned connections, closed DevTools origins (#21)
+- FIXED **[runtime]** Keep run uploads to allowlisted types and never serve them as pages (#20)
+- FIXED **[release]** Commit the regenerated COPYRIGHTS.md with the release (#18)
+
+## [0.5.0] - 2026-10-14
+- ADDED **[studio]** Mark spaces synced from a local install (#17)
+- CHANGED **[knowledge]** English names in the source for Wissen and its parts; packages keep pages under files/knowledge/ (#13) **[breaking]**
+
+## [0.4.7] - 2026-10-14
+- ADDED **[studio]** Goose is hidden for now – the studio no longer shows the assistant's dock, its sidebar or its highlights
+- FIXED **[studio]** The header of /new takes about half its height on a phone – below md the fluffy engenty is scaled to 84px (Mascot draws a flat one below 120), the title is 1.5rem on one line and the gaps are smaller
+
+## [0.4.6] - 2026-10-14
+- ADDED **[share]** A channel is set up inside the share dialog – a runner's problem may say its kind (setup, waiting, plan) with the row's note and the plan that has it, so a row says "Nummer angefragt" without a button or "Ab Pro" with "Pro ansehen" instead of "Noch nicht eingerichtet"; studio.registerShareSetup gives a plugin the view "Einrichten" opens, inside the dialog at its height with a back arrow, its buttons at the dialog's foot (Actions) and done(banner) back to the rows, and a banner of the runner's news above them (notice); QrCode for a plugin's studio half; channels say whether the plan has a number of its own (allowed). Documented in the runners, studio, server and reference pages and the manage contract; plugins.test.ts covers the problem kinds
+
+## [0.4.5] - 2026-10-14
+- ADDED **[studio]** Keep the picked language with the person and share it with the account pages (#5)
+- ADDED **[i18n]** English is the base language everywhere; the studio follows the picked language, not the browser's (#4)
+- ADDED **[studio]** One menu at the left – a page with a menu of its own (the space's areas, the settings, a plugin page through the new MenuPage) draws it into the sidebar while that is open, else at its own left; the top bar runs across the sidebar and the page with the toggle, the space's name and the trail, open or closed; the space menu opens fixed under the name, so the sidebar no longer cuts it off, and its actions are a line glyph and a word
+- ADDED **[studio]** The space sidebar – a toggle left of the space's name opens it (animated, closed below 1024 px, the toggle never moves); it holds Wizards, New wizard and the space's parts under SPACE, and in an area of the space page that area's own menu instead, so one menu stands at the left; the space's name opens the space menu (the spaces, Wizards in space, Add wizard, Edit space name in a dialog) with a computer or cloud icon after it; the area menu's top level is "Space" with a way back to the wizards; the list is titled "Wizards in <space>"; the breadcrumb starts with a slash; a wizard has a ⋯ menu on its card and in the editor (Duplicate, Export, Delete behind a confirm dialog, admins only); the assistant is one card – the open chat or the last turn above the bar, the handle always on top, Goose perched once on top of it, 600 px wide, a taller input
+- ADDED **[studio]** The studio has no footer – version and changelog stay in the About dialog behind the mark – and Goose perches on top of the assistant's bar only while it is in use (focused, open, working or live), rising in animated, instead of standing beside it
+- ADDED **[studio]** The space chooser has no "Add space" row at the plan's limit, the chevron shows only where there is something to switch to or add, and the menu opens under the chevron
+- ADDED **[studio]** A new wizard starts as a step-by-step wizard only, with a + beside the channel button and "How should it run?" as the question, the hint stands below the input, dark is the default theme (System stays a pick), the top bar has no wordmark, the space name is plain text and only its chevron opens the chooser, and a local install's first space is called "Local Space"
+- ADDED **[studio]** The sign-in page gets the logo, the theme and language switches and a footer with the version; the headline and the sub line are the new wish text in both languages, the hint is shorter and points to wizards open --print
+- FIXED **[harness]** The authoring guide says when a step goes without the store's file tools, and the check for kept files reads one row – guide.ts no longer promises files_list, read_document and scan_documents to every agent step (an installed client gets them only where there is something to read), and buildStepTools asks hasStoreFiles instead of loading every kept file
+- FIXED **[store]** A list keeps its rows in the order they came – a new row is stamped after every row the list holds, so two saves in one millisecond no longer tie and swap places by their random ids (a shared list across saves, a person's list even within one save); the flaky "a shared list" test met exactly that (#12)
+- FIXED **[studio]** The space sidebar's state stands in a module of its own (side-menu.ts), so a plugin page that imports MenuPage no longer pulls the studio into its typecheck; the wizard menu imports base relatively; the cloud test expects a lone runtime's first space to be "Local Space"
+- PERFORMANCE **[harness]** A tool-less step on an installed client answers without the MCP bridge – a step that declares no tools or connections, got no uploads and whose wizard keeps no lists and no files no longer gets the store's file tools (files_list, read_document, scan_documents), so without other tools (Wissen, a workspace file) the client starts no bridge for the call; harness.test.ts covers both
+
+## [0.4.4] - 2026-10-14
+- ADDED **[plugins]** Numbers of the Manage-App and routes for every tenant – server.channels gives a plugin the tenant's numbers (get, request, withdraw) and books what they carry (book: SMS segments, call minutes, priced by the Manage-App) through the runtime's service key; registerSharedRoute, sharedUrl and publicRef give a service that posts to one webhook for all tenants one address (/api/public/plugins/<id>/shared/…), whose handler enters a tenant by the ref the call carries (inTenant). The calls GET/POST/DELETE /v1/tenants/:id/channels(/requests) and POST /v1/tenants/:id/channels/usage are in docs/manage-contract.md, the SDK in the plugin docs; managed.test.ts covers both
+
+## [0.4.3] - 2026-10-13
+- FIXED **[runner]** The wizard's live voice no longer interrupts itself – the microphone asks for echo cancellation, and the session filters input as far-field with a higher speech threshold (0.7) and 600 ms of silence to end a turn
+- FIXED **[assistant]** Live voice no longer hears itself – the recognition starts fresh when the voice ends, what sounds like the voice is ignored for 3 s after it, the echo check compares plain words and takes 75 % as a match, and the microphone asks for echo cancellation
+
+## [0.4.2] - 2026-10-13
+- CHANGED **[modules]** WhatsApp, SMS and calls leave the open repository – modules/whatsapp, modules/sms and modules/calls and their tests are gone, the runtime's image no longer copies them and the plugin lists in the tests shrink; what they are built on stays in the runtime and the SDK (runners with problem and address, the thread door, server.speech.conversation(), registerShareSection). The plugin docs say what a messenger or call plugin does instead of naming the modules, "Test and share" describes WhatsApp, SMS and calls as channels of engenty.ai, and the two channel plans note the move
+
+## [0.4.1] - 2026-10-13
+- ADDED **[studio]** A colour is added as a row in place, and the assets are "Brand Assets" with a round search field; plugins get a part of the space page of their own (registerSpacePart, useSpaceMenu), the space's brand (useSpace().brand, server.spaces.brand), a block for the steps that write documents and dashboards (registerSpaceContext steps: ["html"]), pictures and PDFs for generate (files), and the space page's pieces from @engenty-wizards/web/ui
+
+## [0.4.0] - 2026-10-13
+- ADDED **[onboarding]** The account becomes the front door – a cloud studio's first visit is a wizard of four pages (the team's name, the website read into the space, first documents, the space explained), the setup on a computer starts with the account (a device code in the terminal, the panel and "engenty credits" as an engine on the setup page), install.sh --local and wizards account keep and name the install without one, the cloud home offers the computer with the install mail, and the docs start with "Create an account"
+- DOCS **[plans]** A plain sign-in lands in the studio as well – noted with the manage commit
+- DOCS **[plans]** After the sign-up the account pages send a new account to the studio – the plan's note on the landing is settled
+
+## [0.3.8] - 2026-10-13
+- ADDED **[assistant]** The studio assistant is Goose and takes what is written while it works – Enter sends a message into the running answer, which reads it before its next step (or goes on with it after its answer), ⌘↩ queues it for after the answer, "Jetzt senden" stops and sends at once, Stop stands where Send does; the chat at the bottom moves by its grip, stays where it is put and snaps to the middle or the right near the bottom and into the sidebar near the right side, the handle on top sets the thread's height and folds it, ✕ closes it into the engenty at the lower right, which opens it where it stood (the small card is gone); "New chat" clears at once and writes the old chat's summary meanwhile, the next turn waits for it; developer mode (ASSISTANT_DEV here, the platform's admins when managed) shows each step's model, tokens, time and cost, the tools' arguments and results, the context window, and the turns' timeline, prompt and events to copy or download
+
+## [0.3.7] - 2026-10-13
+- ADDED **[studio]** Info & Marke becomes a brand book – Fakten right after Basis, one "Hinzufügen" menu in each section's head and trash on hover; Logos: the standard logos first, optional sections with when to use them, a logo from a URL (a picture, or the logos found on a page to pick); Farben: sections of colours, gradients (linear, radial or conic, angle, colour stops, CSS read and written, PNG download) or patterns (pictures tiled or filling), colours read off a page's stylesheet (oklch and hsl too); Typografie: fonts with what they are for and their weights, previewed from Bunny Fonts, an optional type scale, fonts read off a page's CSS; Assets: sections as tabs with search and view beside them, from a URL or a page's pictures, and PDFs, fonts, Lottie and 3D models taken too; rules as rows with a sign (bullet, do, don't, to check, important, numbered) for logos, colours and type; the studio assistant fills all of it only where a source says so (set_logo_sections, set_asset_sections, set_typography, set_gradients, set_rules), and every AI step and the film step get it with the brand
+
+## [0.3.6] - 2026-10-13
+- ADDED **[studio]** "Veröffentlichen" is gone – the first share publishes (the dialog says "Beim Teilen veröffentlicht", or what to fix first), and later changes go live from "Änderungen live schalten" in the editor's top bar: a dialog with what changed since the version people run (the wizard, each step by its title and part, the order, the files), whether exactly this draft was tested, that runs under way keep their version, what a run costs now, then "Live schalten"; the runtime answers it at /wizards/:id/changes
+
+## [0.3.5] - 2026-10-13
+- ADDED **[studio]** The share dialog starts over – who may open the wizard (anyone with the link, or only you), how others reach it by the channels it was made for, each with its own link or number to copy (SMS and WhatsApp show keyword and number from the runner's new `address`), and "Link kopieren"; QR code (any way's link, print, download), website (what it shows, where on the page, the tag; WordPress by plugin or as a package without an account), the gear (runs a day, each channel's keyword, a new link) and "Ändern" (the new-wizard page's channel list) open inside it with a way back; a draft, unpublished changes, a local install without an account and a cloud that lacks something say so on top; in the editor sharing stays at hand while there is something to publish
+- FIXED **[studio]** On the new-wizard page pictures and files sit above the wish, as in a chat's input
+
+## [0.3.4] - 2026-10-13
+- ADDED **[studio]** The channel menu on the new-wizard page grows out of the button that opened it and fades in; still where motion is reduced
+- ADDED **[studio]** The new-wizard page asks how the wizard runs and shows what is there already – "Läuft als" above the wish picks the channels (in the browser: Wizard in Schritten, Chat, Live Voice, Video Call; on the phone: Anruf, WhatsApp; by message: SMS, WhatsApp; one stays on), saved as the wizard's runners and named in the first message, which the guide tells the assistant to build for; the box takes files (+, paste, drop; pictures as thumbnails, names made fit for the workspace), dictation and the build button; while the wish is typed, up to ten of the space's wizards and templates that come close are listed, Pro marked, the rest one line that searches the gallery; the example chips are gone
+
+## [0.3.3] - 2026-10-12
+- DOCS Every page checked against v0.3.2 – the wizards menu (Start as service, Service settings, an update that restarts what runs), the version line at the top of Settings → Account, the templates the assistant shows as cards, the wizard format's code under MIT, the server page's clone folder (wizards)
+
+## [0.3.2] - 2026-10-12
+- ADDED **[assistant]** Templates the assistant recommends show as the gallery's cards under its answer – a new show_templates tool sends them as a card of the studio's own, kept with the chat; a card opens the gallery's dialog and makes a wizard of it in the space
+
+## [0.3.1] - 2026-10-12
+- FIXED **[cloud]** Studio, doors and runner share one /data volume – the tenant databases are files there while the Manage-App's TENANT_DB_PROVISIONER is none, so with a volume per role each process saw a tenant of its own: a wizard published in the studio was not found on the doors, and the runner never found the runs it claimed
+
+## [0.3.0] - 2026-10-12
+- ADDED **[runtime]** The web is cut into studio and doors – RUNTIME_ROLE studio serves the makers' half (sign-in, authoring, MCP, the sync API, the studio's pages), doors the customers' half (the wizards' pages, their API, shared results, the plugins' public routes, the app links); web is both, all adds the runner; the runs' API, the connect callback and the app's files serve both halves. PUBLIC_URL names the doors' origin when it is not APP_URL: wizard and result links, link previews, the embed script, public logos and icons, a plugin's public address and the AI app widget carry it, /api/config tells it and the studio's own link to a wizard uses it. compose.cloud.yaml runs runtime (studio), doors and runner from one image; docs/plans/runner-process.md says which paths go where
+
+## [0.2.61] - 2026-10-12
+- ADDED **[studio]** The account settings say the version on top – one line in the first card (Lokale Installation, the linked account or the cloud): the version, which opens the About dialog with what is new, and on a runtime that runs alone whether it is the newest, the newer one with Aktualisieren, and the check again; the About dialog and that line share about/UpdateCheck.tsx; no link to the GitHub release any more
+- FIXED **[runtime]** An update from the About dialog no longer ends on {"error":"Interner Fehler"} – packageVersion() reads package.json once, so a runtime still running the old code goes on saying its own version while the installer replaces its files, and the studio reloads only once the new one answers instead of into the old process whose index.html is gone
+
+## [0.2.60] - 2026-10-12
+- FIXED **[studio]** The opened assistant at the bottom no longer grows past the page – its dock covers the column, so the chat's max height has a height to measure against
+
+## [0.2.59] - 2026-10-12
+- FIXED **[cli]** The menu tells what an update did – a runtime that runs restarts into the new version inside the update, and the menu ends with the commands used most instead of claiming `wizards` opens the new version; "Start" is "Start as service", and starting at login moved into "Service settings" with a yes/no question
+
+## [0.2.58] - 2026-10-11
+- ADDED **[runtime]** With web and runner apart, the phone still thinks for a run and plugins hear of its changes – the device's offer is run.device_offer and each call a device_call row in the tenant database, which the runner polls for the answer and any web's stream sends to the phone; watchRun hands on event rows another process wrote, each once, and tells of new device calls; the plugins' runs.subscribe uses it
+
+## [0.2.57] - 2026-10-11
+- ADDED **[runtime]** The runner is its own process – RUNTIME_ROLE web | runner | all (a runtime that runs alone stays one process). The line of runs lives in the control database: run_index gained owner and seen, a runner claims a run in one statement that counts the tenant's held runs against its limit, reports every 10 s, hears of a cancel the web wrote and hands its runs back when it stops; a runner silent for 30 s loses them. A step's question and the person's answer go through the run's row (run.answer; run.unattended marks an autopilot), so the web that takes the answer need not be the process that asked. watchRun tells the stream, the autopilot and waitWhileMoving of changes another process made within a second. Runners register with an address (table runner, RUNNER_URL); the web hands a run's browser screen and acts on it to the runner holding it. compose.cloud.yaml runs web and runner apart. docs/plans/runner-process.md
+
+## [0.2.56] - 2026-10-11
+- DOCS Every page describes v0.2.56
+- DOCS Every page checked against v0.2.55 – the wizard format's example in English, the WordPress page's key link to the new Integrate page
+- DOCS Apple Intelligence keeps High and Highest on their way; the WordPress import follows the shared check and a thinking step gets the pages that match it
+- DOCS Every page checked against v0.2.50
+- DOCS Every page checked against v0.2.48, public pages only, versions tracked
+- FIXED A wizard package's errors in English like the definition's issues – wizards validate, the studio's import and the runner's check (which the WordPress plugin carries) said them in German
+- FIXED Apple Intelligence leaves High and Highest on their way, a visitor reads the runtime's answers in their language
+- FIXED A live conversation only where the wizard has it on, the browser the setup found, plugin runs without device signals, the WordPress plugin's download
+
+## [0.2.55] - 2026-10-11
+- FIXED **[mcp]** An AI app names spaces and wizards, not their ids – list_projects says where each space comes from (from: "your computer" for one a local install sent, "here"), list_wizards gives each wizard its space's name and origin, and the tools' descriptions and the server's instructions say ids are for the tools only; claude.ai had listed two spaces both called "Meine Wizards" by their ids
+
+## [0.2.54] - 2026-10-11
+- ADDED **[format]** The JSON Schemas live at engenty.ai/schema/v1/wizard.json and …/v1/wizard-package.json – one folder per definition version, names that say what they hold; the docs site answers /schema/* by asking itself for its public files (Next rewrites past its basePath only to a full URL), the proxy sends /schema to it; /docs/schema/wizard/1.json and …/wizard-package/1.json are gone
+
+## [0.2.53] - 2026-10-11
+- ADDED **[integrate]** Einbinden starts with what it is for and the apps found here, and every app walks through numbered steps to its first sentence in the chat – a start page with one card and one button per app on this computer and an "Über engenty.ai" card; the menu groups the apps (on this computer, through engenty.ai, more apps folded; in the cloud: in the browser, on your computer) with a legend for its dots; an app's page shows what it gets in plain words (wizards in the chat, the wizard as a window or as text) and three steps – add, restart, try – instead of the stage bar and a spinner, the config path behind Details, the address with an API key as a link for another computer; once an app called a tool it offers first sentences with the space's own wizard. claude.ai and ChatGPT on a local install lead to the engenty account (or Claude Desktop) instead of a dead end, and with an account linked or in the cloud they get four steps: open the connector settings, name and address, sign in and allow (with a preview of the consent page), a first sentence with its checks. The runtime asks the Manage-App (POST /v1/grants/check, kept 30 s) whether the grant behind an OAuth token still stands, so "Trennen" on the account page, leaving the team or a lock-out end an app's access at once; no answer refuses the token. "Verbundene Systeme (MCP)" is "Verbundene Systeme", the note against mixing them up is gone, the studio's new strings say API Key
+
+## [0.2.52] - 2026-10-11
+- CHANGED **[runner]** The package check takes the .wizard format's names from shared (wizard-package.ts) – extension, media type, format, wizard.json and files/ are written down once; check.ts still exports PACKAGE_EXTENSION and PACKAGE_MIME for its hosts; COPYRIGHTS.md lists ajv, the schema test's
+
+## [0.2.51] - 2026-10-11
+- ADDED **[format]** A published JSON Schema for wizards and `wizards validate` – pnpm schema writes the definition's and a package's wizard.json schema from the Zod schemas the app parses with (packages/shared/src/json-schema.ts) into the docs site, served at engenty.ai/docs/schema/wizard/1.json and …/wizard-package/1.json; objects take no unknown key there, which the app would drop without a word; the export writes "$schema" into every wizard.json. `wizards validate <path…>` checks a .wizard file, an unpacked package or a wizard's JSON as the import does, offline and without an account (--json, exit 1 on issues); a project's connectors, MCP servers and plugins stay checked on import. The package format moved to shared (wizard-package.ts), its reading to services/package-file.ts so the CLI loads no database; shape issues name the step everywhere (parseWizard). A test keeps the published schemas equal to a fresh run and checks them with ajv. docs/content/dev/wizard-format.md
+
+## [0.2.50] - 2026-10-11
+- FIXED **[deploy]** The runtime image installs the runner package's dependencies – its package.json was missing from the manifests, so vite was not there to build it and v0.2.49's image failed
+
+## [0.2.49] - 2026-10-11
+- ADDED **[runner]** A written output's PDF made in the browser where the server writes none – on a standalone host (the WordPress plugin, standalone: true in its RunnerEnv) the PDF button lays an agent's Markdown or JSON out with pdfmake and Roboto (packages/runner/src/pdf.ts, loaded on the first click, about 1.5 MB), saves the file and hands it to the share sheet; an HTML download there is a page to print, opened beside the run; the fit no longer counts a written text's PDF as a need (web-event and web-dayplan run as is), a document's PDF stays the browser's print; tests for the content tree and a render through the library's server build; the credits list pdfmake; the plan records the change
+- ADDED **[standalone]** The site runs web_fetch and http itself, so the check counts them as no need; a package takes the project's pages along on request (knowledgeSnapshot: files/wissen/<path>.md with title and path in front, 60 000 characters a page and 2 MB in all, the manifest's knowledge field, ?knowledge=1 on the package route and the studio's export, the share dialog's Wissen mitnehmen switch); the runner names what a closed choice lacks on a site, an engenty account among the groups; the plan records the second round, the real-provider runs and what stays open
+- ADDED **[standalone]** The start texts live in the runner package, api is exported for hosts, widgets count as a need of the runtime; the plan records what was built on the WordPress side, what changed against it and what is open
+- ADDED **[standalone]** The check and the runner package – standaloneFit/needs/standaloneEntry in shared (fit.ts, the steps every run passes through and the closed choices lifted there, requirements.ts on them); documents and dashboards count as text the standalone runner writes, a PDF as the browser's print; @engenty-wizards/runner (MIT) holds the runner's components, UI primitives, texts and env, RunnerBody takes a RunSource, the studio configures it and uses the package (one copy), a Vite build with React external and a scoped runner.css for hosts without Tailwind; /api/v1/wizards lists standalone per wizard and /wizards/:id/package hands the published version over; the share dialog's WordPress section with the gallery's Braucht list and the package download, Einbinden's Ohne Konto line; pnpm templates:export writes every marketplace template as a .wizard with its fit, the release attaches templates and the runner
+- ADDED **[api]** What the WordPress plugin calls – /api/v1/me (account, plan, plugins and the ones the plan lacks, spaces, credits, the studio's and the account's addresses), /wizards (published with token, ID and icon; drafts without), POST /wizards from a template published at once, /templates, /runs and /runs/:id with scope runs:read (live runs with the answers by the fields' labels, the e-mail, the page they started on), /space and POST /space/site (a website's own statements fill the space's empty details, its pages go into Wissen under the origin wordpress, the space assistant reads the rest; a job to ask after), /plugins/:id/* calling a plugin's routes as the token's person and answering 403 plugin for a plan without it; run.origin from embed.js's data-page (migration 0011); embed.js has a bubble at the bottom right with data-text and data-color; the share dialog offers it as a third mode; Settings → Integrate → WordPress; docs page WordPress and the contract's section on clients of an account; the plan says what was built
+- ADDED **[app]** Scanning one tap away on the add sheet – a glass tile with a QR frame under the ID entry opens the scanner, where the room below the ID was empty; the switch above stays
+- ADDED **[models]** Voice notes on the Mac read any browser's recording in the right language – a WebM or Ogg recording becomes WAV through ffmpeg before SpeechAnalyzer reads it, and a note carries the runner's language (AudioValue.lang) so the Mac listens in it instead of its own; checked end to end with spoken audio: the transcript and Apple's answer are about the call and the invoice that were said
+- ADDED **[app]** The tab bar as glass that shows – the capsule gets a light tint and answers a touch with the glass's shimmer, and the active tab sits under a clear-glass lens that slides to the tab just picked (a plain pill where there is no Liquid Glass); Glass takes a tint and a clear kind
+- ADDED **[app]** Apple's models on the phone and voice notes on the Mac – an Expo module in Swift (the same Shared.swift as the Mac helper) gives the runner bridge `transcribe` (SpeechAnalyzer, iOS 26) and `think` (Apple Intelligence, where switched on), named to a page only where the phone has them; the runner writes a recording down on the phone before the field keeps it and offers the phone for a run's Classifier and Standard calls, which the runtime sends over the run's stream as `device` events and takes back by POST, falling back to its own way when the phone does not answer in time, errs, the prompt is too long, or the step declared tools or has uploads; the Mac's helper writes voice notes down as well (`apple:transcribe`, offered under Voice notes); the recorder prefers AAC where the phone transcribes
+- ADDED **[models]** Apple Intelligence on this Mac as a model – the on-device model of macOS 26 answers the Classifier and Standard classes through a Swift helper (wizards-apple: status, guided generation from the step's JSON schema), shown in the setup and under Text & Denken only on a Mac with Apple silicon on macOS 26, picked once Apple Intelligence is switched on; High and Highest keep their way; nothing leaves the Mac. The release builds the helper on a macOS 26 runner and packs it in; the plan for the phone side (transcription, then text over the app's bridge) is in docs/plans/local-models-apple.md
+- DOCS **[plans]** The plugin's source strings are English with German as de_DE; what make-json does to a built file named admin.js and why the bundle is app.js
+- DOCS **[plans]** The plugin repository is public as engenty/engenty-wizards-wp-plugin; what Plugin Check found and what changed for wordpress.org, the listing's assets, and what the submission still needs from the user
+- DOCS **[plans]** The no-key path shown through Ollama on the site, the Word branch and the prompt filter as deviations recorded
+- DOCS **[plans]** Checkpoints 7 and 8 shown on the test site (the pull against a stubbed account, the Word branch closed and the open way run), the photo run, the step timeout and the Ollama finding; the login-shell test of the harness gets twenty seconds on a loaded machine
+- DOCS **[plans]** Standalone mode of the WordPress plugin – wizards run on the site without an account: the browser follows the flow and draws, PHP keeps the prompts and the run and calls WordPress 7.0's AI Client once per thinking step with the site's Connectors provider; one shared check (needs, standaloneFit) labels every wizard full / with less / needs an account in the studio and on upload; the start stays the hero, 'Eigene KI erstellen' opens the choice between an engenty account and local with the site's own provider, local sites pick from wizards shipped with the plugin and run them without credits; tables, routes, the PHP ports line for line, files, phases, checkpoints, what is open; mockups on the design canvas
+- DOCS **[wordpress]** Connecting by hand with an address and an API Key
+- DOCS **[wordpress]** The plugin's repository is engenty/engenty-wizards-wordpress – the studio's download link, the docs page and the plan
+- DOCS **[plans]** How the WordPress plugin is built – its own public GPL repository engenty-wordpress with the PHP, block and admin app laid out; the eight runtime changes in order with the files and what they reuse; seven steps with a checkpoint each; what is left out
+- DOCS **[plans]** The WordPress plugin – a client of a runtime (engenty.ai or an own server), never PHP: block, shortcode, Elementor widget, PHP function and a bubble render the embed tag; the admin lists wizards, results and the Pro plugins' contacts and bookings through a PHP proxy with the key; what the runtime needs (/api/v1/me, /wizards, /runs, plugin routes with a key, run.origin, a bubble mode), phases and open decisions; mockups on the canvas
+- DOCS **[plans]** Apple's local models – what the iOS simulator showed: the 26.5 runtime answers a run's Standard step on the phone, 26.2 fails with ModelManagerError 1026 and the runtime falls back; no simulator holds speech assets, so transcription is verified on the Mac
+- DOCS COPYRIGHTS.md – who owns the code, the FSL-1.1-MIT terms in one paragraph, the marks, what is not ours (the Commission's AI labels) and every third-party package with its licence; pnpm about:data --credits writes that part beside the About page's credits, with the docs site and the development tooling the page leaves out
+
 ## [0.2.48] - 2026-10-11
 - ADDED **[core]** What a shop plugin needs from the runtime – a select or multiselect draws the rows of a table output as cards (cards: label, value, image, subtitle, meta, link; the runner shows a grid with Auswählen and Details), server.web.read hands over a page's JSON-LD so a product page costs no model, server.connections takes keys (available names the fields, connect tries them once and keeps them sealed; the same account again replaces the first), server.secrets seals keys a plugin keeps itself, and server.spaceData reads the space's own pages and files for a plugin that learns from Wissen; a plan for the shop plugin in docs/plans
 - ADDED **[studio]** The assistant stands on every studio page but the editor, with one chat per person and team – docked at the bottom (opened, it greets with the page's words and three suggestions; a click sends one, a "fill" one goes into the field), small at the lower right (Data and Results keep it so) or as a sidebar on a window of 1,520 px and more, kept per person (GET/PUT /api/studio/assistant/layout); its height is kept free below the page (--assistant-dock), which fixes the last section under the bar; the chat is stored (assistant_chat, assistant_message, FTS5 trigrams), survives pages, reloads and devices, "New chat" closes it with a dense summary by the standard model, the last five summaries ride every turn, chats_search and chat_read find older ones, a long chat folds into a running summary; it knows the app from the guides of the installed version (docs/content bundled into dist/docs, docs_search, docs_read, the authoring guide, a one-page primer) and reads live data (gallery, plans from the Manage-App's public GET /v1/plans, account, usage per month via GET /v1/tenants/:id/usage or /v1/me/usage, the space's wizards and runs, models); every message carries the page's snapshot (route, trail, section in view, open item, selection, summary, fields; useAssistantPage, studio.useAssistantPage), and six browser tools run in the page while the turn stays open (navigate, highlight with spotlight or ring and a card whose buttons answer, look_at_page, read_section, fill_field, scroll_to; studio.useAssistantTool adds a page's own) – the same for an installed client over the MCP bridge, own keys and credits; the turn's events keep our SSE names with AG-UI's fields (run_started, text with messageId, tool_call and tool_result for every tool, card, changed, done, error); Talk starts a live chat the browser's way: speech to text in the browser (recording and the voice-notes model where it cannot), a pause sends, the same assistant answers, the computer's voices or the speech model read it aloud, talking over it stops it; studio.Assistant now only tells the assistant what to say on a plugin's page; user guide page "The assistant", plugin guide and the Manage contract updated

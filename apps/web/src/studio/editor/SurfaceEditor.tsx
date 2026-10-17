@@ -1,15 +1,17 @@
+import { SurfaceView } from "@engenty-wizards/runner";
 import {
   assembleSurface,
   dataRef,
+  declaredShape,
   listRef,
   type Step,
   type WizardDefinition,
 } from "@engenty-wizards/shared/definition";
+import type { FieldShape, ListShape } from "@engenty-wizards/shared/shape";
 import type { SurfaceComponent } from "@engenty-wizards/shared/surface";
 import { Code2, Eye } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { t } from "../../lib/i18n";
-import { SurfaceView } from "../../runner/surface";
+import { lang, t } from "../../lib/i18n";
 import { cn, IconButton } from "../../ui";
 
 type SurfaceStep = Extract<Step, { type: "surface" }>;
@@ -63,7 +65,7 @@ export function sampleData(
       );
     }
     if (ref === "today") {
-      return new Date().toLocaleDateString();
+      return new Date().toLocaleDateString(lang);
     }
     if (ref.startsWith("brand.")) {
       return t("surface.sampleBrand");
@@ -74,13 +76,19 @@ export function sampleData(
       if (source?.type !== "agent") {
         return null;
       }
-      const outputs = source.output.fields ?? [];
-      const sampleField = (f: (typeof outputs)[number]): unknown => {
+      const shape = declaredShape(source);
+      const sampleField = (f: FieldShape | ListShape["of"], key: string): unknown => {
         switch (f.kind) {
           case "number":
             return 42;
           case "list":
-            return [1, 2, 3].map((i) => `${f.id} ${i}`);
+            return [1, 2, 3].map((i) =>
+              f.of.kind === "object" ? sampleField(f.of, key) : `${f.of.label ?? key} ${i}`,
+            );
+          case "object":
+            return Object.fromEntries(
+              Object.entries(f.fields).map(([k, x]) => [k, sampleField(x, k)]),
+            );
           case "table":
             return sampleRows(
               (f.columns ?? ["name"]).map((c) => ({ key: c, label: c, number: isNumber(c) })),
@@ -89,18 +97,16 @@ export function sampleData(
             return true;
           case "choice":
           case "score":
-            return f.options?.[0] ?? "";
+            return f.options[0] ?? "";
           default:
-            return t("surface.sampleText");
+            return isNumber(key) ? 42 : t("surface.sampleText");
         }
       };
       if (fieldId) {
-        const f = outputs.find((x) => x.id === fieldId);
-        return f ? sampleField(f) : null;
+        const f = shape?.fields[fieldId];
+        return f ? sampleField(f, fieldId) : null;
       }
-      return outputs.length
-        ? Object.fromEntries(outputs.map((f) => [f.id, sampleField(f)]))
-        : t("surface.sampleText");
+      return shape ? sampleField(shape, stepId) : t("surface.sampleText");
     }
     const field = fields.find((f) => f.id === ref);
     if (!field) {

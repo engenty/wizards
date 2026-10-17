@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import type { PluginRunReport, PluginRunSignal, PluginRuns } from "@engenty-wizards/plugin-sdk";
-import { wizardLang } from "@engenty-wizards/shared/definition";
-import { noteText } from "@engenty-wizards/shared/run";
+import type { PluginRunReport, PluginRunSignal, PluginRuns } from "@engenty/wizards/plugin";
+import { LANGS, type Lang, textLang, wizardLang } from "@engenty-wizards/shared/definition";
+import { noteText, type RunNote } from "@engenty-wizards/shared/run";
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, schema, withTenant } from "../db/client.js";
 import { answerAsk } from "../engine/asks.js";
-import { subscribe } from "../engine/events.js";
+import { watchRun } from "../engine/events.js";
+import { fieldErrorsIn } from "../engine/input.js";
 import {
   cancel,
   createRun,
@@ -19,7 +20,8 @@ import {
 import { saveAsset } from "../files/storage.js";
 import { wizardUnavailable } from "../limits.js";
 import { transcribeAudio } from "../media/transcribe.js";
-import { ModelUnavailableError } from "../model-errors.js";
+import { errorText, ModelUnavailableError } from "../model-errors.js";
+import { uploadMime } from "../routes/delivery.js";
 import { runTicket } from "../secrets/signing.js";
 import { notFound, ServiceError } from "../services/errors.js";
 import { runnerSettingsOf, runnersOf } from "../services/runners.js";
@@ -54,17 +56,6 @@ export function runsApiFor(pluginId: string): PluginRuns {
       if (!w || w.publishedVersion === null) {
         throw notFound();
       }
-      const reason = await wizardUnavailable(w);
-      if (reason) {
-        throw new ServiceError("refused", reason);
-      }
-      const visitorId = visitorOf(input.person);
-      if (await visitorOverLimit(visitorId, null)) {
-        throw new ServiceError(
-          "refused",
-          "This person started many runs lately. Try again in an hour.",
-        );
-      }
       const version = await db.query.wizardVersion.findFirst({
         where: and(
           eq(schema.wizardVersion.wizardId, w.id),
@@ -73,6 +64,17 @@ export function runsApiFor(pluginId: string): PluginRuns {
       });
       if (!version) {
         throw notFound();
+      }
+      const reason = await wizardUnavailable(w);
+      if (reason) {
+        throw new ServiceError("refused", noteText(reason, wizardLang(version.definition)));
+      }
+      const visitorId = visitorOf(input.person);
+      if (await visitorOverLimit(visitorId, null)) {
+        throw new ServiceError(
+          "refused",
+          noteText({ code: "tooManyRuns" }, wizardLang(version.definition)),
+        );
       }
       const runId = await createRun({
         wizardId: w.id,
@@ -84,10 +86,16 @@ export function runsApiFor(pluginId: string): PluginRuns {
         runner: input.runner ?? pluginId,
       }).catch((err) => {
         if (err instanceof ModelUnavailableError) {
-          throw new ServiceError("refused", err.message);
+          throw new ServiceError(
+            "refused",
+            errorText(err, textLang(wizardLang(version.definition))),
+          );
         }
         if (err instanceof NoCreditsError) {
-          throw new ServiceError("no_credits", "The wizard's credits are used up.");
+          throw new ServiceError(
+            "no_credits",
+            noteText({ code: "wizardRunOutCredits" }, wizardLang(version.definition)),
+          );
         }
         throw err;
       });
@@ -104,7 +112,7 @@ export function runsApiFor(pluginId: string): PluginRuns {
           if (!(err instanceof RunInputError)) {
             throw err;
           }
-          refused = err.errors;
+          refused = fieldErrorsIn(err.errors, "en");
         }
       }
       return { runId, ticket: runTicket(runId), refused };
@@ -141,7 +149,7 @@ export function runsApiFor(pluginId: string): PluginRuns {
                 wizardId: w.id,
                 token: w.shareToken,
                 title: version.definition.title,
-                lang: wizardLang(version.definition),
+                lang: textLang(wizardLang(version.definition)),
               },
             ]
           : [];
@@ -156,9 +164,14 @@ export function runsApiFor(pluginId: string): PluginRuns {
       await reviewStep(runId, stepId, action).catch(refusedInput);
     },
     async answerAsk(runId, askId, answer) {
-      await pluginRun(runId);
-      if (!answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" })) {
-        throw new ServiceError("refused", "This question is no longer open.");
+      const run = await pluginRun(runId);
+      if (
+        !(await answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" }))
+      ) {
+        throw new ServiceError(
+          "refused",
+          noteText({ code: "askClosed" }, wizardLang(run.definition)),
+        );
       }
     },
     async control(runId, action) {
@@ -169,10 +182,11 @@ export function runsApiFor(pluginId: string): PluginRuns {
     subscribe(runId, listener) {
       // The listener runs inside the tenant the subscription was made in, as the events do.
       const tenantId = currentTenant();
-      return subscribe(runId, (signal) => {
+      // Changes the runner makes in another process reach the plugin too, each event once.
+      return watchRun(runId, (signal) => {
         const event = signal.event;
         const shaped: PluginRunSignal = {
-          runId: signal.runId,
+          runId,
           event: event
             ? {
                 id: event.id,
@@ -183,7 +197,9 @@ export function runsApiFor(pluginId: string): PluginRuns {
                 note: event.note
                   ? {
                       code: event.note.code,
-                      text: { de: noteText(event.note, "de"), en: noteText(event.note, "en") },
+                      text: Object.fromEntries(
+                        LANGS.map((lang) => [lang, noteText(event.note as RunNote, lang)]),
+                      ) as Record<Lang, string>,
                     }
                   : null,
               }
@@ -202,10 +218,12 @@ export function runsApiFor(pluginId: string): PluginRuns {
     },
     async upload(runId, file) {
       await pluginRun(runId);
+      // The type comes from the channel's sender: kept only when it is one a wizard takes.
+      const mime = uploadMime(file.mime);
       const asset = await saveAsset({
         runId,
-        kind: file.mime.startsWith("image/") ? "image" : "file",
-        mime: file.mime,
+        kind: mime.startsWith("image/") ? "image" : "file",
+        mime,
         name: file.name,
         data: file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data),
       });
@@ -214,11 +232,17 @@ export function runsApiFor(pluginId: string): PluginRuns {
     async transcribe(runId, file) {
       const run = await pluginRun(runId);
       if (run.status === "done" || run.status === "cancelled" || run.status === "failed") {
-        throw new ServiceError("refused", "The run is over.");
+        throw new ServiceError(
+          "refused",
+          noteText({ code: "runOver" }, wizardLang(run.definition)),
+        );
       }
       const bytes = file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data);
       if (!bytes.length || bytes.length > 10_000_000) {
-        throw new ServiceError("invalid", "A recording of up to 10 MB.");
+        throw new ServiceError(
+          "invalid",
+          noteText({ code: "recordingTooLarge" }, wizardLang(run.definition)),
+        );
       }
       const { text } = await transcribeAudio({
         bytes,
@@ -226,7 +250,7 @@ export function runsApiFor(pluginId: string): PluginRuns {
         call: { runId: run.id },
       }).catch((err) => {
         if (err instanceof ModelUnavailableError) {
-          throw new ServiceError("refused", err.message);
+          throw new ServiceError("refused", errorText(err, textLang(wizardLang(run.definition))));
         }
         throw err;
       });

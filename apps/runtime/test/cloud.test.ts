@@ -204,7 +204,7 @@ describe("a runtime that runs alone and the cloud of its account", () => {
     expect(put.path).toBe(`/api/v1/spaces/${projectId}/wizards/${wizardId}`);
     expect(put.authorization).toMatch(/^Bearer e30\./);
     expect(put.body).toMatchObject({
-      space: { name: "Meine Wizards", brand: { name: "Tischlerei Holz" }, facts: [], logo: null },
+      space: { name: "My computer", brand: { name: "Tischlerei Holz" }, facts: [], logo: null },
       version: 2,
       definition: { title: "Angebot" },
       shareEnabled: true,

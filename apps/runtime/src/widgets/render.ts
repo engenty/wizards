@@ -387,7 +387,7 @@ export async function renderFilm(
         if (code === 0) {
           out = mixed;
         } else {
-          errors.push(`Der Ton konnte nicht gemischt werden: ${stderr.slice(-200)}`);
+          errors.push(`The sound could not be mixed: ${stderr.slice(-200)}`);
         }
       }
       return {

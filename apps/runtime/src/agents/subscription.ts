@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import type { Lang } from "@engenty-wizards/shared/definition";
 import { internalKey } from "../auth/keys.js";
 import { env } from "../env.js";
 import { CLAUDE_BIN as CLAUDE, claudeEnv } from "../harness/claude.js";
@@ -9,6 +10,7 @@ import { detectHarness, signedOut } from "../harness/index.js";
 import { localModelSettings } from "../models.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
+import { type ServerKey, serverText } from "../texts.js";
 import type { ChatImage } from "./architect.js";
 import { thoughtLine } from "./thought.js";
 
@@ -58,15 +60,15 @@ const SYSTEM = (wizardId: string) =>
 
 const BUILDING = /edit_wizard|write_wizard|write_file|delete_file|create_wizard/;
 
-const ACTIVITY: [RegExp, string][] = [
-  [/get_authoring_guide/, "Liest die Bauanleitung"],
-  [/get_starter|list_starters/, "Sieht sich eine Vorlage an"],
-  [/get_wizard|list_files|read_file/, "Liest den Wizard"],
-  [/write_file|delete_file/, "Schreibt Dateien"],
-  [/edit_wizard|write_wizard/, "Baut den Wizard um"],
-  [/check_widget|preview/, "Prüft das Widget"],
-  [/start_test_run|get_test_run/, "Testet den Wizard"],
-  [/find_connectors|import_connector/, "Sucht einen Dienst"],
+const ACTIVITY: [RegExp, ServerKey][] = [
+  [/get_authoring_guide/, "doingGuide"],
+  [/get_starter|list_starters/, "doingTemplate"],
+  [/get_wizard|list_files|read_file/, "doingReadWizard"],
+  [/write_file|delete_file/, "doingWriteFiles"],
+  [/edit_wizard|write_wizard/, "doingRebuild"],
+  [/check_widget|preview/, "doingCheckWidget"],
+  [/start_test_run|get_test_run/, "doingTestWizard"],
+  [/find_connectors|import_connector/, "doingFindService"],
 ];
 
 export interface SubscriptionTurn {
@@ -78,11 +80,13 @@ export interface SubscriptionTurn {
   onThought?: (line: string) => void;
   onBuilding: () => void;
   images?: ChatImage[];
+  /** The language the admin reads the lines about its work in. */
+  lang?: Lang;
 }
 
 /** The activity for one tool call, naming the file or service it is about when it says. */
-function activity(name: string, args: Record<string, unknown>): string {
-  const label = ACTIVITY.find(([re]) => re.test(name))?.[1] ?? "Arbeitet";
+function activity(name: string, args: Record<string, unknown>, lang: Lang = "en"): string {
+  const label = serverText(lang, ACTIVITY.find(([re]) => re.test(name))?.[1] ?? "doingWork");
   const about = [args.path, args.query].find((v) => typeof v === "string" && v.trim());
   return about ? `${label}: ${String(about)} …` : `${label} …`;
 }
@@ -167,7 +171,7 @@ export async function subscriptionTurn(
     if (event.type === "stream_event") {
       const e = event.event ?? {};
       if (e.type === "content_block_start" && e.content_block?.type === "tool_use") {
-        input.onActivity(activity(String(e.content_block.name ?? ""), {}));
+        input.onActivity(activity(String(e.content_block.name ?? ""), {}, input.lang));
       } else if (e.type === "content_block_start" && e.content_block?.type === "thinking") {
         thinking = "";
       } else if (e.type === "content_block_delta" && e.delta?.type === "thinking_delta") {
@@ -190,7 +194,7 @@ export async function subscriptionTurn(
             changed = true;
             input.onBuilding();
           }
-          input.onActivity(activity(name, block.input ?? {}));
+          input.onActivity(activity(name, block.input ?? {}, input.lang));
         }
       }
     } else if (event.type === "result") {

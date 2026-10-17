@@ -1,8 +1,0 @@
-{
-  "id": "calls",
-  "name": "Calls",
-  "version": "0.1.0",
-  "description": "Runs wizards in a live voice call: a WhatsApp call to the tenant's business number or a phone call to its Twilio number is handed to the tenant's realtime speech model over SIP (Twilio carries the call, OpenAI speaks), and the wizard is filled from what the person says. What a voice cannot take (a photo, a signature) is texted as a link. Talks to Twilio and OpenAI with the tenant's own accounts; keeps the calls in the tenant's database.",
-  "kind": "module",
-  "provides": ["runner.call"]
-}

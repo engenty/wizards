@@ -1,3 +1,4 @@
+import type { Lang } from "@engenty-wizards/shared/definition";
 import { eq } from "drizzle-orm";
 import { type ChatImage, runArchitect } from "../agents/architect.js";
 import { chatEngine, subscriptionTurn } from "../agents/subscription.js";
@@ -5,6 +6,7 @@ import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { managed } from "../manage.js";
 import { hasTextModel } from "../models.js";
+import { serverText } from "../texts.js";
 import { draftFiles, readFile } from "./files.js";
 import { ownedProject } from "./projects.js";
 import { addMessage, draftIssues, ownedWizard, wizardMessages, writableWizard } from "./wizards.js";
@@ -40,6 +42,8 @@ export async function architectTurn(
   userId: string,
   wizardId: string,
   message: string,
+  /** The language the admin reads: the lines about what it does, and its stock replies. */
+  lang: Lang,
   io: {
     signal: AbortSignal;
     onText: (delta: string) => void;
@@ -69,6 +73,7 @@ export async function architectTurn(
               onThought: io.onThought,
               onBuilding: io.onBuilding,
               images,
+              lang,
             })),
             unfinished: false,
           }
@@ -85,13 +90,11 @@ export async function architectTurn(
             onThought: io.onThought,
             onBuilding: io.onBuilding,
             images,
+            lang,
           });
     const reply = result.unfinished
-      ? `${result.reply ? `${result.reply}\n\n` : ""}Ich bin noch nicht ganz fertig geworden. Schreib „weiter“, dann mache ich genau dort weiter.`
-      : result.reply ||
-        (result.changed
-          ? "Erledigt."
-          : "Das habe ich nicht verstanden – magst du es anders formulieren?");
+      ? `${result.reply ? `${result.reply}\n\n` : ""}${serverText(lang, "notFinished")}`
+      : result.reply || serverText(lang, result.changed ? "done" : "notUnderstood");
     await addMessage(w.id, { role: "assistant", content: reply, changed: result.changed });
     const after = await ownedWizard(userId, wizardId);
     return {

@@ -18,6 +18,12 @@ function read(): Embed | null {
 /** Read once: the address loses `?embed=` with the first step, the frame stays the same. */
 export const EMBED = read();
 
+/**
+ * The website page that embeds the wizard (`?page=`, from `embed.js`): sent with a new run, so
+ * its result says where it was started.
+ */
+export const EMBED_PAGE = EMBED ? new URLSearchParams(window.location.search).get("page") : null;
+
 const tell = (type: "height" | "close", data: Record<string, unknown> = {}) =>
   window.parent.postMessage({ type: `engenty-wizard:${type}`, ...data }, "*");
 

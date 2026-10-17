@@ -1,0 +1,70 @@
+/*
+ * What Tailwind knows of the app's look: its variants and the names its utilities take
+ * (`bg-paper-2`, `text-ink-3`, `rounded-lg`). The values behind the names are the tokens of
+ * shadcn-ember.css and app.css.
+ *
+ * A plugin's studio half is built against this file by reference (scripts/build-plugin.mjs,
+ * docs/content/dev/plugins): renaming or removing a name here breaks plugins built before, without an
+ * error.
+ */
+@custom-variant dark (&:is(.dark *));
+/* A finger, not a mouse: controls grow to a 44 px touch target. */
+@custom-variant coarse (@media (pointer: coarse));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-focus: var(--focus-line);
+  --color-focus-glow: var(--focus-glow);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-ember: var(--ember-mark);
+  --color-ember-on: var(--ember-on);
+  --color-ember-tint: var(--ember-tint);
+  --color-ember-strong: var(--ember-strong-mark);
+  --color-ember-veil: var(--ember-veil);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-paper-3: var(--paper-3);
+  --color-sidebar: var(--sidebar);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-moss: var(--moss);
+  --color-second: var(--second);
+  --color-second-tint: var(--second-tint);
+  --color-moss-tint: var(--moss-tint);
+  --color-cobalt: var(--cobalt);
+  --color-cobalt-tint: var(--cobalt-tint);
+  --color-amber: var(--amber);
+  --color-amber-tint: var(--amber-tint);
+  --color-rose: var(--rose);
+  --color-rose-tint: var(--rose-tint);
+  --font-sans: var(--f-ui);
+  --font-display: var(--f-display);
+  --font-mono: var(--f-mono);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 3);
+  --shadow-soft: var(--shadow-ember-soft);
+  --shadow-elevated: var(--shadow-ember-elevated);
+  --shadow-overlay: var(--shadow-ember-overlay);
+}

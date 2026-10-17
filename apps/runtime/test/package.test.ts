@@ -78,6 +78,46 @@ describe("wizard packages", () => {
     expect(told.definition.title).toBe("Wetter für Köche");
   });
 
+  it("takes the project's pages along as Markdown files when asked, within the cap", async () => {
+    await inTenant(async () => {
+      const projectId = (await wizards.ownedWizard(USER, sourceId)).projectId;
+      const page = (id: string, title: string, markdown: string, parentId: string | null = null) => ({
+        id,
+        tenantId: TENANT,
+        projectId,
+        parentId,
+        title,
+        markdown,
+      });
+      await client.db
+        .insert(client.schema.spacePage)
+        .values([
+          page("pg-1", "Öffnungszeiten: Sommer", "Mo–Fr 9–18 Uhr."),
+          page("pg-2", "Preise", "x".repeat(pkg.KNOWLEDGE_PAGE_CHARS + 5)),
+          page("pg-3", "Leer", "   "),
+          page("pg-4", "Kinder", "Ab 6 Jahren.", "pg-2"),
+        ]);
+      const plain = unzipSync((await pkg.exportWizard(USER, sourceId)).zip);
+      expect(Object.keys(plain).some((k) => k.startsWith("files/knowledge/"))).toBe(false);
+      const { zip } = await pkg.exportWizard(USER, sourceId, { knowledge: true });
+      const entries = unzipSync(zip);
+      const told = JSON.parse(strFromU8(entries["wizard.json"]));
+      // The empty page stays out; the long one is cut at its limit, and the manifest says so.
+      expect(told.knowledge).toEqual({ pages: 3, truncated: true });
+      const paths = Object.keys(entries).filter((k) => k.startsWith("files/knowledge/")).sort();
+      expect(paths).toEqual([
+        "files/knowledge/oeffnungszeiten-sommer.md",
+        "files/knowledge/preise.md",
+        "files/knowledge/preise/kinder.md",
+      ]);
+      const hours = strFromU8(entries["files/knowledge/oeffnungszeiten-sommer.md"]);
+      expect(hours).toContain('title: "Öffnungszeiten: Sommer"');
+      expect(hours).toContain("path: pages/oeffnungszeiten-sommer");
+      expect(hours).toContain("Mo–Fr 9–18 Uhr.");
+      expect(strFromU8(entries["files/knowledge/preise.md"]).length).toBeLessThan(pkg.KNOWLEDGE_PAGE_CHARS + 200);
+    });
+  });
+
   it("imports a package as a new, unpublished wizard of another project", async () => {
     await inTenant(async () => {
       const { zip } = await pkg.exportWizard(USER, sourceId);
@@ -91,8 +131,8 @@ describe("wizard packages", () => {
       expect(copy.shareToken).not.toBe(source.shareToken);
       expect(await files.draftFiles(id)).toEqual(await files.draftFiles(sourceId));
       const [note] = await wizards.wizardMessages(id);
-      expect(note.content).toContain("„wetter.wizard“");
-      expect(note.content).toContain("3 Dateien");
+      expect(note.content).toContain("“wetter.wizard”");
+      expect(note.content).toContain("3 files");
     });
   });
 
@@ -159,21 +199,21 @@ describe("wizard packages", () => {
       const before = (await wizards.listWizards(USER, otherProject)).length;
       const refused = async (data: Uint8Array, message: RegExp) =>
         expect(pkg.importWizard(USER, otherProject, data)).rejects.toThrow(message);
-      await refused(zipSync({ "readme.txt": strToU8("hi") }), /wizard\.json fehlt/);
-      await refused(strToU8("PK not a zip"), /entpacken/);
-      await refused(strToU8("hello"), /kein gültiges JSON/);
+      await refused(zipSync({ "readme.txt": strToU8("hi") }), /wizard\.json is missing/);
+      await refused(strToU8("PK not a zip"), /can’t be opened/);
+      await refused(strToU8("hello"), /wizard\.json can’t be read/);
       await refused(zipSync({ "wizard.json": manifest({ title: "Ohne Schritte" }) }), /schema/);
       await refused(
         zipSync({ "wizard.json": strToU8(JSON.stringify({ format: "engenty-wizard", version: 2 })) }),
-        /neueren Version/,
+        /newer version/,
       );
       await refused(
         zipSync({ "wizard.json": manifest(definition), "files/.env": strToU8("x") }),
-        /Dateipfad/,
+        /isn’t a valid file path/,
       );
       await refused(
         zipSync({ "wizard.json": manifest(definition), "files/big.bin": new Uint8Array(5_000_001) }),
-        /größer als 5 MB/,
+        /larger than 5 MB/,
       );
       expect((await wizards.listWizards(USER, otherProject)).length).toBe(before);
     });

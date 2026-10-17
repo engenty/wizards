@@ -1,0 +1,364 @@
+/*
+ * A wizard's page on a website that has no Tailwind of its own (the WordPress plugin): the
+ * utilities the components use, built over this package's sources; the studio's light tokens as
+ * values (apps/web/src/styles/ember-primitives.css computes them); the helper rules of the
+ * studio's app.css the runner relies on. scripts/css.mjs scopes every rule to `.engenty-runner`.
+ */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "./theme.css";
+@source "./";
+
+:root {
+  --raw-primary: #e0531b;
+  --paper: #f7f5f2;
+  --paper-2: #eae7e4;
+  --paper-3: #e0ddd9;
+  --card: #ffffff;
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --ink: #282623;
+  --ink-2: #575552;
+  --ink-3: #81807e;
+  --ink-4: #afaeac;
+  --ember: var(--raw-primary);
+  --ember-strong: #c43700;
+  --ember-tint: #ffeae0;
+  --ember-veil: color-mix(in oklch, var(--ember) 10%, transparent);
+  --ember-mark: oklch(from var(--ember) min(l, 0.65) c h);
+  --ember-strong-mark: oklch(from var(--ember-strong) min(l, 0.65) c h);
+  --ember-on: oklch(
+    from var(--ember-mark) calc(0.16 + 0.83 * clamp(0, (0.65 - l) * 1000, 1)) 0.01 h
+  );
+  --primary: var(--ember-strong);
+  --primary-foreground: oklch(
+    from var(--primary) calc(0.16 + 0.83 * clamp(0, (0.65 - l) * 1000, 1)) 0.01 h
+  );
+  --secondary: var(--paper-2);
+  --secondary-foreground: var(--ink);
+  --accent: #efece9;
+  --accent-foreground: var(--ink);
+  --muted: #f0edea;
+  --muted-foreground: var(--ink-3);
+  --destructive: var(--rose);
+  --border: #dbd9d6;
+  --border-soft: color-mix(in oklch, var(--border) 50%, transparent);
+  --input: #e0dedb;
+  --ring: color-mix(in oklch, var(--ember) 45%, transparent);
+  --focus-line: color-mix(in oklch, var(--ink) 26%, transparent);
+  --focus-glow: transparent;
+  --card-foreground: var(--ink);
+  --popover: var(--card);
+  --moss: #006527;
+  --moss-tint: #eafaec;
+  --second: var(--moss);
+  --second-tint: var(--moss-tint);
+  --cobalt: #2b5fd9;
+  --cobalt-tint: #ebf0fd;
+  --amber: #e2a324;
+  --amber-tint: #fff1d9;
+  --rose: #db373a;
+  --rose-tint: #ffeeeb;
+  --f-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --f-ui: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --f-mono: "Geist Mono", ui-monospace, monospace;
+  --radius: 0.5rem;
+  --shadow-ember-soft: 0 1px 2px rgba(40, 38, 35, 0.03), 0 3px 10px rgba(40, 38, 35, 0.05);
+  --shadow-ember-elevated: 0 1px 2px rgba(40, 38, 35, 0.04), 0 6px 18px rgba(40, 38, 35, 0.06);
+  --shadow-ember-overlay: 0 2px 4px rgba(40, 38, 35, 0.08), 0 10px 28px rgba(40, 38, 35, 0.16);
+  color: var(--ink);
+  font-family: var(--f-ui);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* The one line of preflight the components rely on: boxes, no stray margins, inherited type. */
+:root *,
+:root *::before,
+:root *::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: var(--border);
+}
+:root h1,
+:root h2,
+:root h3,
+:root p,
+:root ul,
+:root ol,
+:root dl,
+:root figure {
+  margin: 0;
+}
+:root ul,
+:root ol {
+  padding: 0;
+  list-style: none;
+}
+:root button,
+:root input,
+:root select,
+:root textarea {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+:root button {
+  background: transparent;
+  cursor: pointer;
+}
+:root img,
+:root video,
+:root svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+:root svg {
+  max-width: none;
+}
+:root a {
+  color: inherit;
+  text-decoration: none;
+}
+:root dialog {
+  color: inherit;
+}
+:root ::selection {
+  color: var(--ink);
+  background: var(--ember-veil);
+}
+
+/* iOS zooms the page into any field typed in below 16 px, and does not zoom back out. */
+@media (pointer: coarse) {
+  :root input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]),
+  :root textarea,
+  :root select {
+    font-size: 16px;
+  }
+}
+
+:root button,
+:root a,
+:root [role="switch"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-x {
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
+}
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/* The page's primary action: on a phone it stays in reach above the keyboard and the home
+   indicator while the page scrolls under it. */
+@media (max-width: 767px) {
+  .action-bar {
+    position: sticky;
+    bottom: var(--kb, 0px);
+    z-index: 10;
+    margin-inline: -1.25rem;
+    padding: 0.75rem 1.25rem max(0.75rem, env(safe-area-inset-bottom));
+    background: color-mix(in oklch, var(--background) 88%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--border-soft);
+  }
+  .keyboard-open .action-bar {
+    padding-bottom: 0.75rem;
+  }
+  /* With the keyboard up the field being typed in comes first: what frames the page shrinks
+     or goes, and a focused field is scrolled to above the bar, not under it. */
+  .keyboard-open .action-bar {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  .keyboard-open .kb-hide {
+    display: none;
+  }
+  .keyboard-open .kb-tight {
+    padding-top: 1rem;
+  }
+  .keyboard-open .kb-title {
+    margin-bottom: 1rem;
+  }
+  .keyboard-open .kb-title h1 {
+    font-size: 1.25rem;
+  }
+  .keyboard-open :is(input, textarea, select, [contenteditable]) {
+    scroll-margin-top: 1rem;
+    scroll-margin-bottom: calc(var(--kb, 0px) + 5rem);
+  }
+}
+
+/* Rendered Markdown inside results. */
+.prose-zen {
+  line-height: 1.6;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.prose-zen > * + * {
+  margin-top: 0.75em;
+}
+.prose-zen h1,
+.prose-zen h2,
+.prose-zen h3 {
+  font-family: var(--f-display);
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 1.25em;
+}
+.prose-zen h1 {
+  font-size: 1.5rem;
+}
+.prose-zen h2 {
+  font-size: 1.2rem;
+}
+.prose-zen h3 {
+  font-size: 1.05rem;
+}
+.prose-zen ul,
+.prose-zen ol {
+  padding-left: 1.25em;
+}
+.prose-zen ul {
+  list-style: disc;
+}
+.prose-zen ol {
+  list-style: decimal;
+}
+.prose-zen a {
+  color: var(--ember-strong-mark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-zen table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+@media (max-width: 639px) {
+  .prose-zen table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+.prose-zen pre {
+  overflow-x: auto;
+}
+.prose-zen img {
+  max-width: 100%;
+  height: auto;
+}
+.prose-zen th,
+.prose-zen td {
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+.prose-zen code {
+  font-family: var(--f-mono);
+  font-size: 0.9em;
+  background: var(--paper-2);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+}
+.prose-zen blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 0.9em;
+  color: var(--ink-2);
+}
+
+.swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.swatch::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius) * 0.5);
+}
+.swatch::-moz-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius) * 0.5);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.animate-breathe {
+  animation: breathe 2.4s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.72);
+    opacity: 0.55;
+  }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+
+/* The camera and the scanner fill a phone's screen; on a desk they are a centred sheet. */
+dialog.media-sheet {
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: 0;
+  background: #000;
+  color: #fff;
+}
+dialog.media-sheet::backdrop {
+  background: oklch(20% 0.01 60 / 0.5);
+}
+@media (min-width: 640px) and (min-height: 560px) {
+  dialog.media-sheet {
+    margin: auto;
+    width: min(720px, calc(100% - 48px));
+    height: min(640px, calc(100dvh - 48px));
+    border-radius: calc(var(--radius) * 2);
+    overflow: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-breathe,
+  .animate-pulse-dot {
+    animation: none;
+  }
+}

@@ -1,4 +1,4 @@
-import { and, count, eq, gte, inArray, or } from "drizzle-orm";
+import { and, count, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { control, controlDb } from "../db/client.js";
 import { env } from "../env.js";
 import { currentTenant } from "./tenant.js";
@@ -133,17 +133,115 @@ export async function dropRuns(runIds: string[]) {
   }
 }
 
-/** Marks a run as working, so a restart finds it again. */
-export async function markRunActive(runId: string, active: boolean) {
-  await controlDb.update(control.runIndex).set({ active }).where(eq(control.runIndex.runId, runId));
+// --- the queue: which runner works on which run ---------------------------------
+// `active` = the run wants a runner. `owner` = the one driving it, `seen` = its last heartbeat.
+
+/** An owner silent this long has lost the run: another runner takes it. */
+export const RUNNER_STALE_MS = 30_000;
+
+/** Puts a run in line for a runner (again): active, owned by nobody. */
+export async function wakeRun(runId: string) {
+  await controlDb
+    .update(control.runIndex)
+    .set({ active: true, owner: null, seen: null })
+    .where(eq(control.runIndex.runId, runId));
 }
 
-/** The runs that were working when the process stopped, with their tenants. */
-export async function activeRuns(): Promise<{ runId: string; tenantId: string }[]> {
+/** The run is done with runners for now: a page, a review or the end. */
+export async function restRun(runId: string) {
+  await controlDb
+    .update(control.runIndex)
+    .set({ active: false, owner: null, seen: null })
+    .where(eq(control.runIndex.runId, runId));
+}
+
+/**
+ * Takes a run for this runner, in one statement: only while nobody (alive) holds it and the
+ * tenant's owned runs stay under its limit. False: someone else has it, or the tenant is at its
+ * limit — the run stays in line.
+ */
+export async function claimRun(runId: string, tenantId: string, limit: number): Promise<boolean> {
+  const now = Date.now();
+  const stale = now - RUNNER_STALE_MS;
+  const result = await controlDb.run(sql`
+    UPDATE run_index SET owner = ${env.runner.id}, seen = ${now}
+    WHERE run_id = ${runId} AND active = 1
+      AND (owner IS NULL OR seen IS NULL OR seen < ${stale})
+      AND (SELECT count(*) FROM run_index
+           WHERE tenant_id = ${tenantId} AND owner IS NOT NULL AND seen >= ${stale}
+             AND run_id != ${runId}) < ${limit}`);
+  return result.rowsAffected > 0;
+}
+
+/** This runner still works on these runs. */
+export async function heartbeatRuns(runIds: string[]) {
+  if (runIds.length) {
+    await controlDb
+      .update(control.runIndex)
+      .set({ seen: new Date() })
+      .where(
+        and(eq(control.runIndex.owner, env.runner.id), inArray(control.runIndex.runId, runIds)),
+      );
+  }
+}
+
+/** A runner that stops hands its runs back to the line; another takes them at once. */
+export async function disownRuns() {
+  await controlDb
+    .update(control.runIndex)
+    .set({ owner: null, seen: null })
+    .where(eq(control.runIndex.owner, env.runner.id));
+}
+
+/** The runs in line: unowned, or whose owner fell silent. */
+export async function waitingRuns(): Promise<{ runId: string; tenantId: string }[]> {
+  const stale = new Date(Date.now() - RUNNER_STALE_MS);
   return controlDb
     .select({ runId: control.runIndex.runId, tenantId: control.runIndex.tenantId })
     .from(control.runIndex)
-    .where(eq(control.runIndex.active, true));
+    .where(
+      and(
+        eq(control.runIndex.active, true),
+        or(
+          isNull(control.runIndex.owner),
+          isNull(control.runIndex.seen),
+          lt(control.runIndex.seen, stale),
+        ),
+      ),
+    )
+    .orderBy(control.runIndex.createdAt);
+}
+
+/** Where the runner holding a run is reached; null when none holds it or it named no address. */
+export async function ownerUrl(runId: string): Promise<string | null> {
+  const row = await controlDb.query.runIndex.findFirst({
+    where: eq(control.runIndex.runId, runId),
+  });
+  if (!row?.owner || !row.seen || row.seen.getTime() < Date.now() - RUNNER_STALE_MS) {
+    return null;
+  }
+  const who = await controlDb.query.runner.findFirst({ where: eq(control.runner.id, row.owner) });
+  return who?.url || null;
+}
+
+/** This process reports as a runner: its address, and that it is alive. */
+export async function registerRunner() {
+  const now = new Date();
+  await controlDb
+    .insert(control.runner)
+    .values({ id: env.runner.id, url: env.runner.url || null, seen: now })
+    .onConflictDoUpdate({
+      target: control.runner.id,
+      set: { url: env.runner.url || null, seen: now },
+    });
+  // Runners gone for a day are forgotten.
+  await controlDb
+    .delete(control.runner)
+    .where(lt(control.runner.seen, new Date(now.getTime() - 86_400_000)));
+}
+
+export async function forgetRunner() {
+  await controlDb.delete(control.runner).where(eq(control.runner.id, env.runner.id));
 }
 
 /** A visitor's runs are counted across every wizard of every tenant. */

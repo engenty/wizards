@@ -10,10 +10,10 @@ Words
 - Studio: where wizards are built. Home lists the space's wizards; the editor (/edit/<id>) shows a wizard's flow as a diagram with its own chat (the architect) that builds and changes it.
 - Wizard: a flow of steps a person walks through on a link. Step kinds: a page (fields to fill in), an AI step (an agent with tools: web search, reading files, writing documents, images, video, pages, other services), a review, and the result.
 - Run: one person going through a wizard once. Results lists every run that reached its result.
-- Space: what all wizards of a team know. Its page has four parts: Info & brand (title, about, logos, colours, assets, facts), Wissen / Knowledge (pages, tables and files the AI steps look things up in, kept apart by typed Kategorien), Data (tables and pages the wizards keep) and Results (finished runs).
+- Space: what all wizards of a team know. Its page has four parts: Info & brand (title, about, logos, colours, assets, facts), Knowledge (pages, tables and files the AI steps look things up in, kept apart by typed categories), Data (tables and pages the wizards keep) and Results (finished runs).
 - Model class: the kind of model a step needs (Classifier, Standard, High, Highest for text; Image, Video, Speech, Audio). Which model serves a class is a setting (Settings › Models), not part of the wizard.
 
-Thinking: an installed AI client on the person's subscription (Claude Code, Codex, Gemini CLI, Cursor Agent), own API keys (OpenAI, Anthropic, Google, fal.ai, ElevenLabs, Replicate, Vercel AI Gateway), a local model (Ollama), or engenty credits from an account. Settings › Models shows which way serves each class and what is missing.
+Thinking: an installed AI client on the person's subscription (Claude Code, Codex, Antigravity, Cursor Agent), own API keys (OpenAI, Anthropic, Google, fal.ai, ElevenLabs, Replicate, Vercel AI Gateway), a local model (Ollama), or engenty credits from an account. Settings › Models shows which way serves each class and what is missing.
 
 Sharing: Test runs a draft. Publish makes a version live behind a link. Share holds the link, the tag for a website, a QR code, channels (the page, the chat, and what plugins add: WhatsApp, SMS, calls) and the link's settings (on/off, runs per day, a new address). With an account, what is published on a local install also runs in the cloud, on the account's credits, while the computer is off.
 

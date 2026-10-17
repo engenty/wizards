@@ -1,12 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Cloud, Coins, ExternalLink, HardDrive, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
+import { UpdateLine } from "../about/UpdateCheck";
 import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { type Key, lang, t } from "../lib/i18n";
 import { type ExpiringCredits, initialsOf, type Me, type UserProfile } from "../lib/session";
 import { Button, Chip, Input, Label, Spinner, Textarea } from "../ui";
-import { LangSwitch } from "./LangSwitch";
+import { LangPick } from "./LangSwitch";
 import { openExternal } from "./LocalRuntime";
 import { useAutosave } from "./project/data";
 import { Section } from "./project/Section";
@@ -65,7 +66,7 @@ export function LinkStatus({ link, waiting }: ReturnType<typeof useAccountLink>)
  * A local install without an account: what an account gives, the sign-in, and the way to a new
  * account, which takes an invitation code.
  */
-function Unlinked() {
+function Unlinked({ me }: { me: Me }) {
   const account = useFeature("account");
   const linking = useAccountLink(false);
   const { link } = linking;
@@ -81,6 +82,9 @@ function Unlinked() {
           <p className="mt-1 text-[0.875rem] text-ink-3 leading-relaxed">
             {t("account.localText")}
           </p>
+          <div className="mt-2">
+            <UpdateLine me={me} />
+          </div>
         </div>
       </div>
       {account ? (
@@ -159,7 +163,7 @@ const CREDIT_KIND: Record<ExpiringCredits["kind"], Key> = {
  * The account a local install is linked to: whose it is, its credits and when parts of them end,
  * and the cloud that also runs what is published here.
  */
-function Linked({ account }: { account: NonNullable<Me["account"]> }) {
+function Linked({ account, me }: { account: NonNullable<Me["account"]>; me: Me }) {
   const qc = useQueryClient();
   const linking = useAccountLink(account.signedIn);
   const unlink = useMutation({
@@ -178,6 +182,9 @@ function Linked({ account }: { account: NonNullable<Me["account"]> }) {
             {account.signedIn ? <Chip tone="live">{t("account.linked")}</Chip> : null}
           </div>
           <div className="truncate text-[0.875rem] text-ink-3">{account.email}</div>
+          <div className="mt-2">
+            <UpdateLine me={me} />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" onClick={() => openExternal(account.url)}>
@@ -207,7 +214,7 @@ function Linked({ account }: { account: NonNullable<Me["account"]> }) {
               <div className="text-[0.8125rem] text-ink-3">{t("account.credits")}</div>
               <div className="font-display font-semibold text-[1.375rem] tabular-nums leading-tight">
                 {/* Whole credits, rounded down: never more than there is. */}
-                {t("nav.credits", { n: Math.floor(account.credits).toLocaleString() })}
+                {t("nav.credits", { n: Math.floor(account.credits).toLocaleString(lang) })}
               </div>
             </div>
             <Button variant="secondary" onClick={() => openExternal(`${account.url}/billing`)}>
@@ -219,7 +226,7 @@ function Linked({ account }: { account: NonNullable<Me["account"]> }) {
               {account.expiring.map((part) => (
                 <li key={`${part.kind}:${part.expiresAt}`}>
                   {t("account.expires", {
-                    n: Math.floor(part.credits).toLocaleString(),
+                    n: Math.floor(part.credits).toLocaleString(lang),
                     date: date.format(new Date(part.expiresAt)),
                   })}
                   {CREDIT_KIND[part.kind] ? (
@@ -313,7 +320,8 @@ function Profile({ me, fromAccount }: { me: Me; fromAccount: boolean }) {
 }
 
 /**
- * What the app is connected to, who the person is to it, and how it looks for them. The avatar
+ * What the app is connected to and which version it is, who the person is to it, and how it
+ * looks for them. The avatar
  * shows the name's initials: a runtime that runs alone starts with the machine's user name,
  * which is why it may read a single letter until a name is set here or an account gives one.
  */
@@ -332,6 +340,9 @@ export function Account({ me }: { me: Me }) {
                 <Chip tone="live">{t("account.linked")}</Chip>
               </div>
               <div className="truncate text-[0.875rem] text-ink-3">{me.user.email}</div>
+              <div className="mt-2">
+                <UpdateLine me={me} />
+              </div>
             </div>
             {me.manageUrl ? (
               <Button variant="secondary" onClick={() => openExternal(`${me.manageUrl}/account`)}>
@@ -341,9 +352,9 @@ export function Account({ me }: { me: Me }) {
           </div>
         ) : me.account ? (
           // The account of a local install has this one place: its sign-in, credits and cloud.
-          <Linked account={me.account} />
+          <Linked account={me.account} me={me} />
         ) : (
-          <Unlinked />
+          <Unlinked me={me} />
         )}
       </Section>
 
@@ -354,7 +365,7 @@ export function Account({ me }: { me: Me }) {
         <div className="flex flex-col divide-y divide-border-soft">
           <div className="flex items-center justify-between gap-4 pb-4">
             <span className="font-medium text-[0.875rem]">{t("nav.language")}</span>
-            <LangSwitch tone="surface" />
+            <LangPick />
           </div>
           <div className="flex items-center justify-between gap-4 pt-4">
             <span className="font-medium text-[0.875rem]">{t("nav.theme")}</span>

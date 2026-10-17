@@ -1,4 +1,5 @@
 import { ASSISTANT_LAYOUTS, type AssistantLayout } from "@engenty-wizards/shared/assistant";
+import { note } from "@engenty-wizards/shared/run";
 import { generateText } from "ai";
 import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -12,8 +13,8 @@ import { trigramQuery } from "./project-index.js";
 
 /**
  * The studio assistant's chats: one open chat per person and tenant, the same on every page and
- * space. "New chat" closes it with a dense summary; every turn of the next one carries the
- * summaries of the last chats, and older ones are found with `searchChats`.
+ * space. "New chat" closes it at once and writes its dense summary meanwhile; every turn of the
+ * next one carries the summaries of the last chats, and older ones are found with `searchChats`.
  */
 
 /** Messages of the open chat a turn sends as they are; older ones live in its running summary. */
@@ -119,6 +120,7 @@ export interface TurnHistory {
 
 /** What a turn of the open chat carries besides the new message. */
 export async function turnHistory(user: SessionUser, chat: ChatRow): Promise<TurnHistory> {
+  await closedSummaries(user);
   const all = await messagesOf(chat.id);
   const earlier = await db.query.assistantChat.findMany({
     where: and(mine(user), isNotNull(schema.assistantChat.closedAt)),
@@ -126,8 +128,11 @@ export async function turnHistory(user: SessionUser, chat: ChatRow): Promise<Tur
     limit: EARLIER_IN_TURN,
   });
   return {
+    // A part of an answer that only called tools (before a message written meanwhile) has no
+    // text: models refuse empty messages.
     messages: all
       .slice(chat.folded)
+      .filter((m) => m.content.trim())
       .slice(-TURN_MESSAGES)
       .map(({ role, content }) => ({ role, content })),
     running: chat.summary,
@@ -222,9 +227,52 @@ export async function foldChat(chatId: string): Promise<void> {
     .where(and(eq(schema.assistantChat.id, chat.id), eq(schema.assistantChat.folded, chat.folded)));
 }
 
+/** Summaries of chats "New chat" closed, still being written: by chat id, with whose chat it is. */
+const summarising = new Map<string, { user: string; done: Promise<void> }>();
+const whose = (user: SessionUser) => `${user.tenantId}:${user.id}`;
+
+/** Writes the summary and the title of a closed chat. */
+function summariseClosed(user: SessionUser, chat: ChatRow): Promise<void> {
+  const running = summarising.get(chat.id);
+  if (running) {
+    return running.done;
+  }
+  const done = (async () => {
+    const all = await messagesOf(chat.id);
+    const { title, summary } = await summarise(all.slice(chat.folded), chat.summary);
+    await db
+      .update(schema.assistantChat)
+      .set({ ...(title ? { title } : {}), summary })
+      .where(eq(schema.assistantChat.id, chat.id));
+  })()
+    .catch((err) => console.error("[assistant] summary of a closed chat:", (err as Error).message))
+    .finally(() => summarising.delete(chat.id));
+  summarising.set(chat.id, { user: whose(user), done });
+  return done;
+}
+
 /**
- * "New chat": the open chat is summarised and closed (kept to read under "Earlier chats"), and
- * an empty one opens. An open chat without messages stays as it is.
+ * Waits for the summaries of the person's closed chats: those being written, and any a stopped
+ * runtime left unwritten.
+ */
+export async function closedSummaries(user: SessionUser): Promise<void> {
+  const unwritten = await db.query.assistantChat.findMany({
+    where: and(
+      mine(user),
+      isNotNull(schema.assistantChat.closedAt),
+      isNull(schema.assistantChat.summary),
+    ),
+  });
+  await Promise.all([
+    ...unwritten.map((chat) => summariseClosed(user, chat)),
+    ...[...summarising.values()].filter((s) => s.user === whose(user)).map((s) => s.done),
+  ]);
+}
+
+/**
+ * "New chat": the open chat is closed at once (kept to read under "Earlier chats", titled by its
+ * first question until its summary is written) and an empty one opens. An open chat without
+ * messages stays as it is.
  */
 export async function newChat(user: SessionUser) {
   const chat = await openChat(user);
@@ -232,11 +280,12 @@ export async function newChat(user: SessionUser) {
   if (!all.length) {
     return { id: chat.id, messages: [] as ChatMessageView[] };
   }
-  const { title, summary } = await summarise(all.slice(chat.folded), chat.summary);
+  const firstAsk = all.find((m) => m.role === "user")?.content ?? "";
   await db
     .update(schema.assistantChat)
-    .set({ title, summary, closedAt: new Date() })
+    .set({ title: firstAsk.replace(/\s+/g, " ").trim().slice(0, 60), closedAt: new Date() })
     .where(eq(schema.assistantChat.id, chat.id));
+  void summariseClosed(user, chat);
   const next = await openChat(user);
   return { id: next.id, messages: [] as ChatMessageView[] };
 }
@@ -252,6 +301,8 @@ export async function earlierChats(user: SessionUser, limit = 50) {
     id: c.id,
     title: c.title ?? "",
     summary: c.summary ?? "",
+    /** Its summary is still being written. */
+    summarising: summarising.has(c.id),
     startedAt: c.createdAt.toISOString(),
     closedAt: (c.closedAt as Date).toISOString(),
   }));
@@ -263,7 +314,7 @@ export async function readChat(user: SessionUser, chatId: string) {
     where: and(mine(user), eq(schema.assistantChat.id, chatId)),
   });
   if (!chat) {
-    throw new ServiceError("not_found", "Diesen Chat gibt es nicht.");
+    throw new ServiceError("not_found", note("chatNotExist"));
   }
   return {
     id: chat.id,

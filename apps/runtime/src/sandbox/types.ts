@@ -4,13 +4,6 @@ export interface ExecOptions {
   env?: Record<string, string>;
 }
 
-export interface PythonOptions {
-  /** PyPI packages installed before the code runs. */
-  packages?: string[];
-  timeoutMs?: number;
-  env?: Record<string, string>;
-}
-
 export interface ExecResult {
   stdout: string;
   stderr: string;
@@ -21,23 +14,36 @@ export interface ExecResult {
 export interface SandboxCapabilities {
   /** Programs the shell finds on its PATH. */
   commands: readonly string[];
-  /** "shell": python3 is one of the commands. "tool": Python runs only through runPython. */
-  python: "shell" | "tool";
-  /** Which Python packages are at hand, as told to the agent. */
-  pythonPackages: string;
   /** What the sandbox reaches over the network, as told to the agent. */
   network: string;
+  /** What else the agent must know to use it, such as how Python packages get in. */
+  notes?: string;
   /** What the sandbox is good for, as told to whoever authors a wizard. */
   uses: string;
   workdir: string;
+}
+
+/**
+ * A way to run sandboxes: Docker, agentOS, a hosted one. The engines are listed in index.ts;
+ * one whose code is not part of engenty wizards installs it with `wizards sandbox add <name>`
+ * (install.ts) and loads it from there.
+ */
+export interface SandboxEngine {
+  /** What `SANDBOX` names it. Lower case. */
+  readonly name: string;
+  /**
+   * Whether it can run here without being asked for: the image is there, the package is
+   * installed. Without `SANDBOX` the first engine that is ready runs the sandboxes.
+   */
+  ready(): boolean;
+  capabilities(): SandboxCapabilities;
+  create(runId: string): Sandbox;
 }
 
 /** The private machine of one run: made on the first tool call, destroyed when the run stops. */
 export interface Sandbox {
   readonly capabilities: SandboxCapabilities;
   exec(command: string, options?: ExecOptions): Promise<ExecResult>;
-  /** Present when capabilities.python is "tool". Runs in the working directory. */
-  runPython?(source: string, options?: PythonOptions): Promise<ExecResult>;
   /** Relative paths are taken from the working directory. */
   writeFile(path: string, data: string | Uint8Array): Promise<void>;
   readFile(path: string): Promise<Uint8Array>;

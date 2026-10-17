@@ -2,7 +2,7 @@ import { createPublicKey, type KeyObject, verify } from "node:crypto";
 import { env } from "../env.js";
 
 /**
- * The keys a Pro module's package must be signed with (docs/content/dev/plugins/pro-modules).
+ * The keys a Pro module's package must be signed with (docs/pro-modules.md).
  * Only the public halves are here; the private one signs in the build of the closed plugins and
  * is kept nowhere else. A new key is added beside the old one, which goes a release later.
  */

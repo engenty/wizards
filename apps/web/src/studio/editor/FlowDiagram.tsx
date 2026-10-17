@@ -22,9 +22,9 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import { AlertCircle, Check, Minus, Plus, Scan, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Mascot } from "../../brand";
-import { t } from "../../lib/i18n";
+import { lang, t } from "../../lib/i18n";
 import { cn, Spinner } from "../../ui";
 import type { Adding } from "./AddStep";
 import { useEstimate } from "./estimate";
@@ -47,11 +47,34 @@ type StepData = {
   passed: boolean;
   /** Asks for a step after this one; shown under the step while it is selected or hovered. */
   onAddAfter?: () => void;
+  /** What a test run does in this step right now, in place of its summary. */
+  live?: StepLive | null;
 };
+
+/** A test run's step in effect: what it does, since when it runs, or why it stopped. */
+export interface StepLive {
+  step: string;
+  text: string;
+  /** When the step started working; null while it waits for the person. */
+  since: number | null;
+  failed: boolean;
+}
+
+/** Seconds since `since`, ticking. */
+function Elapsed({ since }: { since: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span className="shrink-0 tabular-nums">{Math.max(0, Math.round((now - since) / 1000))} s</span>
+  );
+}
 type StartData = { title: string; avatar: string; selected: boolean };
 
 function StepNode({ data }: NodeProps<Node<StepData>>) {
-  const { step, selected, issue, active, pulse, cost, passed, onAddAfter } = data;
+  const { step, selected, issue, active, pulse, cost, passed, onAddAfter, live } = data;
   const Icon = stepIcon(step);
   return (
     <div
@@ -59,14 +82,18 @@ function StepNode({ data }: NodeProps<Node<StepData>>) {
         "group relative w-[280px] cursor-pointer rounded-xl bg-card px-4 py-3 text-left shadow-soft ring-1 transition",
         selected
           ? "shadow-elevated ring-2 ring-ember"
-          : active
-            ? "ring-2 ring-moss"
-            : pulse
-              ? "ring-2 ring-ember/60"
-              : "ring-border-soft hover:shadow-elevated",
+          : live?.failed
+            ? "ring-2 ring-rose"
+            : active
+              ? "ring-2 ring-moss"
+              : pulse
+                ? "ring-2 ring-ember/60"
+                : "ring-border-soft hover:shadow-elevated",
       )}
     >
-      {active ? (
+      {live?.failed ? (
+        <span className="-top-1 -right-1 absolute size-3 rounded-full bg-rose" />
+      ) : active ? (
         <span className="-top-1 -right-1 absolute size-3 animate-breathe rounded-full bg-moss" />
       ) : pulse ? (
         <span className="-top-1 -right-1 absolute size-3 animate-breathe rounded-full bg-ember" />
@@ -94,7 +121,7 @@ function StepNode({ data }: NodeProps<Node<StepData>>) {
             {t("nav.credits", {
               n:
                 cost < 10
-                  ? cost.toLocaleString(undefined, { maximumFractionDigits: 1 })
+                  ? cost.toLocaleString(lang, { maximumFractionDigits: 1 })
                   : Math.round(cost),
             })}
           </span>
@@ -103,7 +130,26 @@ function StepNode({ data }: NodeProps<Node<StepData>>) {
       <div className="mt-1.5 truncate font-display font-semibold text-[0.9375rem] text-ink">
         {step.title}
       </div>
-      <div className="truncate text-[0.75rem] text-ink-3">{stepSummary(step) || " "}</div>
+      {live ? (
+        <div
+          className={cn(
+            "flex items-center gap-1.5 text-[0.75rem]",
+            live.failed ? "text-rose" : "text-moss",
+          )}
+        >
+          {live.failed ? (
+            <AlertCircle className="size-3 shrink-0" />
+          ) : live.since !== null ? (
+            <Spinner className="size-3 shrink-0" />
+          ) : null}
+          <span className="min-w-0 flex-1 truncate" title={live.text}>
+            {live.text}
+          </span>
+          {live.since !== null && !live.failed ? <Elapsed since={live.since} /> : null}
+        </div>
+      ) : (
+        <div className="truncate text-[0.75rem] text-ink-3">{stepSummary(step) || " "}</div>
+      )}
       <Handle type="source" position={Position.Bottom} />
       {onAddAfter ? (
         <button
@@ -274,6 +320,7 @@ function layout(
   decisions: Record<string, BranchDecision>,
   adding: Adding | null,
   onInsert?: (at: number) => void,
+  live?: StepLive | null,
 ) {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "TB", nodesep: 48, ranksep: 46, marginx: 20, marginy: 20 });
@@ -408,6 +455,7 @@ function layout(
           cost: costs[s.id]?.credits ?? null,
           passed: passed.has(s.id),
           onAddAfter: onInsert && s.type !== "result" ? () => onInsert(index + 1) : undefined,
+          live: live?.step === s.id ? live : null,
         },
         draggable: false,
       } satisfies Node<StepData>;
@@ -433,19 +481,29 @@ function ZoomBar() {
   const btn =
     "inline-flex size-8 items-center justify-center rounded-full text-ink-3 hover:bg-accent hover:text-ink";
   return (
-    <div className="absolute bottom-4 left-4 z-10 flex items-center gap-0.5 rounded-full bg-card p-1 shadow-soft ring-1 ring-border-soft">
-      <button type="button" className={btn} onClick={() => rf.zoomOut()} aria-label="Zoom out">
+    <div className="absolute bottom-4 left-4 z-10 flex items-center gap-0.5 rounded-full bg-card p-1 shadow-soft ring-1 ring-border-soft max-sm:hidden">
+      <button
+        type="button"
+        className={btn}
+        onClick={() => rf.zoomOut()}
+        aria-label={t("editor.zoomOut")}
+      >
         <Minus className="size-4" />
       </button>
       <button
         type="button"
         className={btn}
         onClick={() => rf.fitView({ padding: 0.2, duration: 300 })}
-        aria-label="Fit"
+        aria-label={t("editor.zoomFit")}
       >
         <Scan className="size-4" />
       </button>
-      <button type="button" className={btn} onClick={() => rf.zoomIn()} aria-label="Zoom in">
+      <button
+        type="button"
+        className={btn}
+        onClick={() => rf.zoomIn()}
+        aria-label={t("editor.zoomIn")}
+      >
         <Plus className="size-4" />
       </button>
     </div>
@@ -477,6 +535,8 @@ interface CanvasProps {
   adding?: Adding | null;
   /** A step's "step after" asks for a step in that place: before the step at `at`. */
   onInsert?: (at: number) => void;
+  /** What a test run does in its step in effect; the diagram keeps that step in view. */
+  live?: StepLive | null;
 }
 
 function Inner({
@@ -494,6 +554,7 @@ function Inner({
   onBranch,
   adding = null,
   onInsert,
+  live = null,
 }: CanvasProps) {
   const { nodes, edges } = useMemo(
     () =>
@@ -508,8 +569,21 @@ function Inner({
         decisions,
         adding,
         onInsert,
+        live,
       ),
-    [def, selected, issueSteps, activeStep, pulse, costs, passed, decisions, adding, onInsert],
+    [
+      def,
+      selected,
+      issueSteps,
+      activeStep,
+      pulse,
+      costs,
+      passed,
+      decisions,
+      adding,
+      onInsert,
+      live,
+    ],
   );
   const rf = useReactFlow();
   const wrap = useRef<HTMLDivElement>(null);
@@ -546,6 +620,29 @@ function Inner({
     });
     return () => cancelAnimationFrame(id);
   }, [shape, fitKey, rf]);
+  // The step a run moves on to is brought into view when it lies outside.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the step in effect
+  useEffect(() => {
+    const el = wrap.current;
+    const node = activeStep ? nodes.find((n) => n.id === activeStep) : null;
+    if (!(el && node)) {
+      return;
+    }
+    const { x, y, zoom } = rf.getViewport();
+    const cx = node.position.x + NODE_W / 2;
+    const cy = node.position.y + NODE_H / 2;
+    const sx = cx * zoom + x;
+    const sy = cy * zoom + y;
+    const margin = 40;
+    if (
+      sx < margin ||
+      sx > el.clientWidth - margin ||
+      sy < margin ||
+      sy > el.clientHeight - margin
+    ) {
+      void rf.setCenter(cx, cy, { zoom, duration: 400 });
+    }
+  }, [activeStep, rf]);
   return (
     <div ref={wrap} className="h-full w-full">
       <ReactFlow

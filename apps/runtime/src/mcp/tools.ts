@@ -46,7 +46,7 @@ const note = z
   .max(500)
   .optional()
   .describe(
-    "One sentence for the admin about what changed, in their language. Shown in the studio.",
+    "One sentence for the person about what changed, in their language. Shown in the studio.",
   );
 const baseRevision = z
   .number()
@@ -73,6 +73,11 @@ function failure(err: unknown): CallToolResult {
     body = { error: "Internal error", code: "internal" };
   }
   return { isError: true, content: [{ type: "text", text: JSON.stringify(body) }] };
+}
+
+/** Where a space comes from, as the person knows it: sent by their local install, or made here. */
+function spaceFrom(p: { origin: string | null }): "your computer" | "here" {
+  return p.origin === "local" ? "your computer" : "here";
 }
 
 export function registerTools(server: McpServer, who: Principal) {
@@ -148,7 +153,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description:
         "Read this before writing a wizard: the JSON schema, field kinds, step types and tools, templates, design rules, and the MCP servers of the project.",
       input: z.object({
-        projectId: z.string().optional().describe("Defaults to the admin's first project."),
+        projectId: z.string().optional().describe("Defaults to the person's first project."),
       }),
       readOnly: true,
     },
@@ -265,7 +270,8 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "List projects",
-      description: "The admin's projects. Each holds wizards, a brand and MCP servers.",
+      description:
+        "The person's projects, called spaces in the studio. Each holds wizards, a brand and MCP servers. Name a space by its name; where two share one, add where it comes from (`from`). Ids are for the tools: never show them to the person.",
       input: z.object({}),
       readOnly: true,
     },
@@ -273,6 +279,7 @@ export function registerTools(server: McpServer, who: Principal) {
       (await listProjects(who.userId)).map((p) => ({
         id: p.id,
         name: p.name,
+        from: spaceFrom(p),
         wizardCount: p.wizardCount,
       })),
   );
@@ -282,20 +289,28 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "List wizards",
-      description: "The admin's wizards, newest first.",
+      description:
+        "The person's wizards, newest first, each with its space's name and where that space comes from. Ids are for the tools: never show them to the person.",
       input: z.object({ projectId: z.string().optional() }),
       readOnly: true,
     },
-    async ({ projectId }) =>
-      (await listWizards(who.userId, projectId)).map((w) => ({
-        id: w.id,
-        projectId: w.projectId,
-        title: w.title,
-        revision: w.revision,
-        published: w.published,
-        updatedAt: w.updatedAt,
-        studioUrl: studioUrl(w.id),
-      })),
+    async ({ projectId }) => {
+      const spaces = new Map((await listProjects(who.userId)).map((p) => [p.id, p]));
+      return (await listWizards(who.userId, projectId)).map((w) => {
+        const space = spaces.get(w.projectId);
+        return {
+          id: w.id,
+          projectId: w.projectId,
+          space: space?.name ?? null,
+          spaceFrom: space ? spaceFrom(space) : null,
+          title: w.title,
+          revision: w.revision,
+          published: w.published,
+          updatedAt: w.updatedAt,
+          studioUrl: studioUrl(w.id),
+        };
+      });
+    },
   );
 
   tool(
@@ -357,7 +372,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description:
         "Create a wizard from your JSON, or copy a starter. The draft may still have issues; fix them with edit_wizard.",
       input: z.object({
-        projectId: z.string().optional().describe("Defaults to the admin's first project."),
+        projectId: z.string().optional().describe("Defaults to the person's first project."),
         definition: definition.optional(),
         starterId: z.string().optional().describe("Copy this starter instead of sending JSON."),
         note,
@@ -420,7 +435,7 @@ Returns the new revision and the issues.`,
     {
       title: "Publish wizard",
       description:
-        "Publish the draft as a new version behind the share link. Refused while the draft has issues. Only when the admin asked for it.",
+        "Publish the draft as a new version behind the share link. Refused while the draft has issues. Only when the person asked for it.",
       input: z.object({ wizardId: z.string() }),
     },
     async ({ wizardId }) => publishAndSync(who.userId, wizardId),
@@ -459,7 +474,7 @@ Returns the new revision and the issues.`,
     {
       title: "Start test run",
       description:
-        "Run the draft once with your answers. SPENDS THE ADMIN'S CREDITS (short copy + image ~15, research ~150, video ~250). Pages are filled from `answers`, reviews accepted when acceptReviews is true. Follow it with get_test_run. Shows the flow with the run on it.",
+        "Run the draft once with your answers. Spends the person's credits (short copy + image about 15, research about 150, video about 250). Pages are filled from `answers`, reviews accepted when acceptReviews is true. Follow it with get_test_run. Shows the flow with the run on it.",
       input: z.object({
         wizardId: z.string(),
         answers: z
@@ -640,7 +655,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     "answer_ask",
     "runs:test",
     {
-      title: "Answer ask",
+      title: "Answer confirmation",
       description:
         "A running step asks before it changes something in a connected account (waitingFor.ask, kind confirm): allow it once, or skip it. Ask the person first.",
       input: z.object({
@@ -662,7 +677,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     {
       title: "Control run",
       description:
-        "back: to the previous page or review. retry: a failed step again. cancel: stop the run.",
+        "back: return to the previous page or review. retry: run the failed step again. cancel: stop the run.",
       input: z.object({ runId: z.string(), action: z.enum(["back", "retry", "cancel"]) }),
     },
     async ({ runId, action }) => {

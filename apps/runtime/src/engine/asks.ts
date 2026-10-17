@@ -1,5 +1,5 @@
 import type { AskAnswer, AskInput, RunAsk } from "@engenty-wizards/shared/run";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
 import { signalChanged } from "./events.js";
@@ -7,70 +7,88 @@ import { pushRun } from "./push.js";
 
 /** How long a step waits for the person before it goes on without them. */
 const ASK_TIMEOUT_MS = 15 * 60_000;
+/** How often the waiting step looks for the answer in the row. */
+const ASK_POLL_MS = 1000;
 
 export type AskResult = AskAnswer | { type: "timeout" };
 
-/** Runs nobody watches (an MCP client drives them): a question there would wait for no one. */
-export const unattended = new Set<string>();
-
-const waiting = new Map<string, { ask: RunAsk; settle(result: AskResult): void }>();
-
 async function setAsk(runId: string, ask: RunAsk | null) {
-  await db.update(schema.run).set({ ask, updatedAt: new Date() }).where(eq(schema.run.id, runId));
+  await db
+    .update(schema.run)
+    .set({ ask, answer: null, updatedAt: new Date() })
+    .where(eq(schema.run.id, runId));
   signalChanged(runId);
 }
 
 /**
  * Puts a question to the person and waits. The run stays "running": the step is in the middle
- * of its work and goes on with the answer. One question per run at a time.
+ * of its work and goes on with the answer. One question per run at a time. The question and the
+ * answer go through the run's row: the web that takes the answer need not be the process that
+ * asked.
  */
 export async function askPerson(
   runId: string,
   ask: AskInput & { stepId: string },
   signal: AbortSignal,
 ): Promise<AskResult> {
-  if (waiting.has(runId)) {
+  const open = await db.query.run.findFirst({
+    where: eq(schema.run.id, runId),
+    columns: { ask: true },
+  });
+  if (open?.ask) {
     throw new Error("The wizard is already waiting for the person.");
   }
   const full = { ...ask, id: nanoid(10), at: new Date().toISOString() } as RunAsk;
-  const result = new Promise<AskResult>((resolve) => {
-    const finish = (r: AskResult) => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", onAbort);
-      resolve(r);
-    };
-    const onAbort = () => finish({ type: "skip" });
-    const timer = setTimeout(() => finish({ type: "timeout" }), ASK_TIMEOUT_MS);
-    signal.addEventListener("abort", onAbort, { once: true });
-    waiting.set(runId, { ask: full, settle: finish });
-  });
   await setAsk(runId, full);
   void pushRun(runId, "asks");
+  const until = Date.now() + ASK_TIMEOUT_MS;
   try {
-    return await result;
+    while (!signal.aborted) {
+      if (Date.now() >= until) {
+        return { type: "timeout" };
+      }
+      const row = await db.query.run.findFirst({
+        where: eq(schema.run.id, runId),
+        columns: { answer: true },
+      });
+      if (row?.answer?.askId === full.id) {
+        return row.answer.answer;
+      }
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(done, ASK_POLL_MS);
+        function done() {
+          clearTimeout(timer);
+          signal.removeEventListener("abort", done);
+          resolve();
+        }
+        signal.addEventListener("abort", done, { once: true });
+      });
+    }
+    return { type: "skip" };
   } finally {
-    waiting.delete(runId);
     await setAsk(runId, null).catch(() => undefined);
   }
 }
 
 /** The question a run is waiting on, if any. */
-export function pendingAsk(runId: string): RunAsk | null {
-  return waiting.get(runId)?.ask ?? null;
+export async function pendingAsk(runId: string): Promise<RunAsk | null> {
+  const row = await db.query.run.findFirst({
+    where: eq(schema.run.id, runId),
+    columns: { ask: true },
+  });
+  return row?.ask ?? null;
 }
 
-export function answerAsk(runId: string, askId: string, answer: AskAnswer): boolean {
-  const entry = waiting.get(runId);
-  if (!entry || entry.ask.id !== askId) {
-    return false;
-  }
-  entry.settle(answer);
-  return true;
+/** Leaves the answer for the waiting step; false when that question is no longer open. */
+export async function answerAsk(runId: string, askId: string, answer: AskAnswer): Promise<boolean> {
+  const result = await db
+    .update(schema.run)
+    .set({ answer: { askId, answer } })
+    .where(sql`${schema.run.id} = ${runId} AND json_extract(${schema.run.ask}, '$.id') = ${askId}`);
+  return result.rowsAffected > 0;
 }
 
-/** A question left in the row by a server that stopped: nobody is waiting for it any more. */
+/** A run a runner takes starts its step afresh: a question left in the row has no one waiting. */
 export async function clearStaleAsk(runId: string) {
-  if (!waiting.has(runId)) {
-    await db.update(schema.run).set({ ask: null }).where(eq(schema.run.id, runId));
-  }
+  await db.update(schema.run).set({ ask: null, answer: null }).where(eq(schema.run.id, runId));
 }

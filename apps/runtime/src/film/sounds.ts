@@ -137,7 +137,7 @@ async function build(): Promise<string> {
     }
   }
   if (!sounds.length) {
-    throw new Error("Die Geräusche für Filme konnten nicht geladen werden.");
+    throw new Error("The sounds for films could not be loaded.");
   }
   sounds.sort((a, b) => a.file.localeCompare(b.file));
   await writeFile(

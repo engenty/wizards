@@ -28,15 +28,31 @@ permissions:
   contents: read
 
 jobs:
+  # The checks run side by side, each on its own runner; deploy waits for all of them.
   verify:
+    name: verify (${{ matrix.check }})
     # A release commit reaches main together with its tag: the tag's run checks that commit.
     if: >-
       ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main' &&
         startsWith(github.event.head_commit.message, 'chore(release):')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      # Every check runs to its end, so a failing one doesn't hide another.
+      fail-fast: false
+      matrix:
+        check: [typecheck, test, build, docs]
     steps:
       - uses: actions/checkout@v7
+
+      # Next.js' build cache for apps/docs (the pages live in docs/content). Without it the docs
+      # build compiles everything from scratch, the longest part of it.
+      - if: matrix.check == 'docs'
+        uses: actions/cache@v6
+        with:
+          path: apps/docs/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/docs/**', 'docs/content/**', '!apps/docs/.next/**', '!apps/docs/node_modules/**') }}
+          restore-keys: nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
 
       # The pnpm version is the `packageManager` of package.json.
       - uses: pnpm/action-setup@v6
@@ -44,26 +60,60 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
+          # No cache of pnpm's store: restoring it (~1 GB) took as long as fetching the packages
+          # from the registry.
+          package-manager-cache: false
 
+      # Only what the check needs: the docs site alone, or everything but the docs site.
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: >-
+          pnpm install --frozen-lockfile
+          --filter "${{ matrix.check != 'docs' && '!' || '' }}@engenty-wizards/docs"
 
+      # How long each test file took last time: vitest starts the longest first, so
+      # apps/runtime/test/sandbox.test.ts (half a minute) runs beside the others instead of
+      # after them. Saved anew by every run, restored from the newest.
+      - if: matrix.check == 'test'
+        uses: actions/cache@v6
+        with:
+          path: |
+            apps/runtime/node_modules/.vite/vitest
+            packages/runner/node_modules/.vite/vitest
+          key: vitest-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: vitest-${{ runner.os }}-
+
+      # Lint takes seconds: it rides along with the typecheck.
       - name: Lint
+        if: matrix.check == 'typecheck'
         run: pnpm lint
 
+      # The words people read: the mechanical rules of docs/copy-style.md.
+      - name: Copy
+        if: matrix.check == 'typecheck'
+        run: pnpm copy:check --strict
+
+      # The docs site is type-checked in its own check, where its packages are installed.
       - name: Typecheck
-        run: pnpm typecheck
+        if: matrix.check == 'typecheck'
+        run: pnpm -r --filter "!@engenty-wizards/docs" typecheck
 
       - name: Test
+        if: matrix.check == 'test'
         run: pnpm test
 
       - name: Build
+        if: matrix.check == 'build'
         run: pnpm build
+
+      # Every page names the release it describes, none a newer one (docs/development.md).
+      - name: Docs versions
+        if: matrix.check == 'docs'
+        run: pnpm docs:check
 
       # The docs site (apps/docs, docs/content) is not part of the product's build.
       - name: Docs
-        run: pnpm build:docs
+        if: matrix.check == 'docs'
+        run: pnpm --filter @engenty-wizards/docs typecheck && pnpm build:docs
 
   # The cloud runtime's two images and the documentation's, built on GitHub's runners: the server
   # only pulls them. The layers come from the registry's cache, so a release rebuilds only what

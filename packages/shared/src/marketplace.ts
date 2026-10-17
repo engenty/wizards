@@ -1,4 +1,11 @@
-import { type Format, pluginToolOf, type WizardDefinition } from "./definition.js";
+import {
+  type Format,
+  LANGS,
+  type Lang,
+  pluginToolOf,
+  type WizardDefinition,
+} from "./definition.js";
+import { type Gap, type Line, type Texts, textOf } from "./texts.js";
 
 /**
  * The marketplace: wizards anyone can start from. What an entry is sorted by — formats, industry,
@@ -9,93 +16,210 @@ import { type Format, pluginToolOf, type WizardDefinition } from "./definition.j
 export const MARKETPLACE_LANGS = ["de", "en"] as const;
 export type MarketplaceLang = (typeof MARKETPLACE_LANGS)[number];
 
-type Labels = Record<MarketplaceLang, string>;
-
 /** What comes out of a run. */
-export const ITEM_FORMATS = {
-  text: { de: "Text", en: "Text" },
-  document: { de: "Dokument (PDF, Word)", en: "Document (PDF, Word)" },
-  table: { de: "Tabelle", en: "Table" },
-  image: { de: "Bild", en: "Image" },
-  video: { de: "Video", en: "Video" },
-  audio: { de: "Audio", en: "Audio" },
-  dashboard: { de: "Dashboard", en: "Dashboard" },
-} satisfies Record<string, Labels>;
-export type ItemFormat = keyof typeof ITEM_FORMATS;
+export const ITEM_FORMAT_IDS = [
+  "text",
+  "document",
+  "table",
+  "image",
+  "video",
+  "audio",
+  "dashboard",
+] as const;
+export type ItemFormat = (typeof ITEM_FORMAT_IDS)[number];
 
-export const INDUSTRIES = {
-  any: { de: "Jede Branche", en: "Any industry" },
-  trades: { de: "Handwerk", en: "Trades" },
-  gastronomy: { de: "Gastronomie", en: "Food service" },
-  hospitality: { de: "Hotel & Tourismus", en: "Hotels & tourism" },
-  realEstate: { de: "Immobilien", en: "Real estate" },
-  retail: { de: "Handel", en: "Retail" },
-  health: { de: "Gesundheit", en: "Health" },
-  professional: { de: "Kanzlei & Beratung", en: "Professional services" },
-  agency: { de: "Agentur & Marketing", en: "Agency & marketing" },
-  events: { de: "Veranstaltungen", en: "Events" },
-  publicSector: { de: "Vereine & Öffentliches", en: "Associations & public sector" },
-} satisfies Record<string, Labels>;
-export type Industry = keyof typeof INDUSTRIES;
+export const INDUSTRY_IDS = [
+  "any",
+  "trades",
+  "gastronomy",
+  "hospitality",
+  "realEstate",
+  "retail",
+  "health",
+  "professional",
+  "agency",
+  "events",
+  "publicSector",
+] as const;
+export type Industry = (typeof INDUSTRY_IDS)[number];
 
-export const USE_CASES = {
-  marketing: { de: "Marketing & Social Media", en: "Marketing & social media" },
-  sales: { de: "Angebote & Verkauf", en: "Offers & sales" },
-  accounting: { de: "Buchhaltung & Belege", en: "Accounting & receipts" },
-  service: { de: "Kundenservice", en: "Customer service" },
-  research: { de: "Recherche & Analyse", en: "Research & analysis" },
-  hr: { de: "Personal & Bewerbungen", en: "HR & applications" },
-  operations: { de: "Planung & Abläufe", en: "Planning & operations" },
-  website: { de: "Helfer für die Website", en: "Website helpers" },
-  visuals: { de: "Bilder & Video", en: "Images & video" },
-  inquiries: { de: "Anfragen & Termine", en: "Inquiries & bookings" },
-  advice: { de: "Beratung & Preise", en: "Advice & pricing" },
-} satisfies Record<string, Labels>;
-export type UseCase = keyof typeof USE_CASES;
+export const USE_CASE_IDS = [
+  "marketing",
+  "sales",
+  "accounting",
+  "service",
+  "research",
+  "hr",
+  "operations",
+  "website",
+  "visuals",
+  "inquiries",
+  "advice",
+] as const;
+export type UseCase = (typeof USE_CASE_IDS)[number];
 
-/** What the models and tools behind a wizard must be able to do. */
-export const CAPABILITIES = {
-  text: { de: "Text schreiben", en: "Writes text" },
-  web: { de: "Websuche", en: "Web search" },
-  browser: { de: "Browser bedienen", en: "Drives a browser" },
-  documents: { de: "Dokumente & Fotos lesen", en: "Reads documents & photos" },
-  image: { de: "Bilder erzeugen", en: "Makes images" },
-  video: { de: "Videos erzeugen", en: "Makes video" },
-  speech: { de: "Sprachausgabe", en: "Speech output" },
-  listening: { de: "Sprachnotizen verstehen", en: "Understands voice notes" },
-  code: { de: "Code ausführen", en: "Runs code" },
-  connectors: { de: "Verbundene Konten & Systeme", en: "Connected accounts & systems" },
-  /** A film the installed client makes: only on a computer with Claude Code, on its subscription. */
-  film: {
-    de: "Filme mit Claude Code (auf deinem Abo)",
-    en: "Films with Claude Code (on your subscription)",
-  },
-} satisfies Record<string, Labels>;
-export type Capability = keyof typeof CAPABILITIES;
+/**
+ * What the models and tools behind a wizard must be able to do. `film`: a film the installed
+ * client makes, only on a computer with Claude Code, on its subscription.
+ */
+export const CAPABILITY_IDS = [
+  "text",
+  "web",
+  "browser",
+  "documents",
+  "image",
+  "video",
+  "speech",
+  "listening",
+  "code",
+  "connectors",
+  "film",
+] as const;
+export type Capability = (typeof CAPABILITY_IDS)[number];
 
-export const COST_TIERS = {
-  low: { de: "günstig", en: "low cost" },
-  medium: { de: "mittel", en: "medium cost" },
-  high: { de: "teuer", en: "high cost" },
-} satisfies Record<string, Labels>;
-export type CostTier = keyof typeof COST_TIERS;
+export const COST_TIER_IDS = ["low", "medium", "high"] as const;
+export type CostTier = (typeof COST_TIER_IDS)[number];
 
 /**
  * The plan a wizard needs. Free runs on what every runtime has; Pro needs plugins, which come
  * with the Pro and Team plans of engenty.ai.
  */
-export const MARKETPLACE_PLANS = {
-  free: { de: "Kostenlos", en: "Free" },
-  pro: { de: "Pro", en: "Pro" },
-} satisfies Record<string, Labels>;
-export type MarketplacePlan = keyof typeof MARKETPLACE_PLANS;
+export const MARKETPLACE_PLAN_IDS = ["free", "pro"] as const;
+export type MarketplacePlan = (typeof MARKETPLACE_PLAN_IDS)[number];
 
-const keys = <T extends object>(o: T) => Object.keys(o) as (keyof T)[];
-export const ITEM_FORMAT_IDS = keys(ITEM_FORMATS);
-export const INDUSTRY_IDS = keys(INDUSTRIES);
-export const USE_CASE_IDS = keys(USE_CASES);
-export const CAPABILITY_IDS = keys(CAPABILITIES);
-export const MARKETPLACE_PLAN_IDS = keys(MARKETPLACE_PLANS);
+/** What a marketplace label belongs to: a facet, a cost tier, a plan. */
+export type MarketGroup =
+  | "format"
+  | "industry"
+  | "useCase"
+  | "capability"
+  | "cost"
+  | "plan"
+  | "outline";
+
+const MARKET_EN = {
+  "format.text": "Text",
+  "format.document": "Document (PDF, Word)",
+  "format.table": "Table",
+  "format.image": "Image",
+  "format.video": "Video",
+  "format.audio": "Audio",
+  "format.dashboard": "Dashboard",
+  "industry.any": "Any industry",
+  "industry.trades": "Trades",
+  "industry.gastronomy": "Food service",
+  "industry.hospitality": "Hotels & tourism",
+  "industry.realEstate": "Real estate",
+  "industry.retail": "Retail",
+  "industry.health": "Health",
+  "industry.professional": "Professional services",
+  "industry.agency": "Agency & marketing",
+  "industry.events": "Events",
+  "industry.publicSector": "Associations & public sector",
+  "useCase.marketing": "Marketing & social media",
+  "useCase.sales": "Offers & sales",
+  "useCase.accounting": "Accounting & receipts",
+  "useCase.service": "Customer service",
+  "useCase.research": "Research & analysis",
+  "useCase.hr": "HR & applications",
+  "useCase.operations": "Planning & operations",
+  "useCase.website": "Website helpers",
+  "useCase.visuals": "Images & video",
+  "useCase.inquiries": "Inquiries & bookings",
+  "useCase.advice": "Advice & pricing",
+  "capability.text": "Writes text",
+  "capability.web": "Web search",
+  "capability.browser": "Drives a browser",
+  "capability.documents": "Reads documents & photos",
+  "capability.image": "Makes images",
+  "capability.video": "Makes video",
+  "capability.speech": "Speech output",
+  "capability.listening": "Understands voice notes",
+  "capability.code": "Runs code",
+  "capability.connectors": "Connected accounts & systems",
+  "capability.film": "Films with Claude Code (on your subscription)",
+  "cost.low": "low cost",
+  "cost.medium": "medium cost",
+  "cost.high": "high cost",
+  "plan.free": "Free",
+  "plan.pro": "Pro",
+  "outline.otherwise": "otherwise",
+  "outline.and": "{first} and {second}",
+  "outline.with": "with {name}",
+  "outline.without": "without {name}",
+  "outline.contains": "{name} contains {value}",
+} as const satisfies Record<string, Line>;
+type MarketKey = keyof typeof MARKET_EN;
+
+const MARKET_DE: Partial<Record<MarketKey, Line>> = {
+  "format.text": "Text",
+  "format.document": "Dokument (PDF, Word)",
+  "format.table": "Tabelle",
+  "format.image": "Bild",
+  "format.video": "Video",
+  "format.audio": "Audio",
+  "format.dashboard": "Dashboard",
+  "industry.any": "Jede Branche",
+  "industry.trades": "Handwerk",
+  "industry.gastronomy": "Gastronomie",
+  "industry.hospitality": "Hotel & Tourismus",
+  "industry.realEstate": "Immobilien",
+  "industry.retail": "Handel",
+  "industry.health": "Gesundheit",
+  "industry.professional": "Kanzlei & Beratung",
+  "industry.agency": "Agentur & Marketing",
+  "industry.events": "Veranstaltungen",
+  "industry.publicSector": "Vereine & Öffentliches",
+  "useCase.marketing": "Marketing & Social Media",
+  "useCase.sales": "Angebote & Verkauf",
+  "useCase.accounting": "Buchhaltung & Belege",
+  "useCase.service": "Kundenservice",
+  "useCase.research": "Recherche & Analyse",
+  "useCase.hr": "Personal & Bewerbungen",
+  "useCase.operations": "Planung & Abläufe",
+  "useCase.website": "Helfer für die Website",
+  "useCase.visuals": "Bilder & Video",
+  "useCase.inquiries": "Anfragen & Termine",
+  "useCase.advice": "Beratung & Preise",
+  "capability.text": "Text schreiben",
+  "capability.web": "Websuche",
+  "capability.browser": "Browser bedienen",
+  "capability.documents": "Dokumente & Fotos lesen",
+  "capability.image": "Bilder erzeugen",
+  "capability.video": "Videos erzeugen",
+  "capability.speech": "Sprachausgabe",
+  "capability.listening": "Sprachnotizen verstehen",
+  "capability.code": "Code ausführen",
+  "capability.connectors": "Verbundene Konten & Systeme",
+  "capability.film": "Filme mit Claude Code (auf deinem Abo)",
+  "cost.low": "günstig",
+  "cost.medium": "mittel",
+  "cost.high": "teuer",
+  "plan.free": "Kostenlos",
+  "plan.pro": "Pro",
+  "outline.otherwise": "sonst",
+  "outline.and": "{first} und {second}",
+  "outline.with": "mit {name}",
+  "outline.without": "ohne {name}",
+  "outline.contains": "{name} enthält {value}",
+};
+
+export const MARKET_TEXTS: Texts<MarketKey> = { en: MARKET_EN, de: MARKET_DE };
+
+/** The label of a facet value, a cost tier or a plan in a language; its id where it has none. */
+export function marketLabel(
+  group: MarketGroup,
+  id: string,
+  lang: Lang,
+  params?: Record<string, Gap | undefined>,
+): string {
+  const key = `${group}.${id}`;
+  return key in MARKET_EN ? textOf(MARKET_TEXTS, key as MarketKey, lang, params) : id;
+}
+
+/** A label in every language, for search: a person may type either. */
+export const marketLabels = (group: MarketGroup, id: string): string[] =>
+  LANGS.map((lang) => marketLabel(group, id, lang));
 
 const FORMAT_OF: Partial<Record<Format, ItemFormat>> = {
   pdf: "document",
@@ -275,13 +399,6 @@ export function costTierOf(capabilities: Capability[]): CostTier {
     ? "medium"
     : "low";
 }
-
-/**
- * The link that opens an entry in a local install at its default address — in the browser, or
- * in the studio installed as a Chrome app.
- */
-export const entryLocalLink = (id: string) =>
-  `http://localhost:24368/studio/new?starter=${encodeURIComponent(id)}`;
 
 // --- what the marketplace answers (docs/marketplace-contract.md) -----------------------------
 

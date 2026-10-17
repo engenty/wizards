@@ -7,8 +7,8 @@ import { attempt, clip } from "./shared.js";
 
 /**
  * Pages for a step that lists "pages": Markdown its wizard keeps for every run — notes, a log, a
- * summary that grows — its memory, shown in the studio's Memory tab and under Space → Daten. Its
- * page_read also reads the pages of Wissen, by path. A test run reads the wizard's pages but
+ * summary that grows — its memory, shown in the studio's Memory tab and under Space → Data. Its
+ * page_read also reads the pages of Knowledge, by path. A test run reads the wizard's pages but
  * writes into a copy of its own in the run's state, which goes with the run.
  */
 export function pageTools(ctx: StepContext) {
@@ -29,7 +29,7 @@ export function pageTools(ctx: StepContext) {
     page_read: createTool({
       id: "page_read",
       description:
-        "Read a page: one this wizard wrote, by its title, or a page of Wissen, by its path (pages/…). Without either it lists the wizard's pages.",
+        "Read a page: one this wizard wrote, by its title, or a page of Knowledge, by its path (pages/…). Without either it lists the wizard's pages.",
       inputSchema: z.object({
         title: z.string().optional().describe("A page this wizard wrote"),
         path: pageReadInput.path.optional(),
@@ -56,7 +56,7 @@ export function pageTools(ctx: StepContext) {
     page_write: createTool({
       id: "page_write",
       description:
-        "Write a page of this wizard in Markdown, kept for every later run and shown to the admin in the studio. A page with the same title is replaced — or added to with append: true (a log, a list that grows). Pages of Wissen are read-only.",
+        "Write a page of this wizard in Markdown, kept for every later run and shown to the admin in the studio. A page with the same title is replaced — or added to with append: true (a log, a list that grows). Pages of Knowledge are read-only.",
       inputSchema: z.object({
         title: z.string().min(1).max(200),
         markdown: z.string().max(200_000),

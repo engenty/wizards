@@ -1,7 +1,9 @@
-import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { hostname } from "node:os";
 import { join, resolve } from "node:path";
+import { findChrome } from "./render/browser-path.js";
+import { enginesDir } from "./sandbox/install.js";
 
 /** Load `.env.local` then `.env` without overriding the real environment. */
 function loadEnvFiles() {
@@ -23,46 +25,6 @@ loadEnvFiles();
 
 const str = (key: string, fallback = ""): string => process.env[key]?.trim() || fallback;
 
-/**
- * Without `SANDBOX`: Docker when the sandbox image is on this machine, else agentOS when its
- * packages are installed (a checkout has them, the image and the desktop app do not), else none.
- * The image is not published, so a fresh install would otherwise offer a tool that cannot start.
- */
-function sandboxEngine(image: string): "docker" | "agentos" | "off" {
-  const engine = str("SANDBOX");
-  if (str("SANDBOX_ENABLED", "1") !== "1" || engine === "off") {
-    return "off";
-  }
-  if (engine) {
-    return engine === "agentos" ? "agentos" : "docker";
-  }
-  if (dockerHasImage(image)) {
-    return "docker";
-  }
-  return agentOsInstalled() ? "agentos" : "off";
-}
-
-function dockerHasImage(image: string): boolean {
-  try {
-    execFileSync("docker", ["image", "inspect", image], { stdio: "ignore", timeout: 5000 });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** agentOS ships its sidecar for macOS and Linux on arm64 and x64 only. */
-function agentOsInstalled(): boolean {
-  if (!["darwin", "linux"].includes(process.platform) || !["arm64", "x64"].includes(process.arch)) {
-    return false;
-  }
-  try {
-    import.meta.resolve("@rivet-dev/agentos-core");
-    return true;
-  } catch {
-    return false;
-  }
-}
 /** A comma-separated list. */
 const list = (key: string): string[] =>
   str(key)
@@ -99,6 +61,23 @@ const port = num("API_PORT", 24368);
 const fromSource = import.meta.url.endsWith(".ts");
 const sandboxImage = str("SANDBOX_IMAGE", "engenty-sandbox:latest");
 
+const ROLES = ["studio", "doors", "web", "runner", "all"] as const;
+type Role = (typeof ROLES)[number];
+
+function role(): Role {
+  const given = str("RUNTIME_ROLE", "all");
+  if (!ROLES.includes(given as Role)) {
+    throw new Error(`RUNTIME_ROLE must be one of ${ROLES.join(", ")}, not "${given}"`);
+  }
+  return given as Role;
+}
+
+/** The origin people open, e.g. https://wizards.localhost — auth callbacks and links use it. */
+const appUrl = str(
+  "APP_URL",
+  fromSource ? "http://localhost:5181" : `http://localhost:${port}`,
+).replace(/\/$/, "");
+
 export const env = {
   production: process.env.NODE_ENV === "production",
   /** Running from source: Vite serves the pages, this server only `/api`. */
@@ -106,11 +85,33 @@ export const env = {
   port,
   /** Listen address; a runtime that runs alone stays on the loopback interface. */
   host: str("API_HOST", manageUrl ? "0.0.0.0" : "127.0.0.1"),
-  /** The origin people open, e.g. https://wizards.localhost — auth callbacks and links use it. */
-  appUrl: str("APP_URL", fromSource ? "http://localhost:5181" : `http://localhost:${port}`).replace(
-    /\/$/,
-    "",
-  ),
+  /**
+   * What this process does. `studio`: the makers' half (authoring, publishing, sign-in, MCP, the
+   * studio's pages). `doors`: the customers' half (wizard pages, their API, shared results, the
+   * plugins' public routes). `web`: both halves. `runner`: takes the runs that wait and drives
+   * them (it serves the routes too, for what the web hands it). `all`: everything in one process
+   * (a runtime that runs alone). docs/plans/runner-process.md.
+   */
+  role: role(),
+  /** Which parts this process serves, from its role. */
+  serves: {
+    studio: ["studio", "web", "runner", "all"].includes(role()),
+    doors: ["doors", "web", "runner", "all"].includes(role()),
+    runner: ["runner", "all"].includes(role()),
+  },
+  runner: {
+    /** This runner's name in the control database; a new one each start. */
+    id: `${hostname()}-${randomBytes(3).toString("hex")}`,
+    /** Where the web reaches this runner (the browser's screen of a run it holds). */
+    url: str("RUNNER_URL").replace(/\/$/, ""),
+  },
+  appUrl,
+  /**
+   * Where the wizards' pages live (`/w/<token>`, `/s/<token>`, the embed script): the doors'
+   * origin, when they are served apart from the studio. Links to a wizard, a result or a public
+   * file carry it. Default: APP_URL, the same origin.
+   */
+  publicUrl: str("PUBLIC_URL", appUrl).replace(/\/$/, ""),
   /** More host names this server answers under, besides APP_URL's and the loopback names. */
   allowedHosts: list("ALLOWED_HOSTS"),
   dataDir,
@@ -126,6 +127,11 @@ export const env = {
   /** Encrypts connected accounts and kept browser sessions; falls back to the app secret. */
   storeKey: str("STORE_ENC_KEY"),
   devLogin: process.env.NODE_ENV !== "production" && str("DEV_LOGIN") === "1",
+  /**
+   * `1`: the studio assistant's developer mode may be switched on here (steps, tools, prompt,
+   * the turns' events). A managed runtime offers it to the platform's admins instead.
+   */
+  assistantDev: str("ASSISTANT_DEV") === "1",
 
   /**
    * The Manage-App this runtime belongs to. Set = people sign in there, tenants come from its
@@ -201,17 +207,26 @@ export const env = {
   geocoderUrl: str("GEOCODER_URL"),
   /** CDP endpoint of a Chromium (the engenty-browser image); else a local Chrome is launched. */
   browserCdpUrl: str("BROWSER_CDP_URL"),
+  /** The browser the setup and `wizards doctor` found (render/browser-path.ts). */
   chromePath: str(
     "CHROME_PATH",
-    process.platform === "darwin"
-      ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-      : "/usr/bin/chromium",
+    findChrome({ PATH: process.env.PATH }) ??
+      (process.platform === "darwin"
+        ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        : "/usr/bin/chromium"),
   ),
   /** Encodes widget animations to MP4; without it widgets offer no video. */
   ffmpegPath: str("FFMPEG_PATH", "ffmpeg"),
-  /** What runs an agent's shell and code: a Docker container, an agentOS VM, or nothing. */
-  sandbox: sandboxEngine(sandboxImage),
+  /**
+   * The engine that runs an agent's shell and code (sandbox/index.ts): `off`, an engine's name,
+   * or empty for the first one that is ready here.
+   */
+  sandbox: str("SANDBOX_ENABLED", "1") === "1" ? str("SANDBOX").toLowerCase() : "off",
   sandboxImage,
+  /** Where `wizards sandbox add` installs the engines that aren't part of the runtime. */
+  sandboxEngines: enginesDir(),
+  /** Hosts an agentOS sandbox reaches besides the npm and PyPI registries: `api.example.com`. */
+  sandboxHosts: list("SANDBOX_ALLOW_HOSTS"),
 
   /** Assets and workspace files in an S3-compatible bucket (R2); empty = the data folder. */
   s3: {
@@ -225,7 +240,7 @@ export const env = {
   turnstile: { siteKey: str("TURNSTILE_SITE_KEY"), secret: str("TURNSTILE_SECRET_KEY") },
 
   /**
-   * The mobile app (apps/mobile): a phone opens this runtime's `/w/` and `/s/` links in it.
+   * The mobile app (the apps repo engenty-wizards-apps, mobile/): a phone opens this runtime's `/w/` and `/s/` links in it.
    * Served as /.well-known/apple-app-site-association and /.well-known/assetlinks.json.
    */
   mobile: {

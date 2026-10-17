@@ -1,8 +1,0 @@
-{
-  "id": "whatsapp",
-  "name": "WhatsApp",
-  "version": "0.1.0",
-  "description": "Runs wizards in a WhatsApp thread: a keyword on the tenant's business number starts one, the fields come one message at a time with buttons and lists, photos and files are sent in the chat, and what the wizard makes arrives as pictures, documents and links. Talks to Meta's WhatsApp Cloud API with the tenant's own number and token; keeps the threads in the tenant's database.",
-  "kind": "module",
-  "provides": ["runner.whatsapp"]
-}

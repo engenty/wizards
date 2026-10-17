@@ -44,7 +44,7 @@ const fetching = new Map<string, Promise<string>>();
 export function platformSkills(name: string): Promise<string> {
   const pkg = PLATFORM_SKILLS[name];
   if (!pkg) {
-    return Promise.reject(new Error(`Das Skill-Paket „${name}“ gibt es nicht.`));
+    return Promise.reject(new Error(`There is no skill package “${name}”.`));
   }
   const dir = join(env.dataDir, "skills", `${pkg.name}@${pkg.version.slice(0, 12)}`);
   if (existsSync(join(dir, ".complete"))) {
@@ -61,7 +61,7 @@ export function platformSkills(name: string): Promise<string> {
 async function fetchPackage(pkg: SkillPackage, dir: string): Promise<string> {
   const res = await fetch(pkg.tarball);
   if (!res.ok) {
-    throw new Error(`Das Skill-Paket „${pkg.name}“ konnte nicht geladen werden (${res.status}).`);
+    throw new Error(`The skill package “${pkg.name}” could not be loaded (${res.status}).`);
   }
   const tmp = `${dir}.part`;
   await rm(tmp, { recursive: true, force: true });

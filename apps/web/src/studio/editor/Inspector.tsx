@@ -1,8 +1,10 @@
+import { DataMenu, editableData, HtmlFrame, JsonSchemaDialog } from "@engenty-wizards/runner";
 import {
   ASPECT_RATIOS,
   CONDITION_OPS,
   type Condition,
   conditionsOf,
+  declaredShape,
   ENGENTY_KINDS,
   FIELD_KINDS,
   type Field,
@@ -10,20 +12,27 @@ import {
   formatsFor,
   isDecisionStep,
   isOtherwise,
+  isRealLanguage,
+  langName,
   type NextRule,
+  outputKeys,
   type PageStep,
   type Step,
+  stepShape,
   TOOL_IDS,
   VIDEO_RESOLUTIONS,
   type VideoResolution,
+  WIZARD_LANGS,
   type WizardDefinition,
 } from "@engenty-wizards/shared/definition";
+import { readNumber } from "@engenty-wizards/shared/numbers";
 import type { BranchDecision, RunEstimate } from "@engenty-wizards/shared/run";
 import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowUp,
+  Braces,
   CalendarClock,
   ChevronDown,
   ChevronLeft,
@@ -39,9 +48,8 @@ import {
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { withBase } from "@/lib/base";
 import { Mascot } from "../../brand";
-import { t } from "../../lib/i18n";
+import { lang, t } from "../../lib/i18n";
 import { useStudioPlugins } from "../../plugins/host";
-import { HtmlFrame } from "../../runner/outputs";
 import {
   Button,
   cn,
@@ -75,27 +83,7 @@ type Update = (next: WizardDefinition) => void;
 /** The conversation, for what the step panel asks the assistant to build. */
 const Assistant = createContext<StepAssistant | undefined>(undefined);
 
-const FIELD_KIND_LABEL: Record<string, string> = {
-  text: "Kurzer Text",
-  textarea: "Langer Text",
-  number: "Zahl",
-  select: "Auswahl",
-  multiselect: "Mehrfachauswahl",
-  date: "Datum",
-  email: "E-Mail",
-  url: "Link",
-  toggle: "Ja/Nein",
-  color: "Farbe",
-  image: "Bild-Upload",
-  file: "Datei-Upload",
-  items: "Positionen (Tabelle)",
-  connection: "Konto verbinden",
-  list: "Gespeicherte Liste",
-  location: "Standort",
-  audio: "Sprachnotiz",
-  signature: "Unterschrift",
-  slot: "Termin",
-};
+const fieldKindLabel = (kind: Field["kind"]) => t(`inspector.kind.${kind}`);
 
 /** Kinds that show an icon beside their name in a field's header. */
 const FIELD_KIND_ICON: Partial<Record<Field["kind"], typeof CalendarClock>> = {
@@ -167,7 +155,7 @@ function conditionSources(def: WizardDefinition, page: PageStep, field: Field): 
     if (s.type === "page") {
       out.push(...s.fields.map((f) => f.id));
     } else if (s.type === "agent") {
-      out.push(...(s.output.fields ?? []).map((f) => `steps.${s.id}.${f.id}`));
+      out.push(...outputKeys(s).map((k) => `steps.${s.id}.${k}`));
     }
   }
   out.push(...page.fields.filter((f) => f.id !== field.id).map((f) => f.id));
@@ -183,11 +171,15 @@ function optionSources(def: WizardDefinition, page: PageStep): string[] {
     if (s.type !== "agent") {
       continue;
     }
-    for (const f of s.output.fields ?? []) {
-      if (f.kind === "list") {
-        out.push(`steps.${s.id}.${f.id}`);
+    for (const [key, f] of Object.entries(declaredShape(s)?.fields ?? {})) {
+      if (f.kind === "list" && f.of.kind === "object") {
+        // A list of entries: one of their keys that holds a word or a number.
+        const flat = Object.entries(f.of.fields).filter(([, c]) => c.kind !== "list");
+        out.push(...flat.map(([c]) => `steps.${s.id}.${key}.${c}`));
+      } else if (f.kind === "list") {
+        out.push(`steps.${s.id}.${key}`);
       } else if (f.kind === "table") {
-        out.push(...(f.columns ?? []).map((c) => `steps.${s.id}.${f.id}.${c}`));
+        out.push(...(f.columns ?? []).map((c) => `steps.${s.id}.${key}.${c}`));
       }
     }
   }
@@ -277,7 +269,7 @@ function ConditionEditor({
                   first.op === "in"
                     ? raw.split(",").map((x) => x.trim())
                     : first.op === "gt" || first.op === "lt"
-                      ? Number(raw.replace(",", ".")) || 0
+                      ? (readNumber(raw) ?? 0)
                       : raw === "true" || raw === "false"
                         ? raw === "true"
                         : raw;
@@ -326,7 +318,7 @@ function FieldEditor({
         </span>
         <span className="inline-flex items-center gap-1 text-[0.75rem] text-ink-4">
           {KindIcon ? <KindIcon className="size-3.5" /> : null}
-          {FIELD_KIND_LABEL[field.kind]}
+          {fieldKindLabel(field.kind)}
         </span>
         <ChevronDown className={cn("size-4 text-ink-4 transition", open && "rotate-180")} />
       </button>
@@ -340,7 +332,7 @@ function FieldEditor({
             value={field.kind}
             onChange={(v) => onChange(withKind(field, v as Field["kind"]))}
             options={FIELD_KINDS.filter((k) => k !== "items" || field.kind === "items").map(
-              (k) => ({ value: k, label: FIELD_KIND_LABEL[k] }),
+              (k) => ({ value: k, label: fieldKindLabel(k) }),
             )}
           />
           {(field.kind === "select" || field.kind === "multiselect" || field.kind === "slot") &&
@@ -379,7 +371,7 @@ function FieldEditor({
           {field.kind === "connection" ? (
             <Select
               value={field.connection ?? ""}
-              placeholder="Welches Konto?"
+              placeholder={t("inspector.whichAccount")}
               onChange={(v) => onChange({ ...field, connection: v })}
               options={(def.connections ?? []).map((c) => ({
                 value: c.id,
@@ -390,14 +382,14 @@ function FieldEditor({
           {field.kind === "list" ? (
             <Select
               value={field.list ?? ""}
-              placeholder="Welche Liste?"
+              placeholder={t("inspector.whichList")}
               onChange={(v) => onChange({ ...field, list: v })}
               options={(def.lists ?? []).map((l) => ({ value: l.id, label: l.title }))}
             />
           ) : null}
           {field.kind === "image" || field.kind === "file" ? (
             <div className="flex items-center justify-between">
-              <span className="text-[0.8125rem] text-ink-2">Mehrere Dateien</span>
+              <span className="text-[0.8125rem] text-ink-2">{t("inspector.multipleFiles")}</span>
               <Switch
                 checked={Boolean(field.multiple)}
                 onChange={(v) =>
@@ -412,7 +404,7 @@ function FieldEditor({
           ) : null}
           {(field.kind === "image" || field.kind === "file") && field.multiple ? (
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[0.8125rem] text-ink-2">Wie viele?</span>
+              <span className="text-[0.8125rem] text-ink-2">{t("inspector.howMany")}</span>
               <div className="flex items-center gap-1.5">
                 {(["min", "max"] as const).map((key) => (
                   <Input
@@ -420,7 +412,7 @@ function FieldEditor({
                     type="number"
                     min={1}
                     max={30}
-                    aria-label={key === "min" ? "Mindestens" : "Höchstens"}
+                    aria-label={t(key === "min" ? "inspector.atLeast" : "inspector.atMost")}
                     placeholder={key === "min" ? "min." : "max."}
                     value={field[key] ?? ""}
                     onChange={(e) => {
@@ -438,7 +430,7 @@ function FieldEditor({
           ) : null}
           {field.kind === "file" ? (
             <div className="flex items-center justify-between">
-              <span className="text-[0.8125rem] text-ink-2">Auch mit der Kamera aufnehmen</span>
+              <span className="text-[0.8125rem] text-ink-2">{t("inspector.camera")}</span>
               <Switch
                 checked={Boolean(field.camera)}
                 onChange={(v) => onChange({ ...field, camera: v || undefined })}
@@ -447,9 +439,7 @@ function FieldEditor({
           ) : null}
           {field.kind === "file" ? (
             <div className="flex items-center justify-between">
-              <span className="text-[0.8125rem] text-ink-2">
-                Kamera nimmt auch kurze Videos auf
-              </span>
+              <span className="text-[0.8125rem] text-ink-2">{t("inspector.cameraVideo")}</span>
               <Switch
                 checked={Boolean(field.video)}
                 onChange={(v) => onChange({ ...field, video: v || undefined })}
@@ -458,7 +448,7 @@ function FieldEditor({
           ) : null}
           {field.kind === "text" ? (
             <div className="flex items-center justify-between">
-              <span className="text-[0.8125rem] text-ink-2">QR- oder Barcode scannen</span>
+              <span className="text-[0.8125rem] text-ink-2">{t("inspector.scan")}</span>
               <Switch
                 checked={Boolean(field.scan)}
                 onChange={(v) => onChange({ ...field, scan: v || undefined })}
@@ -467,13 +457,13 @@ function FieldEditor({
           ) : null}
           {["text", "textarea", "number", "email", "url", "location"].includes(field.kind) ? (
             <Input
-              placeholder="Platzhalter"
+              placeholder={t("inspector.placeholder")}
               value={field.placeholder ?? ""}
               onChange={(e) => onChange({ ...field, placeholder: e.target.value || undefined })}
             />
           ) : null}
           <Input
-            placeholder="Hilfetext"
+            placeholder={t("inspector.help")}
             value={field.help ?? ""}
             onChange={(e) => onChange({ ...field, help: e.target.value || undefined })}
           />
@@ -507,7 +497,11 @@ function FieldEditor({
               <IconButton label={t("editor.moveDown")} onClick={() => onMove(1)} className="size-8">
                 <ArrowDown className="size-3.5" />
               </IconButton>
-              <IconButton label="Entfernen" onClick={onRemove} className="size-8 hover:text-rose">
+              <IconButton
+                label={t("common.remove")}
+                onClick={onRemove}
+                className="size-8 hover:text-rose"
+              >
                 <Trash2 className="size-3.5" />
               </IconButton>
             </div>
@@ -532,7 +526,7 @@ function dataSources(def: WizardDefinition, index: number): string[] {
     if (s.type === "page") {
       out.push(...s.fields.map((f) => f.id));
     } else if (s.type === "agent") {
-      out.push(`steps.${s.id}`, ...(s.output.fields ?? []).map((f) => `steps.${s.id}.${f.id}`));
+      out.push(`steps.${s.id}`, ...outputKeys(s).map((k) => `steps.${s.id}.${k}`));
     } else if (s.type === "generate" || s.type === "widget" || s.type === "surface") {
       out.push(`steps.${s.id}`);
     }
@@ -569,7 +563,7 @@ function WidgetBody({
   const hasEntry = files.some((f) => f.path === step.entry);
   return (
     <>
-      <Section title="Vorschau mit Beispieldaten">
+      <Section title={t("inspector.widgetPreview")}>
         {hasEntry ? (
           <HtmlFrame
             src={withBase(
@@ -583,8 +577,8 @@ function WidgetBody({
           <WidgetMissing step={step} wizardId={wizardId} />
         )}
       </Section>
-      <Section title="Widget">
-        <Label>HTML-Datei</Label>
+      <Section title={t("type.widget")}>
+        <Label>{t("inspector.htmlFile")}</Label>
         <Select
           value={step.entry}
           onChange={(v) => set({ ...step, entry: v })}
@@ -593,16 +587,16 @@ function WidgetBody({
             : [{ path: step.entry }, ...html]
           ).map((f) => ({ value: f.path, label: f.path }))}
         />
-        <Label>Beispieldaten</Label>
+        <Label>{t("inspector.sample")}</Label>
         <Select
           value={step.sample ?? ""}
           onChange={(v) => set({ ...step, sample: v || undefined })}
           options={[
-            { value: "", label: "keine" },
+            { value: "", label: t("inspector.none") },
             ...json.map((f) => ({ value: f.path, label: f.path })),
           ]}
         />
-        <Label>Größe</Label>
+        <Label>{t("inspector.size")}</Label>
         <Segmented
           value={
             WIDGET_SIZES.find((p) => p.width === size.width && p.height === size.height)?.label ??
@@ -617,7 +611,7 @@ function WidgetBody({
           }}
         />
       </Section>
-      <Section title="Daten für das Widget">
+      <Section title={t("inspector.widgetData")}>
         <datalist id={`sources-${step.id}`}>
           {sources.map((s) => (
             <option key={s} value={s} />
@@ -652,11 +646,11 @@ function WidgetBody({
         <button
           type="button"
           onClick={() =>
-            setData([...entries, [`wert${entries.length + 1}`, sources[0] ?? "today"]])
+            setData([...entries, [`value${entries.length + 1}`, sources[0] ?? "today"]])
           }
           className="inline-flex h-8 items-center gap-1 self-start rounded-full px-2.5 text-[0.75rem] text-ink-2 hover:bg-accent"
         >
-          <Plus className="size-3.5" /> Wert
+          <Plus className="size-3.5" /> {t("inspector.value")}
         </button>
       </Section>
     </>
@@ -707,7 +701,7 @@ function WidgetMissing({
       const res = await fetch(withBase(`/api/studio/wizards/${wizardId}/files/${path}`), {
         method: "PUT",
         credentials: "include",
-        headers: { "content-type": "text/html" },
+        headers: { "content-type": "text/html", "accept-language": lang },
         body: file,
       });
       if (!res.ok) {
@@ -798,7 +792,7 @@ function StepBody({
       );
     case "page":
       return (
-        <Section title="Fragen" loose>
+        <Section title={t("inspector.questions")} loose>
           <div className="flex flex-col gap-2">
             {step.fields.map((f, i) => (
               <FieldEditor
@@ -833,13 +827,13 @@ function StepBody({
                   ...step,
                   fields: [
                     ...step.fields,
-                    { id: uniqueId(def, "frage"), label: "Neue Frage", kind: "text" },
+                    { id: uniqueId(def, "question"), label: t("step.new.question"), kind: "text" },
                   ],
                 })
               }
               className="inline-flex h-9 items-center gap-1.5 self-start rounded-full px-3 text-[0.8125rem] text-ink-2 hover:bg-accent"
             >
-              <Plus className="size-4" /> Frage hinzufügen
+              <Plus className="size-4" /> {t("inspector.addQuestion")}
             </button>
           )}
         </Section>
@@ -847,7 +841,7 @@ function StepBody({
     case "agent":
       return (
         <>
-          <Section title="Auftrag">
+          <Section title={t("inspector.task")}>
             <Textarea
               value={step.instructions}
               minRows={6}
@@ -856,11 +850,12 @@ function StepBody({
               className="text-[0.875rem]"
             />
             <p className="text-[0.75rem] text-ink-4">
-              Antworten einsetzen mit <code className="font-mono">{"{{feld}}"}</code>, frühere
-              Ergebnisse mit <code className="font-mono">{"{{steps.id}}"}</code>.
+              {t("inspector.insertAnswers")}{" "}
+              <code className="font-mono">{`{{${t("inspector.insertField")}}}`}</code>
+              {t("inspector.insertResults")} <code className="font-mono">{"{{steps.id}}"}</code>.
             </p>
           </Section>
-          <Section title="Werkzeuge">
+          <Section title={t("inspector.tools")}>
             <Segmented
               multi
               value={step.tools}
@@ -884,8 +879,8 @@ function StepBody({
             </div>
             {def.connections?.length ? (
               <>
-                <Label hint="Konten, die die Person im Durchlauf verbindet. Der Schritt liest darin, er schreibt nie.">
-                  Konten der Person
+                <Label hint={t("inspector.personAccountsHint")}>
+                  {t("inspector.personAccounts")}
                 </Label>
                 <Segmented
                   multi
@@ -899,9 +894,7 @@ function StepBody({
             ) : null}
             {mcpServers.length ? (
               <>
-                <Label hint="Nur freigegebene Systeme sind in diesem Schritt erreichbar.">
-                  Verbundene Systeme
-                </Label>
+                <Label hint={t("inspector.systemsHint")}>{t("inspector.systems")}</Label>
                 <Segmented
                   multi
                   value={step.mcp ?? []}
@@ -911,7 +904,7 @@ function StepBody({
               </>
             ) : null}
           </Section>
-          <Section title="Ergebnis">
+          <Section title={t("inspector.output")}>
             <Segmented
               value={step.output.format}
               options={["text", "markdown", "json"]}
@@ -925,7 +918,7 @@ function StepBody({
               onChange={(next) => set({ ...step, ...next })}
             />
             <Input
-              placeholder="Text während der Arbeit, z. B. „Recherchiert …“"
+              placeholder={t("inspector.working")}
               value={step.working ?? ""}
               onChange={(e) => set({ ...step, working: e.target.value || undefined })}
             />
@@ -935,7 +928,7 @@ function StepBody({
     case "generate":
       return (
         <>
-          <Section title="Was wird erzeugt?">
+          <Section title={t("inspector.whatMade")}>
             <Segmented
               value={step.asset}
               options={["image", "video", "voice", "document", "dashboard"]}
@@ -949,7 +942,7 @@ function StepBody({
               className="text-[0.875rem]"
             />
           </Section>
-          <Section title="Optionen">
+          <Section title={t("inspector.options")}>
             {step.asset === "document" || step.asset === "dashboard" ? (
               <ModelClassControl
                 model={step.model}
@@ -959,7 +952,7 @@ function StepBody({
             ) : null}
             {step.asset === "image" || step.asset === "video" ? (
               <>
-                <Label>Format</Label>
+                <Label>{t("inspector.aspectRatio")}</Label>
                 <Segmented
                   value={step.options?.aspectRatio ?? ""}
                   options={[...ASPECT_RATIOS]}
@@ -968,7 +961,7 @@ function StepBody({
                   }
                 />
                 <Input
-                  placeholder="Stil, z. B. „helle Fotografie, minimalistisch“"
+                  placeholder={t("inspector.style")}
                   value={step.options?.style ?? ""}
                   onChange={(e) =>
                     set({
@@ -981,7 +974,7 @@ function StepBody({
             ) : null}
             {step.asset === "video" ? (
               <>
-                <Label>Länge (Sekunden)</Label>
+                <Label>{t("inspector.duration")}</Label>
                 <Segmented
                   value={String(step.options?.duration ?? 8)}
                   options={["4", "6", "8", "10"]}
@@ -989,7 +982,7 @@ function StepBody({
                     set({ ...step, options: { ...step.options, duration: Number(v) } })
                   }
                 />
-                <Label>Auflösung</Label>
+                <Label>{t("inspector.resolution")}</Label>
                 <Segmented
                   value={step.options?.resolution ?? "720p"}
                   options={[...VIDEO_RESOLUTIONS]}
@@ -1001,7 +994,7 @@ function StepBody({
             ) : null}
             {step.asset === "document" ? (
               <>
-                <Label>Vorlage</Label>
+                <Label>{t("inspector.template")}</Label>
                 <Select
                   value={step.options?.template ?? "free"}
                   onChange={(v) =>
@@ -1018,7 +1011,7 @@ function StepBody({
       );
     case "review":
       return (
-        <Section title="Was wird gezeigt?">
+        <Section title={t("inspector.whatShown")}>
           <Segmented
             multi
             value={step.show}
@@ -1026,11 +1019,11 @@ function StepBody({
             onChange={(v: string[]) => v.length && set({ ...step, show: v })}
           />
           <div className="flex items-center justify-between">
-            <span className="text-[0.8125rem] text-ink-2">Text direkt bearbeitbar</span>
+            <span className="text-[0.8125rem] text-ink-2">{t("inspector.editable")}</span>
             <Switch checked={Boolean(step.edit)} onChange={(v) => set({ ...step, edit: v })} />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[0.8125rem] text-ink-2">Neue Variante anfordern</span>
+            <span className="text-[0.8125rem] text-ink-2">{t("inspector.redo")}</span>
             <Switch
               checked={Boolean(step.regenerate)}
               onChange={(v) => set({ ...step, regenerate: v })}
@@ -1041,15 +1034,15 @@ function StepBody({
     case "result":
       return (
         <>
-          <Section title="Abschluss">
+          <Section title={t("inspector.ending")}>
             <Textarea
               minRows={2}
-              placeholder="Nachricht am Ende"
+              placeholder={t("inspector.endMessage")}
               value={step.message ?? ""}
               onChange={(e) => set({ ...step, message: e.target.value || undefined })}
             />
           </Section>
-          <Section title="Downloads">
+          <Section title={t("inspector.downloads")}>
             {earlierProducers.map((s) => {
               const d = step.deliverables.find((x) => x.from === s.id);
               const possible = formatsFor(s);
@@ -1102,11 +1095,11 @@ export function WizardSettings({ def, update }: { def: WizardDefinition; update:
     <div>
       <Section>
         <div>
-          <Label>Titel</Label>
+          <Label>{t("inspector.title")}</Label>
           <Input value={def.title} onChange={(e) => update({ ...def, title: e.target.value })} />
         </div>
         <div>
-          <Label>Beschreibung</Label>
+          <Label>{t("inspector.description")}</Label>
           <Textarea
             minRows={2}
             value={def.description}
@@ -1114,15 +1107,28 @@ export function WizardSettings({ def, update }: { def: WizardDefinition; update:
           />
         </div>
         <div>
-          <Label hint="Steht über der ersten Seite.">Begrüßung</Label>
+          <Label hint={t("inspector.introHint")}>{t("inspector.intro")}</Label>
           <Textarea
             minRows={2}
             value={def.intro ?? ""}
             onChange={(e) => update({ ...def, intro: e.target.value || undefined })}
           />
         </div>
+        <div>
+          <Label hint={t("inspector.langHint")}>{t("inspector.lang")}</Label>
+          <Select
+            value={def.lang ?? ""}
+            onChange={(v) => update({ ...def, lang: isRealLanguage(v) ? v : undefined })}
+            options={[
+              { value: "", label: t("inspector.langAuto") },
+              ...[...new Set([...WIZARD_LANGS, ...(def.lang ? [def.lang] : [])])]
+                .map((code) => ({ value: code, label: langName(code) }))
+                .sort((a, b) => a.label.localeCompare(b.label)),
+            ]}
+          />
+        </div>
       </Section>
-      <Section title="Avatar">
+      <Section title={t("inspector.avatar")}>
         <div className="grid grid-cols-5 gap-2">
           {ENGENTY_KINDS.map((k) => (
             <button
@@ -1141,22 +1147,21 @@ export function WizardSettings({ def, update }: { def: WizardDefinition; update:
         </div>
       </Section>
       {def.lists?.length || def.connections?.length ? (
-        <Section title="Merkt sich für jede Person">
-          <p className="text-[0.8125rem] text-ink-3">
-            Bleibt zwischen den Durchläufen erhalten – getrennt für jede Person, die den Wizard
-            nutzt. Ändern kannst du das im Gespräch.
-          </p>
+        <Section title={t("inspector.remembers")}>
+          <p className="text-[0.8125rem] text-ink-3">{t("inspector.remembersHint")}</p>
           {(def.connections ?? []).map((c) => (
             <div key={c.id} className="rounded-lg bg-paper px-3 py-2.5 ring-1 ring-border-soft">
               <div className="text-[0.875rem]">{c.title ?? c.id}</div>
-              <div className="text-[0.75rem] text-ink-4">Konto · {c.kind}</div>
+              <div className="text-[0.75rem] text-ink-4">
+                {t("inspector.account")} · {c.kind}
+              </div>
             </div>
           ))}
           {(def.lists ?? []).map((l) => (
             <div key={l.id} className="rounded-lg bg-paper px-3 py-2.5 ring-1 ring-border-soft">
               <div className="text-[0.875rem]">{l.title}</div>
               <div className="text-[0.75rem] text-ink-4">
-                Liste · {l.columns.map((c) => c.name).join(", ")}
+                {t("inspector.list")} · {l.columns.map((c) => c.name).join(", ")}
               </div>
               <div className="mt-1 font-mono text-[0.6875rem] text-ink-4">{`{{lists.${l.id}}}`}</div>
             </div>
@@ -1385,6 +1390,7 @@ function StepInspector({
   /** Where a step added here goes: after this one, or before the result. */
   const at = step.type === "result" ? index : index + 1;
   const [addOpen, setAddOpen] = useState(false);
+  const [schemaOpen, setSchemaOpen] = useState(false);
   // Another step, another place: the panel starts closed.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset per step
   useEffect(() => setAddOpen(false), [step.id]);
@@ -1435,6 +1441,26 @@ function StepInspector({
           {typeLabel(step)}
         </span>
         <span className="ml-auto font-mono text-[0.6875rem] text-ink-4">{step.id}</span>
+        {/* For developers: the JSON Schema of the step's data, to read, copy or download. */}
+        {editableData(step) ? (
+          <>
+            <DataMenu
+              items={[
+                {
+                  label: t("data.schema"),
+                  icon: <Braces className="size-4 shrink-0" />,
+                  onClick: () => setSchemaOpen(true),
+                },
+              ]}
+            />
+            <JsonSchemaDialog
+              shape={stepShape(step)}
+              title={step.title}
+              open={schemaOpen}
+              onClose={() => setSchemaOpen(false)}
+            />
+          </>
+        ) : null}
       </div>
       {stepIssues.length ? (
         <div className="mx-5 mb-4 rounded-lg bg-rose-tint px-3 py-2 text-[0.8125rem] text-rose">
@@ -1452,7 +1478,7 @@ function StepInspector({
         {step.type === "page" || step.type === "review" ? (
           <Textarea
             minRows={1}
-            placeholder="Erklärung unter dem Titel (optional)"
+            placeholder={t("inspector.stepDescription")}
             value={step.description ?? ""}
             onChange={(e) => set({ ...step, description: e.target.value || undefined })}
           />
@@ -1559,10 +1585,10 @@ function branchSources(def: WizardDefinition, step: Step): string[] {
     if (s.type === "page") {
       out.push(...s.fields.map((f) => f.id));
     } else if (s.type === "agent") {
-      for (const f of s.output.fields ?? []) {
-        out.push(`steps.${s.id}.${f.id}`);
+      for (const key of outputKeys(s)) {
+        out.push(`steps.${s.id}.${key}`);
         if (isDecisionStep(s)) {
-          out.push(`steps.${s.id}.${f.id}.p`);
+          out.push(`steps.${s.id}.${key}.p`);
         }
       }
     }
@@ -1632,7 +1658,7 @@ function StepOverview({
               {t("nav.credits", {
                 n:
                   cost < 10
-                    ? cost.toLocaleString(undefined, { maximumFractionDigits: 1 })
+                    ? cost.toLocaleString(lang, { maximumFractionDigits: 1 })
                     : Math.round(cost),
               })}
             </span>

@@ -7,10 +7,10 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
+import { useMediaQuery } from "../lib/media";
 import { cn } from "../ui";
 
 /**
@@ -53,17 +53,9 @@ export function useDetail(label: string | null) {
   }, [label, setDetail]);
 }
 
-const NARROW = "(max-width: 767px)";
-
-function onNarrowChange(listener: () => void) {
-  const query = window.matchMedia(NARROW);
-  query.addEventListener("change", listener);
-  return () => query.removeEventListener("change", listener);
-}
-
 /** Below `md` the menus and the page take turns. */
 export function useNarrow(): boolean {
-  return useSyncExternalStore(onNarrowChange, () => window.matchMedia(NARROW).matches);
+  return useMediaQuery("(max-width: 767px)");
 }
 
 /** The entrance of a level: deeper from the right, back from the left, as in engenty-pro. */
@@ -84,41 +76,45 @@ export interface LevelEntry {
 }
 
 /**
- * The left container's top row: the back arrow (one level down only) and the level's name —
- * `title` above, the entry that is open one level down.
+ * The left container's top row: the back arrow and the level's name — `title` above, the entry
+ * that is open one level down. `root`: the upper level has a name and a way back of its own too,
+ * and shows them as one level down does.
  */
 export function LevelHead({
   title,
   open,
   onBack,
+  root,
 }: {
   title: string;
   open: LevelEntry | null;
   onBack: () => void;
+  root?: { icon: Icon; label: string; backLabel: string; onBack: () => void };
 }) {
+  const shown = open ?? root ?? null;
   return (
     <div className="mb-2 flex h-9 min-w-0 items-center px-1">
       <div
         className={cn(
           "shrink-0 overflow-hidden transition-[width,margin,opacity] duration-200 ease-out",
-          open ? "-ml-1.5 mr-0.5 w-8 opacity-100" : "w-0 opacity-0",
+          shown ? "-ml-1.5 mr-0.5 w-8 opacity-100" : "w-0 opacity-0",
         )}
       >
         <button
           type="button"
-          onClick={onBack}
-          aria-hidden={!open}
-          tabIndex={open ? undefined : -1}
-          aria-label={title}
+          onClick={open ? onBack : root?.onBack}
+          aria-hidden={!shown}
+          tabIndex={shown ? undefined : -1}
+          aria-label={open ? title : root?.backLabel}
           className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-accent hover:text-ink"
         >
           <ArrowLeft className="size-4" />
         </button>
       </div>
-      {open ? (
+      {shown ? (
         <span className="flex min-w-0 items-center gap-2 font-medium text-[0.875rem]">
-          <open.icon className="size-4 shrink-0 text-ember-strong" />
-          <span className="truncate">{open.label}</span>
+          <shown.icon className="size-4 shrink-0 text-ember-strong" />
+          <span className="truncate">{shown.label}</span>
         </span>
       ) : (
         <span className="truncate font-medium text-[0.875rem]">{title}</span>
@@ -256,7 +252,7 @@ export function MenuRow({
   disabled,
   onPick,
 }: {
-  icon: LucideIcon;
+  icon: Icon;
   label: string;
   badge?: ReactNode;
   tone?: MenuTone;

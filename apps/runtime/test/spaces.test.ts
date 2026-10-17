@@ -70,6 +70,10 @@ const manage: Server = createServer(async (req, res) => {
   if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) {
     return json({ error: "unauthorized", code: "unauthorized" }, 401);
   }
+  // Every grant behind a token here still stands.
+  if (url.pathname === "/v1/grants/check") {
+    return json({ active: true });
+  }
   const tenant = url.pathname.match(/^\/v1\/tenants\/([^/]+)$/)?.[1];
   if (tenant) {
     return json({

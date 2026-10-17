@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { type Lang, SPEECH_LOCALES } from "@engenty-wizards/shared/definition";
 import { generateText, experimental_transcribe as transcribe } from "ai";
 import { type CallMeta, costOf, listenerModel, transcriptionCostUsd } from "../models.js";
 import { ffmpeg, hasFfmpeg, probeMedia, withTempDir } from "./ffmpeg.js";
@@ -21,6 +22,8 @@ export async function transcribeAudio(input: {
   mediaType: string;
   abortSignal?: AbortSignal;
   call?: CallMeta;
+  /** The language the note is most likely in; a model that listens in one language takes it. */
+  language?: Lang;
 }): Promise<Transcript> {
   const listener = await listenerModel(input.call);
   // A transcription model (ElevenLabs Scribe, Whisper) writes down what is said by itself.
@@ -29,10 +32,16 @@ export async function transcribeAudio(input: {
       model: listener.resolved.model,
       audio: input.bytes,
       abortSignal: input.abortSignal,
+      ...(input.language
+        ? { providerOptions: { apple: { locale: SPEECH_LOCALES[input.language] } } }
+        : {}),
     });
     return {
       text: result.text.trim(),
-      costUsd: transcriptionCostUsd(result.durationInSeconds ?? 60),
+      costUsd:
+        listener.resolved.vendor === "apple"
+          ? 0
+          : transcriptionCostUsd(result.durationInSeconds ?? 60),
     };
   }
   // Else the audio class is bound to a chat model that takes audio files.

@@ -2,13 +2,14 @@ import { spawn } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Effort } from "@engenty-wizards/shared/definition";
+import type { RunNote } from "@engenty-wizards/shared/run";
+import { note } from "@engenty-wizards/shared/run";
 import type { ImageModel, LanguageModel } from "ai";
 import { nanoid } from "nanoid";
 import { env } from "../env.js";
 import { type BridgeTool, openBridge } from "../mcp/bridge.js";
 import { ModelUnavailableError } from "../model-errors.js";
 import { extensionOf, jsonInstruction, parseJsonAnswer, renderPrompt } from "./prompt.js";
-import type { Harness } from "./types.js";
 
 /**
  * An installed AI client as a model: every call runs the client once, headless, on the person's
@@ -60,17 +61,20 @@ export interface HarnessAnswer {
   stopReason?: string;
 }
 
-export type HarnessMeta = Pick<Harness, "id" | "name" | "exhausted">;
+/** Who answers, as a failure names it: an installed client, or Apple Intelligence (./apple.ts). */
+export interface HarnessMeta {
+  id: string;
+  name: string;
+  exhausted?: RunNote;
+}
 
 const workDir = join(env.dataDir, "harness");
 
-export const signedOut = (h: HarnessMeta) =>
-  `${h.name} ist auf diesem Gerät nicht angemeldet. Melde dich in den Einstellungen unter „Modelle & Konto“ an.`;
-export const notInstalled = (h: HarnessMeta) =>
-  `${h.name} ist auf diesem Gerät nicht installiert. Installiere es in den Einstellungen unter „Modelle & Konto“.`;
+export const signedOut = (h: HarnessMeta) => note("clientNotSignedIn", { name: h.name });
+export const notInstalled = (h: HarnessMeta) => note("clientNotInstalled", { name: h.name });
+export const notServed = (h: HarnessMeta) => note("clientAccountNotServed", { name: h.name });
 export const exhausted = (h: HarnessMeta) =>
-  h.exhausted ??
-  `Das Konto, mit dem ${h.name} angemeldet ist, hat kein Guthaben oder Kontingent mehr.`;
+  h.exhausted ?? note("clientNoCredit", { name: h.name });
 
 /** The failure a client reports, as the person should read it. */
 export function failureOf(h: HarnessMeta, detail: string): Error {
@@ -82,6 +86,11 @@ export function failureOf(h: HarnessMeta, detail: string): Error {
     )
   ) {
     return new ModelUnavailableError(exhausted(h));
+  }
+  // Signed in, but the vendor no longer serves that account with this client: signing in again
+  // with the same account changes nothing.
+  if (/IneligibleTier|no longer supported|UNSUPPORTED_CLIENT|not eligible/i.test(detail)) {
+    return new ModelUnavailableError(notServed(h));
   }
   if (
     /authenticat|log ?in|logged in|oauth|credential|unauthori[sz]ed|\b401\b|api key/i.test(detail)
@@ -149,6 +158,10 @@ export abstract class HarnessModel implements V3 {
   readonly supportedUrls = {};
   /** Whether the client validates structured output against the schema itself. */
   protected readonly nativeSchema: boolean = false;
+  /** Whether the client runs a call's tools (over the bridge); else they are left out, with a warning. */
+  protected readonly usesTools: boolean = true;
+  /** Whether the client searches the web with a tool of its own, tools of the call or not. */
+  protected readonly searchesWeb: boolean = true;
   protected readonly effort?: Effort;
   protected readonly harness: HarnessMeta;
   private readonly executors = new Map<string, Executor>();
@@ -182,13 +195,13 @@ export abstract class HarnessModel implements V3 {
     const bridged: BridgeTool[] = [];
     let webSearch = false;
     for (const tool of options.tools ?? []) {
-      if (tool.type !== "function") {
-        warnings.push({ type: "unsupported", feature: `tool ${tool.name}` });
+      // The client searches with its own tool; naming `web_search` is what switches it on.
+      if (tool.type === "function" && tool.name === "web_search" && this.searchesWeb) {
+        webSearch = true;
         continue;
       }
-      // The client searches with its own tool; naming `web_search` is what switches it on.
-      if (tool.name === "web_search") {
-        webSearch = true;
+      if (tool.type !== "function" || !this.usesTools) {
+        warnings.push({ type: "unsupported", feature: `tool ${tool.name}` });
         continue;
       }
       const executor = this.executors.get(tool.name);

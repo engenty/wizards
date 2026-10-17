@@ -6,6 +6,7 @@ import {
   type SurfaceStep,
 } from "@engenty-wizards/shared/definition";
 import type { StepOutput } from "@engenty-wizards/shared/run";
+import { note } from "@engenty-wizards/shared/run";
 import { type SurfaceComponent, validateSurface } from "@engenty-wizards/shared/surface";
 import { decide } from "./decide.js";
 import { answersAsText, resolveRef } from "./template.js";
@@ -21,7 +22,7 @@ export async function runSurfaceStep(step: SurfaceStep, ctx: StepContext): Promi
   const components = step.components ?? (await decidedComponents(step, ctx));
   const issues = validateSurface(components, Object.keys(data));
   if (issues.length) {
-    throw new StepError(`Die Ansicht ist fehlerhaft: ${issues.map((i) => i.message).join(" ")}`);
+    throw new StepError(note("viewErrors", { detail: issues.map((i) => i.message).join(" ") }));
   }
   return { surface: { components, data }, at: new Date().toISOString() };
 }

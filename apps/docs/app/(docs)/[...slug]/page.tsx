@@ -9,7 +9,7 @@ import {
 import { createRelativeLink } from "fumadocs-ui/mdx";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { BASE_PATH, githubUrlForPage } from "@/lib/site";
+import { BASE_PATH, githubUrlForPage, releaseUrl } from "@/lib/site";
 import { source } from "@/lib/source";
 import { getMDXComponents } from "@/mdx-components";
 
@@ -28,6 +28,13 @@ export default async function Page(props: PageProps<"/[...slug]">) {
       <div className="flex flex-row items-center gap-2 border-b pb-6">
         <MarkdownCopyButton markdownUrl={markdownUrl} />
         <ViewOptionsPopover markdownUrl={markdownUrl} githubUrl={githubUrlForPage(page.path)} />
+        <a
+          className="ms-auto text-fd-muted-foreground text-xs hover:text-fd-foreground"
+          href={releaseUrl(page.data.version)}
+          title="The release this page was checked against"
+        >
+          v{page.data.version}
+        </a>
       </div>
       <DocsBody>
         <MDX

@@ -5,6 +5,7 @@ import {
   type ProjectFileView,
   projectFileLimit,
 } from "@engenty-wizards/shared/projects";
+import { note } from "@engenty-wizards/shared/run";
 import { generateText } from "ai";
 import { and, asc, count, eq, max } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
@@ -13,6 +14,7 @@ import { loadAsset, removeAsset, replaceAsset, saveAsset } from "../files/storag
 import { embeddingModel, textModel } from "../models.js";
 import { spaceFileChanged } from "../plugins/events.js";
 import { dropLinks, putLink } from "../tenants/control.js";
+import { safeFetch } from "../tools/net-guard.js";
 import { requireWritableProject } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
 import { convertDocument, fillCategories } from "./knowledge-model.js";
@@ -37,7 +39,7 @@ export function fileView(row: ProjectFileRow): ProjectFileView {
     description: row.description,
     source: row.source,
     status: stale ? "failed" : row.status,
-    error: stale ? "Unterbrochen. Bitte neu einlesen." : row.error,
+    error: stale ? "Reading was interrupted. Read it in again." : row.error,
     indexed: row.indexed,
     pages: row.pages,
     chars: row.chars,
@@ -73,12 +75,18 @@ export async function projectFileContent(projectId: string, fileId: string) {
   return { row, data: found.data };
 }
 
+/**
+ * Assets are what wizards put into what they make: pictures, clips, recordings, and files to
+ * hand on as they are — PDFs, fonts, Lottie animations (JSON), 3D models.
+ */
+const ASSET_TYPES = /^((image|video|audio|font)\/|application\/(pdf|json)$|model\/gltf)/;
+
 function accepts(kind: ProjectFileKind, mime: string): boolean {
-  if (kind === "logo") {
+  if (kind === "logo" || kind === "pattern") {
     return mime.startsWith("image/");
   }
   if (kind === "asset") {
-    return /^(image|video|audio)\//.test(mime);
+    return ASSET_TYPES.test(mime);
   }
   return true;
 }
@@ -100,15 +108,17 @@ export async function addProjectFile(
     throw new ServiceError(
       "invalid",
       input.kind === "logo"
-        ? "Ein Logo ist ein Bild (PNG, SVG, JPEG, WebP)."
-        : "Hierher gehören Bilder, Grafiken, Videos und Audio. Anderes bitte zu den Dokumenten.",
+        ? note("logoImagePngSvg")
+        : input.kind === "pattern"
+          ? note("patternImageSvgPng")
+          : note("filesGoHere"),
     );
   }
   const limit = projectFileLimit(input.kind, mime);
   if (!input.data.byteLength || input.data.byteLength > limit) {
     throw new ServiceError(
       "invalid",
-      `Bitte eine Datei bis ${Math.round(limit / 1_000_000)} MB wählen.`,
+      note("chooseFileUpTo", { mb: Math.round(limit / 1_000_000) }),
     );
   }
   const scope = and(
@@ -120,7 +130,10 @@ export async function addProjectFile(
     .from(schema.projectFile)
     .where(scope);
   if (n >= PROJECT_LIMITS.files[input.kind]) {
-    throw new ServiceError("refused", `Höchstens ${PROJECT_LIMITS.files[input.kind]} Dateien.`);
+    throw new ServiceError(
+      "refused",
+      note("roomMostFiles", { count: PROJECT_LIMITS.files[input.kind] }),
+    );
   }
   const name = input.name.slice(0, 120) || "datei";
   const ref = await saveAsset({
@@ -156,6 +169,58 @@ export async function addProjectFile(
   return row;
 }
 
+/**
+ * Fetches a file from a public web address into the project, as an upload of it would add it.
+ * A drawing a page holds inline comes as a `data:image/svg+xml` address. A web page where a
+ * picture was asked for is refused with the reason `page`.
+ */
+export async function addProjectFileFromUrl(
+  projectId: string,
+  input: { url: string; kind: ProjectFileKind; description?: string; signal?: AbortSignal },
+): Promise<ProjectFileRow> {
+  const { url, kind, signal } = input;
+  const inline = url.match(/^data:image\/svg\+xml;base64,([A-Za-z0-9+/=]+)$/);
+  if (inline) {
+    return addProjectFile(projectId, {
+      kind,
+      name: `${kind}.svg`,
+      mime: "image/svg+xml",
+      data: new Uint8Array(Buffer.from(inline[1], "base64")),
+      description: input.description,
+    });
+  }
+  const res = await safeFetch(url, {
+    headers: { "user-agent": "Mozilla/5.0 (compatible; engenty-wizards/0.1)" },
+    signal: AbortSignal.any([AbortSignal.timeout(60_000), ...(signal ? [signal] : [])]),
+  }).catch(() => {
+    throw new ServiceError("invalid", note("addressNotReached"));
+  });
+  if (!res.ok) {
+    throw new ServiceError("invalid", note("addressResponded", { status: res.status }));
+  }
+  const mime = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  if (mime === "text/html" && kind !== "document") {
+    await res.body?.cancel();
+    throw new ServiceError("invalid", note("addressLeadsWebPage"), {
+      reason: "page",
+      url: res.url,
+    });
+  }
+  if (Number(res.headers.get("content-length") ?? 0) > projectFileLimit(kind, mime)) {
+    throw new ServiceError("invalid", note("addressFileTooLarge"));
+  }
+  const data = new Uint8Array(await res.arrayBuffer());
+  const name = decodeURIComponent(new URL(res.url).pathname.split("/").pop() || kind);
+  return addProjectFile(projectId, {
+    kind,
+    name,
+    mime,
+    data,
+    description: input.description,
+    source: res.url,
+  });
+}
+
 // --- reading, describing, indexing -------------------------------------------------
 
 /** Files are worked through two at a time: each costs model calls. */
@@ -188,7 +253,7 @@ async function describeImage(row: ProjectFileRow, data: Uint8Array): Promise<str
     maxOutputTokens: 300,
     system: [
       "You catalogue the files of a project. Describe the picture in ONE sentence of at most 25 words: what it shows, its style and colours, and what it suits (a logo on dark ground, a header image, a team photo, a product shot).",
-      "Write in the language of the project's description; if unclear, German. No preamble, no quotes.",
+      "Write in the language of the project's description; if unclear, English. No preamble, no quotes.",
     ].join("\n"),
     messages: [
       {
@@ -221,7 +286,7 @@ async function describeDocument(row: ProjectFileRow, text: string): Promise<stri
 }
 
 /**
- * What a document became gets its Kategorien from a model, where the space has some: the first
+ * What a document became gets its categories from a model, where the space has some: the first
  * page or table it was read into, else the file itself.
  */
 async function categorize(row: ProjectFileRow, items: string[], text: string) {
@@ -233,7 +298,7 @@ async function categorize(row: ProjectFileRow, items: string[], text: string) {
       : { fileId: row.id };
   const changed = await fillCategories(row.projectId, ref, text || row.description, row.name).catch(
     (err) => {
-      console.error("[project-file] Kategorien", row.name, err);
+      console.error("[project-file] categories", row.name, err);
       return false;
     },
   );
@@ -243,7 +308,7 @@ async function categorize(row: ProjectFileRow, items: string[], text: string) {
 }
 
 /**
- * Reads a new file. A document is read into Wissen — a page, a page with sub-pages, a table per
+ * Reads a new file. A document is read into Knowledge — a page, a page with sub-pages, a table per
  * sheet — and stays as the original behind it; one that reads into nothing stays a file, found
  * by its name and description. A file nobody described is described.
  */
@@ -284,10 +349,7 @@ async function prepare(row: ProjectFileRow) {
       console.error("[project-file]", row.name, err);
       await set({
         status: "failed",
-        error:
-          err instanceof UnreadableDocument
-            ? err.message
-            : "Das Lesen hat nicht geklappt. Bitte noch einmal versuchen.",
+        error: err instanceof UnreadableDocument ? err.message : "Reading didn’t work. Try again.",
       });
     }
   });
@@ -297,7 +359,7 @@ export async function reindexProjectFile(projectId: string, fileId: string) {
   await requireWritableProject(projectId);
   const row = await projectFile(projectId, fileId);
   if (row.kind !== "document") {
-    throw new ServiceError("invalid", "Nur Dokumente stehen im Index.");
+    throw new ServiceError("invalid", note("onlyDocumentsIndex"));
   }
   const [pending] = await db
     .update(schema.projectFile)
@@ -371,7 +433,7 @@ export async function removeProjectFiles(projectId: string) {
 // --- what plugins keep as files ----------------------------------------------------
 
 /**
- * A plugin's file of Wissen (`server.spaceData.putFile`, or the original of a page it wrote):
+ * A plugin's file of Knowledge (`server.spaceData.putFile`, or the original of a page it wrote):
  * a document of the space under the plugin's key. The same key again replaces it. `text`: what
  * a step reads of it; without one only its name and description are found.
  */
@@ -400,7 +462,7 @@ export async function putOriginFile(
   });
   const mime = documentMime(input.name, input.mime) || "application/octet-stream";
   if (!input.data.byteLength || input.data.byteLength > projectFileLimit("document", mime)) {
-    throw new ServiceError("invalid", `"${input.name}" is empty or larger than a document may be.`);
+    throw new ServiceError("invalid", note("emptyTooLargeDocument", { name: input.name }));
   }
   const name = input.name.slice(0, 120) || "datei";
   const values = {
@@ -430,7 +492,7 @@ export async function putOriginFile(
     if (n >= PROJECT_LIMITS.files.document) {
       throw new ServiceError(
         "refused",
-        `A space keeps at most ${PROJECT_LIMITS.files.document} documents.`,
+        note("spaceMostDocuments", { count: PROJECT_LIMITS.files.document }),
       );
     }
     const ref = await saveAsset({ kind: "project", mime, name, data: input.data });

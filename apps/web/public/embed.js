@@ -11,7 +11,13 @@
 //     chat above it (data-label="…" puts words beside it, data-color="#…" colours that pill and
 //     the open button)
 //
-// The button takes the website's own styles: `.engenty-wizard-button`, `.engenty-wizard-launcher`.
+//   <script async src="https://…/embed.js" data-wizard="<token>" data-mode="bubble" data-label="Fragen?"></script>
+//     a round button at the bottom right of every page that opens it in the window;
+//     `data-text` puts a short line beside it, `data-color` gives it the website's colour
+//
+// The button takes the website's own styles: `.engenty-wizard-button`, `.engenty-wizard-launcher`,
+// `.engenty-wizard-bubble`. `data-page`: the address of the page the run is started on, kept with its
+// result (the page's own address when left out).
 (() => {
   const script = document.currentScript;
   const token = script?.dataset.wizard;
@@ -20,14 +26,19 @@
   }
   // The app lives where this file does: https://example.com/wizards/embed.js → …/wizards/w/<token>.
   const app = new URL(".", script.src);
-  const mode = ["modal", "popout"].includes(script.dataset.mode) ? script.dataset.mode : "inline";
+  const mode = ["modal", "popout", "bubble"].includes(script.dataset.mode)
+    ? script.dataset.mode
+    : "inline";
   // A popout is always a chat.
   const chat = script.dataset.runner === "chat" || mode === "popout";
   const label = script.dataset.label || (mode === "popout" ? "" : "Start");
+  const page = (script.dataset.page || location.href).split("#")[0].slice(0, 2000);
 
   const frame = () => {
     const el = document.createElement("iframe");
-    el.src = `${app.href}w/${encodeURIComponent(token)}${chat ? "/chat" : ""}?embed=${mode}`;
+    // In the bubble the wizard opens in the same window as behind a button.
+    const shown = mode === "bubble" ? "modal" : mode;
+    el.src = `${app.href}w/${encodeURIComponent(token)}${chat ? "/chat" : ""}?embed=${shown}&page=${encodeURIComponent(page)}`;
     el.title = label;
     // What a page of the wizard may ask the visitor for: photos, voice notes, the position.
     el.allow = "camera; microphone; geolocation; clipboard-write; fullscreen; screen-wake-lock";
@@ -84,15 +95,53 @@
 .engenty-wizard-dialog::backdrop{background:rgba(20,18,16,.5)}
 .engenty-wizard-dialog iframe{display:block;width:100%;height:100%;border:0}
 .engenty-wizard-close{position:absolute;top:10px;right:10px;display:flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border:0;border-radius:50%;color:#fff;background:rgba(20,18,16,.55);cursor:pointer}
-@media (max-width:640px){.engenty-wizard-dialog{width:100vw;height:100dvh;border-radius:0}}`;
+.engenty-wizard-bubble-wrap{position:fixed;right:20px;bottom:20px;z-index:2147483000;display:flex;align-items:center;gap:10px}
+:where(.engenty-wizard-bubble){display:flex;align-items:center;justify-content:center;width:58px;height:58px;padding:0;border:0;border-radius:50%;color:#fff;background:var(--engenty-bubble,#1c1917);box-shadow:0 8px 24px rgba(0,0,0,.25);cursor:pointer;transition:transform .15s}
+:where(.engenty-wizard-bubble):hover{transform:scale(1.06)}
+:where(.engenty-wizard-bubble-text){font:inherit;font-size:14px;line-height:1.3;max-width:220px;padding:10px 14px;border:0;border-radius:14px;color:#1c1917;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.15);cursor:pointer;text-align:left}
+@media (max-width:640px){.engenty-wizard-dialog{width:100vw;height:100dvh;border-radius:0}.engenty-wizard-bubble-text{display:none}}`;
     document.head.append(style);
   }
 
-  const button = document.createElement("button");
+  let button;
+  if (mode === "bubble") {
+    // One bubble a page: a second tag for another wizard stays silent.
+    if (document.querySelector(".engenty-wizard-bubble")) {
+      return;
+    }
+    button = document.createElement("button");
+    button.className = "engenty-wizard-bubble";
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    if (script.dataset.color) {
+      button.style.setProperty("--engenty-bubble", script.dataset.color);
+    }
+    button.innerHTML =
+      '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true"><path d="M4 12a8 8 0 1 1 3.4 6.5L4 20l1.2-3.6A7.9 7.9 0 0 1 4 12Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 11h7M8.5 14h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    const wrap = document.createElement("div");
+    wrap.className = "engenty-wizard-bubble-wrap";
+    if (script.dataset.text) {
+      const text = document.createElement("button");
+      text.type = "button";
+      text.className = "engenty-wizard-bubble-text";
+      text.textContent = script.dataset.text;
+      text.addEventListener("click", () => button.click());
+      wrap.append(text);
+    }
+    wrap.append(button);
+    // In the page's <head> the script can run before there is a body to put the bubble in.
+    if (document.body) {
+      document.body.append(wrap);
+    } else {
+      addEventListener("DOMContentLoaded", () => document.body.append(wrap));
+    }
+  } else {
+    button = document.createElement("button");
+    button.className = "engenty-wizard-button";
+    button.textContent = label;
+    script.after(button);
+  }
   button.type = "button";
-  button.className = "engenty-wizard-button";
-  button.textContent = label;
-  script.after(button);
 
   let dialog = null;
   button.addEventListener("click", () => {

@@ -23,6 +23,21 @@ export function setRemoteRuntime(runtime: { base: string; ticket: string } | nul
   remote = runtime ? { base: runtime.base.replace(/\/+$/, ""), ticket: runtime.ticket } : null;
 }
 
+/**
+ * Where the wizards' pages are (`/api/config`'s `publicUrl`): the doors' origin when they are
+ * served apart from the studio. Until the runtime answered, this origin.
+ */
+let publicBase: string | null = null;
+
+export function setPublicBase(url: string | null | undefined) {
+  publicBase = url ? url.replace(/\/+$/, "") : null;
+}
+
+/** The address a wizard's page starts with, up to `/w/<token>`. */
+export function publicAddress(): string {
+  return publicBase ?? `${window.location.origin}${BASE}`;
+}
+
 /** A root-relative address (`/api/...`, `/w/...`) as the browser must request it. */
 export function withBase(path: string): string {
   if (remote && path.startsWith("/api/")) {

@@ -3,6 +3,7 @@ import type { WizardDefinition } from "@engenty-wizards/shared/definition";
 import { tableColumnsSchema } from "@engenty-wizards/shared/engenty/data-tables";
 import { CATEGORY_TYPES } from "@engenty-wizards/shared/knowledge";
 import { PROJECT_LIMITS } from "@engenty-wizards/shared/projects";
+import { note } from "@engenty-wizards/shared/run";
 import { SPACE_DATA_LIMITS } from "@engenty-wizards/shared/space-data";
 import { WORKSPACE_LIMITS } from "@engenty-wizards/shared/workspace";
 import { and, count, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
@@ -12,6 +13,7 @@ import { db, inTransaction, schema } from "../db/client.js";
 import { missingModels, unavoidableSteps } from "../engine/requirements.js";
 import { env } from "../env.js";
 import { spaceChanged } from "../plugins/events.js";
+import { sandboxEngine } from "../sandbox/index.js";
 import { codeOf, putLink } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { asSync, mayBuild } from "./access.js";
@@ -84,6 +86,7 @@ export type SyncWizardInput = z.infer<typeof syncWizardSchema>;
 
 export const syncSettingsSchema = z.object({
   shareEnabled: z.boolean().optional(),
+  translate: z.boolean().optional(),
   dailyRunLimit: z.number().int().min(1).max(10_000).optional(),
 });
 
@@ -148,7 +151,7 @@ export async function serverProblems(
       detail: `${missing.cls}: ${missing.problem}`,
     });
   }
-  if (env.sandbox === "off") {
+  if (!sandboxEngine()) {
     const steps = stepsWith(def, (s) => s.type === "agent" && s.tools.includes("sandbox"));
     if (steps.length) {
       problems.push({ code: "sandbox", blocking: false, steps, detail: "" });
@@ -207,9 +210,7 @@ async function requireRoom(spaceId: string): Promise<void> {
   if (others.length >= limit) {
     throw new ServiceError(
       "refused",
-      limit === 1
-        ? "Dieses Konto hat hier schon ein Projekt."
-        : `Dieses Konto hat hier schon ${limit} Projekte.`,
+      limit === 1 ? note("accountAlreadySpace") : note("accountAlreadySpaces", { count: limit }),
       {
         reason: "space_limit",
         limit,
@@ -228,7 +229,7 @@ async function requireWizardRoom(spaceId: string): Promise<void> {
   if ((row?.n ?? 0) >= env.limits.syncedWizards) {
     throw new ServiceError(
       "refused",
-      `Hier haben höchstens ${env.limits.syncedWizards} veröffentlichte Wizards Platz.`,
+      note("roomMostPublishedWizards", { count: env.limits.syncedWizards }),
       { reason: "wizard_limit", limit: env.limits.syncedWizards },
     );
   }
@@ -267,7 +268,7 @@ async function syncLogo(projectId: string, logo: SpaceInput["logo"]): Promise<vo
 async function syncSpace(spaceId: string, space: SpaceInput): Promise<ProjectRow> {
   const existing = await syncedProject(spaceId);
   if (existing && existing.origin !== "local") {
-    throw new ServiceError("refused", "Ein Projekt mit dieser Kennung wurde hier angelegt.", {
+    throw new ServiceError("refused", note("spaceIdAlreadyExists"), {
       reason: "id_taken",
     });
   }
@@ -327,13 +328,9 @@ export async function syncWizard(
         where: and(eq(schema.wizard.id, wizardId), eq(schema.wizard.tenantId, currentTenant())),
       });
       if (existing && existing.projectId !== spaceId) {
-        throw new ServiceError(
-          "refused",
-          "Ein Wizard mit dieser Kennung gehört hier woanders hin.",
-          {
-            reason: "id_taken",
-          },
-        );
+        throw new ServiceError("refused", note("wizardIdAlreadyBelongs"), {
+          reason: "id_taken",
+        });
       }
       const settings = {
         title: draft.title,
@@ -512,10 +509,10 @@ export async function removeSyncedSpace(rawSpaceId: string) {
 }
 
 // --- the space's own tables and pages --------------------------------------------
-// What the admin made under Space → Daten on the install, not what a wizard keeps: those stay
+// What the admin made under Space → Data on the install, not what a wizard keeps: those stay
 // where their runs write them. Sent as a whole, it replaces what came before.
 
-// Since Wissen: sub-pages, where an item came from, Kategorien and what has them. An install of
+// Since Knowledge: sub-pages, where an item came from, categories and what has them. An install of
 // before sends none of it.
 export const syncDataSchema = z.object({
   tables: z
@@ -621,7 +618,7 @@ export async function syncSpaceData(rawSpaceId: string, input: SyncDataInput) {
       : [],
   ]);
   if ([...tablesHere, ...pagesHere].some((x) => x.projectId !== spaceId || x.wizardId !== null)) {
-    throw new ServiceError("refused", "Eine Kennung ist hier schon vergeben.", {
+    throw new ServiceError("refused", note("idAlreadyUse"), {
       reason: "id_taken",
     });
   }
@@ -702,7 +699,7 @@ export async function syncSpaceData(rawSpaceId: string, input: SyncDataInput) {
   return { tables: input.tables.length, pages: input.pages.length };
 }
 
-/** The Kategorien a local install sent, their values, and what has them: they replace these here. */
+/** The categories a local install sent, their values, and what has them: they replace these here. */
 async function syncCategories(
   spaceId: string,
   categories: NonNullable<SyncDataInput["categories"]>,
@@ -716,7 +713,7 @@ async function syncCategories(
       })
     : [];
   if (taken.some((c) => c.projectId !== spaceId)) {
-    throw new ServiceError("refused", "Eine Kennung ist hier schon vergeben.", {
+    throw new ServiceError("refused", note("idAlreadyUse"), {
       reason: "id_taken",
     });
   }

@@ -76,7 +76,7 @@ function stepFormula(step: Step, catalog: GatewayCatalog): number {
     if (step.output.format === "json") {
       credits += textCredits(cls("classifier"), TOKENS.structure);
     }
-    if (step.output.surface) {
+    if (step.output.surface === true) {
       credits += textCredits(cls("standard"), TOKENS.structure);
     }
     return credits;

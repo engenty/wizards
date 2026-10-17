@@ -24,7 +24,7 @@ import {
 } from "./space-categories.js";
 
 /**
- * Wissen: the space's own pages (with their sub-pages), tables and files, as the studio lists
+ * Knowledge: the space's own pages (with their sub-pages), tables and files, as the studio lists
  * them and as a step names them. A step names an item by its path — `pages/handbuch/montage`,
  * `tables/kettenprogramm`, `files/plan.dwg` — and reads it whole.
  */
@@ -247,7 +247,7 @@ async function convertedFiles(projectId: string): Promise<Set<string>> {
   return new Set([...pages, ...tables].map((r) => r.id as string));
 }
 
-/** Everything Wissen holds: pages (sub-pages counted under them), tables, files, Kategorien. */
+/** Everything Knowledge holds: pages (sub-pages counted under them), tables, files, categories. */
 export async function listKnowledge(userId: string, projectId: string): Promise<Knowledge> {
   const project = await ownedProject(userId, projectId);
   const [tree, tables, rowCounts, files, converted, categories, embeddings, checker] =
@@ -368,7 +368,7 @@ export async function listKnowledge(userId: string, projectId: string): Promise<
   return { items, categories, embeddings, checked: checker };
 }
 
-/** A value opened in the studio: its Übersicht, and the items and rows that have it. */
+/** A value opened in the studio: its summary, and the items and rows that have it. */
 export async function valueContents(userId: string, valueId: string): Promise<KnowledgeValue> {
   const value = await db.query.spaceCategoryValue.findFirst({
     where: eq(schema.spaceCategoryValue.id, valueId),
@@ -395,7 +395,7 @@ export async function valueContents(userId: string, valueId: string): Promise<Kn
   };
 }
 
-/** Everything that has a Kategorie, whatever its value: what the Kategorie's page lists. */
+/** Everything that has a category, whatever its value: what the category's page lists. */
 export async function categoryContents(userId: string, categoryId: string) {
   const category = await db.query.spaceCategory.findFirst({
     where: eq(schema.spaceCategory.id, categoryId),
@@ -478,7 +478,7 @@ async function itemsHaving(
   };
 }
 
-/** What the studio shows around a page of Wissen: where it stands, its sub-pages, its origin. */
+/** What the studio shows around a page of Knowledge: where it stands, its sub-pages, its origin. */
 export async function knowledgePage(page: PageRow): Promise<KnowledgePage> {
   const tree = await pageTree(page.projectId);
   const node = tree.get(page.id);
@@ -549,7 +549,7 @@ function sectionOf(markdown: string, wanted: string): string | null {
 }
 
 /**
- * A page as a step reads it: front matter (title, path, Kategorien, where it came from, its
+ * A page as a step reads it: front matter (title, path, categories, where it came from, its
  * original, its parent and sub-pages) and its Markdown, or one section of it. Long pages come in
  * parts: `from` continues where the last part ended.
  */
@@ -588,7 +588,7 @@ export async function readPage(
     ...(node?.parentId ? [`parent: ${tree.get(node.parentId)?.path}`] : []),
     ...(lines.length
       ? [
-          "kategorien:",
+          "categories:",
           ...lines.map(
             (l) =>
               `  ${l.replace(/^([^:]+): (.*)$/, (_m, k, v) => `${yamlValue(k)}: ${yamlValue(v)}`)}`,
@@ -733,15 +733,15 @@ export async function readTable(
 }
 
 /**
- * For project_list: without a filter, the Kategorien with their values and how many items each
- * has; with one, the items it leaves, with their paths and Kategorien.
+ * For project_list: without a filter, the categories with their values and how many items each
+ * has; with one, the items it leaves, with their paths and categories.
  */
 export async function listForStep(projectId: string, where: Where | undefined) {
   const categories = await listCategories(projectId);
   const taken = categories.filter((c) => !c.proposed);
   if (!Object.keys(where ?? {}).length) {
     return {
-      kategorien: taken.map((c) => ({
+      categories: taken.map((c) => ({
         name: c.name,
         type: c.type,
         ...(c.unit ? { unit: c.unit } : {}),
@@ -787,28 +787,28 @@ export async function listForStep(projectId: string, where: Where | undefined) {
       .map((n) => ({
         path: n.path,
         title: n.title,
-        kategorien: categoryLines(taken, cats.get(`p:${n.id}`)),
+        categories: categoryLines(taken, cats.get(`p:${n.id}`)),
       })),
     ...[...(filtered?.tables ?? [])].map((id) => ({
       path: tPaths.get(id) ?? "",
       title: "",
-      kategorien: categoryLines(taken, cats.get(`t:${id}`)),
+      categories: categoryLines(taken, cats.get(`t:${id}`)),
     })),
     ...[...rowTables].map(([id, n]) => ({
       path: tPaths.get(id) ?? "",
       title: `${n} rows match: read them with table_read and the same values as its columns`,
-      kategorien: [],
+      categories: [],
     })),
     ...[...(filtered?.files ?? [])].map((id) => ({
       path: fPaths.get(id) ?? "",
       title: "",
-      kategorien: categoryLines(taken, cats.get(`f:${id}`)),
+      categories: categoryLines(taken, cats.get(`f:${id}`)),
     })),
   ];
   return { items: items.slice(0, 200), total: items.length };
 }
 
-/** How much Wissen a space holds: what the block of the steps' instructions says. */
+/** How much Knowledge a space holds: what the block of the steps' instructions says. */
 export async function knowledgeCounts(projectId: string) {
   const [pages, tables, files] = await Promise.all([
     db
@@ -830,8 +830,8 @@ export async function knowledgeCounts(projectId: string) {
 }
 
 /**
- * What every step of the space is told about Wissen: how much there is, the Kategorien to filter
- * by, the tools to find and read. Empty when Wissen is.
+ * What every step of the space is told about Knowledge: how much there is, the categories to filter
+ * by, the tools to find and read. Empty when Knowledge is.
  */
 export async function knowledgeBlock(projectId: string): Promise<string> {
   const counts = await knowledgeCounts(projectId);
@@ -860,14 +860,14 @@ export async function knowledgeBlock(projectId: string): Promise<string> {
     return `- ${c.name} (${type})${values}`;
   });
   return [
-    "# WISSEN — WHAT THE SPACE KNOWS",
+    "# KNOWLEDGE — WHAT THE SPACE KNOWS",
     `Ground truth the space's owner keeps for all wizards: ${what}. Use it when the task touches what it covers, and prefer it to what you remember.`,
     ...(lines.length
       ? [
-          "Kategorien, to filter with `where` in project_search and project_list before searching:",
+          "Categories, to filter with `where` in project_search and project_list before searching:",
           ...lines,
         ]
       : []),
-    "Find with project_search (a question; `where` on Kategorien). List with project_list. Read whole with page_read and table_read by path. A page marks the pages of its original as <!-- S. n -->: quote them when the source matters.",
+    "Find with project_search (a question; `where` on categories). List with project_list. Read whole with page_read and table_read by path. A page marks the pages of its original as <!-- S. n -->: quote them when the source matters.",
   ].join("\n");
 }

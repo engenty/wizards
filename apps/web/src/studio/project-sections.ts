@@ -1,5 +1,6 @@
-import type { StudioSpaceGroup } from "@engenty-wizards/plugin-sdk/studio";
+import type { StudioSpaceGroup } from "@engenty/wizards/plugin/studio";
 import {
+  ALargeSmall,
   BookOpen,
   Database,
   FileText,
@@ -12,6 +13,7 @@ import {
   Shapes,
   Type,
 } from "lucide-react";
+import type { ComponentType } from "react";
 import { type Key, t } from "../lib/i18n";
 import type { StudioPlugins } from "../plugins/host";
 
@@ -24,7 +26,7 @@ export interface SpaceGroup {
   icon: LucideIcon;
 }
 
-/** The parts of the space page, in the order of the menu. */
+/** The space page's own parts, in the order of the menu; plugins add theirs (`withParts`). */
 export function spaceGroups(): SpaceGroup[] {
   return [
     { id: "info", label: t("space.info"), icon: Fingerprint },
@@ -32,6 +34,28 @@ export function spaceGroups(): SpaceGroup[] {
     { id: "data", label: t("space.data"), icon: Database },
     { id: "results", label: t("space.results"), icon: Inbox },
   ];
+}
+
+/** A part of the menu: the space page's own, or a plugin's. */
+export interface SpacePartEntry {
+  id: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}
+
+/** The parts with the plugins' among them: each after the part it names, else after Data. */
+export function withParts(own: SpaceGroup[], plugins: StudioPlugins): SpacePartEntry[] {
+  const out: SpacePartEntry[] = [...own];
+  for (const part of plugins.spaceParts) {
+    const after = out.findIndex((g) => g.id === (part.after ?? "data"));
+    // Behind the plugin parts that follow the same part already.
+    let at = after + 1;
+    while (at < out.length && plugins.spaceParts.some((p) => p.id === out[at].id)) {
+      at++;
+    }
+    out.splice(at, 0, { id: part.id, label: part.label(), icon: part.icon });
+  }
+  return out;
 }
 
 export function isSpaceGroup(id: string | undefined): id is SpaceGroupId {
@@ -42,8 +66,8 @@ export interface ProjectSection {
   /** Its anchor on the space page: `/space/<group>#<id>`, set in `ProjectSettings` or by a plugin. */
   id: string;
   label: string;
-  /** The space's own sections have one; a plugin's stand under the plugin's name. */
-  icon?: LucideIcon;
+  /** The space's own sections have one, and a plugin part's entries; a plugin's sections stand under the plugin's name. */
+  icon?: ComponentType<{ className?: string }>;
 }
 
 export interface ProjectSectionGroup {
@@ -56,10 +80,11 @@ export interface ProjectSectionGroup {
 /** The space's own sections, in the order the page shows them. A plugin cannot take their ids. */
 const OWN: { id: string; group: SpaceGroupId; label: Key; icon: LucideIcon }[] = [
   { id: "base", group: "info", label: "project.base", icon: Type },
+  { id: "facts", group: "info", label: "project.facts", icon: ListChecks },
   { id: "logos", group: "info", label: "project.logos", icon: Shapes },
   { id: "colors", group: "info", label: "project.colors", icon: Palette },
+  { id: "typography", group: "info", label: "project.typography", icon: ALargeSmall },
   { id: "assets", group: "info", label: "project.assets", icon: Images },
-  { id: "facts", group: "info", label: "project.facts", icon: ListChecks },
   { id: "documents", group: "knowledge", label: "project.documents", icon: FileText },
 ];
 
@@ -78,8 +103,10 @@ export function groupOfSection(id: string, plugins: StudioPlugins): SpaceGroupId
 export function projectSections(
   group: SpaceGroupId,
   plugins: StudioPlugins,
+  /** Own sections a feature switch keeps out. */
+  off: string[] = [],
 ): ProjectSectionGroup[] {
-  const own = OWN.filter((s) => s.group === group).map((s) => ({
+  const own = OWN.filter((s) => s.group === group && !off.includes(s.id)).map((s) => ({
     id: s.id,
     label: t(s.label),
     icon: s.icon,

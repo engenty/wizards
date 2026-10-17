@@ -3,17 +3,27 @@ import {
   type CardOption,
   type Field,
   isDecidedField,
+  isLang,
   isLocationValue,
+  type Lang,
   type LocationValue,
   MAX_FILES,
   offeredSlot,
   type PageStep,
   shownFields,
 } from "@engenty-wizards/shared/definition";
+import { readNumber } from "@engenty-wizards/shared/numbers";
+import type { Said } from "@engenty-wizards/shared/run";
+import { note, saidText } from "@engenty-wizards/shared/run";
 
 export interface InputError {
   field: string;
-  message: string;
+  message: Said;
+}
+
+/** The field errors in a language, for whoever reads them. */
+export function fieldErrorsIn(errors: InputError[], lang: Lang) {
+  return errors.map((e) => ({ field: e.field, message: saidText(e.message, lang) }));
 }
 
 function empty(v: unknown): boolean {
@@ -26,11 +36,10 @@ function coerce(field: Field, raw: unknown): unknown {
   }
   switch (field.kind) {
     case "number": {
-      if (raw === "") {
+      if (String(raw).trim() === "") {
         return undefined;
       }
-      const n = Number(String(raw).replace(",", "."));
-      return Number.isFinite(n) ? n : Number.NaN;
+      return readNumber(raw) ?? Number.NaN;
     }
     case "toggle":
       return raw === true || raw === "true" || raw === "on";
@@ -77,8 +86,7 @@ function coerce(field: Field, raw: unknown): unknown {
               if (c.kind === "text") {
                 return [c.id, String(v ?? "").slice(0, 2000)];
               }
-              const n = Number(String(v ?? "").replace(",", "."));
-              return [c.id, Number.isFinite(n) ? n : 0];
+              return [c.id, readNumber(v) ?? 0];
             }),
           ),
         )
@@ -140,6 +148,9 @@ function readAudio(raw: unknown): AudioValue | undefined {
   if (typeof input.transcript === "string") {
     out.transcript = input.transcript.slice(0, 20_000);
   }
+  if (isLang(input.lang)) {
+    out.lang = input.lang;
+  }
   return out;
 }
 
@@ -176,43 +187,58 @@ export function readPageInput(
       continue;
     }
     if (field.required && empty(v) && field.kind !== "toggle") {
-      errors.push({ field: field.id, message: "Pflichtfeld" });
+      errors.push({ field: field.id, message: note("fieldRequired") });
       continue;
     }
     if (Array.isArray(v) && (field.kind === "image" || field.kind === "file")) {
       if (field.min && v.length < field.min) {
-        errors.push({ field: field.id, message: `Bitte mindestens ${field.min} auswählen` });
+        errors.push({
+          field: field.id,
+          message: note("chooseAtLeast", { min: field.min }),
+        });
         continue;
       }
       if (field.max && v.length > field.max) {
         errors.push({
           field: field.id,
-          message: `Höchstens ${field.max} – bitte einige entfernen`,
+          message: note("chooseAtMost", { max: field.max }),
         });
         continue;
       }
     }
     if (field.kind === "number" && Number.isNaN(v)) {
-      errors.push({ field: field.id, message: "Bitte eine Zahl eingeben" });
+      errors.push({
+        field: field.id,
+        message: note("enterNumber"),
+      });
       continue;
     }
     if (field.kind === "select" && !empty(v) && !field.options?.includes(String(v))) {
-      errors.push({ field: field.id, message: "Ungültige Auswahl" });
+      errors.push({ field: field.id, message: note("invalidChoice") });
       continue;
     }
     if (field.kind === "slot" && !empty(v) && !field.options?.includes(String(v))) {
-      errors.push({ field: field.id, message: "Dieser Termin wird nicht angeboten" });
+      errors.push({
+        field: field.id,
+        message: note("timeNotOffered"),
+      });
       continue;
     }
     if (field.kind === "email" && !empty(v) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v))) {
-      errors.push({ field: field.id, message: "Keine gültige E-Mail-Adresse" });
+      errors.push({
+        field: field.id,
+        message: note("notValidEmailAddress"),
+      });
       continue;
     }
     if (field.kind === "url" && !empty(v)) {
       try {
         new URL(String(v));
       } catch {
-        errors.push({ field: field.id, message: "Keine gültige URL" });
+        errors.push({
+          field: field.id,
+          message: note("notValidUrl"),
+        });
         continue;
       }
     }

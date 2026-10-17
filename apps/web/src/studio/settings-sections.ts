@@ -1,3 +1,4 @@
+import { featureOn } from "@engenty-wizards/shared/features";
 import { Blocks, Cable, Cpu, type LucideIcon, Plug, UserRound, Users } from "lucide-react";
 import type { ComponentType } from "react";
 import { t } from "../lib/i18n";
@@ -25,7 +26,7 @@ export function settingsSections(
   return [
     { id: "account", label: t("account.title"), icon: UserRound, menu: true },
     // In the cloud the studio is a team's: who is in it, and the plan it is on — once team plans are on.
-    ...(me?.mode === "managed" && me.features.teamPlans
+    ...(me?.mode === "managed" && featureOn(me.features, "teamPlans")
       ? [{ id: "team", label: t("team.title"), icon: Users, menu: true }]
       : []),
     { id: "connectors", label: t("connectors.title"), icon: Plug, menu: true },

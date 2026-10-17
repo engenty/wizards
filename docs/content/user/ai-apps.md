@@ -1,24 +1,26 @@
 ---
 title: AI apps
 description: Run and build your wizards inside Claude Desktop, Cursor, Codex and other AI apps.
+version: 0.5.0
 ---
 
-Settings → Integrate brings your wizards to where you work. engenty wizards is an MCP server:
-an AI app that adds it gets the tools to find, run and build wizards.
+Settings → Integrate brings your wizards to where you work. engenty wizards is an MCP server: an
+AI app that adds it gets the tools to find, run and build wizards. Under “Share”, the same page
+has the WordPress plugin: see [WordPress](./wordpress.md).
 
 ## What an app can do
 
 | In the chat | How |
 |---|---|
-| Run a wizard | "Start one of my engenty wizards." The app asks the wizard's questions, shows the review and hands over the downloads. Only published wizards run |
-| See the wizard itself | Apps that show MCP Apps show the wizard as a widget, page by page, and you answer there |
-| Build a wizard | "Use engenty wizards to build a wizard that reads amount, date and sender from an invoice PDF." |
-| Change one | Create, change and publish wizards, find templates and connectors, read and write a wizard's files |
+| Run a wizard | “Start one of my engenty wizards.” The app asks the wizard’s questions, shows the review and hands over the downloads. Only published wizards run |
+| See the wizard itself | Apps that support MCP Apps show the wizard as a widget, page by page, and you answer there |
+| Build a wizard | “Use engenty wizards to build a wizard that reads amount, date and sender from an invoice PDF.” |
+| Change one | The app can create, change and publish wizards, find templates and connectors, and read and write a wizard’s files |
 
 - A run in a chat spends what any run of the wizard spends, and so does a test run.
-- What a chat cannot fill in — files, recordings, signatures, line items — is done on the run's
-  page in the browser. The app hands you the link.
-- What an app writes shows up live in an open editor, marked with the app's name.
+- What a chat can’t fill in (files, recordings, signatures, line items) you fill in on the run’s
+  page in the browser. The app gives you the link.
+- What an app writes shows up live in an open editor, marked with the app’s name (“Via …”).
 
 ## Apps
 
@@ -30,7 +32,7 @@ an AI app that adds it gets the tools to find, run and build wizards.
 | Cursor | yes | `cursor` |
 | VS Code (Copilot) | yes | `vscode` |
 | Windsurf | no | `windsurf` |
-| Gemini CLI | no | `gemini` |
+| Antigravity | no | `antigravity` |
 | Goose | yes | `goose` |
 | OpenClaw | no | `openclaw` |
 | LM Studio | no | `lm-studio` |
@@ -38,68 +40,79 @@ an AI app that adds it gets the tools to find, run and build wizards.
 
 ## Add an app
 
-Pick the app on the Integrate page. "Where does the app run?" has two answers:
+Settings → Integrate opens on the apps found on this computer. Each one has a button and says
+where it stands: “Works”, “Added, not tested yet” or “Not set up yet”. The dots in the menu say
+the same.
 
-| | On this computer | At the address |
-|---|---|---|
-| For | An app on the computer engenty wizards is installed on | An app anywhere the address can be reached |
-| Sign-in | None. No key, no port | A key |
-| How | "Add to …" writes engenty wizards into the app's settings | The page shows the command or the config entry to paste |
-| Needs | Nothing running: the app starts engenty wizards itself | engenty wizards running at that address |
+Choose an app and follow its numbered steps:
 
-From a terminal, the same as "On this computer":
+1. **Add to …** writes engenty wizards into the app’s settings. You need no key and no port: the
+   app starts engenty wizards itself.
+2. **Restart …**, or reload the app’s MCP servers. The page notices by itself when the app
+   checks in.
+3. **Try it in the chat**: “Which wizards do I have in engenty?”
+
+Once the app has used a tool, the page says “Works” and offers first sentences to try, with your
+own wizards’ names.
+
+From a terminal, this command does the same as step 1:
 
 ```bash
 wizards connect
 ```
 
-That adds every AI app found on the computer. Name apps to add only those, and take one out
-again with `disconnect`:
+It adds every AI app found on this computer. To add only some apps, name them. To take an app
+out again, use `disconnect`:
 
 ```bash
 wizards connect cursor codex
 wizards disconnect cursor
 ```
 
-- The file an app's settings were in before is kept beside it as `<file>.before-engenty`.
-- Quit Claude Desktop before you add it: it writes its settings from memory while it runs.
-- A settings file that is not plain JSON is left alone. The command prints the entry to paste.
+- The app’s settings file as it was before is kept beside it as `<file>.before-engenty`.
+- If Claude Desktop is running, the command asks you to quit it first: it writes its settings
+  from memory while it runs and would overwrite the change.
+- A settings file that isn’t plain JSON is left alone. The command prints the entry for you to
+  paste in yourself.
 
-## Test it
+## An app on another computer
 
-"Test" on the app's panel waits for three things and ticks each off:
+Under the steps, “Connect with the address and an API key” is for an app that runs elsewhere.
+The API key is shown once and goes straight into the command or settings entry the page shows.
 
-1. **The app checks in.** Quit the app completely and start it again, or reload its MCP servers.
-2. **It called a tool.** In a new chat, write: "Which wizards do I have in engenty?"
-3. **It showed the wizard as a widget**, in apps that can. Write: "Start one of my engenty
-   wizards."
+- Each API key signs in one app and has full rights. Treat it like a password.
+- The page lists the API keys with their last use. When you delete one, that app is signed out.
 
 ## Apps on the web
 
-claude.ai and ChatGPT connect from their makers' servers. They cannot reach your computer: for
-them a wizard runs on engenty.ai. There they sign in in the browser on first use; no key. On
-your computer, use "On this computer" or an app that runs there.
+claude.ai and ChatGPT connect from their makers’ servers, and so do Claude Desktop’s
+connectors. They can’t reach your computer, so for them your wizards run on engenty.ai.
 
-## Keys
+- **In the studio on engenty.ai**, the page walks you through it: open the app’s connector
+  settings, enter the name and the address `https://engenty.ai/api/mcp`, click “Connect”, sign
+  in to engenty and choose “Allow”. You need no key.
+- **On your computer**, connect your engenty account first (“Connect to engenty.ai”). The wizards
+  you publish then go to engenty.ai, and claude.ai connects there. If you’d rather not use an
+  account, use Claude Desktop on this computer.
 
-"At the address" signs an app in with a key. The key is shown once and goes straight into the
-command the page shows.
+The consent page names the team the access is for and the address it goes back to. An app that
+only named itself is marked “Name given by the app itself”.
 
-- Each key signs one app in and has every right: treat it like a password.
-- The page lists the keys with their last use. Delete a key and that app is signed out.
+You disconnect an app at engenty.ai under Account → Connected apps. Its access ends within half
+a minute, even with a token it already holds.
 
 ## The Claude Code plugin
 
-Claude Code can also install a plugin. It adds the `/wizard` command, the skills to build and to
+Claude Code can also install a plugin. It adds the `/wizard` command, the skills to build and
 use wizards, and `/wizards`, a pane beside the chat that lists your wizards and opens one in the
-app's browser pane. From GitHub, for the `engenty-wizards` server your AI apps already have:
+app’s browser pane. From GitHub, for the `engenty-wizards` server your AI apps already have:
 
 ```bash
 claude plugin marketplace add engenty/wizards
 claude plugin install wizards@engenty
 ```
 
-With a public https address, your own engenty wizards serves the plugin with its server bundled:
+If engenty wizards has a public https address, it serves the plugin with its server bundled:
 
 ```bash
 claude plugin marketplace add <your address>/api/claude-plugin/marketplace.json

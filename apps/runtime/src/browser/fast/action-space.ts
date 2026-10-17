@@ -11,9 +11,6 @@ import type { SnapshotAction } from "../snapshot.js";
 import type { ChoiceQuestion, JsonValue } from "./classifier.js";
 import { NEXT_ACTION, TARGET } from "./instructions.js";
 
-/** What the classifier may pick besides an element operation. */
-export const CONTROL_OPERATIONS = ["DONE", "BLOCKED"] as const;
-
 /** The operation head's id for "interact with one element". */
 export const ACT = "ACT";
 /** The single target head's key in the questions and the answers. */

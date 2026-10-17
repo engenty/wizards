@@ -1,3 +1,7 @@
+import type { Lang } from "@engenty-wizards/shared/definition";
+import { note, type RunNote } from "@engenty-wizards/shared/run";
+import { errorText, NotedError, type ServerLine } from "../model-errors.js";
+
 /** What a service call can refuse. The studio routes answer it as HTTP, the MCP tools as a tool error. */
 export type ServiceErrorCode =
   | "not_found"
@@ -22,22 +26,23 @@ const STATUS: Record<ServiceErrorCode, 400 | 402 | 403 | 404 | 409> = {
   forbidden: 403,
 };
 
-export class ServiceError extends Error {
+export class ServiceError extends NotedError {
   constructor(
     readonly code: ServiceErrorCode,
-    message: string,
+    said: string | RunNote | ServerLine,
     readonly data: Record<string, unknown> = {},
   ) {
-    super(message);
+    super(said);
   }
 
   get status() {
     return STATUS[this.code];
   }
 
-  toJSON() {
-    return { error: this.message, code: this.code, ...this.data };
+  /** The answer, its words in the asker's language; English where none is known. */
+  toJSON(lang: Lang = "en") {
+    return { error: errorText(this, lang), code: this.code, ...this.data };
   }
 }
 
-export const notFound = () => new ServiceError("not_found", "not found");
+export const notFound = () => new ServiceError("not_found", note("notFound"));

@@ -371,7 +371,10 @@ export function useLiveVoice(
     setState("connecting");
     try {
       const session = await api.post<Session>(`/api/runs/${runId}/talk`);
-      const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Echo cancellation takes the wizard's own voice out of what the mic hears.
+      const mic = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       stream.current = mic;
       const peer = new RTCPeerConnection();
       pc.current = peer;

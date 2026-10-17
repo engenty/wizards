@@ -1,7 +1,16 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, openSync } from "node:fs";
 import { join } from "node:path";
+import {
+  autoUpdatePolicy,
+  isNewer,
+  scheduleUpdateChecks,
+  type UpdateState,
+  updateNotice,
+} from "./cli/autoupdate.js";
 import { installedByScript, isCheckout, layout, packageRoot, packageVersion } from "./cli/home.js";
+
+export { isNewer };
 
 const RELEASES_URL =
   process.env.ENGENTY_WIZARDS_RELEASES_URL?.trim() ||
@@ -38,6 +47,10 @@ export interface UpdateStatus {
   checkedAt: number | null;
   /** False where ENGENTY_WIZARDS_NO_UPDATE_CHECK keeps the runtime from asking. */
   enabled: boolean;
+  /** Downloaded and waiting for the next start. */
+  pending: UpdateState["pending"] | null;
+  /** The update this version came with, for a while after it: "Updated to …, what changed". */
+  updated: UpdateState["updated"] | null;
 }
 
 let cached: { at: number; latest: string | null; url: string | null } | null = null;
@@ -51,27 +64,6 @@ export function onRestart(shutdown: (code: number) => void) {
 
 function restarts(): boolean {
   return process.env[RESTARTS] === "1" && restart !== null;
-}
-
-/** `0.2.0` or `v0.2.0` as numbers; anything after a `-` (a pre-release) is ignored. */
-function numbers(version: string): number[] {
-  return version
-    .replace(/^v/, "")
-    .split("-")[0]
-    .split(".")
-    .map((part) => Number.parseInt(part, 10) || 0);
-}
-
-export function isNewer(latest: string, current: string): boolean {
-  const a = numbers(latest);
-  const b = numbers(current);
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    const diff = (a[i] ?? 0) - (b[i] ?? 0);
-    if (diff !== 0) {
-      return diff > 0;
-    }
-  }
-  return false;
 }
 
 const enabled = () => !process.env.ENGENTY_WIZARDS_NO_UPDATE_CHECK;
@@ -114,6 +106,9 @@ export async function updateStatus(fresh = false): Promise<UpdateStatus> {
   const current = packageVersion();
   const { latest, url } = await newestRelease(fresh);
   const kind = installKind();
+  const paths = layout();
+  const notice =
+    kind === "script" ? updateNotice(paths, current) : { updated: null, pending: null };
   return {
     current,
     latest,
@@ -125,7 +120,15 @@ export async function updateStatus(fresh = false): Promise<UpdateStatus> {
     applying,
     checkedAt: cached?.at ?? null,
     enabled: enabled(),
+    ...notice,
   };
+}
+
+const autoPolicy = () => autoUpdatePolicy(layout(), { installed: installKind() === "script" });
+
+/** The runtime looks for an update when it starts and once a day; it switches nothing itself. */
+export function startUpdateChecks() {
+  scheduleUpdateChecks(layout(), autoPolicy);
 }
 
 /**

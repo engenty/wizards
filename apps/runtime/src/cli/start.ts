@@ -3,13 +3,14 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
-import { styleText } from "node:util";
 import { mintLocalTicket } from "../auth/local-ticket.js";
 import { type Running, readRunning } from "../running.js";
 import { RESTART_EXIT } from "../update.js";
+import { applyPendingUpdate, autoUpdatePolicy, notesUrl } from "./autoupdate.js";
 import { runtimeEnv } from "./environment.js";
-import { command, type Layout, packageRoot, readEnvFile } from "./home.js";
+import { installedByScript, type Layout, packageRoot, readEnvFile } from "./home.js";
 import { findOnPath } from "./machine.js";
+import { cmd, cyan, dim, live, tilde } from "./ui.js";
 
 const DEFAULT_PORT = 24368;
 const START_TIMEOUT_MS = 60_000;
@@ -24,6 +25,26 @@ export function settings(paths: Layout, env: NodeJS.ProcessEnv = process.env) {
     port: Number(value("API_PORT")) || null,
     appUrl: value("APP_URL").replace(/\/$/, ""),
   };
+}
+
+/**
+ * The secret the runtime this command starts signs with, read the way it reads it (env.ts): its
+ * APP_SECRET, else the one it keeps in the data folder; null before it made one. The runtime
+ * never sees the terminal's APP_SECRET (cli/environment.ts), only its folder's `.env.local` and
+ * `.env`, so the terminal's is left out here too: a ticket signed with it would be refused.
+ */
+export function readSecret(paths: Layout, env: NodeJS.ProcessEnv = process.env): string | null {
+  const { fileEnv, dataDir } = settings(paths, env);
+  const given =
+    readEnvFile(join(paths.home, ".env.local")).APP_SECRET?.trim() || fileEnv.APP_SECRET?.trim();
+  if (given) {
+    return given;
+  }
+  try {
+    return readFileSync(join(dataDir, "secret"), "utf8").trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function healthy(port: number): Promise<boolean> {
@@ -61,15 +82,15 @@ export async function runningRuntime(dataDir: string): Promise<Running | null> {
   return running && (await healthy(running.port)) ? running : null;
 }
 
-/** A link that lets this browser into a running runtime: a ticket signed with the data folder's secret. */
-export function entryUrl(running: Pick<Running, "url">, dataDir: string): string {
-  try {
-    const secret = readFileSync(join(dataDir, "secret"), "utf8").trim();
-    return `${running.url}/api/local/enter?t=${mintLocalTicket(secret)}`;
-  } catch {
-    // APP_SECRET is set elsewhere: the browser gets in if it was let in before.
-    return `${running.url}/`;
-  }
+/** A link that lets this browser into a running runtime: a ticket signed with the runtime's secret. */
+export function entryUrl(
+  running: Pick<Running, "url">,
+  paths: Layout,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const secret = readSecret(paths, env);
+  // No secret to be read here: the browser gets in if it was let in before.
+  return secret ? `${running.url}/api/local/enter?t=${mintLocalTicket(secret)}` : `${running.url}/`;
 }
 
 /** Opens an address in the person's browser; false when this machine has none to open it with. */
@@ -94,12 +115,12 @@ export function openBrowser(url: string): boolean {
 function show(url: string, entry: string, open: boolean) {
   const opened = open && openBrowser(entry);
   console.log("");
-  console.log(`  ${styleText("green", "●")} engenty wizards is running: ${styleText("cyan", url)}`);
+  console.log(`  ${live} engenty wizards is running: ${cyan(url)}`);
   if (opened) {
-    console.log(styleText("dim", "    The studio opens in your browser."));
+    console.log(dim("    The studio opens in your browser."));
   } else {
-    console.log(`    Open the studio: ${entry}`);
-    console.log(styleText("dim", "    The link lets one browser in and works once."));
+    console.log(`    Open the studio: ${cyan(entry)}`);
+    console.log(dim("    The link signs in one browser and works only once."));
   }
 }
 
@@ -158,32 +179,44 @@ export async function start(
 
   const running = await runningRuntime(dataDir);
   if (running) {
-    show(running.url, entryUrl(running, dataDir), options.open);
-    console.log(
-      styleText("dim", `    It was already running; stop it with \`${command()} stop\`.`),
-    );
+    show(running.url, entryUrl(running, paths), options.open);
+    console.log(dim(`    It was already running. To stop it: ${cmd("stop")}`));
     return 0;
+  }
+
+  // Nothing runs, so no run is cut off: a version downloaded meanwhile becomes current and
+  // takes this process's place (the login item keeps waiting on the same pid). In the
+  // background, the `start` spawned below does it.
+  if (!options.background && installedByScript(paths) && process.execve) {
+    const switched = autoUpdatePolicy(paths, { installed: true }).on && applyPendingUpdate(paths);
+    if (switched) {
+      console.log(`  ${live} Updated to ${switched.to}. What changed: ${notesUrl(switched.to)}`);
+      const wrapper = join(paths.bin, "wizards");
+      try {
+        process.execve(wrapper, [wrapper, "start", ...(options.open ? [] : ["--no-open"])]);
+      } catch {
+        // This version starts once more; the next start is the new one.
+      }
+    }
   }
 
   if (options.background) {
     const started = await startInBackground(paths);
     if (!started) {
-      console.error(`engenty wizards did not start; see ${join(paths.logs, "runtime.log")}.`);
+      console.error(
+        `engenty wizards didn’t start. Its log is in ${tilde(join(paths.logs, "runtime.log"))}.`,
+      );
       return 1;
     }
-    show(started.url, entryUrl(started, dataDir), options.open);
-    console.log(
-      styleText(
-        "dim",
-        `    It runs in the background; stop it with \`${command()} stop\`. Its log: ${join(paths.logs, "runtime.log")}`,
-      ),
-    );
+    show(started.url, entryUrl(started, paths), options.open);
+    console.log(dim(`    It’s running in the background. To stop it: ${cmd("stop")}`));
+    console.log(dim(`    Its log is in ${tilde(join(paths.logs, "runtime.log"))}.`));
     return 0;
   }
 
   const port = wanted ?? (await freePort());
   if (!wanted && port !== DEFAULT_PORT) {
-    console.log(styleText("dim", `  Port ${DEFAULT_PORT} is taken, using ${port}.`));
+    console.log(dim(`  Port ${DEFAULT_PORT} is taken, so it uses ${port}.`));
   }
   const accessKey = randomBytes(24).toString("hex");
   const url = appUrl || `http://localhost:${port}`;
@@ -201,7 +234,7 @@ export async function start(
   let exited: number | null = null;
   const ended = new Promise<number>((done) => {
     child.on("error", (error) => {
-      console.error(`The runtime did not start: ${error.message}`);
+      console.error(`engenty wizards didn’t start: ${error.message}`);
       exited = 1;
       done(1);
     });
@@ -218,7 +251,7 @@ export async function start(
   while (exited === null && !(await healthy(port))) {
     if (Date.now() - began > START_TIMEOUT_MS) {
       child.kill("SIGTERM");
-      console.error("The runtime did not answer within 60 seconds.");
+      console.error("engenty wizards didn’t respond within 60 seconds.");
       return 1;
     }
     await new Promise((wait) => setTimeout(wait, 150));
@@ -227,7 +260,7 @@ export async function start(
     return exited || 1;
   }
   show(url, `${url}/api/local/enter?k=${accessKey}`, options.open);
-  console.log(styleText("dim", "    Stop it with Ctrl-C."));
+  console.log(dim("    To stop it, press Ctrl-C."));
   console.log("");
   const code = await ended;
   if (code !== RESTART_EXIT) {
@@ -235,7 +268,7 @@ export async function start(
   }
   // Updated or `wizards restart`: the command as it is on disk now starts it again, in this
   // terminal or under the login item, which keeps waiting on this process.
-  console.log(styleText("dim", "  Starting it again."));
+  console.log(dim("  Restarting…"));
   current = spawnCommand(paths, ["start", "--no-open"], { stdio: "inherit" });
   return new Promise<number>((done) => {
     current.on("error", () => done(1));
@@ -248,7 +281,7 @@ export async function studio(paths: Layout): Promise<number> {
   const { dataDir } = settings(paths);
   const running = await runningRuntime(dataDir);
   if (running) {
-    show(running.url, entryUrl(running, dataDir), true);
+    show(running.url, entryUrl(running, paths), true);
     return 0;
   }
   return start(paths, { open: true, background: true });
@@ -259,10 +292,10 @@ export async function open(paths: Layout, print: boolean): Promise<number> {
   const { dataDir } = settings(paths);
   const running = await runningRuntime(dataDir);
   if (!running) {
-    console.error(`engenty wizards is not running. Start it with \`${command()} start\`.`);
+    console.error(`engenty wizards isn’t running. To start it: ${cmd("start")}`);
     return 1;
   }
-  const entry = entryUrl(running, dataDir);
+  const entry = entryUrl(running, paths);
   if (print || !openBrowser(entry)) {
     console.log(entry);
   }

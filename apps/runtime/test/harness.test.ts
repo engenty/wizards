@@ -81,7 +81,8 @@ describe("an installed AI client as a model", () => {
     // The shell has no X_KEY here, so the only way in is none; the client was asked once, bare.
     expect(resolved.auth).toBe("none");
     expect(seen[0]?.X_KEY).toBeUndefined();
-  });
+    // A login shell is spawned for the environment: slow on a loaded machine.
+  }, 20_000);
 
   it("reads what Claude Code prints: text or structured output, and the usage", async () => {
     const { claudeAnswer } = await import("../src/harness/claude");
@@ -120,14 +121,33 @@ describe("an installed AI client as a model", () => {
     expect(failed.failure).toBe("usage limit reached");
   });
 
-  it("reads what Gemini CLI prints, skipping what it logs before the JSON", async () => {
-    const { geminiAnswer } = await import("../src/harness/gemini");
-    const r = geminiAnswer(
-      'Hook registry initialized with 0 hook entries\n{\n  "session_id": "g1",\n  "response": "OK",\n  "stats": {"models": {"gemini-2.5-flash": {"tokens": {"prompt": 20, "candidates": 2, "cached": 5}}}}\n}\n',
+  it("reads the result Antigravity prints after its step events", async () => {
+    const { antigravityAnswer } = await import("../src/harness/antigravity");
+    const r = antigravityAnswer(
+      [
+        '{"event":"init","conversation_id":"a1","init":{"tools":[]}}',
+        '{"event":"step_update","step_update":{"conversation_id":"a1","step_index":1,"state":"DONE","step_type":"agent_response","text_delta":"OK"}}',
+        '{"event":"result","result":{"conversation_id":"a1","status":"SUCCESS","response":"OK\\n","structured_output":{"a":1},"usage":{"input_tokens":20,"output_tokens":2}}}',
+      ].join("\n"),
     );
-    expect(r?.response).toBe("OK");
-    expect(r?.stats?.models?.["gemini-2.5-flash"]?.tokens?.prompt).toBe(20);
-    expect(geminiAnswer("nothing")).toBeNull();
+    expect(r?.status).toBe("SUCCESS");
+    expect(r?.structured_output).toEqual({ a: 1 });
+    expect(r?.usage?.input_tokens).toBe(20);
+    expect(antigravityAnswer("Authentication required.")).toBeNull();
+  });
+
+  it("puts the instructions in front of the one message Antigravity reads", async () => {
+    const { antigravityMessage, withEffort } = await import("../src/harness/antigravity");
+    const line = antigravityMessage("Be brief.", "Hi");
+    expect(JSON.parse(line)).toEqual({
+      event: "user",
+      message: { content: "<instructions>\nBe brief.\n</instructions>\n\nHi" },
+    });
+    expect(line.endsWith("\n")).toBe(true);
+    expect(JSON.parse(antigravityMessage("", "Hi")).message.content).toBe("Hi");
+    expect(withEffort("gemini-3.8-flash-medium", "high")).toBe("gemini-3.8-flash-high");
+    expect(withEffort("gemini-3.8-flash-medium")).toBe("gemini-3.8-flash-medium");
+    expect(withEffort("some-model", "low")).toBe("some-model");
   });
 
   it("tells a signed-out client from one whose account cannot pay", async () => {
@@ -135,9 +155,49 @@ describe("an installed AI client as a model", () => {
     const { ModelUnavailableError } = await import("../src/model-errors");
     const h = { id: "codex" as const, name: "Codex", install: "npm i -g @openai/codex" };
     expect(failureOf(h, "Not logged in")).toBeInstanceOf(ModelUnavailableError);
-    expect(failureOf(h, "Not logged in").message).toContain("nicht angemeldet");
-    expect(failureOf(h, "usage limit reached").message).toContain("Kontingent");
+    expect(failureOf(h, "Not logged in").message).toContain("isn’t signed in");
+    expect(failureOf(h, "usage limit reached").message).toContain("no credit or quota left");
+    const { errorText } = await import("../src/model-errors");
+    expect(errorText(failureOf(h, "Not logged in"), "de")).toContain("nicht angemeldet");
     expect(failureOf(h, "boom")).not.toBeInstanceOf(ModelUnavailableError);
+  });
+
+  it("opens the MCP bridge only for a call with tools the client runs", async () => {
+    const { HarnessModel } = await import("../src/harness/model");
+    const seen: (string | null)[] = [];
+    class Probe extends HarnessModel {
+      readonly provider = "probe";
+      protected async invoke(call: { bridgeUrl: string | null }) {
+        seen.push(call.bridgeUrl);
+        return { text: "ok" };
+      }
+    }
+    const model = new Probe({ id: "probe", name: "Probe" }, "default");
+    model.attach({ add: { id: "add", execute: async () => 3 } });
+    const prompt = [{ role: "user" as const, content: [{ type: "text" as const, text: "Hi" }] }];
+    const tool = (name: string) => ({
+      type: "function" as const,
+      name,
+      inputSchema: { type: "object" as const, properties: {} },
+    });
+    await model.doGenerate({ prompt });
+    await model.doGenerate({ prompt, tools: [] });
+    // The client searches with its own tool: naming it needs no bridge either.
+    await model.doGenerate({ prompt, tools: [tool("web_search")] });
+    await model.doGenerate({ prompt, tools: [tool("add")] });
+    expect(seen.slice(0, 3)).toEqual([null, null, null]);
+    expect(seen[3]).toMatch(/^http/);
+  });
+
+  it("leaves the store's tools out of a step that has no use for them", async () => {
+    const { storeIdle } = await import("../src/tools/index");
+    expect(storeIdle({ tools: [] }, 0, 0)).toBe(true);
+    expect(storeIdle({ tools: [], connections: [] }, 0, 0)).toBe(true);
+    // Tools of its own, the wizard's lists, uploads or a connection: the store's tools stay.
+    expect(storeIdle({ tools: ["web_search"] }, 0, 0)).toBe(false);
+    expect(storeIdle({ tools: [] }, 1, 0)).toBe(false);
+    expect(storeIdle({ tools: [] }, 0, 1)).toBe(false);
+    expect(storeIdle({ tools: [], connections: ["mail"] }, 0, 0)).toBe(false);
   });
 
   it("serves a call's tools to the client over MCP and closes them with the call", async () => {

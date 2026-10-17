@@ -36,12 +36,16 @@ const plugin = resolve(folder);
 
 const manifestFile = join(plugin, "engenty.plugin.json");
 if (!existsSync(manifestFile)) {
-  console.error(`${manifestFile} is missing: a plugin with a studio half is a folder with a manifest.`);
+  console.error(
+    `${manifestFile} is missing: a plugin with a studio half is a folder with a manifest.`,
+  );
   process.exit(1);
 }
 const { id } = JSON.parse(readFileSync(manifestFile, "utf8"));
 if (!/^[a-z][a-z0-9-]{0,39}$/.test(id ?? "")) {
-  console.error(`${manifestFile}: "id" must be lower case, digits and "-", starting with a letter.`);
+  console.error(
+    `${manifestFile}: "id" must be lower case, digits and "-", starting with a letter.`,
+  );
   process.exit(1);
 }
 
@@ -66,6 +70,8 @@ const SHARED = {
   "react-router": "__WIZARDS_STUDIO__.router",
   "@tanstack/react-query": "__WIZARDS_STUDIO__.query",
   "@engenty-wizards/web/ui": "__WIZARDS_STUDIO__.ui",
+  "@engenty/wizards/plugin/studio": "__WIZARDS_STUDIO__.sdk",
+  // The name plugins written before `@engenty/wizards/plugin/studio` import.
   "@engenty-wizards/plugin-sdk/studio": "__WIZARDS_STUDIO__.sdk",
 };
 
@@ -75,7 +81,7 @@ const css = (path) => JSON.stringify(path);
 writeFileSync(
   join(work, "tailwind.css"),
   `@import ${css(fromWeb.resolve("tailwindcss/theme.css"))} theme(inline reference);
-@import ${css(join(web, "src/styles/theme.css"))} theme(reference);
+@import ${css(join(root, "packages/runner/src/theme.css"))} theme(reference);
 @layer wizards-plugin {
   [data-plugin="${id}"] {
     @tailwind utilities source(none);
@@ -85,6 +91,7 @@ writeFileSync(
 /* The studio's components a plugin draws carry the studio's classes: the same rules, in the
    plugin's own order, so its stylesheet decides alone inside its part of the page. */
 @source ${css(join(web, "src/ui"))};
+@source ${css(join(root, "packages/runner/src/ui.tsx"))};
 `,
 );
 writeFileSync(
@@ -130,7 +137,9 @@ try {
   });
   const size = (file) => `${(statSync(join(outDir, file)).size / 1024).toFixed(1)} kB`;
   const report = () =>
-    console.log(`${id}: dist/client.js ${size("client.js")}, dist/client.css ${size("client.css")}`);
+    console.log(
+      `${id}: dist/client.js ${size("client.js")}, dist/client.css ${size("client.css")}`,
+    );
   if (watch) {
     result.on("event", (event) => {
       if (event.code === "END") {

@@ -20,7 +20,7 @@ import type { StepContext } from "../engine/types.js";
 import { env } from "../env.js";
 import { costOf, textModel } from "../models.js";
 import { assertPublicUrl } from "./net-guard.js";
-import { attempt, type FileKeeper } from "./shared.js";
+import { attempt, type FileKeeper, imageOutput } from "./shared.js";
 
 /** The page as an agent step reads it; retried while the page is between two documents. */
 export async function readPage(page: Page): Promise<PageView> {
@@ -543,19 +543,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
         }
         return { url: p.url(), saved, screenshot: Buffer.from(png).toString("base64") };
       }),
-    toModelOutput: (out: any) => {
-      if (!out?.screenshot) {
-        return { type: "json", value: out };
-      }
-      const { screenshot, ...rest } = out;
-      return {
-        type: "content",
-        value: [
-          { type: "text", text: JSON.stringify(rest) },
-          { type: "image-data", data: screenshot, mediaType: "image/png" },
-        ],
-      };
-    },
+    toModelOutput: imageOutput("screenshot"),
   });
 
   const handOver = async (input: {

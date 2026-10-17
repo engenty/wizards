@@ -21,7 +21,7 @@ export interface Layout {
   envFile: string;
   /** What the setup remembers: when it ran. */
   installFile: string;
-  /** npm prefix of an install made by install.sh: `node_modules/wizards`. */
+  /** The runtimes of an install made by install.sh, one npm prefix per version (versions.ts). */
   runtime: string;
   /** The Node that install.sh brought: `tools/node/bin/node`. */
   tools: string;
@@ -51,12 +51,22 @@ export function layout(home = wizardsHome()): Layout {
 /** The folder this code was installed to: it holds `apps/`, `plugin/` and package.json. */
 export const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
+let running: string | undefined;
+
+/**
+ * The version this process runs, read once: an update replaces package.json under a runtime that
+ * still runs the old code, and the studio reloads only when another version answers.
+ */
 export function packageVersion(): string {
-  try {
-    return JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")).version ?? "0.0.0";
-  } catch {
-    return "0.0.0";
+  if (running === undefined) {
+    try {
+      running =
+        JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")).version ?? "0.0.0";
+    } catch {
+      running = "0.0.0";
+    }
   }
+  return running ?? "0.0.0";
 }
 
 /** How this copy got here: by install.sh into the home folder, or by npm/npx or a checkout. */
@@ -82,6 +92,12 @@ export interface InstallNote {
   /** When the guided setup last ran to its end. */
   setupAt?: string;
   version?: string;
+  /** Set up with `--local`: no account, nothing leaves this computer. A sign-in clears it. */
+  local?: boolean;
+  /** `wizards autoupdate on|off`; unset, it follows autoupdate.ts's defaults. */
+  autoUpdate?: boolean;
+  /** The setup ran without a terminal (CI, a script): no updates by themselves unless turned on. */
+  unattended?: boolean;
 }
 
 export function readInstallNote(paths: Layout = layout()): InstallNote {

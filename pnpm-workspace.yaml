@@ -3,9 +3,16 @@ packages:
   - packages/*
   - modules/*
   - examples/plugins/*
+  - examples/openui-chat
 
 overrides:
   # apps/docs: fumadocs-core 16.15.11 wraps the markdown handlers and drops the `attention`
   # hook 2.1.3 relies on, so a page with bold text recurses without end at build time. Only
   # fumadocs-core gets the older one; the runtime's own stay as they are.
   fumadocs-core>mdast-util-to-markdown: 2.1.2
+  # drizzle-orm's optional peer for Expo apps: auto-installed peers would bring in Expo and React
+  # Native (~300 packages) that nothing here runs.
+  drizzle-orm>expo-sqlite: "-"
+  # proxy-agent's get-uri still asks for basic-ftp 5, whose directory-listing parser can be made to
+  # burn CPU (GHSA-c475-qrg2-pj4r). 6.x has the same API; its breaking change is a stricter PASV check.
+  get-uri>basic-ftp: ^6.2.1

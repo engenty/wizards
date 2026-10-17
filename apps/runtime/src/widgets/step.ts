@@ -4,7 +4,9 @@ import {
   type WidgetStep,
   widgetSize,
 } from "@engenty-wizards/shared/definition";
+import { runTheme } from "@engenty-wizards/shared/projects";
 import type { StepOutput } from "@engenty-wizards/shared/run";
+import { note } from "@engenty-wizards/shared/run";
 import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
 import { resolveRef } from "../engine/template.js";
 import { type ProjectRow, type StepContext, StepError } from "../engine/types.js";
@@ -28,6 +30,7 @@ export async function widgetBrand(project: ProjectRow): Promise<WidgetBrand> {
     facts: Object.fromEntries(
       project.facts.filter((f) => f.value.trim()).map((f) => [f.key, f.value]),
     ),
+    theme: runTheme(project.brand),
   };
 }
 
@@ -130,9 +133,7 @@ async function runFilmStep(
     }
   });
   if (!film) {
-    throw new StepError(
-      "Der Film konnte nicht gerendert werden: dazu braucht es ffmpeg und eine Zeitleiste im Widget.",
-    );
+    throw new StepError(note("filmNotRenderedNeeds"));
   }
   if (film.errors.length) {
     await ctx.emit("info", {

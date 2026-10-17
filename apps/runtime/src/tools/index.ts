@@ -7,19 +7,15 @@ import { MCPClient } from "@mastra/mcp";
 import { z } from "zod";
 import { documentMime, parseDocument } from "../documents/parse.js";
 import type { StepContext } from "../engine/types.js";
-import { env } from "../env.js";
 import { generateImageMedia } from "../media/generate.js";
 import { markMedia } from "../media/marking.js";
 import { gatewayTools, isHarnessVendor, type ResolvedModel } from "../models.js";
 import { htmlToMarkdown } from "../render/convert.js";
-import {
-  type ExecResult,
-  pythonToolDescription,
-  sandboxCapabilities,
-  shellToolDescription,
-} from "../sandbox/index.js";
+import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../sandbox/index.js";
 import { snapshotFile } from "../services/files.js";
+import { hasStoreFiles } from "../store/index.js";
 import { browserTools } from "./browser.js";
+import { codeTool } from "./code.js";
 import { connectorTools } from "./connector.js";
 import { mailTools } from "./mail.js";
 import { assertPublicUrl, safeFetch } from "./net-guard.js";
@@ -33,6 +29,8 @@ export interface StepTools {
   tools: Record<string, any>;
   /** Assets the tools made during the step (screenshots, images, exported files). */
   assets: AssetRef[];
+  /** How to write a program over the tools, with the `code` tool. */
+  instructions?: string;
   close(): Promise<void>;
 }
 
@@ -62,6 +60,18 @@ function isReadable(type: string, body: string): boolean {
     }
   }
   return odd <= sample.length * 0.01;
+}
+
+/**
+ * Whether a step has no use for the wizard's store: it declares no tools and no connections,
+ * got no uploads, and the wizard keeps no lists. Its files may still be there (`buildStepTools`).
+ */
+export function storeIdle(
+  step: Pick<AgentStep, "tools" | "connections">,
+  lists: number,
+  uploads: number,
+): boolean {
+  return step.tools.length === 0 && !step.connections?.length && lists === 0 && uploads === 0;
 }
 
 /** The tools an agent step may use: exactly what its definition allowlists. */
@@ -166,13 +176,21 @@ export async function buildStepTools(
 
   const files = new FileKeeper(ctx, assets);
 
-  if (allowed.has("browser")) {
-    Object.assign(tools, await browserTools(ctx, assets, files));
-  }
+  // The browser is one page, worked step by step, and it asks the person to sign in.
+  const browser = allowed.has("browser") ? await browserTools(ctx, assets, files) : {};
+  Object.assign(tools, browser);
 
   // The wizard's lists and files, the documents the person gave and the project's documents are
-  // always at hand.
-  Object.assign(tools, storeTools(ctx, uploads, files));
+  // always at hand. An installed client gets tools over an MCP bridge its CLI starts for every
+  // call, seconds of its own: a step with no use for the store goes without its tools, and
+  // without others (Knowledge, a workspace file) the client answers without the bridge.
+  const idle =
+    isHarnessVendor(resolved.vendor) &&
+    storeIdle(step, ctx.def.lists?.length ?? 0, uploads.length) &&
+    !(await hasStoreFiles(ctx.store));
+  if (!idle) {
+    Object.assign(tools, storeTools(ctx, uploads, files));
+  }
   Object.assign(tools, await projectTools(ctx));
   Object.assign(tools, mailTools(step, ctx, files));
   Object.assign(tools, await connectorTools(step, ctx, files));
@@ -204,26 +222,6 @@ export async function buildStepTools(
         );
       },
     });
-    if (sandbox.python === "tool") {
-      tools.run_python = createTool({
-        id: "run_python",
-        description: pythonToolDescription(sandbox),
-        inputSchema: z.object({
-          code: z.string(),
-          packages: z.array(z.string()).optional().describe("PyPI packages the code imports"),
-          timeoutSeconds: z.number().optional(),
-        }),
-        execute: async ({ code, packages, timeoutSeconds }) => {
-          await ctx.emit("tool", { code: "python" });
-          return report(
-            await ctx.resources.sandboxHandle().runPython!(code, {
-              packages,
-              timeoutMs: timeoutMs(timeoutSeconds),
-            }),
-          );
-        },
-      });
-    }
     tools.export_file = createTool({
       id: "export_file",
       description:
@@ -327,9 +325,23 @@ export async function buildStepTools(
     }
   }
 
+  // An installed client writes and runs code of its own.
+  let instructions: string | undefined;
+  if (allowed.has("code") && !isHarnessVendor(resolved.vendor)) {
+    const code = codeTool(
+      Object.fromEntries(Object.entries(tools).filter(([key]) => !(key in browser))),
+      ctx,
+    );
+    if (code) {
+      tools[code.tool.id] = code.tool;
+      instructions = code.instructions;
+    }
+  }
+
   return {
     tools,
     assets,
+    instructions,
     close: async () => {
       await mcp?.disconnect().catch(() => undefined);
     },

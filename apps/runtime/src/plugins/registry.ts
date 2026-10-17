@@ -8,11 +8,12 @@ import type {
   PluginPublicRoute,
   PluginRoute,
   PluginRunner,
+  PluginSharedRoute,
   PluginSpaceContext,
   PluginStarter,
   PluginTick,
   PluginTool,
-} from "@engenty-wizards/plugin-sdk";
+} from "@engenty/wizards/plugin";
 import type { RunnerInfo } from "@engenty-wizards/shared/runners";
 import { env } from "../env.js";
 import { managed, tenantInfo } from "../manage.js";
@@ -39,6 +40,8 @@ export interface RegisteredRunner {
   page?: PluginRunner["page"];
   /** Why the runner cannot be used in the current tenant right now; asked where it is listed. */
   problem?: PluginRunner["problem"];
+  /** Where a person reaches a wizard through it: the number, the keyword, the link. */
+  address?: PluginRunner["address"];
 }
 
 /** A job of `server.every`. */
@@ -62,6 +65,8 @@ export interface LoadedPlugin {
   /** What the space assistant is told on the plugin's own page. */
   assistantPages: PluginAssistantPage[];
   publicRoutes: RouteEntry<PluginPublicRoute>[];
+  /** Routes for every tenant at once, below `/api/public/plugins/<id>/shared`. */
+  sharedRoutes: RouteEntry<PluginSharedRoute>[];
   /** The runners the plugin adds, by id: what `/w/<token>/<id>` serves, and what it can do. */
   runners: Map<string, RegisteredRunner>;
   jobs: Map<string, PluginJob>;
@@ -93,6 +98,7 @@ export function emptyRecord(source: PluginSource): LoadedPlugin {
     assistantTools: new Map(),
     assistantPages: [],
     publicRoutes: [],
+    sharedRoutes: [],
     runners: new Map(),
     jobs: new Map(),
     starters: new Map(),

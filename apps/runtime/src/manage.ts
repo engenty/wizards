@@ -1,3 +1,4 @@
+import type { Lang } from "@engenty-wizards/shared/definition";
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from "jose";
 import { env } from "./env.js";
 
@@ -193,20 +194,24 @@ export function tenantMembers(id: string): Promise<TenantMembers> {
   return call<TenantMembers>("GET", `/v1/tenants/${encodeURIComponent(id)}/members`);
 }
 
-const users = new Map<string, { at: number; value: Record<string, boolean> }>();
+export interface UserInfo {
+  /** The person's own feature switches, as an admin set them at the Manage-App. */
+  features: Record<string, boolean>;
+  /** The person runs the platform (an admin of the Manage-App). */
+  admin: boolean;
+}
 
-/** A person's own feature switches, as an admin set them at the Manage-App; cached a minute. */
-export async function userFeatures(userId: string): Promise<Record<string, boolean>> {
+const users = new Map<string, { at: number; value: UserInfo }>();
+
+/** What the Manage-App says of a person beyond their token; cached a minute. */
+export async function userInfo(userId: string): Promise<UserInfo> {
   const hit = users.get(userId);
   if (hit && Date.now() - hit.at < 60_000) {
     return hit.value;
   }
-  const value = await call<{ features?: Record<string, boolean> }>(
-    "GET",
-    `/v1/users/${encodeURIComponent(userId)}`,
-  )
-    .then((u) => u.features ?? {})
-    .catch(() => hit?.value ?? {});
+  const value = await call<Partial<UserInfo>>("GET", `/v1/users/${encodeURIComponent(userId)}`)
+    .then((u) => ({ features: u.features ?? {}, admin: u.admin === true }))
+    .catch(() => hit?.value ?? { features: {}, admin: false });
   users.set(userId, { at: Date.now(), value });
   return value;
 }
@@ -236,6 +241,45 @@ export function forgetTenant(id: string) {
   tenants.delete(id);
 }
 
+/** Renames the team at the Manage-App; what it answers is the tenant as it stands now. */
+export async function renameTenant(id: string, name: string): Promise<TenantInfo> {
+  const value = await call<TenantInfo>("PATCH", `/v1/tenants/${encodeURIComponent(id)}`, {
+    name,
+  });
+  tenants.set(id, { at: Date.now(), value });
+  return value;
+}
+
+/** What a team tells the studio's first visit about itself; the Manage-App keeps it (its leads). */
+export interface TeamProfile {
+  kind: "personal" | "club" | "small" | "corp";
+  size?: string | null;
+  sector?: string | null;
+  role?: string | null;
+  need?: string | null;
+  legalName?: string | null;
+  phone?: string | null;
+  website?: string | null;
+}
+
+export function saveTeamProfile(
+  tenantId: string,
+  userId: string,
+  lang: "de" | "en",
+  profile: TeamProfile,
+): Promise<{ ok: boolean }> {
+  return call("PUT", `/v1/tenants/${encodeURIComponent(tenantId)}/profile`, {
+    ...profile,
+    userId,
+    lang,
+  });
+}
+
+/** The Manage-App mails the install command and the first steps to one of the team's people. */
+export function installMail(email: string, lang: Lang): Promise<{ ok: boolean }> {
+  return call("POST", "/v1/install-mail", { email, lang });
+}
+
 export interface KeyInfo {
   valid: boolean;
   keyId?: string;
@@ -248,6 +292,11 @@ export interface KeyInfo {
 
 export function verifyKey(key: string): Promise<KeyInfo> {
   return call<KeyInfo>("POST", "/v1/keys/verify", { key });
+}
+
+/** Whether the grant behind an access token still stands: not disconnected, still a member. */
+export function grantActive(userId: string, clientId: string, tenantId: string) {
+  return call<{ active: boolean }>("POST", "/v1/grants/check", { userId, clientId, tenantId });
 }
 
 export function reserve(tenantId: string, runId: string, credits: number) {
@@ -305,15 +354,89 @@ export async function publicPlans(base: string): Promise<PublicPlans> {
   return (await res.json()) as PublicPlans;
 }
 
-export function bookUsage(input: {
-  tenantId: string;
-  runId?: string;
-  stepId?: string;
-  kind: string;
-  usd: number;
-  idempotencyKey: string;
-}) {
-  return call<{ credits: number }>("POST", "/v1/usage", input);
+/** The tenant's numbers at the Manage-App, as `GET /v1/tenants/:id/channels` answers. */
+export interface TenantChannels {
+  /** The tenant's own number for texts and calls; null while it has none. */
+  number: {
+    number: string;
+    country: string;
+    kinds: ("sms" | "call" | "whatsapp")[];
+    /** The provider's id of the number (Twilio's `PN…`); null when none was entered. */
+    providerRef: string | null;
+    since: string | null;
+  } | null;
+  /** The tenant's open request for a number, and who asked; null for none. */
+  request: {
+    id: string;
+    country: string;
+    wish: string | null;
+    email: string;
+    createdAt: string;
+  } | null;
+  /** The numbers every tenant shares (WhatsApp, a keyword per wizard). */
+  shared: { number: string; country: string; kinds: ("sms" | "call" | "whatsapp")[] }[];
+  /** The tenant's plan has a number of its own; false on a plan without one (Free). */
+  allowed?: boolean;
+}
+
+const channels = new Map<string, { at: number; value: TenantChannels }>();
+
+/** The tenant's numbers, cached for a minute. */
+export async function tenantChannels(id: string): Promise<TenantChannels> {
+  const hit = channels.get(id);
+  if (hit && Date.now() - hit.at < 60_000) {
+    return hit.value;
+  }
+  const value = await call<TenantChannels>("GET", `/v1/tenants/${encodeURIComponent(id)}/channels`);
+  channels.set(id, { at: Date.now(), value });
+  return value;
+}
+
+/**
+ * Forgets what the Manage-App said of the tenant's numbers: the next `tenantChannels` asks.
+ * The runtime tests of the Manage-App's channel plugins (sms, calls, whatsapp) call it.
+ */
+export function forgetChannels(id: string) {
+  channels.delete(id);
+}
+
+/** A person of the tenant asks for its number; what the Manage-App answers with is the request. */
+export async function requestChannelNumber(
+  id: string,
+  input: { userId: string; country: string; wish?: string | null; lang: Lang },
+) {
+  channels.delete(id);
+  return call<{ request: NonNullable<TenantChannels["request"]> }>(
+    "POST",
+    `/v1/tenants/${encodeURIComponent(id)}/channels/requests`,
+    input,
+  );
+}
+
+/** The tenant takes its open request back. */
+export async function withdrawChannelRequest(id: string) {
+  channels.delete(id);
+  return call<{ withdrawn: boolean }>(
+    "DELETE",
+    `/v1/tenants/${encodeURIComponent(id)}/channels/requests`,
+  );
+}
+
+/** What a tenant's channel used, priced by the Manage-App: texts by segment, calls by minute. */
+export function bookChannelUsage(
+  id: string,
+  input: {
+    kind: "sms" | "call" | "whatsapp";
+    quantity: number;
+    runId?: string;
+    idempotencyKey: string;
+  },
+) {
+  return call<{ credits: number }>(
+    "POST",
+    `/v1/tenants/${encodeURIComponent(id)}/channels/usage`,
+    input,
+  );
 }
 
 /** A push to the mobile app on one device; the Manage-App holds the APNs and FCM keys. */

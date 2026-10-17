@@ -1,6 +1,6 @@
 import { ExternalLink } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-import { lang, t } from "../lib/i18n";
+import { t } from "../lib/i18n";
 import { Empty, Input, Spinner } from "../ui";
 import { ENGENTY_CREDITS, HIGHLIGHT_CREDITS, type ProductCredit } from "./product-credits";
 
@@ -85,7 +85,7 @@ function ProductList({ credits }: { credits: ProductCredit[] }) {
           name={credit.name}
           homepage={credit.homepage}
           license={credit.license}
-          description={credit.description[lang]}
+          description={t(credit.description)}
         />
       ))}
     </ul>
@@ -137,9 +137,7 @@ export function Credits({ active }: { active: boolean }) {
 
   const q = query.trim().toLowerCase();
   const product = (credits: ProductCredit[]) =>
-    q
-      ? credits.filter((c) => matches(q, c.name, c.license, c.description.de, c.description.en))
-      : credits;
+    q ? credits.filter((c) => matches(q, c.name, c.license, t(c.description))) : credits;
   const oss = (packages: OssCredit[]) =>
     q ? packages.filter((p) => matches(q, p.name, p.license, p.version)) : packages;
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// Writes what the app shows as its changelog and its open-source credits:
-// apps/web/src/about/{changelog,oss-credits}.json. Commit both.
+// Writes what the app shows as its changelog and its open-source credits,
+// apps/web/src/about/{changelog,oss-credits}.json, and the third-party part of COPYRIGHTS.md.
+// Commit all three.
 //
-//   pnpm about:data               both files
+//   pnpm about:data               all
 //   pnpm about:data --changelog   the changelog only (pnpm release --changelog runs this)
-//   pnpm about:data --credits     the credits only
+//   pnpm about:data --credits     the credits and COPYRIGHTS.md only
 //
 // The changelog is the root changelog.json (git-cliff's context, written by pnpm release) cut
 // down to what the page shows. The credits are the direct dependencies the workspace's
@@ -12,6 +13,7 @@
 // `pnpm licenses list`, grouped as
 //   shared: declared by two or more workspaces
 //   groups: the rest, per app or package
+// COPYRIGHTS.md lists the same, plus the docs site and the development tooling (devDependencies).
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -21,6 +23,10 @@ const CHANGELOG_JSON = join(root, "changelog.json");
 const OUT_DIR = join(root, "apps", "web", "src", "about");
 const OUT_CHANGELOG = join(OUT_DIR, "changelog.json");
 const OUT_CREDITS = join(OUT_DIR, "oss-credits.json");
+const OUT_COPYRIGHTS = join(root, "COPYRIGHTS.md");
+const COPYRIGHTS_BEGIN =
+  "<!-- third-party: written by scripts/write-about-data.mjs, do not edit by hand -->";
+const COPYRIGHTS_END = "<!-- /third-party -->";
 /** The workspace's own packages: no credit to give. */
 const OWN_SCOPE = "@engenty-wizards/";
 /** Workspaces that are not part of the app people run: the docs site. */
@@ -57,8 +63,7 @@ function writeSlimChangelog() {
     }))
     // Newest first; what is not released yet has no timestamp and leads.
     .sort(
-      (a, b) =>
-        (b.timestamp ?? Number.MAX_SAFE_INTEGER) - (a.timestamp ?? Number.MAX_SAFE_INTEGER),
+      (a, b) => (b.timestamp ?? Number.MAX_SAFE_INTEGER) - (a.timestamp ?? Number.MAX_SAFE_INTEGER),
     );
   mkdirSync(OUT_DIR, { recursive: true });
   writeFileSync(OUT_CHANGELOG, `${JSON.stringify(slim, null, 2)}\n`, "utf8");
@@ -66,7 +71,7 @@ function writeSlimChangelog() {
 }
 
 /** The package.json of the root and of every workspace under apps/ and packages/ the app is made of. */
-function workspacePackageJsonPaths() {
+function workspacePackageJsonPaths(all = false) {
   const paths = [join(root, "package.json")];
   for (const segment of ["apps", "packages"]) {
     const dir = join(root, segment);
@@ -78,7 +83,7 @@ function workspacePackageJsonPaths() {
       if (
         entry.isDirectory() &&
         existsSync(pkgPath) &&
-        !NOT_THE_APP.has(`${segment}/${entry.name}`)
+        (all || !NOT_THE_APP.has(`${segment}/${entry.name}`))
       ) {
         paths.push(pkgPath);
       }
@@ -87,10 +92,10 @@ function workspacePackageJsonPaths() {
   return paths;
 }
 
-/** @returns {Array<{ id: string; kind: "root" | "app" | "package"; label: string; deps: Set<string> }>} */
-function workspaceDirectDeps() {
+/** @returns {Array<{ id: string; kind: "root" | "app" | "package"; label: string; deps: Set<string>; dev: Set<string> }>} */
+function workspaceDirectDeps(all = false) {
   const workspaces = [];
-  for (const pkgPath of workspacePackageJsonPaths()) {
+  for (const pkgPath of workspacePackageJsonPaths(all)) {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
     const id = relative(root, dirname(pkgPath)).replaceAll("\\", "/") || "root";
     const kind = id === "root" ? "root" : id.startsWith("apps/") ? "app" : "package";
@@ -103,8 +108,14 @@ function workspaceDirectDeps() {
         }
       }
     }
-    if (deps.size > 0) {
-      workspaces.push({ id, kind, label, deps });
+    const dev = new Set();
+    for (const name of Object.keys(pkg.devDependencies ?? {})) {
+      if (!name.startsWith(OWN_SCOPE)) {
+        dev.add(name);
+      }
+    }
+    if (deps.size > 0 || dev.size > 0) {
+      workspaces.push({ id, kind, label, deps, dev });
     }
   }
   return workspaces;
@@ -184,16 +195,78 @@ function writeOssCredits() {
   );
 }
 
+const row = ({ name, version, license, homepage }) =>
+  `| ${homepage ? `[${name}](${homepage})` : name} | ${version} | ${license} |`;
+const table = (packages) =>
+  ["| Package | Version | Licence |", "|---|---|---|", ...packages.map(row)].join("\n");
+
+/** The third-party part of COPYRIGHTS.md: every workspace, the docs site too, and the tooling. */
+function writeCopyrights() {
+  const workspaces = workspaceDirectDeps(true);
+  /** @type {Map<string, Set<string>>} */
+  const declaredBy = new Map();
+  const dev = new Set();
+  for (const ws of workspaces) {
+    for (const name of ws.deps) {
+      declaredBy.set(name, (declaredBy.get(name) ?? new Set()).add(ws.id));
+    }
+    for (const name of ws.dev) {
+      dev.add(name);
+    }
+  }
+  const byName = licenseIndex(new Set([...declaredBy.keys(), ...dev]));
+  const shared = [...declaredBy].filter(([, owners]) => owners.size > 1).map(([name]) => name);
+  const parts = [];
+  if (shared.length > 0) {
+    parts.push(
+      `### Shared\n\nDeclared by two or more of the workspaces below:\n\n${table(packagesFor(shared, byName))}`,
+    );
+  }
+  const ordered = [...workspaces].sort(
+    (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.label.localeCompare(b.label),
+  );
+  for (const ws of ordered) {
+    const own = [...ws.deps].filter((name) => declaredBy.get(name)?.size === 1);
+    if (own.length > 0) {
+      parts.push(`### ${ws.label} (${ws.id})\n\n${table(packagesFor(own, byName))}`);
+    }
+  }
+  const tooling = [...dev].filter((name) => !declaredBy.has(name));
+  if (tooling.length > 0) {
+    parts.push(
+      `### Development only\n\nUsed to build, check and test; not part of what people run:\n\n${table(packagesFor(tooling, byName))}`,
+    );
+  }
+  const current = readFileSync(OUT_COPYRIGHTS, "utf8");
+  const start = current.indexOf(COPYRIGHTS_BEGIN);
+  const end = current.indexOf(COPYRIGHTS_END);
+  if (start < 0 || end < 0) {
+    die(`${relative(root, OUT_COPYRIGHTS)} has no ${COPYRIGHTS_BEGIN} … ${COPYRIGHTS_END} part.`);
+  }
+  const section = `${COPYRIGHTS_BEGIN}\n\n${parts.join("\n\n")}\n\n${COPYRIGHTS_END}`;
+  writeFileSync(
+    OUT_COPYRIGHTS,
+    current.slice(0, start) + section + current.slice(end + COPYRIGHTS_END.length),
+  );
+  console.log(
+    `✔ ${relative(root, OUT_COPYRIGHTS)} (${declaredBy.size} packages, ${tooling.length} development only)`,
+  );
+}
+
 if (writeChangelog) {
   writeSlimChangelog();
 }
 if (writeCredits) {
   writeOssCredits();
+  writeCopyrights();
 }
 
 // `pnpm lint` reads these files too: leave them the way Biome formats them. Relative paths,
 // so a checkout under .claude/ (which biome.json skips) is formatted as well.
-const written = [...(writeChangelog ? [OUT_CHANGELOG] : []), ...(writeCredits ? [OUT_CREDITS] : [])];
+const written = [
+  ...(writeChangelog ? [OUT_CHANGELOG] : []),
+  ...(writeCredits ? [OUT_CREDITS] : []),
+];
 if (written.length > 0) {
   execFileSync(
     "pnpm",

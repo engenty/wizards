@@ -1,4 +1,5 @@
-import type { ModelClass, TextClass } from "./definition.js";
+import type { Lang, ModelClass, TextClass } from "./definition.js";
+import { type Line, type Texts, textOf } from "./texts.js";
 
 /**
  * What a wizard asks models for, as a person thinks of it. Each stands for model classes; the
@@ -76,24 +77,79 @@ export const PROVIDER_IDS = [
 ] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
-interface Labels {
-  de: string;
-  en: string;
-}
+const PROVIDER_EN = {
+  "about.openai": "GPT models, GPT Image and voices.",
+  fast: "fast",
+  thorough: "thorough",
+  versatile: "versatile",
+  lowCost: "low cost",
+  fastLowCost: "fast, low cost",
+  "about.anthropic": "The Claude models.",
+  strongest: "strongest",
+  "about.google": "Gemini, Veo for video and voices – one key from AI Studio.",
+  fastEditsPhotos: "fast, edits photos",
+  bestQuality: "best quality",
+  withSound: "with sound",
+  "about.fal":
+    "Hundreds of image, video and audio models with one key: FLUX, Recraft, Veo, Luma, MiniMax.",
+  highQuality: "high quality",
+  graphicsLogosTextIn: "graphics, logos, text in images",
+  photorealistic: "photorealistic",
+  "about.elevenlabs": "Natural voices in many languages and accurate transcripts.",
+  naturalManyLanguages: "natural, many languages",
+  expressive: "expressive",
+  veryAccurate: "very accurate",
+  "about.replicate": "Open image and video models, billed per run.",
+  "about.gateway": "One key for many providers’ models, billed by Vercel.",
+} as const satisfies Record<string, Line>;
+/** A line about a provider or one of its models, in `PROVIDER_TEXTS`. */
+export type ProviderWords = keyof typeof PROVIDER_EN;
+
+const PROVIDER_DE: Partial<Record<ProviderWords, Line>> = {
+  "about.openai": "GPT-Modelle, GPT Image und Stimmen.",
+  fast: "schnell",
+  thorough: "gründlich",
+  versatile: "vielseitig",
+  lowCost: "günstig",
+  fastLowCost: "schnell, günstig",
+  "about.anthropic": "Die Claude-Modelle.",
+  strongest: "am stärksten",
+  "about.google": "Gemini, Veo für Videos und Stimmen – ein Key aus dem AI Studio.",
+  fastEditsPhotos: "schnell, bearbeitet Fotos",
+  bestQuality: "beste Qualität",
+  withSound: "mit Ton",
+  "about.fal":
+    "Hunderte Bild-, Video- und Audio-Modelle mit einem Key: FLUX, Recraft, Veo, Luma, MiniMax.",
+  highQuality: "hohe Qualität",
+  graphicsLogosTextIn: "Grafiken, Logos, Text im Bild",
+  photorealistic: "fotorealistisch",
+  "about.elevenlabs": "Natürliche Stimmen in vielen Sprachen und genaue Transkripte.",
+  naturalManyLanguages: "natürlich, viele Sprachen",
+  expressive: "ausdrucksstark",
+  veryAccurate: "sehr genau",
+  "about.replicate": "Offene Bild- und Video-Modelle, abgerechnet pro Lauf.",
+  "about.gateway": "Ein Key für die Modelle vieler Anbieter, abgerechnet bei Vercel.",
+};
+
+export const PROVIDER_TEXTS: Texts<ProviderWords> = { en: PROVIDER_EN, de: PROVIDER_DE };
+
+/** A line about a provider or a model, in a language. */
+export const providerText = (key: ProviderWords, lang: Lang): string =>
+  textOf(PROVIDER_TEXTS, key, lang);
 
 export interface ModelOption {
   /** The binding: `<provider>:<the provider's model id>`. */
   ref: string;
   /** The model's own name; not translated. */
   label: string;
-  note?: Labels;
+  note?: ProviderWords;
 }
 
 export interface ProviderInfo {
   id: ProviderId;
   name: string;
   /** One line on what it is, for someone who never heard of it. */
-  about: Labels;
+  about: ProviderWords;
   /** Where a person makes a key. */
   keyUrl: string;
   /** How a key looks, for the input's placeholder. */
@@ -104,13 +160,11 @@ export interface ProviderInfo {
   text?: Record<TextClass, string>;
 }
 
-const note = (de: string, en: string): Labels => ({ de, en });
-
 export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: "openai",
     name: "OpenAI",
-    about: note("GPT-Modelle, GPT Image und Stimmen.", "GPT models, GPT Image and voices."),
+    about: "about.openai",
     keyUrl: "https://platform.openai.com/api-keys",
     keyPlaceholder: "sk-…",
     text: {
@@ -121,29 +175,29 @@ export const PROVIDERS: readonly ProviderInfo[] = [
     },
     models: {
       text: [
-        { ref: "openai:gpt-5.4-mini", label: "GPT-5.4 mini", note: note("schnell", "fast") },
-        { ref: "openai:gpt-5.5", label: "GPT-5.5", note: note("gründlich", "thorough") },
+        { ref: "openai:gpt-5.4-mini", label: "GPT-5.4 mini", note: "fast" },
+        { ref: "openai:gpt-5.5", label: "GPT-5.5", note: "thorough" },
       ],
       image: [
-        { ref: "openai:gpt-image-2", label: "GPT Image 2", note: note("vielseitig", "versatile") },
+        { ref: "openai:gpt-image-2", label: "GPT Image 2", note: "versatile" },
         {
           ref: "openai:gpt-image-1-mini",
           label: "GPT Image 1 mini",
-          note: note("günstig", "low cost"),
+          note: "lowCost",
         },
       ],
       speech: [
         {
           ref: "openai:gpt-4o-mini-tts",
           label: "GPT-4o mini TTS",
-          note: note("günstig", "low cost"),
+          note: "lowCost",
         },
       ],
       listening: [
         {
           ref: "openai:gpt-4o-mini-transcribe",
           label: "GPT-4o mini Transcribe",
-          note: note("schnell, günstig", "fast, low cost"),
+          note: "fastLowCost",
         },
         { ref: "openai:whisper-1", label: "Whisper" },
       ],
@@ -152,7 +206,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: "anthropic",
     name: "Anthropic",
-    about: note("Die Claude-Modelle.", "The Claude models."),
+    about: "about.anthropic",
     keyUrl: "https://console.anthropic.com/settings/keys",
     keyPlaceholder: "sk-ant-…",
     text: {
@@ -166,13 +220,13 @@ export const PROVIDERS: readonly ProviderInfo[] = [
         {
           ref: "anthropic:claude-haiku-4-5",
           label: "Claude Haiku 4.5",
-          note: note("schnell", "fast"),
+          note: "fast",
         },
         { ref: "anthropic:claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
         {
           ref: "anthropic:claude-opus-5-5",
           label: "Claude Opus 5.5",
-          note: note("am stärksten", "strongest"),
+          note: "strongest",
         },
       ],
     },
@@ -180,10 +234,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: "google",
     name: "Google Gemini",
-    about: note(
-      "Gemini, Veo für Videos und Stimmen – ein Key aus dem AI Studio.",
-      "Gemini, Veo for video and voices – one key from AI Studio.",
-    ),
+    about: "about.google",
     keyUrl: "https://aistudio.google.com/apikey",
     keyPlaceholder: "AIza…",
     text: {
@@ -197,37 +248,37 @@ export const PROVIDERS: readonly ProviderInfo[] = [
         {
           ref: "google:gemini-flash-lite-latest",
           label: "Gemini Flash-Lite",
-          note: note("günstig", "low cost"),
+          note: "lowCost",
         },
         { ref: "google:gemini-flash-latest", label: "Gemini Flash" },
         {
           ref: "google:gemini-pro-latest",
           label: "Gemini Pro",
-          note: note("gründlich", "thorough"),
+          note: "thorough",
         },
       ],
       image: [
         {
           ref: "google:gemini-3.1-flash-image-preview",
           label: "Gemini 3.1 Flash Image",
-          note: note("schnell, bearbeitet Fotos", "fast, edits photos"),
+          note: "fastEditsPhotos",
         },
         {
           ref: "google:gemini-3-pro-image-preview",
           label: "Gemini 3 Pro Image",
-          note: note("beste Qualität", "best quality"),
+          note: "bestQuality",
         },
       ],
       video: [
         {
           ref: "google:veo-3.1-fast-generate-preview",
           label: "Veo 3.1 Fast",
-          note: note("mit Ton", "with sound"),
+          note: "withSound",
         },
         {
           ref: "google:veo-3.1-generate-preview",
           label: "Veo 3.1",
-          note: note("beste Qualität", "best quality"),
+          note: "bestQuality",
         },
       ],
       speech: [{ ref: "google:gemini-3.8-flash-tts", label: "Gemini Flash TTS" }],
@@ -237,10 +288,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: "fal",
     name: "fal.ai",
-    about: note(
-      "Hunderte Bild-, Video- und Audio-Modelle mit einem Key: FLUX, Recraft, Veo, Luma, MiniMax.",
-      "Hundreds of image, video and audio models with one key: FLUX, Recraft, Veo, Luma, MiniMax.",
-    ),
+    about: "about.fal",
     keyUrl: "https://fal.ai/dashboard/keys",
     keyPlaceholder: "xxxxxxxx-…:…",
     models: {
@@ -248,39 +296,39 @@ export const PROVIDERS: readonly ProviderInfo[] = [
         {
           ref: "fal:fal-ai/flux/schnell",
           label: "FLUX.1 schnell",
-          note: note("schnell, günstig", "fast, low cost"),
+          note: "fastLowCost",
         },
         {
           ref: "fal:fal-ai/flux-pro/v1.1",
           label: "FLUX 1.1 pro",
-          note: note("hohe Qualität", "high quality"),
+          note: "highQuality",
         },
         {
           ref: "fal:fal-ai/recraft/v3/text-to-image",
           label: "Recraft V3",
-          note: note("Grafiken, Logos, Text im Bild", "graphics, logos, text in images"),
+          note: "graphicsLogosTextIn",
         },
         {
           ref: "fal:fal-ai/imagen4/preview",
           label: "Imagen 4",
-          note: note("fotorealistisch", "photorealistic"),
+          note: "photorealistic",
         },
       ],
       video: [
-        { ref: "fal:veo3/fast", label: "Veo 3 Fast", note: note("mit Ton", "with sound") },
-        { ref: "fal:luma-ray-2-flash", label: "Luma Ray 2 Flash", note: note("schnell", "fast") },
+        { ref: "fal:veo3/fast", label: "Veo 3 Fast", note: "withSound" },
+        { ref: "fal:luma-ray-2-flash", label: "Luma Ray 2 Flash", note: "fast" },
         { ref: "fal:minimax-video", label: "MiniMax Hailuo" },
       ],
       speech: [
         {
           ref: "fal:fal-ai/minimax/speech-02-turbo",
           label: "MiniMax Speech-02 Turbo",
-          note: note("schnell", "fast"),
+          note: "fast",
         },
         { ref: "fal:fal-ai/minimax/speech-02-hd", label: "MiniMax Speech-02 HD" },
       ],
       listening: [
-        { ref: "fal:wizper", label: "Wizper", note: note("schnell", "fast") },
+        { ref: "fal:wizper", label: "Wizper", note: "fast" },
         { ref: "fal:whisper", label: "Whisper" },
       ],
     },
@@ -288,10 +336,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: "elevenlabs",
     name: "ElevenLabs",
-    about: note(
-      "Natürliche Stimmen in vielen Sprachen und genaue Transkripte.",
-      "Natural voices in many languages and accurate transcripts.",
-    ),
+    about: "about.elevenlabs",
     keyUrl: "https://elevenlabs.io/app/settings/api-keys",
     keyPlaceholder: "sk_…",
     models: {
@@ -299,24 +344,24 @@ export const PROVIDERS: readonly ProviderInfo[] = [
         {
           ref: "elevenlabs:eleven_multilingual_v2",
           label: "Multilingual v2",
-          note: note("natürlich, viele Sprachen", "natural, many languages"),
+          note: "naturalManyLanguages",
         },
         {
           ref: "elevenlabs:eleven_flash_v2_5",
           label: "Flash v2.5",
-          note: note("schnell, günstig", "fast, low cost"),
+          note: "fastLowCost",
         },
         {
           ref: "elevenlabs:eleven_v3",
           label: "Eleven v3",
-          note: note("ausdrucksstark", "expressive"),
+          note: "expressive",
         },
       ],
       listening: [
         {
           ref: "elevenlabs:scribe_v2",
           label: "Scribe v2",
-          note: note("sehr genau", "very accurate"),
+          note: "veryAccurate",
         },
       ],
     },
@@ -324,10 +369,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: "replicate",
     name: "Replicate",
-    about: note(
-      "Offene Bild- und Video-Modelle, abgerechnet pro Lauf.",
-      "Open image and video models, billed per run.",
-    ),
+    about: "about.replicate",
     keyUrl: "https://replicate.com/account/api-tokens",
     keyPlaceholder: "r8_…",
     models: {
@@ -335,7 +377,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
         {
           ref: "replicate:black-forest-labs/flux-schnell",
           label: "FLUX.1 schnell",
-          note: note("schnell, günstig", "fast, low cost"),
+          note: "fastLowCost",
         },
         { ref: "replicate:black-forest-labs/flux-1.1-pro", label: "FLUX 1.1 pro" },
         { ref: "replicate:recraft-ai/recraft-v3", label: "Recraft V3" },
@@ -346,10 +388,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   {
     id: "gateway",
     name: "Vercel AI Gateway",
-    about: note(
-      "Ein Key für die Modelle vieler Anbieter, abgerechnet bei Vercel.",
-      "One key for many providers' models, billed by Vercel.",
-    ),
+    about: "about.gateway",
     keyUrl: "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai-gateway%2Fapi-keys",
     keyPlaceholder: "vck_…",
     text: {
@@ -363,7 +402,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
         {
           ref: "anthropic/claude-haiku-4.5",
           label: "Claude Haiku 4.5",
-          note: note("schnell", "fast"),
+          note: "fast",
         },
         { ref: "anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5" },
         { ref: "openai/gpt-5.5", label: "GPT-5.5" },
@@ -374,7 +413,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
         {
           ref: "google/veo-3.1-fast-generate-001",
           label: "Veo 3.1 Fast",
-          note: note("mit Ton", "with sound"),
+          note: "withSound",
         },
       ],
       speech: [{ ref: "google/gemini-3.8-flash-tts", label: "Gemini Flash TTS" }],

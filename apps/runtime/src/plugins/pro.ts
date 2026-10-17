@@ -26,7 +26,7 @@ import {
 import { loadedPlugin } from "./registry.js";
 
 /*
- * Pro modules on a runtime that runs alone (docs/content/dev/plugins/pro-modules): the closed
+ * Pro modules on a runtime that runs alone (docs/pro-modules.md): the closed
  * plugins the linked account's plan includes, fetched from its Manage-App.
  *
  *   GET /v1/modules?runtime=<release>              what is built for this release, the plan's
@@ -124,7 +124,7 @@ async function call(path: string, token: string): Promise<Response> {
     signal: AbortSignal.timeout(60_000),
   }).catch(() => null);
   if (!res) {
-    throw new ProModuleError("Dein engenty-Konto ist gerade nicht erreichbar.", 502, "offline");
+    throw new ProModuleError("Your engenty account is not reachable right now.", 502, "offline");
   }
   return res;
 }
@@ -150,14 +150,14 @@ export async function refreshPro(): Promise<void> {
   try {
     const token = await accountToken();
     if (!token) {
-      throw new ProModuleError("Dein engenty-Konto ist gerade nicht erreichbar.", 502, "offline");
+      throw new ProModuleError("Your engenty account is not reachable right now.", 502, "offline");
     }
     const res = await call("", token);
     if (res.status === 401) {
-      throw new ProModuleError("Das engenty-Konto nimmt diese Anmeldung nicht mehr an.", 403);
+      throw new ProModuleError("The engenty account no longer accepts this sign-in.", 403);
     }
     if (!res.ok) {
-      throw new ProModuleError(`Das Konto antwortet nicht wie erwartet (${res.status}).`, 502);
+      throw new ProModuleError(`The account did not answer as expected (${res.status}).`, 502);
     }
     const answer = (await res.json()) as Listing;
     const claims = await verifySigned(
@@ -166,7 +166,7 @@ export async function refreshPro(): Promise<void> {
       env.local.accountUrl,
     );
     if (!claims || claims.sub !== account.tenantId || !Array.isArray(claims.modules)) {
-      throw new ProModuleError("Die Bestätigung des Pakets ließ sich nicht prüfen.", 502);
+      throw new ProModuleError("The package's confirmation could not be checked.", 502);
     }
     listing = answer;
     lastError = null;
@@ -228,7 +228,7 @@ function filesOf(zip: Uint8Array): Record<string, Uint8Array> {
   try {
     files = unzipSync(zip);
   } catch {
-    throw new ProModuleError("Das Paket ist beschädigt.", 502);
+    throw new ProModuleError("The package is damaged.", 502);
   }
   const out: Record<string, Uint8Array> = {};
   for (const [name, data] of Object.entries(files)) {
@@ -239,7 +239,7 @@ function filesOf(zip: Uint8Array): Record<string, Uint8Array> {
     const safe = parts.every((p) => p && p !== "." && p !== ".." && !p.includes("\\"));
     const allowed = name === MANIFEST_FILE || PARTS.some((part) => name.startsWith(part));
     if (!(safe && allowed)) {
-      throw new ProModuleError(`Das Paket enthält eine unerlaubte Datei: ${name}`, 502);
+      throw new ProModuleError(`The package holds a file it may not: ${name}`, 502);
     }
     out[name] = data;
   }
@@ -249,28 +249,32 @@ function filesOf(zip: Uint8Array): Record<string, Uint8Array> {
 /** Fetches one module of the plan, checks it and puts it in place; then it loads. */
 export async function installPro(id: string): Promise<void> {
   if (managed) {
-    throw new ProModuleError("Hier nicht verfügbar.", 404, "not_found");
+    throw new ProModuleError("Not available here.", 404, "not_found");
   }
   const token = await accountToken();
   if (!token) {
-    throw new ProModuleError("Verbinde zuerst dein engenty-Konto (Einstellungen → Konto).", 409);
+    throw new ProModuleError("Sign in to your engenty account first (Settings → Account).", 409);
   }
   if (!listing) {
     await refreshPro();
   }
   const entry = listing?.modules.find((m) => m.id === id);
   if (!entry) {
-    throw new ProModuleError(`Für ${runtimeTag()} gibt es dieses Modul nicht.`, 404, "not_found");
+    throw new ProModuleError(
+      `There is no build of this module for ${runtimeTag()}.`,
+      404,
+      "not_found",
+    );
   }
   if (!entry.included) {
-    throw new ProModuleError("Dieses Modul ist nicht Teil deines Pakets.", 403, "plan");
+    throw new ProModuleError("This module is not part of your plan.", 403, "plan");
   }
   const res = await call(`/${encodeURIComponent(id)}/package`, token);
   if (!res.ok) {
-    throw new ProModuleError(`Das Modul ließ sich nicht laden (${res.status}).`, 502);
+    throw new ProModuleError(`The module could not be fetched (${res.status}).`, 502);
   }
   if (Number(res.headers.get("content-length") ?? 0) > MAX_PACKAGE) {
-    throw new ProModuleError("Das Paket ist zu groß.", 502);
+    throw new ProModuleError("The package is too large.", 502);
   }
   const zip = new Uint8Array(await res.arrayBuffer());
   const sha256 = createHash("sha256").update(zip).digest("hex");
@@ -284,12 +288,12 @@ export async function installPro(id: string): Promise<void> {
       signature: entry.signature,
     });
   if (zip.length > MAX_PACKAGE || !genuine) {
-    throw new ProModuleError("Das Paket ist nicht von engenty signiert und wurde verworfen.", 502);
+    throw new ProModuleError("The package is not signed by engenty and was discarded.", 502);
   }
   const files = filesOf(zip);
   const manifest = JSON.parse(new TextDecoder().decode(files[MANIFEST_FILE] ?? new Uint8Array()));
   if (manifest?.id !== id) {
-    throw new ProModuleError("Das Paket passt nicht zu diesem Modul.", 502);
+    throw new ProModuleError("The package does not belong to this module.", 502);
   }
 
   const dir = proModulesDir();
@@ -324,7 +328,7 @@ export async function installPro(id: string): Promise<void> {
 /** Removes an installed module; its tables and what is in them stay. */
 export async function removePro(id: string): Promise<void> {
   if (managed || !(await installedIds()).includes(id)) {
-    throw new ProModuleError("Dieses Modul ist nicht installiert.", 404, "not_found");
+    throw new ProModuleError("This module is not installed.", 404, "not_found");
   }
   await rm(join(proModulesDir(), id), { recursive: true, force: true });
   await findNewPlugins();
@@ -378,11 +382,4 @@ export async function proState() {
     error: lastError,
     modules,
   };
-}
-
-/** For tests: forget what the account said. */
-export function resetProForTests() {
-  listing = null;
-  lastError = null;
-  setEntitlement(null);
 }

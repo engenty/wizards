@@ -6,7 +6,7 @@ import { managed } from "../manage.js";
 import type { PluginProblem, PluginSource } from "./discovery.js";
 
 /**
- * Which Pro modules may load (docs/content/dev/plugins/pro-modules). A Pro module is a closed
+ * Which Pro modules may load (docs/pro-modules.md). A Pro module is a closed
  * plugin the linked account's plan includes, installed by pro.ts into a folder of its own. It
  * loads while the entitlement the account's Manage-App signed lists it and has not ended, and
  * only in the release it was built for. Kept apart from pro.ts, so the loader needs no network.

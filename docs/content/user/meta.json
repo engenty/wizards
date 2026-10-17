@@ -1,17 +1,19 @@
 {
   "title": "User Guide",
-  "description": "Install engenty wizards, build a wizard, run and share it.",
+  "description": "Create an account, build a wizard, run and share it, install it on your computer.",
   "root": true,
   "icon": "LifeBuoy",
   "pages": [
     "index",
     "---Start---",
+    "create-account",
     "install",
     "first-start",
     "---Wizards---",
     "build-a-wizard",
     "steps",
     "test-and-share",
+    "wordpress",
     "run",
     "space",
     "assistant",
@@ -23,6 +25,7 @@
     "---Your install---",
     "command-line",
     "data",
+    "local-only",
     "server",
     "troubleshooting"
   ]

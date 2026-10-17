@@ -19,8 +19,10 @@
     <script>
       // Before first paint, so a dark visitor never sees the light page flash.
       try {
-        const pick = localStorage.getItem("wizards.theme");
-        if (pick === "dark" || (!pick && matchMedia("(prefers-color-scheme: dark)").matches)) {
+        // The pick shared with the account pages (engenty_theme) wins over this host's own.
+        const shared = /(?:^|;\s*)engenty_theme=(light|dark|system)(?:;|$)/.exec(document.cookie);
+        const pick = shared ? shared[1] : localStorage.getItem("wizards.theme");
+        if (pick === "dark" || !pick || (pick === "system" && matchMedia("(prefers-color-scheme: dark)").matches)) {
           document.documentElement.classList.add("dark");
           document.querySelector('meta[name="theme-color"]').content = "#1c2a63";
         }

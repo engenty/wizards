@@ -60,7 +60,8 @@ export interface FlowView {
 }
 
 export function registerFlowApp(server: McpServer) {
-  const origin = new URL(env.appUrl).origin;
+  // The widget reaches the run on the doors: their origin.
+  const origin = new URL(env.publicUrl).origin;
   registerAppResource(
     server,
     "Wizard flow",
@@ -120,7 +121,9 @@ export async function flowView(
     },
     definition,
     run: options.run,
-    runtime: options.run ? { base: env.appUrl, ticket: runTicket(options.run.runId) } : undefined,
+    runtime: options.run
+      ? { base: env.publicUrl, ticket: runTicket(options.run.runId) }
+      : undefined,
   };
 }
 

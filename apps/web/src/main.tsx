@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router";
 import { PublicApp, StudioApp } from "./App";
 import { BASE, STUDIO } from "./lib/base";
 import { watchErrors } from "./lib/report";
+import "./lib/runner-env";
 import "./lib/theme";
 import "./styles/app.css";
 

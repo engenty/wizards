@@ -1,6 +1,25 @@
-import { FORMATS, LIST_FORMATS } from "@engenty-wizards/shared/definition";
+import {
+  FORMATS,
+  isLang,
+  LANG_CODE,
+  LANGS,
+  LIST_FORMATS,
+  TEXT_CLASSES,
+  type WizardDefinition,
+  wizardLang,
+} from "@engenty-wizards/shared/definition";
 import { TableColumnValueError } from "@engenty-wizards/shared/engenty/data-tables";
-import type { PublicWizard } from "@engenty-wizards/shared/run";
+import {
+  noteText,
+  type PublicField,
+  type PublicWizard,
+  type RunNote,
+} from "@engenty-wizards/shared/run";
+import {
+  machineTranslated,
+  type TranslationMemory,
+  translateDefinition,
+} from "@engenty-wizards/shared/translation";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import { and, eq } from "drizzle-orm";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
@@ -10,24 +29,30 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { principalOf } from "../auth/index.js";
 import { MARK_FOCUSED_PERSONAL } from "../browser/snapshot.js";
+import { clientOf, clientRefused } from "../clients.js";
 import {
   ConnectError,
   connectionViews,
   connectWithCredentials,
   disconnect,
   finishOAuth,
+  oauthStateLang,
   oauthStateRun,
   startOAuth,
 } from "../connectors/index.js";
 import { finishPluginOAuth, pluginStateTenant } from "../connectors/plugin-connections.js";
 import { db, schema, withTenant } from "../db/client.js";
 import { answerAsk, pendingAsk } from "../engine/asks.js";
-import { emitEvent, signalChanged, subscribe } from "../engine/events.js";
+import { answerDevice, offerDevice, openDeviceCalls } from "../engine/device.js";
+import { emitEvent, signalChanged, watchRun } from "../engine/events.js";
+import { fieldErrorsIn } from "../engine/input.js";
+import { fromOwner } from "../engine/owner.js";
 import { pushAvailable, setPushDevice } from "../engine/push.js";
 import { liveResources } from "../engine/resources.js";
 import {
   cancel,
   createRun,
+  editOutput,
   goBack,
   NoCreditsError,
   projectIdOf,
@@ -37,6 +62,7 @@ import {
   reviewStep,
   runView,
   submitPage,
+  talkAllowed,
 } from "../engine/runner.js";
 import { basePath, env } from "../env.js";
 import { loadAsset, saveAsset } from "../files/storage.js";
@@ -44,7 +70,7 @@ import { reverseGeocode } from "../geocode.js";
 import { allowed, hashIp, verifyTurnstile, wizardUnavailable } from "../limits.js";
 import { mintConversation } from "../media/conversation.js";
 import { transcribeAudio } from "../media/transcribe.js";
-import { ModelUnavailableError } from "../model-errors.js";
+import { errorText, ModelUnavailableError, noteOf } from "../model-errors.js";
 import { listDownload, renderDownload, stepHtml } from "../render/downloads.js";
 import { HTML_RESPONSE_CSP } from "../render/guard.js";
 import { runTicketValid, verifySignedUrl } from "../secrets/signing.js";
@@ -52,6 +78,13 @@ import { brandView } from "../services/brand.js";
 import { ServiceError } from "../services/errors.js";
 import { publicRunners, servePageRunner } from "../services/runners.js";
 import { sharedRun, shareImage, shareRun, shareView, unshareRun } from "../services/shares.js";
+import {
+  isLangCode,
+  storedTranslation,
+  translateResult,
+  translationFor,
+  uiTexts,
+} from "../services/translations.js";
 import { isIconFile, wizardAvatarSvg, wizardIcon } from "../services/wizard-icon.js";
 import {
   clearStore,
@@ -72,12 +105,22 @@ import {
   tokenOfCode,
   visitorOverLimit,
 } from "../tenants/control.js";
-import { byteRange, uploadLimit, wizardManifest } from "./delivery.js";
+import {
+  bareMime,
+  byteRange,
+  inlineSafe,
+  uploadLimit,
+  uploadMime,
+  wizardManifest,
+} from "./delivery.js";
+import { notFoundAnswer, requestLang, say } from "./lang.js";
 
 const VISITOR_COOKIE = "wz_vid";
 
 /** Kept files a review shows inline. */
 const INLINE_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
+/** Assets whose bytes and type someone outside the wizard chose: uploads and collected files. */
+const FOREIGN_KINDS = new Set(["upload", "upload-image", "file"]);
 
 export function clientIp(c: Context): string | null {
   const fwd = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
@@ -91,6 +134,11 @@ export function clientIp(c: Context): string | null {
   }
 }
 
+/** A refusal the visitor reads, in the language their request asks for. */
+function refuse(c: Context, note: RunNote, status: 400 | 403 | 404 | 409 | 422 | 429 | 502) {
+  return c.json({ error: noteText(note, requestLang(c)) }, status);
+}
+
 /**
  * The mobile app's own requests (a run's view, downloads) name the visitor in a header: iOS
  * merges a Cookie header the app sets with its own cookie store (`wz_vid=a,wz_vid=a`). The header
@@ -98,6 +146,23 @@ export function clientIp(c: Context): string | null {
  * as good as the cookie.
  */
 const VISITOR_HEADER = "x-wizards-visitor";
+
+/** An http(s) address without credentials or fragment, or null for anything else. */
+function webAddress(raw: string | undefined): string | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const url = new URL(raw);
+    if (!(url.protocol === "http:" || url.protocol === "https:") || url.username || url.password) {
+      return null;
+    }
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 
 function visitorId(c: Context, create: boolean, embedded = false): string | null {
   let vid = c.req.header(VISITOR_HEADER) || getCookie(c, VISITOR_COOKIE) || null;
@@ -123,6 +188,9 @@ function visitorId(c: Context, create: boolean, embedded = false): string | null
  * the owner's AI app with its run ticket, or — on the read-only file routes — a signed link
  * handed out to the owner's MCP client.
  */
+/** A view's kept state stays small: ticks and choices, not data. */
+const MAX_VIEW_STATE = 32_000;
+
 async function accessibleRun(c: Context, runId: string, opts: { signed?: boolean } = {}) {
   const run = await db.query.run.findFirst({ where: eq(schema.run.id, runId) });
   if (!run) {
@@ -152,10 +220,13 @@ async function viewOf(run: NonNullable<Awaited<ReturnType<typeof accessibleRun>>
 
 function commandError(c: Context, err: unknown) {
   if (err instanceof RunInputError) {
-    return c.json({ error: err.message, fields: err.errors }, 422);
+    return c.json(
+      { error: errorText(err, requestLang(c)), fields: fieldErrorsIn(err.errors, requestLang(c)) },
+      422,
+    );
   }
   if (err instanceof RunConflict) {
-    return c.json({ error: err.message }, 409);
+    return c.json({ error: errorText(err, requestLang(c)) }, 409);
   }
   throw err;
 }
@@ -168,10 +239,10 @@ function tenantFrom(find: (c: Context) => Promise<string | null>): MiddlewareHan
   return async (c, next) => {
     const tenant = await find(c);
     if (!tenant) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     if ((await tenantStatus(tenant)) === "suspended") {
-      return c.json({ error: "Dieser Wizard ist gerade nicht verfügbar." }, 403);
+      return refuse(c, { code: "wizardUnavailable" }, 403);
     }
     return withTenant(tenant, next);
   };
@@ -212,7 +283,7 @@ async function pageRunner(c: Context, rest: string): Promise<Response> {
     where: eq(schema.wizard.shareToken, c.req.param("token") ?? ""),
   });
   if (!w || w.publishedVersion === null) {
-    return c.json({ error: "not found" }, 404);
+    return c.json(notFoundAnswer(c), 404);
   }
   const version = await db.query.wizardVersion.findFirst({
     where: and(
@@ -223,7 +294,79 @@ async function pageRunner(c: Context, rest: string): Promise<Response> {
   const served = version
     ? await servePageRunner(w, version.definition, c.req.param("runner") ?? "", rest, c.req.raw)
     : null;
-  return served ?? c.json({ error: "not found" }, 404);
+  return served ?? c.json(notFoundAnswer(c), 404);
+}
+
+/** A wizard's link with its published version, or null where it has none. */
+async function publishedWizard(token: string | undefined) {
+  const w = await db.query.wizard.findFirst({
+    where: eq(schema.wizard.shareToken, token ?? ""),
+  });
+  if (!w || w.publishedVersion === null) {
+    return null;
+  }
+  const version = await db.query.wizardVersion.findFirst({
+    where: and(
+      eq(schema.wizardVersion.wizardId, w.id),
+      eq(schema.wizardVersion.version, w.publishedVersion),
+    ),
+  });
+  return version ? { w, def: version.definition, version: w.publishedVersion } : null;
+}
+
+/** The author offers the wizard translated, and the language is not the one it is written in. */
+function wantsTranslation(w: { translate: boolean }, def: WizardDefinition, lang: string): boolean {
+  return w.translate && lang !== wizardLang(def);
+}
+
+/** What the wizard's pages ask, in order (`PublicWizard.fields`). */
+export function pageFields(def: WizardDefinition): PublicField[] {
+  return def.steps.flatMap((step) =>
+    step.type === "page"
+      ? step.fields.map((f) => ({
+          id: f.id,
+          label: f.label,
+          kind: f.kind,
+          ...(f.options?.length ? { options: f.options } : {}),
+          ...(f.required ? { required: true } : {}),
+        }))
+      : [],
+  );
+}
+
+/** What a wizard's page shows before a run: in the viewer's language where `as` is given. */
+async function publicBody(
+  c: Context,
+  w: NonNullable<Awaited<ReturnType<typeof publishedWizard>>>["w"],
+  original: WizardDefinition,
+  as: { lang: string; memory: TranslationMemory } | null,
+): Promise<PublicWizard> {
+  const translated = as ? translateDefinition(original, as.memory) : null;
+  const def = translated?.def ?? original;
+  const reason = await wizardUnavailable(w);
+  return {
+    token: w.shareToken,
+    title: def.title,
+    description: def.description,
+    avatar: def.avatar,
+    intro: def.intro ?? null,
+    brand: await brandView(w.projectId),
+    turnstileSiteKey: env.turnstile.siteKey || null,
+    available: !reason,
+    unavailableReason: reason && noteText(reason, requestLang(c)),
+    runners: await publicRunners(w, original),
+    lang: wizardLang(original),
+    translatable: w.translate,
+    translation:
+      as && translated
+        ? {
+            lang: as.lang,
+            labels: translated.labels,
+            machine: machineTranslated(as.memory, original),
+          }
+        : null,
+    fields: pageFields(def),
+  };
 }
 
 export const publicRoutes = new Hono()
@@ -231,75 +374,121 @@ export const publicRoutes = new Hono()
   .get("/codes/:code", async (c) => {
     const ip = clientIp(c);
     if (codeLookupBlocked(ip)) {
-      return c.json({ error: "too many tries" }, 429);
+      return c.json(
+        {
+          error: say(c, "tooManyTriesWait"),
+          code: "too_many_tries",
+        },
+        429,
+      );
     }
     const found = await tokenOfCode(c.req.param("code"));
     if (!found || (await tenantStatus(found.tenantId)) === "suspended") {
       codeMissed(ip);
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
-    return c.json({ token: found.token, url: `${env.appUrl}/w/${found.token}` });
+    return c.json({ token: found.token, url: `${env.publicUrl}/w/${found.token}` });
   })
   .use("/wizards/:token", wizardLink)
   .use("/wizards/:token/*", wizardLink)
   .use("/logos/:id", logoLink)
   .get("/wizards/:token", async (c) => {
-    const w = await db.query.wizard.findFirst({
-      where: eq(schema.wizard.shareToken, c.req.param("token")),
-    });
-    if (!w || w.publishedVersion === null) {
-      return c.json({ error: "not found" }, 404);
+    const found = await publishedWizard(c.req.param("token"));
+    if (!found) {
+      return c.json(notFoundAnswer(c), 404);
     }
-    const version = await db.query.wizardVersion.findFirst({
-      where: and(
-        eq(schema.wizardVersion.wizardId, w.id),
-        eq(schema.wizardVersion.version, w.publishedVersion),
-      ),
-    });
-    const def = version!.definition;
-    const reason = await wizardUnavailable(w);
-    const body: PublicWizard = {
-      token: w.shareToken,
-      title: def.title,
-      description: def.description,
-      avatar: def.avatar,
-      intro: def.intro ?? null,
-      brand: await brandView(w.projectId),
-      turnstileSiteKey: env.turnstile.siteKey || null,
-      available: !reason,
-      unavailableReason: reason,
-      runners: await publicRunners(w, def),
-    };
-    return c.json(body);
+    // The page in the viewer's language where it is kept; making it is the POST below.
+    const lang = c.req.query("lang");
+    const memory =
+      isLangCode(lang) && wantsTranslation(found.w, found.def, lang)
+        ? await storedTranslation(found.w.id, lang)
+        : null;
+    return c.json(
+      await publicBody(c, found.w, found.def, lang && memory ? { lang, memory } : null),
+    );
+  })
+  // The wizard in the viewer's language: translated now where it is not kept yet.
+  .post("/wizards/:token/translation", async (c) => {
+    const found = await publishedWizard(c.req.param("token"));
+    if (!found) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const { lang } = z
+      .object({ lang: z.string().regex(LANG_CODE) })
+      .parse(await c.req.json().catch(() => ({})));
+    if (!wantsTranslation(found.w, found.def, lang)) {
+      return refuse(c, { code: "translationOff" }, 403);
+    }
+    try {
+      const memory = await translationFor(found.w.id, found.def, lang, found.version);
+      return c.json(await publicBody(c, found.w, found.def, { lang, memory }));
+    } catch (err) {
+      if (err instanceof ServiceError || err instanceof ModelUnavailableError) {
+        return refuse(c, { code: "translationFailed" }, 502);
+      }
+      throw err;
+    }
+  })
+  // The runner's own words in a language outside LANGS (the wizard's own or a viewer's), booked
+  // to this wizard's owner when new.
+  .get("/wizards/:token/texts/:lang", async (c) => {
+    const found = await publishedWizard(c.req.param("token"));
+    const lang = c.req.param("lang");
+    if (!found || !isLangCode(lang) || isLang(lang)) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    // The wizard's own language needs the runner's words too, translation offered or not.
+    if (lang !== wizardLang(found.def) && !wantsTranslation(found.w, found.def, lang)) {
+      return refuse(c, { code: "translationOff" }, 403);
+    }
+    try {
+      return c.json(await uiTexts(lang));
+    } catch (err) {
+      if (err instanceof ServiceError || err instanceof ModelUnavailableError) {
+        return refuse(c, { code: "translationFailed" }, 502);
+      }
+      throw err;
+    }
   })
   .post("/wizards/:token/runs", async (c) => {
     const w = await db.query.wizard.findFirst({
       where: eq(schema.wizard.shareToken, c.req.param("token")),
     });
     if (!w || w.publishedVersion === null) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const reason = await wizardUnavailable(w);
     if (reason) {
-      return c.json({ error: reason }, 403);
+      return refuse(c, reason, 403);
     }
     const body = z
-      .object({ turnstileToken: z.string().optional(), embedded: z.boolean().optional() })
+      .object({
+        turnstileToken: z.string().optional(),
+        embedded: z.boolean().optional(),
+        // The website page that embeds the wizard: shown with the result.
+        origin: z.string().max(2000).optional(),
+        // The language the viewer reads the wizard in, translated on request.
+        lang: z.string().regex(LANG_CODE).optional(),
+      })
       .parse(await c.req.json().catch(() => ({})));
     const ip = clientIp(c);
     if (!(await verifyTurnstile(body.turnstileToken, ip))) {
-      return c.json({ error: "Bitte bestätige kurz, dass du ein Mensch bist." }, 403);
+      return refuse(c, { code: "confirmHuman" }, 403);
+    }
+    // The client that starts it (docs/content/dev/api.md): on a managed runtime the Manage-App's
+    // list says which may, and how often an hour.
+    const client = clientOf(c);
+    const refused = clientRefused(client);
+    if (refused) {
+      return c.json(
+        { error: noteText({ code: refused.note }, requestLang(c)), code: refused.code },
+        refused.status,
+      );
     }
     const vid = visitorId(c, true, body.embedded)!;
     const ipHash = hashIp(ip);
     if (await visitorOverLimit(vid, ipHash)) {
-      return c.json(
-        {
-          error:
-            "Du hast gerade viele Durchläufe gestartet. Bitte versuche es in einer Stunde wieder.",
-        },
-        429,
-      );
+      return refuse(c, { code: "tooManyRuns" }, 429);
     }
     const version = await db.query.wizardVersion.findFirst({
       where: and(
@@ -316,11 +505,19 @@ export const publicRoutes = new Hono()
         mode: "live",
         visitorId: vid,
         ipHash,
+        origin: body.embedded ? webAddress(body.origin) : null,
+        lang:
+          body.lang &&
+          wantsTranslation(w, version!.definition, body.lang) &&
+          (await storedTranslation(w.id, body.lang))
+            ? body.lang
+            : null,
+        client,
       });
       return c.json({ runId });
     } catch (err) {
       if (err instanceof NoCreditsError || err instanceof ModelUnavailableError) {
-        return c.json({ error: "Dieser Wizard ist gerade nicht verfügbar." }, 403);
+        return refuse(c, { code: "wizardUnavailable" }, 403);
       }
       throw err;
     }
@@ -425,7 +622,7 @@ export const runRoutes = new Hono()
   .get("/:id", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     return c.json(await viewOf(run));
   })
@@ -433,7 +630,7 @@ export const runRoutes = new Hono()
     const id = c.req.param("id");
     const first = await accessibleRun(c, id);
     if (!first) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     return streamSSE(c, async (stream) => {
       let pending = false;
@@ -450,7 +647,20 @@ export const runRoutes = new Hono()
           await stream.writeSSE({ event: "view", data: JSON.stringify(await viewOf(run)) });
         }
       };
-      const unsubscribe = subscribe(id, () => {
+      // Calls the runner put to the device the run is watched from, each sent once per stream.
+      const sent = new Set<string>();
+      const sendDeviceCalls = async () => {
+        for (const call of await openDeviceCalls(id)) {
+          if (!(closed || sent.has(call.id))) {
+            sent.add(call.id);
+            await stream.writeSSE({ event: "device", data: JSON.stringify(call) });
+          }
+        }
+      };
+      const unsubscribe = watchRun(id, (signal) => {
+        if (!signal.event) {
+          void sendDeviceCalls().catch(() => undefined);
+        }
         void push();
       });
       stream.onAbort(() => {
@@ -458,6 +668,7 @@ export const runRoutes = new Hono()
         unsubscribe();
       });
       await stream.writeSSE({ event: "view", data: JSON.stringify(await viewOf(first)) });
+      await sendDeviceCalls();
       while (!closed) {
         await stream.sleep(20_000);
         if (!closed) {
@@ -466,10 +677,41 @@ export const runRoutes = new Hono()
       }
     });
   })
+  // The runner says what the device around it offers the run (the app's Apple Intelligence):
+  // from then on short text calls go there first. Renewed on every connect; see engine/device.ts.
+  .post("/:id/device", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const offer = z
+      .object({
+        think: z
+          .object({
+            classes: z.array(z.enum(TEXT_CLASSES)).max(TEXT_CLASSES.length),
+            maxChars: z.number().int().min(500).max(50_000),
+          })
+          .optional(),
+      })
+      .parse(await c.req.json().catch(() => ({})));
+    await offerDevice(run.id, offer);
+    return c.json({ ok: true });
+  })
+  // The device's answer to one call the stream carried as a `device` event.
+  .post("/:id/device/:reqId", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const answer = z
+      .object({ text: z.string().max(200_000).optional(), error: z.string().max(500).optional() })
+      .parse(await c.req.json().catch(() => ({})));
+    return c.json({ ok: await answerDevice(run.id, c.req.param("reqId"), answer) });
+  })
   .post("/:id/pages/:stepId", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const { values } = z
       .object({ values: z.record(z.string(), z.unknown()) })
@@ -481,14 +723,67 @@ export const runRoutes = new Hono()
       return commandError(c, err);
     }
   })
+  // What the person did in a step's view — a checklist's ticks, a widget's state — kept with the
+  // run, so the next visit shows it. Only while the run waits or is done: a running step owns
+  // the state then.
+  .put("/:id/views/:stepId", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    const stepId = c.req.param("stepId");
+    const output = run?.state.outputs[stepId];
+    if (!run || !output) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    if (run.status !== "waiting_input" && run.status !== "done") {
+      return c.json({ error: "busy" }, 409);
+    }
+    const { state } = z
+      .object({ state: z.record(z.string(), z.unknown()) })
+      .parse(await c.req.json());
+    if (JSON.stringify(state).length > MAX_VIEW_STATE) {
+      return c.json({ error: "too large" }, 413);
+    }
+    await db
+      .update(schema.run)
+      .set({
+        state: {
+          ...run.state,
+          outputs: { ...run.state.outputs, [stepId]: { ...output, view: state } },
+        },
+      })
+      .where(eq(schema.run.id, run.id));
+    return c.json({ ok: true });
+  })
+  // A json step's data, edited in the studio by someone of the team the run belongs to.
+  .put("/:id/outputs/:stepId", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    const user = await principalOf(c);
+    if (!run || !user || user.tenantId !== run.tenantId) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const { json } = z
+      .object({ json: z.record(z.string(), z.unknown()) })
+      .parse(await c.req.json());
+    try {
+      await editOutput(run.id, c.req.param("stepId"), json);
+      return c.json({ ok: true });
+    } catch (err) {
+      return commandError(c, err);
+    }
+  })
   .post("/:id/reviews/:stepId", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const action = z
       .discriminatedUnion("type", [
-        z.object({ type: z.literal("accept"), edits: z.record(z.string(), z.string()).optional() }),
+        z.object({
+          type: z.literal("accept"),
+          // A text, or the data of a json step (checked against its schema).
+          edits: z
+            .record(z.string(), z.union([z.string(), z.record(z.string(), z.unknown())]))
+            .optional(),
+        }),
         z.object({
           type: z.literal("regenerate"),
           target: z.string(),
@@ -507,7 +802,7 @@ export const runRoutes = new Hono()
   .post("/:id/back", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     try {
       await goBack(run.id);
@@ -519,7 +814,7 @@ export const runRoutes = new Hono()
   .post("/:id/retry", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     try {
       await retry(run.id);
@@ -531,49 +826,115 @@ export const runRoutes = new Hono()
   .post("/:id/cancel", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     await cancel(run.id);
+    return c.json({ ok: true });
+  })
+  // The viewer reads the run in another language from now on: null for the wizard's own.
+  .post("/:id/lang", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const { lang } = z
+      .object({ lang: z.string().regex(LANG_CODE).nullable() })
+      .parse(await c.req.json().catch(() => ({})));
+    const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
+    const own = !lang || lang === wizardLang(run.definition);
+    if (!(own || (w && wantsTranslation(w, run.definition, lang)))) {
+      return refuse(c, { code: "translationOff" }, 403);
+    }
+    if (!own) {
+      try {
+        await translationFor(run.wizardId, run.definition, lang, run.version);
+      } catch (err) {
+        if (err instanceof ServiceError || err instanceof ModelUnavailableError) {
+          return refuse(c, { code: "translationFailed" }, 502);
+        }
+        throw err;
+      }
+    }
+    await db
+      .update(schema.run)
+      .set({ lang: own ? null : lang })
+      .where(eq(schema.run.id, run.id));
+    signalChanged(run.id);
+    return c.json({ ok: true });
+  })
+  // A finished result's text in the language the viewer reads the run in, kept on the run.
+  .post("/:id/translate-result", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const { stepId } = z.object({ stepId: z.string() }).parse(await c.req.json().catch(() => ({})));
+    const text = run.state.outputs[stepId]?.text;
+    if (!(run.lang && text)) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    if (!run.state.translated?.[run.lang]?.[stepId]) {
+      let translated: string;
+      try {
+        translated = await translateResult(text, run.lang, wizardLang(run.definition));
+      } catch (err) {
+        if (err instanceof ServiceError || err instanceof ModelUnavailableError) {
+          return refuse(c, { code: "translationFailed" }, 502);
+        }
+        throw err;
+      }
+      const fresh = await db.query.run.findFirst({ where: eq(schema.run.id, run.id) });
+      const state = fresh?.state ?? run.state;
+      state.translated = {
+        ...state.translated,
+        [run.lang]: { ...state.translated?.[run.lang], [stepId]: translated },
+      };
+      await db.update(schema.run).set({ state }).where(eq(schema.run.id, run.id));
+      signalChanged(run.id);
+    }
     return c.json({ ok: true });
   })
   // A live conversation on the run: the secret the browser opens the session with.
   .post("/:id/talk", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     if (run.status === "done" || run.status === "cancelled" || run.status === "failed") {
-      return c.json({ error: "Der Durchlauf ist beendet." }, 409);
+      return refuse(c, { code: "runOver" }, 409);
+    }
+    if (!(await talkAllowed(run))) {
+      return refuse(c, { code: "talkOff" }, 403);
     }
     if (!allowed(`talk:${run.id}`, 20, 3600_000)) {
-      return c.json({ error: "Bitte später noch einmal." }, 429);
+      return refuse(c, { code: "tryLater" }, 429);
     }
     try {
       const view = await viewOf(run);
       return c.json(await mintConversation(view));
     } catch (err) {
       if (err instanceof ModelUnavailableError) {
-        return c.json({ error: err.message }, 403);
+        return c.json({ error: errorText(err, requestLang(c)) }, 403);
       }
       console.error("[talk]", err);
-      return c.json({ error: (err as Error).message }, 502);
+      return c.json({ error: errorText(err, requestLang(c)) }, 502);
     }
   })
   // What the person says into the chat's composer, written down — where the browser cannot do it itself.
   .post("/:id/transcribe", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     if (run.status === "done" || run.status === "cancelled" || run.status === "failed") {
-      return c.json({ error: "Der Durchlauf ist beendet." }, 409);
+      return refuse(c, { code: "runOver" }, 409);
     }
     if (!allowed(`transcribe:${run.id}`, 60, 3600_000)) {
-      return c.json({ error: "Bitte später noch einmal." }, 429);
+      return refuse(c, { code: "tryLater" }, 429);
     }
     const file = (await c.req.formData()).get("file");
     if (!(file instanceof File) || !file.size || file.size > 10_000_000) {
-      return c.json({ error: "Bitte eine Aufnahme bis 10 MB." }, 400);
+      return refuse(c, { code: "recordingTooLarge" }, 400);
     }
     try {
       const { text } = await transcribeAudio({
@@ -584,7 +945,11 @@ export const runRoutes = new Hono()
       return c.json({ text });
     } catch (err) {
       if (err instanceof ModelUnavailableError) {
-        return c.json({ error: err.message }, 403);
+        return c.json({ error: errorText(err, requestLang(c)) }, 403);
+      }
+      // Apple Intelligence on this Mac says why in a note (harness/apple.ts).
+      if (noteOf(err)) {
+        return c.json({ error: errorText(err, requestLang(c)) }, 502);
       }
       throw err;
     }
@@ -592,23 +957,26 @@ export const runRoutes = new Hono()
   .post("/:id/uploads", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const form = await c.req.formData();
     const file = form.get("file");
-    // A recorder names its type with codecs ("audio/webm;codecs=opus"); the bare type is kept.
-    const mime = file instanceof File ? file.type.split(";")[0].trim().toLowerCase() : "";
+    // A recorder names its type with codecs ("audio/webm;codecs=opus"); the bare type is kept,
+    // and only when it is one a wizard takes. The browser's word is the sender's: anything else
+    // is kept as plain bytes, so it can never come back as a page on this origin.
+    const mime = uploadMime(file instanceof File ? file.type : "");
     const limit = uploadLimit(mime);
     if (!(file instanceof File) || file.size > limit) {
-      return c.json(
-        { error: `Bitte eine Datei bis ${Math.round(limit / 1_000_000)} MB wählen.` },
+      return refuse(
+        c,
+        { code: "fileTooLarge", params: { mb: Math.round(limit / 1_000_000) } },
         400,
       );
     }
     const ref = await saveAsset({
       runId: run.id,
       kind: mime.startsWith("image/") ? "upload-image" : "upload",
-      mime: mime || "application/octet-stream",
+      mime,
       name: file.name.slice(0, 120),
       data: new Uint8Array(await file.arrayBuffer()),
     });
@@ -618,13 +986,13 @@ export const runRoutes = new Hono()
   .post("/:id/geocode", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const { lat, lng, language } = z
       .object({
         lat: z.number().min(-90).max(90),
         lng: z.number().min(-180).max(180),
-        language: z.enum(["de", "en"]).default("de"),
+        language: z.enum(LANGS).default("en"),
       })
       .parse(await c.req.json());
     return c.json({ label: await reverseGeocode(lat, lng, language) });
@@ -647,7 +1015,7 @@ export const runRoutes = new Hono()
   .post("/:id/ask/:askId", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const answer = z
       .discriminatedUnion("type", [
@@ -660,8 +1028,8 @@ export const runRoutes = new Hono()
         z.object({ type: z.literal("skip") }),
       ])
       .parse(await c.req.json());
-    if (!answerAsk(run.id, c.req.param("askId"), answer)) {
-      return c.json({ error: "Diese Frage ist nicht mehr offen." }, 409);
+    if (!(await answerAsk(run.id, c.req.param("askId"), answer))) {
+      return refuse(c, { code: "askClosed" }, 409);
     }
     return c.json({ ok: true });
   })
@@ -670,7 +1038,8 @@ export const runRoutes = new Hono()
     const run = await accessibleRun(c, c.req.param("id"));
     const resources = run?.status === "running" ? liveResources(run.id) : null;
     if (!resources?.openPage()) {
-      return c.json({ error: "not found" }, 404);
+      // The run may work in another process: its runner answers.
+      return (run && (await fromOwner(c, run.id))) || c.json(notFoundAnswer(c), 404);
     }
     return c.json({ seat: resources.seatHolder() });
   })
@@ -680,7 +1049,7 @@ export const runRoutes = new Hono()
     const run = await accessibleRun(c, c.req.param("id"));
     const resources = run?.status === "running" ? liveResources(run.id) : null;
     if (!(run && resources?.openPage())) {
-      return c.json({ error: "Der Wizard hat gerade keinen Browser offen." }, 409);
+      return (run && (await fromOwner(c, run.id))) || refuse(c, { code: "noBrowser" }, 409);
     }
     const { to } = z.object({ to: z.enum(["person", "agent"]) }).parse(await c.req.json());
     if (resources.seatHolder() !== to) {
@@ -698,7 +1067,7 @@ export const runRoutes = new Hono()
     const run = await accessibleRun(c, c.req.param("id"));
     const resources = run?.status === "running" ? liveResources(run.id) : null;
     if (!resources?.openPage()) {
-      return c.notFound();
+      return (run && (await fromOwner(c, run.id))) || c.notFound();
     }
     const boundary = "frame";
     const encoder = new TextEncoder();
@@ -765,10 +1134,17 @@ export const runRoutes = new Hono()
   .post("/:id/browser/act", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     const resources = run ? liveResources(run.id) : null;
-    const theirs = run && (pendingAsk(run.id) || resources?.seatHolder() === "person");
+    if (run?.status === "running" && !resources) {
+      // The run works in another process: its runner answers.
+      const answered = await fromOwner(c, run.id);
+      if (answered) {
+        return answered;
+      }
+    }
+    const theirs = run && ((await pendingAsk(run.id)) || resources?.seatHolder() === "person");
     const page = theirs ? resources?.openPage() : null;
     if (!(run && resources && page)) {
-      return c.json({ error: "Der Wizard wartet gerade nicht auf dich." }, 409);
+      return refuse(c, { code: "notWaiting" }, 409);
     }
     resources.touchSeat();
     const act = z
@@ -806,7 +1182,7 @@ export const runRoutes = new Hono()
       }
       await page.waitForLoadState("domcontentloaded", { timeout: 3000 }).catch(() => undefined);
     } catch {
-      return c.json({ error: "Das hat auf der Seite nicht geklappt." }, 422);
+      return refuse(c, { code: "pageActFailed" }, 422);
     }
     return c.json({ ok: true });
   })
@@ -817,7 +1193,7 @@ export const runRoutes = new Hono()
       (x) => x.id === c.req.param("connectionId"),
     );
     if (!run || !connection) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     try {
       const url = await startOAuth(
@@ -826,11 +1202,12 @@ export const runRoutes = new Hono()
         run.id,
         connection,
         c.req.param("connectorId"),
+        requestLang(c),
       );
       return c.json({ url });
     } catch (err) {
       if (err instanceof ConnectError) {
-        return c.json({ error: err.message }, 422);
+        return c.json({ error: errorText(err, requestLang(c)) }, 422);
       }
       throw err;
     }
@@ -841,7 +1218,7 @@ export const runRoutes = new Hono()
       (x) => x.id === c.req.param("connectionId"),
     );
     if (!run || !connection) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const { values } = z
       .object({ values: z.record(z.string(), z.string().max(500)) })
@@ -858,7 +1235,7 @@ export const runRoutes = new Hono()
       return c.json({ ok: true, label });
     } catch (err) {
       if (err instanceof ConnectError) {
-        return c.json({ error: err.message }, 422);
+        return c.json({ error: errorText(err, requestLang(c)) }, 422);
       }
       throw err;
     }
@@ -866,7 +1243,7 @@ export const runRoutes = new Hono()
   .delete("/:id/connections/:connectionId", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     await disconnect(scopeOf(run), c.req.param("connectionId"));
     signalChanged(run.id);
@@ -878,7 +1255,7 @@ export const runRoutes = new Hono()
     // A shared list is every run's: the person never sees it.
     const def = run?.definition.lists?.find((l) => l.id === c.req.param("list") && !l.shared);
     if (!run || !def) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const { cells } = z
       .object({ cells: z.record(z.string(), z.unknown()) })
@@ -896,14 +1273,14 @@ export const runRoutes = new Hono()
     // A shared list is every run's: the person never sees it.
     const def = run?.definition.lists?.find((l) => l.id === c.req.param("list") && !l.shared);
     if (!run || !def) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const { cells } = z
       .object({ cells: z.record(z.string(), z.unknown()) })
       .parse(await c.req.json());
     try {
       if (!(await updateRow(scopeOf(run), def, c.req.param("rowId"), cells))) {
-        return c.json({ error: "not found" }, 404);
+        return c.json(notFoundAnswer(c), 404);
       }
     } catch (err) {
       return listError(c, err);
@@ -916,7 +1293,7 @@ export const runRoutes = new Hono()
     // A shared list is every run's: the person never sees it.
     const def = run?.definition.lists?.find((l) => l.id === c.req.param("list") && !l.shared);
     if (!run || !def) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     await deleteRows(scopeOf(run), def, [c.req.param("rowId")]);
     signalChanged(run.id);
@@ -946,7 +1323,7 @@ export const runRoutes = new Hono()
   .get("/:id/store", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const scope = scopeOf(run);
     const lists = await Promise.all(
@@ -963,7 +1340,12 @@ export const runRoutes = new Hono()
       lists,
       files: await storeFiles(scope),
       connections: (
-        await connectionViews(run.definition.connections ?? [], scope, await projectIdOf(run))
+        await connectionViews(
+          run.definition.connections ?? [],
+          scope,
+          await projectIdOf(run),
+          requestLang(c),
+        )
       ).filter((x) => x.account),
       keepsSignIns: secrets.some((s) => s.slot === "browser"),
     });
@@ -995,7 +1377,7 @@ export const runRoutes = new Hono()
   .delete("/:id/store", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     await clearStore(scopeOf(run));
     signalChanged(run.id);
@@ -1005,13 +1387,13 @@ export const runRoutes = new Hono()
   .post("/:id/notify", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     const body = z
       .object({
         token: z.string().min(8).max(512),
         platform: z.enum(["ios", "android"]),
-        lang: z.enum(["en", "de"]).default("en"),
+        lang: z.enum(LANGS).default("en"),
       })
       .parse(await c.req.json());
     await setPushDevice(run.id, body);
@@ -1020,7 +1402,7 @@ export const runRoutes = new Hono()
   .delete("/:id/notify", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     await setPushDevice(run.id, null);
     return c.json({ ok: true });
@@ -1028,13 +1410,13 @@ export const runRoutes = new Hono()
   .post("/:id/share", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     try {
       return c.json(await shareRun(run));
     } catch (err) {
       if (err instanceof ServiceError) {
-        return c.json(err.toJSON(), err.status);
+        return c.json(err.toJSON(requestLang(c)), err.status);
       }
       throw err;
     }
@@ -1042,7 +1424,7 @@ export const runRoutes = new Hono()
   .delete("/:id/share", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     if (!run) {
-      return c.json({ error: "not found" }, 404);
+      return c.json(notFoundAnswer(c), 404);
     }
     await unshareRun(run);
     return c.json({ ok: true });
@@ -1052,7 +1434,7 @@ type RunRow = typeof schema.run.$inferSelect;
 
 function listError(c: Context, err: unknown) {
   if (err instanceof TableColumnValueError || err instanceof StoreError) {
-    return c.json({ error: err.message }, 422);
+    return c.json({ error: errorText(err, requestLang(c)) }, 422);
   }
   throw err;
 }
@@ -1082,10 +1464,10 @@ export const connectCallback = new Hono().get("/callback", async (c) => {
   const ticket = c.req.query("ticket");
   const state = c.req.query("state");
   let ok = false;
-  let message =
+  let said: RunNote =
     c.req.query("error") === "exchange_failed"
-      ? "Verbinden hat nicht geklappt. Bitte noch einmal versuchen."
-      : "Verbinden wurde abgebrochen.";
+      ? { code: "connectFailed" }
+      : { code: "connectCancelled" };
   // A plugin's sign-in (server.connections) names its tenant; a wizard's names its run.
   const pluginTenant = state ? pluginStateTenant(state) : null;
   const tenant = state ? (pluginTenant ?? (await tenantOfRun(oauthStateRun(state) ?? ""))) : null;
@@ -1099,18 +1481,22 @@ export const connectCallback = new Hono().get("/callback", async (c) => {
         signalChanged(done.runId);
       }
       ok = true;
-      message = "Verbunden. Du kannst dieses Fenster schließen.";
+      said = { code: "connected" };
     } catch (err) {
       console.error("[connect]", err);
-      message = "Verbinden hat nicht geklappt. Bitte noch einmal versuchen.";
+      said = { code: "connectFailed" };
     }
   }
+  const message = noteText(said, (state && oauthStateLang(state)) || requestLang(c));
   return c.html(
     `<!doctype html><meta charset="utf-8"><title>engenty wizards</title>
 <body style="font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#333">
 <p>${message}</p>
 <script>
-  try { window.opener && window.opener.postMessage({ type: "wizards:connected", ok: ${ok} }, ${JSON.stringify(env.appUrl)}); } catch (e) {}
+  // The opener is the studio or a wizard's page: each origin gets the word, the wrong one drops it.
+  for (const origin of ${JSON.stringify([...new Set([env.appUrl, env.publicUrl])])}) {
+    try { window.opener && window.opener.postMessage({ type: "wizards:connected", ok: ${ok} }, origin); } catch (e) {}
+  }
   setTimeout(function () { window.close(); }, ${ok ? 300 : 4000});
 </script>`,
   );
@@ -1121,22 +1507,25 @@ async function serveAsset(c: Context, run: RunRow, assetId: string) {
   if (!found || found.row.runId !== run.id) {
     return c.notFound();
   }
+  // The stored type is sent only as a bare `type/subtype`: "text/html,x" reads as HTML to a browser.
+  const mime = bareMime(found.row.mime) ?? "application/octet-stream";
+  // What a person or a plugin uploaded, and files a step collected from mail and the web.
+  const foreign = FOREIGN_KINDS.has(found.row.kind);
   const headers: Record<string, string> = {
-    "content-type": found.row.mime,
+    "content-type": mime,
     "cache-control": "private, max-age=3600",
     "x-content-type-options": "nosniff",
+    // Nothing opened on its own runs scripts with this origin (an SVG, an XML document, a page).
+    // A PDF is left to the browser's own viewer, which a sandbox would keep from starting.
+    ...(mime === "application/pdf" ? {} : { "content-security-policy": "sandbox" }),
   };
-  // Files a step collected come from mail and the web: they are downloads, never pages of ours.
-  if (found.row.kind === "file") {
+  // Foreign files are downloads, never pages of ours: only photos, sound, film and PDFs show in place.
+  if (foreign && !inlineSafe(mime)) {
     headers["content-disposition"] =
       `attachment; filename="${found.row.name.replace(/["\\\r\n]/g, "")}"`;
   }
-  // An SVG or XML document opened on its own could run scripts with this origin.
-  if (/svg|xml/.test(found.row.mime)) {
-    headers["content-security-policy"] = "sandbox";
-  }
   // Generated HTML runs its scripts in an opaque origin and can reach nothing.
-  if (found.row.mime === "text/html") {
+  if (mime === "text/html" && !foreign) {
     const html = await stepHtml({
       assets: [{ id: assetId, kind: found.row.kind, mime: found.row.mime, name: "" }],
       at: "",
@@ -1145,7 +1534,7 @@ async function serveAsset(c: Context, run: RunRow, assetId: string) {
     headers["content-security-policy"] = HTML_RESPONSE_CSP;
     return c.body(new TextEncoder().encode(html ?? ""), 200, headers);
   }
-  if (/^(audio|video)\//.test(found.row.mime)) {
+  if (/^(audio|video)\//.test(mime)) {
     headers["accept-ranges"] = "bytes";
     const size = found.data.byteLength;
     const range = byteRange(c.req.header("range"), size);
@@ -1198,7 +1587,7 @@ export const shareRoutes = new Hono()
   .get("/:token", async (c) => {
     const run = await sharedRun(c.req.param("token"));
     if (!run) {
-      return c.json({ error: "Dieser Link ist abgelaufen oder wurde zurückgezogen." }, 404);
+      return refuse(c, { code: "linkGone" }, 404);
     }
     return c.json(await shareView(run));
   })

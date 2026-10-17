@@ -1,4 +1,4 @@
-import type { PluginIndexEntry } from "@engenty-wizards/plugin-sdk";
+import type { PluginIndexEntry } from "@engenty/wizards/plugin";
 import { formatTableCell } from "@engenty-wizards/shared/engenty/data-tables";
 import type { KnowledgeHit, KnowledgeSearch, Where } from "@engenty-wizards/shared/knowledge";
 import { embedMany } from "ai";
@@ -21,14 +21,14 @@ import {
 } from "./space-categories.js";
 
 /**
- * The index of Wissen. Units follow the structure: a section of a page under its headings, a row
- * of a table, a file, the Übersicht of a Kategorie's value, and the texts plugins put in. A unit
+ * The index of Knowledge. Units follow the structure: a section of a page under its headings, a row
+ * of a table, a file, the summary of a category's value, and the texts plugins put in. A unit
  * is never cut in the middle of a paragraph, and its text starts with where it stands and the
- * Kategorien of its item, so keywords and vectors both see the context.
+ * categories of its item, so keywords and vectors both see the context.
  *
  * A unit is kept three times: its words in an FTS5 table, its trigrams in another (codes, parts of
  * compounds), its meaning as a vector where an embedding model is set up. A search filters by
- * Kategorien first, merges what the three find by rank, asks a classifier which candidates help
+ * categories first, merges what the three find by rank, asks a classifier which candidates help
  * answer the question, and gives items, each with its best section.
  */
 
@@ -211,7 +211,7 @@ async function indexPage(pageId: string) {
   const prefix = head(node?.titles ?? [page.title], lines);
   const sections = sectionsOf(page.markdown);
   const units: Omit<ChunkInsert, "embedding" | "model">[] = [];
-  // A page without text is still found by its title and Kategorien.
+  // A page without text is still found by its title and categories.
   for (const section of sections.length ? sections : [{ heading: [], sheet: null, body: "" }]) {
     // A page's own first heading is its title: the path says it already.
     const path =
@@ -303,7 +303,7 @@ async function indexFile(fileId: string) {
     .select({ heading: schema.projectChunk.heading, idx: schema.projectChunk.idx })
     .from(schema.projectChunk)
     .where(scope);
-  // Passages of a document read before Wissen had pages stay until it is read again.
+  // Passages of a document read before Knowledge had pages stay until it is read again.
   if (passages.some((p) => p.heading === null)) {
     return;
   }
@@ -342,7 +342,7 @@ async function indexValue(valueId: string) {
     valueId: value.id,
     heading: `${category.name}: ${value.value}`,
     idx: i,
-    text: `${category.name}: ${value.value} — Übersicht\n\n${part}`,
+    text: `${category.name}: ${value.value} — Summary\n\n${part}`,
   }));
   await writeUnits(scope, units);
 }
@@ -359,8 +359,8 @@ async function subPages(pageId: string): Promise<string[]> {
 
 /**
  * Brings one item's units up to date. `p:` a page, `P:` a page and its sub-pages (its title or
- * Kategorien changed: they stand in theirs), `t:` a table's rows, `r:` one row, `f:` a file, `v:`
- * a value's Übersicht.
+ * categories changed: they stand in theirs), `t:` a table's rows, `r:` one row, `f:` a file, `v:`
+ * a value's summary.
  */
 export async function indexItem(key: string) {
   const id = key.slice(2);
@@ -547,7 +547,7 @@ const COLUMNS = sql.raw(
   "c.id, c.file_id, c.page_id, c.row_id, c.table_id, c.value_id, c.heading, c.sheet, c.plugin, c.ref, c.title, c.link, c.idx, c.text",
 );
 
-/** A unit of the space's own Wissen, or of a plugin's text while the tenant has that plugin. */
+/** A unit of the space's own Knowledge, or of a plugin's text while the tenant has that plugin. */
 function searchable(plugins: string[]): SQL {
   return plugins.length
     ? sql`(c.plugin IS NULL OR c.plugin IN (${sql.join(
@@ -604,7 +604,7 @@ function itemOf(u: Found): string {
 }
 
 /**
- * Searches Wissen: items whose Kategorien pass `where`, then the units the keywords, the
+ * Searches Knowledge: items whose categories pass `where`, then the units the keywords, the
  * trigrams and the vectors rank best, merged by rank (RRF), then the classifier's judgement of
  * each of the CANDIDATES best. Gives up to `limit` items with their best section. `check: false`
  * leaves the classifier out.
@@ -621,7 +621,7 @@ export async function searchKnowledge(
   }
   const plugins = [...(await pluginIdsOf(currentTenant()))];
   const inFilter = filter ? filtered(filter) : null;
-  // A filter keeps plugins' texts and Übersichten out: they have no Kategorien.
+  // A filter keeps plugins' texts and summaries out: they have no categories.
   const where = and(
     sql`c.project_id = ${projectId}`,
     searchable(plugins),
@@ -723,7 +723,7 @@ export async function searchKnowledge(
   };
 }
 
-/** What a step and the studio see of each unit: the item's path, title and Kategorien. */
+/** What a step and the studio see of each unit: the item's path, title and categories. */
 async function describe(projectId: string, units: Found[]): Promise<KnowledgeHit[]> {
   const pageIds = [...new Set(units.flatMap((u) => (u.page_id ? [u.page_id] : [])))];
   const rowIds = [...new Set(units.flatMap((u) => (u.row_id ? [u.row_id] : [])))];
@@ -818,7 +818,7 @@ async function describe(projectId: string, units: Found[]): Promise<KnowledgeHit
         kind: "summary",
         open: `v:${u.value_id}`,
         path: "",
-        title: `${category?.name}: ${value?.value} — Übersicht`,
+        title: `${category?.name}: ${value?.value} — Summary`,
         categories: [],
       };
     }

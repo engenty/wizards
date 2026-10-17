@@ -2,7 +2,8 @@ import type {
   PluginConnection,
   PluginConnections,
   PluginConnectorOffer,
-} from "@engenty-wizards/plugin-sdk";
+} from "@engenty/wizards/plugin";
+import type { Lang } from "@engenty-wizards/shared/definition";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
@@ -43,6 +44,8 @@ interface PluginOAuthState {
   actions: string[];
   verifier: string;
   exp: number;
+  /** The language the person picked: the page the provider sends them back to speaks it. */
+  lang?: Lang;
 }
 
 /** What is sealed in `data`. */
@@ -89,7 +92,7 @@ async function spaceExists(space: string) {
     columns: { id: true },
   });
   if (!project) {
-    throw new Error(`There is no space "${space}".`);
+    throw new Error(`There’s no space “${space}”.`);
   }
 }
 
@@ -173,7 +176,7 @@ export async function finishPluginOAuth(
 ): Promise<{ plugin: string; projectId: string }> {
   const state = unseal<PluginOAuthState>(rawState);
   if (!state?.plugin || state.exp < Date.now()) {
-    throw new Error("Die Anmeldung ist abgelaufen. Bitte noch einmal verbinden.");
+    throw new Error("The sign-in has expired. Connect again.");
   }
   const connector = oauthConnector(state.connectorId);
   if (connector.auth.kind !== "oauth2") {
@@ -306,7 +309,7 @@ export function pluginConnections(plugin: string): PluginConnections {
       return out;
     },
 
-    async start({ space, connector: connectorId, actions }) {
+    async start({ space, connector: connectorId, actions, lang }) {
       const connector = oauthConnector(connectorId);
       if (connector.auth.kind !== "oauth2") {
         throw new Error("not an oauth connector");
@@ -320,6 +323,7 @@ export function pluginConnections(plugin: string): PluginConnections {
         connectorId,
         actions: [...new Set(actions)],
         exp: Date.now() + 15 * 60_000,
+        lang,
       };
       if (await viaAccount(connector)) {
         // The Manage-App keeps the PKCE verifier; ours stays empty.

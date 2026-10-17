@@ -1,0 +1,42 @@
+# Dependabot keeps the dependencies current and opens a pull request for every security advisory
+# that has a fix. Version updates come once a week, minor and patch ones grouped into one pull
+# request per ecosystem; majors come one by one. Security updates are switched on in the
+# repository's settings (Code security → Dependabot security updates) and are not limited here.
+version: 2
+updates:
+  # The pnpm workspace: one lockfile at the root for apps/*, packages/*, modules/* and examples.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  # The actions the workflows use; Dependabot also keeps SHA pins current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # The base images of the runtime, the docs and the browser.
+  - package-ecosystem: docker
+    directories:
+      - /apps/runtime
+      - /apps/docs
+      - /deploy
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: chore(docker)

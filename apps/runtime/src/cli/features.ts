@@ -8,7 +8,7 @@ import { declaredFeatures, featuresFile, fileFeatures, writeFeature } from "../f
 import { discoverPlugins } from "../plugins/discovery.js";
 import { pluginDirs } from "../plugins/loader.js";
 import { proModulesDir } from "../plugins/pro-state.js";
-import { command } from "./home.js";
+import { cmd, tilde } from "./ui.js";
 
 /**
  * `wizards features` — the feature switches of this install, from its `.features` file. Not in
@@ -40,23 +40,23 @@ export function featuresCommand(args: string[]): number {
       );
     }
     console.log(
-      `\nfile: ${file}\nAn account's or a team's switches come on top of these while the runtime runs.`,
+      `\nFile: ${tilde(file)}\nWhile engenty wizards runs, account and team switches apply on top of these.`,
     );
     return 0;
   }
   if (!FEATURE_NAME.test(name)) {
-    console.error(`"${name}" is no switch name (teamPlans, contacts.leadScoring).`);
+    console.error(`“${name}” isn’t a valid switch name (e.g. teamPlans, contacts.leadScoring).`);
     return 2;
   }
   if (value === "on" || value === "off" || value === "default") {
     writeFeature(name, value === "default" ? null : value === "on", file);
     console.log(
       value === "default"
-        ? `${name} follows the default again (${file}). A running runtime reads it at once.`
-        : `${name} is ${value} on this machine (${file}). A running runtime reads it at once.`,
+        ? `${name} follows the default again (${tilde(file)}). engenty wizards picks this up straight away.`
+        : `${name} is ${value} on this computer (${tilde(file)}). engenty wizards picks this up straight away.`,
     );
     return 0;
   }
-  console.error(`${command()} features ${name} on|off|default`);
+  console.error(`Usage: ${cmd(`features ${name} on|off|default`)}`);
   return 2;
 }

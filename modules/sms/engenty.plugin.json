@@ -1,8 +1,0 @@
-{
-  "id": "sms",
-  "name": "SMS",
-  "version": "0.1.0",
-  "description": "Runs wizards by text message: a keyword to the tenant's number starts one, the fields come one message at a time with numbered choices, and what the wizard makes arrives as text and links. Talks to Twilio with the tenant's own account and number; keeps the threads in the tenant's database. Text only: photos, files and signatures go to the wizard's page by link.",
-  "kind": "module",
-  "provides": ["runner.sms"]
-}

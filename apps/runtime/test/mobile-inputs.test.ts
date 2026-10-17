@@ -1,10 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { placeLabel } from "../src/geocode";
-import { readPageInput } from "../src/engine/input";
+import { fieldErrorsIn, readPageInput } from "../src/engine/input";
 import { prepareInputs } from "../src/engine/prepare";
 import { renderTemplate, type TemplateScope } from "../src/engine/template";
 import type { StepContext } from "../src/engine/types";
-import { byteRange, uploadLimit, wizardManifest } from "../src/routes/delivery";
+import {
+  bareMime,
+  byteRange,
+  inlineSafe,
+  uploadLimit,
+  uploadMime,
+  wizardManifest,
+} from "../src/routes/delivery";
 import { locationText, type PageStep, parseWizard, type WizardDefinition } from "@engenty-wizards/shared/definition";
 
 const assets = new Map<string, { runId: string; mime: string }>();
@@ -106,7 +113,8 @@ describe("page input from a phone", () => {
 
   it("asks for a required location that is empty or impossible", () => {
     for (const place of [undefined, "", {}, { lat: 91, lng: 0 }, { lat: 47 }, { label: "  " }, []]) {
-      expect(read({ place }).errors).toEqual([{ field: "place", message: "Pflichtfeld" }]);
+      expect(fieldErrorsIn(read({ place }).errors, "de")).toEqual([{ field: "place", message: "Pflichtfeld" }]);
+      expect(fieldErrorsIn(read({ place }).errors, "en")).toEqual([{ field: "place", message: "Required" }]);
     }
   });
 
@@ -220,6 +228,42 @@ describe("delivery", () => {
   it("gives clips more room than other uploads", () => {
     expect(uploadLimit("video/mp4")).toBeGreaterThan(uploadLimit("audio/webm"));
     expect(uploadLimit("image/jpeg")).toBe(15_000_000);
+  });
+
+  it("keeps an upload's type only when it is a bare type a wizard takes", () => {
+    expect(uploadMime("audio/webm;codecs=opus")).toBe("audio/webm");
+    expect(uploadMime("Image/JPEG")).toBe("image/jpeg");
+    expect(uploadMime("video/quicktime")).toBe("video/quicktime");
+    expect(uploadMime("application/pdf")).toBe("application/pdf");
+    expect(uploadMime("text/csv")).toBe("text/csv");
+    expect(
+      uploadMime("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    ).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    // A browser reads the last of comma-joined types: none of these may come back as a page.
+    for (const declared of [
+      "text/html",
+      "text/html,x",
+      "text/plain,text/html",
+      "image/png,text/html",
+      "image/png text/html",
+      "application/xhtml+xml",
+      "application/javascript",
+      "",
+    ]) {
+      expect(uploadMime(declared), declared).toBe("application/octet-stream");
+    }
+    expect(bareMime("text/html,x")).toBeNull();
+    expect(bareMime('text/"html"')).toBeNull();
+    expect(bareMime("image/svg+xml; charset=utf-8")).toBe("image/svg+xml");
+  });
+
+  it("shows photos, sound, film and PDFs in place, never an SVG", () => {
+    for (const mime of ["image/png", "image/jpeg", "audio/webm", "video/mp4", "application/pdf"]) {
+      expect(inlineSafe(mime), mime).toBe(true);
+    }
+    for (const mime of ["image/svg+xml", "text/plain", "text/html", "application/octet-stream"]) {
+      expect(inlineSafe(mime), mime).toBe(false);
+    }
   });
 
   it("makes a wizard an app that opens on its own link", () => {

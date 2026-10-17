@@ -14,10 +14,6 @@ export function usdToMicros(usd: number): number {
   return Math.ceil(usd * 100 * MICROS_PER_CREDIT);
 }
 
-export function microsToCredits(micros: number): number {
-  return Math.round(micros / MICROS_PER_CREDIT);
-}
-
 /** At least one credit left — enough to start something. */
 export async function canSpend(): Promise<boolean> {
   if (!managed) {

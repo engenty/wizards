@@ -1,11 +1,15 @@
-import { Download } from "lucide-react";
+import { cn } from "@engenty-wizards/runner/ui";
 import { useMemo } from "react";
 import { renderSVG } from "uqr";
-import { t } from "../../lib/i18n";
-import { Button } from "../../ui";
 
 /** `K7WM4TQ9` → `K7WM 4TQ9`: two groups read aloud and typed more easily. */
 export const spacedCode = (code: string) => `${code.slice(0, 4)} ${code.slice(4)}`;
+
+/** A link as a QR code, in SVG. */
+export const qrSvg = (url: string) => renderSVG(url, { ecc: "M", border: 2, pixelSize: 8 });
+
+const fileOf = (title: string) =>
+  `${(title.trim() || "wizard").replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase()}-qr`;
 
 function save(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -17,7 +21,7 @@ function save(blob: Blob, name: string) {
 }
 
 /** The SVG drawn on a canvas, 1024 pixels wide: for print and slides that take no SVG. */
-async function savePng(svg: string, name: string) {
+export async function saveQrPng(svg: string, title: string) {
   const image = new Image();
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   try {
@@ -34,53 +38,67 @@ async function savePng(svg: string, name: string) {
     ctx.drawImage(image, 0, 0, 1024, 1024);
     const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
     if (png) {
-      save(png, name);
+      save(png, `${fileOf(title)}.png`);
     }
   } finally {
     URL.revokeObjectURL(url);
   }
 }
 
-/**
- * The wizard's link as a QR code, and its ID: the phone's camera opens the link (in the mobile
- * app when it is installed), the app's ID field takes the ID.
- */
-export function WizardQr({ url, code, title }: { url: string; code?: string; title: string }) {
-  const svg = useMemo(() => renderSVG(url, { ecc: "M", border: 2, pixelSize: 8 }), [url]);
-  const file = (title.trim() || "wizard").replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase();
+/** The code with the wizard's name under it, on a page of its own that prints and closes. */
+export function printQr(svg: string, title: string) {
+  const page = window.open("", "_blank", "width=520,height=680");
+  if (!page) {
+    return;
+  }
+  const doc = page.document;
+  doc.title = title;
+  const style = doc.createElement("style");
+  style.textContent =
+    "body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;font:600 28px system-ui,sans-serif}svg{width:12cm;height:12cm}";
+  doc.head.append(style);
+  // Parsed as SVG, from the link alone: no markup of anyone else's goes in.
+  const code = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
+  const name = doc.createElement("div");
+  name.textContent = title;
+  doc.body.append(doc.importNode(code, true), name);
+  page.addEventListener("afterprint", () => page.close());
+  page.focus();
+  page.print();
+}
+
+/** The code itself, on white whatever the theme: a camera reads dark on light. */
+export function QrImage({
+  svg,
+  label,
+  className,
+}: {
+  svg: string;
+  label: string;
+  className?: string;
+}) {
   return (
-    <div className="flex gap-4">
-      <div
-        role="img"
-        aria-label={t("share.qr")}
-        className="size-28 shrink-0 overflow-hidden rounded-lg bg-white [&>svg]:size-full"
-        // uqr writes the SVG from the link alone: no markup of anyone else's goes in.
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: generated from the URL only
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <p className="text-[0.8125rem] text-ink-3">{t("share.qrHint")}</p>
-        {code ? (
-          <p className="text-[0.8125rem] text-ink-3">
-            {t("share.code")}{" "}
-            <span className="select-all font-mono text-[0.9375rem] text-ink tracking-wider">
-              {spacedCode(code)}
-            </span>
-          </p>
-        ) : null}
-        <div className="mt-auto flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => void savePng(svg, `${file}-qr.png`)}>
-            <Download className="size-3.5" /> PNG
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => save(new Blob([svg], { type: "image/svg+xml" }), `${file}-qr.svg`)}
-          >
-            <Download className="size-3.5" /> SVG
-          </Button>
-        </div>
-      </div>
-    </div>
+    <div
+      role="img"
+      aria-label={label}
+      className={cn("overflow-hidden rounded-xl bg-white [&>svg]:size-full", className)}
+      // uqr writes the SVG from the link alone: no markup of anyone else's goes in.
+      // biome-ignore lint/security/noDangerouslySetInnerHtml: generated from the URL only
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
   );
+}
+
+/** A QR code of a text (a link, `tel:` with a number), for a plugin's part of the studio. */
+export function QrCode({
+  text,
+  label,
+  className,
+}: {
+  text: string;
+  label: string;
+  className?: string;
+}) {
+  const svg = useMemo(() => qrSvg(text), [text]);
+  return <QrImage svg={svg} label={label} className={cn("size-40 p-1", className)} />;
 }

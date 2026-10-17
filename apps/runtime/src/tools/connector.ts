@@ -6,6 +6,7 @@ import { refreshConnector, resolveConnector } from "../connectors/external.js";
 import { connectionContext } from "../connectors/index.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
 import type { StepContext } from "../engine/types.js";
+import { inProgram } from "./code.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
 import { resolveFile } from "./store.js";
 
@@ -143,6 +144,12 @@ async function toolsOf(connection: ConnectionDef, ctx: StepContext, files: FileK
       }
       const key = `${connection.id}:${action.id}`;
       if (asks(connection, action) && !ctx.resources.allowed.has(key)) {
+        if (inProgram()) {
+          return {
+            error:
+              "This change waits for the person's yes, which a program cannot ask for. Call the tool directly, outside the program.",
+          };
+        }
         const answer = await ctx.ask({
           kind: "confirm",
           reason: action.summary || action.id,

@@ -6,6 +6,7 @@ import {
   FEATURES,
   type FeatureDeclaration,
   type Features,
+  featureOn,
   parseFeatures,
   resolveFeatures,
 } from "@engenty-wizards/shared/features";
@@ -84,7 +85,7 @@ export function features(remote?: Features | null): Features {
 }
 
 export function feature(name: string, remote?: Features | null): boolean {
-  return features(remote)[name] === true;
+  return featureOn(features(remote), name);
 }
 
 let accountCache: { at: number; value: Features | null } | null = null;

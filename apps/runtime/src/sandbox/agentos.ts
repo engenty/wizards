@@ -1,74 +1,114 @@
-import { posix } from "node:path";
-import type { AgentOs, AgentOsSidecar, CodeExecutionResult } from "@rivet-dev/agentos-core";
+import { existsSync } from "node:fs";
+import { join, posix } from "node:path";
+import { env } from "../env.js";
+import {
+  AGENTOS_CORE,
+  AGENTOS_EXTRA_COMMANDS,
+  agentOsExtras,
+  agentOsSidecar,
+} from "./agentos-package.js";
+import { importFromEngine, installedVersion } from "./install.js";
 import type {
   ExecOptions,
   ExecResult,
-  PythonOptions,
   Sandbox,
   SandboxCapabilities,
+  SandboxEngine,
 } from "./types.js";
 
 const WORKDIR = "/workspace";
 const EXEC_TIMEOUT_MS = 120_000;
-const INSTALL_TIMEOUT_MS = 300_000;
-/** The only hosts the VM reaches: where npm and Python packages come from. */
+/**
+ * Python starts in $HOME, whatever directory the shell is in. Before each command, `python3`
+ * becomes a function that hands it the shell's directory as HOME.
+ */
+const PYTHON_FOLLOWS_CD =
+  'python3() { HOME="$PWD" command python3 "$@"; }; python() { python3 "$@"; }\n';
+/** Where npm and Python packages come from: every VM reaches them. */
 const REGISTRIES = ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org"];
-/** python at the start of a command, after an operator, or behind VAR=value assignments. */
-const PYTHON_IN_SHELL = /(?:^|[;&|(\n`]|\$\()\s*(?:\w+=\S*\s+)*python3?(?:\.\d+)?(?=\s|$)/;
 
 /**
- * What an agentOS VM runs: a WASM userland (a POSIX shell and coreutils, no native binaries),
- * Node in a V8 isolate and Python as Pyodide. Python started from the shell never returns, so
- * it is offered as its own tool; of the compiled wheels only numpy loads reliably.
+ * What an agentOS VM runs: a Linux userland compiled to WebAssembly (bash, coreutils and the
+ * extra programs the install packs), Node in a V8 isolate and Python 3.13 as Pyodide. No native
+ * programs: no ffmpeg, ImageMagick or LibreOffice.
  */
-export const AGENTOS_CAPABILITIES: SandboxCapabilities = {
-  commands: [
-    "sh",
-    "ls",
-    "cat",
-    "head",
-    "tail",
-    "sort",
-    "wc",
-    "grep",
-    "sed",
-    "awk",
-    "find",
-    "diff",
-    "tar",
-    "gzip",
-    "base64",
-    "node",
-    "npm",
-  ],
-  python: "tool",
-  pythonPackages:
-    "Python 3.13 standard library; `packages` installs numpy and pure-Python packages from PyPI such as openpyxl or pypdf — no pandas, pillow or matplotlib",
-  network: "none, except the npm and PyPI registries",
-  uses: "calculations or file conversion",
-  workdir: WORKDIR,
-};
+export function agentOsCapabilities(hosts: readonly string[] = []): SandboxCapabilities {
+  return {
+    commands: [
+      "bash",
+      "ls",
+      "cat",
+      "head",
+      "sort",
+      "grep",
+      "sed",
+      "awk",
+      "find",
+      "diff",
+      "tar",
+      "gzip",
+      ...AGENTOS_EXTRA_COMMANDS,
+      "node",
+      "npm",
+      "python3",
+    ],
+    network: hosts.length
+      ? `only the npm and PyPI registries and ${hosts.join(", ")}`
+      : "none, except the npm and PyPI registries",
+    notes:
+      "python3 is Pyodide: numpy and pandas load offline; install other pure-Python packages with " +
+      `python3 -c "import micropip; await micropip.install('openpyxl')" (no pip command, no ` +
+      "pillow, matplotlib or scipy). node runs JavaScript, not TypeScript.",
+    uses: "calculations, tables or file conversion",
+    workdir: WORKDIR,
+  };
+}
+
+/** The part of agentOS's API the engine uses; its types are not installed with the workspace. */
+interface AgentOsResult {
+  outcome: string;
+  exitCode?: number | null;
+  stdout?: string;
+  stderr?: string;
+  error?: { message: string };
+}
+interface AgentOsVm {
+  process: {
+    exec(command: string, options: Record<string, unknown>): Promise<AgentOsResult>;
+  };
+  filesystem: {
+    mkdir(path: string, options: { recursive: boolean }): Promise<void>;
+    writeFile(path: string, data: string | Uint8Array): Promise<void>;
+    readFile(path: string): Promise<Uint8Array>;
+  };
+  dispose(): Promise<void>;
+}
+interface AgentOsSidecar {
+  dispose(): Promise<void>;
+}
+interface AgentOsModule {
+  AgentOs: {
+    createSidecar(): Promise<AgentOsSidecar>;
+    create(options: Record<string, unknown>): Promise<AgentOsVm>;
+  };
+}
 
 interface Runtime {
-  AgentOs: typeof AgentOs;
+  agentOs: AgentOsModule["AgentOs"];
   sidecar: AgentOsSidecar;
 }
 
 let runtime: Promise<Runtime> | null = null;
 
-/** One native sidecar process hosts the VM of every run; the first sandbox starts it. */
-function agentOsRuntime(): Promise<Runtime> {
+/** One native helper process hosts the VMs of every run; the first sandbox starts it. */
+function agentOsRuntime(dir: string): Promise<Runtime> {
   runtime ??= (async () => {
-    const [core, runtimeCore] = await Promise.all([
-      import("@rivet-dev/agentos-core"),
-      import("@rivet-dev/agentos-runtime-core"),
-    ]).catch((err) => {
-      throw new Error(
-        `SANDBOX=agentos needs @rivet-dev/agentos-core in this build: ${err.message}`,
-      );
-    });
-    keepRuntimeCommands(runtimeCore.SidecarProcess);
-    return { AgentOs: core.AgentOs, sidecar: await core.AgentOs.createSidecar() };
+    // agentOS reads the helper's path from the environment when it starts the helper.
+    if (!process.env.AGENTOS_SIDECAR_BIN && existsSync(agentOsSidecar(dir))) {
+      process.env.AGENTOS_SIDECAR_BIN = agentOsSidecar(dir);
+    }
+    const mod = (await importFromEngine("agentos", dir, AGENTOS_CORE)) as AgentOsModule;
+    return { agentOs: mod.AgentOs, sidecar: await mod.AgentOs.createSidecar() };
   })().catch((err) => {
     runtime = null;
     throw err;
@@ -76,69 +116,54 @@ function agentOsRuntime(): Promise<Runtime> {
   return runtime;
 }
 
-const patched = new WeakSet<object>();
-
-/**
- * agentOS registers `python` as a kernel command when it creates a VM and leaves it out when
- * it configures that VM; naming the runtime commands there again is what makes Python start.
- */
-function keepRuntimeCommands(SidecarProcess: { prototype: any }) {
-  const proto = SidecarProcess.prototype;
-  if (patched.has(proto)) {
-    return;
-  }
-  patched.add(proto);
-  const configureVm = proto.configureVm;
-  proto.configureVm = function (session: unknown, vm: unknown, options: any) {
-    const commands = [
-      "node",
-      "npm",
-      "npx",
-      "python",
-      "python3",
-      ...(options?.bootstrapCommands ?? []),
-    ];
-    return configureVm.call(this, session, vm, {
-      ...options,
-      bootstrapCommands: [...new Set(commands)],
-    });
-  };
-}
-
-/** Stops the sidecar process. The next sandbox starts a new one. */
+/** Stops the helper process. The next sandbox starts a new one. */
 export async function stopAgentOs(): Promise<void> {
   const current = runtime;
   runtime = null;
   await (await current?.catch(() => null))?.sidecar.dispose();
 }
 
-function toResult(result: CodeExecutionResult, python = false): ExecResult {
+function toResult(result: AgentOsResult): ExecResult {
   const stdout = result.stdout ?? "";
   let stderr = result.stderr ?? "";
-  if (python) {
-    // A Python traceback arrives with the interpreter's own JavaScript stack behind it.
-    stderr = stderr.replace(/\n\s+at [\s\S]*$/, "\n");
-  }
   if (result.outcome === "timed_out") {
     stderr = `${stderr}\ntimed out`.trim();
   } else if (result.outcome !== "succeeded" && !stdout && !stderr) {
-    stderr = result.error.message;
+    stderr = result.error?.message ?? result.outcome;
   }
   return { exitCode: result.exitCode ?? (result.outcome === "succeeded" ? 0 : 1), stdout, stderr };
 }
 
-/** One agentOS VM per run, inside the server process's sidecar: no Docker, no container. */
-export class AgentOsSandbox implements Sandbox {
-  readonly capabilities = AGENTOS_CAPABILITIES;
-  private machine: Promise<AgentOs> | null = null;
-  private readonly installed = new Set<string>();
+/** Where `wizards sandbox add agentos` put it. */
+export const agentOsDir = () => join(env.sandboxEngines, "agentos");
 
-  private vm(): Promise<AgentOs> {
+/** Ready once `wizards sandbox add agentos` installed it. */
+export const agentOsEngine: SandboxEngine = {
+  name: "agentos",
+  ready: () => installedVersion(agentOsDir()) !== null,
+  capabilities: () => agentOsCapabilities(env.sandboxHosts),
+  create: () => new AgentOsSandbox(),
+};
+
+/** One agentOS VM per run, in the server's helper process: no Docker, no container. */
+export class AgentOsSandbox implements Sandbox {
+  readonly capabilities: SandboxCapabilities;
+  private machine: Promise<AgentOsVm> | null = null;
+
+  constructor(
+    private readonly dir: string = agentOsDir(),
+    private readonly hosts: readonly string[] = env.sandboxHosts,
+  ) {
+    this.capabilities = agentOsCapabilities(hosts);
+  }
+
+  private vm(): Promise<AgentOsVm> {
     this.machine ??= (async () => {
-      const { AgentOs, sidecar } = await agentOsRuntime();
-      return AgentOs.create({
+      const { agentOs, sidecar } = await agentOsRuntime(this.dir);
+      const vm = await agentOs.create({
         sidecar: { kind: "explicit", handle: sidecar },
-        // Anything not listed is refused, the host's own loopback included.
+        software: [{ packagePath: agentOsExtras(this.dir) }],
+        // Anything not listed is refused, the host's own loopback and private networks included.
         permissions: {
           fs: "allow",
           childProcess: "allow",
@@ -150,61 +175,33 @@ export class AgentOsSandbox implements Sandbox {
               {
                 mode: "allow",
                 operations: ["*"],
-                patterns: REGISTRIES.flatMap((host) => [`dns://${host}`, `tcp://${host}:443`]),
+                patterns: [...REGISTRIES, ...this.hosts].flatMap((host) => [
+                  `dns://${host}`,
+                  `tcp://${host}:443`,
+                ]),
               },
             ],
           },
         },
       });
+      await vm.filesystem.mkdir(WORKDIR, { recursive: true });
+      return vm;
     })();
+    this.machine.catch(() => {
+      this.machine = null;
+    });
     return this.machine;
   }
 
   async exec(command: string, options: ExecOptions = {}): Promise<ExecResult> {
-    if (PYTHON_IN_SHELL.test(command)) {
-      return {
-        exitCode: 127,
-        stdout: "",
-        stderr: "python is not a shell command in this sandbox; run Python with run_python.",
-      };
-    }
     const vm = await this.vm();
     return toResult(
-      await vm.process.exec(command, {
+      await vm.process.exec(PYTHON_FOLLOWS_CD + command, {
         cwd: options.cwd ?? WORKDIR,
-        env: options.env,
+        env: { HOME: WORKDIR, ...options.env },
         timeoutMs: options.timeoutMs ?? EXEC_TIMEOUT_MS,
         output: { capture: "all" },
       }),
-    );
-  }
-
-  async runPython(source: string, options: PythonOptions = {}): Promise<ExecResult> {
-    const vm = await this.vm();
-    const missing = (options.packages ?? []).filter((name) => !this.installed.has(name));
-    if (missing.length) {
-      const install = toResult(
-        await vm.python.install(missing, {
-          timeoutMs: INSTALL_TIMEOUT_MS,
-          output: { capture: "all" },
-        }),
-      );
-      // A wheel that is listed but not shipped "installs" and then fails to load.
-      if (install.exitCode !== 0 || /Failed to load/.test(install.stdout)) {
-        return { ...install, exitCode: install.exitCode || 1 };
-      }
-      for (const name of missing) {
-        this.installed.add(name);
-      }
-    }
-    return toResult(
-      await vm.python.execute(source, {
-        // Python starts in its HOME whatever cwd says, and only /workspace is shared with the shell.
-        env: { ...options.env, HOME: WORKDIR },
-        timeoutMs: options.timeoutMs ?? EXEC_TIMEOUT_MS,
-        output: { capture: "all" },
-      }),
-      true,
     );
   }
 

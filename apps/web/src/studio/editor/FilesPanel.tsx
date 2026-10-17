@@ -1,9 +1,10 @@
+import { formatBytes } from "@engenty-wizards/shared/numbers";
 import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
 import { useQueryClient } from "@tanstack/react-query";
 import { Download, FileCode2, FileJson, FileText, Image, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { api } from "../../lib/api";
-import { t } from "../../lib/i18n";
+import { lang, t } from "../../lib/i18n";
 import { IconButton, Spinner } from "../../ui";
 
 function fileIcon(f: WorkspaceFile) {
@@ -17,14 +18,6 @@ function fileIcon(f: WorkspaceFile) {
     return FileCode2;
   }
   return FileText;
-}
-
-function bytes(n: number): string {
-  return n < 1024
-    ? `${n} B`
-    : n < 1_048_576
-      ? `${Math.round(n / 1024)} KB`
-      : `${(n / 1_048_576).toFixed(1)} MB`;
 }
 
 /**
@@ -60,7 +53,10 @@ export function FilesPanel({
         const res = await fetch(`${base}/${encodeURIComponent(file.name).replace(/%2F/g, "/")}`, {
           method: "PUT",
           credentials: "include",
-          headers: { "content-type": file.type || "application/octet-stream" },
+          headers: {
+            "content-type": file.type || "application/octet-stream",
+            "accept-language": lang,
+          },
           body: file,
         });
         if (!res.ok) {
@@ -142,7 +138,7 @@ export function FilesPanel({
           </button>
         )}
         <span className="ml-auto text-[0.75rem] text-ink-4">
-          {t("files.count", { n: files.length, size: bytes(total) })}
+          {t("files.count", { n: files.length, size: formatBytes(total) })}
         </span>
         <input
           ref={input}
@@ -167,7 +163,7 @@ export function FilesPanel({
             >
               <Icon className="size-4 shrink-0 text-ink-3" />
               <span className="min-w-0 flex-1 truncate font-mono text-[0.75rem]">{f.path}</span>
-              <span className="text-[0.75rem] text-ink-4 tabular-nums">{bytes(f.size)}</span>
+              <span className="text-[0.75rem] text-ink-4 tabular-nums">{formatBytes(f.size)}</span>
               <a
                 href={`${base}/${f.path}`}
                 className="inline-flex size-8 items-center justify-center rounded-full text-ink-3 opacity-0 hover:text-ink group-hover:opacity-100"

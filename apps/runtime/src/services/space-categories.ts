@@ -9,6 +9,8 @@ import {
   type Where,
   type WhereValue,
 } from "@engenty-wizards/shared/knowledge";
+import { readNumber } from "@engenty-wizards/shared/numbers";
+import { note } from "@engenty-wizards/shared/run";
 import { and, asc, eq, inArray, isNotNull, or, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
@@ -18,16 +20,16 @@ import { notFound, ServiceError } from "./errors.js";
 import { queueIndex } from "./project-index.js";
 
 /**
- * Kategorien: typed properties that run across Wissen. A choice keeps the values it met, in
+ * Categories: typed properties that run across Knowledge. A choice keeps the values it met, in
  * their order; a date, a number, a short text and yes/no are kept typed on the item, so a filter
- * knows what "after" and "at least" mean. An item may have any number of Kategorien, a choice
+ * knows what "after" and "at least" mean. An item may have any number of categories, a choice
  * with several values one row per value.
  */
 
 type CategoryRow = typeof schema.spaceCategory.$inferSelect;
 type AssignRow = typeof schema.spaceItemCategory.$inferSelect;
 
-/** An item a Kategorie is set on. */
+/** An item a category is set on. */
 export type ItemRef =
   | { pageId: string }
   | { rowId: string }
@@ -73,30 +75,9 @@ function refWhere(ref: ItemRef): SQL {
 
 // --- typed values ---------------------------------------------------------------
 
-/** A number as people write it: `38 h`, `20.000 €`, `1,5`, `1.234,50`. */
+/** A number with what stands around it, as `readNumber` reads it: `38 h`, `19 %`, `1,5`. */
 export function numberOf(value: unknown): number | null {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value !== "string") {
-    return null;
-  }
-  let s = value.replace(/[^\d,.-]/g, "");
-  if (!/\d/.test(s)) {
-    return null;
-  }
-  if (s.includes(",") && s.includes(".")) {
-    s =
-      s.lastIndexOf(",") > s.lastIndexOf(".")
-        ? s.replace(/\./g, "").replace(",", ".")
-        : s.replace(/,/g, "");
-  } else if (s.includes(",")) {
-    s = /^-?\d{1,3}(,\d{3}){2,}$/.test(s) ? s.replace(/,/g, "") : s.replace(",", ".");
-  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) {
-    s = s.replace(/\./g, "");
-  }
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
+  return readNumber(value, { units: true });
 }
 
 /** A day, or a day and a time, as milliseconds (UTC, as written: no time zone is applied). */
@@ -146,7 +127,7 @@ interface Typed {
   bool?: boolean;
 }
 
-/** A value checked against its Kategorie's type; null when it is not one. */
+/** A value checked against its category's type; null when it is not one. */
 function typed(category: Pick<CategoryRow, "type">, value: unknown): Typed | null {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -193,7 +174,7 @@ function cellOf(row: AssignRow, values: Map<string, string>): CategoryCell | nul
   return row.text;
 }
 
-// --- the Kategorien of a space ---------------------------------------------------
+// --- the categories of a space ---------------------------------------------------
 
 export async function categoryRows(projectId: string): Promise<CategoryRow[]> {
   return db.query.spaceCategory.findMany({
@@ -202,7 +183,7 @@ export async function categoryRows(projectId: string): Promise<CategoryRow[]> {
   });
 }
 
-/** A Kategorie by its name, as a step or a plugin writes it: case and spaces do not matter. */
+/** A category by its name, as a step or a plugin writes it: case and spaces do not matter. */
 function byName(rows: CategoryRow[], name: string): CategoryRow | undefined {
   const want = name.replace(/\s+/g, " ").trim().toLowerCase();
   return rows.find((c) => c.name.toLowerCase() === want);
@@ -240,7 +221,7 @@ function alike(a: string, b: string): boolean {
   );
 }
 
-/** The space's Kategorien with their values, how many items have each, and their ranges. */
+/** The space's categories with their values, how many items have each, and their ranges. */
 export async function listCategories(projectId: string): Promise<SpaceCategory[]> {
   const rows = await categoryRows(projectId);
   if (!rows.length) {
@@ -352,10 +333,10 @@ const MAX_CATEGORIES = 60;
 function checkDraft(draft: CategoryDraft) {
   const name = draft.name.replace(/\s+/g, " ").trim().slice(0, 80);
   if (!name) {
-    throw new ServiceError("invalid", "Eine Kategorie braucht einen Namen.");
+    throw new ServiceError("invalid", note("categoryNeedsName"));
   }
   if (!CATEGORY_TYPES.includes(draft.type)) {
-    throw new ServiceError("invalid", `Unbekannter Typ „${draft.type}“.`);
+    throw new ServiceError("invalid", note("unknownCategoryType", { type: draft.type }));
   }
   return name;
 }
@@ -389,7 +370,7 @@ async function addValues(categoryId: string, values: string[]) {
 }
 
 /**
- * Adds a Kategorie, or, by a name the space has already, leaves that one as it is apart from
+ * Adds a category, or, by a name the space has already, leaves that one as it is apart from
  * values it does not know yet. `proposed`: shown to be confirmed, never filled before.
  */
 export async function putCategory(
@@ -415,7 +396,7 @@ export async function putCategory(
     return known;
   }
   if (rows.length >= MAX_CATEGORIES) {
-    throw new ServiceError("refused", `Ein Space hat höchstens ${MAX_CATEGORIES} Kategorien.`);
+    throw new ServiceError("refused", note("spaceMostCategories", { count: MAX_CATEGORIES }));
   }
   const id = nanoid(12);
   const [row] = await db
@@ -459,7 +440,7 @@ export async function categoryRow(categoryId: string): Promise<CategoryRow> {
   return row;
 }
 
-/** Every item that has the Kategorie: their text in the index starts with it. */
+/** Every item that has the category: their text in the index starts with it. */
 async function reindexHolders(categoryId: string) {
   const rows = await db
     .selectDistinct({
@@ -510,7 +491,7 @@ export async function updateCategory(
   if (name !== row.name) {
     const clash = byName(await categoryRows(row.projectId), name);
     if (clash && clash.id !== row.id) {
-      throw new ServiceError("invalid", `Die Kategorie „${name}“ gibt es schon.`);
+      throw new ServiceError("invalid", note("categoryAlreadyExists", { name }));
     }
   }
   await db
@@ -564,7 +545,7 @@ export async function addCategoryValue(categoryId: string, value: string) {
   const category = await categoryRow(categoryId);
   await requireWritableProject(category.projectId);
   if (category.type !== "choice") {
-    throw new ServiceError("invalid", "Nur eine Auswahl hat Werte.");
+    throw new ServiceError("invalid", note("onlyChoiceCategoriesValues"));
   }
   const ids = await addValues(category.id, [value]);
   return { id: [...ids.values()].at(-1) as string };
@@ -599,7 +580,7 @@ export async function mergeCategoryValues(fromId: string, intoId: string) {
   const from = await valueRow(fromId);
   const into = await valueRow(intoId);
   if (from.category.id !== into.category.id || fromId === intoId) {
-    throw new ServiceError("invalid", "Nur Werte einer Kategorie lassen sich zusammenführen.");
+    throw new ServiceError("invalid", note("onlyValuesOneCategory"));
   }
   await requireWritableProject(from.category.projectId);
   const t = schema.spaceItemCategory;
@@ -615,7 +596,7 @@ export async function mergeCategoryValues(fromId: string, intoId: string) {
     }
   }
   await db.delete(schema.spaceCategoryValue).where(eq(schema.spaceCategoryValue.id, fromId));
-  // The Übersicht of the value that grew is no longer all of it.
+  // The summary of the value that grew is no longer all of it.
   await db
     .update(schema.spaceCategoryValue)
     .set({ summaryAt: null })
@@ -649,9 +630,9 @@ export async function orderCategoryValues(categoryId: string, ids: string[]) {
 // --- on items ---------------------------------------------------------------------
 
 /**
- * Sets Kategorien on an item, by their names. A value null takes the Kategorie off. What a
+ * Sets categories on an item, by their names. A value null takes the category off. What a
  * person set stays when an origin or a model writes again. Names the space has no taken
- * Kategorie for are skipped and returned. True in `changed` when anything changed.
+ * category for are skipped and returned. True in `changed` when anything changed.
  */
 export async function setItemCategories(
   projectId: string,
@@ -734,7 +715,7 @@ export async function setItemCategories(
   return { changed, unknown };
 }
 
-/** Whether an item is of the space's own Wissen. */
+/** Whether an item is of the space's own Knowledge. */
 async function itemInProject(projectId: string, ref: ItemRef): Promise<boolean> {
   if ("pageId" in ref) {
     const page = await db.query.spacePage.findFirst({
@@ -768,7 +749,7 @@ async function itemInProject(projectId: string, ref: ItemRef): Promise<boolean> 
   return table?.projectId === projectId && !table.wizardId;
 }
 
-/** What a person set from the studio: by the Kategorie's id, a list of values or none. */
+/** What a person set from the studio: by the category's id, a list of values or none. */
 export async function setItemCategory(
   projectId: string,
   ref: ItemRef,
@@ -788,7 +769,7 @@ export async function setItemCategory(
   return changed;
 }
 
-/** The Kategorien of items, by `itemKey`. */
+/** The categories of items, by `itemKey`. */
 export async function itemCategoriesOf(refs: ItemRef[]): Promise<Map<string, ItemCategory[]>> {
   const out = new Map<string, ItemCategory[]>();
   if (!refs.length) {
@@ -840,7 +821,7 @@ export async function itemCategoriesOf(refs: ItemRef[]): Promise<Map<string, Ite
   return out;
 }
 
-/** `Name: Wert` for each Kategorie an item has, in the order of the space's Kategorien. */
+/** `Name: Wert` for each category an item has, in the order of the space's categories. */
 export function categoryLines(
   categories: Pick<CategoryRow, "id" | "name" | "unit">[],
   has: ItemCategory[] | undefined,
@@ -866,9 +847,9 @@ export function categoryLines(
   });
 }
 
-// --- a column as a Kategorie -------------------------------------------------------------
+// --- a column as a category --------------------------------------------------------------
 
-/** Writes the Kategorie of a column onto the table's rows: their cells are its values. */
+/** Writes the category of a column onto the table's rows: their cells are its values. */
 export async function syncColumnCategory(category: CategoryRow, rowIds?: string[]) {
   if (!(category.tableId && category.columnId) || category.proposed) {
     return;
@@ -894,7 +875,7 @@ export async function syncColumnCategory(category: CategoryRow, rowIds?: string[
   }
 }
 
-/** After rows of a table changed: the Kategorien its columns are. */
+/** After rows of a table changed: the categories its columns are. */
 export async function syncTableRowCategories(tableId: string, rowIds?: string[]) {
   const categories = await db.query.spaceCategory.findMany({
     where: and(eq(schema.spaceCategory.tableId, tableId), isNotNull(schema.spaceCategory.columnId)),
@@ -922,7 +903,7 @@ function condition(category: CategoryRow, w: WhereValue, valueIds: Map<string, s
   const bad = () =>
     new ServiceError(
       "invalid",
-      `„${category.name}“ is a ${category.type}: ${
+      `“${category.name}” is a ${category.type}: ${
         {
           choice: "give a value, a list of values or { atLeast }",
           text: "give a text, a list or { contains }",
@@ -1022,8 +1003,8 @@ async function withSubPages(pageIds: string[]): Promise<string[]> {
 
 /**
  * The items of the space a filter leaves: an item matches when it, or the page or table it
- * belongs to, has every Kategorie as asked. Null for no filter. A name the space has no
- * Kategorie for is an error that lists the names there are.
+ * belongs to, has every category as asked. Null for no filter. A name the space has no
+ * category for is an error that lists the names there are.
  */
 export async function filterItems(
   projectId: string,
@@ -1040,7 +1021,7 @@ export async function filterItems(
     if (!category) {
       throw new ServiceError(
         "invalid",
-        `No Kategorie "${name}". There are: ${rows.map((c) => `${c.name} (${c.type})`).join(", ") || "none"}.`,
+        `No category “${name}”. There are: ${rows.map((c) => `${c.name} (${c.type})`).join(", ") || "none"}.`,
       );
     }
     const valueIds = new Map(

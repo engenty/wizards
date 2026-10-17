@@ -1,15 +1,15 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { LOCAL_CLIENT_HEADER, LOCAL_MCP_HEADER, mintLocalTicket } from "../auth/local-ticket.js";
 import type { Running } from "../running.js";
 import type { Layout } from "./home.js";
-import { runningRuntime, settings, startInBackground } from "./start.js";
+import { readSecret, runningRuntime, settings, startInBackground } from "./start.js";
+import { tilde } from "./ui.js";
 
 /**
  * `wizards mcp`: this install's MCP server over stdio, for AI clients that start their
  * servers as a command — Claude Desktop, Cursor, Codex and the ChatGPT app, VS Code, Windsurf,
- * Gemini CLI, Goose, OpenClaw, LM Studio. Each message goes on to the running runtime's
+ * Antigravity, Goose, OpenClaw, LM Studio. Each message goes on to the running runtime's
  * `/api/mcp`, signed with the data folder's secret, so no client's config holds a key and a new
  * port after a restart changes nothing. When nothing runs, the runtime is started.
  *
@@ -47,18 +47,6 @@ export function messagesOf(contentType: string, body: string): Message[] {
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 
-function readSecret(paths: Layout, dataDir: string): string | null {
-  const given = process.env.APP_SECRET?.trim() || settings(paths).fileEnv.APP_SECRET?.trim();
-  if (given) {
-    return given;
-  }
-  try {
-    return readFileSync(join(dataDir, "secret"), "utf8").trim();
-  } catch {
-    return null;
-  }
-}
-
 export async function mcp(paths: Layout): Promise<number> {
   const { dataDir } = settings(paths);
   let running: Promise<Running> | null = null;
@@ -71,12 +59,14 @@ export async function mcp(paths: Layout): Promise<number> {
       if (found) {
         return found;
       }
-      process.stderr.write("engenty wizards is not running; starting it …\n");
+      process.stderr.write("engenty wizards isn’t running. Starting it…\n");
       const started = await startInBackground(paths);
       if (started) {
         return started;
       }
-      throw new Error(`engenty wizards did not start; see ${join(paths.logs, "runtime.log")}.`);
+      throw new Error(
+        `engenty wizards didn’t start. Its log is in ${tilde(join(paths.logs, "runtime.log"))}.`,
+      );
     })();
     running.catch(() => {
       running = null;
@@ -86,9 +76,9 @@ export async function mcp(paths: Layout): Promise<number> {
 
   const post = async (message: Message): Promise<Message[]> => {
     const at = await runtime();
-    const secret = readSecret(paths, dataDir);
+    const secret = readSecret(paths);
     if (!secret) {
-      throw new Error("The data folder has no secret; start engenty wizards once.");
+      throw new Error("No secret in the data folder yet. Start engenty wizards once first.");
     }
     const response = await fetch(`http://127.0.0.1:${at.port}/api/mcp`, {
       method: "POST",
@@ -103,7 +93,7 @@ export async function mcp(paths: Layout): Promise<number> {
     });
     const body = await response.text();
     if (!response.ok && response.status !== 202) {
-      throw new Error(`engenty wizards answered ${response.status}: ${body.slice(0, 300)}`);
+      throw new Error(`engenty wizards responded with ${response.status}: ${body.slice(0, 300)}`);
     }
     return messagesOf(response.headers.get("content-type") ?? "", body);
   };

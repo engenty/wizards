@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, extname, join, resolve, sep } from "node:path";
-import type { PluginManifest } from "@engenty-wizards/plugin-sdk";
+import type { PluginManifest } from "@engenty/wizards/plugin";
 import { PLUGIN_ID } from "@engenty-wizards/shared/definition";
 import { z } from "zod";
 

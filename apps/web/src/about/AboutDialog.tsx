@@ -1,11 +1,11 @@
-import { ChevronRight, Download, ExternalLink, RefreshCw, X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { EngentyLogoMark } from "../engenty/logo";
 import { t } from "../lib/i18n";
 import type { Me } from "../lib/session";
 import { useUpdate } from "../lib/update";
 import { stepClass, useStepDirection } from "../studio/settings-menu";
-import { Button, cn, Dialog, IconButton, Spinner, Tabs } from "../ui";
+import { cn, Dialog, IconButton, Spinner, Tabs } from "../ui";
 import { APP_VERSION } from "./AboutLinks";
 import {
   type ChangelogRelease,
@@ -15,6 +15,7 @@ import {
   releaseLabel,
 } from "./ChangelogDialog";
 import { Credits } from "./Credits";
+import { UpdateCheck } from "./UpdateCheck";
 
 type Tab = "new" | "earlier" | "credits";
 const TABS: Tab[] = ["new", "earlier", "credits"];
@@ -45,7 +46,7 @@ export function AboutDialog({
   me?: Me | null;
 }) {
   const local = me?.mode === "local";
-  const { status, data, latest, check, apply, busy, progress } = useUpdate(local && open);
+  const { data, latest } = useUpdate(local && open);
   const [releases, setReleases] = useState<ChangelogRelease[] | null>(null);
   const [tab, setTab] = useState<Tab>("new");
   const step = useStepDirection(TABS.indexOf(tab));
@@ -69,9 +70,6 @@ export function AboutDialog({
   const newest = releases?.find((r) => r.version === `v${shown}`) ?? releases?.[0] ?? null;
   const earlier = releases?.filter((r) => r !== newest) ?? [];
   const kind = local ? (data?.kind ?? null) : "cloud";
-  const checkedAt = data?.checkedAt
-    ? new Date(data.checkedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
-    : null;
   return (
     <Dialog open={open} onClose={onClose} wide height="tall">
       {/* No title: the mark says what this is. The close stays in the corner while it scrolls. */}
@@ -93,69 +91,8 @@ export function AboutDialog({
       </div>
 
       {local ? (
-        <div className="mt-5 flex flex-col items-center gap-3 text-center text-[0.875rem] text-ink-2">
-          {status.isPending || check.isPending ? (
-            <div className="flex items-center gap-2.5">
-              <Spinner className="size-4 text-ember-strong" />
-              {t("about.update.checking")}
-            </div>
-          ) : progress ? (
-            <div className="flex items-center gap-2.5">
-              {busy ? <Spinner className="size-4 text-ember-strong" /> : null}
-              {progress}
-            </div>
-          ) : data?.newer && latest ? (
-            <>
-              <div className="flex items-center gap-2.5 font-medium text-ink">
-                <Download className="size-4 shrink-0 text-ember-strong" />
-                {t("about.update.available", { v: latest })}
-              </div>
-              {data.canApply ? null : <p className="text-ink-3">{t("about.update.manual")}</p>}
-            </>
-          ) : !data?.enabled ? (
-            <p>{t("about.update.off")}</p>
-          ) : data.latest === null ? (
-            <p>{t("about.update.unknown")}</p>
-          ) : (
-            <p>
-              {t("about.update.upToDate")}
-              {checkedAt ? (
-                <span className="text-ink-4">
-                  {" "}
-                  · {t("about.update.checkedAt", { when: checkedAt })}
-                </span>
-              ) : null}
-            </p>
-          )}
-          {busy || status.isPending ? null : (
-            <div className="flex flex-wrap justify-center gap-2">
-              {data?.newer && data.canApply && data.applying !== "running" ? (
-                <Button size="sm" disabled={apply.isPending} onClick={() => apply.mutate()}>
-                  <Download className="size-4" /> {t("about.update.install")}
-                </Button>
-              ) : null}
-              {data?.newer && data.url ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => window.open(data.url ?? "", "_blank")}
-                >
-                  {t("about.update.release")} <ExternalLink className="size-4" />
-                </Button>
-              ) : null}
-              {data?.enabled === false ? null : (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={check.isPending}
-                  onClick={() => check.mutate()}
-                >
-                  <RefreshCw className={cn("size-4", check.isPending && "animate-spin")} />{" "}
-                  {t("about.update.check")}
-                </Button>
-              )}
-            </div>
-          )}
+        <div className="mt-5">
+          <UpdateCheck enabled={open} />
         </div>
       ) : null}
 

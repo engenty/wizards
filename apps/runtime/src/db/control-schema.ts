@@ -1,4 +1,6 @@
+import type { Lang } from "@engenty-wizards/shared/definition";
 import type { MarketplaceExport } from "@engenty-wizards/shared/marketplace";
+import type { UiTexts } from "@engenty-wizards/shared/run";
 import { sql } from "drizzle-orm";
 import {
   index,
@@ -54,6 +56,10 @@ export const runIndex = sqliteTable(
     visitorId: text("visitor_id"),
     ipHash: text("ip_hash"),
     active: integer("active", { mode: "boolean" }).notNull().default(false),
+    /** The runner working on the run; null while it waits for one. */
+    owner: text("owner"),
+    /** The owner's last heartbeat; one silent for RUNNER_STALE_MS has lost the run. */
+    seen: integer("seen", { mode: "timestamp_ms" }),
     /**
      * The mobile app's device for push, set by the app for this run (`POST /api/runs/:id/notify`):
      * `{ token, platform: "ios" | "android", lang }`. Told through the Manage-App when the run is
@@ -62,7 +68,7 @@ export const runIndex = sqliteTable(
     push: text("push", { mode: "json" }).$type<{
       token: string;
       platform: "ios" | "android";
-      lang: "en" | "de";
+      lang: Lang;
     }>(),
     createdAt: createdAt(),
   },
@@ -72,6 +78,16 @@ export const runIndex = sqliteTable(
     index("run_index_active").on(t.active, t.tenantId),
   ],
 );
+
+/**
+ * The runners that execute runs (RUNTIME_ROLE=runner or all): where the web reaches one for what
+ * only the process holding a run can answer (its browser's screen), and when it last reported.
+ */
+export const runner = sqliteTable("runner", {
+  id: text("id").primaryKey(),
+  url: text("url"),
+  seen: integer("seen", { mode: "timestamp_ms" }).notNull(),
+});
 
 /** A studio session of someone signed in at the Manage-App. The refresh token is encrypted. */
 export const session = sqliteTable(
@@ -97,6 +113,17 @@ export const session = sqliteTable(
 export const setting = sqliteTable("setting", {
   key: text("key").primaryKey(),
   value: text("value", { mode: "json" }).$type<unknown>().notNull(),
+});
+
+/**
+ * The runner's own words in a language outside `LANGS`, translated once for the runtime:
+ * `source` is the hash of the English tables they were made from.
+ */
+export const uiTranslation = sqliteTable("ui_translation", {
+  lang: text("lang").primaryKey(),
+  source: text("source").notNull(),
+  texts: text("texts", { mode: "json" }).$type<Omit<UiTexts, "lang">>().notNull(),
+  createdAt: createdAt(),
 });
 
 // --- marketplace -----------------------------------------------------------------
@@ -136,4 +163,23 @@ export const pluginAddress = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("plugin_address_tenant").on(t.tenantId, t.plugin)],
+);
+
+/**
+ * Keys a plugin holds across tenants (`server.claims`), each for one tenant at a time: a keyword
+ * on a number every tenant shares, who writes to it, a number a tenant connected. What a shared
+ * route asks to find the tenant of a call.
+ */
+export const pluginClaim = sqliteTable(
+  "plugin_claim",
+  {
+    plugin: text("plugin").notNull(),
+    key: text("key").notNull(),
+    tenantId: text("tenant_id").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [
+    primaryKey({ columns: [t.plugin, t.key] }),
+    index("plugin_claim_tenant").on(t.tenantId, t.plugin),
+  ],
 );

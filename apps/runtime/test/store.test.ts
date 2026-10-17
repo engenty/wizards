@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseWizard } from "@engenty-wizards/shared/definition";
 import { TableColumnValueError } from "@engenty-wizards/shared/engenty/data-tables";
-import { type ListDef, listAsMarkdown, newCells, patchCells, rowKey } from "@engenty-wizards/shared/store";
+import { firstRowAt, type ListDef, listAsMarkdown, newCells, patchCells, rowKey } from "@engenty-wizards/shared/store";
 
 const providers: ListDef = {
   id: "providers",
@@ -14,6 +14,15 @@ const providers: ListDef = {
     { id: "path", name: "Weg", type: "text", format: { style: "multiline" } },
   ],
 };
+
+describe("when a row is saved", () => {
+  it("stands after every row the list holds, even within one millisecond", () => {
+    const now = Date.now();
+    expect(firstRowAt([])).toBeGreaterThanOrEqual(now);
+    // A row saved this very millisecond (or stamped ahead): the next one comes after it.
+    expect(firstRowAt([{ createdAt: new Date(now + 5) }, { createdAt: new Date(now - 9) }])).toBe(now + 6);
+  });
+});
 
 describe("list rows", () => {
   it("types cells by column and refuses a bad value", () => {

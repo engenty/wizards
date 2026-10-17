@@ -333,23 +333,23 @@ const NEW_STEP: Record<EmptyKind, (id: string) => Step> = {
   page: (id) => ({
     id,
     type: "page",
-    title: "Neue Seite",
-    fields: [{ id: `${id}Text`, label: "Neue Frage", kind: "text" }],
+    title: t("step.new.page"),
+    fields: [{ id: `${id}Text`, label: t("step.new.question"), kind: "text" }],
   }),
   agent: (id) => ({
     id,
     type: "agent",
-    title: "KI-Schritt",
-    instructions: "Beschreibe die Aufgabe …",
+    title: t("step.new.agent"),
+    instructions: t("step.new.agentTask"),
     tools: [],
     output: { format: "markdown" },
   }),
   generate: (id) => ({
     id,
     type: "generate",
-    title: "Bild erzeugen",
+    title: t("step.new.image"),
     asset: "image",
-    prompt: "Beschreibe das Bild …",
+    prompt: t("step.new.imagePrompt"),
   }),
   widget: (id) => ({
     id,
@@ -369,7 +369,7 @@ export function withEmptyStep(
 ): { def: WizardDefinition; id: string } {
   const id = uniqueId(
     def,
-    kind === "page" ? "seite" : kind === "agent" ? "ki" : kind === "widget" ? "widget" : "erzeugen",
+    kind === "page" ? "page" : kind === "agent" ? "ai" : kind === "widget" ? "widget" : "generate",
   );
   const steps = [...def.steps];
   steps.splice(at, 0, NEW_STEP[kind](id));

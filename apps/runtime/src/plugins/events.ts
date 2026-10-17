@@ -1,8 +1,4 @@
-import type {
-  PluginEvents,
-  PluginRunEvent,
-  PluginSpaceFileEvent,
-} from "@engenty-wizards/plugin-sdk";
+import type { PluginEvents, PluginRunEvent, PluginSpaceFileEvent } from "@engenty/wizards/plugin";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { currentTenant } from "../tenants/tenant.js";

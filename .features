@@ -15,6 +15,18 @@
 # the Team plan: the team page in the cloud studio, the plan on the account pages
 # teamPlans=on|off
 #
+# sections of logos and colours (gradients, patterns) in info & brand
+# brandSections=on|off
+#
+# rules for logos, colours and type in info & brand
+# brandRules=on|off
+#
+# the brand's fonts in info & brand
+# typography=on|off
+#
+# Goose, the studio's assistant
+# goose=on|off
+#
 # own API keys in the cloud studio (a plan's switch; on alone)
 # ownKeys=on|off
 #

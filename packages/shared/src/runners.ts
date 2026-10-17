@@ -59,6 +59,15 @@ export interface RunnerInfo {
   plugin?: string;
   /** Why the runner cannot be used here right now (a model not set up); null when it can. */
   problem?: string | null;
+  /**
+   * What kind of problem: `setup` (to set up, the default), `waiting` (asked for, waiting for
+   * someone else), `plan` (not in the tenant's plan).
+   */
+  problemKind?: "setup" | "waiting" | "plan";
+  /** What the share dialog's row says about the problem, instead of its own words. */
+  problemNote?: { de: string; en: string } | null;
+  /** `plan`: the plan that has it. */
+  problemPlan?: string | null;
 }
 
 export const RUNNER_ID = /^[a-z][a-z0-9-]{0,23}$/;
@@ -147,7 +156,7 @@ export interface RunnerFit {
 export function outputKindOf(step: Step): OutputKind | null {
   switch (step.type) {
     case "agent":
-      return step.output?.fields?.length ? "data" : "text";
+      return step.output?.fields?.length || step.output?.schema ? "data" : "text";
     case "generate":
       return step.asset;
     case "widget":

@@ -121,7 +121,7 @@ function Imported({
               label={t("connectors.remove")}
               className="hover:text-rose"
               onClick={() =>
-                confirm(`${connector.name}: ${t("connectors.remove")}?`) && remove.mutate()
+                confirm(t("connectors.removeConfirm", { name: connector.name })) && remove.mutate()
               }
             >
               <Trash2 className="size-4" />
@@ -233,14 +233,14 @@ function SourceRow({
       {credentials ? (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <Input
-            placeholder="OAuth Client-ID"
+            placeholder={t("connectors.clientId")}
             value={client.id}
             onChange={(e) => setClient((c) => ({ ...c, id: e.target.value }))}
           />
           <Input
             type="password"
             autoComplete="off"
-            placeholder="OAuth Client-Secret"
+            placeholder={t("connectors.clientSecret")}
             value={client.secret}
             onChange={(e) => setClient((c) => ({ ...c, secret: e.target.value }))}
           />

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { RunNote } from "@engenty-wizards/shared/run";
 import { and, count, eq, gte } from "drizzle-orm";
 import { canSpend } from "./credits/credits.js";
 import { db, schema } from "./db/client.js";
@@ -19,10 +20,13 @@ function startOfDay(): Date {
 
 export type WizardRow = typeof schema.wizard.$inferSelect;
 
-/** Why a shared wizard cannot start a run right now, or null when it can. */
-export async function wizardUnavailable(w: WizardRow): Promise<string | null> {
+/**
+ * Why a shared wizard cannot start a run right now, or null when it can: a note, to answer in the
+ * wizard's language (`noteText(reason, wizardLang(def))`).
+ */
+export async function wizardUnavailable(w: WizardRow): Promise<RunNote | null> {
   if (!w.shareEnabled || w.publishedVersion === null) {
-    return "Dieser Wizard ist gerade nicht verfügbar.";
+    return { code: "wizardUnavailable" };
   }
   const [{ n }] = await db
     .select({ n: count() })
@@ -35,10 +39,10 @@ export async function wizardUnavailable(w: WizardRow): Promise<string | null> {
       ),
     );
   if (n >= w.dailyRunLimit) {
-    return "Für heute ist das Limit dieses Wizards erreicht. Bitte morgen wieder versuchen.";
+    return { code: "wizardLimit" };
   }
   if (!(await canSpend())) {
-    return "Dieser Wizard ist gerade nicht verfügbar.";
+    return { code: "wizardUnavailable" };
   }
   return null;
 }

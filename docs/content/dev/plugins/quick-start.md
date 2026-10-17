@@ -1,6 +1,7 @@
 ---
 title: Quick start
 description: A tool for AI steps in one file. No build, no restart.
+version: 0.5.0
 ---
 
 You write one file. The running app finds it, and every AI step can use the tool in it.
@@ -9,17 +10,17 @@ You write one file. The running app finds it, and every AI step can use the tool
 
 | You run | The folder |
 |---|---|
-| The installed app (`wizards`) | `~/.engenty/wizards/plugins` |
-| A checkout (`pnpm dev`) | The folders `PLUGINS_DIR` names in `.env.local`, for example `PLUGINS_DIR=../my-plugins`. A relative path starts at the checkout's root |
+| engenty wizards on your computer (`wizards`) | `~/.engenty/wizards/plugins` |
+| A checkout (`pnpm dev`) | The folders that `PLUGINS_DIR` names in `.env.local`, for example `PLUGINS_DIR=../my-plugins`. A relative path starts at the checkout’s root |
 
-Start the app. It makes the folder if it is missing and watches it while it runs.
+Start the app. It creates the folder if it is missing and watches it while it runs.
 
 ## 2. Write the plugin
 
 Save this as `workdays.ts` in the plugins folder:
 
 ```ts
-import { definePlugin } from "@engenty-wizards/plugin-sdk";
+import { definePlugin } from "@engenty/wizards/plugin";
 import { z } from "zod";
 
 export default definePlugin((wizards) => {
@@ -47,21 +48,22 @@ export default definePlugin((wizards) => {
 });
 ```
 
-- The file's name is the plugin's id: `workdays`.
-- The tool's full id is `workdays.count`.
-- `@engenty-wizards/plugin-sdk` and `zod` come from the app. Nothing to install.
+- The file’s name is the plugin’s id: `workdays`.
+- The tool’s full id is `workdays.count`.
+- `@engenty/wizards/plugin` and `zod` come from the app, so you don’t install anything.
 
 ## 3. See it
 
 The app loaded the file the moment you saved it.
 
-- **Settings → Plugins** lists `workdays` with its tool "Working days".
-- **In the editor**, open an AI step: "Working days" is in its tool list, beside "Web search"
-  and the other built-in tools.
-- **In the conversation**, ask for it: "Add a step that counts the working days between the two
-  dates." The assistant knows the tool from its description.
+- **Settings → Plugins** lists `workdays`, with `workdays.count` under “Tools for steps”.
+- **In the editor**, open an AI step: `workdays.count` is in its list of tools, beside
+  `web_search` and the other built-in ones. The line below the list says “workdays.count =
+  Working days”.
+- **In the editor’s chat**, ask for it: “Add a step that counts the working days between the
+  two dates.” The assistant knows the tool from its description.
 
-In a wizard's definition the step lists the tool by its full id:
+In a wizard’s definition the step lists the tool by its full id:
 
 ```json
 {
@@ -77,10 +79,10 @@ In a wizard's definition the step lists the tool by its full id:
 
 ## 4. Change it
 
-Edit the file and save. The plugin loads again; the next step that runs uses the new code.
+Edit the file and save. The plugin loads again, and the next step that runs uses the new code.
 
-If the file has an error, Settings → Plugins says "The server half did not load" with the
-reason. Mend the file and save again.
+If the file has an error, Settings → Plugins says “The server part didn’t load. Check the plugin
+and reload” with the reason. Fix the file and save it again.
 
 ## Next
 

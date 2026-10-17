@@ -50,13 +50,16 @@ Errors: `{ "error": string, "code": string }`.
 | `GET /v1/tenants/:id` | → `{ id, name, status: "active" \| "suspended" \| "deleted", balanceCredits, plan?: { id, name }, limits: { concurrentRuns, projects?, build?, members? }, modules?: string[], features?: { [id]: boolean }, db: { url: string } \| null }` · `db: null` means the runtime keeps the tenant's database as a file · `plan`: the plan the tenant is on (Free, Pro, Team, …), shown in the studio · `limits.projects`: how many projects the tenant works with (the studio shows a project switcher above one; a project a local install synced counts); `null` for as many as it wants; left out, the runtime keeps one · `limits.build: false`: the tenant makes and changes nothing on the runtime, its studio shows what its local install synced; left out, it builds · `limits.members`: the people the plan allows (`null`: no limit), shown on the studio's team page; the Manage-App enforces it · `modules` (optional, a list of plugin ids): the plugins of the runtime switched on for the tenant, besides the runtime's `PLUGINS_DEFAULT`; an id the runtime has no plugin for is ignored ([content/dev/plugins/shipping.md](content/dev/plugins/shipping.md)) · `features`: the plan's switches the runtime reads; one not named is off. Known: `ownKeys` — the tenant's own API keys and bindings to a provider's model in the cloud studio (`PUT /api/studio/models` refuses them with `403 { code: "plan" }` otherwise) |
 | `GET /v1/tenants/:id/members` | → `{ members: [{ userId, name, email, image, role, joinedAt }], invitations: [{ id, email, role, expiresAt }], seats: { limit: number \| null, taken } }` · the people of the tenant and who is invited, for the studio's team page; they are invited, given roles and removed on the Manage-App's account pages · `seats.taken` counts members and open invitations |
 | `POST /v1/keys/verify` | `{ key }` → `{ valid: false }` or `{ valid: true, keyId, name, userId, userName, tenantId, role }` |
+| `POST /v1/grants/check` | `{ userId, clientId, tenantId }` → `{ active }` · whether the grant behind an access token still stands: the person is a member of the tenant and not locked out, and — for a client that shows a consent page — the consent is still there (“Trennen” on the account page removes it) · the runtime asks before it takes a token at `/api/mcp` and the API, and keeps the answer 30 s; no answer refuses the token |
 | `POST /v1/reservations` | `{ tenantId, runId, credits }` → `{ id }` · `402` with code `no_credits` when the free balance is below `credits` · the same `runId` again replaces the earlier reservation |
 | `POST /v1/reservations/release` | `{ runId }` → `{ ok: true }` · unknown run is fine |
 | `POST /v1/usage` | `{ tenantId, runId?, stepId?, kind, usd, idempotencyKey }` → `{ credits }` · for what is not a model call |
 | `GET /v1/runs/:runId/usage?tenantId=` | → `{ credits, steps: { [stepId]: credits } }` · what the ledger booked for the run; rows without a step under `""` |
 | `GET /v1/tenants/:id/usage?months=` | → `{ months: [{ month: "2026-10", credits, runs: [{ runId, credits }] }] }` · what the tenant spent per calendar month (UTC), the newest first, `months` 1–12 (3 when left out), each with its 20 costliest runs; the studio assistant names the wizards behind the runs |
-| `GET /v1/users/:id` | → `{ id, name, email, image }` |
-| `POST /v1/push` | `{ tenantId, device: { token, platform: "ios" \| "android" }, title, body, data: { runId, kind } }` → `{ ok: true }` · a push to the mobile app (apps/mobile) on one device: `token` is the raw APNs or FCM token the app gave the run (`POST /api/runs/:id/notify`); the Manage-App holds the APNs and FCM keys · `kind`: `done`, `failed`, `waiting` or `asks` · a token APNs or FCM no longer takes is not an error |
+| `PATCH /v1/tenants/:id` | `{ name }` → the same answer as `GET /v1/tenants/:id` · renames the team; the studio's first visit asks for the name ([content/user/create-account.md](content/user/create-account.md)) · `name` 1–80 characters |
+| `POST /v1/install-mail` | `{ email, lang: "de" \| "en" }` → `{ ok: true }` · the Manage-App mails its install mail (the command and the first steps) to `email`, which must belong to a person of a tenant this runtime serves (`404` otherwise); 3 a day per address (`429`) · "Mail me the command" on the cloud studio's start page |
+| `GET /v1/users/:id` | → `{ id, name, email, image, features, admin }` · `features`: the person's own switches, laid over the team's · `admin`: the person runs the platform; the studio offers them the assistant's developer mode |
+| `POST /v1/push` | `{ tenantId, device: { token, platform: "ios" \| "android" }, title, body, data: { runId, kind } }` → `{ ok: true }` · a push to the mobile app (the apps repo engenty-wizards-apps) on one device: `token` is the raw APNs or FCM token the app gave the run (`POST /api/runs/:id/notify`); the Manage-App holds the APNs and FCM keys · `kind`: `done`, `failed`, `waiting` or `asks` · a token APNs or FCM no longer takes is not an error |
 
 Free balance = balance − open reservations. A reservation's hold shrinks by what its run has
 been booked. Reservations older than 24 h lapse.
@@ -80,6 +83,26 @@ settings); `member` edits the wizards there are, tests and publishes them. A mem
 answers `403 { code: "forbidden" }`, whichever way it came in (studio, API, MCP). A runtime that
 runs alone has one person, who does everything.
 
+## Numbers of a tenant
+
+A team on engenty.ai gets one number for texts and calls from engenty, for all its spaces: it
+asks for one, an admin of the Manage-App assigns it. WhatsApp runs on numbers every team shares.
+Plugins reach these through `server.channels` ([content/dev/plugins/server.md](content/dev/plugins/server.md#numbers-of-the-manage-app));
+the runtime asks with its service key and keeps the answer of `GET` a minute.
+
+| Call | Body → answer |
+|---|---|
+| `GET /v1/tenants/:id/channels` | → `{ number: { id, number, country, kinds, providerRef, since } \| null, request: { id, country, wish, email, createdAt } \| null, shared: [{ number, country, kinds }], allowed }` · `allowed`: the tenant's plan has a number of its own (false on Free) · `number`: the team's own, E.164 (`+43…`), `kinds` of `sms`, `call`, `whatsapp`, `providerRef` the provider's id of it (Twilio's `PN…`) or null · `request`: its open request for one · `shared`: the numbers every team shares |
+| `POST /v1/tenants/:id/channels/requests` | `{ userId, country, wish?, lang }` → `{ request: { id, country, wish, email, createdAt } }` · a member of the tenant asks for its number; `country` ISO 3166 (`AT`) · `403 plan`: a plan without a number · `409 has_number`: it has one · `403 not_member` · asking again answers the open request · the person gets a mail when it is assigned or declined |
+| `DELETE /v1/tenants/:id/channels/requests` | → `{ withdrawn }` · takes the open request back |
+| `POST /v1/tenants/:id/channels/usage` | `{ kind: "sms" \| "call" \| "whatsapp", quantity, idempotencyKey, runId? }` → `{ credits }` · what the number carried, booked at the Manage-App's prices: `sms` by segment, sent or received, `call` by started minute, `whatsapp` by message sent · the same key books once · the number's monthly price the Manage-App books itself |
+
+### Clients of the public run API
+
+| Call | Answer |
+|---|---|
+| `GET /v1/clients` | `{ clients: [{ id, name, runsPerHour, revoked }], unknown: { allow, runsPerHour } }` · which clients (`x-wizards-client`, docs/content/dev/api.md) may start runs on the Manage-App's runtimes and how many an hour across all visitors (`null` = no cap); `unknown` is what an id not in the list gets. Fetched at the start and hourly; a `404` means no list, and every client may start runs. Not yet built in the Manage-App: docs/plans/api-clients.md |
+
 ## Manage-App → runtime
 
 `Authorization: Bearer <service key of the runtime>`.
@@ -87,11 +110,39 @@ runs alone has one person, who does everything.
 | Call | Body |
 |---|---|
 | `POST <RUNTIME_URL>/api/internal/tenants/:id` | `{ action: "suspend" \| "resume" \| "delete" }` → `{ ok: true }` |
-| `GET <RUNTIME_URL>/api/internal/plugins` | → `{ plugins: [{ id, name, description, version }] }` · the plugins the runtime carries, so a plan's `modules` are picked from what exists |
+| `GET <RUNTIME_URL>/api/internal/plugins` | → `{ plugins: [{ id, name, description, version }], features }` · the plugins the runtime carries, so a plan's `modules` are picked from what exists; `features` every feature switch it knows (the core's and its plugins', under their ids) |
 | `GET <RUNTIME_URL>/api/internal/debug/status` | → `{ app, version, process: { pid, node, platform, hostname, startedAt, uptimeSeconds, memoryMb, log }, managed, appUrl, manageUrl, gatewayUrl, sandbox, browser, files, database, tenantDatabases, tenants, plugins: [{ id, version }] }` · a look from afar ([plans/remote-debug.md](plans/remote-debug.md)); never a key |
 | `GET <RUNTIME_URL>/api/internal/debug/logs?since=&after=&limit=&level=&q=` | → `{ sources: [{ from, ok, error? }], lines: [{ id, at, level, text, from }] }` · the last lines the process printed, secrets taken out; `since` an id, `after` ms, `limit` ≤ 2000 (200), `level` `debug` \| `info` \| `warn` \| `error` and up, `q` a text |
 | `GET <RUNTIME_URL>/api/internal/debug/runs/:id` | → `{ tenantId, run: { id, wizardId, version, mode, status, cursor, error, ask, unattended, costCredits, userId, createdAt, updatedAt, expiresAt }, wizard: { id, title, publishedVersion } \| null, line: { active } \| null, events: [{ id, stepId, type, message, createdAt }] }` · one run of any tenant; `404` when unknown |
 | `GET <RUNTIME_URL>/api/internal/debug/tenants/:id/models` | → `{ tenantId, source, bindings, creditFallback, keys: { [provider]: boolean }, ways: { [class]: { kind, by, ref, problem } } }` · where each class of the tenant runs; `404` for a tenant the runtime never opened |
+
+## Plugins of a tenant
+
+A runtime that runs alone gives every tenant every plugin it loaded. In a runtime of a
+Manage-App:
+
+- Plugins are installed by whoever runs the runtime, into the image or a folder of
+  `PLUGINS_DIR`. A tenant cannot install one.
+- `PLUGINS_DEFAULT` is a comma-separated list of ids every tenant has.
+- The Manage-App switches further ones on per tenant: `modules` in its answer to
+  `GET /v1/tenants/:id` (kept for a minute; while the Manage-App is out of reach, what it said within the hour). An id
+  the runtime does not carry is passed over; without an answer the tenant has only
+  `PLUGINS_DEFAULT`. The
+  Manage-App learns which plugins a runtime carries from `GET /api/internal/plugins`, so a plan's
+  modules are picked from what exists.
+- For a tenant without a plugin, that plugin does not exist: no routes or public routes, no
+  tools, no space context or assistant tools, no listeners, no jobs, no runners, no index
+  entries, no studio half, no starters.
+- A plugin's tables are made in every tenant's database, whether the tenant has the plugin or
+  not.
+- Nothing reloads while it runs: `PLUGINS_WATCH` is ignored there, `/api/studio/plugins/-/reload`
+  answers `403` and `/-/events` `404`. A reload would hit every tenant at once; a new version of a
+  plugin comes with a new start of the runtime.
+- Pro modules are a local install's alone: a runtime of a Manage-App neither fetches nor loads
+  them.
+
+So one image serves tenants with different sets of plugins: the plugin is in the image, and the
+Manage-App decides who has it. `apps/runtime/test/managed.test.ts` covers it.
 
 ## Google accounts through the Manage-App
 
@@ -117,7 +168,7 @@ through the Manage-App.
 
 A runtime that runs alone, linked to an account, gets the closed plugins the account's plan
 includes (`modules` of the plan) from the Manage-App
-([Pro modules](content/dev/plugins/pro-modules.md)). Every call carries the linked account's
+([Pro modules](pro-modules.md)). Every call carries the linked account's
 access token; `runtime` is the install's release (`0.2.27` or `v0.2.27`).
 
 | Call | Answer |
@@ -170,6 +221,35 @@ Calls of the cloud runtime, below `<RUNTIME_URL>/api/v1`, with the account's acc
   are kept first, then the project, the wizard, its workspace and the version are written in one
   transaction. The install sends again by itself — after a minute, then twice as long each time,
   up to an hour — until it arrives; not after a refusal (`4xx`), which only the person can mend.
+
+## Clients of an account: the WordPress plugin
+
+The WordPress plugin is an OAuth client of the Manage-App like an MCP client: it registers itself
+(`POST /api/auth/oauth2/register`, public client, PKCE, its own `admin-post.php?action=engenty_connect`
+as the redirect), sends the admin to the authorization endpoint with `resource=<RUNTIME_URL>/api/mcp`,
+`scope=openid profile email offline_access wizards:read wizards:write wizards:publish runs:read`,
+`login_hint` (the admin's e-mail) and, for "create an account", `prompt=create` (the sign-in page
+then offers a new account first), and keeps the refresh token on the site. An API key does the
+same calls.
+
+Calls of the runtime, below `<RUNTIME_URL>/api/v1`:
+
+| Call | Scopes | Answer |
+|---|---|---|
+| `GET /me` | — | `{ user: { id, name, email, role }, tenant: { id, name, plan: { id, name } \| null, credits }, build, create, plugins, missing, spaces: [{ id, name, title, wizards, writable }], scopes, client, urls: { app, embed, studio, newWizard, space, account, billing, upgrade } }` · `missing`: of `contacts` and `appointments`, what the plan lacks |
+| `GET /wizards?space=` | `wizards:read` | `{ wizards: [{ id, spaceId, title, description, avatar, published, publishedVersion, token, code, shareUrl, shareEnabled, iconUrl, available, unavailableReason, dailyRunLimit, plugins, standalone, studioUrl, updatedAt }] }` · a draft has no `token`, `code`, `shareUrl` · `standalone`: whether it runs on a website by itself, `{ fit: "full" \| "less" \| "no", notes, missing, optional, needs, without }` (`packages/shared/src/fit.ts`) |
+| `GET /wizards/:id/package?knowledge=` | `wizards:read` | the published version as a `.wizard` package (`application/vnd.engenty.wizard+zip`, `content-disposition` with the file name); `knowledge=1` adds the project's pages under `files/knowledge/` as Markdown (2 MB cap, the manifest's `knowledge: { pages, truncated }`); `404 not_found` while the wizard is a draft only |
+| `POST /wizards` | `wizards:write wizards:publish` | `{ starterId, spaceId?, lang?, publish = true }` → `{ wizard, published, issues }` · a wizard from a template, published when it has no issues; `403 read_only` without `limits.build` |
+| `GET /templates?q=&lang=` | `wizards:read` | `{ templates: [{ id, title, pitch, avatar, language, useCases, formats, plan, plugin, needs, credits }] }` · the plugins' starters first |
+| `GET /runs?space=&wizard=&status=done\|open\|all&q=&days=&page=` | `runs:read` | `{ runs: [{ id, wizardId, wizard, status, step, createdAt, updatedAt, origin, email, summary, credits, files }], page, pages, total }` · live runs, 50 a page |
+| `GET /runs/:id` | `runs:read` | the run's report (outputs with signed downloads) and `{ wizard, createdAt, origin, email, answers: [{ label, kind, value }], shareUrl }` |
+| `GET /space?space=` | `wizards:read` | `{ id, name, title, about, colors, facts, logoUrl, knowledge: { pages, tables, files }, writable, studioUrl }` |
+| `POST /space/site` | `wizards:write` | `{ spaceId?, url, name, tagline, language?, facts: [{ label, value }], colors: [{ name, value }], logo?: { name, mime, data }, pages: [{ key, title, url?, role?, markdown }], assist = true }` → a job `{ id, status: "running", activity, … }` · fills the space's empty details, writes the pages into Wissen under the origin `wordpress` (a page gone from the site goes), then lets the space assistant read the rest; 20 an hour per tenant |
+| `GET /space/site/:job` | `wizards:read` | `{ id, status: "running" \| "done" \| "failed", activity, pages, reply, error, space }` |
+| `ANY /plugins/:id/*` | `wizards:read` for GET, else `wizards:write` | the plugin's own routes as the token's person · `403 { code: "plugin", plugin }` when the tenant's plan lacks it |
+
+`POST /api/public/wizards/:token/runs` takes `origin` (the embedding page, from `embed.js`'s
+`data-page`) beside `embedded`; it is kept as `run.origin`.
 
 ## Model-gateway
 

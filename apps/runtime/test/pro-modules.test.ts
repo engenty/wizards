@@ -167,7 +167,7 @@ describe("Pro modules on a local install", () => {
     const view = await pro.proState();
     expect(view.linked).toBe(false);
     expect(view.modules).toEqual([]);
-    await expect(pro.installPro("notes-pro")).rejects.toThrow(/Konto/);
+    await expect(pro.installPro("notes-pro")).rejects.toThrow(/account/);
   });
 
   it("installs a module of the plan, checked against the signature, and loads it", async () => {
@@ -192,11 +192,11 @@ describe("Pro modules on a local install", () => {
     await pro.removePro("notes-pro");
     state.packages.set("notes-pro", pack(GOOD, stranger.privateKey));
     await pro.refreshPro();
-    await expect(pro.installPro("notes-pro")).rejects.toThrow(/nicht von engenty signiert/);
+    await expect(pro.installPro("notes-pro")).rejects.toThrow(/not signed by engenty/);
     const good = pack(GOOD);
     state.packages.set("notes-pro", { ...good, zip: pack({ ...GOOD, "dist/x.js": "1" }).zip, sha256: createHash("sha256").update(good.zip).digest("hex") });
     await pro.refreshPro();
-    await expect(pro.installPro("notes-pro")).rejects.toThrow(/nicht von engenty signiert/);
+    await expect(pro.installPro("notes-pro")).rejects.toThrow(/not signed by engenty/);
     expect(existsSync(moduleDir())).toBe(false);
     expect(registry.loadedPlugin("notes-pro")).toBeUndefined();
   });
@@ -204,14 +204,14 @@ describe("Pro modules on a local install", () => {
   it("refuses a signed package with files outside its parts", async () => {
     state.packages.set("notes-pro", pack({ ...GOOD, "../escape.js": "x" }));
     await pro.refreshPro();
-    await expect(pro.installPro("notes-pro")).rejects.toThrow(/unerlaubte Datei/);
+    await expect(pro.installPro("notes-pro")).rejects.toThrow(/a file it may not/);
     expect(existsSync(join(state_.proModulesDir(), "..", "escape.js"))).toBe(false);
   });
 
   it("refuses a module the plan does not include", async () => {
     state.modules = [];
     await pro.refreshPro();
-    await expect(pro.installPro("notes-pro")).rejects.toThrow(/nicht Teil deines Pakets/);
+    await expect(pro.installPro("notes-pro")).rejects.toThrow(/not part of your plan/);
   });
 
   it("unloads a module the plan no longer includes and keeps its files", async () => {
@@ -261,7 +261,7 @@ describe("Pro modules on a local install", () => {
     expect(state_.currentEntitlement()).toBeNull();
     state.tenant = "tenant-2";
     await pro.refreshPro();
-    expect((await pro.proState()).error).toMatch(/ließ sich nicht prüfen/);
+    expect((await pro.proState()).error).toMatch(/could not be checked/);
     expect(state_.currentEntitlement()).toBeNull();
   });
 

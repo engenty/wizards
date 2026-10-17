@@ -1,16 +1,20 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppWindow,
   Check,
-  ChevronDown,
   Cloud,
   CloudOff,
   CreditCard,
   Folder,
   Laptop,
   LogOut,
+  PanelLeft,
+  Pencil,
   Plus,
+  WandSparkles,
 } from "lucide-react";
 import {
+  type ComponentType,
   Fragment,
   type ReactNode,
   type RefObject,
@@ -19,12 +23,11 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Link, useNavigate } from "react-router";
-import { AboutLinks } from "../about/AboutLinks";
-import { Logo } from "../brand";
+import { Link, NavLink, useNavigate } from "react-router";
+import { api } from "../lib/api";
 import { type AppBarPosition, besideBar, useAppBar } from "../lib/appbar";
 import { useFeature } from "../lib/features";
-import { t } from "../lib/i18n";
+import { lang, t } from "../lib/i18n";
 import { acceptInstall, standalone, useInstallPrompt } from "../lib/install";
 import {
   initialsOf,
@@ -36,13 +39,15 @@ import {
   useMayCreate,
 } from "../lib/session";
 import { useStudioPlugins } from "../plugins/host";
-import { cn } from "../ui";
+import { Button, cn, Dialog, Input } from "../ui";
 import { AppRail } from "./AppRail";
 import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/StudioAssistant";
 import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner, InstallDialog } from "./InstallBanner";
 import { LangSwitch } from "./LangSwitch";
+import { spaceGroups, withParts } from "./project-sections";
 import { settingsSections } from "./settings-sections";
+import { setAreaSlot, setSpaceSidebar, useHasSideMenu, useSpaceSidebar } from "./side-menu";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
 import { hostOf } from "./where";
@@ -98,14 +103,14 @@ function Trail() {
   }
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={t("nav.breadcrumb")}
       className="flex min-w-0 items-center text-[0.9375rem] max-sm:hidden"
     >
-      {/* After the space's name: set off by a hairline, since the space is no step of the trail. */}
-      <span aria-hidden className="mx-3 h-4 w-px shrink-0 bg-border" />
       {trail.map((crumb, i) => (
         <Fragment key={`${i}:${crumb.label}`}>
-          {i > 0 ? <span className="mx-2 text-ink-4">/</span> : null}
+          {/* The first follows the space's name as the others follow each other: the bar's gap
+              and the name's own padding are taken back, so every slash stands alike. */}
+          <span className={cn("mr-2 text-ink-4", i === 0 ? "-ml-1 sm:-ml-2" : "ml-2")}>/</span>
           {crumb.to && i < trail.length - 1 ? (
             <Link to={crumb.to} className="truncate text-ink-3 transition hover:text-ink">
               {crumb.label}
@@ -147,7 +152,7 @@ export function CreditsPill({ me }: { me: Me }) {
       )}
     >
       {/* Whole credits, rounded down: the pill never shows more than there is. */}
-      {t("nav.credits", { n: Math.floor(credits).toLocaleString() })}
+      {t("nav.credits", { n: Math.floor(credits).toLocaleString(lang) })}
     </a>
   );
 }
@@ -219,7 +224,7 @@ export function SpaceFace({
 }) {
   const color = project?.brand.colors?.[0]?.value;
   const initials = initialsOf(project?.name ?? "");
-  return (
+  const face = (
     <span
       className={cn(
         "grid shrink-0 place-items-center rounded-lg font-semibold tracking-wide",
@@ -231,11 +236,23 @@ export function SpaceFace({
       {initials || <Folder className="size-4" />}
     </span>
   );
+  if (project?.origin !== "local") {
+    return face;
+  }
+  // A space a local install sent: a laptop on its corner, as the note on its pages says.
+  return (
+    <span className="relative shrink-0" title={t("readonly.project")}>
+      {face}
+      <span className="-right-1 -bottom-1 absolute grid size-4 place-items-center rounded-full bg-amber ring-2 ring-paper">
+        <Laptop className="size-2.5 text-paper" />
+      </span>
+    </span>
+  );
 }
 
 /**
  * The spaces, listed as Slack lists its workspaces: the one shown first (its row opens its
- * wizards; its page is behind the home in the bar), the others to switch to, and a row that adds one — greyed at the plan's limit. The
+ * wizards; its page is behind the home in the bar), the others to switch to, and a row that adds one — not there at the plan's limit. The
  * trigger is the caller's: the space's tile in the app bar, its name in the top bar. `label`:
  * the trigger's name for a screen reader where it shows no text.
  */
@@ -258,120 +275,240 @@ export function SpaceMenu({
   const mayCreate = useMayCreate();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [at, setAt] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, open, () => setOpen(false));
   const limit = me.limits.projects;
   const full = limit !== null && projects.length >= limit;
   const row =
     "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition hover:bg-accent";
+  // What the menu does, beside the spaces: a line glyph and a word, as in the person's menu.
+  const action =
+    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[0.875rem] text-ink-2 transition hover:bg-accent hover:text-ink";
   return (
-    <div className="relative shrink-0" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-label={label}
-        title={t("nav.switchSpace")}
-        className={typeof className === "function" ? className(open) : className}
-      >
-        {children}
-      </button>
-      {open ? (
-        <div
-          role="menu"
-          className={cn(
-            "absolute z-50 w-72 animate-rise rounded-xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft",
-            placementClass(placement, position, "top-10 left-0"),
-          )}
+    <div className="shrink-0" ref={ref}>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setAt({ top: r.bottom + 6, left: r.left });
+            setOpen((o) => !o);
+          }}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          aria-label={label}
+          title={t("nav.switchSpace")}
+          className={typeof className === "function" ? className(open) : className}
         >
-          {projects.map((p) => {
-            const current = p.id === project?.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                role="menuitem"
-                className={row}
-                onClick={() => {
-                  setOpen(false);
-                  if (current) {
-                    navigate("/");
-                  } else {
-                    select(p.id);
-                  }
-                }}
-              >
-                <SpaceFace project={p} size="sm" />
-                <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                  <span
-                    className={cn(
-                      "truncate text-[0.875rem]",
-                      current ? "font-semibold text-ink" : "font-medium text-ink-2",
-                    )}
-                  >
-                    {p.name}
-                  </span>
-                  <span className="truncate text-[0.75rem] text-ink-4">
-                    {t("nav.wizardCount", { n: p.wizardCount })}
-                  </span>
-                </span>
-                {current ? <Check className="size-4 shrink-0 text-ember-strong" /> : null}
-              </button>
-            );
-          })}
-          {/* A tenant that builds nothing here makes no space here either; nor does a member. */}
-          {mayCreate ? (
-            <>
-              <div className="mx-2 my-1.5 h-px bg-border-soft" />
-              <button
-                type="button"
-                role="menuitem"
-                disabled={full}
-                className={cn(row, full && "cursor-default opacity-60 hover:bg-transparent")}
-                onClick={() => {
-                  setOpen(false);
-                  setCreating(true);
-                }}
-              >
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-paper-2 text-ink-3">
-                  <Plus className="size-4" />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                  <span className="truncate font-medium text-[0.875rem] text-ink-2">
-                    {t("nav.addSpace")}
-                  </span>
-                  {full ? (
-                    <span className="truncate text-[0.75rem] text-ink-4">
-                      {t("home.projectLimit", { n: limit })}
+          {children}
+        </button>
+        {open ? (
+          <div
+            role="menu"
+            // Below a name it stands fixed under it: the sidebar it may sit in clips what overflows.
+            style={placement === "below" ? { position: "fixed", ...at } : undefined}
+            className={cn(
+              "z-50 w-72 animate-rise rounded-xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft",
+              placement === "below"
+                ? null
+                : cn("absolute", placementClass(placement, position, "top-10 left-0")),
+            )}
+          >
+            {projects.map((p) => {
+              const current = p.id === project?.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="menuitem"
+                  className={row}
+                  onClick={() => {
+                    setOpen(false);
+                    if (current) {
+                      navigate("/");
+                    } else {
+                      select(p.id);
+                    }
+                  }}
+                >
+                  <SpaceFace project={p} size="sm" />
+                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span
+                      className={cn(
+                        "truncate text-[0.875rem]",
+                        current ? "font-semibold text-ink" : "font-medium text-ink-2",
+                      )}
+                    >
+                      {p.name}
                     </span>
-                  ) : null}
-                </span>
-              </button>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-      <NewSpaceDialog open={creating} onClose={() => setCreating(false)} />
+                    <span className="truncate text-[0.75rem] text-ink-4">
+                      {t("nav.wizardCount", { n: p.wizardCount })}
+                    </span>
+                  </span>
+                  {current ? <Check className="size-4 shrink-0 text-ember-strong" /> : null}
+                </button>
+              );
+            })}
+            <div className="mx-2 my-1.5 h-px bg-border-soft" />
+            {[
+              { to: "/", icon: WandSparkles, label: t("nav.wizardsInSpace"), show: true },
+              { to: "/new", icon: Plus, label: t("nav.addWizard"), show: mayCreate },
+            ]
+              .filter((entry) => entry.show)
+              .map((entry) => (
+                <button
+                  key={entry.to}
+                  type="button"
+                  role="menuitem"
+                  className={action}
+                  onClick={() => {
+                    setOpen(false);
+                    navigate(entry.to);
+                  }}
+                >
+                  <entry.icon className="size-4 shrink-0 text-ink-3" />
+                  <span className="truncate">{entry.label}</span>
+                </button>
+              ))}
+            {project && !project.readOnly ? (
+              <>
+                <div className="mx-2 my-1.5 h-px bg-border-soft" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={action}
+                  onClick={() => {
+                    setOpen(false);
+                    setRenaming(true);
+                  }}
+                >
+                  <Pencil className="size-4 shrink-0 text-ink-3" />
+                  <span className="truncate">{t("nav.renameSpace")}</span>
+                </button>
+              </>
+            ) : null}
+            {/* A tenant that builds nothing here makes no space here either; nor does a member; at the limit there is nothing to offer. */}
+            {mayCreate && !full ? (
+              <>
+                <div className="mx-2 my-1.5 h-px bg-border-soft" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={action}
+                  onClick={() => {
+                    setOpen(false);
+                    setCreating(true);
+                  }}
+                >
+                  <Plus className="size-4 shrink-0 text-ink-3" />
+                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span className="truncate">{t("nav.addSpace")}</span>
+                  </span>
+                </button>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+        <NewSpaceDialog open={creating} onClose={() => setCreating(false)} />
+        {project ? (
+          <RenameSpaceDialog project={project} open={renaming} onClose={() => setRenaming(false)} />
+        ) : null}
+      </div>
     </div>
   );
 }
 
 /** The space's name in the top bar; it opens the spaces to switch between and to add one. */
+/** The space's name, changed in a dialog of its own. */
+function RenameSpaceDialog({
+  project,
+  open,
+  onClose,
+}: {
+  project: Project;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(project.name);
+  useEffect(() => {
+    if (open) {
+      setName(project.name);
+    }
+  }, [open, project.name]);
+  const rename = useMutation({
+    mutationFn: () => api.patch(`/api/studio/projects/${project.id}`, { name: name.trim() }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["projects"] });
+      onClose();
+    },
+  });
+  return (
+    <Dialog open={open} onClose={onClose} title={t("nav.renameSpace")}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) {
+            rename.mutate();
+          }
+        }}
+      >
+        <Input
+          autoFocus
+          maxLength={80}
+          aria-label={t("nav.renameSpace")}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button type="submit" busy={rename.isPending} disabled={!name.trim()}>
+            {t("settings.save")}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** Where the space lives: on this computer (a local install, or a space one sent here) or in the cloud. */
+function SpacePlace({ me, project }: { me: Me; project: Project }) {
+  const local = me.mode === "local" || project.origin === "local";
+  const Icon = local ? Laptop : Cloud;
+  const label = local ? t("nav.spaceLocal") : t("nav.spaceCloud");
+  return (
+    <span title={label} className="grid size-6 shrink-0 place-items-center text-ink-4">
+      <Icon className="size-3.5" aria-label={label} />
+    </span>
+  );
+}
+
 function SpaceName({ me }: { me: Me }) {
   const { project } = useCurrentProject();
   if (!project) {
     return null;
   }
   return (
-    <SpaceMenu
-      me={me}
-      placement="below"
-      className="-ml-1 flex h-8 max-w-[16rem] items-center gap-1 rounded-lg px-2 font-medium text-[0.9375rem] text-ink transition hover:bg-accent"
-    >
-      <span className="truncate">{project.name}</span>
-      <ChevronDown className="size-4 shrink-0 text-ink-4" />
-    </SpaceMenu>
+    <span className="flex min-w-0 items-center gap-1">
+      <SpaceMenu
+        me={me}
+        placement="below"
+        label={project.name}
+        className={(open) =>
+          cn(
+            "-mx-1 max-w-[16rem] translate-y-[0.5px] truncate rounded-md px-2 py-0.5 text-left font-medium text-[0.9375rem] text-ink transition hover:bg-accent",
+            open && "bg-accent",
+          )
+        }
+      >
+        {project.name}
+      </SpaceMenu>
+      <SpacePlace me={me} project={project} />
+    </span>
   );
 }
 
@@ -470,7 +607,7 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
                 <span className="font-medium text-ink tabular-nums">
                   {state === "linked"
                     ? me.account?.credits !== null && me.account?.credits !== undefined
-                      ? t("nav.credits", { n: Math.floor(me.account.credits).toLocaleString() })
+                      ? t("nav.credits", { n: Math.floor(me.account.credits).toLocaleString(lang) })
                       : null
                     : state === "expired"
                       ? t("account.signInAgain")
@@ -540,18 +677,112 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
   );
 }
 
+/** Left of the space's name: opens and closes the space's sidebar. */
+function SpaceSidebarToggle() {
+  const open = useSpaceSidebar();
+  return (
+    <button
+      type="button"
+      aria-pressed={open}
+      aria-label={t("nav.spaceMenu")}
+      title={t("nav.spaceMenu")}
+      onClick={() => setSpaceSidebar(!open)}
+      className={cn(
+        "grid size-8 shrink-0 place-items-center rounded-lg transition hover:bg-accent hover:text-ink max-lg:hidden",
+        open ? "bg-accent text-ink" : "text-ink-3",
+      )}
+    >
+      <PanelLeft className="size-[1.125rem]" />
+    </button>
+  );
+}
+
+type SidebarRow = {
+  to: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  end: boolean;
+};
+
+/** The space's menu beside the page: its wizards, a new one, and the parts of its page. */
+function SpaceSidebar() {
+  const open = useSpaceSidebar();
+  const inArea = useHasSideMenu();
+  const { project } = useCurrentProject();
+  const plugins = useStudioPlugins();
+  const mayCreate = useMayCreate();
+  if (!project) {
+    return null;
+  }
+  // The rows of the areas' own menu, so both read alike.
+  const item = ({ isActive }: { isActive: boolean }) =>
+    cn(
+      "group flex items-center gap-2 rounded-lg px-2 py-1 text-[0.875rem] transition",
+      isActive ? "bg-paper-2 font-medium text-ink" : "text-ink-2 hover:bg-accent hover:text-ink",
+    );
+  const icon = "size-4 transition-transform duration-200 ease-out group-hover:scale-110";
+  const wizards: SidebarRow[] = [
+    { to: "/", label: t("nav.wizards"), icon: WandSparkles, end: true },
+    ...(mayCreate ? [{ to: "/new", label: t("home.new"), icon: Plus, end: false }] : []),
+  ];
+  // The space's own parts, under the heading the area menus give their groups.
+  const parts = withParts(spaceGroups(), plugins).map((part) => ({
+    to: `/space/${part.id}`,
+    label: part.label,
+    icon: part.icon,
+    end: false,
+  }));
+  const list = (rows: SidebarRow[]) => (
+    <ul className="flex flex-col gap-0.5">
+      {rows.map((row) => (
+        <li key={row.to}>
+          <NavLink to={row.to} end={row.end} className={item}>
+            <span className="grid size-7 shrink-0 place-items-center">
+              <row.icon className={icon} />
+            </span>
+            <span className="min-w-0 flex-1 truncate">{row.label}</span>
+          </NavLink>
+        </li>
+      ))}
+    </ul>
+  );
+  return (
+    // The width animates; the content keeps its own, so it slides away instead of reflowing. Below
+    // `lg` the window has no room for it and it stays closed, whatever was picked.
+    <aside
+      aria-hidden={!open}
+      inert={!open}
+      className={cn(
+        "shrink-0 overflow-hidden transition-[width] duration-300 ease-out motion-reduce:transition-none max-md:hidden",
+        open ? "w-64 max-lg:w-0" : "w-0",
+      )}
+    >
+      <div className="flex h-full w-64 flex-col overflow-y-auto px-4 pb-4">
+        {/* In an area its own menu stands here (the page draws it in); else the space's. */}
+        <div ref={setAreaSlot} className={inArea ? "pt-4 animate-rise sm:pt-6" : "hidden"} />
+        {inArea ? null : (
+          <div className="pt-4 animate-rise sm:pt-6">
+            {list(wizards)}
+            <p className="mt-5 mb-1 px-2 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em]">
+              {t("nav.project")}
+            </p>
+            {list(parts)}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
 /**
- * The row at the top of the page: the wordmark (the mark stands in the app bar), the space's
- * name, which switches between spaces, then the trail and the credits. A phone starts at the
+ * The row at the top of the page: the space's name, which switches between spaces, then the
+ * trail and the credits. No wordmark: the mark stands in the app bar. A phone starts at the
  * space's name; the rest stands in its app bar along the bottom.
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
-  const navigate = useNavigate();
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:gap-3 sm:px-4 md:px-5">
-      <span className="max-md:hidden">
-        <Logo mark={false} onClick={() => navigate("/")} />
-      </span>
+      <SpaceSidebarToggle />
       <SpaceName me={me} />
       <div className="flex min-w-0 flex-1 items-center">
         <Trail />
@@ -559,39 +790,6 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
       </div>
       <CreditsPill me={me} />
     </header>
-  );
-}
-
-/**
- * One quiet line at the foot of a page: the places around the account, for someone signed in.
- * `about`: in the studio it also says what this app is — version, changelog, open source.
- */
-export function Footer({ me, about }: { me?: Me | null; about?: boolean }) {
-  const base = me ? accountBase(me) : null;
-  const links = base
-    ? [
-        { href: `${base}/billing`, label: t("footer.billing") },
-        { href: `${base}/billing/usage`, label: t("footer.usage") },
-        { href: `${base}/billing/invoices`, label: t("footer.invoices") },
-        { href: `${base}/`, label: t("footer.account") },
-      ]
-    : [];
-  return (
-    <footer className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-center gap-x-5 gap-y-1 px-4 py-6 text-[0.75rem] text-ink-4 sm:px-6">
-      <span>© {new Date().getFullYear()} engenty</span>
-      {links.map((link) => (
-        <a
-          key={link.href}
-          href={link.href}
-          target="_blank"
-          rel="noreferrer"
-          className="transition hover:text-ink-2"
-        >
-          {link.label}
-        </a>
-      ))}
-      {about ? <AboutLinks me={me} /> : null}
-    </footer>
   );
 }
 
@@ -636,6 +834,7 @@ export function AppFrame({
 }) {
   const { position } = useAppBar();
   const column = useRef<HTMLDivElement>(null);
+  const goose = useFeature("goose");
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
       <AppRail me={me} />
@@ -648,32 +847,39 @@ export function AppFrame({
               {children}
             </main>
           ) : (
-            <div className="flex min-h-0 flex-1">
-              <div ref={column} className="relative flex min-w-0 flex-1 flex-col">
-                <TopBar me={me} />
-                {/* `relative`: what a page places out of flow without a positioned parent (a
+            // The top bar runs across, over the sidebar and the page, open or closed.
+            <div className="flex min-h-0 flex-1 flex-col">
+              <TopBar me={me} />
+              <div className="flex min-h-0 flex-1">
+                <SpaceSidebar />
+                <div ref={column} className="relative flex min-w-0 flex-1 flex-col">
+                  {/* `relative`: what a page places out of flow without a positioned parent (a
                     hidden file field) stays in the page's own scroll, not in a frame around it,
                     which a jump to a section would scroll as well. The assistant's dock keeps
                     its height free below the last section (`--assistant-dock`). */}
-                <main
-                  id={SCROLL_ROOT_ID}
-                  className="relative min-h-0 flex-1 overflow-y-auto"
-                  style={{ paddingBottom: "var(--assistant-dock, 0px)" }}
-                >
-                  <div
-                    className={cn(
-                      "mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
-                      wide ? "max-w-[88rem]" : "max-w-5xl",
-                    )}
+                  <main
+                    id={SCROLL_ROOT_ID}
+                    className="relative min-h-0 flex-1 overflow-y-auto"
+                    style={{ paddingBottom: "var(--assistant-dock, 0px)" }}
                   >
-                    {children}
-                  </div>
-                  <Footer me={me} about />
-                </main>
-                <AssistantDock column={column} />
+                    <div
+                      className={cn(
+                        "mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
+                        wide ? "max-w-[88rem]" : "max-w-5xl",
+                      )}
+                    >
+                      {children}
+                    </div>
+                  </main>
+                  {goose && <AssistantDock column={column} />}
+                </div>
+                {goose && (
+                  <>
+                    <AssistantSidebar column={column} />
+                    <HighlightLayer />
+                  </>
+                )}
               </div>
-              <AssistantSidebar />
-              <HighlightLayer />
             </div>
           )}
         </div>

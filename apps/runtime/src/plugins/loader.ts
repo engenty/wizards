@@ -7,7 +7,7 @@ import type {
   PluginTool,
   WizardsPluginApi,
   WizardsPluginFactory,
-} from "@engenty-wizards/plugin-sdk";
+} from "@engenty/wizards/plugin";
 import {
   FIELD_KINDS,
   PLUGIN_ID,
@@ -22,12 +22,13 @@ import {
   RUNNER_ID,
 } from "@engenty-wizards/shared/runners";
 import { generateText, Output } from "ai";
+import { eq } from "drizzle-orm";
 import { createJiti } from "jiti";
 import { z } from "zod";
 import { readPage } from "../agents/website.js";
 import { packageRoot } from "../cli/home.js";
 import { pluginConnections } from "../connectors/plugin-connections.js";
-import { db, onTenantOpen } from "../db/client.js";
+import { db, onTenantOpen, schema } from "../db/client.js";
 import { parseDocument } from "../documents/parse.js";
 import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
@@ -37,10 +38,12 @@ import { seal, unseal } from "../secrets/crypto.js";
 import { putIndexEntry, removeIndexEntries } from "../services/project-index.js";
 import { originData } from "../services/space-origin.js";
 import { safeFetch } from "../tools/net-guard.js";
+import { channelsApi } from "./channels.js";
+import { claimsApiFor } from "./claims.js";
 import { discoverPlugins, type PluginProblem, type PluginSource } from "./discovery.js";
 import { migrateOpenTenants, migratePlugins } from "./migrations.js";
 import { proModulesDir, proSources } from "./pro-state.js";
-import { publicUrlOf } from "./public.js";
+import { publicRefOf, publicUrlOf, sharedUrlOf } from "./public.js";
 import {
   announceChange,
   compileRoute,
@@ -67,11 +70,18 @@ export function pluginDirs(): string[] {
 
 const own = (specifier: string) => fileURLToPath(import.meta.resolve(specifier));
 
-/** The longer name first: an alias also matches what begins with it. */
+/**
+ * The longer name first: an alias also matches what begins with it. `@engenty-wizards/plugin-sdk`
+ * is the name plugins written before `@engenty/wizards/plugin` import.
+ */
 function aliases(): Record<string, string> {
+  const thread = own("@engenty/wizards/plugin/thread");
+  const plugin = own("@engenty/wizards/plugin");
   return {
-    "@engenty-wizards/plugin-sdk/thread": own("@engenty-wizards/plugin-sdk/thread"),
-    "@engenty-wizards/plugin-sdk": own("@engenty-wizards/plugin-sdk"),
+    "@engenty/wizards/plugin/thread": thread,
+    "@engenty/wizards/plugin": plugin,
+    "@engenty-wizards/plugin-sdk/thread": thread,
+    "@engenty-wizards/plugin-sdk": plugin,
     "drizzle-orm/sqlite-core": own("drizzle-orm/sqlite-core"),
     "drizzle-orm": own("drizzle-orm"),
     zod: own("zod"),
@@ -186,9 +196,21 @@ function apiFor(record: LoadedPlugin): WizardsPluginApi {
         if (info.kind === "page" && typeof runner.page !== "function") {
           throw new Error(`Runner "${info.id}": a page runner needs a page.`);
         }
-        record.runners.set(info.id, { info, page: runner.page, problem: runner.problem });
+        record.runners.set(info.id, {
+          info,
+          page: runner.page,
+          problem: runner.problem,
+          address: runner.address,
+        });
       },
       publicUrl: (path) => publicUrlOf(source.id, path),
+      publicRef: () => publicRefOf(source.id),
+      registerSharedRoute(route) {
+        record.sharedRoutes.push(compileRoute(route));
+      },
+      sharedUrl: (path) => sharedUrlOf(source.id, path),
+      channels: channelsApi,
+      claims: claimsApiFor(source.id),
       runs: runsApiFor(source.id),
       speech: {
         async conversation() {
@@ -212,6 +234,22 @@ function apiFor(record: LoadedPlugin): WizardsPluginApi {
         remove: (space, key) => removeIndexEntries(source.id, space, key),
       },
       spaceData: originData(source.id),
+      spaces: {
+        async brand(space) {
+          const p = await db.query.project.findFirst({ where: eq(schema.project.id, space) });
+          return p
+            ? {
+                name: p.brand.name ?? "",
+                colors: (p.brand.colors ?? []).map(({ name, value }) => ({ name, value })),
+                fonts: (p.brand.fonts ?? []).map(({ family, role, weights }) => ({
+                  family,
+                  role,
+                  weights,
+                })),
+              }
+            : null;
+        },
+      },
       web: {
         fetch: (url, init) => safeFetch(url, init),
         read: (url, options) => readPage(url, options?.signal),
@@ -238,10 +276,29 @@ function apiFor(record: LoadedPlugin): WizardsPluginApi {
             ? Object.assign(err, { name: "ModelUnavailableError", status: 503, code: "no_model" })
             : err;
         });
+        const files = request.files ?? [];
         const result = await generateText({
           model: resolved.model,
           system: request.system,
-          prompt: request.prompt,
+          // Pictures and PDFs go with the prompt as parts of one message.
+          ...(files.length
+            ? {
+                messages: [
+                  {
+                    role: "user" as const,
+                    content: [
+                      ...files.map((f) => ({
+                        type: "file" as const,
+                        data: f.data,
+                        mediaType: f.mediaType,
+                        ...(f.name ? { filename: f.name } : {}),
+                      })),
+                      { type: "text" as const, text: request.prompt },
+                    ],
+                  },
+                ],
+              }
+            : { prompt: request.prompt }),
           maxOutputTokens: request.maxOutputTokens,
           abortSignal: request.signal ?? AbortSignal.timeout(120_000),
           ...(request.schema ? { output: Output.object({ schema: request.schema }) } : {}),
@@ -304,6 +361,7 @@ async function load(source: PluginSource): Promise<LoadedPlugin> {
       record.assistantTools.clear();
       record.assistantPages = [];
       record.publicRoutes = [];
+      record.sharedRoutes = [];
       record.runners.clear();
       record.jobs.clear();
       record.starters.clear();

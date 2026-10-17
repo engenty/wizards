@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { note } from "@engenty-wizards/shared/run";
 import { and, asc, eq, inArray, isNotNull, isNull, like } from "drizzle-orm";
 import { accountToken, linkedAccount } from "../auth/account.js";
 import { control, controlDb, db, schema } from "../db/client.js";
@@ -86,7 +87,7 @@ async function call<T>(
 ): Promise<CloudAnswer<T>> {
   const token = await accountToken();
   if (!token) {
-    throw new ServiceError("refused", "Das Konto ist nicht mehr angemeldet. Bitte neu anmelden.", {
+    throw new ServiceError("refused", note("accountSignedOut"), {
       reason: "signed_out",
     });
   }
@@ -100,7 +101,7 @@ async function call<T>(
     signal: AbortSignal.timeout(timeoutMs),
   }).catch(() => null);
   if (!res) {
-    throw new ServiceError("refused", "Die Cloud ist gerade nicht erreichbar.", {
+    throw new ServiceError("refused", note("cloudNotReachedRight"), {
       reason: "unreachable",
     });
   }
@@ -112,7 +113,7 @@ function refusal(answer: CloudAnswer<unknown>, fallback: string): ServiceError {
   const { error, reason, ...rest } = answer.body as Record<string, unknown>;
   const message =
     answer.status === 401
-      ? "Das Konto ist nicht mehr angemeldet. Bitte neu anmelden."
+      ? note("accountSignedOut")
       : typeof error === "string" && error
         ? error
         : fallback;
@@ -296,7 +297,7 @@ export async function syncToCloud(userId: string, wizardId: string): Promise<Clo
   const w = await ownedWizard(userId, wizardId);
   const version = await publishedVersion(w);
   if (!version) {
-    throw new ServiceError("refused", "Bitte den Wizard zuerst veröffentlichen.");
+    throw new ServiceError("refused", note("publishWizardFirst"));
   }
   const before = await cloudState(w.id);
   try {
@@ -321,7 +322,7 @@ export async function syncToCloud(userId: string, wizardId: string): Promise<Clo
       120_000,
     );
     if (!answer.ok || !answer.body.shareUrl) {
-      throw refusal(answer, "Die Cloud hat den Wizard nicht angenommen.");
+      throw refusal(answer, "The cloud did not take the wizard.");
     }
     const state: CloudState = {
       copy: {
@@ -344,7 +345,7 @@ export async function syncToCloud(userId: string, wizardId: string): Promise<Clo
     const failed: CloudState = {
       copy: before.copy,
       error: {
-        message: err instanceof ServiceError ? err.message : "Das Senden hat nicht geklappt.",
+        message: err instanceof ServiceError ? err.message : "Sending did not work.",
         reason: err instanceof ServiceError ? (err.data.reason as string | undefined) : undefined,
         at: now.toISOString(),
         tries,
@@ -382,6 +383,7 @@ export async function pushSharing(userId: string, wizardId: string): Promise<voi
   await call("PATCH", `/spaces/${w.projectId}/wizards/${w.id}`, {
     shareEnabled: w.shareEnabled,
     dailyRunLimit: w.dailyRunLimit,
+    translate: w.translate,
     ...(w.runners ? { runners: w.runners } : {}),
   }).catch((err) => console.error("[cloud] sharing not sent:", (err as Error).message));
 }
@@ -404,7 +406,7 @@ export async function rotateInCloud(userId: string, wizardId: string): Promise<C
     `/spaces/${w.projectId}/wizards/${w.id}/rotate-link`,
   );
   if (!answer.ok || !answer.body.shareUrl) {
-    throw refusal(answer, "Der Link in der Cloud ließ sich nicht erneuern.");
+    throw refusal(answer, "The link in the cloud could not be renewed.");
   }
   const next: CloudState = {
     ...state,
@@ -520,7 +522,7 @@ export async function checkForCloud(userId: string, wizardId: string): Promise<C
     files: files.map((f) => f.path),
   });
   if (!answer.ok) {
-    throw refusal(answer, "Die Cloud hat nicht geantwortet.");
+    throw refusal(answer, "The cloud did not answer.");
   }
   const documents = await projectFiles(w.projectId, "document");
   return {
@@ -540,7 +542,7 @@ export interface CloudSpace {
 export async function cloudSpaces(): Promise<CloudSpace[]> {
   const answer = await call<{ spaces: CloudSpace[] }>("GET", "/spaces");
   if (!answer.ok) {
-    throw refusal(answer, "Die Cloud hat nicht geantwortet.");
+    throw refusal(answer, "The cloud did not answer.");
   }
   return answer.body.spaces ?? [];
 }
@@ -563,7 +565,7 @@ export async function replaceCloudSpaces(userId: string) {
     if (!mine.has(space.id)) {
       const answer = await call("DELETE", `/spaces/${space.id}`);
       if (!answer.ok) {
-        throw refusal(answer, "Das Projekt in der Cloud ließ sich nicht entfernen.");
+        throw refusal(answer, "The space in the cloud could not be removed.");
       }
     }
   }

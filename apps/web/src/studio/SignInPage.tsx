@@ -1,11 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
+import { APP_VERSION } from "../about/AboutLinks";
 import { Mascot } from "../brand";
 import { EngentyWordmark } from "../engenty/logo";
 import { ApiError, api } from "../lib/api";
 import { t } from "../lib/i18n";
 import { signIn } from "../lib/session";
 import { Button } from "../ui";
+import { DoorBar } from "./DoorBar";
+import { GuestStartPage } from "./GuestStartPage";
 
 const SIGNED_IN = /(?:^|;\s*)engenty_signed_in=1(?:;|$)/;
 
@@ -104,16 +107,27 @@ export function SignInPage() {
     );
   }
 
+  // Someone not signed in, in a browser, on the cloud studio: the start page, where a wish can
+  // be typed before signing in. The desktop app and the dev login keep the door.
+  if (config.data?.mode === "managed" && !config.data.devLogin && !hasDesktop()) {
+    return <GuestStartPage failed={failed} />;
+  }
+
   const local = config.data?.mode === "local" && !config.data.devLogin;
   // Opened under a name the app does not answer to (127.0.0.1 for localhost, the machine's IP).
   const refusal =
     config.error instanceof ApiError && config.error.body?.code === "host" ? config.error : null;
   const ownAddress = refusal ? String(refusal.body.appUrl ?? "") : null;
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-6 py-16">
+    <div className="relative flex min-h-dvh flex-col items-center justify-center px-6 py-16">
+      <DoorBar className="absolute inset-x-6 top-6 sm:inset-x-10 sm:top-8" />
       <div className="flex w-full max-w-md animate-rise flex-col items-center text-center">
         <Mascot kind="round" size={local || config.isError ? 140 : 200} fluffy />
-        <EngentyWordmark className="mt-2 font-display font-semibold text-[0.9375rem] text-ink-3 tracking-tight" />
+        {/* The product's whole name: "wizards" alone is other companies' too. */}
+        <span className="mt-2 font-display font-semibold text-[0.9375rem] text-ink-3 tracking-tight">
+          <EngentyWordmark />
+          <span className="font-normal">wizards</span>
+        </span>
         <h1 className="mt-3 text-balance font-display font-semibold text-[2.125rem] leading-[1.1] tracking-tight">
           <Sentences text={t("brand.tagline")} />
         </h1>
@@ -185,6 +199,9 @@ export function SignInPage() {
                 wizards open
               </code>
               <p className="mt-3 text-ink-3">{t("auth.localStartLink")}</p>
+              <code className="mt-1.5 block select-all rounded-lg bg-paper-2 px-3 py-2 font-mono text-[0.8125rem] text-ink">
+                wizards open --print
+              </code>
             </Note>
           ) : null}
         </div>
@@ -192,6 +209,9 @@ export function SignInPage() {
           <p className="mt-6 text-[0.8125rem] text-ink-3">{t("auth.legal")}</p>
         ) : null}
       </div>
+      <footer className="absolute inset-x-0 bottom-6 text-center text-[0.75rem] text-ink-3 sm:bottom-8">
+        © engenty · {t("about.version", { v: APP_VERSION })}
+      </footer>
     </div>
   );
 }

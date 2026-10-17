@@ -1,5 +1,6 @@
 import type { TableColumn } from "@engenty-wizards/shared/engenty/data-tables";
 import { type CategoryInput, dayOf, slugOf } from "@engenty-wizards/shared/knowledge";
+import { note } from "@engenty-wizards/shared/run";
 import { columnIdOf } from "@engenty-wizards/shared/space-data";
 import { generateText, Output } from "ai";
 import { and, eq, inArray, isNull } from "drizzle-orm";
@@ -23,11 +24,11 @@ import {
 } from "./space-categories.js";
 
 /**
- * What models do for Wissen. A document is read when it arrives and becomes what a step reads:
+ * What models do for Knowledge. A document is read when it arrives and becomes what a step reads:
  * a page (headings kept, the pages of the original marked), a page with sub-pages when it is long
  * and has a structure of its own (a law along its §§), a table per sheet of a workbook. What does
- * not read stays a file. A model fills the space's Kategorien from what it read, and writes the
- * Übersicht of a value from its items.
+ * not read stays a file. A model fills the space's categories from what it read, and writes the
+ * summary of a value from its items.
  */
 
 type FileRow = typeof schema.projectFile.$inferSelect;
@@ -269,7 +270,7 @@ function titleOf(markdown: string, name: string): string {
 function reviewOf(parsed: ParsedDocument, markdown: string): string | null {
   const illegible = (markdown.match(/\[unleserlich\]/gi) ?? []).length;
   if (parsed.via === "vision" && (illegible >= 3 || markdown.replace(/\s/g, "").length < 200)) {
-    return "Schwer lesbar: bitte mit dem Original vergleichen.";
+    return "Hard to read: please compare with the original.";
   }
   return null;
 }
@@ -335,7 +336,7 @@ export interface Converted {
 }
 
 /**
- * Reads an uploaded document into Wissen: a table per sheet of a workbook, else a page — with
+ * Reads an uploaded document into Knowledge: a table per sheet of a workbook, else a page — with
  * sub-pages when it is long and has headings of its own. The file stays as the original. A file
  * nothing can read stays a file; UnreadableDocument says why.
  */
@@ -473,10 +474,10 @@ export async function convertDocument(file: FileRow, data: Uint8Array): Promise<
   };
 }
 
-// --- Kategorien a model fills ---------------------------------------------------------------
+// --- Categories a model fills ---------------------------------------------------------------
 
 /**
- * Fills the space's Kategorien of an item from its text, where the space has any and nothing
+ * Fills the space's categories of an item from its text, where the space has any and nothing
  * set them yet. Values a person set are never touched. True when anything was set.
  */
 export async function fillCategories(
@@ -485,7 +486,7 @@ export async function fillCategories(
   text: string,
   name: string,
 ): Promise<boolean> {
-  // A column's Kategorie comes from its cells, not from a model.
+  // A column's category comes from its cells, not from a model.
   const categories = (await categoryRows(projectId)).filter((c) => !(c.proposed || c.tableId));
   if (!(categories.length && text.trim())) {
     return false;
@@ -544,11 +545,11 @@ export async function fillCategories(
   return changed;
 }
 
-// --- the Übersicht of a value ---------------------------------------------------------------
+// --- the summary of a value -----------------------------------------------------------------
 
 const SUMMARY_ITEMS = 40;
 
-/** What a value's items say, for the model that writes its Übersicht. */
+/** What a value's items say, for the model that writes its summary. */
 async function itemsOfValue(valueId: string) {
   const rows = await db.query.spaceItemCategory.findMany({
     where: eq(schema.spaceItemCategory.valueId, valueId),
@@ -597,7 +598,7 @@ async function itemsOfValue(valueId: string) {
 }
 
 /**
- * Writes the Übersicht of a value: what its items are and what they say, so "which Zuschüsse are
+ * Writes the summary of a value: what its items are and what they say, so "which Zuschüsse are
  * there?" finds one page that answers it. Kept on the value and indexed like a page.
  */
 export async function writeSummary(valueId: string): Promise<string> {
@@ -605,12 +606,12 @@ export async function writeSummary(valueId: string): Promise<string> {
     where: eq(schema.spaceCategoryValue.id, valueId),
   });
   if (!value) {
-    throw new ServiceError("not_found", "Diesen Wert gibt es nicht.");
+    throw new ServiceError("not_found", note("valueNotExist"));
   }
   const category = await categoryRow(value.categoryId);
   const { items, total } = await itemsOfValue(value.id);
   if (!items.length) {
-    throw new ServiceError("invalid", "Noch steht nichts unter diesem Wert.");
+    throw new ServiceError("invalid", note("nothingFiledUnderValue"));
   }
   const model = await textModel("standard");
   const result = await generateText({
@@ -634,7 +635,7 @@ export async function writeSummary(valueId: string): Promise<string> {
   return summary;
 }
 
-/** After a source wrote: the values it filled that have three items or more get their Übersicht. */
+/** After a source wrote: the values it filled that have three items or more get their summary. */
 export async function summarizeValues(projectId: string, categoryName?: string, value?: string) {
   const categories = (await categoryRows(projectId)).filter(
     (c) =>

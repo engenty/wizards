@@ -26,6 +26,10 @@ export interface UpdateStatus {
   checkedAt: number | null;
   /** False where the runtime was told not to ask. */
   enabled: boolean;
+  /** Downloaded beside this version; used from the next start. */
+  pending: { version: string; notes: string } | null;
+  /** The update this version came with, for two weeks after it. */
+  updated: { from: string; to: string; at: string; notes: string } | null;
 }
 
 const KEY = ["update"];

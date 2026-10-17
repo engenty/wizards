@@ -21,8 +21,18 @@ const config = {
     return [{ source: "/", destination: "/docs", basePath: false, permanent: false }];
   },
   async rewrites() {
-    // A page's address with .mdx gives its Markdown (app/llms.mdx).
-    return [{ source: "/:path*.mdx", destination: "/llms.mdx/:path*" }];
+    return [
+      // A page's address with .mdx gives its Markdown (app/llms.mdx).
+      { source: "/:path*.mdx", destination: "/llms.mdx/:path*" },
+      // The wizard format's JSON Schemas (public/schema, written by `pnpm schema`) are addressed
+      // outside /docs: engenty.ai/schema/v1/wizard.json, which the proxy sends here too. Next
+      // rewrites past its basePath only to a full URL, so this one asks the server itself.
+      {
+        source: "/schema/:path*",
+        destination: `http://127.0.0.1:${process.env.PORT || 8896}/docs/schema/:path*`,
+        basePath: false,
+      },
+    ];
   },
 };
 

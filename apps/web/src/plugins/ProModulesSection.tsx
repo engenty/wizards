@@ -1,3 +1,4 @@
+import { LOCALES } from "@engenty-wizards/shared/definition";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { api } from "../lib/api";
@@ -45,7 +46,7 @@ const HELD: Record<HeldBack, Key> = {
 };
 
 const day = (iso: string) =>
-  new Date(iso).toLocaleDateString(lang === "de" ? "de-AT" : "en-GB", {
+  new Date(iso).toLocaleDateString(LOCALES[lang], {
     day: "numeric",
     month: "long",
   });
@@ -95,7 +96,16 @@ export function ProModulesSection() {
         ) : null
       }
     >
-      {!data ? (
+      {state.isError ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-[0.8125rem] text-rose">
+            {t("pro.failed", { error: (state.error as Error).message })}
+          </p>
+          <Button variant="secondary" onClick={() => void state.refetch()}>
+            {t("pro.retry")}
+          </Button>
+        </div>
+      ) : !data ? (
         <Spinner />
       ) : !data.linked ? (
         <p className="text-[0.875rem] text-ink-3">{t("pro.notLinked")}</p>

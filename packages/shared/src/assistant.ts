@@ -58,12 +58,57 @@ export const assistantTurnSchema = z.object({
   projectId: z.string().max(80).optional(),
   page: assistantPageSchema.optional(),
   tools: z.array(browserToolSchema).max(40).default([]),
+  /** Developer mode: the turn also sends its prompt and each step (`prompt`, `step`). */
+  debug: z.boolean().optional(),
 });
 export type AssistantTurn = z.input<typeof assistantTurnSchema>;
 
+/**
+ * A message the person writes while a turn runs (POST /api/studio/assistant/run/:runId/signal):
+ * the turn takes it before its next step, or after its answer. `ref` is the browser's id for it.
+ */
+export const assistantSignalSchema = z.object({
+  ref: z.string().min(1).max(40),
+  message: z.string().min(1).max(8000),
+});
+export type AssistantSignal = z.infer<typeof assistantSignalSchema>;
+
+/** One model step of a turn, in developer mode. */
+export interface AssistantStep {
+  /** Counted over the turn, from 1. */
+  step: number;
+  /** The model the class is bound to, e.g. `anthropic/claude-sonnet-4.6` or `claude:sonnet`. */
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  /** From the step's start to its end, tools included. */
+  ms: number;
+  costUsd: number;
+  /** The tools the model called in the step. */
+  tools: string[];
+  /** The model's context window in tokens, where the catalog knows it. */
+  window: number | null;
+}
+
+/** What a turn sent to the model, in developer mode: its parts and their size. */
+export interface AssistantPrompt {
+  model: string;
+  system: string;
+  /** The turn's own message: earlier chats, the page, the space, what the person wrote. */
+  context: string;
+  /** The open chat's messages sent along. */
+  history: { role: "user" | "assistant"; chars: number }[];
+  /** Each tool's description and schema, in characters. */
+  tools: { name: string; chars: number }[];
+}
+
 /** The events of a turn, by SSE event name. */
 export interface AssistantEvents {
-  /** The turn started; `messageId` is the stored message of the person. */
+  /**
+   * The turn started; `messageId` is the stored message of the person. Messages written meanwhile
+   * go to `runId` as signals.
+   */
   run_started: { threadId: string; runId: string; messageId: string };
   text: { messageId: string; delta: string };
   /** What the assistant does right now, in a few words. */
@@ -74,6 +119,15 @@ export interface AssistantEvents {
   card: { toolCallId?: string; plugin: string; tool: string; data: unknown };
   /** The space or a plugin's data changed: the page reads its data again. */
   changed: Record<string, never>;
+  /**
+   * The turn took a message written meanwhile (`ref`, stored as `messageId`). What the answer said
+   * before it was stored as `answerId` (null when it had said nothing); the answer goes on after it.
+   */
+  signal: { ref: string; messageId: string; content: string; answerId: string | null };
+  /** Developer mode: what went to the model. */
+  prompt: AssistantPrompt;
+  /** Developer mode: a model step ended. */
+  step: AssistantStep;
   done: { messageId: string; reply: string; changed: boolean };
   error: { message: string };
 }

@@ -181,10 +181,6 @@ export async function tablesToXlsx(
   return new Uint8Array(await wb.xlsx.writeBuffer());
 }
 
-export function tableToXlsx(rows: Record<string, unknown>[]): Promise<Uint8Array> {
-  return tablesToXlsx([{ name: "Data", rows }]);
-}
-
 export function jsonToMarkdown(value: unknown): string {
   const rows = firstTable(value);
   if (rows?.length) {

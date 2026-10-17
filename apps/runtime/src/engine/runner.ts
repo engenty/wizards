@@ -22,12 +22,24 @@ import {
   type PageStep,
   pageNeeds,
   type Step,
+  textLang,
   type WizardDefinition,
   whenHolds,
   wizardLang,
 } from "@engenty-wizards/shared/definition";
-import type { ClosedChoice, RunState, RunView, ShownList } from "@engenty-wizards/shared/run";
+import type { Said, StepOutput } from "@engenty-wizards/shared/run";
+import {
+  type ClosedChoice,
+  note,
+  type RunState,
+  type RunView,
+  type ShownList,
+  saidText,
+} from "@engenty-wizards/shared/run";
+import { CONVERSATION_RUNNERS, DEFAULT_RUNNER_SETTINGS } from "@engenty-wizards/shared/runners";
+import { fitData } from "@engenty-wizards/shared/shape";
 import type { ListDef, ListRow } from "@engenty-wizards/shared/store";
+import { machineTranslated, translateDefinition } from "@engenty-wizards/shared/translation";
 import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -45,6 +57,7 @@ import { env } from "../env.js";
 import { saveAsset } from "../files/storage.js";
 import { managed, tenantInfo } from "../manage.js";
 import { hasFfmpeg } from "../media/ffmpeg.js";
+import { NotedError, noteOf, saidOf } from "../model-errors.js";
 import {
   conversationAvailable,
   freeTierRefusal,
@@ -55,94 +68,73 @@ import {
 import { runEnded } from "../plugins/events.js";
 import { projectFiles } from "../services/project-files.js";
 import { projectProfile } from "../services/projects.js";
+import { storedTranslation } from "../services/translations.js";
 import { listRows, scopeOf } from "../store/index.js";
-import { activeRuns, indexRun, markRunActive } from "../tenants/control.js";
+import {
+  claimRun,
+  disownRuns,
+  heartbeatRuns,
+  indexRun,
+  restRun,
+  waitingRuns,
+  wakeRun,
+} from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { askPerson, clearStaleAsk, unattended } from "./asks.js";
+import { askPerson, clearStaleAsk } from "./asks.js";
 import { decide } from "./decide.js";
+import { clearDeviceCalls } from "./device.js";
 import { emitEvent, recentEvents, signalChanged } from "./events.js";
-import { type PageContext, readPageInput } from "./input.js";
+import { type InputError, type PageContext, readPageInput } from "./input.js";
 import { pushRun } from "./push.js";
 import {
   blockingMessage,
   closedChoices,
-  missingModels,
+  missingModelsSaid,
   openValue,
   stepsWithoutModel,
 } from "./requirements.js";
 import { releaseResources, resourcesFor } from "./resources.js";
-import { runAutomaticStep } from "./steps.js";
+import { outputSchema, runAutomaticStep } from "./steps.js";
 import { answersAsText, resolveRef } from "./template.js";
 import type { ProjectRow, RunRow, StepContext } from "./types.js";
 import { StepError } from "./types.js";
 
-/** A command the run cannot take in its current state. */
-export class RunConflict extends Error {}
-export class RunInputError extends Error {
-  constructor(readonly errors: { field: string; message: string }[]) {
-    super("Bitte die markierten Felder prüfen.");
+/** A command the run cannot take in its current state; a note where the person may read it. */
+export class RunConflict extends NotedError {}
+export class RunInputError extends NotedError {
+  constructor(readonly errors: InputError[]) {
+    super({ code: "checkFields" });
   }
 }
 
-export class NoCreditsError extends Error {
+export class NoCreditsError extends NotedError {
   constructor() {
-    super("Dieser Wizard hat gerade kein Guthaben mehr. Bitte später erneut versuchen.");
+    super(note("wizardRunOutCredits"));
   }
 }
 
+/** The runs this process drives right now, with the handle that stops each. */
 const active = new Map<string, AbortController>();
 
-// --- a tenant's runs that work at the same time ---------------------------------
-// Runs beyond the limit wait in line; nothing is refused.
+// --- the line ------------------------------------------------------------------
+// A run that wants work is marked in the control database (`wakeRun`); a runner claims it there,
+// so several processes share one line. A tenant's runs beyond its limit stay in line; nothing is
+// refused. See docs/plans/runner-process.md.
 
-const slots = new Map<string, { busy: number; waiting: (() => void)[] }>();
+/** How often a runner looks at the line, and how often it reports on the runs it holds. */
+const POLL_MS = 2000;
+const HEARTBEAT_MS = 10_000;
 
 async function concurrencyLimit(tenant: string): Promise<number> {
   if (!managed) {
     return env.limits.concurrentRuns;
   }
-  const info = await tenantInfo(tenant).catch(() => null);
-  return info?.limits.concurrentRuns || env.limits.concurrentRuns;
-}
-
-async function acquireSlot(tenant: string, signal: AbortSignal): Promise<boolean> {
-  const limit = await concurrencyLimit(tenant);
-  let slot = slots.get(tenant);
-  if (!slot) {
-    slot = { busy: 0, waiting: [] };
-    slots.set(tenant, slot);
-  }
-  if (slot.busy < limit) {
-    slot.busy++;
-    return true;
-  }
-  const queue = slot.waiting;
-  return new Promise<boolean>((resolve) => {
-    const go = () => {
-      signal.removeEventListener("abort", stop);
-      resolve(true);
-    };
-    const stop = () => {
-      queue.splice(queue.indexOf(go), 1);
-      resolve(false);
-    };
-    queue.push(go);
-    signal.addEventListener("abort", stop, { once: true });
+  // Out of reach, the Manage-App doesn't hold the line up: the runtime's own limit counts.
+  const info = await tenantInfo(tenant).catch((err) => {
+    console.warn(`[line] limit of tenant ${tenant}:`, err);
+    return null;
   });
-}
-
-function releaseSlot(tenant: string) {
-  const slot = slots.get(tenant);
-  if (!slot) {
-    return;
-  }
-  const next = slot.waiting.shift();
-  if (next) {
-    // The slot passes straight to the next run in line.
-    next();
-  } else {
-    slot.busy--;
-  }
+  return info?.limits.concurrentRuns || env.limits.concurrentRuns;
 }
 
 async function loadRun(runId: string): Promise<RunRow | undefined> {
@@ -185,9 +177,9 @@ function stepOf(def: WizardDefinition, id: string | null): Step | undefined {
   return id ? def.steps.find((s) => s.id === id) : undefined;
 }
 
-function friendly(err: unknown): string {
+function friendly(err: unknown): Said {
   if (err instanceof StepError || err instanceof ModelUnavailableError) {
-    return err.message;
+    return saidOf(err);
   }
   // An own AI Gateway key on Vercel's free tier: the person can top it up or pick another way.
   const refused = freeTierRefusal(err);
@@ -197,25 +189,36 @@ function friendly(err: unknown): string {
   const msg = (err as Error)?.message ?? String(err);
   // The model-gateway answers 402 once the tenant's credits are used up.
   if (/insufficient_credits|\b402\b/i.test(msg)) {
-    return new NoCreditsError().message;
+    return saidOf(new NoCreditsError());
   }
   // A runtime that runs alone pays its provider itself: its admin can top the account up.
   if (!managed && /minimum balance|insufficient_funds|top up your credits/i.test(msg)) {
-    return "Das Guthaben beim Modell-Anbieter reicht dafür nicht aus (Videos brauchen dort ein Mindestguthaben). Bitte dort aufladen und noch einmal versuchen.";
+    return note("providerCreditLow");
   }
   if (/rate.?limit|429/i.test(msg)) {
-    return "Der KI-Dienst ist gerade ausgelastet. Bitte gleich noch einmal versuchen.";
+    return note("aiServiceBusyRight");
   }
   if (/timeout|timed out/i.test(msg)) {
-    return "Der Schritt hat zu lange gedauert. Bitte noch einmal versuchen.";
+    return note("stepTookTooLong");
   }
   // The platform's own provider account (budget, quota, key): nothing the person can fix.
   if (
     /budget|quota|insufficient|billing|credit balance|api key|unauthori[sz]ed|401|403/i.test(msg)
   ) {
-    return "Der KI-Dienst ist gerade nicht erreichbar. Bitte später noch einmal versuchen.";
+    return note("aiServiceNotReached");
   }
-  return `Dieser Schritt ist fehlgeschlagen: ${msg.slice(0, 300)}`;
+  return note("stepFailed", { detail: msg.slice(0, 300) });
+}
+
+/**
+ * A step that failed ends the run. A failure with a note (Apple Intelligence's) goes into the log
+ * as that note, so a runner shows it in its language; the run's error is in the wizard's.
+ */
+async function failRun(run: RunRow, stepId: string, err: unknown) {
+  const said = noteOf(err) ?? friendly(err);
+  const message = saidText(said, textLang(wizardLang(run.definition)));
+  await emitEvent(run.id, stepId, "error", said);
+  await updateRun(run.id, { status: "failed", error: message });
 }
 
 // --- creating & driving ------------------------------------------------------
@@ -231,12 +234,20 @@ export async function createRun(input: {
   ipHash?: string | null;
   /** The door the run comes through; null: the page. */
   runner?: string | null;
+  /** The website page a visitor started the run on; null: the wizard's link. */
+  origin?: string | null;
+  /** An autopilot fills the pages (an MCP client's test run): the run asks nobody. */
+  unattended?: boolean;
+  /** The language the viewer reads the wizard in, translated on request; null: its own. */
+  lang?: string | null;
+  /** The client that starts it over the public API; null for the studio and the AI apps. */
+  client?: string | null;
 }): Promise<string> {
   const id = nanoid(18);
   const first = input.definition.steps[0];
   const state: RunState = { values: {}, outputs: {}, history: [], notes: {} };
   // A step every run passes through needs a model this runtime cannot serve: refuse before anything is held.
-  const blocked = blockingMessage(await missingModels(input.definition));
+  const blocked = blockingMessage(await missingModelsSaid(input.definition));
   if (blocked) {
     throw new ModelUnavailableError(blocked);
   }
@@ -262,6 +273,10 @@ export async function createRun(input: {
     visitorId: input.visitorId ?? null,
     userId: input.userId ?? null,
     ipHash: input.ipHash ?? null,
+    origin: input.origin ?? null,
+    lang: input.lang ?? null,
+    unattended: input.unattended ?? false,
+    client: input.client ?? null,
     status: first.type === "page" ? "waiting_input" : "running",
     cursor: first.id,
     state,
@@ -278,35 +293,108 @@ export async function createRun(input: {
   return id;
 }
 
+/**
+ * Puts the run to work: in line in the control database, and — when this process is a runner —
+ * taken at once if the tenant has a slot. The web alone leaves it for a runner's next look.
+ */
 export function kick(runId: string) {
+  const tenant = currentTenant();
+  void wakeRun(runId)
+    .then(() => {
+      if (env.role !== "web") {
+        return take(runId, tenant);
+      }
+    })
+    .catch((err) => console.error(`[run ${runId}]`, err));
+}
+
+/** Claims the run for this process and drives it; nothing when another holds it or the tenant is full. */
+async function take(runId: string, tenant: string): Promise<void> {
   if (active.has(runId)) {
+    return;
+  }
+  if (!(await claimRun(runId, tenant, await concurrencyLimit(tenant)))) {
     return;
   }
   const abort = new AbortController();
   active.set(runId, abort);
-  const tenant = currentTenant();
-  const work = async () => {
-    await markRunActive(runId, true);
-    if (!(await acquireSlot(tenant, abort.signal))) {
-      return;
-    }
-    try {
-      await drive(runId, abort.signal);
-    } finally {
-      releaseSlot(tenant);
-    }
-  };
-  work()
+  // The heartbeat keeps the claim and hears of a cancel the web wrote while a step works.
+  const beat = setInterval(() => {
+    void heartbeatRuns([runId]).catch((err) => console.warn(`[run ${runId}] heartbeat:`, err));
+    void withTenant(tenant, () => loadRun(runId))
+      .then((run) => {
+        if (run && run.status !== "running") {
+          abort.abort();
+        }
+      })
+      .catch((err) => console.warn(`[run ${runId}] cancel check:`, err));
+  }, HEARTBEAT_MS);
+  beat.unref();
+  await withTenant(tenant, () => drive(runId, abort.signal))
     .catch(async (err) => {
       console.error(`[run ${runId}]`, err);
-      await updateRun(runId, { status: "failed", error: friendly(err) }).catch(() => undefined);
+      await withTenant(tenant, async () => {
+        const run = await loadRun(runId);
+        const lang = run ? textLang(wizardLang(run.definition)) : "en";
+        await updateRun(runId, { status: "failed", error: saidText(friendly(err), lang) });
+      }).catch((e) => console.error(`[run ${runId}] marking it failed:`, e));
     })
     .finally(async () => {
+      clearInterval(beat);
       active.delete(runId);
-      await markRunActive(runId, false).catch(() => undefined);
-      await releaseResources(runId);
-      signalChanged(runId);
+      // What fails here leaves the rest of the cleanup to run.
+      await withTenant(tenant, () => releaseResources(runId)).catch((err) =>
+        console.error(`[run ${runId}] releasing its resources:`, err),
+      );
+      // A run the shutdown stopped goes back in line for the next runner; the rest is done for now.
+      if (!stopping) {
+        await restRun(runId).catch((err) => console.error(`[run ${runId}] rest:`, err));
+      }
+      void withTenant(tenant, () => signalChanged(runId)).catch((err) =>
+        console.error(`[run ${runId}] signal:`, err),
+      );
+      // A slot came free: the next run of the line need not wait for the poll.
+      void lookAtLine();
     });
+}
+
+let stopping = false;
+let looking = false;
+
+/** Takes what waits in line, run by run; each claim counts the tenant's limit by itself. */
+async function lookAtLine() {
+  if (looking || stopping) {
+    return;
+  }
+  looking = true;
+  try {
+    for (const r of await waitingRuns()) {
+      if (stopping) {
+        return;
+      }
+      await take(r.runId, r.tenantId).catch((err) => console.error(`[line ${r.runId}]`, err));
+    }
+  } catch (err) {
+    console.error("[line]", err);
+  } finally {
+    looking = false;
+  }
+}
+
+/** A runner: looks at the line every POLL_MS, from now on. Runs a stopped process left behind are in it. */
+export function startRunner() {
+  const timer = setInterval(() => void lookAtLine(), POLL_MS);
+  timer.unref();
+  void lookAtLine();
+}
+
+/** Stops the runs this process holds and hands them back to the line. */
+export async function stopRunner() {
+  stopping = true;
+  for (const abort of active.values()) {
+    abort.abort();
+  }
+  await disownRuns().catch(() => undefined);
 }
 
 /** What conditions read in this run: answers, outputs, and how many rows each stored list has. */
@@ -389,6 +477,7 @@ async function makeContext(
     stepId,
     store,
     def: run.definition,
+    lang: run.lang,
     files: run.files,
     state,
     scope: {
@@ -402,9 +491,7 @@ async function makeContext(
     signal,
     resources,
     ask: (ask) =>
-      unattended.has(run.id)
-        ? Promise.resolve(null)
-        : askPerson(run.id, { ...ask, stepId }, signal),
+      run.unattended ? Promise.resolve(null) : askPerson(run.id, { ...ask, stepId }, signal),
     emit: (type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset),
     call: { runId: run.id, stepId },
     chargeUsd: (usd) => addLocalCost(run.id, stepId, usd),
@@ -587,7 +674,10 @@ async function decidePageFields(
 }
 
 async function drive(runId: string, signal: AbortSignal) {
+  // The step starts afresh here: a question or a device call another process left has no one
+  // waiting.
   await clearStaleAsk(runId);
+  await clearDeviceCalls(runId);
   while (!signal.aborted) {
     const run = await loadRun(runId);
     if (run?.status !== "running") {
@@ -610,9 +700,7 @@ async function drive(runId: string, signal: AbortSignal) {
           return;
         }
         console.error(`[run ${runId} deciding ${deciding.id}]`, err);
-        const message = friendly(err);
-        await emitEvent(runId, deciding.id, "error", message);
-        await updateRun(runId, { status: "failed", error: message });
+        await failRun(run, deciding.id, err);
         return;
       }
       continue;
@@ -638,9 +726,7 @@ async function drive(runId: string, signal: AbortSignal) {
           return;
         }
         console.error(`[run ${runId} fields of ${step.id}]`, err);
-        const message = friendly(err);
-        await emitEvent(runId, step.id, "error", message);
-        await updateRun(runId, { status: "failed", error: message });
+        await failRun(run, step.id, err);
         return;
       }
       continue;
@@ -682,25 +768,9 @@ async function drive(runId: string, signal: AbortSignal) {
       }
       console.error(`[run ${runId} step ${step.id}]`, err);
       await noteFreeTierRefusal(err);
-      const message = friendly(err);
-      await emitEvent(runId, step.id, "error", message);
-      await updateRun(runId, { status: "failed", error: message });
+      await failRun(run, step.id, err);
       return;
     }
-  }
-}
-
-/** Runs a restart left mid-step go on where they were. */
-export async function resumeInterruptedRuns() {
-  for (const r of await activeRuns()) {
-    await withTenant(r.tenantId, async () => {
-      const run = await loadRun(r.runId);
-      if (run?.status === "running") {
-        kick(r.runId);
-      } else {
-        await markRunActive(r.runId, false);
-      }
-    }).catch((err) => console.error(`[resume ${r.runId}]`, err));
   }
 }
 
@@ -712,10 +782,10 @@ async function requireWaiting(runId: string, stepId: string) {
     throw new RunConflict("Run not found");
   }
   if (run.status !== "waiting_input" && run.status !== "done") {
-    throw new RunConflict("Der Wizard arbeitet gerade.");
+    throw new RunConflict({ code: "runBusy" });
   }
   if (run.cursor !== stepId) {
-    throw new RunConflict("Diese Seite ist nicht mehr aktuell.");
+    throw new RunConflict({ code: "pageOutdated" });
   }
   return run;
 }
@@ -735,14 +805,22 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
       answer !== undefined &&
       (choice.values.length === 0 || choice.values.some((v) => String(v) === String(answer)))
     ) {
-      errors.push({ field: id, message: "Das ist hier gerade nicht verfügbar." });
+      errors.push({
+        field: id,
+        message: note("notAvailableNow"),
+      });
     }
   }
   if (errors.length) {
     throw new RunInputError(errors);
   }
   const connections = step.fields.some((f) => f.kind === "connection")
-    ? await connectionViews(run.definition.connections ?? [], scopeOf(run), await projectIdOf(run))
+    ? await connectionViews(
+        run.definition.connections ?? [],
+        scopeOf(run),
+        await projectIdOf(run),
+        textLang(wizardLang(run.definition)),
+      )
     : [];
   for (const field of step.fields) {
     if (field.kind === "image" || field.kind === "file") {
@@ -750,7 +828,7 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
       for (const id of Array.isArray(value) ? value : value ? [value] : []) {
         const asset = await db.query.asset.findFirst({ where: eq(schema.asset.id, String(id)) });
         if (asset?.runId !== runId) {
-          throw new RunInputError([{ field: field.id, message: "Datei nicht gefunden" }]);
+          throw new RunInputError([{ field: field.id, message: note("fileNotFound") }]);
         }
       }
     }
@@ -760,7 +838,7 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
       if (account) {
         values[field.id] = account.label;
       } else if (field.required) {
-        throw new RunInputError([{ field: field.id, message: "Bitte zuerst verbinden" }]);
+        throw new RunInputError([{ field: field.id, message: note("connectFirst") }]);
       }
     }
   }
@@ -783,8 +861,57 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
   kick(runId);
 }
 
+/** Edited data of a json step is kept up to this size. */
+const MAX_EDITED_JSON = 500_000;
+
+/**
+ * A json step's output with data someone edited: checked against the step's schema, and what
+ * its view shows too. Refused when it does not fit.
+ */
+export function editedJson(
+  def: WizardDefinition,
+  stepId: string,
+  output: StepOutput,
+  data: Record<string, unknown>,
+): StepOutput {
+  const step = stepOf(def, stepId);
+  if (step?.type !== "agent" || step.output.format !== "json" || step.each || step.call) {
+    throw new RunConflict("Not a json step");
+  }
+  if (JSON.stringify(data).length > MAX_EDITED_JSON) {
+    throw new RunConflict("Too large");
+  }
+  const { schema, shape } = outputSchema(step);
+  const parsed = schema.safeParse(fitData(shape, data));
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw new RunConflict(`Does not fit the schema: ${issue?.path.join(".")} ${issue?.message}`);
+  }
+  const json = parsed.data;
+  return {
+    ...output,
+    json,
+    ...(output.surface ? { surface: { ...output.surface, data: json } } : {}),
+  };
+}
+
+/** Data of a finished or waiting run's json step, edited in the studio. */
+export async function editOutput(runId: string, stepId: string, data: Record<string, unknown>) {
+  const run = await loadRun(runId);
+  const output = run?.state.outputs[stepId];
+  if (!run || !output) {
+    throw new RunConflict("Unknown step");
+  }
+  if (run.status !== "waiting_input" && run.status !== "done") {
+    throw new RunConflict({ code: "runBusy" });
+  }
+  const state = structuredClone(run.state);
+  state.outputs[stepId] = editedJson(run.definition, stepId, output, data);
+  await updateRun(runId, { state });
+}
+
 export type ReviewAction =
-  | { type: "accept"; edits?: Record<string, string> }
+  | { type: "accept"; edits?: Record<string, string | Record<string, unknown>> }
   | { type: "regenerate"; target: string; note: string; items?: number[] };
 
 export async function reviewStep(runId: string, stepId: string, action: ReviewAction) {
@@ -795,9 +922,15 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
   }
   const state = structuredClone(run.state);
   if (action.type === "accept") {
-    for (const [target, text] of Object.entries(action.edits ?? {})) {
-      if (step.edit && step.show.includes(target) && state.outputs[target]) {
-        state.outputs[target] = { ...state.outputs[target], text: String(text).slice(0, 50_000) };
+    for (const [target, edit] of Object.entries(action.edits ?? {})) {
+      const output = state.outputs[target];
+      if (!step.edit || !step.show.includes(target) || !output) {
+        continue;
+      }
+      if (typeof edit === "string") {
+        state.outputs[target] = { ...output, text: edit.slice(0, 50_000) };
+      } else {
+        state.outputs[target] = editedJson(run.definition, target, output, edit);
       }
     }
     state.history.push(stepId);
@@ -809,7 +942,7 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
   if (!step.show.includes(action.target)) {
     throw new RunConflict("Unknown target");
   }
-  state.notes[action.target] = action.note.slice(0, 2000) || "Bitte eine neue Variante.";
+  state.notes[action.target] = action.note.slice(0, 2000) || "Please make a new variant.";
   // A step with several results makes only the named ones again.
   if (action.items?.length) {
     state.redo = { ...state.redo, [action.target]: action.items };
@@ -827,12 +960,12 @@ export async function goBack(runId: string) {
     !run ||
     (run.status !== "waiting_input" && run.status !== "done" && run.status !== "failed")
   ) {
-    throw new RunConflict("Der Wizard arbeitet gerade.");
+    throw new RunConflict({ code: "runBusy" });
   }
   const state = structuredClone(run.state);
   const previous = state.history.pop();
   if (!previous) {
-    throw new RunConflict("Kein vorheriger Schritt.");
+    throw new RunConflict({ code: "noStepBefore" });
   }
   // A decision that failed belongs to the step left behind.
   delete state.deciding;
@@ -912,8 +1045,27 @@ function prefillOf(
   return out;
 }
 
+/**
+ * Whether a run may hold a live conversation: a speech model is set up, and the wizard has live
+ * voice or video switched on. Its owner's test run always may.
+ */
+export async function talkAllowed(run: RunRow): Promise<boolean> {
+  if (!(await conversationAvailable())) {
+    return false;
+  }
+  if (run.mode === "test") {
+    return true;
+  }
+  const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
+  const { enabled } = w?.runners ?? DEFAULT_RUNNER_SETTINGS;
+  return enabled.some((id) => CONVERSATION_RUNNERS.includes(id));
+}
+
 export async function runView(run: RunRow, brand: RunView["brand"]): Promise<RunView> {
-  const def = run.definition;
+  // In the viewer's language every text of the view is the translation; ids and values stay.
+  const memory = run.lang ? await storedTranslation(run.wizardId, run.lang) : null;
+  const translated = memory ? translateDefinition(run.definition, memory) : null;
+  const def = translated?.def ?? run.definition;
   const step = stepOf(def, run.cursor) ?? null;
   const closed =
     step?.type === "page" && run.status === "waiting_input"
@@ -972,8 +1124,17 @@ export async function runView(run: RunRow, brand: RunView["brand"]): Promise<Run
       avatar: def.avatar,
       intro: def.intro,
     },
-    lang: wizardLang(def),
-    talk: await conversationAvailable(),
+    lang: wizardLang(run.definition),
+    translation:
+      run.lang && memory && translated
+        ? {
+            lang: run.lang,
+            labels: translated.labels,
+            machine: machineTranslated(memory, run.definition),
+            results: run.state.translated?.[run.lang] ?? {},
+          }
+        : null,
+    talk: await talkAllowed(run),
     step,
     answered: run.state.history.map((id) => stepOf(def, id)).filter((s): s is Step => Boolean(s)),
     values: run.state.values,
@@ -997,16 +1158,24 @@ export async function runView(run: RunRow, brand: RunView["brand"]): Promise<Run
     progress: { done: run.status === "done" ? def.steps.length : index, total: def.steps.length },
     canBack: run.state.history.length > 0 && run.status !== "running",
     error: run.error,
-    events: await recentEvents(run.id, 0, 30),
+    // A step's own words as it starts ("working") are the wizard's: in its translation too.
+    events: (await recentEvents(run.id, 0, 30)).map((ev) =>
+      memory?.[ev.message] && !ev.note ? { ...ev, message: memory[ev.message].text } : ev,
+    ),
     brand,
     ask: run.status === "running" ? run.ask : null,
     lists,
     connections:
       step?.type === "page" && step.fields.some((f) => f.kind === "connection")
-        ? await connectionViews(def.connections ?? [], scopeOf(run), await projectIdOf(run))
+        ? await connectionViews(
+            def.connections ?? [],
+            scopeOf(run),
+            await projectIdOf(run),
+            textLang(wizardLang(def)),
+          )
         : [],
     keeps: Boolean(def.lists?.length || def.connections?.length),
-    shareUrl: run.shareToken ? `${env.appUrl}/s/${run.shareToken}` : null,
+    shareUrl: run.shareToken ? `${env.publicUrl}/s/${run.shareToken}` : null,
     expiresAt: run.expiresAt?.toISOString() ?? null,
   };
 }

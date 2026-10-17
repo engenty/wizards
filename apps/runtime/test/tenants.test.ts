@@ -78,6 +78,18 @@ describe("tenants", () => {
     expect(existsSync(join(dir, "tenants", `${B}.db`))).toBe(true);
   });
 
+  it("names a tenant's first space in the language of whoever opens the studio first", async () => {
+    await client.withTenant("tenant-de", async () => {
+      const [first] = await projects.listProjects("user-de", "de");
+      expect(first.name).toBe("Mein Computer");
+      // Once it exists, a later request in another language doesn't rename it.
+      expect((await projects.listProjects("user-de", "en"))[0].name).toBe("Mein Computer");
+    });
+    await client.withTenant("tenant-en", async () => {
+      expect((await projects.listProjects("user-en", "en"))[0].name).toBe("My computer");
+    });
+  });
+
   it("stores a tenant's files under the tenant's own prefix", () => {
     expect(existsSync(join(dir, "objects", "t", A, "blobs"))).toBe(true);
     expect(existsSync(join(dir, "objects", "t", B, "blobs"))).toBe(false);

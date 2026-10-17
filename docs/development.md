@@ -10,7 +10,7 @@ the user guide in [content/user](content/user/index.md).
 | What | one person, one tenant, on this machine: the local install (`wizards`), `pnpm dev`, your own server | the runtime of a Manage-App (`MANAGE_URL`): many tenants |
 | Sign-in | a one-time link at start (the command line opens it itself); an account is optional | at the Manage-App (OAuth 2.1 / OIDC); the token names user, tenant and role |
 | Database | `DATA_DIR/tenants/local.db` + `DATA_DIR/control.db` | one libSQL database per tenant + a control database (Turso) |
-| Models | an AI client installed on the machine, on its own subscription (Claude Code, Codex, Gemini CLI, Cursor Agent), own keys (AI Gateway, OpenAI, Anthropic), a local model (Ollama), or a linked account's credits | the Manage-App's model-gateway; the runtime holds no model keys |
+| Models | an AI client installed on the machine, on its own subscription (Claude Code, Codex, Antigravity, Cursor Agent), own keys (AI Gateway, OpenAI, Anthropic), a local model (Ollama), or a linked account's credits | the Manage-App's model-gateway; the runtime holds no model keys |
 | Studio chat | a model of class `highest`, or the admin's own Claude subscription (the installed Claude Code runs headless) | a model of class `highest` |
 | Files | `DATA_DIR/objects` | an S3-compatible bucket (R2) |
 
@@ -41,10 +41,10 @@ A pnpm workspace:
 | `apps/web/` | the SPA: studio, public runner, share page |
 | `apps/runtime/src/cli/` | the `wizards` command of a local install: start, guided setup, status, update |
 | `apps/web/public/install.sh` | the installer, served by every runtime at `/install.sh` |
-| `bin/` | the entry of the `wizards` command |
-| `scripts/` | `npm-package.mjs` (the npm package) |
+| `bin/` | the entry of the `wizards` command, and the launcher `npx wizards` runs |
+| `scripts/` | `npm-package.mjs` (the npm packages: the runtime and the launcher) |
 | `packages/shared/` | types and schemas the server and the SPA both use |
-| `packages/plugin-sdk/` | the types a plugin of the runtime is written against: its server half and its studio half |
+| `packages/wizards/` | `@engenty/wizards`, the one package code outside this repo imports: `/plugin` (a plugin’s server half), `/plugin/studio`, `/plugin/thread`, `/openui` (wizards in OpenUI chats), `/openui/server` |
 | `modules/` | plugins that ship with the runtime |
 | `examples/plugins/` | example plugins; loaded with `PLUGINS_DIR=examples/plugins` |
 | `scripts/build-plugin.mjs` | builds a plugin's studio half |
@@ -52,6 +52,18 @@ A pnpm workspace:
 | `deploy/` | the Chromium container of the cloud runtime |
 | `apps/docs/` | the documentation site (Next.js + Fumadocs); not part of the product's build |
 | `docs/content/` | its pages: `user/` (the user guide), `dev/` (the developer docs: plugins) |
+
+### Package names
+
+| Name | What it is |
+|---|---|
+| `wizards` | The launcher people run with `npx wizards`: it installs the runtime and hands over. Built by `scripts/npm-package.mjs` |
+| `@engenty/wizards-runtime` | The runtime the installer and the updates install. Built by `scripts/npm-package.mjs` beside the launcher |
+| `@engenty/wizards` | What code outside this repo imports, one subpath per use: `/plugin`, `/openui`. Inside the repo the runtime and the studio import it by the same name |
+| `@engenty-wizards/*` | The workspace’s own parts (`runtime`, `web`, `docs`, `shared`, `runner`). They are never published |
+
+A new thing for outside code goes into `packages/wizards/` as a subpath, not into a package of
+its own. `@engenty/wizards` is not on npm yet: it stays `private` until it is published.
 
 `.env.local` and the data folder (`data/`) stay in the repo root; `pnpm dev` and `pnpm start`
 run from there.
@@ -72,11 +84,19 @@ Local Chrome renders PDFs/PNGs (`CHROME_PATH`), ffmpeg encodes widget animations
 (`FFMPEG_PATH`) and cuts films: a widget step with `video: true` draws clips and stills frame by
 frame and gets voice-over and clip sound mixed in. The shell/code tool runs in a sandbox per run, chosen with `SANDBOX`:
 `docker` needs Docker and the `engenty-sandbox` image; `agentos` runs an
-[agentOS](https://rivet.dev/agentos/) VM inside the server process (macOS and glibc Linux, no
-Docker) with a smaller toolset — sh, coreutils, node, npm, and Python as a separate tool without
-pandas, pillow or matplotlib; `off` removes the tool. Unset, it is `docker` when the image is on
-the machine, else `agentos` when its packages are installed (a checkout has them), else `off`.
-The agent is told what the chosen sandbox runs (`apps/runtime/src/sandbox`).
+[agentOS](https://rivet.dev/agentos/) VM per run in a helper process (macOS and glibc Linux, no
+Docker): bash, coreutils, curl, git, jq, sqlite3, node, npm, and Python as Pyodide with numpy and
+pandas, but no native programs; `off` removes the tool. agentOS is not a dependency:
+`pnpm sandbox:add agentos` (or `wizards sandbox add`) installs it into `SANDBOX_ENGINES_DIR`, and
+an image gets it with `--build-arg SANDBOX_ENGINES=agentos` ([plan](plans/agentos-sandbox.md)).
+Unset, `SANDBOX` is the first engine that is ready: `docker` when the image is on the machine,
+else `agentos` when it is installed, else `off`. The agent is told what the chosen sandbox runs.
+
+Each engine is a `SandboxEngine` in `apps/runtime/src/sandbox/index.ts`. One of Mastra's sandboxes
+(`@mastra/docker`, `@mastra/e2b`, `@mastra/daytona`) becomes one through `MastraRunSandbox`
+(`mastra.ts`), as Docker does. An engine whose package is not a dependency of the runtime lists
+it in `ENGINE_PACKAGES` (`install.ts`): `wizards sandbox add <name>` installs it into
+`engines/<name>`, and the engine loads it from there with `importFromEngine`.
 
 `APP_URL` defaults to `http://localhost:5181` from source (the Vite dev server) and to
 `http://localhost:<API_PORT>` when built (`pnpm start` serves the pages itself).
@@ -110,6 +130,15 @@ pnpm build:docs   # what CI runs; `pnpm build` leaves the site out
 - **A page** is a `.md` file with `title` and `description` in its frontmatter and no `#`
   heading of its own. Links to other pages are relative file paths (`./install.md`,
   `../dev/plugins/index.md`); pictures come from `docs/assets` the same way.
+- **Which release a page describes.** `version` in its frontmatter (`version: 0.2.48`) is the
+  release whose code the page was last checked against; a page without one does not build. Check
+  a page against the code and the commits since that release, then set `version` to the current
+  one. The page shows it beside its buttons, the first page the oldest and newest.
+  `pnpm docs:check` fails on a missing or too new `version` and lists the pages behind the
+  current release with the number of code commits since theirs.
+- **Public.** The site and the studio assistant show these pages to everyone: the open product
+  and the plugin SDK only. The Manage-App's side, Pro modules and engenty's closed plugins are
+  documented outside `docs/content` (`docs/manage-contract.md`, `docs/pro-modules.md`).
 - **Diagrams** are fenced `mermaid` blocks.
 - **Below `/docs`.** The site's pages, files and search all live below that path (`basePath` in
   `apps/docs/next.config.mjs`), so a proxy can send `/docs` to it and the rest of a host
@@ -151,12 +180,21 @@ node scripts/e2e-starter.mjs invoice '<answers json>'   # drive a starter end to
 # { "$file": "path" } as a value uploads that file; API=http://127.0.0.1:<port> names another server
 ```
 
+**Copy.** Every word a person reads follows [copy-style.md](copy-style.md): the voice, a
+glossary in English and German, and the mechanics of each language. `pnpm copy:check` lists the
+strings that break its mechanical rules (`--strict` fails on them; CI runs it so).
+
 `apps/runtime/test/tenants.test.ts` is the leak test: two tenants, two databases, nothing of one
 visible to the other. `apps/runtime/test/managed.test.ts` runs the runtime against a stand-in
 Manage-App.
 
-GitHub runs lint, typecheck, test, build and the docs' build on every push to `main`, every
-pull request and every release tag (`.github/workflows/ci.yml`).
+GitHub runs lint and typecheck, test, build and the docs' build side by side on every push to
+`main`, every pull request and every release tag (`.github/workflows/ci.yml`).
+
+The packages type-check and compile with TypeScript 7. Two stay on TypeScript 6, because a
+tool there calls the compiler's JavaScript API, which TypeScript 7 no longer has: `apps/docs`
+(Next.js checks types in its build) and `packages/runner` (`vite-plugin-dts` writes its
+declaration files).
 
 ## Releases and changelog
 
@@ -243,28 +281,35 @@ older one.
 
 ## Local install
 
-What people install is the package `wizards`, built like an npm package: the built
-runtime, the built SPA, the plugin template and the `wizards` command, with the shared
-package inside it. It is on npm as `wizards`, and the same tarball is attached to the GitHub
-release `v<version>`: the installer has npm install it from that address. It gets onto a machine
-through the installer, which keeps their data in `~/.engenty/wizards/data` (`ENGENTY_HOME` moves
-`~/.engenty`):
+What people install is the runtime, built like an npm package: the built runtime, the built
+SPA, the plugin template and the `wizards` command, with the shared package inside it. It is on
+npm as `@engenty/wizards-runtime`, and the same tarball is attached to the GitHub release
+`v<version>`: the installer has npm install it from that address, the updates
+(`apps/runtime/src/cli/autoupdate.ts`) from npm. It gets onto a machine through the installer,
+which keeps their data in `~/.engenty/wizards/data` (`ENGENTY_HOME` moves `~/.engenty`):
 
 | | Code | Node |
 |---|---|---|
 | `curl -fsSL https://engenty.ai/install.sh \| bash` | `~/.engenty/wizards/runtime` | its own, pinned, in `~/.engenty/wizards/tools` |
 
-`npx wizards` is a second way: the code in npm's cache, on the person's own Node 24.11 or newer.
+`npx wizards` is a second way to the same install. The npm package `wizards` is only the
+launcher: `bin/wizards.mjs` and `install.sh`, no dependencies, a few dozen KB. It runs the
+installer for the runtime of its own version and hands every command but `--version` to the
+installed `wizards`. Up to 0.7.4 `wizards` was the runtime itself; an update of such an install
+fetches the launcher into its version folder, and the launcher, started there, brings the runtime
+of its version with the installer and hands over (the installer also links
+`node_modules/wizards` to the runtime, for the commands of then).
 
 ```bash
-pnpm package                       # node scripts/npm-package.mjs → dist/npm/wizards-<version>.tgz
+pnpm package                       # node scripts/npm-package.mjs → dist/npm/*.tgz, both packages
 pnpm wizards status                # the command from the checkout (node bin/wizards.mjs)
 ```
 
 `scripts/npm-package.mjs` stages `apps/runtime/dist`, `apps/web/dist`, `plugin/` and `bin/` in the
 checkout's layout and writes the package.json: the runtime's dependencies at the exact versions
 of the root lockfile, the shared package bundled. Dependencies of dependencies are resolved by
-npm at install time.
+npm at install time. Beside it, it stages the launcher. The release publishes the runtime first,
+then the launcher.
 
 `apps/web/public/install.sh` is the installer (bash 3.2, `shellcheck` clean). It downloads the
 pinned Node from nodejs.org and checks it against `SHASUMS256.txt`, asks GitHub for the newest
@@ -278,7 +323,7 @@ To try the installer against a checkout, without npm and without touching `~/.en
 
 ```bash
 pnpm package
-ENGENTY_HOME=/tmp/engenty-try ENGENTY_WIZARDS_PACKAGE=$PWD/dist/npm/wizards-<version>.tgz \
+ENGENTY_HOME=/tmp/engenty-try ENGENTY_WIZARDS_PACKAGE=$PWD/dist/npm/engenty-wizards-runtime-<version>.tgz \
   bash apps/web/public/install.sh --no-link
 ```
 
@@ -428,7 +473,7 @@ server's tools through the host. The widget is never less than 360px tall from i
 so a host that sizes the frame once still shows a usable page. Cursor folds a finished turn's tool
 calls, the widget among them, into its collapsed "Worked for …" group: the widget is still there
 when that group is opened (a known Cursor bug, not the widget). Hosts without MCP Apps (Claude
-Code, Codex, Gemini CLI, Windsurf, OpenClaw) get the same tools as text.
+Code, Codex, Antigravity, Windsurf, OpenClaw) get the same tools as text.
 
 **On the person's computer.** AI apps start MCP servers as commands, so a local install offers
 itself as one: `wizards mcp` (`apps/runtime/src/cli/mcp.ts`) speaks MCP over stdio and
@@ -454,7 +499,7 @@ keeps the file before it as `<file>.before-engenty`:
 | Cursor | `~/.cursor/mcp.json` | yes |
 | VS Code (Copilot) | user `mcp.json` | yes |
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` | no |
-| Gemini CLI | `~/.gemini/settings.json` | no |
+| Antigravity | `~/.gemini/config/mcp_config.json` (app and `agy`) | no |
 | Goose | `~/.config/goose/config.yaml` | yes |
 | OpenClaw | `openclaw mcp set`, else `~/.openclaw/openclaw.json` | no |
 | LM Studio | `~/.lmstudio/mcp.json` | no |
@@ -476,7 +521,7 @@ reach only servers on the internet: for them a wizard runs on engenty.ai, not on
 | Step runner (cursor over the definition, pages / back / regenerate / branches) | `apps/runtime/src/engine/runner.ts` |
 | Agent + generate steps (Mastra Agent, AI SDK media) | `apps/runtime/src/engine/steps.ts` |
 | Agent tools: web search/fetch, sandbox, HTTP, image, MCP | `apps/runtime/src/tools/index.ts` |
-| Sandbox engines (Docker, agentOS) and what each runs | `apps/runtime/src/sandbox/` |
+| Sandbox engines (Docker, agentOS), what each runs, the installer of the engines outside the package | `apps/runtime/src/sandbox/` |
 | Browser tools: open/click/type, screenshot, sign-in handed to the person, downloads | `apps/runtime/src/tools/browser.ts`, `apps/runtime/src/engine/asks.ts` |
 | What a wizard keeps per person: lists, files, connected accounts, sign-ins | `packages/shared/src/store.ts`, `apps/runtime/src/store/`, `apps/runtime/src/tools/store.ts` |
 | Mail connectors (Gmail, Outlook, IMAP) in engenty's connector format | `apps/runtime/src/connectors/`, `apps/runtime/src/tools/mail.ts` |
@@ -492,7 +537,7 @@ reach only servers on the internet: for them a wizard runs on engenty.ai, not on
 | Tenants: context, one database each, the control database | `apps/runtime/src/tenants/tenant.ts`, `apps/runtime/src/db/client.ts`, `apps/runtime/src/tenants/control.ts` |
 | Sign-in: the one-time link alone, the Manage-App's tokens when managed; the linked account | `apps/runtime/src/auth/`, `apps/runtime/src/manage.ts` |
 | Model classes: gateway, own keys, local model | `apps/runtime/src/models.ts` |
-| Installed AI clients as models (Claude Code, Codex, Gemini CLI, Cursor Agent): headless calls, tools over MCP, sign-in in an inline terminal; first-start setup | `apps/runtime/src/harness/`, `apps/runtime/src/mcp/bridge.ts`, `apps/web/src/studio/{SetupPage,Harness,Terminal}.tsx` |
+| Installed AI clients as models (Claude Code, Codex, Antigravity, Cursor Agent): headless calls, tools over MCP, sign-in in an inline terminal; first-start setup | `apps/runtime/src/harness/`, `apps/runtime/src/mcp/bridge.ts`, `apps/web/src/studio/{SetupPage,Harness,Terminal}.tsx` |
 | Credits: balance, reservation, cost per step; estimate before a run | `apps/runtime/src/credits/credits.ts`, `apps/runtime/src/credits/estimate.ts` |
 | Studio chat on the Claude subscription | `apps/runtime/src/agents/subscription.ts` |
 | A local install's project in the cloud: what is sent on publish (alone), what takes it and runs it (managed), the import API | `docs/manage-contract.md` ("Spaces of a local install"), `apps/runtime/src/services/cloud.ts`, `apps/runtime/src/services/spaces.ts`, `apps/runtime/src/routes/api.ts` |

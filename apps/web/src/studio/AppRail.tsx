@@ -43,8 +43,8 @@ const AboutDialog = lazy(() =>
 
 /**
  * The app bar at an edge of the window, as in engenty-pro: the mark (it opens the About dialog:
- * the version, updates, what is new), the space with its home (the space's page: Info & Marke,
- * Wissen, Daten, Ergebnisse), the apps the plugins added, and at its end the settings and the
+ * the version, updates, what is new), the space with its home (the space's page: Info & brand,
+ * Knowledge, Data, Results), the apps the plugins added, and at its end the settings and the
  * person. A place is a filled tile, a tool a line glyph; the
  * one that is open is cut from the page's own paper. A right click on the bar picks its edge
  * and the colour scheme. A phone has it along the bottom, or the top (`useAppBar`); a long
@@ -260,7 +260,7 @@ export function AppRail({ me }: { me: Me }) {
         <div className={horizontal ? "ml-1" : "mt-2"}>
           <SpaceTile me={me} />
         </div>
-        {/* The space's home: its page with Info & Marke, Wissen, Daten and Ergebnisse. */}
+        {/* The space's home: its page with Info & brand, Knowledge, Data and Results. */}
         <NavLink
           to="/space"
           title={t("nav.project")}

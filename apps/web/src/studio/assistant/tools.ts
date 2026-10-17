@@ -533,6 +533,3 @@ export async function runBrowserTool(
     return { result: { error: (err as Error).message } };
   }
 }
-
-export const isBrowserTool = (name: string) =>
-  BUILT_IN.some((b) => b.name === name) || added.has(name);

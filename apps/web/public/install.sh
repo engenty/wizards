@@ -7,15 +7,18 @@
 # ~/.engenty/wizards (ENGENTY_HOME moves it):
 #
 #   tools/node-v<version>/   its own Node; a Node you already have is left alone
-#   runtime/                 the package `wizards`, from the GitHub release
+#   runtime/<version>/       the runtime (the npm package @engenty/wizards-runtime), from the
+#                            GitHub release; runtime/current
+#                            names the one that runs, the one before stays for going back
 #   bin/wizards              the command, linked into ~/.local/bin
 #   data/                    your wizards and results (made at the first start)
 #
-# Then the guided setup runs (`wizards setup`): an AI client to think with, ffmpeg,
-# starting at login. Running the installer again updates an install; your data is
-# kept.
+# Then the guided setup runs (`wizards setup`): your engenty account, an AI client to think
+# with, ffmpeg, a decision model (Ollama with Clef-flash, optional), starting at login. Running
+# the installer again updates an install; your data is kept.
 #
 #   --yes            ask nothing and install nothing optional
+#   --local          no account: nothing leaves this computer (the docs explain it)
 #   --no-setup       only Node, the runtime and the command (what `update` runs)
 #   --version <v>    this version instead of the newest
 #   --no-link        do not link the command into ~/.local/bin
@@ -28,13 +31,18 @@
 set -Eeuo pipefail
 
 NODE_VERSION="${ENGENTY_WIZARDS_NODE_VERSION:-24.14.0}"
-PACKAGE_NAME="wizards"
+# The runtime's npm package, and its file on the GitHub release (npm pack names it so).
+PACKAGE_NAME="@engenty/wizards-runtime"
+PACKAGE_FILE="engenty-wizards-runtime"
+# What the runtime was called from 0.1.9 to 0.7.4; `wizards` is the launcher now (`npx wizards`).
+LEGACY_NAME="wizards"
 # What the package and the command were called up to 0.1.8.
 OLD_NAME="engenty-wizards"
 RELEASES="https://github.com/engenty/wizards/releases"
 
 main() {
   YES=0
+  LOCAL=0
   SETUP=1
   LINK=1
   [ -n "${ENGENTY_WIZARDS_NO_LINK:-}" ] && LINK=0
@@ -42,6 +50,7 @@ main() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --yes | -y) YES=1 ;;
+      --local) LOCAL=1 ;;
       --no-setup) SETUP=0 ;;
       --no-link) LINK=0 ;;
       --version)
@@ -83,14 +92,19 @@ main() {
   command_link
   old_command
   if [ "$SETUP" = 1 ]; then
-    printf '%s  %s\n\n' "${GRAY}└$RESET" "Installed. The setup follows."
+    printf '%s  %s\n\n' "${GRAY}└$RESET" "Installed. Next, a few questions to set it up."
     printf '%s' "$SHOW"
     trap - EXIT ERR
-    # The questions need a terminal; stdin may be the pipe this script came through.
+    # --local goes on to the setup: it is the setup's account step that keeps the install off
+    # the account. The questions need a terminal; stdin may be the pipe this script came through.
+    SETUP_ARGS=""
+    [ "$LOCAL" = 1 ] && SETUP_ARGS="--local"
     if [ "$YES" = 1 ] || [ "$TTY" != 1 ] || ! (exec </dev/tty) 2>/dev/null; then
-      exec "$WRAPPER" setup --yes </dev/null
+      # shellcheck disable=SC2086
+      exec "$WRAPPER" setup --yes $SETUP_ARGS </dev/null
     fi
-    exec "$WRAPPER" setup </dev/tty
+    # shellcheck disable=SC2086
+    exec "$WRAPPER" setup $SETUP_ARGS </dev/tty
   fi
   printf '%s  %s\n' "${GRAY}└$RESET" "Installed engenty wizards $INSTALLED."
 }
@@ -103,9 +117,11 @@ engenty wizards — installer for macOS and Linux
   curl -fsSL https://engenty.ai/install.sh | bash -s -- --yes
 
 Puts its own Node, the runtime and the `wizards` command into ~/.engenty/wizards
-(ENGENTY_HOME moves it), then runs the guided setup. Run it again to update.
+(ENGENTY_HOME moves it), then runs the guided setup: it signs this computer in to your
+engenty account. Run it again to update.
 
   --yes            ask nothing and install nothing optional
+  --local          no account: nothing leaves this computer (the docs explain it)
   --no-setup       only Node, the runtime and the command
   --version <v>    this version instead of the newest
   --no-link        do not link the command into ~/.local/bin
@@ -458,26 +474,56 @@ package() {
     0.0.* | 0.1.[0-8])
       die "Version $VERSION holds the package under its old name, $OLD_NAME. This installer installs 0.1.9 and newer."
       ;;
+    0.[1-6].* | 0.7.[0-4]) SPEC="$RELEASES/download/v$VERSION/$LEGACY_NAME-$VERSION.tgz" ;;
+    *) SPEC="$RELEASES/download/v$VERSION/$PACKAGE_FILE-$VERSION.tgz" ;;
   esac
-  SPEC="$RELEASES/download/v$VERSION/$PACKAGE_NAME-$VERSION.tgz"
 }
 
 runtime() {
   STEP="Installing engenty wizards"
+  local dir="$HOME_DIR/runtime" stage previous path
   # An install of the package under its old name is replaced, not kept beside the new one.
-  if [ -d "$HOME_DIR/runtime/node_modules/$OLD_NAME" ]; then
-    rm -rf "$HOME_DIR/runtime"
+  if [ -d "$dir/node_modules/$OLD_NAME" ]; then
+    rm -rf "$dir"
   fi
-  mkdir -p "$HOME_DIR/runtime"
-  # npm is a script that asks for `node`: ours comes first on the PATH. No install scripts run;
-  # the runtime works without them. --legacy-peer-deps: the dependencies as the package names
-  # them and no peers on top, which nothing here uses (about 70 MB less).
+  mkdir -p "$dir"
+  # Each version has its folder (runtime/<version>/, an npm prefix); `current` names the one the
+  # command starts, and a version that runs keeps its files. npm is a script that asks for
+  # `node`: ours comes first on the PATH. No install scripts run; the runtime works without
+  # them. --legacy-peer-deps: no peers on top, which nothing here uses (about 70 MB less).
+  stage="$(mktemp -d "$dir/.staging-XXXXXX")"
   spin "Installing engenty wizards (about 650 MB on disk, a minute or two)" \
-    env PATH="$NODE_DIR/bin:$PATH" "$NODE_DIR/bin/npm" install --prefix "$HOME_DIR/runtime" \
+    env PATH="$NODE_DIR/bin:$PATH" "$NODE_DIR/bin/npm" install --prefix "$stage" \
     --omit=dev --ignore-scripts --legacy-peer-deps --no-audit --no-fund --loglevel=error "$SPEC"
-  INSTALLED="$(MANIFEST="$HOME_DIR/runtime/node_modules/$PACKAGE_NAME/package.json" \
+  # The runtime under its name, or under the one it had up to 0.7.4 (`--version 0.7.4`). The
+  # package `wizards` of now is only the launcher: no runtime in it.
+  if [ -f "$stage/node_modules/$PACKAGE_NAME/package.json" ]; then
+    PACKAGE="$PACKAGE_NAME"
+    # A command or an update of 0.7.4 or older looks for the runtime under its old name.
+    ln -s "$PACKAGE_NAME" "$stage/node_modules/$LEGACY_NAME"
+  elif [ -d "$stage/node_modules/$LEGACY_NAME/apps/runtime" ]; then
+    PACKAGE="$LEGACY_NAME"
+  else
+    rm -rf "$stage"
+    die "$SPEC holds no runtime of engenty wizards."
+  fi
+  INSTALLED="$(MANIFEST="$stage/node_modules/$PACKAGE/package.json" \
     "$NODE_DIR/bin/node" -p 'require(process.env.MANIFEST).version')"
-  done_step "engenty wizards $INSTALLED" "$(tilde "$HOME_DIR/runtime")"
+  # Up to 0.6.2 runtime/ itself was the prefix.
+  if [ -d "$dir/node_modules" ] && [ ! -L "$dir/node_modules" ]; then
+    rm -rf "$dir/node_modules" "$dir/package.json" "$dir/package-lock.json"
+  fi
+  previous="$(readlink "$dir/current" 2>/dev/null || true)"
+  rm -rf "${dir:?}/$INSTALLED"
+  mv "$stage" "$dir/$INSTALLED"
+  ln -sfn "$INSTALLED" "$dir/current"
+  # For a command written before the version folders (an older bin/wizards or npx wizards).
+  ln -sfn "current/node_modules" "$dir/node_modules"
+  # This version and the one before stay; older ones go.
+  for path in "$dir"/[0-9]*; do
+    case "${path##*/}" in "$INSTALLED" | "$previous") ;; *) rm -rf "$path" ;; esac
+  done
+  done_step "engenty wizards $INSTALLED" "$(tilde "$dir/$INSTALLED")"
 }
 
 command_link() {
@@ -490,7 +536,7 @@ command_link() {
       printf 'export ENGENTY_HOME="${ENGENTY_HOME:-%s}"\n' "$BASE"
     fi
     printf 'exec "%s" "%s" "$@"\n' "$HOME_DIR/tools/node/bin/node" \
-      "$HOME_DIR/runtime/node_modules/$PACKAGE_NAME/bin/wizards.mjs"
+      "$HOME_DIR/runtime/current/node_modules/$PACKAGE/bin/wizards.mjs"
   } >"$WRAPPER"
   chmod 755 "$WRAPPER"
   if [ "$LINK" != 1 ]; then

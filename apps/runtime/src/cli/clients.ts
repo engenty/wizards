@@ -40,7 +40,7 @@ export function installClient(
     [dirname(process.execPath), process.env.PATH ?? ""].join(delimiter),
   );
   if (!npm) {
-    return Promise.resolve({ code: 127, tail: "npm was not found next to this Node." });
+    return Promise.resolve({ code: 127, tail: "npm wasn’t found next to this Node.js." });
   }
   mkdirSync(paths.clients, { recursive: true });
   return runLogged(

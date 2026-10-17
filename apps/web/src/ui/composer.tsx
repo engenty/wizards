@@ -26,7 +26,40 @@ export function pastedName(file: File, index: number): File {
   });
 }
 
-function Thumb({ url, label, children }: { url: string; label: string; children?: ReactNode }) {
+/**
+ * The file under a name a wizard's workspace takes (letters, digits, - _ .): umlauts spelled out,
+ * everything else a dash. "Tipps des Hauses.pdf" becomes "Tipps-des-Hauses.pdf".
+ */
+export function workspaceFile(file: File): File {
+  const ascii = (part: string) =>
+    part
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/Ä/g, "Ae")
+      .replace(/Ö/g, "Oe")
+      .replace(/Ü/g, "Ue")
+      .replace(/ß/g, "ss")
+      .normalize("NFKD")
+      .replace(/[^A-Za-z0-9_-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+  const dot = file.name.lastIndexOf(".");
+  const stem = ascii(dot > 0 ? file.name.slice(0, dot) : file.name) || "file";
+  const ext = dot > 0 ? ascii(file.name.slice(dot + 1)) : "";
+  const name = ext ? `${stem}.${ext}` : stem;
+  return name === file.name ? file : new File([file], name, { type: file.type });
+}
+
+export function Thumb({
+  url,
+  label,
+  children,
+}: {
+  url: string;
+  label: string;
+  children?: ReactNode;
+}) {
   return (
     <div className="group relative" title={label}>
       <img
@@ -52,18 +85,29 @@ export interface ComposerHandle {
 /** Taller than this the field scrolls. */
 const MAX_HEIGHT = 200;
 
+/** The keys that send a message for after the running answer: ⌘↩ on a Mac, Ctrl+↩ elsewhere. */
+export const LATER_KEYS =
+  typeof navigator !== "undefined" &&
+  /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
+    ? "⌘↩"
+    : "Ctrl+↩";
+
 /**
  * The field a message is written in: text (typed or spoken), files (picked, pasted or handed in
  * through `ref`), and the send button. One line, it is a pill; the buttons stay level with the
  * text, and on the last line once it grows. `floating` lifts it off the page for a composer that
- * stands at the lower edge of the window.
+ * stands at the lower edge of the window. With `onStop`, an answer under way (`busy`) does not
+ * lock it: Enter sends on, ⌘↩ (Ctrl+↩) for after the answer, and an empty field offers Stop.
  */
 export function Composer({
   placeholder,
   disabled,
+  busy,
+  onStop,
   onSend,
   attach = true,
   floating,
+  bare,
   autoFocus,
   className,
   onTalk,
@@ -72,10 +116,19 @@ export function Composer({
   placeholder?: string;
   /** Typing goes on; sending waits, e.g. while the answer to the last message comes in. */
   disabled?: boolean;
-  /** False keeps the draft, e.g. when sending failed. */
-  onSend: (text: string, files: File[]) => boolean | Promise<boolean>;
+  /** An answer is under way; with `onStop` sending goes on. */
+  busy?: boolean;
+  /** Stops the answer under way: its button stands where Send does while the field is empty. */
+  onStop?: () => void;
+  /**
+   * False keeps the draft, e.g. when sending failed. `later`: sent with ⌘↩ (Ctrl+↩), for after
+   * the answer under way.
+   */
+  onSend: (text: string, files: File[], later?: boolean) => boolean | Promise<boolean>;
   attach?: boolean;
   floating?: boolean;
+  /** Drawn inside a card of the caller's: no fill, ring, shadow or rounding of its own. */
+  bare?: boolean;
   autoFocus?: boolean;
   className?: string;
   /** Starts a live chat: its button stands where Send does while the field is empty. */
@@ -143,8 +196,9 @@ export function Composer({
     };
   }, [files]);
 
-  const ready = Boolean(text.trim() || files.length > 0) && !disabled;
-  const submit = async () => {
+  const typed = Boolean(text.trim() || files.length > 0);
+  const ready = typed && !disabled;
+  const submit = async (later = false) => {
     if (!ready) {
       return;
     }
@@ -154,7 +208,7 @@ export function Composer({
     const draft = { text, files };
     setText("");
     setFiles([]);
-    if (!(await onSend(draft.text.trim(), draft.files))) {
+    if (!(await onSend(draft.text.trim(), draft.files, later))) {
       setText(draft.text);
       setFiles(draft.files);
     }
@@ -165,9 +219,10 @@ export function Composer({
     <div className={className}>
       <div
         className={cn(
-          "bg-card p-1 ring-1 ring-border focus-within:ring-focus",
-          tall || files.length ? "rounded-[1.375rem]" : "rounded-full",
-          floating ? "shadow-overlay" : "shadow-soft",
+          bare ? "px-2 py-3" : "p-1",
+          !bare && "bg-card ring-1 ring-border focus-within:ring-focus",
+          !bare && (tall || files.length ? "rounded-[1.375rem]" : "rounded-full"),
+          !bare && (floating ? "shadow-overlay" : "shadow-soft"),
         )}
       >
         {thumbs.size ? (
@@ -248,7 +303,7 @@ export function Composer({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
-                void submit();
+                void submit(e.metaKey || e.ctrlKey);
               }
             }}
             placeholder={speech.listening ? t("editor.listening") : placeholder}
@@ -258,7 +313,17 @@ export function Composer({
             )}
           />
           {speech.supported ? <DictationButton speech={speech} /> : null}
-          {onTalk && !(text.trim() || files.length || speech.listening) ? (
+          {busy && onStop && !typed ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition coarse:size-11"
+              aria-label={t("composer.stop")}
+              title={t("composer.stop")}
+            >
+              <Square className="size-3 fill-current" />
+            </button>
+          ) : onTalk && !(text.trim() || files.length || speech.listening) ? (
             <button
               type="button"
               onClick={onTalk}
@@ -278,6 +343,7 @@ export function Composer({
                 ready ? "bg-primary text-primary-foreground" : "bg-paper-2 text-ink-4",
               )}
               aria-label={t("composer.send")}
+              title={busy && onStop ? t("composer.sendBusy", { keys: LATER_KEYS }) : undefined}
             >
               <ArrowUp className="size-4" />
             </button>
@@ -293,17 +359,19 @@ export function Composer({
   );
 }
 
-type Speech = ReturnType<typeof useDictation>;
+export type Speech = ReturnType<typeof useDictation>;
 
 /**
  * The mic button and, beside it, its menu: which microphone, and whether the button records while
- * it is held (push to talk) or on and off with a click.
+ * it is held (push to talk) or on and off with a click. `labelled`: an outlined button that says
+ * what it does, where the row has the room (the new-wizard page).
  */
-function DictationButton({ speech }: { speech: Speech }) {
+export function DictationButton({ speech, labelled }: { speech: Speech; labelled?: boolean }) {
   const [prefs, setPrefs] = useDictationSettings();
   const mics = useMicrophones();
-  const [menu, setMenu] = useState<{ bottom: number; right: number } | null>(null);
+  const [menu, setMenu] = useState<{ bottom: number; left?: number; right?: number } | null>(null);
   const opener = useRef<HTMLButtonElement>(null);
+  const group = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menu) {
@@ -334,9 +402,14 @@ function DictationButton({ speech }: { speech: Speech }) {
   }, [menu, mics.refresh]);
   const open = () => {
     const rect = opener.current?.getBoundingClientRect();
-    if (rect) {
+    const start = group.current?.getBoundingClientRect();
+    if (rect && start) {
       // Fixed to the window: a card around the composer that clips its content does not cut it.
-      setMenu({ bottom: window.innerHeight - rect.top + 8, right: window.innerWidth - rect.right });
+      // The labelled button stands at the start of its row, so its menu opens to the right.
+      const bottom = window.innerHeight - rect.top + 8;
+      setMenu(
+        labelled ? { bottom, left: start.left } : { bottom, right: window.innerWidth - rect.right },
+      );
     }
   };
 
@@ -383,26 +456,51 @@ function DictationButton({ speech }: { speech: Speech }) {
   // A chosen microphone that is gone falls back to the default one.
   const chosen = choices.some((c) => c.deviceId === prefs.deviceId) ? prefs.deviceId : "";
 
+  const icon = speech.processing ? (
+    <Spinner className="size-4" />
+  ) : speech.listening ? (
+    <Square className="size-3.5 animate-pulse-dot fill-current" />
+  ) : (
+    <Mic className="size-4" />
+  );
+
   return (
-    <div className="flex shrink-0 items-center">
-      <IconButton
-        label={label}
-        aria-pressed={speech.listening}
-        disabled={speech.processing}
-        {...hold}
-        className={cn(
-          "touch-none",
-          speech.listening && "bg-rose-tint text-rose hover:bg-rose-tint hover:text-rose",
-        )}
-      >
-        {speech.processing ? (
-          <Spinner className="size-4" />
-        ) : speech.listening ? (
-          <Square className="size-3.5 animate-pulse-dot fill-current" />
-        ) : (
-          <Mic className="size-4" />
-        )}
-      </IconButton>
+    <div ref={group} className="flex shrink-0 items-center">
+      {labelled ? (
+        <button
+          type="button"
+          title={label}
+          aria-pressed={speech.listening}
+          disabled={speech.processing}
+          {...hold}
+          className={cn(
+            "inline-flex h-10 touch-none select-none items-center gap-2 whitespace-nowrap rounded-full border px-4 font-medium text-sm transition disabled:opacity-60 coarse:h-11",
+            speech.listening
+              ? "border-rose/40 bg-rose-tint text-rose"
+              : "border-border text-ink hover:bg-paper-2",
+          )}
+        >
+          {icon}
+          {speech.processing
+            ? t("dictation.writing")
+            : speech.listening
+              ? t("dictation.stop")
+              : t("dictation.speak")}
+        </button>
+      ) : (
+        <IconButton
+          label={label}
+          aria-pressed={speech.listening}
+          disabled={speech.processing}
+          {...hold}
+          className={cn(
+            "touch-none",
+            speech.listening && "bg-rose-tint text-rose hover:bg-rose-tint hover:text-rose",
+          )}
+        >
+          {icon}
+        </IconButton>
+      )}
       <button
         ref={opener}
         type="button"
@@ -412,7 +510,8 @@ function DictationButton({ speech }: { speech: Speech }) {
         aria-expanded={Boolean(menu)}
         onClick={() => (menu ? setMenu(null) : open())}
         className={cn(
-          "-ml-1.5 inline-flex h-9 w-5 shrink-0 items-center justify-center rounded-full text-ink-4 transition hover:text-ink coarse:h-11",
+          "inline-flex h-9 w-5 shrink-0 items-center justify-center rounded-full text-ink-4 transition hover:text-ink coarse:h-11",
+          labelled ? "ml-0.5" : "-ml-1.5",
           menu && "text-ink",
         )}
       >
@@ -424,7 +523,11 @@ function DictationButton({ speech }: { speech: Speech }) {
           role="menu"
           aria-label={t("dictation.settings")}
           className="fixed z-50 w-72 max-w-[calc(100vw-2rem)] animate-rise rounded-xl bg-card p-1.5 text-[0.875rem] shadow-overlay ring-1 ring-border-soft"
-          style={{ bottom: menu.bottom, right: Math.max(16, menu.right - 8) }}
+          style={
+            menu.left === undefined
+              ? { bottom: menu.bottom, right: Math.max(16, (menu.right ?? 0) - 8) }
+              : { bottom: menu.bottom, left: Math.max(16, menu.left) }
+          }
         >
           <p className="px-2.5 pt-1.5 pb-1 text-[0.75rem] text-ink-3">
             {t("dictation.microphone")}

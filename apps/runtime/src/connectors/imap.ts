@@ -283,12 +283,12 @@ export const imapConnector: ConnectorDefinition = {
     kind: "api_key",
     apiKey: {
       fields: [
-        { key: "email", label: "E-Mail-Adresse", placeholder: "name@firma.at" },
-        { key: "password", label: "Passwort oder App-Passwort", secret: true },
+        { key: "email", label: "Email address", placeholder: "name@company.com" },
+        { key: "password", label: "Password or app password", secret: true },
         {
           key: "host",
-          label: "IMAP-Server",
-          placeholder: "leer lassen bei Gmail, GMX, iCloud …",
+          label: "IMAP server",
+          placeholder: "leave empty for Gmail, GMX, iCloud …",
           required: false,
         },
         { key: "port", label: "Port", placeholder: "993", required: false },

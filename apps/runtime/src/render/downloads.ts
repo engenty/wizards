@@ -21,6 +21,7 @@ import {
   tableToCsv,
 } from "./convert.js";
 import { guardHtml } from "./guard.js";
+import { shapedCsvRows, shapedMarkdown, shapedTables } from "./shaped.js";
 
 export interface Download {
   data: Uint8Array | string;
@@ -197,8 +198,14 @@ export async function renderDownload(
     }
     const text = output.text ?? "";
     if (step.output.format === "json") {
-      const rows = firstTable(output.json);
-      const tables = allTables(output.json);
+      // A step with a schema: its lists by their labels, the tree as headings.
+      const shape = step.output.schema;
+      const data = (output.json ?? {}) as Record<string, unknown>;
+      const rows = shape ? shapedCsvRows(shape, data) : firstTable(output.json);
+      const tables = shape ? shapedTables(shape, data) : allTables(output.json);
+      const md = shape
+        ? `# ${baseName}\n\n${shapedMarkdown(shape, data)}`
+        : jsonAsMarkdown(output.json);
       switch (format) {
         case "json":
           return {
@@ -213,7 +220,13 @@ export async function renderDownload(
             ? { data: await tablesToXlsx(tables), mime: MIME.xlsx, filename: file("xlsx") }
             : null;
         case "md":
-          return { data: jsonAsMarkdown(output.json), mime: MIME.md, filename: file("md") };
+          return { data: md, mime: MIME.md, filename: file("md") };
+        case "pdf":
+          return {
+            data: await htmlToPdf(markdownToHtml(md, baseName)),
+            mime: MIME.pdf,
+            filename: file("pdf"),
+          };
         default:
           return null;
       }

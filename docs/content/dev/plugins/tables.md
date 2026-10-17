@@ -1,10 +1,11 @@
 ---
 title: Tables
-description: A plugin's own tables in every tenant's database — SQL files that run once, and Drizzle to read and write.
+description: A plugin's own tables in every tenant's database – SQL files that run once, and Drizzle to read and write.
+version: 0.5.0
 ---
 
-Every tenant has a database of its own (libSQL, the SQLite dialect). A plugin's tables are made
-in each of them, from `.sql` files the plugin brings.
+Every tenant has a database of its own (libSQL, the SQLite dialect). The runtime makes a plugin’s
+tables in each of them, from `.sql` files the plugin brings.
 
 ## 1. The table, as SQL
 
@@ -65,8 +66,8 @@ await db()
 await db().delete(person).where(eq(person.id, id));
 ```
 
-Call `getTenantDb()` inside the handler, the tool or the listener. Outside of them there is no
-tenant.
+Call `getTenantDb()` inside the handler, the tool, the listener or the job. Outside of them
+there is no tenant.
 
 ## How the files run
 
@@ -78,12 +79,13 @@ tenant.
 | When | A database gets the files when it opens. The open ones get them when the plugin loads, also when it loads again with a new file |
 | Never back | Nothing is taken back. Unloading or removing a plugin leaves its tables and rows |
 
-A file that fails is logged with the plugin's id and the file's name, and the files after it
-wait for that database until it is mended. The tenant's database still opens.
+A file that fails is logged with the plugin’s id and the file’s name. The files after it, other
+plugins’ included, wait for that database until the file is fixed. The tenant’s database still
+opens.
 
 ## Rules
 
-- **Begin table names with the plugin's id**: `contacts_person`. All plugins and the runtime
+- **Begin table names with the plugin’s id**: `contacts_person`. All plugins and the runtime
   share the database. A `-` in the id becomes `_`.
 - **Never change a file that ran.** It will not run again. Add a new file:
 
@@ -91,12 +93,12 @@ wait for that database until it is mended. The tenant's database still opens.
   ALTER TABLE contacts_person ADD COLUMN phone TEXT;
   ```
 
-- **Do not touch the runtime's own tables** in a migration. Their shape changes with releases.
+- **Do not touch the runtime’s own tables** in a migration. Their shape changes with releases.
 - **Dates** are integers in milliseconds (`mode: "timestamp_ms"`); they leave a route as ISO
   strings.
 
-## The runtime's own data
+## The runtime’s own data
 
-`getTenantDb()` reaches the whole tenant database, the runtime's tables included. They are not
+`getTenantDb()` reaches the whole tenant database, the runtime’s tables included. They are not
 a public interface: a release can rename a column. A plugin that must know about runs listens
 to [run events](./events.md) and keeps what it needs in its own table.

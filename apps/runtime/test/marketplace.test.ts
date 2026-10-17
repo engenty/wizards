@@ -269,7 +269,7 @@ describe("an entry", () => {
     );
     expect((await inTenant(() => market.marketplaceDetail("card", "de")))?.usable).toBe(false);
     await expect(inTenant(() => wizards.createWizard("u", { starterId: "card" }))).rejects.toThrow(
-      /neuere Version/,
+      /newer version/,
     );
   });
 
@@ -279,13 +279,27 @@ describe("an entry", () => {
     );
     const w = await inTenant(() => wizards.ownedWizard("u", id));
     expect(w).toMatchObject({ title: "Greeting card", starter: "card", starterRevision: 1 });
+    // The starter's language goes with it: the wizard names it from the start.
+    expect(w.draft.lang).toBe("en");
     expect((await inTenant(() => files.draftFiles(id))).map((f) => f.path)).toEqual(["notes.md"]);
     await vi.waitFor(() =>
       expect(remote.calls).toContain("POST /wizards/api/v1/entries/card/installs"),
     );
     await expect(inTenant(() => wizards.createWizard("u", { starterId: "nope" }))).rejects.toThrow(
-      /no starter/,
+      /no template/,
     );
+  });
+
+  it("leaves a blank wizard in the maker's language, English where none is given", async () => {
+    for (const [lang, title, named] of [
+      ["de", "Neuer Wizard", "de"],
+      ["en", "New wizard", "en"],
+      [undefined, "New wizard", "en"],
+    ] as const) {
+      const { id } = await inTenant(() => wizards.createWizard("u", { lang }));
+      const w = await inTenant(() => wizards.ownedWizard("u", id));
+      expect(w.draft).toMatchObject({ title, lang: named });
+    }
   });
 });
 

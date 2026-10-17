@@ -5,6 +5,59 @@ export function uploadLimit(mime: string): number {
   return mime.startsWith("video/") ? 40_000_000 : 15_000_000;
 }
 
+/** `type/subtype` and nothing else: no commas, spaces or quotes a browser could read another type from. */
+const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
+
+/** The bare type of a declared one ("audio/webm;codecs=opus" → "audio/webm"), or null if it is not one. */
+export function bareMime(declared: string): string | null {
+  const mime = declared.split(";")[0].trim().toLowerCase();
+  return MIME.test(mime) ? mime : null;
+}
+
+/** What a person hands a wizard besides photos, recordings and clips: documents and tables. */
+const DOCUMENT_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/vnd.oasis.opendocument.presentation",
+  "application/rtf",
+  "application/json",
+  "application/zip",
+  "message/rfc822",
+  "text/plain",
+  "text/csv",
+  "text/tab-separated-values",
+  "text/markdown",
+  "text/calendar",
+  "text/vcard",
+]);
+
+/**
+ * The type an upload is kept as: the browser's word for it, when it is a picture, a recording, a
+ * clip or a document. Anything else (an HTML page, a script) is kept as plain bytes; reading it
+ * goes by its name (documents/parse.ts).
+ */
+export function uploadMime(declared: string): string {
+  const mime = bareMime(declared);
+  return mime && (/^(image|audio|video)\//.test(mime) || DOCUMENT_TYPES.has(mime))
+    ? mime
+    : "application/octet-stream";
+}
+
+/** What a browser shows in place without running anything of the file's: photos, sound, film, PDFs. */
+export function inlineSafe(mime: string): boolean {
+  return (
+    (/^(image|audio|video)\//.test(mime) && !mime.startsWith("image/svg")) ||
+    mime === "application/pdf"
+  );
+}
+
 /** `version`: the published one, so a new engenty or name reaches icons a phone has kept. */
 export function wizardManifest(token: string, title: string, description: string, version = 0) {
   const start = `${basePath}/w/${token}`;

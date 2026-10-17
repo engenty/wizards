@@ -23,7 +23,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { lang, t } from "../../lib/i18n";
+import { t } from "../../lib/i18n";
 import { Button, cn, IconButton, Input, Switch, Textarea } from "../../ui";
 import { useAutosave } from "./data";
 import { Section } from "./Section";
@@ -196,7 +196,7 @@ export function Facts({
       el.focus();
     }
   };
-  const basics = BASIC_FACTS.filter((b) => !rows.some((r) => r.key === b.key));
+  const basics = BASIC_FACTS.filter((key) => !rows.some((r) => r.key === key));
   return (
     <Section
       title={t("project.facts")}
@@ -286,14 +286,14 @@ export function Facts({
           <Button variant="secondary" size="sm" onClick={() => add({}, "label")}>
             <Plus className="size-4" /> {t("project.factAdd")}
           </Button>
-          {basics.map((b) => (
+          {basics.map((key) => (
             <button
-              key={b.key}
+              key={key}
               type="button"
-              onClick={() => add({ key: b.key, label: lang === "en" ? b.en : b.de }, "value")}
+              onClick={() => add({ key, label: t(`fact.${key}`) }, "value")}
               className="inline-flex h-8 items-center gap-1 rounded-full bg-paper-2 px-3 text-[0.8125rem] text-ink-2 transition hover:bg-paper-3 hover:text-ink"
             >
-              <Plus className="size-3.5" /> {lang === "en" ? b.en : b.de}
+              <Plus className="size-3.5" /> {t(`fact.${key}`)}
             </button>
           ))}
         </div>

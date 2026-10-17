@@ -117,7 +117,7 @@ function FilterBar({
 }
 
 /**
- * Ergebnisse: the runs of the space's wizards that reached their result, newest first. A run is
+ * Results: the runs of the space's wizards that reached their result, newest first. A run is
  * opened beside the list as the person saw it, with its files.
  */
 export function Results({
@@ -169,7 +169,11 @@ export function Results({
                     {r.assets}
                   </span>
                 ) : null}
-                {r.mode === "test" ? <Chip>Test</Chip> : <Chip tone="live">Live v{r.version}</Chip>}
+                {r.mode === "test" ? (
+                  <Chip>{t("run.testChip")}</Chip>
+                ) : (
+                  <Chip tone="live">Live v{r.version}</Chip>
+                )}
               </button>
             ))}
           </Card>
@@ -191,7 +195,7 @@ export function Results({
                 {titleOf(open.wizardId)}
               </span>
               {open.mode === "test" ? (
-                <Chip>Test</Chip>
+                <Chip>{t("run.testChip")}</Chip>
               ) : (
                 <Chip tone="live">Live v{open.version}</Chip>
               )}
@@ -199,7 +203,7 @@ export function Results({
           }
           onClose={() => setOpen(null)}
         >
-          <RunnerBody key={open.id} runId={open.id} compact />
+          <RunnerBody key={open.id} runId={open.id} compact studio />
         </RunDrawer>
       ) : null}
     </>

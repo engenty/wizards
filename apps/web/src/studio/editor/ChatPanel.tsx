@@ -1,3 +1,5 @@
+import { Markdown } from "@engenty-wizards/runner";
+import type { AssistantStep } from "@engenty-wizards/shared/assistant";
 import type { WizardDefinition } from "@engenty-wizards/shared/definition";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Paperclip, Plug, Sparkles } from "lucide-react";
@@ -5,9 +7,8 @@ import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { Mascot } from "../../brand";
 import { postStream } from "../../lib/api";
 import { withBase } from "../../lib/base";
-import { t } from "../../lib/i18n";
+import { lang, t } from "../../lib/i18n";
 import type { WizardDetail } from "../../lib/session";
-import { Markdown } from "../../runner/outputs";
 import { Composer, type ComposerHandle, cn, pastedName, Spinner } from "../../ui";
 
 /** What a plugin's tool returned in a turn, for the plugin's card in the thread. */
@@ -39,6 +40,10 @@ export interface ChatMessage {
   client?: string | null;
   /** Pictures sent with this message, by file name, shown before the server has them. */
   previews?: Record<string, string>;
+  /** Written while the answer before it was under way, and taken into that turn. */
+  signal?: boolean;
+  /** The model's steps of this answer, in the studio assistant's developer mode. */
+  steps?: AssistantStep[];
 }
 
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg)$/i;
@@ -153,7 +158,10 @@ export function useArchitectChat(
             {
               method: "PUT",
               credentials: "include",
-              headers: { "content-type": file.type || "application/octet-stream" },
+              headers: {
+                "content-type": file.type || "application/octet-stream",
+                "accept-language": lang,
+              },
               body: file,
             },
           );
@@ -318,6 +326,9 @@ function UserMessage({
   const { text, names } = attachmentsOf(message.content);
   return (
     <div className="ml-8 flex flex-col items-end gap-1.5 self-end">
+      {message.signal ? (
+        <span className="text-[0.6875rem] text-ink-4">{t("assistant.signalled")}</span>
+      ) : null}
       {names.length ? (
         <Attachments names={names} previews={message.previews} fileUrl={fileUrl} />
       ) : null}
@@ -332,7 +343,7 @@ function UserMessage({
 
 /**
  * The thread's messages: the person's on the right, the assistant's with its avatar, the cards
- * of plugins' tools and `calls` (a line per tool it called) under an answer.
+ * of plugins' tools and `calls` (a line per tool it called) above an answer, `foot` below it.
  */
 export function Messages({
   chat,
@@ -340,12 +351,14 @@ export function Messages({
   changedLabel,
   card,
   calls,
+  foot,
 }: {
   chat: Chat;
   avatar: string;
   changedLabel: string;
   card?: (card: ChatCard) => ReactNode;
   calls?: (message: ChatMessage) => ReactNode;
+  foot?: (message: ChatMessage) => ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -380,10 +393,119 @@ export function Messages({
                   <Sparkles className="size-3" /> {changedLabel}
                 </div>
               ) : null}
+              {foot ? foot(m) : null}
             </div>
           </div>
         ),
       )}
+    </div>
+  );
+}
+
+const THREAD_KEY = "wizards.editorThread.height";
+const THREAD_DEFAULT = 320;
+const THREAD_MIN = 120;
+/** The docked thread leaves the page this much room above it. */
+const threadMax = () => Math.max(THREAD_MIN, window.innerHeight - 260);
+
+/** The docked thread's height, dragged at its grip; remembered per browser. */
+function useThreadHeight() {
+  const [height, setHeight] = useState(() => {
+    try {
+      const n = Number(localStorage.getItem(THREAD_KEY));
+      return n ? Math.min(Math.max(n, THREAD_MIN), threadMax()) : THREAD_DEFAULT;
+    } catch {
+      return THREAD_DEFAULT;
+    }
+  });
+  const set = (next: number) => {
+    const h = Math.round(Math.min(Math.max(next, THREAD_MIN), threadMax()));
+    setHeight(h);
+    try {
+      localStorage.setItem(THREAD_KEY, String(h));
+    } catch {
+      // the height only lasts this page then
+    }
+  };
+  return { height, set };
+}
+
+/**
+ * The grip on top of the docked thread: dragged, it sets the thread's height and opens a folded
+ * one; clicked, it folds the thread in or out. Arrow keys change the height, Enter folds.
+ */
+function ThreadGrip({
+  open,
+  height,
+  onHeight,
+  onToggle,
+}: {
+  open: boolean;
+  height: number;
+  onHeight: (h: number) => void;
+  onToggle: (open: boolean) => void;
+}) {
+  const start = useRef<{ y: number; height: number; moved: boolean } | null>(null);
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a window splitter that moves is a focusable separator (WAI-ARIA)
+    <div
+      role="separator"
+      tabIndex={0}
+      aria-orientation="horizontal"
+      aria-valuenow={height}
+      aria-valuemin={THREAD_MIN}
+      aria-label={t("editor.threadGrip")}
+      title={t("editor.threadGrip")}
+      onPointerDown={(e) => {
+        if (e.button !== 0) {
+          return;
+        }
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        start.current = { y: e.clientY, height: open ? height : 0, moved: false };
+      }}
+      onPointerMove={(e) => {
+        const from = start.current;
+        if (!from || (!from.moved && Math.abs(e.clientY - from.y) < 4)) {
+          return;
+        }
+        if (!(open || from.moved) && e.clientY > from.y) {
+          return;
+        }
+        if (!(open || from.moved)) {
+          onToggle(true);
+        }
+        from.moved = true;
+        onHeight(from.height + (from.y - e.clientY));
+      }}
+      onPointerUp={() => {
+        const click = start.current && !start.current.moved;
+        start.current = null;
+        if (click) {
+          onToggle(!open);
+        }
+      }}
+      onPointerCancel={() => {
+        start.current = null;
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          if (!open) {
+            if (e.key === "ArrowUp") {
+              onToggle(true);
+            }
+            return;
+          }
+          onHeight(height + (e.key === "ArrowUp" ? 32 : -32));
+        } else if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle(!open);
+        }
+      }}
+      className="group flex h-3.5 shrink-0 cursor-row-resize touch-none items-center justify-center outline-none"
+    >
+      <span className="h-1 w-10 rounded-full bg-ink-4/40 transition group-hover:bg-ink-4 group-focus-visible:bg-ember" />
     </div>
   );
 }
@@ -393,11 +515,12 @@ export function ChatPanel({
   avatar,
   hello = t("editor.chatHello"),
   placeholder = t("editor.composer"),
-  changedLabel = "Ablauf aktualisiert",
+  changedLabel = t("editor.flowChanged"),
   compact,
   intro,
   closed,
   card,
+  foldOn,
 }: {
   chat: Chat;
   avatar: string;
@@ -412,8 +535,16 @@ export function ChatPanel({
   closed?: string;
   /** Draws a card of a plugin's tool; without it, cards are not shown. */
   card?: (card: ChatCard) => ReactNode;
+  /** Docked, the thread folds whenever this turns to a new value (a test run opened). */
+  foldOn?: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (foldOn) {
+      setOpen(false);
+    }
+  }, [foldOn]);
+  const threadHeight = useThreadHeight();
   const scroller = useRef<HTMLDivElement>(null);
   const composer = useRef<ComposerHandle>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new content
@@ -479,12 +610,20 @@ export function ChatPanel({
         }
       >
         {compact && (last || chat.error) ? (
+          <ThreadGrip
+            open={open}
+            height={threadHeight.height}
+            onHeight={threadHeight.set}
+            onToggle={setOpen}
+          />
+        ) : null}
+        {compact && (last || chat.error) ? (
           <button
             type="button"
             aria-expanded={open}
             aria-label={t("editor.thread")}
             onClick={() => setOpen((o) => !o)}
-            className="flex items-center gap-2 px-4 pt-2.5 pb-0.5 text-left text-[0.8125rem] text-ink-3 transition hover:text-ink"
+            className="flex items-center gap-2 px-4 pb-0.5 text-left text-[0.8125rem] text-ink-3 transition hover:text-ink"
           >
             {!(chat.error || open) && last?.pending ? (
               <Working chat={chat} className="flex-1" />
@@ -503,6 +642,8 @@ export function ChatPanel({
         <div
           ref={scroller}
           className={cn("min-h-0 flex-1 overflow-y-auto px-5 py-5", !thread && "hidden")}
+          // Docked, the thread is as high as its grip was pulled.
+          style={compact ? { height: threadHeight.height, flex: "none" } : undefined}
         >
           {chat.messages.length === 0 && !closed
             ? (intro ?? (

@@ -1,4 +1,6 @@
+// SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import { coerceRowValues, mergeRowValues, type TableColumn } from "./engenty/data-tables/index.js";
+import { readNumber } from "./numbers.js";
 
 /**
  * What a wizard keeps between runs for one person: lists (tabular data), files and connected
@@ -113,6 +115,15 @@ export function listAsMarkdown(def: ListDef, rows: ListRow[], limit = 200): stri
   return [head, ...body, ...more].join("\n");
 }
 
+/**
+ * When the first row saved now is stamped, in milliseconds: after every row the list already
+ * holds, so a list reads in the order its rows came — also when two saves fall in one
+ * millisecond. The rows of one save follow it a millisecond apart.
+ */
+export function firstRowAt(existing: { createdAt: Date }[]): number {
+  return existing.reduce((at, row) => Math.max(at, row.createdAt.getTime() + 1), Date.now());
+}
+
 /** The key a row is matched on: trimmed and lower-cased, so "Notion " and "notion" are one row. */
 export function rowKey(def: ListDef, cells: Record<string, unknown>): string | null {
   if (!def.key) {
@@ -137,4 +148,32 @@ export function patchCells(
   const known = new Set(def.columns.map((c) => c.id));
   const kept = Object.fromEntries(Object.entries(current).filter(([id]) => known.has(id)));
   return mergeRowValues(def.columns, kept, patch);
+}
+
+/**
+ * What a person typed into a cell, as the value sent for its column; the runtime still checks it
+ * against the column. Blank is null; a number or a duration (in the column's input unit) is read
+ * as people write it ("12,5"); a date and time from the browser's picker, in local time, becomes
+ * ISO. What cannot be read goes as typed, for the runtime to refuse and name.
+ */
+export function cellValue(column: TableColumn, text: string): unknown {
+  if (text.trim() === "") {
+    return null;
+  }
+  switch (column.type) {
+    case "number":
+    case "duration":
+      return readNumber(text) ?? text;
+    case "boolean":
+      return text === "true";
+    case "date": {
+      if (column.format.kind !== "datetime") {
+        return text;
+      }
+      const at = new Date(text);
+      return Number.isNaN(at.getTime()) ? text : at.toISOString();
+    }
+    default:
+      return text;
+  }
 }

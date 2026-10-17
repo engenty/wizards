@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -15,7 +15,7 @@ const run = promisify(execFile);
  * whose command stays where it is.
  */
 
-const LOGIN_LABEL = "com.engenty.wizards.login";
+export const LOGIN_LABEL = "com.engenty.wizards.login";
 
 /** The LaunchAgent. */
 export const LOGIN_ITEM = join(homedir(), "Library", "LaunchAgents", `${LOGIN_LABEL}.plist`);
@@ -53,7 +53,7 @@ ${program.map((arg) => `    <string>${xml(arg)}</string>\n`).join("")}  </array>
 `;
 }
 
-const UNIT = "engenty-wizards.service";
+export const UNIT = "engenty-wizards.service";
 
 export function unitFile(env: NodeJS.ProcessEnv = process.env): string {
   return join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "systemd", "user", UNIT);
@@ -95,24 +95,74 @@ async function systemdHere(): Promise<boolean> {
   }
 }
 
+/**
+ * Whether a file is there. Unlike existsSync, a folder it may not look into (a sandbox, its
+ * permissions) is an error, not "no file": `autostart off` must not say it's off then.
+ */
+export function present(file: string): boolean {
+  try {
+    lstatSync(file);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+    throw new Error(`Couldn’t check ${file}: ${(error as Error).message}`);
+  }
+}
+
+/**
+ * Whether it starts at login, read from the login item itself: a LaunchAgent or unit file that
+ * is there counts, whichever copy of the command wrote it. Only an install made by install.sh can
+ * write one.
+ */
 export async function autostartState(paths: Layout): Promise<Autostart> {
   if (process.platform !== "darwin" && process.platform !== "linux") {
-    return { unavailable: `not on ${process.platform}` };
+    return {
+      unavailable: process.platform === "win32" ? "not on Windows" : `not on ${process.platform}`,
+    };
   }
-  if (!installedByScript(paths)) {
-    return { unavailable: "only for an install made by install.sh" };
+  const file = process.platform === "darwin" ? LOGIN_ITEM : unitFile();
+  const there = present(file);
+  if (!there && !installedByScript(paths)) {
+    return { unavailable: "only for installs made with the install script" };
   }
   if (process.platform === "darwin") {
-    return { on: existsSync(LOGIN_ITEM), how: MAC_HOW };
+    return { on: there, how: MAC_HOW };
   }
   if (!(await systemdHere())) {
-    return { unavailable: "this Linux has no systemd user session" };
+    return there
+      ? { on: true, how: LINUX_HOW }
+      : { unavailable: "this system has no systemd user session" };
   }
   try {
     await run("systemctl", ["--user", "is-enabled", "--quiet", UNIT], { timeout: 10_000 });
     return { on: true, how: LINUX_HOW };
   } catch {
-    return { on: false, how: LINUX_HOW };
+    // A unit file that is there but not enabled still counts: `off` takes it away.
+    return { on: there, how: LINUX_HOW };
+  }
+}
+
+/** The LaunchAgent unloaded from this login session, if launchd has it; errors are ignored. */
+export async function unloadLoginItem(): Promise<void> {
+  const uid = process.getuid?.();
+  if (process.platform !== "darwin" || uid === undefined) {
+    return;
+  }
+  await run("launchctl", ["bootout", `gui/${uid}/${LOGIN_LABEL}`], { timeout: 15_000 }).catch(
+    () => undefined,
+  );
+}
+
+/** The systemd user service disabled, stopped and its file gone. */
+export async function removeUnit(file = unitFile()): Promise<void> {
+  if (findOnPath("systemctl", process.env.PATH ?? "")) {
+    await run("systemctl", ["--user", "disable", "--now", UNIT]).catch(() => undefined);
+  }
+  rmSync(file, { force: true });
+  if (findOnPath("systemctl", process.env.PATH ?? "")) {
+    await run("systemctl", ["--user", "daemon-reload"]).catch(() => undefined);
   }
 }
 
@@ -123,7 +173,7 @@ export async function setAutostart(paths: Layout, on: boolean): Promise<Autostar
     return state;
   }
   if (process.platform === "darwin") {
-    // Takes effect at the next login; nothing is started now.
+    // Takes effect at the next login; nothing is started or stopped now.
     if (on) {
       mkdirSync(dirname(LOGIN_ITEM), { recursive: true });
       writeFileSync(
@@ -136,7 +186,7 @@ export async function setAutostart(paths: Layout, on: boolean): Promise<Autostar
     } else {
       rmSync(LOGIN_ITEM, { force: true });
     }
-    return { on: existsSync(LOGIN_ITEM), how: MAC_HOW };
+    return { on: present(LOGIN_ITEM), how: MAC_HOW };
   }
   const file = unitFile();
   if (on) {
@@ -145,9 +195,12 @@ export async function setAutostart(paths: Layout, on: boolean): Promise<Autostar
     await run("systemctl", ["--user", "daemon-reload"]);
     await run("systemctl", ["--user", "enable", "--now", UNIT]);
   } else {
-    await run("systemctl", ["--user", "disable", "--now", UNIT]).catch(() => undefined);
-    rmSync(file, { force: true });
-    await run("systemctl", ["--user", "daemon-reload"]).catch(() => undefined);
+    await removeUnit(file);
   }
   return autostartState(paths);
+}
+
+/** The state for a status line: a login item that can't be checked reads as unavailable. */
+export function autostartForStatus(paths: Layout): Promise<Autostart> {
+  return autostartState(paths).catch((error: Error): Autostart => ({ unavailable: error.message }));
 }

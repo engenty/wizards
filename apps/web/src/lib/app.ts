@@ -1,5 +1,5 @@
 /**
- * The mobile app (apps/mobile) shows the runner in a WebView on `/w/<token>?app=1` and puts
+ * The mobile app (the apps repo engenty-wizards-apps, mobile/) shows the runner in a WebView on `/w/<token>?app=1` and puts
  * `window.engentyApp` into the page before it loads, as the desktop app puts
  * `window.engentyDesktop` into the studio. The runner asks it before it uses a browser API and
  * falls back to the web's way for everything the bridge does not name: an older app shows a newer
@@ -26,7 +26,11 @@ export type AppAbility =
   /** `signIn({ url })`: the system's sign-in sheet for connecting an account. */
   | "signIn"
   /** `run({ token, runId })`: a run was started or opened; the app keeps it in its results. */
-  | "run";
+  | "run"
+  /** `transcribe({ audio, mime, lang })` → `{ text }`: a recording written down on the phone; null when it cannot. */
+  | "transcribe"
+  /** `think({ system, prompt, schema })` → `{ text }`: the phone's own model answers a short call (runner/device.ts). */
+  | "think";
 
 export interface EngentyApp {
   /** The bridge's own version, raised when a method changes its meaning. */

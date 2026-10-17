@@ -1,13 +1,14 @@
 import type { Effort, TextClass } from "@engenty-wizards/shared/definition";
+import type { RunNote } from "@engenty-wizards/shared/run";
 import type { HarnessImageModel, HarnessModel } from "./model.js";
 
 /**
- * A harness is an AI client installed on this machine — Claude Code, Codex, Gemini CLI, Cursor
+ * A harness is an AI client installed on this machine — Claude Code, Codex, Antigravity, Cursor
  * Agent — that answers on the person's own subscription or sign-in. The runtime runs it headless
  * as a model (./model.ts) and signs it in through the inline terminal (./terminal.ts). Nothing of
  * this process reaches it: no key of ours, no session of a parent client.
  */
-export const HARNESS_IDS = ["claude", "codex", "gemini", "cursor"] as const;
+export const HARNESS_IDS = ["claude", "codex", "antigravity", "cursor"] as const;
 export type HarnessId = (typeof HARNESS_IDS)[number];
 
 /** How a client is signed in: with the person's subscription, with a key from their shell, or not at all. */
@@ -42,5 +43,5 @@ export interface Harness extends EnvSpec {
    */
   image?: { alias: string; model(alias: string): HarnessImageModel };
   /** What to tell the person when the signed-in account cannot pay for the call. */
-  exhausted?: string;
+  exhausted?: RunNote;
 }

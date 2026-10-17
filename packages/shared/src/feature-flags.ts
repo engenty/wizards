@@ -47,6 +47,30 @@ export const FEATURES = {
     label: "Team plans",
     hint: "The team page in the cloud studio, and plans that carry this switch on the account pages.",
   },
+  brandSections: {
+    kind: "release",
+    default: false,
+    label: "Sections in Info & brand",
+    hint: "Sections of logos and of colours, gradients and patterns among them.",
+  },
+  brandRules: {
+    kind: "release",
+    default: false,
+    label: "Rules in Info & brand",
+    hint: "Rules for how the logos, the colours and the type may be used.",
+  },
+  typography: {
+    kind: "release",
+    default: false,
+    label: "Typography in Info & brand",
+    hint: "The brand's fonts, their licences and a type scale.",
+  },
+  goose: {
+    kind: "release",
+    default: false,
+    label: "Goose",
+    hint: "The studio's assistant: its chat at the foot of the page and in the sidebar.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

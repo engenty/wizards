@@ -1,6 +1,11 @@
 {
   "shared": [
     {
+      "name": "@engenty/wizards",
+      "version": "",
+      "license": "Unknown"
+    },
+    {
       "name": "@modelcontextprotocol/client",
       "version": "2.2.0",
       "license": "MIT",
@@ -13,16 +18,34 @@
       "homepage": "https://github.com/modelcontextprotocol/ext-apps"
     },
     {
+      "name": "dompurify",
+      "version": "3.4.16",
+      "license": "(MPL-2.0 OR Apache-2.0)",
+      "homepage": "https://github.com/cure53/DOMPurify"
+    },
+    {
+      "name": "fflate",
+      "version": "0.8.3",
+      "license": "MIT",
+      "homepage": "https://101arrowz.github.io/fflate"
+    },
+    {
+      "name": "lucide-react",
+      "version": "1.49.0",
+      "license": "ISC",
+      "homepage": "https://lucide.dev"
+    },
+    {
       "name": "marked",
       "version": "18.0.14",
       "license": "MIT",
       "homepage": "https://marked.js.org"
     },
     {
-      "name": "react",
-      "version": "19.3.0",
+      "name": "qr-scanner",
+      "version": "1.4.2",
       "license": "MIT",
-      "homepage": "https://react.dev/"
+      "homepage": "https://github.com/nimiq/qr-scanner#readme"
     },
     {
       "name": "zod",
@@ -32,205 +55,6 @@
     }
   ],
   "groups": [
-    {
-      "id": "apps/mobile",
-      "kind": "app",
-      "label": "mobile",
-      "packages": [
-        {
-          "name": "@expo-google-fonts/space-grotesk",
-          "version": "0.4.1",
-          "license": "MIT AND OFL-1.1",
-          "homepage": "https://github.com/expo/google-fonts/tree/master/font-packages/space-grotesk#readme"
-        },
-        {
-          "name": "expo",
-          "version": "57.0.26",
-          "license": "MIT",
-          "homepage": "https://github.com/expo/expo/tree/main/packages/expo"
-        },
-        {
-          "name": "expo-blur",
-          "version": "57.0.3",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/blur-view/"
-        },
-        {
-          "name": "expo-camera",
-          "version": "57.0.6",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/camera/"
-        },
-        {
-          "name": "expo-clipboard",
-          "version": "57.0.2",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/clipboard"
-        },
-        {
-          "name": "expo-constants",
-          "version": "57.0.20",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/constants/"
-        },
-        {
-          "name": "expo-crypto",
-          "version": "57.0.3",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/crypto/"
-        },
-        {
-          "name": "expo-file-system",
-          "version": "57.0.7",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/filesystem/"
-        },
-        {
-          "name": "expo-font",
-          "version": "57.0.4",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/font/"
-        },
-        {
-          "name": "expo-glass-effect",
-          "version": "57.0.4",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/glass-effect/"
-        },
-        {
-          "name": "expo-haptics",
-          "version": "57.0.3",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/haptics/"
-        },
-        {
-          "name": "expo-intent-launcher",
-          "version": "57.0.1",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/intent-launcher/"
-        },
-        {
-          "name": "expo-keep-awake",
-          "version": "57.0.2",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/keep-awake/"
-        },
-        {
-          "name": "expo-linking",
-          "version": "57.0.11",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/linking"
-        },
-        {
-          "name": "expo-localization",
-          "version": "57.0.2",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/localization/"
-        },
-        {
-          "name": "expo-notifications",
-          "version": "57.0.21",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/notifications/"
-        },
-        {
-          "name": "expo-router",
-          "version": "57.0.24",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/routing/introduction/"
-        },
-        {
-          "name": "expo-secure-store",
-          "version": "57.0.4",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/securestore/"
-        },
-        {
-          "name": "expo-sharing",
-          "version": "57.0.22",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/sharing/"
-        },
-        {
-          "name": "expo-splash-screen",
-          "version": "57.0.9",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/splash-screen/"
-        },
-        {
-          "name": "expo-sqlite",
-          "version": "57.0.3",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/sqlite/"
-        },
-        {
-          "name": "expo-status-bar",
-          "version": "57.0.1",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/status-bar/"
-        },
-        {
-          "name": "expo-system-ui",
-          "version": "57.0.4",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/system-ui"
-        },
-        {
-          "name": "expo-web-browser",
-          "version": "57.0.3",
-          "license": "MIT",
-          "homepage": "https://docs.expo.dev/versions/latest/sdk/webbrowser/"
-        },
-        {
-          "name": "react-native",
-          "version": "0.86.3",
-          "license": "MIT",
-          "homepage": "https://reactnative.dev/"
-        },
-        {
-          "name": "react-native-gesture-handler",
-          "version": "3.3.0",
-          "license": "MIT",
-          "homepage": "https://docs.swmansion.com/react-native-gesture-handler/"
-        },
-        {
-          "name": "react-native-reanimated",
-          "version": "4.7.1",
-          "license": "MIT",
-          "homepage": "https://docs.swmansion.com/react-native-reanimated"
-        },
-        {
-          "name": "react-native-safe-area-context",
-          "version": "5.7.0",
-          "license": "MIT",
-          "homepage": "https://github.com/AppAndFlow/react-native-safe-area-context#readme"
-        },
-        {
-          "name": "react-native-screens",
-          "version": "4.26.2",
-          "license": "MIT",
-          "homepage": "https://github.com/software-mansion/react-native-screens#readme"
-        },
-        {
-          "name": "react-native-svg",
-          "version": "15.15.4",
-          "license": "MIT",
-          "homepage": "https://github.com/react-native-community/react-native-svg"
-        },
-        {
-          "name": "react-native-webview",
-          "version": "13.16.1",
-          "license": "MIT",
-          "homepage": "https://github.com/react-native-webview/react-native-webview#readme"
-        },
-        {
-          "name": "react-native-worklets",
-          "version": "0.10.1",
-          "license": "MIT",
-          "homepage": "https://docs.swmansion.com/react-native-worklets"
-        }
-      ]
-    },
     {
       "id": "apps/runtime",
       "kind": "app",
@@ -286,7 +110,7 @@
         },
         {
           "name": "@executor-js/plugin-openapi",
-          "version": "1.6.8",
+          "version": "1.6.10",
           "license": "MIT",
           "homepage": "https://github.com/UsefulSoftwareCo/executor/tree/main/packages/plugins/openapi"
         },
@@ -304,7 +128,7 @@
         },
         {
           "name": "@mastra/core",
-          "version": "1.74.0",
+          "version": "1.77.0",
           "license": "Apache-2.0",
           "homepage": "https://mastra.ai"
         },
@@ -316,7 +140,13 @@
         },
         {
           "name": "@mastra/mcp",
-          "version": "2.1.2",
+          "version": "2.4.0",
+          "license": "Apache-2.0",
+          "homepage": "https://mastra.ai"
+        },
+        {
+          "name": "@mastra/quickjs",
+          "version": "0.1.3",
           "license": "Apache-2.0",
           "homepage": "https://mastra.ai"
         },
@@ -373,12 +203,6 @@
           "version": "5.11.2",
           "license": "MIT",
           "homepage": "https://github.com/NaturalIntelligence/fast-xml-parser#readme"
-        },
-        {
-          "name": "fflate",
-          "version": "0.8.3",
-          "license": "MIT",
-          "homepage": "https://101arrowz.github.io/fflate"
         },
         {
           "name": "hono",
@@ -451,6 +275,12 @@
           "version": "7.2.4",
           "license": "MIT",
           "homepage": "https://github.com/mixmark-io/turndown#readme"
+        },
+        {
+          "name": "undici",
+          "version": "8.12.2",
+          "license": "MIT",
+          "homepage": "https://undici.nodejs.org"
         }
       ]
     },
@@ -496,22 +326,10 @@
           "homepage": "https://reactflow.dev"
         },
         {
-          "name": "dompurify",
-          "version": "3.4.16",
-          "license": "(MPL-2.0 OR Apache-2.0)",
-          "homepage": "https://github.com/cure53/DOMPurify"
-        },
-        {
-          "name": "lucide-react",
-          "version": "1.49.0",
-          "license": "ISC",
-          "homepage": "https://lucide.dev"
-        },
-        {
-          "name": "qr-scanner",
-          "version": "1.4.2",
+          "name": "react",
+          "version": "19.3.0",
           "license": "MIT",
-          "homepage": "https://github.com/nimiq/qr-scanner#readme"
+          "homepage": "https://react.dev/"
         },
         {
           "name": "react-dom",
@@ -530,6 +348,19 @@
           "version": "0.1.3",
           "license": "MIT",
           "homepage": "https://github.com/unjs/uqr#readme"
+        }
+      ]
+    },
+    {
+      "id": "packages/runner",
+      "kind": "package",
+      "label": "runner",
+      "packages": [
+        {
+          "name": "pdfmake",
+          "version": "0.3.11",
+          "license": "MIT",
+          "homepage": "http://pdfmake.org"
         }
       ]
     }

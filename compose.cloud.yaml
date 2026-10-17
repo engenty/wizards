@@ -1,6 +1,14 @@
-# The cloud runtime of a Manage-App: the app (web and runner in one process) and a separate
-# Chromium container. Databases live on Turso, files in an S3 bucket — nothing durable on this host.
-# Put a TLS proxy (Coolify/Traefik) in front of port 8891.
+# The cloud runtime of a Manage-App, one image in three roles (docs/plans/runner-process.md):
+# the studio (`runtime`: authoring, sign-in, MCP, the studio's pages), the doors (`doors`: the
+# wizards' pages, their API, shared results) and the runner (executes the runs), plus a separate
+# Chromium container. The control database lives on Turso, files in an S3 bucket. The tenant
+# databases are files under /data while the Manage-App's TENANT_DB_PROVISIONER is `none`: the
+# three roles share that one volume, or each would see a tenant of its own.
+# Put a TLS proxy (Coolify/Traefik) in front of port 8891 of `runtime` and `doors`; on one host
+# the doors take `/w`, `/s`, `/api/public`, `/api/runs`, `/api/shares`, `/embed.js`, `/sw.js` and
+# the app links under `/.well-known`, the studio the rest (`/studio`, `/api`, `/install.sh`,
+# `/.well-known/oauth-protected-resource`). Both answer under APP_URL; PUBLIC_URL is for doors on
+# an origin of their own.
 #
 # The server builds nothing: both images are built from apps/runtime/Dockerfile and
 # deploy/Dockerfile.browser on GitHub's runners for every release (.github/workflows/ci.yml, job
@@ -19,12 +27,63 @@ services:
       MANAGE_URL: ${MANAGE_URL:?the Manage-App}
       GATEWAY_URL: ${GATEWAY_URL:?the model-gateway}
       API_HOST: 0.0.0.0
+      RUNTIME_ROLE: studio
       # No shell/code tool in the cloud: runs get a browser context, never a sandbox.
       SANDBOX: "off"
       # Chromium answers DevTools requests only under an IP address or localhost.
       BROWSER_CDP_URL: http://172.30.5.10:9222
     volumes:
-      # Caches only (parsed documents); safe to lose.
+      # The tenant databases (while they are files) and parsed-document caches; shared by the roles.
+      - runtime-cache:/data
+    networks:
+      default:
+      browser:
+    depends_on:
+      - browser
+
+  # The wizards' pages and their API, for the customers: no authoring, no sign-in, no MCP.
+  doors:
+    image: ghcr.io/engenty/engenty-wizards-runtime:${IMAGE_TAG:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      APP_URL: ${APP_URL:?the public https origin}
+      MANAGE_URL: ${MANAGE_URL:?the Manage-App}
+      GATEWAY_URL: ${GATEWAY_URL:?the model-gateway}
+      API_HOST: 0.0.0.0
+      RUNTIME_ROLE: doors
+      SANDBOX: "off"
+      BROWSER_CDP_URL: http://172.30.5.10:9222
+    volumes:
+      - runtime-cache:/data
+    networks:
+      default:
+      browser:
+    depends_on:
+      - browser
+
+  # Executes the runs the web puts in line (docs/plans/runner-process.md). Not reachable from
+  # outside; the web asks it for a run's browser screen under RUNNER_URL.
+  runner:
+    image: ghcr.io/engenty/engenty-wizards-runtime:${IMAGE_TAG:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      APP_URL: ${APP_URL:?the public https origin}
+      MANAGE_URL: ${MANAGE_URL:?the Manage-App}
+      GATEWAY_URL: ${GATEWAY_URL:?the model-gateway}
+      API_HOST: 0.0.0.0
+      RUNTIME_ROLE: runner
+      RUNNER_URL: http://runner:8891
+      SANDBOX: "off"
+      BROWSER_CDP_URL: http://172.30.5.10:9222
+    volumes:
       - runtime-cache:/data
     networks:
       default:

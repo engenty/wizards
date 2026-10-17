@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   defaultFeatures,
+  featureOn,
   formatFeatures,
   parseFeatures,
   resolveFeatures,
@@ -83,5 +84,25 @@ describe("declared switches", () => {
       "contacts.leadScoring": true,
       "contacts.export": false,
     });
+  });
+});
+
+describe("featureOn", () => {
+  it("reads what the resolved switches say", () => {
+    expect(featureOn({ ownKeys: false, teamPlans: true }, "ownKeys")).toBe(false);
+    expect(featureOn({ ownKeys: false, teamPlans: true }, "teamPlans")).toBe(true);
+    expect(featureOn({ "contacts.leadScoring": true }, "contacts.leadScoring")).toBe(true);
+  });
+
+  it("takes a core flag's declared default where the switches leave it out", () => {
+    expect(featureOn({}, "ownKeys")).toBe(true);
+    expect(featureOn({}, "account")).toBe(true);
+    expect(featureOn({}, "teamPlans")).toBe(false);
+    expect(featureOn(undefined, "ownKeys")).toBe(true);
+  });
+
+  it("counts an unknown switch as off", () => {
+    expect(featureOn({}, "contacts.leadScoring")).toBe(false);
+    expect(featureOn({}, "toString")).toBe(false);
   });
 });

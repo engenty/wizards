@@ -1,9 +1,11 @@
+import type { Lang } from "@engenty-wizards/shared/definition";
 import {
   type TableColumn,
   TableColumnValueError,
   tableColumnsSchema,
 } from "@engenty-wizards/shared/engenty/data-tables";
 import type { CategoryInput } from "@engenty-wizards/shared/knowledge";
+import { note } from "@engenty-wizards/shared/run";
 import {
   editCells,
   SPACE_DATA_LIMITS,
@@ -15,7 +17,9 @@ import { rowKey } from "@engenty-wizards/shared/store";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
+import { saidOf } from "../model-errors.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { serverText } from "../texts.js";
 import { projectWritable, requireWritableProject } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
 import { filePaths, freeSlug, knowledgePage, pageTree, tablePaths } from "./knowledge.js";
@@ -24,9 +28,9 @@ import { ownedProject } from "./projects.js";
 import { itemCategoriesOf, setItemCategories, syncTableRowCategories } from "./space-categories.js";
 
 /**
- * The tables and pages a space keeps: its own — Wissen, written by people and by plugins — or
- * one of its wizards' — Daten, written by its runs. Every write checks that the space may be
- * changed here; a read-only space (a local install's) shows them only. What Wissen holds is
+ * The tables and pages a space keeps: its own — Knowledge, written by people and by plugins — or
+ * one of its wizards' — Data, written by its runs. Every write checks that the space may be
+ * changed here; a read-only space (a local install's) shows them only. What Knowledge holds is
  * indexed on every write, a moment after it.
  */
 
@@ -43,14 +47,14 @@ async function ownerOf(projectId: string, wizardId: string | null | undefined) {
     columns: { id: true },
   });
   if (!w) {
-    throw new ServiceError("invalid", "Diesen Wizard gibt es im Space nicht.");
+    throw new ServiceError("invalid", note("wizardNotSpace"));
   }
   return w.id;
 }
 
 function cellError(err: unknown): never {
   if (err instanceof TableColumnValueError) {
-    throw new ServiceError("invalid", err.message, { column: err.columnId });
+    throw new ServiceError("invalid", saidOf(err), { column: err.columnId });
   }
   throw err;
 }
@@ -58,12 +62,12 @@ function cellError(err: unknown): never {
 export function checkColumns(columns: unknown): TableColumn[] {
   const parsed = tableColumnsSchema.safeParse(columns);
   if (!parsed.success) {
-    throw new ServiceError("invalid", parsed.error.issues[0]?.message ?? "Ungültige Spalten.");
+    throw new ServiceError("invalid", parsed.error.issues[0]?.message ?? note("invalidColumns"));
   }
   return parsed.data;
 }
 
-/** Daten: the tables and pages the space's wizards keep, and the wizards to name whose they are. */
+/** Data: the tables and pages the space's wizards keep, and the wizards to name whose they are. */
 export async function listSpaceData(userId: string, projectId: string): Promise<SpaceData> {
   const project = await ownedProject(userId, projectId);
   const [tables, rows, pages, wizards] = await Promise.all([
@@ -135,10 +139,7 @@ async function tableCount(projectId: string) {
     .from(schema.spaceTable)
     .where(eq(schema.spaceTable.projectId, projectId));
   if (n >= SPACE_DATA_LIMITS.tables) {
-    throw new ServiceError(
-      "refused",
-      `Ein Space hat höchstens ${SPACE_DATA_LIMITS.tables} Tabellen.`,
-    );
+    throw new ServiceError("refused", note("spaceMostTables", { count: SPACE_DATA_LIMITS.tables }));
   }
 }
 
@@ -146,6 +147,7 @@ export async function createTable(
   userId: string,
   projectId: string,
   input: { title: string; wizardId?: string | null; columns?: unknown; format?: "faq" | null },
+  lang: Lang = "en",
 ) {
   const project = await ownedProject(userId, projectId);
   await requireWritableProject(project.id);
@@ -154,10 +156,10 @@ export async function createTable(
     ? checkColumns(input.columns)
     : input.format === "faq"
       ? [
-          { id: "frage", name: "Frage", type: "text" as const },
+          { id: "question", name: serverText(lang, "faqQuestion"), type: "text" as const },
           {
-            id: "antwort",
-            name: "Antwort",
+            id: "answer",
+            name: serverText(lang, "faqAnswer"),
             type: "text" as const,
             format: { style: "multiline" as const },
           },
@@ -165,7 +167,7 @@ export async function createTable(
       : [{ id: "name", name: "Name", type: "text" as const }];
   const id = nanoid(12);
   const wizardId = await ownerOf(project.id, input.wizardId);
-  const title = input.title.trim() || "Tabelle";
+  const title = input.title.trim() || serverText(lang, "tableTitle");
   await db.insert(schema.spaceTable).values({
     id,
     tenantId: currentTenant(),
@@ -238,10 +240,7 @@ export async function updateTable(
 ) {
   const table = await writableTable(tableId);
   if (table.list && (patch.columns !== undefined || patch.wizardId !== undefined)) {
-    throw new ServiceError(
-      "refused",
-      "Diese Tabelle gehört zu einer Liste des Wizards: ihre Spalten kommen aus dem Wizard.",
-    );
+    throw new ServiceError("refused", note("tableBelongsOneWizard"));
   }
   const title = patch.title !== undefined ? patch.title.trim() || table.title : table.title;
   const wizardId =
@@ -318,11 +317,11 @@ async function refuseClash(tableId: string, key: string | null, rowId: string | 
     columns: { id: true },
   });
   if (other && other.id !== rowId) {
-    throw new ServiceError("invalid", "Diesen Eintrag gibt es schon.");
+    throw new ServiceError("invalid", note("entryAlreadyExists"));
   }
 }
 
-/** After a row of a table of Wissen changed: its Kategorien from its columns, its unit. */
+/** After a row of a table of Knowledge changed: its categories from its columns, its unit. */
 async function rowChanged(table: TableRow, rowId: string) {
   if (table.wizardId) {
     return;
@@ -345,7 +344,7 @@ export async function addTableRow(
   if (n >= SPACE_DATA_LIMITS.rowsPerTable) {
     throw new ServiceError(
       "refused",
-      `Eine Tabelle hat höchstens ${SPACE_DATA_LIMITS.rowsPerTable} Zeilen.`,
+      note("tableMostRows", { count: SPACE_DATA_LIMITS.rowsPerTable }),
     );
   }
   let value: Record<string, unknown>;
@@ -423,7 +422,7 @@ function checkMarkdown(markdown: string) {
   if (markdown.length > SPACE_DATA_LIMITS.pageChars) {
     throw new ServiceError(
       "refused",
-      `Eine Seite hat höchstens ${SPACE_DATA_LIMITS.pageChars.toLocaleString("de")} Zeichen.`,
+      note("pageMostChars", { count: SPACE_DATA_LIMITS.pageChars }),
     );
   }
   return markdown;
@@ -435,7 +434,7 @@ async function pageCount(projectId: string, more = 1) {
     .from(schema.spacePage)
     .where(eq(schema.spacePage.projectId, projectId));
   if (n + more > SPACE_DATA_LIMITS.pages) {
-    throw new ServiceError("refused", `Ein Space hat höchstens ${SPACE_DATA_LIMITS.pages} Seiten.`);
+    throw new ServiceError("refused", note("spaceMostPages", { count: SPACE_DATA_LIMITS.pages }));
   }
 }
 
@@ -449,11 +448,11 @@ async function parentOf(projectId: string, parentId: string | null | undefined, 
     columns: { id: true, wizardId: true, parentId: true },
   });
   if (!parent || parent.wizardId) {
-    throw new ServiceError("invalid", "Unter diese Seite kann keine Seite.");
+    throw new ServiceError("invalid", note("pageNotSubpages"));
   }
   for (let at: string | null = parent.id; at && pageId; ) {
     if (at === pageId) {
-      throw new ServiceError("invalid", "Eine Seite kann nicht unter sich selbst stehen.");
+      throw new ServiceError("invalid", note("pageNotOwnSubpage"));
     }
     const up: { parentId: string | null } | undefined = await db.query.spacePage.findFirst({
       where: eq(schema.spacePage.id, at),
@@ -599,7 +598,7 @@ export async function orderSubPages(_userId: string, pageId: string, ids: string
 // --- what runs read and write --------------------------------------------------
 // A run writes the pages of its own wizard, on the runtime it runs on: a run on the server writes
 // the server's, also in a space a local install synced, which the studio there only shows. It
-// reads its wizard's pages; the space's own are Wissen, read by path.
+// reads its wizard's pages; the space's own are Knowledge, read by path.
 
 /** The pages of a run's wizard. */
 export async function runPages(projectId: string, wizardId: string) {
@@ -618,7 +617,7 @@ export async function writeRunPage(
 ) {
   const title = input.title.trim();
   if (!title) {
-    throw new ServiceError("invalid", "A page needs a title.");
+    throw new ServiceError("invalid", note("pageNeedsTitle"));
   }
   const existing = (
     await db.query.spacePage.findMany({
@@ -645,7 +644,7 @@ export async function writeRunPage(
     .from(schema.spacePage)
     .where(eq(schema.spacePage.projectId, projectId));
   if (n >= SPACE_DATA_LIMITS.pages) {
-    throw new ServiceError("refused", `A space keeps at most ${SPACE_DATA_LIMITS.pages} pages.`);
+    throw new ServiceError("refused", note("spaceMostPages", { count: SPACE_DATA_LIMITS.pages }));
   }
   const id = nanoid(12);
   await db.insert(schema.spacePage).values({
@@ -660,7 +659,7 @@ export async function writeRunPage(
 }
 
 // --- what plugins write ------------------------------------------------------------
-// A plugin (`server.spaceData`) writes Wissen under keys of its own: the same key again
+// A plugin (`server.spaceData`) writes Knowledge under keys of its own: the same key again
 // rewrites, never doubles. What a person changed since stays theirs.
 
 export type OriginState = "written" | "kept";
@@ -686,7 +685,7 @@ async function originSpace(space: string) {
     columns: { id: true },
   });
   if (!project) {
-    throw new ServiceError("not_found", `There is no space "${space}".`);
+    throw new ServiceError("not_found", note("unknownSpace", { space }));
   }
   await requireWritableProject(project.id);
   return project.id;
@@ -740,10 +739,7 @@ export async function putOriginPage(
       })
     : null;
   if (input.parent && !parent) {
-    throw new ServiceError(
-      "invalid",
-      `There is no page with the key "${input.parent}" to stand under.`,
-    );
+    throw new ServiceError("invalid", note("noParentPage", { parent: input.parent }));
   }
   const title = input.title.replace(/\s+/g, " ").trim().slice(0, 200) || "Seite";
   const markdown = checkMarkdown(input.markdown);
@@ -831,7 +827,7 @@ export async function putOriginTable(
   if (input.rows.length > SPACE_DATA_LIMITS.rowsPerTable) {
     throw new ServiceError(
       "refused",
-      `A table keeps at most ${SPACE_DATA_LIMITS.rowsPerTable} rows.`,
+      note("tableMostRows", { count: SPACE_DATA_LIMITS.rowsPerTable }),
     );
   }
   let cells: Record<string, unknown>[];

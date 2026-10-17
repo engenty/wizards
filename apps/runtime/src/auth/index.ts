@@ -87,6 +87,8 @@ function setLocalCookie(c: Context) {
 // --- signed in at the Manage-App ------------------------------------------------
 
 const SESSION_COOKIE = "wz_session";
+/** How much of a wish goes along to the account's sign-in page. */
+const WISH_MAX = 600;
 const STATE_COOKIE = "wz_oauth";
 const SESSION_DAYS = 30;
 const SCOPE =
@@ -246,7 +248,7 @@ export const authRoutes = new Hono()
     if (expires) {
       usedTickets.set(ticket, expires);
     } else if (managed || !accessKey || !sameValue(given, accessKey)) {
-      return c.text("This link is no longer valid. Start the app again.", 403);
+      return c.text("This link is no longer valid. Run wizards open to get a new one.", 403);
     } else {
       accessKey = null;
     }
@@ -328,6 +330,11 @@ export const authRoutes = new Hono()
       code_challenge_method: "S256",
       state: state.nonce,
     }).toString();
+    // What the person wants built (the studio's start page): the account's sign-in page shows it.
+    const wish = (c.req.query("wish") ?? "").trim().slice(0, WISH_MAX);
+    if (wish) {
+      url.searchParams.set("wish", wish);
+    }
     return c.redirect(url.toString());
   })
   .get("/auth/callback", async (c) => {
@@ -336,7 +343,7 @@ export const authRoutes = new Hono()
     if (!managed) {
       // The linked account of a runtime that runs alone: the system browser lands here.
       if (!code) {
-        return c.html(closePage("Anmeldung abgebrochen. Du kannst dieses Fenster schließen."), 400);
+        return c.html(closePage("Sign-in cancelled. You can close this window."), 400);
       }
       try {
         await finishLink(code, rawState);
@@ -344,10 +351,10 @@ export const authRoutes = new Hono()
         void firstSync();
         // The Pro modules the account's plan includes.
         void refreshPro();
-        return c.html(closePage("Angemeldet. Du kannst dieses Fenster schließen."));
+        return c.html(closePage("Signed in. You can close this window."));
       } catch (err) {
         console.error("[account]", err);
-        return c.html(closePage("Anmeldung hat nicht geklappt. Bitte noch einmal versuchen."), 400);
+        return c.html(closePage("The sign-in didn’t work. Try again."), 400);
       }
     }
     const state = unseal<LoginState>(getCookie(c, STATE_COOKIE) ?? "");
@@ -388,7 +395,7 @@ export const authRoutes = new Hono()
         } satisfies Handoff);
         const link = `engenty-wizards://signin?code=${encodeURIComponent(code)}`;
         return c.html(
-          `${closePage("Angemeldet. Kehre jetzt zu engenty wizards zurück.")}
+          `${closePage("Signed in. Go back to engenty wizards now.")}
 <script>location.href = ${JSON.stringify(link)};</script>`,
         );
       }
@@ -407,5 +414,11 @@ export const authRoutes = new Hono()
     }
     deleteCookie(c, SESSION_COOKIE, { path: cookiePath });
     deleteCookie(c, LOCAL_COOKIE, { path: cookiePath });
-    return c.json({ ok: true });
+    if (!managed) {
+      return c.json({ ok: true });
+    }
+    // The person signs out of the account too (the Manage-App's `/api/sign-out`, a form the page
+    // sends there): still signed in there, the sign-in page would sign them in again at once.
+    const d = await discovery().catch(() => null);
+    return c.json({ ok: true, account: d ? new URL("/api/sign-out", d.issuer).toString() : null });
   });

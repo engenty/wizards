@@ -1,5 +1,11 @@
 # Concept: wizard channels
 
+Since 2026-10-13: WhatsApp, SMS and calls are no longer part of the open repository. The
+modules `modules/whatsapp`, `modules/sms` and `modules/calls` named below shipped up to v0.4.0;
+from then on these channels run on engenty.ai only. The open runtime keeps everything they are
+built on: the runners with `problem` and `address`, the SDK's thread door and
+`server.speech.conversation()`.
+
 Status: concept, written on 2026-10-08. Built on the branch the same day: the chat runner,
 dictate and read aloud, live voice and live video on the web, WhatsApp in chat mode as the
 module `modules/whatsapp`, SMS as `modules/sms` (text only; both are surfaces of the SDK's

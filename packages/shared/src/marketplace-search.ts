@@ -4,18 +4,16 @@ import {
   tokenizeCatalogText,
 } from "./engenty/search-index/catalog-lexical.js";
 import {
-  CAPABILITIES,
   type Capability,
-  INDUSTRIES,
   type Industry,
-  ITEM_FORMATS,
   type ItemFormat,
+  type MarketGroup,
   type MarketplaceFacets,
   type MarketplaceFilters,
   type MarketplacePage,
   type MarketplacePlan,
   type MarketplaceSummary,
-  USE_CASES,
+  marketLabels,
   type UseCase,
 } from "./marketplace.js";
 
@@ -66,8 +64,7 @@ const SENTENCE_SHARE = 0.4;
 export const isSentence = (query: string) =>
   query.trim().split(/\s+/).filter(Boolean).length >= SENTENCE_WORDS;
 
-const labels = (all: Record<string, { de: string; en: string }>, ids: string[]) =>
-  ids.flatMap((id) => (all[id] ? [all[id].de, all[id].en] : []));
+const labels = (group: MarketGroup, ids: string[]) => ids.flatMap((id) => marketLabels(group, id));
 
 /** How well an entry answers the query by its words; 0 when it does not at all. */
 export function scoreEntry(entry: MarketplaceSummary, query: string): number {
@@ -78,11 +75,11 @@ export function scoreEntry(entry: MarketplaceSummary, query: string): number {
   const record = {
     title: fold(entry.title),
     summary: fold(entry.pitch),
-    category: labels(USE_CASES, entry.useCases),
+    category: labels("useCase", entry.useCases),
     tags: [
-      ...labels(INDUSTRIES, entry.industries),
-      ...labels(ITEM_FORMATS, entry.formats),
-      ...labels(CAPABILITIES, entry.capabilities),
+      ...labels("industry", entry.industries),
+      ...labels("format", entry.formats),
+      ...labels("capability", entry.capabilities),
     ].map(fold),
   };
   let score = scoreCatalogEntry(record, terms.join(" "), WEIGHTS);

@@ -1,4 +1,5 @@
 import { basename, delimiter, dirname, join } from "node:path";
+import { isCI } from "./autoupdate.js";
 import type { Layout } from "./home.js";
 
 /**
@@ -37,11 +38,15 @@ const INHERITED = new Set([
   "SANDBOX",
   "SANDBOX_ENABLED",
   "SANDBOX_IMAGE",
+  "SANDBOX_ALLOW_HOSTS",
+  "SANDBOX_ENGINES_DIR",
   "PLUGINS_DIR",
   "PLUGINS_WATCH",
   "ACCOUNT_URL",
   "ACCOUNT_GATEWAY_URL",
   "CLOUD_URL",
+  // Off for this start (autoupdate.ts).
+  "WIZARDS_DISABLE_AUTOUPDATE",
 ]);
 
 export function inherited(env: NodeJS.ProcessEnv): Record<string, string> {
@@ -101,6 +106,8 @@ export function runtimeEnv(
     LOCAL_ACCESS_KEY: start.accessKey,
     // The install the runtime belongs to: the studio connects AI apps to its command.
     ...(basename(paths.home) === "wizards" ? { ENGENTY_HOME: dirname(paths.home) } : {}),
+    // The runtime sees no CI variables; it is told so, and checks for no updates (autoupdate.ts).
+    ...(isCI(env) ? { ENGENTY_WIZARDS_CI: "1" } : {}),
     // Keys entered in the settings live in the Keychain, as with the desktop app.
     ...(platform === "darwin" && !secretsGiven ? { SECRETS: "keychain" } : {}),
   };

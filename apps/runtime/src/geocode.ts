@@ -27,7 +27,7 @@ export function placeLabel(result: ReverseResult): string | null {
  * The address of a position, when the server has a geocoder (`GEOCODER_URL`). Calls go out one
  * at a time and at most one a second — what a public Nominatim asks of its users.
  */
-export function reverseGeocode(lat: number, lng: number, language = "de"): Promise<string | null> {
+export function reverseGeocode(lat: number, lng: number, language = "en"): Promise<string | null> {
   if (!env.geocoderUrl) {
     return Promise.resolve(null);
   }

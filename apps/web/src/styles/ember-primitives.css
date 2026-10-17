@@ -69,6 +69,11 @@
   --cobalt-tint: var(--info-tint);
   --moss: var(--success);
   --moss-tint: var(--success-tint);
+  /* The brand's second colour on a run's views: what is there, done, a tip. A wizard's brand
+     sets --raw-second; without one it is the success green. Its lightness is held to what the
+     paper can carry, as --ember-mark does for the accent. */
+  --second: oklch(from var(--raw-second, var(--success)) min(l, 0.5) c h);
+  --second-tint: oklch(from var(--raw-second, var(--success)) 0.95 calc(c * 0.3) h);
   --amber: var(--warning);
   --amber-tint: var(--warning-tint);
   /* Aliases --danger rather than repeating its formula, so rose picks up the
@@ -217,6 +222,9 @@
   --raw-sidebar: oklch(
     from var(--raw-background) calc(0.09 + (0.03 * var(--contrast))) calc(c * 1.2) h
   );
+
+  --second: oklch(from var(--raw-second, var(--success)) max(l, 0.72) c h);
+  --second-tint: oklch(from var(--raw-second, var(--success)) 0.25 calc(c * 0.35) h);
 
   /* Surfaces */
   --paper: oklch(from var(--raw-background) calc(0.12 + (0.03 * var(--contrast))) c h);

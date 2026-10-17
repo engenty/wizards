@@ -1,3 +1,4 @@
+import { LOCALES } from "@engenty-wizards/shared/definition";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import {
   type KeyboardEvent,
@@ -18,7 +19,7 @@ import { cn } from "./index";
  * moves by a day across time zones. Monday is the first day of the week.
  */
 
-const locale = () => (lang === "de" ? "de-AT" : "en-GB");
+const locale = () => LOCALES[lang];
 const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
 const parts = (date: string) => date.split("-").map(Number) as [number, number, number];

@@ -33,12 +33,21 @@ const RELEASE_FILES = [
   "changelog.json",
   "apps/web/src/about/changelog.json",
   "apps/web/src/about/oss-credits.json",
+  "COPYRIGHTS.md",
 ];
 
 // ── a small terminal UI ──────────────────────────────────────────────────────
 const TTY = process.stdout.isTTY && !process.env.NO_COLOR;
 const col = (n) => (s) => (TTY ? `\x1b[${n}m${s}\x1b[0m` : s);
-const c = { b: col(1), dim: col(2), red: col(31), green: col(32), yellow: col(33), cyan: col(36), gray: col(90) };
+const c = {
+  b: col(1),
+  dim: col(2),
+  red: col(31),
+  green: col(32),
+  yellow: col(33),
+  cyan: col(36),
+  gray: col(90),
+};
 const out = (s = "") => process.stdout.write(`${s}\n`);
 const die = (m) => {
   out(`\n${c.red("✖")} ${m}`);
@@ -117,7 +126,11 @@ function cliff(args) {
   });
 }
 const git = (args) =>
-  execSync(`git ${args}`, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  execSync(`git ${args}`, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 const quiet = (args) => {
   try {
     execSync(`git ${args}`, { cwd: root, stdio: "ignore" });
@@ -222,7 +235,9 @@ async function main() {
     `${c.dim("current")} ${c.b(`v${current}`)}   ${c.dim("last tag")} ${c.b(lastTag || "(none)")}   ${c.dim("branch")} ${branch === "main" ? branch : c.yellow(`${branch} (not main)`)}${CHANGELOG_ONLY ? c.yellow("   [changelog]") : ""}`,
   );
 
-  const unreleased = JSON.parse(cliff(["--unreleased", "--context"])).flatMap((r) => r.commits || []);
+  const unreleased = JSON.parse(cliff(["--unreleased", "--context"])).flatMap(
+    (r) => r.commits || [],
+  );
 
   if (CHANGELOG_ONLY) {
     if (unreleased.length > 0) {
@@ -277,7 +292,12 @@ async function main() {
       ordered.map((l) => ({
         label: `${l.padEnd(7)} → v${bump(current, l)}`,
         value: l,
-        hint: l === "current" ? "package.json's version, not tagged yet" : l === suggested ? "suggested" : "",
+        hint:
+          l === "current"
+            ? "package.json's version, not tagged yet"
+            : l === suggested
+              ? "suggested"
+              : "",
       })),
     ));
   const version = bump(current, level);
@@ -330,7 +350,11 @@ async function main() {
   git(`tag -a ${tag} -m "chore(release): ${tag}"`);
   out(`\n${c.green("✔")} Released ${c.b(tag)} locally. Nothing pushed yet.`);
   out(c.dim("  Push the commit and its tag:  git push origin main --follow-tags"));
-  out(c.dim("  The tag ships: release.yml publishes the local install, ci.yml deploys the cloud runtime."));
+  out(
+    c.dim(
+      "  The tag ships: release.yml publishes the local install, ci.yml deploys the cloud runtime.",
+    ),
+  );
 }
 
 main().catch((e) => die(e?.stderr?.toString().trim() || e?.message || String(e)));

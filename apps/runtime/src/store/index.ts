@@ -1,4 +1,6 @@
+import { note } from "@engenty-wizards/shared/run";
 import {
+  firstRowAt,
   type ListDef,
   type ListRow,
   newCells,
@@ -96,6 +98,7 @@ export async function saveRows(
   const existing = await db.query.storeRow.findMany({ where: inList(scope, def.id) });
   const byKey = new Map(existing.filter((r) => r.key).map((r) => [r.key as string, r]));
   let count = existing.length;
+  const at = firstRowAt(existing);
   for (const raw of input) {
     const key = rowKey(def, raw);
     const hit = key ? byKey.get(key) : undefined;
@@ -116,10 +119,17 @@ export async function saveRows(
     if (count >= STORE_LIMITS.rowsPerList) {
       throw new StoreError(`List "${def.id}" is full (${STORE_LIMITS.rowsPerList} rows).`);
     }
-    const row = { id: nanoid(14), ...scope, list: def.id, key, cells };
+    const row = {
+      id: nanoid(14),
+      ...scope,
+      list: def.id,
+      key,
+      cells,
+      createdAt: new Date(at + added),
+    };
     await db.insert(schema.storeRow).values(row);
     if (key) {
-      byKey.set(key, { ...row, createdAt: new Date(), updatedAt: new Date() });
+      byKey.set(key, { ...row, updatedAt: new Date() });
     }
     count++;
     added++;
@@ -153,7 +163,7 @@ export async function updateRow(
         })
       : null;
   if (clash) {
-    throw new StoreError("Diesen Eintrag gibt es schon.");
+    throw new StoreError(note("entryAlreadyExists"));
   }
   await db
     .update(schema.storeRow)
@@ -230,6 +240,15 @@ export async function storeFiles(scope: StoreScope, folder?: string): Promise<St
   return rows.map(toFile);
 }
 
+/** Whether the wizard keeps any file for the holder: one row, not the whole list. */
+export async function hasStoreFiles(scope: StoreScope): Promise<boolean> {
+  const row = await db.query.storeFile.findFirst({
+    where: ownFiles(scope),
+    columns: { path: true },
+  });
+  return row !== undefined;
+}
+
 export async function readStoreFile(scope: StoreScope, rawPath: string) {
   const path = cleanPath(rawPath);
   const row = path
@@ -283,18 +302,6 @@ export async function writeStoreFile(
     source: meta.source ?? null,
     updatedAt: updatedAt.toISOString(),
   };
-}
-
-export async function deleteStoreFile(scope: StoreScope, rawPath: string) {
-  const path = cleanPath(rawPath);
-  if (!path) {
-    return false;
-  }
-  const gone = await db
-    .delete(schema.storeFile)
-    .where(and(ownFiles(scope), eq(schema.storeFile.path, path)))
-    .returning({ path: schema.storeFile.path });
-  return gone.length > 0;
 }
 
 // --- secrets -----------------------------------------------------------------

@@ -14,6 +14,12 @@ const RUNTIME = "http://localhost:5181";
 const SERVICE_KEY = "wzr_test_service_key";
 const balances: Record<string, number> = { "tenant-a": 500, "tenant-b": 0 };
 const reservations: { tenantId: string; runId: string; credits: number }[] = [];
+const numberRequests: { tenantId: string; body: any }[] = [];
+/** What the studio's first visit sent about a team. */
+const profiles: { tenantId: string; body: any }[] = [];
+const channelUsage: { tenantId: string; body: any }[] = [];
+// The Manage-App fails on tenant B's plan while this is set.
+let tenantBDown = false;
 let issuer = "";
 
 function token(claims: Record<string, unknown>, aud: string) {
@@ -81,8 +87,42 @@ const manage: Server = createServer(async (req, res) => {
       seats: { limit: 5, taken: 3 },
     });
   }
+  const profile = url.pathname.match(/^\/v1\/tenants\/([^/]+)\/profile$/)?.[1];
+  if (profile && req.method === "PUT") {
+    profiles.push({ tenantId: profile, body: JSON.parse(raw) });
+    return json({ ok: true });
+  }
+  // Tenant A has its number for texts and calls; tenant B asks for one.
+  const channels = url.pathname.match(/^\/v1\/tenants\/([^/]+)\/channels(\/requests|\/usage)?$/);
+  if (channels) {
+    const [, id, sub] = channels;
+    if (sub === "/usage") {
+      const body = JSON.parse(raw);
+      channelUsage.push({ tenantId: id, body });
+      return json({ credits: body.quantity * 10 });
+    }
+    if (sub === "/requests") {
+      if (id === "tenant-a") {
+        return json({ error: "The team has its number.", code: "has_number" }, 409);
+      }
+      numberRequests.push({ tenantId: id, body: JSON.parse(raw) });
+      return json({ request: { id: "req-1", country: "AT", wish: null, email: "b@test.local", createdAt: "2026-10-14T00:00:00.000Z" } });
+    }
+    return json({
+      number:
+        id === "tenant-a"
+          ? { id: "n1", number: "+4318008081", country: "AT", kinds: ["sms", "call"], providerRef: "PN1", since: "2026-10-01T00:00:00.000Z" }
+          : null,
+      request: null,
+      shared: [{ number: "+436600000000", country: "AT", kinds: ["whatsapp"] }],
+      allowed: id === "tenant-a",
+    });
+  }
   const tenant = url.pathname.match(/^\/v1\/tenants\/([^/]+)$/)?.[1];
   if (tenant) {
+    if (tenantBDown && tenant === "tenant-b") {
+      return json({ error: "down", code: "unavailable" }, 503);
+    }
     return json({
       id: tenant,
       name: tenant,
@@ -96,6 +136,11 @@ const manage: Server = createServer(async (req, res) => {
       features: tenant === "tenant-a" ? { ownKeys: false } : {},
       db: null,
     });
+  }
+  if (url.pathname === "/v1/grants/check") {
+    // The person disconnected this one on the account page.
+    const { clientId } = JSON.parse(raw);
+    return json({ active: clientId !== "disconnected-app" });
   }
   if (url.pathname === "/v1/keys/verify") {
     const { key } = JSON.parse(raw);
@@ -131,9 +176,50 @@ process.env.MANAGE_CLIENT_SECRET = "secret";
 process.env.MANAGE_SERVICE_KEY = SERVICE_KEY;
 
 // Three plugins: one every tenant has, one the Manage-App lists for tenant A, one nobody has.
+// The one every tenant has also reads the tenant's numbers and has a route for all tenants.
 const plugins = join(dir, "plugins");
 mkdirSync(plugins);
-for (const id of ["basics", "teams", "spaces"]) {
+writeFileSync(
+  join(plugins, "basics.ts"),
+  `export default (wizards: any) => {
+  const { server } = wizards;
+  server.registerHttpRoute({ method: "GET", path: "/", handler: ({ user }: any) => ({ plugin: "basics", tenant: user.tenantId }) });
+  server.registerHttpRoute({
+    method: "GET",
+    path: "/channels",
+    handler: async () => ({ channels: await server.channels.get(), ref: await server.publicRef(), shared: server.sharedUrl("/hook") }),
+  });
+  server.registerHttpRoute({
+    method: "POST",
+    path: "/channels/request",
+    handler: ({ user }: any) => server.channels.request({ userId: user.id, country: "at", lang: "de" }),
+  });
+  server.registerHttpRoute({
+    method: "POST",
+    path: "/channels/book",
+    handler: () => server.channels.book({ kind: "sms", quantity: 2, key: "SM1", runId: "run-1" }),
+  });
+  server.registerHttpRoute({
+    method: "POST",
+    path: "/claims/:how",
+    handler: async ({ params, json }: any) => {
+      const { key } = await json();
+      const done = await server.claims[params.how](key);
+      return { done: done ?? null, mine: await server.claims.mine(key), holder: await server.claims.holder(key) };
+    },
+  });
+  server.registerSharedRoute({
+    method: "POST",
+    path: "/hook",
+    handler: async (request: any) => {
+      const { ref } = await request.request.json();
+      return request.inTenant(ref, async () => ({ number: (await server.channels.get())?.number?.number ?? null }));
+    },
+  });
+};
+`,
+);
+for (const id of ["teams", "spaces"]) {
   writeFileSync(
     join(plugins, `${id}.ts`),
     `export default (wizards: any) => {
@@ -271,17 +357,27 @@ describe("a runtime of a Manage-App", () => {
     expect(await withKey.json()).toMatchObject({ code: "plan" });
     // Tenant B's plan says nothing about keys: it keeps them.
     expect((await put({ keys: { openai: "sk-test" } }, b)).status).toBe(200);
+    // When the Manage-App can't say what tenant B's plan holds, own keys wait; the rest is saved.
+    const { forgetTenant } = await import("../src/manage");
+    tenantBDown = true;
+    forgetTenant("tenant-b");
+    try {
+      const unchecked = await put({ keys: { openai: "sk-test" } }, b);
+      expect(unchecked.status).toBe(503);
+      expect(await unchecked.json()).toMatchObject({ code: "manage_unavailable" });
+      expect((await put({}, b)).status).toBe(200);
+    } finally {
+      tenantBDown = false;
+      forgetTenant("tenant-b");
+    }
     const plugins = await app.fetch(
       new Request(`${RUNTIME}/api/internal/plugins`, { headers: { authorization: `Bearer ${SERVICE_KEY}` } }),
     );
     expect(plugins.status).toBe(200);
     expect(((await plugins.json()) as { plugins: { id: string }[] }).plugins.map((p) => p.id).sort()).toEqual([
       "basics",
-      "calls",
-      "sms",
       "spaces",
       "teams",
-      "whatsapp",
     ]);
     expect((await app.fetch(new Request(`${RUNTIME}/api/internal/plugins`))).status).toBe(401);
   });
@@ -318,6 +414,60 @@ describe("a runtime of a Manage-App", () => {
     expect((await get("/api/studio/plugins/-/events", a)).status).toBe(404);
   });
 
+  it("gives a plugin the tenant's numbers, books what they carry, and enters a tenant from a shared route by its ref", async () => {
+    const ofA = (await (await get("/api/studio/plugins/basics/channels", a)).json()) as any;
+    expect(ofA.channels).toEqual({
+      number: { number: "+4318008081", country: "AT", kinds: ["sms", "call"], providerRef: "PN1" },
+      request: null,
+      shared: [{ number: "+436600000000", country: "AT", kinds: ["whatsapp"] }],
+      allowed: true,
+    });
+    expect(ofA.shared).toBe(`${RUNTIME}/api/public/plugins/basics/shared/hook`);
+    expect(ofA.ref).toMatch(/^[\w-]{24}$/);
+    const ofB = (await (await get("/api/studio/plugins/basics/channels", b)).json()) as any;
+    expect(ofB.channels).toMatchObject({ number: null, allowed: false });
+    expect(ofB.ref).not.toBe(ofA.ref);
+    // Asking: refused as the Manage-App refuses, passed on with its code.
+    const refused = await post("/api/studio/plugins/basics/channels/request", a, {});
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ code: "has_number" });
+    const asked = await post("/api/studio/plugins/basics/channels/request", b, {});
+    expect(await asked.json()).toMatchObject({ id: "req-1", country: "AT" });
+    expect(numberRequests).toEqual([
+      { tenantId: "tenant-b", body: { userId: "user-b", country: "AT", wish: null, lang: "de" } },
+    ]);
+    // Booking: the quantity goes, the Manage-App prices it.
+    expect(await (await post("/api/studio/plugins/basics/channels/book", a, {})).json()).toEqual({ credits: 20 });
+    expect(channelUsage).toEqual([
+      { tenantId: "tenant-a", body: { kind: "sms", quantity: 2, idempotencyKey: "SM1", runId: "run-1" } },
+    ]);
+    // The shared route: one address, the tenant by the ref the call carries.
+    const hook = (ref: string) =>
+      app.fetch(new Request(ofA.shared, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ref }) }));
+    expect(await (await hook(ofA.ref)).json()).toEqual({ number: "+4318008081" });
+    expect(await (await hook(ofB.ref)).json()).toEqual({ number: null });
+    const unknown = await hook("x".repeat(24));
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toMatchObject({ code: "not_found" });
+    expect((await app.fetch(new Request(`${RUNTIME}/api/public/plugins/basics/shared/other`, { method: "POST" }))).status).toBe(404);
+  });
+
+  it("lets a plugin hold keys across tenants, each for one at a time", async () => {
+    const claim = async (cookie: string, how: string, key: string) =>
+      (await (await post(`/api/studio/plugins/basics/claims/${how}`, cookie, { key })).json()) as any;
+    const refA = ((await (await get("/api/studio/plugins/basics/channels", a)).json()) as any).ref;
+    const refB = ((await (await get("/api/studio/plugins/basics/channels", b)).json()) as any).ref;
+    // Taken: the first one keeps it.
+    expect(await claim(a, "take", "kw:zähler")).toEqual({ done: true, mine: true, holder: refA });
+    expect(await claim(b, "take", "kw:zähler")).toEqual({ done: false, mine: false, holder: refA });
+    // Put: the last one has it. Dropped only by the one that holds it.
+    expect(await claim(b, "put", "sender:4366012345")).toMatchObject({ mine: true, holder: refB });
+    expect(await claim(a, "put", "sender:4366012345")).toMatchObject({ mine: true, holder: refA });
+    expect(await claim(b, "drop", "sender:4366012345")).toMatchObject({ holder: refA });
+    expect(await claim(a, "drop", "sender:4366012345")).toMatchObject({ holder: null, mine: false });
+    expect((await post("/api/studio/plugins/basics/claims/take", a, { key: "" })).status).toBe(400);
+  });
+
   it("refuses a test run without credits and reserves credits with them", async () => {
     const [projectB] = (await (await get("/api/studio/projects", b)).json()) as { id: string }[];
     const wb = ((await (await post("/api/studio/wizards", b, { projectId: projectB.id })).json()) as { id: string }).id;
@@ -349,7 +499,10 @@ describe("a runtime of a Manage-App", () => {
       `Bearer ${await token({ sub: "user-a", tenant: "tenant-a", role: "owner", azp: "claude-code" }, `${RUNTIME}/api/mcp`)}`,
     );
     expect(asA.status).toBe(200);
-    expect(await asA.text()).toContain(wizardOfA);
+    const listed = await asA.text();
+    expect(listed).toContain(wizardOfA);
+    // Each wizard names its space and where the space comes from: ids are not for the person.
+    expect(listed).toMatch(/spaceFrom\\?":\\?"here/);
     const asB = await list("Bearer wz_key_of_b");
     expect(asB.status).toBe(200);
     expect(await asB.text()).not.toContain(wizardOfA);
@@ -359,6 +512,11 @@ describe("a runtime of a Manage-App", () => {
     );
     expect(wrongAudience.status).toBe(401);
     expect((await list("Bearer wz_unknown")).status).toBe(401);
+    // A token still signed and unexpired, of an app the person disconnected: its grant is gone.
+    const disconnected = await list(
+      `Bearer ${await token({ sub: "user-a", tenant: "tenant-a", role: "owner", azp: "disconnected-app" }, `${RUNTIME}/api/mcp`)}`,
+    );
+    expect(disconnected.status).toBe(401);
     const meta = await app.fetch(
       new Request(`${RUNTIME}/.well-known/oauth-protected-resource/api/mcp`),
     );
@@ -431,6 +589,45 @@ describe("a runtime of a Manage-App", () => {
     expect((await get("/api/studio/me", session)).status).toBe(200);
     // The code works once.
     expect(cookieOf(await handoff(windowCookie), "wz_session")).toBe("");
+  });
+
+  it("takes a guest's wish along to the account's sign-in page", async () => {
+    const login = await app.fetch(
+      new Request(`${RUNTIME}/api/auth/login?return=/new&wish=${encodeURIComponent("Ein Quiz")}`),
+    );
+    expect(new URL(login.headers.get("location") ?? "").searchParams.get("wish")).toBe("Ein Quiz");
+    const long = await app.fetch(
+      new Request(`${RUNTIME}/api/auth/login?return=/new&wish=${"x".repeat(2000)}`),
+    );
+    expect(
+      new URL(long.headers.get("location") ?? "").searchParams.get("wish")?.length,
+    ).toBe(600);
+  });
+
+  it("hands what a team says about itself to the Manage-App, from its owner only", async () => {
+    const owner = await signIn("code-a");
+    const put = (cookie: string, body: unknown) =>
+      app.fetch(
+        new Request(`${RUNTIME}/api/studio/team/profile`, {
+          method: "PUT",
+          headers: { cookie, "content-type": "application/json", origin: RUNTIME },
+          body: JSON.stringify(body),
+        }),
+      );
+    const res = await put(owner, { kind: "small", size: "2-9", sector: "Tischlerei" });
+    expect(res.status).toBe(200);
+    expect(profiles.at(-1)).toMatchObject({
+      tenantId: "tenant-a",
+      body: { userId: "user-a", kind: "small", size: "2-9", sector: "Tischlerei" },
+    });
+    expect((await put(owner, { kind: "nonsense" })).status).toBe(400);
+  });
+
+  it("signs out here and names where the account's sign-in ends", async () => {
+    const session = await signIn("code-a");
+    const res = await post("/api/auth/sign-out", session, {});
+    expect(await res.json()).toEqual({ ok: true, account: `${issuer}/api/sign-out` });
+    expect((await get("/api/studio/me", session)).status).toBe(401);
   });
 
   it("suspends and deletes a tenant when the Manage-App says so", async () => {

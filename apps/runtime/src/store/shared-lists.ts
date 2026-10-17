@@ -1,4 +1,5 @@
 import {
+  firstRowAt,
   type ListDef,
   type ListRow,
   newCells,
@@ -15,7 +16,7 @@ import { StoreError } from "./errors.js";
  * A wizard's shared lists: one table of the space per list, owned by the wizard, that every run
  * reads and writes, wherever it runs — a run on the server writes the server's table, one on a
  * local install the install's. The list in the wizard's definition decides the table's title,
- * columns and key; the studio shows it under Space → Daten.
+ * columns and key; the studio shows it under Space → Data.
  */
 
 type TableRow = typeof schema.spaceTable.$inferSelect;
@@ -92,8 +93,7 @@ export async function saveSharedRows(
   });
   const byKey = new Map(existing.filter((r) => r.key).map((r) => [r.key as string, r]));
   let count = existing.length;
-  // Rows stand in the order they came, also those saved in the same second.
-  const at = Date.now();
+  const at = firstRowAt(existing);
   let added = 0;
   let updated = 0;
   for (const raw of input) {

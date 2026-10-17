@@ -1,4 +1,5 @@
 import { type ModelClass, TEXT_CLASSES, type TextClass } from "@engenty-wizards/shared/definition";
+import { featureOn } from "@engenty-wizards/shared/features";
 import {
   CAPABILITY_CLASSES,
   CREDITS,
@@ -16,6 +17,7 @@ import {
   type ProviderInfo,
   providerInfo,
   providerOfRef,
+  providerText,
 } from "@engenty-wizards/shared/providers";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -36,8 +38,8 @@ import {
 import { type ReactNode, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../lib/api";
-import { type Lang, lang, t } from "../lib/i18n";
-import { type HarnessId, type HarnessStatus, type Me, useMe } from "../lib/session";
+import { lang, t } from "../lib/i18n";
+import { type HarnessId, type HarnessStatus, type Me, useMe, withoutApple } from "../lib/session";
 import { Button, Card, cn, Input, LinkedText, Select, Spinner, Switch } from "../ui";
 import { billingUrl } from "./AppFrame";
 import { HarnessPanel } from "./Harness";
@@ -75,10 +77,21 @@ interface ModelsState {
   creditFallback: boolean;
   keys: Record<ProviderId, boolean>;
   ways: Record<ModelClass, ClassWay>;
+  /** Apple Intelligence on this Mac: shown where the machine can run it, picked once it answers. */
+  apple?: AppleStatus | null;
   prices: Partial<Record<ModelClass, ClassPrice | null>> | null;
   /** The media models the credits pay for, which a binding may name. */
   creditModels: CreditModel[];
 }
+
+interface AppleStatus {
+  supported: boolean;
+  available: boolean;
+  reason: "device" | "os" | "missing" | "off" | "loading" | null;
+}
+
+/** A model on this machine: Ollama, or Apple Intelligence on a Mac. */
+type LocalBy = "ollama" | "apple";
 
 interface ModelsInput {
   source?: ModelsState["source"];
@@ -126,6 +139,7 @@ function placeOf(me: Me, view: View): Place {
           ? {
               name: me.user.name,
               email: me.user.email,
+              team: null,
               credits: 1250,
               expiring: [],
               url: "",
@@ -142,7 +156,7 @@ function placeOf(me: Me, view: View): Place {
     topUp: billingUrl(me),
     harnesses: cloud ? [] : me.harnesses,
     canEdit: !cloud || me.tenant.role !== "member",
-    ownKeys: !cloud || me.features.ownKeys !== false,
+    ownKeys: !cloud || featureOn(me.features, "ownKeys"),
   };
 }
 
@@ -165,13 +179,11 @@ const LEAD_CLASS: Record<ModelCapability, ModelClass> = {
 
 const isText = (cap: ModelCapability) => cap === "text";
 
-const words = (labels: { de: string; en: string } | undefined, at: Lang) => labels?.[at] ?? "";
-
 /** What a person picked for a capability, which may differ from how it runs (a key is missing). */
 type Choice =
   | { kind: "client"; id: HarnessId }
   | { kind: "key"; provider: ProviderId }
-  | { kind: "local" }
+  | { kind: "local"; by: LocalBy }
   | { kind: "credits" };
 
 function sameChoice(a: Choice | null, b: Choice | null): boolean {
@@ -181,6 +193,10 @@ function sameChoice(a: Choice | null, b: Choice | null): boolean {
 function choiceOf(state: ModelsState, cap: ModelCapability, place: Place): Choice | null {
   const cls = LEAD_CLASS[cap];
   if (isText(cap) && !place.cloud) {
+    // Apple Intelligence thinks the short classes beside any source.
+    if (state.bindings.standard?.startsWith("apple:")) {
+      return { kind: "local", by: "apple" };
+    }
     if (state.source === "account") {
       return { kind: "credits" };
     }
@@ -193,13 +209,16 @@ function choiceOf(state: ModelsState, cap: ModelCapability, place: Place): Choic
     return { kind: "credits" };
   }
   if (bound?.startsWith("ollama:")) {
-    return { kind: "local" };
+    return { kind: "local", by: "ollama" };
+  }
+  if (bound?.startsWith("apple:")) {
+    return { kind: "local", by: "apple" };
   }
   const provider = bound ? providerOfRef(bound) : null;
   if (provider) {
     return { kind: "key", provider };
   }
-  if (bound && /^(claude|codex|gemini|cursor)\//.test(bound)) {
+  if (bound && /^(claude|codex|antigravity|cursor)\//.test(bound)) {
     return { kind: "client", id: bound.split("/")[0] as HarnessId };
   }
   const way = state.ways[cls];
@@ -209,7 +228,7 @@ function choiceOf(state: ModelsState, cap: ModelCapability, place: Place): Choic
     case "key":
       return providerInfo(way.by ?? "") ? { kind: "key", provider: way.by as ProviderId } : null;
     case "local":
-      return { kind: "local" };
+      return { kind: "local", by: way.by === "apple" ? "apple" : "ollama" };
     case "credits":
       return { kind: "credits" };
     default:
@@ -257,7 +276,10 @@ function wayText(way: ClassWay, place: Place): { text: string; tone: "done" | "o
     case "key":
       return { text: providerInfo(way.by ?? "")?.name ?? way.by ?? "", tone: "done" };
     case "local":
-      return { text: t("models.way.local"), tone: "done" };
+      return {
+        text: way.by === "apple" ? t("models.optApple") : t("models.way.local"),
+        tone: "done",
+      };
     case "credits":
       return {
         text: place.cloud ? t("models.way.creditsTeam") : t("models.way.credits"),
@@ -590,7 +612,7 @@ function ModelPick({
         options={[
           ...offered.map((m) => ({
             value: m.ref,
-            label: m.note ? `${m.label} – ${words(m.note, at)}` : m.label,
+            label: m.note ? `${m.label} – ${providerText(m.note, at)}` : m.label,
           })),
           { value: CUSTOM, label: t("models.modelCustom") },
         ]}
@@ -758,7 +780,7 @@ function TryIt({ cap, disabled }: { cap: ModelCapability; disabled?: boolean }) 
 
 /** A price in credits, by what it is counted in. */
 function creditPrice(price: Omit<ClassPrice, "model"> | undefined | null): string {
-  const n = (x: number) => (x < 10 ? Math.round(x * 10) / 10 : Math.ceil(x)).toLocaleString();
+  const n = (x: number) => (x < 10 ? Math.round(x * 10) / 10 : Math.ceil(x)).toLocaleString(lang);
   if (price?.creditsPerImage) {
     return t("models.notePerImage", { n: n(price.creditsPerImage) });
   }
@@ -919,7 +941,9 @@ function CapabilityPanel({
     switch (next.kind) {
       case "client":
         save.mutate(
-          isText(cap) ? { source: next.id } : { bindings: { [cls]: `${next.id}/image` } },
+          isText(cap)
+            ? { source: next.id, bindings: withoutApple(state.bindings) }
+            : { bindings: { [cls]: `${next.id}/image` } },
         );
         return;
       case "key": {
@@ -931,11 +955,17 @@ function CapabilityPanel({
         return;
       }
       case "local":
-        save.mutate({ source: "own", bindings: every("ollama:qwen3") });
+        save.mutate(
+          next.by === "apple"
+            ? { bindings: isText(cap) ? appleBindings(state) : { audio: "apple:transcribe" } }
+            : { source: "own", bindings: every("ollama:qwen3") },
+        );
         return;
       case "credits":
         save.mutate(
-          isText(cap) && !place.cloud ? { source: "account" } : { bindings: every(CREDITS) },
+          isText(cap) && !place.cloud
+            ? { source: "account", bindings: withoutApple(state.bindings) }
+            : { bindings: every(CREDITS) },
         );
         return;
     }
@@ -989,13 +1019,25 @@ function CapabilityPanel({
                 isText(cap) && !place.cloud ? t("models.optOther") : t("models.optCreditsGroup")
               }
             >
+              {/* Text thinks on Apple Intelligence once it is switched on; a voice note the Mac
+                  writes down on its own, Apple Intelligence or not. */}
+              {(isText(cap) || cap === "listening") && !place.cloud && state.apple?.supported ? (
+                <Option
+                  title={t("models.optApple")}
+                  note={isText(cap) ? appleNote(state.apple) : t("models.optAppleNote")}
+                  noteTone={isText(cap) && !state.apple.available ? undefined : "done"}
+                  selected={chosen?.kind === "local" && chosen.by === "apple"}
+                  disabled={!place.canEdit || (isText(cap) && !state.apple.available)}
+                  onPick={() => pick({ kind: "local", by: "apple" })}
+                />
+              ) : null}
               {isText(cap) && !place.cloud ? (
                 <Option
                   title={t("models.optLocal")}
                   note={t("models.optLocalNote")}
-                  selected={chosen?.kind === "local"}
+                  selected={chosen?.kind === "local" && chosen.by === "ollama"}
                   disabled={!place.canEdit}
-                  onPick={() => pick({ kind: "local" })}
+                  onPick={() => pick({ kind: "local", by: "ollama" })}
                 />
               ) : null}
               <Option
@@ -1095,7 +1137,13 @@ function CapabilityPanel({
           )
         ) : null}
 
-        {chosen?.kind === "local" ? <OllamaPart state={state} disabled={!place.canEdit} /> : null}
+        {chosen?.kind === "local" ? (
+          chosen.by === "apple" ? (
+            <ApplePart cap={cap} state={state} place={place} />
+          ) : (
+            <OllamaPart state={state} disabled={!place.canEdit} />
+          )
+        ) : null}
 
         {chosen?.kind === "credits" && place.credits ? (
           isText(cap) ? (
@@ -1136,6 +1184,59 @@ function CapabilityPanel({
         ) : null}
       </Card>
     </div>
+  );
+}
+
+/**
+ * Apple Intelligence thinks the short classes; the source stays, so the long ones keep their way
+ * (the installed client, the credits, a key), unless that was a local model too — then they are
+ * unbound and the credits or nothing step in, as the hint says.
+ */
+function appleBindings(state: ModelsState): Partial<Record<ModelClass, string>> {
+  const keep = (cls: ModelClass) => {
+    const bound = state.bindings[cls] ?? "";
+    return /^(ollama|apple):/.test(bound) ? "" : bound;
+  };
+  return {
+    classifier: "apple:default",
+    standard: "apple:default",
+    high: keep("high"),
+    highest: keep("highest"),
+  };
+}
+
+/** Why Apple Intelligence can or cannot be picked, under its name. */
+function appleNote(apple: AppleStatus): string {
+  if (apple.available) {
+    return t("models.optAppleNote");
+  }
+  switch (apple.reason) {
+    case "off":
+      return t("models.appleOff");
+    case "loading":
+      return t("models.appleLoading");
+    default:
+      return t("models.appleDevice");
+  }
+}
+
+function ApplePart({
+  cap,
+  state,
+  place,
+}: {
+  cap: ModelCapability;
+  state: ModelsState;
+  place: Place;
+}) {
+  return (
+    <Part title={t("models.optApple")}>
+      <Hint>
+        {isText(cap)
+          ? t("models.appleHint", { way: wayText(state.ways.high, place).text })
+          : t("models.appleListenHint")}
+      </Hint>
+    </Part>
   );
 }
 
@@ -1236,7 +1337,7 @@ function ProviderPanel({
       <PanelHead
         icon={KeyRound}
         title={provider.name}
-        lead={words(provider.about, lang)}
+        lead={providerText(provider.about, lang)}
         status={
           <Status
             text={stored ? t("models.keyStored") : t("models.keyNone")}
@@ -1363,7 +1464,7 @@ function ClientPanel({
                         onClick={() =>
                           save.mutate(
                             cap === "text"
-                              ? { source: id }
+                              ? { source: id, bindings: withoutApple(state.bindings) }
                               : { bindings: { image: `${id}/image` } },
                           )
                         }
@@ -1419,7 +1520,7 @@ function CreditsPanel({
         status={
           place.balance !== null ? (
             <span className="font-display font-semibold text-[1.25rem] tabular-nums">
-              {t("nav.credits", { n: Math.floor(place.balance).toLocaleString() })}
+              {t("nav.credits", { n: Math.floor(place.balance).toLocaleString(lang) })}
             </span>
           ) : undefined
         }
@@ -1634,7 +1735,7 @@ export function Models() {
             badge={
               place.balance !== null ? (
                 <span className="text-[0.75rem] text-ink-3 tabular-nums">
-                  {Math.floor(place.balance).toLocaleString()}
+                  {Math.floor(place.balance).toLocaleString(lang)}
                 </span>
               ) : null
             }

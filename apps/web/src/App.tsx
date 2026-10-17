@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router";
 import { Mascot } from "./brand";
 import { STUDIO } from "./lib/base";
 import { useLang } from "./lib/i18n";
-import { useMe } from "./lib/session";
+import { useAccountLang, useMe } from "./lib/session";
 import { PluginFrame, startStudioPlugins, useStudioPlugins } from "./plugins/host";
 import { AppFrame } from "./studio/AppFrame";
 import { AssistantProvider } from "./studio/assistant/chat";
@@ -18,6 +18,9 @@ const EditorPage = lazy(() =>
   import("./studio/EditorPage").then((m) => ({ default: m.EditorPage })),
 );
 const HomePage = lazy(() => import("./studio/HomePage").then((m) => ({ default: m.HomePage })));
+const OnboardingPage = lazy(() =>
+  import("./studio/OnboardingPage").then((m) => ({ default: m.OnboardingPage })),
+);
 const NewWizardPage = lazy(() =>
   import("./studio/NewWizardPage").then((m) => ({ default: m.NewWizardPage })),
 );
@@ -29,6 +32,9 @@ const ProjectPage = lazy(() =>
 );
 const SetupPage = lazy(() => import("./studio/SetupPage").then((m) => ({ default: m.SetupPage })));
 
+const ViewLab = import.meta.env.DEV
+  ? lazy(() => import("./dev/ViewLab").then((m) => ({ default: m.ViewLab })))
+  : null;
 const EngentyBuilder = import.meta.env.DEV
   ? lazy(() => import("./dev/EngentyBuilder").then((m) => ({ default: m.EngentyBuilder })))
   : null;
@@ -55,6 +61,7 @@ function Studio({
 }) {
   const me = useMe();
   const location = useLocation();
+  useAccountLang(me.data);
   // Signed in, the studio takes on the tenant's plugins.
   useEffect(() => {
     if (me.data) {
@@ -70,6 +77,10 @@ function Studio({
   // A runtime that runs alone is set up once, before anything else.
   if (me.data.mode === "local" && !me.data.setupDone && location.pathname !== "/setup") {
     return <Navigate to="/setup" replace />;
+  }
+  // A team's first visit of the cloud studio: who it is, its website, first documents, the space.
+  if (me.data.onboarding && location.pathname !== "/start") {
+    return <Navigate to="/start" replace />;
   }
   return bare ? (
     children
@@ -87,6 +98,7 @@ export function PublicApp() {
     <Suspense fallback={<Splash />}>
       <Routes>
         {EngentyBuilder && <Route path="/dev/engenty-builder" element={<EngentyBuilder />} />}
+        {ViewLab && <Route path="/dev/views" element={<ViewLab />} />}
         <Route path="/w/:token" element={<PublicRunner />} />
         <Route path="/w/:token/steps" element={<PublicRunner steps />} />
         <Route path="/w/:token/steps/:runId" element={<PublicRunner steps />} />
@@ -188,6 +200,14 @@ export function StudioApp() {
             element={
               <Studio bare>
                 <SetupPage />
+              </Studio>
+            }
+          />
+          <Route
+            path="/start"
+            element={
+              <Studio bare>
+                <OnboardingPage />
               </Studio>
             }
           />

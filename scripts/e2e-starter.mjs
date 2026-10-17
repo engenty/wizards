@@ -12,7 +12,10 @@ const [starterId, answersJson = "{}", outDir] = process.argv.slice(2);
 const answers = JSON.parse(answersJson);
 
 const login = await fetch(`${base}/api/dev/login`, { method: "POST" });
-const cookie = login.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+const cookie = login.headers
+  .getSetCookie()
+  .map((c) => c.split(";")[0])
+  .join("; ");
 const call = async (method, path, body) => {
   let res;
   // The dev server restarts when a source file changes; a call made meanwhile is tried again.
@@ -119,17 +122,27 @@ for (;;) {
     for (const l of view.lists ?? []) {
       console.log(`  list ${l.def.id}: ${l.rows.length} rows`);
       for (const f of l.formats) {
-        const res = await fetch(`${base}/api/runs/${runId}/lists/${l.def.id}/download?format=${f}`, { headers: { cookie } });
+        const res = await fetch(
+          `${base}/api/runs/${runId}/lists/${l.def.id}/download?format=${f}`,
+          { headers: { cookie } },
+        );
         const buf = Buffer.from(await res.arrayBuffer());
-        console.log(`  ${l.def.id}.${f}: ${res.status} ${res.headers.get("content-type")} ${buf.length} bytes`);
+        console.log(
+          `  ${l.def.id}.${f}: ${res.status} ${res.headers.get("content-type")} ${buf.length} bytes`,
+        );
         if (outDir && res.ok) writeFileSync(`${outDir}/${starterId}-${l.def.id}.${f}`, buf);
       }
     }
     for (const s of view.shown) {
       for (const f of s.formats) {
-        const res = await fetch(`${base}/api/runs/${runId}/steps/${s.step.id}/download?format=${f}`, { headers: { cookie } });
+        const res = await fetch(
+          `${base}/api/runs/${runId}/steps/${s.step.id}/download?format=${f}`,
+          { headers: { cookie } },
+        );
         const buf = Buffer.from(await res.arrayBuffer());
-        console.log(`  ${s.step.id}.${f}: ${res.status} ${res.headers.get("content-type")} ${buf.length} bytes`);
+        console.log(
+          `  ${s.step.id}.${f}: ${res.status} ${res.headers.get("content-type")} ${buf.length} bytes`,
+        );
         if (outDir && res.ok) writeFileSync(`${outDir}/${starterId}-${s.step.id}.${f}`, buf);
       }
       if (s.output?.json) console.log("  json:", JSON.stringify(s.output.json).slice(0, 600));

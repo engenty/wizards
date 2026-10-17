@@ -122,7 +122,7 @@ describe("Google on a local install without its own Google client", () => {
       local(() =>
         connectors.startOAuth({ wizardId, holder: "local" }, "p", "run-1", connection, "mail-gmail"),
       ),
-    ).rejects.toThrow(/engenty-Konto/);
+    ).rejects.toThrow(/engenty account first/);
   });
 
   it("starts at the Manage-App with the account's token, the scopes and its own callback", async () => {
@@ -161,7 +161,7 @@ describe("Google on a local install without its own Google client", () => {
     expect(ctx?.ctx.accessToken).toBe("ya29.second");
     expect(seen.at(-1)?.path).toBe("/v1/connect/google/refresh");
 
-    await expect(refreshThroughAccount("1//gone")).rejects.toThrow(/neu verbinden/);
+    await expect(refreshThroughAccount("1//gone")).rejects.toThrow(/Connect the account again/);
   });
 
 });

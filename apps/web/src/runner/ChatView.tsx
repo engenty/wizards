@@ -1,4 +1,22 @@
 import {
+  AskPanel,
+  choiceLabel,
+  DownloadButtons,
+  FieldInput,
+  initialValues,
+  isTouch,
+  ListCheck,
+  ListDownloads,
+  ListTable,
+  LiveBrowser,
+  OutputView,
+  StoreButton,
+  textHints,
+  useDoneSignal,
+  useWakeLock,
+  type Values,
+} from "@engenty-wizards/runner";
+import {
   FIELD_WAYS,
   type Field,
   isDecidedField,
@@ -8,6 +26,7 @@ import {
   type ReviewStep,
   shownFields,
 } from "@engenty-wizards/shared/definition";
+import { readNumber } from "@engenty-wizards/shared/numbers";
 import type { RunEvent, RunNoteCode, RunView } from "@engenty-wizards/shared/run";
 import {
   ArrowUp,
@@ -47,15 +66,8 @@ import { canSpeak, useReadAloud, useReadLines } from "../lib/read-aloud";
 import { useDictation } from "../lib/speech";
 import { ShareResultButton } from "../share/ShareSheet";
 import { cn, IconButton, LinkedText, Spinner, Textarea } from "../ui";
-import { AskPanel } from "./AskPanel";
-import { LiveBrowser } from "./browser-live";
 import { CallStage } from "./CallStage";
-import { isTouch, useWakeLock } from "./device";
-import { FieldInput, textHints, type Values } from "./fields";
 import { type PageBinding, useLiveVoice } from "./live-voice";
-import { DownloadButtons, OutputView } from "./outputs";
-import { initialValues, useDoneSignal } from "./RunnerView";
-import { ListCheck, ListDownloads, ListTable, StoreButton } from "./store";
 import { useRun } from "./useRun";
 
 /*
@@ -107,7 +119,7 @@ const DockSlot = createContext<HTMLElement | null>(null);
  */
 const SpeechContext = createContext<{
   runId: string;
-  lang: "de" | "en";
+  lang: string;
   readAloud: boolean;
   setReadAloud: (on: boolean) => void;
   /** The live conversation on the run, where the runtime has a model for it. */
@@ -642,7 +654,7 @@ function problem(field: Field, v: unknown): string | null {
       return t("chat.badUrl");
     }
   }
-  if (field.kind === "number" && !Number.isFinite(Number(s.replace(",", ".")))) {
+  if (field.kind === "number" && readNumber(s) === null) {
     return t("chat.badNumber");
   }
   if (Array.isArray(v) && field.multiple && field.min && v.length < field.min) {
@@ -705,7 +717,9 @@ function Answer({ field, value, runId }: { field: Field; value: unknown; runId: 
   }
   switch (field.kind) {
     case "multiselect":
-      return <>{(value as string[]).join(", ")}</>;
+      return <>{(value as string[]).map(choiceLabel).join(", ")}</>;
+    case "select":
+      return <>{choiceLabel(String(value))}</>;
     case "date": {
       const d = new Date(`${String(value)}T00:00`);
       return (
@@ -1139,7 +1153,7 @@ function Choice({
               )
             }
           >
-            {o}
+            {choiceLabel(o)}
           </Reply>
         ))}
         <Reply primary disabled={field.required && !picked.length} onClick={() => onAnswer(picked)}>
@@ -1152,7 +1166,7 @@ function Choice({
     <QuickReplies>
       {options.map((o) => (
         <Reply key={o} on={value === o} disabled={shut.has(o)} onClick={() => onAnswer(o)}>
-          {o}
+          {choiceLabel(o)}
         </Reply>
       ))}
       {field.required ? null : <Reply onClick={() => onAnswer(undefined)}>{t("chat.skip")}</Reply>}

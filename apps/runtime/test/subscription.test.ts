@@ -76,7 +76,7 @@ describe("studio chat on the Claude subscription", () => {
     const first = await turn();
     expect(first).toEqual({ reply: "mcp 200 tools true", changed: true });
     expect(building).toBe(1);
-    expect(seen).toContain("[Baut den Wizard um …]");
+    expect(seen).toContain("[Rebuilding the wizard …]");
 
     const args: string[] = JSON.parse(readFileSync(join(dir, "args.json"), "utf8"));
     expect(args[args.indexOf("--tools") + 1]).toBe("");

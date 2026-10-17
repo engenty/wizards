@@ -69,7 +69,11 @@ const SETS = [
     "apps/runtime/src/engenty/connections-microsoft",
     ["graph.ts", "action.ts", "outlook.ts", "onedrive.ts"],
   ],
-  ["modules/connections/providers/slack/src", "apps/runtime/src/engenty/connections-slack", ["connector.ts"]],
+  [
+    "modules/connections/providers/slack/src",
+    "apps/runtime/src/engenty/connections-slack",
+    ["connector.ts"],
+  ],
   [
     "modules/connections/providers/github/src",
     "apps/runtime/src/engenty/connections-github",
@@ -113,7 +117,7 @@ const PACKAGES = {
 };
 
 function rewrite(text, file) {
-  return text.replace(/(from\s+|import\(\s*)"(@engenty\/[a-z-]+)"/g, (whole, lead, name) => {
+  return text.replace(/(from\s+|import\(\s*)"(@engenty\/[a-z-]+)"/g, (_whole, lead, name) => {
     const target = PACKAGES[name];
     if (!target) {
       throw new Error(`${file} imports ${name}, which this tree does not provide`);
@@ -132,7 +136,10 @@ for (const [from, to, files] of SETS) {
   for (const file of files) {
     const target = join(to, file);
     mkdirSync(dirname(join(root, target)), { recursive: true });
-    writeFileSync(join(root, target), rewrite(readFileSync(join(source, from, file), "utf8"), target));
+    writeFileSync(
+      join(root, target),
+      rewrite(readFileSync(join(source, from, file), "utf8"), target),
+    );
     copied.push(`${from}/${file} → ${target}`);
   }
 }

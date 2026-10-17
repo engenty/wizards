@@ -1,3 +1,4 @@
+import type { Lang } from "@engenty-wizards/shared/definition";
 import { eq } from "drizzle-orm";
 import { control, controlDb, db, schema } from "../db/client.js";
 import { managed, pushToDevice } from "../manage.js";
@@ -10,19 +11,19 @@ import { currentTenant } from "../tenants/tenant.js";
  * no push; the app then only hears while it is open.
  */
 
-export type PushDevice = { token: string; platform: "ios" | "android"; lang: "en" | "de" };
+export type PushDevice = { token: string; platform: "ios" | "android"; lang: Lang };
 export type PushKind = "done" | "failed" | "waiting" | "asks";
 
-const TEXT: Record<"en" | "de", Record<PushKind, string>> = {
+const TEXT: Record<Lang, Record<PushKind, string>> = {
   en: {
     done: "Your result is ready.",
     failed: "The run stopped with an error.",
-    waiting: "The wizard waits for you.",
+    waiting: "The wizard is waiting for you.",
     asks: "The wizard has a question for you.",
   },
   de: {
     done: "Dein Ergebnis ist bereit.",
-    failed: "Der Durchlauf ist mit einem Fehler stehen geblieben.",
+    failed: "Der Lauf ist mit einem Fehler stehen geblieben.",
     waiting: "Der Wizard wartet auf dich.",
     asks: "Der Wizard hat eine Frage an dich.",
   },

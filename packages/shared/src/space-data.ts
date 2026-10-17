@@ -53,7 +53,7 @@ export interface SpaceTable {
   rows: SpaceTableRow[];
   /** The space is not changed here: a local install's, or nothing is built on this runtime. */
   readOnly: boolean;
-  /** A table of Wissen (the space's own): where it came from and its Kategorien. */
+  /** A table of Knowledge (the space's own): where it came from and its categories. */
   knowledge: {
     path: string;
     categories: ItemCategory[];
@@ -73,7 +73,7 @@ export interface SpacePage {
   markdown: string;
   updatedAt: string;
   readOnly: boolean;
-  /** A page of Wissen (the space's own): where it stands, its sub-pages, its Kategorien. */
+  /** A page of Knowledge (the space's own): where it stands, its sub-pages, its categories. */
   knowledge: KnowledgePage | null;
 }
 

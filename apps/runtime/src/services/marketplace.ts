@@ -26,6 +26,7 @@ import {
 } from "@engenty-wizards/shared/marketplace";
 import { type WizardOutline, wizardOutline } from "@engenty-wizards/shared/marketplace-entry";
 import { searchEntries } from "@engenty-wizards/shared/marketplace-search";
+import { note } from "@engenty-wizards/shared/run";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { formulaEstimate } from "../credits/estimate.js";
 import { control, controlDb, db, schema, withTenant } from "../db/client.js";
@@ -61,7 +62,7 @@ import { ServiceError } from "./errors.js";
  */
 
 export const asLang = (raw: string | undefined | null): MarketplaceLang =>
-  (MARKETPLACE_LANGS as readonly string[]).includes(raw ?? "") ? (raw as MarketplaceLang) : "de";
+  (MARKETPLACE_LANGS as readonly string[]).includes(raw ?? "") ? (raw as MarketplaceLang) : "en";
 
 /** A search waits this long for the marketplace; then it searches what is kept here. */
 const TIMEOUT_MS = 5000;
@@ -166,7 +167,7 @@ function pluginSummary({ id, plugin, starter }: PluginStarterEntry): Marketplace
       .slice(0, 16),
     updatedAt: (changed?.mtime ?? new Date()).toISOString(),
     starter: true,
-    language: starter.language ?? "de",
+    language: starter.language ?? "en",
     title: starter.title,
     pitch: starter.description,
     // Found by the plugin's name as well: "Termine" finds the appointment plugin's starters.
@@ -339,12 +340,26 @@ export async function searchMarketplace(search: MarketplaceSearch): Promise<Mark
   };
 }
 
+/**
+ * The gallery for someone not signed in (the studio's start page for guests): what the
+ * marketplace lists, without a tenant's stars and plugins. An entry that needs a plugin says so.
+ */
+export function searchMarketplaceAsGuest(
+  search: Omit<MarketplaceSearch, "starred">,
+): Promise<MarketplaceResult> {
+  return searchListed(search, true);
+}
+
 /** Searches the marketplace; without an answer, what is kept here, scored the same way. */
-async function searchListed(search: MarketplaceSearch): Promise<MarketplaceResult> {
+async function searchListed(search: MarketplaceSearch, guest = false): Promise<MarketplaceResult> {
   const { q = "", lang, starred: onlyStarred, limit = 60, offset = 0, ...filters } = search;
-  const stars = await starredIds();
+  const stars = guest ? [] : await starredIds();
   const starred = new Set(stars);
-  const unavailable = await missingCapabilities();
+  const unavailable = guest ? new Set<Capability>() : await missingCapabilities();
+  const plugged = (entries: MarketplaceEntry[]) =>
+    guest
+      ? entries.map((e) => (e.plugins?.length ? { ...e, needs: e.plugins } : e))
+      : withPlugins(entries);
   const params = new URLSearchParams({ lang, limit: String(limit), offset: String(offset) });
   if (onlyStarred) {
     params.set("ids", stars.join(","));
@@ -370,7 +385,7 @@ async function searchListed(search: MarketplaceSearch): Promise<MarketplaceResul
     );
     return {
       ...remote,
-      entries: await withPlugins(
+      entries: await plugged(
         remote.entries.map((e) => asEntry(e, starred, unavailable, optional.get(e.id))),
       ),
       offline: false,
@@ -388,7 +403,7 @@ async function searchListed(search: MarketplaceSearch): Promise<MarketplaceResul
   );
   return {
     ...page,
-    entries: await withPlugins(
+    entries: await plugged(
       page.entries.map((e) => asEntry(e, starred, unavailable, optional.get(e.id))),
     ),
     offline: true,
@@ -530,7 +545,7 @@ export async function marketplaceWizard(
       revision: null,
       plugin: plugin.source.id,
       title: starter.title,
-      language: starter.language ?? "de",
+      language: starter.language ?? "en",
       definition: structuredClone(starter.definition as WizardDefinition),
       files: Object.fromEntries(
         Object.entries(starter.files ?? {}).map(([path, data]) => [
@@ -545,10 +560,7 @@ export async function marketplaceWizard(
     return null;
   }
   if (!readable(found.definition)) {
-    throw new ServiceError(
-      "refused",
-      "Diese Vorlage braucht eine neuere Version der App. Bitte aktualisiere die App.",
-    );
+    throw new ServiceError("refused", note("templateNeedsNewerVersion"));
   }
   // A wizard whose plugins are not here would stop at its first step that uses them.
   const have = await pluginIdsOf(currentTenant());
@@ -556,7 +568,7 @@ export async function marketplaceWizard(
   if (needs.length) {
     throw new ServiceError(
       "refused",
-      `Diese Vorlage braucht ${needs.length === 1 ? "das Plugin" : "die Plugins"} ${needs.join(", ")}: mit Pro auf engenty.ai dabei.`,
+      note("templateNeedsPlugins", { count: needs.length, plugins: needs }),
     );
   }
   return {

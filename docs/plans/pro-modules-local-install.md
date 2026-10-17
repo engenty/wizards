@@ -1,7 +1,7 @@
 # Plan: Pro modules in a local install
 
 Status: built on 2026-10-08 (runtime and studio here, packing and `/v1/modules` in the closed
-repository); not released. Reference: [Pro modules](../content/dev/plugins/pro-modules.md).
+repository); not released. Reference: [Pro modules](../pro-modules.md).
 
 Built differently from the text below:
 

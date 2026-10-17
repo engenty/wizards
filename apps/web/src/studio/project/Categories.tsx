@@ -1,3 +1,4 @@
+import { Markdown } from "@engenty-wizards/runner";
 import type {
   CategoryCell,
   CategoryType,
@@ -21,7 +22,6 @@ import {
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
-import { Markdown } from "../../runner/outputs";
 import {
   Button,
   Card,
@@ -77,8 +77,8 @@ export function shownValue(
 }
 
 /**
- * An item's Kategorien in one line: "Graz Süd · 14.03.2026 · 38 h · Mängel festgestellt". A yes
- * shows as the Kategorie's name, a no not at all.
+ * An item's categories in one line: "Graz Süd · 14.03.2026 · 38 h · Mängel festgestellt". A yes
+ * shows as the category's name, a no not at all.
  */
 export function categoryLine(categories: SpaceCategory[], has: ItemCategory[]): string {
   return categories
@@ -139,7 +139,7 @@ function Popover({
 
 // --- what an item has ------------------------------------------------------------------
 
-/** Picks a value of one Kategorie: a choice's values, a day, a number, a text, yes or no. */
+/** Picks a value of one category: a choice's values, a day, a number, a text, yes or no. */
 function ValuePicker({
   category,
   current,
@@ -224,7 +224,7 @@ function ValuePicker({
 }
 
 /**
- * The Kategorien of an item as a row of chips: each opens its value to change, the last adds one
+ * The categories of an item as a row of chips: each opens its value to change, the last adds one
  * the item does not have yet. Where a value came from shows on hover.
  */
 export function ItemCategories({
@@ -355,7 +355,7 @@ function AddCategory({
   );
 }
 
-// --- a new Kategorie -------------------------------------------------------------------------
+// --- a new category --------------------------------------------------------------------------
 
 export function NewCategoryDialog({
   projectId,
@@ -474,9 +474,9 @@ export function NewCategoryDialog({
   );
 }
 
-// --- one Kategorie ----------------------------------------------------------------------------
+// --- one category -----------------------------------------------------------------------------
 
-/** A Kategorie opened: what it is, its values with how many items have each, merging, deleting. */
+/** A category opened: what it is, its values with how many items have each, merging, deleting. */
 export function CategoryView({
   projectId,
   category,
@@ -640,7 +640,7 @@ export function CategoryView({
   );
 }
 
-// --- one value: its Übersicht and its Inhaltsverzeichnis ---------------------------------------
+// --- one value: its summary and its table of contents ------------------------------------------
 
 export function useValue(valueId: string) {
   return useQuery({
@@ -657,7 +657,7 @@ export function ValueView({
 }: {
   value: KnowledgeValue;
   readOnly: boolean;
-  /** The Inhaltsverzeichnis, drawn by the caller with the rows of Wissen. */
+  /** The table of contents, drawn by the caller with the rows of Knowledge. */
   children: ReactNode;
 }) {
   const qc = useQueryClient();

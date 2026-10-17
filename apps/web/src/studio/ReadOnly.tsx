@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react";
+import { Laptop } from "lucide-react";
 import { t } from "../lib/i18n";
 import type { Project } from "../lib/session";
 
@@ -10,11 +10,11 @@ export function projectReadOnlyText(project: Pick<Project, "origin">): string {
   return t(project.origin === "local" ? "readonly.project" : "readonly.server");
 }
 
-/** The quiet note that stands where something would be edited: why not, and where it is done. */
+/** The note, in amber so it is not missed, that stands where something would be edited: why not, and where it is done. */
 export function ReadOnlyNote({ children }: { children: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl bg-paper-2 px-4 py-3 text-[0.875rem] text-ink-2 leading-relaxed">
-      <Lock className="mt-0.5 size-4 shrink-0 text-ink-3" />
+    <div className="flex items-start gap-3 rounded-xl bg-amber-tint px-4 py-3 font-medium text-[0.875rem] text-ink leading-relaxed">
+      <Laptop className="mt-0.5 size-4 shrink-0 text-amber" />
       <p className="min-w-0">{children}</p>
     </div>
   );

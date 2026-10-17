@@ -37,6 +37,7 @@ import { LinkStatus, useAccountLink } from "./Account";
 import { ChannelIcons, type Runner, useRunners } from "./channels";
 import { openExternal } from "./LocalRuntime";
 import { MarketplaceHits } from "./Marketplace";
+import { WizardMenu } from "./WizardMenu";
 import { ownLink, sharedLink, WhereChip, whereItRuns } from "./where";
 
 /** What a space holds, row by row: its own wizards and what they share. */
@@ -235,7 +236,7 @@ function WizardCard({ w, me, runners }: { w: WizardSummary; me: Me; runners: Run
   const open = link ?? (w.published ? ownLink(w) : null);
   return (
     // The engenty sits on the card's top edge, half above it; the chip stays inside the card.
-    <div className="relative pt-6">
+    <div className="group/card relative pt-6">
       {/* Alive: it wobbles and its eye follows the pointer, as on the setup and the landing page. */}
       <div className="pointer-events-none absolute top-0 left-4 z-10">
         <Mascot kind={w.avatar} size={52} />
@@ -256,6 +257,10 @@ function WizardCard({ w, me, runners }: { w: WizardSummary; me: Me; runners: Run
             <ChannelIcons w={w} runners={runners} />
           </span>
           <div className="flex items-center">
+            <WizardMenu
+              wizard={w}
+              className="opacity-0 transition group-hover/card:opacity-100 has-[[aria-expanded=true]]:opacity-100 focus-within:opacity-100 coarse:opacity-100"
+            />
             {link ? (
               <CopyLink url={link} />
             ) : where.kind === "here" && account ? (
@@ -494,7 +499,7 @@ export function HomePage() {
           <WizardSearch value={query} onChange={setQuery} />
         ) : (
           <h1 className="font-display font-semibold text-[1.75rem] tracking-tight">
-            {t("home.title")}
+            {t("home.title", { space: project?.name ?? "" })}
           </h1>
         )}
         {canCreate ? (

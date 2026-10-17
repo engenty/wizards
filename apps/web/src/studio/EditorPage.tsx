@@ -1,13 +1,24 @@
 import { type ModelClass, TEXT_CLASSES } from "@engenty-wizards/shared/definition";
 import type { MissingModel, RunView } from "@engenty-wizards/shared/run";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Download, Lock, Play, Share2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Lock,
+  Maximize2,
+  Minimize2,
+  Play,
+  RotateCcw,
+  Share2,
+  Workflow,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { withBase } from "@/lib/base";
 import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
-import { type Key, t } from "../lib/i18n";
+import { eventText, type Key, t } from "../lib/i18n";
 import {
   type PublishResult,
   useCloud,
@@ -29,13 +40,16 @@ import {
 } from "./editor/AddStep";
 import { ChatPanel, useArchitectChat, Working } from "./editor/ChatPanel";
 import { FilesPanel } from "./editor/FilesPanel";
-import { currentDecisions, FlowDiagram } from "./editor/FlowDiagram";
+import { currentDecisions, FlowDiagram, type StepLive } from "./editor/FlowDiagram";
 import { Inspector } from "./editor/Inspector";
+import { LiveDialog } from "./editor/LiveDialog";
 import { MemoryPanel } from "./editor/MemoryPanel";
+import { RunLog } from "./editor/RunLog";
 import { RunsPanel } from "./editor/RunsPanel";
 import { ShareDialog } from "./editor/ShareDialog";
 import { LiveChip, useLiveDraft } from "./live";
-import { LookSwitch, RunDrawer, useRunLook } from "./RunDrawer";
+import { LookSwitch, useRunLook } from "./RunDrawer";
+import { WizardMenu } from "./WizardMenu";
 import { WhereChip, whereItRuns } from "./where";
 
 type Tab = "chat" | "step" | "files" | "memory" | "runs";
@@ -53,37 +67,58 @@ const TAB_LABEL: Record<Tab, string> = {
 
 const PANE_KEY = "wizards.editor.pane";
 const PANE_DEFAULT = 420;
+/** The main area's width from which a test run sits beside the diagram, not over it. */
+const SPLIT_MIN = 880;
 const PANE_MIN = 340;
 
 /** Room the diagram keeps next to the pane. */
 const paneMax = () => Math.max(PANE_MIN, window.innerWidth - 480);
 
-function storedPane(): number {
-  try {
-    const n = Number(localStorage.getItem(PANE_KEY));
-    return n ? Math.min(Math.max(n, PANE_MIN), paneMax()) : PANE_DEFAULT;
-  } catch {
-    return PANE_DEFAULT;
-  }
-}
+const RUN_KEY = "wizards.editor.run";
+const RUN_DEFAULT = 560;
+const RUN_MIN = 420;
+/** Room the diagram keeps next to a test run beside it. */
+const RUN_ROOM = 360;
 
-/** The side pane's width on wide screens, dragged at its left edge; remembered per browser. */
-function usePaneWidth() {
-  const [width, setWidth] = useState(storedPane);
-  const set = useCallback((next: number) => {
-    const w = Math.round(Math.min(Math.max(next, PANE_MIN), paneMax()));
+/**
+ * A column's width on wide screens, dragged at its inner edge; remembered per browser. `dir` is
+ * +1 when dragging right widens it (a column on the left), -1 for one on the right.
+ */
+function useDragWidth({
+  key,
+  initial,
+  min,
+  max,
+  dir,
+}: {
+  key: string;
+  initial: number;
+  min: number;
+  max: () => number;
+  dir: 1 | -1;
+}) {
+  const [width, setWidth] = useState(() => {
+    try {
+      const n = Number(localStorage.getItem(key));
+      return n ? Math.min(Math.max(n, min), max()) : initial;
+    } catch {
+      return initial;
+    }
+  });
+  const set = (next: number) => {
+    const w = Math.round(Math.min(Math.max(next, min), max()));
     setWidth(w);
     try {
-      localStorage.setItem(PANE_KEY, String(w));
+      localStorage.setItem(key, String(w));
     } catch {
       // the width only lasts this page then
     }
-  }, []);
+  };
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     const startX = e.clientX;
     const startW = width;
-    const move = (ev: PointerEvent) => set(startW + startX - ev.clientX);
+    const move = (ev: PointerEvent) => set(startW + dir * (ev.clientX - startX));
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -97,24 +132,21 @@ function usePaneWidth() {
   };
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const step = e.shiftKey ? 64 : 16;
-    if (e.key === "ArrowLeft") {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
-      set(width + step);
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      set(width - step);
+      set(width + (e.key === "ArrowRight" ? dir : -dir) * step);
     }
   };
-  return { width, onPointerDown, onKeyDown, reset: () => set(PANE_DEFAULT) };
+  return { width, onPointerDown, onKeyDown, reset: () => set(initial) };
 }
 
 const SHEET_KEY = "wizards.editor.sheet";
-/** Percent of the room below the header. */
-const SHEET_DEFAULT = 55;
+/** Percent of the room below the header: open, the sheet takes all of it. */
+const SHEET_DEFAULT = 100;
 /** The folded sheet: its handle and tabs. */
 const SHEET_MIN = 76;
-/** Room the diagram keeps above the sheet. */
-const SHEET_ROOM = 96;
+/** A drag let go above this percent opens the sheet to the whole room, below it folds. */
+const SHEET_SNAP = 50;
 /** Pixels a touch moves before it drags instead of tapping. */
 const SHEET_SLOP = 6;
 
@@ -122,7 +154,8 @@ function storedSheet(): number {
   try {
     const raw = localStorage.getItem(SHEET_KEY);
     const n = raw === null ? Number.NaN : Number(raw);
-    return Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) : SHEET_DEFAULT;
+    // Open is the whole room; only folded is kept as it was.
+    return Number.isFinite(n) && n === 0 ? 0 : SHEET_DEFAULT;
   } catch {
     return SHEET_DEFAULT;
   }
@@ -137,14 +170,9 @@ function useSheetHeight() {
   const [percent, setPercent] = useState(storedSheet);
   const [dragging, setDragging] = useState(false);
   const ref = useRef<HTMLElement>(null);
-  /** The last open height, for unfolding. */
-  const opened = useRef(percent || SHEET_DEFAULT);
-  /** Sets the height; `settled` false while a drag passes through heights on its way. */
-  const set = useCallback((next: number, settled = true) => {
+  /** Sets the height, remembered in this browser. */
+  const set = useCallback((next: number) => {
     const p = Math.round(Math.min(Math.max(next, 0), 100) * 10) / 10;
-    if (p > 0 && settled) {
-      opened.current = p;
-    }
     setPercent(p);
     try {
       localStorage.setItem(SHEET_KEY, String(p));
@@ -153,12 +181,13 @@ function useSheetHeight() {
     }
   }, []);
   const folded = percent === 0;
-  const toggle = () => set(folded ? opened.current : 0);
+  const toggle = () => set(folded ? SHEET_DEFAULT : 0);
   const unfold = () => {
     if (folded) {
-      set(opened.current);
+      set(SHEET_DEFAULT);
     }
   };
+  const fold = () => set(0);
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const sheet = ref.current;
     const room = sheet?.parentElement;
@@ -179,9 +208,10 @@ function useSheetHeight() {
         moved = true;
         setDragging(true);
       }
-      const h = Math.min(startH + startY - ev.clientY, roomH - SHEET_ROOM);
-      last = h < SHEET_MIN + 16 ? 0 : (h / roomH) * 100;
-      set(last, false);
+      const h = Math.min(startH + startY - ev.clientY, roomH);
+      set(h < SHEET_MIN + 16 ? 0 : (h / roomH) * 100);
+      // Let go, it opens to the whole room or folds, whichever is nearer.
+      last = h / roomH > SHEET_SNAP / 100 ? 100 : 0;
     };
     const up = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", move);
@@ -203,21 +233,20 @@ function useSheetHeight() {
     window.addEventListener("pointercancel", up);
   };
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const step = e.shiftKey ? 25 : 10;
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      set(percent + step);
+      set(100);
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      set(percent - step < 15 ? 0 : percent - step);
+      set(0);
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       toggle();
     }
   };
-  /** The sheet's height, kept between folded and the room the diagram keeps. */
-  const height = `clamp(${SHEET_MIN}px, ${percent}%, calc(100% - ${SHEET_ROOM}px))`;
-  return { ref, percent, height, folded, dragging, unfold, onPointerDown, onKeyDown };
+  /** The sheet's height, kept between folded and the whole room. */
+  const height = `clamp(${SHEET_MIN}px, ${percent}%, 100%)`;
+  return { ref, percent, height, folded, dragging, unfold, fold, toggle, onPointerDown, onKeyDown };
 }
 
 export function EditorPage() {
@@ -235,10 +264,33 @@ export function EditorPage() {
   });
   const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("chat");
-  const pane = usePaneWidth();
+  const pane = useDragWidth({
+    key: PANE_KEY,
+    initial: PANE_DEFAULT,
+    min: PANE_MIN,
+    max: paneMax,
+    dir: 1,
+  });
   const sheet = useSheetHeight();
+  // The tab in effect stays in view where the row scrolls (a phone).
+  const tabsRef = useRef<HTMLElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the tab in effect is what moves into view
+  useEffect(() => {
+    tabsRef.current
+      ?.querySelector("[data-active]")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }, [tab, sheet.folded]);
+  /** Where a touch on the step panel began, for a swipe. */
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [liveOpen, setLiveOpen] = useState(false);
+  /** The test run open in the main area, which shows it or the diagram. */
   const [drawerRun, setDrawerRun] = useState<string | null>(null);
+  const [view, setView] = useState<"flow" | "test">("flow");
+  /** On a desk the test run can take the whole window, the side panel set aside. */
+  const [runWide, setRunWide] = useState(false);
+  /** Counts the side panel's slides, so the diagram fits the room it ends with. */
+  const [paneMoves, setPaneMoves] = useState(0);
   const [look, setLook] = useRunLook();
   const [activeStep, setActiveStep] = useState<string | null>(null);
   const [decisions, setDecisions] = useState<RunView["decisions"]>();
@@ -248,13 +300,54 @@ export function EditorPage() {
   /** Where a "+" in the diagram asks for a step: before the step at this index. */
   const [insertAt, setInsertAt] = useState<number | null>(null);
   const openInsert = useCallback((at: number) => setInsertAt(at), []);
+  /** The open test run as it reports itself: its step, status and log. */
+  const [runView, setRunView] = useState<RunView | null>(null);
   const onRunView = useCallback((view: RunView | null) => {
+    setRunView(view);
     setActiveStep(view && view.status !== "done" ? (view.step?.id ?? null) : null);
     // Kept when the drawer closes: the step panel it covered shows the last test run's decisions.
     if (view) {
       setDecisions(view.decisions);
     }
   }, []);
+  // What the run's step in effect does, for its node in the diagram.
+  const live = useMemo<StepLive | null>(() => {
+    const step = drawerRun ? runView?.step : null;
+    if (!(runView && step) || runView.status === "done" || runView.status === "cancelled") {
+      return null;
+    }
+    const failed = runView.status === "failed";
+    const waiting = runView.status === "waiting_input";
+    const mine = runView.events.filter((ev) => ev.stepId === step.id).reverse();
+    const started = mine.find((ev) => ev.type === "step_started");
+    const latest = mine.find((ev) => ev.type !== "step_done");
+    const said = latest ? eventText(latest) : step.title;
+    return {
+      step: step.id,
+      text: failed ? (runView.error ?? said) : waiting ? t("editor.waitsForInput") : said,
+      since: failed || waiting ? null : started ? new Date(started.at).getTime() : Date.now(),
+      failed,
+    };
+  }, [drawerRun, runView]);
+  // The main area's width: with room for both, a test run sits beside the diagram.
+  const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
+  const [mainWidth, setMainWidth] = useState(0);
+  useEffect(() => {
+    if (!mainEl) {
+      return;
+    }
+    const observer = new ResizeObserver(() => setMainWidth(mainEl.clientWidth));
+    observer.observe(mainEl);
+    return () => observer.disconnect();
+  }, [mainEl]);
+  const split = Boolean(drawerRun) && mainWidth >= SPLIT_MIN;
+  const runPane = useDragWidth({
+    key: RUN_KEY,
+    initial: RUN_DEFAULT,
+    min: RUN_MIN,
+    max: () => Math.max(RUN_MIN, (mainEl?.clientWidth ?? window.innerWidth) - RUN_ROOM),
+    dir: -1,
+  });
   const { save, saving, remote, merged, refused } = useLiveDraft(id);
   const projects = useProjects();
 
@@ -286,15 +379,30 @@ export function EditorPage() {
   const cloudLinked = me.data?.mode === "local" && Boolean(me.data.account);
   const cloud = useCloud(id ?? "", Boolean(id) && cloudLinked);
   const blocked = missing.some((m) => m.blocking);
+  /** A run opens in the main area; on a phone the sheet folds so the run gets the screen. */
+  const openRun = (runId: string) => {
+    setDrawerRun(runId);
+    setRunView(null);
+    setView("test");
+    // The run gets the room: on a desk the side panel steps aside (its bar brings it back).
+    setRunWide(true);
+    sheet.fold();
+  };
+  const closeRun = () => {
+    setDrawerRun(null);
+    setRunView(null);
+    setView("flow");
+    setRunWide(false);
+  };
   const testRun = useMutation({
     mutationFn: () => api.post<{ runId: string }>(`/api/studio/wizards/${id}/test-runs`),
-    onSuccess: ({ runId }) => setDrawerRun(runId),
+    onSuccess: ({ runId }) => openRun(runId),
   });
   const publish = useMutation({
     mutationFn: () => api.post<PublishResult>(`/api/studio/wizards/${id}/publish`),
     onSuccess: async ({ cloud }) => {
-      // With an account linked the version went on to its cloud. How that went comes along: the
-      // share dialog opens with it, and says first when the cloud did not take the version.
+      // With an account linked the version went on to its cloud: how that went comes along, and
+      // the dialog that published says so.
       if (cloud) {
         qc.setQueryData(["cloud", id], { linked: true, ...cloud });
       }
@@ -303,7 +411,6 @@ export function EditorPage() {
         qc.invalidateQueries({ queryKey: ["cloud", id] }),
         qc.invalidateQueries({ queryKey: ["wizards"] }),
       ]);
-      setShareOpen(true);
     },
   });
 
@@ -328,6 +435,15 @@ export function EditorPage() {
   // A first build covers the diagram; a step asked for in place is shown in its place instead.
   const building = chat.phase !== "idle" && w.blank && !adding;
   const hasIssues = w.issues.length > 0;
+  /** Asks the assistant to mend the draft's issues, in the chat. */
+  const fixIssues = () => {
+    setShareOpen(false);
+    setLiveOpen(false);
+    setTab("chat");
+    void chat.send(
+      `${t("editor.fixIssuesAsk")}\n${w.issues.map((i) => `- ${i.message}`).join("\n")}`,
+    );
+  };
   // Read-only for one of two reasons: the wizard is a local install's, or nothing is built here.
   // Its project says which. A project that is not in the list was made here by a tenant that
   // builds nothing here any more.
@@ -357,6 +473,39 @@ export function EditorPage() {
       setTab("step");
       sheet.unfold();
     }
+  };
+
+  /** A swipe on the step panel: left to the next step, right to the one before (the wizard's own settings first). */
+  const stepSwipe = {
+    onTouchStart: (e: React.TouchEvent) => {
+      const target = e.target as HTMLElement;
+      // A field, a slider, a row that scrolls sideways keep their own gestures.
+      const own = target.closest(
+        "input, textarea, select, [contenteditable='true'], [role='slider']",
+      );
+      const touch = e.touches[0];
+      swipeStart.current =
+        own || e.touches.length > 1 || !touch ? null : { x: touch.clientX, y: touch.clientY };
+    },
+    onTouchEnd: (e: React.TouchEvent) => {
+      const start = swipeStart.current;
+      swipeStart.current = null;
+      const touch = e.changedTouches[0];
+      if (!(start && touch)) {
+        return;
+      }
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2) {
+        return;
+      }
+      const ids = ["__wizard", ...def.steps.map((st) => st.id)];
+      const at = selected ? ids.indexOf(selected) : -1;
+      const next = at + (dx < 0 ? 1 : -1);
+      if (next >= 0 && next < ids.length) {
+        select(ids[next]);
+      }
+    },
   };
 
   /**
@@ -400,10 +549,103 @@ export function EditorPage() {
         },
       };
 
+  /** Test and share: in the header, on a phone as icons in the row below it. */
+  const testButton = (
+    <Button
+      variant="secondary"
+      size="sm"
+      className="max-sm:aspect-square max-sm:px-0 max-sm:coarse:px-0"
+      title={t("editor.test")}
+      disabled={hasIssues || building || blocked}
+      busy={testRun.isPending}
+      onClick={() => testRun.mutate()}
+    >
+      <Play className="size-3.5 max-sm:size-4" />
+      <span className="max-sm:sr-only">{t("editor.test")}</span>
+    </Button>
+  );
+  const shareButton = (
+    <Button
+      size="sm"
+      className="max-sm:aspect-square max-sm:px-0 max-sm:coarse:px-0"
+      title={t("editor.share")}
+      onClick={() => setShareOpen(true)}
+    >
+      <Share2 className="size-3.5 max-sm:size-4" />
+      <span className="max-sm:sr-only">{t("editor.share")}</span>
+    </Button>
+  );
+
+  /** The open test run's bar: above the main area, or at the top of the run beside the diagram. */
+  const runBar = drawerRun ? (
+    <div
+      className={cn(
+        "kb-hide flex h-12 shrink-0 items-center gap-1 px-3",
+        // Over the diagram it has a line below; over the run, the run's progress line is the edge.
+        !split && view === "flow" && "border-border-soft border-b",
+      )}
+    >
+      {split ? (
+        <Chip>{t("run.testChip")}</Chip>
+      ) : (
+        <fieldset
+          aria-label={t("editor.view")}
+          className="m-0 flex min-w-0 rounded-full border-0 bg-paper-2 p-0.5"
+        >
+          {(["flow", "test"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              onClick={() => setView(v)}
+              className={cn(
+                "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-3 font-medium text-[0.8125rem] transition coarse:h-9",
+                view === v ? "bg-card text-ink shadow-soft" : "text-ink-3 hover:text-ink",
+              )}
+            >
+              {v === "flow" ? <Workflow className="size-3.5" /> : <Play className="size-3.5" />}
+              {t(v === "flow" ? "editor.flow" : "run.testChip")}
+              {/* The diagram follows the run: its step in effect is lit there. */}
+              {v === "flow" && activeStep && view === "test" ? (
+                <span className="size-1.5 animate-pulse rounded-full bg-ember" aria-hidden="true" />
+              ) : null}
+            </button>
+          ))}
+        </fieldset>
+      )}
+      <span className="flex-1" />
+      {view === "test" || split ? <LookSwitch look={look} onChange={setLook} /> : null}
+      <Button
+        variant="ghost"
+        size="sm"
+        title={t("editor.restart")}
+        busy={testRun.isPending}
+        disabled={hasIssues}
+        onClick={() => testRun.mutate()}
+      >
+        <RotateCcw className="size-3.5" />
+        <span className="max-sm:sr-only">{t("editor.restart")}</span>
+      </Button>
+      <IconButton
+        label={t(runWide ? "editor.runNarrow" : "editor.runWide")}
+        onClick={() => {
+          setRunWide(!runWide);
+          setView("test");
+        }}
+        className="max-lg:hidden"
+      >
+        {runWide ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+      </IconButton>
+      <IconButton label={t("editor.close")} onClick={closeRun}>
+        <X className="size-5" />
+      </IconButton>
+    </div>
+  ) : null;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {readOnlyNote ? (
-        <div className="flex shrink-0 items-center gap-3 border-border-soft border-b bg-paper-2 px-4 py-2 text-[0.8125rem] text-ink-2 sm:px-6">
+        <div className="flex shrink-0 items-center gap-3 border-border-soft border-b bg-paper-2 px-4 py-2 text-[0.8125rem] text-ink-2 max-sm:hidden sm:px-6">
           <Lock className="size-4 shrink-0 text-ink-3" />
           <p className="min-w-0 flex-1">{readOnlyNote}</p>
         </div>
@@ -413,14 +655,14 @@ export function EditorPage() {
           {failed}
         </div>
       ) : null}
-      <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:px-4">
-        <IconButton label="Zurück" onClick={() => navigate("/")}>
+      <header className="flex h-12 shrink-0 items-center gap-1 px-2 coarse:h-14 sm:gap-2 sm:px-4">
+        <IconButton label={t("common.back")} onClick={() => navigate("/")}>
           <ArrowLeft className="size-5" />
         </IconButton>
         <button
           type="button"
           onClick={() => select("__wizard")}
-          className="min-w-0 truncate rounded-md px-2 py-1 text-left hover:bg-accent"
+          className="min-w-0 truncate rounded-md px-1 py-1 text-left hover:bg-accent sm:px-2"
         >
           <span className="font-display font-semibold text-[1.0625rem] tracking-tight">
             {def.title}
@@ -428,15 +670,11 @@ export function EditorPage() {
         </button>
         <span className="hidden sm:inline-flex">
           {w.published ? (
-            w.dirty ? (
-              <Chip tone="warn">{t("editor.unpublishedChanges")}</Chip>
-            ) : (
-              <WhereChip
-                where={whereItRuns(w, me.data, cloudLinked ? cloud.data : null)}
-                me={me.data}
-                version={w.publishedVersion}
-              />
-            )
+            <WhereChip
+              where={whereItRuns(w, me.data, cloudLinked ? cloud.data : null)}
+              me={me.data}
+              version={w.publishedVersion}
+            />
           ) : (
             <Chip>{t("editor.notPublished")}</Chip>
           )}
@@ -446,178 +684,284 @@ export function EditorPage() {
           <LiveChip remote={remote} merged={merged} />
         </span>
         <div className="ml-auto flex items-center gap-2">
-          {/* The wizard as a file: definition and workspace, to keep or to import elsewhere. */}
-          <a
-            href={withBase(`/api/studio/wizards/${w.id}/export`)}
-            download
-            aria-label={t("editor.export")}
-            title={t("editor.export")}
-            className="hidden size-9 shrink-0 items-center justify-center rounded-full text-ink-3 transition hover:bg-accent hover:text-ink sm:inline-flex"
-          >
-            <Download className="size-4" />
-          </a>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={hasIssues || building || blocked}
-            busy={testRun.isPending}
-            onClick={() => testRun.mutate()}
-          >
-            <Play className="size-3.5" /> {t("editor.test")}
-          </Button>
-          {w.published && (!w.dirty || w.readOnly) ? (
-            <Button size="sm" onClick={() => setShareOpen(true)}>
-              <Share2 className="size-3.5" /> {t("editor.share")}
+          {/* With a run open, its bar restarts it: the header keeps no second test button. */}
+          {drawerRun ? null : <span className="contents max-sm:hidden">{testButton}</span>}
+          {/* The first version goes live by sharing; every later one by its own dialog. */}
+          {w.published && w.dirty && !w.readOnly ? (
+            <Button variant="secondary" size="sm" onClick={() => setLiveOpen(true)}>
+              <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+              <span className="max-sm:hidden">{t("live.open")}</span>
+              <span className="sm:hidden">{t("live.openShort")}</span>
             </Button>
-          ) : w.readOnly ? null : (
-            <>
-              {/* What the cloud would lack for the draft is said in the share dialog: with an
-                  account linked it stays at hand while there is something to publish. */}
-              {cloudLinked ? (
-                <IconButton
-                  label={t("editor.share")}
-                  className="max-sm:hidden"
-                  onClick={() => setShareOpen(true)}
-                >
-                  <Share2 className="size-4" />
-                </IconButton>
-              ) : null}
-              <Button
-                size="sm"
-                disabled={hasIssues || building}
-                busy={publish.isPending}
-                onClick={() => publish.mutate()}
-              >
-                {t("editor.publish")}
-              </Button>
-            </>
-          )}
+          ) : null}
+          <span className="contents max-sm:hidden">{shareButton}</span>
           <span className="ml-2 hidden md:inline-flex">
             <CreditsPill me={me.data} />
           </span>
+          {/* At the very right: a copy, the package to keep, deleting it. */}
+          <WizardMenu
+            wizard={{ id: w.id, title: def.title, published: w.published }}
+            onDeleted={() => navigate("/")}
+          />
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section className="relative min-h-0 flex-1 overflow-hidden">
-          {hasIssues && !building ? (
-            <div className="absolute top-3 right-3 left-3 z-10 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1 ring-rose/30">
-              <p className="text-[0.875rem]">{t("editor.issues")}</p>
-              <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
-                {w.issues.slice(0, 4).map((i, k) => (
-                  <li key={k}>{i.message}</li>
-                ))}
-              </ul>
-              {w.readOnly ? null : (
-                <Button
-                  size="sm"
-                  variant="quiet"
-                  className="mt-3"
-                  disabled={chat.phase !== "idle"}
-                  onClick={() => {
-                    setTab("chat");
-                    void chat.send(
-                      `Bitte behebe diese Probleme im Wizard:\n${w.issues.map((i) => `- ${i.message}`).join("\n")}`,
-                    );
-                  }}
-                >
-                  {t("editor.fixWithChat")}
-                </Button>
-              )}
-            </div>
-          ) : null}
-          {!hasIssues && !building && missing.length ? (
-            <div
-              className={cn(
-                "absolute top-3 right-3 left-3 z-10 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1",
-                blocked ? "ring-rose/30" : "ring-amber/30",
-              )}
-            >
-              <p className="text-[0.875rem]">
-                {t(blocked ? "editor.models.blocking" : "editor.models.optional")}
-              </p>
-              <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
-                {missing.map((m) => (
-                  <li key={m.cls}>
-                    <span className="text-ink">{t(`class.${m.cls}` as Key)}</span> (
-                    {m.steps.map((s) => `„${s.title}“`).join(", ")}):{" "}
-                    <LinkedText text={m.problem} />
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                <Button size="sm" variant="quiet" onClick={() => navigate("/settings/models")}>
-                  {t("editor.models.settings")}
-                </Button>
-                {credits === "connect" ? (
-                  <p className="text-[0.8125rem] text-ink-3">
-                    {t("teaser.models")}{" "}
-                    <button
-                      type="button"
-                      className="font-medium text-ink underline underline-offset-2"
-                      onClick={() => navigate("/settings/account")}
-                    >
-                      {t("teaser.connect")}
-                    </button>
-                  </p>
-                ) : credits === "use" ? (
-                  <p className="text-[0.8125rem] text-ink-3">{t("teaser.modelsLinked")}</p>
+      {/* Where the pane is a sheet: the diagram behind it, and on a phone test and share. A test
+          run's bar takes this row's place. */}
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-2 px-3 pb-2 lg:hidden",
+          drawerRun && "hidden",
+        )}
+      >
+        <Button variant="secondary" size="sm" aria-expanded={sheet.folded} onClick={sheet.toggle}>
+          <Workflow className="size-4" /> {t("editor.flow")}
+          {sheet.folded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+        </Button>
+        <span className="flex-1" />
+        <span className="contents sm:hidden">
+          {testButton}
+          {shareButton}
+        </span>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row-reverse lg:overflow-hidden">
+        <section ref={setMainEl} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {split ? null : runBar}
+          <div className="relative flex min-h-0 flex-1">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="relative min-h-0 flex-1">
+                {hasIssues && !building ? (
+                  <div className="absolute top-3 right-3 left-3 z-10 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1 ring-rose/30">
+                    <p className="text-[0.875rem]">{t("editor.issues")}</p>
+                    <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
+                      {w.issues.slice(0, 4).map((i, k) => (
+                        <li key={k}>{i.message}</li>
+                      ))}
+                    </ul>
+                    {w.readOnly ? null : (
+                      <Button
+                        size="sm"
+                        variant="quiet"
+                        className="mt-3"
+                        disabled={chat.phase !== "idle"}
+                        onClick={fixIssues}
+                      >
+                        {t("editor.fixWithChat")}
+                      </Button>
+                    )}
+                  </div>
                 ) : null}
+                {!hasIssues && !building && missing.length ? (
+                  <div
+                    className={cn(
+                      "absolute top-3 right-3 left-3 z-10 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1",
+                      blocked ? "ring-rose/30" : "ring-amber/30",
+                    )}
+                  >
+                    <p className="text-[0.875rem]">
+                      {t(blocked ? "editor.models.blocking" : "editor.models.optional")}
+                    </p>
+                    <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
+                      {missing.map((m) => (
+                        <li key={m.cls}>
+                          <span className="text-ink">{t(`class.${m.cls}` as Key)}</span> (
+                          {m.steps.map((s) => `„${s.title}“`).join(", ")}):{" "}
+                          <LinkedText text={m.problem} />
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <Button
+                        size="sm"
+                        variant="quiet"
+                        onClick={() => navigate("/settings/models")}
+                      >
+                        {t("editor.models.settings")}
+                      </Button>
+                      {credits === "connect" ? (
+                        <p className="text-[0.8125rem] text-ink-3">
+                          {t("teaser.models")}{" "}
+                          <button
+                            type="button"
+                            className="font-medium text-ink underline underline-offset-2"
+                            onClick={() => navigate("/settings/account")}
+                          >
+                            {t("teaser.connect")}
+                          </button>
+                        </p>
+                      ) : credits === "use" ? (
+                        <p className="text-[0.8125rem] text-ink-3">{t("teaser.modelsLinked")}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {/* A test the runtime refused to start says why, where the run would have opened. */}
+                {testRun.error && !drawerRun ? (
+                  <div
+                    role="alert"
+                    className="absolute top-3 right-3 left-3 z-20 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1 ring-rose/30"
+                  >
+                    <p className="font-medium text-[0.875rem]">{t("editor.testFailed")}</p>
+                    <p className="mt-1 text-[0.8125rem] text-ink-2">
+                      <LinkedText text={testRun.error.message} />
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="quiet"
+                        onClick={() => navigate("/settings/models")}
+                      >
+                        {t("editor.models.settings")}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => testRun.reset()}>
+                        {t("editor.close")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                {insertAt !== null && assistant && !building ? (
+                  <div className="absolute top-3 right-3 left-3 z-20 mx-auto max-w-xl animate-rise rounded-xl shadow-elevated">
+                    <AddStepPanel
+                      place={placeText(def, insertAt)}
+                      branchable={insertAt > 0}
+                      onAdd={(kind, prompt, when) => {
+                        if (!addStep({ at: insertAt, kind, prompt, when })) {
+                          return false;
+                        }
+                        setInsertAt(null);
+                        return true;
+                      }}
+                      onEmpty={(kind) => {
+                        const added = withEmptyStep(def, insertAt, kind);
+                        save(added.def);
+                        setInsertAt(null);
+                        select(added.id);
+                      }}
+                      onCancel={() => setInsertAt(null)}
+                    />
+                  </div>
+                ) : null}
+                {building ? (
+                  <div className="flex h-full items-center justify-center px-6 text-[0.875rem] text-ink-3">
+                    <Working chat={chat} spinner="size-4 text-ember" />
+                  </div>
+                ) : (
+                  <FlowDiagram
+                    def={def}
+                    selected={selected}
+                    onSelect={select}
+                    issueSteps={issueSteps}
+                    activeStep={drawerRun ? activeStep : null}
+                    live={live}
+                    fitKey={`${split}:${Boolean(drawerRun)}:${paneMoves}`}
+                    pulse={remote?.steps}
+                    wizardId={w.id}
+                    decisions={shownDecisions}
+                    onBranch={(sid) => {
+                      select(sid);
+                      setBranchFocus((n) => n + 1);
+                    }}
+                    adding={adding}
+                    onInsert={w.readOnly || adding ? undefined : openInsert}
+                  />
+                )}
               </div>
             </div>
-          ) : null}
-          {insertAt !== null && assistant && !building ? (
-            <div className="absolute top-3 right-3 left-3 z-20 mx-auto max-w-xl animate-rise rounded-xl shadow-elevated">
-              <AddStepPanel
-                place={placeText(def, insertAt)}
-                branchable={insertAt > 0}
-                onAdd={(kind, prompt, when) => {
-                  if (!addStep({ at: insertAt, kind, prompt, when })) {
-                    return false;
-                  }
-                  setInsertAt(null);
-                  return true;
-                }}
-                onEmpty={(kind) => {
-                  const added = withEmptyStep(def, insertAt, kind);
-                  save(added.def);
-                  setInsertAt(null);
-                  select(added.id);
-                }}
-                onCancel={() => setInsertAt(null)}
-              />
-            </div>
-          ) : null}
-          {building ? (
-            <div className="flex h-full items-center justify-center px-6 text-[0.875rem] text-ink-3">
-              <Working chat={chat} spinner="size-4 text-ember" />
-            </div>
-          ) : (
-            <FlowDiagram
-              def={def}
-              selected={selected}
+            {/* Beside the diagram where there is room, else over it; hidden, not unmounted, so the
+                run keeps its place. */}
+            {drawerRun ? (
+              <div
+                className={cn(
+                  split
+                    ? "relative shrink-0 animate-slide-in"
+                    : "absolute inset-0 z-30 animate-fade-in",
+                  !split && view === "flow" && "hidden",
+                )}
+                // Beside the diagram, as wide as dragged, the diagram keeping its room.
+                style={
+                  split
+                    ? { width: `min(${runPane.width}px, calc(100% - ${RUN_ROOM}px))` }
+                    : undefined
+                }
+              >
+                {split ? (
+                  // biome-ignore lint/a11y/useSemanticElements: a draggable splitter has no element of its own
+                  <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={t("editor.resize")}
+                    aria-valuenow={runPane.width}
+                    tabIndex={0}
+                    title={t("editor.resize")}
+                    onPointerDown={runPane.onPointerDown}
+                    onKeyDown={runPane.onKeyDown}
+                    onDoubleClick={runPane.reset}
+                    className="group -left-5 absolute inset-y-0 z-10 w-5 cursor-col-resize outline-none"
+                  >
+                    <span className="-translate-y-1/2 absolute top-1/2 left-[7px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
+                  </div>
+                ) : null}
+                {/* Beside the diagram a card like the side panel, mirrored: rounded where it meets the header. */}
+                <div
+                  className={cn(
+                    "flex h-full flex-col",
+                    split
+                      ? "overflow-hidden rounded-tl-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)]"
+                      : "bg-background",
+                  )}
+                >
+                  {split ? runBar : null}
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    {look === "chat" ? (
+                      <ChatBody
+                        key={drawerRun}
+                        runId={drawerRun}
+                        onRestart={() => testRun.mutate()}
+                        onView={onRunView}
+                      />
+                    ) : (
+                      <RunnerBody
+                        key={drawerRun}
+                        runId={drawerRun}
+                        compact
+                        studio
+                        onRestart={() => testRun.mutate()}
+                        onView={onRunView}
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          {/* The run's log across the whole width, under the diagram and the run. */}
+          {drawerRun ? (
+            <RunLog
+              view={runView}
+              steps={def.steps}
               onSelect={select}
-              issueSteps={issueSteps}
-              activeStep={drawerRun ? activeStep : null}
-              pulse={remote?.steps}
-              wizardId={w.id}
-              decisions={shownDecisions}
-              onBranch={(sid) => {
-                select(sid);
-                setBranchFocus((n) => n + 1);
-              }}
-              adding={adding}
-              onInsert={w.readOnly || adding ? undefined : openInsert}
+              className="border-border-soft border-t"
             />
-          )}
+          ) : null}
         </section>
 
         <aside
           ref={sheet.ref}
+          onTransitionEnd={(e) => {
+            if (e.target === e.currentTarget && e.propertyName === "margin-left") {
+              setPaneMoves((n) => n + 1);
+            }
+          }}
           className={cn(
-            "relative flex h-(--sheet) min-h-0 w-full shrink-0 flex-col rounded-t-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)] lg:h-auto lg:w-(--pane) lg:rounded-tr-none",
+            "relative flex h-(--sheet) min-h-0 w-full shrink-0 flex-col rounded-t-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)] lg:h-auto lg:w-(--pane) lg:rounded-tl-none",
             !sheet.dragging &&
               "max-lg:motion-safe:transition-[height] max-lg:motion-safe:duration-200",
+            // On a desk it slides out to the left for a test run, its content unchanged, and back.
+            "lg:motion-safe:transition-[margin-left,visibility] lg:motion-safe:duration-300 lg:motion-safe:ease-out",
+            drawerRun && runWide && "lg:invisible lg:ml-[calc(var(--pane)*-1)]",
+            // Folded under a test run on a phone, it makes way for the keyboard of the run's fields.
+            drawerRun && view === "test" && sheet.folded && "kb-hide",
           )}
           style={{ "--pane": `${pane.width}px`, "--sheet": sheet.height } as React.CSSProperties}
         >
@@ -650,26 +994,33 @@ export function EditorPage() {
             onPointerDown={pane.onPointerDown}
             onKeyDown={pane.onKeyDown}
             onDoubleClick={pane.reset}
-            className="group -left-5 absolute inset-y-0 z-10 hidden w-5 cursor-col-resize outline-none lg:block"
+            className="group -right-5 absolute inset-y-0 z-10 hidden w-5 cursor-col-resize outline-none lg:block"
           >
             {/* The grip sits just outside the pane, beside its edge, clear of its scrollbar. */}
-            <span className="-translate-y-1/2 absolute top-1/2 left-[7px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
+            <span className="-translate-y-1/2 absolute top-1/2 right-[7px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
           </div>
-          <nav className="flex shrink-0 gap-1 px-3 lg:pt-3">
+          <nav
+            ref={tabsRef}
+            className="flex shrink-0 gap-1 overflow-x-auto px-3 [scrollbar-width:none] lg:pt-3"
+          >
             {(["chat", "step", "files", "memory", "runs"] as Tab[]).map((k) => (
               <button
                 key={k}
                 type="button"
+                data-active={tab === k || undefined}
                 onClick={() => {
                   setTab(k);
                   sheet.unfold();
                 }}
                 className={cn(
-                  "h-9 rounded-full px-4 font-medium text-[0.8125rem] transition",
+                  "h-9 shrink-0 rounded-full px-4 font-medium text-[0.8125rem] transition",
                   tab === k ? "bg-paper-2 text-ink" : "text-ink-3 hover:text-ink",
                 )}
               >
                 {t(TAB_LABEL[k] as "editor.chat")}
+                {readOnlyNote && k !== "runs" ? (
+                  <Lock className="ml-1.5 inline size-3 align-[-1px] text-ink-3 sm:hidden" />
+                ) : null}
               </button>
             ))}
           </nav>
@@ -677,20 +1028,31 @@ export function EditorPage() {
             {tab === "chat" ? (
               <ChatPanel chat={chat} avatar={def.avatar} closed={readOnlyNote ?? undefined} />
             ) : tab === "step" ? (
-              <Inspector
-                def={def}
-                selected={selected}
-                update={save}
-                onSelect={select}
-                issues={w.issues}
-                mcpServers={w.mcpServers}
-                files={w.files}
-                wizardId={w.id}
-                readOnly={w.readOnly}
-                decisions={shownDecisions}
-                branchFocus={branchFocus}
-                assistant={assistant}
-              />
+              <div className="flex h-full min-h-0 flex-col">
+                {/* A swipe left or right moves to the next or the previous step. */}
+                <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
+                  <Inspector
+                    def={def}
+                    selected={selected}
+                    update={save}
+                    onSelect={select}
+                    issues={w.issues}
+                    mcpServers={w.mcpServers}
+                    files={w.files}
+                    wizardId={w.id}
+                    readOnly={w.readOnly}
+                    decisions={shownDecisions}
+                    branchFocus={branchFocus}
+                    assistant={assistant}
+                  />
+                </div>
+                {/* The chat's composer stays at hand while a step is open; its thread is the Chat tab's. */}
+                {readOnlyNote ? null : (
+                  <div className="shrink-0 px-3 pt-2 pb-3">
+                    <ChatPanel compact chat={chat} avatar={def.avatar} foldOn={drawerRun} />
+                  </div>
+                )}
+              </div>
             ) : tab === "files" ? (
               <FilesPanel wizardId={w.id} files={w.files} readOnly={w.readOnly} />
             ) : tab === "memory" ? (
@@ -701,49 +1063,11 @@ export function EditorPage() {
                 readOnly={w.readOnly}
               />
             ) : (
-              <RunsPanel wizardId={w.id} onOpen={setDrawerRun} />
+              <RunsPanel wizardId={w.id} onOpen={openRun} />
             )}
           </div>
         </aside>
       </div>
-
-      {drawerRun ? (
-        <RunDrawer
-          header={<Chip>Test</Chip>}
-          actions={
-            <>
-              <LookSwitch look={look} onChange={setLook} />
-              <Button
-                variant="ghost"
-                size="sm"
-                busy={testRun.isPending}
-                disabled={hasIssues}
-                onClick={() => testRun.mutate()}
-              >
-                {t("editor.restart")}
-              </Button>
-            </>
-          }
-          onClose={() => setDrawerRun(null)}
-        >
-          {look === "chat" ? (
-            <ChatBody
-              key={drawerRun}
-              runId={drawerRun}
-              onRestart={() => testRun.mutate()}
-              onView={onRunView}
-            />
-          ) : (
-            <RunnerBody
-              key={drawerRun}
-              runId={drawerRun}
-              compact
-              onRestart={() => testRun.mutate()}
-              onView={onRunView}
-            />
-          )}
-        </RunDrawer>
-      ) : null}
 
       <ShareDialog
         wizard={w}
@@ -753,12 +1077,43 @@ export function EditorPage() {
           w.readOnly
             ? undefined
             : {
-                run: () => publish.mutate(),
+                run: () => publish.mutateAsync(),
                 busy: publish.isPending,
                 disabled: hasIssues || building,
+                fix: fixIssues,
+                goLive: () => {
+                  setShareOpen(false);
+                  setLiveOpen(true);
+                },
               }
         }
       />
+      {w.readOnly ? null : (
+        <LiveDialog
+          wizard={w}
+          open={liveOpen}
+          onClose={() => setLiveOpen(false)}
+          cloud={cloudLinked}
+          actions={{
+            publish: () => publish.mutateAsync(),
+            busy: publish.isPending,
+            disabled: hasIssues || building,
+            test: () => {
+              setLiveOpen(false);
+              testRun.mutate();
+            },
+            openRun: (runId) => {
+              setLiveOpen(false);
+              openRun(runId);
+            },
+            fix: fixIssues,
+            share: () => {
+              setLiveOpen(false);
+              setShareOpen(true);
+            },
+          }}
+        />
+      )}
     </div>
   );
 }

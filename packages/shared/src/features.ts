@@ -16,8 +16,6 @@ export type Features = Record<string, boolean>;
 /** `teamPlans`, `contacts.leadScoring`. */
 export const FEATURE_NAME = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)?$/;
 
-export const FEATURE_NAMES = Object.keys(FEATURES) as FeatureName[];
-
 /** What a manifest declares for one switch; what is left out is a release switch, off, named by its key. */
 export interface FeatureDeclarationInput {
   kind?: "release" | "plan";
@@ -46,6 +44,19 @@ export function declaredByPlugin(
     };
   }
   return out;
+}
+
+/**
+ * Whether a switch is on in resolved values: a switch they do not carry counts as declared – a
+ * core flag with its default (`ownKeys` on, `teamPlans` off), anything else off. Every read of a
+ * flag goes through this (`useFeature` in the studio), so a missing value means one thing.
+ */
+export function featureOn(features: Features | null | undefined, name: string): boolean {
+  const value = features?.[name];
+  if (typeof value === "boolean") {
+    return value;
+  }
+  return Object.hasOwn(FEATURES, name) ? FEATURES[name as FeatureName].default : false;
 }
 
 /** The defaults of these declarations; without any, the core's. */

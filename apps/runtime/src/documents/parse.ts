@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { note } from "@engenty-wizards/shared/run";
 import { generateText, Output } from "ai";
 import PostalMime from "postal-mime";
 import { z } from "zod";
@@ -16,6 +17,7 @@ import { splitMarkdownByPageBreaks } from "../engenty/doc-converter/page-break.j
 import { LocalProvider } from "../engenty/doc-converter/providers/local/index.js";
 import { invoiceSchema, receiptSchema } from "../engenty/document-scanner/schemas/index.js";
 import { env } from "../env.js";
+import { NotedError } from "../model-errors.js";
 import { type CallMeta, costOf, textModel } from "../models.js";
 import { htmlToMarkdown } from "../render/convert.js";
 
@@ -27,7 +29,7 @@ export interface ParsedDocument {
   via: "text" | "vision" | "table" | "mail";
 }
 
-export class UnreadableDocument extends Error {}
+export class UnreadableDocument extends NotedError {}
 
 /** Model calls made while reading are charged to whoever asked. */
 export type Charge = (usd: number) => Promise<void>;
@@ -53,6 +55,20 @@ const MIME_BY_EXT: Record<string, string> = {
   jpeg: "image/jpeg",
   webp: "image/webp",
   gif: "image/gif",
+  svg: "image/svg+xml",
+  avif: "image/avif",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  m4a: "audio/mp4",
+  woff2: "font/woff2",
+  woff: "font/woff",
+  ttf: "font/ttf",
+  otf: "font/otf",
+  glb: "model/gltf-binary",
+  gltf: "model/gltf+json",
 };
 
 /** The type to read a file as: mail servers and browsers often only say "octet-stream". */
@@ -195,9 +211,7 @@ async function read(
   const vision = new VisionProvider(opts.charge, opts.signal, opts.call);
   if (mime.startsWith("image/")) {
     if (!vision.canConvert(mime)) {
-      throw new UnreadableDocument(
-        `Bilder vom Typ ${mime} kann ich nicht lesen (PNG, JPEG, WebP gehen).`,
-      );
+      throw new UnreadableDocument(note("imageTypeNotReadable", { mime }));
     }
     const result = await vision.convert(data, name, mime);
     return { markdown: result.markdown, pages: 1, via: "vision" };
@@ -241,7 +255,7 @@ async function read(
   if (mime === "application/json" || mime.startsWith("text/")) {
     return { markdown: text(), pages: null, via: "text" };
   }
-  throw new UnreadableDocument(`„${name}“ (${mime}) kann ich nicht lesen.`);
+  throw new UnreadableDocument(note("fileNotReadable", { name, mime }));
 }
 
 // --- structured extraction -----------------------------------------------------

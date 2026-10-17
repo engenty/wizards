@@ -6,29 +6,30 @@ import type { WizardDefinition } from "@engenty-wizards/shared/definition";
  */
 export const EXAMPLE_WIZARD: WizardDefinition = {
   version: 1,
-  title: "X-Post mit Bild",
-  description: "Aus einem Thema wird ein fertiger Post mit Bild.",
+  title: "X post with an image",
+  description: "Turns a topic into a finished post with an image.",
   avatar: "flame",
-  intro: "Erzähl mir kurz, worum es geht – ich schreibe den Post und zeichne das Bild dazu.",
+  lang: "en",
+  intro: "Tell me briefly what it is about – I write the post and draw the image for it.",
   steps: [
     {
       id: "about",
       type: "page",
-      title: "Worum geht's?",
+      title: "What is it about?",
       fields: [
         {
           id: "topic",
-          label: "Thema oder Anlass",
+          label: "Topic or occasion",
           kind: "textarea",
           required: true,
-          placeholder: "z. B. Wir eröffnen am Freitag unser neues Studio in Wien",
+          placeholder: "e.g. We open our new studio in Vienna on Friday",
         },
         {
           id: "tone",
-          label: "Ton",
+          label: "Tone",
           kind: "select",
-          options: ["Locker", "Professionell", "Witzig", "Inspirierend"],
-          default: "Locker",
+          options: ["Casual", "Professional", "Funny", "Inspiring"],
+          default: "Casual",
         },
         { id: "link", label: "Link (optional)", kind: "url" },
       ],
@@ -36,10 +37,10 @@ export const EXAMPLE_WIZARD: WizardDefinition = {
     {
       id: "post",
       type: "agent",
-      title: "Post schreiben",
-      working: "Schreibt den Post …",
+      title: "Write the post",
+      working: "Writing the post …",
       instructions:
-        "Schreibe einen Post für X (Twitter) zum Thema: {{topic}}. Ton: {{tone}}. Höchstens 270 Zeichen inklusive Link und höchstens zwei Hashtags. Wenn ein Link angegeben ist ({{link}}), setze ihn ans Ende. Ein starker erster Satz. Nur den Post ausgeben.",
+        "Write a post for X (Twitter) on the topic: {{topic}}. Tone: {{tone}}. At most 270 characters including the link, and at most two hashtags. If a link is given ({{link}}), put it at the end. A strong first sentence. Output only the post.",
       tools: [],
       output: { format: "text" },
       model: "standard",
@@ -47,18 +48,18 @@ export const EXAMPLE_WIZARD: WizardDefinition = {
     {
       id: "visual",
       type: "generate",
-      title: "Bild zeichnen",
-      working: "Zeichnet das Bild …",
+      title: "Draw the image",
+      working: "Drawing the image …",
       asset: "image",
       prompt:
-        "Ein auffälliges Bild, das diesen Post begleitet: {{steps.post}}. Thema: {{topic}}. Kein Text im Bild.",
+        "A striking image to go with this post: {{steps.post}}. Topic: {{topic}}. No text in the image.",
       options: { aspectRatio: "16:9", style: "modern editorial, clean, high contrast" },
     },
     {
       id: "check",
       type: "review",
-      title: "Passt das so?",
-      description: "Du kannst den Text direkt ändern oder eine neue Variante anfordern.",
+      title: "Does this work?",
+      description: "You can change the text directly or ask for a new variant.",
       show: ["post", "visual"],
       edit: true,
       regenerate: true,
@@ -66,11 +67,11 @@ export const EXAMPLE_WIZARD: WizardDefinition = {
     {
       id: "done",
       type: "result",
-      title: "Fertig zum Posten",
-      message: "Kopiere den Text und lade das Bild herunter.",
+      title: "Ready to post",
+      message: "Copy the text and download the image.",
       deliverables: [
         { from: "post", label: "Post", formats: ["txt", "md"] },
-        { from: "visual", label: "Bild", formats: ["png"] },
+        { from: "visual", label: "Image", formats: ["png"] },
       ],
     },
   ],

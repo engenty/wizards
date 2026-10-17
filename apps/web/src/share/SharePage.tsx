@@ -1,3 +1,4 @@
+import { DownloadButtons, OutputView } from "@engenty-wizards/runner";
 import type { ShareView } from "@engenty-wizards/shared/run";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
@@ -8,8 +9,8 @@ import { BRAND, Mascot } from "../brand";
 import { api, isOffline } from "../lib/api";
 import { lang, t } from "../lib/i18n";
 import { useStage } from "../lib/theme";
-import { DownloadButtons, OutputView } from "../runner/outputs";
-import { BrandHeader, useBrandAccent } from "../runner/PublicRunner";
+import { BrandHeader } from "../runner/PublicRunner";
+import { useRunTheme } from "../runner/theme";
 import { Button, Card, Spinner } from "../ui";
 
 /** A shared result, read-only: the deliverables, their downloads, and a way to make your own. */
@@ -20,7 +21,7 @@ export function SharePage() {
     queryFn: () => api.get<ShareView>(`/api/shares/${token}`),
     retry: (count, err) => isOffline(err) && count < 3,
   });
-  useBrandAccent(share.data?.brand.accent);
+  useRunTheme(share.data?.brand.theme);
   useStage(share.data?.wizard.avatar);
   useEffect(() => {
     if (share.data) {

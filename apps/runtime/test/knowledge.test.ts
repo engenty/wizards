@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-// Wissen: typed Kategorien on pages, rows and files; an index whose units follow the structure;
+// Knowledge: typed categories on pages, rows and files; an index whose units follow the structure;
 // a search that filters first and lets a classifier judge what it found; what plugins write
 // under keys of their own; documents read into pages and tables when they arrive; the tools a
 // step reads it all with.
@@ -78,7 +78,7 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-describe("Kategorien", () => {
+describe("Categories", () => {
   const ids: Record<string, string> = {};
   const pages: Record<string, string> = {};
 
@@ -180,7 +180,7 @@ describe("Kategorien", () => {
       ofTitles("Tagesbericht 14.03.2026", "Fotos"),
     );
     await expect(local(() => filterItems(spaceId, { Gewerk: "Maurer" }))).rejects.toThrow(
-      /No Kategorie "Gewerk"\. There are: Baustelle \(choice\)/,
+      /No category “Gewerk”\. There are: Baustelle \(choice\)/,
     );
   });
 
@@ -206,7 +206,7 @@ describe("Kategorien", () => {
 });
 
 describe("the search", () => {
-  it("indexes a page by its sections, with its path and Kategorien in front", async () => {
+  it("indexes a page by its sections, with its path and categories in front", async () => {
     await flush();
     const rows = await local(() =>
       client.db.query.projectChunk.findMany({
@@ -256,7 +256,7 @@ describe("the search", () => {
 });
 
 describe("what a plugin writes", () => {
-  it("writes pages, tables and Kategorien under its keys; the same key rewrites", async () => {
+  it("writes pages, tables and categories under its keys; the same key rewrites", async () => {
     const { originData } = await import("../src/services/space-origin");
     const data = originData("sourcer");
     await local(async () => {
@@ -372,7 +372,7 @@ describe("a plugin's documents", () => {
   });
 });
 
-describe("documents read into Wissen", () => {
+describe("documents read into Knowledge", () => {
   const upload = async (name: string, mime: string, text: string) => {
     const form = new FormData();
     form.append("file", new File([text], name, { type: mime }));
@@ -441,7 +441,7 @@ describe("documents read into Wissen", () => {
 });
 
 describe("the tools of a step", () => {
-  it("search with where, list by Kategorien, read a page's section and a table's rows", async () => {
+  it("search with where, list by categories, read a page's section and a table's rows", async () => {
     const { projectTools } = await import("../src/tools/project");
     const emitted: any[] = [];
     const ctx = {
@@ -467,19 +467,19 @@ describe("the tools of a step", () => {
       expect(found.checked).toBe(true);
       expect(found.hits[0]).toMatchObject({
         path: expect.stringMatching(/^pages\/tagesbericht-1[45]-03-2026$/),
-        kategorien: expect.arrayContaining(["Baustelle: Graz Süd"]),
+        categories: expect.arrayContaining(["Baustelle: Graz Süd"]),
         section: expect.stringContaining("Mängel"),
         relevance: 0.9,
       });
       const tree = await tools.project_list.execute({});
-      expect(tree.kategorien.find((k: any) => k.name === "Baustelle")).toMatchObject({
+      expect(tree.categories.find((k: any) => k.name === "Baustelle")).toMatchObject({
         type: "choice",
         values: ["Graz Süd (2)", "Linz Hafen (1)"],
       });
       const listed = await tools.project_list.execute({ where: { Berichtsdatum: { after: "2026-04-01" } } });
       expect(listed.items.map((i: any) => i.path)).toEqual(["pages/tagesbericht-02-04-2026"]);
       const section = await tools.page_read.execute({ path: "pages/tagesbericht-14-03-2026", section: "Mängel" });
-      expect(section.page).toContain("kategorien:\n  Baustelle: Graz Süd");
+      expect(section.page).toContain("categories:\n  Baustelle: Graz Süd");
       expect(section.page).toContain("sub-pages:\n  - pages/tagesbericht-14-03-2026/fotos");
       expect(section.page).toMatch(/## Mängel\n\nRiss in der Schalung\.$/);
       const rows = await tools.table_read.execute({ path: "tables/kettenprogramm", where: { "WLL [kg]": { gte: 1800 } } });
@@ -494,10 +494,10 @@ describe("the tools of a step", () => {
     });
   });
 
-  it("tells every step what Wissen holds and how to filter it", async () => {
+  it("tells every step what Knowledge holds and how to filter it", async () => {
     const { knowledgeBlock } = await import("../src/services/knowledge");
     const block = await local(() => knowledgeBlock(spaceId));
-    expect(block).toContain("# WISSEN — WHAT THE SPACE KNOWS");
+    expect(block).toContain("# KNOWLEDGE — WHAT THE SPACE KNOWS");
     expect(block).toContain("- Baustelle (choice): Graz Süd, Linz Hafen");
     expect(block).toContain("- Arbeitsstunden (number, h): 12 … 41.5");
   });

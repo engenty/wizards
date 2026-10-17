@@ -4,20 +4,50 @@ import {
   isAudioValue,
   isLocationValue,
   itemsTotals,
-  LOCALES,
+  localeOf,
   locationText,
   type WizardDefinition,
   wizardLang,
 } from "@engenty-wizards/shared/definition";
-import type { BrandColor, ProjectFact } from "@engenty-wizards/shared/projects";
+import { formatMoney } from "@engenty-wizards/shared/numbers";
+import {
+  type AssetSection,
+  type BrandColor,
+  type BrandFont,
+  type BrandGradient,
+  type BrandPattern,
+  type BrandRule,
+  type ColorSection,
+  fontLicenseWords,
+  gradientCss,
+  type LogoSection,
+  type ProjectFact,
+  type TextStyle,
+  textStyleLine,
+} from "@engenty-wizards/shared/projects";
 import type { RunState } from "@engenty-wizards/shared/run";
 import { type ListDef, type ListRow, listAsMarkdown } from "@engenty-wizards/shared/store";
 
 export interface TemplateScope {
   def: WizardDefinition;
   state: RunState;
-  /** The project the wizard belongs to: who it is, its colours and its facts. */
-  brand: { name?: string; about?: string; colors?: BrandColor[]; facts?: ProjectFact[] };
+  /** The project the wizard belongs to: who it is, its colours, how its logos are used, its facts. */
+  brand: {
+    name?: string;
+    about?: string;
+    colors?: BrandColor[];
+    colorSections?: ColorSection[];
+    gradients?: BrandGradient[];
+    patterns?: BrandPattern[];
+    colorRules?: BrandRule[];
+    logoSections?: LogoSection[];
+    assetSections?: AssetSection[];
+    fonts?: BrandFont[];
+    textStyles?: TextStyle[];
+    typeRules?: BrandRule[];
+    logoRules?: BrandRule[];
+    facts?: ProjectFact[];
+  };
   /** The wizard's stored lists as they are when the step starts. */
   lists?: Record<string, { def: ListDef; rows: ListRow[] }>;
   /** A generate step with `each`: the entry this result is made for. */
@@ -26,22 +56,14 @@ export interface TemplateScope {
 
 const TEMPLATE_RE = /\{\{\s*([^}]+?)\s*\}\}/g;
 
-function money(n: number, currency: string, locale: string): string {
-  try {
-    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(n);
-  } catch {
-    return `${n.toFixed(2)} ${currency}`;
-  }
-}
-
 /** Line items as a Markdown table with their totals — what a model needs to write a document. */
 export function itemsAsMarkdown(
   field: Field,
   value: unknown,
   values: Record<string, unknown>,
-  lang: "de" | "en" = "de",
+  lang = "en",
 ): string {
-  const locale = LOCALES[lang];
+  const locale = localeOf(lang);
   const totals = itemsTotals(field, value, values);
   const cols = field.columns ?? [];
   if (!totals.rows.length) {
@@ -53,15 +75,17 @@ export function itemsAsMarkdown(
       `| ${cols
         .map((c) =>
           c.kind === "money"
-            ? money(Number(r[c.id]) || 0, totals.currency, locale)
+            ? formatMoney(Number(r[c.id]) || 0, totals.currency, locale)
             : String(r[c.id] ?? ""),
         )
-        .join(" | ")} | ${money(r.amount as number, totals.currency, locale)} |`,
+        .join(" | ")} | ${formatMoney(r.amount as number, totals.currency, locale)} |`,
   );
   const sums = [
-    `Net: ${money(totals.net, totals.currency, locale)}`,
-    totals.vatRate ? `VAT ${totals.vatRate}%: ${money(totals.vat, totals.currency, locale)}` : null,
-    `Total: ${money(totals.gross, totals.currency, locale)}`,
+    `Net: ${formatMoney(totals.net, totals.currency, locale)}`,
+    totals.vatRate
+      ? `VAT ${totals.vatRate}%: ${formatMoney(totals.vat, totals.currency, locale)}`
+      : null,
+    `Total: ${formatMoney(totals.gross, totals.currency, locale)}`,
   ].filter(Boolean);
   return [head, ...body, "", ...sums].join("\n");
 }
@@ -71,8 +95,67 @@ export function factLines(facts: ProjectFact[]): string {
   return facts.map((f) => `${f.label}: ${f.value}`).join("\n");
 }
 
-export function colorLine(colors: BrandColor[]): string {
-  return colors.map((c) => (c.name ? `${c.name} ${c.value}` : c.value)).join(", ");
+/**
+ * The colours as a model reads them; a section's after the standard ones. A gradients section
+ * names its gradients as CSS, each with what it is for.
+ */
+export function colorLine(
+  colors: BrandColor[],
+  sections: ColorSection[] = [],
+  gradients: BrandGradient[] = [],
+): string {
+  const line = (list: BrandColor[]) =>
+    list.map((c) => (c.name ? `${c.name} ${c.value}` : c.value)).join(", ");
+  const known = (c: BrandColor) => sections.some((s) => s.id === c.section);
+  return [
+    line(colors.filter((c) => !known(c))),
+    ...sections.map((s) => {
+      if (s.kind === "gradients") {
+        const own = gradients.filter((g) => g.section === s.id);
+        const one = (g: BrandGradient) =>
+          `${g.name || "gradient"}${g.description ? ` (${g.description})` : ""} ${gradientCss(g)}`;
+        return own.length ? `${s.title}: ${own.map(one).join("; ")}` : "";
+      }
+      const own = colors.filter((c) => c.section === s.id);
+      return own.length ? `${s.title}: ${line(own)}` : "";
+    }),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * The brand's type as a model reads it: its fonts with their licences, then its text styles. A
+ * licence that names its uses is binding.
+ */
+export function typeLines(fonts: BrandFont[] = [], styles: TextStyle[] = []): string {
+  const families = fonts.map((f) => {
+    const weights = f.weights.length ? `, weights ${f.weights.join("/")}` : "";
+    return `- ${f.family}${f.role ? ` (${f.role})` : ""}${weights}${fontLicenseWords(f)}`;
+  });
+  const scale = styles.map((s) => `- ${s.name}: ${textStyleLine(s, fonts)}`);
+  return [
+    families.length ? `Fonts:\n${families.join("\n")}` : "",
+    fonts.some((f) => f.uses?.length)
+      ? "A font's licence is binding: use a font only for what it may be used for, and set anything else in a system font."
+      : "",
+    scale.length ? `Text styles:\n${scale.join("\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+const sectionWords = (s: { title: string; description: string } | undefined) =>
+  !s ? "" : s.description ? `${s.title} (${s.description})` : s.title;
+
+/** The logo's section in words — "Logomark (small spaces, app icons)" — or "" where it has none. */
+export function logoSectionLine(sections: LogoSection[] | undefined, fileId: string): string {
+  return sectionWords(sections?.find((x) => x.logos.includes(fileId)));
+}
+
+/** The title of the asset's section — "Icons" — or "" where it has none. */
+export function assetSectionLine(sections: AssetSection[] | undefined, fileId: string): string {
+  return sections?.find((x) => x.assets.includes(fileId))?.title ?? "";
 }
 
 function brandRef(brand: TemplateScope["brand"], key: string): unknown {
@@ -87,7 +170,9 @@ function brandRef(brand: TemplateScope["brand"], key: string): unknown {
     case "accent":
       return brand.colors?.[0]?.value ?? "";
     case "colors":
-      return colorLine(brand.colors ?? []);
+      return colorLine(brand.colors ?? [], brand.colorSections, brand.gradients);
+    case "fonts":
+      return typeLines(brand.fonts, brand.textStyles);
     default:
       return "";
   }

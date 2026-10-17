@@ -7,7 +7,7 @@ import { BASE, withBase } from "@/lib/base";
 import { BRAND, Mascot, ThemeToggle } from "../brand";
 import { api, isOffline } from "../lib/api";
 import { appLink, appTell, IN_APP } from "../lib/app";
-import { closeEmbed, EMBED, useEmbed } from "../lib/embed";
+import { closeEmbed, EMBED, EMBED_PAGE, useEmbed } from "../lib/embed";
 import { t } from "../lib/i18n";
 import { useStage } from "../lib/theme";
 import { Button, cn, IconButton, Spinner } from "../ui";
@@ -22,20 +22,29 @@ import {
   useVoiceState,
 } from "./ChatView";
 import { RunnerBody } from "./RunnerView";
+import { PageLangSwitch, type PageLanguage, TranslatedNote, usePageLanguage } from "./translation";
 
-/** The wizard owner's accent recolours the whole palette: every Ember token derives from --raw-primary. */
-export function useBrandAccent(accent: string | null | undefined) {
+/**
+ * A run follows the page's language: switched during a run, the steps from then on speak it
+ * (what is already made stays as it is); opened in another language, the run is told once.
+ */
+function useRunLang(runId: string | undefined, page: PageLanguage | null) {
+  const told = useRef<string | null>(null);
+  const lang = page && !page.translating ? (page.translated ? page.shown : null) : undefined;
   useEffect(() => {
-    if (!accent) {
+    if (!runId || lang === undefined) {
       return;
     }
-    const root = document.documentElement;
-    root.style.setProperty("--raw-primary", accent);
-    return () => {
-      root.style.removeProperty("--raw-primary");
-    };
-  }, [accent]);
+    const key = `${runId}:${lang}`;
+    if (told.current === key) {
+      return;
+    }
+    told.current = key;
+    void api.post(`/api/runs/${runId}/lang`, { lang }).catch(() => undefined);
+  }, [runId, lang]);
 }
+
+import { useRunTheme } from "./theme";
 
 /**
  * A wizard's link is an app of its own: the browser's "add to home screen" then installs this
@@ -143,10 +152,20 @@ function InstallHint() {
   );
 }
 
-export function BrandHeader({ brand, toggle = true }: { brand: BrandView; toggle?: boolean }) {
+export function BrandHeader({
+  brand,
+  toggle = true,
+  start,
+}: {
+  brand: BrandView;
+  toggle?: boolean;
+  /** What stands at the left: the language switch of a wizard's page. */
+  start?: ReactNode;
+}) {
   return (
     <header className="safe-top">
       <div className="relative flex h-14 items-center justify-center px-5">
+        {start ? <div className="absolute left-3">{start}</div> : null}
         {brand.logoUrl ? (
           <img
             src={withBase(brand.logoUrl)}
@@ -235,7 +254,7 @@ const PAGE = EMBED === "inline" ? "min-h-80" : "min-h-dvh";
  * Starting a run of the wizard, or going back to the last one this browser had. `home` is the
  * runner's address: `/w/<token>` or `/w/<token>/chat`.
  */
-function useStartRun(wizard: PublicWizard, home: string) {
+function useStartRun(wizard: PublicWizard, home: string, lang?: string | null) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,6 +275,8 @@ function useStartRun(wizard: PublicWizard, home: string) {
         {
           turnstileToken: captcha ?? undefined,
           embedded: EMBED !== null,
+          origin: EMBED_PAGE ?? undefined,
+          lang: lang ?? undefined,
         },
       );
       try {
@@ -273,10 +294,11 @@ function useStartRun(wizard: PublicWizard, home: string) {
   return { busy, error, captcha, setCaptcha, start, resume };
 }
 
-function StartScreen({ wizard }: { wizard: PublicWizard }) {
+function StartScreen({ wizard, page }: { wizard: PublicWizard; page: PageLanguage | null }) {
   const { busy, error, captcha, setCaptcha, start, resume } = useStartRun(
     wizard,
     `/w/${wizard.token}`,
+    page?.translated ? page.shown : null,
   );
   const auto = AUTOSTART && wizard.available && !wizard.turnstileSiteKey;
   const started = useRef(false);
@@ -303,6 +325,9 @@ function StartScreen({ wizard }: { wizard: PublicWizard }) {
       {wizard.description ? (
         <p className="mt-3 text-[1rem] text-ink-2 leading-relaxed">{wizard.description}</p>
       ) : null}
+      <div className="mt-3">
+        <TranslatedNote page={page} />
+      </div>
       {wizard.available ? (
         <>
           <Button
@@ -362,7 +387,7 @@ function OtherRunners({ wizard, current }: { wizard: PublicWizard; current: stri
 }
 
 /** The chat's top: the wizard that talks, and in a popout the way to fold it away. */
-function ChatHeader({ wizard }: { wizard: PublicWizard }) {
+function ChatHeader({ wizard, page }: { wizard: PublicWizard; page: PageLanguage | null }) {
   const voice = useVoiceState();
   return (
     <header className="safe-top shrink-0 border-border-soft border-b">
@@ -377,6 +402,7 @@ function ChatHeader({ wizard }: { wizard: PublicWizard }) {
           {wizard.brand.name ? (
             <div className="truncate text-[0.75rem] text-ink-3">{wizard.brand.name}</div>
           ) : null}
+          <TranslatedNote page={page} small />
         </div>
         {wizard.brand.logoUrl && EMBED !== "popout" ? (
           <img
@@ -385,6 +411,7 @@ function ChatHeader({ wizard }: { wizard: PublicWizard }) {
             className="h-6 max-w-[120px] object-contain max-sm:hidden"
           />
         ) : null}
+        <PageLangSwitch page={page} tone="surface" />
         {EMBED ? null : <ThemeToggle />}
         {EMBED === "popout" ? (
           <IconButton label={t("common.close")} onClick={closeEmbed}>
@@ -400,18 +427,21 @@ function ChatHeader({ wizard }: { wizard: PublicWizard }) {
 function ChatStart({
   door,
   wizard,
+  page,
   header,
   footer,
 }: {
   /** The address a run opens at: the chat, the conversation first, or the call screen. */
   door: "chat" | "talk" | "video";
   wizard: PublicWizard;
+  page: PageLanguage | null;
   header: ReactNode;
   footer: ReactNode;
 }) {
   const { busy, error, captcha, setCaptcha, start, resume } = useStartRun(
     wizard,
     `/w/${wizard.token}/${door}`,
+    page?.translated ? page.shown : null,
   );
   const lines: Line[] = [{ key: "hello", who: "bot", node: wizard.description || wizard.title }];
   if (door !== "chat") {
@@ -517,15 +547,18 @@ export function PublicRunner({
   // The conversation is offered first at /talk, and on the link when it is the default.
   const talking = !calling && ((talk && talkOn) || (!stepsPath && !chatPath && first === "talk"));
   const door = calling ? "video" : talking ? "talk" : "chat";
-  useBrandAccent(wizard.data?.brand.accent);
+  const page = usePageLanguage(wizard.data);
+  useRunLang(runId, page);
+  useRunTheme(wizard.data?.brand.theme);
   useStage(wizard.data?.avatar);
   useWizardApp(token, wizard.data?.title);
   useEmbed(chat);
+  const title = page?.wizard.title ?? wizard.data?.title;
   useEffect(() => {
-    if (wizard.data) {
-      document.title = wizard.data.title;
+    if (title) {
+      document.title = title;
     }
-  }, [wizard.data]);
+  }, [title]);
   // The app keeps every run it saw in its results, also one started or resumed in here.
   useEffect(() => {
     if (token && runId) {
@@ -564,8 +597,16 @@ export function PublicRunner({
       </div>
     );
   }
+  const shown = page?.wizard ?? wizard.data;
+  // The first viewer in a language waits while it is translated.
+  const translating = page?.translating ? (
+    <div className={cn("flex flex-col items-center justify-center gap-3 text-ink-3", PAGE)}>
+      <Spinner />
+      <p className="text-[0.875rem]">{t("translation.working")}</p>
+    </div>
+  ) : null;
   if (chat) {
-    const header = <ChatHeader wizard={wizard.data} />;
+    const header = <ChatHeader wizard={shown} page={page} />;
     const footer = IN_APP ? (
       <div className="safe-bottom" />
     ) : (
@@ -573,19 +614,20 @@ export function PublicRunner({
     );
     return (
       <div className="flex h-dvh flex-col">
-        {runId ? (
-          <ChatBody
-            runId={runId}
-            talk={talking}
-            call={calling ? "video" : talking ? "audio" : false}
-            onRestart={() => navigate(`/w/${token}/${door}`)}
-            // A call's stage names the wizard itself.
-            header={calling || talking ? undefined : header}
-            footer={footer}
-          />
-        ) : (
-          <ChatStart wizard={wizard.data} header={header} footer={footer} door={door} />
-        )}
+        {translating ??
+          (runId ? (
+            <ChatBody
+              runId={runId}
+              talk={talking}
+              call={calling ? "video" : talking ? "audio" : false}
+              onRestart={() => navigate(`/w/${token}/${door}`)}
+              // A call's stage names the wizard itself.
+              header={calling || talking ? undefined : header}
+              footer={footer}
+            />
+          ) : (
+            <ChatStart wizard={shown} page={page} header={header} footer={footer} door={door} />
+          ))}
       </div>
     );
   }
@@ -594,14 +636,29 @@ export function PublicRunner({
       {/* The website around an inline wizard carries the brand; in the window its close button takes the corner. */}
       {/* In the app its own top bar names the wizard. */}
       {EMBED === "inline" || IN_APP ? null : (
-        <BrandHeader brand={wizard.data.brand} toggle={!EMBED} />
+        <BrandHeader
+          brand={wizard.data.brand}
+          toggle={!EMBED}
+          start={<PageLangSwitch page={page} />}
+        />
       )}
+      {EMBED === "inline" || IN_APP ? (
+        <div className="flex justify-end px-3 pt-2">
+          <PageLangSwitch page={page} tone="surface" />
+        </div>
+      ) : null}
+      {runId && (page?.translated || page?.failed) ? (
+        <div className="flex justify-center px-5">
+          <TranslatedNote page={page} />
+        </div>
+      ) : null}
       <div className="flex-1">
-        {runId ? (
-          <RunnerBody runId={runId} onRestart={() => navigate(`/w/${token}`)} />
-        ) : (
-          <StartScreen wizard={wizard.data} />
-        )}
+        {translating ??
+          (runId ? (
+            <RunnerBody runId={runId} onRestart={() => navigate(`/w/${token}`)} />
+          ) : (
+            <StartScreen wizard={shown} page={page} />
+          ))}
       </div>
       {IN_APP ? (
         <div className="safe-bottom" />

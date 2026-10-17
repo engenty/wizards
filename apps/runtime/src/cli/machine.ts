@@ -1,10 +1,14 @@
 import { execFile } from "node:child_process";
-import { accessSync, constants, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, join } from "node:path";
+import { join } from "node:path";
 import { promisify } from "node:util";
+// The search for a browser is shared with env.ts, so the runtime uses the one the setup found.
+import { findChrome, findOnPath } from "../render/browser-path.js";
 import { runtimePath } from "./environment.js";
 import type { Layout } from "./home.js";
+
+export { findChrome, findOnPath };
 
 const run = promisify(execFile);
 
@@ -12,7 +16,7 @@ const run = promisify(execFile);
 export type ClientInstall = { kind: "npm"; pkg: string } | { kind: "script"; url: string };
 
 export interface Client {
-  id: "codex" | "claude" | "gemini" | "cursor";
+  id: "codex" | "claude" | "antigravity" | "cursor";
   name: string;
   bin: string;
   /** The subscription it answers on. */
@@ -41,11 +45,12 @@ export const CLIENTS: readonly Client[] = [
     app: "Claude",
   },
   {
-    id: "gemini",
-    name: "Gemini CLI",
-    bin: "gemini",
-    account: "Google",
-    install: { kind: "npm", pkg: "@google/gemini-cli" },
+    id: "antigravity",
+    name: "Antigravity",
+    bin: "agy",
+    account: "Google AI",
+    install: { kind: "script", url: "https://antigravity.google/cli/install.sh" },
+    app: "Antigravity",
   },
   {
     id: "cursor",
@@ -57,16 +62,19 @@ export const CLIENTS: readonly Client[] = [
   },
 ];
 
+const APP_ROOTS = ["/Applications", join(homedir(), "Applications")];
+
+/** Whether `<name>.app` is in one of the Mac's Applications folders. */
+export function macAppPresent(name: string, roots = APP_ROOTS): boolean {
+  return roots.some((root) => existsSync(join(root, `${name}.app`)));
+}
+
 /** The client's desktop app, when it is on this Mac: its name, e.g. "Claude". */
-export function vendorApp(
-  client: Client,
-  roots = ["/Applications", join(homedir(), "Applications")],
-) {
+export function vendorApp(client: Client, roots = APP_ROOTS) {
   if (process.platform !== "darwin" || !client.app) {
     return null;
   }
-  const app = client.app;
-  return roots.some((root) => existsSync(join(root, `${app}.app`))) ? app : null;
+  return macAppPresent(client.app, roots) ? client.app : null;
 }
 
 /**
@@ -78,21 +86,6 @@ export function suggestedClient<T extends { client: Client }>(missing: T[]): T |
 }
 
 /** The first file of that name on a PATH that may be run. */
-export function findOnPath(name: string, path: string): string | null {
-  for (const dir of path.split(delimiter)) {
-    if (!dir) {
-      continue;
-    }
-    const file = join(dir, name);
-    try {
-      accessSync(file, constants.X_OK);
-      return file;
-    } catch {
-      // not here
-    }
-  }
-  return null;
-}
 
 /** What a command prints for `--version`: its last word that looks like one. */
 async function versionOf(file: string, path: string): Promise<string | null> {
@@ -128,37 +121,6 @@ export async function detectClients(paths: Layout): Promise<ClientState[]> {
       return { client, path: version ? file : null, version };
     }),
   );
-}
-
-/** The browser the runtime renders PDF and PNG with. */
-export function findChrome(env: NodeJS.ProcessEnv = process.env): string | null {
-  if (env.CHROME_PATH) {
-    return existsSync(env.CHROME_PATH) ? env.CHROME_PATH : null;
-  }
-  if (process.platform === "darwin") {
-    const apps = [
-      "Google Chrome.app/Contents/MacOS/Google Chrome",
-      "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-      "Chromium.app/Contents/MacOS/Chromium",
-      "Brave Browser.app/Contents/MacOS/Brave Browser",
-    ];
-    const roots = ["/Applications", join(homedir(), "Applications")];
-    for (const app of apps) {
-      for (const root of roots) {
-        if (existsSync(join(root, app))) {
-          return join(root, app);
-        }
-      }
-    }
-    return null;
-  }
-  for (const name of ["google-chrome", "chromium", "chromium-browser", "microsoft-edge"]) {
-    const file = findOnPath(name, env.PATH ?? "");
-    if (file) {
-      return file;
-    }
-  }
-  return null;
 }
 
 export async function findFfmpeg(env: NodeJS.ProcessEnv = process.env): Promise<Found> {

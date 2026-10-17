@@ -1,4 +1,4 @@
-// Written by apps/mobile/scripts/engenty-shapes.tsx from apps/web/src/engenty — do not edit by hand.
+// Written by apps/web/scripts/engenty-shapes.tsx from apps/web/src/engenty — do not edit by hand.
 
 export type EngentyKind = "round" | "drop" | "dome" | "flame" | "oval" | "bean" | "pebble" | "sprout" | "tower" | "wedge";
 

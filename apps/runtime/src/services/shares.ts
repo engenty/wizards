@@ -1,4 +1,5 @@
 import type { ShareView } from "@engenty-wizards/shared/run";
+import { note } from "@engenty-wizards/shared/run";
 import { and, eq, isNotNull, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
@@ -18,12 +19,12 @@ import { ServiceError } from "./errors.js";
 
 type RunRow = typeof schema.run.$inferSelect;
 
-export const shareUrlFor = (token: string) => `${env.appUrl}/s/${token}`;
+export const shareUrlFor = (token: string) => `${env.publicUrl}/s/${token}`;
 
 /** Shares a finished run. Idempotent: the same run keeps the same link. */
 export async function shareRun(run: RunRow) {
   if (run.status !== "done") {
-    throw new ServiceError("refused", "Nur fertige Ergebnisse lassen sich teilen.");
+    throw new ServiceError("refused", note("onlyFinishedResultsShared"));
   }
   let token = run.shareToken;
   if (!token) {
@@ -89,7 +90,7 @@ export async function shareView(run: RunRow): Promise<ShareView> {
     createdAt: run.createdAt.toISOString(),
     expiresAt: run.expiresAt?.toISOString() ?? null,
     wizardUrl:
-      w?.shareEnabled && w.publishedVersion !== null ? `${env.appUrl}/w/${w.shareToken}` : null,
+      w?.shareEnabled && w.publishedVersion !== null ? `${env.publicUrl}/w/${w.shareToken}` : null,
   };
 }
 

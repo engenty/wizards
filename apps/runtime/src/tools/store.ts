@@ -245,7 +245,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
 
   tools.scan_documents = createTool({
     id: "scan_documents",
-    description: `Pull the key fields out of invoices or receipts, several at once: vendor, number, dates, net/tax/total, currency, VAT id. Cheaper and more exact than reading each document yourself. Amounts come back exactly as printed.${fileHint}`,
+    description: `Pull the key fields out of invoices or receipts, several at once: vendor, number, dates, net/tax/total, currency, VAT ID. Cheaper and more exact than reading each document yourself. Amounts come back exactly as printed.${fileHint}`,
     inputSchema: z.object({
       files: z.array(z.string()).min(1).max(30),
       kind: z.enum(["invoice", "receipt"]),

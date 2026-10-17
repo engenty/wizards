@@ -1,4 +1,5 @@
 import { posix } from "node:path";
+import type { RunTheme } from "@engenty-wizards/shared/run";
 import { isTextMime, type WorkspaceFile } from "@engenty-wizards/shared/workspace";
 import { getBlob } from "../files/blobs.js";
 import { guardHtml } from "../render/guard.js";
@@ -12,6 +13,8 @@ export interface WidgetBrand {
   colors?: { name: string; value: string }[];
   /** The project's facts: key → value. */
   facts?: Record<string, string>;
+  /** How the run page looks: accent, second colour, ground, typefaces (`runTheme`). */
+  theme?: RunTheme;
 }
 
 interface Loaded {

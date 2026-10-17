@@ -1,4 +1,4 @@
-import type { PluginSpaceData } from "@engenty-wizards/plugin-sdk";
+import type { PluginSpaceData } from "@engenty/wizards/plugin";
 import type { CategoryInput } from "@engenty-wizards/shared/knowledge";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
@@ -12,7 +12,7 @@ import { putCategory, setItemCategories } from "./space-categories.js";
 import { listOrigin, putOriginPage, putOriginTable, removeOrigin } from "./space-data.js";
 
 /**
- * `server.spaceData` of a plugin: Wissen it writes under keys of its own, with Kategorien. The
+ * `server.spaceData` of a plugin: Knowledge it writes under keys of its own, with categories. The
  * plugin's id is the origin of everything it writes; a person who changes an item keeps it.
  */
 export function originData(origin: string): PluginSpaceData {
@@ -66,7 +66,7 @@ export function originData(origin: string): PluginSpaceData {
           input.markdown,
           input.title,
         ).catch((err) => {
-          console.error(`[plugin ${origin}] Kategorien`, err);
+          console.error(`[plugin ${origin}] categories`, err);
           return false;
         });
         if (changed) {
@@ -93,7 +93,7 @@ export function originData(origin: string): PluginSpaceData {
       const id = await putOriginFile(origin, { ...input, categories: undefined });
       const file = await db.query.projectFile.findFirst({ where: eq(schema.projectFile.id, id) });
       if (!file) {
-        throw new ServiceError("not_found", "The document went while it was read.");
+        throw new ServiceError("not_found", "The document was removed while it was being read.");
       }
       const path = (await filePaths(input.space)).get(id) ?? "";
       const kept =
@@ -163,7 +163,7 @@ export function originData(origin: string): PluginSpaceData {
       }
       if (input.fill) {
         await fillCategories(input.space, ref, converted.text, input.name).catch((err) => {
-          console.error(`[plugin ${origin}] Kategorien`, err);
+          console.error(`[plugin ${origin}] categories`, err);
           return false;
         });
       }

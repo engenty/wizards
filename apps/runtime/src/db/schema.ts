@@ -1,8 +1,20 @@
 import type { WizardDefinition } from "@engenty-wizards/shared/definition";
 import type { TableColumn } from "@engenty-wizards/shared/engenty/data-tables";
-import type { BrandColor, ProjectFact } from "@engenty-wizards/shared/projects";
-import type { RunAsk, RunNote, RunState } from "@engenty-wizards/shared/run";
+import type {
+  AssetSection,
+  BrandColor,
+  BrandFont,
+  BrandGradient,
+  BrandPattern,
+  BrandRule,
+  ColorSection,
+  LogoSection,
+  ProjectFact,
+  TextStyle,
+} from "@engenty-wizards/shared/projects";
+import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty-wizards/shared/run";
 import type { RunnerSettings } from "@engenty-wizards/shared/runners";
+import type { TranslationMemory } from "@engenty-wizards/shared/translation";
 import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
 import { sql } from "drizzle-orm";
 import {
@@ -17,6 +29,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import type { ImportedConnectorRecord } from "../engenty/connections-external/types.js";
+import type { DeviceAnswer, DeviceOffer, DeviceRequest } from "../engine/device.js";
 
 const now = sql`(unixepoch() * 1000)`;
 const createdAt = () => integer("created_at", { mode: "timestamp_ms" }).notNull().default(now);
@@ -39,6 +52,26 @@ export interface BrandConfig {
   about?: string;
   /** The first colour is the accent of documents, dashboards and public pages. */
   colors?: BrandColor[];
+  /** Optional: further colours, gradients or patterns grouped by use, each saying when to use it. */
+  colorSections?: ColorSection[];
+  /** In gradients sections. */
+  gradients?: BrandGradient[];
+  /** In patterns sections. */
+  patterns?: BrandPattern[];
+  /** Optional: how the colours may be used, one rule per row with its sign. */
+  colorRules?: BrandRule[];
+  /** The brand's typefaces, each with what it is for. */
+  fonts?: BrandFont[];
+  /** Optional: the type scale. */
+  textStyles?: TextStyle[];
+  /** Optional: how type may be used, one rule per row. */
+  typeRules?: BrandRule[];
+  /** Optional: assets of one kind each, shown as tabs. */
+  assetSections?: AssetSection[];
+  /** Optional: the logos grouped by use, each group saying when to use it. */
+  logoSections?: LogoSection[];
+  /** Optional: how the logos may be used, one rule per row with its sign. */
+  logoRules?: BrandRule[];
 }
 
 export const project = sqliteTable(
@@ -86,6 +119,8 @@ export const wizard = sqliteTable(
     revision: integer("revision").notNull().default(0),
     /** How the wizard is offered: the runner its link opens, the ones switched on. Null: steps and chat. */
     runners: text("runners", { mode: "json" }).$type<RunnerSettings>(),
+    /** The wizard's page offers it in the viewer's language, translated on request. */
+    translate: integer("translate", { mode: "boolean" }).notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -109,6 +144,27 @@ export const wizardVersion = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("wizard_version_n").on(t.wizardId, t.version)],
+);
+
+/**
+ * A wizard in one viewer's language: each original text the person reads with its translation,
+ * written by a model or by the author. Shared by every version; a new version's changed texts
+ * are added when the next viewer asks for the language.
+ */
+export const wizardTranslation = sqliteTable(
+  "wizard_translation",
+  {
+    wizardId: text("wizard_id")
+      .notNull()
+      .references(() => wizard.id, { onDelete: "cascade" }),
+    /** Any language, by its code ("fr"). */
+    lang: text("lang").notNull(),
+    texts: text("texts", { mode: "json" }).$type<TranslationMemory>().notNull(),
+    /** The published version whose texts it last completed. */
+    version: integer("version"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.wizardId, t.lang] })],
 );
 
 /** The draft's workspace: widget code, libraries, reference data. Content lives in the blob store. */
@@ -164,9 +220,18 @@ export const run = sqliteTable(
     mode: text("mode", { enum: ["test", "live"] }).notNull(),
     /** The door the run came through: steps, chat, or a plugin's runner. Null: the page. */
     runner: text("runner"),
+    /** The language the viewer reads the wizard in, translated on request; null: its own. */
+    lang: text("lang"),
     visitorId: text("visitor_id"),
     userId: text("user_id"),
     ipHash: text("ip_hash"),
+    /**
+     * Where a visitor started the run: the address of the website page that embeds the wizard
+     * (`data-page` of the embed tag, else the page's own address); null on the wizard's link.
+     */
+    origin: text("origin"),
+    /** The client that started it over the public API (`x-wizards-client`): web, app, cli, or a registered id. */
+    client: text("client"),
     status: text("status", {
       enum: ["waiting_input", "running", "done", "failed", "cancelled"],
     }).notNull(),
@@ -175,6 +240,18 @@ export const run = sqliteTable(
     error: text("error"),
     /** What a running step is asking the person right now (a login, a code); null = nothing. */
     ask: text("ask", { mode: "json" }).$type<RunAsk | null>(),
+    /** The person's answer to `ask`, written by the web for the runner that waits on it. */
+    answer: text("answer", { mode: "json" }).$type<{ askId: string; answer: AskAnswer } | null>(),
+    /** An autopilot drives this test run (an MCP client fills its pages): it asks nobody. */
+    unattended: integer("unattended", { mode: "boolean" }).notNull().default(false),
+    /**
+     * What the device the run is watched from offers as a model (the app's Apple Intelligence),
+     * with when it last said so; written by the web, read by the runner (engine/device.ts).
+     */
+    deviceOffer: text("device_offer", { mode: "json" }).$type<{
+      offer: DeviceOffer;
+      at: number;
+    } | null>(),
     costMicros: integer("cost_micros").notNull().default(0),
     /** Set once the result is shared: `/s/<token>` shows it read-only. */
     shareToken: text("share_token"),
@@ -210,6 +287,25 @@ export const runEvent = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index("run_event_run").on(t.runId, t.id)],
+);
+
+/**
+ * A call the runner put to the run's device, open until the device answers or the runner stops
+ * waiting: the stream (any web process) carries it to the phone, and the answer comes back here.
+ */
+export const deviceCall = sqliteTable(
+  "device_call",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    runId: text("run_id")
+      .notNull()
+      .references(() => run.id, { onDelete: "cascade" }),
+    reqId: text("req_id").notNull(),
+    request: text("request", { mode: "json" }).$type<DeviceRequest>().notNull(),
+    answer: text("answer", { mode: "json" }).$type<DeviceAnswer>(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("device_call_req").on(t.reqId), index("device_call_run").on(t.runId)],
 );
 
 /** What each step of a run cost, in credit micros: the measurements estimates are made from. */
@@ -271,7 +367,7 @@ export const projectFile = sqliteTable(
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: ["logo", "asset", "document"] }).notNull(),
+    kind: text("kind", { enum: ["logo", "asset", "document", "pattern"] }).notNull(),
     name: text("name").notNull(),
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
@@ -304,9 +400,9 @@ export const projectFile = sqliteTable(
 );
 
 /**
- * The index of Wissen: one unit per section of a page, row of a table, file, summary of a
- * Kategorie's value, passage of a document read before pages, and passage of a plugin's text
- * (`server.index`). Each unit's text starts with where it stands and its Kategorien. Keywords
+ * The index of Knowledge: one unit per section of a page, row of a table, file, summary of a
+ * category's value, passage of a document read before pages, and passage of a plugin's text
+ * (`server.index`). Each unit's text starts with where it stands and its categories. Keywords
  * live in two FTS5 tables, words (`project_chunk_fts`) and trigrams (`project_chunk_tri`), which
  * triggers keep in step (see the migrations); `embedding` is the unit's vector as float32
  * bytes, compared with libSQL's `vector_distance_cos`.
@@ -475,11 +571,11 @@ export const spacePage = sqliteTable(
   ],
 );
 
-// --- Kategorien -----------------------------------------------------------------
-// Typed properties that run across Wissen: set on pages, rows, tables and files, any number of
+// --- Categories -----------------------------------------------------------------
+// Typed properties that run across Knowledge: set on pages, rows, tables and files, any number of
 // each, so a step filters before it searches.
 
-/** A Kategorie of the space: a name, a type and, for a choice, the values it has met. */
+/** A category of the space: a name, a type and, for a choice, the values it has met. */
 export const spaceCategory = sqliteTable(
   "space_category",
   {
@@ -512,7 +608,7 @@ export const spaceCategory = sqliteTable(
   (t) => [uniqueIndex("space_category_name").on(t.projectId, t.name)],
 );
 
-/** A value of a choice: grows as items arrive; its summary is the Übersicht of its items. */
+/** A value of a choice: grows as items arrive; its summary is the summary of its items. */
 export const spaceCategoryValue = sqliteTable(
   "space_category_value",
   {
@@ -522,7 +618,7 @@ export const spaceCategoryValue = sqliteTable(
       .references(() => spaceCategory.id, { onDelete: "cascade" }),
     value: text("value").notNull(),
     position: integer("position").notNull().default(0),
-    /** The Übersicht: Markdown a model wrote of the value's items, when it last did. */
+    /** The summary: Markdown a model wrote of the value's items, when it last did. */
     summary: text("summary"),
     summaryAt: integer("summary_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
@@ -531,7 +627,7 @@ export const spaceCategoryValue = sqliteTable(
 );
 
 /**
- * A Kategorie set on an item: exactly one of page, row, table and file. A choice points to its
+ * A category set on an item: exactly one of page, row, table and file. A choice points to its
  * value; the other types keep theirs typed: a date as milliseconds, a number, a short text, yes
  * or no. A choice with several values has a row per value.
  */
@@ -574,6 +670,7 @@ export const spaceItemCategory = sqliteTable(
 // searched through `assistant_search` (FTS5 trigrams), which triggers keep in step.
 
 export interface AssistantCardRecord {
+  /** The plugin whose tool returned it; empty for the studio's own cards (`templates`). */
   plugin: string;
   tool: string;
   data: unknown;

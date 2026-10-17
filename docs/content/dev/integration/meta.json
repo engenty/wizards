@@ -1,0 +1,20 @@
+{
+  "title": "Integration",
+  "defaultOpen": true,
+  "pages": [
+    "index",
+    "---For people---",
+    "link-and-share",
+    "embed",
+    "wordpress",
+    "channels",
+    "---For AI apps---",
+    "mcp",
+    "mcp-apps",
+    "claude-code-plugin",
+    "openui",
+    "---For your code---",
+    "own-ui",
+    "results"
+  ]
+}

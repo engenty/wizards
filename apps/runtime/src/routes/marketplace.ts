@@ -12,8 +12,10 @@ import {
   asLang,
   marketplaceDetail,
   searchMarketplace,
+  searchMarketplaceAsGuest,
   starEntry,
 } from "../services/marketplace.js";
+import { notFoundAnswer } from "./lang.js";
 
 const searchSchema = z.object({
   q: z.string().trim().max(200).default(""),
@@ -39,7 +41,7 @@ export const marketplaceStudio = new Hono<{ Variables: { user: SessionUser } }>(
   })
   .get("/:id", async (c) => {
     const detail = await marketplaceDetail(c.req.param("id"), asLang(c.req.query("lang")));
-    return detail ? c.json(detail) : c.json({ error: "not found" }, 404);
+    return detail ? c.json(detail) : c.json(notFoundAnswer(c), 404);
   })
   .put("/:id/star", async (c) => {
     await starEntry(c.get("user").tenantId, c.req.param("id"), true);
@@ -49,3 +51,9 @@ export const marketplaceStudio = new Hono<{ Variables: { user: SessionUser } }>(
     await starEntry(c.get("user").tenantId, c.req.param("id"), false);
     return c.json({ ok: true });
   });
+
+/** The gallery for someone not signed in (the studio's start page for guests): only the search. */
+export const marketplaceGuest = new Hono().get("/", async (c) => {
+  const { lang, starred: _starred, ...search } = searchSchema.parse(c.req.query());
+  return c.json(await searchMarketplaceAsGuest({ ...search, lang: asLang(lang) }));
+});

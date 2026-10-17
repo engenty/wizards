@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import { z } from "zod";
 import { tableColumnsSchema } from "./engenty/data-tables/index.js";
+import { readNumber } from "./numbers.js";
+import { type ObjectShape, outputShapeSchema, shapeOfFields } from "./shape.js";
 import { CONNECTION_KINDS } from "./store.js";
 import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
 
@@ -17,6 +20,229 @@ export const ENGENTY_KINDS = [
   "wedge",
 ] as const;
 export type EngentyKind = (typeof ENGENTY_KINDS)[number];
+
+// --- languages -------------------------------------------------------------------------------
+
+/**
+ * The languages engenty speaks: the studio, the runner, the mails, a wizard's own words. A
+ * language joins once its strings are written; English is the one every string has, and what a
+ * language still lacks is said in English.
+ */
+export const LANGS = ["en", "de"] as const;
+export type Lang = (typeof LANGS)[number];
+
+/** Each language's name, in that language: what a switch or a menu shows. */
+export const LANG_NAMES: Record<Lang, string> = { en: "English", de: "Deutsch" };
+
+/** The locale amounts and dates are written in for a language. */
+export const LOCALES: Record<Lang, string> = { en: "en-GB", de: "de-DE" };
+
+/** The locale speech is heard and spoken in for a language (recognition, voices). */
+export const SPEECH_LOCALES: Record<Lang, string> = { en: "en-US", de: "de-DE" };
+
+export function isLang(value: unknown): value is Lang {
+  return typeof value === "string" && (LANGS as readonly string[]).includes(value);
+}
+
+/** The language of a tag such as "de-AT", "fr" or "pt_BR", where engenty speaks it. */
+export function langOf(tag: string | null | undefined): Lang | null {
+  const code = tag?.trim().toLowerCase().split(/[-_]/)[0];
+  return isLang(code) ? code : null;
+}
+
+/**
+ * The main language of each European country. It holds languages engenty does not speak yet:
+ * `langOf` passes over them until they join `LANGS`.
+ */
+const COUNTRY_LANGUAGE: Record<string, string> = {
+  AT: "de",
+  BE: "nl",
+  BG: "bg",
+  CH: "de",
+  CY: "el",
+  CZ: "cs",
+  DE: "de",
+  DK: "da",
+  EE: "et",
+  ES: "es",
+  FI: "fi",
+  FR: "fr",
+  GB: "en",
+  GR: "el",
+  HR: "hr",
+  HU: "hu",
+  IE: "en",
+  IS: "is",
+  IT: "it",
+  LI: "de",
+  LT: "lt",
+  LU: "fr",
+  LV: "lv",
+  MC: "fr",
+  MT: "en",
+  NL: "nl",
+  NO: "nb",
+  PL: "pl",
+  PT: "pt",
+  RO: "ro",
+  RS: "sr",
+  SE: "sv",
+  SI: "sl",
+  SK: "sk",
+  SM: "it",
+  UA: "uk",
+  VA: "it",
+};
+
+/**
+ * The languages a wizard is offered in when its author picks one: English, German and the main
+ * languages of Europe. A wizard may name any other real language by its code as well.
+ */
+export const WIZARD_LANGS: readonly string[] = [
+  ...new Set(["en", "de", ...Object.values(COUNTRY_LANGUAGE)]),
+];
+
+/** The country of each European time zone (IANA names, as `Intl` gives them). */
+const ZONE_COUNTRY: Record<string, string> = {
+  "Europe/Amsterdam": "NL",
+  "Europe/Athens": "GR",
+  "Europe/Belgrade": "RS",
+  "Europe/Berlin": "DE",
+  "Europe/Bratislava": "SK",
+  "Europe/Brussels": "BE",
+  "Europe/Bucharest": "RO",
+  "Europe/Budapest": "HU",
+  "Europe/Busingen": "DE",
+  "Europe/Copenhagen": "DK",
+  "Europe/Dublin": "IE",
+  "Europe/Helsinki": "FI",
+  "Europe/Kiev": "UA",
+  "Europe/Kyiv": "UA",
+  "Europe/Lisbon": "PT",
+  "Europe/Ljubljana": "SI",
+  "Europe/London": "GB",
+  "Europe/Luxembourg": "LU",
+  "Europe/Madrid": "ES",
+  "Europe/Malta": "MT",
+  "Europe/Monaco": "MC",
+  "Europe/Oslo": "NO",
+  "Europe/Paris": "FR",
+  "Europe/Prague": "CZ",
+  "Europe/Riga": "LV",
+  "Europe/Rome": "IT",
+  "Europe/San_Marino": "SM",
+  "Europe/Sofia": "BG",
+  "Europe/Stockholm": "SE",
+  "Europe/Tallinn": "EE",
+  "Europe/Vaduz": "LI",
+  "Europe/Vatican": "VA",
+  "Europe/Vienna": "AT",
+  "Europe/Vilnius": "LT",
+  "Europe/Warsaw": "PL",
+  "Europe/Zagreb": "HR",
+  "Europe/Zurich": "CH",
+  "Atlantic/Canary": "ES",
+  "Atlantic/Madeira": "PT",
+  "Atlantic/Reykjavik": "IS",
+  "Asia/Nicosia": "CY",
+};
+
+/**
+ * The person's own language beside English: the first of their languages (the browser's, in
+ * its order) that engenty speaks, else the main language of the country their time zone lies
+ * in; null where neither names one.
+ */
+export function localLang(languages: readonly string[], timeZone?: string | null): Lang | null {
+  for (const tag of languages) {
+    const found = langOf(tag);
+    if (found && found !== "en") {
+      return found;
+    }
+  }
+  const country = timeZone ? ZONE_COUNTRY[timeZone] : undefined;
+  const found = country ? langOf(COUNTRY_LANGUAGE[country]) : null;
+  return found === "en" ? null : found;
+}
+
+/**
+ * A language a wizard can be translated into: any language, by its two- or three-letter code
+ * ("fr", "it", "pl"), not only those of `LANGS`.
+ */
+export const LANG_CODE = /^[a-z]{2,3}$/;
+
+/** The code of a tag such as "fr-CA" or "pt_BR"; null where it names no language. */
+export function langCodeOf(tag: string | null | undefined): string | null {
+  const code = tag?.trim().toLowerCase().split(/[-_]/)[0] ?? "";
+  return LANG_CODE.test(code) ? code : null;
+}
+
+/**
+ * A real language, as the platform's own language data knows it: "it" and "nb" are, "xx" is
+ * not. The schema only checks the shape of a code; this checks that it names a language.
+ */
+export function isRealLanguage(code: string): boolean {
+  if (!LANG_CODE.test(code)) {
+    return false;
+  }
+  try {
+    return Boolean(new Intl.DisplayNames(["en"], { type: "language", fallback: "none" }).of(code));
+  } catch {
+    return false;
+  }
+}
+
+/** The language engenty's own strings are read in for any language: itself where they are written, else English. */
+export function textLang(code: string): Lang {
+  return isLang(code) ? code : "en";
+}
+
+/**
+ * The language the person reads, for a wizard translated on request: the first of their
+ * languages (the browser's, in its order), else the main language of the country their time
+ * zone lies in. Any language, not only one engenty's own strings are written in.
+ */
+export function viewerLang(languages: readonly string[], timeZone?: string | null): string | null {
+  for (const tag of languages) {
+    const code = langCodeOf(tag);
+    if (code) {
+      return code;
+    }
+  }
+  const country = timeZone ? ZONE_COUNTRY[timeZone] : undefined;
+  return country ? langCodeOf(COUNTRY_LANGUAGE[country]) : null;
+}
+
+/** A language's name in that language, as a switch shows it: "Italiano", "Polski". */
+export function langName(code: string): string {
+  if (isLang(code)) {
+    return LANG_NAMES[code];
+  }
+  try {
+    const name = new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code;
+    return name.charAt(0).toLocaleUpperCase(code) + name.slice(1);
+  } catch {
+    return code.toUpperCase();
+  }
+}
+
+/** A language's name in English, for a model told what to write in: "Italian". */
+export function langNameEn(code: string): string {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+/** The locale amounts, dates and plural forms are written in for any language. */
+export function localeOf(code: string): string {
+  return isLang(code) ? LOCALES[code] : code;
+}
+
+/** The locale speech is recognised and read aloud in for any language. */
+export function speechLocaleOf(code: string): string {
+  return isLang(code) ? SPEECH_LOCALES[code] : code;
+}
 
 export const FIELD_KINDS = [
   "text",
@@ -89,6 +315,8 @@ export interface AudioValue {
   asset: string;
   seconds?: number;
   transcript?: string;
+  /** The language the runner was in when the note was taken: what it is most likely spoken in. */
+  lang?: Lang;
 }
 
 export function isLocationValue(v: unknown): v is LocationValue {
@@ -132,6 +360,7 @@ export const TOOL_IDS = [
   "image",
   "http",
   "pages",
+  "code",
 ] as const;
 
 /**
@@ -421,12 +650,19 @@ export const agentStepSchema = z.object({
   output: z
     .object({
       format: z.enum(["text", "markdown", "json"]),
+      /** The short form: one level of keys. A step has `fields` or `schema`, not both. */
       fields: z.array(outputFieldSchema).optional(),
       /**
-       * json only: the step also composes a view of its result from the surface catalog, bound
-       * to its own fields; reviews and the result show that view instead of a plain table.
+       * json only: nested data (lists of entries with lists of their own), in the kinds of
+       * `shape.ts`. Objects nest at most four deep, a hundred keys in all.
        */
-      surface: z.boolean().optional(),
+      schema: outputShapeSchema.optional(),
+      /**
+       * json only: a view of the result from the surface catalog, bound to the step's own fields;
+       * reviews and the result show it instead of a plain table. Components: written once, the
+       * same every run, nothing to pay. `true`: a model composes one each run.
+       */
+      surface: z.union([z.boolean(), surfaceComponentsSchema]).optional(),
     })
     .default({ format: "markdown" }),
   /** The kind of model the step needs; default `high`. The model itself is bound elsewhere. */
@@ -488,6 +724,12 @@ export const widgetStepSchema = z.object({
   data: z.record(z.string(), z.string()).default({}),
   /** Workspace path of example data (JSON) for previews before any run. */
   sample: z.string().optional(),
+  /**
+   * How the run shows it: `fixed` (default) at `size`, scaled to the page; `page` as a part of
+   * the page, as wide as it and as tall as its content — a result people scroll and use, not a
+   * picture. PNG/PDF/MP4 still render at `size`.
+   */
+  layout: z.enum(["fixed", "page"]).optional(),
   /** The size the widget is designed for; previews scale it, PNG/PDF/MP4 render at it. */
   size: z
     .object({
@@ -539,6 +781,12 @@ export const filmStepSchema = z.object({
    */
   inputs: z.record(z.string(), z.string()).default({}),
   format: z.enum(FILM_FORMATS).default("16:9"),
+  /**
+   * "steps.<id>" of an earlier film step: this film starts from that one's finished code and
+   * lays it out for its own format — scenes, timing and sound stay. Made from scratch when that
+   * step did not run.
+   */
+  from: z.string().optional(),
   /** About how long the film runs, in seconds. */
   seconds: z.number().int().min(3).max(600).optional(),
   /** The kind of model; default `standard` — the kit carries the craft. */
@@ -641,6 +889,7 @@ export function isDecisionStep(step: AgentStep): boolean {
   const fields = step.output.fields ?? [];
   return (
     !step.call &&
+    !step.output.schema &&
     step.model === "classifier" &&
     step.output.format === "json" &&
     fields.length > 0 &&
@@ -650,6 +899,32 @@ export function isDecisionStep(step: AgentStep): boolean {
     !step.mcp?.length &&
     !step.connections?.length
   );
+}
+
+/**
+ * What an agent step's json output holds: its schema, or its fields as one. Undefined when it
+ * names neither (the model then returns one table).
+ */
+export function declaredShape(step: AgentStep): ObjectShape | undefined {
+  if (step.output.schema) {
+    return step.output.schema;
+  }
+  return step.output.fields?.length ? shapeOfFields(step.output.fields) : undefined;
+}
+
+/** What an agent step's json output holds: its declared shape, or else one table. */
+export function stepShape(step: AgentStep): ObjectShape {
+  return (
+    declaredShape(step) ?? {
+      kind: "object",
+      fields: { data: { kind: "table", description: "The result as a table" } },
+    }
+  );
+}
+
+/** The top-level keys of an agent step's output: what `steps.<id>.<key>` may name. */
+export function outputKeys(step: AgentStep): string[] {
+  return Object.keys(declaredShape(step)?.fields ?? {});
 }
 export type GenerateStep = z.infer<typeof generateStepSchema>;
 export type WidgetStep = z.infer<typeof widgetStepSchema>;
@@ -674,7 +949,7 @@ export const listSchema = z.object({
   check: z.object({ file: z.string().optional(), status: z.string().optional() }).optional(),
   /**
    * The list is the wizard's, not one person's: every run reads and writes the same rows, and
-   * the studio shows it under Space → Daten. It is never shown to the person running the wizard,
+   * the studio shows it under Space → Data. It is never shown to the person running the wizard,
    * who would see what others gave.
    */
   shared: z.boolean().optional(),
@@ -704,6 +979,16 @@ export const wizardSchema = z.object({
   avatar: z.enum(ENGENTY_KINDS).default("round"),
   /** Shown on the first page above the first question. */
   intro: z.string().optional(),
+  /**
+   * The language the wizard speaks to people: its texts, the runner's words, its numbers and
+   * dates, by its two-letter code ("en", "de", "it"). Any language, not only those engenty's own
+   * strings are written in; `validateWizard` checks it names a real one. Without one it is read
+   * from the wizard's own words (`wizardLang`).
+   */
+  lang: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .optional(),
   /** Tabular data the wizard keeps between runs, per person — or for all runs (`shared`). */
   lists: z.array(listSchema).max(12).optional(),
   /** Accounts the person connects; kept between runs, per person. */
@@ -713,18 +998,6 @@ export const wizardSchema = z.object({
 export type WizardDefinition = z.infer<typeof wizardSchema>;
 
 export const INTERACTIVE: ReadonlySet<StepType> = new Set(["page", "review", "result"]);
-
-/**
- * A wizard with a film step runs only where an AI client is installed and signed in, on the
- * person's own subscription: one film takes a client many minutes and many tokens.
- */
-export function needsInstalledClient(def: WizardDefinition): boolean {
-  return def.steps.some((s) => s.type === "film");
-}
-
-export function isInteractive(step: Step): boolean {
-  return INTERACTIVE.has(step.type);
-}
 
 /** Which formats each producing step can be downloaded in. */
 export function formatsFor(step: Step): Format[] {
@@ -753,7 +1026,10 @@ export function formatsFor(step: Step): Format[] {
   }
   if (step.type === "agent") {
     if (step.output.format === "json") {
-      return ["json", "csv", "xlsx", "md", "zip"];
+      // Nested data reads as a document too.
+      return step.output.schema
+        ? ["json", "csv", "xlsx", "md", "pdf", "zip"]
+        : ["json", "csv", "xlsx", "md", "zip"];
     }
     return ["md", "txt", "docx", "pdf", "html", "zip"];
   }
@@ -810,6 +1086,12 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
   const connectionIds = new Set<string>();
   const notShown = (id: string) =>
     `List "${id}" is shared: every run writes it, so the person running the wizard never sees it.`;
+
+  if (def.lang && !isRealLanguage(def.lang)) {
+    issues.push({
+      message: `"${def.lang}" isn't a language code. Use a two-letter code such as "en", "de" or "it".`,
+    });
+  }
 
   for (const list of def.lists ?? []) {
     if (listIds.has(list.id)) {
@@ -992,8 +1274,7 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     return (
       source?.type === "agent" &&
       (!probability || isDecisionStep(source)) &&
-      ((source.output.fields ?? []).some((f) => f.id === key) ||
-        (Boolean(source.each) && key === "rows" && !probability))
+      (outputKeys(source).includes(key) || (Boolean(source.each) && key === "rows" && !probability))
     );
   };
 
@@ -1031,30 +1312,39 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       if (source?.type === "agent" && source.each && key === "rows") {
         return column ? null : `"optionsFrom": "${from}.rows" is a table; name one of its columns.`;
       }
-      const out =
-        source?.type === "agent"
-          ? (source.output.fields ?? []).find((f) => f.id === key)
-          : undefined;
+      const out = source?.type === "agent" ? declaredShape(source)?.fields[key] : undefined;
       if (!out) {
         return `"optionsFrom" names "${from}.${key}", which is not an output of an earlier agent step.`;
       }
+      // The keys of a table's rows, or of a list's entries; undefined: any (free columns).
+      const columns =
+        out.kind === "table"
+          ? out.columns?.length
+            ? out.columns
+            : undefined
+          : out.kind === "list" && out.of.kind === "object"
+            ? Object.keys(out.of.fields)
+            : null;
+      if (columns === null) {
+        if (column || cards) {
+          return column
+            ? `"optionsFrom": "${from}.${key}" is not a table with the column "${column}".`
+            : `"cards": "${from}.${key}" is not a table.`;
+        }
+        return out.kind === "list"
+          ? null
+          : `"optionsFrom": "${from}.${key}" is not a list (a table takes a column, or "cards").`;
+      }
       if (column) {
-        return out.kind === "table" && (!out.columns?.length || out.columns.includes(column))
+        return !columns || columns.includes(column)
           ? null
           : `"optionsFrom": "${from}.${key}" is not a table with the column "${column}".`;
       }
       if (cards) {
-        if (out.kind !== "table") {
-          return `"cards": "${from}.${key}" is not a table.`;
-        }
-        const missing = Object.values(cards).find(
-          (c) => out.columns?.length && !out.columns.includes(c),
-        );
-        return missing ? `"cards": table "${from}.${key}" has no column "${missing}".` : null;
+        const missing = Object.values(cards).find((c) => columns && !columns.includes(c));
+        return missing ? `"cards": "${from}.${key}" has no column "${missing}".` : null;
       }
-      return out.kind === "list"
-        ? null
-        : `"optionsFrom": "${from}.${key}" is not a list (a table takes a column, or "cards").`;
+      return `"optionsFrom": "${from}.${key}" is not a list (a table takes a column, or "cards").`;
     }
     return `"optionsFrom" is "steps.<id>.<key>", "steps.<id>.<key>.<column>" or "lists.<id>.<column>".`;
   };
@@ -1161,6 +1451,31 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
             stepId: step.id,
             message: 'A step composes a view ("surface") of json output only.',
           });
+        }
+        if (step.output.schema) {
+          if (step.output.fields?.length) {
+            issues.push({
+              stepId: step.id,
+              message: 'Output has "fields" or "schema", not both.',
+            });
+          }
+          if (step.output.format !== "json" || step.call) {
+            issues.push({
+              stepId: step.id,
+              message: step.call
+                ? 'A step with "call" keeps the tool\'s answer as it is: no "schema".'
+                : 'A "schema" describes json output: output format "json".',
+            });
+          }
+        }
+        if (Array.isArray(step.output.surface)) {
+          // A step with `each` hands over its entries as `rows`.
+          for (const issue of validateSurface(
+            step.output.surface,
+            step.each ? ["rows"] : declaredShape(step),
+          )) {
+            issues.push({ stepId: step.id, message: `View: ${issue.message}` });
+          }
         }
         if (step.each) {
           const ref = dataRef(step.each);
@@ -1294,6 +1609,15 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
             });
           }
         }
+        if (step.from) {
+          const id = dataRef(step.from).replace(/^steps\./, "");
+          if (!seenSteps.has(id) || def.steps.find((s) => s.id === id)?.type !== "film") {
+            issues.push({
+              stepId: step.id,
+              message: `Film from "${step.from}" is not an earlier film step ("steps.<id>").`,
+            });
+          }
+        }
         if (step.kit && !step.kit.endsWith(".zip")) {
           issues.push({ stepId: step.id, message: `Film kit "${step.kit}" is a .zip.` });
         } else if (files && step.kit && !files.includes(step.kit)) {
@@ -1371,13 +1695,28 @@ export function parseWizard(
   | { ok: false; issues: ValidationIssue[] } {
   const parsed = wizardSchema.safeParse(input);
   if (!parsed.success) {
-    return {
-      ok: false,
-      issues: parsed.error.issues.map((i) => ({ message: `${i.path.join(".")}: ${i.message}` })),
-    };
+    return { ok: false, issues: shapeIssues(parsed.error, input) };
   }
   const issues = validateWizard(parsed.data, files);
   return { ok: true, wizard: parsed.data, issues };
+}
+
+function stepLabel(raw: unknown, index: number): string {
+  const steps = (raw as { steps?: unknown[] } | null)?.steps;
+  const id = (steps?.[index] as { id?: unknown } | undefined)?.id;
+  return typeof id === "string" ? `steps[${index}] "${id}"` : `steps[${index}]`;
+}
+
+/** Where the shape is wrong, a step named by its id: `steps[2] "draft".title: …`. */
+export function shapeIssues(error: z.ZodError, raw: unknown): ValidationIssue[] {
+  return error.issues.map((i) => {
+    const [head, index, ...rest] = i.path;
+    const where =
+      head === "steps" && typeof index === "number"
+        ? [stepLabel(raw, index), ...rest].join(".")
+        : i.path.join(".");
+    return { message: `${where || "wizard"}: ${i.message}` };
+  });
 }
 
 /**
@@ -1510,18 +1849,6 @@ export function conditionsOf(when: When | undefined): Condition[] {
   return when === undefined ? [] : Array.isArray(when) ? when : [when];
 }
 
-/** A typed number as a number: "89,90" from a German number pad counts as 89.9. */
-function numberOf(v: unknown): number | null {
-  if (typeof v === "number") {
-    return Number.isFinite(v) ? v : null;
-  }
-  if (typeof v !== "string" || !v.trim()) {
-    return null;
-  }
-  const n = Number(v.replace(/\s/g, "").replace(",", "."));
-  return Number.isFinite(n) ? n : null;
-}
-
 export function conditionMatches(c: Condition, values: Record<string, unknown>): boolean {
   const v = values[c.field];
   switch (c.op) {
@@ -1537,8 +1864,8 @@ export function conditionMatches(c: Condition, values: Record<string, unknown>):
       return Array.isArray(c.value) && c.value.map(String).includes(String(v));
     case "gt":
     case "lt": {
-      const a = numberOf(v);
-      const b = numberOf(c.value);
+      const a = readNumber(v);
+      const b = readNumber(c.value);
       return a !== null && b !== null && (c.op === "gt" ? a > b : a < b);
     }
     case "contains":
@@ -1752,12 +2079,12 @@ export function slotTime(iso: string): SlotTime | null {
 }
 
 /** The weekday and date of a slot's day: "Montag, 12. Oktober" / "Monday, 12 October". */
-export function slotDayText(iso: string, lang: "de" | "en" = "de"): string {
+export function slotDayText(iso: string, lang = "en"): string {
   const slot = slotTime(iso);
   if (!slot) {
     return iso;
   }
-  const locale = LOCALES[lang];
+  const locale = localeOf(lang);
   const weekday = slot.wall.toLocaleDateString(locale, { weekday: "long", timeZone: "UTC" });
   const date = slot.wall.toLocaleDateString(locale, {
     day: "numeric",
@@ -1768,12 +2095,12 @@ export function slotDayText(iso: string, lang: "de" | "en" = "de"): string {
 }
 
 /** A chosen slot as a person reads it back: "Di 13.10.2026, 10:30" / "Tue 13/10/2026, 10:30". */
-export function slotText(iso: string, lang: "de" | "en" = "de"): string {
+export function slotText(iso: string, lang = "en"): string {
   const slot = slotTime(iso);
   if (!slot) {
     return iso;
   }
-  const locale = LOCALES[lang];
+  const locale = localeOf(lang);
   const weekday = slot.wall
     .toLocaleDateString(locale, { weekday: "short", timeZone: "UTC" })
     .replace(/\.$/, "");
@@ -1825,8 +2152,8 @@ export function itemsTotals(
   let vatRate = field.vat?.rate ?? 0;
   if (field.vat?.field) {
     const raw = values[field.vat.field];
-    const parsed = Number.parseFloat(String(raw ?? "").replace(",", "."));
-    if (Number.isFinite(parsed)) {
+    const parsed = readNumber(raw, { units: true });
+    if (parsed !== null) {
       vatRate = parsed;
     }
   }
@@ -1843,8 +2170,7 @@ export function itemsTotals(
 
 /** A typed amount as a number: a phone's number pad in German gives "89,90". */
 function amountOf(v: unknown): number {
-  const n = typeof v === "string" ? Number(v.replace(/\s/g, "").replace(",", ".")) : Number(v);
-  return Number.isFinite(n) ? n : 0;
+  return readNumber(v) ?? 0;
 }
 
 function round2(n: number): number {
@@ -1860,10 +2186,13 @@ const GERMAN =
 const ENGLISH = /\b(and|the|is|not|for|with|a|an|your|you|we|what|how|or|to|of)\b/gi;
 
 /**
- * The language a wizard speaks to people, read from its own words (titles, labels, intro).
- * A definition carries none; German where it is not clearly English.
+ * The language a wizard speaks to people: the one it names, else read from its own words
+ * (titles, labels, intro) — English where they are not clearly German.
  */
-export function wizardLang(def: WizardDefinition): "de" | "en" {
+export function wizardLang(def: WizardDefinition): string {
+  if (def.lang) {
+    return def.lang;
+  }
   const text = [
     def.title,
     def.description,
@@ -1878,11 +2207,8 @@ export function wizardLang(def: WizardDefinition): "de" | "en" {
     .join(" ");
   const de = text.match(GERMAN)?.length ?? 0;
   const en = text.match(ENGLISH)?.length ?? 0;
-  return en > de ? "en" : "de";
+  return de > en ? "de" : "en";
 }
-
-/** The locale amounts and dates are written in for a wizard's language. */
-export const LOCALES = { de: "de-DE", en: "en-GB" } as const;
 
 // --- can this app read a definition? ---------------------------------------------------------
 // The schema drops what it does not know. A definition written for a newer app would be read

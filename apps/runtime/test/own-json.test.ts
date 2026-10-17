@@ -18,7 +18,7 @@ const step = {
 } as unknown as AgentStep;
 
 describe("an agent step's own JSON", () => {
-  const { schema, fields } = outputSchema(step);
+  const { schema, shape } = outputSchema(step);
 
   it("is taken from its last fenced block, a list in a cell joined, a missing column empty", () => {
     const text = [
@@ -37,7 +37,7 @@ describe("an agent step's own JSON", () => {
       }),
       "```",
     ].join("\n");
-    expect(ownJson(text, schema, fields)).toEqual({
+    expect(ownJson(text, schema, shape)).toEqual({
       summary: "Zwei Konsolen",
       items: [
         { rank: 1, title: "Switch", photos: "https://a/1.webp https://a/2.webp" },
@@ -47,7 +47,7 @@ describe("an agent step's own JSON", () => {
   });
 
   it("is null where nothing fits, so a model structures the text", () => {
-    expect(ownJson("Nichts gefunden.", schema, fields)).toBeNull();
-    expect(ownJson('```json\n{"items": []}\n```', schema, fields)).toBeNull();
+    expect(ownJson("Nichts gefunden.", schema, shape)).toBeNull();
+    expect(ownJson('```json\n{"items": []}\n```', schema, shape)).toBeNull();
   });
 });

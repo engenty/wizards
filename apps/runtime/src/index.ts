@@ -1,5 +1,6 @@
 import { serve } from "@hono/node-server";
 import { localEntryUrl, purgeSessions } from "./auth/index.js";
+import { startClientChecks } from "./clients.js";
 import { adoptLegacyData } from "./db/adopt.js";
 import {
   knownTenants,
@@ -8,7 +9,7 @@ import {
   openTenantDb,
   withTenant,
 } from "./db/client.js";
-import { resumeInterruptedRuns } from "./engine/runner.js";
+import { startRunner, stopRunner } from "./engine/runner.js";
 import { basePath, env } from "./env.js";
 import { hookConsole } from "./log.js";
 import { managed } from "./manage.js";
@@ -21,8 +22,9 @@ import { clearRunning, writeRunning } from "./running.js";
 import { syncMarketplace } from "./services/marketplace.js";
 import { purgeExpiredRuns } from "./services/shares.js";
 import { purgeUnusedStores } from "./store/index.js";
+import { forgetRunner, registerRunner } from "./tenants/control.js";
 import { LOCAL_TENANT } from "./tenants/tenant.js";
-import { onRestart, RESTART_EXIT } from "./update.js";
+import { onRestart, RESTART_EXIT, startUpdateChecks } from "./update.js";
 
 // Before anything prints: the last lines stay in memory for a look from afar (debug.ts).
 hookConsole();
@@ -39,6 +41,8 @@ if (managed) {
       `tenant databases: ${migrated} current${failed.length ? `, failed: ${failed}` : ""}`,
     );
   });
+  // Which clients may start runs over the public API, and how often: the Manage-App's list.
+  startClientChecks();
 } else {
   await adoptLegacyData();
   await openTenantDb(LOCAL_TENANT);
@@ -46,6 +50,8 @@ if (managed) {
   void loadCatalog();
   void checkModelsAtStart().catch(() => undefined);
   startProChecks();
+  // A newer release is downloaded beside this one and used from the next start.
+  startUpdateChecks();
 }
 
 // The marketplace's starters and the starred entries, kept for offline use; checked hourly.
@@ -67,7 +73,7 @@ function withoutBasePath(request: Request) {
 const server = serve({ fetch: withoutBasePath, port: env.port, hostname: env.host }, (info) => {
   console.log(`engenty wizards on :${info.port} — ${env.appUrl}`);
   const entry = localEntryUrl();
-  if (entry && !env.local.accessKey) {
+  if (entry && !env.local.accessKey && env.serves.studio) {
     console.log(`Open the studio: ${entry}`);
   }
   if (!managed) {
@@ -81,7 +87,12 @@ const server = serve({ fetch: withoutBasePath, port: env.port, hostname: env.hos
   }
 });
 
-await resumeInterruptedRuns();
+// A runner takes the runs in line, those a stopped process left behind first (RUNTIME_ROLE).
+if (env.serves.runner) {
+  await registerRunner();
+  setInterval(() => void registerRunner().catch(() => undefined), 10_000).unref();
+  startRunner();
+}
 
 // End-user results are kept RESULT_TTL_DAYS; expired runs and their files go once an hour.
 // What a wizard keeps for a person goes once nobody used it for STORE_TTL_DAYS.
@@ -109,6 +120,11 @@ if (!managed) {
 async function shutdown(code = 0) {
   clearRunning(env.dataDir);
   server.close();
+  if (env.serves.runner) {
+    // The runs go back in line for another runner; their steps start afresh there.
+    await stopRunner();
+    await forgetRunner().catch(() => undefined);
+  }
   await closeBrowser();
   process.exit(code);
 }

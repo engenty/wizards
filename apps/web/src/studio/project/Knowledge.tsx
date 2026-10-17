@@ -47,7 +47,7 @@ import {
 import { fileUrl, useFileActions } from "./data";
 import { DropArea, SearchField, Section } from "./Section";
 
-/** Wissen of a space: its items and Kategorien; asked again while a document is still read. */
+/** Knowledge of a space: its items and categories; asked again while a document is still read. */
 export function useKnowledge(projectId: string | undefined) {
   return useQuery({
     queryKey: ["knowledge", projectId],
@@ -68,7 +68,7 @@ export function itemIcon(item: Pick<KnowledgeItem, "kind" | "children" | "format
   return item.children ? Files : FileText;
 }
 
-/** An item of Wissen as a row: what it is, its Kategorien in one line, where it came from. */
+/** An item of Knowledge as a row: what it is, its categories in one line, where it came from. */
 export function ItemRow({
   item,
   categories,
@@ -119,7 +119,7 @@ export function ItemRow({
 // --- what an opened item says about itself ------------------------------------------------------
 
 /**
- * Above an opened item of Wissen: its Kategorien, where it came from (a source, by hand since),
+ * Above an opened item of Knowledge: its categories, where it came from (a source, by hand since),
  * why a person should look at it, and its original.
  */
 export function KnowledgeHeader({
@@ -194,7 +194,7 @@ export function KnowledgeHeader({
   );
 }
 
-// --- the entries of a Kategorie ---------------------------------------------------------------
+// --- the entries of a category ----------------------------------------------------------------
 
 /** A range of numbers: from `lo`, up to but not including `hi`. */
 interface NumberRange {
@@ -248,7 +248,7 @@ export function numberRanges(values: number[]): NumberRange[] {
 }
 
 /**
- * Everything that has a Kategorie, in groups: days by month, newest first; yes and no; a text by
+ * Everything that has a category, in groups: days by month, newest first; yes and no; a text by
  * its value; numbers in ranges, from the lowest up. What a choice's values list, its values'
  * pages do.
  */
@@ -340,7 +340,7 @@ export function CategoryItems({
 
 // --- filters ---------------------------------------------------------------------------------
 
-/** Whether an item's value of a Kategorie passes a filter on it. */
+/** Whether an item's value of a category passes a filter on it. */
 function passes(category: SpaceCategory, values: CategoryCell[], w: WhereValue): boolean {
   if (Array.isArray(w)) {
     return values.some((v) => w.map(String).includes(String(v)));
@@ -383,7 +383,7 @@ function filterLabel(category: SpaceCategory, w: WhereValue): string {
   return String(w);
 }
 
-/** One Kategorie as a filter: a chip that opens what it can be set to. */
+/** One category as a filter: a chip that opens what it can be set to. */
 function FilterChip({
   category,
   value,
@@ -616,11 +616,11 @@ function NewItemDialog({
   );
 }
 
-// --- Wissen, all of it ---------------------------------------------------------------------------
+// --- Knowledge, all of it ------------------------------------------------------------------------
 
 /**
- * Wissen without an item picked: proposals to take, a search to try as a step would get it,
- * filters by Kategorie, the items, and the way to add documents, pages, tables and Kategorien.
+ * Knowledge without an item picked: proposals to take, a search to try as a step would get it,
+ * filters by category, the items, and the way to add documents, pages, tables and categories.
  */
 export function KnowledgeOverview({
   projectId,

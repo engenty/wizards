@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from "react";
+import { useMediaQuery } from "./media";
 
 /**
  * Where the app bar stands, as in engenty-pro: picked in the bar's own context menu, kept per
@@ -42,17 +43,8 @@ export function setAppBar(patch: Partial<AppBarPrefs>) {
   }
 }
 
-const PHONE = "(max-width: 767px)";
-
 function usePhone(): boolean {
-  return useSyncExternalStore(
-    (listener) => {
-      const query = window.matchMedia(PHONE);
-      query.addEventListener("change", listener);
-      return () => query.removeEventListener("change", listener);
-    },
-    () => window.matchMedia(PHONE).matches,
-  );
+  return useMediaQuery("(max-width: 767px)");
 }
 
 /**

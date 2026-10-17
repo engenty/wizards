@@ -1,3 +1,6 @@
+import type { Lang } from "@engenty-wizards/shared/definition";
+import type { MarketplaceEntry } from "@engenty-wizards/shared/marketplace";
+import type { WizardOutline } from "@engenty-wizards/shared/marketplace-entry";
 import { createTool } from "@mastra/core/tools";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -6,14 +9,16 @@ import type { SessionUser } from "../auth/index.js";
 import { authoringGuide } from "../authoring/guide.js";
 import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
+import type { AssistantCardRecord } from "../db/schema.js";
 import { env } from "../env.js";
 import { detectHarnesses } from "../harness/index.js";
 import { type MonthlyUsage, managed, publicPlans, tenantInfo, tenantUsage } from "../manage.js";
-import { classWays } from "../models.js";
+import { classWays, waysIn } from "../models.js";
 import { pluginToolsOf } from "../plugins/registry.js";
 import { earlierChats, readChat, searchChats } from "../services/assistant-chats.js";
 import { asLang, marketplaceDetail, searchMarketplace } from "../services/marketplace.js";
 import { listWizards } from "../services/wizards.js";
+import { serverText } from "../texts.js";
 import { attempt } from "../tools/shared.js";
 import { readDoc, searchDocs } from "./docs.js";
 
@@ -26,10 +31,12 @@ import { readDoc, searchDocs } from "./docs.js";
 export interface KnowsContext {
   user: SessionUser;
   project: { id: string; name: string; mcpServers: { id: string; name: string }[] } | null;
-  lang: "de" | "en";
+  lang: Lang;
   /** The chat that is open: `chats_search` leaves it out where asked. */
   chatId: string;
   doing(label: string): void;
+  /** A card under the answer: the studio's own have no plugin. */
+  card(card: AssistantCardRecord): void;
 }
 
 /** Where the account lives: the runtime's Manage-App, or the account a local install links. */
@@ -58,6 +65,8 @@ const NOT_LINKED =
 
 export function knowsTools(ctx: KnowsContext): Record<string, any> {
   const { user } = ctx;
+  // The entries this turn's searches found, so show_templates needs no second request.
+  const found = new Map<string, MarketplaceEntry>();
   return {
     docs_search: createTool({
       id: "docs_search",
@@ -65,7 +74,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
         "Search the engenty wizards user guide and plugin guide of this installed version. Gives the best sections with an excerpt and their engenty.ai/docs link. Use it before you explain how something works.",
       inputSchema: z.object({ query: z.string().min(2).max(200) }),
       execute: async ({ query }) => {
-        ctx.doing(ctx.lang === "de" ? "Liest in der Anleitung …" : "Reading the guide …");
+        ctx.doing(serverText(ctx.lang, "doingReadGuide"));
         return { hits: searchDocs(query) };
       },
     }),
@@ -78,7 +87,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
         from: z.number().int().min(0).optional(),
       }),
       execute: async ({ page, from }) => {
-        ctx.doing(ctx.lang === "de" ? "Liest in der Anleitung …" : "Reading the guide …");
+        ctx.doing(serverText(ctx.lang, "doingReadGuide"));
         return readDoc(page, from ?? 0);
       },
     }),
@@ -89,9 +98,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       inputSchema: z.object({ from: z.number().int().min(0).optional() }),
       execute: ({ from }) =>
         attempt(async () => {
-          ctx.doing(
-            ctx.lang === "de" ? "Liest die Bauanleitung …" : "Reading the authoring guide …",
-          );
+          ctx.doing(serverText(ctx.lang, "doingAuthoringGuide"));
           const guide = authoringGuide(
             ctx.project?.mcpServers ?? [],
             ctx.project ? await listConnectors(ctx.project.id) : [],
@@ -111,16 +118,19 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       inputSchema: z.object({ query: z.string().max(200).optional() }),
       execute: ({ query }) =>
         attempt(async () => {
-          ctx.doing(ctx.lang === "de" ? "Sucht in der Galerie …" : "Searching the gallery …");
-          const found = await searchMarketplace({
+          ctx.doing(serverText(ctx.lang, "doingGallery"));
+          const hits = await searchMarketplace({
             q: query ?? "",
             lang: asLang(ctx.lang),
             limit: 8,
           });
+          for (const e of hits.entries) {
+            found.set(e.id, e);
+          }
           return {
-            total: found.total,
-            offline: found.offline,
-            entries: found.entries.map((e) => ({
+            total: hits.total,
+            offline: hits.offline,
+            entries: hits.entries.map((e) => ({
               id: e.id,
               title: e.title,
               pitch: e.pitch,
@@ -140,12 +150,44 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       inputSchema: z.object({ id: z.string().min(1).max(120) }),
       execute: ({ id }) =>
         attempt(async () => {
-          const found = await marketplaceDetail(id, asLang(ctx.lang));
-          if (!found) {
+          const detail = await marketplaceDetail(id, asLang(ctx.lang));
+          if (!detail) {
             return { error: "No such template." };
           }
-          const { terms: _terms, hash: _hash, ...rest } = found;
+          const { terms: _terms, hash: _hash, ...rest } = detail;
           return rest;
+        }),
+    }),
+    show_templates: createTool({
+      id: "show_templates",
+      description:
+        "Show templates of the gallery as cards under your answer, in the order given. A card shows the title, the pitch, the time, the cost and what it makes; the person opens it to see the steps and make a wizard of it.",
+      inputSchema: z.object({ ids: z.array(z.string().min(1).max(120)).min(1).max(6) }),
+      execute: ({ ids }) =>
+        attempt(async () => {
+          const entries: Omit<MarketplaceEntry, "terms" | "hash">[] = [];
+          for (const id of new Set(ids)) {
+            const entry = found.get(id) ?? (await marketplaceDetail(id, asLang(ctx.lang)));
+            if (!entry) {
+              continue;
+            }
+            // The card needs the entry, not the outline the dialog loads by itself.
+            const {
+              terms: _terms,
+              hash: _hash,
+              description: _description,
+              outline: _outline,
+              results: _results,
+              files: _files,
+              ...shown
+            } = entry as MarketplaceEntry & Partial<WizardOutline>;
+            entries.push(shown);
+          }
+          if (!entries.length) {
+            return { error: "None of these templates is in the gallery." };
+          }
+          ctx.card({ plugin: "", tool: "templates", data: { entries } });
+          return { shown: entries.map((e) => e.title) };
         }),
     }),
     plans: createTool({
@@ -155,7 +197,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
-          ctx.doing(ctx.lang === "de" ? "Sieht die Pläne nach …" : "Looking up the plans …");
+          ctx.doing(serverText(ctx.lang, "doingPlans"));
           const plans = await publicPlans(accountBase());
           return { ...plans, billingPage: `${accountBase()}/billing` };
         }),
@@ -167,7 +209,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
-          ctx.doing(ctx.lang === "de" ? "Sieht das Konto nach …" : "Looking up the account …");
+          ctx.doing(serverText(ctx.lang, "doingAccount"));
           if (managed) {
             const info = await tenantInfo(user.tenantId, true);
             return {
@@ -207,7 +249,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
-          ctx.doing(ctx.lang === "de" ? "Sieht den Verbrauch nach …" : "Looking up the usage …");
+          ctx.doing(serverText(ctx.lang, "doingUsage"));
           if (!(managed || (await linkedAccount()))) {
             return { linked: false, note: NOT_LINKED };
           }
@@ -320,9 +362,9 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
-          ctx.doing(ctx.lang === "de" ? "Sieht die Modelle nach …" : "Looking up the models …");
+          ctx.doing(serverText(ctx.lang, "doingModels"));
           return {
-            classes: await classWays(),
+            classes: waysIn(await classWays(), "en"),
             clients: managed
               ? []
               : (await detectHarnesses()).map((h) => ({
@@ -341,7 +383,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       inputSchema: z.object({ query: z.string().min(3).max(200) }),
       execute: ({ query }) =>
         attempt(async () => {
-          ctx.doing(ctx.lang === "de" ? "Sucht in früheren Chats …" : "Searching earlier chats …");
+          ctx.doing(serverText(ctx.lang, "doingEarlierChats"));
           const hits = (await searchChats(user, query)).filter((h) => h.chatId !== ctx.chatId);
           return {
             hits,

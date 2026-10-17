@@ -1,6 +1,7 @@
-import { defaultFeatures, type FeatureName } from "@engenty-wizards/shared/features";
+import { defaultFeatures, type FeatureName, featureOn } from "@engenty-wizards/shared/features";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+import { setPublicBase } from "./base";
 import { useMe } from "./session";
 
 /**
@@ -13,13 +14,18 @@ export interface Config {
   devLogin: boolean;
   site: string | null;
   signedOutUrl: string | null;
+  publicUrl: string;
   features: Record<string, boolean>;
 }
 
 export function useConfig() {
   return useQuery({
     queryKey: ["config"],
-    queryFn: () => api.get<Config>("/api/config"),
+    queryFn: async () => {
+      const config = await api.get<Config>("/api/config");
+      setPublicBase(config.publicUrl);
+      return config;
+    },
     staleTime: 60_000,
   });
 }
@@ -30,7 +36,10 @@ export function useFeatures(): Record<string, boolean> {
   return me.data?.features ?? config.data?.features ?? defaultFeatures();
 }
 
-/** A plugin's own switch is asked for by its full name: `contacts.leadScoring`. */
+/**
+ * A plugin's own switch is asked for by its full name: `contacts.leadScoring`. Outside a component,
+ * `featureOn(me.features, name)` reads the same way.
+ */
 export function useFeature(name: FeatureName | (string & {})): boolean {
-  return useFeatures()[name] === true;
+  return featureOn(useFeatures(), name);
 }

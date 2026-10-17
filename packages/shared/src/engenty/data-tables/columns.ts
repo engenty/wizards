@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 /**
  * Space-table column definitions.
  *

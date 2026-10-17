@@ -41,6 +41,7 @@ export async function prepareInputs(ctx: StepContext): Promise<void> {
         mediaType: found.row.mime,
         abortSignal: ctx.signal,
         call: ctx.call,
+        language: value.lang,
       });
       await ctx.chargeUsd(transcript.costUsd);
       values[field.id] = { ...value, transcript: transcript.text };
@@ -69,7 +70,7 @@ async function listenTo(ctx: StepContext, id: string, label: string, value: unkn
   if (!found || found.row.runId !== ctx.runId || !/^(audio|video)\//.test(found.row.mime)) {
     return;
   }
-  await ctx.emit("info", `Hört „${label}“ an …`);
+  await ctx.emit("info", { code: "listen", params: { label } });
   try {
     const { pieces, costUsd } = await listenPieces({
       bytes: new Uint8Array(found.data),
@@ -85,6 +86,6 @@ async function listenTo(ctx: StepContext, id: string, label: string, value: unkn
     }
     // The step goes on without the words; the next one tries again.
     console.error(`[run ${ctx.runId}] listen ${id}`, err);
-    await ctx.emit("info", `„${label}“ konnte nicht verschriftlicht werden.`);
+    await ctx.emit("info", { code: "listenFailed", params: { label } });
   }
 }

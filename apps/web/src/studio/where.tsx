@@ -1,5 +1,5 @@
 import { Clock, Cloud, CloudOff, Laptop } from "lucide-react";
-import { BASE } from "@/lib/base";
+import { publicAddress } from "@/lib/base";
 import { lang, t } from "../lib/i18n";
 import type { CloudState, Me, WizardSummary } from "../lib/session";
 import { Chip } from "../ui";
@@ -33,9 +33,9 @@ export type WhereItRuns =
 
 type Wizard = Pick<WizardSummary, "published" | "publishedVersion" | "shareToken">;
 
-/** The address of a wizard on this runtime. */
+/** The address of a wizard on this runtime: on its doors, which may be another origin. */
 export const ownLink = (w: Pick<WizardSummary, "shareToken">) =>
-  `${window.location.origin}${BASE}/w/${w.shareToken}`;
+  `${publicAddress()}/w/${w.shareToken}`;
 
 /**
  * `cloud`: what the install knows of the linked account's cloud — undefined while it is asked,

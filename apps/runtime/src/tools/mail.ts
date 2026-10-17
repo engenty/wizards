@@ -10,7 +10,7 @@ import {
   mailSearchInput,
 } from "../connectors/mail.js";
 import type { StepContext } from "../engine/types.js";
-import { htmlToPdf } from "../render/convert.js";
+import { escapeHtml, htmlToPdf } from "../render/convert.js";
 import { guardHtml } from "../render/guard.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
 
@@ -141,8 +141,4 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
   });
 
   return tools;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

@@ -16,8 +16,8 @@ import { documentText, hasIndexEntries, searchKnowledge } from "../services/proj
 import { attempt, clip } from "./shared.js";
 
 /**
- * Wissen, for every agent step of the space's wizards: search it (a question, filtered by
- * Kategorien first, checked by a classifier after), list it by Kategorien, read a page, a table
+ * Knowledge, for every agent step of the space's wizards: search it (a question, filtered by
+ * categories first, checked by a classifier after), list it by categories, read a page, a table
  * or a file whole by its path. Hits and reads look like files — a path, front matter, Markdown or
  * CSV — so a model reads them as it reads files. The search also finds what the space's plugins
  * put into the index.
@@ -26,7 +26,7 @@ import { attempt, clip } from "./shared.js";
 const where = whereSchema
   .optional()
   .describe(
-    'Filter by Kategorien before searching, by their names: a value ("Baustelle": "Graz Süd"), a list of values, a range of numbers ({ "gte": 20000 }) or of days ({ "after": "2026-03-01", "before": "2026-03-31" }), { "contains": "…" } for a text, true/false. project_list without arguments names the Kategorien and their values.',
+    'Filter by categories before searching, by their names: a value ("Baustelle": "Graz Süd"), a list of values, a range of numbers ({ "gte": 20000 }) or of days ({ "after": "2026-03-01", "before": "2026-03-31" }), { "contains": "…" } for a text, true/false. project_list without arguments names the categories and their values.',
   );
 
 export const pageReadInput = {
@@ -38,7 +38,7 @@ export const pageReadInput = {
   from: z.number().int().min(0).optional().describe("Character to continue a long page at"),
 };
 
-/** A page of Wissen by its path, for a step: its front matter and Markdown, in parts. */
+/** A page of Knowledge by its path, for a step: its front matter and Markdown, in parts. */
 export function readKnowledgePage(
   ctx: StepContext,
   input: { path: string; section?: string; from?: number },
@@ -61,7 +61,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
     project_search: createTool({
       id: "project_search",
       description:
-        "Search Wissen, the space's knowledge: its pages, tables and files, and what its plugins keep (wiki pages, questions and answers). Gives items with their path, Kategorien and best section, each checked for relevance. Ask in their language, with the words they would use; filter with `where` when the task names a Kategorie's value. Then read the items you need whole with page_read or table_read.",
+        "Search the space's Knowledge: its pages, tables and files, and what its plugins keep (wiki pages, questions and answers). Gives items with their path, categories and best section, each checked for relevance. Ask in their language, with the words they would use; filter with `where` when the task names a category's value. Then read the items you need whole with page_read or table_read.",
       inputSchema: z.object({
         query: z.string().describe("What to look for: a question or keywords"),
         where,
@@ -86,7 +86,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
             hits: found.hits.map((h) => ({
               ...(h.path ? { path: h.path } : {}),
               title: h.title,
-              ...(h.categories.length ? { kategorien: h.categories } : {}),
+              ...(h.categories.length ? { categories: h.categories } : {}),
               ...(h.heading ? { section: h.heading } : {}),
               ...(h.sheet ? { page: h.sheet } : {}),
               ...(h.relevance !== null ? { relevance: h.relevance } : {}),
@@ -101,7 +101,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
     project_list: createTool({
       id: "project_list",
       description:
-        "List Wissen by its Kategorien. Without `where`: the Kategorien with their values and how many items each has. With `where`: the items it leaves, with their paths — all of them, where project_search gives the best few.",
+        "List Knowledge by its categories. Without `where`: the categories with their values and how many items each has. With `where`: the items it leaves, with their paths — all of them, where project_search gives the best few.",
       inputSchema: z.object({ where }),
       execute: (input) =>
         attempt(async () => {
@@ -115,7 +115,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
     tools.page_read = createTool({
       id: "page_read",
       description:
-        "Read a page of Wissen whole by its path: front matter (title, Kategorien, its source and original, its parent and sub-pages) and its Markdown. Long pages come in parts: pass `from` to continue. `section` reads one section.",
+        "Read a page of Knowledge whole by its path: front matter (title, categories, its source and original, its parent and sub-pages) and its Markdown. Long pages come in parts: pass `from` to continue. `section` reads one section.",
       inputSchema: z.object(pageReadInput),
       execute: (input) => readKnowledgePage(ctx, input),
     });
@@ -124,7 +124,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
     tools.table_read = createTool({
       id: "table_read",
       description:
-        "Read a table of Wissen by its path: its rows as CSV, filtered by its columns (by their names, like `where` of project_search). A few hundred rows at a time: pass `offset` to continue.",
+        "Read a table of Knowledge by its path: its rows as CSV, filtered by its columns (by their names, like `where` of project_search). A few hundred rows at a time: pass `offset` to continue.",
       inputSchema: z.object({
         path: z.string().describe("The table's path: tables/…"),
         where: whereSchema.optional().describe("Filter by columns, by their names"),
@@ -144,7 +144,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
     tools.project_document = createTool({
       id: "project_document",
       description:
-        "Read a file of Wissen as text by its path (files/…): a file that is not a page, or the original a page was read from. Long files come in parts: pass `from` to continue.",
+        "Read a file of Knowledge as text by its path (files/…): a file that is not a page, or the original a page was read from. Long files come in parts: pass `from` to continue.",
       inputSchema: z.object({
         path: z
           .string()

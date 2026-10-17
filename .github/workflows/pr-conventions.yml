@@ -1,0 +1,40 @@
+name: PR conventions
+
+# A PR is squash-merged with its title as the whole commit message, so the title must be a
+# Conventional Commit. Neither the title nor a commit may carry coding-agent attribution
+# (AGENTS.md). The description is not checked: it never reaches main, and some agents' GitHub
+# tools append a footer to it that the agent cannot leave out.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  conventions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Title is a Conventional Commit
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          re='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: [^ ]'
+          if ! printf '%s' "$TITLE" | grep -Eq "$re"; then
+            echo "::error::PR title is not a Conventional Commit, type(scope): description – $TITLE"
+            exit 1
+          fi
+      - name: No coding-agent attribution
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ github.event.pull_request.title }}
+          COMMITS_URL: ${{ github.event.pull_request.commits_url }}
+        run: |
+          re='co-authored-by:.*(claude|anthropic|codex|openai|cursor|copilot)|generated (with|by) \[?(claude|codex|cursor|copilot)'
+          found=$( { printf '%s\n' "$TITLE"; gh api --paginate "$COMMITS_URL" --jq '.[].commit.message'; } | grep -Ei "$re" || true)
+          if [ -n "$found" ]; then
+            echo "::error::Coding-agent attribution in the PR's title or commits – remove it (reword the commits):"
+            echo "$found"
+            exit 1
+          fi

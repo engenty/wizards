@@ -1,3 +1,4 @@
+import { SPEECH_LOCALES } from "@engenty-wizards/shared/definition";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { withBase } from "../../lib/base";
@@ -18,6 +19,9 @@ export type LiveState = "off" | "listening" | "thinking" | "speaking";
 
 /** Silence after speech that ends what the person says. */
 const PAUSE_MS = 1300;
+
+/** How long after its voice ends the recognition may still hand in what the speakers played. */
+const TAIL_MS = 3000;
 
 interface Recognition extends EventTarget {
   continuous: boolean;
@@ -51,11 +55,26 @@ export const canLive =
   (Boolean(recognition()) ||
     (Boolean(navigator.mediaDevices?.getUserMedia) && typeof MediaRecorder !== "undefined"));
 
-/** Does `heard` sound like the voice we play, not the person? Speakers echo into the mic. */
+/** Words without case, marks or hyphens, so "Editor-Chats," and "editorchats" are the same. */
+function words(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[\s\-–—/]+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean);
+}
+
+/**
+ * Does `heard` sound like the voice we play, not the person? Speakers echo into the mic, and the
+ * recognition mishears a word now and then: most of the words being in what was said is enough.
+ */
 function echo(heard: string, playing: string): boolean {
-  const words = heard.toLowerCase().split(/\s+/).filter(Boolean);
-  const said = playing.toLowerCase();
-  return words.length < 2 || words.every((w) => said.includes(w.replace(/[^\p{L}\p{N}]/gu, "")));
+  const said = new Set(words(playing));
+  const got = words(heard);
+  if (got.length < 2) {
+    return true;
+  }
+  return got.filter((w) => said.has(w)).length / got.length >= 0.75;
 }
 
 export function useLiveChat(chat: Chat) {
@@ -74,6 +93,8 @@ export function useLiveChat(chat: Chat) {
   const stream = useRef<MediaStream | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const playing = useRef("");
+  /** What its voice said last and until when the recognition may still hand it in. */
+  const lastSaid = useRef<{ text: string; until: number }>({ text: "", until: 0 });
   const pending = useRef("");
   const pause = useRef<ReturnType<typeof setTimeout> | null>(null);
   const answeredUpTo = useRef<string | null>(null);
@@ -129,6 +150,9 @@ export function useLiveChat(chat: Chat) {
         // Talked over: its voice stops, and what was said counts.
         stopVoice();
         set("listening");
+      } else if (Date.now() < lastSaid.current.until && echo(text, lastSaid.current.text)) {
+        // The end of its own voice, handed in late.
+        return;
       }
       setHeard(text);
       if (final) {
@@ -153,7 +177,7 @@ export function useLiveChat(chat: Chat) {
     const r = new Recognition();
     r.continuous = true;
     r.interimResults = true;
-    r.lang = lang === "de" ? "de-DE" : "en-US";
+    r.lang = SPEECH_LOCALES[lang];
     r.onresult = (event) => {
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -209,6 +233,7 @@ export function useLiveChat(chat: Chat) {
         if (loud) {
           spokeAt = Date.now();
           if (!recorder) {
+            const tail = Date.now() < lastSaid.current.until ? lastSaid.current.text : "";
             chunks = [];
             recorder = new MediaRecorder(media);
             recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -223,6 +248,10 @@ export function useLiveChat(chat: Chat) {
               set("thinking");
               try {
                 const { text } = await api.upload<{ text: string }>("/api/studio/transcribe", file);
+                if (tail && echo(text, tail)) {
+                  set("listening");
+                  return;
+                }
                 pending.current = text;
                 flush();
               } catch (err) {
@@ -251,7 +280,9 @@ export function useLiveChat(chat: Chat) {
     setError(null);
     let media: MediaStream;
     try {
-      media = await navigator.mediaDevices.getUserMedia({ audio: true });
+      media = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
     } catch {
       setError("denied");
       return;
@@ -369,6 +400,11 @@ export function useLiveChat(chat: Chat) {
       audio.current = null;
       playing.current = "";
       if (stateRef.current === "speaking") {
+        lastSaid.current = { text, until: Date.now() + TAIL_MS };
+        // What the recognition holds now is its own voice: a fresh one listens from here.
+        pending.current = "";
+        setHeard("");
+        rec.current?.abort();
         set("listening");
       }
     },

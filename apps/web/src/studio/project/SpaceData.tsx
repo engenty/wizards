@@ -16,7 +16,7 @@ export function useSpaceData(projectId: string | undefined) {
   });
 }
 
-/** What the Daten menu and overview show: `t:<id>` a table, `p:<id>` a page. */
+/** What the Data menu and overview show: `t:<id>` a table, `p:<id>` a page. */
 export interface DataItem {
   key: string;
   kind: "table" | "page";
@@ -124,7 +124,7 @@ function NewDialog({
   );
 }
 
-/** Daten without a table or page picked: all of them by whose they are, and the way to add one. */
+/** Data without a table or page picked: all of them by whose they are, and the way to add one. */
 export function DataOverview({
   projectId,
   data,

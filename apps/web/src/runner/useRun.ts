@@ -1,7 +1,9 @@
+import { setChoiceLabels } from "@engenty-wizards/runner";
 import type { RunView } from "@engenty-wizards/shared/run";
 import { useCallback, useEffect, useState } from "react";
 import { withBase } from "@/lib/base";
 import { ApiError, api } from "../lib/api";
+import { answerDevice, offerDevice } from "./phone";
 
 /** Two missed pings: the stream is taken for dead. */
 const STALE_MS = 45_000;
@@ -54,6 +56,12 @@ export function useRun(runId: string | null) {
       });
       es = stream;
       lastHeard = Date.now();
+      // The phone around the runner may think for the run: said on every connect.
+      offerDevice(runId);
+      stream.addEventListener("device", (e) => {
+        lastHeard = Date.now();
+        void answerDevice(runId, JSON.parse((e as MessageEvent).data));
+      });
       stream.addEventListener("view", (e) => {
         retry = 0;
         lastHeard = Date.now();
@@ -136,6 +144,8 @@ export function useRun(runId: string | null) {
     [runId],
   );
 
+  // A translated run's choices show their labels, in the chat as on the page.
+  setChoiceLabels(view?.translation?.labels);
   return {
     view,
     notFound,
@@ -144,7 +154,7 @@ export function useRun(runId: string | null) {
     fieldErrors,
     submitPage: (stepId: string, values: Record<string, unknown>) =>
       command(`pages/${stepId}`, { values }),
-    accept: (stepId: string, edits?: Record<string, string>) =>
+    accept: (stepId: string, edits?: Record<string, string | Record<string, unknown>>) =>
       command(`reviews/${stepId}`, { type: "accept", edits }),
     regenerate: (stepId: string, target: string, note: string, items?: number[]) =>
       command(`reviews/${stepId}`, {
@@ -155,5 +165,8 @@ export function useRun(runId: string | null) {
       }),
     back: () => command("back"),
     retry: () => command("retry"),
+    translateResult: (stepId: string) => command("translate-result", { stepId }),
+    /** The language the run is read in from now on; null: the wizard's own. */
+    setLang: (lang: string | null) => command("lang", { lang }),
   };
 }

@@ -4,20 +4,38 @@ import {
   ASSISTANT_LAYOUTS,
   ASSISTANT_PAGE_BYTES,
   type AssistantEvents,
+  type AssistantSignal,
+  assistantSignalSchema,
   assistantTurnSchema,
 } from "@engenty-wizards/shared/assistant";
-import { MODEL_CLASSES, TEXT_CLASSES } from "@engenty-wizards/shared/definition";
+import {
+  LANGS,
+  type Lang,
+  MODEL_CLASSES,
+  TEXT_CLASSES,
+  type WizardDefinition,
+  wizardLang,
+} from "@engenty-wizards/shared/definition";
 import { CATEGORY_TYPES, whereSchema } from "@engenty-wizards/shared/knowledge";
 import { PROJECT_FILE_KINDS } from "@engenty-wizards/shared/projects";
 import { isCreditsRef } from "@engenty-wizards/shared/providers";
+import { note } from "@engenty-wizards/shared/run";
+import { wizardTexts } from "@engenty-wizards/shared/translation";
+import {
+  PACKAGE_EXTENSION,
+  PACKAGE_MAX_BYTES,
+  PACKAGE_MIME,
+} from "@engenty-wizards/shared/wizard-package";
 import { generateText } from "ai";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { runStudioAssistant } from "../agents/studio-assistant.js";
+import { type AnswerPart, runStudioAssistant, signalText } from "../agents/studio-assistant.js";
 import { chatEngine, setChatEngine, subscriptionClients } from "../agents/subscription.js";
+import { scanColors, scanFonts, scanImages, scanLogos } from "../agents/website.js";
 import { answerBrowser, awaitBrowser } from "../assistant/browser.js";
+import { endRun, signalRun, startRun, takeSignals } from "../assistant/runs.js";
 import { accountOverview, linkedAccount, startLink, unlink } from "../auth/account.js";
 import type { SessionUser } from "../auth/index.js";
 import { createLocalKey, deleteLocalKey, listLocalKeys } from "../auth/keys.js";
@@ -38,6 +56,7 @@ import { estimateRun } from "../credits/estimate.js";
 import { missingModels, stepsWithoutModel } from "../engine/requirements.js";
 import { env } from "../env.js";
 import { feature, features } from "../features.js";
+import { appleStatus } from "../harness/apple.js";
 import { freshAuth, loginEnv } from "../harness/env.js";
 import {
   detectHarness,
@@ -54,10 +73,19 @@ import {
   subscribeTerminal,
   writeTerminal,
 } from "../harness/terminal.js";
-import { managed, tenantInfo, tenantMembers, userFeatures } from "../manage.js";
+import {
+  installMail,
+  managed,
+  renameTenant,
+  saveTeamProfile,
+  tenantInfo,
+  tenantMembers,
+  userInfo,
+} from "../manage.js";
 import { seenApps } from "../mcp/seen.js";
 import { generateImageMedia, generateSpeechMedia, generateVideoMedia } from "../media/generate.js";
 import { transcribeAudio } from "../media/transcribe.js";
+import { errorText, saidOf } from "../model-errors.js";
 import {
   checkKey,
   classProblem,
@@ -70,6 +98,8 @@ import {
   modelSettings,
   saveLocalModels,
   saveModels,
+  setUpKey,
+  setUpOllama,
   storedKey,
   textModel,
 } from "../models.js";
@@ -80,6 +110,7 @@ import {
   mayBuild,
   mayCreate,
   projectWritable,
+  requireAdmin,
   requireWritable,
 } from "../services/access.js";
 import { architectTurn } from "../services/architect.js";
@@ -94,6 +125,7 @@ import {
   readChat,
   turnHistory,
 } from "../services/assistant-chats.js";
+import { describeGradient } from "../services/brand.js";
 import {
   checkForCloud,
   cloudLinked,
@@ -116,16 +148,18 @@ import {
   valueContents,
 } from "../services/knowledge.js";
 import { writeSummary } from "../services/knowledge-model.js";
+import { applyWebsite, finishOnboarding, needsOnboarding } from "../services/onboarding.js";
+import { exportWizard, importWizard } from "../services/package.js";
 import {
-  exportWizard,
-  importWizard,
-  PACKAGE_EXTENSION,
-  PACKAGE_MAX_BYTES,
-  PACKAGE_MIME,
-} from "../services/package.js";
-import { profileSchema, saveProfile, userProfile } from "../services/profile.js";
+  profileSchema,
+  saveProfile,
+  saveUserLang,
+  userLang,
+  userProfile,
+} from "../services/profile.js";
 import {
   addProjectFile,
+  addProjectFileFromUrl,
   fileView,
   orderProjectFiles,
   projectFile,
@@ -139,6 +173,7 @@ import { documentText, queueIndex, searchKnowledge } from "../services/project-i
 import {
   createProject,
   deleteProject,
+  gradientSchema,
   listProjects,
   maskedServers,
   ownedProject,
@@ -176,10 +211,18 @@ import {
   updateTable,
   updateTableRow,
 } from "../services/space-data.js";
+import {
+  deleteTranslation,
+  editTranslation,
+  isLangCode,
+  publishedDefinition,
+  translationsOf,
+} from "../services/translations.js";
 import { draftWidgetPreview } from "../services/widgets.js";
 import {
   createWizard,
   deleteWizard,
+  draftChanges,
   duplicateWizard,
   listWizards,
   ownedWizard,
@@ -193,8 +236,10 @@ import {
 import { readSetting, writeSetting } from "../settings.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { serverText } from "../texts.js";
 import { applyUpdate, updateStatus } from "../update.js";
 import { byteRange } from "./delivery.js";
+import { notFoundAnswer, requestLang, say } from "./lang.js";
 
 type Vars = { Variables: { user: SessionUser } };
 
@@ -204,13 +249,24 @@ async function testedSources(): Promise<string[]> {
   return Array.isArray(tested) ? (tested as string[]) : [];
 }
 
-/** The chosen source has passed a test call and can still answer: its client is there and signed in. */
+async function markTested(source: string) {
+  const tested = await testedSources();
+  if (!tested.includes(source)) {
+    await writeSetting("setup-done", [...tested, source]);
+  }
+}
+
+/**
+ * The chosen source has passed a test call and can still answer: its client is there and signed
+ * in. Where Apple Intelligence thinks the short classes, the test ran there; a client behind High
+ * and Highest is no condition then.
+ */
 async function setupDone(): Promise<boolean> {
-  const source = localModelSettings().source;
+  const { source, bindings } = localModelSettings();
   if (!(await testedSources()).includes(source)) {
     return false;
   }
-  const client = harness(source);
+  const client = bindings.standard.startsWith("apple:") ? null : harness(source);
   if (client) {
     const status = await detectHarness(client.id);
     return Boolean(status?.version) && status?.auth !== "none";
@@ -287,10 +343,7 @@ interface ClassTest {
   error?: string;
 }
 
-async function testClass(
-  cls: (typeof MODEL_CLASSES)[number],
-  lang: "de" | "en",
-): Promise<ClassTest> {
+async function testClass(cls: (typeof MODEL_CLASSES)[number], lang: Lang): Promise<ClassTest> {
   const started = Date.now();
   const signal = AbortSignal.timeout(cls === "video" ? 300_000 : 120_000);
   const done = (result: Omit<ClassTest, "ok" | "ms">): ClassTest => ({
@@ -353,6 +406,11 @@ async function testClass(
 }
 
 /** The size of an inline terminal, as the page lays it out. */
+/** Whether the studio assistant's developer mode is offered to this person. */
+async function assistantDevFor(user: SessionUser): Promise<boolean> {
+  return managed ? (await userInfo(user.id)).admin : env.assistantDev;
+}
+
 const terminalSize = z.object({
   cols: z.number().int().min(10).max(500).optional(),
   rows: z.number().int().min(4).max(200).optional(),
@@ -367,11 +425,13 @@ export const studio = new Hono<Vars>()
     const profile = await userProfile(user);
     // What the Manage-App says of the tenant: its plan and feature switches; and of the person.
     const info = managed ? await tenantInfo(user.tenantId).catch(() => null) : null;
-    const own = managed ? await userFeatures(user.id) : null;
+    const person = managed ? await userInfo(user.id) : null;
     return c.json({
       user: { id: user.id, name: profile.name, email: profile.email, image: user.image ?? null },
       /** What the person says about themselves; name and e-mail are the account's when managed. */
       profile,
+      /** The language the person picked, wherever they picked it; null until they do. */
+      lang: await userLang(user),
       tenant: {
         id: user.tenantId,
         role: user.role,
@@ -379,7 +439,11 @@ export const studio = new Hono<Vars>()
         plan: info?.plan ?? null,
       },
       /** The feature switches: the code's defaults, what the Manage-App says of the team and the person, this install's file. */
-      features: features(managed ? { ...info?.features, ...own } : overview?.tenant.features),
+      features: features(
+        managed ? { ...info?.features, ...person?.features } : overview?.tenant.features,
+      ),
+      /** The studio assistant's developer mode may be switched on: ASSISTANT_DEV here, the platform's admins when managed. */
+      assistantDev: await assistantDevFor(user),
       mode: managed ? "managed" : "local",
       /** The tenant's balance; null where the runtime resolves models itself. */
       credits: managed ? await balanceCredits() : null,
@@ -389,6 +453,8 @@ export const studio = new Hono<Vars>()
         ? {
             name: linked.name,
             email: linked.email,
+            /** The team the account's space belongs to, as the Manage-App names it. */
+            team: overview?.tenant.name ?? null,
             credits: overview?.tenant.balanceCredits ?? null,
             /** What of the credits ends on a date, the nearest first. */
             expiring: overview?.tenant.expiring ?? [],
@@ -398,12 +464,16 @@ export const studio = new Hono<Vars>()
           }
         : null,
       models: managed ? null : localModelSettings(),
+      /** Apple Intelligence on this Mac: offered where the machine can run it (harness/apple.ts). */
+      apple: managed ? null : await appleStatus(),
       /** The AI clients this runtime can think with — installed or not, and how each is signed in. */
       harnesses: managed ? [] : await detectHarnesses(),
       /** Installed AI clients whose subscription can answer the studio chat. */
       subscriptions: managed ? [] : await subscriptionClients(),
       /** A runtime that runs alone keeps its setup in front until a test call has worked on the chosen source and the way is still open. */
       setupDone: managed ? true : await setupDone(),
+      /** The cloud studio's first visit: the short wizard that names the team and fills the space (services/onboarding.ts). */
+      onboarding: await needsOnboarding(user),
       /** What answers the studio chat: a model of class `highest`, or the admin's own subscription. */
       chatEngine: managed ? "models" : await chatEngine(await hasTextModel()),
       aiReady: (await hasTextModel()) || (!managed && (await subscriptionClients()).length > 0),
@@ -425,7 +495,13 @@ export const studio = new Hono<Vars>()
   // The team as the Manage-App keeps it: its people, who is invited, the places the plan gives.
   .get("/team", async (c) => {
     if (!managed) {
-      return c.json({ error: "not_managed" }, 404);
+      return c.json(
+        {
+          error: say(c, "onlyAvailableCloud"),
+          code: "not_managed",
+        },
+        404,
+      );
     }
     const user = c.get("user");
     const [info, team] = await Promise.all([
@@ -446,12 +522,24 @@ export const studio = new Hono<Vars>()
   // `?fresh=1` asks GitHub now instead of within the hour.
   .get("/update", async (c) =>
     managed
-      ? c.json({ error: "not_local" }, 404)
+      ? c.json(
+          {
+            error: say(c, "onlyAvailableComputer"),
+            code: "not_local",
+          },
+          404,
+        )
       : c.json(await updateStatus(c.req.query("fresh") === "1")),
   )
   .post("/update", async (c) => {
     if (managed) {
-      return c.json({ error: "not_local" }, 404);
+      return c.json(
+        {
+          error: say(c, "onlyAvailableComputer"),
+          code: "not_local",
+        },
+        404,
+      );
     }
     applyUpdate();
     return c.json(await updateStatus());
@@ -460,6 +548,11 @@ export const studio = new Hono<Vars>()
   .put("/profile", async (c) =>
     c.json(await saveProfile(c.get("user"), profileSchema.parse(await c.req.json()))),
   )
+  .put("/lang", async (c) => {
+    const { lang } = z.object({ lang: z.enum(LANGS) }).parse(await c.req.json());
+    await saveUserLang(c.get("user"), lang);
+    return c.json({ lang });
+  })
 
   // --- the studio's assistant -------------------------------------------------
   // One open chat per person and tenant, on every page; turns stream as SSE events shaped like
@@ -481,13 +574,19 @@ export const studio = new Hono<Vars>()
   .post("/assistant/speak", async (c) => {
     const { text } = z.object({ text: z.string().min(1).max(4000) }).parse(await c.req.json());
     if ((await classWays()).speech.kind === "none") {
-      throw new ServiceError("refused", "Hier spricht kein Sprachmodell.");
+      throw new ServiceError("refused", note("noLanguageModelSet"));
     }
     if (!(await canSpend())) {
-      throw new ServiceError("no_credits", "Dein Guthaben ist aufgebraucht.");
+      throw new ServiceError("no_credits", note("creditsUsedUp"));
     }
     const voice = await generateSpeechMedia({ text, abortSignal: c.req.raw.signal });
     return c.body(new Uint8Array(voice.bytes), 200, { "content-type": voice.mime });
+  })
+  // A message written while a turn runs: the turn takes it before its next step or after its answer.
+  .post("/assistant/run/:runId/signal", async (c) => {
+    const body = assistantSignalSchema.parse(await c.req.json());
+    const taken = signalRun(c.get("user").id, c.req.param("runId"), body);
+    return c.json({ ok: taken }, taken ? 200 : 404);
   })
   // A browser tool's result: the turn that waits for it goes on.
   .post("/assistant/tool/:callId", async (c) => {
@@ -498,10 +597,10 @@ export const studio = new Hono<Vars>()
   .post("/assistant/turn", async (c) => {
     const user = c.get("user");
     const body = assistantTurnSchema
-      .extend({ lang: z.enum(["de", "en"]).default("de") })
+      .extend({ lang: z.enum(LANGS).default("en") })
       .parse(await c.req.json());
     if (!(await canSpend())) {
-      throw new ServiceError("no_credits", "Dein Guthaben ist aufgebraucht.");
+      throw new ServiceError("no_credits", note("creditsUsedUp"));
     }
     const project = body.projectId ? await ownedProject(user.id, body.projectId) : null;
     const writable = project ? await projectWritable(project) : false;
@@ -511,54 +610,101 @@ export const studio = new Hono<Vars>()
         ? { route: body.page.route, title: body.page.title, view: body.page.view }
         : (body.page ?? null);
     const chat = await openChat(user);
-    const history = await turnHistory(user, chat);
+    const debug = Boolean(body.debug) && (await assistantDevFor(user));
+    let history = await turnHistory(user, chat);
     const runId = nanoid(10);
     const userMessageId = await addMessage(chat.id, {
       role: "user",
       content: body.message,
       page: page ? { route: page.route, title: page.title } : null,
     });
+    startRun(runId, user.id);
     return streamSSE(c, async (stream) => {
       const abort = new AbortController();
       stream.onAbort(() => abort.abort());
       const send = <K extends keyof AssistantEvents>(event: K, data: AssistantEvents[K]) =>
         stream.writeSSE({ event, data: JSON.stringify(data) });
-      const messageId = nanoid(14);
+      let messageId = nanoid(14);
       await send("run_started", { threadId: chat.id, runId, messageId: userMessageId });
+      // The answer's text since the last message written meanwhile.
       let reply = "";
+      let changed = false;
+      let steps = 0;
+      /** What the answer said and did up to messages written meanwhile; null when nothing. */
+      const storePart = async (before: AnswerPart) => {
+        changed ||= before.changed;
+        return before.reply || before.toolCalls.length || before.cards.length
+          ? await addMessage(chat.id, { role: "assistant", content: before.reply, ...before })
+          : null;
+      };
+      /** The messages written meanwhile, after the part of the answer before them. */
+      const storeSignals = async (taken: AssistantSignal[], answerId: string | null) => {
+        for (const [i, s] of taken.entries()) {
+          const stored = await addMessage(chat.id, { role: "user", content: s.message });
+          await send("signal", {
+            ref: s.ref,
+            messageId: stored,
+            content: s.message,
+            answerId: i === 0 ? answerId : null,
+          });
+        }
+        reply = "";
+        messageId = nanoid(14);
+      };
       try {
-        const result = await runStudioAssistant({
-          user,
-          chat,
-          history,
-          project,
-          writable,
-          message: body.message,
-          page,
-          browserTools: body.tools,
-          lang: body.lang,
-          signal: abort.signal,
-          onText: (delta) => {
-            reply += delta;
-            void send("text", { messageId, delta });
-          },
-          onActivity: (label) => void send("activity", { label }),
-          onChanged: () => void send("changed", {}),
-          onCard: (card) => void send("card", card),
-          onToolCall: (call) => void send("tool_call", call),
-          onToolResult: (result) => void send("tool_result", result),
-          callBrowser: (call) => awaitBrowser(user.id, call.toolCallId, abort.signal),
-        });
-        reply =
-          result.reply || (result.changed ? (body.lang === "de" ? "Erledigt." : "Done.") : "");
-        const stored = await addMessage(chat.id, {
-          role: "assistant",
-          content: reply,
-          cards: result.cards,
-          toolCalls: result.toolCalls,
-          changed: result.changed,
-        });
-        await send("done", { messageId: stored, reply, changed: result.changed });
+        let message = body.message;
+        for (;;) {
+          const result = await runStudioAssistant({
+            user,
+            chat,
+            history,
+            project,
+            writable,
+            message,
+            page,
+            browserTools: body.tools,
+            lang: body.lang,
+            signal: abort.signal,
+            onText: (delta) => {
+              reply += delta;
+              void send("text", { messageId, delta });
+            },
+            onActivity: (label) => void send("activity", { label }),
+            onChanged: () => void send("changed", {}),
+            onCard: (card) => void send("card", card),
+            onToolCall: (call) => void send("tool_call", call),
+            onToolResult: (result) => void send("tool_result", result),
+            callBrowser: (call) => awaitBrowser(user.id, call.toolCallId, abort.signal),
+            takeSignals: () => takeSignals(runId),
+            onSignal: async (taken, before) => storeSignals(taken, await storePart(before)),
+            ...(debug
+              ? {
+                  onPrompt: (prompt) => void send("prompt", prompt),
+                  onStep: (step) => void send("step", { ...step, step: ++steps }),
+                }
+              : {}),
+          });
+          // Written after the answer's last step: the turn goes on with it.
+          const left = takeSignals(runId);
+          if (!left.length || abort.signal.aborted) {
+            changed ||= result.changed;
+            reply = result.reply || (changed ? serverText(body.lang, "done") : "");
+            const stored = await addMessage(chat.id, {
+              role: "assistant",
+              content: reply,
+              cards: result.cards,
+              toolCalls: result.toolCalls,
+              changed: result.changed,
+            });
+            await send("done", { messageId: stored, reply, changed });
+            break;
+          }
+          // The next answer knows this one: it is stored before the history is read again.
+          const answerId = await storePart(result);
+          history = await turnHistory(user, chat);
+          await storeSignals(left, answerId);
+          message = signalText(left);
+        }
       } catch (err) {
         console.error("[studio-assistant]", err);
         if (reply.trim()) {
@@ -567,12 +713,11 @@ export const studio = new Hono<Vars>()
         await send("error", {
           message:
             err instanceof ServiceError || err instanceof ModelUnavailableError
-              ? err.message
-              : body.lang === "de"
-                ? "Da ist etwas schiefgelaufen. Bitte noch einmal versuchen."
-                : "Something went wrong. Please try again.",
+              ? errorText(err, body.lang)
+              : serverText(body.lang, "somethingWrong"),
         });
       }
+      endRun(runId);
       // Older messages fold into the chat's running summary once enough have piled up.
       void foldChat(chat.id).catch((err) => console.error("[studio-assistant] fold:", err));
     });
@@ -580,7 +725,7 @@ export const studio = new Hono<Vars>()
 
   // --- projects --------------------------------------------------------------
   .get("/projects", async (c) => {
-    const projects = await listProjects(c.get("user").id);
+    const projects = await listProjects(c.get("user").id, requestLang(c));
     const build = await mayBuild();
     return c.json(
       projects.map((p) => ({
@@ -620,7 +765,7 @@ export const studio = new Hono<Vars>()
     const kind = z.enum(PROJECT_FILE_KINDS).parse(c.req.query("kind"));
     const file = (await c.req.formData()).get("file");
     if (!(file instanceof File)) {
-      throw new ServiceError("invalid", "Bitte eine Datei wählen.");
+      throw new ServiceError("invalid", note("chooseFile"));
     }
     const row = await addProjectFile(project.id, {
       kind,
@@ -629,6 +774,65 @@ export const studio = new Hono<Vars>()
       data: new Uint8Array(await file.arrayBuffer()),
     });
     return c.json(fileView(row));
+  })
+  .post("/projects/:id/files/url", async (c) => {
+    const project = await ownedProject(c.get("user").id, c.req.param("id"));
+    const input = z
+      .object({ url: z.string().min(1).max(500_000), kind: z.enum(PROJECT_FILE_KINDS) })
+      .parse(await c.req.json());
+    const url = /^(https?:\/\/|data:)/i.test(input.url) ? input.url : `https://${input.url}`;
+    try {
+      return c.json({ file: fileView(await addProjectFileFromUrl(project.id, { ...input, url })) });
+    } catch (err) {
+      // A web page where a logo or an asset was asked for: its logos or pictures, to pick from.
+      if (err instanceof ServiceError && err.data.reason === "page") {
+        const page = String(err.data.url ?? url);
+        const scan = input.kind === "logo" ? scanLogos : scanImages;
+        return c.json({ candidates: await scan(page) });
+      }
+      throw err;
+    }
+  })
+  .post("/projects/:id/colors/scan", async (c) => {
+    await ownedProject(c.get("user").id, c.req.param("id"));
+    const { url } = z.object({ url: z.string().min(1).max(2000) }).parse(await c.req.json());
+    const colors = await scanColors(url).catch(() => {
+      throw new ServiceError("invalid", note("pageNotReached"));
+    });
+    return c.json({ colors });
+  })
+  // A gradient from the admin's words, or theirs changed as they say. Nothing is saved.
+  .post("/projects/:id/gradients/describe", async (c) => {
+    const project = await ownedProject(c.get("user").id, c.req.param("id"));
+    const { text, gradient } = z
+      .object({
+        text: z.string().trim().min(1).max(1000),
+        gradient: gradientSchema
+          .pick({ name: true, type: true, angle: true, stops: true })
+          .optional(),
+      })
+      .parse(await c.req.json());
+    if (!(await canSpend())) {
+      throw new ServiceError("no_credits", note("creditsUsedUp"));
+    }
+    try {
+      return c.json({
+        gradient: await describeGradient(project.brand.colors ?? [], text, gradient),
+      });
+    } catch (err) {
+      if (err instanceof ModelUnavailableError) {
+        throw new ServiceError("refused", saidOf(err));
+      }
+      throw err;
+    }
+  })
+  .post("/projects/:id/fonts/scan", async (c) => {
+    await ownedProject(c.get("user").id, c.req.param("id"));
+    const { url } = z.object({ url: z.string().min(1).max(2000) }).parse(await c.req.json());
+    const fonts = await scanFonts(url).catch(() => {
+      throw new ServiceError("invalid", note("pageNotReached"));
+    });
+    return c.json({ fonts });
   })
   .put("/projects/:id/files/order", async (c) => {
     const project = await ownedProject(c.get("user").id, c.req.param("id"));
@@ -692,7 +896,7 @@ export const studio = new Hono<Vars>()
     const text = await documentText(row);
     return c.json({ text: text.slice(0, limit), chars: text.length });
   })
-  // What a search of Wissen finds for a question: the items an agent step would get.
+  // What a search of Knowledge finds for a question: the items an agent step would get.
   .post("/projects/:id/search", async (c) => {
     const project = await ownedProject(c.get("user").id, c.req.param("id"));
     const body = z
@@ -765,7 +969,7 @@ export const studio = new Hono<Vars>()
     );
   })
 
-  // --- Wissen: its items and Kategorien ---------------------------------------
+  // --- Knowledge: its items and categories ------------------------------------
   .get("/projects/:id/knowledge", async (c) =>
     c.json(await listKnowledge(c.get("user").id, c.req.param("id"))),
   )
@@ -834,7 +1038,7 @@ export const studio = new Hono<Vars>()
     return c.json({ ok: true });
   })
   .get("/values/:id", async (c) => c.json(await valueContents(c.get("user").id, c.req.param("id"))))
-  // Everything that has a Kategorie: the entries its page lists.
+  // Everything that has a category: the entries its page lists.
   .get("/categories/:id/items", async (c) =>
     c.json(await categoryContents(c.get("user").id, c.req.param("id"))),
   )
@@ -858,14 +1062,14 @@ export const studio = new Hono<Vars>()
     await deleteCategoryValue(c.req.param("id"));
     return c.json({ ok: true });
   })
-  // The Übersicht of a value: a model writes it from the value's items.
+  // The summary of a value: a model writes it from the value's items.
   .post("/values/:id/summary", async (c) => {
     const { category } = await categoryValue(c.req.param("id"));
     const project = await ownedProject(c.get("user").id, category.projectId);
     await requireWritable(project);
     return c.json({ summary: await writeSummary(c.req.param("id")) });
   })
-  // A Kategorie a person sets on an item: `p:<page>`, `t:<table>`, `r:<row>`, `f:<file>`.
+  // A category a person sets on an item: `p:<page>`, `t:<table>`, `r:<row>`, `f:<file>`.
   .put("/projects/:id/items/:key/categories/:categoryId", async (c) => {
     const project = await ownedProject(c.get("user").id, c.req.param("id"));
     await requireWritable(project);
@@ -882,7 +1086,7 @@ export const studio = new Hono<Vars>()
               ? { fileId: id }
               : null;
     if (!ref || key[1] !== ":") {
-      throw new ServiceError("invalid", "Unbekannter Eintrag.");
+      throw new ServiceError("invalid", note("unknownEntry"));
     }
     const { values } = z
       .object({ values: z.array(z.union([z.string().max(300), z.number(), z.boolean()])).max(50) })
@@ -906,7 +1110,7 @@ export const studio = new Hono<Vars>()
         format: z.enum(["faq"]).nullish(),
       })
       .parse(await c.req.json());
-    return c.json(await createTable(c.get("user").id, c.req.param("id"), body));
+    return c.json(await createTable(c.get("user").id, c.req.param("id"), body, requestLang(c)));
   })
   .get("/tables/:id", async (c) => c.json(await getTable(c.get("user").id, c.req.param("id"))))
   .patch("/tables/:id", async (c) => {
@@ -1006,7 +1210,7 @@ export const studio = new Hono<Vars>()
   .post("/projects/:id/wizards/import", async (c) => {
     const file = (await c.req.formData()).get("file");
     if (!(file instanceof File) || !file.size || file.size > PACKAGE_MAX_BYTES) {
-      throw new ServiceError("invalid", `Bitte ein Wizard-Paket (${PACKAGE_EXTENSION}) bis 30 MB.`);
+      throw new ServiceError("invalid", note("chooseWizardFileMb", { PACKAGE_EXTENSION }));
     }
     return c.json(
       await importWizard(
@@ -1014,11 +1218,24 @@ export const studio = new Hono<Vars>()
         c.req.param("id"),
         new Uint8Array(await file.arrayBuffer()),
         file.name,
+        requestLang(c),
       ),
     );
   })
   .get("/wizards/:id/export", async (c) => {
-    const { name, zip } = await exportWizard(c.get("user").id, c.req.param("id"));
+    const found = await exportWizard(c.get("user").id, c.req.param("id"), {
+      published: c.req.query("published") === "1",
+      knowledge: c.req.query("knowledge") === "1",
+    });
+    if (!found) {
+      return c.json(
+        {
+          error: say(c, "wizardNotPublishedYet"),
+        },
+        404,
+      );
+    }
+    const { name, zip } = found;
     return c.body(new Uint8Array(zip), 200, {
       "content-type": PACKAGE_MIME,
       "content-disposition": `attachment; filename="${name}"`,
@@ -1060,6 +1277,7 @@ export const studio = new Hono<Vars>()
         dailyRunLimit: z.number().int().min(1).max(10_000).optional(),
         projectId: z.string().optional(),
         runners: z.object({ default: z.string(), enabled: z.array(z.string()).max(20) }).optional(),
+        translate: z.boolean().optional(),
       })
       .parse(await c.req.json());
     await updateWizardSettings(c.get("user").id, c.req.param("id"), patch);
@@ -1067,10 +1285,45 @@ export const studio = new Hono<Vars>()
     if (
       patch.shareEnabled !== undefined ||
       patch.dailyRunLimit !== undefined ||
-      patch.runners !== undefined
+      patch.runners !== undefined ||
+      patch.translate !== undefined
     ) {
       await pushSharing(c.get("user").id, c.req.param("id"));
     }
+    return c.json({ ok: true });
+  })
+  // The languages the published wizard is kept in, each original text with its translation.
+  .get("/wizards/:id/translations", async (c) => {
+    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
+    const def = await publishedDefinition(w);
+    const kept = await translationsOf(w.id);
+    return c.json({
+      lang: def ? wizardLang(def) : wizardLang(w.draft),
+      texts: def ? wizardTexts(def) : [],
+      translations: kept.map((t) => ({
+        lang: t.lang,
+        texts: t.texts,
+        updatedAt: t.updatedAt.toISOString(),
+      })),
+    });
+  })
+  // The author's own lines for a language: they replace what a model wrote.
+  .put("/wizards/:id/translations/:lang", async (c) => {
+    const w = await writableWizard(c.get("user").id, c.req.param("id"));
+    const def = await publishedDefinition(w);
+    const lang = c.req.param("lang");
+    if (!(def && isLangCode(lang))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const { lines } = z
+      .object({ lines: z.record(z.string(), z.string().max(4000)) })
+      .parse(await c.req.json());
+    await editTranslation(w.id, def, lang, lines);
+    return c.json({ ok: true });
+  })
+  .delete("/wizards/:id/translations/:lang", async (c) => {
+    const w = await writableWizard(c.get("user").id, c.req.param("id"));
+    await deleteTranslation(w.id, c.req.param("lang"));
     return c.json({ ok: true });
   })
   // The wizard's ID for the mobile app, beside its link.
@@ -1098,6 +1351,21 @@ export const studio = new Hono<Vars>()
   .post("/wizards/:id/publish", async (c) =>
     c.json(await publishAndSync(c.get("user").id, c.req.param("id"))),
   )
+  // What publishing the draft would change: the steps and files, its last test, the cost of a run before and after.
+  .get("/wizards/:id/changes", async (c) => {
+    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
+    const { published, ...found } = await draftChanges(w);
+    const cost = async (def: WizardDefinition) =>
+      estimateRun(w.id, null, def, await stepsWithoutModel(def));
+    const [before, after] = published ? await Promise.all([cost(published), cost(w.draft)]) : [];
+    return c.json({
+      ...found,
+      cost:
+        before?.available && after?.available
+          ? { before: before.credits, after: after.credits }
+          : null,
+    });
+  })
   // What a run of the draft is expected to cost, per step and in total.
   .get("/wizards/:id/estimate", async (c) => {
     const w = await ownedWizard(c.get("user").id, c.req.param("id"));
@@ -1113,7 +1381,7 @@ export const studio = new Hono<Vars>()
   // The models the draft needs that this runtime cannot serve, by class, with the steps that call them.
   .get("/wizards/:id/models", async (c) => {
     const w = await ownedWizard(c.get("user").id, c.req.param("id"));
-    return c.json({ missing: await missingModels(w.draft) });
+    return c.json({ missing: await missingModels(w.draft, requestLang(c)) });
   })
   // A runtime that runs alone: the wizard's copy in the cloud of the linked account.
   .get("/wizards/:id/cloud", async (c) => {
@@ -1160,13 +1428,13 @@ export const studio = new Hono<Vars>()
       .parse(await c.req.json());
     await writableWizard(user.id, wizardId);
     if (!(await canSpend())) {
-      throw new ServiceError("no_credits", "Dein Guthaben ist aufgebraucht.");
+      throw new ServiceError("no_credits", note("creditsUsedUp"));
     }
     return streamSSE(c, async (stream) => {
       const abort = new AbortController();
       stream.onAbort(() => abort.abort());
       try {
-        const result = await architectTurn(user.id, wizardId, message, {
+        const result = await architectTurn(user.id, wizardId, message, requestLang(c), {
           signal: abort.signal,
           onText: (delta) => {
             void stream.writeSSE({ event: "text", data: JSON.stringify(delta) });
@@ -1189,8 +1457,8 @@ export const studio = new Hono<Vars>()
           data: JSON.stringify({
             message:
               err instanceof ServiceError
-                ? err.message
-                : "Da ist etwas schiefgelaufen. Bitte noch einmal versuchen.",
+                ? errorText(err, requestLang(c))
+                : say(c, "somethingWentWrongTry"),
           }),
         });
       }
@@ -1200,10 +1468,10 @@ export const studio = new Hono<Vars>()
   .post("/transcribe", async (c) => {
     const file = (await c.req.formData()).get("file");
     if (!(file instanceof File) || !file.size || file.size > 10_000_000) {
-      throw new ServiceError("invalid", "Bitte eine Aufnahme bis 10 MB.");
+      throw new ServiceError("invalid", note("recordingMbMost"));
     }
     if (!(await canSpend())) {
-      throw new ServiceError("no_credits", "Dein Guthaben ist aufgebraucht.");
+      throw new ServiceError("no_credits", note("creditsUsedUp"));
     }
     try {
       const { text } = await transcribeAudio({
@@ -1213,7 +1481,7 @@ export const studio = new Hono<Vars>()
       return c.json({ text });
     } catch (err) {
       if (err instanceof ModelUnavailableError) {
-        throw new ServiceError("refused", err.message);
+        throw new ServiceError("refused", saidOf(err));
       }
       throw err;
     }
@@ -1291,7 +1559,7 @@ export const studio = new Hono<Vars>()
     const { connect } = z.object({ connect: z.boolean() }).parse(await c.req.json());
     const [done] = await connectApps(layout(), [c.req.param("id")], !connect);
     if (!done) {
-      return c.json({ error: "Unknown app" }, 404);
+      return c.json({ error: say(c, "unknownApp"), code: "not_found" }, 404);
     }
     // Not done is an answer too: the app's file is no plain JSON, here is what to paste.
     return c.json(done.outcome);
@@ -1308,10 +1576,16 @@ export const studio = new Hono<Vars>()
   })
   // --- models: where each class runs, own API keys, the credits behind them -----------------
   // Alone for this machine; on a Manage-App's runtime for the team, whose admins change it.
-  .get("/models", async (c) => c.json(await modelSettings()))
+  .get("/models", async (c) => c.json(await modelSettings(requestLang(c))))
   .put("/models", async (c) => {
     if (!mayChangeModels(c.get("user"))) {
-      return c.json({ error: "Only an admin of the team changes its models." }, 403);
+      return c.json(
+        {
+          error: say(c, "onlyTeamAdminsChange"),
+          code: "forbidden",
+        },
+        403,
+      );
     }
     const input = modelsInput.parse(await c.req.json());
     // In the cloud nothing runs on a machine's client or local model.
@@ -1321,18 +1595,39 @@ export const studio = new Hono<Vars>()
         input.ollamaUrl ||
         Object.values(input.bindings ?? {}).some((ref) => ref && !cloudBinding(ref)))
     ) {
-      return c.json({ error: "Not available in the cloud." }, 400);
+      return c.json(
+        {
+          error: say(c, "notAvailableCloud"),
+          code: "not_local",
+        },
+        400,
+      );
     }
     // Own keys and bindings to a provider's model are a feature of the team's plan.
-    if (managed) {
-      const info = await tenantInfo(c.get("user").tenantId).catch(() => null);
-      const own =
-        Object.values(input.keys ?? {}).some((key) => key?.trim()) ||
-        Object.values(input.bindings ?? {}).some((ref) => ref && !isCreditsRef(ref));
-      if (own && info && !feature("ownKeys", info.features)) {
+    // When the Manage-App can't say what the plan holds, own keys wait: nothing is taken unchecked.
+    const own =
+      Object.values(input.keys ?? {}).some((key) => key?.trim()) ||
+      Object.values(input.bindings ?? {}).some((ref) => ref && !isCreditsRef(ref));
+    if (managed && own) {
+      const info = await tenantInfo(c.get("user").tenantId).catch((err) => {
+        console.error("[models] plan of the tenant:", err);
+        return null;
+      });
+      if (!info) {
         return c.json(
           {
-            error: `Eigene API Keys gibt es nicht im Paket ${info.plan?.name ?? "des Teams"}.`,
+            error: say(c, "planUnavailable"),
+            code: "manage_unavailable",
+          },
+          503,
+        );
+      }
+      if (!feature("ownKeys", info.features)) {
+        return c.json(
+          {
+            error: info.plan?.name
+              ? say(c, "ownKeysNotInPlan", { plan: info.plan.name })
+              : say(c, "ownKeysNotInTeamPlan"),
             code: "plan",
           },
           403,
@@ -1340,7 +1635,7 @@ export const studio = new Hono<Vars>()
       }
     }
     await saveModels(input);
-    return c.json(await modelSettings());
+    return c.json(await modelSettings(requestLang(c)));
   })
   // Whether a provider takes a key — the one typed, or the one stored. Nothing is generated.
   .post("/models/keys/:provider/check", async (c) => {
@@ -1350,20 +1645,55 @@ export const studio = new Hono<Vars>()
       .parse(await c.req.json().catch(() => ({})));
     const value = key?.trim() || (await storedKey(provider));
     if (!value) {
-      return c.json({ ok: false, message: "Kein API Key hinterlegt." });
+      return c.json({
+        ok: false,
+        message: say(c, "noApiKeySet"),
+      });
     }
-    return c.json(await checkKey(provider, value));
+    return c.json(await checkKey(provider, value, requestLang(c)));
   })
   // One call on a class, as a run makes it: text answers a word, an image, a voice or a short
   // clip comes back to look at, a voice note comes back as text. Paid like any call.
   .post("/models/test", async (c) => {
     if (!mayChangeModels(c.get("user"))) {
-      return c.json({ error: "Only an admin of the team tests its models." }, 403);
+      return c.json(
+        {
+          error: say(c, "onlyTeamAdminsTest"),
+          code: "forbidden",
+        },
+        403,
+      );
     }
     const { cls, lang } = z
-      .object({ cls: z.enum(MODEL_CLASSES), lang: z.enum(["de", "en"]).default("de") })
+      .object({ cls: z.enum(MODEL_CLASSES), lang: z.enum(LANGS).default("en") })
       .parse(await c.req.json());
     return c.json(await testClass(cls, lang));
+  })
+  // The setup's test of one key, or of Ollama: a working one is put to use and ends the setup.
+  .post("/local/keys/:provider", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const provider = z.enum(LOCAL_KEYS).parse(c.req.param("provider"));
+    const { key } = z
+      .object({ key: z.string().max(400).optional() })
+      .parse(await c.req.json().catch(() => ({})));
+    const result = await setUpKey(provider, key, requestLang(c));
+    if (result.ok && result.text) {
+      await markTested("own");
+    }
+    return c.json(result);
+  })
+  .post("/local/ollama", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const { url } = z.object({ url: z.string().url().max(200) }).parse(await c.req.json());
+    const result = await setUpOllama(url, requestLang(c));
+    if (result.ok) {
+      await markTested("own");
+    }
+    return c.json(result);
   })
   // One short call on a class, as a run would make it: shows that the way to the model is open.
   .post("/local/models/test", async (c) => {
@@ -1385,10 +1715,7 @@ export const studio = new Hono<Vars>()
         abortSignal: AbortSignal.timeout(120_000),
       });
       // A working call is what ends the setup — for the source it ran on.
-      const tested = await testedSources();
-      if (!tested.includes(source)) {
-        await writeSetting("setup-done", [...tested, source]);
-      }
+      await markTested(source);
       return c.json({
         ok: true,
         ref: resolved.ref,
@@ -1513,6 +1840,88 @@ export const studio = new Hono<Vars>()
   })
   // The address the system browser opens: the account's sign-in, or — for someone without an
   // account — its sign-up page with the invitation code, which then goes on to the sign-in.
+  // --- the first visit of a cloud studio: who the team is, its website, first documents -----
+  .put("/team", async (c) => {
+    if (!managed) {
+      return c.json(
+        {
+          error: say(c, "onlyAvailableCloud"),
+          code: "not_managed",
+        },
+        404,
+      );
+    }
+    await requireAdmin();
+    const { name } = z.object({ name: z.string().trim().min(1).max(80) }).parse(await c.req.json());
+    const info = await renameTenant(c.get("user").tenantId, name);
+    return c.json({ name: info.name });
+  })
+  // What the team uses engenty for, and the questions that fit: kept at the Manage-App.
+  .put("/team/profile", async (c) => {
+    if (!managed) {
+      return c.json(
+        {
+          error: say(c, "onlyAvailableCloud"),
+          code: "not_managed",
+        },
+        404,
+      );
+    }
+    await requireAdmin();
+    const field = (max: number) => z.string().trim().max(max).nullable().optional();
+    const profile = z
+      .object({
+        kind: z.enum(["personal", "club", "small", "corp"]),
+        size: field(40),
+        sector: field(120),
+        role: field(120),
+        need: field(2000),
+        legalName: field(200),
+        phone: field(40),
+        website: field(400),
+      })
+      .parse(await c.req.json());
+    const user = c.get("user");
+    await saveTeamProfile(user.tenantId, user.id, requestLang(c) === "de" ? "de" : "en", profile);
+    return c.json({ ok: true });
+  })
+  .post("/onboarding/done", async (c) => {
+    if (!managed) {
+      return c.json(
+        {
+          error: say(c, "onlyAvailableCloud"),
+          code: "not_managed",
+        },
+        404,
+      );
+    }
+    await finishOnboarding(c.get("user").tenantId);
+    return c.json({ ok: true });
+  })
+  .post("/projects/:id/website", async (c) => {
+    const user = c.get("user");
+    const project = await ownedProject(user.id, c.req.param("id"));
+    const { url } = z.object({ url: z.string().trim().min(3).max(400) }).parse(await c.req.json());
+    return c.json(await applyWebsite(user.id, project.id, url));
+  })
+  // The install command and the first steps, mailed to the signed-in person by the Manage-App.
+  .post("/install-mail", async (c) => {
+    if (!managed) {
+      return c.json(
+        {
+          error: say(c, "onlyAvailableCloud"),
+          code: "not_managed",
+        },
+        404,
+      );
+    }
+    const { lang } = z
+      .object({ lang: z.enum(LANGS).default("en") })
+      .parse(await c.req.json().catch(() => ({})));
+    await installMail(c.get("user").email, lang);
+    return c.json({ ok: true });
+  })
+
   .post("/account/link", async (c) => {
     if (managed) {
       return c.notFound();

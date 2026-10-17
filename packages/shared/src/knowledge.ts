@@ -1,15 +1,15 @@
 import { z } from "zod";
 
 /**
- * Wissen: what a space holds for its wizards' steps to look up. Pages (Markdown, with sub-pages),
+ * Knowledge: what a space holds for its wizards' steps to look up. Pages (Markdown, with sub-pages),
  * tables (typed columns; FAQ is a format of one) and files that could not be read into either.
- * Kategorien run across all of them: typed properties a step filters on before it searches.
+ * Categories run across all of them: typed properties a step filters on before it searches.
  */
 
 export const CATEGORY_TYPES = ["choice", "date", "number", "text", "boolean"] as const;
 export type CategoryType = (typeof CATEGORY_TYPES)[number];
 
-/** A value of a choice, how many items have it, and whether it has an Übersicht. */
+/** A value of a choice, how many items have it, and whether it has a summary. */
 export interface CategoryValueInfo {
   id: string;
   value: string;
@@ -49,7 +49,7 @@ export interface SpaceCategory {
 /** A value as an item has it: a choice's value, a date as `YYYY-MM-DD`, a number, a text, yes/no. */
 export type CategoryCell = string | number | boolean;
 
-/** What an item has of one Kategorie. */
+/** What an item has of one category. */
 export interface ItemCategory {
   categoryId: string;
   /** A choice with several values has several. */
@@ -57,12 +57,12 @@ export interface ItemCategory {
   by: "person" | "origin" | "model";
 }
 
-/** What a writer sets: by the Kategorie's name; a list for a choice with several values. */
+/** What a writer sets: by the category's name; a list for a choice with several values. */
 export type CategoryInput = Record<string, CategoryCell | CategoryCell[] | null>;
 
 export type KnowledgeKind = "page" | "table" | "file";
 
-/** An item of Wissen, as lists show it. Sub-pages stand under their page, not in the list. */
+/** An item of Knowledge, as lists show it. Sub-pages stand under their page, not in the list. */
 export interface KnowledgeItem {
   /** `p:<id>`, `t:<id>`, `f:<id>`. */
   key: string;
@@ -100,7 +100,7 @@ export interface Knowledge {
   checked: boolean;
 }
 
-/** A value of a choice, opened: its Übersicht and its Inhaltsverzeichnis, the items that have it. */
+/** A value of a choice, opened: its summary and its table of contents, the items that have it. */
 export interface KnowledgeValue {
   id: string;
   value: string;
@@ -113,7 +113,7 @@ export interface KnowledgeValue {
   rows: { tableId: string; title: string; count: number }[];
 }
 
-/** A page with what Wissen knows about it, as the studio opens it. */
+/** A page with what Knowledge knows about it, as the studio opens it. */
 export interface KnowledgePage {
   id: string;
   path: string;
@@ -131,7 +131,7 @@ export interface KnowledgePage {
 // --- filters --------------------------------------------------------------------
 
 /**
- * A filter on one Kategorie: a value (a choice is it, a text equals it, yes/no), one of several,
+ * A filter on one category: a value (a choice is it, a text equals it, yes/no), one of several,
  * or a range — numbers by `gte`/`lte`, dates by `after`/`before` (`YYYY-MM-DD`, both ends
  * included), a text by `contains`, an ordered choice by `atLeast`.
  */
@@ -153,22 +153,22 @@ export const whereValueSchema = z.union([
 ]);
 export type WhereValue = z.infer<typeof whereValueSchema>;
 
-/** Filters by the Kategorie's name; an item matches all of them. */
+/** Filters by the category's name; an item matches all of them. */
 export const whereSchema = z.record(z.string().max(120), whereValueSchema);
 export type Where = z.infer<typeof whereSchema>;
 
 // --- search ---------------------------------------------------------------------
 
 export interface KnowledgeHit {
-  /** `p:<id>`, `t:<id>` (a row of it), `f:<id>`, `v:<id>` (a value's Übersicht), `d:<id>` (a
-   * document read before Wissen had pages), `x:<plugin>:<key>` (a plugin's text). */
+  /** `p:<id>`, `t:<id>` (a row of it), `f:<id>`, `v:<id>` (a value's summary), `d:<id>` (a
+   * document read before Knowledge had pages), `x:<plugin>:<key>` (a plugin's text). */
   key: string;
   kind: KnowledgeKind | "summary" | "document" | "plugin";
   /** What the studio opens for it: `p:`, `t:` (a row's table), `f:`, `v:`; null for a plugin's text. */
   open: string | null;
   path: string;
   title: string;
-  /** The Kategorien as `name: value`. */
+  /** The categories as `name: value`. */
   categories: string[];
   /** The best section's headings, outermost first, joined by " › ". */
   heading: string | null;
@@ -231,6 +231,6 @@ export function slugOf(title: string): string {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 60)
-      .replace(/-+$/, "") || "seite"
+      .replace(/-+$/, "") || "page"
   );
 }

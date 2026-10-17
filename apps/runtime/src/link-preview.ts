@@ -37,8 +37,8 @@ export async function linkPreview(path: string): Promise<string | null> {
     return tags({
       title: view.title === view.wizard.title ? view.title : `${view.title} · ${view.wizard.title}`,
       description: view.message ?? view.wizard.description,
-      url: `${env.appUrl}/s/${share[1]}`,
-      image: `${env.appUrl}/api/shares/${share[1]}/image`,
+      url: `${env.publicUrl}/s/${share[1]}`,
+      image: `${env.publicUrl}/api/shares/${share[1]}/image`,
     });
   }
   const wizard = path.match(/^\/w\/([A-Za-z0-9_-]+)(\/chat)?\/?$/);
@@ -57,7 +57,7 @@ export async function linkPreview(path: string): Promise<string | null> {
       ? tags({
           title: v.definition.title,
           description: v.definition.description,
-          url: `${env.appUrl}/w/${wizard[1]}${wizard[2] ?? ""}`,
+          url: `${env.publicUrl}/w/${wizard[1]}${wizard[2] ?? ""}`,
         })
       : null;
   }

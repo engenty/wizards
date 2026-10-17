@@ -8,7 +8,7 @@ import {
 import type { RunEstimate } from "@engenty-wizards/shared/run";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import { t } from "../../lib/i18n";
+import { lang, t } from "../../lib/i18n";
 import { Label, Segmented, Select } from "../../ui";
 
 /** What a run of the draft is expected to cost. Refetched when a step's shape changes. */
@@ -33,8 +33,8 @@ export function useEstimate(wizardId: string, def: WizardDefinition) {
 
 const credits = (n: number) =>
   n < 10
-    ? n.toLocaleString(undefined, { maximumFractionDigits: 1 })
-    : Math.round(n).toLocaleString();
+    ? n.toLocaleString(lang, { maximumFractionDigits: 1 })
+    : Math.round(n).toLocaleString(lang);
 
 /** "≈ 12 Credits" for one step, with what the number rests on. */
 export function StepCost({ estimate, stepId }: { estimate?: RunEstimate; stepId: string }) {

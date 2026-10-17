@@ -1,10 +1,10 @@
+import { Markdown } from "@engenty-wizards/runner";
 import type { SpacePage } from "@engenty-wizards/shared/space-data";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronRight, FileText, Plus, Trash2 } from "lucide-react";
 import { type MouseEvent, useState } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
-import { Markdown } from "../../runner/outputs";
 import { Button, Card, cn, IconButton, Spinner } from "../../ui";
 import { fileUrl, useAutosave } from "./data";
 import { KnowledgeHeader } from "./Knowledge";
@@ -61,7 +61,7 @@ function Editor({
     mutationFn: () => api.patch(`/api/studio/pages/${page.id}`, { review: null }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["space-page", page.id] }),
   });
-  // A link to another page of Wissen (`pages/…`) opens it here.
+  // A link to another page of Knowledge (`pages/…`) opens it here.
   const follow = async (e: MouseEvent) => {
     const href = (e.target as HTMLElement).closest("a")?.getAttribute("href");
     if (!(href?.startsWith("pages/") && onOpen)) {
@@ -235,7 +235,7 @@ export function PageEditor({
 }: {
   pageId: string;
   onGone: () => void;
-  /** Opens another item of Wissen: a parent, a sub-page, a page a link names. */
+  /** Opens another item of Knowledge: a parent, a sub-page, a page a link names. */
   onOpen?: (key: string) => void;
 }) {
   const page = useQuery({

@@ -3,8 +3,12 @@
  * widget's own scripts; reads its payload from <script type="application/json" id="wizard-payload">.
  *
  *   wizard.data            the run's data (keys from the widget step's `data` map)
- *   wizard.brand           { name, accent, logo, colors, facts } — logo as a data URL or null,
- *                          colors [{ name, value }], facts { key: value }
+ *   wizard.brand           { name, accent, logo, colors, facts, theme } — logo as a data URL or
+ *                          null, colors [{ name, value }], facts { key: value }, theme { accent,
+ *                          second, background, display, body, dark } as the run page uses it
+ *   wizard.state           what the person did last time (ticks, an open tab), kept with the run
+ *   wizard.save(state)     keeps `state` with the run (small JSON); the next visit reads it
+ *   wizard.share(text)     hands text to the device's share sheet (or copies it)
  *   wizard.ai              "generated" | "edited" when the run's media in `data` was made or
  *                          changed by a model, else null — a film labels itself with it
  *   wizard.mode            "view" in the browser, "export" while a PNG/PDF/MP4 is rendered
@@ -62,6 +66,14 @@ export const WIDGET_RUNTIME = `(function () {
       if (!f) return "";
       return "data:" + f.mime + ";base64," + (f.b64 != null ? f.b64 : utf8ToB64(f.text));
     },
+    state: window.__WIZARD_STATE || {},
+    save: function (state) {
+      this.state = state;
+      if (parent !== window) parent.postMessage({ wizard: "state", state: state }, "*");
+    },
+    share: function (text) {
+      if (parent !== window) parent.postMessage({ wizard: "share", text: String(text) }, "*");
+    },
     ready: function () { resolveReady(); },
     timeline: function (t) {
       if (t && typeof t.seek === "function" && t.duration > 0) timeline = t;
@@ -73,6 +85,16 @@ export const WIDGET_RUNTIME = `(function () {
   // widgets that fit themselves to the window would stay at scale 0. Fire it for them.
   var lastW = innerWidth, lastH = innerHeight;
   addEventListener("resize", function () { lastW = innerWidth; lastH = innerHeight; });
+  // A widget laid out as part of the page tells the page how tall its content is.
+  var lastTall = 0;
+  function tell() {
+    var tall = Math.ceil(document.documentElement.scrollHeight);
+    if (parent !== window && tall !== lastTall) {
+      lastTall = tall;
+      parent.postMessage({ wizard: "height", height: tall }, "*");
+    }
+  }
+  addEventListener("load", tell);
   if (window.ResizeObserver) {
     new ResizeObserver(function () {
       if (innerWidth !== lastW || innerHeight !== lastH) {
@@ -80,6 +102,7 @@ export const WIDGET_RUNTIME = `(function () {
         lastH = innerHeight;
         dispatchEvent(new Event("resize"));
       }
+      tell();
     }).observe(document.documentElement);
   }
 })();`;

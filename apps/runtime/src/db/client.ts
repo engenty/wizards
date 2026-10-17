@@ -113,14 +113,6 @@ export function tenantDb(id: string): Promise<Db> {
   return db;
 }
 
-/** Records where the Manage-App created the tenant's database, before it is first opened. */
-export async function registerTenant(id: string, dbUrl: string | null) {
-  await controlDb
-    .insert(control.tenant)
-    .values({ id, dbUrl })
-    .onConflictDoUpdate({ target: control.tenant.id, set: { dbUrl } });
-}
-
 const ready = new Map<string, Db>();
 
 /** Closes and forgets an open tenant database (the tenant was deleted or moved). */

@@ -1,8 +1,8 @@
 import { anthropic } from "@ai-sdk/anthropic";
+import type { Lang } from "@engenty-wizards/shared/definition";
 import { SURFACE_GUIDE } from "@engenty-wizards/shared/surface";
 import { isTextMime } from "@engenty-wizards/shared/workspace";
 import { Agent } from "@mastra/core/agent";
-import type { MastraModelConfig } from "@mastra/core/llm";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import {
@@ -19,15 +19,24 @@ import {
 } from "../authoring/guide.js";
 import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
-import { attachTools, costOf, gatewayTools, type ResolvedModel, textModel } from "../models.js";
+import {
+  agentModel,
+  attachTools,
+  costOf,
+  gatewayTools,
+  type ResolvedModel,
+  textModel,
+  totalUsage,
+} from "../models.js";
 import { pluginToolsOf } from "../plugins/registry.js";
 import { htmlToMarkdown } from "../render/convert.js";
-import { ServiceError } from "../services/errors.js";
 import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import { editWizard, ownedWizard, writeDraft } from "../services/wizards.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { type ServerKey, serverText } from "../texts.js";
 import { assertPublicUrl, safeFetch } from "../tools/net-guard.js";
+import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
 import { runScript } from "../widgets/script.js";
 import { thoughtLine } from "./thought.js";
 
@@ -40,7 +49,9 @@ export interface ArchitectInput {
   connectors: GuideConnector[];
   signal?: AbortSignal;
   onText?: (delta: string) => void;
-  /** A short line about what the architect is doing right now ("Lädt Seeformen …"). */
+  /** The language the admin reads the lines about its work in. */
+  lang?: Lang;
+  /** A short line about what the architect is doing right now ("Loading lake shapes …"). */
   onActivity?: (label: string) => void;
   /** The latest line of its reasoning, for the line under the activity. */
   onThought?: (line: string) => void;
@@ -106,7 +117,8 @@ HOW YOU WORK
 }
 
 /** Turns a tool call into the line the admin sees while it runs. */
-function activity(tool: string, args: Record<string, unknown>): string | null {
+function activity(tool: string, args: Record<string, unknown>, lang: Lang = "en"): string | null {
+  const say = (key: ServerKey, params?: Record<string, string>) => serverText(lang, key, params);
   const host = (u: unknown) => {
     try {
       return new URL(String(u)).hostname;
@@ -117,40 +129,35 @@ function activity(tool: string, args: Record<string, unknown>): string | null {
   switch (tool) {
     case "replace_wizard":
     case "edit_wizard":
-      return "Baut den Ablauf …";
+      return say("doingFlow");
     case "write_file":
-      return args.path ? `Schreibt ${String(args.path)} …` : "Schreibt eine Datei …";
+      return args.path
+        ? say("doingWriteFile", { path: String(args.path) })
+        : say("doingWriteAFile");
     case "download_files":
-      return "Lädt Daten herunter …";
+      return say("doingDownload");
     case "web_fetch":
-      return args.url ? `Liest ${host(args.url)} …` : "Liest im Web …";
+      return args.url ? say("doingReadSite", { host: host(args.url) }) : say("doingReadWeb");
     case "web_search":
-      return "Sucht im Web …";
+      return say("doingWebSearch");
     case "check_widget":
-      return "Testet das Widget …";
+      return say("doingTestWidget");
     case "run_script":
-      return args.output ? `Bereitet ${String(args.output)} vor …` : "Rechnet …";
+      return args.output
+        ? say("doingPrepare", { output: String(args.output) })
+        : say("doingCalculate");
     case "list_files":
     case "read_file":
-      return "Sieht sich die Dateien an …";
+      return say("doingLookFiles");
     case "delete_file":
-      return "Räumt Dateien auf …";
+      return say("doingTidyFiles");
     default:
       return null;
   }
 }
 
-/** A tool failure the model can read and fix, instead of a crashed turn. */
-async function attempt<T>(run: () => Promise<T>): Promise<T | { error: string; issues?: unknown }> {
-  try {
-    return await run();
-  } catch (err) {
-    if (err instanceof ServiceError) {
-      return { error: err.message, ...err.data };
-    }
-    return { error: (err as Error).message };
-  }
-}
+/** A tool failure the model can read and fix, instead of a crashed turn: the whole message. */
+const attempt = <T>(run: () => Promise<T>) => attemptTool(run, { limit: Number.POSITIVE_INFINITY });
 
 function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wrote: () => void) {
   const { userId, wizardId } = input;
@@ -390,19 +397,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
             screenshot: Buffer.from(r.png).toString("base64"),
           };
         }),
-      toModelOutput: (out: any) => {
-        if (!out || out.error || !out.screenshot) {
-          return { type: "json", value: out };
-        }
-        const { screenshot, ...rest } = out;
-        return {
-          type: "content",
-          value: [
-            { type: "text", text: JSON.stringify(rest) },
-            { type: "image-data", data: screenshot, mediaType: "image/png" },
-          ],
-        };
-      },
+      toModelOutput: imageOutput("screenshot"),
     }),
   };
   if (resolved.vendor === "anthropic") {
@@ -437,7 +432,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
       ),
       providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
     },
-    model: resolved.model as unknown as MastraModelConfig,
+    model: agentModel(resolved),
     tools,
   });
   const context = [
@@ -498,7 +493,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
       input.onText?.(text);
     } else if (chunk.type === "tool-call-input-streaming-start") {
       streaming.set(payload.toolCallId, { tool: payload.toolName, args: "", named: false });
-      const label = activity(payload.toolName, {});
+      const label = activity(payload.toolName, {}, input.lang);
       if (label) {
         input.onActivity?.(label);
       }
@@ -509,14 +504,18 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
         const path = s.args.match(/"path"\s*:\s*"([^"]+)"/)?.[1];
         if (path) {
           s.named = true;
-          const label = activity(s.tool, { path });
+          const label = activity(s.tool, { path }, input.lang);
           if (label) {
             input.onActivity?.(label);
           }
         }
       }
     } else if (chunk.type === "tool-call") {
-      const label = activity(payload.toolName, (payload.args ?? payload.input ?? {}) as never);
+      const label = activity(
+        payload.toolName,
+        (payload.args ?? payload.input ?? {}) as never,
+        input.lang,
+      );
       if (label) {
         input.onActivity?.(label);
       }
@@ -534,7 +533,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
       throw payload.error ?? new Error("architect stream error");
     }
   }
-  const usage: any = (await (stream as any).totalUsage) ?? (await stream.usage);
+  const usage = await totalUsage(stream);
   return {
     reply: reply.trim(),
     changed,
