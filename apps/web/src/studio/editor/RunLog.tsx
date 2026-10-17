@@ -48,8 +48,9 @@ function logText(events: RunEvent[], titles: Record<string, string>): string {
 }
 
 const HEIGHT_KEY = "wizards.runLog.height";
-const HEIGHT_DEFAULT = 240;
-const HEIGHT_MIN = 96;
+/** About three lines. */
+const HEIGHT_DEFAULT = 108;
+const HEIGHT_MIN = 72;
 /** The log leaves the run and the diagram this much of the window. */
 const heightMax = () => Math.max(HEIGHT_MIN, Math.round(window.innerHeight * 0.6));
 
