@@ -48,7 +48,7 @@ A pnpm workspace:
 | `modules/` | plugins that ship with the runtime |
 | `examples/plugins/` | example plugins; loaded with `PLUGINS_DIR=examples/plugins` |
 | `scripts/build-plugin.mjs` | builds a plugin's studio half |
-| `plugin/` | the Claude Code plugin template |
+| `plugin/` | the Claude Code plugin `wizards` |
 | `deploy/` | the Chromium container of the cloud runtime |
 | `apps/docs/` | the documentation site (Next.js + Fumadocs); not part of the product's build |
 | `docs/content/` | its pages: `user/` (the user guide), `dev/` (the developer docs: plugins) |
@@ -426,18 +426,25 @@ connected apps and API keys are managed in the account. Alone, Settings → "Mit
 bauen" issues API keys.
 
 ```bash
-# Claude Code: plugin with the /wizard command (needs a public https APP_URL)
+# Claude Code: the plugin from GitHub (uses the engenty-wizards server the person has)
+claude plugin marketplace add engenty/wizards
+claude plugin install wizards@engenty
+# or from this deployment, with its server bundled (needs a public https APP_URL)
 claude plugin marketplace add <APP_URL>/api/claude-plugin/marketplace.json
-claude plugin install engenty-wizards@engenty
+claude plugin install wizards@<host-with-dashes>   # the marketplace is named after the host
 # or just the server
 claude mcp add --transport http --scope user engenty-wizards <APP_URL>/api/mcp
 # Codex
 codex mcp add engenty-wizards --url <APP_URL>/api/mcp && codex mcp login engenty-wizards
 ```
 
-The plugin is built from `plugin/` with this deployment's `APP_URL` filled in
-(`apps/runtime/src/plugin.ts`): the `/wizard` command and the skills `build-wizard` and
-`use-wizard`.
+The plugin is `plugin/`, a valid plugin as it is in git (the root `.claude-plugin/marketplace.json`
+is the marketplace `engenty`); the runtime serves a copy with this deployment's address, version and bundled server
+(`apps/runtime/src/plugin.ts`). It holds the `/wizard` command, the skills `build-wizard` and
+`use-wizard`, and the `/wizards` pane — a mod (`plugin/hooks/register.tsx`) that lists the
+wizards beside the chat and opens one in the app's browser pane. In auto mode its own calls need
+allow rules; `plugin/README.md` names them. `claude plugin validate plugin` and
+`claude plugin test plugin` check the mod.
 Test runs that a client starts spend the tenant's credits. Writes from a client show up live in an
 open editor.
 

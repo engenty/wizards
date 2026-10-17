@@ -21,12 +21,14 @@ import { emitKeypressEvents } from "node:readline";
 
 const root = resolve(import.meta.dirname, "..");
 const PKG = join(root, "package.json");
+const PLUGIN_MANIFEST = join(root, "plugin/.claude-plugin/plugin.json");
 const CHANGELOG = join(root, "CHANGELOG.md");
 const CHANGELOG_JSON = join(root, "changelog.json");
 const CHANGELOG_ONLY = process.argv.includes("--changelog");
 /** What a release commit holds. */
 const RELEASE_FILES = [
   "package.json",
+  "plugin/.claude-plugin/plugin.json",
   "CHANGELOG.md",
   "changelog.json",
   "apps/web/src/about/changelog.json",
@@ -338,6 +340,10 @@ async function main() {
   const pkg = JSON.parse(readFileSync(PKG, "utf8"));
   pkg.version = version;
   writeFileSync(PKG, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+  // The Claude Code plugin's manifest says the same version: it is installed from GitHub too.
+  const manifest = JSON.parse(readFileSync(PLUGIN_MANIFEST, "utf8"));
+  manifest.version = version;
+  writeFileSync(PLUGIN_MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   git(`add ${RELEASE_FILES.join(" ")}`);
   execSync(`git commit -m "chore(release): ${tag}"`, { cwd: root, stdio: "inherit" });
   // Annotated, so `git push --follow-tags` carries it along with the commit.

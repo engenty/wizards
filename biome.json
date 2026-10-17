@@ -28,6 +28,8 @@
       "!apps/runtime/src/services/engenty-shapes.ts",
       "modules/**",
       "examples/plugins/**",
+      "plugin/hooks/**",
+      "plugin/types/**",
       "!apps/runtime/src/db/migrations",
       "!apps/runtime/src/engenty",
       "apps/runtime/src/engenty/shims/**",

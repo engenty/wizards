@@ -78,7 +78,7 @@ export async function loadReleases(version?: string): Promise<ChangelogRelease[]
   if (version) {
     try {
       const response = await fetch(
-        `https://raw.githubusercontent.com/engenty/engenty-wizards/v${version}/apps/web/src/about/changelog.json`,
+        `https://raw.githubusercontent.com/engenty/wizards/v${version}/apps/web/src/about/changelog.json`,
         { signal: AbortSignal.timeout(5000) },
       );
       if (response.ok) {
