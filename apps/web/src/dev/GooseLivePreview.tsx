@@ -6,6 +6,7 @@ const GOOSE_KINDS = ["round", "dome", "drop"] as const;
 interface GooseLivePreviewProps {
   animationSpeed: number;
   background: string;
+  foreground: string;
   interactive: boolean;
   motion: "auto" | "play" | "pause";
   turn?: { yaw: number; pitch: number };
@@ -14,6 +15,7 @@ interface GooseLivePreviewProps {
 export function GooseLivePreview({
   animationSpeed,
   background,
+  foreground,
   interactive,
   motion,
   turn,
@@ -38,7 +40,7 @@ export function GooseLivePreview({
                 <div
                   className="flex min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl py-4"
                   key={coat}
-                  style={{ background }}
+                  style={{ background, color: foreground }}
                 >
                   <FluffyEngenty
                     animationSpeed={animationSpeed}

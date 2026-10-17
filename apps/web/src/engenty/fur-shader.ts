@@ -103,7 +103,6 @@ vec4 extrasOver(vec2 p,vec3 ink,vec3 bodyCol,float aa){
     else if(kind==3)distance=sdArc(q,g.z,g.w);
     else if(kind==4)distance=length(vec2(q.x,max(abs(q.y)-g.z,0.0)));
     else if(kind==5){float x=clamp(q.x,0.0,g.z);distance=length(q-vec2(x,-g.w*sin(TAU*x/g.z)));}
-    else if(kind==6){float x=clamp(q.x,0.0,g.z);distance=length(q-vec2(x,g.w*sin(TAU*0.5*x/g.z)));}
     float a=(1.0-smoothstep(hw-aa,hw+aa,distance))*m.y;
     vec3 color=mix(ink,bodyCol*0.45,0.2);
     acc=vec4(color*a,a)+acc*(1.0-a);

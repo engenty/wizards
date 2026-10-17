@@ -12,7 +12,7 @@ import {
 import { furPalette } from "./fur-palette";
 import { FUR_ORIGIN, FUR_VIEW } from "./fur-shader";
 import { acquireFurStage, type EngentyCoat } from "./fur-stage";
-import { isGooseHelmetKind } from "./goose-helmet-fit";
+import { GOOSE_FACE, GOOSE_HAIR, isGooseHelmetKind } from "./goose-helmet-fit";
 import { headTurn, MAX_HEAD_TURN } from "./head-turn";
 import { JELLY_DEFAULTS } from "./jelly-defaults";
 import { bindJellyDrag } from "./jelly-drag";
@@ -142,24 +142,14 @@ export function FluffyEngenty({
     if (!helmetKind) {
       return base;
     }
+    const { blobs, eye } = GOOSE_FACE[helmetKind];
+    // The studies show Goose without the bubbles some forms float beside them.
     return {
       ...base,
-      // Goose's one eye sits inside the shield rather than under its brow.
-      eye: {
-        ...base.eye,
-        y: helmetKind === "round" ? 65 : 64,
-      },
-      extras: [
-        ...(ENGENTY_FORMS.round.extras ?? []),
-        {
-          type: "smile" as const,
-          x: 53,
-          y: helmetKind === "round" ? 91 : 88,
-          len: 14,
-          amp: 2.5,
-          width: 1.7,
-        },
-      ],
+      blobs: blobs ?? base.blobs,
+      eye,
+      fur: base.fur * GOOSE_HAIR.length,
+      extras: base.extras?.filter((extra) => extra.type !== "body-dot"),
     };
   }, [helmetKind, kind]);
   const blobs = useMemo(() => packFormBlobs(form), [form]);
@@ -325,7 +315,8 @@ export function FluffyEngenty({
         body: palette.body,
         deep: palette.deep,
         density: Math.min(
-          current.overrides?.density ?? preset.density,
+          (current.overrides?.density ?? preset.density) *
+            (current.helmetKind ? GOOSE_HAIR.density : 1),
           maxDensity
         ),
         extraMeta: current.extras.meta,
@@ -350,7 +341,9 @@ export function FluffyEngenty({
         period: current.form.period,
         scale: current.scale,
         falloff: current.form.falloff,
-        thick: current.overrides?.thick ?? preset.thick,
+        thick:
+          (current.overrides?.thick ?? preset.thick) *
+          (current.helmetKind ? GOOSE_HAIR.thick : 1),
         time: clock + phaseOffset,
         tip: palette.tip,
         wind: current.overrides?.wind ?? DEFAULT_WIND,

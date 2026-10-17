@@ -1,138 +1,190 @@
-// Goose stage 1: one rigid flight-helmet shell with an open face.
-// Its broader crown and shaped brow are reviewed before fittings and glass.
+// Goose's flight helmet, exported from the Blender study by scripts/export-goose-helmet.py.
+// The mesh and livery load on the first frame that wears the helmet, so other engenties never
+// fetch them. The shell draws before the fur, so strands in front of its rim stay visible; the
+// smoke visor draws last, over the fur in the face opening.
+import meshUrl from "./assets/goose-helmet.bin?url";
+import liveryUrl from "./assets/goose-helmet-livery.webp?url";
 import type { FurGeometry, FurUniforms } from "./fur-renderer";
 import type { EngentyCoat } from "./fur-stage";
-import { GOOSE_HELMET_FIT, GOOSE_HELMET_KINDS, type GooseHelmetKind } from "./goose-helmet-fit";
+import { GOOSE_HELMET_FIT } from "./goose-helmet-fit";
 
-type Vertex = [number, number, number, number, number, number];
-const RX = 54;
-const RY = 51;
-const RZ = 49;
+export type GooseHelmetPart = "shell" | "visor";
 
-function createHelmetVertices(): Float32Array {
-  const vertices: number[] = [];
-  const triangle = (a: Vertex, b: Vertex, c: Vertex) => {
-    const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-    const ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-    const cross = [
-      ab[1] * ac[2] - ab[2] * ac[1],
-      ab[2] * ac[0] - ab[0] * ac[2],
-      ab[0] * ac[1] - ab[1] * ac[0],
-    ];
-    const ordered = cross[0] * a[3] + cross[1] * a[4] + cross[2] * a[5] < 0 ? [a, c, b] : [a, b, c];
-    for (const vertex of ordered) vertices.push(...vertex);
-  };
-  const patch = (rows: number, columns: number, point: (row: number, column: number) => Vertex) => {
-    for (let row = 0; row < rows; row++) {
-      for (let column = 0; column < columns; column++) {
-        const a = point(row / rows, column / columns);
-        const b = point((row + 1) / rows, column / columns);
-        const c = point((row + 1) / rows, (column + 1) / columns);
-        const d = point(row / rows, (column + 1) / columns);
-        triangle(a, b, c);
-        triangle(a, c, d);
-      }
-    }
-  };
-  const smoothstep = (start: number, end: number, value: number) => {
-    const t = Math.max(0, Math.min(1, (value - start) / (end - start)));
-    return t * t * (3 - 2 * t);
-  };
-  const browAngle = (phi: number) => {
-    const fromFront = Math.acos(Math.cos(phi));
-    const arch = smoothstep(0, 1.05, fromFront);
-    const opening = smoothstep(0.7, 1.1, fromFront);
-    const back = smoothstep(1.2, 1.75, fromFront);
-    return 1.14 + 0.25 * arch + 1.13 * opening - 0.24 * back;
-  };
-  const shell = (theta: number, phi: number): Vertex => {
-    const lower = theta > Math.PI / 2;
-    const taper = Math.max(0, Math.min(1, (theta - Math.PI / 2) / (2.52 - Math.PI / 2)));
-    const radial = lower ? 1 - 0.14 * taper * taper * (3 - 2 * taper) : Math.sin(theta);
-    const radialSlope = lower
-      ? (-0.14 * 6 * taper * (1 - taper)) / (2.52 - Math.PI / 2)
-      : Math.cos(theta);
-    const sx = radial * Math.sin(phi);
-    const sy = -Math.cos(theta);
-    const sz = radial * Math.cos(phi);
-    const nx = Math.sin(phi) / RX;
-    const ny = -radialSlope / (RY * Math.sin(theta));
-    const nz = Math.cos(phi) / RZ;
-    const length = Math.hypot(nx, ny, nz);
-    return [60 + RX * sx, 61 + RY * sy, RZ * sz, nx / length, ny / length, nz / length];
-  };
-
-  // Stage one stops at the rigid crown and its curved brow. Ear cups, painted
-  // graphics and the shield are independent pieces added only after this fit.
-  patch(44, 144, (row, column) => {
-    const phi = (column * 2 - 1) * Math.PI;
-    return shell(0.001 + row * (browAngle(phi) - 0.001), phi);
-  });
-  return new Float32Array(vertices);
+interface HelmetAsset {
+  vertices: ArrayBuffer;
+  indices: Uint16Array;
+  opaqueCount: number;
+  positionScale: number;
+  livery: HTMLImageElement;
 }
 
-const HELMET_VERTICES = createHelmetVertices();
+interface Uploaded {
+  vertex: WebGLBuffer;
+  index: WebGLBuffer;
+  texture: WebGLTexture;
+  opaqueCount: number;
+  totalCount: number;
+  positionScale: number;
+  users: number;
+}
 
-function fitHelmetVertices(kind: GooseHelmetKind, coat: EngentyCoat): Float32Array {
-  const fit = GOOSE_HELMET_FIT[kind];
-  if (kind === "round" && coat === "fur") return HELMET_VERTICES;
-  // Jelly has no fur halo, so its solid body needs a smaller rigid shell.
-  const coatWidth = coat === "jelly" ? (kind === "drop" ? 0.75 : 0.82) : 1;
-  const width = fit.width * coatWidth;
-  const height = fit.height * (coat === "jelly" ? 0.88 : 1);
-  const depth = fit.depth * (coat === "jelly" ? 0.85 : 1);
-  const vertices = new Float32Array(HELMET_VERTICES.length);
-  for (let i = 0; i < vertices.length; i += 6) {
-    const y = HELMET_VERTICES[i + 1];
-    vertices[i] = 60 + (HELMET_VERTICES[i] - 60) * width;
-    vertices[i + 1] = 61 + (y - 61) * height + fit.offsetY;
-    vertices[i + 2] = HELMET_VERTICES[i + 2] * depth;
-    const nx = HELMET_VERTICES[i + 3] / width;
-    const ny = HELMET_VERTICES[i + 4] / height;
-    const nz = HELMET_VERTICES[i + 5] / depth;
-    const length = Math.hypot(nx, ny, nz);
-    vertices[i + 3] = nx / length;
-    vertices[i + 4] = ny / length;
-    vertices[i + 5] = nz / length;
-  }
-  return vertices;
+const VERTEX_BYTES = 18;
+let asset: Promise<HelmetAsset> | null = null;
+// Both passes of a canvas share one context, so they share one upload.
+const uploads = new WeakMap<WebGL2RenderingContext, Uploaded>();
+
+async function loadLivery(): Promise<HTMLImageElement> {
+  const image = new Image();
+  image.src = liveryUrl;
+  await image.decode();
+  return image;
+}
+
+function loadHelmet(): Promise<HelmetAsset> {
+  asset ??= Promise.all([fetch(meshUrl).then((r) => r.arrayBuffer()), loadLivery()]).then(
+    ([buffer, livery]) => {
+      const header = new DataView(buffer, 0, 20);
+      const magic = String.fromCharCode(...new Uint8Array(buffer, 0, 4));
+      if (magic !== "GHLM") throw new Error("engenty: helmet mesh is not a GHLM file");
+      const vertexCount = header.getUint32(4, true);
+      const indexCount = header.getUint32(8, true);
+      const vertexEnd = 20 + vertexCount * VERTEX_BYTES;
+      return {
+        vertices: buffer.slice(20, vertexEnd),
+        indices: new Uint16Array(buffer.slice(vertexEnd, vertexEnd + indexCount * 2)),
+        opaqueCount: header.getUint32(12, true),
+        positionScale: header.getFloat32(16, true),
+        livery,
+      };
+    }
+  );
+  return asset;
+}
+
+function upload(gl: WebGL2RenderingContext, a: HelmetAsset): Uploaded {
+  const existing = uploads.get(gl);
+  if (existing) return existing;
+  const vertex = gl.createBuffer();
+  const index = gl.createBuffer();
+  const texture = gl.createTexture();
+  if (!(vertex && index && texture)) throw new Error("engenty: helmet allocation failed");
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertex);
+  gl.bufferData(gl.ARRAY_BUFFER, a.vertices, gl.STATIC_DRAW);
+  // An index buffer binds to the current vertex array, so fill it outside any pass's array.
+  const previous = gl.getParameter(gl.VERTEX_ARRAY_BINDING) as WebGLVertexArrayObject | null;
+  gl.bindVertexArray(null);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, a.indices, gl.STATIC_DRAW);
+  gl.bindVertexArray(previous);
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, a.livery);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const anisotropic = gl.getExtension("EXT_texture_filter_anisotropic");
+  if (anisotropic) gl.texParameterf(gl.TEXTURE_2D, anisotropic.TEXTURE_MAX_ANISOTROPY_EXT, 8);
+  const uploaded = {
+    vertex,
+    index,
+    texture,
+    opaqueCount: a.opaqueCount,
+    totalCount: a.indices.length,
+    positionScale: a.positionScale,
+    users: 0,
+  };
+  uploads.set(gl, uploaded);
+  return uploaded;
 }
 
 export function createGooseHelmetGeometry(
   gl: WebGL2RenderingContext,
   program: WebGLProgram,
   coat: EngentyCoat,
+  part: GooseHelmetPart
 ): FurGeometry {
-  const buffers = new Map<GooseHelmetKind, WebGLBuffer>();
-  for (const kind of GOOSE_HELMET_KINDS) {
-    const buffer = gl.createBuffer();
-    if (!buffer) {
-      for (const allocated of buffers.values()) gl.deleteBuffer(allocated);
-      throw new Error("engenty: helmet allocation failed");
-    }
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, fitHelmetVertices(kind, coat), gl.STATIC_DRAW);
-    buffers.set(kind, buffer);
-  }
-  const attributes = [
-    ["aPosition", 3, 0],
-    ["aNormal", 3, 12],
-  ] as const;
+  let uploaded: Uploaded | null = null;
+  let loading = false;
+  let disposed = false;
+  const vao = gl.getParameter(gl.VERTEX_ARRAY_BINDING) as WebGLVertexArrayObject | null;
+  const fit = gl.getUniformLocation(program, "uHelmetFit");
+  const aspect = gl.getUniformLocation(program, "uHelmetAspect");
+  const livery = gl.getUniformLocation(program, "uLivery");
+  const headUnit = gl.getUniformLocation(program, "uHeadUnit");
+
+  const bind = (shared: Uploaded) => {
+    const previous = gl.getParameter(gl.VERTEX_ARRAY_BINDING) as WebGLVertexArrayObject | null;
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, shared.vertex);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shared.index);
+    const attribute = (
+      name: string,
+      size: number,
+      type: number,
+      normalized: boolean,
+      offset: number
+    ) => {
+      const location = gl.getAttribLocation(program, name);
+      if (location < 0) return;
+      gl.enableVertexAttribArray(location);
+      gl.vertexAttribPointer(location, size, type, normalized, VERTEX_BYTES, offset);
+    };
+    attribute("aPosition", 3, gl.SHORT, false, 0);
+    attribute("aNormal", 3, gl.SHORT, true, 6);
+    attribute("aUv", 2, gl.UNSIGNED_SHORT, true, 12);
+    attribute("aMaterial", 1, gl.UNSIGNED_SHORT, false, 16);
+    gl.bindVertexArray(previous);
+    shared.users++;
+    uploaded = shared;
+  };
+
   return {
     draw(u: FurUniforms) {
       if (!(u.gooseHelmet && u.helmetKind)) return;
-      const buffer = buffers.get(u.helmetKind);
-      if (!buffer) throw new Error("engenty: helmet shape is missing");
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      for (const [name, size, offset] of attributes) {
-        const location = gl.getAttribLocation(program, name);
-        gl.enableVertexAttribArray(location);
-        gl.vertexAttribPointer(location, size, gl.FLOAT, false, 24, offset);
+      if (!uploaded) {
+        if (!loading) {
+          loading = true;
+          loadHelmet().then(
+            (a) => {
+              if (!disposed) bind(upload(gl, a));
+            },
+            // biome-ignore lint/suspicious/noConsole: a missing helmet is otherwise invisible.
+            (error) => console.error(error)
+          );
+        }
+        return;
       }
-      gl.drawArrays(gl.TRIANGLES, 0, HELMET_VERTICES.length / 6);
+      const f = GOOSE_HELMET_FIT[u.helmetKind][coat];
+      gl.uniform4f(fit, f.scale / uploaded.positionScale, f.x, f.y, f.z);
+      gl.uniform3f(aspect, f.width, f.height, f.depth);
+      gl.uniform1f(headUnit, 1 / uploaded.positionScale);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, uploaded.texture);
+      gl.uniform1i(livery, 0);
+      gl.bindVertexArray(vao);
+      if (part === "shell") {
+        gl.drawElements(gl.TRIANGLES, uploaded.opaqueCount, gl.UNSIGNED_SHORT, 0);
+      } else {
+        gl.drawElements(
+          gl.TRIANGLES,
+          uploaded.totalCount - uploaded.opaqueCount,
+          gl.UNSIGNED_SHORT,
+          uploaded.opaqueCount * 2
+        );
+      }
     },
     dispose() {
-      for (const buffer of buffers.values()) gl.deleteBuffer(buffer);
+      disposed = true;
+      if (!uploaded) return;
+      uploaded.users--;
+      if (uploaded.users > 0) return;
+      uploads.delete(gl);
+      gl.deleteBuffer(uploaded.vertex);
+      gl.deleteBuffer(uploaded.index);
+      gl.deleteTexture(uploaded.texture);
     },
   };
 }

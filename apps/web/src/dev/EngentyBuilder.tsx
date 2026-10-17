@@ -210,6 +210,7 @@ export function EngentyBuilder() {
         <GooseLivePreview
           animationSpeed={speed}
           background={builderBackground(background, "round")}
+          foreground={background === "light" ? "#27272a" : "#f7f5f2"}
           interactive={follow}
           motion={motion}
           turn={props.turn}

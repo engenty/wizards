@@ -35,22 +35,22 @@ const COPY = {
     helmet: "Helm",
     helmetShapes: "Helm für rund, Kuppel und Tropfen",
     helmetStageNote:
-      "Schritt 1/3: Nur die rote Helmschale. Zusätze und Schutzglas folgen nach Freigabe der Form.",
+      "Der Helm ist in Blender nach den Charakterstudien gebaut: Schale, Lackierung, Visier und Ohrmuscheln.",
     controls: "Renderer einstellen",
     form: "Form",
     reset: "Zurücksetzen",
     gallery: "Alle Formen · kleine Darstellung",
     gooseEyebrow: "Charakterstudien · 1986",
-    gooseLiveEyebrow: "Goose · Schritt 1/3",
-    gooseLiveTitle: "Helmform ohne Zusätze",
+    gooseLiveEyebrow: "Goose · live",
+    gooseLiveTitle: "Der Helm auf jeder Form",
     gooseLiveNote:
-      "Die neue rote Helmschale auf Rund, Kuppel und Tropfen als Fell und Jelly. Hier beurteilen wir nur Form, Sitz und Drehung.",
+      "Goose trägt den ganzen Fliegerhelm auf Rund, Kuppel und Tropfen, mit Fell und als Jelly. Dreh den Kopf, um den Sitz zu prüfen.",
     gooseIntro:
       "Roter 80er-Helm, rauchgraue Gläser und eine Brille für genau ein Auge. Vier Looks als Fell und Jelly.",
     gooseArtAlt:
       "Vier stilisierte Varianten derselben blauen Engenty-Figur im 2-mal-2-Raster: roter Pilotenhelm mit Shield, roter Helm mit dunkler Aviator-Sonnenbrille, ohne Helm mit Sonnenbrille und roter Helm mit einer einzigen dunklen Linse.",
     gooseConceptNote:
-      "Statische Zielstudien. Oben ist nur die neue 3D-Helmschale live; Zusätze und Visier folgen später.",
+      "Statische Zielstudien. Der klassische Look oben läuft live in 3D, die anderen drei sind noch Studien.",
     goose: {
       classic: {
         name: "Classic Goose",
@@ -104,22 +104,22 @@ const COPY = {
     helmet: "Helmet",
     helmetShapes: "Helmet for round, dome and drop",
     helmetStageNote:
-      "Step 1/3: Red helmet shell only. Fittings and shield follow once the shape is approved.",
+      "The helmet is built in Blender to the character studies: shell, livery, visor and ear cups.",
     controls: "Renderer controls",
     form: "Shape",
     reset: "Reset",
     gallery: "All shapes · small sizes",
     gooseEyebrow: "Character studies · 1986",
-    gooseLiveEyebrow: "Goose · step 1/3",
-    gooseLiveTitle: "Helmet shape without fittings",
+    gooseLiveEyebrow: "Goose · live",
+    gooseLiveTitle: "The helmet on every shape",
     gooseLiveNote:
-      "The new red helmet shell on round, dome and drop in fur and jelly. Judge only its shape, fit and turn at this stage.",
+      "Goose wears the full flight helmet on round, dome and drop, in fur and jelly. Turn the head to check the fit.",
     gooseIntro:
       "Red 80s helmet, smoke-gray lenses and eyewear made for exactly one eye. Four looks in fur and jelly.",
     gooseArtAlt:
       "Four stylized versions of the same blue Engenty in a two-by-two grid: red flight helmet with shield, red helmet with dark aviator sunglasses, no helmet with sunglasses, and red helmet with one dark lens.",
     gooseConceptNote:
-      "Static target studies. Only the new 3D shell is live above; fittings and visor come later.",
+      "Static target studies. The classic look above runs live in 3D. The other three are still studies.",
     goose: {
       classic: {
         name: "Classic Goose",
