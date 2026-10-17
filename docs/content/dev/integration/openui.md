@@ -11,9 +11,11 @@ author defined. `@engenty/wizards/openui` puts the two together: the chat decide
 fits and what it already knows, the wizard then runs inside the conversation, and the chat
 hears the result.
 
-It is part of `@engenty/wizards`, the package for code outside engenty wizards
-([`packages/wizards/src/openui`](https://github.com/engenty/wizards/tree/main/packages/wizards/src/openui)
-in the repository, under the MIT licence). A whole chat to try it with is `examples/openui-chat`.
+It is part of `@engenty/wizards`, the package on npm for code outside engenty wizards
+(`npm install @engenty/wizards`;
+[`packages/wizards/src/openui`](https://github.com/engenty/wizards/tree/main/packages/wizards/src/openui)
+in the repository, under FSL-1.1-MIT; the runner it bundles is MIT). A whole chat to try it with
+is `examples/openui-chat`.
 
 ## What OpenUI is
 

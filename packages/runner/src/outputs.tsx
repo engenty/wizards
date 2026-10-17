@@ -339,7 +339,7 @@ export function OutputView({
         step.type === "film"
           ? step.format === "9:16"
           : (step.size?.height ?? 0) > (step.size?.width ?? 1);
-      return (
+      const video = (
         <div className={cn("relative mx-auto", tall ? "w-fit" : "w-full")}>
           {/* biome-ignore lint/a11y/useMediaCaption: the film's captions are part of the picture */}
           <video
@@ -354,6 +354,15 @@ export function OutputView({
           />
           <AiBadge ai={film.ai} className="top-2 right-2" />
         </div>
+      );
+      // A film step's text is the client's own word on what it made or changed — or why not.
+      return step.type === "film" && output.text ? (
+        <div className="flex flex-col gap-4">
+          {video}
+          <Markdown text={output.text} className="text-[0.875rem] text-ink-2" />
+        </div>
+      ) : (
+        video
       );
     }
     if (step.type === "film") {

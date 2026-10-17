@@ -1,7 +1,48 @@
 [
   {
+    "version": "v0.7.8",
+    "timestamp": 1792271999,
+    "commits": [
+      {
+        "id": "8d49416",
+        "message": "a film starts from a kit's base project and keeps the space's brand between runs (#55)",
+        "group": "Added",
+        "scope": "film",
+        "breaking": false
+      },
+      {
+        "id": "2e32541",
+        "message": "a decision model on the person's own machine (#54)",
+        "group": "Added",
+        "scope": "setup",
+        "breaking": false
+      },
+      {
+        "id": "20828bb",
+        "message": "the Pro modules section says why it could not load and offers to try again (#53)",
+        "group": "Fixed",
+        "scope": "plugins",
+        "breaking": false
+      },
+      {
+        "id": "00d252d",
+        "message": "code mode keeps to a step budget, off paid tools and large answers (#50)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "f2acdc5",
+        "message": "editor pane on the left, test run beside the diagram with a live log (#52)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.7.7",
-    "timestamp": 1792263897,
+    "timestamp": 1792263907,
     "commits": [
       {
         "id": "4b6e71a",

@@ -14,6 +14,8 @@ The wizard format is open to everyone now: the twelve files that define a wizard
 `engenty/data-tables/columns.ts`, `columns-format.ts`) are also under the MIT licence, at the
 choice of whoever uses them (`FSL-1.1-MIT OR MIT`, [packages/shared/LICENSE-MIT](packages/shared/LICENSE-MIT)).
 Each says so in its first line. The runner package (`packages/runner`, MIT) bundles them under MIT.
+`@engenty/wizards` on npm is `FSL-1.1-MIT`; its `/openui` bundles the runner, whose MIT licence
+ships beside it (`dist/openui/LICENSE-MIT`).
 
 "engenty" (the brand of a family of products), "engenty.wizards" (also written "engenty wizards"),
 the wordmark and the engenty figures are marks of Thru The Heart Creative GmbH. The word "wizards"

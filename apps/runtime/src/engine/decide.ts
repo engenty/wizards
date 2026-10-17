@@ -11,9 +11,10 @@ import { type CallMeta, costOf, systemOneAccess, textModel } from "../models.js"
 
 /**
  * Every decision a run makes goes through here, on the classifier class. A decision model
- * (System One: Jev through the credits, an AI Gateway key or a TypeSafe key) answers first, with
- * probabilities. What it cannot answer — no way to one, a failure, a question it leaves open —
- * the class's language model answers as structured output: slower and dearer, the same shapes.
+ * (System One: Jev through the credits, an AI Gateway key or a TypeSafe key, or Clef-flash in
+ * the local Ollama) answers first, with probabilities. What it cannot answer — no way to one, a
+ * failure, a question it leaves open — the class's language model answers as structured output:
+ * slower and dearer, the same shapes.
  * Only when both fail does the decision fail, and with it the step.
  */
 
@@ -65,7 +66,9 @@ async function askSystemOne(
         return readSystemOne(input.questions, await res.json());
       }
       if (!(RETRYABLE.has(res.status) && attempt < 2)) {
-        console.warn(`[decide] the decision model answered ${res.status}`);
+        const why = (await res.text().catch(() => "")).trim().slice(0, 300);
+        access.refused?.(res.status, why);
+        console.warn(`[decide] the decision model answered ${res.status}${why ? `: ${why}` : ""}`);
         return {};
       }
     } catch (err) {

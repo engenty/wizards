@@ -3,9 +3,12 @@ import { BASE } from "@/lib/base";
 import { ENGENTY_KINDS, type EngentyKind } from "../engenty/colors";
 import { FluffyEngenty, type FluffyEngentyOverrides } from "../engenty/fluffy-engenty";
 import type { EngentyCoat } from "../engenty/fur-stage";
+import { isGooseHelmetKind } from "../engenty/goose-helmet-fit";
 import { stageFill } from "../lib/theme";
 import { BuilderControls } from "./BuilderControls";
 import { builderCopy as copy } from "./engenty-builder-copy";
+import { GooseConcepts } from "./GooseConcepts";
+import { GooseLivePreview } from "./GooseLivePreview";
 
 export type BuilderMaterial = EngentyCoat | "both";
 export type BuilderBackground = "light" | "neutral" | "auto" | EngentyKind;
@@ -28,12 +31,27 @@ export function EngentyBuilder() {
   const [speed, setSpeed] = useState(1);
   const [follow, setFollow] = useState(true);
   const [goggles, setGoggles] = useState(false);
+  const [gooseHelmet, setGooseHelmet] = useState(false);
+  const helmetAvailable = isGooseHelmetKind(kind);
+  const selectKind = (next: EngentyKind) => {
+    setKind(next);
+    if (!isGooseHelmetKind(next)) setGooseHelmet(false);
+  };
   const coats: EngentyCoat[] = material === "both" ? ["fur", "jelly"] : [material];
+  const previewSize =
+    material === "both"
+      ? gooseHelmet && helmetAvailable
+        ? 320
+        : 290
+      : gooseHelmet && helmetAvailable
+        ? 400
+        : 330;
   const props = {
     kind,
     overrides,
     interactive: follow,
     goggles,
+    gooseHelmet: gooseHelmet && helmetAvailable,
     motion,
     animationSpeed: speed,
     turn: follow ? undefined : { yaw: (yaw * Math.PI) / 180, pitch: (pitch * Math.PI) / 180 },
@@ -78,7 +96,7 @@ export function EngentyBuilder() {
             >
               {coats.map((coat) => (
                 <div key={coat} className="flex flex-col items-center">
-                  <FluffyEngenty {...props} coat={coat} size={material === "both" ? 290 : 330} />
+                  <FluffyEngenty {...props} coat={coat} size={previewSize} />
                   <span className="pb-2 text-xs opacity-70">
                     {copy[coat === "fur" ? "furry" : "jelly"]}
                   </span>
@@ -123,9 +141,27 @@ export function EngentyBuilder() {
                 <input
                   type="checkbox"
                   checked={goggles}
-                  onChange={(e) => setGoggles(e.target.checked)}
+                  onChange={(e) => {
+                    setGoggles(e.target.checked);
+                    if (e.target.checked) setGooseHelmet(false);
+                  }}
                 />
                 {copy.goggles}
+              </label>
+              <label
+                className="flex items-center gap-2"
+                title={helmetAvailable ? undefined : copy.helmetShapes}
+              >
+                <input
+                  type="checkbox"
+                  checked={gooseHelmet && helmetAvailable}
+                  disabled={!helmetAvailable}
+                  onChange={(e) => {
+                    setGooseHelmet(e.target.checked);
+                    if (e.target.checked) setGoggles(false);
+                  }}
+                />
+                {copy.helmet}
               </label>
             </div>
             {!follow && (
@@ -156,11 +192,14 @@ export function EngentyBuilder() {
                 </label>
               </div>
             )}
+            {gooseHelmet && helmetAvailable && (
+              <p className="mt-2 text-xs text-muted-foreground">{copy.helmetStageNote}</p>
+            )}
             <p className="mt-2 text-xs text-muted-foreground">{copy.motionHint}</p>
           </section>
           <BuilderControls
             kind={kind}
-            setKind={setKind}
+            setKind={selectKind}
             material={material}
             background={background}
             setBackground={setBackground}
@@ -168,6 +207,15 @@ export function EngentyBuilder() {
             setOverrides={setOverrides}
           />
         </div>
+        <GooseLivePreview
+          animationSpeed={speed}
+          background={builderBackground(background, "round")}
+          foreground={background === "light" ? "#27272a" : "#f7f5f2"}
+          interactive={follow}
+          motion={motion}
+          turn={props.turn}
+        />
+        <GooseConcepts />
         <h2 className="mt-8 text-lg font-medium">{copy.gallery}</h2>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {ENGENTY_KINDS.map((option) => (
@@ -179,7 +227,7 @@ export function EngentyBuilder() {
                 background: builderBackground(background, option),
                 color: background === "light" ? "#27272a" : "#f7f5f2",
               }}
-              onClick={() => setKind(option)}
+              onClick={() => selectKind(option)}
               key={option}
             >
               {coats.map((coat) => (
@@ -194,6 +242,7 @@ export function EngentyBuilder() {
                   animationSpeed={speed}
                   turn={props.turn}
                   goggles={goggles}
+                  gooseHelmet={gooseHelmet && isGooseHelmetKind(option)}
                 />
               ))}
               <span>{option}</span>

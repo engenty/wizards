@@ -227,7 +227,7 @@ function Hello({
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-3">
         <div className="shrink-0">
-          <Mascot kind="round" size={44} goggles interactive={false} />
+          <Mascot kind="round" size={44} helmet interactive={false} />
         </div>
         <div className="min-w-0 pt-0.5">
           <h2 className="font-display font-semibold text-[1.0625rem] leading-tight tracking-tight">
@@ -512,7 +512,7 @@ function Header({
           <ArrowLeft className="size-4" />
         </IconButton>
       ) : where !== "sidebar" ? null : (
-        <Mascot kind="round" size={26} goggles interactive={false} />
+        <Mascot kind="round" size={26} helmet interactive={false} />
       )}
       {/* Never narrower than the name and the developer switch. */}
       <div className="ml-0.5 min-w-[8.5rem] flex-1">
@@ -1195,7 +1195,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
                 className="flex items-center gap-2 rounded-full py-0.5 pr-2 pl-0.5 text-[0.875rem] text-ink-2 transition hover:text-ink"
               >
                 <span className="relative">
-                  <Mascot kind="round" size={36} goggles interactive={false} />
+                  <Mascot kind="round" size={36} helmet interactive={false} />
                   {state.chat.phase !== "idle" || state.live.state !== "off" ? (
                     <span className="absolute top-0 right-0 size-2.5 animate-pulse-dot rounded-full bg-ember ring-2 ring-card" />
                   ) : null}
@@ -1249,7 +1249,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
           : "pointer-events-none translate-y-3 scale-75 opacity-0",
       )}
     >
-      <Mascot kind="round" size={44} goggles interactive={active} />
+      <Mascot kind="round" size={44} helmet interactive={active} />
     </button>
   );
   // The thread is as high as the handle set it, within what the column leaves.
@@ -1475,7 +1475,7 @@ export function HighlightLayer() {
           }}
         >
           <div className="flex items-start gap-2.5">
-            <Mascot kind="round" size={28} goggles interactive={false} />
+            <Mascot kind="round" size={28} helmet interactive={false} />
             <div className="min-w-0 flex-1">
               {highlight.title ? (
                 <div className="font-medium text-[0.875rem]">{highlight.title}</div>

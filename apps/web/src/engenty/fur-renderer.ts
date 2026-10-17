@@ -1,4 +1,6 @@
 // Shared WebGL lifecycle for depth-tested body, fur and accessory passes.
+
+import type { GooseHelmetKind } from "./goose-helmet-fit";
 import { JELLY_DEFAULTS } from "./jelly-defaults";
 export interface FurUniforms {
   blobs: Float32Array;
@@ -15,6 +17,8 @@ export interface FurUniforms {
   fur: number;
   gaze: [number, number];
   goggles?: boolean;
+  gooseHelmet?: boolean;
+  helmetKind?: GooseHelmetKind;
   inflate: number;
   lean: [number, number];
   light: [number, number, number];

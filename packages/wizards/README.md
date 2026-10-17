@@ -44,7 +44,16 @@ the page's fields, and the person still sees and sends each page. When the run i
 component sends a `continue_conversation` action with the result's texts as its context, and
 the chat goes on with it. A chat to try it with: `examples/openui-chat`.
 
+## The package
+
+Every release publishes it to npm (`scripts/npm-package.mjs`, `.github/workflows/release.yml`).
+`pnpm --filter @engenty/wizards build` writes `dist/` as it ships (`scripts/build.mjs`):
+`/openui` with the runner and the shared modules it uses bundled in, their types inlined, and the
+runner's `runner.css` as `styles.css`; every other package stays an import, the libraries as
+`dependencies`, React, OpenUI, zod and drizzle as peers. Inside this repo everything imports the
+sources.
+
 ## Licences
 
-`src/openui/` is under the MIT licence (`src/openui/LICENSE`), the rest under FSL-1.1-MIT like
-the repository.
+FSL-1.1-MIT, like the repository. `dist/openui` bundles the runner (`packages/runner`), which is
+MIT: its licence ships beside it as `dist/openui/LICENSE-MIT`.

@@ -384,6 +384,25 @@ a,
   animation: step-back 0.2s ease-out backwards;
 }
 
+/* The editor's test run: its card comes in from the right; a view switched to fades in. */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+.animate-slide-in {
+  animation: slide-in 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out backwards;
+}
+
 @keyframes breathe {
   0%,
   100% {
@@ -461,6 +480,8 @@ dialog.media-sheet::backdrop {
   .animate-settle,
   .animate-step-deeper,
   .animate-step-back,
+  .animate-slide-in,
+  .animate-fade-in,
   .animate-breathe,
   .animate-pulse-dot,
   .animate-typing {

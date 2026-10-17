@@ -2,11 +2,14 @@
 // Cuts a release, locally and step by step. Reads the Conventional Commits since the last tag
 // via git-cliff, shows the compact changelog, asks patch / minor / major, lets you edit the
 // entry, then writes CHANGELOG.md, changelog.json and the app's copies under apps/web/src/about,
-// bumps the root package.json, commits and tags vX.Y.Z. It never pushes.
+// bumps the root package.json and commits on a branch release/vX.Y.Z. It never pushes: the
+// release reaches main as a pull request like any change. Once that is squash-merged,
+// `pnpm release:tag` sets the tag vX.Y.Z on main's release commit and pushes it — the tag ships.
 //
-//   pnpm release               full: changelog + version bump + commit + tag
+//   pnpm release               full: changelog + version bump + commit on release/vX.Y.Z
 //   pnpm release --changelog   only refresh the changelog files: commits since the last tag
-//                              stay under "Unreleased"; no bump, no commit, no tag
+//                              stay under "Unreleased"; no bump, no commit
+//   pnpm release --tag         (pnpm release:tag) tag main's merged release commit, push the tag
 //   pnpm release --help
 //
 //   RELEASE_BUMP=patch|minor|major|current   skips the questions (automation)
@@ -21,12 +24,15 @@ import { emitKeypressEvents } from "node:readline";
 
 const root = resolve(import.meta.dirname, "..");
 const PKG = join(root, "package.json");
+const PLUGIN_MANIFEST = join(root, "plugin/.claude-plugin/plugin.json");
 const CHANGELOG = join(root, "CHANGELOG.md");
 const CHANGELOG_JSON = join(root, "changelog.json");
 const CHANGELOG_ONLY = process.argv.includes("--changelog");
+const TAG_ONLY = process.argv.includes("--tag");
 /** What a release commit holds. */
 const RELEASE_FILES = [
   "package.json",
+  "plugin/.claude-plugin/plugin.json",
   "CHANGELOG.md",
   "changelog.json",
   "apps/web/src/about/changelog.json",
@@ -201,20 +207,26 @@ function help() {
   out(`
 ${c.b("pnpm release")} — cut a release from Conventional Commits (via git-cliff)
 
-  pnpm release               full: changelog + bump package.json + commit + tag
+  pnpm release               full: changelog + bump package.json + commit on release/vX.Y.Z
   pnpm release --changelog   only refresh CHANGELOG.md, changelog.json and the app's copy;
                              commits since the last tag stay under "Unreleased"
+  pnpm release:tag           after the release PR is merged: tag main's release commit and
+                             push the tag, which ships it
   pnpm release --help
 
   RELEASE_BUMP=patch|minor|major|current   skips the questions
 
-Never pushes — do that yourself.
+The release itself never pushes: push the branch and open a pull request.
 `);
 }
 
 async function main() {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
     help();
+    return;
+  }
+  if (TAG_ONLY) {
+    tagMerged();
     return;
   }
   if (!existsSync(join(root, "cliff.toml"))) {
@@ -338,12 +350,50 @@ async function main() {
   const pkg = JSON.parse(readFileSync(PKG, "utf8"));
   pkg.version = version;
   writeFileSync(PKG, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+  // The Claude Code plugin's manifest says the same version: it is installed from GitHub too.
+  const manifest = JSON.parse(readFileSync(PLUGIN_MANIFEST, "utf8"));
+  manifest.version = version;
+  writeFileSync(PLUGIN_MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  // main takes changes only through pull requests: the release is a branch of its own.
+  const releaseBranch = `release/${tag}`;
+  if (git("rev-parse --abbrev-ref HEAD") !== releaseBranch) {
+    git(`switch -c ${releaseBranch}`);
+  }
   git(`add ${RELEASE_FILES.join(" ")}`);
   execSync(`git commit -m "chore(release): ${tag}"`, { cwd: root, stdio: "inherit" });
-  // Annotated, so `git push --follow-tags` carries it along with the commit.
-  git(`tag -a ${tag} -m "chore(release): ${tag}"`);
-  out(`\n${c.green("✔")} Released ${c.b(tag)} locally. Nothing pushed yet.`);
-  out(c.dim("  Push the commit and its tag:  git push origin main --follow-tags"));
+  out(`\n${c.green("✔")} ${c.b(tag)} committed on ${c.b(releaseBranch)}. Nothing pushed yet.`);
+  out(c.dim(`  1. git push -u origin ${releaseBranch}`));
+  out(c.dim(`  2. gh pr create --title "chore(release): ${tag}" --body "Release ${tag}."`));
+  out(c.dim("  3. once it is squash-merged:  pnpm release:tag"));
+  out(
+    c.dim(
+      "  The tag ships: release.yml publishes the local install, ci.yml deploys the cloud runtime.",
+    ),
+  );
+}
+
+/**
+ * Tags main's newest commit when it is a merged release (`chore(release): vX.Y.Z`, the version
+ * package.json has there) and pushes the tag. A pull request's squash commit is a new commit, so
+ * the tag can only be set after the merge.
+ */
+function tagMerged() {
+  git("fetch origin main --tags");
+  const subject = git("log -1 --format=%s origin/main");
+  const tag = subject.match(/^chore\(release\): (v\d+\.\d+\.\d+)(?: \(#\d+\))?$/)?.[1];
+  if (!tag) {
+    die(`main's newest commit is not a merged release: "${subject}"`);
+  }
+  const version = JSON.parse(git("show origin/main:package.json")).version;
+  if (tag !== `v${version}`) {
+    die(`The release commit says ${tag}, package.json on main says ${version}.`);
+  }
+  if (quiet(`rev-parse -q --verify refs/tags/${tag}`)) {
+    die(`${tag} is tagged already.`);
+  }
+  git(`tag -a ${tag} -m "chore(release): ${tag}" origin/main`);
+  execSync(`git push origin ${tag}`, { cwd: root, stdio: "inherit" });
+  out(`\n${c.green("✔")} ${c.b(tag)} tagged on main and pushed.`);
   out(
     c.dim(
       "  The tag ships: release.yml publishes the local install, ci.yml deploys the cloud runtime.",

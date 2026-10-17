@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, normalize } from "node:path";
-import type { FilmStep } from "@engenty-wizards/shared/definition";
+import { FILM_SIZES, type FilmStep } from "@engenty-wizards/shared/definition";
 import type { StepOutput } from "@engenty-wizards/shared/run";
 import { note as runNote } from "@engenty-wizards/shared/run";
 import { type StepContext, StepError } from "../engine/types.js";
@@ -11,7 +11,7 @@ import { failureOf } from "../harness/model.js";
 import { type BridgeTool, openBridge } from "../mcp/bridge.js";
 import { saidOf } from "../model-errors.js";
 import { filmClient } from "../models.js";
-import { prepareFilmFolder, savedSession, saveSession } from "./project.js";
+import { keepBrandBase, prepareFilmFolder, savedSession, saveSession } from "./project.js";
 import { runHyperframes } from "./tools.js";
 
 /**
@@ -121,7 +121,7 @@ export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<Ste
   const { client, alias } = found;
 
   await ctx.emit("info", { code: "filmSetup" });
-  const { root, brief } = await prepareFilmFolder(step, ctx);
+  const { root, brief, brandChanged, start } = await prepareFilmFolder(step, ctx);
   const resume = await savedSession(root);
   await ctx.emit(
     "info",
@@ -274,12 +274,21 @@ export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<Ste
   try {
     // A review's note asks for a change: the film's code is there, so it is edited, not redone.
     const note = ctx.state.notes[step.id]?.trim();
+    // A brand changed in the space since the film was made: the film's code carries the old one.
+    const brandNote = !brandChanged
+      ? ""
+      : start === "init"
+        ? "\n\nThe space's brand has changed since the film was made: brand/brand.json and brand/logos/ are new. Carry them into the film wherever it uses the brand (its own copies included), so every colour, logo and name is the new one, and check the frames for contrast."
+        : "\n\nThe space's brand has changed since the film was made: film/brand/brand.json and the logos are new. If film/brand/theme.json is missing, make it again as film/BRAND.md says. Make sure every colour, logo and name in the film is the new one, and check the frames for contrast.";
+    const size = FILM_SIZES[step.format];
     const prompt =
       resume && note
-        ? `The person watched the film and asks for this change:\n\n${note}\n\nChange the film in film/ accordingly — keep what they did not mention — check the frames again, and end with a short summary of what you changed.`
+        ? `The person watched the film and asks for this change:\n\n${note}${brandNote}\n\nChange the film in film/ accordingly — keep what they did not mention — check the frames again, and end with a short summary of what you changed.`
         : resume
-          ? "Carry on with the film where you stopped. Read PROGRESS.md and the folder to see where that was, then finish it."
-          : `Make the film BRIEF.md asks for, following CLAUDE.md.\n\n${brief}`;
+          ? `Carry on with the film where you stopped. Read PROGRESS.md and the folder to see where that was, then finish it.${brandNote}`
+          : start === "from"
+            ? `film/ holds this run's film in another format. Lay it out for ${step.format} (${size.width}×${size.height}), following CLAUDE.md: set the size of film/index.html, then make every scene fit — scenes, timing, words and sound stay. Check the frames, render a draft, and end with a short summary of what you changed.\n\nThe brief, for reference:\n\n${brief}`
+            : `Make the film BRIEF.md asks for, following CLAUDE.md.\n\n${brief}`;
     const first = await turn(prompt, resume);
     summary = typeof first.result === "string" ? first.result.trim() : "";
 
@@ -315,6 +324,7 @@ export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<Ste
     bridge.close();
   }
 
+  await keepBrandBase(root).catch(() => {});
   const ref = await ctx.saveAsset({
     stepId: step.id,
     kind: "video",

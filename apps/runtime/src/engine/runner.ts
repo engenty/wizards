@@ -240,6 +240,8 @@ export async function createRun(input: {
   unattended?: boolean;
   /** The language the viewer reads the wizard in, translated on request; null: its own. */
   lang?: string | null;
+  /** The client that starts it over the public API; null for the studio and the AI apps. */
+  client?: string | null;
 }): Promise<string> {
   const id = nanoid(18);
   const first = input.definition.steps[0];
@@ -274,6 +276,7 @@ export async function createRun(input: {
     origin: input.origin ?? null,
     lang: input.lang ?? null,
     unattended: input.unattended ?? false,
+    client: input.client ?? null,
     status: first.type === "page" ? "waiting_input" : "running",
     cursor: first.id,
     state,

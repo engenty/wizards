@@ -105,7 +105,11 @@ function choices({ running, atLogin, release, account }: State): p.Option<Action
           : describeAccount(account),
     },
     { value: "status", label: "Status", hint: "what’s installed, and any problems" },
-    { value: "setup", label: "Setup", hint: "account, AI client, ffmpeg, start at login" },
+    {
+      value: "setup",
+      label: "Setup",
+      hint: "account, AI client, ffmpeg, decision model, start at login",
+    },
     {
       value: "uninstall",
       label: "Uninstall",
