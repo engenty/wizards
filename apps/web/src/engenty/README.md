@@ -31,14 +31,15 @@ gaze within a combined ten-degree yaw/pitch limit; `turn={{ yaw, pitch }}` sets
 radians directly within that same limit. The full-orbit mode has been removed.
 Goggles use a raised gasket, brass torus, rivets and a convex translucent lens;
 the leather strap follows the body surface. The flat icon retains its SVG glasses.
-`gooseHelmet` puts Goose's flight helmet on round, dome or drop Fur and Jelly Engenties:
+`gooseHelmet` puts a flight helmet on round, dome or drop Fur and Jelly Engenties:
 painted shell with cheek guards, smoke visor with a nose notch, rail, ear cups and cheek
-fittings, with Goose's large eye under the visor. The helmet follows the head turn without
+fittings. It is an accessory: the engenty keeps its own colour, body, eye and fur under it.
+Goose is the round blue engenty wearing it. The helmet follows the head turn without
 inheriting Jelly deformation, and replaces goggles when both are passed. Its mesh
 (`assets/goose-helmet.bin`, about 15,600 triangles) and livery (`assets/goose-helmet-livery.webp`)
 load on the first frame that wears it. `scripts/goose-helmet-model.py` builds the helmet in
 Blender, `scripts/export-goose-helmet.py` writes both files from it, and `goose-helmet-fit.ts`
-places the helmet and face on each form.
+places the helmet on each form.
 
 The Wizards builder starts gaze following, supports Fur/Jelly/Compare, and uses
 `stageFill` for the per-character dark backgrounds. Pause and manual turn sliders

@@ -10,7 +10,7 @@ import { builderCopy as copy } from "./engenty-builder-copy";
 const KNOBS = [
   { key: "fur", label: copy.fur, min: 2, max: 24, step: 0.5 },
   { key: "density", label: copy.density, min: 30, max: 120, step: 1 },
-  { key: "thick", label: copy.thick, min: 0.4, max: 1.8, step: 0.05 },
+  { key: "thick", label: copy.thick, min: 0.4, max: 2.6, step: 0.05 },
   { key: "inflate", label: copy.inflate, min: 12, max: 55, step: 1 },
   { key: "wind", label: copy.wind, min: 0, max: 2, step: 0.05 },
   { key: "softness", label: copy.softness, min: 0, max: 1.5, step: 0.05 },
@@ -37,9 +37,9 @@ export function BuilderControls({
   setOverrides,
 }: Props) {
   const values = {
-    density: 68,
-    thick: 1,
-    inflate: material === "fur" ? 30 : JELLY_DEFAULTS.inflate,
+    density: 88,
+    thick: 1.8,
+    inflate: material === "fur" ? 20 : JELLY_DEFAULTS.inflate,
     wind: 0.5,
     clarity: JELLY_DEFAULTS.clarity,
     softness: JELLY_DEFAULTS.softness,

@@ -12,7 +12,7 @@ import {
 import { furPalette } from "./fur-palette";
 import { FUR_ORIGIN, FUR_VIEW } from "./fur-shader";
 import { acquireFurStage, type EngentyCoat } from "./fur-stage";
-import { GOOSE_FACE, GOOSE_HAIR, isGooseHelmetKind } from "./goose-helmet-fit";
+import { isGooseHelmetKind } from "./goose-helmet-fit";
 import { headTurn, MAX_HEAD_TURN } from "./head-turn";
 import { JELLY_DEFAULTS } from "./jelly-defaults";
 import { bindJellyDrag } from "./jelly-drag";
@@ -26,9 +26,9 @@ const QUALITY: Record<
   FurQuality,
   { density: number; dprCap: number; thick: number }
 > = {
-  high: { density: 68, dprCap: 2, thick: 1 },
-  low: { density: 40, dprCap: 1, thick: 1.15 },
-  medium: { density: 55, dprCap: 1.5, thick: 1.05 },
+  high: { density: 88, dprCap: 2, thick: 1.8 },
+  low: { density: 52, dprCap: 1, thick: 2.05 },
+  medium: { density: 71, dprCap: 1.5, thick: 1.9 },
 };
 
 /**
@@ -54,7 +54,7 @@ const PHASE_STEP = 2.399_963;
 const KEY_LIGHT: [number, number, number] = [-0.42, -0.72, 0.75];
 
 /** How far the silhouette bulges toward the camera, in form units. */
-const DEFAULT_INFLATE = 30;
+const DEFAULT_INFLATE = 20;
 const DEFAULT_WIND = 0.5;
 
 export interface FluffyEngentyOverrides {
@@ -137,21 +137,7 @@ export function FluffyEngenty({
   const [supported, setSupported] = useState(true);
 
   const helmetKind = gooseHelmet && isGooseHelmetKind(kind) ? kind : undefined;
-  const form = useMemo(() => {
-    const base = ENGENTY_FORMS[kind];
-    if (!helmetKind) {
-      return base;
-    }
-    const { blobs, eye } = GOOSE_FACE[helmetKind];
-    // The studies show Goose without the bubbles some forms float beside them.
-    return {
-      ...base,
-      blobs: blobs ?? base.blobs,
-      eye,
-      fur: base.fur * GOOSE_HAIR.length,
-      extras: base.extras?.filter((extra) => extra.type !== "body-dot"),
-    };
-  }, [helmetKind, kind]);
+  const form = ENGENTY_FORMS[kind];
   const blobs = useMemo(() => packFormBlobs(form), [form]);
   const extras = useMemo(() => packFormExtras(form), [form]);
   const scale = useMemo(() => formScale(form), [form]);
@@ -301,10 +287,7 @@ export function FluffyEngenty({
         dt * Math.max(0.1, Math.min(2, current.animationSpeed))
       );
 
-      const palette = furPalette(
-        wrap,
-        current.helmetKind ? "round" : current.kind
-      );
+      const palette = furPalette(wrap, current.kind);
       stage.drawInto(context, px, {
         blobs: current.blobs,
         clarity: current.overrides?.clarity ?? JELLY_DEFAULTS.clarity,
@@ -315,8 +298,7 @@ export function FluffyEngenty({
         body: palette.body,
         deep: palette.deep,
         density: Math.min(
-          (current.overrides?.density ?? preset.density) *
-            (current.helmetKind ? GOOSE_HAIR.density : 1),
+          current.overrides?.density ?? preset.density,
           maxDensity
         ),
         extraMeta: current.extras.meta,
@@ -341,9 +323,7 @@ export function FluffyEngenty({
         period: current.form.period,
         scale: current.scale,
         falloff: current.form.falloff,
-        thick:
-          (current.overrides?.thick ?? preset.thick) *
-          (current.helmetKind ? GOOSE_HAIR.thick : 1),
+        thick: current.overrides?.thick ?? preset.thick,
         time: clock + phaseOffset,
         tip: palette.tip,
         wind: current.overrides?.wind ?? DEFAULT_WIND,
