@@ -187,6 +187,12 @@
           "homepage": "https://github.com/mhart/aws4fetch#readme"
         },
         {
+          "name": "cross-spawn",
+          "version": "7.0.6",
+          "license": "MIT",
+          "homepage": "https://github.com/moxystudio/node-cross-spawn"
+        },
+        {
           "name": "drizzle-orm",
           "version": "0.45.3",
           "license": "Apache-2.0",
