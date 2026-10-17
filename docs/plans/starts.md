@@ -1,6 +1,15 @@
 # Plan: starts — a wizard that runs by itself
 
-Status: plan, written on 2026-10-10 against v0.2.36. Nothing built.
+Status: plan, written on 2026-10-10 against v0.2.36. Phase 1 built on 2026-10-18 on
+`feat/starts` (PR #57): `packages/shared/src/starts.ts`, `wizard.starts`, `run.started_by`, the
+`notice` table, `engine/starts.ts` (the clock, `startFrom`, failures and pausing),
+`engine/notices.ts`, the started run's rules in `engine/runner.ts` (`passStep`, `askOf`), the
+studio routes, the share dialog's section and sheet (`StartsSection.tsx`), "Gestartet von" in the
+runs panel, the bell (`Notices.tsx`). Only the schedule kind is offered in the sheet; the other
+three cards are shown "(soon)". Not yet: mail through the account, `set_starts` for the architect
+and MCP, the flow diagram's badge. What differs from the plan: a confirm ask the start does not
+allow is not cancelled — the tool is told nobody is there, leaves the change open and the result
+says so (the rule unattended test runs already had).
 Mockups: https://claude.ai/artifact/BzXoiszVueToEYnAZWiQb3 (eight screens, studio look, German UI). Prompted by a look at
 Attio's workflows (record change, schedule, webhook, manual run; every run logged; pause and
 rerun): engenty wizards has only the manual start today, over the link or from an AI app.
@@ -71,7 +80,7 @@ row".
 | A page with everything answered | shows it | passes it, like `startRun` with `answers` today |
 | A page with a missing required field | waits | waits, status `waiting_input`; the owner is notified: "Weekly report needs you" with the link |
 | An AI step | runs | runs |
-| A confirm ask (a write into a service) | asks | answered "done" when the start allows changes; otherwise the run is cancelled with the note "needed permission to change *Google Sheets*; switch it on in the start" |
+| A confirm ask (a write into a service) | asks | answered "done" when the start allows changes; otherwise nobody is there: the change stays open and the result says so |
 | A login ask (the browser met a sign-in) | asks | waits and notifies, like a page |
 | A review | waits | passes with "Looks good" when the start says so (default), else waits and notifies |
 | The result | shows downloads | lands in the space's Results; the owner is notified with the link |
