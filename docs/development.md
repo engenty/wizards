@@ -199,6 +199,8 @@ declaration files).
 ## Releases and changelog
 
 The version is the `version` of the root `package.json`; a release is the tag `vX.Y.Z` on `main`.
+`main` takes changes only through pull requests, releases too: the release commit comes in as a
+pull request, and the tag is set on its squash-merged commit afterwards.
 Before `1.0` a **minor** bump is a notable or breaking change, a **patch** is fixes and small
 features. The version says which release this is; the commit says which build.
 
@@ -218,10 +220,14 @@ group in the changelog, a scope (`fix(runner): …`) shows in brackets, `!` mark
 
 ```bash
 pnpm release               # shows the changes, asks patch / minor / major, lets you edit the entry,
-                           # then writes the files below, bumps package.json, commits and tags — locally
+                           # then writes the files below, bumps package.json and commits on
+                           # release/vX.Y.Z — locally
 pnpm release --changelog   # only refreshes the files; commits since the last tag stay under "Unreleased"
 pnpm about:data            # only the app's copies: changelog and open-source credits
-git push origin main --follow-tags
+git push -u origin release/vX.Y.Z
+gh pr create --title "chore(release): vX.Y.Z" --body "Release vX.Y.Z."
+# once the pull request is squash-merged:
+pnpm release:tag           # tags main's release commit vX.Y.Z and pushes the tag
 ```
 
 `RELEASE_BUMP=patch|minor|major|current` skips the questions; `current` releases the version
@@ -244,7 +250,9 @@ The tag is what ships: it deploys the cloud runtime and the documentation (see
 [Deploy](#deploy)) and publishes the
 local install (see [Local install](#local-install)). A push to `main` without a tag runs the
 checks and nothing else, so the cloud runtime and a fresh local install are the same release.
-Always tag through `pnpm release`: a tag set by hand leaves the changelog files as they were.
+Always tag through `pnpm release:tag` after a release pull request: a tag set by hand on another
+commit leaves the changelog files as they were. `pnpm release:tag` refuses when `main`'s newest
+commit is not a merged `chore(release): vX.Y.Z` with that version in `package.json`.
 
 ## Deploy
 
