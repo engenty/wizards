@@ -12,7 +12,7 @@ import {
 import { furPalette } from "./fur-palette";
 import { FUR_ORIGIN, FUR_VIEW } from "./fur-shader";
 import { acquireFurStage, type EngentyCoat } from "./fur-stage";
-import { isGooseHelmetKind } from "./goose-helmet-fit";
+import { GOOSE_HAIR, isGooseHelmetKind } from "./goose-helmet-fit";
 import { headTurn, MAX_HEAD_TURN } from "./head-turn";
 import { JELLY_DEFAULTS } from "./jelly-defaults";
 import { bindJellyDrag } from "./jelly-drag";
@@ -26,9 +26,9 @@ const QUALITY: Record<
   FurQuality,
   { density: number; dprCap: number; thick: number }
 > = {
-  high: { density: 88, dprCap: 2, thick: 1.8 },
-  low: { density: 52, dprCap: 1, thick: 2.05 },
-  medium: { density: 71, dprCap: 1.5, thick: 1.9 },
+  high: { density: 68, dprCap: 2, thick: 1 },
+  low: { density: 40, dprCap: 1, thick: 1.15 },
+  medium: { density: 55, dprCap: 1.5, thick: 1.05 },
 };
 
 /**
@@ -54,7 +54,7 @@ const PHASE_STEP = 2.399_963;
 const KEY_LIGHT: [number, number, number] = [-0.42, -0.72, 0.75];
 
 /** How far the silhouette bulges toward the camera, in form units. */
-const DEFAULT_INFLATE = 20;
+const DEFAULT_INFLATE = 30;
 const DEFAULT_WIND = 0.5;
 
 export interface FluffyEngentyOverrides {
@@ -253,7 +253,9 @@ export function FluffyEngenty({
       }
       // 120 form units of body span (120 / FUR_VIEW) of the rendered square.
       const maxDensity = (120 * px) / (MIN_CELL_PIXELS * FUR_VIEW);
-      const fur = current.overrides?.fur ?? current.form.fur;
+      // Goose's coat under the helmet is shorter, denser and thicker than an engenty's own.
+      const goose = current.helmetKind ? GOOSE_HAIR : null;
+      const fur = current.overrides?.fur ?? current.form.fur * (goose?.length ?? 1);
       if ((current.interactive || current.look) && !still) {
         let dx: number;
         let dy: number;
@@ -298,7 +300,7 @@ export function FluffyEngenty({
         body: palette.body,
         deep: palette.deep,
         density: Math.min(
-          current.overrides?.density ?? preset.density,
+          current.overrides?.density ?? preset.density * (goose?.density ?? 1),
           maxDensity
         ),
         extraMeta: current.extras.meta,
@@ -317,13 +319,13 @@ export function FluffyEngenty({
         fur,
         inflate:
           current.overrides?.inflate ??
-          (coat === "jelly" ? JELLY_DEFAULTS.inflate : DEFAULT_INFLATE),
+          (coat === "jelly" ? JELLY_DEFAULTS.inflate : (goose?.inflate ?? DEFAULT_INFLATE)),
         lean: [lean.x, lean.y],
         light: KEY_LIGHT,
         period: current.form.period,
         scale: current.scale,
         falloff: current.form.falloff,
-        thick: current.overrides?.thick ?? preset.thick,
+        thick: current.overrides?.thick ?? preset.thick * (goose?.thick ?? 1),
         time: clock + phaseOffset,
         tip: palette.tip,
         wind: current.overrides?.wind ?? DEFAULT_WIND,

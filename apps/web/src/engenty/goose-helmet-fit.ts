@@ -9,6 +9,12 @@ export function isGooseHelmetKind(kind: EngentyKind): kind is GooseHelmetKind {
 }
 
 /**
+ * Goose's fur under the helmet, against an engenty's own: a third of the length, denser,
+ * thicker hair and a flatter fur body. The helmet placement below is fitted to this body.
+ */
+export const GOOSE_HAIR = { length: 1 / 3, density: 88 / 68, thick: 1.8, inflate: 20 };
+
+/**
  * Places the exported helmet (head units, head radius about 1) on each form: `scale` form
  * units per head unit, `x`/`y`/`z` the head centre, and `width`/`height`/`depth` a per-axis
  * stretch. Fur wears a slightly larger helmet than Jelly for its fur.

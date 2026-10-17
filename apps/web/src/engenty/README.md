@@ -33,7 +33,8 @@ Goggles use a raised gasket, brass torus, rivets and a convex translucent lens;
 the leather strap follows the body surface. The flat icon retains its SVG glasses.
 `gooseHelmet` puts a flight helmet on round, dome or drop Fur and Jelly Engenties:
 painted shell with cheek guards, smoke visor with a nose notch, rail, ear cups and cheek
-fittings. It is an accessory: the engenty keeps its own colour, body, eye and fur under it.
+fittings. It is an accessory: the engenty keeps its own colour, body and eye under it,
+and its fur turns Goose's: a third of the length, denser and thicker (`GOOSE_HAIR`).
 Goose is the round blue engenty wearing it. The helmet follows the head turn without
 inheriting Jelly deformation, and replaces goggles when both are passed. Its mesh
 (`assets/goose-helmet.bin`, about 15,600 triangles) and livery (`assets/goose-helmet-livery.webp`)

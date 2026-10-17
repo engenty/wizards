@@ -37,9 +37,9 @@ export function BuilderControls({
   setOverrides,
 }: Props) {
   const values = {
-    density: 88,
-    thick: 1.8,
-    inflate: material === "fur" ? 20 : JELLY_DEFAULTS.inflate,
+    density: 68,
+    thick: 1,
+    inflate: material === "fur" ? 30 : JELLY_DEFAULTS.inflate,
     wind: 0.5,
     clarity: JELLY_DEFAULTS.clarity,
     softness: JELLY_DEFAULTS.softness,
