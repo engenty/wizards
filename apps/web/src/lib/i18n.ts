@@ -805,6 +805,7 @@ const de: Record<Key, Line> = {
   "editor.runWide": "Ganzes Fenster",
   "editor.runNarrow": "Seitenleiste zeigen",
   "editor.waitsForInput": "Wartet auf Eingabe",
+  "editor.testFailed": "Der Testlauf konnte nicht starten.",
   "log.title": "Protokoll",
   "log.count": {
     one: "{count} Eintrag",
@@ -2780,6 +2781,7 @@ const en = {
   "editor.runWide": "Fill the window",
   "editor.runNarrow": "Show the side panel",
   "editor.waitsForInput": "Waiting for input",
+  "editor.testFailed": "The test run couldn’t start.",
   "log.title": "Log",
   "log.count": {
     one: "{count} entry",

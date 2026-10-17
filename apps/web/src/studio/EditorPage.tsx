@@ -761,6 +761,30 @@ export function EditorPage() {
                     </div>
                   </div>
                 ) : null}
+                {/* A test the runtime refused to start says why, where the run would have opened. */}
+                {testRun.error && !drawerRun ? (
+                  <div
+                    role="alert"
+                    className="absolute top-3 right-3 left-3 z-20 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1 ring-rose/30"
+                  >
+                    <p className="font-medium text-[0.875rem]">{t("editor.testFailed")}</p>
+                    <p className="mt-1 text-[0.8125rem] text-ink-2">
+                      <LinkedText text={testRun.error.message} />
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="quiet"
+                        onClick={() => navigate("/settings/models")}
+                      >
+                        {t("editor.models.settings")}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => testRun.reset()}>
+                        {t("editor.close")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
                 {insertAt !== null && assistant && !building ? (
                   <div className="absolute top-3 right-3 left-3 z-20 mx-auto max-w-xl animate-rise rounded-xl shadow-elevated">
                     <AddStepPanel
