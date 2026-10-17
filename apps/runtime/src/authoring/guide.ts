@@ -260,10 +260,14 @@ type FilmStep = {
   brief: string                 // a template: what the film is — story, look, length, what to use. The kit carries the craft.
   skills?: string[]             // skill packages the client reads; default ["hyperframes"]. A workspace package: "skills/<name>" (has SKILL.md)
   kit?: string                  // workspace path of a STYLE KIT (.zip): a showreel made once with its rules (frame.md),
-                                //   techniques (SHOWCASE.md), helpers and stills — the bar every film of this wizard reaches
+                                //   techniques (SHOWCASE.md), helpers and stills — the bar every film of this wizard reaches.
+                                //   A kit with base/ (index.9x16.html, index.16x9.html, index.1x1.html, PARTS.md, BRAND.md,
+                                //   scene templates) is the project a film starts from: the client composes instead of building
   inputs?: { [name]: string }   // name (lowercase, -) → fieldId | steps.stepId: voice lines, pictures, uploads become files in
                                 //   input/<name>/, text in input/<name>.md, json in input/<name>.json
   format?: "16:9" | "9:16" | "1:1"
+  from?: string                 // "steps.<filmStepId>": start from that earlier film's code and lay it out for this format —
+                                //   the second format of a film in minutes; made from scratch when that step did not run
   seconds?: number              // about how long
   model?: "standard" | "high"   // default standard
   effort?: Effort
@@ -272,7 +276,8 @@ type FilmStep = {
 // the AI client installed on the person's computer (Claude Code) writes the film as code in a folder of its own, with the
 // skills, the kit, the space's brand (colours, logo, facts) and the inputs; it looks at its frames and fixes them; the
 // runtime renders the MP4. It runs only where Claude Code is set up as the AI subscription — never on credits or in the
-// cloud — and takes 10–40 minutes. Sounds come from a fixed catalog (CC0); voice comes from a generate voice step before it.
+// cloud — and takes 5–40 minutes (less with a base kit; what a base film makes from the space's brand is kept for the
+// next films there). Sounds come from a fixed catalog (CC0); voice comes from a generate voice step before it.
 
 type ReviewStep = { type: "review", show: (stepId | "lists.<listId>")[], edit?: boolean, regenerate?: boolean }
 // shows earlier outputs; the person accepts, edits text outputs (edit), or asks for a new version with a note (regenerate)

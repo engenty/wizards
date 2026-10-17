@@ -781,6 +781,12 @@ export const filmStepSchema = z.object({
    */
   inputs: z.record(z.string(), z.string()).default({}),
   format: z.enum(FILM_FORMATS).default("16:9"),
+  /**
+   * "steps.<id>" of an earlier film step: this film starts from that one's finished code and
+   * lays it out for its own format — scenes, timing and sound stay. Made from scratch when that
+   * step did not run.
+   */
+  from: z.string().optional(),
   /** About how long the film runs, in seconds. */
   seconds: z.number().int().min(3).max(600).optional(),
   /** The kind of model; default `standard` — the kit carries the craft. */
@@ -1600,6 +1606,15 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
             issues.push({
               stepId: step.id,
               message: `Film input "${name}": "${ref}" is not an earlier field or "steps.<id>".`,
+            });
+          }
+        }
+        if (step.from) {
+          const id = dataRef(step.from).replace(/^steps\./, "");
+          if (!seenSteps.has(id) || def.steps.find((s) => s.id === id)?.type !== "film") {
+            issues.push({
+              stepId: step.id,
+              message: `Film from "${step.from}" is not an earlier film step ("steps.<id>").`,
             });
           }
         }
