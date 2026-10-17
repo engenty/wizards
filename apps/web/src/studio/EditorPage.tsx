@@ -74,32 +74,51 @@ const PANE_MIN = 340;
 /** Room the diagram keeps next to the pane. */
 const paneMax = () => Math.max(PANE_MIN, window.innerWidth - 480);
 
-function storedPane(): number {
-  try {
-    const n = Number(localStorage.getItem(PANE_KEY));
-    return n ? Math.min(Math.max(n, PANE_MIN), paneMax()) : PANE_DEFAULT;
-  } catch {
-    return PANE_DEFAULT;
-  }
-}
+const RUN_KEY = "wizards.editor.run";
+const RUN_DEFAULT = 560;
+const RUN_MIN = 420;
+/** Room the diagram keeps next to a test run beside it. */
+const RUN_ROOM = 360;
 
-/** The side pane's width on wide screens, dragged at its right edge; remembered per browser. */
-function usePaneWidth() {
-  const [width, setWidth] = useState(storedPane);
-  const set = useCallback((next: number) => {
-    const w = Math.round(Math.min(Math.max(next, PANE_MIN), paneMax()));
+/**
+ * A column's width on wide screens, dragged at its inner edge; remembered per browser. `dir` is
+ * +1 when dragging right widens it (a column on the left), -1 for one on the right.
+ */
+function useDragWidth({
+  key,
+  initial,
+  min,
+  max,
+  dir,
+}: {
+  key: string;
+  initial: number;
+  min: number;
+  max: () => number;
+  dir: 1 | -1;
+}) {
+  const [width, setWidth] = useState(() => {
+    try {
+      const n = Number(localStorage.getItem(key));
+      return n ? Math.min(Math.max(n, min), max()) : initial;
+    } catch {
+      return initial;
+    }
+  });
+  const set = (next: number) => {
+    const w = Math.round(Math.min(Math.max(next, min), max()));
     setWidth(w);
     try {
-      localStorage.setItem(PANE_KEY, String(w));
+      localStorage.setItem(key, String(w));
     } catch {
       // the width only lasts this page then
     }
-  }, []);
+  };
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     const startX = e.clientX;
     const startW = width;
-    const move = (ev: PointerEvent) => set(startW + ev.clientX - startX);
+    const move = (ev: PointerEvent) => set(startW + dir * (ev.clientX - startX));
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -113,15 +132,12 @@ function usePaneWidth() {
   };
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const step = e.shiftKey ? 64 : 16;
-    if (e.key === "ArrowRight") {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
-      set(width + step);
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      set(width - step);
+      set(width + (e.key === "ArrowRight" ? dir : -dir) * step);
     }
   };
-  return { width, onPointerDown, onKeyDown, reset: () => set(PANE_DEFAULT) };
+  return { width, onPointerDown, onKeyDown, reset: () => set(initial) };
 }
 
 const SHEET_KEY = "wizards.editor.sheet";
@@ -248,7 +264,13 @@ export function EditorPage() {
   });
   const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("chat");
-  const pane = usePaneWidth();
+  const pane = useDragWidth({
+    key: PANE_KEY,
+    initial: PANE_DEFAULT,
+    min: PANE_MIN,
+    max: paneMax,
+    dir: 1,
+  });
   const sheet = useSheetHeight();
   // The tab in effect stays in view where the row scrolls (a phone).
   const tabsRef = useRef<HTMLElement>(null);
@@ -317,6 +339,13 @@ export function EditorPage() {
     return () => observer.disconnect();
   }, [mainEl]);
   const split = Boolean(drawerRun) && mainWidth >= SPLIT_MIN;
+  const runPane = useDragWidth({
+    key: RUN_KEY,
+    initial: RUN_DEFAULT,
+    min: RUN_MIN,
+    max: () => Math.max(RUN_MIN, (mainEl?.clientWidth ?? window.innerWidth) - RUN_ROOM),
+    dir: -1,
+  });
   const { save, saving, remote, merged, refused } = useLiveDraft(id);
   const projects = useProjects();
 
@@ -353,6 +382,8 @@ export function EditorPage() {
     setDrawerRun(runId);
     setRunView(null);
     setView("test");
+    // The run gets the room: on a desk the side panel steps aside (its bar brings it back).
+    setRunWide(true);
     sheet.fold();
   };
   const closeRun = () => {
@@ -848,32 +879,62 @@ export function EditorPage() {
             {drawerRun ? (
               <div
                 className={cn(
-                  "flex flex-col bg-background",
-                  split
-                    ? "w-1/2 min-w-[480px] max-w-[720px] shrink-0 border-border-soft border-l"
-                    : "absolute inset-0 z-30",
+                  split ? "relative shrink-0" : "absolute inset-0 z-30",
                   !split && view === "flow" && "hidden",
                 )}
+                // Beside the diagram, as wide as dragged, the diagram keeping its room.
+                style={
+                  split
+                    ? { width: `min(${runPane.width}px, calc(100% - ${RUN_ROOM}px))` }
+                    : undefined
+                }
               >
-                {split ? runBar : null}
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  {look === "chat" ? (
-                    <ChatBody
-                      key={drawerRun}
-                      runId={drawerRun}
-                      onRestart={() => testRun.mutate()}
-                      onView={onRunView}
-                    />
-                  ) : (
-                    <RunnerBody
-                      key={drawerRun}
-                      runId={drawerRun}
-                      compact
-                      studio
-                      onRestart={() => testRun.mutate()}
-                      onView={onRunView}
-                    />
+                {split ? (
+                  // biome-ignore lint/a11y/useSemanticElements: a draggable splitter has no element of its own
+                  <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={t("editor.resize")}
+                    aria-valuenow={runPane.width}
+                    tabIndex={0}
+                    title={t("editor.resize")}
+                    onPointerDown={runPane.onPointerDown}
+                    onKeyDown={runPane.onKeyDown}
+                    onDoubleClick={runPane.reset}
+                    className="group -left-5 absolute inset-y-0 z-10 w-5 cursor-col-resize outline-none"
+                  >
+                    <span className="-translate-y-1/2 absolute top-1/2 left-[7px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
+                  </div>
+                ) : null}
+                {/* Beside the diagram a card like the side panel, mirrored: rounded where it meets the header. */}
+                <div
+                  className={cn(
+                    "flex h-full flex-col",
+                    split
+                      ? "overflow-hidden rounded-tl-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)]"
+                      : "bg-background",
                   )}
+                >
+                  {split ? runBar : null}
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    {look === "chat" ? (
+                      <ChatBody
+                        key={drawerRun}
+                        runId={drawerRun}
+                        onRestart={() => testRun.mutate()}
+                        onView={onRunView}
+                      />
+                    ) : (
+                      <RunnerBody
+                        key={drawerRun}
+                        runId={drawerRun}
+                        compact
+                        studio
+                        onRestart={() => testRun.mutate()}
+                        onView={onRunView}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             ) : null}
