@@ -9,7 +9,12 @@ import {
   wizardLang,
 } from "@engenty-wizards/shared/definition";
 import { TableColumnValueError } from "@engenty-wizards/shared/engenty/data-tables";
-import { noteText, type PublicWizard, type RunNote } from "@engenty-wizards/shared/run";
+import {
+  noteText,
+  type PublicField,
+  type PublicWizard,
+  type RunNote,
+} from "@engenty-wizards/shared/run";
 import {
   machineTranslated,
   type TranslationMemory,
@@ -313,6 +318,21 @@ function wantsTranslation(w: { translate: boolean }, def: WizardDefinition, lang
   return w.translate && lang !== wizardLang(def);
 }
 
+/** What the wizard's pages ask, in order (`PublicWizard.fields`). */
+export function pageFields(def: WizardDefinition): PublicField[] {
+  return def.steps.flatMap((step) =>
+    step.type === "page"
+      ? step.fields.map((f) => ({
+          id: f.id,
+          label: f.label,
+          kind: f.kind,
+          ...(f.options?.length ? { options: f.options } : {}),
+          ...(f.required ? { required: true } : {}),
+        }))
+      : [],
+  );
+}
+
 /** What a wizard's page shows before a run: in the viewer's language where `as` is given. */
 async function publicBody(
   c: Context,
@@ -344,6 +364,7 @@ async function publicBody(
             machine: machineTranslated(as.memory, original),
           }
         : null,
+    fields: pageFields(def),
   };
 }
 

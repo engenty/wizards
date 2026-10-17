@@ -21,7 +21,7 @@
 - **Share it with a link.** Anyone can run a wizard in the browser, on a phone too: camera,
   code scan, voice notes, location and a drawn signature included. Results download as PDF,
   Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link.
-- **Runs on your machine, on your subscription.** It uses Codex, Claude Code, Gemini CLI
+- **Runs on your machine, on your subscription.** It uses Codex, Claude Code, Antigravity
   or Cursor Agent when one is installed and signed in, so no API key is needed. Or bring a key
   (Vercel AI Gateway, OpenAI, Anthropic), or a local model through Ollama. Your wizards and
   results stay in a folder on your machine.
@@ -49,7 +49,7 @@ first wizard in the browser. Links run day and night on the team’s credits.
 
 ## Install it on your computer
 
-The same account on your own machine: it runs on your Claude, ChatGPT, Gemini or Cursor
+The same account on your own machine: it runs on your Claude, ChatGPT, Google AI or Cursor
 subscription, reads your local files and browses for you, and what you publish keeps running in
 the cloud behind the same links. On macOS or Linux, in a terminal:
 
@@ -64,12 +64,13 @@ It needs nothing but `curl` and `tar` and asks for no password. It brings its ow
 Node you already have is left alone), installs engenty wizards into `~/.engenty/wizards` and
 then walks you through the rest:
 
-- **Your engenty account.** “Sign in now?”: a code and the browser for the sign-in; what you
-  publish on this computer then runs in the cloud too. Say no, and `wizards account sign-in`
-  does it any time.
+- **Your engenty account.** “Sign in or create your account now?”: a link and a code, and
+  the browser for the sign-in, which also creates a new account (with your invitation code); what
+  you publish on this computer then runs in the cloud too. Esc while it waits, or say no, and
+  `wizards account sign-in` does it any time.
   `--local` leaves the account out: nothing leaves the computer, links answer on it only
   ([local only](https://engenty.ai/docs/user/local-only)).
-- **An AI client.** It looks for Codex, Claude Code, Gemini CLI and Cursor Agent and
+- **An AI client.** It looks for Codex, Claude Code, Antigravity and Cursor Agent and
   offers to install the missing ones – first the one whose app (Claude, ChatGPT, Cursor) is
   on your Mac, as its subscription is most likely yours already. The first page of the studio
   installs them too. Or use your account’s credits, an API key, [Ollama](https://ollama.com) or,

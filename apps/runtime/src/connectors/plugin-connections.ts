@@ -2,7 +2,7 @@ import type {
   PluginConnection,
   PluginConnections,
   PluginConnectorOffer,
-} from "@engenty-wizards/plugin-sdk";
+} from "@engenty/wizards/plugin";
 import type { Lang } from "@engenty-wizards/shared/definition";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";

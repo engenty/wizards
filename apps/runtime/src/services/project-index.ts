@@ -1,4 +1,4 @@
-import type { PluginIndexEntry } from "@engenty-wizards/plugin-sdk";
+import type { PluginIndexEntry } from "@engenty/wizards/plugin";
 import { formatTableCell } from "@engenty-wizards/shared/engenty/data-tables";
 import type { KnowledgeHit, KnowledgeSearch, Where } from "@engenty-wizards/shared/knowledge";
 import { embedMany } from "ai";

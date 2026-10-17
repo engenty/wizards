@@ -7,7 +7,8 @@
 # %USERPROFILE%\.engenty\wizards (ENGENTY_HOME moves it), as install.sh does on macOS and Linux:
 #
 #   tools\node-v<version>\   its own Node; a Node you already have is left alone
-#   runtime\                 the package `wizards`, from the GitHub release
+#   runtime\<version>\       the runtime, from the GitHub release; runtime\current is the one
+#                            the command starts (a junction, which needs no administrator)
 #   bin\wizards.cmd          the command, its folder on your PATH
 #   data\                    your wizards and results (made at the first start)
 #
@@ -41,7 +42,8 @@ $ProgressPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 $NodeVersion = if ($env:ENGENTY_WIZARDS_NODE_VERSION) { $env:ENGENTY_WIZARDS_NODE_VERSION } else { "24.14.0" }
-$Package = "wizards"
+$Package = "@engenty/wizards-runtime"
+$PackageFile = "engenty-wizards-runtime"
 $Releases = "https://github.com/engenty/wizards/releases"
 $Base = if ($env:ENGENTY_HOME) { $env:ENGENTY_HOME } else { Join-Path $HOME ".engenty" }
 $HomeDir = Join-Path $Base "wizards"
@@ -193,13 +195,16 @@ function Find-Package {
     $v = $latest.tag_name -replace "^v", ""
   }
   if (-not $v) { Fail "No release of engenty wizards was found at $Releases." }
-  return "$Releases/download/v$v/$Package-$v.tgz"
+  return "$Releases/download/v$v/$PackageFile-$v.tgz"
 }
 
+# Each version has its folder (runtime\<version>\, an npm prefix) and `current` names the one the
+# command starts, as install.sh does it: a version that runs keeps its files.
 function Install-Runtime($spec) {
   $script:Step = "Installing engenty wizards"
   $runtime = Join-Path $HomeDir "runtime"
   New-Item -ItemType Directory -Force $runtime | Out-Null
+  $stage = Join-Path $runtime (".staging-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
   Write-Host "  ... Installing engenty wizards (about 650 MB on disk, a few minutes)" -ForegroundColor DarkGray
   $node = Join-Path $NodeDir "node.exe"
   $npm = Join-Path $NodeDir "node_modules\npm\bin\npm-cli.js"
@@ -208,14 +213,27 @@ function Install-Runtime($spec) {
   $env:Path = "$NodeDir;$env:Path"
   # npm warns on stderr, which Windows PowerShell turns into errors that stop the script.
   $ErrorActionPreference = "Continue"
-  & $node $npm install --prefix $runtime --omit=dev --ignore-scripts --legacy-peer-deps `
+  & $node $npm install --prefix $stage --omit=dev --ignore-scripts --legacy-peer-deps `
     --no-audit --no-fund --loglevel=error $spec *>> $Log
   $code = $LASTEXITCODE
   $ErrorActionPreference = "Stop"
-  if ($code -ne 0) { Fail "$script:Step failed." }
-  $manifest = Join-Path $runtime "node_modules\$Package\package.json"
+  $manifest = Join-Path $stage "node_modules\$Package\package.json"
+  if ($code -ne 0 -or -not (Test-Path $manifest)) {
+    Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue
+    Fail "$script:Step failed."
+  }
   $script:Installed = (Get-Content $manifest -Raw | ConvertFrom-Json).version
-  Say "engenty wizards $script:Installed" (Tilde $runtime)
+  $current = Join-Path $runtime "current"
+  $previous = if (Test-Path $current) { Split-Path -Leaf ((Get-Item $current).Target | Select-Object -First 1) } else { "" }
+  $into = Join-Path $runtime $script:Installed
+  if (Test-Path $into) { Remove-Item -Recurse -Force $into }
+  Move-Item $stage $into
+  if (Test-Path $current) { (Get-Item $current).Delete() }
+  New-Item -ItemType Junction -Path $current -Target $into | Out-Null
+  # This version and the one before stay; older ones go (one that still runs keeps its files).
+  Get-ChildItem $runtime -Directory | Where-Object { $_.Name -match "^\d+\.\d+\.\d+$" -and $_.Name -ne $script:Installed -and $_.Name -ne $previous } |
+    ForEach-Object { Remove-Item -Recurse -Force $_.FullName -ErrorAction SilentlyContinue }
+  Say "engenty wizards $script:Installed" (Tilde $into)
 }
 
 function Write-Command {
@@ -229,7 +247,7 @@ function Write-Command {
   if ($Base -ne (Join-Path $HOME ".engenty")) {
     $lines += "if not defined ENGENTY_HOME set ""ENGENTY_HOME=$Base"""
   }
-  $lines += """$(Join-Path $Tools 'node\node.exe')"" ""$(Join-Path $HomeDir "runtime\node_modules\$Package\bin\wizards.mjs")"" %*"
+  $lines += """$(Join-Path $Tools 'node\node.exe')"" ""$(Join-Path $HomeDir "runtime\current\node_modules\$Package\bin\wizards.mjs")"" %*"
   Set-Content -Path $Wrapper -Value $lines -Encoding Ascii
   # The command's folder on the user's PATH; a terminal opened before sees it after a restart.
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")

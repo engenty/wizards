@@ -3,11 +3,11 @@ import { installCommand, POWERSHELL } from "../cli/clients.js";
 import { inherited, runtimePath } from "../cli/environment.js";
 import { layout } from "../cli/home.js";
 import { CLIENTS, vendorApp } from "../cli/machine.js";
+import { antigravity } from "./antigravity.js";
 import { claude } from "./claude.js";
 import { codex } from "./codex.js";
 import { cursor } from "./cursor.js";
 import { forgetEnv, loginShellEnv, resolveEnv } from "./env.js";
-import { gemini } from "./gemini.js";
 import type { Harness, HarnessAuth, HarnessId } from "./types.js";
 
 export { HarnessModel, notInstalled, signedOut } from "./model.js";
@@ -17,7 +17,7 @@ export { HARNESS_IDS, type Harness, type HarnessAuth, type HarnessId } from "./t
  * The AI clients this runtime can run as a model, in the order the setup offers them. The first
  * one installed is the one the setup recommends.
  */
-export const HARNESSES: readonly Harness[] = [codex, claude, gemini, cursor];
+export const HARNESSES: readonly Harness[] = [codex, claude, antigravity, cursor];
 
 export function harness(id: string): Harness | null {
   return HARNESSES.find((h) => h.id === id) ?? null;

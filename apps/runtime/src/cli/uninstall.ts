@@ -1,9 +1,17 @@
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, lstatSync, readdirSync, readlinkSync, rmdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import * as p from "@clack/prompts";
-import { LOGIN_LABEL, present, removeUnit, UNIT, unloadLoginItem } from "./autostart.js";
+import {
+  LOGIN_LABEL,
+  present,
+  removeUnit,
+  removeWindowsLoginItem,
+  UNIT,
+  unloadLoginItem,
+  windowsLoginItem,
+} from "./autostart.js";
 import { type App, apps as allApps } from "./connect.js";
 import type { Layout } from "./home.js";
 import { findWizardsProcesses, stopProcesses, type WizardsProcess } from "./processes.js";
@@ -34,7 +42,28 @@ export interface UninstallSystem {
   stop(pids: number[]): Promise<number[]>;
   unloadLoginItem(): Promise<void>;
   removeUnit(file: string): Promise<void>;
+  /** Windows: the scheduled task or Startup shortcut, and taking it away. */
+  windowsLoginItem(): Promise<string | null>;
+  removeWindowsLoginItem(): Promise<void>;
+  /** Windows: whether a folder is on the user's PATH (install.ps1 put `bin` there), and off. */
+  onUserPath(dir: string): boolean;
+  removeFromUserPath(dir: string): void;
+  /** Windows: deletes these once this process has ended, which holds their files open. */
+  deleteAfterExit(paths: string[]): void;
 }
+
+/** The user's own PATH from the registry, through PowerShell. */
+function userPath(): string[] {
+  const out = execFileSync(
+    "powershell.exe",
+    ["-NoProfile", "-Command", '[Environment]::GetEnvironmentVariable("Path", "User")'],
+    { encoding: "utf8", windowsHide: true },
+  );
+  return out.trim().split(";").filter(Boolean);
+}
+
+const sameDir = (a: string, b: string) =>
+  a.replace(/[\\/]+$/, "").toLowerCase() === b.replace(/[\\/]+$/, "").toLowerCase();
 
 export const realSystem = (): UninstallSystem => ({
   userHome: homedir(),
@@ -46,6 +75,37 @@ export const realSystem = (): UninstallSystem => ({
   stop: (pids) => stopProcesses(pids),
   unloadLoginItem,
   removeUnit,
+  windowsLoginItem,
+  removeWindowsLoginItem,
+  onUserPath: (dir) => {
+    try {
+      return userPath().some((entry) => sameDir(entry, dir));
+    } catch {
+      return false;
+    }
+  },
+  removeFromUserPath: (dir) => {
+    const kept = userPath().filter((entry) => !sameDir(entry, dir));
+    const value = kept.join(";").replaceAll("'", "''");
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        `[Environment]::SetEnvironmentVariable("Path", '${value}', "User")`,
+      ],
+      { windowsHide: true },
+    );
+  },
+  deleteAfterExit: (paths) => {
+    // cmd.exe waits a moment for this process to end, then deletes what it held.
+    const removals = paths.map((path) => `rmdir /s /q "${path}" 2>nul & del /f /q "${path}" 2>nul`);
+    spawn("cmd.exe", ["/d", "/c", `ping -n 3 127.0.0.1 >nul & ${removals.join(" & ")}`], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    }).unref();
+  },
 });
 
 /** Parts of the install folder that are the person's: kept or deleted with the data. */
@@ -58,6 +118,8 @@ export interface Plan {
   processes: WizardsProcess[];
   program: string[];
   links: string[];
+  /** Windows: the command's folder on the user's PATH. */
+  pathEntry: string | null;
   /** The data folder and the settings that go with it; empty when there is none. */
   data: string[];
 }
@@ -105,6 +167,9 @@ export async function makePlan(paths: Layout, system: UninstallSystem): Promise<
     // Can't look: count it as there, so the uninstall tries and says so.
     loginItem = item;
   }
+  if (system.platform === "win32") {
+    loginItem = await system.windowsLoginItem();
+  }
   const { dataDir } = settings(paths, system.env);
   const program: string[] = [];
   const data = existsSync(dataDir) ? [dataDir] : [];
@@ -123,6 +188,7 @@ export async function makePlan(paths: Layout, system: UninstallSystem): Promise<
     processes: system.processes(paths.home),
     program,
     links: ourLinks(paths.home, system),
+    pathEntry: system.platform === "win32" && system.onUserPath(paths.bin) ? paths.bin : null,
     data,
   };
 }
@@ -158,6 +224,7 @@ export async function uninstall(
     ...(plan.processes.length ? [`Stop ${processes(plan.processes.length)}`] : []),
     ...(plan.program.length ? [`Delete the program in ${t(plan.home)}${size(plan.home)}`] : []),
     ...plan.links.map((link) => `Delete the command ${t(link)}`),
+    ...(plan.pathEntry ? [`Take ${t(plan.pathEntry)} off your PATH`] : []),
   ];
   if (!steps.length && !plan.data.length) {
     console.log(`${ok} engenty wizards isn’t installed here.`);
@@ -212,7 +279,9 @@ export async function uninstall(
   }
   if (plan.loginItem) {
     try {
-      if (system.platform === "darwin") {
+      if (system.platform === "win32") {
+        await system.removeWindowsLoginItem();
+      } else if (system.platform === "darwin") {
         await system.unloadLoginItem();
         rmSync(plan.loginItem, { force: true });
       } else {
@@ -230,12 +299,33 @@ export async function uninstall(
       console.log(`${ok} Stopped ${processes(running.length)}`);
     }
   }
+  // Windows keeps the files of a running program: the Node this command runs on, if it is the
+  // install's own, goes once the command has ended.
+  const later: string[] = [];
   for (const path of [...plan.program, ...plan.links, ...(deleteData ? plan.data : [])]) {
     try {
       rmSync(path, { recursive: true, force: true });
     } catch (error) {
-      failed(`Couldn’t delete ${t(path)}`, error);
+      if (system.platform === "win32") {
+        later.push(path);
+      } else {
+        failed(`Couldn’t delete ${t(path)}`, error);
+      }
     }
+  }
+  if (plan.pathEntry) {
+    try {
+      system.removeFromUserPath(plan.pathEntry);
+      console.log(`${ok} Took ${t(plan.pathEntry)} off your PATH`);
+    } catch (error) {
+      failed("The PATH", error);
+    }
+  }
+  if (later.length) {
+    system.deleteAfterExit([...later, plan.home, join(system.userHome, ".engenty")]);
+    console.log(
+      `${ok} ${later.map(t).join(", ")} go${later.length === 1 ? "es" : ""} once this command has ended`,
+    );
   }
   for (const dir of [plan.home, join(system.userHome, ".engenty")]) {
     try {
@@ -253,7 +343,10 @@ export async function uninstall(
     ),
     ...(after.loginItem ? [t(after.loginItem)] : []),
     ...after.processes.map((proc) => `process ${proc.pid}: ${cyan(`kill -9 ${proc.pid}`)}`),
-    ...[...after.program, ...after.links, ...(deleteData ? after.data : [])].map(t),
+    ...(after.pathEntry ? [`${t(after.pathEntry)} on your PATH`] : []),
+    ...[...after.program, ...after.links, ...(deleteData ? after.data : [])]
+      .filter((path) => !later.includes(path))
+      .map(t),
   ];
   if (!deleteData && after.data.length) {
     console.log(`${ok} Kept your data: ${after.data.map(t).join(", ")}`);

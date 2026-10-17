@@ -117,5 +117,9 @@ when no path was given. That is enough for a check in CI:
 npx wizards validate wizards/*.wizard
 ```
 
+`npx wizards` installs engenty wizards into `~/.engenty/wizards` first, the first time. To check
+without an install, on Node.js 24.11 or newer, run the runtime from npm directly:
+`npx -p @engenty/wizards-runtime wizards validate wizards/*.wizard`.
+
 The import checks what belongs to the space, because only the space has it: its connectors and
 their actions, its connected systems (MCP servers) and its plugins’ tools.

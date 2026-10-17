@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { emitKeypressEvents } from "node:readline";
 import { styleText } from "node:util";
 import * as p from "@clack/prompts";
 import { command } from "./home.js";
@@ -32,10 +33,37 @@ export function busy(message: string) {
   if (!process.stdout.isTTY) {
     return { stop: (text: string) => p.log.step(text), fail: (text: string) => p.log.warn(text) };
   }
+  exitOnCtrlC();
   const spinner = p.spinner();
   spinner.start(message.replace(/…$/, ""));
   return {
     stop: (text: string) => spinner.stop(text),
     fail: (text: string) => spinner.error(text),
   };
+}
+
+let watching = false;
+
+/**
+ * Ctrl-C under a spinner: clack ends the process itself, with code 0, as if all went well. The
+ * key is noted before clack sees it (this listener comes first), and the process ends with 130
+ * instead, as a command stopped by Ctrl-C does: `wizards setup && …` goes no further.
+ */
+function exitOnCtrlC() {
+  if (watching || !process.stdin.isTTY) {
+    return;
+  }
+  watching = true;
+  let pressed = false;
+  emitKeypressEvents(process.stdin);
+  process.stdin.on("keypress", (_text: string, key?: { ctrl?: boolean; name?: string }) => {
+    if (key?.ctrl && key.name === "c") {
+      pressed = true;
+    }
+  });
+  process.on("exit", () => {
+    if (pressed) {
+      process.exitCode = 130;
+    }
+  });
 }

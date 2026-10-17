@@ -58,7 +58,7 @@ export function typeLabel(step: Step): string {
   return t(`type.${step.type}` as "type.page");
 }
 
-const TOOLS = ["web_search", "web_fetch", "browser", "sandbox", "image", "http", "pages"];
+const TOOLS = ["web_search", "web_fetch", "browser", "sandbox", "image", "http", "pages", "code"];
 
 export function toolLabel(id: string) {
   return TOOLS.includes(id) ? t(`tool.${id}` as "tool.http") : id;

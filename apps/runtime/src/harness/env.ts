@@ -119,7 +119,7 @@ const installed = () => {
   return [
     layout().clients,
     ...(home ? [join(home, ".local", "bin")] : []),
-    ...(local ? [join(local, "cursor-agent")] : []),
+    ...(local ? [join(local, "cursor-agent"), join(local, "agy", "bin")] : []),
   ];
 };
 

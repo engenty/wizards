@@ -24,7 +24,7 @@ A capability’s page asks “Who does it?”:
 
 | Choice | What it is | Cost |
 |---|---|---|
-| Your subscription | Claude Code, Codex, Gemini CLI or Cursor Agent on this computer, using your sign-in there (text; Codex also makes images) | Your subscription |
+| Your subscription | Claude Code, Codex, Antigravity or Cursor Agent on this computer, using your sign-in there (text; Codex also makes images; Antigravity runs steps without their tools) | Your subscription |
 | Your own API key | OpenAI, Anthropic, Google Gemini, fal.ai, ElevenLabs, Replicate or Vercel AI Gateway | The provider bills your key |
 | Apple Intelligence | The model on this Mac: short texts and decisions (Classifier, Standard) and voice notes. See [Apple Intelligence](#apple-intelligence) | Nothing |
 | Local model | [Ollama](https://ollama.com) on this computer (text) | Nothing |

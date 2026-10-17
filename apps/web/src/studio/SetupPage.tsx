@@ -87,7 +87,7 @@ const HOST = 220;
 const HOSTS: Record<Pick, string> = {
   codex: "dome",
   claude: "oval",
-  gemini: "wedge",
+  antigravity: "wedge",
   cursor: "sprout",
   own: "bean",
   account: "drop",
@@ -663,10 +663,7 @@ export function SetupPage() {
                       <ModelTest auto={!works} />
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-5">
-                      <OwnModels models={models} />
-                      <ModelTest />
-                    </div>
+                    <OwnModels models={models} />
                   )}
                 </div>
                 <div className="mt-9">

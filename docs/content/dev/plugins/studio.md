@@ -9,7 +9,7 @@ sign-in and hands it `studio`. What the plugin draws is part of the studio: the 
 same router, the same components.
 
 ```tsx
-import { defineStudioPlugin } from "@engenty-wizards/plugin-sdk/studio";
+import { defineStudioPlugin } from "@engenty/wizards/plugin/studio";
 import { Button, Card, Empty, Spinner } from "@engenty-wizards/web/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users } from "lucide-react";
@@ -339,7 +339,7 @@ there is one React and one router on the page:
 | `react-router` | `Link`, `NavLink`, `Navigate`, `useNavigate`, `useParams`, `useLocation`, `useSearchParams` |
 | `@tanstack/react-query` | `useQuery`, `useMutation`, `useQueryClient` |
 | `@engenty-wizards/web/ui` | The studio’s components, see [Styles and components](./styling.md) |
-| `@engenty-wizards/plugin-sdk/studio` | `defineStudioPlugin` and the types |
+| `@engenty/wizards/plugin/studio` | `defineStudioPlugin` and the types |
 
 Everything else a plugin imports is bundled into `client.js`. A package the plugin’s folder
 does not have, such as `lucide-react`, comes from the studio’s.

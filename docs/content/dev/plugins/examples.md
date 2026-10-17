@@ -16,7 +16,7 @@ PLUGINS_DIR=examples/plugins
 posts a line to an address whenever a real run of a wizard reaches its end.
 
 ```ts
-import type { WizardsPluginFactory } from "@engenty-wizards/plugin-sdk";
+import type { WizardsPluginFactory } from "@engenty/wizards/plugin";
 
 const plugin: WizardsPluginFactory = (wizards) => {
   const url = wizards.config.get("NOTIFY_URL");

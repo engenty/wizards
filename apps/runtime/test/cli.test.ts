@@ -98,7 +98,7 @@ describe("what the runtime inherits from the terminal", () => {
     );
   });
 
-  it("puts the clients first on Windows too, with where Claude Code and Cursor Agent install", () => {
+  it("puts the clients first on Windows too, with where Claude Code, Cursor Agent and Antigravity install", () => {
     const env = {
       PATH: "C:\\Windows\\system32",
       USERPROFILE: "C:\\Users\\x",
@@ -111,6 +111,7 @@ describe("what the runtime inherits from the terminal", () => {
         "C:\\Windows\\system32",
         "C:\\Users\\x\\.local\\bin",
         "C:\\Users\\x\\AppData\\Local\\cursor-agent",
+        "C:\\Users\\x\\AppData\\Local\\agy\\bin",
       ].join(";"),
     );
   });
@@ -250,8 +251,10 @@ describe("the AI clients", () => {
   });
 
   it("suggests the first when no vendor app says otherwise", () => {
-    const missing = CLIENTS.filter((c) => c.id !== "codex" && !c.app).map((client) => ({ client }));
-    expect(suggestedClient(missing)?.client.id).toBe("gemini");
+    const missing = CLIENTS.filter((c) => c.id !== "codex").map((c) => ({
+      client: { ...c, app: undefined },
+    }));
+    expect(suggestedClient(missing)?.client.id).toBe("claude");
     expect(suggestedClient([])).toBeNull();
   });
 });

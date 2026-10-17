@@ -2,7 +2,7 @@ import type {
   PluginRunnerAddress,
   PluginRunnerProblem,
   PluginRunnerRequest,
-} from "@engenty-wizards/plugin-sdk";
+} from "@engenty/wizards/plugin";
 import { textLang, type WizardDefinition, wizardLang } from "@engenty-wizards/shared/definition";
 import { note, type PublicWizard } from "@engenty-wizards/shared/run";
 import {

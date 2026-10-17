@@ -37,7 +37,7 @@ loads them from their files and loads a plugin again when its files change.
 | File | `src/plugin.ts`, or the one file a small plugin is | `ui/plugin.tsx`, built to `dist/client.js` and `dist/client.css` |
 | Runs in | The runtime | The studio, after sign-in |
 | Loaded | As TypeScript, no build | As the built script |
-| Types | `@engenty-wizards/plugin-sdk` | `@engenty-wizards/plugin-sdk/studio` |
+| Types | `@engenty/wizards/plugin` | `@engenty/wizards/plugin/studio` |
 | Adds | Tools, runners, routes, tables, listeners, jobs, starters, accounts, Knowledge, the space’s block, index and assistant tools | Pages, icons in the app bar, sections of the settings and of the space page, parts of the space page, a runner’s settings and setup in the share dialog, cards in the assistant’s chat |
 
 A plugin has one half or both. The studio half talks to the server half over the plugin’s own

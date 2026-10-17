@@ -1,4 +1,4 @@
-import type { PluginServerApi } from "@engenty-wizards/plugin-sdk";
+import type { PluginServerApi } from "@engenty/wizards/plugin";
 import {
   bookChannelUsage,
   ManageError,

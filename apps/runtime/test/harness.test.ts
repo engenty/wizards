@@ -143,14 +143,33 @@ describe("an installed AI client as a model", () => {
     expect(failed.failure).toBe("usage limit reached");
   });
 
-  it("reads what Gemini CLI prints, skipping what it logs before the JSON", async () => {
-    const { geminiAnswer } = await import("../src/harness/gemini");
-    const r = geminiAnswer(
-      'Hook registry initialized with 0 hook entries\n{\n  "session_id": "g1",\n  "response": "OK",\n  "stats": {"models": {"gemini-2.5-flash": {"tokens": {"prompt": 20, "candidates": 2, "cached": 5}}}}\n}\n',
+  it("reads the result Antigravity prints after its step events", async () => {
+    const { antigravityAnswer } = await import("../src/harness/antigravity");
+    const r = antigravityAnswer(
+      [
+        '{"event":"init","conversation_id":"a1","init":{"tools":[]}}',
+        '{"event":"step_update","step_update":{"conversation_id":"a1","step_index":1,"state":"DONE","step_type":"agent_response","text_delta":"OK"}}',
+        '{"event":"result","result":{"conversation_id":"a1","status":"SUCCESS","response":"OK\\n","structured_output":{"a":1},"usage":{"input_tokens":20,"output_tokens":2}}}',
+      ].join("\n"),
     );
-    expect(r?.response).toBe("OK");
-    expect(r?.stats?.models?.["gemini-2.5-flash"]?.tokens?.prompt).toBe(20);
-    expect(geminiAnswer("nothing")).toBeNull();
+    expect(r?.status).toBe("SUCCESS");
+    expect(r?.structured_output).toEqual({ a: 1 });
+    expect(r?.usage?.input_tokens).toBe(20);
+    expect(antigravityAnswer("Authentication required.")).toBeNull();
+  });
+
+  it("puts the instructions in front of the one message Antigravity reads", async () => {
+    const { antigravityMessage, withEffort } = await import("../src/harness/antigravity");
+    const line = antigravityMessage("Be brief.", "Hi");
+    expect(JSON.parse(line)).toEqual({
+      event: "user",
+      message: { content: "<instructions>\nBe brief.\n</instructions>\n\nHi" },
+    });
+    expect(line.endsWith("\n")).toBe(true);
+    expect(JSON.parse(antigravityMessage("", "Hi")).message.content).toBe("Hi");
+    expect(withEffort("gemini-3.8-flash-medium", "high")).toBe("gemini-3.8-flash-high");
+    expect(withEffort("gemini-3.8-flash-medium")).toBe("gemini-3.8-flash-medium");
+    expect(withEffort("some-model", "low")).toBe("some-model");
   });
 
   it("tells a signed-out client from one whose account cannot pay", async () => {

@@ -13,7 +13,7 @@ import type {
   PluginStarter,
   PluginTick,
   PluginTool,
-} from "@engenty-wizards/plugin-sdk";
+} from "@engenty/wizards/plugin";
 import type { RunnerInfo } from "@engenty-wizards/shared/runners";
 import { env } from "../env.js";
 import { managed, tenantInfo } from "../manage.js";

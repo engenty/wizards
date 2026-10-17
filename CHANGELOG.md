@@ -4,6 +4,31 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.7.7] - 2026-10-17
+- ADDED **[openui]** Run wizards inside OpenUI chats (#43)
+- ADDED **[runtime]** Code mode – a step's tools from one program in QuickJS (#49)
+- DOCS **[plans]** Triggers and starts – a wizard that starts by itself (#46)
+
+## [0.7.6] - 2026-10-17
+- ADDED **[runtime]** Sandbox engines installed apart from the package, starting with agentOS 0.4 (#45)
+
+## [0.7.5] - 2026-10-17
+- ADDED **[cli]** `npx wizards` downloads a small launcher; the runtime is published as @engenty/wizards-runtime (#39)
+
+## [0.7.4] - 2026-10-17
+- ADDED **[runtime]** Replace Gemini CLI with Antigravity as the Google AI client (#42)
+- ADDED **[setup]** Test each own key on its own, without picking models (#41)
+- CHANGED One package for code outside the repo, @engenty/wizards, with plugins at /plugin (#44)
+- DOCS **[plans]** Wizards in generative UI chats
+- FIXED **[studio]** Onboarding for people on their own, browser Back, and answers that survive a reload (#40)
+
+## [0.7.3] - 2026-10-15
+- FIXED **[studio]** Template cards on a phone in a column with a block title (Safari cut the footer off a card whose title wraps); a search brings its field to the top so results show
+- FIXED **[cli]** Onboarding sign-in a new person can finish or skip (#38)
+
+## [0.7.2] - 2026-10-15
+- FIXED **[studio]** On a phone the read-only note leaves the top (a lock on the tabs instead); with the keyboard up the run page drops its bar, shrinks the title and keeps the focused field above Weiter
+
 ## [0.7.1] - 2026-10-15
 - FIXED **[cli]** Clearer setup and menu wording, and an Uninstall menu entry (#37)
 

@@ -63,6 +63,11 @@ function fakeSystem(opts: { stubborn?: boolean; appWorks?: boolean } = {}) {
       calls.push("bootout");
     },
     removeUnit: async () => undefined,
+    windowsLoginItem: async () => null,
+    removeWindowsLoginItem: async () => undefined,
+    onUserPath: () => false,
+    removeFromUserPath: () => undefined,
+    deleteAfterExit: () => undefined,
   };
   return { system, calls, app };
 }
@@ -98,6 +103,31 @@ describe("wizards uninstall", () => {
     expect(existsSync(join(user, ".engenty"))).toBe(false);
   });
 
+  it("on Windows takes away the scheduled task and the PATH entry, and what is locked after it ends", async () => {
+    const { system, calls } = fakeSystem();
+    let onPath = true;
+    let later: string[] = [];
+    Object.assign(system, {
+      platform: "win32",
+      windowsLoginItem: async () => (calls.includes("schtasks") ? null : "the scheduled task"),
+      removeWindowsLoginItem: async () => {
+        calls.push("schtasks");
+      },
+      onUserPath: () => onPath,
+      removeFromUserPath: () => {
+        onPath = false;
+        calls.push("path");
+      },
+      deleteAfterExit: (paths: string[]) => {
+        later = paths;
+      },
+    });
+    expect(await run(system, { yes: true })).toBe(0);
+    expect(calls).toEqual(["schtasks", "stop 11,12", "path"]);
+    expect(existsSync(paths.runtime)).toBe(false);
+    expect(later).toEqual([]);
+  });
+
   it("fails and says how to fix what is left", async () => {
     const { system } = fakeSystem({ stubborn: true, appWorks: false });
     expect(await run(system, { yes: true })).toBe(1);
@@ -108,6 +138,14 @@ describe("wizards uninstall", () => {
 });
 
 describe("the processes of an install", () => {
+  it("match the folder in any case on Windows", () => {
+    const list = [{ pid: 10, ppid: 1, command: "C:/USERS/X/.engenty/wizards/tools/node/node.exe w start" }];
+    expect(wizardsProcesses("C:/Users/x/.engenty/wizards", list, 99, "win32")).toEqual([
+      { pid: 10, kind: "start" },
+    ]);
+    expect(wizardsProcesses("C:/Users/x/.engenty/wizards", list, 99, "linux")).toEqual([]);
+  });
+
   it("are the ones running from its folder, apart from this one and its parents", () => {
     const home = "/Users/x/.engenty/wizards";
     const bin = `${home}/runtime/node_modules/wizards/bin/wizards.mjs`;

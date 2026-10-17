@@ -47,6 +47,14 @@ describe("the setup's --local", () => {
   });
 });
 
+describe("the code the terminal shows", () => {
+  it("is grouped as people read it, whatever the account sent", () => {
+    expect(cli.groupedCode("ABCDEFGH")).toBe("ABCD-EFGH");
+    expect(cli.groupedCode("abcd-efgh")).toBe("ABCD-EFGH");
+    expect(cli.groupedCode("ABC")).toBe("ABC");
+  });
+});
+
 describe("the account line", () => {
   const account = { userId: "u", tenantId: "t", name: "Matthias", email: "m@test.local" };
 
@@ -65,6 +73,9 @@ describe("the account line", () => {
         account,
         team: { tenantId: "t", name: "Team", balanceCredits: 1, at: "" },
       }),
-    ).toBe("Matthias · team Team");
+    ).toBe("Matthias · Team");
+    expect(cli.described(account, { name: "Team Anna", balanceCredits: 500 })).toBe(
+      "Matthias · Team Anna · 500 credits",
+    );
   });
 });

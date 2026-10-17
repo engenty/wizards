@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { PluginRequest } from "@engenty-wizards/plugin-sdk";
+import type { PluginRequest } from "@engenty/wizards/plugin";
 import { type Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { Principal } from "../auth/index.js";

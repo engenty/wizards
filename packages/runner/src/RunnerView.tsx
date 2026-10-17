@@ -91,13 +91,15 @@ function StepHeading({
   kicker?: string | null;
 }) {
   return (
-    <div className="mb-8">
-      {kicker ? <p className="mb-4 text-[0.9375rem] text-ink-2 leading-relaxed">{kicker}</p> : null}
+    <div className="kb-title mb-8">
+      {kicker ? (
+        <p className="kb-hide mb-4 text-[0.9375rem] text-ink-2 leading-relaxed">{kicker}</p>
+      ) : null}
       <h1 className="font-display font-semibold text-[1.75rem] leading-[1.15] tracking-tight sm:text-[2rem]">
         {title}
       </h1>
       {description ? (
-        <p className="mt-2 text-[0.9375rem] text-ink-3 leading-relaxed">{description}</p>
+        <p className="kb-hide mt-2 text-[0.9375rem] text-ink-3 leading-relaxed">{description}</p>
       ) : null}
     </div>
   );
@@ -902,7 +904,7 @@ export function RunnerBody({
       )}
       <div
         className={cn(
-          "safe-x mx-auto w-full flex-1",
+          "safe-x kb-tight mx-auto w-full flex-1",
           wide
             ? "max-w-[1240px] py-8"
             : compact

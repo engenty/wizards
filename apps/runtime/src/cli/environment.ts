@@ -38,6 +38,8 @@ const INHERITED = new Set([
   "SANDBOX",
   "SANDBOX_ENABLED",
   "SANDBOX_IMAGE",
+  "SANDBOX_ALLOW_HOSTS",
+  "SANDBOX_ENGINES_DIR",
   "PLUGINS_DIR",
   "PLUGINS_WATCH",
   "ACCOUNT_URL",
@@ -69,8 +71,9 @@ export function runtimePath(
 ) {
   if (platform === "win32") {
     // npm puts a prefix's commands in the prefix itself on Windows. Claude Code installs into
-    // ~\.local\bin and Cursor Agent into %LOCALAPPDATA%\cursor-agent; both add that to the
-    // user's PATH, which a process started before the install does not see.
+    // ~\.local\bin, Cursor Agent into %LOCALAPPDATA%\cursor-agent and Antigravity into
+    // %LOCALAPPDATA%\agy\bin; each adds that to the user's PATH, which a process started before
+    // the install does not see.
     const p = win32;
     const home = env.USERPROFILE ?? "";
     const entries = [
@@ -79,6 +82,7 @@ export function runtimePath(
       ...(env.PATH ?? env.Path ?? "").split(";"),
       home && p.join(home, ".local", "bin"),
       env.LOCALAPPDATA && p.join(env.LOCALAPPDATA, "cursor-agent"),
+      env.LOCALAPPDATA && p.join(env.LOCALAPPDATA, "agy", "bin"),
     ];
     return [...new Set(entries.filter(Boolean))].join(";");
   }

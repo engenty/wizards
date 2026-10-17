@@ -210,12 +210,17 @@ function EntryCard({ entry, onOpen }: { entry: MarketplaceEntry; onOpen: () => v
         <Mascot kind={entry.avatar} size={68} />
       </span>
       <div className="min-w-0 pr-20">
-        <div className="flex items-center gap-1.5 font-display font-semibold text-[0.9375rem]">
+        {/* A block, not a flex row: Safari sizes a card too short for a title that wraps in a flex row. */}
+        <div className="font-display font-semibold text-[0.9375rem]">
           {entry.title}
-          {entry.plan === "pro" ? <ProChip /> : null}
+          {entry.plan === "pro" ? (
+            <span className="ml-1.5 inline-flex align-middle">
+              <ProChip />
+            </span>
+          ) : null}
           {entry.starred ? (
             <Star
-              className="size-3.5 shrink-0 fill-amber text-amber"
+              className="ml-1.5 inline size-3.5 fill-amber align-[-2px] text-amber"
               aria-label={t("market.starred")}
             />
           ) : null}
@@ -859,7 +864,7 @@ export function MarketplaceHits({
         {t("market.hits")}
         {search.isFetching ? <Spinner className="size-3.5" /> : null}
       </h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-col gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3">
         {entries.map((e) => (
           <EntryCard key={e.id} entry={e} onOpen={() => setPicked(e.id)} />
         ))}
@@ -898,7 +903,7 @@ export function MarketplaceCards({ entries }: { entries: MarketplaceEntry[] }) {
   return (
     // Two side by side where the chat is wide enough, one under the other in the sidebar.
     <div className="@container mt-3">
-      <div className="grid gap-4 @xl:grid-cols-2">
+      <div className="flex flex-col gap-4 @xl:grid @xl:grid-cols-2">
         {entries.map((e) => (
           <EntryCard key={e.id} entry={e} onOpen={() => setPicked(e.id)} />
         ))}
@@ -952,6 +957,14 @@ export function MarketplaceBrowser({
   const [starred, setStarred] = useState(false);
   const [picked, setPicked] = useState<string | null>(opened ?? null);
   const q = useSettled(query.trim(), 250);
+  // On a phone a search brings its field to the top, so the results below it are on screen.
+  const field = useRef<HTMLLabelElement>(null);
+  useEffect(() => {
+    const el = field.current;
+    if (q && el && window.matchMedia("(max-width: 639px)").matches) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [q]);
 
   const search = useInfiniteQuery({
     queryKey: ["marketplace", lang, q, filters, starred],
@@ -1075,7 +1088,10 @@ export function MarketplaceBrowser({
 
   return (
     <div>
-      <label className="relative mx-auto flex h-10 max-w-md items-center gap-2.5 rounded-full bg-card px-4 shadow-soft ring-1 ring-border-soft transition focus-within:ring-2 focus-within:ring-focus sm:h-11">
+      <label
+        ref={field}
+        className="relative mx-auto flex h-10 max-w-md scroll-mt-4 items-center gap-2.5 rounded-full bg-card px-4 shadow-soft ring-1 ring-border-soft transition focus-within:ring-2 focus-within:ring-focus sm:h-11"
+      >
         {thinking ? (
           <Spinner className="size-4 shrink-0 text-ink-3" />
         ) : (
@@ -1159,7 +1175,8 @@ export function MarketplaceBrowser({
         </span>
       </div>
       {shown.length ? (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        // On a phone a column, not a one-track grid: Safari can size a grid row too short.
+        <div className="mt-4 flex flex-col gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((e) => (
             <EntryCard
               key={e.id}

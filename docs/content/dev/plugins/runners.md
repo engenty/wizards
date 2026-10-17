@@ -175,7 +175,7 @@ That conversation is the same on every messenger; the SDK holds it, and a plugin
 surface: how a question is drawn there, how a file is fetched.
 
 ```ts
-import { ThreadDoor, type ThreadSurface } from "@engenty-wizards/plugin-sdk/thread";
+import { ThreadDoor, type ThreadSurface } from "@engenty/wizards/plugin/thread";
 
 const surface: ThreadSurface = {
   runner: "sms",

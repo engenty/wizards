@@ -191,6 +191,7 @@ class AppleModel extends HarnessModel {
   protected override readonly nativeSchema = true;
   /** The helper calls no tools: a call with tools answers from the prompt alone. */
   protected override readonly usesTools = false;
+  protected override readonly searchesWeb = false;
 
   protected async invoke(call: HarnessCall): Promise<HarnessAnswer> {
     const { stdout, stderr, code } = await runClient(APPLE_BIN, ["generate"], {

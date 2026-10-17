@@ -32,7 +32,7 @@ has the WordPress plugin: see [WordPress](./wordpress.md).
 | Cursor | yes | `cursor` |
 | VS Code (Copilot) | yes | `vscode` |
 | Windsurf | no | `windsurf` |
-| Gemini CLI | no | `gemini` |
+| Antigravity | no | `antigravity` |
 | Goose | yes | `goose` |
 | OpenClaw | no | `openclaw` |
 | LM Studio | no | `lm-studio` |

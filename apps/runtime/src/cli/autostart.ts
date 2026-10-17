@@ -138,6 +138,21 @@ async function windowsState(): Promise<Autostart> {
   }
 }
 
+/** The Windows login item, as the uninstall names it; null without one. */
+export async function windowsLoginItem(): Promise<string | null> {
+  const state = await windowsState();
+  if (!("on" in state) || !state.on) {
+    return null;
+  }
+  return state.how === STARTUP_HOW ? startupShortcut() : `the scheduled task “${TASK}”`;
+}
+
+/** Takes the scheduled task and the Startup shortcut away. */
+export async function removeWindowsLoginItem(): Promise<void> {
+  await run("schtasks", ["/Delete", "/F", "/TN", TASK], { timeout: 10_000 }).catch(() => undefined);
+  rmSync(startupShortcut(), { force: true });
+}
+
 async function setWindows(paths: Layout, on: boolean): Promise<Autostart> {
   await run("schtasks", ["/Delete", "/F", "/TN", TASK], { timeout: 10_000 }).catch(() => undefined);
   rmSync(startupShortcut(), { force: true });

@@ -1,7 +1,134 @@
 [
   {
+    "version": "v0.7.7",
+    "timestamp": 1792263897,
+    "commits": [
+      {
+        "id": "4b6e71a",
+        "message": "run wizards inside OpenUI chats (#43)",
+        "group": "Added",
+        "scope": "openui",
+        "breaking": false
+      },
+      {
+        "id": "94b6cd5",
+        "message": "code mode – a step's tools from one program in QuickJS (#49)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "b1c29bb",
+        "message": "triggers and starts – a wizard that starts by itself (#46)",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.6",
+    "timestamp": 1792250533,
+    "commits": [
+      {
+        "id": "b730bc5",
+        "message": "sandbox engines installed apart from the package, starting with agentOS 0.4 (#45)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.5",
+    "timestamp": 1792246541,
+    "commits": [
+      {
+        "id": "4164d75",
+        "message": "`npx wizards` downloads a small launcher; the runtime is published as @engenty/wizards-runtime (#39)",
+        "group": "Added",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.4",
+    "timestamp": 1792239952,
+    "commits": [
+      {
+        "id": "dc773cd",
+        "message": "one package for code outside the repo, @engenty/wizards, with plugins at /plugin (#44)",
+        "group": "Changed",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "a51221e",
+        "message": "wizards in generative UI chats",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "9c08359",
+        "message": "replace Gemini CLI with Antigravity as the Google AI client (#42)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "4896ef8",
+        "message": "test each own key on its own, without picking models (#41)",
+        "group": "Added",
+        "scope": "setup",
+        "breaking": false
+      },
+      {
+        "id": "bcd9a04",
+        "message": "onboarding for people on their own, browser Back, and answers that survive a reload (#40)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.3",
+    "timestamp": 1792067211,
+    "commits": [
+      {
+        "id": "85184a6",
+        "message": "template cards on a phone in a column with a block title (Safari cut the footer off a card whose title wraps); a search brings its field to the top so results show",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "03026c9",
+        "message": "onboarding sign-in a new person can finish or skip (#38)",
+        "group": "Fixed",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.2",
+    "timestamp": 1792064386,
+    "commits": [
+      {
+        "id": "1f29bc7",
+        "message": "on a phone the read-only note leaves the top (a lock on the tabs instead); with the keyboard up the run page drops its bar, shrinks the title and keeps the focused field above Weiter",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.7.1",
-    "timestamp": 1792058127,
+    "timestamp": 1792058130,
     "commits": [
       {
         "id": "5842af1",

@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "@engenty-wizards/plugin-sdk": "workspace:*",
+    "@engenty/wizards": "workspace:*",
     "@engenty-wizards/web": "workspace:*",
     "@tanstack/react-query": "^5.104.0",
     "@types/react": "^19.3.0",

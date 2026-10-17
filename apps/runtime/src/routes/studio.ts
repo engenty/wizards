@@ -98,6 +98,8 @@ import {
   modelSettings,
   saveLocalModels,
   saveModels,
+  setUpKey,
+  setUpOllama,
   storedKey,
   textModel,
 } from "../models.js";
@@ -245,6 +247,13 @@ type Vars = { Variables: { user: SessionUser } };
 async function testedSources(): Promise<string[]> {
   const tested = await readSetting<unknown>("setup-done");
   return Array.isArray(tested) ? (tested as string[]) : [];
+}
+
+async function markTested(source: string) {
+  const tested = await testedSources();
+  if (!tested.includes(source)) {
+    await writeSetting("setup-done", [...tested, source]);
+  }
 }
 
 /**
@@ -1660,6 +1669,32 @@ export const studio = new Hono<Vars>()
       .parse(await c.req.json());
     return c.json(await testClass(cls, lang));
   })
+  // The setup's test of one key, or of Ollama: a working one is put to use and ends the setup.
+  .post("/local/keys/:provider", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const provider = z.enum(LOCAL_KEYS).parse(c.req.param("provider"));
+    const { key } = z
+      .object({ key: z.string().max(400).optional() })
+      .parse(await c.req.json().catch(() => ({})));
+    const result = await setUpKey(provider, key, requestLang(c));
+    if (result.ok && result.text) {
+      await markTested("own");
+    }
+    return c.json(result);
+  })
+  .post("/local/ollama", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const { url } = z.object({ url: z.string().url().max(200) }).parse(await c.req.json());
+    const result = await setUpOllama(url, requestLang(c));
+    if (result.ok) {
+      await markTested("own");
+    }
+    return c.json(result);
+  })
   // One short call on a class, as a run would make it: shows that the way to the model is open.
   .post("/local/models/test", async (c) => {
     if (managed) {
@@ -1680,10 +1715,7 @@ export const studio = new Hono<Vars>()
         abortSignal: AbortSignal.timeout(120_000),
       });
       // A working call is what ends the setup — for the source it ran on.
-      const tested = await testedSources();
-      if (!tested.includes(source)) {
-        await writeSetting("setup-done", [...tested, source]);
-      }
+      await markTested(source);
       return c.json({
         ok: true,
         ref: resolved.ref,

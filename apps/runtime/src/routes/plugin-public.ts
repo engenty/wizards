@@ -1,4 +1,4 @@
-import type { PluginPublicRequest, PluginSharedRequest } from "@engenty-wizards/plugin-sdk";
+import type { PluginPublicRequest, PluginSharedRequest } from "@engenty/wizards/plugin";
 import { type Context, Hono } from "hono";
 import { withTenant } from "../db/client.js";
 import { SHARED, tenantOfAddress } from "../plugins/public.js";

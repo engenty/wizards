@@ -138,6 +138,17 @@ describe("signing in with a device code", () => {
     expect(await account.linkedAccount()).toEqual(linked);
   });
 
+  it("ends without an account when the person chose to sign in later", async () => {
+    const code = await device.requestDeviceCode();
+    const later = new AbortController();
+    const asked = polls;
+    const waiting = device.waitForDeviceSignIn(code, { signal: later.signal });
+    later.abort();
+    await expect(waiting).rejects.toMatchObject({ reason: "skipped" });
+    // The pause ended at once, and the token endpoint was not asked again.
+    expect(polls).toBe(asked);
+  });
+
   it("ends when the code expired or the person refused", async () => {
     const code = await device.requestDeviceCode();
     await expect(

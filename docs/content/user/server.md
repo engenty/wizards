@@ -35,7 +35,7 @@ The logs show a link (“Open the studio: …”). Open it once: it signs your b
 | Data | Databases and files are on the `/data` volume. Back that volume up |
 | Models | Your own API keys or Ollama. The subscriptions of AI clients live on your own computer, not on a server |
 | PDF, PNG, browser steps, MP4 | Chromium and ffmpeg are in the image |
-| Code & shell | The sandbox is off in this image, so steps can’t use that tool. `compose.yaml` shows how to switch it on |
+| Code & shell | The sandbox is off in this image, so steps can’t use that tool. `compose.yaml` shows how to switch it on: with Docker, or with agentOS built into the image |
 | Plugins | Put them in a folder that you mount into the container and name in `PLUGINS_DIR` |
 
 ## Update

@@ -1,4 +1,4 @@
-import type { PluginServerApi } from "@engenty-wizards/plugin-sdk";
+import type { PluginServerApi } from "@engenty/wizards/plugin";
 import { and, eq } from "drizzle-orm";
 import { control, controlDb } from "../db/client.js";
 import { currentTenant } from "../tenants/tenant.js";

@@ -205,6 +205,7 @@ const NOTES_EN = {
   downloads: "Downloading {name}",
   runs: "Running: {command}",
   python: "Running Python",
+  runsProgram: "Working through the data in one go",
   drawing: "Drawing an image",
   writesPage: "Writing the page “{title}”",
   searchesDocuments: "Searching the documents: {query}",
@@ -287,6 +288,8 @@ const NOTES_EN = {
   clientNotInstalled:
     "{name} isn’t installed on this computer. Install it under Settings → Models.",
   clientNoCredit: "The account {name} is signed in with has no credit or quota left.",
+  clientAccountNotServed:
+    "{name} no longer serves the account it is signed in with. Sign it in with another account, or choose another way under Settings → Models.",
   anthropicAccountClaudeCode:
     "The Anthropic account Claude Code is signed in with has no credit. Sign Claude Code in with your subscription under Settings → Models.",
   chatgptAccountCodexSigned:
@@ -526,6 +529,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   waitsForSignIn: "Wartet auf deine Anmeldung bei {name}",
   downloads: "Lädt {name} herunter",
   runs: "Führt aus: {command}",
+  runsProgram: "Arbeitet die Daten in einem Zug durch",
   python: "Führt Python aus",
   drawing: "Zeichnet ein Bild",
   writesPage: "Schreibt die Seite „{title}“",
@@ -614,6 +618,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "{name} ist auf diesem Computer nicht installiert. Installiere es unter Einstellungen → Modelle.",
   clientNoCredit:
     "Das Konto, mit dem {name} angemeldet ist, hat kein Guthaben oder Kontingent mehr.",
+  clientAccountNotServed:
+    "{name} bedient das Konto, mit dem es angemeldet ist, nicht mehr. Melde es mit einem anderen Konto an oder wähle unter Einstellungen → Modelle einen anderen Weg.",
   anthropicAccountClaudeCode:
     "Das Anthropic-Konto, mit dem Claude Code angemeldet ist, hat kein Guthaben. Melde Claude Code unter Einstellungen → Modelle mit deinem Abo an.",
   chatgptAccountCodexSigned:
@@ -1003,6 +1009,20 @@ export interface PublicWizard {
   translatable: boolean;
   /** The page in the viewer's language, where it was asked for (`?lang=`); null: the original. */
   translation: Omit<RunTranslation, "results"> | null;
+  /**
+   * What the wizard's pages ask, in order: an AI app that starts the wizard (the OpenUI
+   * component) can fill in what it already knows. The person still sees and sends each page.
+   */
+  fields: PublicField[];
+}
+
+/** A field of a wizard's page, as `PublicWizard.fields` lists it. */
+export interface PublicField {
+  id: string;
+  label: string;
+  kind: string;
+  options?: string[];
+  required?: boolean;
 }
 
 /** The runner's own words in a language outside `LANGS`: `GET /api/public/texts/:lang`. */

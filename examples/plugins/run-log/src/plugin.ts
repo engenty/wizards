@@ -1,4 +1,4 @@
-import { definePlugin, type PluginRunEvent } from "@engenty-wizards/plugin-sdk";
+import { definePlugin, type PluginRunEvent } from "@engenty/wizards/plugin";
 import { count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { entry } from "./schema";

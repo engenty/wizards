@@ -16,7 +16,7 @@ const TABLES = [
   ["packages/shared/src/run.ts", "const NOTES_EN", "const NOTES_DE", "run:"],
   ["packages/shared/src/marketplace.ts", "const MARKET_EN", "const MARKET_DE", "market:"],
   ["packages/shared/src/providers.ts", "const PROVIDER_EN", "const PROVIDER_DE", "provider:"],
-  ["packages/plugin-sdk/src/thread.ts", "const texts.en", "const texts.de", "thread:"],
+  ["packages/wizards/src/plugin/thread.ts", "const texts.en", "const texts.de", "thread:"],
   ["apps/runtime/src/engine/push.ts", "const TEXT.en", "const TEXT.de", "push:"],
 ];
 
@@ -219,7 +219,7 @@ const SOURCE_DIRS = [
   "apps/runtime/src",
   "packages/runner/src",
   "packages/shared/src",
-  "packages/plugin-sdk/src",
+  "packages/wizards/src",
 ];
 // German that is no UI copy: [file or folder, a piece of the line (none: all of it), why].
 const NOT_COPY = [

@@ -1,4 +1,4 @@
-import type { StudioSpaceGroup } from "@engenty-wizards/plugin-sdk/studio";
+import type { StudioSpaceGroup } from "@engenty/wizards/plugin/studio";
 import {
   ALargeSmall,
   BookOpen,

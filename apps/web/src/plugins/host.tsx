@@ -12,8 +12,8 @@ import type {
   StudioSpaceMenuEntry,
   StudioSpacePart,
   StudioSpaceSection,
-} from "@engenty-wizards/plugin-sdk/studio";
-import * as sdk from "@engenty-wizards/plugin-sdk/studio";
+} from "@engenty/wizards/plugin/studio";
+import * as sdk from "@engenty/wizards/plugin/studio";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import {

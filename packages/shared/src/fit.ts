@@ -55,6 +55,12 @@ export interface StepNeed {
 /** What the standalone runner can hand over of a thinking step's text itself. */
 const BASE_FORMATS: ReadonlySet<Format> = new Set(["html", "md", "txt", "csv", "json"]);
 
+/**
+ * A program over the step's tools: where programs do not run, the step calls its tools one by
+ * one and loses nothing. No need at all.
+ */
+const OPTIONAL_TOOLS: ReadonlySet<ToolId> = new Set(["code"]);
+
 /** Tools the standalone runner has no way to run; `pages` only reads the space's pages, which it lacks. */
 const HARD_TOOLS: ReadonlySet<ToolId> = new Set(["web_search", "browser", "sandbox", "image"]);
 
@@ -156,8 +162,8 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
         const plugin = pluginToolOf(tool);
         if (plugin) {
           add(`plugin:${plugin.plugin}`, true);
-        } else if (RUNNER_TOOLS.has(tool as ToolId)) {
-          // The site runs it.
+        } else if (RUNNER_TOOLS.has(tool as ToolId) || OPTIONAL_TOOLS.has(tool as ToolId)) {
+          // The site runs it, or the step does without.
         } else if (HARD_TOOLS.has(tool as ToolId)) {
           add(`tool:${tool as ToolId}`, true);
         } else {

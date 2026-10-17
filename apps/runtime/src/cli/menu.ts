@@ -171,7 +171,7 @@ export async function menu(
   help: string,
 ): Promise<number> {
   if (!readInstallNote(paths).setupAt) {
-    if (!(await setup(paths, setupOptions))) {
+    if (!(await setup(paths, { ...setupOptions, next: "menu" }))) {
       return 130;
     }
   }

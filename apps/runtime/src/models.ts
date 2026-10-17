@@ -15,9 +15,12 @@ import {
   type TextClass,
 } from "@engenty-wizards/shared/definition";
 import {
+  CAPABILITY_CLASSES,
   type CreditModel,
   creditsModelOf,
   isCreditsRef,
+  type ModelCapability,
+  type ModelOption,
   PROVIDER_IDS,
   type ProviderId,
   providerInfo,
@@ -67,7 +70,7 @@ import { serverText } from "./texts.js";
 export { isHarnessVendor } from "./harness/index.js";
 /**
  * A step names a model class, never a model. Where the class runs is decided here, in this order:
- *  1. its own way: an AI client installed on the machine (Claude Code, Codex, Gemini CLI, Cursor
+ *  1. its own way: an AI client installed on the machine (Claude Code, Codex, Antigravity, Cursor
  *     Agent — on its subscription), an API key the person brought (OpenAI, Anthropic, Google,
  *     fal.ai, ElevenLabs, Replicate, AI Gateway) or a local model;
  *  2. credits: the model-gateway binds `wizards/<class>`, meters the call and books it — on the
@@ -1264,6 +1267,86 @@ export async function checkKey(
       message: serverText(lang, "providerUnreachable"),
     };
   }
+}
+
+/** What a key or a local model of the setup now does: whether it works, and the text model it runs. */
+export interface SetupOutcome {
+  ok: boolean;
+  message: string | null;
+  /** The model the Standard class now runs on without credits; null where none. */
+  text: string | null;
+}
+
+/**
+ * Of these bindings, the ones for classes that run on nothing of this machine's own yet: a key
+ * the setup tested is a key in use. Classes on a key, a client or a local model keep theirs —
+ * choosing between them is for the settings.
+ */
+function freeClasses(
+  bindings: Partial<Record<ModelClass, string>>,
+): Partial<Record<ModelClass, string>> {
+  return Object.fromEntries(
+    Object.entries(bindings).filter(([cls]) => !ownRef(local, cls as ModelClass)),
+  );
+}
+
+const setupOutcome = (): SetupOutcome => ({
+  ok: true,
+  message: null,
+  text: ownRef(local, "standard") || null,
+});
+
+/** The setup's test of one key: checked with the provider, stored, and put to use. */
+export async function setUpKey(
+  name: LocalKey,
+  key: string | undefined,
+  lang: Lang = "en",
+): Promise<SetupOutcome> {
+  const value = key?.trim() || local.keys[name];
+  if (!value) {
+    return { ok: false, message: serverText(lang, "keyUnknown"), text: null };
+  }
+  const checked = await checkKey(name, value, lang);
+  if (!checked.ok) {
+    return { ...checked, text: null };
+  }
+  const provider = providerInfo(name);
+  const offered: Partial<Record<ModelClass, string>> = { ...provider?.text };
+  for (const [cap, models] of Object.entries(provider?.models ?? {}) as [
+    ModelCapability,
+    ModelOption[] | undefined,
+  ][]) {
+    const first = models?.[0]?.ref;
+    if (cap !== "text" && first) {
+      for (const cls of CAPABILITY_CLASSES[cap]) {
+        offered[cls] = first;
+      }
+    }
+  }
+  // Free before the key is stored: a key can make a default reachable that it would not name.
+  await saveLocalModels({ keys: { [name]: value }, bindings: freeClasses(offered) });
+  return setupOutcome();
+}
+
+/** The setup's test of Ollama: it answers at the address and has a model to think with. */
+export async function setUpOllama(url: string, lang: Lang = "en"): Promise<SetupOutcome> {
+  const base = url.trim().replace(/\/+$/, "");
+  let models: string[];
+  try {
+    const res = await fetch(`${base}/models`, { signal: AbortSignal.timeout(5_000) });
+    const body = (await res.json()) as { data?: { id: string }[] };
+    models = (body.data ?? []).map((m) => m.id);
+  } catch {
+    return { ok: false, message: serverText(lang, "ollamaUnreachable"), text: null };
+  }
+  if (!models.length) {
+    return { ok: false, message: serverText(lang, "ollamaNoModel"), text: null };
+  }
+  const bound = local.settings.bindings.standard?.replace(/^ollama:/, "");
+  const model = bound && models.includes(bound) ? bound : models[0];
+  const text = Object.fromEntries(TEXT_CLASSES.map((c) => [c, `ollama:${model}`]));
+  await saveLocalModels({ ollamaUrl: base, bindings: freeClasses(text) });
+  return setupOutcome();
 }
 
 // --- Pricing ---------------------------------------------------------------

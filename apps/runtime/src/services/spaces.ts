@@ -13,6 +13,7 @@ import { db, inTransaction, schema } from "../db/client.js";
 import { missingModels, unavoidableSteps } from "../engine/requirements.js";
 import { env } from "../env.js";
 import { spaceChanged } from "../plugins/events.js";
+import { sandboxEngine } from "../sandbox/index.js";
 import { codeOf, putLink } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { asSync, mayBuild } from "./access.js";
@@ -150,7 +151,7 @@ export async function serverProblems(
       detail: `${missing.cls}: ${missing.problem}`,
     });
   }
-  if (env.sandbox === "off") {
+  if (!sandboxEngine()) {
     const steps = stepsWith(def, (s) => s.type === "agent" && s.tools.includes("sandbox"));
     if (steps.length) {
       problems.push({ code: "sandbox", blocking: false, steps, detail: "" });

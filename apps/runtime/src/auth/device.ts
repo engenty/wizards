@@ -31,7 +31,7 @@ export interface DeviceCode {
 /** Why a sign-in ended without an account; the message is for the person. */
 export class DeviceSignInError extends Error {
   constructor(
-    readonly reason: "expired" | "denied" | "refused" | "unreachable",
+    readonly reason: "expired" | "denied" | "refused" | "unreachable" | "skipped",
     message: string,
   ) {
     super(message);
@@ -89,7 +89,19 @@ export async function requestDeviceCode(): Promise<DeviceCode> {
   };
 }
 
-const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+/** A pause that ends early when the signal aborts. */
+const pause = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((done) => {
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        done();
+      },
+      { once: true },
+    );
+  });
 
 /**
  * Asks the token endpoint until the person allowed the code in the browser, and keeps the
@@ -99,13 +111,21 @@ const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
  */
 export async function waitForDeviceSignIn(
   code: DeviceCode,
-  options: { wait?: (ms: number) => Promise<void> } = {},
+  options: {
+    wait?: (ms: number, signal?: AbortSignal) => Promise<void>;
+    /** Ends the wait without an account: the person chose to sign in later. */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<LinkedAccount> {
   const wait = options.wait ?? pause;
+  const { signal } = options;
   let interval = code.interval;
   let failures = 0;
   for (;;) {
-    await wait(interval * 1000);
+    await wait(interval * 1000, signal);
+    if (signal?.aborted) {
+      throw new DeviceSignInError("skipped", "Skipped the sign-in.");
+    }
     if (Date.now() >= code.expiresAt) {
       throw new DeviceSignInError("expired", "The code has expired. Start the sign-in again.");
     }

@@ -31,7 +31,7 @@ put(
 );
 put(
   "atlas/src/plugin.ts",
-  `import { definePlugin } from "@engenty-wizards/plugin-sdk";
+  `import { definePlugin } from "@engenty/wizards/plugin";
 import { z } from "zod";
 
 const seen = ((globalThis as any).__atlas ??= { events: [], ticks: [] });

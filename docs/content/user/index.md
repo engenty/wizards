@@ -15,7 +15,7 @@ briefing, an invoice, a quote, a damage report.
 | **Describe it** | You say in plain words what the wizard should do. The assistant builds the flow, and you see it as a diagram and can change any step. |
 | **Let AI steps work** | They research the web, write, draw images, render video, read PDFs, scans and emails, build documents and dashboards, and write into other services. Anything that changes an account asks first. |
 | **Share a link** | Anyone can run the wizard in a browser, on a phone too. Results download as PDF, Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link. |
-| **In the cloud, or on your computer** | You sign up and build in the browser, and links run on your team’s credits. Or you install it on your computer: there it runs on Codex, Claude Code, Gemini CLI or Cursor Agent with your own subscription, on your own API keys or on a local model, and your files stay with you. |
+| **In the cloud, or on your computer** | You sign up and build in the browser, and links run on your team’s credits. Or you install it on your computer: there it runs on Codex, Claude Code, Antigravity or Cursor Agent with your own subscription, on your own API keys or on a local model, and your files stay with you. |
 
 ## Where to start
 

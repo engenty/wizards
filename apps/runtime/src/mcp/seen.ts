@@ -16,7 +16,7 @@ const CLIENT_NAMES: [id: string, name: RegExp][] = [
   // Cursor calls itself cursor-vscode.
   ["vscode", /^(?!.*cursor).*(visual studio code|vs ?code)/i],
   ["windsurf", /windsurf|codeium/i],
-  ["gemini", /gemini/i],
+  ["antigravity", /antigravity|\bagy\b/i],
   ["goose", /goose/i],
   ["openclaw", /openclaw/i],
   ["lm-studio", /lm[- ]?studio/i],

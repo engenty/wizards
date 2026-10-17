@@ -20,7 +20,7 @@ Start the app. It creates the folder if it is missing and watches it while it ru
 Save this as `workdays.ts` in the plugins folder:
 
 ```ts
-import { definePlugin } from "@engenty-wizards/plugin-sdk";
+import { definePlugin } from "@engenty/wizards/plugin";
 import { z } from "zod";
 
 export default definePlugin((wizards) => {
@@ -50,7 +50,7 @@ export default definePlugin((wizards) => {
 
 - The file’s name is the plugin’s id: `workdays`.
 - The tool’s full id is `workdays.count`.
-- `@engenty-wizards/plugin-sdk` and `zod` come from the app, so you don’t install anything.
+- `@engenty/wizards/plugin` and `zod` come from the app, so you don’t install anything.
 
 ## 3. See it
 

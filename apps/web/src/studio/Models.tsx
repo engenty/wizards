@@ -218,7 +218,7 @@ function choiceOf(state: ModelsState, cap: ModelCapability, place: Place): Choic
   if (provider) {
     return { kind: "key", provider };
   }
-  if (bound && /^(claude|codex|gemini|cursor)\//.test(bound)) {
+  if (bound && /^(claude|codex|antigravity|cursor)\//.test(bound)) {
     return { kind: "client", id: bound.split("/")[0] as HarnessId };
   }
   const way = state.ways[cls];

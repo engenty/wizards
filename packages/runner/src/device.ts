@@ -20,19 +20,37 @@ export function useKeyboardInset() {
       return;
     }
     const root = document.documentElement;
+    // The field being typed in stays in sight: above the bar on the keyboard (its
+    // scroll-margin, app.css), once the keyboard is up and on every move to another field.
+    const reveal = () => {
+      const el = document.activeElement;
+      if (
+        root.classList.contains("keyboard-open") &&
+        el instanceof HTMLElement &&
+        el !== document.body
+      ) {
+        requestAnimationFrame(() => el.scrollIntoView({ block: "nearest" }));
+      }
+    };
     const update = () => {
       // Pinch-zoom shrinks the visual viewport too; only an unzoomed page measures the keyboard.
       const covered = vv.scale > 1.01 ? 0 : window.innerHeight - vv.height - vv.offsetTop;
       const open = covered > 80;
+      const opened = open && !root.classList.contains("keyboard-open");
       root.style.setProperty("--kb", open ? `${Math.round(covered)}px` : "0px");
       root.classList.toggle("keyboard-open", open);
+      if (opened) {
+        reveal();
+      }
     };
     update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
+    document.addEventListener("focusin", reveal);
     return () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
+      document.removeEventListener("focusin", reveal);
       root.style.removeProperty("--kb");
       root.classList.remove("keyboard-open");
     };

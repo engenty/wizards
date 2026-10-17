@@ -8,7 +8,7 @@ The server half is a file whose default export is a function. The runtime calls 
 plugin loads and hands it `wizards`. The function registers what the plugin adds.
 
 ```ts
-import { definePlugin } from "@engenty-wizards/plugin-sdk";
+import { definePlugin } from "@engenty/wizards/plugin";
 
 export default definePlugin((wizards) => {
   const { server } = wizards;
@@ -275,7 +275,7 @@ are no half-loaded plugins. Settings → Plugins shows the error, and the plugin
 
 ## Imports
 
-`@engenty-wizards/plugin-sdk` (and `@engenty-wizards/plugin-sdk/thread`), `zod`, `drizzle-orm` and
+`@engenty/wizards/plugin` (and `@engenty/wizards/plugin/thread`), `zod`, `drizzle-orm` and
 `drizzle-orm/sqlite-core` come from the runtime’s own copies, so a schema or a table a plugin
 makes is one the runtime understands. See [Files and manifest](./layout.md#dependencies) for
 everything else.

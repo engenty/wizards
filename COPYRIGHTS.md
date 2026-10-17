@@ -42,6 +42,7 @@ Declared by two or more of the workspaces below:
 
 | Package | Version | Licence |
 |---|---|---|
+| @engenty/wizards |  | Unknown |
 | [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.2.0 | MIT |
 | [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.3 | MIT |
 | [dompurify](https://github.com/cure53/DOMPurify) | 3.4.16 | (MPL-2.0 OR Apache-2.0) |
@@ -82,6 +83,7 @@ Declared by two or more of the workspaces below:
 | [@mastra/core](https://mastra.ai) | 1.77.0 | Apache-2.0 |
 | [@mastra/docker](https://mastra.ai) | 0.8.0 | Apache-2.0 |
 | [@mastra/mcp](https://mastra.ai) | 2.4.0 | Apache-2.0 |
+| [@mastra/quickjs](https://mastra.ai) | 0.1.3 | Apache-2.0 |
 | [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.2.0 | MIT |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 0.1.80 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.1 | MIT |
@@ -103,7 +105,7 @@ Declared by two or more of the workspaces below:
 | [postal-mime](https://postal-mime.postalsys.com) | 4.0.2 | MIT-0 |
 | [rfc6902](https://github.com/chbrown/rfc6902) | 5.3.0 | MIT |
 | [turndown](https://github.com/mixmark-io/turndown#readme) | 7.2.4 | MIT |
-| [undici](https://undici.nodejs.org) | 8.11.2 | MIT |
+| [undici](https://undici.nodejs.org) | 8.12.2 | MIT |
 
 ### web (apps/web)
 
@@ -131,6 +133,7 @@ Used to build, check and test; not part of what people run:
 | Package | Version | Licence |
 |---|---|---|
 | [@biomejs/biome](https://biomejs.dev) | 2.5.0 | MIT OR Apache-2.0 |
+| [@openuidev/react-lang](https://openui.com) | 1.0.1 | MIT |
 | [@tailwindcss/postcss](https://tailwindcss.com) | 4.3.3 | MIT |
 | [@tailwindcss/vite](https://tailwindcss.com) | 4.3.3 | MIT |
 | [@types/mdx](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/mdx) | 2.0.14 | MIT |
@@ -144,6 +147,7 @@ Used to build, check and test; not part of what people run:
 | [concurrently](https://github.com/open-cli-tools/concurrently#readme) | 10.0.6 | MIT |
 | [drizzle-kit](https://orm.drizzle.team) | 0.31.11 | MIT |
 | [git-cliff](https://github.com/orhun/git-cliff#readme) | 2.14.2 | MIT OR Apache-2.0 |
+| [jsdom](https://github.com/jsdom/jsdom#readme) | 30.1.3 | MIT |
 | [postcss](https://postcss.org/) | 8.5.28 | MIT |
 | [tailwindcss](https://tailwindcss.com) | 4.3.3 | MIT |
 | [tsx](https://tsx.hirok.io) | 4.23.15 | MIT |

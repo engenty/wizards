@@ -1,4 +1,4 @@
-import type { WizardsPluginFactory } from "@engenty-wizards/plugin-sdk";
+import type { WizardsPluginFactory } from "@engenty/wizards/plugin";
 
 /**
  * A plugin of one file: it posts a line to NOTIFY_URL whenever a shared wizard was run to its

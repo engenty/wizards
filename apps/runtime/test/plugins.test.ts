@@ -30,7 +30,7 @@ function put(path: string, content: string) {
 
 put(
   "notify.ts",
-  `import type { WizardsPluginFactory } from "@engenty-wizards/plugin-sdk";
+  `import type { WizardsPluginFactory } from "@engenty/wizards/plugin";
 const plugin: WizardsPluginFactory = (wizards) => {
   wizards.server.on("run.done", ({ run, wizard, values }) => {
     ((globalThis as any).__notified ??= []).push({ run: run.id, mode: run.mode, title: wizard.title, values });
@@ -69,7 +69,7 @@ export const entry = sqliteTable("guestbook_entry", {
 `,
 );
 put("guestbook/src/greeting.ts", `export const GREETING = "hello";\n`);
-const guestbook = (extra = "") => `import { definePlugin } from "@engenty-wizards/plugin-sdk";
+const guestbook = (extra = "") => `import { definePlugin } from "@engenty/wizards/plugin";
 import { count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { GREETING } from "./greeting";
@@ -163,6 +163,7 @@ put("guestbook/src/plugin.ts", guestbook());
 put("guestbook/dist/client.js", "var __wizardsPlugin_guestbook = function () {};\n");
 put("guestbook/dist/client.css", "[data-plugin=guestbook] .x{color:red}\n");
 
+// Written against the name plugins imported before `@engenty/wizards/plugin`: it still loads.
 put(
   "kiosk.ts",
   `import { definePlugin } from "@engenty-wizards/plugin-sdk";

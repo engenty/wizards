@@ -6,9 +6,9 @@ version: 0.5.0
 
 ## Server half
 
-`import { definePlugin } from "@engenty-wizards/plugin-sdk"`
+`import { definePlugin } from "@engenty/wizards/plugin"`
 
-`import { ThreadDoor } from "@engenty-wizards/plugin-sdk/thread"`: a wizard run in a
+`import { ThreadDoor } from "@engenty/wizards/plugin/thread"`: a wizard run in a
 messenger’s thread, one message at a time, for which a plugin brings the surface. See
 [Runners](./runners.md#a-thread-door-from-the-sdk).
 
@@ -241,7 +241,7 @@ interface PluginRunEvent {
 
 ## Studio half
 
-`import { defineStudioPlugin } from "@engenty-wizards/plugin-sdk/studio"`
+`import { defineStudioPlugin } from "@engenty/wizards/plugin/studio"`
 
 The default export is a `StudioPlugin`: `(studio: StudioPluginContext) => void`.
 
@@ -340,7 +340,7 @@ In the install’s `.env`:
 
 | | |
 |---|---|
-| `packages/plugin-sdk/src/` | The types, with their comments |
+| `packages/wizards/src/plugin/` | The types, with their comments |
 | `apps/runtime/src/plugins/` | Finding, loading, tables, events |
 | `apps/runtime/src/routes/plugins.ts` | The addresses above; `apps/runtime/src/routes/api.ts` the ones for programs |
 | `apps/web/src/plugins/` | The studio’s side |

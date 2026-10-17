@@ -177,7 +177,8 @@ export function RunDrawer({
             <span className="-translate-y-1/2 absolute top-1/2 left-[7px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
           </div>
         )}
-        <div className="flex h-14 shrink-0 items-center gap-3 px-4">
+        {/* On a phone with the keyboard up the bar goes: the field gets its room. */}
+        <div className="kb-hide flex h-14 shrink-0 items-center gap-3 px-4">
           <div className="flex min-w-0 flex-1 items-center gap-3">{header}</div>
           <div className="flex items-center gap-1">
             {actions}

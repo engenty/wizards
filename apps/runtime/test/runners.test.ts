@@ -147,6 +147,16 @@ describe("how a wizard is offered", () => {
     ]);
   });
 
+  it("lists what the pages ask, so an AI app can fill in what it knows", async () => {
+    const body = await (await get(`/api/public/wizards/${token}`)).json();
+    expect(body.fields).toEqual([
+      { id: "name", label: "Name", kind: "text", required: true },
+      { id: "mail", label: "E-Mail", kind: "email" },
+      { id: "photos", label: "Fotos", kind: "image" },
+      { id: "sign", label: "Unterschrift", kind: "signature" },
+    ]);
+  });
+
   it("the owner picks what the link opens and switches runners off", async () => {
     await client.withTenant("tenant-a", () =>
       wizards.updateWizardSettings("user-a", wizardId, {

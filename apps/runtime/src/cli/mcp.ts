@@ -9,7 +9,7 @@ import { tilde } from "./ui.js";
 /**
  * `wizards mcp`: this install's MCP server over stdio, for AI clients that start their
  * servers as a command — Claude Desktop, Cursor, Codex and the ChatGPT app, VS Code, Windsurf,
- * Gemini CLI, Goose, OpenClaw, LM Studio. Each message goes on to the running runtime's
+ * Antigravity, Goose, OpenClaw, LM Studio. Each message goes on to the running runtime's
  * `/api/mcp`, signed with the data folder's secret, so no client's config holds a key and a new
  * port after a restart changes nothing. When nothing runs, the runtime is started.
  *

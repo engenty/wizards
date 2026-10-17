@@ -25,7 +25,8 @@ npx wizards
 ```
 
 All three do the same. On Windows, if PowerShell refuses `npx` (“running scripts is disabled
-on this system”), type `npx.cmd wizards`. `npx wizards` runs the installer it brings along, then the setup, then the
+on this system”), type `npx.cmd wizards`. `npx wizards` downloads only a small launcher (no
+dependencies) and runs the installer it brings along, then the setup, then the
 `wizards` menu, where “Start as service” starts it and opens the studio. Run again, it hands over
 to the installed `wizards`, and brings an older install up to its own version first.
 
@@ -38,8 +39,8 @@ it, and Windows asks once whether it may. It brings its own Node.js
 
 | Step | What it does |
 |---|---|
-| Your engenty account | Asks “Sign in now?”. If you say yes, it shows a link and a code and opens your browser for the sign-in at account.engenty.ai (if you have no account yet, the page takes an invitation code). Once you are signed in, what you publish on this computer runs in the cloud too. If you say no, `wizards account sign-in` does it any time. `--local` leaves the account out altogether: see [Local only](./local-only.md) |
-| An AI client | Looks for Codex, Claude Code, Gemini CLI and Cursor Agent and offers to install the ones that are missing. It puts first the one whose app (ChatGPT, Claude, Cursor) is on your Mac, as you most likely have that subscription already. You can also use your account’s credits, an API key, [Ollama](https://ollama.com) or, on a Mac with Apple silicon and macOS 26, Apple Intelligence: the studio’s [first page](./first-start.md) offers them |
+| Your engenty account | Asks “Sign in or create your account now?”. If you say yes, it shows a link and a code and opens your browser for the sign-in at account.engenty.ai; check that the page shows the same code (if you have no account yet, the page creates one with your invitation code, or puts you on the waitlist). While it waits, Enter opens the page again and Esc goes on without an account. Once you are signed in, what you publish on this computer runs in the cloud too. If you say no, `wizards account sign-in` does it any time. Setting it up again with `--local` signs an account out. `--local` leaves the account out altogether: see [Local only](./local-only.md) |
+| An AI client | Looks for Codex, Claude Code, Antigravity and Cursor Agent and offers to install the ones that are missing. It puts first the one whose app (ChatGPT, Claude, Antigravity, Cursor) is on your Mac, as you most likely have that subscription already. You can also use your account’s credits, an API key, [Ollama](https://ollama.com) or, on a Mac with Apple silicon and macOS 26, Apple Intelligence: the studio’s [first page](./first-start.md) offers them |
 | A browser and ffmpeg | Names the browser for PDF and PNG exports and steps on websites: the first of Chrome, Edge and Chromium it finds (on a Mac also Brave). engenty wizards uses that one; [`CHROME_PATH`](./command-line.md#settings) picks another. It also says whether ffmpeg is there for MP4 videos of animated widgets, and with Homebrew it offers to install it |
 | Start at login (optional) | engenty wizards starts in the background when you log in, so links and AI apps can always reach it. It is a LaunchAgent on a Mac, a systemd user service on Linux and a scheduled task on Windows (a shortcut in the Startup folder where Windows allows no task) |
 | Your AI apps (optional) | Offers to add your wizards to the [AI apps](./ai-apps.md) it finds, such as Claude Desktop, Cursor or Codex |
@@ -120,7 +121,8 @@ engenty wizards that is running, the program in `~/.engenty/wizards` and the com
 it, and installing again picks it up. [Back it up](./data.md) first if you delete it. At the end
 it lists anything it couldn’t remove.
 
-If the `wizards` command no longer runs, `npx wizards uninstall` does the same.
+If the `wizards` command is no longer on your path, `npx wizards uninstall` hands over to the
+installed one.
 
 | Option | What it does |
 |---|---|

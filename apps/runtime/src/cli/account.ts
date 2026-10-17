@@ -89,7 +89,8 @@ export function described(
 ): string {
   const parts = [account.name || account.email];
   if (team) {
-    parts.push(`team ${team.name}`);
+    // "Team Anna" and "New team" say it themselves: not "team Team Anna".
+    parts.push(/\bteam\b/i.test(team.name) ? team.name : `team ${team.name}`);
     if (credits) {
       parts.push(`${team.balanceCredits} credits`);
     }
@@ -137,11 +138,59 @@ async function status(): Promise<number> {
   return 0;
 }
 
+/** A code as people read it off a screen: ABCD-EFGH. */
+export function groupedCode(code: string): string {
+  const plain = code.replace(/[\s-]+/g, "").toUpperCase();
+  return plain.length === 8 ? `${plain.slice(0, 4)}-${plain.slice(4)}` : code;
+}
+
+/** Whether a new account needs an invitation code, as the account's own pages say. */
+async function signupByCode(): Promise<boolean> {
+  try {
+    const res = await fetch(`${env.local.accountUrl}/api/config`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    return ((await res.json()) as { signup?: string }).signup === "code";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Enter and Esc on a terminal while it waits for the browser (Ctrl-C stays the spinner's: it
+ * ends the command). Returns what gives the keys back.
+ */
+function onKeys(keys: { enter: () => void; escape: () => void }) {
+  const input = process.stdin;
+  if (!input.isTTY) {
+    return () => undefined;
+  }
+  const raw = input.isRaw;
+  input.setRawMode(true);
+  input.resume();
+  const read = (data: Buffer) => {
+    const key = data.toString();
+    if (key === "\r" || key === "\n") {
+      keys.enter();
+    } else if (key === "\x1b") {
+      keys.escape();
+    }
+  };
+  input.on("data", read);
+  return () => {
+    input.off("data", read);
+    input.setRawMode(raw);
+    input.pause();
+  };
+}
+
 /**
  * The device flow on the terminal: the link and the code, the browser opened where there is
- * one, then a wait while the person allows it. Null when it ended without an account.
+ * one, then a wait while the person signs in, or creates their account, and allows it. On a
+ * terminal, Enter opens the page again and Esc goes on without an account: someone without an
+ * invitation code yet is not stuck in the wait. Null when it ended without an account.
  */
-async function deviceSignIn(): Promise<LinkedAccount | null> {
+async function deviceSignIn(interactive: boolean): Promise<LinkedAccount | null> {
   let code: Awaited<ReturnType<typeof requestDeviceCode>>;
   try {
     code = await requestDeviceCode();
@@ -149,24 +198,47 @@ async function deviceSignIn(): Promise<LinkedAccount | null> {
     p.log.error((err as Error).message);
     return null;
   }
+  const shown = groupedCode(code.userCode);
+  // The complete link carries the code: the page only asks to check it.
   const link = code.verificationUriComplete ?? code.verificationUri;
-  p.log.message(`Open ${cyan(link)} and enter the code ${bold(code.userCode)}.`);
-  if (openBrowser(link)) {
-    p.log.message(dim("The page opens in your browser."));
-  }
-  const spinner = busy("Waiting for you to confirm in the browser…");
+  p.log.message(
+    code.verificationUriComplete
+      ? `Open ${cyan(link)}\nThe page shows the code ${bold(shown)}: check that it matches.`
+      : `Open ${cyan(link)} and enter the code ${bold(shown)}.`,
+  );
+  const opened = openBrowser(link);
+  const newHere = (await signupByCode())
+    ? "New here? Create your account on that page with your invitation code, or join the waitlist there."
+    : "New here? Your account is created on that page.";
+  const keys = interactive ? "Enter opens the page again · Esc signs in later" : "";
+  p.log.message(
+    dim(
+      [opened ? "The page opens in your browser." : "", newHere, keys].filter(Boolean).join("\n"),
+    ),
+  );
+  const spinner = busy("Waiting for you in the browser…");
+  const later = new AbortController();
+  const release = interactive
+    ? onKeys({ enter: () => void openBrowser(link), escape: () => later.abort() })
+    : () => undefined;
   try {
-    const account = await waitForDeviceSignIn(code);
+    const account = await waitForDeviceSignIn(code, { signal: later.signal });
     const overview = await accountOverview();
     spinner.stop(`Signed in as ${described(account, overview?.tenant ?? null)}.`);
     return account;
   } catch (err) {
+    if (err instanceof DeviceSignInError && err.reason === "skipped") {
+      spinner.stop("Not signed in yet.");
+      return null;
+    }
     spinner.fail(
       err instanceof DeviceSignInError
         ? err.message
         : `The sign-in didn’t work. ${(err as Error).message}`,
     );
     return null;
+  } finally {
+    release();
   }
 }
 
@@ -201,6 +273,13 @@ const SIGNED_IN = "your plan’s Pro modules load and your published wizards arr
 async function signIn(paths: Layout, interactive: boolean): Promise<number> {
   await ready();
   const linked = await linkedAccount();
+  if (linked && isLocalOnly()) {
+    // Set up with --local by an older version, which kept the link: it only needs switching on.
+    joinedAccount(paths);
+    p.log.success(`Signed in as ${described(linked, await knownTeam(), false)} again.`);
+    await pickUp(paths, interactive, SIGNED_IN);
+    return 0;
+  }
   if (linked) {
     p.log.info(
       `Already signed in as ${described(linked, await knownTeam(), false)}. ${dim(
@@ -209,8 +288,9 @@ async function signIn(paths: Layout, interactive: boolean): Promise<number> {
     );
     return 0;
   }
-  const account = await deviceSignIn();
+  const account = await deviceSignIn(interactive);
   if (!account) {
+    p.log.info(dim(`To sign in later: ${cmd("account sign-in")}`));
     return 1;
   }
   joinedAccount(paths);
@@ -219,17 +299,10 @@ async function signIn(paths: Layout, interactive: boolean): Promise<number> {
   return 0;
 }
 
-async function signOut(paths: Layout, interactive: boolean): Promise<number> {
-  const state = await accountState();
-  if (state.kind !== "linked") {
-    console.log(
-      state.kind === "local"
-        ? "No account is connected, so there’s nothing to sign out of."
-        : "Not signed in.",
-    );
-    return 0;
-  }
-  const spinner = busy(`Signing out ${state.account.name || state.account.email}…`);
+/**
+ * Ends the link to the account: the same as the studio's sign-out (DELETE /api/studio/account).
+ */
+async function disconnect(): Promise<void> {
   await unlink();
   // The same as the studio's sign-out (DELETE /api/studio/account): what was sent to the cloud
   // is forgotten, the entitlement goes with the account's plan, and models that ran on its
@@ -246,6 +319,22 @@ async function signOut(paths: Layout, interactive: boolean): Promise<number> {
   if (models.localModelSettings().source === "account") {
     await models.saveLocalModels({ source: "own" });
   }
+}
+
+async function signOut(paths: Layout, interactive: boolean): Promise<number> {
+  await ready();
+  // A link kept from an older --local counts as well: it is still on this computer.
+  const linked = await linkedAccount();
+  if (!linked) {
+    console.log(
+      isLocalOnly()
+        ? "No account is connected, so there’s nothing to sign out of."
+        : "Not signed in.",
+    );
+    return 0;
+  }
+  const spinner = busy(`Signing out ${linked.name || linked.email}…`);
+  await disconnect();
   spinner.stop("Signed out. Your wizards and results stay on this computer.");
   await pickUp(paths, interactive, "it disconnects from the account");
   return 0;
@@ -309,6 +398,14 @@ export async function accountStep(
   interactive: boolean,
 ): Promise<"cancelled" | undefined> {
   if (options.local) {
+    await ready();
+    const linked = await linkedAccount();
+    if (linked) {
+      // "Nothing leaves this computer" holds only without the link.
+      const spinner = busy(`Signing out ${linked.name || linked.email}…`);
+      await disconnect();
+      spinner.stop(`Signed out ${linked.name || linked.email}.`);
+    }
     localOnly(paths);
     p.log.warn(
       `No account: nothing leaves this computer. Your wizards, your space and results stay in ${tilde(settings(paths).dataDir)}. Links work only on this computer.`,
@@ -333,7 +430,10 @@ export async function accountStep(
     p.log.info(dim(`To sign in later: ${cmd("account sign-in")}`));
     return;
   }
-  const answer = await p.confirm({ message: "Sign in now?", initialValue: true });
+  const answer = await p.confirm({
+    message: "Sign in or create your account now?",
+    initialValue: true,
+  });
   if (p.isCancel(answer)) {
     p.cancel(`Setup stopped. To run it again: ${cmd("setup")}`);
     return "cancelled";
@@ -342,7 +442,7 @@ export async function accountStep(
     p.log.info(dim(`To sign in later: ${cmd("account sign-in")}`));
     return;
   }
-  const account = await deviceSignIn();
+  const account = await deviceSignIn(interactive);
   if (!account) {
     p.log.info(dim(`To sign in later: ${cmd("account sign-in")}`));
     return;

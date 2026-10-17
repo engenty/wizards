@@ -84,7 +84,7 @@ const CLIENTS: Client[] = [
   { id: "cursor", name: "Cursor", widgets: true },
   { id: "vscode", name: "VS Code (Copilot)", widgets: true },
   { id: "windsurf", name: "Windsurf", widgets: false },
-  { id: "gemini", name: "Gemini CLI", widgets: false },
+  { id: "antigravity", name: "Antigravity", widgets: false },
   { id: "goose", name: "Goose", widgets: true },
   { id: "openclaw", name: "OpenClaw", widgets: false },
   { id: "lm-studio", name: "LM Studio", widgets: false },
@@ -253,13 +253,11 @@ function AddByAddress({ id, url, apiKey }: { id: string; url: string; apiKey?: s
           <CopyLine text={`codex mcp login ${NAME}`} />
         </>
       );
-    case "gemini":
+    case "antigravity":
       return (
         <>
           <Hint>{t("mcp.terminal")}</Hint>
-          <CopyLine
-            text={`gemini mcp add --scope user --transport http ${NAME} ${url}${bearer ? ` -H "${bearer}"` : ""}`}
-          />
+          <CopyLine text={`agy mcp add${bearer ? ` -H "${bearer}"` : ""} ${NAME} ${url}`} />
         </>
       );
     case "cursor":

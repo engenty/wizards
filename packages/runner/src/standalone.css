@@ -176,6 +176,28 @@
   .keyboard-open .action-bar {
     padding-bottom: 0.75rem;
   }
+  /* With the keyboard up the field being typed in comes first: what frames the page shrinks
+     or goes, and a focused field is scrolled to above the bar, not under it. */
+  .keyboard-open .action-bar {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  .keyboard-open .kb-hide {
+    display: none;
+  }
+  .keyboard-open .kb-tight {
+    padding-top: 1rem;
+  }
+  .keyboard-open .kb-title {
+    margin-bottom: 1rem;
+  }
+  .keyboard-open .kb-title h1 {
+    font-size: 1.25rem;
+  }
+  .keyboard-open :is(input, textarea, select, [contenteditable]) {
+    scroll-margin-top: 1rem;
+    scroll-margin-bottom: calc(var(--kb, 0px) + 5rem);
+  }
 }
 
 /* Rendered Markdown inside results. */

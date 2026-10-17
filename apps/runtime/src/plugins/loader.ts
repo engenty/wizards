@@ -7,7 +7,7 @@ import type {
   PluginTool,
   WizardsPluginApi,
   WizardsPluginFactory,
-} from "@engenty-wizards/plugin-sdk";
+} from "@engenty/wizards/plugin";
 import {
   FIELD_KINDS,
   PLUGIN_ID,
@@ -70,11 +70,18 @@ export function pluginDirs(): string[] {
 
 const own = (specifier: string) => fileURLToPath(import.meta.resolve(specifier));
 
-/** The longer name first: an alias also matches what begins with it. */
+/**
+ * The longer name first: an alias also matches what begins with it. `@engenty-wizards/plugin-sdk`
+ * is the name plugins written before `@engenty/wizards/plugin` import.
+ */
 function aliases(): Record<string, string> {
+  const thread = own("@engenty/wizards/plugin/thread");
+  const plugin = own("@engenty/wizards/plugin");
   return {
-    "@engenty-wizards/plugin-sdk/thread": own("@engenty-wizards/plugin-sdk/thread"),
-    "@engenty-wizards/plugin-sdk": own("@engenty-wizards/plugin-sdk"),
+    "@engenty/wizards/plugin/thread": thread,
+    "@engenty/wizards/plugin": plugin,
+    "@engenty-wizards/plugin-sdk/thread": thread,
+    "@engenty-wizards/plugin-sdk": plugin,
     "drizzle-orm/sqlite-core": own("drizzle-orm/sqlite-core"),
     "drizzle-orm": own("drizzle-orm"),
     zod: own("zod"),

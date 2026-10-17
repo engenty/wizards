@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, FileText, Upload } from "lucide-react";
-import { type CSSProperties, type ReactNode, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { Mascot } from "../brand";
 import { EngentyLogoMark } from "../engenty/logo";
 import { api } from "../lib/api";
@@ -26,6 +26,14 @@ const ON_GROUND = {
 } as CSSProperties;
 
 type Step = 1 | 2 | 3 | 4;
+/**
+ * The pages, in the address (`?page=site`): the browser's Back and Forward go between them.
+ * Step 1 has three pages the dots count as one: what for, the questions that fit, the name.
+ */
+type Page = "kind" | "details" | "team" | "site" | "know" | "space";
+const STEP_OF: Record<Page, Step> = { kind: 1, details: 1, team: 1, site: 2, know: 3, space: 4 };
+const isPage = (value: string | null): value is Page =>
+  value !== null && Object.hasOwn(STEP_OF, value);
 
 const FIELD =
   "w-full rounded-[18px] border border-white/30 bg-white/15 px-6 py-5 text-[1.375rem] text-white outline-none placeholder:text-white/55 focus:border-white/60";
@@ -268,6 +276,51 @@ interface Outcome {
 type UploadState = { name: string; state: "uploading" | "done" | "failed" };
 
 /**
+ * A state of the onboarding kept in the tab's session storage, so a reload or the browser's
+ * Back and Forward find the answers as they were typed: without it a page went back empty, and
+ * going on from it saved the blanks over what the team had already given. `forget` clears it
+ * all once the onboarding is done. Storage that refuses (a private window, a full quota) only
+ * means the answers live as long as the page.
+ */
+function useKept<T>(
+  user: string,
+  name: string,
+  initial: T,
+): [T, (value: T | ((old: T) => T)) => void] {
+  const key = `${KEPT}${user}:${name}`;
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const raw = sessionStorage.getItem(key);
+      return raw === null ? initial : (JSON.parse(raw) as T);
+    } catch {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // kept in memory only
+    }
+  }, [key, value]);
+  return [value, setValue];
+}
+
+const KEPT = "wizards.onboarding:";
+
+function forgetKept() {
+  try {
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith(KEPT)) {
+        sessionStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // nothing kept
+  }
+}
+
+/**
  * The first visit of a team's studio in the cloud, as a wizard of the product's own kind: one
  * question per page, the engenty beside it. Who the team is, where its website is, what the
  * wizards should know, and what the space is that holds all of it. Every page but the first
@@ -279,19 +332,17 @@ export function OnboardingPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { project } = useCurrentProject();
-  const [step, setStep] = useState<Step>(1);
-  const [team, setTeam] = useState("");
-  const [site, setSite] = useState("");
-  const [line, setLine] = useState<string | null>(null);
+  const user = me.data?.user.id ?? "";
+  const [team, setTeam] = useKept(user, "team", "");
+  const [site, setSite] = useKept(user, "site", "");
+  const [line, setLine] = useKept<string | null>(user, "line", null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [uploads, setUploads] = useState<UploadState[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   // A wish typed before signing in (GuestStartPage): in sight here, built on "new" right after.
   const [wish] = useState(pendingWish);
-  // Step 1 has three pages the dots count as one: what for, the questions that fit, the name.
-  const [sub, setSub] = useState<"kind" | "details" | "team">("kind");
   const [guess] = useState(() => guessKind(me.data?.user.email ?? ""));
-  const [profile, setProfile] = useState<Profile>({
+  const [profile, setProfile] = useKept<Profile>(user, "profile", {
     kind: guess.kind,
     size: null,
     sector: "",
@@ -300,6 +351,18 @@ export function OnboardingPage() {
     legalName: "",
     phone: "",
   });
+  const [params, setParams] = useSearchParams();
+  const asked = params.get("page");
+  // The questions that fit need the answer before them (a reload starts that page anew).
+  const page: Page = isPage(asked) && !(asked === "details" && !profile.kind) ? asked : "kind";
+  const step = STEP_OF[page];
+  /** On to another page, as a step in the browser's history. */
+  const go = (next: Page) =>
+    setParams((current) => {
+      const query = new URLSearchParams(current);
+      query.set("page", next);
+      return query;
+    });
   const answer = (patch: Partial<Profile>) => setProfile((p) => ({ ...p, ...patch }));
   // Kept at the Manage-App with the team; a failure here holds nobody up.
   const keep = useMutation({
@@ -315,12 +378,14 @@ export function OnboardingPage() {
         website: website?.trim() || null,
       }),
   });
+  /** Just them, no business or club: the pages ask about the person, not a team or a brand. */
+  const personal = profile.kind === "personal";
   /** On to the website, with the address's domain where it is a business's. */
   const toSite = () => {
     if (!site && guess.domain && profile.kind !== "personal" && !FREE_MAIL.has(guess.domain)) {
       setSite(guess.domain);
     }
-    setStep(2);
+    go("site");
   };
 
   const rename = useMutation({
@@ -343,6 +408,7 @@ export function OnboardingPage() {
   const finish = useMutation({
     mutationFn: () => api.post("/api/studio/onboarding/done"),
     onSuccess: async () => {
+      forgetKept();
       await qc.invalidateQueries({ queryKey: ["me"] });
       navigate("/new", { replace: true });
     },
@@ -400,14 +466,14 @@ export function OnboardingPage() {
             </figure>
           ) : null}
         </div>
-        <div key={`${step}-${sub}`} className="flex min-w-0 max-w-2xl animate-rise flex-col gap-5">
-          {step === 1 && sub === "kind" ? (
+        <div key={page} className="flex min-w-0 max-w-2xl animate-rise flex-col gap-5">
+          {page === "kind" ? (
             <form
               className="contents"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (profile.kind) {
-                  setSub("details");
+                  go("details");
                 }
               }}
             >
@@ -448,7 +514,7 @@ export function OnboardingPage() {
             </form>
           ) : null}
 
-          {step === 1 && sub === "details" && profile.kind ? (
+          {page === "details" && profile.kind ? (
             <form
               className="contents"
               onSubmit={(e) => {
@@ -457,7 +523,12 @@ export function OnboardingPage() {
                 if (profile.kind === "corp" && profile.legalName.trim() && !team) {
                   setTeam(profile.legalName.trim());
                 }
-                setSub("team");
+                // Just them: no team to name (the account page renames it, should one come).
+                if (profile.kind === "personal") {
+                  toSite();
+                } else {
+                  go("team");
+                }
               }}
             >
               <p className="font-medium text-[0.75rem] text-white/85 uppercase tracking-[0.14em]">
@@ -593,13 +664,18 @@ export function OnboardingPage() {
                 <Next type="submit" busy={keep.isPending}>
                   {t("onboard.continue")}
                 </Next>
-                <Quiet onClick={() => setSub("kind")}>{t("onboard.back")}</Quiet>
+                <Quiet
+                  // Back the way the browser goes, unless this page was opened by its address.
+                  onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : go("kind"))}
+                >
+                  {t("onboard.back")}
+                </Quiet>
                 <Dots step={1} />
               </div>
             </form>
           ) : null}
 
-          {step === 1 && sub === "team" ? (
+          {page === "team" ? (
             <form
               className="contents"
               onSubmit={(e) => {
@@ -641,13 +717,13 @@ export function OnboardingPage() {
           {step === 2 ? (
             <>
               <p className="font-medium text-[0.75rem] text-white/85 uppercase tracking-[0.14em]">
-                {t("onboard.kicker2")}
+                {t(personal ? "onboard.kicker2Personal" : "onboard.kicker2")}
               </p>
               <h1 className="font-display font-bold text-[2.5rem] leading-[1.05] tracking-[-0.02em] sm:text-[3.25rem]">
                 {t("onboard.site")}
               </h1>
               <p className="text-[1.0625rem] text-white/90 leading-relaxed">
-                {t("onboard.siteSub")}
+                {t(personal ? "onboard.siteSubPersonal" : "onboard.siteSub")}
               </p>
               {line === null ? (
                 <form
@@ -663,7 +739,7 @@ export function OnboardingPage() {
                     }
                     // A name, not an address: kept with the team, nothing to read.
                     if (!given.includes(".")) {
-                      setStep(3);
+                      go("know");
                       return;
                     }
                     read.mutate(given);
@@ -672,12 +748,19 @@ export function OnboardingPage() {
                   <input
                     value={site}
                     onChange={(e) => setSite(e.target.value)}
-                    placeholder={t("onboard.sitePlaceholder")}
+                    placeholder={t(
+                      personal ? "onboard.sitePlaceholderPersonal" : "onboard.sitePlaceholder",
+                    )}
                     autoCapitalize="none"
                     aria-label={t("onboard.site")}
                     className={FIELD}
                   />
-                  <p className="-mt-2 text-[0.875rem] text-white/75">{t("onboard.siteNameHint")}</p>
+                  {/* A name to keep in mind is a business's or a club's. */}
+                  {personal ? null : (
+                    <p className="-mt-2 text-[0.875rem] text-white/75">
+                      {t("onboard.siteNameHint")}
+                    </p>
+                  )}
                   {outcome ? (
                     <p className="flex items-center gap-2 text-[0.9375rem] text-(color:--moss)">
                       <Check className="size-4" />
@@ -690,14 +773,14 @@ export function OnboardingPage() {
                   ) : null}
                   <div className="flex flex-wrap items-center gap-5">
                     {outcome ? (
-                      <Next onClick={() => setStep(3)}>{t("onboard.continue")}</Next>
+                      <Next onClick={() => go("know")}>{t("onboard.continue")}</Next>
                     ) : (
                       <Next type="submit" busy={read.isPending}>
                         {read.isPending ? t("onboard.reading") : t("onboard.read")}
                       </Next>
                     )}
                     <Quiet onClick={() => setLine("")}>{t("onboard.line")}</Quiet>
-                    <Quiet onClick={() => setStep(3)}>{t("onboard.skip")}</Quiet>
+                    <Quiet onClick={() => go("know")}>{t("onboard.skip")}</Quiet>
                     <Dots step={2} />
                   </div>
                 </form>
@@ -708,16 +791,18 @@ export function OnboardingPage() {
                     e.preventDefault();
                     const text = line.trim();
                     if (text) {
-                      about.mutate(text, { onSuccess: () => setStep(3) });
+                      about.mutate(text, { onSuccess: () => go("know") });
                     } else {
-                      setStep(3);
+                      go("know");
                     }
                   }}
                 >
                   <textarea
                     value={line}
                     onChange={(e) => setLine(e.target.value)}
-                    placeholder={t("onboard.linePlaceholder")}
+                    placeholder={t(
+                      personal ? "onboard.linePlaceholderPersonal" : "onboard.linePlaceholder",
+                    )}
                     rows={3}
                     maxLength={8000}
                     aria-label={t("onboard.line")}
@@ -728,7 +813,7 @@ export function OnboardingPage() {
                       {t("onboard.continue")}
                     </Next>
                     <Quiet onClick={() => setLine(null)}>{t("onboard.site")}</Quiet>
-                    <Quiet onClick={() => setStep(3)}>{t("onboard.skip")}</Quiet>
+                    <Quiet onClick={() => go("know")}>{t("onboard.skip")}</Quiet>
                     <Dots step={2} />
                   </div>
                 </form>
@@ -799,12 +884,12 @@ export function OnboardingPage() {
               <div className="flex flex-wrap items-center gap-5">
                 <Next
                   busy={uploads.some((u) => u.state === "uploading")}
-                  onClick={() => setStep(4)}
+                  onClick={() => go("space")}
                 >
                   {t("onboard.continue")}
                 </Next>
                 {uploads.length ? null : (
-                  <Quiet onClick={() => setStep(4)}>{t("onboard.skip")}</Quiet>
+                  <Quiet onClick={() => go("space")}>{t("onboard.skip")}</Quiet>
                 )}
                 <Dots step={3} />
               </div>

@@ -43,7 +43,7 @@ sentence, or start from a template. See [Build a wizard](./build-a-wizard.md).
 ## Also on your computer
 
 The same account works on your own computer: you [install](./install.md) engenty wizards there
-and sign in during the setup. It then runs on your Claude, ChatGPT, Gemini or Cursor
+and sign in during the setup. It then runs on your Claude, ChatGPT, Google AI or Cursor
 subscription, reads your files and browses the web for you. What you publish there runs in the
 cloud too, behind the same links. In the cloud studio that space is marked “Edited on your
 computer.” and you only look at it there: you change it on your computer.

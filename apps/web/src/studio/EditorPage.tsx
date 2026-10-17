@@ -479,7 +479,7 @@ export function EditorPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {readOnlyNote ? (
-        <div className="flex shrink-0 items-center gap-3 border-border-soft border-b bg-paper-2 px-4 py-2 text-[0.8125rem] text-ink-2 sm:px-6">
+        <div className="flex shrink-0 items-center gap-3 border-border-soft border-b bg-paper-2 px-4 py-2 text-[0.8125rem] text-ink-2 max-sm:hidden sm:px-6">
           <Lock className="size-4 shrink-0 text-ink-3" />
           <p className="min-w-0 flex-1">{readOnlyNote}</p>
         </div>
@@ -723,6 +723,9 @@ export function EditorPage() {
                 )}
               >
                 {t(TAB_LABEL[k] as "editor.chat")}
+                {readOnlyNote && k !== "runs" ? (
+                  <Lock className="ml-1.5 inline size-3 align-[-1px] text-ink-3 sm:hidden" />
+                ) : null}
               </button>
             ))}
           </nav>

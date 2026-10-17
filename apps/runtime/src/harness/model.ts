@@ -73,6 +73,7 @@ const workDir = join(env.dataDir, "harness");
 
 export const signedOut = (h: HarnessMeta) => note("clientNotSignedIn", { name: h.name });
 export const notInstalled = (h: HarnessMeta) => note("clientNotInstalled", { name: h.name });
+export const notServed = (h: HarnessMeta) => note("clientAccountNotServed", { name: h.name });
 export const exhausted = (h: HarnessMeta) =>
   h.exhausted ?? note("clientNoCredit", { name: h.name });
 
@@ -86,6 +87,11 @@ export function failureOf(h: HarnessMeta, detail: string): Error {
     )
   ) {
     return new ModelUnavailableError(exhausted(h));
+  }
+  // Signed in, but the vendor no longer serves that account with this client: signing in again
+  // with the same account changes nothing.
+  if (/IneligibleTier|no longer supported|UNSUPPORTED_CLIENT|not eligible/i.test(detail)) {
+    return new ModelUnavailableError(notServed(h));
   }
   if (
     /authenticat|log ?in|logged in|oauth|credential|unauthori[sz]ed|\b401\b|api key/i.test(detail)
@@ -155,6 +161,8 @@ export abstract class HarnessModel implements V3 {
   protected readonly nativeSchema: boolean = false;
   /** Whether the client runs a call's tools (over the bridge); else they are left out, with a warning. */
   protected readonly usesTools: boolean = true;
+  /** Whether the client searches the web with a tool of its own, tools of the call or not. */
+  protected readonly searchesWeb: boolean = true;
   protected readonly effort?: Effort;
   protected readonly harness: HarnessMeta;
   private readonly executors = new Map<string, Executor>();
@@ -188,13 +196,13 @@ export abstract class HarnessModel implements V3 {
     const bridged: BridgeTool[] = [];
     let webSearch = false;
     for (const tool of options.tools ?? []) {
-      if (tool.type !== "function" || !this.usesTools) {
-        warnings.push({ type: "unsupported", feature: `tool ${tool.name}` });
+      // The client searches with its own tool; naming `web_search` is what switches it on.
+      if (tool.type === "function" && tool.name === "web_search" && this.searchesWeb) {
+        webSearch = true;
         continue;
       }
-      // The client searches with its own tool; naming `web_search` is what switches it on.
-      if (tool.name === "web_search") {
-        webSearch = true;
+      if (tool.type !== "function" || !this.usesTools) {
+        warnings.push({ type: "unsupported", feature: `tool ${tool.name}` });
         continue;
       }
       const executor = this.executors.get(tool.name);

@@ -1304,7 +1304,8 @@
                             "sandbox",
                             "image",
                             "http",
-                            "pages"
+                            "pages",
+                            "code"
                           ]
                         },
                         {

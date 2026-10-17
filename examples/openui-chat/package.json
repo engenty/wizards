@@ -1,0 +1,31 @@
+{
+  "name": "@engenty-wizards/example-openui-chat",
+  "version": "0.1.0",
+  "description": "An OpenUI chat that starts engenty wizards: the chat decides, the wizard runs its own pages inside it.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "pnpm --filter @engenty-wizards/runner build",
+    "dev": "vite",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@engenty/wizards": "workspace:*",
+    "@openuidev/react-headless": "0.18.1",
+    "@openuidev/react-lang": "1.0.1",
+    "@openuidev/react-ui": "0.18.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5",
+    "zustand": "^4.5.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.2"
+  }
+}

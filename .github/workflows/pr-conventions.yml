@@ -1,8 +1,9 @@
 name: PR conventions
 
 # A PR is squash-merged with its title as the whole commit message, so the title must be a
-# Conventional Commit. No commit, title or description may carry coding-agent attribution
-# (AGENTS.md).
+# Conventional Commit. Neither the title nor a commit may carry coding-agent attribution
+# (AGENTS.md). The description is not checked: it never reaches main, and some agents' GitHub
+# tools append a footer to it that the agent cannot leave out.
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
@@ -28,13 +29,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: ${{ github.event.pull_request.title }}
-          BODY: ${{ github.event.pull_request.body }}
           COMMITS_URL: ${{ github.event.pull_request.commits_url }}
         run: |
           re='co-authored-by:.*(claude|anthropic|codex|openai|cursor|copilot)|generated (with|by) \[?(claude|codex|cursor|copilot)'
-          found=$( { printf '%s\n%s\n' "$TITLE" "$BODY"; gh api --paginate "$COMMITS_URL" --jq '.[].commit.message'; } | grep -Ei "$re" || true)
+          found=$( { printf '%s\n' "$TITLE"; gh api --paginate "$COMMITS_URL" --jq '.[].commit.message'; } | grep -Ei "$re" || true)
           if [ -n "$found" ]; then
-            echo "::error::Coding-agent attribution in the PR's title, description or commits – remove it (reword the commits):"
+            echo "::error::Coding-agent attribution in the PR's title or commits – remove it (reword the commits):"
             echo "$found"
             exit 1
           fi

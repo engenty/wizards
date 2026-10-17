@@ -21,10 +21,10 @@ has a “Sign in” button that opens your browser for it. If you set engenty wi
 | engenty credits | Your account’s credits, as in the cloud | An account signed in. Shown only then |
 | Claude Code | Your Claude subscription | The client installed and signed in |
 | Codex | Your ChatGPT subscription | The client installed and signed in |
-| Gemini CLI | Your Google account | The client installed and signed in |
+| Antigravity | Your Google AI subscription | The client (`agy`) installed and signed in |
 | Cursor Agent | Your Cursor subscription | The client installed and signed in |
 | Apple Intelligence | The model on this Mac, without an account or the internet | A Mac with Apple silicon on macOS 26 or later, with Apple Intelligence switched on. Shown only on such a Mac |
-| Your own keys | Vercel AI Gateway, OpenAI or Anthropic, or a model on your computer | One API key, or [Ollama](https://ollama.com) running |
+| Your own keys | OpenAI, Anthropic, Google or Vercel AI Gateway, or a model on your computer | One API key, or [Ollama](https://ollama.com) running |
 
 - **An AI client that is not installed** installs right on the page, in a terminal shown there.
   It takes about a minute.
@@ -41,6 +41,11 @@ has a “Sign in” button that opens your browser for it. If you set engenty wi
 
 After you connect, one short call checks that the model can be reached. The setup stays until
 that call works. Then “Open the studio” takes you in.
+
+With your own keys, each key has its own Test. It checks the key with the provider, stores it in
+this computer’s keychain and sets that provider’s models for what no other key covers yet. One
+key that works is enough. Which model does which job you change later under
+[Settings → Models](./models.md).
 
 ## What an AI client does not cover
 

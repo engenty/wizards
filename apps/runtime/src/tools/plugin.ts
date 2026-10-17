@@ -1,4 +1,4 @@
-import type { PluginSpace, PluginTool } from "@engenty-wizards/plugin-sdk";
+import type { PluginSpace, PluginTool } from "@engenty/wizards/plugin";
 import { type AgentStep, pluginToolOf } from "@engenty-wizards/shared/definition";
 import { note } from "@engenty-wizards/shared/run";
 import { createTool } from "@mastra/core/tools";

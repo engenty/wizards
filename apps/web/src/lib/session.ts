@@ -23,7 +23,7 @@ import { STUDIO, withBase } from "./base";
 import { type Lang, setLang, storedLang } from "./i18n";
 
 /** An AI client installed on this machine that can think for the app, on its own subscription. */
-export type HarnessId = "claude" | "codex" | "gemini" | "cursor";
+export type HarnessId = "claude" | "codex" | "antigravity" | "cursor";
 
 export interface HarnessStatus {
   id: HarnessId;
@@ -46,7 +46,8 @@ export interface LocalModels {
   source: HarnessId | "account" | "own";
   bindings: Record<ModelClass, string>;
   ollamaUrl: string;
-  keys: { gateway: boolean; openai: boolean; anthropic: boolean };
+  /** Which providers have a key stored, by provider id. */
+  keys: Partial<Record<string, boolean>>;
 }
 
 /** Apple Intelligence as the runtime sees it: supported by the machine, answering, or why not. */

@@ -38,6 +38,11 @@ export interface SetupOptions {
   clients: string[];
   /** No account: nothing leaves this computer (`--local`; the docs explain it). */
   local: boolean;
+  /**
+   * What follows the setup when it runs the first time: the menu, or the start. That one
+   * shows the way on, so the setup ends short instead of with every command.
+   */
+  next?: "menu" | "start";
 }
 
 /** The studio as an app of its own: Chrome (or Edge) installs it from the page. */
@@ -412,6 +417,14 @@ export async function setup(paths: Layout, options: SetupOptions): Promise<boole
   );
 
   p.log.info(CHROME_APP);
+  if (options.next) {
+    p.outro(
+      options.next === "start"
+        ? "Setup is done. Starting engenty wizards…"
+        : `Setup is done. ${dim(`${cmd("help")} lists every command.`)}`,
+    );
+    return true;
+  }
   await howToUse(paths);
   return true;
 }

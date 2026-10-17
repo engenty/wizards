@@ -16,7 +16,7 @@ export type ClientInstall =
   | { kind: "script"; url: string; windows: string };
 
 export interface Client {
-  id: "codex" | "claude" | "gemini" | "cursor";
+  id: "codex" | "claude" | "antigravity" | "cursor";
   name: string;
   bin: string;
   /** The subscription it answers on. */
@@ -49,11 +49,16 @@ export const CLIENTS: readonly Client[] = [
     app: "Claude",
   },
   {
-    id: "gemini",
-    name: "Gemini CLI",
-    bin: "gemini",
-    account: "Google",
-    install: { kind: "npm", pkg: "@google/gemini-cli" },
+    id: "antigravity",
+    name: "Antigravity",
+    bin: "agy",
+    account: "Google AI",
+    install: {
+      kind: "script",
+      url: "https://antigravity.google/cli/install.sh",
+      windows: "https://antigravity.google/cli/install.ps1",
+    },
+    app: "Antigravity",
   },
   {
     id: "cursor",

@@ -1,6 +1,11 @@
 {
   "shared": [
     {
+      "name": "@engenty/wizards",
+      "version": "",
+      "license": "Unknown"
+    },
+    {
       "name": "@modelcontextprotocol/client",
       "version": "2.2.0",
       "license": "MIT",
@@ -140,6 +145,12 @@
           "homepage": "https://mastra.ai"
         },
         {
+          "name": "@mastra/quickjs",
+          "version": "0.1.3",
+          "license": "Apache-2.0",
+          "homepage": "https://mastra.ai"
+        },
+        {
           "name": "@modelcontextprotocol/server",
           "version": "2.2.0",
           "license": "MIT",
@@ -267,7 +278,7 @@
         },
         {
           "name": "undici",
-          "version": "8.11.2",
+          "version": "8.12.2",
           "license": "MIT",
           "homepage": "https://undici.nodejs.org"
         }

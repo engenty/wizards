@@ -70,6 +70,8 @@ const SHARED = {
   "react-router": "__WIZARDS_STUDIO__.router",
   "@tanstack/react-query": "__WIZARDS_STUDIO__.query",
   "@engenty-wizards/web/ui": "__WIZARDS_STUDIO__.ui",
+  "@engenty/wizards/plugin/studio": "__WIZARDS_STUDIO__.sdk",
+  // The name plugins written before `@engenty/wizards/plugin/studio` import.
   "@engenty-wizards/plugin-sdk/studio": "__WIZARDS_STUDIO__.sdk",
 };
 

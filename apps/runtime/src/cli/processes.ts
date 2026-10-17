@@ -18,8 +18,33 @@ export interface ProcessEntry {
   command: string;
 }
 
-/** Every process, as `ps` lists it; empty where there is no `ps` (Windows). */
+/** Every process, as `ps` lists it, on Windows as Windows' own process table does. */
 function listProcesses(): ProcessEntry[] {
+  if (process.platform === "win32") {
+    try {
+      const json = execFileSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-Command",
+          "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress",
+        ],
+        { encoding: "utf8", windowsHide: true, maxBuffer: 32 * 1024 * 1024 },
+      );
+      const rows = JSON.parse(json) as {
+        ProcessId: number;
+        ParentProcessId: number;
+        CommandLine: string | null;
+      }[];
+      return rows.map((row) => ({
+        pid: row.ProcessId,
+        ppid: row.ParentProcessId,
+        command: row.CommandLine ?? "",
+      }));
+    } catch {
+      return [];
+    }
+  }
   try {
     return execFileSync("ps", ["-axww", "-o", "pid=,ppid=,command="], { encoding: "utf8" })
       .split("\n")
@@ -39,14 +64,17 @@ export function wizardsProcesses(
   home: string,
   list: ProcessEntry[],
   self = process.pid,
+  platform: NodeJS.Platform = process.platform,
 ): WizardsProcess[] {
+  // Windows paths are the same in any case.
+  const fold = (text: string) => (platform === "win32" ? text.toLowerCase() : text);
   const parents = new Map(list.map((entry) => [entry.pid, entry.ppid]));
   const skip = new Set<number>();
   for (let at: number | undefined = self; at && !skip.has(at); at = parents.get(at)) {
     skip.add(at);
   }
   return list
-    .filter((entry) => !skip.has(entry.pid) && entry.command.includes(home + sep))
+    .filter((entry) => !skip.has(entry.pid) && fold(entry.command).includes(fold(home + sep)))
     .map(({ pid, command }) => {
       const args = command.split(/\s+/);
       const kind = /apps[\\/]runtime[\\/]dist[\\/]index\.js/.test(command)
