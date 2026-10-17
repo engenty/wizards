@@ -4,7 +4,7 @@ description: What a program may rely on when it talks to a runtime, and what is 
 ---
 
 A runtime answers HTTP under `/api`. Three parts are a contract: they are versioned, documented
-and change with notice. Everything else is the studio's own and changes without notice.
+and change with notice. Everything else is the studio’s own and changes without notice.
 
 ## What a program may rely on
 
