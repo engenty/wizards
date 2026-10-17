@@ -3,6 +3,7 @@ packages:
   - packages/*
   - modules/*
   - examples/plugins/*
+  - examples/openui-chat
 
 overrides:
   # apps/docs: fumadocs-core 16.15.11 wraps the markdown handlers and drops the `attention`

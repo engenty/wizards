@@ -1,7 +1,7 @@
 ---
 title: Developer
 description: Extend engenty wizards with plugins – tools for AI steps, routes with their own tables, pages in the studio.
-version: 0.5.0
+version: 0.7.3
 ---
 
 You extend engenty wizards with **plugins**. A plugin adds to a runtime without changing its
@@ -20,6 +20,11 @@ code, and the runtime loads it from its files while it runs.
 
 A wizard is JSON, and it travels as a `.wizard` file. [The wizard format](./wizard-format.md)
 describes the format, the JSON Schema for your editor and `wizards validate`.
+
+## Wizards in other systems
+
+[Integration](./integration/index.md) shows how a published wizard reaches other systems: people
+over a link, a website or a channel, AI apps over MCP, and your own code.
 
 ## What you need
 

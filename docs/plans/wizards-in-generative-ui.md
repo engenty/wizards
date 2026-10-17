@@ -1,6 +1,6 @@
 # Concept: wizards in generative UI chats
 
-Status: concept, written on 2026-10-17. Nothing built yet.
+Status: concept, written on 2026-10-17. A first trial is built: see [Trial](#trial).
 
 > **OpenUI makes the UI generative. Wizards make the flow dependable.**
 
@@ -66,7 +66,30 @@ can follow the same way.
 - The audience: OpenUI is a toolkit for developers. "Use wizards in OpenUI" reaches people who
   build chat apps, not the people who chat.
 
-## First step
+## Trial
 
-A trial: OpenUI's example chat app plus a first `Wizard` component that runs one published
-wizard end to end.
+Built on 2026-10-17, as the first step this concept named:
+
+- `packages/wizards/src/openui` (`@engenty/wizards/openui`): the `Wizard` component for OpenUI's React
+  renderer, and its prompt half for the chat's server. It draws the run with the runner
+  (`packages/runner`) and its scoped styles, over the runtime's public run routes.
+- `examples/openui-chat`: an OpenUI chat (Agent Interface) with any OpenAI-compatible model,
+  the wizards it may start, and a proxy to the runtime. Its README says how to try it.
+- The runtime's `GET /api/public/wizards/:token` now lists what the wizard's pages ask
+  (`fields`), so the chat's model can prefill what the person already said.
+
+Tried in a browser with two wizards, on a phone's width too: the chat starts the wizard, the
+plate the person named starts filled in, a photo uploads, the AI step, review and result run
+inline, and the chat answers once the wizard is done.
+
+Decided on the way:
+
+- The component draws our runner, not OpenUI's own form components. The pages look like the
+  wizard's own page, and every field kind works, the camera and the signature included.
+  Drawing pages with the host's components is a later step.
+- The run starts once the model's line has finished streaming: a half-written token never
+  starts a run.
+- The run's id is kept in the message's OpenUI state, so the same message shows the same run.
+  The chat hears of a run it saw finish; a message shown again with a done run tells nothing.
+
+The developer docs describe the result: `docs/content/dev/integration/openui.md`.

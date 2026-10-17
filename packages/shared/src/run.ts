@@ -1009,6 +1009,20 @@ export interface PublicWizard {
   translatable: boolean;
   /** The page in the viewer's language, where it was asked for (`?lang=`); null: the original. */
   translation: Omit<RunTranslation, "results"> | null;
+  /**
+   * What the wizard's pages ask, in order: an AI app that starts the wizard (the OpenUI
+   * component) can fill in what it already knows. The person still sees and sends each page.
+   */
+  fields: PublicField[];
+}
+
+/** A field of a wizard's page, as `PublicWizard.fields` lists it. */
+export interface PublicField {
+  id: string;
+  label: string;
+  kind: string;
+  options?: string[];
+  required?: boolean;
 }
 
 /** The runner's own words in a language outside `LANGS`: `GET /api/public/texts/:lang`. */
