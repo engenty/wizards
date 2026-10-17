@@ -289,6 +289,8 @@ export function EditorPage() {
   const [view, setView] = useState<"flow" | "test">("flow");
   /** On a desk the test run can take the whole window, the side panel set aside. */
   const [runWide, setRunWide] = useState(false);
+  /** Counts the side panel's slides, so the diagram fits the room it ends with. */
+  const [paneMoves, setPaneMoves] = useState(0);
   const [look, setLook] = useRunLook();
   const [activeStep, setActiveStep] = useState<string | null>(null);
   const [decisions, setDecisions] = useState<RunView["decisions"]>();
@@ -723,7 +725,7 @@ export function EditorPage() {
         </span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row-reverse">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row-reverse lg:overflow-hidden">
         <section ref={setMainEl} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {split ? null : runBar}
           <div className="relative flex min-h-0 flex-1">
@@ -852,7 +854,7 @@ export function EditorPage() {
                     issueSteps={issueSteps}
                     activeStep={drawerRun ? activeStep : null}
                     live={live}
-                    fitKey={`${split}:${Boolean(drawerRun)}`}
+                    fitKey={`${split}:${Boolean(drawerRun)}:${paneMoves}`}
                     pulse={remote?.steps}
                     wizardId={w.id}
                     decisions={shownDecisions}
@@ -865,21 +867,15 @@ export function EditorPage() {
                   />
                 )}
               </div>
-              {drawerRun ? (
-                <RunLog
-                  view={runView}
-                  steps={def.steps}
-                  onSelect={select}
-                  className="border-border-soft border-t"
-                />
-              ) : null}
             </div>
             {/* Beside the diagram where there is room, else over it; hidden, not unmounted, so the
                 run keeps its place. */}
             {drawerRun ? (
               <div
                 className={cn(
-                  split ? "relative shrink-0" : "absolute inset-0 z-30",
+                  split
+                    ? "relative shrink-0 animate-slide-in"
+                    : "absolute inset-0 z-30 animate-fade-in",
                   !split && view === "flow" && "hidden",
                 )}
                 // Beside the diagram, as wide as dragged, the diagram keeping its room.
@@ -939,15 +935,31 @@ export function EditorPage() {
               </div>
             ) : null}
           </div>
+          {/* The run's log across the whole width, under the diagram and the run. */}
+          {drawerRun ? (
+            <RunLog
+              view={runView}
+              steps={def.steps}
+              onSelect={select}
+              className="border-border-soft border-t"
+            />
+          ) : null}
         </section>
 
         <aside
           ref={sheet.ref}
+          onTransitionEnd={(e) => {
+            if (e.target === e.currentTarget && e.propertyName === "margin-left") {
+              setPaneMoves((n) => n + 1);
+            }
+          }}
           className={cn(
             "relative flex h-(--sheet) min-h-0 w-full shrink-0 flex-col rounded-t-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)] lg:h-auto lg:w-(--pane) lg:rounded-tl-none",
             !sheet.dragging &&
               "max-lg:motion-safe:transition-[height] max-lg:motion-safe:duration-200",
-            drawerRun && runWide && "lg:hidden",
+            // On a desk it slides out to the left for a test run, its content unchanged, and back.
+            "lg:motion-safe:transition-[margin-left,visibility] lg:motion-safe:duration-300 lg:motion-safe:ease-out",
+            drawerRun && runWide && "lg:invisible lg:ml-[calc(var(--pane)*-1)]",
             // Folded under a test run on a phone, it makes way for the keyboard of the run's fields.
             drawerRun && view === "test" && sheet.folded && "kb-hide",
           )}

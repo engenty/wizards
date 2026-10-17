@@ -808,6 +808,7 @@ const de: Record<Key, Line> = {
   "editor.threadGrip": "Chatverlauf: ziehen für die Höhe, klicken zum Ein- und Ausklappen",
   "editor.testFailed": "Der Testlauf konnte nicht starten.",
   "log.title": "Protokoll",
+  "log.grip": "Protokoll: ziehen für die Höhe, klicken zum Ein- und Ausklappen",
   "log.count": {
     one: "{count} Eintrag",
     other: "{count} Einträge",
@@ -2785,6 +2786,7 @@ const en = {
   "editor.threadGrip": "Chat history: drag to resize, click to fold it in or out",
   "editor.testFailed": "The test run couldn’t start.",
   "log.title": "Log",
+  "log.grip": "Log: drag to resize, click to fold it in or out",
   "log.count": {
     one: "{count} entry",
     other: "{count} entries",
