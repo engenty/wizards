@@ -1,7 +1,7 @@
 import { createTool } from "@mastra/core/tools";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { CODE_LIMITS, codeTool, inProgram } from "../src/tools/code.js";
+import { CODE_LIMITS, codeTool, inProgram, PAID_TOOLS } from "../src/tools/code.js";
 
 const ctx = { emit: async () => undefined, signal: new AbortController().signal };
 
@@ -66,6 +66,44 @@ describe("code mode", () => {
     );
     expect(result.success).toBe(false);
     expect(result.error.message).toContain("at most 4 tool calls");
+  });
+
+  it("caps the calls of all programs of a step together", async () => {
+    const { tool, seen } = doubler();
+    const made = codeTool({ double: tool }, ctx, { ...CODE_LIMITS, maxCalls: 5, stepCalls: 8 });
+    const program = "for (let n = 0; n < 5; n++) { await external_double({ n }); } return 1;";
+    expect(await made?.tool.execute({ code: program }, {})).toMatchObject({ success: true });
+    const second = await made?.tool.execute({ code: program }, {});
+    expect(second.success).toBe(false);
+    expect(second.error.message).toContain("8 tool calls");
+    expect(seen.calls).toBe(8);
+  });
+
+  it("keeps a too large tool answer out of the program", async () => {
+    const big = createTool({
+      id: "big",
+      description: "Answers a lot.",
+      execute: async () => ({ text: "x".repeat(5000) }),
+    });
+    const result = await run("return (await external_big({})).text.length;", { big }, {
+      ...CODE_LIMITS,
+      answerChars: 1000,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error.message).toContain("call big directly");
+  });
+
+  it("leaves tools that cost credits on every call out of programs", () => {
+    const { tool } = doubler();
+    const paid = Object.fromEntries(
+      [...PAID_TOOLS].map((id) => [id, createTool({ id, description: id, execute: async () => ({}) })]),
+    );
+    const made = codeTool({ ...paid, double: tool }, ctx);
+    expect(made?.instructions).toContain("external_double");
+    for (const id of PAID_TOOLS) {
+      expect(made?.instructions).not.toContain(`external_${id}`);
+    }
+    expect(codeTool(paid, ctx)).toBeNull();
   });
 
   it("gives the program no files, network or process", async () => {
