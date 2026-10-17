@@ -4,6 +4,11 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.7.7] - 2026-10-17
+- ADDED **[openui]** Run wizards inside OpenUI chats (#43)
+- ADDED **[runtime]** Code mode – a step's tools from one program in QuickJS (#49)
+- DOCS **[plans]** Triggers and starts – a wizard that starts by itself (#46)
+
 ## [0.7.6] - 2026-10-17
 - ADDED **[runtime]** Sandbox engines installed apart from the package, starting with agentOS 0.4 (#45)
 
