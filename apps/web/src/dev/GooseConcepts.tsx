@@ -1,5 +1,5 @@
-import furSheet from "./assets/goose-concept-red-fur.png";
-import jellySheet from "./assets/goose-concept-red-jelly.png";
+import furSheet from "./assets/goose-concept-red-fur.webp";
+import jellySheet from "./assets/goose-concept-red-jelly.webp";
 import { builderCopy as copy } from "./engenty-builder-copy";
 import { GooseAviators } from "./GooseAviators";
 
