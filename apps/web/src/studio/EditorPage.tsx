@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
-import { type Key, t } from "../lib/i18n";
+import { eventText, type Key, t } from "../lib/i18n";
 import {
   type PublishResult,
   useCloud,
@@ -40,10 +40,11 @@ import {
 } from "./editor/AddStep";
 import { ChatPanel, useArchitectChat, Working } from "./editor/ChatPanel";
 import { FilesPanel } from "./editor/FilesPanel";
-import { currentDecisions, FlowDiagram } from "./editor/FlowDiagram";
+import { currentDecisions, FlowDiagram, type StepLive } from "./editor/FlowDiagram";
 import { Inspector } from "./editor/Inspector";
 import { LiveDialog } from "./editor/LiveDialog";
 import { MemoryPanel } from "./editor/MemoryPanel";
+import { RunLog } from "./editor/RunLog";
 import { RunsPanel } from "./editor/RunsPanel";
 import { ShareDialog } from "./editor/ShareDialog";
 import { LiveChip, useLiveDraft } from "./live";
@@ -66,6 +67,8 @@ const TAB_LABEL: Record<Tab, string> = {
 
 const PANE_KEY = "wizards.editor.pane";
 const PANE_DEFAULT = 420;
+/** The main area's width from which a test run sits beside the diagram, not over it. */
+const SPLIT_MIN = 880;
 const PANE_MIN = 340;
 
 /** Room the diagram keeps next to the pane. */
@@ -273,13 +276,47 @@ export function EditorPage() {
   /** Where a "+" in the diagram asks for a step: before the step at this index. */
   const [insertAt, setInsertAt] = useState<number | null>(null);
   const openInsert = useCallback((at: number) => setInsertAt(at), []);
+  /** The open test run as it reports itself: its step, status and log. */
+  const [runView, setRunView] = useState<RunView | null>(null);
   const onRunView = useCallback((view: RunView | null) => {
+    setRunView(view);
     setActiveStep(view && view.status !== "done" ? (view.step?.id ?? null) : null);
     // Kept when the drawer closes: the step panel it covered shows the last test run's decisions.
     if (view) {
       setDecisions(view.decisions);
     }
   }, []);
+  // What the run's step in effect does, for its node in the diagram.
+  const live = useMemo<StepLive | null>(() => {
+    const step = drawerRun ? runView?.step : null;
+    if (!(runView && step) || runView.status === "done" || runView.status === "cancelled") {
+      return null;
+    }
+    const failed = runView.status === "failed";
+    const waiting = runView.status === "waiting_input";
+    const mine = runView.events.filter((ev) => ev.stepId === step.id).reverse();
+    const started = mine.find((ev) => ev.type === "step_started");
+    const latest = mine.find((ev) => ev.type !== "step_done");
+    const said = latest ? eventText(latest) : step.title;
+    return {
+      step: step.id,
+      text: failed ? (runView.error ?? said) : waiting ? t("editor.waitsForInput") : said,
+      since: failed || waiting ? null : started ? new Date(started.at).getTime() : Date.now(),
+      failed,
+    };
+  }, [drawerRun, runView]);
+  // The main area's width: with room for both, a test run sits beside the diagram.
+  const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
+  const [mainWidth, setMainWidth] = useState(0);
+  useEffect(() => {
+    if (!mainEl) {
+      return;
+    }
+    const observer = new ResizeObserver(() => setMainWidth(mainEl.clientWidth));
+    observer.observe(mainEl);
+    return () => observer.disconnect();
+  }, [mainEl]);
+  const split = Boolean(drawerRun) && mainWidth >= SPLIT_MIN;
   const { save, saving, remote, merged, refused } = useLiveDraft(id);
   const projects = useProjects();
 
@@ -314,11 +351,13 @@ export function EditorPage() {
   /** A run opens in the main area; on a phone the sheet folds so the run gets the screen. */
   const openRun = (runId: string) => {
     setDrawerRun(runId);
+    setRunView(null);
     setView("test");
     sheet.fold();
   };
   const closeRun = () => {
     setDrawerRun(null);
+    setRunView(null);
     setView("flow");
     setRunWide(false);
   };
@@ -587,42 +626,46 @@ export function EditorPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row-reverse">
-        <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <section ref={setMainEl} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {drawerRun ? (
             <div className="kb-hide flex h-12 shrink-0 items-center gap-1 border-border-soft border-b px-3">
-              <fieldset
-                aria-label={t("editor.view")}
-                className="m-0 flex min-w-0 rounded-full border-0 bg-paper-2 p-0.5"
-              >
-                {(["flow", "test"] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    aria-pressed={view === v}
-                    onClick={() => setView(v)}
-                    className={cn(
-                      "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-3 font-medium text-[0.8125rem] transition coarse:h-9",
-                      view === v ? "bg-card text-ink shadow-soft" : "text-ink-3 hover:text-ink",
-                    )}
-                  >
-                    {v === "flow" ? (
-                      <Workflow className="size-3.5" />
-                    ) : (
-                      <Play className="size-3.5" />
-                    )}
-                    {t(v === "flow" ? "editor.flow" : "run.testChip")}
-                    {/* The diagram follows the run: its step in effect is lit there. */}
-                    {v === "flow" && activeStep && view === "test" ? (
-                      <span
-                        className="size-1.5 animate-pulse rounded-full bg-ember"
-                        aria-hidden="true"
-                      />
-                    ) : null}
-                  </button>
-                ))}
-              </fieldset>
+              {split ? (
+                <Chip>{t("run.testChip")}</Chip>
+              ) : (
+                <fieldset
+                  aria-label={t("editor.view")}
+                  className="m-0 flex min-w-0 rounded-full border-0 bg-paper-2 p-0.5"
+                >
+                  {(["flow", "test"] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      aria-pressed={view === v}
+                      onClick={() => setView(v)}
+                      className={cn(
+                        "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-3 font-medium text-[0.8125rem] transition coarse:h-9",
+                        view === v ? "bg-card text-ink shadow-soft" : "text-ink-3 hover:text-ink",
+                      )}
+                    >
+                      {v === "flow" ? (
+                        <Workflow className="size-3.5" />
+                      ) : (
+                        <Play className="size-3.5" />
+                      )}
+                      {t(v === "flow" ? "editor.flow" : "run.testChip")}
+                      {/* The diagram follows the run: its step in effect is lit there. */}
+                      {v === "flow" && activeStep && view === "test" ? (
+                        <span
+                          className="size-1.5 animate-pulse rounded-full bg-ember"
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                    </button>
+                  ))}
+                </fieldset>
+              )}
               <span className="flex-1" />
-              {view === "test" ? <LookSwitch look={look} onChange={setLook} /> : null}
+              {view === "test" || split ? <LookSwitch look={look} onChange={setLook} /> : null}
               <Button
                 variant="ghost"
                 size="sm"
@@ -649,118 +692,140 @@ export function EditorPage() {
               </IconButton>
             </div>
           ) : null}
-          <div className="relative min-h-0 flex-1">
-            {hasIssues && !building ? (
-              <div className="absolute top-3 right-3 left-3 z-10 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1 ring-rose/30">
-                <p className="text-[0.875rem]">{t("editor.issues")}</p>
-                <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
-                  {w.issues.slice(0, 4).map((i, k) => (
-                    <li key={k}>{i.message}</li>
-                  ))}
-                </ul>
-                {w.readOnly ? null : (
-                  <Button
-                    size="sm"
-                    variant="quiet"
-                    className="mt-3"
-                    disabled={chat.phase !== "idle"}
-                    onClick={fixIssues}
-                  >
-                    {t("editor.fixWithChat")}
-                  </Button>
-                )}
-              </div>
-            ) : null}
-            {!hasIssues && !building && missing.length ? (
-              <div
-                className={cn(
-                  "absolute top-3 right-3 left-3 z-10 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1",
-                  blocked ? "ring-rose/30" : "ring-amber/30",
-                )}
-              >
-                <p className="text-[0.875rem]">
-                  {t(blocked ? "editor.models.blocking" : "editor.models.optional")}
-                </p>
-                <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
-                  {missing.map((m) => (
-                    <li key={m.cls}>
-                      <span className="text-ink">{t(`class.${m.cls}` as Key)}</span> (
-                      {m.steps.map((s) => `„${s.title}“`).join(", ")}):{" "}
-                      <LinkedText text={m.problem} />
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                  <Button size="sm" variant="quiet" onClick={() => navigate("/settings/models")}>
-                    {t("editor.models.settings")}
-                  </Button>
-                  {credits === "connect" ? (
-                    <p className="text-[0.8125rem] text-ink-3">
-                      {t("teaser.models")}{" "}
-                      <button
-                        type="button"
-                        className="font-medium text-ink underline underline-offset-2"
-                        onClick={() => navigate("/settings/account")}
+          <div className="relative flex min-h-0 flex-1">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="relative min-h-0 flex-1">
+                {hasIssues && !building ? (
+                  <div className="absolute top-3 right-3 left-3 z-10 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1 ring-rose/30">
+                    <p className="text-[0.875rem]">{t("editor.issues")}</p>
+                    <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
+                      {w.issues.slice(0, 4).map((i, k) => (
+                        <li key={k}>{i.message}</li>
+                      ))}
+                    </ul>
+                    {w.readOnly ? null : (
+                      <Button
+                        size="sm"
+                        variant="quiet"
+                        className="mt-3"
+                        disabled={chat.phase !== "idle"}
+                        onClick={fixIssues}
                       >
-                        {t("teaser.connect")}
-                      </button>
+                        {t("editor.fixWithChat")}
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
+                {!hasIssues && !building && missing.length ? (
+                  <div
+                    className={cn(
+                      "absolute top-3 right-3 left-3 z-10 mx-auto max-w-xl animate-rise rounded-xl bg-card p-4 shadow-elevated ring-1",
+                      blocked ? "ring-rose/30" : "ring-amber/30",
+                    )}
+                  >
+                    <p className="text-[0.875rem]">
+                      {t(blocked ? "editor.models.blocking" : "editor.models.optional")}
                     </p>
-                  ) : credits === "use" ? (
-                    <p className="text-[0.8125rem] text-ink-3">{t("teaser.modelsLinked")}</p>
-                  ) : null}
-                </div>
+                    <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
+                      {missing.map((m) => (
+                        <li key={m.cls}>
+                          <span className="text-ink">{t(`class.${m.cls}` as Key)}</span> (
+                          {m.steps.map((s) => `„${s.title}“`).join(", ")}):{" "}
+                          <LinkedText text={m.problem} />
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <Button
+                        size="sm"
+                        variant="quiet"
+                        onClick={() => navigate("/settings/models")}
+                      >
+                        {t("editor.models.settings")}
+                      </Button>
+                      {credits === "connect" ? (
+                        <p className="text-[0.8125rem] text-ink-3">
+                          {t("teaser.models")}{" "}
+                          <button
+                            type="button"
+                            className="font-medium text-ink underline underline-offset-2"
+                            onClick={() => navigate("/settings/account")}
+                          >
+                            {t("teaser.connect")}
+                          </button>
+                        </p>
+                      ) : credits === "use" ? (
+                        <p className="text-[0.8125rem] text-ink-3">{t("teaser.modelsLinked")}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {insertAt !== null && assistant && !building ? (
+                  <div className="absolute top-3 right-3 left-3 z-20 mx-auto max-w-xl animate-rise rounded-xl shadow-elevated">
+                    <AddStepPanel
+                      place={placeText(def, insertAt)}
+                      branchable={insertAt > 0}
+                      onAdd={(kind, prompt, when) => {
+                        if (!addStep({ at: insertAt, kind, prompt, when })) {
+                          return false;
+                        }
+                        setInsertAt(null);
+                        return true;
+                      }}
+                      onEmpty={(kind) => {
+                        const added = withEmptyStep(def, insertAt, kind);
+                        save(added.def);
+                        setInsertAt(null);
+                        select(added.id);
+                      }}
+                      onCancel={() => setInsertAt(null)}
+                    />
+                  </div>
+                ) : null}
+                {building ? (
+                  <div className="flex h-full items-center justify-center px-6 text-[0.875rem] text-ink-3">
+                    <Working chat={chat} spinner="size-4 text-ember" />
+                  </div>
+                ) : (
+                  <FlowDiagram
+                    def={def}
+                    selected={selected}
+                    onSelect={select}
+                    issueSteps={issueSteps}
+                    activeStep={drawerRun ? activeStep : null}
+                    live={live}
+                    fitKey={`${split}:${Boolean(drawerRun)}`}
+                    pulse={remote?.steps}
+                    wizardId={w.id}
+                    decisions={shownDecisions}
+                    onBranch={(sid) => {
+                      select(sid);
+                      setBranchFocus((n) => n + 1);
+                    }}
+                    adding={adding}
+                    onInsert={w.readOnly || adding ? undefined : openInsert}
+                  />
+                )}
               </div>
-            ) : null}
-            {insertAt !== null && assistant && !building ? (
-              <div className="absolute top-3 right-3 left-3 z-20 mx-auto max-w-xl animate-rise rounded-xl shadow-elevated">
-                <AddStepPanel
-                  place={placeText(def, insertAt)}
-                  branchable={insertAt > 0}
-                  onAdd={(kind, prompt, when) => {
-                    if (!addStep({ at: insertAt, kind, prompt, when })) {
-                      return false;
-                    }
-                    setInsertAt(null);
-                    return true;
-                  }}
-                  onEmpty={(kind) => {
-                    const added = withEmptyStep(def, insertAt, kind);
-                    save(added.def);
-                    setInsertAt(null);
-                    select(added.id);
-                  }}
-                  onCancel={() => setInsertAt(null)}
+              {drawerRun ? (
+                <RunLog
+                  view={runView}
+                  steps={def.steps}
+                  onSelect={select}
+                  className="border-border-soft border-t"
                 />
-              </div>
-            ) : null}
-            {building ? (
-              <div className="flex h-full items-center justify-center px-6 text-[0.875rem] text-ink-3">
-                <Working chat={chat} spinner="size-4 text-ember" />
-              </div>
-            ) : (
-              <FlowDiagram
-                def={def}
-                selected={selected}
-                onSelect={select}
-                issueSteps={issueSteps}
-                activeStep={drawerRun ? activeStep : null}
-                pulse={remote?.steps}
-                wizardId={w.id}
-                decisions={shownDecisions}
-                onBranch={(sid) => {
-                  select(sid);
-                  setBranchFocus((n) => n + 1);
-                }}
-                adding={adding}
-                onInsert={w.readOnly || adding ? undefined : openInsert}
-              />
-            )}
-            {/* The test run lies over the diagram; hidden, not unmounted, so the run keeps its place. */}
+              ) : null}
+            </div>
+            {/* Beside the diagram where there is room, else over it; hidden, not unmounted, so the
+                run keeps its place. */}
             {drawerRun ? (
               <div
                 className={cn(
-                  "absolute inset-0 z-30 overflow-y-auto bg-background",
-                  view === "flow" && "hidden",
+                  "overflow-y-auto bg-background",
+                  split
+                    ? "w-1/2 min-w-[480px] max-w-[720px] shrink-0 border-border-soft border-l"
+                    : "absolute inset-0 z-30",
+                  !split && view === "flow" && "hidden",
                 )}
               >
                 {look === "chat" ? (
