@@ -14,8 +14,8 @@
 #   data/                    your wizards and results (made at the first start)
 #
 # Then the guided setup runs (`wizards setup`): your engenty account, an AI client to think
-# with, ffmpeg, starting at login. Running the installer again updates an install; your data
-# is kept.
+# with, ffmpeg, a decision model (Ollama with Clef-flash, optional), starting at login. Running
+# the installer again updates an install; your data is kept.
 #
 #   --yes            ask nothing and install nothing optional
 #   --local          no account: nothing leaves this computer (the docs explain it)
