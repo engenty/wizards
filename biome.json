@@ -9,6 +9,8 @@
       "apps/web/scripts/**",
       "packages/shared/src/**",
       "packages/wizards/src/**",
+      "packages/wizards/*.ts",
+      "packages/wizards/scripts/**",
       "packages/runner/src/**",
       "packages/runner/*.ts",
       "packages/runner/scripts/**",
