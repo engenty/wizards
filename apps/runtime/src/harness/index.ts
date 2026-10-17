@@ -7,7 +7,7 @@ import { antigravity } from "./antigravity.js";
 import { claude } from "./claude.js";
 import { codex } from "./codex.js";
 import { cursor } from "./cursor.js";
-import { forgetEnv, loginShellEnv, resolveEnv } from "./env.js";
+import { forgetEnv, loginShellEnv, ProbeUndecided, resolveEnv } from "./env.js";
 import type { Harness, HarnessAuth, HarnessId } from "./types.js";
 
 export { HarnessModel, notInstalled, signedOut } from "./model.js";
@@ -78,8 +78,11 @@ export async function detectHarness(id: HarnessId, force = false): Promise<Harne
     if (version) {
       value = { ...value, version, auth };
     }
-  } catch {
-    // not installed
+  } catch (err) {
+    if (err instanceof ProbeUndecided && hit?.value.version) {
+      // The machine is busy (another client is working): the client was there, it still is.
+      value = hit.value;
+    }
   }
   detected.set(id, { at: Date.now(), value });
   return value;

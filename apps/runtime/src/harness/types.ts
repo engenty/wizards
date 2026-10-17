@@ -30,6 +30,7 @@ export interface Harness extends EnvSpec {
   bin: string;
   /** The model each text class runs on unless a binding names another: `<id>/<alias>`. */
   classes: Record<TextClass, string>;
+  /** Null: not installed. Throws ProbeUndecided when the probe could not finish on a busy machine. */
   version(env: NodeJS.ProcessEnv): Promise<string | null>;
   /**
    * What the inline terminal runs to sign the client in. `interactive`: the client's own app

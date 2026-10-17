@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Effort, TextClass } from "@engenty-wizards/shared/definition";
-import { resolveEnv, run } from "./env.js";
+import { probeVersion, resolveEnv, run } from "./env.js";
 import {
   failureOf,
   type HarnessAnswer,
@@ -148,14 +148,8 @@ export const antigravity: Harness = {
   name: "Antigravity",
   bin: AGY_BIN,
   classes: CLASSES,
-  async version(env) {
-    try {
-      const { stdout } = await run(AGY_BIN, ["--version"], { timeout: 10_000, env });
-      return stdout.trim().split("\n").pop()?.trim() || null;
-    } catch {
-      return null;
-    }
-  },
+  version: (env) =>
+    probeVersion(AGY_BIN, env, (stdout) => stdout.trim().split("\n").pop()?.trim() || null),
   // No login command: the client asks for the Google sign-in when it starts without one.
   login: { args: [], interactive: true },
   model: (alias: string, effort?: Effort) =>

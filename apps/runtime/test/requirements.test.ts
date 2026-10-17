@@ -95,6 +95,25 @@ describe("what a wizard needs of the models before it starts", () => {
     expect(blocked && noteText(blocked, "en")).toBe("“Fotos aufbereiten”: No model is set up for image.");
     expect((await missingModels(tour, "de"))[0].problem).toBe("Für image ist kein Modell eingerichtet.");
   });
+
+  it("says a problem two classes share once, naming each step once", () => {
+    const missingClient = { code: "clientNotInstalled", params: { name: "Claude Code" } } as const;
+    const ideas = { id: "ideas", title: "Ideen finden" };
+    const blocked = blockingMessage([
+      { cls: "standard", problem: missingClient, steps: [ideas], blocking: true },
+      { cls: "high", problem: missingClient, steps: [ideas, ideas], blocking: true },
+      {
+        cls: "image",
+        problem: { code: "noModelFor", params: { makes: "image" } },
+        steps: [{ id: "cover", title: "Titelbild" }],
+        blocking: true,
+      },
+    ]);
+    expect(blocked && noteText(blocked, "en")).toBe(
+      "“Ideen finden”: Claude Code isn’t installed on this computer. Install it under Settings → Models. " +
+        "“Titelbild”: No model is set up for image.",
+    );
+  });
 });
 
 describe("choices that lead to a step without a model", () => {

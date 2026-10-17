@@ -323,17 +323,32 @@ export async function missingModelsSaid(def: WizardDefinition): Promise<MissingM
   return missing;
 }
 
-/** The message a run that cannot start gives, naming the steps and why. */
+/**
+ * The message a run that cannot start gives, naming the steps and why. Classes with the same
+ * problem (a step that thinks and writes on one client that is not installed) say it once, and
+ * name each of their steps once.
+ */
 export function blockingMessage(missing: MissingModelSaid[]): RunNote | null {
-  const blocking = missing.filter((m) => m.blocking);
-  if (!blocking.length) {
+  const byProblem = new Map<string, { problem: Said; steps: Map<string, string> }>();
+  for (const m of missing) {
+    if (!m.blocking) {
+      continue;
+    }
+    const key = JSON.stringify(m.problem);
+    const entry = byProblem.get(key) ?? { problem: m.problem, steps: new Map() };
+    for (const s of m.steps) {
+      entry.steps.set(s.id, s.title);
+    }
+    byProblem.set(key, entry);
+  }
+  if (!byProblem.size) {
     return null;
   }
-  return blocking
-    .map((m) =>
+  return [...byProblem.values()]
+    .map(({ problem, steps }) =>
       note("blockedSteps", {
-        steps: m.steps.map((s) => note("quoted", { text: s.title })),
-        problem: m.problem,
+        steps: [...steps.values()].map((text) => note("quoted", { text })),
+        problem,
       }),
     )
     .reduce((first, second) => note("joined", { first, second }));
