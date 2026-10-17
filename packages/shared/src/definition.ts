@@ -360,6 +360,7 @@ export const TOOL_IDS = [
   "image",
   "http",
   "pages",
+  "code",
 ] as const;
 
 /**

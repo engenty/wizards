@@ -134,7 +134,7 @@ type AgentStep = {
                                 //   (fields name the keys later steps read). Use it where a model would only fetch and copy
                                 //   data (free appointment times) — it answers in a second instead of half a minute.
                                 //   String inputs are templates; a filled-in whole number or true/false is passed as one.
-  tools: ("web_search"|"web_fetch"|"browser"|"sandbox"|"image"|"http"|"pages")[]
+  tools: ("web_search"|"web_fetch"|"browser"|"sandbox"|"image"|"http"|"pages"|"code")[]
   mcp?: string[]                // ids of the project's MCP servers this step may use
   connections?: string[]        // ids of wizard connections this step may read (mail → mail_search, mail_read, mail_save)
   output: { format: "text"|"markdown"|"json", fields?: { id, kind: "text"|"number"|"list"|"table"|"yesno"|"choice"|"score", description, columns?: string[], options?: string[] }[], schema?: Schema, surface?: SurfaceComponent[] | true }
@@ -157,6 +157,10 @@ type AgentStep = {
 //   project_list (by categories), page_read / table_read / project_document (an item whole, by its path).
 // "pages" brings: page_read / page_write — Markdown pages of the space the wizard keeps for every run (notes, a log
 //   that grows with append), shown to the admin under Space → Data; page_read also reads Knowledge by path.
+// "code" brings: execute_typescript — the model writes one program that calls the step's other tools (not the browser) as
+//   functions: loops, Promise.all, filtering, sums; only its answer reaches the model. For many calls of one kind (fetch 30
+//   pages, read every row of a list, search a mailbox month by month). It needs other tools to call; a change the person
+//   must allow first is never made from a program.
 // "browser" brings: browser_open/read/click/type/select/scroll/press/back/wait, browser_screenshot (the model looks at the page),
 //   browser_run_fast (a decision model clicks through a page's mechanical part, where one is reached),
 //   browser_request_credentials (the PERSON types a login into the page — the model never sees it; sign-ins can be remembered),
