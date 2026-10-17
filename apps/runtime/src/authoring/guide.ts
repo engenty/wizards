@@ -160,7 +160,7 @@ type AgentStep = {
 // "code" brings: execute_typescript — the model writes one program that calls the step's other tools (not the browser) as
 //   functions: loops, Promise.all, filtering, sums; only its answer reaches the model. For many calls of one kind (fetch 30
 //   pages, read every row of a list, search a mailbox month by month). It needs other tools to call; a change the person
-//   must allow first is never made from a program.
+//   must allow first, generate_image and scan_documents are never called from a program.
 // "browser" brings: browser_open/read/click/type/select/scroll/press/back/wait, browser_screenshot (the model looks at the page),
 //   browser_run_fast (a decision model clicks through a page's mechanical part, where one is reached),
 //   browser_request_credentials (the PERSON types a login into the page — the model never sees it; sign-ins can be remembered),
