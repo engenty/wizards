@@ -92,6 +92,7 @@ Declared by two or more of the workspaces below:
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.1 | MIT |
 | [ai](https://ai-sdk.dev/docs) | 7.0.102 | Apache-2.0 |
 | [aws4fetch](https://github.com/mhart/aws4fetch#readme) | 1.0.20 | MIT |
+| [cross-spawn](https://github.com/moxystudio/node-cross-spawn) | 7.0.6 | MIT |
 | [drizzle-orm](https://orm.drizzle.team) | 0.45.3 | Apache-2.0 |
 | [effect](https://effect.website) | 4.0.0-beta.59 | MIT |
 | [exceljs](https://github.com/exceljs/exceljs#readme) | 4.4.0 | MIT |
@@ -134,6 +135,7 @@ Used to build, check and test; not part of what people run:
 | [@openuidev/react-lang](https://openui.com) | 1.0.1 | MIT |
 | [@tailwindcss/postcss](https://tailwindcss.com) | 4.3.3 | MIT |
 | [@tailwindcss/vite](https://tailwindcss.com) | 4.3.3 | MIT |
+| [@types/cross-spawn](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/cross-spawn) | 6.0.6 | MIT |
 | [@types/mdx](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/mdx) | 2.0.14 | MIT |
 | [@types/node](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node) | 26.6.4 | MIT |
 | [@types/pdfmake](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/pdfmake) | 0.3.3 | MIT |
