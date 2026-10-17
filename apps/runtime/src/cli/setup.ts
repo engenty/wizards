@@ -29,7 +29,9 @@ import {
   vendorApp,
 } from "./machine.js";
 import {
+  appAsksForPassword,
   DECISION_MODEL_GB,
+  decisionModelProblem,
   freeGb,
   installOllama,
   ollamaState,
@@ -211,15 +213,25 @@ async function decisionModelStep(
     );
     return;
   }
+  // Pulled is not enough: a newer Ollama may no longer run a model pulled in an older format.
+  let broken: string | null = null;
   if (state.model) {
-    p.log.success(`Decision model: ${state.model} ${dim(`in Ollama ${state.version}`)}`);
-    return;
+    const check = busy(`Checking ${state.model}…`);
+    broken = await decisionModelProblem(state.model);
+    if (!broken) {
+      check.stop(`Decision model: ${state.model} ${dim(`in Ollama ${state.version}`)}`);
+      return;
+    }
+    check.fail(`${state.model} doesn’t run in Ollama ${state.version}: ${broken}`);
   }
+  const model = state.model ?? LOCAL_DECISION_MODEL;
   const what = state.path ? `Clef-flash into Ollama` : "Ollama with Clef-flash";
   if (!interactive) {
     p.log.info(
       dim(
-        `Optional: a decision model on this computer (${what}, about ${DECISION_MODEL_GB} GB). To add it: ${cmd("setup")}`,
+        broken
+          ? `To download it again: ${cyan(`ollama pull ${model}`)}`
+          : `Optional: a decision model on this computer (${what}, about ${DECISION_MODEL_GB} GB). To add it: ${cmd("setup")}`,
       ),
     );
     return;
@@ -233,8 +245,10 @@ async function decisionModelStep(
   }
   const memory = Math.round(totalmem() / 2 ** 30);
   const answer = await p.confirm({
-    message: `Install a decision model on this computer? ${what} makes the wizards’ decisions (which branch, which option) here, without a key or credits. About ${DECISION_MODEL_GB} GB${memory < 16 ? `; it needs 16 GB of memory and this computer has ${memory}` : ""}.`,
-    initialValue: false,
+    message: broken
+      ? `Download ${model} again, in the format this Ollama runs? About ${DECISION_MODEL_GB} GB.`
+      : `Install a decision model on this computer? ${what} makes the wizards’ decisions (which branch, which option) here, without a key or credits. About ${DECISION_MODEL_GB} GB${memory < 16 ? `; it needs 16 GB of memory and this computer has ${memory}` : ""}.`,
+    initialValue: Boolean(broken),
   });
   if (cancelled(answer)) {
     return "cancelled";
@@ -246,22 +260,31 @@ async function decisionModelStep(
 
   let { path: ollama, version } = state;
   if (!ollama) {
-    if (process.platform === "linux") {
+    // On Linux Ollama's installer writes to this terminal itself, and may ask for a password.
+    const task =
+      process.platform === "linux" ? null : p.taskLog({ title: "Installing Ollama", limit: 6 });
+    if (!task) {
       p.log.info("Ollama’s own installer runs now and asks for your password.");
     }
-    const task = p.taskLog({ title: "Installing Ollama", limit: 6 });
-    const outcome = await installOllama(paths, (line) => task.message(line));
+    const outcome = await installOllama(paths, (line) => task?.message(line));
     if (!outcome.ok) {
-      task.error(`Ollama didn’t install. ${outcome.message}`);
+      const text = `Ollama didn’t install. ${outcome.message}`;
+      task ? task.error(text) : p.log.error(text);
       return;
     }
-    task.success(`Ollama installed ${dim(tilde(outcome.message))}`);
+    const installed = `Ollama installed ${dim(tilde(outcome.message))}`;
+    task ? task.success(installed) : p.log.success(installed);
     // Linux's installer starts it as a service already.
     ({ path: ollama, version } = await ollamaState());
   }
   if (!version) {
+    if (appAsksForPassword(ollama)) {
+      p.log.info(
+        "Ollama starts now and asks once for your Mac’s password, to put its `ollama` command in /usr/local/bin. Enter it, or cancel: Ollama runs either way.",
+      );
+    }
     const spinner = p.spinner();
-    spinner.start("Starting Ollama");
+    spinner.start("Waiting for Ollama");
     version = await startOllama(ollama, paths);
     if (!version) {
       spinner.error(`Ollama isn’t answering. Start it, then run ${cmd("setup")} again.`);
@@ -274,15 +297,15 @@ async function decisionModelStep(
     spinner.stop(`Ollama ${version} is running`);
   }
   const spinner = p.spinner();
-  spinner.start(`Downloading ${LOCAL_DECISION_MODEL}`);
+  spinner.start(`Downloading ${model}`);
   try {
-    await pullModel(LOCAL_DECISION_MODEL, (done, total) =>
-      spinner.message(`Downloading ${LOCAL_DECISION_MODEL}  ${gb(done)} of ${gb(total)} GB`),
+    await pullModel(model, (done, total) =>
+      spinner.message(`Downloading ${model}  ${gb(done)} of ${gb(total)} GB`),
     );
-    spinner.stop(`Decision model: ${LOCAL_DECISION_MODEL} ${dim(`in Ollama ${version}`)}`);
+    spinner.stop(`Decision model: ${model} ${dim(`in Ollama ${version}`)}`);
   } catch (error) {
     spinner.error(
-      `${LOCAL_DECISION_MODEL} didn’t download. ${(error as Error).message}\n${dim(`To try again: ${cyan(`ollama pull ${LOCAL_DECISION_MODEL}`)}`)}`,
+      `${model} didn’t download. ${(error as Error).message}\n${dim(`To try again: ${cyan(`ollama pull ${model}`)}`)}`,
     );
   }
 }

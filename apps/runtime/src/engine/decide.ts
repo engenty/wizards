@@ -66,7 +66,9 @@ async function askSystemOne(
         return readSystemOne(input.questions, await res.json());
       }
       if (!(RETRYABLE.has(res.status) && attempt < 2)) {
-        console.warn(`[decide] the decision model answered ${res.status}`);
+        const why = (await res.text().catch(() => "")).trim().slice(0, 300);
+        access.refused?.(res.status, why);
+        console.warn(`[decide] the decision model answered ${res.status}${why ? `: ${why}` : ""}`);
         return {};
       }
     } catch (err) {

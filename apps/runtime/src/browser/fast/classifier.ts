@@ -113,7 +113,9 @@ const RETRYABLE = new Set([429, 503, 529]);
  * The run's way to a hosted decision model (credits, an AI Gateway key or a TypeSafe key), or
  * null when there is none — then the fast loop is not offered. Clef in the local Ollama is not
  * taken: a page's elements are more than its 26 options, and on a laptop one step took over a
- * minute (base M4), where the agent's own browser tools take seconds.
+ * minute (base M4, Ollama 0.35 and 0.40, 20 to 160 s a call, also with the elements asked in
+ * groups of 26) and stopped at a search box Jev fills, where the agent's own browser tools take
+ * seconds.
  */
 export async function classifierClient(signal?: AbortSignal): Promise<ClassifierClient | null> {
   const access = await systemOneAccess().catch(() => null);

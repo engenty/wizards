@@ -29,6 +29,19 @@ const MAC_APPS = ["/Applications/Ollama.app", join(homedir(), "Applications", "O
 const MAC_DOWNLOAD = "https://ollama.com/download/Ollama-darwin.zip";
 /** Ollama's own installer on Linux: it puts the server in a systemd service, with sudo. */
 const LINUX_SCRIPT = "https://ollama.com/install.sh";
+/**
+ * What that installer needs and a fresh Debian lacks: zstd, to unpack Ollama. Installed first
+ * with the system's package manager, under the same password.
+ */
+const LINUX_ZSTD = [
+  "if ! command -v zstd >/dev/null 2>&1; then",
+  "  if command -v apt-get >/dev/null 2>&1; then sudo apt-get update -qq && sudo apt-get install -y -qq zstd",
+  "  elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y -q zstd",
+  "  elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm --needed zstd",
+  "  elif command -v zypper >/dev/null 2>&1; then sudo zypper --non-interactive install zstd",
+  "  fi",
+  "fi",
+].join("\n");
 
 export interface OllamaState {
   /** The `ollama` command; null where Ollama is not installed. */
@@ -167,13 +180,15 @@ export async function installOllama(
   }
   if (process.platform === "linux") {
     const code = await new Promise<number>((resolve) => {
-      const child = spawn("sh", ["-c", `curl -fsSL ${LINUX_SCRIPT} | sh`], { stdio: "inherit" });
+      const child = spawn("sh", ["-c", `${LINUX_ZSTD}\ncurl -fsSL ${LINUX_SCRIPT} | sh`], {
+        stdio: "inherit",
+      });
       child.on("error", () => resolve(127));
       child.on("close", (status) => resolve(status ?? 1));
     });
     return code === 0
-      ? { ok: true, message: "ollama" }
-      : { ok: false, message: `Ollama's installer stopped (exit ${code}).` };
+      ? { ok: true, message: findOllama() ?? "ollama" }
+      : { ok: false, message: `Ollama’s installer stopped (exit ${code}).` };
   }
   return { ok: false, message: "Ollama is installed by this setup on macOS and Linux only." };
 }
@@ -181,9 +196,27 @@ export async function installOllama(
 const lastLine = (text: string) => text.split("\n").pop() ?? "";
 
 /**
+ * Whether the Ollama app asks for the Mac's password when it starts: the first time, it wants to
+ * link its `ollama` command into /usr/local/bin, and its server waits for the answer (cancel
+ * works too). Not once that link points into the app.
+ */
+export function appAsksForPassword(path: string | null): boolean {
+  const app = macApp(path);
+  if (!app) {
+    return false;
+  }
+  try {
+    return realpathSync("/usr/local/bin/ollama") !== join(app, "Contents", "Resources", "ollama");
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Starts Ollama's server where it does not run: the app on a Mac (it then starts at login by
  * itself), Homebrew's service, else `ollama serve` in the background. Its version once it
- * answers; null where it does not within half a minute.
+ * answers; null where it does not in time — three minutes for the app, which may wait for a
+ * password, half a minute otherwise.
  */
 export async function startOllama(path: string | null, paths: Layout): Promise<string | null> {
   const logFile = join(paths.logs, "install.log");
@@ -206,7 +239,8 @@ export async function startOllama(path: string | null, paths: Layout): Promise<s
   } else {
     return null;
   }
-  for (let i = 0; i < 60; i++) {
+  const deadline = Date.now() + (app ? 180_000 : 30_000);
+  while (Date.now() < deadline) {
     const { version } = await ollamaState();
     if (version) {
       return version;
@@ -214,6 +248,40 @@ export async function startOllama(path: string | null, paths: Layout): Promise<s
     await sleep(500);
   }
   return null;
+}
+
+/**
+ * Whether Ollama runs the model: one question it has to answer. Null when it does; otherwise
+ * Ollama's reason, such as a newer Ollama that no longer runs a model in the format it was pulled
+ * in. The model is loaded for it, which takes some seconds the first time.
+ */
+export async function decisionModelProblem(
+  model: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${ollamaAddress(env)}/v1/systemone`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model,
+        state: "The setup checks the decision model.",
+        questions: { check: { type: "noul", instructions: "Is this a check?" } },
+      }),
+      signal: AbortSignal.timeout(180_000),
+    });
+    if (res.ok) {
+      return null;
+    }
+    const text = (await res.text()).trim();
+    try {
+      return (JSON.parse(text) as { error?: string }).error ?? text;
+    } catch {
+      return text || `Ollama answered ${res.status}.`;
+    }
+  } catch (error) {
+    return (error as Error).message;
+  }
 }
 
 /**
