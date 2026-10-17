@@ -6,6 +6,11 @@ import { createFurRenderer, type FurRenderer } from "./fur-renderer";
 import type { EngentyCoat } from "./fur-stage";
 import { createGoggleGeometry } from "./goggle-geometry";
 import { GOGGLE_FRAGMENT_SHADER, GOGGLE_VERTEX_SHADER } from "./goggle-shaders";
+import { createGooseHelmetGeometry, type GooseHelmetPart } from "./goose-helmet-geometry";
+import {
+  GOOSE_HELMET_FRAGMENT_SHADER,
+  GOOSE_HELMET_VERTEX_SHADER,
+} from "./goose-helmet-shaders";
 import { JELLY_FRAGMENT_SHADER } from "./jelly-shader";
 import { createStrandGeometry } from "./strand-geometry";
 import { STRAND_FRAGMENT_SHADER, STRAND_VERTEX_SHADER } from "./strand-shaders";
@@ -34,6 +39,28 @@ export function createStrandRenderer(
     return null;
   }
   const passes = [body];
+  // Goose's helmet: the shell right after the body, so fur in front of its rim draws over it,
+  // and the see-through visor last.
+  const createHelmetPass = (part: GooseHelmetPart) =>
+    createFurRenderer(canvas, GOOSE_HELMET_FRAGMENT_SHADER, {
+      vertex:
+        coat === "jelly"
+          ? GOOSE_HELMET_VERTEX_SHADER.replace(
+              "#version 300 es",
+              "#version 300 es\n#define JELLY_COAT"
+            )
+          : GOOSE_HELMET_VERTEX_SHADER,
+      geometry: (gl, program) => createGooseHelmetGeometry(gl, program, coat, part),
+      clear: false,
+      doubleSided: true,
+      depthWrite: part === "shell",
+    });
+  const shell = createHelmetPass("shell");
+  if (!shell) {
+    body.dispose();
+    return null;
+  }
+  passes.push(shell);
   if (coat === "fur") {
     const hair = createFurRenderer(canvas, STRAND_FRAGMENT_SHADER, {
       vertex: STRAND_VERTEX_SHADER,
@@ -43,7 +70,9 @@ export function createStrandRenderer(
       depthWrite: false,
     });
     if (!hair) {
-      body.dispose();
+      for (const pass of passes) {
+        pass.dispose();
+      }
       return null;
     }
     passes.push(hair);
@@ -78,6 +107,14 @@ export function createStrandRenderer(
     return null;
   }
   passes.push(goggles);
+  const visor = createHelmetPass("visor");
+  if (!visor) {
+    for (const pass of passes) {
+      pass.dispose();
+    }
+    return null;
+  }
+  passes.push(visor);
   return {
     render(u) {
       for (const pass of passes) {

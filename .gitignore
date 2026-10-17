@@ -6,3 +6,6 @@ dist
 .env.local
 *.log
 .DS_Store
+
+# Claude Code writes its API declarations beside a plugin it loads from the folder
+plugin/.claude-plugin/types/

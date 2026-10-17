@@ -103,10 +103,21 @@ a minute, even with a token it already holds.
 
 ## The Claude Code plugin
 
-If engenty wizards has a public https address, Claude Code can also install a plugin. It adds
-the `/wizard` command and the skills to build and use wizards:
+Claude Code can also install a plugin. It adds the `/wizard` command, the skills to build and
+use wizards, and `/wizards`, a pane beside the chat that lists your wizards and opens one in the
+app’s browser pane. From GitHub, for the `engenty-wizards` server your AI apps already have:
+
+```bash
+claude plugin marketplace add engenty/wizards
+claude plugin install wizards@engenty
+```
+
+If engenty wizards has a public https address, it serves the plugin with its server bundled:
 
 ```bash
 claude plugin marketplace add <your address>/api/claude-plugin/marketplace.json
-claude plugin install engenty-wizards@engenty
+claude plugin install wizards@<your-host-with-dashes>   # wizards.example.com → wizards-example-com
 ```
+
+`claude plugin update wizards` brings the next version. In Claude Code’s auto mode the pane’s own
+calls need allow rules; the plugin’s README names them.

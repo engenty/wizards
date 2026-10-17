@@ -26,8 +26,10 @@ function open(url: string, authToken: string): Client {
 
 async function prepare(client: Client, url: string) {
   if (url.startsWith("file:")) {
-    await client.execute("PRAGMA journal_mode = WAL");
+    // The wait first: studio, doors and runner share the files, and switching to WAL waits
+    // too while another process recovers the log after a restart.
     await client.execute("PRAGMA busy_timeout = 5000");
+    await client.execute("PRAGMA journal_mode = WAL");
   }
   await client.execute("PRAGMA foreign_keys = ON");
 }
@@ -67,6 +69,29 @@ function tenantUrl(id: string, dbUrl: string | null): string {
   return `file:${join(env.dataDir, "tenants", `${id}.db`)}`;
 }
 
+function isBusy(err: unknown): boolean {
+  for (let e = err; e; e = (e as { cause?: unknown }).cause) {
+    if (String((e as { code?: unknown }).code ?? "").startsWith("SQLITE_BUSY")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** `fn` again while another process holds the database: 1, 2, 4, 8 and 16 seconds apart. */
+async function whileBusy<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= 5 || !isBusy(err)) {
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+    }
+  }
+}
+
 async function openTenant(id: string): Promise<Db> {
   let row = await controlDb.query.tenant.findFirst({ where: eq(control.tenant.id, id) });
   if (!row) {
@@ -76,10 +101,19 @@ async function openTenant(id: string): Promise<Db> {
   const url = tenantUrl(id, row.dbUrl);
   const client = open(url, url.startsWith("file:") ? "" : env.tenantDbAuthToken);
   clients.set(id, client);
-  await prepare(client, url);
   const db = makeTenantDb(client);
   // Every database is brought to the current schema when it is first opened.
-  await migrate(db, { migrationsFolder: migrationsFolder("tenant") });
+  try {
+    await whileBusy(async () => {
+      await prepare(client, url);
+      await migrate(db, { migrationsFolder: migrationsFolder("tenant") });
+    });
+  } catch (err) {
+    // The next use opens it afresh (tenantDb forgets the failed attempt).
+    clients.delete(id);
+    client.close();
+    throw err;
+  }
   for (const hook of openHooks) {
     await hook(id, client);
   }

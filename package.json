@@ -1,6 +1,6 @@
 {
   "name": "engenty-wizards",
-  "version": "0.7.7",
+  "version": "0.7.9",
   "license": "FSL-1.1-MIT",
   "private": true,
   "type": "module",
@@ -27,6 +27,7 @@
     "schema": "tsx packages/shared/scripts/write-schema.ts",
     "release": "node scripts/release.mjs",
     "release:changelog": "node scripts/release.mjs --changelog",
+    "release:tag": "node scripts/release.mjs --tag",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "lint": "biome check .",

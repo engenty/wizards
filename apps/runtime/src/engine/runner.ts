@@ -246,6 +246,8 @@ export async function createRun(input: {
   unattended?: boolean;
   /** The language the viewer reads the wizard in, translated on request; null: its own. */
   lang?: string | null;
+  /** The client that starts it over the public API; null for the studio and the AI apps. */
+  client?: string | null;
   /**
    * A start began the run, nobody is there: `start` is what started it, `fill` the answers it
    * brings. Pages are filled as the run reaches them; what is missing waits for the owner.
@@ -291,6 +293,7 @@ export async function createRun(input: {
     origin: input.origin ?? null,
     lang: input.lang ?? null,
     unattended: input.unattended ?? false,
+    client: input.client ?? null,
     startedBy: input.startedBy ?? null,
     // A started run fills its first page itself, in the drive loop.
     status: first.type === "page" && !input.startedBy ? "waiting_input" : "running",

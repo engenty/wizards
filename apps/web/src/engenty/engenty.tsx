@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { ENGENTY_FILL, type EngentyKind } from "./colors";
 import { EngentyGoggles } from "./goggles";
+import { EngentyHelmet } from "./helmet";
 import { useEngentyGaze } from "./use-engenty-gaze";
 
 export interface EngentyProps {
@@ -14,6 +15,8 @@ export interface EngentyProps {
   className?: string;
   /** Old-school pilot goggles: the copilot's look. */
   goggles?: boolean;
+  /** Goose's flight helmet, for round, dome and drop. It replaces the goggles. */
+  helmet?: boolean;
   kind?: EngentyKind;
   /** Pixel width/height of the SVG. */
   size?: number;
@@ -376,6 +379,7 @@ function Body({ kind }: { kind: EngentyKind }) {
 export function Engenty({
   animated = true,
   goggles = false,
+  helmet = false,
   kind = "round",
   size = 160,
   className,
@@ -431,7 +435,7 @@ export function Engenty({
       </ellipse>
       <g className="e-lean">
         <Body kind={kind} />
-        {goggles ? <EngentyGoggles kind={kind} /> : null}
+        {helmet ? <EngentyHelmet kind={kind} /> : goggles ? <EngentyGoggles kind={kind} /> : null}
       </g>
     </svg>
   );

@@ -8,8 +8,8 @@ name: CI
 # deploys what a branch points at (Coolify resources `runtime` and `docs`, Auto Deploy) by pulling
 # the images (compose.cloud.yaml, deploy/Dockerfile.docs): it builds nothing. No secret and no
 # call to the server from here.
-#   pnpm release                         # commit + tag vX.Y.Z, locally
-#   git push origin main --follow-tags   # the tag is what deploys
+#   pnpm release                         # commit on release/vX.Y.Z; push it, open a pull request
+#   pnpm release:tag                     # once merged: tags main's release commit, pushes the tag
 # Run by hand on a tag (workflow_dispatch), it deploys that tag again.
 on:
   push:

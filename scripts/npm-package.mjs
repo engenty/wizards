@@ -1,4 +1,4 @@
-// Stages and packs the two npm packages of a release:
+// Stages and packs the three npm packages of a release:
 //
 //   @engenty/wizards-runtime  the runtime (built server, built SPA, plugin template, the modules),
 //                             the `wizards` command and the workspace packages inside it: what the
@@ -7,6 +7,8 @@
 //   wizards                   the launcher `npx wizards` runs: bin/wizards.mjs and install.sh,
 //                             no dependencies, a few dozen KB. It installs the runtime with the
 //                             installer and hands over to it (bin/wizards.mjs).
+//   @engenty/wizards          what code outside this repo imports: packages/wizards/dist as its
+//                             build leaves it (packages/wizards/scripts/build.mjs)
 //
 //   node scripts/npm-package.mjs [--skip-build] [--version 1.2.3] [--apple <wizards-apple>]
 //
@@ -15,8 +17,9 @@
 // --apple       the `wizards-apple` helper built on a Mac (apps/runtime/scripts/build-apple.mjs),
 //               for a package made elsewhere; a Mac's own build ships as it is
 //
-// Out: dist/npm/runtime/ and dist/npm/wizards/ (the staged folders),
-// dist/npm/engenty-wizards-runtime-<version>.tgz and dist/npm/wizards-<version>.tgz.
+// Out: dist/npm/runtime/, dist/npm/wizards/ and dist/npm/engenty-wizards/ (the staged folders),
+// dist/npm/engenty-wizards-runtime-<version>.tgz, dist/npm/wizards-<version>.tgz and
+// dist/npm/engenty-wizards-<version>.tgz.
 // Publish the runtime first: the launcher installs the runtime of its own version from npm.
 //
 // The folder keeps the checkout's layout (apps/runtime/dist, apps/web/dist, plugin/), so the
@@ -39,6 +42,7 @@ const root = resolve(import.meta.dirname, "..");
 const outDir = join(root, "dist", "npm");
 const stage = join(outDir, "runtime");
 const launcherStage = join(outDir, "wizards");
+const libraryStage = join(outDir, "engenty-wizards");
 const RUNTIME = "@engenty/wizards-runtime";
 
 const args = process.argv.slice(2);
@@ -130,6 +134,9 @@ const resolved = (dir) => {
 };
 const dependencies = {};
 const bundled = [];
+// The runtime imports @engenty/wizards for /plugin alone: its copy leaves out /openui, which
+// bundles the runner and brings the runner's libraries.
+const ONLY = { "@engenty/wizards": "plugin" };
 const collect = (dir) => {
   const installed = resolved(dir);
   for (const [name, range] of Object.entries(readJson(`${dir}/package.json`).dependencies ?? {})) {
@@ -139,14 +146,16 @@ const collect = (dir) => {
       bundled.push(name);
       dependencies[name] = manifest.version;
       const to = join(stage, "node_modules", name);
+      const only = ONLY[name];
       mkdirSync(to, { recursive: true });
-      cpSync(join(root, from, "dist"), join(to, "dist"), { recursive: true });
+      cpSync(join(root, from, "dist", only ?? ""), join(to, "dist", only ?? ""), {
+        recursive: true,
+      });
       // Without the condition that points at the TypeScript sources, which are not shipped.
       const exports = Object.fromEntries(
-        Object.entries(manifest.exports ?? {}).map(([key, value]) => [
-          key,
-          typeof value === "string" ? value : value.default,
-        ]),
+        Object.entries(manifest.exports ?? {})
+          .filter(([key]) => !only || key === `./${only}` || key.startsWith(`./${only}/`))
+          .map(([key, value]) => [key, typeof value === "string" ? value : value.default]),
       );
       writeFileSync(
         join(to, "package.json"),
@@ -162,7 +171,9 @@ const collect = (dir) => {
           2,
         )}\n`,
       );
-      collect(from);
+      if (!only) {
+        collect(from);
+      }
     } else {
       const exact = installed[name]?.version;
       if (!exact) {
@@ -234,11 +245,60 @@ writeFileSync(
   )}\n`,
 );
 
-// --- 5. pack ----------------------------------------------------------------------------
+// --- 5. @engenty/wizards ----------------------------------------------------------------
+// The build's dist/ and a package.json without the condition that points at the sources. Its
+// libraries as ranges, the way a library names them: the host's lockfile settles them.
+// typesVersions: TypeScript with `moduleResolution: "node"` doesn't read `exports`.
+const library = readJson("packages/wizards/package.json");
+mkdirSync(libraryStage, { recursive: true });
+cpSync(join(root, "packages", "wizards", "dist"), join(libraryStage, "dist"), { recursive: true });
+cpSync(join(root, "packages", "wizards", "README.md"), join(libraryStage, "README.md"));
+cpSync(join(root, "LICENSE"), join(libraryStage, "LICENSE"));
+const libraryExports = Object.fromEntries(
+  Object.entries(library.exports).map(([key, value]) => {
+    if (typeof value === "string") {
+      return [key, value];
+    }
+    const { "wizards-source": _source, ...published } = value;
+    return [key, Object.keys(published).length === 1 ? published.default : published];
+  }),
+);
+const typesVersions = Object.fromEntries(
+  Object.entries(libraryExports)
+    .filter(([, value]) => typeof value === "object" && value.types)
+    .map(([key, value]) => [key.slice(2), [value.types]]),
+);
+writeFileSync(
+  join(libraryStage, "package.json"),
+  `${JSON.stringify(
+    {
+      name: library.name,
+      version,
+      description: library.description,
+      license: library.license,
+      homepage: about.homepage,
+      repository: { ...about.repository, directory: "packages/wizards" },
+      type: "module",
+      exports: libraryExports,
+      typesVersions: { "*": typesVersions },
+      files: ["dist"],
+      dependencies: library.dependencies,
+      peerDependencies: library.peerDependencies,
+      peerDependenciesMeta: library.peerDependenciesMeta,
+      publishConfig: { access: "public" },
+    },
+    null,
+    2,
+  )}\n`,
+);
+
+// --- 6. pack ----------------------------------------------------------------------------
 run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], stage);
 run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], launcherStage);
+run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], libraryStage);
 const tarball = join(outDir, `engenty-wizards-runtime-${version}.tgz`);
 const launcherTarball = join(outDir, `wizards-${version}.tgz`);
+const libraryTarball = join(outDir, `engenty-wizards-${version}.tgz`);
 
 function* walk(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -253,6 +313,7 @@ function* walk(dir) {
 const sizeOf = (files) => files.reduce((sum, file) => sum + statSync(file).size, 0);
 const files = [...walk(stage)];
 const launcherFiles = [...walk(launcherStage)];
+const libraryFiles = [...walk(libraryStage)];
 const mb = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 const kb = (bytes) => `${Math.ceil(bytes / 1024)} KB`;
 console.log(`
@@ -264,4 +325,8 @@ ${RUNTIME} ${version}
 wizards ${version} (the launcher)
   staged    ${launcherFiles.length} files, ${kb(sizeOf(launcherFiles))}  (${launcherStage})
   tarball   ${kb(statSync(launcherTarball).size)}  (${launcherTarball})
+
+${library.name} ${version}
+  staged    ${libraryFiles.length} files, ${mb(sizeOf(libraryFiles))}  (${libraryStage})
+  tarball   ${kb(statSync(libraryTarball).size)}  (${libraryTarball})
 `);

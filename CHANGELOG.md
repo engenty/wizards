@@ -4,6 +4,20 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.7.9] - 2026-10-17
+- ADDED **[plugin]** The /wizards pane beside the chat, installable from GitHub as wizards@engenty (#3)
+- ADDED **[engenty]** Goose's flight helmet, built in Blender, worn by any engenty (#47)
+- ADDED **[api]** Clients of the public run API name themselves (#56)
+- FIXED **[runtime]** A dropped control database connection no longer ends the process, and a busy tenant database is retried (#60)
+- FIXED **[engenty]** Only Goose wears the short, dense, thick fur (#58)
+
+## [0.7.8] - 2026-10-17
+- ADDED **[film]** A film starts from a kit's base project and keeps the space's brand between runs (#55)
+- ADDED **[setup]** A decision model on the person's own machine (#54)
+- ADDED **[runtime]** Code mode keeps to a step budget, off paid tools and large answers (#50)
+- ADDED **[studio]** Editor pane on the left, test run beside the diagram with a live log (#52)
+- FIXED **[plugins]** The Pro modules section says why it could not load and offers to try again (#53)
+
 ## [0.7.7] - 2026-10-17
 - ADDED **[openui]** Run wizards inside OpenUI chats (#43)
 - ADDED **[runtime]** Code mode – a step's tools from one program in QuickJS (#49)

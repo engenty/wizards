@@ -1,5 +1,6 @@
 import { serve } from "@hono/node-server";
 import { localEntryUrl, purgeSessions } from "./auth/index.js";
+import { startClientChecks } from "./clients.js";
 import { adoptLegacyData } from "./db/adopt.js";
 import {
   knownTenants,
@@ -28,6 +29,9 @@ import { onRestart, RESTART_EXIT, startUpdateChecks } from "./update.js";
 
 // Before anything prints: the last lines stay in memory for a look from afar (debug.ts).
 hookConsole();
+// A background job that failed (a dropped connection to a remote database) is logged; the
+// server keeps running for every other request instead of ending with it.
+process.on("unhandledRejection", (err) => console.error("[unhandled]", err));
 await migrateControlDb();
 // What the linked account's plan confirmed last: the Pro modules it includes load with the rest.
 await loadEntitlement();
@@ -37,11 +41,15 @@ startJobs();
 startStarts();
 if (managed) {
   // Every tenant database is brought to this release's schema; a new one migrates when first opened.
-  void migrateAllTenants().then(({ migrated, failed }) => {
-    console.log(
-      `tenant databases: ${migrated} current${failed.length ? `, failed: ${failed}` : ""}`,
-    );
-  });
+  void migrateAllTenants()
+    .then(({ migrated, failed }) => {
+      console.log(
+        `tenant databases: ${migrated} current${failed.length ? `, failed: ${failed}` : ""}`,
+      );
+    })
+    .catch((err) => console.error("[migrate]", err));
+  // Which clients may start runs over the public API, and how often: the Manage-App's list.
+  startClientChecks();
 } else {
   await adoptLegacyData();
   await openTenantDb(LOCAL_TENANT);
@@ -54,8 +62,10 @@ if (managed) {
 }
 
 // The marketplace's starters and the starred entries, kept for offline use; checked hourly.
-void syncMarketplace();
-setInterval(() => void syncMarketplace(), 3600_000).unref();
+const marketplace = () =>
+  void syncMarketplace().catch((err) => console.error("[marketplace]", (err as Error).message));
+marketplace();
+setInterval(marketplace, 3600_000).unref();
 
 const { default: app } = await import("./app.js");
 

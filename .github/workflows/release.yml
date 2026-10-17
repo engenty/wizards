@@ -2,14 +2,14 @@ name: Release
 
 # A tag `v<version>` (the version of the root package.json) publishes what a local install is made
 # of on the GitHub release: the runtime, the npm package @engenty/wizards-runtime, as a tarball
-# (and the launcher `wizards` beside it). The installer (apps/web/public/install.sh) fetches the
-# runtime from there. People install the studio as a Chrome app. The installer itself reaches
+# (and the launcher `wizards` and the package `@engenty/wizards` beside it). The installer
+# (apps/web/public/install.sh) fetches the runtime from there. People install the studio as a Chrome app. The installer itself reaches
 # engenty.ai with the deploy the same tag starts (ci.yml).
 #
-# Both packages also go to npm while the repository variable PUBLISH_NPM is `true` and the secret
-# NPM_TOKEN holds a token that may publish `wizards` and `@engenty/wizards-runtime` without a
-# second factor: the runtime for the updates and the launcher, then the launcher for `npx wizards`
-# (scripts/npm-package.mjs).
+# The packages also go to npm while the repository variable PUBLISH_NPM is `true` and the secret
+# NPM_TOKEN holds a token that may publish `wizards`, `@engenty/wizards-runtime` and
+# `@engenty/wizards` without a second factor: the runtime for the updates and the launcher, then
+# the launcher for `npx wizards`, then what code outside the repo imports (scripts/npm-package.mjs).
 # On a pull request that touches what a local install is made of, and run by hand
 # (workflow_dispatch), it builds and tests everything and publishes nothing.
 on:
@@ -234,7 +234,7 @@ jobs:
             artifacts/npm-package/*.tgz artifacts/templates.tgz artifacts/runner.tgz
 
       # The runtime first, the launcher once npm serves it: the launcher installs the runtime of
-      # its own version from npm.
+      # its own version from npm. @engenty/wizards needs neither.
       #
       # npm takes a few minutes to serve a version it accepted. Each package counts once `latest`
       # names it and its tarball downloads, so a green release means `npx wizards` and the updates
@@ -268,3 +268,5 @@ jobs:
           served @engenty/wizards-runtime "wizards-runtime-$version.tgz"
           npm publish "artifacts/npm-package/wizards-$version.tgz" --access public
           served wizards "wizards-$version.tgz"
+          npm publish "artifacts/npm-package/engenty-wizards-$version.tgz" --access public
+          served @engenty/wizards "wizards-$version.tgz"
