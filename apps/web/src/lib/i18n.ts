@@ -805,6 +805,7 @@ const de: Record<Key, Line> = {
   "editor.runWide": "Ganzes Fenster",
   "editor.runNarrow": "Seitenleiste zeigen",
   "editor.waitsForInput": "Wartet auf Eingabe",
+  "editor.threadGrip": "Chatverlauf: ziehen für die Höhe, klicken zum Ein- und Ausklappen",
   "editor.testFailed": "Der Testlauf konnte nicht starten.",
   "log.title": "Protokoll",
   "log.count": {
@@ -2781,6 +2782,7 @@ const en = {
   "editor.runWide": "Fill the window",
   "editor.runNarrow": "Show the side panel",
   "editor.waitsForInput": "Waiting for input",
+  "editor.threadGrip": "Chat history: drag to resize, click to fold it in or out",
   "editor.testFailed": "The test run couldn’t start.",
   "log.title": "Log",
   "log.count": {
