@@ -57,7 +57,8 @@ the cloud behind the same links. On macOS or Linux, in a terminal:
 curl -fsSL https://engenty.ai/install.sh | bash
 ```
 
-With Node.js 20 or newer on the machine, `npx wizards` does the same.
+On Windows, in PowerShell: `irm https://engenty.ai/install.ps1 | iex`. With Node.js 20 or newer on
+the machine, `npx wizards` does the same.
 
 It needs nothing but `curl` and `tar` and asks for no password. It brings its own Node.js (a
 Node you already have is left alone), installs engenty wizards into `~/.engenty/wizards` and

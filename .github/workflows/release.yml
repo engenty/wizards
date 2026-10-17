@@ -20,6 +20,7 @@ on:
     paths:
       - apps/runtime/**
       - apps/web/public/install.sh
+      - apps/web/public/install.ps1
       - packages/**
       - bin/**
       - scripts/npm-package.mjs
@@ -200,8 +201,42 @@ jobs:
           "$home/bin/wizards" doctor
           test -f "$home/runtime/current/node_modules/@engenty/wizards-runtime/apps/runtime/dist/index.js"
 
+  # The same on Windows, with install.ps1 in the Windows PowerShell that Windows ships.
+  installer-windows:
+    needs: package
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: npm-package
+          path: dist/npm
+
+      - name: Install
+        shell: powershell
+        run: |
+          $env:ENGENTY_HOME = Join-Path $env:RUNNER_TEMP "engenty"
+          $env:ENGENTY_WIZARDS_PACKAGE = (Get-ChildItem dist\npm\engenty-wizards-runtime-*.tgz).FullName
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File apps\web\public\install.ps1 -Yes
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "ENGENTY_HOME=$env:ENGENTY_HOME" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: Start, enter, stop
+        shell: powershell
+        run: |
+          $wizards = Join-Path $env:ENGENTY_HOME "wizards\bin\wizards.cmd"
+          & $wizards doctor
+          & $wizards start -s --no-open
+          if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $env:ENGENTY_HOME "wizards\logs\runtime.log"); exit 1 }
+          # A ticket lets a browser into the runtime that runs: 302 to the studio.
+          $link = (& $wizards open --print | Select-Object -Last 1).Trim()
+          $code = curl.exe -s -o NUL -w "%{http_code}" $link
+          & $wizards stop
+          if ($code -ne "302") { Write-Error "open --print answered $code"; exit 1 }
+
   publish:
-    needs: [package, installer, templates, runner]
+    needs: [package, installer, installer-windows, templates, runner]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 20

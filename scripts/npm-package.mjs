@@ -4,7 +4,7 @@
 //                             the `wizards` command and the workspace packages inside it: what the
 //                             installer (apps/web/public/install.sh), the updates and the desktop
 //                             app install into ~/.engenty/wizards
-//   wizards                   the launcher `npx wizards` runs: bin/wizards.mjs and install.sh,
+//   wizards                   the launcher `npx wizards` runs: bin/wizards.mjs and the installers,
 //                             no dependencies, a few dozen KB. It installs the runtime with the
 //                             installer and hands over to it (bin/wizards.mjs).
 //   @engenty/wizards          what code outside this repo imports: packages/wizards/dist as its
@@ -204,9 +204,6 @@ writeFileSync(
       type: "module",
       bin: { wizards: "bin/wizards.mjs" },
       engines: pkg.engines,
-      // Windows has no installer yet (bin/wizards.mjs says so): npm refuses at once instead of
-      // installing for many minutes first.
-      os: ["darwin", "linux"],
       files: ["apps", "bin", "modules", "plugin"],
       dependencies: sorted(Object.keys(dependencies).filter((name) => !OPTIONAL.includes(name))),
       optionalDependencies: sorted(OPTIONAL.filter((name) => name in dependencies)),
@@ -223,7 +220,9 @@ writeFileSync(
 mkdirSync(join(launcherStage, "bin"), { recursive: true });
 cpSync(join(root, "bin", "wizards.mjs"), join(launcherStage, "bin", "wizards.mjs"));
 chmodSync(join(launcherStage, "bin", "wizards.mjs"), 0o755);
-cpSync(join(root, "apps", "web", "public", "install.sh"), join(launcherStage, "install.sh"));
+for (const file of ["install.sh", "install.ps1"]) {
+  cpSync(join(root, "apps", "web", "public", file), join(launcherStage, file));
+}
 for (const file of ["LICENSE", "README.md"]) {
   cpSync(join(root, file), join(launcherStage, file));
 }
@@ -237,8 +236,7 @@ writeFileSync(
       ...about,
       type: "module",
       bin: { wizards: "bin/wizards.mjs" },
-      os: ["darwin", "linux"],
-      files: ["bin", "install.sh"],
+      files: ["bin", "install.sh", "install.ps1"],
     },
     null,
     2,

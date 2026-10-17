@@ -1,6 +1,9 @@
-import { spawn } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+// cross-spawn: on Windows a command from npm is a .cmd file, which only cmd.exe starts, with
+// its arguments quoted the way cmd.exe reads them. Elsewhere it is child_process.spawn.
+import spawn from "cross-spawn";
 
 export interface Logged {
   code: number;
@@ -49,7 +52,7 @@ export function runLogged(
       env: options.env,
       cwd: options.cwd,
       stdio: ["ignore", "pipe", "pipe"],
-    });
+    }) as ChildProcessWithoutNullStreams;
     child.stdout.on("data", take);
     child.stderr.on("data", take);
     child.on("error", (error) => {
@@ -57,5 +60,46 @@ export function runLogged(
       resolve({ code: 127, tail });
     });
     child.on("close", (code) => resolve({ code: code ?? 1, tail: tail.trim() }));
+  });
+}
+
+/**
+ * Runs a file and gives what it printed, like execFile: it rejects when the file is not there,
+ * ends with another code than 0, or takes longer than `timeout`.
+ */
+export function runFile(
+  file: string,
+  args: string[],
+  options: { env?: NodeJS.ProcessEnv; cwd?: string; timeout?: number } = {},
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(file, args, {
+      env: options.env,
+      cwd: options.cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: options.timeout,
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        reject(
+          Object.assign(new Error(`${file} ended with ${signal ?? code}`), {
+            code,
+            stdout,
+            stderr,
+          }),
+        );
+      }
+    });
   });
 }

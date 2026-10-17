@@ -345,13 +345,13 @@ async function previewFor(path: string): Promise<string | null> {
 /**
  * Production: the built app. Its files and the studio's pages sit below `/studio`; the public
  * pages are `/w/<token>` and `/s/<token>`. Of the root only what others fetch there is served:
- * the installer, the embed script for websites, and the service worker of public wizards. The
+ * the installers, the embed script for websites, and the service worker of public wizards. The
  * rest of the root belongs to others (the landing page); a runtime alone sends `/` to the studio.
  * The app's files are served by both halves: a wizard's page loads its scripts from `/studio`
  * too. Which pages a half answers follows its role.
  */
 const webDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../web/dist");
-const STUDIO_FILES = ["/install.sh"];
+const STUDIO_FILES = ["/install.sh", "/install.ps1"];
 const DOORS_FILES = ["/embed.js", "/sw.js"];
 const PAGES = new RegExp(
   `^/(${[...(serves.studio ? ["studio(/|$)"] : []), ...(serves.doors ? ["w/", "s/"] : [])].join("|")})`,
