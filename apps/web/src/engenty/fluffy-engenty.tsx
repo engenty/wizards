@@ -12,6 +12,7 @@ import {
 import { furPalette } from "./fur-palette";
 import { FUR_ORIGIN, FUR_VIEW } from "./fur-shader";
 import { acquireFurStage, type EngentyCoat } from "./fur-stage";
+import { isGooseHelmetKind } from "./goose-helmet-fit";
 import { headTurn, MAX_HEAD_TURN } from "./head-turn";
 import { JELLY_DEFAULTS } from "./jelly-defaults";
 import { bindJellyDrag } from "./jelly-drag";
@@ -25,9 +26,9 @@ const QUALITY: Record<
   FurQuality,
   { density: number; dprCap: number; thick: number }
 > = {
-  high: { density: 68, dprCap: 2, thick: 1 },
-  low: { density: 40, dprCap: 1, thick: 1.15 },
-  medium: { density: 55, dprCap: 1.5, thick: 1.05 },
+  high: { density: 88, dprCap: 2, thick: 1.8 },
+  low: { density: 52, dprCap: 1, thick: 2.05 },
+  medium: { density: 71, dprCap: 1.5, thick: 1.9 },
 };
 
 /**
@@ -53,7 +54,7 @@ const PHASE_STEP = 2.399_963;
 const KEY_LIGHT: [number, number, number] = [-0.42, -0.72, 0.75];
 
 /** How far the silhouette bulges toward the camera, in form units. */
-const DEFAULT_INFLATE = 30;
+const DEFAULT_INFLATE = 20;
 const DEFAULT_WIND = 0.5;
 
 export interface FluffyEngentyOverrides {
@@ -76,6 +77,8 @@ export interface FluffyEngentyProps {
   coat?: EngentyCoat;
   /** Old-school pilot goggles over the eye: the copilot's look. */
   goggles?: boolean;
+  /** Rigid red Goose flight helmet for round, dome or drop. */
+  gooseHelmet?: boolean;
   /** Pointer-driven lean and gaze. Off for purely decorative instances. */
   interactive?: boolean;
   kind?: EngentyKind;
@@ -115,6 +118,7 @@ export function FluffyEngenty({
   turn,
   coat = "fur",
   goggles = false,
+  gooseHelmet = false,
   interactive = true,
   look = null,
   kind = "round",
@@ -132,6 +136,7 @@ export function FluffyEngenty({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [supported, setSupported] = useState(true);
 
+  const helmetKind = gooseHelmet && isGooseHelmetKind(kind) ? kind : undefined;
   const form = ENGENTY_FORMS[kind];
   const blobs = useMemo(() => packFormBlobs(form), [form]);
   const extras = useMemo(() => packFormExtras(form), [form]);
@@ -143,6 +148,7 @@ export function FluffyEngenty({
     motion,
     turn,
     goggles,
+    helmetKind,
     blobs,
     extras,
     form,
@@ -159,6 +165,7 @@ export function FluffyEngenty({
     motion,
     turn,
     goggles,
+    helmetKind,
     blobs,
     extras,
     form,
@@ -182,6 +189,7 @@ export function FluffyEngenty({
     interactive,
     look,
     goggles,
+    helmetKind,
     motion,
     animationSpeed,
     turn,
@@ -297,7 +305,9 @@ export function FluffyEngenty({
         extras: current.extras.geometry,
         eye: [current.form.eye.x, current.form.eye.y, current.form.eye.r],
         gaze: [gaze.x, gaze.y],
-        goggles: current.goggles,
+        goggles: current.goggles && !current.helmetKind,
+        gooseHelmet: Boolean(current.helmetKind),
+        helmetKind: current.helmetKind,
         turn: current.turn
           ? headTurn(
               current.turn.yaw / MAX_HEAD_TURN,
@@ -369,7 +379,7 @@ export function FluffyEngenty({
     return (
       <Engenty
         className={className}
-        goggles={goggles}
+        goggles={goggles && !helmetKind}
         kind={kind}
         size={size}
       />
