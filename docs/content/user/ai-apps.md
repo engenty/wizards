@@ -119,5 +119,5 @@ claude plugin marketplace add <your address>/api/claude-plugin/marketplace.json
 claude plugin install wizards@<your-host-with-dashes>   # wizards.example.com → wizards-example-com
 ```
 
-`claude plugin update wizards` brings the next version. In Claude Code's auto mode the pane's own
-calls need allow rules; the plugin's README names them.
+`claude plugin update wizards` brings the next version. In Claude Code’s auto mode the pane’s own
+calls need allow rules; the plugin’s README names them.
