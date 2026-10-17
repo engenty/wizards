@@ -187,7 +187,8 @@ function defaultSchedule(): Schedule {
 
 function newStart(): WizardStart {
   return {
-    id: "",
+    // A fresh id the server replaces with its own: the schema wants one.
+    id: `new-${Math.random().toString(36).slice(2, 10)}`,
     kind: "schedule",
     on: true,
     schedule: defaultSchedule(),
@@ -371,7 +372,7 @@ export function StartsView({
                 <li key={f.id} className="flex items-center gap-3 py-2">
                   <label htmlFor={`start-${f.id}`} className="min-w-0 flex-1 text-[0.9375rem]">
                     {f.label}
-                    {f.required ? null : (
+                    {f.required || /optional/i.test(f.label) ? null : (
                       <span className="text-ink-4"> · {t("starts.optional")}</span>
                     )}
                   </label>
