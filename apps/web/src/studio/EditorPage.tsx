@@ -368,6 +368,18 @@ export function EditorPage() {
     }
   }, [params, wizard.data, chat, setParams]);
 
+  // A notice's "Open" names the run: the editor opens on it.
+  const openedRun = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: openRun is defined below, stable enough for one use
+  useEffect(() => {
+    const run = params.get("run");
+    if (run && wizard.data && !openedRun.current) {
+      openedRun.current = true;
+      setParams({}, { replace: true });
+      openRun(run);
+    }
+  }, [params, wizard.data, setParams]);
+
   // Models the draft needs that this runtime cannot serve: a step on every path blocks the test.
   const models = useQuery({
     queryKey: ["wizard-models", id, wizard.data?.revision],
@@ -857,6 +869,7 @@ export function EditorPage() {
                     fitKey={`${split}:${Boolean(drawerRun)}:${paneMoves}`}
                     pulse={remote?.steps}
                     wizardId={w.id}
+                    starts={w.starts.filter((s) => s.on).length}
                     decisions={shownDecisions}
                     onBranch={(sid) => {
                       select(sid);
@@ -1063,7 +1076,7 @@ export function EditorPage() {
                 readOnly={w.readOnly}
               />
             ) : (
-              <RunsPanel wizardId={w.id} onOpen={openRun} />
+              <RunsPanel wizardId={w.id} starts={w.starts} onOpen={openRun} />
             )}
           </div>
         </aside>

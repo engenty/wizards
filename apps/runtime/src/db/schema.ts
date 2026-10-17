@@ -14,6 +14,7 @@ import type {
 } from "@engenty-wizards/shared/projects";
 import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty-wizards/shared/run";
 import type { RunnerSettings } from "@engenty-wizards/shared/runners";
+import type { StartedBy, WizardStart } from "@engenty-wizards/shared/starts";
 import type { TranslationMemory } from "@engenty-wizards/shared/translation";
 import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
 import { sql } from "drizzle-orm";
@@ -121,6 +122,8 @@ export const wizard = sqliteTable(
     runners: text("runners", { mode: "json" }).$type<RunnerSettings>(),
     /** The wizard's page offers it in the viewer's language, translated on request. */
     translate: integer("translate", { mode: "boolean" }).notNull().default(true),
+    /** What begins a run without a person: schedules, addresses, rows, other wizards. */
+    starts: text("starts", { mode: "json" }).$type<WizardStart[]>().notNull().default([]),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -220,6 +223,8 @@ export const run = sqliteTable(
     mode: text("mode", { enum: ["test", "live"] }).notNull(),
     /** The door the run came through: steps, chat, or a plugin's runner. Null: the page. */
     runner: text("runner"),
+    /** What began the run without a person: one of the wizard's starts. Null: a person did. */
+    startedBy: text("started_by", { mode: "json" }).$type<StartedBy | null>(),
     /** The language the viewer reads the wizard in, translated on request; null: its own. */
     lang: text("lang"),
     visitorId: text("visitor_id"),
@@ -268,6 +273,29 @@ export const run = sqliteTable(
     index("run_visitor").on(t.visitorId, t.createdAt),
     index("run_status").on(t.status),
   ],
+);
+
+/**
+ * A word to the owner about a run nobody watches: it waits for them, it is done, it failed, its
+ * start was paused. Read in the studio's bell; a linked account gets them by mail too.
+ */
+export const notice = sqliteTable(
+  "notice",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    kind: text("kind", { enum: ["needs_you", "done", "failed", "paused"] }).notNull(),
+    wizardId: text("wizard_id")
+      .notNull()
+      .references(() => wizard.id, { onDelete: "cascade" }),
+    runId: text("run_id").references(() => run.id, { onDelete: "cascade" }),
+    startId: text("start_id"),
+    /** A line of detail in the wizard's language: the page that waits, the error. */
+    detail: text("detail"),
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("notice_tenant_at").on(t.tenantId, t.createdAt)],
 );
 
 export const runEvent = sqliteTable(

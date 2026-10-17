@@ -21,7 +21,7 @@ import {
   ReactFlowProvider,
   useReactFlow,
 } from "@xyflow/react";
-import { AlertCircle, Check, Minus, Plus, Scan, Sparkles } from "lucide-react";
+import { AlertCircle, Check, Clock, Minus, Plus, Scan, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mascot } from "../../brand";
 import { lang, t } from "../../lib/i18n";
@@ -71,7 +71,7 @@ function Elapsed({ since }: { since: number }) {
     <span className="shrink-0 tabular-nums">{Math.max(0, Math.round((now - since) / 1000))} s</span>
   );
 }
-type StartData = { title: string; avatar: string; selected: boolean };
+type StartData = { title: string; avatar: string; selected: boolean; starts: number };
 
 function StepNode({ data }: NodeProps<Node<StepData>>) {
   const { step, selected, issue, active, pulse, cost, passed, onAddAfter, live } = data;
@@ -181,7 +181,19 @@ function StartNode({ data }: NodeProps<Node<StartData>>) {
       )}
     >
       <Mascot kind={data.avatar} size={40} interactive={false} />
-      <span className="truncate font-display font-semibold text-[0.9375rem]">{data.title}</span>
+      <span className="min-w-0 flex-1 truncate font-display font-semibold text-[0.9375rem]">
+        {data.title}
+      </span>
+      {data.starts ? (
+        // The wizard runs by itself: a clock, as the share dialog's section shows it.
+        <span
+          title={t("starts.title")}
+          className="flex size-6 shrink-0 items-center justify-center rounded-full bg-cobalt-tint text-cobalt"
+        >
+          <Clock className="size-3.5" aria-hidden="true" />
+          <span className="sr-only">{t("starts.title")}</span>
+        </span>
+      ) : null}
       <Handle type="source" position={Position.Bottom} />
     </div>
   );
@@ -321,6 +333,7 @@ function layout(
   adding: Adding | null,
   onInsert?: (at: number) => void,
   live?: StepLive | null,
+  starts = 0,
 ) {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "TB", nodesep: 48, ranksep: 46, marginx: 20, marginy: 20 });
@@ -436,7 +449,7 @@ function layout(
       id: "__start",
       type: "start",
       position: { x: g.node("__start").x - NODE_W / 2, y: g.node("__start").y - 26 },
-      data: { title: def.title, avatar: def.avatar, selected: selected === "__wizard" },
+      data: { title: def.title, avatar: def.avatar, selected: selected === "__wizard", starts },
       draggable: false,
     },
     ...def.steps.map((s, index) => {
@@ -537,6 +550,8 @@ interface CanvasProps {
   onInsert?: (at: number) => void;
   /** What a test run does in its step in effect; the diagram keeps that step in view. */
   live?: StepLive | null;
+  /** How many starts are on: the start node wears a clock when any is. */
+  starts?: number;
 }
 
 function Inner({
@@ -555,6 +570,7 @@ function Inner({
   adding = null,
   onInsert,
   live = null,
+  starts = 0,
 }: CanvasProps) {
   const { nodes, edges } = useMemo(
     () =>
@@ -570,8 +586,10 @@ function Inner({
         adding,
         onInsert,
         live,
+        starts,
       ),
     [
+      starts,
       def,
       selected,
       issueSteps,

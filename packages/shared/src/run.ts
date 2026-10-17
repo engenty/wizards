@@ -8,6 +8,7 @@ import {
   type Step,
   type WizardDefinition,
 } from "./definition.js";
+import type { StartEvent } from "./starts.js";
 import type { ConnectionView, ListDef, ListRow } from "./store.js";
 import type { Surface } from "./surface.js";
 import { type Gap, type Line, lineText, type Texts, type TextTable, textOf } from "./texts.js";
@@ -68,6 +69,13 @@ export interface RunState {
   loops?: Record<string, number>;
   /** File fields with `listen`: what is said in the recording, piece by piece with its times. */
   heard?: Record<string, { start: number; end: number; text: string }[]>;
+  /**
+   * A run a start began: what started it (`start`, read as `{{start.row.Firma}}` and by the AI
+   * steps) and the answers it brings for the pages (`fill`, by field id), given as the run
+   * reaches each page.
+   */
+  start?: StartEvent;
+  fill?: Record<string, unknown>;
   /**
    * A test run's own copy of the wizard's memory: the pages it wrote, by title. The wizard's
    * pages stay as they are; the copy goes with the run.

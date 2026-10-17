@@ -1,4 +1,5 @@
 import type { RunnerFit, RunnerInfo, RunnerSettings } from "@engenty-wizards/shared/runners";
+import type { WizardStart } from "@engenty-wizards/shared/starts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -63,6 +64,7 @@ import {
 import { FitChip, NeedList, useStandalone } from "../StandaloneNeeds";
 import { sharedLink, type WhereItRuns, whereItRuns } from "../where";
 import { useEstimate } from "./estimate";
+import { StartsSection, StartsView } from "./StartsSection";
 import { TranslationsSection } from "./Translations";
 import { printQr, QrImage, qrSvg, saveQrPng, spacedCode } from "./WizardQr";
 
@@ -127,7 +129,7 @@ interface Way {
   plugin?: string;
 }
 
-type View = "main" | "qr" | "website" | "package" | "settings" | "channels" | "setup";
+type View = "main" | "qr" | "website" | "package" | "settings" | "channels" | "setup" | "starts";
 
 const HEADINGS: Record<Exclude<View, "main" | "setup">, Key> = {
   qr: "share.qr",
@@ -135,6 +137,7 @@ const HEADINGS: Record<Exclude<View, "main" | "setup">, Key> = {
   package: "share.wpLocal",
   settings: "share.settings",
   channels: "new.where",
+  starts: "starts.title",
 };
 
 /** The channels that are on, as rows, by kind: the browser's (with `base`, the link), the phone's, the messages'. */
@@ -1273,6 +1276,8 @@ function SharePanel({
       ]),
   });
   const [view, setView] = useState<View>("main");
+  /** The start the sheet changes; null: a new one. */
+  const [editingStart, setEditingStart] = useState<WizardStart | null>(null);
   const { copied, copy } = useCopy();
   const navigate = useNavigate();
   const { sections, shareSetups } = useStudioPlugins();
@@ -1478,6 +1483,19 @@ function SharePanel({
                 plansUrl={plansUrl}
               />
             ) : null}
+            {wizard.published ? (
+              <StartsSection
+                wizard={wizard}
+                onAdd={() => {
+                  setEditingStart(null);
+                  setView("starts");
+                }}
+                onEdit={(start) => {
+                  setEditingStart(start);
+                  setView("starts");
+                }}
+              />
+            ) : null}
           </Body>
           <Footer>
             <Button
@@ -1531,6 +1549,15 @@ function SharePanel({
       ) : null}
       {view === "channels" ? (
         <ChannelsView wizard={wizard} answer={runners.data} onDone={() => setView("main")} />
+      ) : null}
+      {view === "starts" ? (
+        <StartsView
+          wizard={wizard}
+          editing={editingStart}
+          onDone={() => setView("main")}
+          Body={Body}
+          Footer={Footer}
+        />
       ) : null}
       {view === "setup" && setup ? (
         <SetupView wizard={wizard} setup={setup} onDone={setupDone} />

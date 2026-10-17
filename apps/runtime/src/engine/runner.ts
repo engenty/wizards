@@ -21,13 +21,14 @@ import {
   otherwiseOf,
   type PageStep,
   pageNeeds,
+  type ReviewStep,
   type Step,
   textLang,
   type WizardDefinition,
   whenHolds,
   wizardLang,
 } from "@engenty-wizards/shared/definition";
-import type { Said, StepOutput } from "@engenty-wizards/shared/run";
+import type { AskInput, Said, StepOutput } from "@engenty-wizards/shared/run";
 import {
   type ClosedChoice,
   note,
@@ -38,6 +39,7 @@ import {
 } from "@engenty-wizards/shared/run";
 import { CONVERSATION_RUNNERS, DEFAULT_RUNNER_SETTINGS } from "@engenty-wizards/shared/runners";
 import { fitData } from "@engenty-wizards/shared/shape";
+import type { StartEvent, StartedBy } from "@engenty-wizards/shared/starts";
 import type { ListDef, ListRow } from "@engenty-wizards/shared/store";
 import { machineTranslated, translateDefinition } from "@engenty-wizards/shared/translation";
 import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
@@ -80,11 +82,12 @@ import {
   wakeRun,
 } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { askPerson, clearStaleAsk } from "./asks.js";
+import { type AskResult, askPerson, clearStaleAsk } from "./asks.js";
 import { decide } from "./decide.js";
 import { clearDeviceCalls } from "./device.js";
 import { emitEvent, recentEvents, signalChanged } from "./events.js";
 import { type InputError, type PageContext, readPageInput } from "./input.js";
+import { noticeOwner } from "./notices.js";
 import { pushRun } from "./push.js";
 import {
   blockingMessage,
@@ -94,6 +97,7 @@ import {
   stepsWithoutModel,
 } from "./requirements.js";
 import { releaseResources, resourcesFor } from "./resources.js";
+import { startedRunEnded, startOf } from "./starts.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
 import { answersAsText, resolveRef } from "./template.js";
 import type { ProjectRow, RunRow, StepContext } from "./types.js";
@@ -169,6 +173,8 @@ async function updateRun(runId: string, patch: Partial<typeof schema.run.$inferI
     if (patch.status !== "cancelled") {
       void pushRun(runId, patch.status);
     }
+    // A start's run that ended: the start counts it, the owner hears of it.
+    void startedRunEnded(runId, patch.status);
   }
   signalChanged(runId);
 }
@@ -242,10 +248,21 @@ export async function createRun(input: {
   lang?: string | null;
   /** The client that starts it over the public API; null for the studio and the AI apps. */
   client?: string | null;
+  /**
+   * A start began the run, nobody is there: `start` is what started it, `fill` the answers it
+   * brings. Pages are filled as the run reaches them; what is missing waits for the owner.
+   */
+  startedBy?: StartedBy | null;
+  start?: StartEvent;
+  fill?: Record<string, unknown>;
 }): Promise<string> {
   const id = nanoid(18);
   const first = input.definition.steps[0];
   const state: RunState = { values: {}, outputs: {}, history: [], notes: {} };
+  if (input.startedBy) {
+    state.start = input.start;
+    state.fill = input.fill ?? {};
+  }
   // A step every run passes through needs a model this runtime cannot serve: refuse before anything is held.
   const blocked = blockingMessage(await missingModelsSaid(input.definition));
   if (blocked) {
@@ -277,7 +294,9 @@ export async function createRun(input: {
     lang: input.lang ?? null,
     unattended: input.unattended ?? false,
     client: input.client ?? null,
-    status: first.type === "page" ? "waiting_input" : "running",
+    startedBy: input.startedBy ?? null,
+    // A started run fills its first page itself, in the drive loop.
+    status: first.type === "page" && !input.startedBy ? "waiting_input" : "running",
     cursor: first.id,
     state,
     // Without an account nobody can come back for a result later: it is kept a week.
@@ -287,7 +306,7 @@ export async function createRun(input: {
         : null,
   });
   await indexRun({ runId: id, visitorId: input.visitorId, ipHash: input.ipHash });
-  if (first.type !== "page") {
+  if (first.type !== "page" || input.startedBy) {
     kick(id);
   }
   return id;
@@ -490,8 +509,7 @@ async function makeContext(
     projectFiles: (await projectFiles(project.id)).filter((f) => f.status === "ready"),
     signal,
     resources,
-    ask: (ask) =>
-      run.unattended ? Promise.resolve(null) : askPerson(run.id, { ...ask, stepId }, signal),
+    ask: (ask) => askOf(run, ask, stepId, signal),
     emit: (type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset),
     call: { runId: run.id, stepId },
     chargeUsd: (usd) => addLocalCost(run.id, stepId, usd),
@@ -502,6 +520,30 @@ async function makeContext(
         stepId: input.stepId ?? run.cursor,
       }),
   };
+}
+
+/**
+ * A step's question to the person. An autopilot's test run asks nobody. A started run answers a
+ * confirm itself when its start allows changes; otherwise nobody is there and the tool leaves
+ * the change open. A sign-in it puts to the owner, who is told.
+ */
+async function askOf(
+  run: RunRow,
+  ask: AskInput,
+  stepId: string,
+  signal: AbortSignal,
+): Promise<AskResult | null> {
+  if (run.unattended) {
+    return null;
+  }
+  if (run.startedBy && ask.kind === "confirm") {
+    const start = await startOf(run);
+    return start?.allowChanges ? { type: "done" } : null;
+  }
+  if (run.startedBy) {
+    void noticeOwner(run, "needs_you", ask.kind === "login" ? ask.site.host : null);
+  }
+  return askPerson(run.id, { ...ask, stepId }, signal);
 }
 
 /** A decided branch is taken only when its pick leads the runner-up by this much. */
@@ -735,6 +777,18 @@ async function drive(runId: string, signal: AbortSignal) {
       await updateRun(runId, { status: "done" });
       return;
     }
+    if ((step.type === "page" || step.type === "review") && run.startedBy) {
+      // Nobody is there: the start's answers fill the page, its setting passes the review.
+      const state = structuredClone(run.state);
+      const cursor = await passStep(run, step, state);
+      if (cursor === undefined) {
+        await updateRun(runId, { status: "waiting_input" });
+        void noticeOwner(run, "needs_you", step.title);
+        return;
+      }
+      await updateRun(runId, { state, cursor, status: cursor ? "running" : "done", error: null });
+      continue;
+    }
     if (step.type === "page" || step.type === "review") {
       await updateRun(runId, { status: "waiting_input" });
       // A step that ran is over and the next one is the person's: a phone in a pocket hears it.
@@ -772,6 +826,37 @@ async function drive(runId: string, signal: AbortSignal) {
       return;
     }
   }
+}
+
+/**
+ * A started run at a page or a review: the page is answered from the start's `fill` when every
+ * required field has a value, a review passes when the start says so. The cursor after the
+ * step, or undefined when the owner has to come.
+ */
+async function passStep(
+  run: RunRow,
+  step: PageStep | ReviewStep,
+  state: RunState,
+): Promise<string | null | undefined> {
+  if (step.type === "review") {
+    const start = await startOf(run);
+    if (!start?.passReviews) {
+      return undefined;
+    }
+  } else {
+    const shown = state.pages?.[step.id]?.shown;
+    const fields = step.fields.filter((f) => !shown || shown.includes(f.id));
+    const input = Object.fromEntries(
+      fields.filter((f) => f.id in (state.fill ?? {})).map((f) => [f.id, state.fill?.[f.id]]),
+    );
+    const { values, errors } = readPageInput(step, input, await pageContext(run, step));
+    if (errors.length) {
+      return undefined;
+    }
+    state.values = { ...state.values, ...values };
+  }
+  state.history.push(step.id);
+  return advance(run, step.id, state);
 }
 
 // --- commands ----------------------------------------------------------------

@@ -16,6 +16,7 @@ const TABLES = [
   ["packages/shared/src/run.ts", "const NOTES_EN", "const NOTES_DE", "run:"],
   ["packages/shared/src/marketplace.ts", "const MARKET_EN", "const MARKET_DE", "market:"],
   ["packages/shared/src/providers.ts", "const PROVIDER_EN", "const PROVIDER_DE", "provider:"],
+  ["packages/shared/src/starts.ts", "const STARTS_EN", "const STARTS_DE", "starts:"],
   ["packages/wizards/src/plugin/thread.ts", "const texts.en", "const texts.de", "thread:"],
   ["apps/runtime/src/engine/push.ts", "const TEXT.en", "const TEXT.de", "push:"],
 ];
