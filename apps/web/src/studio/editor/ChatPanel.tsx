@@ -520,6 +520,7 @@ export function ChatPanel({
   intro,
   closed,
   card,
+  foldOn,
 }: {
   chat: Chat;
   avatar: string;
@@ -534,8 +535,15 @@ export function ChatPanel({
   closed?: string;
   /** Draws a card of a plugin's tool; without it, cards are not shown. */
   card?: (card: ChatCard) => ReactNode;
+  /** Docked, the thread folds whenever this turns to a new value (a test run opened). */
+  foldOn?: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (foldOn) {
+      setOpen(false);
+    }
+  }, [foldOn]);
   const threadHeight = useThreadHeight();
   const scroller = useRef<HTMLDivElement>(null);
   const composer = useRef<ComposerHandle>(null);

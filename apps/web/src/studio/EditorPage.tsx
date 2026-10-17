@@ -543,6 +543,72 @@ export function EditorPage() {
     </Button>
   );
 
+  /** The open test run's bar: above the main area, or at the top of the run beside the diagram. */
+  const runBar = drawerRun ? (
+    <div
+      className={cn(
+        "kb-hide flex h-12 shrink-0 items-center gap-1 px-3",
+        // Over the diagram it has a line below; over the run, the run's progress line is the edge.
+        !split && view === "flow" && "border-border-soft border-b",
+      )}
+    >
+      {split ? (
+        <Chip>{t("run.testChip")}</Chip>
+      ) : (
+        <fieldset
+          aria-label={t("editor.view")}
+          className="m-0 flex min-w-0 rounded-full border-0 bg-paper-2 p-0.5"
+        >
+          {(["flow", "test"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              onClick={() => setView(v)}
+              className={cn(
+                "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-3 font-medium text-[0.8125rem] transition coarse:h-9",
+                view === v ? "bg-card text-ink shadow-soft" : "text-ink-3 hover:text-ink",
+              )}
+            >
+              {v === "flow" ? <Workflow className="size-3.5" /> : <Play className="size-3.5" />}
+              {t(v === "flow" ? "editor.flow" : "run.testChip")}
+              {/* The diagram follows the run: its step in effect is lit there. */}
+              {v === "flow" && activeStep && view === "test" ? (
+                <span className="size-1.5 animate-pulse rounded-full bg-ember" aria-hidden="true" />
+              ) : null}
+            </button>
+          ))}
+        </fieldset>
+      )}
+      <span className="flex-1" />
+      {view === "test" || split ? <LookSwitch look={look} onChange={setLook} /> : null}
+      <Button
+        variant="ghost"
+        size="sm"
+        title={t("editor.restart")}
+        busy={testRun.isPending}
+        disabled={hasIssues}
+        onClick={() => testRun.mutate()}
+      >
+        <RotateCcw className="size-3.5" />
+        <span className="max-sm:sr-only">{t("editor.restart")}</span>
+      </Button>
+      <IconButton
+        label={t(runWide ? "editor.runNarrow" : "editor.runWide")}
+        onClick={() => {
+          setRunWide(!runWide);
+          setView("test");
+        }}
+        className="max-lg:hidden"
+      >
+        {runWide ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+      </IconButton>
+      <IconButton label={t("editor.close")} onClick={closeRun}>
+        <X className="size-5" />
+      </IconButton>
+    </div>
+  ) : null;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {readOnlyNote ? (
@@ -628,71 +694,7 @@ export function EditorPage() {
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row-reverse">
         <section ref={setMainEl} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {drawerRun ? (
-            <div className="kb-hide flex h-12 shrink-0 items-center gap-1 border-border-soft border-b px-3">
-              {split ? (
-                <Chip>{t("run.testChip")}</Chip>
-              ) : (
-                <fieldset
-                  aria-label={t("editor.view")}
-                  className="m-0 flex min-w-0 rounded-full border-0 bg-paper-2 p-0.5"
-                >
-                  {(["flow", "test"] as const).map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      aria-pressed={view === v}
-                      onClick={() => setView(v)}
-                      className={cn(
-                        "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-3 font-medium text-[0.8125rem] transition coarse:h-9",
-                        view === v ? "bg-card text-ink shadow-soft" : "text-ink-3 hover:text-ink",
-                      )}
-                    >
-                      {v === "flow" ? (
-                        <Workflow className="size-3.5" />
-                      ) : (
-                        <Play className="size-3.5" />
-                      )}
-                      {t(v === "flow" ? "editor.flow" : "run.testChip")}
-                      {/* The diagram follows the run: its step in effect is lit there. */}
-                      {v === "flow" && activeStep && view === "test" ? (
-                        <span
-                          className="size-1.5 animate-pulse rounded-full bg-ember"
-                          aria-hidden="true"
-                        />
-                      ) : null}
-                    </button>
-                  ))}
-                </fieldset>
-              )}
-              <span className="flex-1" />
-              {view === "test" || split ? <LookSwitch look={look} onChange={setLook} /> : null}
-              <Button
-                variant="ghost"
-                size="sm"
-                title={t("editor.restart")}
-                busy={testRun.isPending}
-                disabled={hasIssues}
-                onClick={() => testRun.mutate()}
-              >
-                <RotateCcw className="size-3.5" />
-                <span className="max-sm:sr-only">{t("editor.restart")}</span>
-              </Button>
-              <IconButton
-                label={t(runWide ? "editor.runNarrow" : "editor.runWide")}
-                onClick={() => {
-                  setRunWide(!runWide);
-                  setView("test");
-                }}
-                className="max-lg:hidden"
-              >
-                {runWide ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-              </IconButton>
-              <IconButton label={t("editor.close")} onClick={closeRun}>
-                <X className="size-5" />
-              </IconButton>
-            </div>
-          ) : null}
+          {split ? null : runBar}
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="relative min-h-0 flex-1">
@@ -846,30 +848,33 @@ export function EditorPage() {
             {drawerRun ? (
               <div
                 className={cn(
-                  "overflow-y-auto bg-background",
+                  "flex flex-col bg-background",
                   split
                     ? "w-1/2 min-w-[480px] max-w-[720px] shrink-0 border-border-soft border-l"
                     : "absolute inset-0 z-30",
                   !split && view === "flow" && "hidden",
                 )}
               >
-                {look === "chat" ? (
-                  <ChatBody
-                    key={drawerRun}
-                    runId={drawerRun}
-                    onRestart={() => testRun.mutate()}
-                    onView={onRunView}
-                  />
-                ) : (
-                  <RunnerBody
-                    key={drawerRun}
-                    runId={drawerRun}
-                    compact
-                    studio
-                    onRestart={() => testRun.mutate()}
-                    onView={onRunView}
-                  />
-                )}
+                {split ? runBar : null}
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {look === "chat" ? (
+                    <ChatBody
+                      key={drawerRun}
+                      runId={drawerRun}
+                      onRestart={() => testRun.mutate()}
+                      onView={onRunView}
+                    />
+                  ) : (
+                    <RunnerBody
+                      key={drawerRun}
+                      runId={drawerRun}
+                      compact
+                      studio
+                      onRestart={() => testRun.mutate()}
+                      onView={onRunView}
+                    />
+                  )}
+                </div>
               </div>
             ) : null}
           </div>
@@ -971,7 +976,7 @@ export function EditorPage() {
                 {/* The chat's composer stays at hand while a step is open; its thread is the Chat tab's. */}
                 {readOnlyNote ? null : (
                   <div className="shrink-0 px-3 pt-2 pb-3">
-                    <ChatPanel compact chat={chat} avatar={def.avatar} />
+                    <ChatPanel compact chat={chat} avatar={def.avatar} foldOn={drawerRun} />
                   </div>
                 )}
               </div>
