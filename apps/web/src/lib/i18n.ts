@@ -987,8 +987,8 @@ const de: Record<Key, Line> = {
   "share.readOnly":
     "Ob der Link aktiv ist und wie viele Läufe er am Tag zulässt, stellst du auf deinem Computer ein.",
   "share.fit.no": "Nicht möglich: {steps}",
-  "chat.view": "Ansicht",
-  "chat.steps": "Schritte",
+  "chat.view": "Darstellung",
+  "chat.steps": "Seiten",
   "chat.chat": "Chat",
   "video.chat": "Chat",
   "type.page": "Seite",
@@ -2959,8 +2959,8 @@ const en = {
   "share.readOnly":
     "You set whether the link is active and how many runs a day it allows on your computer.",
   "share.fit.no": "Not possible: {steps}",
-  "chat.view": "View",
-  "chat.steps": "Steps",
+  "chat.view": "Look",
+  "chat.steps": "Pages",
   "chat.chat": "Chat",
   "video.chat": "Chat",
   "type.page": "Page",

@@ -585,7 +585,8 @@ export function EditorPage() {
           <LiveChip remote={remote} merged={merged} />
         </span>
         <div className="ml-auto flex items-center gap-2">
-          <span className="contents max-sm:hidden">{testButton}</span>
+          {/* With a run open, its bar restarts it: the header keeps no second test button. */}
+          {drawerRun ? null : <span className="contents max-sm:hidden">{testButton}</span>}
           {/* The first version goes live by sharing; every later one by its own dialog. */}
           {w.published && w.dirty && !w.readOnly ? (
             <Button variant="secondary" size="sm" onClick={() => setLiveOpen(true)}>
