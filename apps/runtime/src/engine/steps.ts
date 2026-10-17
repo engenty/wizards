@@ -592,7 +592,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
   }
   const resolved = await textModel(step.model ?? "high", { ...ctx.call, effort: step.effort });
   const uploads = await personUploads(ctx);
-  const { tools, assets, close } = await buildStepTools(step, ctx, resolved, uploads);
+  const { tools, assets, instructions, close } = await buildStepTools(step, ctx, resolved, uploads);
   // A step without tools of its own and without uploads: the run's device may answer it alone.
   attachTools(resolved, tools, step.tools.length === 0 && uploads.length === 0);
   try {
@@ -611,6 +611,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     const system = [
       groundRules(ctx),
       step.tools.includes("browser") ? BROWSER_RULES : "",
+      instructions ?? "",
       `Today is ${today(ctx)}.`,
       brandBlock(ctx),
       // Knowledge: what the space holds for its wizards, and how to find and read it.

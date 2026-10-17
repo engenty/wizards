@@ -41,8 +41,8 @@ A pnpm workspace:
 | `apps/web/` | the SPA: studio, public runner, share page |
 | `apps/runtime/src/cli/` | the `wizards` command of a local install: start, guided setup, status, update |
 | `apps/web/public/install.sh` | the installer, served by every runtime at `/install.sh` |
-| `bin/` | the entry of the `wizards` command |
-| `scripts/` | `npm-package.mjs` (the npm package) |
+| `bin/` | the entry of the `wizards` command, and the launcher `npx wizards` runs |
+| `scripts/` | `npm-package.mjs` (the npm packages: the runtime and the launcher) |
 | `packages/shared/` | types and schemas the server and the SPA both use |
 | `packages/wizards/` | `@engenty/wizards`, the one package code outside this repo imports: `/plugin` (a plugin’s server half), `/plugin/studio`, `/plugin/thread`, `/openui` (wizards in OpenUI chats), `/openui/server` |
 | `modules/` | plugins that ship with the runtime |
@@ -57,7 +57,8 @@ A pnpm workspace:
 
 | Name | What it is |
 |---|---|
-| `wizards` | The npm package people run with `npx wizards`, built by `scripts/npm-package.mjs` |
+| `wizards` | The launcher people run with `npx wizards`: it installs the runtime and hands over. Built by `scripts/npm-package.mjs` |
+| `@engenty/wizards-runtime` | The runtime the installer and the updates install. Built by `scripts/npm-package.mjs` beside the launcher |
 | `@engenty/wizards` | What code outside this repo imports, one subpath per use: `/plugin`, `/openui`. Inside the repo the runtime and the studio import it by the same name |
 | `@engenty-wizards/*` | The workspace’s own parts (`runtime`, `web`, `docs`, `shared`, `runner`). They are never published |
 
@@ -82,9 +83,20 @@ prints a one-time link at start.
 Local Chrome renders PDFs/PNGs (`CHROME_PATH`), ffmpeg encodes widget animations to MP4
 (`FFMPEG_PATH`) and cuts films: a widget step with `video: true` draws clips and stills frame by
 frame and gets voice-over and clip sound mixed in. The shell/code tool runs in a sandbox per run, chosen with `SANDBOX`:
-`docker` needs Docker and the `engenty-sandbox` image; `off` removes the tool. Unset, it is
-`docker` when the image is on the machine, else `off`.
-The agent is told what the chosen sandbox runs (`apps/runtime/src/sandbox`).
+`docker` needs Docker and the `engenty-sandbox` image; `agentos` runs an
+[agentOS](https://rivet.dev/agentos/) VM per run in a helper process (macOS and glibc Linux, no
+Docker): bash, coreutils, curl, git, jq, sqlite3, node, npm, and Python as Pyodide with numpy and
+pandas, but no native programs; `off` removes the tool. agentOS is not a dependency:
+`pnpm sandbox:add agentos` (or `wizards sandbox add`) installs it into `SANDBOX_ENGINES_DIR`, and
+an image gets it with `--build-arg SANDBOX_ENGINES=agentos` ([plan](plans/agentos-sandbox.md)).
+Unset, `SANDBOX` is the first engine that is ready: `docker` when the image is on the machine,
+else `agentos` when it is installed, else `off`. The agent is told what the chosen sandbox runs.
+
+Each engine is a `SandboxEngine` in `apps/runtime/src/sandbox/index.ts`. One of Mastra's sandboxes
+(`@mastra/docker`, `@mastra/e2b`, `@mastra/daytona`) becomes one through `MastraRunSandbox`
+(`mastra.ts`), as Docker does. An engine whose package is not a dependency of the runtime lists
+it in `ENGINE_PACKAGES` (`install.ts`): `wizards sandbox add <name>` installs it into
+`engines/<name>`, and the engine loads it from there with `importFromEngine`.
 
 `APP_URL` defaults to `http://localhost:5181` from source (the Vite dev server) and to
 `http://localhost:<API_PORT>` when built (`pnpm start` serves the pages itself).
@@ -269,28 +281,35 @@ older one.
 
 ## Local install
 
-What people install is the package `wizards`, built like an npm package: the built
-runtime, the built SPA, the plugin template and the `wizards` command, with the shared
-package inside it. It is on npm as `wizards`, and the same tarball is attached to the GitHub
-release `v<version>`: the installer has npm install it from that address. It gets onto a machine
-through the installer, which keeps their data in `~/.engenty/wizards/data` (`ENGENTY_HOME` moves
-`~/.engenty`):
+What people install is the runtime, built like an npm package: the built runtime, the built
+SPA, the plugin template and the `wizards` command, with the shared package inside it. It is on
+npm as `@engenty/wizards-runtime`, and the same tarball is attached to the GitHub release
+`v<version>`: the installer has npm install it from that address, the updates
+(`apps/runtime/src/cli/autoupdate.ts`) from npm. It gets onto a machine through the installer,
+which keeps their data in `~/.engenty/wizards/data` (`ENGENTY_HOME` moves `~/.engenty`):
 
 | | Code | Node |
 |---|---|---|
 | `curl -fsSL https://engenty.ai/install.sh \| bash` | `~/.engenty/wizards/runtime` | its own, pinned, in `~/.engenty/wizards/tools` |
 
-`npx wizards` is a second way: the code in npm's cache, on the person's own Node 24.11 or newer.
+`npx wizards` is a second way to the same install. The npm package `wizards` is only the
+launcher: `bin/wizards.mjs` and `install.sh`, no dependencies, a few dozen KB. It runs the
+installer for the runtime of its own version and hands every command but `--version` to the
+installed `wizards`. Up to 0.7.4 `wizards` was the runtime itself; an update of such an install
+fetches the launcher into its version folder, and the launcher, started there, brings the runtime
+of its version with the installer and hands over (the installer also links
+`node_modules/wizards` to the runtime, for the commands of then).
 
 ```bash
-pnpm package                       # node scripts/npm-package.mjs → dist/npm/wizards-<version>.tgz
+pnpm package                       # node scripts/npm-package.mjs → dist/npm/*.tgz, both packages
 pnpm wizards status                # the command from the checkout (node bin/wizards.mjs)
 ```
 
 `scripts/npm-package.mjs` stages `apps/runtime/dist`, `apps/web/dist`, `plugin/` and `bin/` in the
 checkout's layout and writes the package.json: the runtime's dependencies at the exact versions
 of the root lockfile, the shared package bundled. Dependencies of dependencies are resolved by
-npm at install time.
+npm at install time. Beside it, it stages the launcher. The release publishes the runtime first,
+then the launcher.
 
 `apps/web/public/install.sh` is the installer (bash 3.2, `shellcheck` clean). It downloads the
 pinned Node from nodejs.org and checks it against `SHASUMS256.txt`, asks GitHub for the newest
@@ -304,7 +323,7 @@ To try the installer against a checkout, without npm and without touching `~/.en
 
 ```bash
 pnpm package
-ENGENTY_HOME=/tmp/engenty-try ENGENTY_WIZARDS_PACKAGE=$PWD/dist/npm/wizards-<version>.tgz \
+ENGENTY_HOME=/tmp/engenty-try ENGENTY_WIZARDS_PACKAGE=$PWD/dist/npm/engenty-wizards-runtime-<version>.tgz \
   bash apps/web/public/install.sh --no-link
 ```
 
@@ -495,7 +514,7 @@ reach only servers on the internet: for them a wizard runs on engenty.ai, not on
 | Step runner (cursor over the definition, pages / back / regenerate / branches) | `apps/runtime/src/engine/runner.ts` |
 | Agent + generate steps (Mastra Agent, AI SDK media) | `apps/runtime/src/engine/steps.ts` |
 | Agent tools: web search/fetch, sandbox, HTTP, image, MCP | `apps/runtime/src/tools/index.ts` |
-| Sandbox engine (Docker) and what it runs | `apps/runtime/src/sandbox/` |
+| Sandbox engines (Docker, agentOS), what each runs, the installer of the engines outside the package | `apps/runtime/src/sandbox/` |
 | Browser tools: open/click/type, screenshot, sign-in handed to the person, downloads | `apps/runtime/src/tools/browser.ts`, `apps/runtime/src/engine/asks.ts` |
 | What a wizard keeps per person: lists, files, connected accounts, sign-ins | `packages/shared/src/store.ts`, `apps/runtime/src/store/`, `apps/runtime/src/tools/store.ts` |
 | Mail connectors (Gmail, Outlook, IMAP) in engenty's connector format | `apps/runtime/src/connectors/`, `apps/runtime/src/tools/mail.ts` |

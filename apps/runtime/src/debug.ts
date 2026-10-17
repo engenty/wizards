@@ -8,6 +8,7 @@ import { type LogLine, logState, startedAt, type TailQuery, tail } from "./log.j
 import { managed } from "./manage.js";
 import { modelSettings } from "./models.js";
 import { loadedPlugins } from "./plugins/registry.js";
+import { sandboxEngine } from "./sandbox/index.js";
 import { runIndexOf, tenantOfRun } from "./tenants/control.js";
 import { LOCAL_TENANT } from "./tenants/tenant.js";
 
@@ -44,7 +45,7 @@ export async function status() {
     appUrl: env.appUrl,
     manageUrl: env.manage.url || null,
     gatewayUrl: (managed ? env.manage.gatewayUrl : env.local.gatewayUrl) || null,
-    sandbox: env.sandbox,
+    sandbox: sandboxEngine()?.name ?? "off",
     browser: env.browserCdpUrl ? "cdp" : "local",
     files: env.s3.bucket ? "s3" : "data folder",
     database: env.databaseUrl ? "libsql" : "file",

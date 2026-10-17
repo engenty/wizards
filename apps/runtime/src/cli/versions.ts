@@ -15,7 +15,8 @@ import type { Layout } from "./home.js";
 /**
  * The runtimes of an install made by install.sh, one folder per version, side by side:
  *
- *   runtime/<version>/     an npm prefix: node_modules/wizards, package.json, package-lock.json
+ *   runtime/<version>/     an npm prefix: node_modules/@engenty/wizards-runtime (up to 0.7.4
+ *                          node_modules/wizards), package.json, package-lock.json
  *   runtime/current        → <version>, the one `bin/wizards` starts
  *   runtime/node_modules   → current/node_modules, for commands written before the versions
  *
@@ -25,19 +26,36 @@ import type { Layout } from "./home.js";
 
 const VERSION = /^\d+\.\d+\.\d+$/;
 
+/** The npm package of the runtime. Up to 0.7.4 it was `wizards`, now the launcher `npx` runs. */
+export const RUNTIME_PACKAGE = "@engenty/wizards-runtime";
+/** The runtime's name up to 0.7.4, and where a command or an update of then looks for it. */
+const LEGACY_PACKAGE = "wizards";
+
 export const runtimeDir = (paths: Layout, version: string) => join(paths.runtime, version);
 const currentLink = (paths: Layout) => join(paths.runtime, "current");
 const modules = (paths: Layout) => join(paths.runtime, "node_modules");
 
-/** The version of the package `wizards` in an npm prefix; null when there is none. */
-export function versionIn(prefix: string): string | null {
+function versionOf(dir: string): string | null {
   try {
-    const file = join(prefix, "node_modules", "wizards", "package.json");
-    const { version } = JSON.parse(readFileSync(file, "utf8")) as { version?: unknown };
+    const { version } = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as {
+      version?: unknown;
+    };
     return typeof version === "string" ? version : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * The version of the runtime in an npm prefix; null when there is none. A `wizards` without the
+ * runtime in it is the launcher, which an update of 0.7.4 or older fetches as the new version.
+ */
+export function versionIn(prefix: string): string | null {
+  const legacy = join(prefix, "node_modules", LEGACY_PACKAGE);
+  return (
+    versionOf(join(prefix, "node_modules", RUNTIME_PACKAGE)) ??
+    (existsSync(join(legacy, "apps", "runtime")) ? versionOf(legacy) : null)
+  );
 }
 
 const isLink = (path: string) => {
@@ -120,6 +138,11 @@ export function promote(paths: Layout, staged: string, version: string) {
   if (currentVersion(paths) === version) {
     rmSync(staged, { recursive: true, force: true });
     return;
+  }
+  // As install.sh leaves it: a command of 0.7.4 or older finds the runtime under its old name.
+  const legacy = join(staged, "node_modules", LEGACY_PACKAGE);
+  if (!existsSync(legacy)) {
+    symlinkSync(RUNTIME_PACKAGE, legacy);
   }
   rmSync(runtimeDir(paths, version), { recursive: true, force: true });
   renameSync(staged, runtimeDir(paths, version));

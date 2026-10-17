@@ -4,6 +4,12 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.7.6] - 2026-10-17
+- ADDED **[runtime]** Sandbox engines installed apart from the package, starting with agentOS 0.4 (#45)
+
+## [0.7.5] - 2026-10-17
+- ADDED **[cli]** `npx wizards` downloads a small launcher; the runtime is published as @engenty/wizards-runtime (#39)
+
 ## [0.7.4] - 2026-10-17
 - ADDED **[runtime]** Replace Gemini CLI with Antigravity as the Google AI client (#42)
 - ADDED **[setup]** Test each own key on its own, without picking models (#41)

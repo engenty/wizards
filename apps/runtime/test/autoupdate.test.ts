@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -17,7 +18,14 @@ import {
   updateNotice,
 } from "../src/cli/autoupdate.js";
 import { type Layout, layout } from "../src/cli/home.js";
-import { currentVersion, installedVersions, prune, switchTo, versionIn } from "../src/cli/versions.js";
+import {
+  currentVersion,
+  installedVersions,
+  prune,
+  RUNTIME_PACKAGE,
+  switchTo,
+  versionIn,
+} from "../src/cli/versions.js";
 
 // Every test works in a home folder of its own under the temp folder, never the real one.
 let home: string;
@@ -31,17 +39,24 @@ afterEach(() => {
   rmSync(home, { recursive: true, force: true });
 });
 
-/** An npm prefix with the package `wizards` of this version in it. */
-function fakePrefix(prefix: string, version: string) {
-  const pkg = join(prefix, "node_modules", "wizards");
+/**
+ * An npm prefix with the runtime of this version in it: under its name of now, or as `wizards`
+ * (up to 0.7.4), or `launcher`: the package `wizards` of now, without the runtime.
+ */
+function fakePrefix(prefix: string, version: string, as: "runtime" | "legacy" | "launcher" = "runtime") {
+  const name = as === "runtime" ? RUNTIME_PACKAGE : "wizards";
+  const pkg = join(prefix, "node_modules", name);
   mkdirSync(join(pkg, "bin"), { recursive: true });
-  writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "wizards", version }));
+  if (as !== "launcher") {
+    mkdirSync(join(pkg, "apps", "runtime", "dist"), { recursive: true });
+  }
+  writeFileSync(join(pkg, "package.json"), JSON.stringify({ name, version }));
   writeFileSync(join(prefix, "package.json"), "{}");
 }
 
 /** An install as install.sh made it up to 0.6.2: runtime/ is the prefix itself. */
 function legacyInstall(version: string) {
-  fakePrefix(paths.runtime, version);
+  fakePrefix(paths.runtime, version, "legacy");
   writeFileSync(
     join(paths.bin, "wizards"),
     `#!/bin/sh\nexec "${paths.tools}/node/bin/node" "${paths.runtime}/node_modules/wizards/bin/wizards.mjs" "$@"\n`,
@@ -55,11 +70,11 @@ function fakeRegistry(version: string, fails = false): UpdateDeps {
   return {
     now: () => new Date("2026-10-15T12:00:00Z"),
     fetch: (async (url: string) => {
-      expect(String(url)).toBe("https://registry.npmjs.org/wizards/latest");
-      return Response.json({ name: "wizards", version });
+      expect(String(url)).toBe("https://registry.npmjs.org/@engenty/wizards-runtime/latest");
+      return Response.json({ name: RUNTIME_PACKAGE, version });
     }) as typeof fetch,
     npmInstall: async (_paths, prefix, spec) => {
-      expect(spec).toBe(`wizards@${version}`);
+      expect(spec).toBe(`@engenty/wizards-runtime@${version}`);
       if (fails) {
         throw new Error("npm install of the new version failed (exit 1)");
       }
@@ -85,6 +100,13 @@ describe("the version folders", () => {
     mkdirSync(join(paths.runtime, "0.7.0"));
     expect(() => switchTo(paths, "0.7.0")).toThrow(/no complete runtime/);
     expect(currentVersion(paths)).toBe("0.6.2");
+  });
+
+  it("reads the runtime under its old name, and not the launcher that has that name now", () => {
+    fakePrefix(join(paths.runtime, "0.7.4"), "0.7.4", "legacy");
+    fakePrefix(join(paths.runtime, "0.8.0"), "0.8.0", "launcher");
+    expect(installedVersions(paths)).toEqual(["0.7.4"]);
+    expect(() => switchTo(paths, "0.8.0")).toThrow(/no complete runtime/);
   });
 
   it("prunes all but the kept and the current one", () => {
@@ -146,6 +168,10 @@ describe("an update", () => {
     // Nothing switched yet: what runs keeps running.
     expect(currentVersion(paths)).toBe("0.6.2");
     expect(versionIn(join(paths.runtime, "0.7.0"))).toBe("0.7.0");
+    // A command of 0.7.4 or older finds the runtime under its old name.
+    expect(
+      readFileSync(join(paths.runtime, "0.7.0", "node_modules", "wizards", "package.json"), "utf8"),
+    ).toContain(RUNTIME_PACKAGE);
     expect(readUpdateState(paths).pending?.version).toBe("0.7.0");
     expect(updateNotice(paths, "0.6.2").pending?.version).toBe("0.7.0");
 

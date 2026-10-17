@@ -1,7 +1,12 @@
-// Stages and packs the npm package `wizards`: the runtime (built server, built SPA, plugin
-// template, the modules), the `wizards` command and the workspace packages inside it. This is
-// what `npx wizards` runs and what the installer (apps/web/public/install.sh) and the
-// desktop app install into ~/.engenty/wizards.
+// Stages and packs the two npm packages of a release:
+//
+//   @engenty/wizards-runtime  the runtime (built server, built SPA, plugin template, the modules),
+//                             the `wizards` command and the workspace packages inside it: what the
+//                             installer (apps/web/public/install.sh), the updates and the desktop
+//                             app install into ~/.engenty/wizards
+//   wizards                   the launcher `npx wizards` runs: bin/wizards.mjs and install.sh,
+//                             no dependencies, a few dozen KB. It installs the runtime with the
+//                             installer and hands over to it (bin/wizards.mjs).
 //
 //   node scripts/npm-package.mjs [--skip-build] [--version 1.2.3] [--apple <wizards-apple>]
 //
@@ -10,8 +15,9 @@
 // --apple       the `wizards-apple` helper built on a Mac (apps/runtime/scripts/build-apple.mjs),
 //               for a package made elsewhere; a Mac's own build ships as it is
 //
-// Out: dist/npm/wizards/ (the staged folder) and dist/npm/wizards-<version>.tgz.
-// Publish with `npm publish dist/npm/wizards-<version>.tgz`.
+// Out: dist/npm/runtime/ and dist/npm/wizards/ (the staged folders),
+// dist/npm/engenty-wizards-runtime-<version>.tgz and dist/npm/wizards-<version>.tgz.
+// Publish the runtime first: the launcher installs the runtime of its own version from npm.
 //
 // The folder keeps the checkout's layout (apps/runtime/dist, apps/web/dist, plugin/), so the
 // runtime finds the SPA and the plugin template the same way everywhere.
@@ -31,7 +37,9 @@ import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const outDir = join(root, "dist", "npm");
-const stage = join(outDir, "wizards");
+const stage = join(outDir, "runtime");
+const launcherStage = join(outDir, "wizards");
+const RUNTIME = "@engenty/wizards-runtime";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
@@ -107,6 +115,13 @@ if (apple) {
 // built files; its own dependencies join the list.
 const pkg = readJson("package.json");
 const version = option("version") ?? pkg.version;
+const DESCRIPTION =
+  "Make a wish. Get your wizard. It guides you step by step. Let AI do the work. Runs on your machine, on the AI subscription you already have.";
+const about = {
+  license: pkg.license,
+  homepage: "https://engenty.ai",
+  repository: { type: "git", url: "git+https://github.com/engenty/wizards.git" },
+};
 const resolved = (dir) => {
   const [listed] = JSON.parse(
     run("pnpm", ["list", "--prod", "--depth", "0", "--json"], join(root, dir)),
@@ -171,13 +186,10 @@ writeFileSync(
   join(stage, "package.json"),
   `${JSON.stringify(
     {
-      name: "wizards",
+      name: RUNTIME,
       version,
-      description:
-        "Make a wish. Get your wizard. It guides you step by step. Let AI do the work. Runs on your machine, on the AI subscription you already have.",
-      license: pkg.license,
-      homepage: "https://engenty.ai",
-      repository: { type: "git", url: "git+https://github.com/engenty/wizards.git" },
+      description: `${DESCRIPTION} The runtime, which \`npx wizards\` installs.`,
+      ...about,
       type: "module",
       bin: { wizards: "bin/wizards.mjs" },
       engines: pkg.engines,
@@ -194,9 +206,39 @@ writeFileSync(
   )}\n`,
 );
 
-// --- 4. pack ----------------------------------------------------------------------------
+// --- 4. the launcher ---------------------------------------------------------------------
+// bin/wizards.mjs as it is (it tells the launcher from the runtime by what is beside it) and the
+// installer it runs. No engines: it runs on an older Node too, and the installer brings a new one.
+mkdirSync(join(launcherStage, "bin"), { recursive: true });
+cpSync(join(root, "bin", "wizards.mjs"), join(launcherStage, "bin", "wizards.mjs"));
+chmodSync(join(launcherStage, "bin", "wizards.mjs"), 0o755);
+cpSync(join(root, "apps", "web", "public", "install.sh"), join(launcherStage, "install.sh"));
+for (const file of ["LICENSE", "README.md"]) {
+  cpSync(join(root, file), join(launcherStage, file));
+}
+writeFileSync(
+  join(launcherStage, "package.json"),
+  `${JSON.stringify(
+    {
+      name: "wizards",
+      version,
+      description: DESCRIPTION,
+      ...about,
+      type: "module",
+      bin: { wizards: "bin/wizards.mjs" },
+      os: ["darwin", "linux"],
+      files: ["bin", "install.sh"],
+    },
+    null,
+    2,
+  )}\n`,
+);
+
+// --- 5. pack ----------------------------------------------------------------------------
 run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], stage);
-const tarball = join(outDir, `wizards-${version}.tgz`);
+run("npm", ["pack", "--pack-destination", outDir, "--loglevel=error"], launcherStage);
+const tarball = join(outDir, `engenty-wizards-runtime-${version}.tgz`);
+const launcherTarball = join(outDir, `wizards-${version}.tgz`);
 
 function* walk(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -208,11 +250,18 @@ function* walk(dir) {
     }
   }
 }
+const sizeOf = (files) => files.reduce((sum, file) => sum + statSync(file).size, 0);
 const files = [...walk(stage)];
+const launcherFiles = [...walk(launcherStage)];
 const mb = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+const kb = (bytes) => `${Math.ceil(bytes / 1024)} KB`;
 console.log(`
-wizards ${version}
-  staged    ${files.length} files, ${mb(files.reduce((sum, file) => sum + statSync(file).size, 0))}  (${stage})
+${RUNTIME} ${version}
+  staged    ${files.length} files, ${mb(sizeOf(files))}  (${stage})
   tarball   ${mb(statSync(tarball).size)}  (${tarball})
   depends   ${Object.keys(dependencies).length} packages, ${bundled.length} bundled (${bundled.join(", ")})
+
+wizards ${version} (the launcher)
+  staged    ${launcherFiles.length} files, ${kb(sizeOf(launcherFiles))}  (${launcherStage})
+  tarball   ${kb(statSync(launcherTarball).size)}  (${launcherTarball})
 `);

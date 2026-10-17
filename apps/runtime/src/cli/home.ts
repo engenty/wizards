@@ -21,7 +21,7 @@ export interface Layout {
   envFile: string;
   /** What the setup remembers: when it ran. */
   installFile: string;
-  /** npm prefix of an install made by install.sh: `node_modules/wizards`. */
+  /** The runtimes of an install made by install.sh, one npm prefix per version (versions.ts). */
   runtime: string;
   /** The Node that install.sh brought: `tools/node/bin/node`. */
   tools: string;

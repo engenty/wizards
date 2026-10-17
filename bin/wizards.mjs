@@ -2,11 +2,15 @@
 // The `wizards` command. Kept to what every Node understands, so that an old one gets a new
 // one installed instead of a syntax error.
 //
-// A copy from npm (`npx wizards`, `npm install -g wizards`) is the way to the install, not the
-// install itself. On macOS and Linux it installs engenty wizards into ~/.engenty/wizards with the
-// installer it carries (apps/web/dist/install.sh: its own Node, the runtime, the `wizards`
-// command), brings an older install there up to its own version, and hands the command to it.
-// What needs no install (--version, --help, validate, mcp) runs here, as long as this Node can.
+// The same file is two things. In the npm package `wizards` (`npx wizards`, `npm install -g
+// wizards`) it is the launcher, with nothing beside it but the installer (install.sh) and no
+// dependencies: on macOS and Linux it installs engenty wizards into ~/.engenty/wizards with that
+// installer (its own Node, the runtime @engenty/wizards-runtime, the `wizards` command), brings an
+// older install there up to its own version, and hands the command to it. In the runtime, which
+// the installer puts there, it is the command itself.
+//
+// Only --version needs no install. A copy with the runtime beside it (a checkout, the runtime from
+// npm) runs --help, validate and mcp here as well, as long as this Node can.
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
@@ -24,6 +28,14 @@ const home = join(
 );
 const runtime = join(home, "runtime");
 const wrapper = join(home, "bin", "wizards");
+/** The runtime's npm package. Up to 0.7.4 it was `wizards` itself; that name is the launcher now. */
+const RUNTIME = "@engenty/wizards-runtime";
+/** Whether this copy is the runtime, or the launcher without it. */
+const hasRuntime = existsSync(join(root, "apps", "runtime", "dist", "cli", "main.js"));
+/** The installer: beside the launcher, or in the runtime's built SPA. */
+const installer = [join(root, "install.sh"), join(root, "apps", "web", "dist", "install.sh")].find(
+  (file) => existsSync(file),
+);
 // uninstall: never installs or hands over first; the install it takes away may no longer run.
 const RUN_HERE = ["help", "validate", "mcp", "uninstall"];
 const tilde = (path) =>
@@ -35,6 +47,26 @@ function versionOf(dir) {
   } catch {
     return null;
   }
+}
+
+/**
+ * The version of the runtime the installed command starts; null without one. `runtime/current`
+ * since 0.6.3, `runtime/` itself before; the runtime under its name, or as `wizards` up to 0.7.4.
+ * A `wizards` without the runtime is the launcher, which an update of 0.7.4 or older fetches.
+ */
+function installedVersion() {
+  if (!existsSync(wrapper)) {
+    return null;
+  }
+  for (const prefix of [join(runtime, "current"), runtime]) {
+    for (const name of [RUNTIME, "wizards"]) {
+      const dir = join(prefix, "node_modules", name);
+      if (existsSync(join(dir, "apps", "runtime"))) {
+        return versionOf(dir);
+      }
+    }
+  }
+  return null;
 }
 
 /** Whether version a is older than b, by major, minor and patch. */
@@ -93,19 +125,18 @@ function terminalEnv() {
 
 /** The installer this copy carries, for its own version; true when it ran to its end. */
 function install(version, quiet) {
-  const result = spawnSync(
-    "bash",
-    [join(root, "apps", "web", "dist", "install.sh"), "--no-setup"],
-    {
-      // A command whose output is read (validate --json, mcp) keeps its stdout to itself.
-      stdio: ["ignore", quiet ? 2 : "inherit", "inherit"],
-      env: {
-        ...terminalEnv(),
-        // The same package npm just ran; ENGENTY_WIZARDS_PACKAGE stays an override for tests.
-        ENGENTY_WIZARDS_PACKAGE: process.env.ENGENTY_WIZARDS_PACKAGE || `wizards@${version}`,
-      },
+  if (!installer) {
+    return false;
+  }
+  const result = spawnSync("bash", [installer, "--no-setup"], {
+    // A command whose output is read (validate --json, mcp) keeps its stdout to itself.
+    stdio: ["ignore", quiet ? 2 : "inherit", "inherit"],
+    env: {
+      ...terminalEnv(),
+      // The runtime of this version, from npm; ENGENTY_WIZARDS_PACKAGE stays an override for tests.
+      ENGENTY_WIZARDS_PACKAGE: process.env.ENGENTY_WIZARDS_PACKAGE || `${RUNTIME}@${version}`,
     },
-  );
+  });
   return result.status === 0;
 }
 
@@ -150,10 +181,12 @@ if (command === "version") {
   console.log(versionOf(root));
   process.exit(0);
 }
+const own = versionOf(root) || "0.0.0";
+const quiet = RUN_HERE.includes(command);
 const checkout = existsSync(join(root, "pnpm-workspace.yaml"));
 // Windows has no installer yet, and the setup, the service and the AI clients are written for
 // macOS and Linux: it says so instead of half working. What needs no install still runs.
-if (process.platform === "win32" && !checkout && !RUN_HERE.includes(command)) {
+if (process.platform === "win32" && !checkout && !(hasRuntime && RUN_HERE.includes(command))) {
   console.error(
     "engenty wizards for Windows is coming soon.\n\n" +
       "Until then it runs in WSL (Windows Subsystem for Linux). In PowerShell:\n\n" +
@@ -164,14 +197,43 @@ if (process.platform === "win32" && !checkout && !RUN_HERE.includes(command)) {
   );
   process.exit(1);
 }
+if (isInstall() && !hasRuntime) {
+  // The launcher in the install's place: an update of 0.7.4 or older fetched `wizards`, the
+  // runtime's name then, and its next start switched to it. The installer it carries brings the
+  // runtime of this version, and the command it writes starts that one from now on.
+  console.error(`Completing the update to engenty wizards ${own}…`);
+  if (!install(own, quiet) || !installedVersion()) {
+    console.error(
+      `The update didn’t complete. To install engenty wizards again:\n\n` +
+        "  curl -fsSL https://engenty.ai/install.sh | bash\n",
+    );
+    process.exit(1);
+  }
+  // This process takes the new command's place: a login item keeps waiting on the same pid.
+  try {
+    process.execve?.(wrapper, [wrapper, ...args], process.env);
+  } catch {
+    // It waits for the new command instead (below).
+  }
+  process.exit(await handOver());
+}
 const fromNpm = process.platform !== "win32" && !checkout && !isInstall();
-if (fromNpm && command !== "uninstall" && (!currentNode || !RUN_HERE.includes(command))) {
-  const own = versionOf(root) || "0.0.0";
-  const installed = existsSync(wrapper)
-    ? versionOf(join(runtime, "node_modules", "wizards"))
-    : null;
+if (fromNpm && command === "uninstall" && !hasRuntime) {
+  // The install's own uninstall takes it away; it never updates first. An install the update
+  // left without its runtime gets it back (above, in the installed command) and then uninstalls.
+  if (!existsSync(wrapper)) {
+    console.error(`There is no engenty wizards in ${tilde(home)} to uninstall.`);
+    process.exit(0);
+  }
+  process.exit(await handOver());
+}
+if (
+  fromNpm &&
+  command !== "uninstall" &&
+  (!hasRuntime || !currentNode || !RUN_HERE.includes(command))
+) {
+  const installed = installedVersion();
   if (!installed || older(installed, own)) {
-    const quiet = RUN_HERE.includes(command);
     const running = installed && runs();
     if (install(own, quiet)) {
       // What runs is still the old version: it starts again as the new one.
@@ -181,7 +243,7 @@ if (fromNpm && command !== "uninstall" && (!currentNode || !RUN_HERE.includes(co
           env: terminalEnv(),
         });
       }
-    } else if (currentNode && !installed) {
+    } else if (hasRuntime && currentNode && !installed) {
       console.error(
         `The install into ${tilde(home)} failed; this time engenty wizards runs from npm.\n`,
       );
@@ -191,8 +253,15 @@ if (fromNpm && command !== "uninstall" && (!currentNode || !RUN_HERE.includes(co
       `${tilde(home)} has engenty wizards ${installed}, newer than ${own}; that one runs.`,
     );
   }
-  if (existsSync(wrapper) && versionOf(join(runtime, "node_modules", "wizards"))) {
+  if (installedVersion()) {
     process.exit(await handOver());
+  }
+  if (!hasRuntime) {
+    console.error(
+      `engenty wizards couldn’t be installed into ${tilde(home)}. The installer on its own:\n\n` +
+        "  curl -fsSL https://engenty.ai/install.sh | bash\n",
+    );
+    process.exit(1);
   }
 }
 if (!currentNode && command === "uninstall") {

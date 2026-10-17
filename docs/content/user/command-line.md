@@ -21,6 +21,7 @@ version: 0.5.0
 | `wizards stop` | Stops it, with any other copy of it still running in the background. Your data is kept. AI apps that use your wizards start it again when you use one there |
 | `wizards restart` | Stops it and starts it again; after an update, that is the new version. If it isn’t running, it starts in the background |
 | `wizards update` | Installs the latest version |
+| `wizards sandbox add` / `remove` | Adds the sandbox where AI steps run code, or removes it. It is agentOS, about 340 MB, and needs no Docker. Without a sandbox, steps can’t run code. `wizards sandbox` alone shows whether it is there. Name an engine to add another one: `wizards sandbox add agentos` |
 | `wizards autostart on` / `off` | Starts it when you log in, or stops doing so. It is a LaunchAgent on macOS and a systemd user service on Linux |
 | `wizards connect [app …]` | Adds your wizards to your [AI apps](./ai-apps.md): every app found, or the ones you name |
 | `wizards disconnect [app …]` | Takes them out again |
@@ -51,6 +52,7 @@ running, `wizards start` opens the running one instead of starting a second.
 | `~/.engenty/wizards/.env` | The settings file |
 | `~/.engenty/wizards/plugins` | [Plugins](./plugins.md) on this computer |
 | `~/.engenty/wizards/logs` | Logs: `install.log`, `update.log`, `runtime.log` when it runs in the background, `autostart.log` when a Mac starts it at login |
+| `~/.engenty/wizards/engines` | The sandbox, once `wizards sandbox add` put it there: one folder per engine |
 | `~/.engenty/wizards/tools`, `runtime` | Its own Node.js, and engenty wizards itself |
 | `~/.engenty/wizards/bin/wizards` | The command; `~/.local/bin/wizards` links to it |
 
@@ -65,6 +67,7 @@ the studio doesn’t: one `NAME=value` per line. Restart engenty wizards after a
 | `API_PORT` | The port | `24368`; if it is taken, the next free one up to `24387` |
 | `CHROME_PATH` | The browser for PDF and PNG exports and steps on websites: Chrome, Edge, Chromium or Brave | The first one found: on a Mac Google Chrome, Microsoft Edge, Chromium or Brave in `/Applications` or `~/Applications`; on Linux `google-chrome`, `chromium`, `chromium-browser` or `microsoft-edge` on the PATH. `wizards status` names it |
 | `FFMPEG_PATH` | ffmpeg for MP4 videos | `ffmpeg` |
+| `SANDBOX_ALLOW_HOSTS` | Addresses the sandbox reaches besides the npm and PyPI registries, comma-separated: `api.example.com`. It reaches nothing else | not set |
 | `OLLAMA_URL` | Where Ollama answers | `http://127.0.0.1:11434/v1` |
 | `PLUGINS_DIR` | Folders with plugins, comma-separated. If you set it, it replaces the default | `~/.engenty/wizards/plugins` |
 | `PLUGINS_WATCH` | With `0`, plugins no longer load again when their files change | `1` |

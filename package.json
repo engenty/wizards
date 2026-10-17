@@ -1,6 +1,6 @@
 {
   "name": "engenty-wizards",
-  "version": "0.7.4",
+  "version": "0.7.6",
   "license": "FSL-1.1-MIT",
   "private": true,
   "type": "module",
@@ -31,7 +31,8 @@
     "test": "pnpm -r test",
     "lint": "biome check .",
     "fix": "biome check --write .",
-    "templates:export": "tsx --conditions=wizards-source scripts/export-templates.ts"
+    "templates:export": "tsx --conditions=wizards-source scripts/export-templates.ts",
+    "sandbox:add": "tsx apps/runtime/src/sandbox/install.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.0",

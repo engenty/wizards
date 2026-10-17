@@ -10,11 +10,19 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { type InstallNote, type Layout, readEnvFile, readInstallNote } from "./home.js";
-import { currentVersion, promote, prune, runtimeDir, switchTo, versionIn } from "./versions.js";
+import {
+  currentVersion,
+  promote,
+  prune,
+  RUNTIME_PACKAGE,
+  runtimeDir,
+  switchTo,
+  versionIn,
+} from "./versions.js";
 
 /**
  * Updates that come by themselves, for an install made by install.sh (never `npx wizards` or a
- * checkout). The runtime asks the npm registry for the newest `wizards` when it starts and once
+ * checkout). The runtime asks the npm registry for the newest runtime when it starts and once
  * a day; npm installs a newer one, checking its integrity, beside the one that runs
  * (versions.ts). Nothing switches then: runs cost credits and are never cut off. The next
  * `wizards start` (a restart, the next login) makes it `current` before any runtime runs.
@@ -23,7 +31,7 @@ import { currentVersion, promote, prune, runtimeDir, switchTo, versionIn } from 
  * .env); off by default in CI and for an install set up without a terminal.
  */
 
-const LATEST_URL = "https://registry.npmjs.org/wizards/latest";
+const LATEST_URL = `https://registry.npmjs.org/${RUNTIME_PACKAGE}/latest`;
 const HOUR = 60 * 60_000;
 /** How long the status and the studio keep saying what came with an update. */
 const NOTICE_MS = 14 * 24 * HOUR;
@@ -121,7 +129,7 @@ export function autoUpdatePolicy(
 /** What the update does to the world; tests replace it. */
 export interface UpdateDeps {
   fetch: typeof fetch;
-  /** Installs a package (`wizards@1.2.3`) into an npm prefix with the install's own Node. */
+  /** Installs a package (`@engenty/wizards-runtime@1.2.3`) into an npm prefix with the install's own Node. */
   npmInstall(paths: Layout, prefix: string, spec: string): Promise<void>;
   now(): Date;
 }
@@ -200,7 +208,7 @@ export async function checkForUpdate(
       return { kind: "current", version: current };
     }
     if (state.pending?.version !== version || !versionIn(runtimeDir(paths, version))) {
-      await deps.npmInstall(paths, tmp, `wizards@${version}`);
+      await deps.npmInstall(paths, tmp, `${RUNTIME_PACKAGE}@${version}`);
       promote(paths, tmp, version);
       state.pending = { version, notes: notesUrl(version) };
       prune(paths, keepOf(state));

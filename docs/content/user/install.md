@@ -18,7 +18,8 @@ Or, with Node.js 20 or newer on the machine:
 npx wizards
 ```
 
-Both do the same. `npx wizards` runs the installer it brings along, then the setup, then the
+Both do the same. `npx wizards` downloads only a small launcher (no dependencies) and runs the
+installer it brings along, then the setup, then the
 `wizards` menu, where “Start as service” starts it and opens the studio. Run again, it hands over
 to the installed `wizards`, and brings an older install up to its own version first.
 
@@ -110,7 +111,8 @@ engenty wizards that is running, the program in `~/.engenty/wizards` and the com
 it, and installing again picks it up. [Back it up](./data.md) first if you delete it. At the end
 it lists anything it couldn’t remove.
 
-If the `wizards` command no longer runs, `npx wizards uninstall` does the same.
+If the `wizards` command is no longer on your path, `npx wizards uninstall` hands over to the
+installed one.
 
 | Option | What it does |
 |---|---|

@@ -23,5 +23,8 @@ services:
     # control over the host's Docker — only enable it on a host dedicated to this app.
     #   environment: { SANDBOX_ENABLED: "1", SANDBOX_IMAGE: "ghcr.io/engenty/engenty-sandbox:latest" }
     #   volumes: [ "/var/run/docker.sock:/var/run/docker.sock" ]
+    # SANDBOX=agentos needs no socket: build the image with agentOS in it
+    # (`docker compose build --build-arg SANDBOX_ENGINES=agentos`), then
+    #   environment: { SANDBOX_ENABLED: "1", SANDBOX: "agentos" }
 volumes:
   wizards-data:

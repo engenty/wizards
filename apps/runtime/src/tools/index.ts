@@ -15,6 +15,7 @@ import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../s
 import { snapshotFile } from "../services/files.js";
 import { hasStoreFiles } from "../store/index.js";
 import { browserTools } from "./browser.js";
+import { codeTool } from "./code.js";
 import { connectorTools } from "./connector.js";
 import { mailTools } from "./mail.js";
 import { assertPublicUrl, safeFetch } from "./net-guard.js";
@@ -28,6 +29,8 @@ export interface StepTools {
   tools: Record<string, any>;
   /** Assets the tools made during the step (screenshots, images, exported files). */
   assets: AssetRef[];
+  /** How to write a program over the tools, with the `code` tool. */
+  instructions?: string;
   close(): Promise<void>;
 }
 
@@ -173,9 +176,9 @@ export async function buildStepTools(
 
   const files = new FileKeeper(ctx, assets);
 
-  if (allowed.has("browser")) {
-    Object.assign(tools, await browserTools(ctx, assets, files));
-  }
+  // The browser is one page, worked step by step, and it asks the person to sign in.
+  const browser = allowed.has("browser") ? await browserTools(ctx, assets, files) : {};
+  Object.assign(tools, browser);
 
   // The wizard's lists and files, the documents the person gave and the project's documents are
   // always at hand. An installed client gets tools over an MCP bridge its CLI starts for every
@@ -322,9 +325,23 @@ export async function buildStepTools(
     }
   }
 
+  // An installed client writes and runs code of its own.
+  let instructions: string | undefined;
+  if (allowed.has("code") && !isHarnessVendor(resolved.vendor)) {
+    const code = codeTool(
+      Object.fromEntries(Object.entries(tools).filter(([key]) => !(key in browser))),
+      ctx,
+    );
+    if (code) {
+      tools[code.tool.id] = code.tool;
+      instructions = code.instructions;
+    }
+  }
+
   return {
     tools,
     assets,
+    instructions,
     close: async () => {
       await mcp?.disconnect().catch(() => undefined);
     },

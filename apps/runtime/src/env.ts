@@ -1,9 +1,9 @@
-import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join, resolve } from "node:path";
 import { findChrome } from "./render/browser-path.js";
+import { enginesDir } from "./sandbox/install.js";
 
 /** Load `.env.local` then `.env` without overriding the real environment. */
 function loadEnvFiles() {
@@ -24,30 +24,6 @@ function loadEnvFiles() {
 loadEnvFiles();
 
 const str = (key: string, fallback = ""): string => process.env[key]?.trim() || fallback;
-
-/**
- * Without `SANDBOX`: Docker when the sandbox image is on this machine, else none.
- * The image is not published, so a fresh install would otherwise offer a tool that cannot start.
- */
-function sandboxEngine(image: string): "docker" | "off" {
-  const engine = str("SANDBOX");
-  if (str("SANDBOX_ENABLED", "1") !== "1" || engine === "off") {
-    return "off";
-  }
-  if (engine) {
-    return "docker";
-  }
-  return dockerHasImage(image) ? "docker" : "off";
-}
-
-function dockerHasImage(image: string): boolean {
-  try {
-    execFileSync("docker", ["image", "inspect", image], { stdio: "ignore", timeout: 5000 });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** A comma-separated list. */
 const list = (key: string): string[] =>
@@ -241,9 +217,16 @@ export const env = {
   ),
   /** Encodes widget animations to MP4; without it widgets offer no video. */
   ffmpegPath: str("FFMPEG_PATH", "ffmpeg"),
-  /** What runs an agent's shell and code: a Docker container or nothing. */
-  sandbox: sandboxEngine(sandboxImage),
+  /**
+   * The engine that runs an agent's shell and code (sandbox/index.ts): `off`, an engine's name,
+   * or empty for the first one that is ready here.
+   */
+  sandbox: str("SANDBOX_ENABLED", "1") === "1" ? str("SANDBOX").toLowerCase() : "off",
   sandboxImage,
+  /** Where `wizards sandbox add` installs the engines that aren't part of the runtime. */
+  sandboxEngines: enginesDir(),
+  /** Hosts an agentOS sandbox reaches besides the npm and PyPI registries: `api.example.com`. */
+  sandboxHosts: list("SANDBOX_ALLOW_HOSTS"),
 
   /** Assets and workspace files in an S3-compatible bucket (R2); empty = the data folder. */
   s3: {
