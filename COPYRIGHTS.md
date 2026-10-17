@@ -6,7 +6,7 @@ The code in this repository is published under the Functional Source License, ve
 with the MIT future licence ([LICENSE](LICENSE), `FSL-1.1-MIT`): use it for yourself and your
 company, run it, change it — just don't offer it to others as a competing product or service.
 Each release becomes MIT two years after it is published. Every package of the workspace names
-that licence in its `package.json`.
+its licence in its `package.json`.
 
 The wizard format is open to everyone now: the twelve files that define a wizard and read it
 (`packages/shared/src/definition.ts`, `fit.ts`, `numbers.ts`, `run.ts`, `runner-texts.ts`,
@@ -17,11 +17,19 @@ Each says so in its first line. The runner package (`packages/runner`, MIT) bund
 `@engenty/wizards` on npm is `FSL-1.1-MIT`; its `/openui` bundles the runner, whose MIT licence
 ships beside it (`dist/openui/LICENSE-MIT`).
 
+The engenty figures are free artwork under CC BY 4.0 ([LICENSE-FIGURES](LICENSE-FIGURES)): use,
+change and share them, commercially too, with credit. That covers the files that describe what
+they look like (`apps/web/src/engenty/engenty.tsx`, `colors.ts`, `forms.ts`, `goggles.tsx`,
+`helmet.tsx`, `goose-helmet-fit.ts`, the helmet's mesh and livery, `logo.tsx`,
+`apps/runtime/src/services/engenty-shapes.ts`, the favicons and app icons); each text file among
+them says so in its first line, and LICENSE-FIGURES names the rest. The code that renders and
+animates them (fur, jelly) stays FSL-1.1-MIT.
+
 "engenty" (the brand of a family of products), "engenty.wizards" (also written "engenty wizards"),
-the wordmark and the engenty figures are marks of Thru The Heart Creative GmbH. The word "wizards"
-on its own is not one of them: it names the package, the repository and the command. The licence
-covers the code, the figures as code included; it does not license the marks for another product
-or service.
+the wordmark and the engenty figures are trademarks of Thru The Heart Creative GmbH. The word
+"wizards" on its own is not one of them: it names the package, the repository and the command.
+No licence of any part (FSL, MIT, GPL, CC BY) grants trademark rights: using the name or the figures as your own brand, logo or
+mascot, in advertising or on merchandise needs permission ([TRADEMARKS.md](TRADEMARKS.md)).
 
 ## What is not ours
 

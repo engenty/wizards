@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CC-BY-4.0
 // Written by apps/web/scripts/engenty-shapes.tsx from apps/web/src/engenty — do not edit by hand.
 
 export type EngentyKind = "round" | "drop" | "dome" | "flame" | "oval" | "bean" | "pebble" | "sprout" | "tower" | "wedge";

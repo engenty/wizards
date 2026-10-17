@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CC-BY-4.0
 import type { EngentyKind } from "./colors";
 import type { EngentyCoat } from "./fur-stage";
 
