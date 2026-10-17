@@ -1,5 +1,6 @@
 import { serve } from "@hono/node-server";
 import { localEntryUrl, purgeSessions } from "./auth/index.js";
+import { startClientChecks } from "./clients.js";
 import { adoptLegacyData } from "./db/adopt.js";
 import {
   knownTenants,
@@ -40,6 +41,8 @@ if (managed) {
       `tenant databases: ${migrated} current${failed.length ? `, failed: ${failed}` : ""}`,
     );
   });
+  // Which clients may start runs over the public API, and how often: the Manage-App's list.
+  startClientChecks();
 } else {
   await adoptLegacyData();
   await openTenantDb(LOCAL_TENANT);
