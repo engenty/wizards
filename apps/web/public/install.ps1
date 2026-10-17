@@ -160,7 +160,7 @@ function Install-VCRuntime {
     }
   }
   $url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-  $exe = Join-Path $Tools "vc_redist.x64.exe"
+  $exe = Join-Path $env:TEMP ("vc_redist." + [Guid]::NewGuid().ToString("N").Substring(0, 8) + ".exe")
   Write-Host "  ... Downloading Microsoft's Visual C++ runtime, which the database needs" -ForegroundColor DarkGray
   Invoke-WebRequest -UseBasicParsing $url -OutFile $exe
   try {
@@ -247,7 +247,9 @@ function Write-Command {
   if ($Base -ne (Join-Path $HOME ".engenty")) {
     $lines += "if not defined ENGENTY_HOME set ""ENGENTY_HOME=$Base"""
   }
-  $lines += """$(Join-Path $Tools 'node\node.exe')"" ""$(Join-Path $HomeDir "runtime\current\node_modules\$Package\bin\wizards.mjs")"" %*"
+  # `(goto) 2>nul &` leaves the batch file before Node starts: cmd.exe would read on in it after
+  # Node ends, and `wizards uninstall` deletes it meanwhile. Node's exit code stays cmd's.
+  $lines += "(goto) 2>nul & ""$(Join-Path $Tools 'node\node.exe')"" ""$(Join-Path $HomeDir "runtime\current\node_modules\$Package\bin\wizards.mjs")"" %*"
   Set-Content -Path $Wrapper -Value $lines -Encoding Ascii
   # The command's folder on the user's PATH; a terminal opened before sees it after a restart.
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -264,6 +266,8 @@ function Write-Command {
 # --- main ------------------------------------------------------------------------------------
 
 New-Item -ItemType Directory -Force (Join-Path $HomeDir "logs"), $Tools, $BinDir | Out-Null
+# An uninstall whose clean-up waits for the next login would delete this install then.
+Remove-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce" -Name "engenty-wizards-uninstall" -ErrorAction SilentlyContinue
 Add-Content $Log "`n--- $((Get-Date).ToUniversalTime().ToString('s'))Z install.ps1"
 Write-Host ""
 Write-Host "  engenty wizards" -ForegroundColor Magenta -NoNewline

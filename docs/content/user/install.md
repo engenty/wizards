@@ -30,7 +30,7 @@ dependencies) and runs the installer it brings along, then the setup, then the
 `wizards` menu, where “Start as service” starts it and opens the studio. Run again, it hands over
 to the installed `wizards`, and brings an older install up to its own version first.
 
-The installer needs nothing but `curl` and `tar`. On Windows it needs nothing, except Microsoft's
+The installer needs nothing but `curl` and `tar`. On Windows it needs nothing, except Microsoft’s
 Visual C++ runtime, which many programs bring along: where it is missing, the installer installs
 it, and Windows asks once whether it may. It brings its own Node.js
 (a Node you already have is left alone), installs engenty wizards into `~/.engenty/wizards`

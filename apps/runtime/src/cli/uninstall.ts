@@ -48,8 +48,11 @@ export interface UninstallSystem {
   /** Windows: whether a folder is on the user's PATH (install.ps1 put `bin` there), and off. */
   onUserPath(dir: string): boolean;
   removeFromUserPath(dir: string): void;
-  /** Windows: deletes these once this process has ended, which holds their files open. */
-  deleteAfterExit(paths: string[]): void;
+  /**
+   * Windows: deletes `paths` once this process has ended, which holds their files open, and then
+   * the folders in `ifEmpty` that are left empty.
+   */
+  deleteAfterExit(paths: string[], ifEmpty: string[]): void;
 }
 
 /** The user's own PATH from the registry, through PowerShell. */
@@ -97,13 +100,38 @@ export const realSystem = (): UninstallSystem => ({
       { windowsHide: true },
     );
   },
-  deleteAfterExit: (paths) => {
-    // cmd.exe waits a moment for this process to end, then deletes what it held.
-    const removals = paths.map((path) => `rmdir /s /q "${path}" 2>nul & del /f /q "${path}" 2>nul`);
-    spawn("cmd.exe", ["/d", "/c", `ping -n 3 127.0.0.1 >nul & ${removals.join(" & ")}`], {
+  deleteAfterExit: (paths, ifEmpty) => {
+    // cmd.exe waits a moment for this process to end, then deletes what it held. Should it end
+    // with this terminal's session (an ssh session ends what it started), the next login does it.
+    const runOnce = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce";
+    const removals = [
+      ...paths.map((path) => `rmdir /s /q "${path}" 2>nul & del /f /q "${path}" 2>nul`),
+      // Without /s: a folder that still holds the data the person kept stays.
+      ...ifEmpty.map((dir) => `rmdir "${dir}" 2>nul`),
+    ];
+    const command = `cmd.exe /d /c ${removals.join(" & ")}`;
+    try {
+      execFileSync(
+        "reg",
+        ["add", runOnce, "/v", "engenty-wizards-uninstall", "/d", command, "/f"],
+        { windowsHide: true, stdio: "ignore" },
+      );
+    } catch {
+      // The command below still runs.
+    }
+    // Tried every second for a minute, as this process may still take a moment to end. Done
+    // here, the entry goes too: a reinstall before the next login must not lose its files.
+    const gone = paths.map((path) => `if not exist "${path}"`).join(" ");
+    const now = [
+      `for /l %i in (1,1,60) do @(ping -n 2 127.0.0.1 >nul & ${removals.join(" & ")})`,
+      `${gone} reg delete ${runOnce} /v engenty-wizards-uninstall /f >nul 2>&1`,
+    ].join(" & ");
+    // As Node passes a shell command to cmd.exe: whole, in quotes, read as it is.
+    spawn("cmd.exe", ["/d", "/s", "/c", `"${now}"`], {
       detached: true,
       stdio: "ignore",
       windowsHide: true,
+      windowsVerbatimArguments: true,
     }).unref();
   },
 });
@@ -299,10 +327,13 @@ export async function uninstall(
       console.log(`${ok} Stopped ${processes(running.length)}`);
     }
   }
+  // Looked at again now that nothing runs: what a process wrote meanwhile (the runtime's first
+  // update check writes update.json) goes too.
+  const now = await makePlan(paths, system);
   // Windows keeps the files of a running program: the Node this command runs on, if it is the
   // install's own, goes once the command has ended.
   const later: string[] = [];
-  for (const path of [...plan.program, ...plan.links, ...(deleteData ? plan.data : [])]) {
+  for (const path of [...now.program, ...now.links, ...(deleteData ? now.data : [])]) {
     try {
       rmSync(path, { recursive: true, force: true });
     } catch (error) {
@@ -322,7 +353,6 @@ export async function uninstall(
     }
   }
   if (later.length) {
-    system.deleteAfterExit([...later, plan.home, join(system.userHome, ".engenty")]);
     console.log(
       `${ok} ${later.map(t).join(", ")} go${later.length === 1 ? "es" : ""} once this command has ended`,
     );
@@ -348,6 +378,10 @@ export async function uninstall(
       .filter((path) => !later.includes(path))
       .map(t),
   ];
+  // Started after the second look, which would count it among the install's processes.
+  if (later.length) {
+    system.deleteAfterExit(later, [plan.home, join(system.userHome, ".engenty")]);
+  }
   if (!deleteData && after.data.length) {
     console.log(`${ok} Kept your data: ${after.data.map(t).join(", ")}`);
   }
