@@ -869,6 +869,7 @@ export function EditorPage() {
                     fitKey={`${split}:${Boolean(drawerRun)}:${paneMoves}`}
                     pulse={remote?.steps}
                     wizardId={w.id}
+                    starts={w.starts.filter((s) => s.on).length}
                     decisions={shownDecisions}
                     onBranch={(sid) => {
                       select(sid);
