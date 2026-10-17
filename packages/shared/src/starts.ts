@@ -74,6 +74,10 @@ export const startSchema = z
     allowChanges: z.boolean().default(false),
     /** Reviews pass with "Looks good". */
     passReviews: z.boolean().default(true),
+    /** Whose runs they are: the person who made the start. Their store, their notices. */
+    owner: z.string().optional(),
+    /** When the start was made: a schedule waits for its first time after it. */
+    createdAt: z.string().optional(),
     lastRunAt: z.string().optional(),
     /** Failed runs in a row; three pause the start. */
     failures: z.number().int().min(0).default(0),
@@ -88,6 +92,51 @@ export const startsSchema = z.array(startSchema).max(20);
 
 /** How many failed runs in a row pause a start. */
 export const START_FAILURES_TO_PAUSE = 3;
+
+/** What began a run, kept on the run: the start, and what it was about (a row, another run). */
+export interface StartedBy {
+  kind: StartKind;
+  startId: string;
+  ref?: string;
+}
+
+/** What a start brings into the run, read as `{{start.…}}` and by the AI steps. */
+export interface StartEvent {
+  kind: StartKind;
+  /** ISO time the start fired. */
+  at: string;
+  /** A webhook's body. */
+  body?: unknown;
+  /** A record's cells, and the cells before the change. */
+  row?: Record<string, unknown>;
+  before?: Record<string, unknown>;
+  /** The run of the wizard that finished: its answers and outputs. */
+  run?: { id: string; values: Record<string, unknown>; outputs: Record<string, unknown> };
+}
+
+/** A dotted path into the event: "row.Firma", "body.invoice.pdf_url". */
+export function readEventPath(event: StartEvent, path: string): unknown {
+  let cur: unknown = event;
+  for (const key of path.split(".")) {
+    cur = cur && typeof cur === "object" ? (cur as Record<string, unknown>)[key] : undefined;
+  }
+  return cur;
+}
+
+/** The answers a start brings, resolved against the event: field id → value. */
+export function fillOf(start: WizardStart, event: StartEvent): Record<string, unknown> {
+  const fill: Record<string, unknown> = {};
+  for (const [field, answer] of Object.entries(start.answers)) {
+    const value =
+      answer && typeof answer === "object" && "from" in answer
+        ? readEventPath(event, String((answer as { from: string }).from))
+        : answer;
+    if (value !== undefined && value !== null && value !== "") {
+      fill[field] = value;
+    }
+  }
+  return fill;
+}
 
 // --- time ----------------------------------------------------------------------------------
 

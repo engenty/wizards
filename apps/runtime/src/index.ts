@@ -9,6 +9,7 @@ import {
   withTenant,
 } from "./db/client.js";
 import { startRunner, stopRunner } from "./engine/runner.js";
+import { startStarts } from "./engine/starts.js";
 import { basePath, env } from "./env.js";
 import { hookConsole } from "./log.js";
 import { managed } from "./manage.js";
@@ -33,6 +34,7 @@ await loadEntitlement();
 // Before any tenant database opens: each gets the plugins' own tables as it does.
 await loadPlugins();
 startJobs();
+startStarts();
 if (managed) {
   // Every tenant database is brought to this release's schema; a new one migrates when first opened.
   void migrateAllTenants().then(({ migrated, failed }) => {

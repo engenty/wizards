@@ -204,6 +204,14 @@ export function resolveRef(ref: string, scope: TemplateScope): unknown {
   if (head === "today") {
     return new Date().toISOString().slice(0, 10);
   }
+  // What began a started run: "start.row.Firma", "start.body.invoice.number".
+  if (head === "start") {
+    let cur: unknown = state.start;
+    for (const key of rest) {
+      cur = cur && typeof cur === "object" ? (cur as Record<string, unknown>)[key] : undefined;
+    }
+    return cur;
+  }
   if (head === "item" || head === "index" || head === "count") {
     const entry = scope.entry;
     if (!entry) {
@@ -320,6 +328,14 @@ export function answersAsText(scope: TemplateScope): string {
       continue;
     }
     lines.push(`### ${field.label}\n${stringify(resolveRef(field.id, scope))}`);
+  }
+  // A started run: what started it, for the steps to read like an answer.
+  const start = scope.state.start;
+  if (start) {
+    const { kind, at, ...rest } = start;
+    lines.push(
+      `### Started by\n${kind} at ${at}${Object.keys(rest).length ? `\n${JSON.stringify(rest, null, 2).slice(0, 8000)}` : ""}`,
+    );
   }
   return lines.join("\n\n");
 }

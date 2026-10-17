@@ -100,6 +100,8 @@ export function wizardSummary(w: WizardRow) {
     runners: w.runners,
     /** Its page offers it in the viewer's language, translated on request. */
     translate: w.translate,
+    /** What begins a run without a person. */
+    starts: w.starts,
     stepCount: w.draft.steps.length,
     updatedAt: w.updatedAt.toISOString(),
   };
