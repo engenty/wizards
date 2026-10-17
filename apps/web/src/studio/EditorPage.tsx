@@ -947,7 +947,7 @@ export function EditorPage() {
             "relative flex h-(--sheet) min-h-0 w-full shrink-0 flex-col rounded-t-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)] lg:h-auto lg:w-(--pane) lg:rounded-tl-none",
             !sheet.dragging &&
               "max-lg:motion-safe:transition-[height] max-lg:motion-safe:duration-200",
-            drawerRun && view === "test" && runWide && "lg:hidden",
+            drawerRun && runWide && "lg:hidden",
             // Folded under a test run on a phone, it makes way for the keyboard of the run's fields.
             drawerRun && view === "test" && sheet.folded && "kb-hide",
           )}
