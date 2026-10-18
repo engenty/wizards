@@ -1,29 +1,29 @@
 ---
 title: Space
 description: What your wizards share and produce – who you are, what they look things up in, and the results of their runs.
-version: 0.5.0
+version: 0.8.0
 ---
 
 Your space holds what all your wizards share, and what they produce. Every AI step knows it, so a
 wizard never has to ask for your company’s name or address.
 
-You open it in two ways:
+The app bar holds its places, below the space’s tile in its corner:
 
-- The house in the app bar, after the space’s tile, opens the space’s page.
-- The button left of the space’s name in the top bar (“Space menu”) opens the sidebar. It lists “Wizards”,
-  “New wizard” and, under “Space”, the space’s four parts. On a narrow window the sidebar stays
-  closed.
+- The house opens the space’s wizards: the list and “New wizard”.
+- The layers below it open the space’s page.
+- The tray below them opens the space’s results.
 
-The menu on the left shows the space’s four parts. A part opens its own sections, and the arrow
-at the top leads back. While the sidebar is open, the menu stands in it. On a phone, the parts,
-a part’s sections and the page take turns.
+On the space’s page, the menu on the left shows its three parts. A part opens its own sections,
+and the arrow at the top leads back. On a phone, the parts, a part’s sections and the page take
+turns.
+
+Results have no menu: the list above them picks one wizard or all of them.
 
 | Part | Sections | Used for |
 |---|---|---|
 | Info & brand | Basics, Facts, Logos, Colours, Brand assets | Who you are and how you look |
 | Knowledge | All, then each category, then the sections plugins add | What every AI step looks things up in |
 | Data | All data, General, then each wizard | Tables and pages the wizards keep |
-| Results | All results, then each wizard | The runs that reached their result |
 
 ## Info & brand
 

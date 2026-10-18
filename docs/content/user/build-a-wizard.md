@@ -1,12 +1,12 @@
 ---
 title: Build a wizard
 description: Describe what the wizard should do, or start from a template. Then change it in the chat or step by step.
-version: 0.5.0
+version: 0.8.0
 ---
 
 ## Start one
 
-“New wizard” on the list of your wizards, or in the sidebar, opens the page “What should your
+“New wizard” on the list of your wizards, or in the space’s menu, opens the page “What should your
 wizard do?”. It gives you three ways in:
 
 | Way | How |

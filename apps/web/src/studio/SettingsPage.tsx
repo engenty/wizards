@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api } from "../lib/api";
 import { t } from "../lib/i18n";
@@ -28,8 +27,15 @@ import {
   useStepDirection,
 } from "./settings-menu";
 import { settingsSections } from "./settings-sections";
-import { useSideMenuSlot } from "./side-menu";
 import { Team } from "./Team";
+
+const AboutPanel = lazy(() =>
+  import("../about/AboutDialog").then((m) => ({ default: m.AboutPanel })),
+);
+
+/** The About section's tab named in the address (`?tab=credits`), else its first. */
+const aboutTab = (tab: string | null): "new" | "earlier" | "credits" =>
+  tab === "earlier" || tab === "credits" ? tab : "new";
 
 type Server = Project["mcpServers"][number] & { auth?: string };
 
@@ -188,8 +194,6 @@ export function SettingsPage() {
   useEffect(() => setKey(project?.id), [project?.id]);
   const plugins = useStudioPlugins();
   const narrow = useNarrow();
-  const sideSlot = useSideMenuSlot();
-  const inSidebar = Boolean(sideSlot) && !narrow;
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
   // Back up to the sections on a wide page, while the section's page stays; another section
@@ -265,7 +269,7 @@ export function SettingsPage() {
   }
   // Connectors belong to a project: with several, the switcher stands above them.
   const scoped = current?.id === "connectors" && many;
-  // The settings' menu: in the sidebar while that is open, else at the page's left.
+  // The settings' menu, at the page's left.
   const menuBody = (
     <>
       <LevelHead
@@ -288,16 +292,14 @@ export function SettingsPage() {
   );
   return (
     <SettingsMenuContext.Provider value={menu}>
-      {inSidebar && sideSlot ? createPortal(menuBody, sideSlot) : null}
       <div className="animate-rise">
         <div
           className={cn(
             "grid gap-6",
-            !inSidebar &&
-              "md:grid-cols-[13.5rem_minmax(0,1fr)] md:gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10",
+            "md:grid-cols-[10.5rem_minmax(0,1fr)] md:gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10",
           )}
         >
-          {inSidebar ? null : (
+          {
             <aside
               className={cn(
                 "min-w-0 md:sticky md:top-6 md:self-start",
@@ -307,7 +309,7 @@ export function SettingsPage() {
             >
               {menuBody}
             </aside>
-          )}
+          }
           {current ? (
             <div
               className={cn(
@@ -346,6 +348,11 @@ export function SettingsPage() {
               {current.id === "models" ? <Models /> : null}
               {current.id === "integrate" ? <Integrate /> : null}
               {current.id === "account" && me.data ? <Account me={me.data} /> : null}
+              {current.id === "about" ? (
+                <Suspense fallback={null}>
+                  <AboutPanel me={me.data} active initialTab={aboutTab(params.get("tab"))} />
+                </Suspense>
+              ) : null}
               {current.id === "team" && me.data ? <Team me={me.data} /> : null}
               {current.id === "plugins" ? (
                 <div className="flex flex-col gap-6">

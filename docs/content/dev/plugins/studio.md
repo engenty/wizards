@@ -1,7 +1,7 @@
 ---
 title: The studio half
 description: Pages, icons in the app bar, sections of the settings and of the space page – written in React, built once, drawn inside the studio.
-version: 0.5.0
+version: 0.8.0
 ---
 
 The studio half is `ui/plugin.tsx`. Its default export is a function; the studio calls it after
@@ -268,8 +268,7 @@ studio.useCrumbs([{ label: t("title"), to: "/contacts" }, { label: person.name ?
 ## A page with a menu
 
 A page with parts of its own puts its menu where the studio’s own pages put theirs. `MenuPage`
-from `@engenty-wizards/web/ui` draws the menu in the studio’s sidebar while that is open, and at
-the page’s left otherwise, so there is only ever one menu at the left. `PageMenu` draws the menu
+from `@engenty-wizards/web/ui` draws the menu at the page’s left. `PageMenu` draws the menu
 as the settings do: a list with one level below it, and tabs on a phone.
 
 ```tsx

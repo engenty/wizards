@@ -1,6 +1,8 @@
 import {
   Check,
   Home,
+  Inbox,
+  Layers,
   type LucideIcon,
   Monitor,
   Moon,
@@ -11,18 +13,9 @@ import {
   Settings,
   Sun,
 } from "lucide-react";
-import {
-  lazy,
-  type MouseEvent,
-  type PointerEvent,
-  Suspense,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
-import { NavLink } from "react-router";
+import { type MouseEvent, type PointerEvent, useLayoutEffect, useRef, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router";
 import { BRAND } from "../brand";
-import { EngentyLogoMark } from "../engenty/logo";
 import {
   APP_BAR_POSITIONS,
   type AppBarPosition,
@@ -36,19 +29,15 @@ import { setTheme, type Theme, useThemePick } from "../lib/theme";
 import { PluginFrame, useStudioPlugins } from "../plugins/host";
 import { cn } from "../ui";
 import { SpaceFace, SpaceMenu, UserMenu, useDismiss } from "./AppFrame";
-
-const AboutDialog = lazy(() =>
-  import("../about/AboutDialog").then((m) => ({ default: m.AboutDialog })),
-);
+import { EngentyMenu } from "./EngentyMenu";
 
 /**
- * The app bar at an edge of the window, as in engenty-pro: the mark (it opens the About dialog:
- * the version, updates, what is new), the space with its home (the space's page: Info & brand,
- * Knowledge, Data, Results), the apps the plugins added, and at its end the settings and the
- * person. A place is a filled tile, a tool a line glyph; the
- * one that is open is cut from the page's own paper. A right click on the bar picks its edge
- * and the colour scheme. A phone has it along the bottom, or the top (`useAppBar`); a long
- * press there opens the same menu with those two edges.
+ * The app bar at an edge of the window: the engenty in the corner (its menu holds what belongs to
+ * the app itself), the space (it switches between spaces), its home (the wizards), its page (Info & brand, Knowledge, Data),
+ * its results, the apps the plugins added, and at its end the settings and the person. A place is
+ * a filled tile, a tool a line glyph; the one that is open is cut from the page's own paper. A
+ * right click on the bar picks its edge and the colour scheme. A phone has it along the bottom,
+ * or the top (`useAppBar`); a long press there opens the same menu with those two edges.
  */
 
 function glyph(active: boolean): string {
@@ -168,12 +157,24 @@ function BarMenu({ at, onClose }: { at: { x: number; y: number }; onClose: () =>
   );
 }
 
+/** The place in the bar a page belongs to: Home (the wizards), the space's page, its results. */
+function usePlace(): "home" | "space" | "results" | null {
+  const { pathname } = useLocation();
+  if (pathname === "/" || pathname === "/new" || pathname.startsWith("/edit/")) {
+    return "home";
+  }
+  if (pathname === "/space/results" || pathname.startsWith("/space/results/")) {
+    return "results";
+  }
+  return pathname === "/space" || pathname.startsWith("/space/") ? "space" : null;
+}
+
 export function AppRail({ me }: { me: Me }) {
   const plugins = useStudioPlugins();
   const { position } = useAppBar();
   const horizontal = isHorizontal(position);
+  const place = usePlace();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const [about, setAbout] = useState(false);
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY });
@@ -223,101 +224,100 @@ export function AppRail({ me }: { me: Me }) {
     }
   };
   return (
-    <>
-      <aside
-        aria-label={BRAND.name}
-        onContextMenu={onContextMenu}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endPress}
-        onPointerCancel={endPress}
-        onPointerLeave={endPress}
-        onClickCapture={onClickCapture}
+    <aside
+      aria-label={BRAND.name}
+      onContextMenu={onContextMenu}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endPress}
+      onPointerCancel={endPress}
+      onPointerLeave={endPress}
+      onClickCapture={onClickCapture}
+      className={cn(
+        // No text selection and no link callout while a finger rests on the bar.
+        "flex shrink-0 select-none items-center bg-sidebar [-webkit-touch-callout:none]",
+        horizontal ? "w-full flex-row gap-1.5 px-2" : "h-full w-16 flex-col pt-2 pb-3",
+        // Along a phone's edge, clear of the notch and the home indicator: the safe area
+        // comes on top of the bar's own padding, so the items keep their place in it.
+        position === "bottom" && "pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))]",
+        position === "top" && "pt-[calc(0.375rem+env(safe-area-inset-top))] pb-1.5",
+      )}
+    >
+      {/* Beside the page, the engenty's row is as tall as the page's top bar, so the two sit on
+          one line. */}
+      <EngentyMenu me={me} position={position} horizontal={horizontal} />
+      <div className={horizontal ? "ml-1" : "mt-2"}>
+        <SpaceTile me={me} />
+      </div>
+      <Link
+        to="/"
+        title={t("nav.home")}
+        aria-label={t("nav.home")}
+        aria-current={place === "home" ? "page" : undefined}
+        className={cn(glyph(place === "home"), horizontal ? "ml-1.5" : "mt-2")}
+      >
+        <Home className="size-5" />
+      </Link>
+      {/* The space's page: Info & brand, Knowledge and Data. */}
+      <Link
+        to="/space"
+        title={t("nav.project")}
+        aria-label={t("nav.project")}
+        aria-current={place === "space" ? "page" : undefined}
+        className={cn(glyph(place === "space"), horizontal ? "ml-1.5" : "mt-2")}
+      >
+        <Layers className="size-5" />
+      </Link>
+      {/* What the space's wizards made. */}
+      <Link
+        to="/space/results"
+        title={t("space.results")}
+        aria-label={t("space.results")}
+        aria-current={place === "results" ? "page" : undefined}
+        className={cn(glyph(place === "results"), horizontal ? "ml-1.5" : "mt-2")}
+      >
+        <Inbox className="size-5" />
+      </Link>
+      {/* The pages plugins added, each behind its icon, after a divider. */}
+      {plugins.nav.length ? (
+        <div className={cn("shrink-0 bg-border", horizontal ? "mx-2 h-7 w-px" : "my-3 h-px w-7")} />
+      ) : null}
+      <nav
         className={cn(
-          // No text selection and no link callout while a finger rests on the bar.
-          "flex shrink-0 select-none items-center bg-sidebar [-webkit-touch-callout:none]",
-          horizontal ? "w-full flex-row gap-1.5 px-2" : "h-full w-16 flex-col pt-2 pb-3",
-          // Along a phone's edge, clear of the notch and the home indicator: the safe area
-          // comes on top of the bar's own padding, so the items keep their place in it.
-          position === "bottom" && "pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))]",
-          position === "top" && "pt-[calc(0.375rem+env(safe-area-inset-top))] pb-1.5",
+          "flex min-h-0 min-w-0 flex-1 items-center gap-1.5",
+          horizontal ? "flex-row overflow-x-auto" : "flex-col overflow-y-auto",
         )}
       >
-        {/* Beside the page, the mark's row is as tall as the page's top bar, so the two sit on
-              one line. */}
-        <button
-          type="button"
-          onClick={() => setAbout(true)}
-          title={t("about.title")}
-          aria-label={t("about.title")}
-          className={cn(
-            "grid shrink-0 place-items-center rounded-lg transition hover:bg-ink/10",
-            horizontal ? "size-11" : "h-12 w-11",
-          )}
-        >
-          <EngentyLogoMark size={32} />
-        </button>
-        <div className={horizontal ? "ml-1" : "mt-2"}>
-          <SpaceTile me={me} />
-        </div>
-        {/* The space's home: its page with Info & brand, Knowledge, Data and Results. */}
+        {plugins.nav.map((entry) => (
+          <PluginFrame key={entry.serial} of={entry}>
+            <NavLink
+              to={entry.to}
+              title={entry.label()}
+              aria-label={entry.label()}
+              className={({ isActive }) => glyph(isActive)}
+            >
+              <entry.icon className="size-5" />
+            </NavLink>
+          </PluginFrame>
+        ))}
+      </nav>
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-2",
+          horizontal ? "flex-row pl-3" : "flex-col pt-3",
+        )}
+      >
         <NavLink
-          to="/space"
-          title={t("nav.project")}
-          aria-label={t("nav.project")}
-          className={({ isActive }) => cn(glyph(isActive), horizontal ? "ml-1.5" : "mt-2")}
+          to="/settings"
+          title={t("nav.settings")}
+          aria-label={t("nav.settings")}
+          className={({ isActive }) => glyph(isActive)}
         >
-          <Home className="size-5" />
+          <Settings className="size-5" />
         </NavLink>
-        {/* The pages plugins added, each behind its icon, after a divider. */}
-        {plugins.nav.length ? (
-          <div
-            className={cn("shrink-0 bg-border", horizontal ? "mx-2 h-7 w-px" : "my-3 h-px w-7")}
-          />
-        ) : null}
-        <nav
-          className={cn(
-            "flex min-h-0 min-w-0 flex-1 items-center gap-1.5",
-            horizontal ? "flex-row overflow-x-auto" : "flex-col overflow-y-auto",
-          )}
-        >
-          {plugins.nav.map((entry) => (
-            <PluginFrame key={entry.serial} of={entry}>
-              <NavLink
-                to={entry.to}
-                title={entry.label()}
-                aria-label={entry.label()}
-                className={({ isActive }) => glyph(isActive)}
-              >
-                <entry.icon className="size-5" />
-              </NavLink>
-            </PluginFrame>
-          ))}
-        </nav>
-        <div
-          className={cn(
-            "flex shrink-0 items-center gap-2",
-            horizontal ? "flex-row pl-3" : "flex-col pt-3",
-          )}
-        >
-          <NavLink
-            to="/settings"
-            title={t("nav.settings")}
-            aria-label={t("nav.settings")}
-            className={({ isActive }) => glyph(isActive)}
-          >
-            <Settings className="size-5" />
-          </NavLink>
-          <UserMenu me={me} placement="bar-end" />
-        </div>
-        {menu ? <BarMenu at={menu} onClose={() => setMenu(null)} /> : null}
-      </aside>
-      {/* Outside the bar: its text may be selected, and a right click on it is the browser's. */}
-      {about ? (
-        <Suspense fallback={null}>
-          <AboutDialog open me={me} onClose={() => setAbout(false)} />
-        </Suspense>
-      ) : null}
-    </>
+        <UserMenu me={me} placement="bar-end" />
+      </div>
+      {menu ? <BarMenu at={menu} onClose={() => setMenu(null)} /> : null}
+    </aside>
   );
 }

@@ -6,7 +6,6 @@ import {
   FileText,
   Fingerprint,
   Images,
-  Inbox,
   ListChecks,
   type LucideIcon,
   Palette,
@@ -26,13 +25,15 @@ export interface SpaceGroup {
   icon: LucideIcon;
 }
 
-/** The space page's own parts, in the order of the menu; plugins add theirs (`withParts`). */
+/**
+ * The space page's own parts, in the order of the menu; plugins add theirs (`withParts`). Results
+ * are a group of the page too, but stand behind their own place in the app bar.
+ */
 export function spaceGroups(): SpaceGroup[] {
   return [
     { id: "info", label: t("space.info"), icon: Fingerprint },
     { id: "knowledge", label: t("space.knowledge"), icon: BookOpen },
     { id: "data", label: t("space.data"), icon: Database },
-    { id: "results", label: t("space.results"), icon: Inbox },
   ];
 }
 

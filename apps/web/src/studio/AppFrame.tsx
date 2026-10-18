@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  AppWindow,
   Check,
   Cloud,
   CloudOff,
@@ -8,13 +7,11 @@ import {
   Folder,
   Laptop,
   LogOut,
-  PanelLeft,
   Pencil,
   Plus,
   WandSparkles,
 } from "lucide-react";
 import {
-  type ComponentType,
   Fragment,
   type ReactNode,
   type RefObject,
@@ -23,12 +20,11 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Link, NavLink, useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { api } from "../lib/api";
 import { type AppBarPosition, besideBar, useAppBar } from "../lib/appbar";
 import { useFeature } from "../lib/features";
 import { lang, t } from "../lib/i18n";
-import { acceptInstall, standalone, useInstallPrompt } from "../lib/install";
 import {
   initialsOf,
   type Me,
@@ -38,17 +34,11 @@ import {
   useCurrentProject,
   useMayCreate,
 } from "../lib/session";
-import { useStudioPlugins } from "../plugins/host";
 import { Button, cn, Dialog, Input } from "../ui";
 import { AppRail } from "./AppRail";
 import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/StudioAssistant";
 import { NewSpaceDialog } from "./HomePage";
-import { InstallBanner, InstallDialog } from "./InstallBanner";
-import { LangSwitch } from "./LangSwitch";
-import { spaceGroups, withParts } from "./project-sections";
-import { settingsSections } from "./settings-sections";
-import { setAreaSlot, setSpaceSidebar, useHasSideMenu, useSpaceSidebar } from "./side-menu";
-import { ThemeSwitch } from "./ThemeSwitch";
+import { InstallBanner } from "./InstallBanner";
 import { UpdateBanner } from "./UpdateBanner";
 import { hostOf } from "./where";
 
@@ -252,7 +242,8 @@ export function SpaceFace({
 
 /**
  * The spaces, listed as Slack lists its workspaces: the one shown first (its row opens its
- * wizards; its page is behind the home in the bar), the others to switch to, and a row that adds one — not there at the plan's limit. The
+ * wizards), the others to switch to, its wizards and a new one, a row that renames it and one
+ * that adds a space — not there at the plan's limit. The
  * trigger is the caller's: the space's tile in the app bar, its name in the top bar. `label`:
  * the trigger's name for a screen reader where it shows no text.
  */
@@ -518,11 +509,7 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { position } = useAppBar();
-  const plugins = useStudioPlugins();
   useDismiss(ref, open, () => setOpen(false));
-  // The studio as an app on this device: Chrome's offer taken up at once, else how the browser does it.
-  const installPrompt = useInstallPrompt();
-  const [installOpen, setInstallOpen] = useState(false);
   const initials = initialsOf(me.user.name);
   const account = useFeature("account");
   const state = accountState(me, account);
@@ -616,54 +603,11 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
               </span>
             </button>
           ) : null}
-          <div className="px-3 pt-1.5 pb-1 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.07em]">
-            {t("nav.settings")}
-          </div>
-          {settingsSections(me, plugins)
-            .filter((s) => s.menu)
-            .map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                className={item}
-                onClick={() => {
-                  setOpen(false);
-                  navigate(`/settings/${s.id}`);
-                }}
-              >
-                <s.icon className="size-4" /> {s.label}
-              </button>
-            ))}
-          <div className="mx-2 my-1.5 h-px bg-border-soft" />
-          {standalone() ? null : (
-            <button
-              type="button"
-              className={item}
-              onClick={() => {
-                setOpen(false);
-                if (installPrompt) {
-                  void acceptInstall(installPrompt);
-                } else {
-                  setInstallOpen(true);
-                }
-              }}
-            >
-              <AppWindow className="size-4" /> {t("install.app.action")}
-            </button>
-          )}
           {me.manageUrl ? (
             <a className={item} href={`${me.manageUrl}/account`} target="_blank" rel="noreferrer">
               <CreditCard className="size-4" /> {t("nav.account")}
             </a>
           ) : null}
-          <div className="flex items-center justify-between gap-3 px-3 py-2 text-[0.875rem] text-ink-2">
-            {t("nav.language")}
-            <LangSwitch tone="surface" />
-          </div>
-          <div className="flex items-center justify-between gap-3 px-3 py-2 text-[0.875rem] text-ink-2">
-            {t("nav.theme")}
-            <ThemeSwitch />
-          </div>
           {me.mode === "managed" ? (
             <button type="button" className={item} onClick={() => void signOut()}>
               <LogOut className="size-4" /> {t("nav.logout")}
@@ -671,118 +615,18 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
           ) : null}
         </div>
       ) : null}
-      {/* Beside the menu, not in it: the menu closes as the dialog opens. */}
-      <InstallDialog open={installOpen} onClose={() => setInstallOpen(false)} />
     </div>
-  );
-}
-
-/** Left of the space's name: opens and closes the space's sidebar. */
-function SpaceSidebarToggle() {
-  const open = useSpaceSidebar();
-  return (
-    <button
-      type="button"
-      aria-pressed={open}
-      aria-label={t("nav.spaceMenu")}
-      title={t("nav.spaceMenu")}
-      onClick={() => setSpaceSidebar(!open)}
-      className={cn(
-        "grid size-8 shrink-0 place-items-center rounded-lg transition hover:bg-accent hover:text-ink max-lg:hidden",
-        open ? "bg-accent text-ink" : "text-ink-3",
-      )}
-    >
-      <PanelLeft className="size-[1.125rem]" />
-    </button>
-  );
-}
-
-type SidebarRow = {
-  to: string;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-  end: boolean;
-};
-
-/** The space's menu beside the page: its wizards, a new one, and the parts of its page. */
-function SpaceSidebar() {
-  const open = useSpaceSidebar();
-  const inArea = useHasSideMenu();
-  const { project } = useCurrentProject();
-  const plugins = useStudioPlugins();
-  const mayCreate = useMayCreate();
-  if (!project) {
-    return null;
-  }
-  // The rows of the areas' own menu, so both read alike.
-  const item = ({ isActive }: { isActive: boolean }) =>
-    cn(
-      "group flex items-center gap-2 rounded-lg px-2 py-1 text-[0.875rem] transition",
-      isActive ? "bg-paper-2 font-medium text-ink" : "text-ink-2 hover:bg-accent hover:text-ink",
-    );
-  const icon = "size-4 transition-transform duration-200 ease-out group-hover:scale-110";
-  const wizards: SidebarRow[] = [
-    { to: "/", label: t("nav.wizards"), icon: WandSparkles, end: true },
-    ...(mayCreate ? [{ to: "/new", label: t("home.new"), icon: Plus, end: false }] : []),
-  ];
-  // The space's own parts, under the heading the area menus give their groups.
-  const parts = withParts(spaceGroups(), plugins).map((part) => ({
-    to: `/space/${part.id}`,
-    label: part.label,
-    icon: part.icon,
-    end: false,
-  }));
-  const list = (rows: SidebarRow[]) => (
-    <ul className="flex flex-col gap-0.5">
-      {rows.map((row) => (
-        <li key={row.to}>
-          <NavLink to={row.to} end={row.end} className={item}>
-            <span className="grid size-7 shrink-0 place-items-center">
-              <row.icon className={icon} />
-            </span>
-            <span className="min-w-0 flex-1 truncate">{row.label}</span>
-          </NavLink>
-        </li>
-      ))}
-    </ul>
-  );
-  return (
-    // The width animates; the content keeps its own, so it slides away instead of reflowing. Below
-    // `lg` the window has no room for it and it stays closed, whatever was picked.
-    <aside
-      aria-hidden={!open}
-      inert={!open}
-      className={cn(
-        "shrink-0 overflow-hidden transition-[width] duration-300 ease-out motion-reduce:transition-none max-md:hidden",
-        open ? "w-64 max-lg:w-0" : "w-0",
-      )}
-    >
-      <div className="flex h-full w-64 flex-col overflow-y-auto px-4 pb-4">
-        {/* In an area its own menu stands here (the page draws it in); else the space's. */}
-        <div ref={setAreaSlot} className={inArea ? "pt-4 animate-rise sm:pt-6" : "hidden"} />
-        {inArea ? null : (
-          <div className="pt-4 animate-rise sm:pt-6">
-            {list(wizards)}
-            <p className="mt-5 mb-1 px-2 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em]">
-              {t("nav.project")}
-            </p>
-            {list(parts)}
-          </div>
-        )}
-      </div>
-    </aside>
   );
 }
 
 /**
  * The row at the top of the page: the space's name, which switches between spaces, then the
- * trail and the credits. No wordmark: the mark stands in the app bar. A phone starts at the
+ * trail and the credits. No wordmark: the app bar holds the places. A phone starts at the
  * space's name; the rest stands in its app bar along the bottom.
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:gap-3 sm:px-4 md:px-5">
-      <SpaceSidebarToggle />
       <SpaceName me={me} />
       <div className="flex min-w-0 flex-1 items-center">
         <Trail />
@@ -847,11 +691,9 @@ export function AppFrame({
               {children}
             </main>
           ) : (
-            // The top bar runs across, over the sidebar and the page, open or closed.
             <div className="flex min-h-0 flex-1 flex-col">
               <TopBar me={me} />
               <div className="flex min-h-0 flex-1">
-                <SpaceSidebar />
                 <div ref={column} className="relative flex min-w-0 flex-1 flex-col">
                   {/* `relative`: what a page places out of flow without a positioned parent (a
                     hidden file field) stays in the page's own scroll, not in a frame around it,

@@ -88,23 +88,25 @@ export function LevelHead({
 }: {
   title: string;
   open: LevelEntry | null;
-  onBack: () => void;
+  /** Back up from the open entry; without it the open entry stands alone, with no way up. */
+  onBack?: () => void;
   root?: { icon: Icon; label: string; backLabel: string; onBack: () => void };
 }) {
   const shown = open ?? root ?? null;
+  const back = open ? onBack : root?.onBack;
   return (
     <div className="mb-2 flex h-9 min-w-0 items-center px-1">
       <div
         className={cn(
           "shrink-0 overflow-hidden transition-[width,margin,opacity] duration-200 ease-out",
-          shown ? "-ml-1.5 mr-0.5 w-8 opacity-100" : "w-0 opacity-0",
+          shown && back ? "-ml-1.5 mr-0.5 w-8 opacity-100" : "w-0 opacity-0",
         )}
       >
         <button
           type="button"
-          onClick={open ? onBack : root?.onBack}
-          aria-hidden={!shown}
-          tabIndex={shown ? undefined : -1}
+          onClick={back}
+          aria-hidden={!(shown && back)}
+          tabIndex={shown && back ? undefined : -1}
           aria-label={open ? title : root?.backLabel}
           className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-accent hover:text-ink"
         >

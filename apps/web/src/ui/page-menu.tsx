@@ -1,8 +1,6 @@
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import { type ComponentType, type ReactNode, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Link } from "react-router";
-import { useSideMenuSlot } from "../studio/side-menu";
 import { cn } from "./index";
 
 export interface PageMenuEntry {
@@ -167,22 +165,10 @@ function Tabs({
   );
 }
 
-/**
- * A page with a menu of its own (a `PageMenu`, or any): the menu at the page's left, or in the
- * studio's sidebar while that is open – one menu at the left, never two. `children` is the page.
- */
+/** A page with a menu of its own (a `PageMenu`, or any): the menu at the page's left. `children` is the page. */
 export function MenuPage({ menu, children }: { menu: ReactNode; children: ReactNode }) {
-  const slot = useSideMenuSlot();
-  if (slot) {
-    return (
-      <>
-        {createPortal(menu, slot)}
-        {children}
-      </>
-    );
-  }
   return (
-    <div className="grid gap-6 md:grid-cols-[13.5rem_minmax(0,1fr)] md:gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
+    <div className="grid gap-6 md:grid-cols-[10.5rem_minmax(0,1fr)] md:gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
       <aside className="min-w-0 md:sticky md:top-6 md:self-start">{menu}</aside>
       {children}
     </div>

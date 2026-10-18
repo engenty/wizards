@@ -62,11 +62,20 @@ export function useResults(
   });
 }
 
-/** Search, live or test, and the period, above the list. The words count after a short pause. */
+/**
+ * The wizard, search, live or test, and the period, above the list. The words count after a
+ * short pause. The wizards offered are the ones with a result; the one picked stays.
+ */
 function FilterBar({
+  data,
+  wizardId,
+  onWizard,
   filter,
   onFilter,
 }: {
+  data: SpaceResults;
+  wizardId: string | null;
+  onWizard: (id: string | null) => void;
   filter: ResultsFilter;
   onFilter: (next: ResultsFilter) => void;
 }) {
@@ -80,6 +89,17 @@ function FilterBar({
   }, [text, filter, onFilter]);
   return (
     <div className="flex flex-wrap gap-2">
+      <Select
+        value={wizardId ?? ""}
+        onChange={(id) => onWizard(id || null)}
+        options={[
+          { value: "", label: t("space.resultsAllWizards") },
+          ...data.wizards
+            .filter((w) => w.results || w.id === wizardId)
+            .map((w) => ({ value: w.id, label: `${w.title} (${w.results})` })),
+        ]}
+        className="w-56 max-sm:w-full"
+      />
       <div className="relative min-w-0 flex-1 basis-56">
         <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-ink-3" />
         <Input
@@ -123,11 +143,13 @@ function FilterBar({
 export function Results({
   data,
   wizardId,
+  onWizard,
   filter,
   onFilter,
 }: {
   data: SpaceResults;
   wizardId: string | null;
+  onWizard: (id: string | null) => void;
   filter: ResultsFilter;
   onFilter: (next: ResultsFilter) => void;
 }) {
@@ -141,7 +163,13 @@ export function Results({
         hint={t("space.resultsHint")}
         plain
       >
-        <FilterBar filter={filter} onFilter={onFilter} />
+        <FilterBar
+          data={data}
+          wizardId={wizardId}
+          onWizard={onWizard}
+          filter={filter}
+          onFilter={onFilter}
+        />
         {data.runs.length ? (
           <Card className="flex flex-col p-1.5">
             {data.runs.map((r) => (
