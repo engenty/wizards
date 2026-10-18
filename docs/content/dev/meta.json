@@ -1,7 +1,13 @@
 {
   "title": "Developer",
-  "description": "Extend engenty wizards with plugins: tools for AI steps, routes with their own tables, pages in the studio.",
+  "description": "The wizard format, wizards in other systems and the runner, and plugins that extend engenty wizards.",
   "root": true,
   "icon": "SquareTerminal",
-  "pages": ["index", "wizard-format", "plugins", "integration", "api"]
+  "pages": [
+    "index",
+    "wizard-format",
+    "integration",
+    "plugins",
+    "api"
+  ]
 }
