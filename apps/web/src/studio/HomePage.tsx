@@ -239,7 +239,7 @@ function WizardCard({ w, me, runners }: { w: WizardSummary; me: Me; runners: Run
     <div className="group/card relative pt-6">
       {/* Alive: it wobbles and its eye follows the pointer, as on the setup and the landing page. */}
       <div className="pointer-events-none absolute top-0 left-4 z-10">
-        <Mascot kind={w.avatar} size={52} />
+        <Mascot kind={w.avatar} costume={w.costume} size={52} />
       </div>
       <Card
         className="relative flex h-full cursor-pointer flex-col px-5 pt-10 pb-3 transition hover:shadow-elevated"

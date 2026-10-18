@@ -238,6 +238,7 @@ export function CallStage({
           >
             <Mascot
               kind={view?.wizard.avatar ?? "round"}
+              costume={view?.wizard.costume}
               size={tiles ? 140 : 200}
               fluffy
               interactive={false}

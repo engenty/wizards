@@ -60,7 +60,7 @@ export function SharePage() {
       <BrandHeader brand={view.brand} />
       <main className="mx-auto w-full max-w-3xl flex-1 animate-rise px-4 pt-6 pb-12 sm:px-6">
         <div className="mb-8 flex flex-wrap items-center gap-4">
-          <Mascot kind={view.wizard.avatar} size={64} />
+          <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={64} />
           <div className="min-w-0 flex-1">
             <p className="text-[0.8125rem] text-ink-4">
               {view.expiresAt
@@ -98,7 +98,12 @@ export function SharePage() {
             href={view.wizardUrl}
             className="mt-10 flex items-center gap-4 rounded-2xl bg-card p-5 shadow-soft ring-1 ring-border-soft transition hover:shadow-elevated"
           >
-            <Mascot kind={view.wizard.avatar} size={44} interactive={false} />
+            <Mascot
+              kind={view.wizard.avatar}
+              costume={view.wizard.costume}
+              size={44}
+              interactive={false}
+            />
             <div className="min-w-0 flex-1">
               <div className="font-display font-semibold text-[1rem]">{view.wizard.title}</div>
               {view.wizard.description ? (

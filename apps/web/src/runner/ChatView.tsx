@@ -17,6 +17,7 @@ import {
   type Values,
 } from "@engenty/wizards-runner";
 import {
+  type EngentyCostume,
   FIELD_WAYS,
   type Field,
   isDecidedField,
@@ -231,7 +232,15 @@ export function ChatShell({
 }
 
 /** The thread: the wizard's messages on the left beside its engenty, the person's on the right. */
-export function Thread({ avatar, lines }: { avatar: string; lines: Line[] }) {
+export function Thread({
+  avatar,
+  costume,
+  lines,
+}: {
+  avatar: string;
+  costume?: EngentyCostume;
+  lines: Line[];
+}) {
   const speech = useContext(SpeechContext);
   // What is read: the wizard's bubbles that are words, not the answers to tap or an output.
   const spoken = useMemo(
@@ -259,7 +268,7 @@ export function Thread({ avatar, lines }: { avatar: string; lines: Line[] }) {
       <div key={group.lines[0].key} className="flex items-start gap-2.5">
         <div className="sticky top-1 shrink-0 pt-0.5">
           {/* Only the engenty that speaks now follows the pointer. */}
-          <Mascot kind={avatar} size={30} interactive={i >= groups.length - 2} />
+          <Mascot kind={avatar} costume={costume} size={30} interactive={i >= groups.length - 2} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
           {group.lines.map((line) => (
@@ -1077,7 +1086,7 @@ function PageTurn({
 
   return (
     <>
-      <Thread avatar={view.wizard.avatar} lines={lines} />
+      <Thread avatar={view.wizard.avatar} costume={view.wizard.costume} lines={lines} />
       {dock}
     </>
   );
@@ -1440,7 +1449,7 @@ function ReviewTurn({
   );
   return (
     <>
-      <Thread avatar={view.wizard.avatar} lines={lines} />
+      <Thread avatar={view.wizard.avatar} costume={view.wizard.costume} lines={lines} />
       {regenerate ? (
         <Dock>
           <Composer
@@ -1556,7 +1565,7 @@ function ResultTurn({
       </>,
     ),
   );
-  return <Thread avatar={view.wizard.avatar} lines={lines} />;
+  return <Thread avatar={view.wizard.avatar} costume={view.wizard.costume} lines={lines} />;
 }
 
 /**
@@ -1636,6 +1645,7 @@ export function ChatBody({
         <>
           <Thread
             avatar={view.wizard.avatar}
+            costume={view.wizard.costume}
             lines={[
               ...before,
               bot(`ask:${view.ask.id}`, <AskPanel runId={view.id} ask={view.ask} />, {
@@ -1651,6 +1661,7 @@ export function ChatBody({
         <>
           <Thread
             avatar={view.wizard.avatar}
+            costume={view.wizard.costume}
             lines={[
               ...before,
               ...(note ? [me("note", note)] : []),
@@ -1670,6 +1681,7 @@ export function ChatBody({
         <>
           <Thread
             avatar={view.wizard.avatar}
+            costume={view.wizard.costume}
             lines={[
               ...before,
               bot(
@@ -1706,6 +1718,7 @@ export function ChatBody({
       body = (
         <Thread
           avatar={view.wizard.avatar}
+          costume={view.wizard.costume}
           lines={[
             ...before,
             bot("cancelled", t("run.cancelled")),
@@ -1743,7 +1756,7 @@ export function ChatBody({
     } else if (step?.type === "result") {
       body = <ResultTurn view={view} run={run} step={step} before={before} onRestart={onRestart} />;
     } else {
-      body = <Thread avatar={view.wizard.avatar} lines={before} />;
+      body = <Thread avatar={view.wizard.avatar} costume={view.wizard.costume} lines={before} />;
     }
   }
   if (call) {

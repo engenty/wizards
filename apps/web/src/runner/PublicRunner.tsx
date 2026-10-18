@@ -318,7 +318,7 @@ function StartScreen({ wizard, page }: { wizard: PublicWizard; page: PageLanguag
   }
   return (
     <div className="mx-auto flex max-w-lg animate-rise flex-col items-center px-6 pt-6 pb-12 text-center sm:pt-16 sm:pb-16">
-      <Mascot kind={wizard.avatar} size={190} fluffy />
+      <Mascot kind={wizard.avatar} costume={wizard.costume} size={190} fluffy />
       <h1 className="mt-2 text-balance font-display font-semibold text-[1.875rem] leading-[1.1] tracking-tight sm:text-[2.125rem]">
         {wizard.title}
       </h1>
@@ -393,7 +393,7 @@ function ChatHeader({ wizard, page }: { wizard: PublicWizard; page: PageLanguage
     <header className="safe-top shrink-0 border-border-soft border-b">
       <div className="mx-auto flex h-16 w-full max-w-[760px] items-center gap-3 pr-2 pl-4 sm:pr-4 sm:pl-6">
         <span className={cn(voice?.speaking && "animate-breathe")}>
-          <Mascot kind={wizard.avatar} size={38} />
+          <Mascot kind={wizard.avatar} costume={wizard.costume} size={38} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="truncate font-display font-semibold text-[1rem] leading-tight tracking-tight">
@@ -484,7 +484,7 @@ function ChatStart({
   }
   return (
     <ChatShell header={header} footer={footer}>
-      <Thread avatar={wizard.avatar} lines={lines} />
+      <Thread avatar={wizard.avatar} costume={wizard.costume} lines={lines} />
       <Idle />
     </ChatShell>
   );

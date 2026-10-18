@@ -173,6 +173,7 @@ function pluginSummary({ id, plugin, starter }: PluginStarterEntry): Marketplace
     // Found by the plugin's name as well: "Termine" finds the appointment plugin's starters.
     terms: [name],
     avatar: definition.avatar,
+    costume: definition.costume,
     formats: formatsOf(definition),
     industries: ["any"],
     useCases: [],

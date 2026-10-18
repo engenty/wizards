@@ -22,6 +22,10 @@ export const ENGENTY_KINDS = [
 ] as const;
 export type EngentyKind = (typeof ENGENTY_KINDS)[number];
 
+/** The Halloween costumes a wizard's engenty can wear. Same list as the web app's engenty figures. */
+export const ENGENTY_COSTUMES = ["witch", "devil", "bat", "pumpkin"] as const;
+export type EngentyCostume = (typeof ENGENTY_COSTUMES)[number];
+
 // --- languages -------------------------------------------------------------------------------
 
 /**
@@ -994,6 +998,8 @@ export const wizardSchema = z.object({
   title: z.string().min(1),
   description: z.string().default(""),
   avatar: z.enum(ENGENTY_KINDS).default("round"),
+  /** A costume the avatar wears; none without one. */
+  costume: z.enum(ENGENTY_COSTUMES).optional(),
   /** Shown on the first page above the first question. */
   intro: z.string().optional(),
   /**

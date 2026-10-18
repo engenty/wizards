@@ -1,4 +1,8 @@
-import { ENGENTY_KINDS, type WizardDefinition } from "@engenty/wizards-shared/definition";
+import {
+  ENGENTY_COSTUMES,
+  ENGENTY_KINDS,
+  type WizardDefinition,
+} from "@engenty/wizards-shared/definition";
 import { z } from "zod";
 
 const position = {
@@ -14,6 +18,8 @@ export const wizardOpSchema = z.discriminatedUnion("op", [
     title: z.string().min(1).optional(),
     description: z.string().optional(),
     avatar: z.enum(ENGENTY_KINDS).optional(),
+    /** null takes the costume off. */
+    costume: z.enum(ENGENTY_COSTUMES).nullable().optional(),
     /** null removes the intro. */
     intro: z.string().nullable().optional(),
   }),
@@ -65,7 +71,7 @@ export function applyOps(def: WizardDefinition, ops: WizardOp[]): unknown {
     const steps = next.steps;
     switch (op.op) {
       case "set_meta": {
-        const { op: _, intro, ...meta } = op;
+        const { op: _, intro, costume, ...meta } = op;
         Object.assign(
           next,
           Object.fromEntries(Object.entries(meta).filter(([, v]) => v !== undefined)),
@@ -74,6 +80,11 @@ export function applyOps(def: WizardDefinition, ops: WizardOp[]): unknown {
           delete next.intro;
         } else if (intro !== undefined) {
           next.intro = intro;
+        }
+        if (costume === null) {
+          delete next.costume;
+        } else if (costume !== undefined) {
+          next.costume = costume;
         }
         return;
       }

@@ -207,7 +207,7 @@ function EntryCard({ entry, onOpen }: { entry: MarketplaceEntry; onOpen: () => v
     >
       {/* engenty sits on the card's corner, a little over its edge. */}
       <span className="-top-4 pointer-events-none absolute right-4">
-        <Mascot kind={entry.avatar} size={68} />
+        <Mascot kind={entry.avatar} costume={entry.costume} size={68} />
       </span>
       <div className="min-w-0 pr-20">
         {/* A block, not a flex row: Safari sizes a card too short for a title that wraps in a flex row. */}
@@ -503,7 +503,7 @@ export function EntryDialog({
             </span>
             {/* The engenty stands on the header's lower edge, a little over it. */}
             <div className="-bottom-5 absolute right-9 z-10 max-sm:hidden">
-              <Mascot kind={entry.avatar} size={104} />
+              <Mascot kind={entry.avatar} costume={entry.costume} size={104} />
             </div>
             <div className="relative sm:pr-36">
               <h2 className="font-display font-semibold text-[1.375rem] leading-tight tracking-tight max-sm:pr-10">

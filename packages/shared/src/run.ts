@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import {
   type CardOption,
+  type EngentyCostume,
   type Format,
   isLang,
   type Lang,
@@ -893,7 +894,7 @@ export interface RunView {
   id: string;
   status: RunStatus;
   mode: "test" | "live";
-  wizard: Pick<WizardDefinition, "title" | "description" | "avatar" | "intro">;
+  wizard: Pick<WizardDefinition, "title" | "description" | "avatar" | "costume" | "intro">;
   /** The language the wizard speaks, by its code: what is read aloud, and in which voice. */
   lang: string;
   /**
@@ -967,7 +968,7 @@ export interface ShareView {
   token: string;
   title: string;
   message: string | null;
-  wizard: Pick<WizardDefinition, "title" | "description" | "avatar">;
+  wizard: Pick<WizardDefinition, "title" | "description" | "avatar" | "costume">;
   brand: BrandView;
   shown: RunView["shown"];
   createdAt: string;
@@ -1004,6 +1005,7 @@ export interface PublicWizard {
   title: string;
   description: string;
   avatar: string;
+  costume?: EngentyCostume;
   intro: string | null;
   brand: BrandView;
   turnstileSiteKey: string | null;
