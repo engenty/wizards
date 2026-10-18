@@ -1,6 +1,7 @@
 import { Moon, Sun } from "lucide-react";
 import { lazy, Suspense } from "react";
 import type { EngentyKind } from "./engenty/colors";
+import type { EngentyCostume } from "./engenty/costume-fit";
 import { Engenty } from "./engenty/engenty";
 import type { EngentyCoat } from "./engenty/fur-stage";
 import { EngentyLogoMark } from "./engenty/logo";
@@ -29,6 +30,7 @@ export function Mascot({
   size = 64,
   fluffy,
   coat,
+  costume,
   helmet = false,
   interactive = true,
 }: {
@@ -36,6 +38,8 @@ export function Mascot({
   size?: number;
   fluffy?: boolean;
   coat?: EngentyCoat;
+  /** A Halloween costume. */
+  costume?: EngentyCostume;
   /** Goose's flight helmet. */
   helmet?: boolean;
   interactive?: boolean;
@@ -45,8 +49,13 @@ export function Mascot({
   const wear = coat ?? (theme === "dark" ? "jelly" : "fur");
   if (fluffy && size >= 120 && (wear === "fur" || theme === "dark")) {
     return (
-      <Suspense fallback={<Engenty helmet={helmet} kind={k} size={Math.round(size * 0.62)} />}>
+      <Suspense
+        fallback={
+          <Engenty costume={costume} helmet={helmet} kind={k} size={Math.round(size * 0.62)} />
+        }
+      >
         <Fluffy
+          costume={costume}
           gooseHelmet={helmet}
           coat={wear}
           kind={k}
@@ -82,8 +91,13 @@ export function Mascot({
           }}
         />
         <div className="relative" style={{ marginTop: size * 0.04 }}>
-          <Suspense fallback={<Engenty helmet={helmet} kind={k} size={Math.round(inner * 0.62)} />}>
+          <Suspense
+            fallback={
+              <Engenty costume={costume} helmet={helmet} kind={k} size={Math.round(inner * 0.62)} />
+            }
+          >
             <Fluffy
+              costume={costume}
               gooseHelmet={helmet}
               coat="jelly"
               kind={k}
@@ -96,7 +110,7 @@ export function Mascot({
       </div>
     );
   }
-  return <Engenty helmet={helmet} kind={k} size={size} animated={interactive} />;
+  return <Engenty costume={costume} helmet={helmet} kind={k} size={size} animated={interactive} />;
 }
 
 /**

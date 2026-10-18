@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { EngentyKind } from "./colors";
+import type { EngentyCostume } from "./costume-fit";
+import { costumeMesh } from "./costume-mesh";
 import { Engenty } from "./engenty";
 import {
   ENGENTY_FORMS,
@@ -75,6 +77,8 @@ export interface FluffyEngentyProps {
   className?: string;
   /** Continuous strand fur (default) or a translucent jelly over the same body. */
   coat?: EngentyCoat;
+  /** A Halloween costume: witch's hat, devil horns, bat wings or a jack-o'-lantern beside it. */
+  costume?: EngentyCostume;
   /** Rigid red Goose flight helmet for the shapes in GOOSE_HELMET_KINDS. */
   gooseHelmet?: boolean;
   /** Pointer-driven lean and gaze. Off for purely decorative instances. */
@@ -115,6 +119,7 @@ export function FluffyEngenty({
   animationSpeed = 1,
   turn,
   coat = "fur",
+  costume,
   gooseHelmet = false,
   interactive = true,
   look = null,
@@ -138,12 +143,15 @@ export function FluffyEngenty({
   const blobs = useMemo(() => packFormBlobs(form), [form]);
   const extras = useMemo(() => packFormExtras(form), [form]);
   const scale = useMemo(() => formScale(form), [form]);
+  // The view zooms out to keep a costume in frame; the ground shadow follows it.
+  const zoom = costume ? Math.min(1, 70 / costumeMesh(kind, costume, coat, form.fur).reach) : 1;
   // The render loop reads props through a ref so playground sliders retune the
   // running frame instead of tearing down the GL context on every keystroke.
   const live = useRef({
     animationSpeed,
     motion,
     turn,
+    costume,
     helmetKind,
     blobs,
     extras,
@@ -160,6 +168,7 @@ export function FluffyEngenty({
     animationSpeed,
     motion,
     turn,
+    costume,
     helmetKind,
     blobs,
     extras,
@@ -183,6 +192,7 @@ export function FluffyEngenty({
     size,
     interactive,
     look,
+    costume,
     helmetKind,
     motion,
     animationSpeed,
@@ -284,6 +294,9 @@ export function FluffyEngenty({
       );
 
       const palette = furPalette(wrap, current.kind);
+      const worn = current.costume
+        ? { kind: current.kind, name: current.costume, fur: Math.round(fur * 2) / 2 }
+        : undefined;
       stage.drawInto(context, px, {
         blobs: current.blobs,
         clarity: current.overrides?.clarity ?? JELLY_DEFAULTS.clarity,
@@ -301,6 +314,8 @@ export function FluffyEngenty({
         extras: current.extras.geometry,
         eye: [current.form.eye.x, current.form.eye.y, current.form.eye.r],
         gaze: [gaze.x, gaze.y],
+        costume: worn,
+        reach: worn ? costumeMesh(worn.kind, worn.name, coat, worn.fur).reach : 0,
         gooseHelmet: Boolean(current.helmetKind),
         helmetKind: current.helmetKind,
         turn: current.turn
@@ -374,6 +389,7 @@ export function FluffyEngenty({
     return (
       <Engenty
         className={className}
+        costume={costume}
         kind={kind}
         size={size}
       />
@@ -392,12 +408,12 @@ export function FluffyEngenty({
           background:
             "radial-gradient(closest-side, rgb(0 0 0 / 0.2), transparent)",
           filter: "blur(4px)",
-          height: `${(form.shadowRx * 50) / FUR_VIEW}%`,
+          height: `${(form.shadowRx * 50 * zoom) / FUR_VIEW}%`,
           left: "50%",
           position: "absolute",
-          top: `${viewPercent(110)}%`,
+          top: `${viewPercent(60 + 50 * zoom)}%`,
           transform: "translate(-50%, -50%)",
-          width: `${(form.shadowRx * 2.5 * 100) / FUR_VIEW}%`,
+          width: `${(form.shadowRx * 2.5 * 100 * zoom) / FUR_VIEW}%`,
         }}
       />
       <canvas

@@ -1,5 +1,7 @@
 // Shared WebGL lifecycle for depth-tested body, fur and accessory passes.
 
+import type { EngentyKind } from "./colors";
+import type { EngentyCostume } from "./costume-fit";
 import type { GooseHelmetKind } from "./goose-helmet-fit";
 import { JELLY_DEFAULTS } from "./jelly-defaults";
 export interface FurUniforms {
@@ -7,6 +9,8 @@ export interface FurUniforms {
   body: [number, number, number];
   /** How see-through the jelly coat is: 1 maximum, 0 opaque. */
   clarity: number;
+  /** The Halloween costume worn, on which form, over how long a coat. */
+  costume?: { kind: EngentyKind; name: EngentyCostume; fur: number };
   deep: [number, number, number];
   density: number;
   extraMeta: Float32Array;
@@ -23,6 +27,8 @@ export interface FurUniforms {
   light: [number, number, number];
   period: number;
   pull?: [number, number, number, number];
+  /** How far the costume reaches from the centre, form units; the view zooms out to keep it. */
+  reach?: number;
   scale: number;
   softness?: number;
   thick: number;
@@ -67,6 +73,7 @@ const UNIFORM_NAMES = [
   "uClarity",
   "uSoftness",
   "uPull",
+  "uReach",
 ] as const;
 
 type UniformName = (typeof UNIFORM_NAMES)[number];
@@ -206,6 +213,7 @@ export function createFurRenderer(
         gl.uniform1f(loc.uClarity, u.clarity);
         gl.uniform1f(loc.uSoftness, u.softness ?? JELLY_DEFAULTS.softness);
         gl.uniform4fv(loc.uPull, u.pull ?? [60, 60, 0, 0]);
+        gl.uniform1f(loc.uReach, u.reach ?? 0);
         gl.uniform2fv(loc.uLean, u.lean);
         gl.uniform3fv(loc.uLight, u.light);
         gl.uniform3fv(loc.uBody, u.body);
