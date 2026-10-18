@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Cuts a release, locally and step by step. Reads the Conventional Commits since the last tag
 // via git-cliff, shows the compact changelog, asks patch / minor / major, lets you edit the
-// entry, then writes CHANGELOG.md, changelog.json and the app's copies under apps/web/src/about,
-// bumps the root package.json and commits on a branch release/vX.Y.Z. It never pushes: the
+// entry, then writes CHANGELOG.md and the app's copies under apps/web/src/about, bumps the root
+// package.json and commits on a branch release/vX.Y.Z. It never pushes: the
 // release reaches main as a pull request like any change. Once that is squash-merged,
 // `pnpm release:tag` sets the tag vX.Y.Z on main's release commit and pushes it — the tag ships.
 //
@@ -15,12 +15,14 @@
 //   RELEASE_BUMP=patch|minor|major|current   skips the questions (automation)
 //
 // git-cliff owns parsing and the format (cliff.toml). This script is the interactive layer
-// around it.
+// around it. git-cliff's full context is written to the root changelog.json, a generated file
+// that is not tracked: scripts/write-about-data.mjs cuts the app's changelog from it.
 import { execFileSync, execSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { emitKeypressEvents } from "node:readline";
+import { cliff, cliffContext } from "./git-cliff.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const PKG = join(root, "package.json");
@@ -34,7 +36,6 @@ const RELEASE_FILES = [
   "package.json",
   "plugin/.claude-plugin/plugin.json",
   "CHANGELOG.md",
-  "changelog.json",
   "apps/web/src/about/changelog.json",
   "apps/web/src/about/oss-credits.json",
   "COPYRIGHTS.md",
@@ -104,31 +105,7 @@ async function select(label, options) {
   });
 }
 
-// ── git-cliff and git ────────────────────────────────────────────────────────
-let CLIFF = null;
-function resolveCliff() {
-  for (const probe of [["git-cliff"], ["pnpm", "exec", "git-cliff"]]) {
-    try {
-      execFileSync(probe[0], [...probe.slice(1), "--version"], { cwd: root, stdio: "ignore" });
-      return probe;
-    } catch {
-      // try the next one
-    }
-  }
-  out(c.dim("  git-cliff is not installed here — using `pnpm dlx git-cliff`"));
-  return ["pnpm", "dlx", "git-cliff"];
-}
-function cliff(args) {
-  CLIFF = CLIFF ?? resolveCliff();
-  return execFileSync(CLIFF[0], [...CLIFF.slice(1), "--config", "cliff.toml", ...args], {
-    cwd: root,
-    encoding: "utf8",
-    // `--context` is the structured JSON of every commit: far past the 1 MB default.
-    maxBuffer: 256 * 1024 * 1024,
-    // git-cliff logs to stderr; only its errors are worth a line here.
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-}
+// ── git ─────────────────────────────────────────────────────────────────────
 const git = (args) =>
   execSync(`git ${args}`, {
     cwd: root,
@@ -193,7 +170,7 @@ function writeChangelogBlock(block) {
   writeFileSync(CHANGELOG, `${head}\n\n${body}\n`, "utf8");
 }
 
-/** changelog.json (git-cliff's context) and from it the app's copies. */
+/** The root changelog.json (git-cliff's context, not tracked) and from it the app's copies. */
 function writeData(context, { credits }) {
   writeFileSync(CHANGELOG_JSON, `${JSON.stringify(context)}\n`, "utf8");
   execFileSync(
@@ -208,8 +185,8 @@ function help() {
 ${c.b("pnpm release")} — cut a release from Conventional Commits (via git-cliff)
 
   pnpm release               full: changelog + bump package.json + commit on release/vX.Y.Z
-  pnpm release --changelog   only refresh CHANGELOG.md, changelog.json and the app's copy;
-                             commits since the last tag stay under "Unreleased"
+  pnpm release --changelog   only refresh CHANGELOG.md and the app's copy; commits since the
+                             last tag stay under "Unreleased"
   pnpm release:tag           after the release PR is merged: tag main's release commit and
                              push the tag, which ships it
   pnpm release --help
@@ -245,17 +222,15 @@ async function main() {
     `${c.dim("current")} ${c.b(`v${current}`)}   ${c.dim("last tag")} ${c.b(lastTag || "(none)")}   ${c.dim("branch")} ${branch === "main" ? branch : c.yellow(`${branch} (not main)`)}${CHANGELOG_ONLY ? c.yellow("   [changelog]") : ""}`,
   );
 
-  const unreleased = JSON.parse(cliff(["--unreleased", "--context"])).flatMap(
-    (r) => r.commits || [],
-  );
+  const unreleased = cliffContext(["--unreleased"]).flatMap((r) => r.commits || []);
 
   if (CHANGELOG_ONLY) {
     if (unreleased.length > 0) {
       writeChangelogBlock(cliff(["--unreleased", "--strip", "all"]));
     }
-    writeData(JSON.parse(cliff(["--context"])), { credits: false });
+    writeData(cliffContext(), { credits: false });
     out(
-      `\n${c.green("✔")} CHANGELOG.md + changelog.json written — ${unreleased.length} unreleased commit(s)`,
+      `\n${c.green("✔")} CHANGELOG.md + the app's changelog written — ${unreleased.length} unreleased commit(s)`,
     );
     out(c.dim("  --changelog: no version bump, commit or tag."));
     return;
@@ -335,7 +310,7 @@ async function main() {
   // The tag does not exist yet, so git-cliff's context still calls these commits unreleased:
   // stamp the new version onto that section.
   writeChangelogBlock(block);
-  const context = JSON.parse(cliff(["--context"]));
+  const context = cliffContext();
   const stampedAt = Math.floor(Date.now() / 1000);
   for (const release of context) {
     if (release.version == null) {
@@ -344,7 +319,7 @@ async function main() {
     }
   }
   writeData(context, { credits: true });
-  out(`\n${c.green("✔")} CHANGELOG.md + changelog.json written for ${c.b(tag)}`);
+  out(`\n${c.green("✔")} CHANGELOG.md + the app's changelog written for ${c.b(tag)}`);
 
   // Bump, commit, tag.
   const pkg = JSON.parse(readFileSync(PKG, "utf8"));
