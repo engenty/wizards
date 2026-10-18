@@ -1,4 +1,3 @@
-import { Ellipsis } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { APP_VERSION } from "../about/AboutLinks";
@@ -11,8 +10,6 @@ import { useUpdate } from "../lib/update";
 import { cn } from "../ui";
 import { useDismiss } from "./AppFrame";
 import { InstallDialog } from "./InstallBanner";
-import { LangSwitch } from "./LangSwitch";
-import { ThemeSwitch } from "./ThemeSwitch";
 
 /** ⌘ on a Mac, Ctrl elsewhere: the key the settings' shortcut is pressed with. */
 const MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -20,14 +17,15 @@ const MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator
 /**
  * The engenty in the corner of the app bar, and its menu, as the Apple menu is the computer's:
  * what belongs to engenty wizards itself, not to a space or a person. Which release this is and
- * whether a newer one is out, what is new, the settings (also ⌘ ,), the app on this device, its
- * look and language, and the credits.
+ * whether a newer one is out, what is new, the settings (also ⌘ ,), the app on this device, and
+ * the credits. Look and language are the person's: they stand in the person's menu.
  */
 export function EngentyMenu({
   me,
   position,
   horizontal,
   more,
+  trigger,
 }: {
   me: Me;
   position: AppBarPosition;
@@ -37,6 +35,8 @@ export function EngentyMenu({
    * has no room for (`go` follows one and closes the menu).
    */
   more?: (go: (to: string) => void) => ReactNode;
+  /** What the button looks like where the bar draws its own (a phone's tab). */
+  trigger?: { className: (open: boolean) => string; children: ReactNode };
 }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -88,15 +88,17 @@ export function EngentyMenu({
         aria-haspopup="menu"
         title={more ? t("nav.more") : t("about.title")}
         aria-label={more ? t("nav.more") : t("about.title")}
-        className={cn(
-          "grid shrink-0 place-items-center transition hover:bg-ink/10",
-          open && "bg-ink/10",
-          more
-            ? "size-11 rounded-full text-ink-2"
-            : cn("rounded-lg", horizontal ? "size-11" : "h-12 w-11"),
-        )}
+        className={
+          trigger
+            ? trigger.className(open)
+            : cn(
+                "grid shrink-0 place-items-center rounded-lg transition hover:bg-ink/10",
+                open && "bg-ink/10",
+                horizontal ? "size-11" : "h-12 w-11",
+              )
+        }
       >
-        {more ? <Ellipsis className="size-5" /> : <EngentyLogoMark size={32} />}
+        {trigger ? trigger.children : <EngentyLogoMark size={32} />}
       </button>
       {open ? (
         <div
@@ -148,10 +150,13 @@ export function EngentyMenu({
             {t("about.tab.new")}
           </button>
           {rule}
-          <button type="button" role="menuitem" className={item} onClick={() => go("/settings")}>
-            {t("nav.settings")} …
-            {more ? null : <span className={aside}>{MAC ? "⌘ ," : "Ctrl ,"}</span>}
-          </button>
+          {/* A phone's More has the settings among its places already. */}
+          {more ? null : (
+            <button type="button" role="menuitem" className={item} onClick={() => go("/settings")}>
+              {t("nav.settings")} …
+              {more ? null : <span className={aside}>{MAC ? "⌘ ," : "Ctrl ,"}</span>}
+            </button>
+          )}
           {standalone() ? null : (
             <button
               type="button"
@@ -169,14 +174,6 @@ export function EngentyMenu({
               {t("install.app.action")}
             </button>
           )}
-          <div className="flex items-center justify-between gap-3 px-3 py-1.5 text-[0.875rem] text-ink-2">
-            {t("nav.theme")}
-            <ThemeSwitch />
-          </div>
-          <div className="flex items-center justify-between gap-3 px-3 py-1.5 text-[0.875rem] text-ink-2">
-            {t("nav.language")}
-            <LangSwitch tone="surface" />
-          </div>
           {rule}
           <button
             type="button"

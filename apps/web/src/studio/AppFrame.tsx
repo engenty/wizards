@@ -39,6 +39,8 @@ import { AppRail, PhoneBar } from "./AppRail";
 import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/StudioAssistant";
 import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner } from "./InstallBanner";
+import { LangSwitch } from "./LangSwitch";
+import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
 import { hostOf } from "./where";
 
@@ -210,15 +212,19 @@ export function SpaceFace({
   size = "md",
 }: {
   project: Project | null;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
 }) {
   const color = project?.brand.colors?.[0]?.value;
   const initials = initialsOf(project?.name ?? "");
   const face = (
     <span
       className={cn(
-        "grid shrink-0 place-items-center rounded-lg font-semibold tracking-wide",
-        size === "md" ? "size-10 text-[0.8125rem]" : "size-9 text-[0.75rem]",
+        "grid shrink-0 place-items-center font-semibold tracking-wide",
+        size === "md"
+          ? "size-10 rounded-lg text-[0.8125rem]"
+          : size === "sm"
+            ? "size-9 rounded-lg text-[0.75rem]"
+            : "size-6 rounded-md text-[0.5625rem]",
         color ? null : "bg-paper-3 text-ink ring-1 ring-border",
       )}
       style={color ? { background: color, color: onFill(color) } : undefined}
@@ -480,6 +486,8 @@ function SpacePlace({ me, project }: { me: Me; project: Project }) {
 
 function SpaceName({ me }: { me: Me }) {
   const { project } = useCurrentProject();
+  // A phone's bar holds no space: its tile stands here, in the top left corner, before its name.
+  const { phone } = useAppBar();
   if (!project) {
     return null;
   }
@@ -490,13 +498,25 @@ function SpaceName({ me }: { me: Me }) {
         placement="below"
         label={project.name}
         className={(open) =>
-          cn(
-            "-mx-1 max-w-[16rem] translate-y-[0.5px] truncate rounded-md px-2 py-0.5 text-left font-medium text-[0.9375rem] text-ink transition hover:bg-accent",
-            open && "bg-accent",
-          )
+          phone
+            ? cn(
+                "-ml-1 flex max-w-[16rem] items-center gap-2.5 rounded-xl py-1 pr-2 pl-1 text-left font-medium text-[0.9375rem] text-ink transition hover:bg-accent",
+                open && "bg-accent",
+              )
+            : cn(
+                "-mx-1 max-w-[16rem] translate-y-[0.5px] truncate rounded-md px-2 py-0.5 text-left font-medium text-[0.9375rem] text-ink transition hover:bg-accent",
+                open && "bg-accent",
+              )
         }
       >
-        {project.name}
+        {phone ? (
+          <>
+            <SpaceFace project={project} size="sm" />
+            <span className="truncate">{project.name}</span>
+          </>
+        ) : (
+          project.name
+        )}
       </SpaceMenu>
       <SpacePlace me={me} project={project} />
     </span>
@@ -608,6 +628,15 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
               <CreditCard className="size-4" /> {t("nav.account")}
             </a>
           ) : null}
+          {/* The person's own look and language (Settings › Account has both too). */}
+          <div className="flex items-center justify-between gap-3 px-3 py-2 text-[0.875rem] text-ink-2">
+            {t("nav.theme")}
+            <ThemeSwitch />
+          </div>
+          <div className="flex items-center justify-between gap-3 px-3 py-2 text-[0.875rem] text-ink-2">
+            {t("nav.language")}
+            <LangSwitch tone="surface" />
+          </div>
           {me.mode === "managed" ? (
             <button type="button" className={item} onClick={() => void signOut()}>
               <LogOut className="size-4" /> {t("nav.logout")}
@@ -681,21 +710,20 @@ export function AppFrame({
 }) {
   const { position, phone } = useAppBar();
   const column = useRef<HTMLDivElement>(null);
-  // A phone's bar floats over the page: the page keeps its height free below the last line.
-  const clear = phone ? " + 4.75rem + env(safe-area-inset-bottom)" : "";
+  // A phone's bar floats over the page: the page keeps its height free below the last line. A
+  // page that fills the frame (the editor) has its own way back and its own bar at the bottom:
+  // there the phone's bar steps aside, as a tab bar does on a screen pushed onto it.
+  const clear = phone && !full ? " + 4.75rem + env(safe-area-inset-bottom)" : "";
   const goose = useFeature("goose");
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
-      {phone ? <PhoneBar me={me} /> : <AppRail me={me} />}
+      {phone ? full ? null : <PhoneBar me={me} /> : <AppRail me={me} />}
       <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", INSET[position])}>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
           <UpdateBanner />
           <InstallBanner />
           {full ? (
-            <main
-              className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
-              style={phone ? { paddingBottom: `calc(0px${clear})` } : undefined}
-            >
+            <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
               {children}
             </main>
           ) : (

@@ -13,8 +13,9 @@ The app bar holds its places, below the space’s tile in its corner:
 - The layers below it open the space’s page.
 - The tray below them opens the space’s results.
 
-On a phone the bar floats along the bottom with the space, the house and the layers; “More” (⋯)
-holds the results, the settings and the rest, and your picture sits at the top right.
+On a phone the bar floats along the bottom with the house, the layers and “More” (⋯), which
+holds the results, the settings and the rest. The space’s tile and name sit at the top left, your
+picture at the top right.
 
 On the space’s page, the menu on the left shows its three parts. A part opens its own sections,
 and the arrow at the top leads back. On a phone, the parts, a part’s sections and the page take

@@ -1,5 +1,6 @@
 import {
   Check,
+  Ellipsis,
   Home,
   Inbox,
   Layers,
@@ -158,13 +159,16 @@ function BarMenu({ at, onClose }: { at: { x: number; y: number }; onClose: () =>
 }
 
 /** The place in the bar a page belongs to: Home (the wizards), the space's page, its results. */
-function usePlace(): "home" | "space" | "results" | null {
+function usePlace(): "home" | "space" | "results" | "settings" | null {
   const { pathname } = useLocation();
   if (pathname === "/" || pathname === "/new" || pathname.startsWith("/edit/")) {
     return "home";
   }
   if (pathname === "/space/results" || pathname.startsWith("/space/results/")) {
     return "results";
+  }
+  if (pathname === "/settings" || pathname.startsWith("/settings/")) {
+    return "settings";
   }
   return pathname === "/space" || pathname.startsWith("/space/") ? "space" : null;
 }
@@ -327,67 +331,141 @@ export function AppRail({ me }: { me: Me }) {
  * its two places to go every day, Home and the space's page; "⋯" holds the rest (results, the
  * plugins' apps, then what the engenty's menu holds, the settings among it). The person sits at the top.
  */
-/** A place in a phone's bar: round, the open one lit like the bar's own glass. */
-function pill(active: boolean): string {
+/**
+ * A tab of a phone's bar: its glyph alone, its name for a screen reader; the open one sits on a
+ * capsule of lighter glass.
+ */
+function tab(active: boolean): string {
   return cn(
-    "grid size-11 shrink-0 place-items-center rounded-full transition",
-    active ? "bg-paper text-ink shadow-soft ring-1 ring-border-soft" : "text-ink-3 hover:text-ink",
+    "grid h-12 w-16 place-items-center rounded-full transition active:scale-95",
+    active ? "bg-ink/12 text-ink" : "text-ink-3",
+  );
+}
+
+/**
+ * A phone's bar: always along the bottom, a capsule of glass floating over the page. Three tabs:
+ * the space's two places to go every day, Home and its page, and "More" with the rest (results,
+ * the settings, the plugins' apps, then what the engenty's menu holds). The space and the person
+ * sit in the top bar.
+ */
+/**
+ * Whether this browser bends the page through an SVG filter in `backdrop-filter`: Chromium does,
+ * WebKit (Safari, and every browser on an iPhone) does not and would draw no glass at all.
+ */
+const REFRACTS =
+  typeof navigator !== "undefined" &&
+  /Chrome\//.test(navigator.userAgent) &&
+  !/iPhone|iPad|Edg\/|CriOS/.test(navigator.userAgent);
+
+/**
+ * The lens of `.glass-refract`: a map that is neutral in the middle and leans toward the edges
+ * (red across, green down), so what lies under the glass bends at its rim, then a light frost.
+ */
+function GlassRefract() {
+  const map = (dir: "x" | "y") =>
+    `data:image/svg+xml,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" preserveAspectRatio="none"><defs><linearGradient id="g" x1="0" y1="0" x2="${dir === "x" ? 1 : 0}" y2="${dir === "y" ? 1 : 0}"><stop offset="0" stop-color="${dir === "x" ? "#f00" : "#0f0"}"/><stop offset="0.22" stop-color="${dir === "x" ? "#800000" : "#008000"}"/><stop offset="0.78" stop-color="${dir === "x" ? "#800000" : "#008000"}"/><stop offset="1" stop-color="#000"/></linearGradient></defs><rect width="100" height="100" fill="url(#g)"/></svg>`,
+    )}`;
+  return (
+    <svg aria-hidden="true" width="0" height="0" className="absolute">
+      <filter
+        id="glass-refract"
+        x="0"
+        y="0"
+        width="100%"
+        height="100%"
+        colorInterpolationFilters="sRGB"
+      >
+        <feImage href={map("x")} result="x" preserveAspectRatio="none" width="100%" height="100%" />
+        <feImage href={map("y")} result="y" preserveAspectRatio="none" width="100%" height="100%" />
+        <feComposite in="x" in2="y" operator="arithmetic" k2="1" k3="1" result="map" />
+        <feDisplacementMap
+          in="SourceGraphic"
+          in2="map"
+          scale="22"
+          xChannelSelector="R"
+          yChannelSelector="G"
+        />
+      </filter>
+    </svg>
   );
 }
 
 export function PhoneBar({ me }: { me: Me }) {
   const plugins = useStudioPlugins();
   const place = usePlace();
-  const row =
-    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[0.875rem] text-ink-2 transition hover:bg-accent hover:text-ink";
+  const cell =
+    "flex h-18 w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl bg-paper-2/60 px-1 font-medium text-[0.75rem] text-ink-2 transition hover:bg-accent hover:text-ink";
   return (
-    <nav
-      aria-label={BRAND.name}
-      className="fixed inset-x-3 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 flex select-none items-center justify-between gap-1 rounded-[1.75rem] bg-sidebar/70 p-1.5 shadow-overlay ring-1 ring-border-soft backdrop-blur-xl backdrop-saturate-150 [-webkit-touch-callout:none]"
-    >
-      <SpaceTile me={me} />
-      <Link
-        to="/"
-        title={t("nav.home")}
-        aria-label={t("nav.home")}
-        aria-current={place === "home" ? "page" : undefined}
-        className={pill(place === "home")}
-      >
-        <Home className="size-5" />
-      </Link>
-      <Link
-        to="/space"
-        title={t("nav.project")}
-        aria-label={t("nav.project")}
-        aria-current={place === "space" ? "page" : undefined}
-        className={pill(place === "space")}
-      >
-        <Layers className="size-5" />
-      </Link>
-      <EngentyMenu
-        me={me}
-        position="bottom"
-        horizontal
-        more={(go) => (
-          <>
-            <button
-              type="button"
-              role="menuitem"
-              className={row}
-              onClick={() => go("/space/results")}
-            >
-              <Inbox className="size-4 text-ink-3" /> {t("space.results")}
-            </button>
-            {plugins.nav.map((entry) => (
-              <PluginFrame key={entry.serial} of={entry}>
-                <button type="button" role="menuitem" className={row} onClick={() => go(entry.to)}>
-                  <entry.icon className="size-4 text-ink-3" /> {entry.label()}
-                </button>
-              </PluginFrame>
-            ))}
-          </>
+    <>
+      {REFRACTS ? <GlassRefract /> : null}
+      <nav
+        aria-label={BRAND.name}
+        className={cn(
+          "liquid-glass fixed inset-x-0 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex w-fit select-none gap-1 rounded-full p-1 [-webkit-touch-callout:none]",
+          REFRACTS && "glass-refract",
         )}
-      />
-    </nav>
+      >
+        <Link
+          to="/"
+          aria-label={t("nav.home")}
+          aria-current={place === "home" ? "page" : undefined}
+          className={tab(place === "home")}
+        >
+          <Home className="size-[1.375rem]" />
+        </Link>
+        <Link
+          to="/space"
+          aria-label={t("nav.project")}
+          aria-current={place === "space" ? "page" : undefined}
+          className={tab(place === "space")}
+        >
+          <Layers className="size-[1.375rem]" />
+        </Link>
+        <EngentyMenu
+          me={me}
+          position="bottom"
+          horizontal
+          trigger={{
+            className: (open) => tab(open || place === "results" || place === "settings"),
+            children: <Ellipsis className="size-[1.375rem]" />,
+          }}
+          more={(go) => (
+            // The places the bar has no room for, as the bar draws its own: Results, the settings,
+            // and every app a plugin adds.
+            <div className="grid grid-cols-3 gap-1 p-1">
+              {[
+                { key: "results", to: "/space/results", icon: Inbox, label: t("space.results") },
+                { key: "settings", to: "/settings", icon: Settings, label: t("nav.settings") },
+              ].map((entry) => (
+                <button
+                  key={entry.key}
+                  type="button"
+                  role="menuitem"
+                  className={place === entry.key ? cn(cell, "bg-accent text-ink") : cell}
+                  onClick={() => go(entry.to)}
+                >
+                  <entry.icon className="size-[1.375rem]" />
+                  <span className="max-w-full truncate">{entry.label}</span>
+                </button>
+              ))}
+              {plugins.nav.map((entry) => (
+                <PluginFrame key={entry.serial} of={entry}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={cell}
+                    onClick={() => go(entry.to)}
+                  >
+                    <entry.icon className="size-[1.375rem]" />
+                    <span className="max-w-full truncate">{entry.label()}</span>
+                  </button>
+                </PluginFrame>
+              ))}
+            </div>
+          )}
+        />
+      </nav>
+    </>
   );
 }

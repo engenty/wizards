@@ -488,3 +488,56 @@ dialog.media-sheet::backdrop {
     animation: none;
   }
 }
+
+/*
+ * Liquid glass, as iOS draws its tab bar: a frost of blur and saturation over what passes under
+ * it, a rim of light that is brightest at the top left, and a soft sheen inside. Where a browser
+ * takes an SVG filter in `backdrop-filter` (Chromium; not Safari), `.glass-refract` also bends
+ * the page at the edges through `#glass-refract`, as a lens would.
+ */
+.liquid-glass {
+  /* Positioned by its user (the phone's bar is fixed): the rim below needs a positioned box. */
+  isolation: isolate;
+  background: color-mix(in oklch, var(--sidebar) 38%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.08);
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.32),
+    inset 0 -1px 1px oklch(1 0 0 / 0.08),
+    inset 0 0 18px oklch(1 0 0 / 0.07),
+    0 1px 2px oklch(0 0 0 / 0.18),
+    0 14px 36px -10px oklch(0 0 0 / 0.5);
+}
+.liquid-glass::before {
+  /* The rim: a one-pixel gradient border, light where the light falls. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    oklch(1 0 0 / 0.55),
+    oklch(1 0 0 / 0.12) 35%,
+    oklch(1 0 0 / 0.04) 60%,
+    oklch(1 0 0 / 0.3)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+:root:not(.dark) .liquid-glass {
+  background: color-mix(in oklch, var(--card) 45%, transparent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    inset 0 0 18px oklch(1 0 0 / 0.25),
+    0 1px 2px oklch(0 0 0 / 0.08),
+    0 14px 36px -12px oklch(0 0 0 / 0.25);
+}
+.liquid-glass.glass-refract {
+  backdrop-filter: url(#glass-refract) blur(4px) saturate(190%) brightness(1.08);
+}
