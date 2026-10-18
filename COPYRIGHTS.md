@@ -113,7 +113,7 @@ Declared by two or more of the workspaces below:
 | [mammoth](https://github.com/mwilliamson/mammoth.js#readme) | 1.13.0 | BSD-2-Clause |
 | [nanoid](https://github.com/ai/nanoid#readme) | 5.1.16 | MIT |
 | [node-pty](https://github.com/microsoft/node-pty) | 1.1.0 | MIT |
-| [nodemailer](https://nodemailer.com/) | 7.0.13 | MIT-0 |
+| [nodemailer](https://nodemailer.com/) | 10.0.9 | MIT-0 |
 | [pdf-parse](https://mehmet-kozan.github.io/pdf-parse/) | 2.4.5 | Apache-2.0 |
 | [playwright-core](https://playwright.dev) | 1.63.0 | Apache-2.0 |
 | [postal-mime](https://postal-mime.postalsys.com) | 4.0.2 | MIT-0 |
