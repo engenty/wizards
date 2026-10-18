@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  AppWindow,
   Check,
   Cloud,
   CloudOff,
@@ -25,6 +26,7 @@ import { api } from "../lib/api";
 import { type AppBarPosition, besideBar, useAppBar } from "../lib/appbar";
 import { useFeature } from "../lib/features";
 import { lang, t } from "../lib/i18n";
+import { acceptInstall, standalone, useInstallPrompt } from "../lib/install";
 import {
   initialsOf,
   type Me,
@@ -38,7 +40,7 @@ import { Button, cn, Dialog, Input } from "../ui";
 import { AppRail, PhoneBar } from "./AppRail";
 import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/StudioAssistant";
 import { NewSpaceDialog } from "./HomePage";
-import { InstallBanner } from "./InstallBanner";
+import { InstallBanner, InstallDialog } from "./InstallBanner";
 import { LangSwitch } from "./LangSwitch";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
@@ -528,8 +530,11 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { position } = useAppBar();
+  const { position, phone } = useAppBar();
   useDismiss(ref, open, () => setOpen(false));
+  // A phone's bar has no engenty menu: the studio as an app on this device is offered here.
+  const installPrompt = useInstallPrompt();
+  const [installOpen, setInstallOpen] = useState(false);
   const initials = initialsOf(me.user.name);
   const account = useFeature("account");
   const state = accountState(me, account);
@@ -628,6 +633,22 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
               <CreditCard className="size-4" /> {t("nav.account")}
             </a>
           ) : null}
+          {phone && !standalone() ? (
+            <button
+              type="button"
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                if (installPrompt) {
+                  void acceptInstall(installPrompt);
+                } else {
+                  setInstallOpen(true);
+                }
+              }}
+            >
+              <AppWindow className="size-4" /> {t("install.app.action")}
+            </button>
+          ) : null}
           {/* The person's own look and language (Settings › Account has both too). */}
           <div className="flex items-center justify-between gap-3 px-3 py-2 text-[0.875rem] text-ink-2">
             {t("nav.theme")}
@@ -644,6 +665,8 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
           ) : null}
         </div>
       ) : null}
+      {/* Beside the menu, not in it: the menu closes as the dialog opens. */}
+      <InstallDialog open={installOpen} onClose={() => setInstallOpen(false)} />
     </div>
   );
 }

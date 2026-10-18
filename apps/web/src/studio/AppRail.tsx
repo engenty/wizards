@@ -3,6 +3,7 @@ import {
   Ellipsis,
   Home,
   Inbox,
+  Info,
   Layers,
   type LucideIcon,
   Monitor,
@@ -14,8 +15,16 @@ import {
   Settings,
   Sun,
 } from "lucide-react";
-import { type MouseEvent, type PointerEvent, useLayoutEffect, useRef, useState } from "react";
-import { Link, NavLink, useLocation } from "react-router";
+import {
+  lazy,
+  type MouseEvent,
+  type PointerEvent,
+  Suspense,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { BRAND } from "../brand";
 import {
   APP_BAR_POSITIONS,
@@ -31,6 +40,10 @@ import { PluginFrame, useStudioPlugins } from "../plugins/host";
 import { cn } from "../ui";
 import { SpaceFace, SpaceMenu, UserMenu, useDismiss } from "./AppFrame";
 import { EngentyMenu } from "./EngentyMenu";
+
+const AboutDialog = lazy(() =>
+  import("../about/AboutDialog").then((m) => ({ default: m.AboutDialog })),
+);
 
 /**
  * The app bar at an edge of the window: the engenty in the corner (its menu holds what belongs to
@@ -344,128 +357,117 @@ function tab(active: boolean): string {
 
 /**
  * A phone's bar: always along the bottom, a capsule of glass floating over the page. Three tabs:
- * the space's two places to go every day, Home and its page, and "More" with the rest (results,
- * the settings, the plugins' apps, then what the engenty's menu holds). The space and the person
- * sit in the top bar.
+ * the space's two places to go every day, Home and its page, and "More" with the rest as tiles:
+ * Results, the settings, the plugins' apps and About (in a dialog). The space and the person sit
+ * in the top bar.
  */
-/**
- * Whether this browser bends the page through an SVG filter in `backdrop-filter`: Chromium does,
- * WebKit (Safari, and every browser on an iPhone) does not and would draw no glass at all.
- */
-const REFRACTS =
-  typeof navigator !== "undefined" &&
-  /Chrome\//.test(navigator.userAgent) &&
-  !/iPhone|iPad|Edg\/|CriOS/.test(navigator.userAgent);
-
-/**
- * The lens of `.glass-refract`: a map that is neutral in the middle and leans toward the edges
- * (red across, green down), so what lies under the glass bends at its rim, then a light frost.
- */
-function GlassRefract() {
-  const map = (dir: "x" | "y") =>
-    `data:image/svg+xml,${encodeURIComponent(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" preserveAspectRatio="none"><defs><linearGradient id="g" x1="0" y1="0" x2="${dir === "x" ? 1 : 0}" y2="${dir === "y" ? 1 : 0}"><stop offset="0" stop-color="${dir === "x" ? "#f00" : "#0f0"}"/><stop offset="0.22" stop-color="${dir === "x" ? "#800000" : "#008000"}"/><stop offset="0.78" stop-color="${dir === "x" ? "#800000" : "#008000"}"/><stop offset="1" stop-color="#000"/></linearGradient></defs><rect width="100" height="100" fill="url(#g)"/></svg>`,
-    )}`;
-  return (
-    <svg aria-hidden="true" width="0" height="0" className="absolute">
-      <filter
-        id="glass-refract"
-        x="0"
-        y="0"
-        width="100%"
-        height="100%"
-        colorInterpolationFilters="sRGB"
-      >
-        <feImage href={map("x")} result="x" preserveAspectRatio="none" width="100%" height="100%" />
-        <feImage href={map("y")} result="y" preserveAspectRatio="none" width="100%" height="100%" />
-        <feComposite in="x" in2="y" operator="arithmetic" k2="1" k3="1" result="map" />
-        <feDisplacementMap
-          in="SourceGraphic"
-          in2="map"
-          scale="22"
-          xChannelSelector="R"
-          yChannelSelector="G"
-        />
-      </filter>
-    </svg>
-  );
-}
-
 export function PhoneBar({ me }: { me: Me }) {
   const plugins = useStudioPlugins();
   const place = usePlace();
-  const cell =
-    "flex h-18 w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl bg-paper-2/60 px-1 font-medium text-[0.75rem] text-ink-2 transition hover:bg-accent hover:text-ink";
+  const [open, setOpen] = useState(false);
+  const [about, setAbout] = useState(false);
+  const navigate = useNavigate();
+  const ref = useRef<HTMLElement>(null);
+  useDismiss(ref, open, () => setOpen(false));
+  // While "More" is open it is the one lit; the place it would leave goes dark meanwhile.
+  const lit = (key: string) => (open ? false : place === key);
+  const go = (to: string) => {
+    setOpen(false);
+    navigate(to);
+  };
+  const cell = (active: boolean) =>
+    cn(
+      "flex h-18 w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl px-1 font-medium text-[0.75rem] transition",
+      active ? "bg-paper-2 text-ink" : "bg-paper-2/50 text-ink-2 hover:bg-accent hover:text-ink",
+    );
   return (
-    <>
-      {REFRACTS ? <GlassRefract /> : null}
-      <nav
-        aria-label={BRAND.name}
-        className={cn(
-          "liquid-glass fixed inset-x-0 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex w-fit select-none gap-1 rounded-full p-1 [-webkit-touch-callout:none]",
-          REFRACTS && "glass-refract",
-        )}
+    <nav
+      ref={ref}
+      aria-label={BRAND.name}
+      className="liquid-glass fixed inset-x-0 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex w-fit select-none gap-1 rounded-full p-1 [-webkit-touch-callout:none]"
+    >
+      <Link
+        to="/"
+        aria-label={t("nav.home")}
+        aria-current={place === "home" ? "page" : undefined}
+        className={tab(lit("home"))}
       >
-        <Link
-          to="/"
-          aria-label={t("nav.home")}
-          aria-current={place === "home" ? "page" : undefined}
-          className={tab(place === "home")}
+        <Home className="size-[1.375rem]" />
+      </Link>
+      <Link
+        to="/space"
+        aria-label={t("nav.project")}
+        aria-current={place === "space" ? "page" : undefined}
+        className={tab(lit("space"))}
+      >
+        <Layers className="size-[1.375rem]" />
+      </Link>
+      <button
+        type="button"
+        aria-label={t("nav.more")}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((o) => !o)}
+        className={tab(open || place === "results" || place === "settings")}
+      >
+        <Ellipsis className="size-[1.375rem]" />
+      </button>
+      {open ? (
+        // Centred above the bar: the places it has no room for, as tiles, and About.
+        <div
+          role="menu"
+          className="-translate-x-1/2 absolute bottom-full left-1/2 mb-3 grid w-[17rem] animate-rise grid-cols-3 gap-1 rounded-2xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft"
         >
-          <Home className="size-[1.375rem]" />
-        </Link>
-        <Link
-          to="/space"
-          aria-label={t("nav.project")}
-          aria-current={place === "space" ? "page" : undefined}
-          className={tab(place === "space")}
-        >
-          <Layers className="size-[1.375rem]" />
-        </Link>
-        <EngentyMenu
-          me={me}
-          position="bottom"
-          horizontal
-          trigger={{
-            className: (open) => tab(open || place === "results" || place === "settings"),
-            children: <Ellipsis className="size-[1.375rem]" />,
-          }}
-          more={(go) => (
-            // The places the bar has no room for, as the bar draws its own: Results, the settings,
-            // and every app a plugin adds.
-            <div className="grid grid-cols-3 gap-1 p-1">
-              {[
-                { key: "results", to: "/space/results", icon: Inbox, label: t("space.results") },
-                { key: "settings", to: "/settings", icon: Settings, label: t("nav.settings") },
-              ].map((entry) => (
-                <button
-                  key={entry.key}
-                  type="button"
-                  role="menuitem"
-                  className={place === entry.key ? cn(cell, "bg-accent text-ink") : cell}
-                  onClick={() => go(entry.to)}
-                >
-                  <entry.icon className="size-[1.375rem]" />
-                  <span className="max-w-full truncate">{entry.label}</span>
-                </button>
-              ))}
-              {plugins.nav.map((entry) => (
-                <PluginFrame key={entry.serial} of={entry}>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={cell}
-                    onClick={() => go(entry.to)}
-                  >
-                    <entry.icon className="size-[1.375rem]" />
-                    <span className="max-w-full truncate">{entry.label()}</span>
-                  </button>
-                </PluginFrame>
-              ))}
-            </div>
-          )}
-        />
-      </nav>
-    </>
+          <button
+            type="button"
+            role="menuitem"
+            className={cell(place === "results")}
+            onClick={() => go("/space/results")}
+          >
+            <Inbox className="size-[1.375rem]" />
+            <span className="max-w-full truncate">{t("space.results")}</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={cell(place === "settings")}
+            onClick={() => go("/settings")}
+          >
+            <Settings className="size-[1.375rem]" />
+            <span className="max-w-full truncate">{t("nav.settings")}</span>
+          </button>
+          {plugins.nav.map((entry) => (
+            <PluginFrame key={entry.serial} of={entry}>
+              <button
+                type="button"
+                role="menuitem"
+                className={cell(false)}
+                onClick={() => go(entry.to)}
+              >
+                <entry.icon className="size-[1.375rem]" />
+                <span className="max-w-full truncate">{entry.label()}</span>
+              </button>
+            </PluginFrame>
+          ))}
+          <button
+            type="button"
+            role="menuitem"
+            className={cell(false)}
+            onClick={() => {
+              setOpen(false);
+              setAbout(true);
+            }}
+          >
+            <Info className="size-[1.375rem]" />
+            <span className="max-w-full truncate">{t("about.nav")}</span>
+          </button>
+        </div>
+      ) : null}
+      {about ? (
+        <Suspense fallback={null}>
+          <AboutDialog open me={me} onClose={() => setAbout(false)} />
+        </Suspense>
+      ) : null}
+    </nav>
   );
 }
