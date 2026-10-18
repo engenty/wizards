@@ -1,7 +1,7 @@
 ---
 title: Test and share
 description: Try the wizard, publish it, and hand out its link or put it on a website.
-version: 0.7.10
+version: 0.7.11
 ---
 
 ## Test

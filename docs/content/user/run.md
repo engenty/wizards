@@ -1,7 +1,7 @@
 ---
 title: Run a wizard
 description: What you see when you open a wizard's link, on a computer or a phone.
-version: 0.7.10
+version: 0.7.11
 ---
 
 ## From the link to the result

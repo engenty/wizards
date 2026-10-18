@@ -1,7 +1,7 @@
 ---
 title: Steps
 description: What a wizard is made of – pages, AI steps, generated media, widgets, reviews and the result.
-version: 0.7.10
+version: 0.7.11
 ---
 
 A wizard runs its steps from top to bottom. The last step is always the result.
