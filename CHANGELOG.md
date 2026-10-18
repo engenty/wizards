@@ -4,6 +4,12 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.9.0] - 2026-10-18
+- ADDED **[studio]** New app rail, phone bar and phone editor (#77)
+- CHANGED Workspace packages named @engenty/wizards-* (#74)
+- DOCS **[agents]** When a release is cut (#76)
+- DOCS **[plans]** Why the studio's UI kit is not @engenty/wizards/plugin/ui yet (#75)
+
 ## [0.8.0] - 2026-10-18
 - ADDED Send or publish a result from its share sheet, with its result page in the editor (#67)
 - DOCS **[format]** The wizard format as a folder of pages (#70)

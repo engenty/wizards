@@ -1,7 +1,41 @@
 [
   {
+    "version": "v0.9.0",
+    "timestamp": 1792318416,
+    "commits": [
+      {
+        "id": "280b1d0",
+        "message": "new app rail, phone bar and phone editor (#77)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "8e73815",
+        "message": "when a release is cut (#76)",
+        "group": "Docs",
+        "scope": "agents",
+        "breaking": false
+      },
+      {
+        "id": "fa7f4ca",
+        "message": "why the studio's UI kit is not @engenty/wizards/plugin/ui yet (#75)",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "8b3f0e1",
+        "message": "workspace packages named @engenty/wizards-* (#74)",
+        "group": "Changed",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.8.0",
-    "timestamp": 1792307544,
+    "timestamp": 1792308191,
     "commits": [
       {
         "id": "e5394fb",
