@@ -145,3 +145,40 @@ describe("tenants", () => {
     expect(gone.status).toBe(404);
   });
 });
+
+describe("migrating every tenant at start", () => {
+  it("tries a dropped call again", async () => {
+    let calls = 0;
+    const out = await client.retried(
+      "test",
+      async () => {
+        calls++;
+        if (calls < 3) throw new Error("fetch failed: other side closed");
+        return "ok";
+      },
+      [0, 0, 0],
+    );
+    expect(out).toBe("ok");
+    expect(calls).toBe(3);
+  });
+
+  it("throws the last failure once the waits are used up", async () => {
+    let calls = 0;
+    await expect(
+      client.retried(
+        "test",
+        async () => {
+          calls++;
+          throw new Error(`failure ${calls}`);
+        },
+        [0, 0],
+      ),
+    ).rejects.toThrow("failure 3");
+  });
+
+  it("brings each known tenant to the current schema", async () => {
+    const { migrated, failed } = await client.migrateAllTenants([0]);
+    expect(failed).toEqual([]);
+    expect(migrated).toBe((await client.knownTenants()).length);
+  });
+});
