@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
 import { LIVE_START_KINDS, startFrom } from "../engine/starts.js";
+import { currentFeatures } from "../features.js";
 import { ServiceError } from "./errors.js";
 import { ownedWizard, writableWizard } from "./wizards.js";
 
@@ -17,6 +18,9 @@ export async function listStarts(userId: string, wizardId: string): Promise<Wiza
  * its answers name fields of the wizard. A new start gets its id, owner and time here.
  */
 export async function setStarts(userId: string, wizardId: string, input: unknown) {
+  if (!(await currentFeatures()).starts) {
+    throw new ServiceError("refused", "Starts are not switched on here.");
+  }
   const w = await writableWizard(userId, wizardId);
   const parsed = startsSchema.safeParse(input);
   if (!parsed.success) {

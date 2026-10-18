@@ -71,6 +71,12 @@ export const FEATURES = {
     label: "Goose",
     hint: "The studio's assistant: its chat at the foot of the page and in the sidebar.",
   },
+  starts: {
+    kind: "release",
+    default: false,
+    label: "Starts by itself",
+    hint: "A wizard that runs on a schedule: the share dialog's section, the clock, the bell.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

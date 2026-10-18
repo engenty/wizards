@@ -254,6 +254,7 @@ function useSheetHeight() {
 
 export function EditorPage() {
   const account = useFeature("account");
+  const startsOn = useFeature("starts");
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -950,7 +951,7 @@ export function EditorPage() {
                     fitKey={`${split || pageBeside}:${Boolean(drawerRun)}:${paneMoves}`}
                     pulse={remote?.steps}
                     wizardId={w.id}
-                    starts={w.starts.filter((s) => s.on).length}
+                    starts={startsOn ? w.starts.filter((s) => s.on).length : 0}
                     decisions={shownDecisions}
                     onBranch={(sid) => {
                       select(sid);

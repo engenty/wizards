@@ -10,6 +10,7 @@ import { eq, ne, sql } from "drizzle-orm";
 import { canSpend } from "../credits/credits.js";
 import { db, knownTenants, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
+import { currentFeatures } from "../features.js";
 import { ModelUnavailableError } from "../model-errors.js";
 import { publishedVersion, type WizardRow } from "../services/wizards.js";
 import { addNotice, noticeOwner } from "./notices.js";
@@ -138,6 +139,10 @@ const running = new Set<string>();
 export async function runDueSchedules(now = new Date()): Promise<void> {
   for (const tenant of await knownTenants()) {
     await withTenant(tenant, async () => {
+      // The switch is per tenant: a team or an install that has starts on.
+      if (!(await currentFeatures()).starts) {
+        return;
+      }
       const wizards = await db.query.wizard.findMany({
         where: ne(schema.wizard.starts, sql`'[]'`),
       });

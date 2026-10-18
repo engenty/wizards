@@ -1245,6 +1245,7 @@ function SharePanel({
 }) {
   const qc = useQueryClient();
   const account = useFeature("account");
+  const startsOn = useFeature("starts");
   const me = useMe();
   const local = me.data?.mode === "local";
   // A local install with an account sends what it publishes on to the account's cloud.
@@ -1483,7 +1484,7 @@ function SharePanel({
                 plansUrl={plansUrl}
               />
             ) : null}
-            {wizard.published ? (
+            {wizard.published && startsOn ? (
               <StartsSection
                 wizard={wizard}
                 onAdd={() => {

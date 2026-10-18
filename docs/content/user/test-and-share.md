@@ -212,26 +212,6 @@ shows only one bubble: a second bubble tag does nothing.
 On WordPress the plugin writes this code for you, and its results show the page: see
 [WordPress](./wordpress.md).
 
-## Starts by itself
-
-A published wizard can run without anyone opening its link. Under “Starts by itself” in the share
-dialog, “Add” offers a schedule: every hour, every day, every week or every month at a time, in
-your time zone. A start is kept beside the wizard on this install, not in the wizard itself.
-
-- **What the start fills in.** The first page’s questions are listed; type what is always the
-  same. A required question without a value holds the run until you answer it.
-- **Reviews count as accepted** unless you switch it off; then a review waits for you.
-- **May change connected services on its own.** Off, a step that wants to write into a service
-  leaves the change open and says so in the result.
-- **Try it once now** runs the start right away; “Runs” shows what a start began, with its
-  sentence.
-- The bell in the top bar tells you when a run of a start is done, failed or needs you. Three
-  failed runs in a row pause the start until you switch it on again.
-- On your computer, schedules run while engenty wizards runs; with “Start at login” it always does. A
-  missed time runs once when it is back, not once per time it missed.
-- From an AI app: `list_starts` and `set_starts`, and the assistant understands “run this every
-  Monday at 8”.
-
 ## Results people share
 
 On the result page, a person can share what they got as a link. The result of a run over the
