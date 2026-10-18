@@ -1,5 +1,6 @@
 import { assembleSurface, parseWizard, type SurfaceStep } from "@engenty/wizards-shared/definition";
 import { runTheme } from "@engenty/wizards-shared/projects";
+import { safeCss, wizardTheme } from "@engenty/wizards-shared/style";
 import { bound, pointer, validateSurface, worded } from "@engenty/wizards-shared/surface";
 import { describe, expect, it, vi } from "vitest";
 
@@ -155,6 +156,9 @@ describe("the run's theme", () => {
       display: "Young Serif",
       body: "Instrument Sans",
       dark: false,
+      pinned: false,
+      effects: [],
+      css: null,
     });
   });
 
@@ -167,7 +171,59 @@ describe("the run's theme", () => {
       display: null,
       body: null,
       dark: false,
+      pinned: false,
+      effects: [],
+      css: null,
     });
+  });
+});
+
+describe("a wizard's own style", () => {
+  const brand = runTheme({
+    colors: [
+      { name: "Primär", value: "#2f5d50" },
+      { name: "Hintergrund", value: "#eff2ec" },
+    ],
+    fonts: [
+      { family: "Instrument Sans", role: "Fließtext" },
+      { family: "Young Serif", role: "Überschriften" },
+    ],
+  });
+
+  it("is the brand's look while it sets nothing", () => {
+    expect(wizardTheme(brand, undefined)).toBe(brand);
+  });
+
+  it("goes over the brand where it sets something", () => {
+    const theme = wizardTheme(brand, {
+      accent: "#ff7a1a",
+      background: "#120a1c",
+      displayFont: "Creepster",
+      effects: ["glow", "webs", "webs"],
+      css: "h1 { letter-spacing: 0.05em; }",
+    });
+    expect(theme).toMatchObject({
+      accent: "#ff7a1a",
+      background: "#120a1c",
+      display: "Creepster",
+      body: "Instrument Sans",
+      dark: true,
+      pinned: false,
+      effects: ["glow", "webs"],
+      css: "h1 { letter-spacing: 0.05em; }",
+    });
+  });
+
+  it("pins dark or light only when it says so", () => {
+    expect(wizardTheme(brand, { dark: false })).toMatchObject({ dark: false, pinned: true });
+    expect(wizardTheme(brand, { dark: true })).toMatchObject({ dark: true, pinned: true });
+  });
+
+  it("leaves out CSS that would load something", () => {
+    expect(wizardTheme(brand, { css: "body { background: url(https://x.example/a.png) }" }).css).toBeNull();
+    expect(wizardTheme(brand, { css: "@import 'https://x.example/a.css';" }).css).toBeNull();
+    expect(wizardTheme(brand, { css: "a { b: \\75rl(x) }" }).css).toBeNull();
+    expect(safeCss("  h2 { color: red }  ")).toBe("h2 { color: red }");
   });
 });
 

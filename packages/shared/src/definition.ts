@@ -5,6 +5,7 @@ import { readNumber } from "./numbers.js";
 import { type ObjectShape, outputShapeSchema, shapeOfFields } from "./shape.js";
 import { isShareTargetId } from "./sharing.js";
 import { CONNECTION_KINDS } from "./store.js";
+import { cssProblems, wizardStyleSchema } from "./style.js";
 import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
 
 /** The engenty avatars a wizard can wear. Same cast as engenty's ui-core. */
@@ -1010,6 +1011,8 @@ export const wizardSchema = z.object({
   lists: z.array(listSchema).max(12).optional(),
   /** Accounts the person connects; kept between runs, per person. */
   connections: z.array(connectionSchema).max(12).optional(),
+  /** How the wizard's pages look, over its space's brand: colours, typefaces, effects, CSS. */
+  style: wizardStyleSchema.optional(),
   steps: z.array(stepSchema).min(1),
 });
 export type WizardDefinition = z.infer<typeof wizardSchema>;
@@ -1107,6 +1110,13 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
   if (def.lang && !isRealLanguage(def.lang)) {
     issues.push({
       message: `"${def.lang}" isn't a language code. Use a two-letter code such as "en", "de" or "it".`,
+    });
+  }
+
+  const refused = cssProblems(def.style?.css ?? "");
+  if (refused.length) {
+    issues.push({
+      message: `The wizard's CSS uses ${refused.join(", ")}. A run page loads nothing from CSS, so it would leave all of it out. Remove these parts.`,
     });
   }
 

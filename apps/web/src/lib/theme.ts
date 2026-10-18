@@ -50,12 +50,18 @@ function stored(): Theme | null {
 /** Pages shown right now that stand on a vivid ground of their own, whatever the theme. */
 let grounded = 0;
 
-/** The visitor's pick (dark until there is one, or the OS setting if asked); a page on its own ground is always dark. */
+/** The theme a wizard's own style sets while its pages are shown; `null`: the visitor's pick. */
+let pinned: Theme | null = null;
+
+/**
+ * The visitor's pick (dark until there is one, or the OS setting if asked); a page on its own
+ * ground is always dark, a wizard that sets dark or light shows that.
+ */
 function current(): Theme {
   if (grounded > 0) {
     return "dark";
   }
-  return stored() ?? (system.matches ? "dark" : "light");
+  return pinned ?? stored() ?? (system.matches ? "dark" : "light");
 }
 
 /**
@@ -183,4 +189,33 @@ export function useStage(kind: string | null | undefined) {
       syncThemeColor();
     };
   }, [kind]);
+}
+
+/**
+ * A wizard that sets dark or light pages shows them that way while it is shown, whatever the
+ * visitor picked; the theme switch then goes away (`useThemePinned`).
+ */
+export function usePinnedTheme(theme: Theme | null) {
+  useEffect(() => {
+    if (!theme) {
+      return;
+    }
+    pinned = theme;
+    apply();
+    return () => {
+      pinned = null;
+      apply();
+    };
+  }, [theme]);
+}
+
+/** Whether a wizard's style decides dark or light right now. */
+export function useThemePinned(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => pinned !== null,
+  );
 }

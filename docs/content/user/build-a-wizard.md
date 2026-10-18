@@ -1,7 +1,7 @@
 ---
 title: Build a wizard
 description: Describe what the wizard should do, or start from a template. Then change it in the chat or step by step.
-version: 0.8.0
+version: 0.9.0
 ---
 
 ## Start one
@@ -62,6 +62,19 @@ it to fold it away.
 A click on the wizard’s name in the top bar opens its own settings: its title, description and
 greeting, its avatar, and the language it speaks to people in. With “Automatic, from its texts”
 the wizard speaks the language its texts are written in.
+
+Under “Look” the wizard gets a look of its own over the space’s brand. Everything you leave empty
+stays as in the space.
+
+| Setting | What it does |
+|---|---|
+| Accent colour, Background | The colour of buttons and marks, and the ground the pages stand on. A dark background makes the pages dark |
+| Pages | Dark or light for everyone who opens the wizard. The theme switch on its pages is then hidden |
+| Font for headings, Font for text | One of the fonts engenty wizards ships, from Inter to the spooky Creepster. The pages load them from engenty wizards itself, never from another site |
+| Effects | Glow lights up headings and buttons in the accent colour. Spider webs hang in the top corners with a spider. Bats are engenties with bat wings that fly across. Fog drifts along the bottom |
+| Your own CSS | Styles of your own for the wizard’s pages. CSS that loads something (`url()`, `@import`) is not applied, and the wizard shows it as a fix |
+
+The assistant sets the look too. Ask it, for example: “Make it dark and spooky for Halloween.”
 
 The ⋯ button in the top bar (“More”) duplicates the wizard, exports it, or deletes it. Only
 whoever manages the team can delete a wizard. The same menu is on the wizard’s card in the list.

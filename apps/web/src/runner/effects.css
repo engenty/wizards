@@ -1,0 +1,154 @@
+/* What a wizard's style draws around its pages (effects.tsx, WIZARD_EFFECTS). */
+
+/* glow: headings and the main buttons light up in the accent */
+:root.fx-glow :is(h1, h2, .font-display) {
+  text-shadow:
+    0 0 0.55em color-mix(in oklch, var(--primary) 70%, transparent),
+    0 0 0.12em color-mix(in oklch, var(--primary) 45%, transparent);
+}
+:root.fx-glow button[data-variant="primary"] {
+  box-shadow:
+    0 0 1.4rem color-mix(in oklch, var(--primary) 60%, transparent),
+    0 0 0.35rem color-mix(in oklch, var(--primary) 80%, transparent);
+}
+:root.fx-glow :is(input, textarea, select):focus-visible {
+  box-shadow: 0 0 0.9rem color-mix(in oklch, var(--primary) 45%, transparent);
+}
+
+/* webs, the spider and the bats: over the page, never in the way of a tap */
+.wizard-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  pointer-events: none;
+}
+.wizard-web {
+  position: absolute;
+  top: 0;
+  width: min(34vmin, 15rem);
+  height: auto;
+  color: color-mix(in oklch, var(--ink) 50%, transparent);
+  stroke-width: 0.9;
+  filter: drop-shadow(0 0 3px color-mix(in oklch, var(--primary) 55%, transparent));
+}
+.wizard-web-left {
+  left: 0;
+}
+.wizard-web-right {
+  right: 0;
+  transform: scaleX(-1);
+}
+.wizard-spider {
+  position: absolute;
+  top: 0;
+  right: min(10vmin, 4.5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #120c18;
+  animation: wizard-dangle 7s ease-in-out infinite alternate;
+}
+.wizard-spider-thread {
+  width: 1px;
+  height: clamp(1.5rem, 6vh, 4rem);
+  background: color-mix(in oklch, var(--ink) 45%, transparent);
+}
+.wizard-spider svg {
+  width: 1.9rem;
+  margin-top: -0.2rem;
+  filter: drop-shadow(0 0 1px color-mix(in oklch, var(--ink) 70%, transparent))
+    drop-shadow(0 0 5px color-mix(in oklch, var(--primary) 70%, transparent));
+}
+.wizard-spider-eye {
+  fill: #ff3b1f;
+}
+@keyframes wizard-dangle {
+  from {
+    transform: translateY(-1.5rem);
+  }
+  to {
+    transform: translateY(2.5rem);
+  }
+}
+.wizard-bat {
+  position: absolute;
+  left: 0;
+  opacity: 0;
+  animation-name: wizard-fly;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  filter: drop-shadow(0 0 0.6rem color-mix(in oklch, var(--primary) 70%, transparent));
+}
+.wizard-bat-bob {
+  animation: wizard-bob 1.6s ease-in-out infinite alternate;
+}
+/* Across in the first third of its time, then out of sight until the next pass. */
+@keyframes wizard-fly {
+  0% {
+    opacity: 1;
+    transform: translateX(-6rem);
+  }
+  34% {
+    opacity: 1;
+    transform: translateX(calc(100vw + 6rem));
+  }
+  34.1%,
+  100% {
+    opacity: 0;
+    transform: translateX(calc(100vw + 6rem));
+  }
+}
+@keyframes wizard-bob {
+  from {
+    transform: translateY(-0.9rem) rotate(-6deg);
+  }
+  to {
+    transform: translateY(0.9rem) rotate(6deg);
+  }
+}
+
+/* fog: behind the pages, drifting along the bottom */
+.wizard-fog {
+  position: fixed;
+  inset: auto -25% 0;
+  z-index: -1;
+  height: 45vh;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 40% 60% at 25% 100%,
+      color-mix(in oklch, var(--ink) 20%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 35% 50% at 70% 100%,
+      color-mix(in oklch, var(--ink) 16%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 30% 40% at 50% 100%,
+      color-mix(in oklch, var(--primary) 14%, transparent),
+      transparent 70%
+    );
+  filter: blur(18px);
+  animation: wizard-drift 28s ease-in-out infinite alternate;
+}
+@keyframes wizard-drift {
+  from {
+    transform: translateX(-6%);
+  }
+  to {
+    transform: translateX(6%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wizard-bat {
+    display: none;
+  }
+  .wizard-spider,
+  .wizard-fog {
+    animation: none;
+  }
+}

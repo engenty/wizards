@@ -254,3 +254,42 @@ describe("how many files a field takes", () => {
     expect(photos({ multiple: true, min: 5, max: 2 }).issues).toHaveLength(1);
   });
 });
+
+describe("a wizard's style", () => {
+  const steps = [
+    { id: "p", type: "page", title: "P", fields: [{ id: "topic", label: "T", kind: "text" }] },
+    { id: "r", type: "result", title: "R", deliverables: [] },
+  ];
+
+  it("takes colours, typefaces, effects and CSS", () => {
+    const parsed = parseWizard({
+      title: "x",
+      style: {
+        accent: "#ff7a1a",
+        background: "#120a1c",
+        dark: true,
+        displayFont: "Creepster",
+        bodyFont: "Nunito",
+        effects: ["glow", "webs", "bats", "fog"],
+        css: "h1 { letter-spacing: 0.04em; }",
+      },
+      steps,
+    });
+    expect(parsed.ok).toBe(true);
+    expect(parsed.issues).toEqual([]);
+  });
+
+  it("refuses a font it does not ship and a colour it cannot read", () => {
+    expect(parseWizard({ title: "x", style: { displayFont: "Comic Sans" }, steps }).ok).toBe(false);
+    expect(parseWizard({ title: "x", style: { accent: "orange" }, steps }).ok).toBe(false);
+  });
+
+  it("names what its CSS would load", () => {
+    const parsed = parseWizard({
+      title: "x",
+      style: { css: "@import 'a.css'; body { background: url(x.png) }" },
+      steps,
+    });
+    expect(parsed.issues.map((i) => i.message).join(" ")).toMatch(/url\(\).*@import/);
+  });
+});

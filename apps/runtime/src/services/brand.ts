@@ -8,6 +8,7 @@ import {
 } from "@engenty/wizards-shared/projects";
 import type { BrandView } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
+import { type WizardStyle, wizardTheme } from "@engenty/wizards-shared/style";
 import { generateText, Output } from "ai";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -26,15 +27,18 @@ export async function mainLogoId(projectId: string): Promise<string | null> {
   return mainLogo(logos, p?.brand.logoSections)?.id ?? null;
 }
 
-/** What end users see of the project: its title, accent and logo — never the project name. */
-export async function brandView(projectId: string): Promise<BrandView> {
+/**
+ * What end users see of the project: its title, accent and logo — never the project name — and the
+ * look of the wizard's pages, the brand's with the wizard's own style on top.
+ */
+export async function brandView(projectId: string, style?: WizardStyle): Promise<BrandView> {
   const p = await db.query.project.findFirst({ where: eq(schema.project.id, projectId) });
   const logo = p ? await mainLogoId(p.id) : null;
   return {
     name: p?.brand.name ?? "",
-    accent: p?.brand.colors?.[0]?.value ?? null,
+    accent: style?.accent ?? p?.brand.colors?.[0]?.value ?? null,
     logoUrl: logo ? `/api/public/logos/${logo}` : null,
-    theme: runTheme(p?.brand ?? {}),
+    theme: wizardTheme(runTheme(p?.brand ?? {}), style),
   };
 }
 

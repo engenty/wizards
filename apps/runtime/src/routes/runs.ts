@@ -219,7 +219,7 @@ async function accessibleRun(c: Context, runId: string, opts: { signed?: boolean
 
 async function viewOf(run: NonNullable<Awaited<ReturnType<typeof accessibleRun>>>) {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
-  return runView(run, await brandView(w?.projectId ?? ""));
+  return runView(run, await brandView(w?.projectId ?? "", run.definition.style));
 }
 
 function commandError(c: Context, err: unknown) {
@@ -354,7 +354,7 @@ async function publicBody(
     description: def.description,
     avatar: def.avatar,
     intro: def.intro ?? null,
-    brand: await brandView(w.projectId),
+    brand: await brandView(w.projectId, def.style),
     turnstileSiteKey: env.turnstile.siteKey || null,
     available: !reason,
     unavailableReason: reason && noteText(reason, requestLang(c)),

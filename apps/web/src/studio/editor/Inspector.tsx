@@ -27,6 +27,12 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
+import {
+  WIZARD_EFFECTS,
+  WIZARD_FONTS,
+  type WizardEffect,
+  type WizardStyle,
+} from "@engenty/wizards-shared/style";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -44,6 +50,7 @@ import {
   Trash2,
   Upload,
   Wand2,
+  X,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { withBase } from "@/lib/base";
@@ -58,6 +65,7 @@ import {
   Label,
   Segmented,
   Select,
+  Swatch,
   Switch,
   Textarea,
 } from "../../ui";
@@ -1150,6 +1158,7 @@ export function WizardSettings({ def, update }: { def: WizardDefinition; update:
           ))}
         </div>
       </Section>
+      <WizardLook def={def} update={update} />
       {def.lists?.length || def.connections?.length ? (
         <Section title={t("inspector.remembers")}>
           <p className="text-[0.8125rem] text-ink-3">{t("inspector.remembersHint")}</p>
@@ -1173,6 +1182,128 @@ export function WizardSettings({ def, update }: { def: WizardDefinition; update:
         </Section>
       ) : null}
     </div>
+  );
+}
+
+/** A colour of the wizard's own, or the space's while none is set. */
+function LookColour({
+  label,
+  value,
+  fallback,
+  onChange,
+}: {
+  label: string;
+  value: string | undefined;
+  fallback: string;
+  onChange: (v: string | undefined) => void;
+}) {
+  return (
+    <div>
+      <Label hint={value ? undefined : t("inspector.fromSpace")}>{label}</Label>
+      <div className="flex items-center gap-2">
+        <Swatch value={value ?? fallback} onChange={(e) => onChange(e.target.value)} />
+        {value ? (
+          <>
+            <span className="font-mono text-[0.8125rem] text-ink-3">{value}</span>
+            <IconButton label={t("inspector.lookReset")} onClick={() => onChange(undefined)}>
+              <X className="size-4" />
+            </IconButton>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+const PAGES = ["space", "dark", "light"] as const;
+
+/**
+ * How the wizard's pages look over its space's brand: colours, dark or light, typefaces, effects
+ * and CSS of its own. What is left empty stays the space's.
+ */
+function WizardLook({ def, update }: { def: WizardDefinition; update: Update }) {
+  const style = def.style ?? {};
+  const set = (patch: Partial<WizardStyle>) => {
+    const next: Record<string, unknown> = { ...style, ...patch };
+    for (const key of Object.keys(next)) {
+      const v = next[key];
+      if (v === undefined || v === "" || (Array.isArray(v) && v.length === 0)) {
+        delete next[key];
+      }
+    }
+    update({ ...def, style: Object.keys(next).length ? (next as WizardStyle) : undefined });
+  };
+  const fonts = [
+    { value: "", label: t("inspector.fromSpace") },
+    ...WIZARD_FONTS.map((f) => ({ value: f, label: f })),
+  ];
+  return (
+    <Section title={t("inspector.look")}>
+      <div className="grid grid-cols-2 gap-4">
+        <LookColour
+          label={t("inspector.lookAccent")}
+          value={style.accent}
+          fallback="#e0531b"
+          onChange={(accent) => set({ accent })}
+        />
+        <LookColour
+          label={t("inspector.lookBackground")}
+          value={style.background}
+          fallback="#faf8f5"
+          onChange={(background) => set({ background })}
+        />
+      </div>
+      <div>
+        <Label hint={t("inspector.lookPagesHint")}>{t("inspector.lookPages")}</Label>
+        <Segmented
+          value={style.dark === undefined ? "space" : style.dark ? "dark" : "light"}
+          options={[...PAGES]}
+          label={(o) => t(`inspector.lookPages.${o as (typeof PAGES)[number]}`)}
+          onChange={(o: (typeof PAGES)[number]) =>
+            set({ dark: o === "space" ? undefined : o === "dark" })
+          }
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>{t("inspector.lookDisplayFont")}</Label>
+          <Select
+            value={style.displayFont ?? ""}
+            options={fonts}
+            onChange={(v) => set({ displayFont: (v || undefined) as WizardStyle["displayFont"] })}
+          />
+        </div>
+        <div>
+          <Label>{t("inspector.lookBodyFont")}</Label>
+          <Select
+            value={style.bodyFont ?? ""}
+            options={fonts}
+            onChange={(v) => set({ bodyFont: (v || undefined) as WizardStyle["bodyFont"] })}
+          />
+        </div>
+      </div>
+      <div>
+        <Label>{t("inspector.lookEffects")}</Label>
+        <Segmented
+          multi
+          value={style.effects ?? []}
+          options={[...WIZARD_EFFECTS]}
+          label={(o) => t(`inspector.lookEffect.${o as WizardEffect}`)}
+          onChange={(effects: WizardEffect[]) => set({ effects })}
+        />
+      </div>
+      <div>
+        <Label hint={t("inspector.lookCssHint")}>{t("inspector.lookCss")}</Label>
+        <Textarea
+          minRows={3}
+          className="font-mono text-[0.8125rem]"
+          spellCheck={false}
+          placeholder={"h1 { letter-spacing: 0.04em; }"}
+          value={style.css ?? ""}
+          onChange={(e) => set({ css: e.target.value })}
+        />
+      </div>
+    </Section>
   );
 }
 

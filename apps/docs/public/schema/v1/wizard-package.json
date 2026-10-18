@@ -647,6 +647,76 @@
             "additionalProperties": false
           }
         },
+        "style": {
+          "type": "object",
+          "properties": {
+            "accent": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "background": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "dark": {
+              "type": "boolean"
+            },
+            "displayFont": {
+              "type": "string",
+              "enum": [
+                "Inter",
+                "Figtree",
+                "DM Sans",
+                "Nunito",
+                "Fredoka",
+                "Bricolage Grotesque",
+                "Fraunces",
+                "Playfair Display",
+                "Lora",
+                "Young Serif",
+                "Caveat",
+                "Creepster",
+                "Nosifer"
+              ]
+            },
+            "bodyFont": {
+              "type": "string",
+              "enum": [
+                "Inter",
+                "Figtree",
+                "DM Sans",
+                "Nunito",
+                "Fredoka",
+                "Bricolage Grotesque",
+                "Fraunces",
+                "Playfair Display",
+                "Lora",
+                "Young Serif",
+                "Caveat",
+                "Creepster",
+                "Nosifer"
+              ]
+            },
+            "effects": {
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "glow",
+                  "webs",
+                  "bats",
+                  "fog"
+                ]
+              }
+            },
+            "css": {
+              "type": "string",
+              "maxLength": 8000
+            }
+          },
+          "additionalProperties": false
+        },
         "steps": {
           "minItems": 1,
           "type": "array",

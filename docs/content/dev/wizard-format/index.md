@@ -1,7 +1,7 @@
 ---
 title: The wizard format
 description: A wizard as one JSON document, what its keys mean, and where each part is described.
-version: 0.7.10
+version: 0.9.0
 ---
 
 A wizard is one JSON document, its **definition**. The studio exports it as a `.wizard` file
@@ -36,6 +36,7 @@ tool may read and write wizards.
 | `lang` | The language the wizard speaks, as a two-letter code. See [Languages](#languages) |
 | `lists` | Tables the wizard keeps between runs. See [Lists and connections](./lists-and-connections.md) |
 | `connections` | Accounts the person connects during a run. See [Lists and connections](./lists-and-connections.md) |
+| `style` | How the wizard’s pages look over its space’s brand. See [Style](#style) |
 | `steps` | What the run does, from top to bottom |
 
 ## JSON Schema
@@ -82,6 +83,42 @@ engenty figures © Thru The Heart Creative GmbH - Matthias Platzer, CC BY 4.0, e
 
 Using a figure or the name engenty as your own brand, logo or mascot needs permission. See
 [TRADEMARKS.md](https://github.com/engenty/wizards/blob/main/TRADEMARKS.md).
+
+## Style
+
+`style` gives the wizard a look of its own on its run page and on its shared results. Every key is
+optional, and what is left out stays the space’s.
+
+| Key | What it holds |
+|---|---|
+| `accent` | Buttons and marks, as `#rrggbb` |
+| `background` | The ground the pages stand on, as `#rrggbb`. A dark one makes the pages dark |
+| `dark` | `true` or `false`: dark or light pages for everyone. The visitor’s theme switch is hidden then |
+| `displayFont` | The font of headings |
+| `bodyFont` | The font of text, fields and buttons |
+| `effects` | Any of `glow`, `webs`, `bats` and `fog` |
+| `css` | CSS added to the pages, up to 8,000 characters |
+
+The fonts ship with engenty wizards, so a run page loads no font from another site: `Inter`,
+`Figtree`, `DM Sans`, `Nunito`, `Fredoka`, `Bricolage Grotesque`, `Fraunces`,
+`Playfair Display`, `Lora`, `Young Serif`, `Caveat`, `Creepster` and `Nosifer`. Creepster and
+Nosifer are display fonts for headings.
+
+`css` may not load anything. `url()`, `image-set()`, `@import` and backslash escapes are refused:
+`wizards validate` reports them, and a run page leaves such CSS out completely. The CSS can set
+the theme variables `--raw-primary`, `--raw-background`, `--f-display` and `--f-ui`, and style
+`h1`, `h2`, `.font-display` and `button[data-variant="primary"]`.
+
+```json
+"style": {
+  "accent": "#ff7a1a",
+  "background": "#140b1f",
+  "dark": true,
+  "displayFont": "Creepster",
+  "bodyFont": "Nunito",
+  "effects": ["glow", "webs", "bats", "fog"]
+}
+```
 
 ## Languages
 

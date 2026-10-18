@@ -332,7 +332,7 @@ function rgbOf(hex: string): [number, number, number] | null {
 }
 
 /** How light a colour looks, 0–1 (relative luminance). */
-function luminance(hex: string): number {
+export function luminance(hex: string): number {
   const rgb = rgbOf(hex);
   if (!rgb) {
     return 1;
@@ -379,6 +379,9 @@ export function runTheme(brand: {
     display: display?.family ?? null,
     body: body?.family ?? null,
     dark: background ? luminance(background) < 0.18 : false,
+    pinned: false,
+    effects: [],
+    css: null,
   };
 }
 

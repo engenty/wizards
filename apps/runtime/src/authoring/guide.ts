@@ -17,6 +17,7 @@ type Wizard = {
   lang?: string                 // two-letter code of the language the wizard's texts are in ("en", "de", "it", "fr") — ALWAYS set it to the language you write them in
   lists?: List[]                // tabular data the wizard KEEPS between runs — separately for each person who runs it, or for all with "shared"
   connections?: Connection[]    // accounts the PERSON connects during a run (their mailbox); kept for their next run
+  style?: Style                 // how the wizard's pages look, over its space's brand — leave it out to look like the space
   steps: Step[]                 // run top to bottom; the LAST step is always a "result"
 }
 
@@ -52,6 +53,23 @@ type Connection =
       //   policy: "allow" = runs without asking, "ask" = the person confirms each call first.
       //           Default: read → allow, write → ask. Deleting always asks. Set "allow" for an action marked
       //           "write" that in truth only looks something up (MCP servers often leave the mark out).
+
+type Style = {                  // every key optional; what is left out stays the space's
+  accent?: "#rrggbb"            // buttons and marks
+  background?: "#rrggbb"        // the ground the pages stand on; a dark one makes the pages dark
+  dark?: boolean                // dark (true) or light (false) pages for everyone; the person's theme switch is hidden then
+  displayFont?: Font            // headings
+  bodyFont?: Font               // text, fields and buttons
+  effects?: ("glow"|"webs"|"bats"|"fog")[]
+                                // glow: headings and main buttons light up in the accent · webs: spider webs in the top
+                                //   corners and a spider · bats: engenties with bat wings fly across · fog: drifts along the bottom
+  css?: string                  // CSS added to the pages (up to 8000 characters). It may load NOTHING: no url(), no @import,
+                                //   no backslash escapes. Hooks: the variables --raw-primary, --raw-background, --f-display, --f-ui;
+                                //   h1, h2, .font-display; button[data-variant="primary"]
+}
+// Font: "Inter"|"Figtree"|"DM Sans"|"Nunito"|"Fredoka"|"Bricolage Grotesque"|"Fraunces"|"Playfair Display"|"Lora"|
+//   "Young Serif"|"Caveat"|"Creepster"|"Nosifer" — shipped with the runner. Creepster and Nosifer are spooky display faces:
+//   headings only, never bodyFont.
 
 // Every step: { id (camelCase, unique), title, description?, next?: Branch[] }
 // Branch = { when: Condition | Condition[], goto: stepId | "end", max? }
@@ -314,6 +332,8 @@ A template may only use fields asked and steps run EARLIER.`;
 
 export const PRINCIPLES = `
 How good wizards look:
+- Most wizards leave "style" out and wear their space's brand. Set it when the wizard has a look of its own (a Halloween
+  wizard: dark, a glowing orange accent, a spooky display font, webs and bats) or when the person asks for one.
 - For non-technical end users. Plain words, friendly titles phrased as questions ("What is the post for?").
 - The wizard speaks for itself: the first page invites in its own voice ("Show me your fridge."), every field's help says in
   one line why it is asked ("For the amounts in the recipes"), every step that takes a while has a "working" line that

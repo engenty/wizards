@@ -6,7 +6,7 @@ import { Engenty } from "./engenty/engenty";
 import type { EngentyCoat } from "./engenty/fur-stage";
 import { EngentyLogoMark } from "./engenty/logo";
 import { t } from "./lib/i18n";
-import { setTheme, stageFill, useTheme } from "./lib/theme";
+import { setTheme, stageFill, useTheme, useThemePinned } from "./lib/theme";
 import { IconButton } from "./ui";
 
 export const BRAND = {
@@ -158,7 +158,12 @@ export function Logo({
 
 export function ThemeToggle() {
   const theme = useTheme();
+  // A wizard that sets dark or light pages keeps them so.
+  const pinned = useThemePinned();
   const next = theme === "dark" ? "light" : "dark";
+  if (pinned) {
+    return null;
+  }
   return (
     <IconButton
       label={t(next === "dark" ? "theme.dark" : "theme.light")}

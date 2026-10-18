@@ -422,7 +422,7 @@ export function registerTools(server: McpServer, who: Principal) {
     {
       title: "Edit wizard",
       description: `Apply ops to the draft atomically, in order:
-- set_meta {title?, description?, avatar?, intro? (null removes)}
+- set_meta {title?, description?, avatar?, intro? (null removes), style? (the whole look; null removes)}
 - set_lists {lists} / set_connections {connections}: replace the wizard's lists or connections as a whole
 - upsert_step {step (complete), before?|after?}: replaces the step with that id, else inserts it (default: before the final result step)
 - remove_step {stepId}
