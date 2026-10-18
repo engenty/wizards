@@ -18,7 +18,7 @@ export async function listStarts(userId: string, wizardId: string): Promise<Wiza
  * its answers name fields of the wizard. A new start gets its id, owner and time here.
  */
 export async function setStarts(userId: string, wizardId: string, input: unknown) {
-  if (!(await currentFeatures()).selfStart) {
+  if (!(await currentFeatures()).startTriggers) {
     throw new ServiceError("refused", "Starts are not switched on here.");
   }
   const w = await writableWizard(userId, wizardId);

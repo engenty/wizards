@@ -1245,7 +1245,7 @@ function SharePanel({
 }) {
   const qc = useQueryClient();
   const account = useFeature("account");
-  const startsOn = useFeature("selfStart");
+  const startsOn = useFeature("startTriggers");
   const me = useMe();
   const local = me.data?.mode === "local";
   // A local install with an account sends what it publishes on to the account's cloud.

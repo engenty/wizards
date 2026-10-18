@@ -140,7 +140,7 @@ export async function runDueSchedules(now = new Date()): Promise<void> {
   for (const tenant of await knownTenants()) {
     await withTenant(tenant, async () => {
       // The switch is per tenant: a team or an install that has starts on.
-      if (!(await currentFeatures()).selfStart) {
+      if (!(await currentFeatures()).startTriggers) {
         return;
       }
       const wizards = await db.query.wizard.findMany({

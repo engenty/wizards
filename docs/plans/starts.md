@@ -1,7 +1,7 @@
 # Plan: starts — a wizard that runs by itself
 
 Status: plan, written on 2026-10-10 against v0.2.36. Phase 1 built on 2026-10-18 on the branch
-`feat/starts` (PR #57 closed, kept as a branch behind the `selfStart` switch, off by default): `packages/shared/src/starts.ts`, `wizard.starts`, `run.started_by`, the
+`feat/starts` (PR #57 closed, kept as a branch behind the `startTriggers` switch, off by default): `packages/shared/src/starts.ts`, `wizard.starts`, `run.started_by`, the
 `notice` table, `engine/starts.ts` (the clock, `startFrom`, failures and pausing),
 `engine/notices.ts`, the started run's rules in `engine/runner.ts` (`passStep`, `askOf`), the
 studio routes, the share dialog's section and sheet (`StartsSection.tsx`), "Gestartet von" in the
