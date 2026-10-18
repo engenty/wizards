@@ -44,7 +44,7 @@ You need Node 24 and pnpm, as for the rest of the repository.
 4. **Start the chat:**
 
    ```bash
-   pnpm --filter @engenty-wizards/example-openui-chat dev   # http://localhost:5190
+   pnpm --filter @engenty/wizards-example-openui-chat dev   # http://localhost:5190
    ```
 
    The first start builds the runner's styles once.

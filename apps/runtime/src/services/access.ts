@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { note } from "@engenty-wizards/shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { managed, type Role, tenantInfo } from "../manage.js";

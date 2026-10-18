@@ -23,7 +23,7 @@ export default defineConfig({
     rollupOptions: {
       external: (id) =>
         !(id.startsWith(".") || id.startsWith("/") || id.startsWith("\0")) &&
-        !id.startsWith("@engenty-wizards/") &&
+        !id.startsWith("@engenty/wizards-") &&
         !/^[A-Za-z]:[\\/]/.test(id),
       output: { chunkFileNames: "chunks/[name]-[hash].js" },
     },

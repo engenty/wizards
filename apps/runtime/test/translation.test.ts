@@ -1,14 +1,14 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { viewerLang } from "@engenty-wizards/shared/definition";
-import { RUNNER_TEXTS } from "@engenty-wizards/shared/runner-texts";
-import { lineText } from "@engenty-wizards/shared/texts";
+import { viewerLang } from "@engenty/wizards-shared/definition";
+import { RUNNER_TEXTS } from "@engenty/wizards-shared/runner-texts";
+import { lineText } from "@engenty/wizards-shared/texts";
 import {
   keepsPlaceholders,
   translateDefinition,
   wizardTexts,
-} from "@engenty-wizards/shared/translation";
+} from "@engenty/wizards-shared/translation";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const dir = mkdtempSync(join(tmpdir(), "wizards-translation-"));

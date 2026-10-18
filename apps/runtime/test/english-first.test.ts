@@ -1,6 +1,6 @@
-import { slotText, wizardLang, type WizardDefinition } from "@engenty-wizards/shared/definition";
-import { note, noteText, saidText } from "@engenty-wizards/shared/run";
-import { textOf, type Texts } from "@engenty-wizards/shared/texts";
+import { slotText, wizardLang, type WizardDefinition } from "@engenty/wizards-shared/definition";
+import { note, noteText, saidText } from "@engenty/wizards-shared/run";
+import { textOf, type Texts } from "@engenty/wizards-shared/texts";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { fieldErrorsIn, readPageInput } from "../src/engine/input";

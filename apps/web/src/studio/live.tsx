@@ -1,5 +1,5 @@
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
-import { mergeDrafts } from "@engenty-wizards/shared/merge";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import { mergeDrafts } from "@engenty/wizards-shared/merge";
 import { useQueryClient } from "@tanstack/react-query";
 import { GitMerge, Plug } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

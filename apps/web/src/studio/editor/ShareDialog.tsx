@@ -1,4 +1,4 @@
-import type { RunnerFit, RunnerInfo, RunnerSettings } from "@engenty-wizards/shared/runners";
+import type { RunnerFit, RunnerInfo, RunnerSettings } from "@engenty/wizards-shared/runners";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,

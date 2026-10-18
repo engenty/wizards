@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { RESOURCE_MIME_TYPE, registerAppResource } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { env } from "../env.js";
@@ -23,7 +23,7 @@ const FLOW_APP_FILE = resolve(
 );
 
 const MISSING = `<!doctype html><meta charset="utf-8"><body style="font:14px system-ui;padding:16px">
-The flow widget is not built: run <code>pnpm --filter @engenty-wizards/web build</code>.</body>`;
+The flow widget is not built: run <code>pnpm --filter @engenty/wizards-studio build</code>.</body>`;
 
 function readWidget(): string {
   try {

@@ -5,7 +5,7 @@
  * src/engenty/shapes.ts in the apps repo (engenty-wizards-apps) when it is beside this repo, or
  * where WIZARDS_APPS says. Run it after the web's engenties change:
  *
- *   pnpm --filter @engenty-wizards/web exec tsx scripts/engenty-shapes.tsx
+ *   pnpm --filter @engenty/wizards-studio exec tsx scripts/engenty-shapes.tsx
  */
 import { existsSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";

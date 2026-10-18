@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { note } from "@engenty-wizards/shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import { and, asc, eq, inArray, isNotNull, isNull, like } from "drizzle-orm";
 import { accountToken, linkedAccount } from "../auth/account.js";
 import { control, controlDb, db, schema } from "../db/client.js";

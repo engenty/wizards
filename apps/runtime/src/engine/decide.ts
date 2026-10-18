@@ -5,7 +5,7 @@ import {
   decisionSchema,
   readObject,
   readSystemOne,
-} from "@engenty-wizards/shared/decision";
+} from "@engenty/wizards-shared/decision";
 import { generateText, Output } from "ai";
 import { type CallMeta, costOf, systemOneAccess, textModel } from "../models.js";
 

@@ -1,4 +1,4 @@
-import type { Lang, WizardDefinition } from "@engenty-wizards/shared/definition";
+import type { Lang, WizardDefinition } from "@engenty/wizards-shared/definition";
 import {
   type Manifest,
   PACKAGE_EXTENSION,
@@ -6,7 +6,7 @@ import {
   PACKAGE_FORMAT,
   PACKAGE_MANIFEST,
   PACKAGE_SCHEMA_URL,
-} from "@engenty-wizards/shared/wizard-package";
+} from "@engenty/wizards-shared/wizard-package";
 import { and, eq, isNull } from "drizzle-orm";
 import { strToU8, zipSync } from "fflate";
 import { listConnectors } from "../connectors/external.js";
@@ -20,7 +20,7 @@ import { readPackage } from "./package-file.js";
 import { ownedProject } from "./projects.js";
 import { createWizard, deleteWizard, draftIssues, ownedWizard, parseDraft } from "./wizards.js";
 
-/** A wizard as a file — the format is `@engenty-wizards/shared/wizard-package`'s. */
+/** A wizard as a file — the format is `@engenty/wizards-shared/wizard-package`'s. */
 
 /** Where the project's pages go in a package, as Markdown the standalone runner reads inline. */
 export const KNOWLEDGE_DIR = "knowledge/";

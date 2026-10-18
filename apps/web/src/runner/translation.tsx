@@ -1,6 +1,6 @@
-import type { RunnerTable } from "@engenty-wizards/runner";
-import { isLang } from "@engenty-wizards/shared/definition";
-import type { PublicWizard, UiTexts } from "@engenty-wizards/shared/run";
+import type { RunnerTable } from "@engenty/wizards-runner";
+import { isLang } from "@engenty/wizards-shared/definition";
+import type { PublicWizard, UiTexts } from "@engenty/wizards-shared/run";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { api } from "../lib/api";

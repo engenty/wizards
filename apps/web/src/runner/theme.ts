@@ -1,4 +1,4 @@
-import type { RunTheme } from "@engenty-wizards/shared/run";
+import type { RunTheme } from "@engenty/wizards-shared/run";
 import { useEffect } from "react";
 
 const SANS = "ui-sans-serif, system-ui, sans-serif";

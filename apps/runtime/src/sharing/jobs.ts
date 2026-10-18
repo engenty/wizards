@@ -1,10 +1,10 @@
-import { noteText } from "@engenty-wizards/shared/run";
+import { noteText } from "@engenty/wizards-shared/run";
 import type {
   ShareChoice,
   ShareJobView,
   ShareLang,
   ShareRequest,
-} from "@engenty-wizards/shared/sharing";
+} from "@engenty/wizards-shared/sharing";
 import { connectionContext } from "../connectors/index.js";
 import { askPerson } from "../engine/asks.js";
 import { signalChanged } from "../engine/events.js";

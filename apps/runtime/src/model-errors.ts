@@ -1,6 +1,6 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
-import { noteText, type RunNote } from "@engenty-wizards/shared/run";
-import type { Gap } from "@engenty-wizards/shared/texts";
+import type { Lang } from "@engenty/wizards-shared/definition";
+import { noteText, type RunNote } from "@engenty/wizards-shared/run";
+import type { Gap } from "@engenty/wizards-shared/texts";
 import { type ServerKey, serverText } from "./texts.js";
 
 /** A line of the server's own table (`texts.ts`) a failure says, in the asker's language. */

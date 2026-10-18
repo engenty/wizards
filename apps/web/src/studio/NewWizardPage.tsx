@@ -1,7 +1,7 @@
-import { scoreCatalogEntry } from "@engenty-wizards/shared/engenty/search-index/catalog-lexical";
-import type { MarketplaceEntry } from "@engenty-wizards/shared/marketplace";
-import { isSentence, searchTerms } from "@engenty-wizards/shared/marketplace-search";
-import type { RunnerInfo } from "@engenty-wizards/shared/runners";
+import { scoreCatalogEntry } from "@engenty/wizards-shared/engenty/search-index/catalog-lexical";
+import type { MarketplaceEntry } from "@engenty/wizards-shared/marketplace";
+import { isSentence, searchTerms } from "@engenty/wizards-shared/marketplace-search";
+import type { RunnerInfo } from "@engenty/wizards-shared/runners";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Paperclip, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";

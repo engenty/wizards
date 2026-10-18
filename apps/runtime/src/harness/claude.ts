@@ -1,5 +1,5 @@
-import type { Effort, TextClass } from "@engenty-wizards/shared/definition";
-import { note } from "@engenty-wizards/shared/run";
+import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
+import { note } from "@engenty/wizards-shared/run";
 import { probeVersion, resolveEnv, run } from "./env.js";
 import {
   failureOf,

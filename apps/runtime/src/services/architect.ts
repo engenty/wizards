@@ -1,4 +1,4 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
+import type { Lang } from "@engenty/wizards-shared/definition";
 import { eq } from "drizzle-orm";
 import { type ChatImage, runArchitect } from "../agents/architect.js";
 import { chatEngine, subscriptionTurn } from "../agents/subscription.js";

@@ -1,11 +1,11 @@
-import { type AgentStep, stepShape } from "@engenty-wizards/shared/definition";
+import { type AgentStep, stepShape } from "@engenty/wizards-shared/definition";
 import {
   type FieldShape,
   type ListShape,
   labelOf,
   type ObjectShape,
   titleKey,
-} from "@engenty-wizards/shared/shape";
+} from "@engenty/wizards-shared/shape";
 import { lang, t } from "./i18n.js";
 import { cn } from "./ui.js";
 

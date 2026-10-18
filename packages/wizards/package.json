@@ -76,8 +76,8 @@
     }
   },
   "devDependencies": {
-    "@engenty-wizards/runner": "workspace:*",
-    "@engenty-wizards/shared": "workspace:*",
+    "@engenty/wizards-runner": "workspace:*",
+    "@engenty/wizards-shared": "workspace:*",
     "@libsql/client": "^0.18.0",
     "@microsoft/api-extractor": "7.59.4",
     "@openuidev/react-lang": "1.0.1",

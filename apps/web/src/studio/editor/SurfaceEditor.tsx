@@ -1,4 +1,4 @@
-import { SurfaceView } from "@engenty-wizards/runner";
+import { SurfaceView } from "@engenty/wizards-runner";
 import {
   assembleSurface,
   dataRef,
@@ -6,9 +6,9 @@ import {
   listRef,
   type Step,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
-import type { FieldShape, ListShape } from "@engenty-wizards/shared/shape";
-import type { SurfaceComponent } from "@engenty-wizards/shared/surface";
+} from "@engenty/wizards-shared/definition";
+import type { FieldShape, ListShape } from "@engenty/wizards-shared/shape";
+import type { SurfaceComponent } from "@engenty/wizards-shared/surface";
 import { Code2, Eye } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { lang, t } from "../../lib/i18n";

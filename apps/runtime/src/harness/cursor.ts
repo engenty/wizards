@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Effort, TextClass } from "@engenty-wizards/shared/definition";
+import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
 import { probeVersion, resolveEnv, run } from "./env.js";
 import {
   failureOf,

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BUILT_IN_RUNNERS, RUNNER_ID } from "@engenty-wizards/shared/runners";
+import { BUILT_IN_RUNNERS, RUNNER_ID } from "@engenty/wizards-shared/runners";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { and, eq } from "drizzle-orm";
 import { type Context, Hono } from "hono";

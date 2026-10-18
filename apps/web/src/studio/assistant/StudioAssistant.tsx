@@ -1,4 +1,4 @@
-import type { MarketplaceEntry } from "@engenty-wizards/shared/marketplace";
+import type { MarketplaceEntry } from "@engenty/wizards-shared/marketplace";
 import {
   Activity,
   ArrowLeft,

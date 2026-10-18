@@ -6,8 +6,8 @@ import type {
   MarketplaceItem,
   MarketplacePage,
   MarketplaceSummary,
-} from "@engenty-wizards/shared/marketplace";
-import { searchEntries } from "@engenty-wizards/shared/marketplace-search";
+} from "@engenty/wizards-shared/marketplace";
+import { searchEntries } from "@engenty/wizards-shared/marketplace-search";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "wizards-marketplace-"));

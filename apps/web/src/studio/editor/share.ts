@@ -1,5 +1,5 @@
-import type { ResultStep, ShareOption, WizardDefinition } from "@engenty-wizards/shared/definition";
-import type { ShareTargetInfo } from "@engenty-wizards/shared/sharing";
+import type { ResultStep, ShareOption, WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { ShareTargetInfo } from "@engenty/wizards-shared/sharing";
 import { useQuery } from "@tanstack/react-query";
 import { createContext } from "react";
 import { api } from "../../lib/api";

@@ -15,7 +15,7 @@ its own page, on a website, in a chat or in your own app.
 | [The wizard format](./wizard-format/index.md) | A wizard as JSON: its steps, fields, templates and branches |
 | [JSON Schema](./wizard-format/validate.md) | The JSON Schema for your editor and `wizards validate` |
 | [Integration](./integration/index.md) | A published wizard for people, for AI apps and for your own code |
-| [Your own UI](./integration/own-ui.md) | Your app draws the run with `@engenty-wizards/runner` |
+| [Your own UI](./integration/own-ui.md) | Your app draws the run with `@engenty/wizards-runner` |
 | [Plugins](./plugins/index.md) | Tools for AI steps, routes with their own tables, pages in the studio |
 | [The API](./api.md) | What a program may rely on, what is private, and how a client names itself |
 

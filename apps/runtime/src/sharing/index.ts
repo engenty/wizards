@@ -6,7 +6,7 @@ import type {
   SharePreviewTarget,
   ShareTargetInfo,
   ShareTargetView,
-} from "@engenty-wizards/shared/sharing";
+} from "@engenty/wizards-shared/sharing";
 import { and, desc, eq } from "drizzle-orm";
 import { listConnectors, resolveConnector } from "../connectors/external.js";
 import {

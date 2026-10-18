@@ -1,4 +1,4 @@
-import type { SpaceData } from "@engenty-wizards/shared/space-data";
+import type { SpaceData } from "@engenty/wizards-shared/space-data";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Plus, Table2 } from "lucide-react";
 import { useState } from "react";

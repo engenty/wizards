@@ -6,7 +6,7 @@ import {
   patchCells,
   rowKey,
   STORE_LIMITS,
-} from "@engenty-wizards/shared/store";
+} from "@engenty/wizards-shared/store";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";

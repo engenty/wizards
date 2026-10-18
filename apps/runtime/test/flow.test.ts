@@ -11,7 +11,7 @@ import {
   slotDayText,
   slotText,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
+} from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
 import { readPageInput } from "../src/engine/input";
 import { unavoidableSteps } from "../src/engine/requirements";

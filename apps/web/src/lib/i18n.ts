@@ -4,15 +4,15 @@ import {
   runnerTable,
   setRunnerLang,
   setRunnerTable,
-} from "@engenty-wizards/runner/i18n";
+} from "@engenty/wizards-runner/i18n";
 import {
   isLang,
   type Lang,
   localLang,
   viewerLang as viewerLangOf,
-} from "@engenty-wizards/shared/definition";
-import { noteText, type RunNote } from "@engenty-wizards/shared/run";
-import { type Line, lineText, type Texts, textOf } from "@engenty-wizards/shared/texts";
+} from "@engenty/wizards-shared/definition";
+import { noteText, type RunNote } from "@engenty/wizards-shared/run";
+import { type Line, lineText, type Texts, textOf } from "@engenty/wizards-shared/texts";
 import { useSyncExternalStore } from "react";
 
 // Wording: docs/copy-style.md (voice, glossary, EN/DE mechanics). Write each language as its

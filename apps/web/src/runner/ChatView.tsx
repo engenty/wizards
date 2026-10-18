@@ -15,7 +15,7 @@ import {
   useDoneSignal,
   useWakeLock,
   type Values,
-} from "@engenty-wizards/runner";
+} from "@engenty/wizards-runner";
 import {
   FIELD_WAYS,
   type Field,
@@ -25,9 +25,9 @@ import {
   type ResultStep,
   type ReviewStep,
   shownFields,
-} from "@engenty-wizards/shared/definition";
-import { readNumber } from "@engenty-wizards/shared/numbers";
-import type { RunEvent, RunNoteCode, RunView } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/definition";
+import { readNumber } from "@engenty/wizards-shared/numbers";
+import type { RunEvent, RunNoteCode, RunView } from "@engenty/wizards-shared/run";
 import {
   ArrowUp,
   Check,

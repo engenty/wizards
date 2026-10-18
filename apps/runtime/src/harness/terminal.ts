@@ -1,7 +1,7 @@
 import { accessSync, chmodSync, constants } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { note } from "@engenty-wizards/shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import { nanoid } from "nanoid";
 import { ServiceError } from "../services/errors.js";
 

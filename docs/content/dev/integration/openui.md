@@ -148,7 +148,7 @@ the wizards it may start and a proxy to the runtime. In short:
    Each one’s token is the part of its link after `/w/`.
 2. Put an `.env.local` in `examples/openui-chat`: `WIZARDS=<token>,<token>`, `CHAT_BASE_URL`,
    `CHAT_API_KEY` and `CHAT_MODEL` for the chat’s model.
-3. `pnpm --filter @engenty-wizards/example-openui-chat dev` and open `http://localhost:5190`.
+3. `pnpm --filter @engenty/wizards-example-openui-chat dev` and open `http://localhost:5190`.
 4. Ask for something a wizard does, in your own words.
 
 The example’s README has the details, the endpoints that work and what to set while you try

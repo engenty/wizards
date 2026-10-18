@@ -1,5 +1,5 @@
-import { setChoiceLabels } from "@engenty-wizards/runner";
-import type { RunView } from "@engenty-wizards/shared/run";
+import { setChoiceLabels } from "@engenty/wizards-runner";
+import type { RunView } from "@engenty/wizards-shared/run";
 import { useCallback, useEffect, useState } from "react";
 import { withBase } from "@/lib/base";
 import { ApiError, api } from "../lib/api";

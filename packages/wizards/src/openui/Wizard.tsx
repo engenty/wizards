@@ -4,8 +4,8 @@ import {
   type Lang,
   type MascotProps,
   RunnerBody,
-} from "@engenty-wizards/runner";
-import type { RunView } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-runner";
+import type { RunView } from "@engenty/wizards-shared/run";
 import { defineComponent } from "@openuidev/react-lang";
 import { useEffect, useRef } from "react";
 import { useMessageRun, useReport } from "./message.js";

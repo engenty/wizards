@@ -1,12 +1,12 @@
-import type { AskInput } from "@engenty-wizards/shared/run";
+import type { AskInput } from "@engenty/wizards-shared/run";
 import type {
   ShareChoice,
   ShareField,
   ShareIcon,
   ShareLang,
-} from "@engenty-wizards/shared/sharing";
-import type { ConnectionDef } from "@engenty-wizards/shared/store";
-import type { Gap } from "@engenty-wizards/shared/texts";
+} from "@engenty/wizards-shared/sharing";
+import type { ConnectionDef } from "@engenty/wizards-shared/store";
+import type { Gap } from "@engenty/wizards-shared/texts";
 import type {
   ConnectorActionContext,
   ConnectorDefinition,

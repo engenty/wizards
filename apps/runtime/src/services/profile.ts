@@ -1,4 +1,4 @@
-import { isLang, type Lang } from "@engenty-wizards/shared/definition";
+import { isLang, type Lang } from "@engenty/wizards-shared/definition";
 import { z } from "zod";
 import { linkedAccount } from "../auth/account.js";
 import type { SessionUser } from "../auth/index.js";

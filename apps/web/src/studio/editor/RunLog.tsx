@@ -1,4 +1,4 @@
-import type { RunEvent, RunView } from "@engenty-wizards/shared/run";
+import type { RunEvent, RunView } from "@engenty/wizards-shared/run";
 import { AlertCircle, Check, ChevronDown, ChevronUp, Copy, Info, Play, Wrench } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { withBase } from "../../lib/base";

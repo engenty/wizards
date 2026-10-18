@@ -5,9 +5,9 @@ import {
   listRef,
   type ResultStep,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
-import type { RunState } from "@engenty-wizards/shared/run";
-import type { ShareItem } from "@engenty-wizards/shared/sharing";
+} from "@engenty/wizards-shared/definition";
+import type { RunState } from "@engenty/wizards-shared/run";
+import type { ShareItem } from "@engenty/wizards-shared/sharing";
 import type { RunRow } from "../engine/types.js";
 import { type Download, listDownload, renderDownload } from "../render/downloads.js";
 import { listRows, type StoreScope, scopeOf } from "../store/index.js";

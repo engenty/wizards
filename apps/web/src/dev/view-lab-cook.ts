@@ -1,4 +1,4 @@
-import type { RunTheme } from "@engenty-wizards/shared/run";
+import type { RunTheme } from "@engenty/wizards-shared/run";
 import type { fridgePlan } from "./view-lab-sample";
 
 type Recipe = (typeof fridgePlan.recipes)[number];

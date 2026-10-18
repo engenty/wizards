@@ -4,7 +4,7 @@ import {
   labelOf,
   type ObjectShape,
   titleKey,
-} from "@engenty-wizards/shared/shape";
+} from "@engenty/wizards-shared/shape";
 
 /**
  * Downloads of a step with `output.schema`, read by its shape: labels for keys, an entry a `ref`

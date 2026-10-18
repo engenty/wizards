@@ -1,4 +1,4 @@
-import { isRealLanguage, langOf, localLang, textLang, validateWizard, wizardLang, wizardSchema } from "@engenty-wizards/shared/definition";
+import { isRealLanguage, langOf, localLang, textLang, validateWizard, wizardLang, wizardSchema } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
 
 describe("the language beside English", () => {

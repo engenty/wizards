@@ -6,7 +6,7 @@ import {
   type FontUse,
   PROJECT_LIMITS,
   type TextStyle,
-} from "@engenty-wizards/shared/projects";
+} from "@engenty/wizards-shared/projects";
 import { CaseUpper, Check, Link, ListChecks, Plus, Rows3, Trash2 } from "lucide-react";
 import { type CSSProperties, type InputHTMLAttributes, useEffect, useState } from "react";
 import { api } from "../../lib/api";

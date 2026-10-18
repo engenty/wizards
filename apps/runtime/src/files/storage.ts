@@ -1,6 +1,6 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import type { AssetRef } from "@engenty-wizards/shared/run";
+import type { AssetRef } from "@engenty/wizards-shared/run";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";

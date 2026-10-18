@@ -1,5 +1,5 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
-import { note, type RunNote } from "@engenty-wizards/shared/run";
+import type { Lang } from "@engenty/wizards-shared/definition";
+import { note, type RunNote } from "@engenty/wizards-shared/run";
 import { errorText, NotedError, type ServerLine } from "../model-errors.js";
 
 /** What a service call can refuse. The studio routes answer it as HTTP, the MCP tools as a tool error. */

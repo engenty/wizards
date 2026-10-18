@@ -1,5 +1,5 @@
 import { defineStudioPlugin } from "@engenty/wizards/plugin/studio";
-import { Button, Card, Chip, Empty, Spinner } from "@engenty-wizards/web/ui";
+import { Button, Card, Chip, Empty, Spinner } from "@engenty/wizards-studio/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListChecks } from "lucide-react";
 import { Link } from "react-router";

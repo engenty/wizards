@@ -1,7 +1,7 @@
-import { type Format, formatsFor, type Step, widgetSize } from "@engenty-wizards/shared/definition";
-import type { AssetRef, StepOutput } from "@engenty-wizards/shared/run";
-import type { ListDef, ListRow } from "@engenty-wizards/shared/store";
-import { listAsMarkdown } from "@engenty-wizards/shared/store";
+import { type Format, formatsFor, type Step, widgetSize } from "@engenty/wizards-shared/definition";
+import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
+import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
+import { listAsMarkdown } from "@engenty/wizards-shared/store";
 import { and, eq } from "drizzle-orm";
 import { zipSync } from "fflate";
 import { db, schema } from "../db/client.js";
