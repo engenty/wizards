@@ -113,6 +113,7 @@ Declared by two or more of the workspaces below:
 | [mammoth](https://github.com/mwilliamson/mammoth.js#readme) | 1.13.0 | BSD-2-Clause |
 | [nanoid](https://github.com/ai/nanoid#readme) | 5.1.16 | MIT |
 | [node-pty](https://github.com/microsoft/node-pty) | 1.1.0 | MIT |
+| [nodemailer](https://nodemailer.com/) | 10.0.9 | MIT-0 |
 | [pdf-parse](https://mehmet-kozan.github.io/pdf-parse/) | 2.4.5 | Apache-2.0 |
 | [playwright-core](https://playwright.dev) | 1.63.0 | Apache-2.0 |
 | [postal-mime](https://postal-mime.postalsys.com) | 4.0.2 | MIT-0 |
@@ -147,6 +148,7 @@ Used to build, check and test; not part of what people run:
 | [@types/cross-spawn](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/cross-spawn) | 6.0.6 | MIT |
 | [@types/mdx](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/mdx) | 2.0.14 | MIT |
 | [@types/node](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node) | 26.6.4 | MIT |
+| [@types/nodemailer](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/nodemailer) | 8.0.2 | MIT |
 | [@types/pdfmake](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/pdfmake) | 0.3.3 | MIT |
 | [@types/react](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react) | 19.3.0 | MIT |
 | [@types/react-dom](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react-dom) | 19.3.0 | MIT |
