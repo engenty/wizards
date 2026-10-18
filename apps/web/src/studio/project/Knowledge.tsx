@@ -8,7 +8,7 @@ import type {
   SpaceCategory,
   Where,
   WhereValue,
-} from "@engenty-wizards/shared/knowledge";
+} from "@engenty/wizards-shared/knowledge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,

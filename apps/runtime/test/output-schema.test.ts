@@ -1,11 +1,11 @@
-import { declaredShape, parseWizard } from "@engenty-wizards/shared/definition";
+import { declaredShape, parseWizard } from "@engenty/wizards-shared/definition";
 import {
   MAX_SHAPE_KEYS,
   type ObjectShape,
   shapeJsonSchema,
   shapeOfFields,
-} from "@engenty-wizards/shared/shape";
-import { bound, validateSurface } from "@engenty-wizards/shared/surface";
+} from "@engenty/wizards-shared/shape";
+import { bound, validateSurface } from "@engenty/wizards-shared/surface";
 import { describe, expect, it, vi } from "vitest";
 import { fridgeShape } from "../../web/src/dev/data-shape";
 import { fridgePlan, fridgeView } from "../../web/src/dev/view-lab-sample";

@@ -1,6 +1,6 @@
 import { posix } from "node:path";
-import type { RunTheme } from "@engenty-wizards/shared/run";
-import { isTextMime, type WorkspaceFile } from "@engenty-wizards/shared/workspace";
+import type { RunTheme } from "@engenty/wizards-shared/run";
+import { isTextMime, type WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { getBlob } from "../files/blobs.js";
 import { guardHtml } from "../render/guard.js";
 import { WIDGET_RUNTIME } from "./runtime.js";

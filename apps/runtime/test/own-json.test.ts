@@ -1,4 +1,4 @@
-import type { AgentStep } from "@engenty-wizards/shared/definition";
+import type { AgentStep } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
 import { outputSchema, ownJson } from "../src/engine/steps.js";
 

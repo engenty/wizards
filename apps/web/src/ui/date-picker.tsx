@@ -1,4 +1,4 @@
-import { LOCALES } from "@engenty-wizards/shared/definition";
+import { LOCALES } from "@engenty/wizards-shared/definition";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import {
   type KeyboardEvent,

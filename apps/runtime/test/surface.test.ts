@@ -1,6 +1,6 @@
-import { assembleSurface, parseWizard, type SurfaceStep } from "@engenty-wizards/shared/definition";
-import { runTheme } from "@engenty-wizards/shared/projects";
-import { bound, pointer, validateSurface, worded } from "@engenty-wizards/shared/surface";
+import { assembleSurface, parseWizard, type SurfaceStep } from "@engenty/wizards-shared/definition";
+import { runTheme } from "@engenty/wizards-shared/projects";
+import { bound, pointer, validateSurface, worded } from "@engenty/wizards-shared/surface";
 import { describe, expect, it, vi } from "vitest";
 
 const access = vi.hoisted(() => ({ value: null }));

@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { AssetRef, RunNote } from "@engenty-wizards/shared/run";
+import type { AssetRef, RunNote } from "@engenty/wizards-shared/run";
 import { createTool } from "@mastra/core/tools";
 import { generateText } from "ai";
 import type { ElementHandle, Page } from "playwright-core";

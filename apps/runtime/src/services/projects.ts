@@ -1,4 +1,4 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
+import type { Lang } from "@engenty/wizards-shared/definition";
 import {
   type AssetSection,
   type BrandFont,
@@ -19,8 +19,8 @@ import {
   type ProjectFact,
   RULE_MARKS,
   type TextStyle,
-} from "@engenty-wizards/shared/projects";
-import { note } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/projects";
+import { note } from "@engenty/wizards-shared/run";
 import { and, count, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";

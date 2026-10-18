@@ -84,7 +84,7 @@ beforeAll(async () => {
   models = await import("../src/models");
   settings = await import("../src/settings");
   ({ appleUnavailableNote } = await import("../src/harness/apple"));
-  const { providerInfo } = await import("@engenty-wizards/shared/providers");
+  const { providerInfo } = await import("@engenty/wizards-shared/providers");
   openaiText = providerInfo("openai")?.text as Record<string, string>;
 }, 60_000);
 

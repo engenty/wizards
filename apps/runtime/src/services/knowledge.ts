@@ -1,4 +1,4 @@
-import { formatTableCell, type TableColumn } from "@engenty-wizards/shared/engenty/data-tables";
+import { formatTableCell, type TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
 import {
   type Knowledge,
   type KnowledgeItem,
@@ -7,7 +7,7 @@ import {
   slugOf,
   type Where,
   type WhereValue,
-} from "@engenty-wizards/shared/knowledge";
+} from "@engenty/wizards-shared/knowledge";
 import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { embeddingModel, systemOneAccess } from "../models.js";

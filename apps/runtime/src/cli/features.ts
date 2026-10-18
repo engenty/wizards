@@ -3,7 +3,7 @@ import {
   FEATURE_NAME,
   parseFeatures,
   resolveFeatures,
-} from "@engenty-wizards/shared/features";
+} from "@engenty/wizards-shared/features";
 import { declaredFeatures, featuresFile, fileFeatures, writeFeature } from "../features.js";
 import { discoverPlugins } from "../plugins/discovery.js";
 import { pluginDirs } from "../plugins/loader.js";

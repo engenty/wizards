@@ -8,8 +8,8 @@ import {
   locationText,
   type WizardDefinition,
   wizardLang,
-} from "@engenty-wizards/shared/definition";
-import { formatMoney } from "@engenty-wizards/shared/numbers";
+} from "@engenty/wizards-shared/definition";
+import { formatMoney } from "@engenty/wizards-shared/numbers";
 import {
   type AssetSection,
   type BrandColor,
@@ -24,9 +24,9 @@ import {
   type ProjectFact,
   type TextStyle,
   textStyleLine,
-} from "@engenty-wizards/shared/projects";
-import type { RunState } from "@engenty-wizards/shared/run";
-import { type ListDef, type ListRow, listAsMarkdown } from "@engenty-wizards/shared/store";
+} from "@engenty/wizards-shared/projects";
+import type { RunState } from "@engenty/wizards-shared/run";
+import { type ListDef, type ListRow, listAsMarkdown } from "@engenty/wizards-shared/store";
 
 export interface TemplateScope {
   def: WizardDefinition;

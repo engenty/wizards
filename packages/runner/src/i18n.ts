@@ -1,7 +1,7 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
-import { noteText, type RunNote } from "@engenty-wizards/shared/run";
-import { RUNNER_TEXTS, type RunnerKey } from "@engenty-wizards/shared/runner-texts";
-import { lineText, type TextTable, textOf } from "@engenty-wizards/shared/texts";
+import type { Lang } from "@engenty/wizards-shared/definition";
+import { noteText, type RunNote } from "@engenty/wizards-shared/run";
+import { RUNNER_TEXTS, type RunnerKey } from "@engenty/wizards-shared/runner-texts";
+import { lineText, type TextTable, textOf } from "@engenty/wizards-shared/texts";
 import { useSyncExternalStore } from "react";
 
 export type { Lang };

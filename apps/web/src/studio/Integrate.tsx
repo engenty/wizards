@@ -1,5 +1,5 @@
-import { marketplaceNameOf } from "@engenty-wizards/shared/claude-plugin";
-import { featureOn } from "@engenty-wizards/shared/features";
+import { marketplaceNameOf } from "@engenty/wizards-shared/claude-plugin";
+import { featureOn } from "@engenty/wizards-shared/features";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AppWindow,

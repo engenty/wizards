@@ -1,7 +1,7 @@
-import type { TableColumn } from "@engenty-wizards/shared/engenty/data-tables";
-import { type CategoryInput, dayOf, slugOf } from "@engenty-wizards/shared/knowledge";
-import { note } from "@engenty-wizards/shared/run";
-import { columnIdOf } from "@engenty-wizards/shared/space-data";
+import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
+import { type CategoryInput, dayOf, slugOf } from "@engenty/wizards-shared/knowledge";
+import { note } from "@engenty/wizards-shared/run";
+import { columnIdOf } from "@engenty/wizards-shared/space-data";
 import { generateText, Output } from "ai";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";

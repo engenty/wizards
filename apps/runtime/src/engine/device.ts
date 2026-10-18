@@ -1,4 +1,4 @@
-import type { TextClass } from "@engenty-wizards/shared/definition";
+import type { TextClass } from "@engenty/wizards-shared/definition";
 import type { LanguageModel } from "ai";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";

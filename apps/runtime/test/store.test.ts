@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseWizard } from "@engenty-wizards/shared/definition";
-import { TableColumnValueError } from "@engenty-wizards/shared/engenty/data-tables";
-import { firstRowAt, type ListDef, listAsMarkdown, newCells, patchCells, rowKey } from "@engenty-wizards/shared/store";
+import { parseWizard } from "@engenty/wizards-shared/definition";
+import { TableColumnValueError } from "@engenty/wizards-shared/engenty/data-tables";
+import { firstRowAt, type ListDef, listAsMarkdown, newCells, patchCells, rowKey } from "@engenty/wizards-shared/store";
 
 const providers: ListDef = {
   id: "providers",

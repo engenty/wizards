@@ -309,7 +309,7 @@ Admin, Website, Studio): https://claude.ai/artifact/M7vrhceNS6hRZdXg4yt5Uy
 | Where do results go? | A WordPress table; Ergebnisse shows them beside the cloud's. Nothing is sent to engenty.ai | No account on the site. Answers the open decision "results in the WordPress database" for this mode |
 | Two modes | A wizard runs either connected (as built above) or standalone; both kinds can be on one site, the list says which | A connected site keeps contacts, bookings and files; a site without an account still runs the simple ones |
 | WordPress version | Standalone needs 7.0 (the AI Client); the connected mode stays at 6.6 | Below 7.0 the plugin shows the connected mode only |
-| License | The runner subset becomes its own package `@engenty-wizards/runner` under MIT, the plugin bundles it; the runtime stays FSL | WordPress.org takes only GPL-compatible code. Loading it from engenty.ai would be remote code, and no longer standalone |
+| License | The runner subset becomes its own package `@engenty/wizards-runner` under MIT, the plugin bundles it; the runtime stays FSL | WordPress.org takes only GPL-compatible code. Loading it from engenty.ai would be remote code, and no longer standalone |
 
 ### What exists that this builds on
 
@@ -436,7 +436,7 @@ its output, the shown fields or the chosen target. One request, one model call.
 | # | Change | Files |
 |---|---|---|
 | 1 | `needs(step)`, `standaloneFit(def)` in shared; `unavoidableSteps`/`unavoidableFrom` lifted there; `closedChoices` takes the lacking set | `packages/shared/src/definition.ts` or a new `fit.ts`, `apps/runtime/src/engine/requirements.ts` |
-| 2 | `@engenty-wizards/runner` (MIT): the runner's field, output, surface and view components and `RunnerBody` with a run source (`useRun` here, `useLocalRun` in the plugin); the studio uses the package | `packages/runner`, `apps/web/src/runner` |
+| 2 | `@engenty/wizards-runner` (MIT): the runner's field, output, surface and view components and `RunnerBody` with a run source (`useRun` here, `useLocalRun` in the plugin); the studio uses the package | `packages/runner`, `apps/web/src/runner` |
 | 3 | `GET /api/v1/wizards/:id/package` (`wizards:read`): the `.wizard` of the published version | `routes/api.ts`, `services/package.ts` (`exportWizard` on a published version) |
 | 4 | Share dialog and Einbinden → WordPress: the fit line and "Paket herunterladen" | `studio/editor/ShareDialog.tsx`, `studio/Integrate.tsx`, `lib/i18n.ts` |
 | 5 | `pnpm templates:export`: every template as a `.wizard` with its fit, into `dist/templates/`; CI attaches them to the release so the plugin's release workflow can take the `full` ones | `scripts/`, `.github/workflows/` |
@@ -611,7 +611,7 @@ engenty-wizards-wordpress/
 │   ├── class-downloads.php     html, md, txt, csv, json of an output
 │   └── class-embed.php         engenty_wizard(): a standalone token renders <div data-engenty-local="…"> and enqueues build/runner.js
 ├── src/runner/
-│   ├── index.js                mounts RunnerBody from @engenty-wizards/runner with useLocalRun on every data-engenty-local
+│   ├── index.js                mounts RunnerBody from @engenty/wizards-runner with useLocalRun on every data-engenty-local
 │   ├── useLocalRun.js          the RunSource over engenty/v1/local
 │   └── runner.css              the studio tokens for the site (paper, ink, ember, the inputs), scoped to .engenty-runner
 ├── src/admin/
@@ -659,7 +659,7 @@ Built on 2026-10-09 (steps 1 to 6 of the order above; steps 7 and 8 below, the s
 
 | Repository | What |
 |---|---|
-| `engenty-wizards` (this branch) | `packages/shared/src/fit.ts`: `needs`, `standaloneFit`, `standaloneEntry` (the gallery's fields), `unavoidableSteps`/`unavoidableFrom` and `closedChoicesFor` lifted out of `requirements.ts`; tests in `apps/runtime/test/fit.test.ts`. `packages/runner` (MIT): the runner's components, the UI primitives, the runner's texts and an env the host configures (`configureRunner`), `RunnerBody` on a `RunSource`; the studio uses the package (one copy), `useRun` stays in `apps/web`; `vite build` writes ES modules with React external and a `runner.css` scoped to `.engenty-runner` for hosts without Tailwind; `@engenty-wizards/runner/check` reads a `.wizard` and runs the check. `GET /api/v1/wizards/:id/package` (the published version), `standalone` on every wizard of `GET /api/v1/wizards`, `?published=1` on the studio's export. The share dialog's WordPress section with the gallery's "Braucht" list and the package download; Einbinden's "Ohne Konto". `pnpm templates:export` writes every marketplace template as a `.wizard` with its fit; the release attaches `templates.tgz` and `runner.tgz` |
+| `engenty-wizards` (this branch) | `packages/shared/src/fit.ts`: `needs`, `standaloneFit`, `standaloneEntry` (the gallery's fields), `unavoidableSteps`/`unavoidableFrom` and `closedChoicesFor` lifted out of `requirements.ts`; tests in `apps/runtime/test/fit.test.ts`. `packages/runner` (MIT): the runner's components, the UI primitives, the runner's texts and an env the host configures (`configureRunner`), `RunnerBody` on a `RunSource`; the studio uses the package (one copy), `useRun` stays in `apps/web`; `vite build` writes ES modules with React external and a `runner.css` scoped to `.engenty-runner` for hosts without Tailwind; `@engenty/wizards-runner/check` reads a `.wizard` and runs the check. `GET /api/v1/wizards/:id/package` (the published version), `standalone` on every wizard of `GET /api/v1/wizards`, `?published=1` on the studio's export. The share dialog's WordPress section with the gallery's "Braucht" list and the package download; Einbinden's "Ohne Konto". `pnpm templates:export` writes every marketplace template as a `.wizard` with its fit; the release attaches `templates.tgz` and `runner.tgz` |
 | `engenty-wizards-wordpress` v0.2.0 | `class-packages` (tables, the shipped set from `wizards/`, imports, the definition without prompts), `class-runs` (the public routes, state, limits, `followRules` and `readPageInput` ported), `class-think` (the one call through the AI Client, templates, the system prompt, JSON schemas, decisions, decided fields and surfaces, documents and dashboards as HTML, the wizard's text files inline since there are no tools), `class-downloads`; `src/runner` mounts the vendored package with `useLocalRun` on every standalone tag (inline, modal, bubble); the admin's Start (the choice, the local setup), the gallery with the entry dialog, Import with the check in the browser, the studio's wizard grid, Ergebnisse with local runs, Einstellungen with the provider line and the limits; `bin/sync-runner.sh`, `vendor-runner/`, `wizards/` (10 templates: 1 as is, 9 with less), the smoke test's standalone run with `bin/fake-provider.php` |
 
 What changed against the plan above:

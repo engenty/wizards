@@ -1,4 +1,4 @@
-import { isLocationValue, type LocationValue } from "@engenty-wizards/shared/definition";
+import { isLocationValue, type LocationValue } from "@engenty/wizards-shared/definition";
 import { ExternalLink, LocateFixed, MapPin, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api, runBase } from "./env.js";

@@ -1,5 +1,5 @@
-import { formatBytes } from "@engenty-wizards/shared/numbers";
-import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
+import { formatBytes } from "@engenty/wizards-shared/numbers";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQueryClient } from "@tanstack/react-query";
 import { Download, FileCode2, FileJson, FileText, Image, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";

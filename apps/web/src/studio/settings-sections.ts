@@ -1,4 +1,4 @@
-import { featureOn } from "@engenty-wizards/shared/features";
+import { featureOn } from "@engenty/wizards-shared/features";
 import { Blocks, Cable, Cpu, Info, type LucideIcon, Plug, UserRound, Users } from "lucide-react";
 import type { ComponentType } from "react";
 import { t } from "../lib/i18n";

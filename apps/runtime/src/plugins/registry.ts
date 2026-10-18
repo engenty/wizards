@@ -14,7 +14,7 @@ import type {
   PluginTick,
   PluginTool,
 } from "@engenty/wizards/plugin";
-import type { RunnerInfo } from "@engenty-wizards/shared/runners";
+import type { RunnerInfo } from "@engenty/wizards-shared/runners";
 import { env } from "../env.js";
 import { managed, tenantInfo } from "../manage.js";
 import type { PluginSource } from "./discovery.js";

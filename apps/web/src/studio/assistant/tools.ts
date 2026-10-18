@@ -1,4 +1,4 @@
-import type { BrowserTool } from "@engenty-wizards/shared/assistant";
+import type { BrowserTool } from "@engenty/wizards-shared/assistant";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { SCROLL_ROOT_ID } from "../AppFrame";
 

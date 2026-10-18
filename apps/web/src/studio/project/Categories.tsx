@@ -1,11 +1,11 @@
-import { Markdown } from "@engenty-wizards/runner";
+import { Markdown } from "@engenty/wizards-runner";
 import type {
   CategoryCell,
   CategoryType,
   ItemCategory,
   KnowledgeValue,
   SpaceCategory,
-} from "@engenty-wizards/shared/knowledge";
+} from "@engenty/wizards-shared/knowledge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Calendar,

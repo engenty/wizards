@@ -2,9 +2,9 @@ import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseWizard } from "@engenty-wizards/shared/definition";
-import type { RunView } from "@engenty-wizards/shared/run";
-import type { ShareOverview, SharePreview } from "@engenty-wizards/shared/sharing";
+import { parseWizard } from "@engenty/wizards-shared/definition";
+import type { RunView } from "@engenty/wizards-shared/run";
+import type { ShareOverview, SharePreview } from "@engenty/wizards-shared/sharing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "wizards-sharing-"));

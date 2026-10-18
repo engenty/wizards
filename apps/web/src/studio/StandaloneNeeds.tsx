@@ -1,12 +1,12 @@
-import { FORMAT_LABEL } from "@engenty-wizards/runner";
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
+import { FORMAT_LABEL } from "@engenty/wizards-runner";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import {
   capabilityOf,
   type Need,
   type StandaloneFit,
   standaloneEntry,
-} from "@engenty-wizards/shared/fit";
-import { type Capability, marketLabel } from "@engenty-wizards/shared/marketplace";
+} from "@engenty/wizards-shared/fit";
+import { type Capability, marketLabel } from "@engenty/wizards-shared/marketplace";
 import { Check, CircleAlert, CircleMinus } from "lucide-react";
 import { useMemo } from "react";
 import { type Key, lang, t } from "../lib/i18n";

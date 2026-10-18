@@ -5,7 +5,7 @@ import {
   readable,
   type WizardDefinition,
   wizardSchema,
-} from "@engenty-wizards/shared/definition";
+} from "@engenty/wizards-shared/definition";
 import {
   type Capability,
   capabilitiesOf,
@@ -23,10 +23,10 @@ import {
   type MarketplaceSummary,
   type MarketplaceSyncItem,
   pluginsOf,
-} from "@engenty-wizards/shared/marketplace";
-import { type WizardOutline, wizardOutline } from "@engenty-wizards/shared/marketplace-entry";
-import { searchEntries } from "@engenty-wizards/shared/marketplace-search";
-import { note } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/marketplace";
+import { type WizardOutline, wizardOutline } from "@engenty/wizards-shared/marketplace-entry";
+import { searchEntries } from "@engenty/wizards-shared/marketplace-search";
+import { note } from "@engenty/wizards-shared/run";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { formulaEstimate } from "../credits/estimate.js";
 import { control, controlDb, db, schema, withTenant } from "../db/client.js";

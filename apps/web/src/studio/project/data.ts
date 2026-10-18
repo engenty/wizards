@@ -1,4 +1,4 @@
-import type { ProjectFileKind, ProjectFileView } from "@engenty-wizards/shared/projects";
+import type { ProjectFileKind, ProjectFileView } from "@engenty/wizards-shared/projects";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";

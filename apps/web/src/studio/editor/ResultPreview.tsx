@@ -1,10 +1,10 @@
-import { FORMAT_LABEL, Markdown } from "@engenty-wizards/runner";
+import { FORMAT_LABEL, Markdown } from "@engenty/wizards-runner";
 import {
   listRef,
   type ResultStep,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
-import type { SharePreview, SharePreviewTarget } from "@engenty-wizards/shared/sharing";
+} from "@engenty/wizards-shared/definition";
+import type { SharePreview, SharePreviewTarget } from "@engenty/wizards-shared/sharing";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,

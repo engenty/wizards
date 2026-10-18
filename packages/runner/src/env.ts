@@ -1,4 +1,4 @@
-import type { RunView } from "@engenty-wizards/shared/run";
+import type { RunView } from "@engenty/wizards-shared/run";
 import type { ComponentType } from "react";
 import { type Api, createApi } from "./api.js";
 import { type Lang, setRunnerLang } from "./i18n.js";

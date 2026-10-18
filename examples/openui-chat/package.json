@@ -1,12 +1,12 @@
 {
-  "name": "@engenty-wizards/example-openui-chat",
+  "name": "@engenty/wizards-example-openui-chat",
   "version": "0.1.0",
   "description": "An OpenUI chat that starts engenty wizards: the chat decides, the wizard runs its own pages inside it.",
   "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "pnpm --filter @engenty-wizards/runner build",
+    "predev": "pnpm --filter @engenty/wizards-runner build",
     "dev": "vite",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

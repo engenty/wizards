@@ -1,4 +1,4 @@
-import { widgetSize } from "@engenty-wizards/shared/definition";
+import { widgetSize } from "@engenty/wizards-shared/definition";
 import { probeWidget } from "../widgets/render.js";
 import { widgetPreviewHtml } from "../widgets/step.js";
 import { notFound, ServiceError } from "./errors.js";

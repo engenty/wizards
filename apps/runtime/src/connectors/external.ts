@@ -5,8 +5,8 @@ import type {
   RegistryHit,
   RegistryService,
   SourcePreview,
-} from "@engenty-wizards/shared/connectors";
-import { note } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/connectors";
+import { note } from "@engenty/wizards-shared/run";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "../db/client.js";

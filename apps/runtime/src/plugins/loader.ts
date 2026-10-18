@@ -13,14 +13,14 @@ import {
   PLUGIN_ID,
   PLUGIN_TOOL_NAME,
   wizardSchema,
-} from "@engenty-wizards/shared/definition";
+} from "@engenty/wizards-shared/definition";
 import {
   BUILT_IN_RUNNERS,
   OUTPUT_KINDS,
   type OutputKind,
   RESERVED_PATHS,
   RUNNER_ID,
-} from "@engenty-wizards/shared/runners";
+} from "@engenty/wizards-shared/runners";
 import { generateText, Output } from "ai";
 import { eq } from "drizzle-orm";
 import { createJiti } from "jiti";

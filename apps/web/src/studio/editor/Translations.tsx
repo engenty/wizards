@@ -1,5 +1,5 @@
-import { langName } from "@engenty-wizards/shared/definition";
-import type { TranslationMemory } from "@engenty-wizards/shared/translation";
+import { langName } from "@engenty/wizards-shared/definition";
+import type { TranslationMemory } from "@engenty/wizards-shared/translation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";

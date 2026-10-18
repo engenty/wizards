@@ -1,4 +1,4 @@
-import type { Lang, StepType } from "@engenty-wizards/shared/definition";
+import type { Lang, StepType } from "@engenty/wizards-shared/definition";
 import {
   CAPABILITY_IDS,
   type Capability,
@@ -14,8 +14,8 @@ import {
   marketLabel,
   USE_CASE_IDS,
   type UseCase,
-} from "@engenty-wizards/shared/marketplace";
-import type { OutlineStep, WizardOutline } from "@engenty-wizards/shared/marketplace-entry";
+} from "@engenty/wizards-shared/marketplace";
+import type { OutlineStep, WizardOutline } from "@engenty/wizards-shared/marketplace-entry";
 import {
   keepPreviousData,
   useInfiniteQuery,

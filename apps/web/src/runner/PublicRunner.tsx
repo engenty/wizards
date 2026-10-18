@@ -1,4 +1,4 @@
-import type { BrandView, PublicWizard } from "@engenty-wizards/shared/run";
+import type { BrandView, PublicWizard } from "@engenty/wizards-shared/run";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Bookmark, Smartphone, SquarePlus, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";

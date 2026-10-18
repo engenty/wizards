@@ -4,7 +4,7 @@ import {
   mimeForPath,
   WORKSPACE_LIMITS,
   type WorkspaceFile,
-} from "@engenty-wizards/shared/workspace";
+} from "@engenty/wizards-shared/workspace";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { getBlob, putBlob } from "../files/blobs.js";

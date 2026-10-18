@@ -3,11 +3,11 @@ import {
   dataRef,
   type WidgetStep,
   widgetSize,
-} from "@engenty-wizards/shared/definition";
-import { runTheme } from "@engenty-wizards/shared/projects";
-import type { StepOutput } from "@engenty-wizards/shared/run";
-import { note } from "@engenty-wizards/shared/run";
-import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
+} from "@engenty/wizards-shared/definition";
+import { runTheme } from "@engenty/wizards-shared/projects";
+import type { StepOutput } from "@engenty/wizards-shared/run";
+import { note } from "@engenty/wizards-shared/run";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { resolveRef } from "../engine/template.js";
 import { type ProjectRow, type StepContext, StepError } from "../engine/types.js";
 import { extFor, inlineAssetRefs, loadAsset } from "../files/storage.js";

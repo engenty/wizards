@@ -1,4 +1,4 @@
-import type { Step } from "@engenty-wizards/shared/definition";
+import type { Step } from "@engenty/wizards-shared/definition";
 import {
   AppWindow,
   Bot,

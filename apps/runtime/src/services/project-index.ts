@@ -1,6 +1,6 @@
 import type { PluginIndexEntry } from "@engenty/wizards/plugin";
-import { formatTableCell } from "@engenty-wizards/shared/engenty/data-tables";
-import type { KnowledgeHit, KnowledgeSearch, Where } from "@engenty-wizards/shared/knowledge";
+import { formatTableCell } from "@engenty/wizards-shared/engenty/data-tables";
+import type { KnowledgeHit, KnowledgeSearch, Where } from "@engenty/wizards-shared/knowledge";
 import { embedMany } from "ai";
 import { and, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
 import { db, schema, withTenant } from "../db/client.js";

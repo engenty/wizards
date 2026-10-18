@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import type { Lang } from "@engenty-wizards/shared/definition";
+import type { Lang } from "@engenty/wizards-shared/definition";
 import { internalKey } from "../auth/keys.js";
 import { env } from "../env.js";
 import { CLAUDE_BIN as CLAUDE, claudeEnv } from "../harness/claude.js";

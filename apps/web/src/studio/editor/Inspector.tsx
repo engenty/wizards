@@ -1,4 +1,4 @@
-import { DataMenu, editableData, HtmlFrame, JsonSchemaDialog } from "@engenty-wizards/runner";
+import { DataMenu, editableData, HtmlFrame, JsonSchemaDialog } from "@engenty/wizards-runner";
 import {
   ASPECT_RATIOS,
   CONDITION_OPS,
@@ -24,10 +24,10 @@ import {
   type VideoResolution,
   WIZARD_LANGS,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
-import { readNumber } from "@engenty-wizards/shared/numbers";
-import type { BranchDecision, RunEstimate } from "@engenty-wizards/shared/run";
-import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
+} from "@engenty/wizards-shared/definition";
+import { readNumber } from "@engenty/wizards-shared/numbers";
+import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,

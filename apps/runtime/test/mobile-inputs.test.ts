@@ -12,7 +12,7 @@ import {
   uploadMime,
   wizardManifest,
 } from "../src/routes/delivery";
-import { locationText, type PageStep, parseWizard, type WizardDefinition } from "@engenty-wizards/shared/definition";
+import { locationText, type PageStep, parseWizard, type WizardDefinition } from "@engenty/wizards-shared/definition";
 
 const assets = new Map<string, { runId: string; mime: string }>();
 const transcribe = vi.fn(async () => ({ text: "Die Stoßstange ist eingedrückt.", costUsd: 0.002 }));

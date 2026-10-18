@@ -1,5 +1,5 @@
-import { SURFACE_GUIDE } from "@engenty-wizards/shared/surface";
-import { WIZARD_SCHEMA_URL } from "@engenty-wizards/shared/wizard-package";
+import { SURFACE_GUIDE } from "@engenty/wizards-shared/surface";
+import { WIZARD_SCHEMA_URL } from "@engenty/wizards-shared/wizard-package";
 import { sandboxGuideLine } from "../sandbox/index.js";
 import { EXAMPLE_WIZARD } from "./example.js";
 

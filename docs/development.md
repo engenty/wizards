@@ -38,7 +38,7 @@ A pnpm workspace:
 | | |
 |---|---|
 | `apps/runtime/` | the server: API, step runner, databases, models (`src/`), its tests (`test/`) |
-| `apps/web/` | the SPA: studio, public runner, share page |
+| `apps/web/` | the SPA: studio, public runner, share page (the package `@engenty/wizards-studio`) |
 | `apps/runtime/src/cli/` | the `wizards` command of a local install: start, guided setup, status, update |
 | `apps/web/public/install.sh` | the installer, served by every runtime at `/install.sh` |
 | `bin/` | the entry of the `wizards` command, and the launcher `npx wizards` runs |
@@ -58,9 +58,9 @@ A pnpm workspace:
 | Name | What it is |
 |---|---|
 | `wizards` | The launcher people run with `npx wizards`: it installs the runtime and hands over. Built by `scripts/npm-package.mjs` |
-| `@engenty/wizards-runtime` | The runtime the installer and the updates install. Built by `scripts/npm-package.mjs` beside the launcher |
+| `@engenty/wizards-runtime` | The runtime the installer and the updates install: `apps/runtime`, built by `scripts/npm-package.mjs` beside the launcher |
 | `@engenty/wizards` | What code outside this repo imports, one subpath per use: `/plugin`, `/openui`. Inside the repo the runtime and the studio import it by the same name |
-| `@engenty-wizards/*` | The workspace’s own parts (`runtime`, `web`, `docs`, `shared`, `runner`). They are never published |
+| `@engenty/wizards-*` | The workspace’s other parts, named after the product, never published: `wizards-studio` (`apps/web`), `wizards-docs`, `wizards-shared`, `wizards-runner`, and the examples `wizards-example-run-log` and `wizards-example-openui-chat`. The folders keep their names |
 
 A new thing for outside code goes into `packages/wizards/` as a subpath, not into a package of
 its own. `@engenty/wizards` is not on npm yet: it stays `private` until it is published.
@@ -204,6 +204,12 @@ pull request, and the tag is set on its squash-merged commit afterwards.
 Before `1.0` a **minor** bump is a notable or breaking change, a **patch** is fixes and small
 features. The version says which release this is; the commit says which build.
 
+When a release is cut (adopted 2026-10-18): a merge is not a release, and `main` is always
+releasable. Cut one when a feature is complete and its switch flips on, when a fix must reach the
+people on `latest`, or when the day ends with user-facing changes merged; otherwise wait, and at
+most one per half day unless `latest` is broken. Run `pnpm release --changelog` first and read the
+Unreleased block: if it does not read like a note a user would want, it is not a release yet.
+
 Commits follow [Conventional Commits](https://www.conventionalcommits.org). The type decides the
 group in the changelog, a scope (`fix(runner): …`) shows in brackets, `!` marks a breaking change:
 
@@ -237,8 +243,7 @@ groups are in `cliff.toml` ([git-cliff](https://git-cliff.org)), the steps in `s
 | File | What it is |
 |---|---|
 | `CHANGELOG.md` | the changelog to read, one block per release |
-| `changelog.json` | the same as data: git-cliff's context |
-| `apps/web/src/about/changelog.json` | what the app shows, cut down from `changelog.json` |
+| `apps/web/src/about/changelog.json` | what the app shows, cut down from git-cliff's context (the root `changelog.json`, generated and not tracked) |
 | `apps/web/src/about/oss-credits.json` | the direct dependencies of the workspace with version and license (`pnpm licenses list`), shared ones first, then per app |
 | `apps/web/src/about/product-credits.ts` | written by hand: the product and what it is mainly built with |
 
@@ -583,4 +588,4 @@ reach only servers on the internet: for them a wizard runs on engenty.ai, not on
 | Claude Code plugin template | `plugin/`, `apps/runtime/src/plugin.ts` |
 | Share targets: e-mail, cloud folders, Slack, connectors, websites; the jobs that send | `packages/shared/src/sharing.ts`, `apps/runtime/src/sharing/`, `apps/runtime/src/connectors/smtp.ts` |
 | Share sheet (link, targets step by step) and shared result page | `apps/web/src/share/` |
-| Changelog and open-source credits: generated from the commits and the dependencies, shown in the studio's footer | `cliff.toml`, `scripts/release.mjs`, `scripts/write-about-data.mjs`, `apps/web/src/about/` |
+| Changelog and open-source credits: generated from the commits and the dependencies, shown in the studio's footer | `cliff.toml`, `scripts/release.mjs`, `scripts/git-cliff.mjs`, `scripts/write-about-data.mjs`, `apps/web/src/about/` |

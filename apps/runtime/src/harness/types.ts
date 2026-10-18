@@ -1,5 +1,5 @@
-import type { Effort, TextClass } from "@engenty-wizards/shared/definition";
-import type { RunNote } from "@engenty-wizards/shared/run";
+import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
+import type { RunNote } from "@engenty/wizards-shared/run";
 import type { HarnessImageModel, HarnessModel } from "./model.js";
 
 /**

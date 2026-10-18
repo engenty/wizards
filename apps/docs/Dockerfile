@@ -19,7 +19,7 @@ RUN sed -i 's/"version": *"[^"]*"/"version": "0.0.0"/' package.json
 
 FROM base AS build
 COPY --from=manifests /app ./
-RUN pnpm install --frozen-lockfile --filter "@engenty-wizards/docs..."
+RUN pnpm install --frozen-lockfile --filter "@engenty/wizards-docs..."
 COPY tsconfig.base.json ./
 COPY apps/docs apps/docs
 COPY docs/content docs/content
@@ -28,7 +28,7 @@ COPY docs/assets docs/assets
 ARG NEXT_PUBLIC_DOCS_SITE_URL=""
 ENV NEXT_PUBLIC_DOCS_SITE_URL=$NEXT_PUBLIC_DOCS_SITE_URL \
     NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter "@engenty-wizards/docs" build
+RUN pnpm --filter "@engenty/wizards-docs" build
 
 FROM node:24-bookworm-slim
 WORKDIR /app

@@ -260,7 +260,7 @@ describe("a shared list", () => {
   });
 
   it("is never shown to the person running the wizard", async () => {
-    const { validateWizard } = await import("@engenty-wizards/shared/definition");
+    const { validateWizard } = await import("@engenty/wizards-shared/definition");
     const issues = validateWizard({
       version: 1,
       title: "Anfrage",

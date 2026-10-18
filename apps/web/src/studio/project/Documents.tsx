@@ -1,6 +1,6 @@
-import { Markdown } from "@engenty-wizards/runner";
-import { formatBytes } from "@engenty-wizards/shared/numbers";
-import type { ProjectFileView } from "@engenty-wizards/shared/projects";
+import { Markdown } from "@engenty/wizards-runner";
+import { formatBytes } from "@engenty/wizards-shared/numbers";
+import type { ProjectFileView } from "@engenty/wizards-shared/projects";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";

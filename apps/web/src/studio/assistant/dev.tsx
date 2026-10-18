@@ -1,4 +1,4 @@
-import type { AssistantPrompt, AssistantStep } from "@engenty-wizards/shared/assistant";
+import type { AssistantPrompt, AssistantStep } from "@engenty/wizards-shared/assistant";
 import { Check, Copy, Download } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { t } from "../../lib/i18n";

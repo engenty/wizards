@@ -1,4 +1,4 @@
-import { SPEECH_LOCALES } from "@engenty-wizards/shared/definition";
+import { SPEECH_LOCALES } from "@engenty/wizards-shared/definition";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { api } from "./api";
 import { lang } from "./i18n";

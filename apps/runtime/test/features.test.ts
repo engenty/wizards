@@ -7,7 +7,7 @@ import {
   formatFeatures,
   parseFeatures,
   resolveFeatures,
-} from "@engenty-wizards/shared/features";
+} from "@engenty/wizards-shared/features";
 import { afterAll, describe, expect, it } from "vitest";
 import { fileFeatures, writeFeature } from "../src/features.js";
 
@@ -70,7 +70,7 @@ describe("feature switches", () => {
 
 describe("declared switches", () => {
   it("takes a plugin's declarations under its id and their defaults", async () => {
-    const { declaredByPlugin } = await import("@engenty-wizards/shared/features");
+    const { declaredByPlugin } = await import("@engenty/wizards-shared/features");
     const declared = declaredByPlugin("contacts", {
       leadScoring: true,
       export: { kind: "plan", label: "Export", hint: "CSV of all leads." },

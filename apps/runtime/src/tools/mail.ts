@@ -1,4 +1,4 @@
-import type { AgentStep } from "@engenty-wizards/shared/definition";
+import type { AgentStep } from "@engenty/wizards-shared/definition";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { connectionContext } from "../connectors/index.js";

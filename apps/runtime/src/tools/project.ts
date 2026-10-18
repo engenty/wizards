@@ -1,4 +1,4 @@
-import { whereSchema } from "@engenty-wizards/shared/knowledge";
+import { whereSchema } from "@engenty/wizards-shared/knowledge";
 import { createTool } from "@mastra/core/tools";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";

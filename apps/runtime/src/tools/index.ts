@@ -1,7 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
-import type { AgentStep } from "@engenty-wizards/shared/definition";
-import type { AssetRef } from "@engenty-wizards/shared/run";
-import { isTextMime } from "@engenty-wizards/shared/workspace";
+import type { AgentStep } from "@engenty/wizards-shared/definition";
+import type { AssetRef } from "@engenty/wizards-shared/run";
+import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { createTool } from "@mastra/core/tools";
 import { MCPClient } from "@mastra/mcp";
 import { z } from "zod";

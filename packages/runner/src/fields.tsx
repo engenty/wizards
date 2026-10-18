@@ -6,9 +6,9 @@ import {
   type ModelClass,
   slotDayText,
   slotTime,
-} from "@engenty-wizards/shared/definition";
-import { formatMoney } from "@engenty-wizards/shared/numbers";
-import type { ClosedChoice, RunView } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/definition";
+import { formatMoney } from "@engenty/wizards-shared/numbers";
+import type { ClosedChoice, RunView } from "@engenty/wizards-shared/run";
 import {
   Camera,
   Film,

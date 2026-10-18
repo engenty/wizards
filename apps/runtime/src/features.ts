@@ -9,7 +9,7 @@ import {
   featureOn,
   parseFeatures,
   resolveFeatures,
-} from "@engenty-wizards/shared/features";
+} from "@engenty/wizards-shared/features";
 import { accountOverview } from "./auth/account.js";
 import { isCheckout, layout, packageRoot } from "./cli/home.js";
 import { env } from "./env.js";

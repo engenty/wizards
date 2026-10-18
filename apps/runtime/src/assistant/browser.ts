@@ -1,4 +1,4 @@
-import { BROWSER_TOOL_TIMEOUT_MS } from "@engenty-wizards/shared/assistant";
+import { BROWSER_TOOL_TIMEOUT_MS } from "@engenty/wizards-shared/assistant";
 
 /**
  * Tools the browser runs for the studio assistant. The turn stays open: the runtime sends

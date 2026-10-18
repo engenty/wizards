@@ -1,5 +1,5 @@
-import { ApiError, api, type RunSource, runnerEnv, setChoiceLabels } from "@engenty-wizards/runner";
-import type { RunView } from "@engenty-wizards/shared/run";
+import { ApiError, api, type RunSource, runnerEnv, setChoiceLabels } from "@engenty/wizards-runner";
+import type { RunView } from "@engenty/wizards-shared/run";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /** Two missed pings: the stream is taken for dead. */

@@ -4,7 +4,7 @@ import {
   ITEM_FORMAT_IDS,
   MARKETPLACE_PLAN_IDS,
   USE_CASE_IDS,
-} from "@engenty-wizards/shared/marketplace";
+} from "@engenty/wizards-shared/marketplace";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";

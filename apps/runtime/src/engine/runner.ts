@@ -2,7 +2,7 @@ import {
   type ChoiceAnswer,
   type DecisionQuestion,
   marginOf,
-} from "@engenty-wizards/shared/decision";
+} from "@engenty/wizards-shared/decision";
 import {
   branchValues,
   type CardOption,
@@ -26,8 +26,8 @@ import {
   type WizardDefinition,
   whenHolds,
   wizardLang,
-} from "@engenty-wizards/shared/definition";
-import type { Said, StepOutput } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/definition";
+import type { Said, StepOutput } from "@engenty/wizards-shared/run";
 import {
   type ClosedChoice,
   note,
@@ -35,12 +35,12 @@ import {
   type RunView,
   type ShownList,
   saidText,
-} from "@engenty-wizards/shared/run";
-import { CONVERSATION_RUNNERS, DEFAULT_RUNNER_SETTINGS } from "@engenty-wizards/shared/runners";
-import { fitData } from "@engenty-wizards/shared/shape";
-import type { ListDef, ListRow } from "@engenty-wizards/shared/store";
-import { machineTranslated, translateDefinition } from "@engenty-wizards/shared/translation";
-import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
+} from "@engenty/wizards-shared/run";
+import { CONVERSATION_RUNNERS, DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
+import { fitData } from "@engenty/wizards-shared/shape";
+import type { ListDef, ListRow } from "@engenty/wizards-shared/store";
+import { machineTranslated, translateDefinition } from "@engenty/wizards-shared/translation";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { connectionViews } from "../connectors/index.js";

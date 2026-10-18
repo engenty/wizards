@@ -8,9 +8,9 @@ import {
   type SpaceCategory,
   type Where,
   type WhereValue,
-} from "@engenty-wizards/shared/knowledge";
-import { readNumber } from "@engenty-wizards/shared/numbers";
-import { note } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/knowledge";
+import { readNumber } from "@engenty/wizards-shared/numbers";
+import { note } from "@engenty/wizards-shared/run";
 import { and, asc, eq, inArray, isNotNull, or, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";

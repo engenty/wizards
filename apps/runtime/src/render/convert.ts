@@ -1,4 +1,4 @@
-import type { Format } from "@engenty-wizards/shared/definition";
+import type { Format } from "@engenty/wizards-shared/definition";
 import HTMLtoDOCX from "@turbodocx/html-to-docx";
 import ExcelJS from "exceljs";
 import { marked } from "marked";

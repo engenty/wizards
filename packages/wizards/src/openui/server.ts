@@ -1,4 +1,4 @@
-import type { PublicField, PublicWizard } from "@engenty-wizards/shared/run";
+import type { PublicField, PublicWizard } from "@engenty/wizards-shared/run";
 import { defineComponent, type Library } from "@openuidev/react-lang";
 import { z } from "zod";
 

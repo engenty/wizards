@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type Lang, SPEECH_LOCALES } from "@engenty-wizards/shared/definition";
+import { type Lang, SPEECH_LOCALES } from "@engenty/wizards-shared/definition";
 import { generateText, experimental_transcribe as transcribe } from "ai";
 import { type CallMeta, costOf, listenerModel, transcriptionCostUsd } from "../models.js";
 import { ffmpeg, hasFfmpeg, probeMedia, withTempDir } from "./ffmpeg.js";

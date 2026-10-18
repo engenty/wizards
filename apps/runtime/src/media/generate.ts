@@ -1,4 +1,4 @@
-import type { VideoResolution } from "@engenty-wizards/shared/definition";
+import type { VideoResolution } from "@engenty/wizards-shared/definition";
 import { experimental_generateVideo, generateImage, generateSpeech, generateText } from "ai";
 import { extFor } from "../files/storage.js";
 import {

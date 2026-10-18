@@ -1,4 +1,4 @@
-import { speechLocaleOf } from "@engenty-wizards/shared/definition";
+import { speechLocaleOf } from "@engenty/wizards-shared/definition";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { lang as uiLang } from "./i18n";
 

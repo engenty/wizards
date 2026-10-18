@@ -1,5 +1,5 @@
 import type { PluginWebPage } from "@engenty/wizards/plugin";
-import { FONT_WEIGHTS } from "@engenty-wizards/shared/projects";
+import { FONT_WEIGHTS } from "@engenty/wizards-shared/projects";
 import { webContext } from "../render/chromium.js";
 import { htmlToMarkdown } from "../render/convert.js";
 import { safeFetch } from "../tools/net-guard.js";

@@ -1,6 +1,6 @@
-import { allFields } from "@engenty-wizards/shared/definition";
-import { TableColumnValueError } from "@engenty-wizards/shared/engenty/data-tables";
-import type { ListDef } from "@engenty-wizards/shared/store";
+import { allFields } from "@engenty/wizards-shared/definition";
+import { TableColumnValueError } from "@engenty/wizards-shared/engenty/data-tables";
+import type { ListDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";

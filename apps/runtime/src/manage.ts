@@ -1,4 +1,4 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
+import type { Lang } from "@engenty/wizards-shared/definition";
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from "jose";
 import { env } from "./env.js";
 

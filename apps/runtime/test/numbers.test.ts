@@ -1,5 +1,5 @@
-import { conditionMatches } from "@engenty-wizards/shared/definition";
-import { formatBytes, formatMoney, readNumber } from "@engenty-wizards/shared/numbers";
+import { conditionMatches } from "@engenty/wizards-shared/definition";
+import { formatBytes, formatMoney, readNumber } from "@engenty/wizards-shared/numbers";
 import { describe, expect, it } from "vitest";
 import { numberOf } from "../src/services/space-categories.js";
 

@@ -1,4 +1,4 @@
-import type { ValidationIssue } from "@engenty-wizards/shared/definition";
+import type { ValidationIssue } from "@engenty/wizards-shared/definition";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { useRef } from "react";

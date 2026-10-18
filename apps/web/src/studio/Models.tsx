@@ -1,5 +1,5 @@
-import { type ModelClass, TEXT_CLASSES, type TextClass } from "@engenty-wizards/shared/definition";
-import { featureOn } from "@engenty-wizards/shared/features";
+import { type ModelClass, TEXT_CLASSES, type TextClass } from "@engenty/wizards-shared/definition";
+import { featureOn } from "@engenty/wizards-shared/features";
 import {
   CAPABILITY_CLASSES,
   CREDITS,
@@ -18,7 +18,7 @@ import {
   providerInfo,
   providerOfRef,
   providerText,
-} from "@engenty-wizards/shared/providers";
+} from "@engenty/wizards-shared/providers";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,

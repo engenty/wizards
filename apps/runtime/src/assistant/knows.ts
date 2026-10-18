@@ -1,6 +1,6 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
-import type { MarketplaceEntry } from "@engenty-wizards/shared/marketplace";
-import type { WizardOutline } from "@engenty-wizards/shared/marketplace-entry";
+import type { Lang } from "@engenty/wizards-shared/definition";
+import type { MarketplaceEntry } from "@engenty/wizards-shared/marketplace";
+import type { WizardOutline } from "@engenty/wizards-shared/marketplace-entry";
 import { createTool } from "@mastra/core/tools";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";

@@ -1,5 +1,5 @@
-import { type ModelClass, TEXT_CLASSES } from "@engenty-wizards/shared/definition";
-import type { MissingModel, RunView } from "@engenty-wizards/shared/run";
+import { type ModelClass, TEXT_CLASSES } from "@engenty/wizards-shared/definition";
+import type { MissingModel, RunView } from "@engenty/wizards-shared/run";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,

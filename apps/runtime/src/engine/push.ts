@@ -1,4 +1,4 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
+import type { Lang } from "@engenty/wizards-shared/definition";
 import { eq } from "drizzle-orm";
 import { control, controlDb, db, schema } from "../db/client.js";
 import { managed, pushToDevice } from "../manage.js";

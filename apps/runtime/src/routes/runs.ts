@@ -7,20 +7,20 @@ import {
   TEXT_CLASSES,
   type WizardDefinition,
   wizardLang,
-} from "@engenty-wizards/shared/definition";
-import { TableColumnValueError } from "@engenty-wizards/shared/engenty/data-tables";
+} from "@engenty/wizards-shared/definition";
+import { TableColumnValueError } from "@engenty/wizards-shared/engenty/data-tables";
 import {
   noteText,
   type PublicField,
   type PublicWizard,
   type RunNote,
-} from "@engenty-wizards/shared/run";
-import type { ConnectionView } from "@engenty-wizards/shared/store";
+} from "@engenty/wizards-shared/run";
+import type { ConnectionView } from "@engenty/wizards-shared/store";
 import {
   machineTranslated,
   type TranslationMemory,
   translateDefinition,
-} from "@engenty-wizards/shared/translation";
+} from "@engenty/wizards-shared/translation";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import { and, eq } from "drizzle-orm";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
