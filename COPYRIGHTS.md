@@ -19,9 +19,10 @@ ships beside it (`dist/openui/LICENSE-MIT`).
 
 The engenty figures are free artwork under CC BY 4.0 ([LICENSE-FIGURES](LICENSE-FIGURES)): use,
 change and share them, commercially too, with credit. That covers the files that describe what
-they look like (`apps/web/src/engenty/engenty.tsx`, `colors.ts`, `forms.ts`, `goggles.tsx`,
+they look like (`apps/web/src/engenty/engenty.tsx`, `colors.ts`, `forms.ts`,
 `helmet.tsx`, `goose-helmet-fit.ts`, the helmet's mesh and livery, `logo.tsx`,
-`apps/runtime/src/services/engenty-shapes.ts`, the favicons and app icons); each text file among
+`apps/runtime/src/services/engenty-shapes.ts`, `plugin/hooks/engenty.ts`, the PNGs in
+`assets/engenty/`, the favicons and app icons); each text file among
 them says so in its first line, and LICENSE-FIGURES names the rest. The code that renders and
 animates them (fur, jelly) stays FSL-1.1-MIT.
 

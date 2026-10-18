@@ -16,9 +16,11 @@ royalties, as long as you give credit, for example:
 
 These files describe what the figures look like and are under CC BY 4.0:
 
-- apps/web/src/engenty/engenty.tsx, colors.ts, forms.ts, goggles.tsx, helmet.tsx, logo.tsx,
+- apps/web/src/engenty/engenty.tsx, colors.ts, forms.ts, helmet.tsx, logo.tsx,
   goose-helmet-fit.ts, assets/goose-helmet.bin, assets/goose-helmet-livery.webp
-- apps/runtime/src/services/engenty-shapes.ts
+- apps/runtime/src/services/engenty-shapes.ts, plugin/hooks/engenty.ts
+- assets/engenty/: every flat figure as a 512 px PNG, plain and, for round, drop, dome, flame,
+  oval, sprout and tower, with the helmet
 - apps/web/public/favicon.svg, apps/web/public/icons/, apps/docs/public/favicon.svg
 - docs/assets/engenty.svg
 

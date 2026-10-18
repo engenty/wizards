@@ -1,6 +1,5 @@
 // Shared shader contract for a closed volume, attached surface details and hair.
 
-import { COAT_GOGGLES_GLSL } from "./coat-goggles";
 import { MAX_FORM_BLOBS, MAX_FORM_EXTRAS } from "./forms";
 import { JELLY_DEFORMATION_GLSL } from "./jelly-deformation";
 export const FUR_VIEW = 152;
@@ -24,7 +23,6 @@ uniform float uDensity;
 uniform float uThick;
 uniform vec2 uLean;
 uniform vec2 uTurn;
-uniform float uGoggles;
 uniform vec3 uLight;
 uniform vec3 uBody;
 uniform vec3 uDeep;
@@ -92,6 +90,13 @@ vec4 projectCoat(vec3 p){
   vec2 screen=(p.xy-60.0)*zoom+60.0;
   return vec4((screen.x-ORIGIN)/VIEW*2.0-1.0,1.0-(screen.y-ORIGIN)/VIEW*2.0,-p.z*zoom/150.0,1.0);
 }
+// The smirk: y(t)=amp*(1.2*sin(PI*t)-1.8*t^3) over x=t*len, y down; nearest of 12 segments.
+vec2 smirkAt(float t,float len,float amp){return vec2(t*len,amp*(1.2*sin(3.14159265*t)-1.8*t*t*t));}
+float sdSmirk(vec2 q,float len,float amp){
+  float d=1e9;vec2 a=smirkAt(0.0,len,amp);
+  for(int i=1;i<=12;i++){vec2 b=smirkAt(float(i)/12.0,len,amp);vec2 ab=b-a;float h=clamp(dot(q-a,ab)/dot(ab,ab),0.0,1.0);d=min(d,length(q-a-ab*h));a=b;}
+  return d;
+}
 float sdArc(vec2 q,float r,float span){float a=clamp(atan(q.x,-q.y),-span,span);return length(q-vec2(sin(a),-cos(a))*r);}
 vec4 extrasOver(vec2 p,vec3 ink,vec3 bodyCol,float aa){
   vec4 acc=vec4(0.0);
@@ -102,12 +107,11 @@ vec4 extrasOver(vec2 p,vec3 ink,vec3 bodyCol,float aa){
     if(kind==1){distance=length(q)-g.z;hw=0.0;}
     else if(kind==3)distance=sdArc(q,g.z,g.w);
     else if(kind==4)distance=length(vec2(q.x,max(abs(q.y)-g.z,0.0)));
-    else if(kind==5){float x=clamp(q.x,0.0,g.z);distance=length(q-vec2(x,-g.w*sin(TAU*x/g.z)));}
+    else if(kind==5)distance=sdSmirk(q,g.z,g.w);
     float a=(1.0-smoothstep(hw-aa,hw+aa,distance))*m.y;
     vec3 color=mix(ink,bodyCol*0.45,0.2);
     acc=vec4(color*a,a)+acc*(1.0-a);
   }
   return acc;
 }
-${COAT_GOGGLES_GLSL}
 `;

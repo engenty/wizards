@@ -4,8 +4,6 @@ import { createAccentGeometry } from "./accent-geometry";
 import { ACCENT_FRAGMENT_SHADER, ACCENT_VERTEX_SHADER } from "./accent-shaders";
 import { createFurRenderer, type FurRenderer } from "./fur-renderer";
 import type { EngentyCoat } from "./fur-stage";
-import { createGoggleGeometry } from "./goggle-geometry";
-import { GOGGLE_FRAGMENT_SHADER, GOGGLE_VERTEX_SHADER } from "./goggle-shaders";
 import { createGooseHelmetGeometry, type GooseHelmetPart } from "./goose-helmet-geometry";
 import {
   GOOSE_HELMET_FRAGMENT_SHADER,
@@ -89,24 +87,6 @@ export function createStrandRenderer(
     return null;
   }
   passes.push(accents);
-  const goggles = createFurRenderer(canvas, GOGGLE_FRAGMENT_SHADER, {
-    vertex:
-      coat === "jelly"
-        ? GOGGLE_VERTEX_SHADER.replace(
-            "#version 300 es",
-            "#version 300 es\n#define JELLY_COAT"
-          )
-        : GOGGLE_VERTEX_SHADER,
-    geometry: createGoggleGeometry,
-    clear: false,
-  });
-  if (!goggles) {
-    for (const pass of passes) {
-      pass.dispose();
-    }
-    return null;
-  }
-  passes.push(goggles);
   const visor = createHelmetPass("visor");
   if (!visor) {
     for (const pass of passes) {

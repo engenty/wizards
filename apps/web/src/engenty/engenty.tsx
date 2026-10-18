@@ -3,7 +3,6 @@
 
 import { useEffect, useRef } from "react";
 import { ENGENTY_FILL, type EngentyKind } from "./colors";
-import { EngentyGoggles } from "./goggles";
 import { EngentyHelmet } from "./helmet";
 import { useEngentyGaze } from "./use-engenty-gaze";
 
@@ -14,9 +13,7 @@ export interface EngentyProps {
    */
   animated?: boolean;
   className?: string;
-  /** Old-school pilot goggles: the copilot's look. */
-  goggles?: boolean;
-  /** Goose's flight helmet, for round, dome and drop. It replaces the goggles. */
+  /** Goose's flight helmet, for the shapes in GOOSE_HELMET_KINDS. */
   helmet?: boolean;
   kind?: EngentyKind;
   /** Pixel width/height of the SVG. */
@@ -58,7 +55,7 @@ function RoundBody() {
           attributeName="d"
           dur="3.6s"
           repeatCount="indefinite"
-          values="M60 22 Q96 26 96 62 Q96 96 60 100 Q24 96 24 62 Q24 26 60 22 Z;M60 30 Q100 20 94 62 Q98 102 60 95 Q22 102 26 62 Q20 22 60 30 Z;M60 22 Q96 26 96 62 Q96 96 60 100 Q24 96 24 62 Q24 26 60 22 Z"
+          values="M60 22 C65.2 22 71.2 24 75.8 26 C80.2 28 84 30.7 87 34 C90 37.3 92.2 41.3 93.8 46 C95.2 50.7 96 56.8 96 62 C96 67.2 95.2 72.7 93.8 77.1 C92.2 81.5 90 85.3 87 88.5 C84 91.7 80.2 94.2 75.8 96.1 C71.2 98 65.2 100 60 100 C54.8 100 48.8 98 44.2 96.1 C39.8 94.2 36 91.7 33 88.5 C30 85.3 27.8 81.5 26.2 77.1 C24.8 72.7 24 67.2 24 62 C24 56.8 24.8 50.7 26.2 46 C27.8 41.3 30 37.3 33 34 C36 30.7 39.8 28 44.2 26 C48.8 24 54.8 22 60 22 Z;M60 30 C65.7 29.9 72.4 27.8 77.1 28.2 C81.9 28.8 85.7 30.3 88.5 33 C91.3 35.7 93.2 39.4 94.1 44.2 C95 49.1 94.1 56.2 94 62 C93.9 67.8 94.5 74.4 93.4 79.1 C92.3 83.8 90.3 87.5 87.5 90.2 C84.7 93 81 94.8 76.4 95.6 C71.8 96.4 65.5 95 60 95 C54.5 95 48.2 96.4 43.6 95.6 C39 94.8 35.3 93 32.5 90.2 C29.7 87.5 27.7 83.8 26.6 79.1 C25.5 74.4 26.1 67.7 26 62 C25.9 56.3 25 49.7 25.9 45 C26.8 40.3 28.7 36.7 31.5 34 C34.3 31.3 38.1 29.7 42.9 29 C47.6 28.3 54.3 30.1 60 30 Z;M60 22 C65.2 22 71.2 24 75.8 26 C80.2 28 84 30.7 87 34 C90 37.3 92.2 41.3 93.8 46 C95.2 50.7 96 56.8 96 62 C96 67.2 95.2 72.7 93.8 77.1 C92.2 81.5 90 85.3 87 88.5 C84 91.7 80.2 94.2 75.8 96.1 C71.2 98 65.2 100 60 100 C54.8 100 48.8 98 44.2 96.1 C39.8 94.2 36 91.7 33 88.5 C30 85.3 27.8 81.5 26.2 77.1 C24.8 72.7 24 67.2 24 62 C24 56.8 24.8 50.7 26.2 46 C27.8 41.3 30 37.3 33 34 C36 30.7 39.8 28 44.2 26 C48.8 24 54.8 22 60 22 Z"
         />
       </path>
       <circle cx="97" cy="34" fill={ENGENTY_FILL.cobalt} opacity="0.5" r="6">
@@ -91,7 +88,7 @@ function DropBody() {
       </path>
       <Eye blink="4.4s" ex={60} ey={56} ink="oklch(30% 0.10 60)" max={3.2} r={8} />
       <path
-        d="M48 76 Q54 72 60 76 Q66 80 72 76"
+        d="M49 75 C54 78 64 78.5 71 71.4"
         fill="none"
         stroke="oklch(30% 0.10 55)"
         strokeLinecap="round"
@@ -379,7 +376,6 @@ function Body({ kind }: { kind: EngentyKind }) {
 /** Flat landing engenty — SMIL idle morph + pointer-following eye/body. */
 export function Engenty({
   animated = true,
-  goggles = false,
   helmet = false,
   kind = "round",
   size = 160,
@@ -436,7 +432,7 @@ export function Engenty({
       </ellipse>
       <g className="e-lean">
         <Body kind={kind} />
-        {helmet ? <EngentyHelmet kind={kind} /> : goggles ? <EngentyGoggles kind={kind} /> : null}
+        {helmet && <EngentyHelmet kind={kind} />}
       </g>
     </svg>
   );

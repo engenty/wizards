@@ -2,7 +2,7 @@
 import type { EngentyKind } from "./colors";
 import type { EngentyCoat } from "./fur-stage";
 
-export const GOOSE_HELMET_KINDS = ["round", "dome", "drop"] as const satisfies readonly EngentyKind[];
+export const GOOSE_HELMET_KINDS = ["round", "dome", "drop", "flame", "oval", "sprout", "tower"] as const satisfies readonly EngentyKind[];
 export type GooseHelmetKind = (typeof GOOSE_HELMET_KINDS)[number];
 
 export function isGooseHelmetKind(kind: EngentyKind): kind is GooseHelmetKind {
@@ -43,5 +43,21 @@ export const GOOSE_HELMET_FIT: Record<GooseHelmetKind, Record<EngentyCoat, Goose
   drop: {
     fur: { scale: 31, x: 60, y: 54, z: 0, width: 1, height: 1.3, depth: 0.8 },
     jelly: { scale: 30, x: 60, y: 54, z: 0, width: 1, height: 1.3, depth: 0.8 },
+  },
+  flame: {
+    fur: { scale: 27, x: 60, y: 60, z: 0, width: 1, height: 1.35, depth: 0.8 },
+    jelly: { scale: 26, x: 60, y: 60, z: 0, width: 1, height: 1.35, depth: 0.8 },
+  },
+  oval: {
+    fur: { scale: 31, x: 60, y: 56, z: 0, width: 1.4, height: 0.95, depth: 1 },
+    jelly: { scale: 30, x: 60, y: 56, z: 0, width: 1.4, height: 0.95, depth: 1 },
+  },
+  sprout: {
+    fur: { scale: 31, x: 60, y: 66, z: 0, width: 1, height: 1.1, depth: 0.8 },
+    jelly: { scale: 30, x: 60, y: 66, z: 0, width: 1, height: 1.1, depth: 0.8 },
+  },
+  tower: {
+    fur: { scale: 22, x: 60, y: 50, z: 0, width: 1, height: 1.3, depth: 0.8 },
+    jelly: { scale: 21, x: 60, y: 50, z: 0, width: 1, height: 1.3, depth: 0.8 },
   },
 };

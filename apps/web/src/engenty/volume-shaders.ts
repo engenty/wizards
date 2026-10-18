@@ -45,7 +45,6 @@ void main(){
   color=mix(color,eyeColor,lens);
   vec4 extras=extrasOver(p,uDeep*0.55,uBody,aa)*front*(1.0-lens);
   color=color*(1.0-extras.a)+extras.rgb;
-  vec4 goggles=gogglesOver(p,aa,front);
-  outColor=vec4(goggles.rgb+color*(1.0-goggles.a),1.0);
+  outColor=vec4(color,1.0);
 }
 `;

@@ -78,7 +78,15 @@ export function bodyMesh(u: FurUniforms): BodyMesh {
       max[axis] = Math.max(max[axis], centre[axis] + radius[axis] * 1.5);
     }
   }
-  const step = 2.7;
+  // A quarter of the smallest blob's narrower radius, so a thin tip (the drop's, the flame's)
+  // gets enough cells to stay round; 2.7 is plenty for the big bodies.
+  let smallest = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < u.blobs.length; i += 4) {
+    if (u.blobs[i + 2] > 0) {
+      smallest = Math.min(smallest, u.blobs[i + 2], u.blobs[i + 3]);
+    }
+  }
+  const step = Math.min(2.7, Math.max(1.4, smallest / 4));
   const [nx, ny, nz] = max.map(
     (value, i) => Math.ceil((value - min[i]) / step) + 1
   );

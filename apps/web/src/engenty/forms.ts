@@ -67,7 +67,8 @@ export type EngentyExtra =
       alpha?: number;
     }
   | {
-      type: "wave";
+      /** A lopsided smile from (x, y): it sags by `amp` and its right corner turns up. */
+      type: "smirk";
       x: number;
       y: number;
       len: number;
@@ -116,7 +117,7 @@ export const ENGENTY_FORMS: Record<EngentyKind, EngentyForm> = {
       { x: 60, y: 40, r: 20, rx: 0.85, ry: 1.15 },
       { x: 60, y: 22, r: 9, rx: 0.7, ry: 1 },
     ],
-    extras: [{ type: "wave", x: 48, y: 76, len: 24, amp: 2, width: 2.6 }],
+    extras: [{ type: "smirk", x: 49, y: 75, len: 22, amp: 2, width: 2.6 }],
     falloff: 1.7,
     fur: 8.5,
     period: 4.4,
@@ -335,7 +336,7 @@ const EXTRA_KIND = {
   "body-dot": 2,
   arc: 3,
   bar: 4,
-  wave: 5,
+  smirk: 5,
 } as const;
 
 /**
@@ -369,7 +370,7 @@ export function packFormExtras(form: EngentyForm): {
         geometry.set([extra.x, extra.y, extra.half, 0], g);
         meta[g + 2] = extra.width;
         break;
-      case "wave":
+      case "smirk":
         geometry.set([extra.x, extra.y, extra.len, extra.amp], g);
         meta[g + 2] = extra.width;
         break;

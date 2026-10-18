@@ -16,7 +16,7 @@ The former shell-count option is removed: strands are continuous geometry.
 Roots are cached by form, density and inflation; time, gaze, wind, colour and
 hair length do not regenerate them. The GPU cache is bounded to 24 variants.
 
-- Wizards: `/dev/engenty-builder` (development only; German/English).
+- The Engenty Builder: `/dev/engenty-builder` in engenty-wizards-manage's web app (development only).
 - The engenty repo's manage app: `/styleguide`, section `fluffy`.
 
 Canonical renderer source: `packages/ui-core/src/components/engenty` in the engenty repo.
@@ -29,50 +29,41 @@ The geometry stability tests live beside the canonical source in the engenty rep
 `"pause"` freezes it. `animationSpeed` controls the idle clock. The body follows
 gaze within a combined ten-degree yaw/pitch limit; `turn={{ yaw, pitch }}` sets
 radians directly within that same limit. The full-orbit mode has been removed.
-Goggles use a raised gasket, brass torus, rivets and a convex translucent lens;
-the leather strap follows the body surface. The flat icon retains its SVG glasses.
-`gooseHelmet` puts a flight helmet on round, dome or drop Fur and Jelly Engenties:
+`gooseHelmet` puts a flight helmet on round, dome, drop, flame, oval, sprout or tower Fur and Jelly Engenties:
 painted shell with cheek guards, smoke visor with a nose notch, rail, ear cups and cheek
 fittings. It is an accessory: the engenty keeps its own colour, body and eye under it,
 and its fur turns Goose's: a third of the length, denser and thicker (`GOOSE_HAIR`).
 Goose is the round blue engenty wearing it. The helmet follows the head turn without
-inheriting Jelly deformation, and replaces goggles when both are passed. Its mesh
+inheriting Jelly deformation. Its mesh
 (`assets/goose-helmet.bin`, about 15,600 triangles) and livery (`assets/goose-helmet-livery.webp`)
 load on the first frame that wears it. `scripts/goose-helmet-model.py` builds the helmet in
 Blender, `scripts/export-goose-helmet.py` writes both files from it, and `goose-helmet-fit.ts`
 places the helmet on each form.
 
-The Wizards builder starts gaze following, supports Fur/Jelly/Compare, and uses
-`stageFill` for the per-character dark backgrounds. Pause and manual turn sliders
-allow inspection; Play is an explicit override of reduced-motion preferences.
-
 ## Use in applications
 
-Pro exports both coats and the goggles through the existing shared component:
+Pro exports both coats and the helmet through the existing shared component:
 
 ```tsx
 import { FluffyEngenty } from "@engenty/ui-core";
 
-<FluffyEngenty kind="round" coat="fur" goggles size={280} />
-<FluffyEngenty kind="drop" coat="jelly" goggles size={280} />
 <FluffyEngenty kind="round" coat="fur" gooseHelmet size={280} />
 <FluffyEngenty kind="dome" coat="jelly" gooseHelmet size={280} />
 <FluffyEngenty kind="drop" coat="fur" gooseHelmet size={280} />
 ```
 
 Wizard pages can use the theme-aware brand wrapper. Large fluffy instances use
-this renderer; small icons keep the flat version with matching goggles:
+this renderer; small icons keep the flat version:
 
 ```tsx
 import { Mascot } from "@/brand";
 
-<Mascot kind="round" fluffy coat="fur" goggles size={280} />
-<Mascot kind="drop" fluffy coat="jelly" goggles size={280} />
+<Mascot kind="round" fluffy coat="fur" size={280} />
+<Mascot kind="drop" fluffy coat="jelly" helmet size={280} />
 ```
 
 Gaze following (up to ten degrees) is on by default. Use `interactive={false}`
-for decorative instances. Both components work in normal application builds;
-only the Wizard builder route is restricted to development.
+for decorative instances. Both components work in normal application builds.
 
 ## Jelly tuning
 
@@ -98,6 +89,6 @@ Wizard's large theme-aware `Mascot` instances also use the shared renderer.
 
 ## Licence
 
-The figures themselves (`engenty.tsx`, `colors.ts`, `forms.ts`, `goggles.tsx`, `helmet.tsx`,
+The figures themselves (`engenty.tsx`, `colors.ts`, `forms.ts`, `helmet.tsx`,
 `logo.tsx`, `goose-helmet-fit.ts` and the helmet's mesh and livery in `assets/`) are CC BY 4.0; the renderers and motion in this folder are FSL-1.1-MIT. Using the figures as a brand
 is governed by [TRADEMARKS.md](../../../../TRADEMARKS.md).

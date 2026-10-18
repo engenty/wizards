@@ -1,7 +1,7 @@
 import { FUR_ORIGIN, FUR_VIEW } from "./fur-shader";
 import { stepJellySpring } from "./jelly-motion";
 
-// A local surface grab, shared by the body and attached eye/goggle geometry.
+// A local surface grab, shared by the body and the attached eye geometry.
 export function bindJellyDrag(element: HTMLElement, enabled: () => boolean) {
   const spring = { x: 0, y: 0, vx: 0, vy: 0 };
   const anchor: [number, number] = [60, 60];

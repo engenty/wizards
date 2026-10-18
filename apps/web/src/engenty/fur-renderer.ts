@@ -16,7 +16,6 @@ export interface FurUniforms {
   falloff: number;
   fur: number;
   gaze: [number, number];
-  goggles?: boolean;
   gooseHelmet?: boolean;
   helmetKind?: GooseHelmetKind;
   inflate: number;
@@ -62,7 +61,6 @@ const UNIFORM_NAMES = [
   "uWind",
   "uGaze",
   "uTurn",
-  "uGoggles",
   "uExtras",
   "uExtraMeta",
   "uWobble",
@@ -217,7 +215,6 @@ export function createFurRenderer(
         gl.uniform1f(loc.uWind, u.wind);
         gl.uniform2fv(loc.uGaze, u.gaze);
         gl.uniform2fv(loc.uTurn, u.turn ?? [0, 0]);
-        gl.uniform1f(loc.uGoggles, u.goggles ? 1 : 0);
         gl.uniform4fv(loc.uExtras, u.extras);
         gl.uniform4fv(loc.uExtraMeta, u.extraMeta);
         gl.uniform2fv(loc.uWobble, u.wobble);
