@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import { installCommand } from "../cli/clients.js";
+import { installCommand, POWERSHELL } from "../cli/clients.js";
 import { inherited, runtimePath } from "../cli/environment.js";
 import { layout } from "../cli/home.js";
 import { CLIENTS, vendorApp } from "../cli/machine.js";
@@ -104,6 +104,15 @@ export async function installSpec(
   const paths = layout();
   mkdirSync(paths.clients, { recursive: true });
   const shell = await loginShellEnv();
+  if (process.platform === "win32") {
+    const [bin, ...args] = POWERSHELL;
+    const command = installCommand(client, paths);
+    return {
+      bin,
+      args: [...args, `Write-Host "$ ${command.replaceAll('"', '`"')}\`n"; ${command}`],
+      env: { ...inherited(process.env), PATH: runtimePath(paths, process.env) },
+    };
+  }
   return {
     bin: "bash",
     args: [

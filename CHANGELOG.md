@@ -4,6 +4,16 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.7.10] - 2026-10-17
+- ADDED **[cli]** Install engenty wizards on Windows (#51)
+
+## [0.7.9] - 2026-10-17
+- ADDED **[plugin]** The /wizards pane beside the chat, installable from GitHub as wizards@engenty (#3)
+- ADDED **[engenty]** Goose's flight helmet, built in Blender, worn by any engenty (#47)
+- ADDED **[api]** Clients of the public run API name themselves (#56)
+- FIXED **[runtime]** A dropped control database connection no longer ends the process, and a busy tenant database is retried (#60)
+- FIXED **[engenty]** Only Goose wears the short, dense, thick fur (#58)
+
 ## [0.7.8] - 2026-10-17
 - ADDED **[film]** A film starts from a kit's base project and keeps the space's brand between runs (#55)
 - ADDED **[setup]** A decision model on the person's own machine (#54)

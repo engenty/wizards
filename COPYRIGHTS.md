@@ -59,6 +59,7 @@ Declared by two or more of the workspaces below:
 | [fflate](https://101arrowz.github.io/fflate) | 0.8.3 | MIT |
 | [lucide-react](https://lucide.dev) | 1.49.0 | ISC |
 | [marked](https://marked.js.org) | 18.0.14 | MIT |
+| [pdfmake](http://pdfmake.org) | 0.3.11 | MIT |
 | [qr-scanner](https://github.com/nimiq/qr-scanner#readme) | 1.4.2 | MIT |
 | [react](https://react.dev/) | 19.3.0 | MIT |
 | [react-dom](https://react.dev/) | 19.3.0 | MIT |
@@ -99,6 +100,7 @@ Declared by two or more of the workspaces below:
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.1 | MIT |
 | [ai](https://ai-sdk.dev/docs) | 7.0.102 | Apache-2.0 |
 | [aws4fetch](https://github.com/mhart/aws4fetch#readme) | 1.0.20 | MIT |
+| [cross-spawn](https://github.com/moxystudio/node-cross-spawn) | 7.0.6 | MIT |
 | [drizzle-orm](https://orm.drizzle.team) | 0.45.3 | Apache-2.0 |
 | [effect](https://effect.website) | 4.0.0-beta.59 | MIT |
 | [exceljs](https://github.com/exceljs/exceljs#readme) | 4.4.0 | MIT |
@@ -130,12 +132,6 @@ Declared by two or more of the workspaces below:
 | [react-router](https://github.com/remix-run/react-router#readme) | 7.18.4 | MIT |
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT |
 
-### runner (packages/runner)
-
-| Package | Version | Licence |
-|---|---|---|
-| [pdfmake](http://pdfmake.org) | 0.3.11 | MIT |
-
 ### Development only
 
 Used to build, check and test; not part of what people run:
@@ -143,9 +139,11 @@ Used to build, check and test; not part of what people run:
 | Package | Version | Licence |
 |---|---|---|
 | [@biomejs/biome](https://biomejs.dev) | 2.5.0 | MIT OR Apache-2.0 |
+| [@microsoft/api-extractor](https://api-extractor.com) | 7.59.4 | MIT |
 | [@openuidev/react-lang](https://openui.com) | 1.0.1 | MIT |
 | [@tailwindcss/postcss](https://tailwindcss.com) | 4.3.3 | MIT |
 | [@tailwindcss/vite](https://tailwindcss.com) | 4.3.3 | MIT |
+| [@types/cross-spawn](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/cross-spawn) | 6.0.6 | MIT |
 | [@types/mdx](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/mdx) | 2.0.14 | MIT |
 | [@types/node](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node) | 26.6.4 | MIT |
 | [@types/pdfmake](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/pdfmake) | 0.3.3 | MIT |

@@ -3,7 +3,13 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { homedir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { installedByScript, type Layout, packageRoot } from "./home.js";
+import {
+  commandFile,
+  installedByScript,
+  installedScript,
+  type Layout,
+  packageRoot,
+} from "./home.js";
 import { findOnPath, macAppPresent } from "./machine.js";
 import { bad, cmd, dim, ok, tilde } from "./ui.js";
 
@@ -37,8 +43,13 @@ export function serverCommand(
 ): ServerCommand {
   const moved = dirname(paths.home) !== join(homedir(), ".engenty");
   const env = moved ? { env: { ENGENTY_HOME: dirname(paths.home) } } : {};
+  if (installedByScript(paths) && process.platform === "win32") {
+    // Not wizards.cmd: an app starts a .cmd file only through cmd.exe, if at all.
+    const { node, script: installed } = installedScript(paths);
+    return { command: node, args: [installed, "mcp"], ...env };
+  }
   if (installedByScript(paths)) {
-    return { command: join(paths.bin, "wizards"), args: ["mcp"], ...env };
+    return { command: commandFile(paths), args: ["mcp"], ...env };
   }
   return { command: process.execPath, args: [script, "mcp"], ...env };
 }

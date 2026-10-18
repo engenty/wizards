@@ -66,6 +66,28 @@ describe("an installed AI client as a model", () => {
     expect(stripKeys(picked, ["ANTHROPIC_API_KEY"]).ANTHROPIC_API_KEY).toBeUndefined();
   });
 
+  it("keeps on Windows what a Windows program needs, and its PATH whole", async () => {
+    const { pickEnv } = await import("../src/harness/env");
+    const picked = pickEnv(
+      {},
+      {
+        Path: "C:\\Windows\\system32;C:\\Program Files\\nodejs",
+        SystemRoot: "C:\\Windows",
+        ComSpec: "C:\\Windows\\system32\\cmd.exe",
+        APPDATA: "C:\\Users\\x\\AppData\\Roaming",
+        AI_GATEWAY_API_KEY: "vck",
+      },
+      /^OPENAI_/,
+      ["C:\\h\\clients"],
+      "win32",
+    );
+    expect(picked.PATH).toBe("C:\\h\\clients;C:\\Windows\\system32;C:\\Program Files\\nodejs");
+    expect(picked.SystemRoot).toBe("C:\\Windows");
+    expect(picked.ComSpec).toBe("C:\\Windows\\system32\\cmd.exe");
+    expect(picked.APPDATA).toBe("C:\\Users\\x\\AppData\\Roaming");
+    expect(picked.AI_GATEWAY_API_KEY).toBeUndefined();
+  });
+
   it("puts the subscription first: a shell key is held back while the client is signed in without it", async () => {
     const { resolveEnv } = await import("../src/harness/env");
     const seen: NodeJS.ProcessEnv[] = [];

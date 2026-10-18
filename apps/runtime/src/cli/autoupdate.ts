@@ -8,7 +8,8 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
+import { withPath } from "./environment.js";
 import { type InstallNote, type Layout, readEnvFile, readInstallNote } from "./home.js";
 import {
   currentVersion,
@@ -100,7 +101,11 @@ export interface Policy {
  */
 export function autoUpdatePolicy(
   paths: Layout,
-  options: { installed: boolean; env?: NodeJS.ProcessEnv; note?: InstallNote },
+  options: {
+    installed: boolean;
+    env?: NodeJS.ProcessEnv;
+    note?: InstallNote;
+  },
 ): Policy {
   const env = options.env ?? process.env;
   if (!options.installed) {
@@ -155,15 +160,28 @@ async function latestVersion(deps: UpdateDeps, env: NodeJS.ProcessEnv): Promise<
 
 /** npm of the install's own Node, as install.sh runs it; its output goes to logs/update.log. */
 async function npmInstall(paths: Layout, prefix: string, spec: string): Promise<void> {
-  const bin = join(paths.tools, "node", "bin");
+  // On Windows Node sits in the folder itself, and npm is its npm-cli.js (npm.cmd starts only
+  // through cmd.exe).
+  const windows = process.platform === "win32";
+  const bin = windows ? join(paths.tools, "node") : join(paths.tools, "node", "bin");
   mkdirSync(paths.logs, { recursive: true });
   const log = openSync(join(paths.logs, "update.log"), "a");
-  const args =
-    "install --omit=dev --ignore-scripts --legacy-peer-deps --no-audit --no-fund --loglevel=error";
+  const args = [
+    ..."install --omit=dev --ignore-scripts --legacy-peer-deps --no-audit --no-fund --loglevel=error".split(
+      " ",
+    ),
+    "--prefix",
+    prefix,
+    spec,
+  ];
+  const [command, all] = windows
+    ? [join(bin, "node.exe"), [join(bin, "node_modules", "npm", "bin", "npm-cli.js"), ...args]]
+    : [join(bin, "npm"), args];
   const code = await new Promise<number>((done) => {
-    const child = spawn(join(bin, "npm"), [...args.split(" "), "--prefix", prefix, spec], {
+    const child = spawn(command, all, {
       stdio: ["ignore", log, log],
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}` },
+      env: withPath(process.env, [bin, process.env.PATH ?? ""].join(delimiter)),
+      windowsHide: true,
     });
     child.on("error", () => done(127));
     child.on("exit", (exit) => done(exit ?? 1));
