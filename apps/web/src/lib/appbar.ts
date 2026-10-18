@@ -47,10 +47,7 @@ function usePhone(): boolean {
   return useMediaQuery("(max-width: 767px)");
 }
 
-/**
- * The bar as this screen shows it. A phone has it along the bottom — along the top where that
- * was picked: left and right are a wide screen's edges.
- */
+/** The bar as this screen shows it. A phone has it along the bottom, whatever was picked. */
 export function useAppBar(): AppBarPrefs & { phone: boolean } {
   const stored = useSyncExternalStore(
     (listener) => {
@@ -61,10 +58,7 @@ export function useAppBar(): AppBarPrefs & { phone: boolean } {
   );
   const phone = usePhone();
   return useMemo(
-    () =>
-      phone
-        ? { position: stored.position === "top" ? "top" : "bottom", phone }
-        : { ...stored, phone },
+    () => (phone ? { position: "bottom" as const, phone } : { ...stored, phone }),
     [stored, phone],
   );
 }

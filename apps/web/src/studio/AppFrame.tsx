@@ -35,7 +35,7 @@ import {
   useMayCreate,
 } from "../lib/session";
 import { Button, cn, Dialog, Input } from "../ui";
-import { AppRail } from "./AppRail";
+import { AppRail, PhoneBar } from "./AppRail";
 import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/StudioAssistant";
 import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner } from "./InstallBanner";
@@ -625,6 +625,7 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
  * space's name; the rest stands in its app bar along the bottom.
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
+  const { phone } = useAppBar();
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:gap-3 sm:px-4 md:px-5">
       <SpaceName me={me} />
@@ -633,6 +634,8 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
         {children}
       </div>
       <CreditsPill me={me} />
+      {/* A phone's bar keeps the places: the person stands up here. */}
+      {phone ? <UserMenu me={me} /> : null}
     </header>
   );
 }
@@ -676,18 +679,23 @@ export function AppFrame({
   full?: boolean;
   children: ReactNode;
 }) {
-  const { position } = useAppBar();
+  const { position, phone } = useAppBar();
   const column = useRef<HTMLDivElement>(null);
+  // A phone's bar floats over the page: the page keeps its height free below the last line.
+  const clear = phone ? " + 4.75rem + env(safe-area-inset-bottom)" : "";
   const goose = useFeature("goose");
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
-      <AppRail me={me} />
+      {phone ? <PhoneBar me={me} /> : <AppRail me={me} />}
       <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", INSET[position])}>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
           <UpdateBanner />
           <InstallBanner />
           {full ? (
-            <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            <main
+              className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+              style={phone ? { paddingBottom: `calc(0px${clear})` } : undefined}
+            >
               {children}
             </main>
           ) : (
@@ -702,7 +710,7 @@ export function AppFrame({
                   <main
                     id={SCROLL_ROOT_ID}
                     className="relative min-h-0 flex-1 overflow-y-auto"
-                    style={{ paddingBottom: "var(--assistant-dock, 0px)" }}
+                    style={{ paddingBottom: `calc(var(--assistant-dock, 0px)${clear})` }}
                   >
                     <div
                       className={cn(

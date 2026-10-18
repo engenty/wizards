@@ -33,11 +33,11 @@ import { EngentyMenu } from "./EngentyMenu";
 
 /**
  * The app bar at an edge of the window: the engenty in the corner (its menu holds what belongs to
- * the app itself), the space (it switches between spaces), its home (the wizards), its page (Info & brand, Knowledge, Data),
- * its results, the apps the plugins added, and at its end the settings and the person. A place is
- * a filled tile, a tool a line glyph; the one that is open is cut from the page's own paper. A
- * right click on the bar picks its edge and the colour scheme. A phone has it along the bottom,
- * or the top (`useAppBar`); a long press there opens the same menu with those two edges.
+ * the app itself), the space (it switches between spaces), its home (the wizards), its page
+ * (Info & brand, Knowledge, Data), its results, the apps the plugins added, and at its end the
+ * settings and the person. A place is a filled tile, a tool a line glyph; the one that is open is
+ * cut from the page's own paper. A right click on the bar, or a long press on a touch screen,
+ * picks its edge and the colour scheme. A phone has a bar of its own (`PhoneBar`).
  */
 
 function glyph(active: boolean): string {
@@ -50,7 +50,7 @@ function glyph(active: boolean): string {
 }
 
 /** The space's tile: it opens the spaces to switch between; the ring says the menu is open. */
-function SpaceTile({ me }: { me: Me }) {
+export function SpaceTile({ me }: { me: Me }) {
   const { project } = useCurrentProject();
   return (
     <SpaceMenu
@@ -85,9 +85,9 @@ const SCHEMES: readonly { pick: Theme | null; icon: LucideIcon; label: Key }[] =
 
 /** The bar's own menu, at the pointer: its edge, and the colour scheme. */
 function BarMenu({ at, onClose }: { at: { x: number; y: number }; onClose: () => void }) {
-  const { position, phone } = useAppBar();
+  const { position } = useAppBar();
   const picked = useThemePick();
-  const edges: readonly AppBarPosition[] = phone ? ["top", "bottom"] : APP_BAR_POSITIONS;
+  const edges: readonly AppBarPosition[] = APP_BAR_POSITIONS;
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, true, onClose);
   // Drawn at the pointer, then moved back inside the window by as much as it stands out of it:
@@ -319,5 +319,75 @@ export function AppRail({ me }: { me: Me }) {
       </div>
       {menu ? <BarMenu at={menu} onClose={() => setMenu(null)} /> : null}
     </aside>
+  );
+}
+
+/**
+ * A phone's bar: always along the bottom, floating over the page as glass. It holds the space and
+ * its two places to go every day, Home and the space's page; "⋯" holds the rest (results, the
+ * plugins' apps, then what the engenty's menu holds, the settings among it). The person sits at the top.
+ */
+/** A place in a phone's bar: round, the open one lit like the bar's own glass. */
+function pill(active: boolean): string {
+  return cn(
+    "grid size-11 shrink-0 place-items-center rounded-full transition",
+    active ? "bg-paper text-ink shadow-soft ring-1 ring-border-soft" : "text-ink-3 hover:text-ink",
+  );
+}
+
+export function PhoneBar({ me }: { me: Me }) {
+  const plugins = useStudioPlugins();
+  const place = usePlace();
+  const row =
+    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[0.875rem] text-ink-2 transition hover:bg-accent hover:text-ink";
+  return (
+    <nav
+      aria-label={BRAND.name}
+      className="fixed inset-x-3 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 flex select-none items-center justify-between gap-1 rounded-[1.75rem] bg-sidebar/70 p-1.5 shadow-overlay ring-1 ring-border-soft backdrop-blur-xl backdrop-saturate-150 [-webkit-touch-callout:none]"
+    >
+      <SpaceTile me={me} />
+      <Link
+        to="/"
+        title={t("nav.home")}
+        aria-label={t("nav.home")}
+        aria-current={place === "home" ? "page" : undefined}
+        className={pill(place === "home")}
+      >
+        <Home className="size-5" />
+      </Link>
+      <Link
+        to="/space"
+        title={t("nav.project")}
+        aria-label={t("nav.project")}
+        aria-current={place === "space" ? "page" : undefined}
+        className={pill(place === "space")}
+      >
+        <Layers className="size-5" />
+      </Link>
+      <EngentyMenu
+        me={me}
+        position="bottom"
+        horizontal
+        more={(go) => (
+          <>
+            <button
+              type="button"
+              role="menuitem"
+              className={row}
+              onClick={() => go("/space/results")}
+            >
+              <Inbox className="size-4 text-ink-3" /> {t("space.results")}
+            </button>
+            {plugins.nav.map((entry) => (
+              <PluginFrame key={entry.serial} of={entry}>
+                <button type="button" role="menuitem" className={row} onClick={() => go(entry.to)}>
+                  <entry.icon className="size-4 text-ink-3" /> {entry.label()}
+                </button>
+              </PluginFrame>
+            ))}
+          </>
+        )}
+      />
+    </nav>
   );
 }

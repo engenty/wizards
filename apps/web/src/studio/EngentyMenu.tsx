@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { Ellipsis } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { APP_VERSION } from "../about/AboutLinks";
 import { EngentyLogoMark } from "../engenty/logo";
@@ -26,10 +27,16 @@ export function EngentyMenu({
   me,
   position,
   horizontal,
+  more,
 }: {
   me: Me;
   position: AppBarPosition;
   horizontal: boolean;
+  /**
+   * A phone's bar: the menu opens from "⋯" at the bar's end and holds, first, the places the bar
+   * has no room for (`go` follows one and closes the menu).
+   */
+  more?: (go: (to: string) => void) => ReactNode;
 }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -40,8 +47,11 @@ export function EngentyMenu({
   // Only a runtime that runs alone has updates of its own; in the cloud they come by themselves.
   const local = me.mode === "local";
   const { data, check } = useUpdate(local);
-  // The settings from anywhere, as an app opens its own.
+  // The settings from anywhere, as an app opens its own; a phone has no keys for it.
   useEffect(() => {
+    if (more) {
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "," && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey) {
         e.preventDefault();
@@ -50,7 +60,7 @@ export function EngentyMenu({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [navigate]);
+  }, [navigate, more]);
   const go = (to: string) => {
     setOpen(false);
     navigate(to);
@@ -76,24 +86,32 @@ export function EngentyMenu({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="menu"
-        title={t("about.title")}
-        aria-label={t("about.title")}
+        title={more ? t("nav.more") : t("about.title")}
+        aria-label={more ? t("nav.more") : t("about.title")}
         className={cn(
-          "grid shrink-0 place-items-center rounded-lg transition hover:bg-ink/10",
+          "grid shrink-0 place-items-center transition hover:bg-ink/10",
           open && "bg-ink/10",
-          horizontal ? "size-11" : "h-12 w-11",
+          more
+            ? "size-11 rounded-full text-ink-2"
+            : cn("rounded-lg", horizontal ? "size-11" : "h-12 w-11"),
         )}
       >
-        <EngentyLogoMark size={32} />
+        {more ? <Ellipsis className="size-5" /> : <EngentyLogoMark size={32} />}
       </button>
       {open ? (
         <div
           role="menu"
           className={cn(
             "absolute z-50 w-72 animate-rise rounded-xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft",
-            besideBar(position, "start"),
+            besideBar(position, more ? "end" : "start"),
           )}
         >
+          {more ? (
+            <>
+              {more(go)}
+              {rule}
+            </>
+          ) : null}
           <div className="flex items-baseline gap-2 px-3 pt-2 pb-2.5">
             <span className="font-display font-semibold text-[1rem] tracking-tight">
               engenty<span className="text-ember">.</span>
@@ -131,7 +149,8 @@ export function EngentyMenu({
           </button>
           {rule}
           <button type="button" role="menuitem" className={item} onClick={() => go("/settings")}>
-            {t("nav.settings")} …<span className={aside}>{MAC ? "⌘ ," : "Ctrl ,"}</span>
+            {t("nav.settings")} …
+            {more ? null : <span className={aside}>{MAC ? "⌘ ," : "Ctrl ,"}</span>}
           </button>
           {standalone() ? null : (
             <button
