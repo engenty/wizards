@@ -237,8 +237,7 @@ groups are in `cliff.toml` ([git-cliff](https://git-cliff.org)), the steps in `s
 | File | What it is |
 |---|---|
 | `CHANGELOG.md` | the changelog to read, one block per release |
-| `changelog.json` | the same as data: git-cliff's context |
-| `apps/web/src/about/changelog.json` | what the app shows, cut down from `changelog.json` |
+| `apps/web/src/about/changelog.json` | what the app shows, cut down from git-cliff's context (the root `changelog.json`, generated and not tracked) |
 | `apps/web/src/about/oss-credits.json` | the direct dependencies of the workspace with version and license (`pnpm licenses list`), shared ones first, then per app |
 | `apps/web/src/about/product-credits.ts` | written by hand: the product and what it is mainly built with |
 
@@ -583,4 +582,4 @@ reach only servers on the internet: for them a wizard runs on engenty.ai, not on
 | Claude Code plugin template | `plugin/`, `apps/runtime/src/plugin.ts` |
 | Share targets: e-mail, cloud folders, Slack, connectors, websites; the jobs that send | `packages/shared/src/sharing.ts`, `apps/runtime/src/sharing/`, `apps/runtime/src/connectors/smtp.ts` |
 | Share sheet (link, targets step by step) and shared result page | `apps/web/src/share/` |
-| Changelog and open-source credits: generated from the commits and the dependencies, shown in the studio's footer | `cliff.toml`, `scripts/release.mjs`, `scripts/write-about-data.mjs`, `apps/web/src/about/` |
+| Changelog and open-source credits: generated from the commits and the dependencies, shown in the studio's footer | `cliff.toml`, `scripts/release.mjs`, `scripts/git-cliff.mjs`, `scripts/write-about-data.mjs`, `apps/web/src/about/` |
