@@ -12,6 +12,7 @@ import {
   PanelLeft,
   PanelRight,
   PanelTop,
+  Plus,
   Settings,
   Sun,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import {
   type MouseEvent,
   type PointerEvent,
   Suspense,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -34,12 +36,13 @@ import {
   useAppBar,
 } from "../lib/appbar";
 import { type Key, t } from "../lib/i18n";
-import { type Me, useCurrentProject } from "../lib/session";
+import { type Me, useCurrentProject, useMayCreate } from "../lib/session";
 import { setTheme, type Theme, useThemePick } from "../lib/theme";
 import { PluginFrame, useStudioPlugins } from "../plugins/host";
 import { cn } from "../ui";
 import { SpaceFace, SpaceMenu, UserMenu, useDismiss } from "./AppFrame";
 import { EngentyMenu } from "./EngentyMenu";
+import { type PrimaryAction, useCurrentPrimaryAction } from "./primary-action";
 
 const AboutDialog = lazy(() =>
   import("../about/AboutDialog").then((m) => ({ default: m.AboutDialog })),
@@ -172,9 +175,12 @@ function BarMenu({ at, onClose }: { at: { x: number; y: number }; onClose: () =>
 }
 
 /** The place in the bar a page belongs to: Home (the wizards), the space's page, its results. */
-function usePlace(): "home" | "space" | "results" | "settings" | null {
+function usePlace(): "home" | "new" | "space" | "results" | "settings" | null {
   const { pathname } = useLocation();
-  if (pathname === "/" || pathname === "/new" || pathname.startsWith("/edit/")) {
+  if (pathname === "/new") {
+    return "new";
+  }
+  if (pathname === "/" || pathname.startsWith("/edit/")) {
     return "home";
   }
   if (pathname === "/space/results" || pathname.startsWith("/space/results/")) {
@@ -270,8 +276,8 @@ export function AppRail({ me }: { me: Me }) {
         to="/"
         title={t("nav.home")}
         aria-label={t("nav.home")}
-        aria-current={place === "home" ? "page" : undefined}
-        className={cn(glyph(place === "home"), horizontal ? "ml-1.5" : "mt-2")}
+        aria-current={place === "home" || place === "new" ? "page" : undefined}
+        className={cn(glyph(place === "home" || place === "new"), horizontal ? "ml-1.5" : "mt-2")}
       >
         <Home className="size-5" />
       </Link>
@@ -350,16 +356,64 @@ export function AppRail({ me }: { me: Me }) {
  */
 function tab(active: boolean): string {
   return cn(
-    "grid h-12 w-16 place-items-center rounded-full transition active:scale-95",
-    active ? "bg-ink/12 text-ink" : "text-ink-3",
+    "glass-press relative grid h-12 w-16 place-items-center rounded-full transition-colors",
+    active ? "text-ink" : "text-ink-3",
+  );
+}
+
+/** A tab's width and the gap after it: how far the capsule moves from one tab to the next. */
+const TAB_STEP = 64 + 4;
+
+/**
+ * The capsule under the lit tab. It slides to the next one on a spring and stretches on the way,
+ * as iOS's selection does; it jumps where less motion was asked for.
+ */
+function Capsule({ index }: { index: number | null }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const from = useRef(index);
+  useEffect(() => {
+    const prev = from.current;
+    from.current = index;
+    const el = ref.current;
+    if (
+      !el ||
+      prev === null ||
+      index === null ||
+      prev === index ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+    const a = prev * TAB_STEP;
+    const b = index * TAB_STEP;
+    el.animate(
+      [
+        { transform: `translateX(${a}px)` },
+        { transform: `translateX(${(a + b) / 2}px) scaleX(1.35) scaleY(0.92)`, offset: 0.45 },
+        { transform: `translateX(${b}px)` },
+      ],
+      { duration: 420, easing: "cubic-bezier(0.34, 1.3, 0.64, 1)" },
+    );
+  }, [index]);
+  return (
+    <span
+      ref={ref}
+      aria-hidden="true"
+      className="pointer-events-none absolute top-1 left-1 h-12 w-16 rounded-full bg-ink/12 transition-opacity"
+      style={{
+        transform: `translateX(${(index ?? 0) * TAB_STEP}px)`,
+        opacity: index === null ? 0 : 1,
+      }}
+    />
   );
 }
 
 /**
  * A phone's bar: always along the bottom, a capsule of glass floating over the page. Three tabs:
- * the space's two places to go every day, Home and its page, and "More" with the rest as tiles:
- * Results, the settings, the plugins' apps and About (in a dialog). The space and the person sit
- * in the top bar.
+ * the space's two places to go every day, Home and its page, and "More" with the rest in a menu:
+ * Results, the settings, the plugins' apps, then About (in a dialog). Beside it, on glass of its
+ * own, the page's main action (`usePrimaryAction`), else a new wizard. The space and the person
+ * sit in the top bar.
  */
 export function PhoneBar({ me }: { me: Me }) {
   const plugins = useStudioPlugins();
@@ -368,106 +422,146 @@ export function PhoneBar({ me }: { me: Me }) {
   const [about, setAbout] = useState(false);
   const navigate = useNavigate();
   const ref = useRef<HTMLElement>(null);
+  const named = useCurrentPrimaryAction();
+  const mayCreate = useMayCreate();
+  const { project } = useCurrentProject();
+  // The round button: what the page names, else a new wizard (not where one is being made).
+  const action: PrimaryAction | null =
+    named ??
+    (mayCreate && !project?.readOnly && place !== "new"
+      ? { icon: Plus, label: t("home.new"), run: () => navigate("/new") }
+      : null);
   useDismiss(ref, open, () => setOpen(false));
+  // Another page closes it, whichever way it was reached.
+  const { pathname } = useLocation();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new page closes the menu
+  useEffect(() => setOpen(false), [pathname]);
   // While "More" is open it is the one lit; the place it would leave goes dark meanwhile.
   const lit = (key: string) => (open ? false : place === key);
+  const capsule = open
+    ? 2
+    : place === "home" || place === "new"
+      ? 0
+      : place === "space"
+        ? 1
+        : place === "results" || place === "settings"
+          ? 2
+          : null;
   const go = (to: string) => {
     setOpen(false);
     navigate(to);
   };
-  const cell = (active: boolean) =>
+  const row = (active: boolean) =>
     cn(
-      "flex h-18 w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl px-1 font-medium text-[0.75rem] transition",
-      active ? "bg-paper-2 text-ink" : "bg-paper-2/50 text-ink-2 hover:bg-accent hover:text-ink",
+      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[0.9375rem] transition",
+      active ? "bg-accent text-ink" : "text-ink-2 hover:bg-accent hover:text-ink",
     );
   return (
-    <nav
-      ref={ref}
-      aria-label={BRAND.name}
-      className="liquid-glass fixed inset-x-0 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex w-fit select-none gap-1 rounded-full p-1 [-webkit-touch-callout:none]"
-    >
-      <Link
-        to="/"
-        aria-label={t("nav.home")}
-        aria-current={place === "home" ? "page" : undefined}
-        className={tab(lit("home"))}
+    <div className="fixed inset-x-0 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 flex select-none justify-center gap-2.5 [-webkit-touch-callout:none]">
+      <nav
+        ref={ref}
+        aria-label={BRAND.name}
+        className="liquid-glass relative flex gap-1 rounded-full p-1"
       >
-        <Home className="size-[1.375rem]" />
-      </Link>
-      <Link
-        to="/space"
-        aria-label={t("nav.project")}
-        aria-current={place === "space" ? "page" : undefined}
-        className={tab(lit("space"))}
-      >
-        <Layers className="size-[1.375rem]" />
-      </Link>
-      <button
-        type="button"
-        aria-label={t("nav.more")}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={() => setOpen((o) => !o)}
-        className={tab(open || place === "results" || place === "settings")}
-      >
-        <Ellipsis className="size-[1.375rem]" />
-      </button>
-      {open ? (
-        // Centred above the bar: the places it has no room for, as tiles, and About.
-        <div
-          role="menu"
-          className="-translate-x-1/2 absolute bottom-full left-1/2 mb-3 grid w-[17rem] animate-rise grid-cols-3 gap-1 rounded-2xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft"
+        <Capsule index={capsule} />
+        <Link
+          to="/"
+          aria-label={t("nav.home")}
+          aria-current={place === "home" ? "page" : undefined}
+          onClick={() => setOpen(false)}
+          className={tab(lit("home"))}
         >
-          <button
-            type="button"
-            role="menuitem"
-            className={cell(place === "results")}
-            onClick={() => go("/space/results")}
+          <Home className="size-[1.375rem]" />
+        </Link>
+        <Link
+          to="/space"
+          aria-label={t("nav.project")}
+          aria-current={place === "space" ? "page" : undefined}
+          onClick={() => setOpen(false)}
+          className={tab(lit("space"))}
+        >
+          <Layers className="size-[1.375rem]" />
+        </Link>
+        <button
+          type="button"
+          aria-label={t("nav.more")}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          onClick={() => setOpen((o) => !o)}
+          className={tab(open || place === "results" || place === "settings")}
+        >
+          <Ellipsis className="size-[1.375rem]" />
+        </button>
+        {open ? (
+          // Above the bar, from its end: the places it has no room for, one under the other (the
+          // plugins' apps join them), then About.
+          <div
+            role="menu"
+            className="absolute right-0 bottom-full mb-3 flex w-60 animate-rise flex-col rounded-2xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft"
           >
-            <Inbox className="size-[1.375rem]" />
-            <span className="max-w-full truncate">{t("space.results")}</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className={cell(place === "settings")}
-            onClick={() => go("/settings")}
-          >
-            <Settings className="size-[1.375rem]" />
-            <span className="max-w-full truncate">{t("nav.settings")}</span>
-          </button>
-          {plugins.nav.map((entry) => (
-            <PluginFrame key={entry.serial} of={entry}>
-              <button
-                type="button"
-                role="menuitem"
-                className={cell(false)}
-                onClick={() => go(entry.to)}
-              >
-                <entry.icon className="size-[1.375rem]" />
-                <span className="max-w-full truncate">{entry.label()}</span>
-              </button>
-            </PluginFrame>
-          ))}
-          <button
-            type="button"
-            role="menuitem"
-            className={cell(false)}
-            onClick={() => {
-              setOpen(false);
-              setAbout(true);
-            }}
-          >
-            <Info className="size-[1.375rem]" />
-            <span className="max-w-full truncate">{t("about.nav")}</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              role="menuitem"
+              className={row(place === "results")}
+              onClick={() => go("/space/results")}
+            >
+              <Inbox className="size-[1.125rem] shrink-0 text-ink-3" />
+              <span className="min-w-0 flex-1 truncate">{t("space.results")}</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={row(place === "settings")}
+              onClick={() => go("/settings")}
+            >
+              <Settings className="size-[1.125rem] shrink-0 text-ink-3" />
+              <span className="min-w-0 flex-1 truncate">{t("nav.settings")}</span>
+            </button>
+            {plugins.nav.map((entry) => (
+              <PluginFrame key={entry.serial} of={entry}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={row(false)}
+                  onClick={() => go(entry.to)}
+                >
+                  <entry.icon className="size-[1.125rem] shrink-0 text-ink-3" />
+                  <span className="min-w-0 flex-1 truncate">{entry.label()}</span>
+                </button>
+              </PluginFrame>
+            ))}
+            <div className="mx-2 my-1.5 h-px bg-border-soft" />
+            <button
+              type="button"
+              role="menuitem"
+              className={row(false)}
+              onClick={() => {
+                setOpen(false);
+                setAbout(true);
+              }}
+            >
+              <Info className="size-[1.125rem] shrink-0 text-ink-3" />
+              <span className="min-w-0 flex-1 truncate">{t("about.nav")}</span>
+            </button>
+          </div>
+        ) : null}
+        {about ? (
+          <Suspense fallback={null}>
+            <AboutDialog open me={me} onClose={() => setAbout(false)} />
+          </Suspense>
+        ) : null}
+      </nav>
+      {action ? (
+        <button
+          type="button"
+          aria-label={action.label}
+          title={action.label}
+          onClick={action.run}
+          className="liquid-glass glass-press relative grid size-14 shrink-0 place-items-center rounded-full text-ink"
+        >
+          <action.icon className="size-6" />
+        </button>
       ) : null}
-      {about ? (
-        <Suspense fallback={null}>
-          <AboutDialog open me={me} onClose={() => setAbout(false)} />
-        </Suspense>
-      ) : null}
-    </nav>
+    </div>
   );
 }

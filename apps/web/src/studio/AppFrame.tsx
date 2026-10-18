@@ -173,7 +173,8 @@ export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, cl
     if (!open) {
       return;
     }
-    const onDown = (e: MouseEvent) => {
+    // Pointer, not mouse: a touch screen does not always send a mouse press for a tap.
+    const onDown = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) {
         closeRef.current();
       }
@@ -183,10 +184,10 @@ export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, cl
         closeRef.current();
       }
     };
-    document.addEventListener("mousedown", onDown);
+    document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
     };
   }, [ref, open]);

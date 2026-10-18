@@ -5,8 +5,12 @@ import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { RunnerBody } from "../../runner/RunnerView";
 import { Card, Chip, Empty, Input, Select } from "../../ui";
+import { usePrimaryAction } from "../primary-action";
 import { RunDrawer } from "../RunDrawer";
 import { Section } from "./Section";
+
+/** The search above the results: a phone's round button goes to it. */
+const SEARCH_ID = "results-search";
 
 export interface SpaceResults {
   /** The space's wizards, with how many results each has; the one with the latest first. */
@@ -80,6 +84,16 @@ function FilterBar({
   onFilter: (next: ResultsFilter) => void;
 }) {
   const [text, setText] = useState(filter.q);
+  // A phone's round button goes to the search here.
+  usePrimaryAction({
+    icon: Search,
+    label: t("space.resultsSearch"),
+    run: () => {
+      const field = document.getElementById(SEARCH_ID);
+      field?.scrollIntoView({ block: "center", behavior: "smooth" });
+      field?.focus();
+    },
+  });
   useEffect(() => {
     if (text === filter.q) {
       return;
@@ -106,6 +120,7 @@ function FilterBar({
           type="search"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          id={SEARCH_ID}
           placeholder={t("space.resultsSearch")}
           aria-label={t("space.resultsSearch")}
           className="w-full pl-9"
