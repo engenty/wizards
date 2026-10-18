@@ -41,6 +41,7 @@ export const Button = forwardRef<
     <button
       ref={ref}
       type="button"
+      data-variant={variant}
       disabled={disabled || busy}
       className={cn(
         "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-full font-medium transition-[background,filter,color,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50",

@@ -90,7 +90,7 @@ export async function shareView(run: RunRow): Promise<ShareView> {
       avatar: def.avatar,
       costume: def.costume,
     },
-    brand: await brandView(w?.projectId ?? ""),
+    brand: await brandView(w?.projectId ?? "", def.style),
     shown,
     createdAt: run.createdAt.toISOString(),
     expiresAt: run.expiresAt?.toISOString() ?? null,

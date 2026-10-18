@@ -216,7 +216,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     edit_wizard: createTool({
       id: "edit_wizard",
       description:
-        "Change the wizard with ops, applied in order: set_meta, set_lists {lists} and set_connections {connections} (each replaces the whole array), upsert_step (the complete step; replaces the step with that id or inserts it before/after another), remove_step, move_step. Returns the validator's issues.",
+        "Change the wizard with ops, applied in order: set_meta (title, description, avatar, intro, style), set_lists {lists} and set_connections {connections} (each replaces the whole array), upsert_step (the complete step; replaces the step with that id or inserts it before/after another), remove_step, move_step. Returns the validator's issues.",
       inputSchema: z.object({ ops: z.array(wizardOpSchema).min(1) }),
       execute: async ({ ops }) =>
         attempt(async () => {

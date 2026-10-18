@@ -22,6 +22,8 @@ export const wizardOpSchema = z.discriminatedUnion("op", [
     costume: z.enum(ENGENTY_COSTUMES).nullable().optional(),
     /** null removes the intro. */
     intro: z.string().nullable().optional(),
+    /** The wizard's whole look; replaces the one there was, null removes it. */
+    style: z.looseObject({}).nullable().optional(),
   }),
   z.object({
     op: z.literal("upsert_step"),
@@ -71,7 +73,7 @@ export function applyOps(def: WizardDefinition, ops: WizardOp[]): unknown {
     const steps = next.steps;
     switch (op.op) {
       case "set_meta": {
-        const { op: _, intro, costume, ...meta } = op;
+        const { op: _, intro, costume, style, ...meta } = op;
         Object.assign(
           next,
           Object.fromEntries(Object.entries(meta).filter(([, v]) => v !== undefined)),
@@ -85,6 +87,11 @@ export function applyOps(def: WizardDefinition, ops: WizardOp[]): unknown {
           delete next.costume;
         } else if (costume !== undefined) {
           next.costume = costume;
+        }
+        if (style === null) {
+          delete next.style;
+        } else if (style !== undefined) {
+          Object.assign(next, { style });
         }
         return;
       }

@@ -8,6 +8,7 @@ const META = [
   "intro",
   "lists",
   "connections",
+  "style",
 ] as const;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

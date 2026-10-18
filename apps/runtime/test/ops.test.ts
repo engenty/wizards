@@ -58,6 +58,15 @@ describe("applyOps", () => {
     expect(base.title).toBe("T");
   });
 
+  it("sets the whole style and removes it with null", () => {
+    const styled = applyOps(base, [
+      { op: "set_meta", style: { accent: "#ff7a1a", effects: ["webs"] } },
+    ]) as WizardDefinition;
+    expect(styled.style).toEqual({ accent: "#ff7a1a", effects: ["webs"] });
+    const plain = applyOps(styled, [{ op: "set_meta", style: null }]) as WizardDefinition;
+    expect(plain.style).toBeUndefined();
+  });
+
   it("names the op that points at a missing step", () => {
     expect(() => applyOps(base, [{ op: "remove_step", stepId: "nope" }])).toThrow(OpError);
     expect(() => applyOps(base, [{ op: "move_step", stepId: "ask", after: "nope" }])).toThrow(
