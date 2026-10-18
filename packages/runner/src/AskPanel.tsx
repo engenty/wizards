@@ -1,4 +1,4 @@
-import type { AskAnswer, ConfirmAsk, LoginAsk, RunAsk } from "@engenty-wizards/shared/run";
+import type { AskAnswer, ConfirmAsk, LoginAsk, RunAsk } from "@engenty/wizards-shared/run";
 import { LockKeyhole, PencilLine, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { LiveBrowser } from "./browser-live.js";

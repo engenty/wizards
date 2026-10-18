@@ -1,5 +1,5 @@
-import type { RunView } from "@engenty-wizards/shared/run";
-import type { ShareJobView, ShareOverview } from "@engenty-wizards/shared/sharing";
+import type { RunView } from "@engenty/wizards-shared/run";
+import type { ShareJobView, ShareOverview } from "@engenty/wizards-shared/sharing";
 import {
   ArrowLeft,
   Check,

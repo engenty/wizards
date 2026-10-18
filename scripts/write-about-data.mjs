@@ -29,8 +29,10 @@ const OUT_COPYRIGHTS = join(root, "COPYRIGHTS.md");
 const COPYRIGHTS_BEGIN =
   "<!-- third-party: written by scripts/write-about-data.mjs, do not edit by hand -->";
 const COPYRIGHTS_END = "<!-- /third-party -->";
-/** The workspace's own packages: no credit to give. */
-const OWN_SCOPE = "@engenty-wizards/";
+/** The workspace's own packages, by name: no credit to give. */
+const OWN = ownPackages();
+/** A workspace's label: its name without the product's prefix (`@engenty/wizards-shared` → `shared`). */
+const OWN_PREFIX = "@engenty/wizards-";
 /** Workspaces that are not part of the app people run: the docs site. */
 const NOT_THE_APP = new Set(["apps/docs"]);
 
@@ -43,6 +45,24 @@ const KIND_ORDER = { root: 0, app: 1, package: 2 };
 function die(message) {
   console.error(`✖ ${message}`);
   process.exit(1);
+}
+
+/** The names of every package of the workspace (pnpm-workspace.yaml), `@engenty/wizards` among them. */
+function ownPackages() {
+  let stdout;
+  try {
+    stdout = execFileSync("pnpm", ["-r", "ls", "--depth", "-1", "--json"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+  } catch {
+    die("`pnpm -r ls` failed — run `pnpm install` first.");
+  }
+  return new Set(
+    JSON.parse(stdout)
+      .map((project) => project.name)
+      .filter(Boolean),
+  );
 }
 
 /**
@@ -109,18 +129,18 @@ function workspaceDirectDeps(all = false) {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
     const id = relative(root, dirname(pkgPath)).replaceAll("\\", "/") || "root";
     const kind = id === "root" ? "root" : id.startsWith("apps/") ? "app" : "package";
-    const label = pkg.name?.startsWith(OWN_SCOPE) ? pkg.name.slice(OWN_SCOPE.length) : id;
+    const label = pkg.name?.startsWith(OWN_PREFIX) ? pkg.name.slice(OWN_PREFIX.length) : id;
     const deps = new Set();
     for (const field of ["dependencies", "optionalDependencies"]) {
       for (const name of Object.keys(pkg[field] ?? {})) {
-        if (!name.startsWith(OWN_SCOPE)) {
+        if (!OWN.has(name)) {
           deps.add(name);
         }
       }
     }
     const dev = new Set();
     for (const name of Object.keys(pkg.devDependencies ?? {})) {
-      if (!name.startsWith(OWN_SCOPE)) {
+      if (!OWN.has(name)) {
         dev.add(name);
       }
     }

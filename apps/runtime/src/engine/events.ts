@@ -1,6 +1,6 @@
 import { AsyncResource } from "node:async_hooks";
 import { EventEmitter } from "node:events";
-import { noteText, type RunEvent, type RunNote } from "@engenty-wizards/shared/run";
+import { noteText, type RunEvent, type RunNote } from "@engenty/wizards-shared/run";
 import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 

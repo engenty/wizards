@@ -1,5 +1,5 @@
 {
-  "name": "@engenty-wizards/runner",
+  "name": "@engenty/wizards-runner",
   "version": "0.1.0",
   "description": "The runner of engenty wizards: the components that draw a wizard's run, given a run source.",
   "license": "MIT",
@@ -40,7 +40,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@engenty-wizards/shared": "workspace:*",
+    "@engenty/wizards-shared": "workspace:*",
     "dompurify": "^3.4.16",
     "fflate": "0.8.3",
     "lucide-react": "^1.49.0",

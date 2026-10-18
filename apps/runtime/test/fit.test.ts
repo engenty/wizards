@@ -1,11 +1,11 @@
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import {
   closedChoicesFor,
   needs,
   standaloneEntry,
   standaloneFit,
   unavoidableSteps,
-} from "@engenty-wizards/shared/fit";
+} from "@engenty/wizards-shared/fit";
 import { describe, expect, it } from "vitest";
 
 /** A quote request as a WordPress site runs it: pages, one thinking step, a text result. */

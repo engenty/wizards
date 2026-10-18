@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { applyOps, OpError } from "../src/authoring/ops";
 
 const base: WizardDefinition = {

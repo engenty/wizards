@@ -5,7 +5,7 @@ import {
   pOf,
   readObject,
   readSystemOne,
-} from "@engenty-wizards/shared/decision";
+} from "@engenty/wizards-shared/decision";
 import {
   branchValues,
   DEFAULT_LOOP_MAX,
@@ -13,7 +13,7 @@ import {
   type PageStep,
   parseWizard,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
+} from "@engenty/wizards-shared/definition";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const access = vi.hoisted(() => ({ value: null as null | { url: string; headers: Record<string, string>; model: string | null } }));

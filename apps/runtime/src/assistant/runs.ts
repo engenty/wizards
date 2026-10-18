@@ -1,4 +1,4 @@
-import type { AssistantSignal } from "@engenty-wizards/shared/assistant";
+import type { AssistantSignal } from "@engenty/wizards-shared/assistant";
 
 /**
  * The studio assistant's turns while they run, and what the person writes meanwhile. A message

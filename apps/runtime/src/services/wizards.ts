@@ -1,4 +1,4 @@
-import { versionChanges } from "@engenty-wizards/shared/changes";
+import { versionChanges } from "@engenty/wizards-shared/changes";
 import {
   type Lang,
   pluginToolOf,
@@ -7,9 +7,9 @@ import {
   validateWizard,
   type WizardDefinition,
   wizardSchema,
-} from "@engenty-wizards/shared/definition";
-import { note } from "@engenty-wizards/shared/run";
-import type { RunnerSettings } from "@engenty-wizards/shared/runners";
+} from "@engenty/wizards-shared/definition";
+import { note } from "@engenty/wizards-shared/run";
+import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { applyOps, OpError, type WizardOp } from "../authoring/ops.js";

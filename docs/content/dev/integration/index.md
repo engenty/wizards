@@ -29,7 +29,7 @@ other systems, from a plain link to a chat that starts the wizard by itself.
 
 | | |
 |---|---|
-| [Your own UI](./own-ui.md) | Your app draws the run with `@engenty-wizards/runner` |
+| [Your own UI](./own-ui.md) | Your app draws the run with `@engenty/wizards-runner` |
 | [Results to your systems](./results.md) | What a run produces goes on to your own systems |
 
 Each way starts from a published wizard. [Test and share](../../user/test-and-share.md) in the

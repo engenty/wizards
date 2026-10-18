@@ -6,8 +6,8 @@ import {
   type ResultStep,
   type Step,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
-import type { BranchDecision, RunEstimate, ShownDecision } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/definition";
+import type { BranchDecision, RunEstimate, ShownDecision } from "@engenty/wizards-shared/run";
 import {
   BaseEdge,
   type Edge,

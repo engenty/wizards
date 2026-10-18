@@ -1,9 +1,9 @@
-import { formatBytes } from "@engenty-wizards/shared/numbers";
+import { formatBytes } from "@engenty/wizards-shared/numbers";
 import {
   type AssetSection,
   PROJECT_LIMITS,
   type ProjectFileView,
-} from "@engenty-wizards/shared/projects";
+} from "@engenty/wizards-shared/projects";
 import {
   ExternalLink,
   Eye,

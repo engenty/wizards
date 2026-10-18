@@ -1,4 +1,4 @@
-import { allFields, isAudioValue } from "@engenty-wizards/shared/definition";
+import { allFields, isAudioValue } from "@engenty/wizards-shared/definition";
 import { extFor, loadAsset } from "../files/storage.js";
 import { listenPieces, transcribeAudio } from "../media/transcribe.js";
 import type { StepContext } from "./types.js";

@@ -2,8 +2,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { parseWizard } from "@engenty-wizards/shared/definition";
-import { cleanPath, mimeForPath, type WorkspaceFile } from "@engenty-wizards/shared/workspace";
+import { parseWizard } from "@engenty/wizards-shared/definition";
+import { cleanPath, mimeForPath, type WorkspaceFile } from "@engenty/wizards-shared/workspace";
 
 // The blob store lives under DATA_DIR; keep the tests out of the real one.
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "wizards-test-"));

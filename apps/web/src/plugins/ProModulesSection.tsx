@@ -1,4 +1,4 @@
-import { LOCALES } from "@engenty-wizards/shared/definition";
+import { LOCALES } from "@engenty/wizards-shared/definition";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { api } from "../lib/api";

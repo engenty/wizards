@@ -3,8 +3,8 @@ import type {
   PluginRunnerProblem,
   PluginRunnerRequest,
 } from "@engenty/wizards/plugin";
-import { textLang, type WizardDefinition, wizardLang } from "@engenty-wizards/shared/definition";
-import { note, type PublicWizard } from "@engenty-wizards/shared/run";
+import { textLang, type WizardDefinition, wizardLang } from "@engenty/wizards-shared/definition";
+import { note, type PublicWizard } from "@engenty/wizards-shared/run";
 import {
   BUILT_IN_RUNNERS,
   CONVERSATION_RUNNERS,
@@ -14,7 +14,7 @@ import {
   type RunnerInfo,
   type RunnerSettings,
   runnerFit,
-} from "@engenty-wizards/shared/runners";
+} from "@engenty/wizards-shared/runners";
 import { env } from "../env.js";
 import { conversationAccess, conversationAvailable } from "../models.js";
 import { pluginsOf, type RegisteredRunner } from "../plugins/registry.js";

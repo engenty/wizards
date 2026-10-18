@@ -5,8 +5,8 @@ import type {
   AssistantSignal,
   AssistantStep,
   BrowserTool,
-} from "@engenty-wizards/shared/assistant";
-import type { Lang } from "@engenty-wizards/shared/definition";
+} from "@engenty/wizards-shared/assistant";
+import type { Lang } from "@engenty/wizards-shared/definition";
 import {
   cleanAssetSections,
   cleanLogoSections,
@@ -19,7 +19,7 @@ import {
   parseGradient,
   RULE_MARKS,
   textStyleLine,
-} from "@engenty-wizards/shared/projects";
+} from "@engenty/wizards-shared/projects";
 import { Agent } from "@mastra/core/agent";
 import { createTool } from "@mastra/core/tools";
 import { nanoid } from "nanoid";

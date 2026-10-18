@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { RunNote } from "@engenty-wizards/shared/run";
+import type { RunNote } from "@engenty/wizards-shared/run";
 import { and, count, eq, gte } from "drizzle-orm";
 import { canSpend } from "./credits/credits.js";
 import { db, schema } from "./db/client.js";

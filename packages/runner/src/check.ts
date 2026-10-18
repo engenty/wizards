@@ -2,13 +2,13 @@ import {
   parseWizard,
   type ValidationIssue,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
-import { type StandaloneFit, standaloneEntry } from "@engenty-wizards/shared/fit";
+} from "@engenty/wizards-shared/definition";
+import { type StandaloneFit, standaloneEntry } from "@engenty/wizards-shared/fit";
 import {
   PACKAGE_FILES,
   PACKAGE_FORMAT,
   PACKAGE_MANIFEST,
-} from "@engenty-wizards/shared/wizard-package";
+} from "@engenty/wizards-shared/wizard-package";
 import { strFromU8, unzipSync } from "fflate";
 import { t } from "./i18n.js";
 
@@ -18,7 +18,7 @@ import { t } from "./i18n.js";
  * plugin's import runs this in the browser; the studio computes the same on its server.
  */
 
-export { PACKAGE_EXTENSION, PACKAGE_MIME } from "@engenty-wizards/shared/wizard-package";
+export { PACKAGE_EXTENSION, PACKAGE_MIME } from "@engenty/wizards-shared/wizard-package";
 
 export interface PackageFile {
   path: string;
@@ -131,5 +131,5 @@ export function checkPackage(data: Uint8Array): CheckedPackage {
   };
 }
 
-export { type Need, type StepNeed, standaloneFit } from "@engenty-wizards/shared/fit";
+export { type Need, type StepNeed, standaloneFit } from "@engenty/wizards-shared/fit";
 export { type StandaloneFit, standaloneEntry };

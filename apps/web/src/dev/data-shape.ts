@@ -1,4 +1,4 @@
-import type { ObjectShape } from "@engenty-wizards/shared/shape";
+import type { ObjectShape } from "@engenty/wizards-shared/shape";
 
 /**
  * Kühlschrank-Koch's `output.schema`: what its agent step returns from photos of a fridge, in

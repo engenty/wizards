@@ -1,5 +1,5 @@
-import { FIELD_WAYS, type Field, type PageStep } from "@engenty-wizards/shared/definition";
-import type { RunView } from "@engenty-wizards/shared/run";
+import { FIELD_WAYS, type Field, type PageStep } from "@engenty/wizards-shared/definition";
+import type { RunView } from "@engenty/wizards-shared/run";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { eventText, t } from "../lib/i18n";

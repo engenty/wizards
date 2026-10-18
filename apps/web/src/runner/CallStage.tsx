@@ -1,4 +1,4 @@
-import type { RunView } from "@engenty-wizards/shared/run";
+import type { RunView } from "@engenty/wizards-shared/run";
 import { Mic, MicOff, PhoneOff, SwitchCamera, Video, VideoOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Mascot } from "../brand";

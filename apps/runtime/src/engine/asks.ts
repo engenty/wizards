@@ -1,4 +1,4 @@
-import type { AskAnswer, AskInput, RunAsk } from "@engenty-wizards/shared/run";
+import type { AskAnswer, AskInput, RunAsk } from "@engenty/wizards-shared/run";
 import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";

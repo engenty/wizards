@@ -2,13 +2,13 @@ import type {
   DurationUnit,
   NumberStyle,
   TableColumn,
-} from "@engenty-wizards/shared/engenty/data-tables";
+} from "@engenty/wizards-shared/engenty/data-tables";
 import {
   columnIdOf,
   type SpaceTable,
   type SpaceTableRow,
-} from "@engenty-wizards/shared/space-data";
-import { cellValue } from "@engenty-wizards/shared/store";
+} from "@engenty/wizards-shared/space-data";
+import { cellValue } from "@engenty/wizards-shared/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";

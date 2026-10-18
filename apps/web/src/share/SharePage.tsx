@@ -1,5 +1,5 @@
-import { DownloadButtons, OutputView } from "@engenty-wizards/runner";
-import type { ShareView } from "@engenty-wizards/shared/run";
+import { DownloadButtons, OutputView } from "@engenty/wizards-runner";
+import type { ShareView } from "@engenty/wizards-shared/run";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { useEffect } from "react";

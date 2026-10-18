@@ -1,5 +1,5 @@
-import type { ModelClass, WizardDefinition } from "@engenty-wizards/shared/definition";
-import { noteText } from "@engenty-wizards/shared/run";
+import type { ModelClass, WizardDefinition } from "@engenty/wizards-shared/definition";
+import { noteText } from "@engenty/wizards-shared/run";
 import { describe, expect, it, vi } from "vitest";
 import {
   blockingMessage,

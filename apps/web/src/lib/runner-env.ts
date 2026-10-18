@@ -1,4 +1,4 @@
-import { configureRunner } from "@engenty-wizards/runner";
+import { configureRunner } from "@engenty/wizards-runner";
 import { Mascot } from "../brand";
 import { ShareResultButton } from "../share/ShareSheet";
 import { appCall, appCan, appDownload, appTell } from "./app";

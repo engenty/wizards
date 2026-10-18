@@ -1,13 +1,13 @@
-import type { DecisionQuestion } from "@engenty-wizards/shared/decision";
+import type { DecisionQuestion } from "@engenty/wizards-shared/decision";
 import {
   assembleSurface,
   dataRef,
   listRef,
   type SurfaceStep,
-} from "@engenty-wizards/shared/definition";
-import type { StepOutput } from "@engenty-wizards/shared/run";
-import { note } from "@engenty-wizards/shared/run";
-import { type SurfaceComponent, validateSurface } from "@engenty-wizards/shared/surface";
+} from "@engenty/wizards-shared/definition";
+import type { StepOutput } from "@engenty/wizards-shared/run";
+import { note } from "@engenty/wizards-shared/run";
+import { type SurfaceComponent, validateSurface } from "@engenty/wizards-shared/surface";
 import { decide } from "./decide.js";
 import { answersAsText, resolveRef } from "./template.js";
 import { type StepContext, StepError } from "./types.js";

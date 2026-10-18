@@ -38,7 +38,7 @@ A pnpm workspace:
 | | |
 |---|---|
 | `apps/runtime/` | the server: API, step runner, databases, models (`src/`), its tests (`test/`) |
-| `apps/web/` | the SPA: studio, public runner, share page |
+| `apps/web/` | the SPA: studio, public runner, share page (the package `@engenty/wizards-studio`) |
 | `apps/runtime/src/cli/` | the `wizards` command of a local install: start, guided setup, status, update |
 | `apps/web/public/install.sh` | the installer, served by every runtime at `/install.sh` |
 | `bin/` | the entry of the `wizards` command, and the launcher `npx wizards` runs |
@@ -58,9 +58,9 @@ A pnpm workspace:
 | Name | What it is |
 |---|---|
 | `wizards` | The launcher people run with `npx wizards`: it installs the runtime and hands over. Built by `scripts/npm-package.mjs` |
-| `@engenty/wizards-runtime` | The runtime the installer and the updates install. Built by `scripts/npm-package.mjs` beside the launcher |
+| `@engenty/wizards-runtime` | The runtime the installer and the updates install: `apps/runtime`, built by `scripts/npm-package.mjs` beside the launcher |
 | `@engenty/wizards` | What code outside this repo imports, one subpath per use: `/plugin`, `/openui`. Inside the repo the runtime and the studio import it by the same name |
-| `@engenty-wizards/*` | The workspace’s own parts (`runtime`, `web`, `docs`, `shared`, `runner`). They are never published |
+| `@engenty/wizards-*` | The workspace’s other parts, named after the product, never published: `wizards-studio` (`apps/web`), `wizards-docs`, `wizards-shared`, `wizards-runner`, and the examples `wizards-example-run-log` and `wizards-example-openui-chat`. The folders keep their names |
 
 A new thing for outside code goes into `packages/wizards/` as a subpath, not into a package of
 its own. `@engenty/wizards` is not on npm yet: it stays `private` until it is published.

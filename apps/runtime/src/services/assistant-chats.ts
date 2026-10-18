@@ -1,5 +1,5 @@
-import { ASSISTANT_LAYOUTS, type AssistantLayout } from "@engenty-wizards/shared/assistant";
-import { note } from "@engenty-wizards/shared/run";
+import { ASSISTANT_LAYOUTS, type AssistantLayout } from "@engenty/wizards-shared/assistant";
+import { note } from "@engenty/wizards-shared/run";
 import { generateText } from "ai";
 import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";

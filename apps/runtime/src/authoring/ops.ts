@@ -1,4 +1,4 @@
-import { ENGENTY_KINDS, type WizardDefinition } from "@engenty-wizards/shared/definition";
+import { ENGENTY_KINDS, type WizardDefinition } from "@engenty/wizards-shared/definition";
 import { z } from "zod";
 
 const position = {

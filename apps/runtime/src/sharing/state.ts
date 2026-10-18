@@ -1,4 +1,4 @@
-import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty-wizards/shared/sharing";
+import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";

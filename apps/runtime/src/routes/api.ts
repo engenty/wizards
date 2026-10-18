@@ -1,5 +1,5 @@
-import { note } from "@engenty-wizards/shared/run";
-import { PACKAGE_MIME } from "@engenty-wizards/shared/wizard-package";
+import { note } from "@engenty/wizards-shared/run";
+import { PACKAGE_MIME } from "@engenty/wizards-shared/wizard-package";
 import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";

@@ -6,8 +6,8 @@ import {
   type Step,
   shownFields,
   stepShape,
-} from "@engenty-wizards/shared/definition";
-import type { RunView, StepOutput } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/definition";
+import type { RunView, StepOutput } from "@engenty/wizards-shared/run";
 import {
   ArrowLeft,
   ArrowRight,

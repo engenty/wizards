@@ -1,5 +1,5 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
-import { type Gap, type Line, type Texts, textOf } from "@engenty-wizards/shared/texts";
+import type { Lang } from "@engenty/wizards-shared/definition";
+import { type Gap, type Line, type Texts, textOf } from "@engenty/wizards-shared/texts";
 
 /**
  * What the server says itself, in each language: answers to a request, the lines about the

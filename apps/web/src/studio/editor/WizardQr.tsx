@@ -1,4 +1,4 @@
-import { cn } from "@engenty-wizards/runner/ui";
+import { cn } from "@engenty/wizards-runner/ui";
 import { useMemo } from "react";
 import { renderSVG } from "uqr";
 

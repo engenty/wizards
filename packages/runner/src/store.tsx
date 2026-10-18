@@ -1,13 +1,13 @@
-import type { Format } from "@engenty-wizards/shared/definition";
-import { formatTableCell, type TableColumn } from "@engenty-wizards/shared/engenty/data-tables";
-import { formatBytes } from "@engenty-wizards/shared/numbers";
-import type { ShownList } from "@engenty-wizards/shared/run";
+import type { Format } from "@engenty/wizards-shared/definition";
+import { formatTableCell, type TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
+import { formatBytes } from "@engenty/wizards-shared/numbers";
+import type { ShownList } from "@engenty/wizards-shared/run";
 import {
   type ConnectionView,
   type ConnectorOption,
   cellValue,
   type StoreFile,
-} from "@engenty-wizards/shared/store";
+} from "@engenty/wizards-shared/store";
 import { Check, Database, FileText, Link2, Plus, Trash2, Unplug } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ApiError } from "./api.js";

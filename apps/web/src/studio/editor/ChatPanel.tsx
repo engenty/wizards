@@ -1,6 +1,6 @@
-import { Markdown } from "@engenty-wizards/runner";
-import type { AssistantStep } from "@engenty-wizards/shared/assistant";
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
+import { Markdown } from "@engenty/wizards-runner";
+import type { AssistantStep } from "@engenty/wizards-shared/assistant";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Paperclip, Plug, Sparkles } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";

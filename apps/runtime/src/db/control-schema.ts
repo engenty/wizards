@@ -1,6 +1,6 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
-import type { MarketplaceExport } from "@engenty-wizards/shared/marketplace";
-import type { UiTexts } from "@engenty-wizards/shared/run";
+import type { Lang } from "@engenty/wizards-shared/definition";
+import type { MarketplaceExport } from "@engenty/wizards-shared/marketplace";
+import type { UiTexts } from "@engenty/wizards-shared/run";
 import { sql } from "drizzle-orm";
 import {
   index,

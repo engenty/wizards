@@ -69,9 +69,11 @@ const SHARED = {
   "react-dom": "__WIZARDS_STUDIO__.reactDom",
   "react-router": "__WIZARDS_STUDIO__.router",
   "@tanstack/react-query": "__WIZARDS_STUDIO__.query",
-  "@engenty-wizards/web/ui": "__WIZARDS_STUDIO__.ui",
+  "@engenty/wizards-studio/ui": "__WIZARDS_STUDIO__.ui",
   "@engenty/wizards/plugin/studio": "__WIZARDS_STUDIO__.sdk",
-  // The name plugins written before `@engenty/wizards/plugin/studio` import.
+  // The names plugins written before `@engenty/wizards-studio/ui` and
+  // `@engenty/wizards/plugin/studio` import: plugins built against a released checkout still use them.
+  "@engenty-wizards/web/ui": "__WIZARDS_STUDIO__.ui",
   "@engenty-wizards/plugin-sdk/studio": "__WIZARDS_STUDIO__.sdk",
 };
 

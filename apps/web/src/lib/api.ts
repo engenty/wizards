@@ -1,4 +1,4 @@
-import { ApiError, createApi, isOffline, safeJson } from "@engenty-wizards/runner";
+import { ApiError, createApi, isOffline, safeJson } from "@engenty/wizards-runner";
 import { IN_APP } from "./app";
 import { withBase } from "./base";
 import { lang } from "./i18n";

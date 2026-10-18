@@ -2,8 +2,8 @@ import type {
   AssistantEvents,
   AssistantLayout,
   AssistantPrompt,
-} from "@engenty-wizards/shared/assistant";
-import type { ProjectFileKind } from "@engenty-wizards/shared/projects";
+} from "@engenty/wizards-shared/assistant";
+import type { ProjectFileKind } from "@engenty/wizards-shared/projects";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createContext,

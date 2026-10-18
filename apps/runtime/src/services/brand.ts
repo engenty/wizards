@@ -5,9 +5,9 @@ import {
   gradientCss,
   mainLogo,
   runTheme,
-} from "@engenty-wizards/shared/projects";
-import type { BrandView } from "@engenty-wizards/shared/run";
-import { note } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/projects";
+import type { BrandView } from "@engenty/wizards-shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import { generateText, Output } from "ai";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";

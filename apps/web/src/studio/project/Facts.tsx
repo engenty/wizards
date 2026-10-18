@@ -6,7 +6,7 @@ import {
   factKey,
   PROJECT_LIMITS,
   type ProjectFact,
-} from "@engenty-wizards/shared/projects";
+} from "@engenty/wizards-shared/projects";
 import {
   AlignLeft,
   Calendar,

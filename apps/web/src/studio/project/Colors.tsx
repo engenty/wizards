@@ -4,8 +4,8 @@ import type {
   BrandPattern,
   BrandRule,
   ColorSection,
-} from "@engenty-wizards/shared/projects";
-import { PROJECT_LIMITS } from "@engenty-wizards/shared/projects";
+} from "@engenty/wizards-shared/projects";
+import { PROJECT_LIMITS } from "@engenty/wizards-shared/projects";
 import {
   ArrowUp,
   Blend,

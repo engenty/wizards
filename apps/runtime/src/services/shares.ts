@@ -1,5 +1,5 @@
-import type { ShareView } from "@engenty-wizards/shared/run";
-import { note } from "@engenty-wizards/shared/run";
+import type { ShareView } from "@engenty/wizards-shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import { and, eq, isNotNull, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";

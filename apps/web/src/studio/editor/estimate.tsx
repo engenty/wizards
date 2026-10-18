@@ -4,8 +4,8 @@ import {
   TEXT_CLASSES,
   type TextClass,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
-import type { RunEstimate } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/definition";
+import type { RunEstimate } from "@engenty/wizards-shared/run";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";

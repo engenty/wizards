@@ -6,14 +6,14 @@ import { createGateway } from "@ai-sdk/gateway";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createReplicate } from "@ai-sdk/replicate";
-import type { Lang, VideoResolution } from "@engenty-wizards/shared/definition";
+import type { Lang, VideoResolution } from "@engenty/wizards-shared/definition";
 import {
   type Effort,
   MODEL_CLASSES,
   type ModelClass,
   TEXT_CLASSES,
   type TextClass,
-} from "@engenty-wizards/shared/definition";
+} from "@engenty/wizards-shared/definition";
 import {
   CAPABILITY_CLASSES,
   type CreditModel,
@@ -25,9 +25,9 @@ import {
   type ProviderId,
   providerInfo,
   providerOfRef,
-} from "@engenty-wizards/shared/providers";
-import type { RunNote, RunNoteCode, Said } from "@engenty-wizards/shared/run";
-import { note, saidText } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/providers";
+import type { RunNote, RunNoteCode, Said } from "@engenty/wizards-shared/run";
+import { note, saidText } from "@engenty/wizards-shared/run";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import {
   type EmbeddingModel,

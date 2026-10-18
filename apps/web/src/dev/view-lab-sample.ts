@@ -1,4 +1,4 @@
-import type { SurfaceComponent } from "@engenty-wizards/shared/surface";
+import type { SurfaceComponent } from "@engenty/wizards-shared/surface";
 
 /**
  * Kühlschrank-Koch: what one agent step returns from photos of a fridge once steps can return

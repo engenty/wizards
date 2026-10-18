@@ -4,7 +4,7 @@ import type {
   RegistryHit,
   RegistryService,
   RegistrySource,
-} from "@engenty-wizards/shared/connectors";
+} from "@engenty/wizards-shared/connectors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Plug, RefreshCw, Search, Trash2 } from "lucide-react";
 import { useState } from "react";

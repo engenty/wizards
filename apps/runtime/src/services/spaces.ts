@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
-import { tableColumnsSchema } from "@engenty-wizards/shared/engenty/data-tables";
-import { CATEGORY_TYPES } from "@engenty-wizards/shared/knowledge";
-import { PROJECT_LIMITS } from "@engenty-wizards/shared/projects";
-import { note } from "@engenty-wizards/shared/run";
-import { SPACE_DATA_LIMITS } from "@engenty-wizards/shared/space-data";
-import { WORKSPACE_LIMITS } from "@engenty-wizards/shared/workspace";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import { tableColumnsSchema } from "@engenty/wizards-shared/engenty/data-tables";
+import { CATEGORY_TYPES } from "@engenty/wizards-shared/knowledge";
+import { PROJECT_LIMITS } from "@engenty/wizards-shared/projects";
+import { note } from "@engenty/wizards-shared/run";
+import { SPACE_DATA_LIMITS } from "@engenty/wizards-shared/space-data";
+import { WORKSPACE_LIMITS } from "@engenty/wizards-shared/workspace";
 import { and, count, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";

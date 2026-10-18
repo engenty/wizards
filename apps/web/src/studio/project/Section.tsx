@@ -3,7 +3,7 @@ import {
   PROJECT_LIMITS,
   RULE_MARKS,
   type RuleMark,
-} from "@engenty-wizards/shared/projects";
+} from "@engenty/wizards-shared/projects";
 import { Check, FolderInput, Plus, Search, Trash2, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { type Key, t } from "../../lib/i18n";

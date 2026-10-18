@@ -11,13 +11,13 @@
 // id, title, pitch, avatar, use cases, formats, effort, cost tier, plan, plugins and the fit.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { parseWizard } from "@engenty-wizards/shared/definition";
-import { standaloneEntry } from "@engenty-wizards/shared/fit";
+import { parseWizard } from "@engenty/wizards-shared/definition";
+import { standaloneEntry } from "@engenty/wizards-shared/fit";
 import type {
   MarketplaceExport,
   MarketplacePage,
   MarketplaceSummary,
-} from "@engenty-wizards/shared/marketplace";
+} from "@engenty/wizards-shared/marketplace";
 import { strToU8, zipSync } from "fflate";
 
 const root = resolve(import.meta.dirname, "..");

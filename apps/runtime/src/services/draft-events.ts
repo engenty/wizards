@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 
 /** A change to a wizard's draft or workspace, for every studio tab that has it open. */
 export interface DraftChange {

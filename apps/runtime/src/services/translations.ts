@@ -7,17 +7,17 @@ import {
   type WizardDefinition,
   wizardLang,
   wizardSchema,
-} from "@engenty-wizards/shared/definition";
-import { note, RUN_NOTES, type UiTexts } from "@engenty-wizards/shared/run";
-import { RUNNER_TEXTS } from "@engenty-wizards/shared/runner-texts";
-import type { Line, Plural, TextTable } from "@engenty-wizards/shared/texts";
-import { pluralRules } from "@engenty-wizards/shared/texts";
+} from "@engenty/wizards-shared/definition";
+import { note, RUN_NOTES, type UiTexts } from "@engenty/wizards-shared/run";
+import { RUNNER_TEXTS } from "@engenty/wizards-shared/runner-texts";
+import type { Line, Plural, TextTable } from "@engenty/wizards-shared/texts";
+import { pluralRules } from "@engenty/wizards-shared/texts";
 import {
   keepsPlaceholders,
   missingTexts,
   type TranslationMemory,
   translateDefinition,
-} from "@engenty-wizards/shared/translation";
+} from "@engenty/wizards-shared/translation";
 import { generateText, jsonSchema, Output } from "ai";
 import { and, eq } from "drizzle-orm";
 import { control, controlDb, db, schema } from "../db/client.js";

@@ -1,5 +1,5 @@
 {
-  "name": "@engenty-wizards/runtime",
+  "name": "@engenty/wizards-runtime",
   "version": "0.1.0",
   "license": "FSL-1.1-MIT AND CC-BY-4.0",
   "private": true,
@@ -20,7 +20,7 @@
     "@ai-sdk/openai": "^4.0.67",
     "@ai-sdk/replicate": "3.0.42",
     "@clack/prompts": "^1.8.1",
-    "@engenty-wizards/shared": "workspace:*",
+    "@engenty/wizards-shared": "workspace:*",
     "@engenty/wizards": "workspace:*",
     "@executor-js/plugin-openapi": "1.6.10",
     "@hono/node-server": "^2.1.3",

@@ -1,4 +1,4 @@
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 
 /**
  * The wizard the authoring guide shows as an example of the schema: a post with an image. It is

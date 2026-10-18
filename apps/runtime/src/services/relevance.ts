@@ -1,4 +1,4 @@
-import type { DecisionQuestion } from "@engenty-wizards/shared/decision";
+import type { DecisionQuestion } from "@engenty/wizards-shared/decision";
 import { decide } from "../engine/decide.js";
 
 /**

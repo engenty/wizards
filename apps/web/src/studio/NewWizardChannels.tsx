@@ -2,7 +2,7 @@ import {
   DEFAULT_RUNNER_SETTINGS,
   type RunnerInfo,
   type RunnerSettings,
-} from "@engenty-wizards/shared/runners";
+} from "@engenty/wizards-shared/runners";
 import {
   AudioLines,
   Check,

@@ -5,10 +5,10 @@ import {
   JsonSchemaDialog,
   OutputView,
   SurfaceView,
-} from "@engenty-wizards/runner";
-import type { Step } from "@engenty-wizards/shared/definition";
-import type { RunTheme } from "@engenty-wizards/shared/run";
-import { validateSurface } from "@engenty-wizards/shared/surface";
+} from "@engenty/wizards-runner";
+import type { Step } from "@engenty/wizards-shared/definition";
+import type { RunTheme } from "@engenty/wizards-shared/run";
+import { validateSurface } from "@engenty/wizards-shared/surface";
 import { Braces } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Mascot } from "../brand";

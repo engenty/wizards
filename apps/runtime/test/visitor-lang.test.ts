@@ -1,9 +1,9 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { noteText } from "@engenty-wizards/shared/run";
+import { noteText } from "@engenty/wizards-shared/run";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import type { Lang } from "@engenty-wizards/shared/definition";
+import type { Lang } from "@engenty/wizards-shared/definition";
 
 const dir = mkdtempSync(join(tmpdir(), "wizards-visitor-lang-"));
 process.env.DATA_DIR = dir;

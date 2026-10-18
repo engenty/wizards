@@ -1,5 +1,5 @@
-import { langNameEn } from "@engenty-wizards/shared/definition";
-import type { RunView } from "@engenty-wizards/shared/run";
+import { langNameEn } from "@engenty/wizards-shared/definition";
+import type { RunView } from "@engenty/wizards-shared/run";
 import { NotedError } from "../model-errors.js";
 import { conversationAccess } from "../models.js";
 

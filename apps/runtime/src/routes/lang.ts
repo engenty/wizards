@@ -1,5 +1,5 @@
-import { type Lang, localLang } from "@engenty-wizards/shared/definition";
-import type { Gap } from "@engenty-wizards/shared/texts";
+import { type Lang, localLang } from "@engenty/wizards-shared/definition";
+import type { Gap } from "@engenty/wizards-shared/texts";
 import type { Context } from "hono";
 import { type ServerKey, serverText } from "../texts.js";
 

@@ -4,7 +4,7 @@ import {
   mainLogo,
   PROJECT_LIMITS,
   type ProjectFileView,
-} from "@engenty-wizards/shared/projects";
+} from "@engenty/wizards-shared/projects";
 import { FolderPlus, Link, ListChecks, Upload } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import { t } from "../../lib/i18n";

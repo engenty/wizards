@@ -1,4 +1,4 @@
-import type { VersionChange } from "@engenty-wizards/shared/changes";
+import type { VersionChange } from "@engenty/wizards-shared/changes";
 import { useQuery } from "@tanstack/react-query";
 import {
   Check,

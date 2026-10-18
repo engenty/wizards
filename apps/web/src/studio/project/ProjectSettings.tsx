@@ -9,7 +9,7 @@ import type {
   LogoSection,
   ProjectFact,
   TextStyle,
-} from "@engenty-wizards/shared/projects";
+} from "@engenty/wizards-shared/projects";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { api } from "../../lib/api";

@@ -11,10 +11,10 @@ import {
   offeredSlot,
   type PageStep,
   shownFields,
-} from "@engenty-wizards/shared/definition";
-import { readNumber } from "@engenty-wizards/shared/numbers";
-import type { Said } from "@engenty-wizards/shared/run";
-import { note, saidText } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/definition";
+import { readNumber } from "@engenty/wizards-shared/numbers";
+import type { Said } from "@engenty/wizards-shared/run";
+import { note, saidText } from "@engenty/wizards-shared/run";
 
 export interface InputError {
   field: string;

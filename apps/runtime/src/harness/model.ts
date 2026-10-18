@@ -1,9 +1,9 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Effort } from "@engenty-wizards/shared/definition";
-import type { RunNote } from "@engenty-wizards/shared/run";
-import { note } from "@engenty-wizards/shared/run";
+import type { Effort } from "@engenty/wizards-shared/definition";
+import type { RunNote } from "@engenty/wizards-shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import type { ImageModel, LanguageModel } from "ai";
 import spawn from "cross-spawn";
 import { nanoid } from "nanoid";

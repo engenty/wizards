@@ -1,5 +1,5 @@
-import type { AgentStep } from "@engenty-wizards/shared/definition";
-import type { ConnectionDef } from "@engenty-wizards/shared/store";
+import type { AgentStep } from "@engenty/wizards-shared/definition";
+import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { refreshConnector, resolveConnector } from "../connectors/external.js";
