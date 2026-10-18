@@ -40,6 +40,14 @@ load on the first frame that wears it. `scripts/goose-helmet-model.py` builds th
 Blender, `scripts/export-goose-helmet.py` writes both files from it, and `goose-helmet-fit.ts`
 places the helmet on each form.
 
+`costume` dresses any of the ten forms for Halloween, flat and in both coats: `witch`
+(felt hat with an orange band and gold buckle), `devil` (lacquered horns), `bat` (wings that
+flap behind the body) or `pumpkin` (a jack-o'-lantern floating beside it, its carving lit by a
+flickering candle). The costumes have no model files: `costume-mesh.ts` builds them as
+parametric surfaces, `costume-fit.ts` places them on each form, and `costumes.tsx` draws the
+flat ones from the same placement. A costume that reaches past the frame zooms the view out,
+on the flat figure too.
+
 ## Use in applications
 
 Pro exports both coats and the helmet through the existing shared component:
@@ -50,6 +58,7 @@ import { FluffyEngenty } from "@engenty/ui-core";
 <FluffyEngenty kind="round" coat="fur" gooseHelmet size={280} />
 <FluffyEngenty kind="dome" coat="jelly" gooseHelmet size={280} />
 <FluffyEngenty kind="drop" coat="fur" gooseHelmet size={280} />
+<FluffyEngenty kind="round" coat="fur" costume="witch" size={280} />
 ```
 
 Wizard pages can use the theme-aware brand wrapper. Large fluffy instances use
@@ -60,6 +69,7 @@ import { Mascot } from "@/brand";
 
 <Mascot kind="round" fluffy coat="fur" size={280} />
 <Mascot kind="drop" fluffy coat="jelly" helmet size={280} />
+<Mascot kind="tower" costume="bat" size={48} />
 ```
 
 Gaze following (up to ten degrees) is on by default. Use `interactive={false}`
@@ -90,5 +100,6 @@ Wizard's large theme-aware `Mascot` instances also use the shared renderer.
 ## Licence
 
 The figures themselves (`engenty.tsx`, `colors.ts`, `forms.ts`, `helmet.tsx`,
-`logo.tsx`, `goose-helmet-fit.ts` and the helmet's mesh and livery in `assets/`) are CC BY 4.0; the renderers and motion in this folder are FSL-1.1-MIT. Using the figures as a brand
+`logo.tsx`, `goose-helmet-fit.ts`, the helmet's mesh and livery in `assets/`, and the costumes in
+`costume-fit.ts`, `costume-mesh.ts` and `costumes.tsx`) are CC BY 4.0; the renderers and motion in this folder are FSL-1.1-MIT. Using the figures as a brand
 is governed by [TRADEMARKS.md](../../../../TRADEMARKS.md).

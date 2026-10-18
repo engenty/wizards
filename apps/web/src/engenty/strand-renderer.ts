@@ -2,6 +2,8 @@
 // The face belongs to the body surface, so the fur can overlap its outer rim.
 import { createAccentGeometry } from "./accent-geometry";
 import { ACCENT_FRAGMENT_SHADER, ACCENT_VERTEX_SHADER } from "./accent-shaders";
+import { createCostumeGeometry } from "./costume-geometry";
+import { COSTUME_FRAGMENT_SHADER, COSTUME_VERTEX_SHADER } from "./costume-shaders";
 import { createFurRenderer, type FurRenderer } from "./fur-renderer";
 import type { EngentyCoat } from "./fur-stage";
 import { createGooseHelmetGeometry, type GooseHelmetPart } from "./goose-helmet-geometry";
@@ -59,6 +61,23 @@ export function createStrandRenderer(
     return null;
   }
   passes.push(shell);
+  // The Halloween costume, like the shell: opaque and before the fur, so strands cross its edges.
+  const costume = createFurRenderer(canvas, COSTUME_FRAGMENT_SHADER, {
+    vertex:
+      coat === "jelly"
+        ? COSTUME_VERTEX_SHADER.replace("#version 300 es", "#version 300 es\n#define JELLY_COAT")
+        : COSTUME_VERTEX_SHADER,
+    geometry: (gl, program) => createCostumeGeometry(gl, program, coat),
+    clear: false,
+    doubleSided: true,
+  });
+  if (!costume) {
+    for (const pass of passes) {
+      pass.dispose();
+    }
+    return null;
+  }
+  passes.push(costume);
   if (coat === "fur") {
     const hair = createFurRenderer(canvas, STRAND_FRAGMENT_SHADER, {
       vertex: STRAND_VERTEX_SHADER,

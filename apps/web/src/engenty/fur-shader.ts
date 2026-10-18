@@ -36,6 +36,8 @@ uniform vec2 uWobble;
 uniform float uClarity;
 uniform float uSoftness;
 uniform vec4 uPull;
+// How far a worn costume reaches from the centre, form units; 0 without one.
+uniform float uReach;
 #ifdef JELLY_COAT
 ${JELLY_DEFORMATION_GLSL}
 #endif
@@ -83,7 +85,7 @@ float coatZoom(){
     vec4 b=uBlobs[i];if(b.z<=0.0)continue;
     extent=max(extent,max(max(abs(b.x-60.0)+b.z,abs(b.y-60.0)+b.w),b.z*uInflate/30.0));
   }
-  return min(1.0,65.0/(extent+uFur*1.2+3.0));
+  return min(1.0,min(65.0/(extent+uFur*1.2+3.0),70.0/max(uReach,1.0)));
 }
 vec4 projectCoat(vec3 p){
   float zoom=coatZoom();

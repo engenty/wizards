@@ -3,6 +3,9 @@
 
 import { useEffect, useRef } from "react";
 import { ENGENTY_FILL, type EngentyKind } from "./colors";
+import type { EngentyCostume } from "./costume-fit";
+import { costumeMesh } from "./costume-mesh";
+import { EngentyCostumeLayer } from "./costumes";
 import { EngentyHelmet } from "./helmet";
 import { useEngentyGaze } from "./use-engenty-gaze";
 
@@ -13,6 +16,8 @@ export interface EngentyProps {
    */
   animated?: boolean;
   className?: string;
+  /** A Halloween costume: witch's hat, devil horns, bat wings or a jack-o'-lantern beside it. */
+  costume?: EngentyCostume;
   /** Goose's flight helmet, for the shapes in GOOSE_HELMET_KINDS. */
   helmet?: boolean;
   kind?: EngentyKind;
@@ -376,6 +381,7 @@ function Body({ kind }: { kind: EngentyKind }) {
 /** Flat landing engenty — SMIL idle morph + pointer-following eye/body. */
 export function Engenty({
   animated = true,
+  costume,
   helmet = false,
   kind = "round",
   size = 160,
@@ -385,6 +391,8 @@ export function Engenty({
   const eye = EYE_BY_KIND[kind];
   const shadow = ENGENTY_SHADOW[kind];
   useEngentyGaze(svgRef, eye, animated);
+  // A costume that reaches past the frame shrinks the figure to keep it, as the fluffy one does.
+  const zoom = costume ? Math.min(1, 70 / costumeMesh(kind, costume, "jelly", 0).reach) : 1;
 
   // SMIL is not CSS — pause/unpause the SVG timeline when the row is idle.
   useEffect(() => {
@@ -414,6 +422,7 @@ export function Engenty({
       viewBox="0 0 120 120"
       width={size}
     >
+      <g transform={zoom < 1 ? `translate(60 60) scale(${zoom.toFixed(3)}) translate(-60 -60)` : undefined}>
       <ellipse
         className="e-shadow"
         cx="60"
@@ -431,8 +440,11 @@ export function Engenty({
         />
       </ellipse>
       <g className="e-lean">
+        {costume && <EngentyCostumeLayer costume={costume} kind={kind} layer="back" />}
         <Body kind={kind} />
         {helmet && <EngentyHelmet kind={kind} />}
+        {costume && <EngentyCostumeLayer costume={costume} kind={kind} layer="front" />}
+      </g>
       </g>
     </svg>
   );
