@@ -204,6 +204,12 @@ pull request, and the tag is set on its squash-merged commit afterwards.
 Before `1.0` a **minor** bump is a notable or breaking change, a **patch** is fixes and small
 features. The version says which release this is; the commit says which build.
 
+When a release is cut (adopted 2026-10-18): a merge is not a release, and `main` is always
+releasable. Cut one when a feature is complete and its switch flips on, when a fix must reach the
+people on `latest`, or when the day ends with user-facing changes merged; otherwise wait, and at
+most one per half day unless `latest` is broken. Run `pnpm release --changelog` first and read the
+Unreleased block: if it does not read like a note a user would want, it is not a release yet.
+
 Commits follow [Conventional Commits](https://www.conventionalcommits.org). The type decides the
 group in the changelog, a scope (`fix(runner): …`) shows in brackets, `!` marks a breaking change:
 
