@@ -6,6 +6,34 @@ import type { EnvSpec, HarnessAuth } from "./types.js";
 
 export const run = runFile;
 
+/** A version probe that could not finish: the machine is busy, the client may well be there. */
+export class ProbeUndecided extends Error {}
+
+/** Spawn failures that say the machine is short of something, not that the client is missing. */
+const BUSY_CODES = new Set(["EAGAIN", "EMFILE", "ENFILE", "ENOMEM"]);
+
+/**
+ * `<bin> --version`, read by `pick`. Null: the client is not there or does not answer. A probe
+ * that ran out of time or could not start for want of resources throws ProbeUndecided: a client
+ * that starts slowly while another one is busy is still installed.
+ */
+export async function probeVersion(
+  bin: string,
+  env: NodeJS.ProcessEnv,
+  pick: (stdout: string) => string | null,
+): Promise<string | null> {
+  try {
+    const { stdout } = await run(bin, ["--version"], { timeout: 15_000, env });
+    return pick(stdout);
+  } catch (err) {
+    const { killed, code } = err as { killed?: boolean; code?: unknown };
+    if (killed || (typeof code === "string" && BUSY_CODES.has(code))) {
+      throw new ProbeUndecided(`${bin} --version did not finish`, { cause: err });
+    }
+    return null;
+  }
+}
+
 let shellEnv: Promise<Record<string, string>> | null = null;
 
 /** The person's login shell, asked once: a desktop app and a bare dev server start without its variables. */

@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Effort, TextClass } from "@engenty-wizards/shared/definition";
 import { note } from "@engenty-wizards/shared/run";
-import { resolveEnv, run } from "./env.js";
+import { probeVersion, resolveEnv, run } from "./env.js";
 import {
   failureOf,
   type HarnessAnswer,
@@ -256,15 +256,11 @@ export const codex: Harness = {
   name: "Codex",
   bin: CODEX_BIN,
   classes: CLASSES,
-  async version(env) {
-    try {
-      const { stdout } = await run(CODEX_BIN, ["--version"], { timeout: 5000, env });
+  version: (env) =>
+    probeVersion(CODEX_BIN, env, (stdout) => {
       const words = stdout.trim().split(/\s+/);
       return words[words.length - 1] || null;
-    } catch {
-      return null;
-    }
-  },
+    }),
   login: { args: ["login"], interactive: false },
   model: (alias: string, effort?: Effort) => new CodexModel(codex, alias || "default", effort),
   image: { alias: "image", model: (alias: string) => new CodexImageModel(codex, alias || "image") },
