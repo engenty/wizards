@@ -7,8 +7,6 @@ import { isGooseHelmetKind } from "../engenty/goose-helmet-fit";
 import { stageFill } from "../lib/theme";
 import { BuilderControls } from "./BuilderControls";
 import { builderCopy as copy } from "./engenty-builder-copy";
-import { GooseConcepts } from "./GooseConcepts";
-import { GooseLivePreview } from "./GooseLivePreview";
 
 export type BuilderMaterial = EngentyCoat | "both";
 export type BuilderBackground = "light" | "neutral" | "auto" | EngentyKind;
@@ -207,15 +205,6 @@ export function EngentyBuilder() {
             setOverrides={setOverrides}
           />
         </div>
-        <GooseLivePreview
-          animationSpeed={speed}
-          background={builderBackground(background, "round")}
-          foreground={background === "light" ? "#27272a" : "#f7f5f2"}
-          interactive={follow}
-          motion={motion}
-          turn={props.turn}
-        />
-        <GooseConcepts />
         <h2 className="mt-8 text-lg font-medium">{copy.gallery}</h2>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {ENGENTY_KINDS.map((option) => (
