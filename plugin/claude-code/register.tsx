@@ -1,8 +1,7 @@
 import type { EngineInterface, Register, RenderSurface } from "claude-code";
 import { atom, read, update } from "claude-code";
-
-import type { RunView, WizardDetails, WizardRow } from "../types";
 import { engentyColor, engentySvg } from "./engenty";
+import type { RunView, WizardDetails, WizardRow } from "./types";
 
 const PANE = "wizards";
 

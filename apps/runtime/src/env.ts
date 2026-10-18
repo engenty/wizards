@@ -257,6 +257,12 @@ export const env = {
     androidCertSha256: list("MOBILE_ANDROID_CERT_SHA256"),
   },
 
+  /**
+   * The token OpenAI's plugin portal hands out to prove this host serves the MCP server; served
+   * as /.well-known/openai-apps-challenge. Empty = no file.
+   */
+  openaiAppsChallenge: str("OPENAI_APPS_CHALLENGE"),
+
   /** Plugins (docs/content/dev/plugins). Code in these folders runs with the runtime's own rights. */
   plugins: {
     /** Folders to look in, besides the `modules/` this runtime ships with. */

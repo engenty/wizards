@@ -89,6 +89,18 @@ export function registerFlowApp(server: McpServer) {
               },
               prefersBorder: true,
             },
+            // ChatGPT gives each listed app's widget an origin of its own, named by this key,
+            // and opens links from the widget (the run page) only to the redirect domains.
+            "openai/widgetDomain": origin,
+            "openai/widgetCSP": {
+              connect_domains: [origin],
+              resource_domains: [
+                origin,
+                "https://fonts.googleapis.com",
+                "https://fonts.gstatic.com",
+              ],
+              redirect_domains: [origin],
+            },
           },
         },
       ],

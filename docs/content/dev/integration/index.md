@@ -23,6 +23,7 @@ other systems, from a plain link to a chat that starts the wizard by itself.
 | [MCP](./mcp.md) | AI apps list, run and build wizards over the Model Context Protocol |
 | [MCP Apps](./mcp-apps.md) | AI apps that support MCP Apps show the wizard itself, page by page |
 | [Claude Code plugin](./claude-code-plugin.md) | The `/wizard` command and the skills to build and use wizards |
+| [Marketplaces](./marketplaces.md) | The plugin for every AI app: how it is built, released and listed |
 | [OpenUI](./openui.md) | A chat built with OpenUI runs the wizard inside the conversation |
 
 ## For your code

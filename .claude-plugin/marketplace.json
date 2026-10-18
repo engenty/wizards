@@ -1,10 +1,10 @@
 {
-  "name": "engenty",
+  "name": "engenty-local",
   "owner": {
     "name": "engenty",
     "url": "https://engenty.ai"
   },
-  "description": "engenty wizards for Claude Code: build wizards from the chat, run them, and keep them in a pane beside it.",
+  "description": "engenty wizards for Claude Code, with the engenty-wizards server you configured yourself (engenty wizards on your computer). For engenty.ai: engenty/wizards-plugins.",
   "plugins": [
     {
       "name": "wizards",

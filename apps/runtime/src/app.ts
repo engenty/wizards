@@ -174,6 +174,10 @@ if (serves.studio) {
       bearer_methods_supported: ["header"],
     });
   });
+  // OpenAI's plugin portal checks that the submitter controls the MCP server's host.
+  app.get("/.well-known/openai-apps-challenge", (c) =>
+    env.openaiAppsChallenge ? c.text(env.openaiAppsChallenge) : c.notFound(),
+  );
 }
 
 if (serves.doors) {

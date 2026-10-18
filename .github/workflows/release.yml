@@ -24,6 +24,8 @@ on:
       - packages/**
       - bin/**
       - scripts/npm-package.mjs
+      - scripts/build-agent-plugins.mjs
+      - plugin/**
       - scripts/export-templates.ts
       - package.json
       - pnpm-lock.yaml
@@ -123,6 +125,51 @@ jobs:
           name: runner
           path: dist/runner.tgz
           if-no-files-found: error
+
+  # The plugin for the AI apps' marketplaces (scripts/build-agent-plugins.mjs), with engenty.ai's
+  # server bundled. A tag puts it into the public repository engenty/wizards-plugins, which
+  # Claude Code, Codex, ChatGPT, Cursor, VS Code and Gemini CLI install from and the directories
+  # track, as a commit and the same tag. The deploy key PLUGINS_DEPLOY_KEY may write there.
+  agent-plugins:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/build-agent-plugins.mjs --url https://engenty.ai
+      - uses: actions/upload-artifact@v7
+        with:
+          name: agent-plugins
+          path: dist/agent-plugins-openai.zip
+          if-no-files-found: error
+
+      - name: Into engenty/wizards-plugins
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          DEPLOY_KEY: ${{ secrets.PLUGINS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::warning::PLUGINS_DEPLOY_KEY is not set: engenty/wizards-plugins keeps its version"
+            exit 0
+          fi
+          mkdir -p ~/.ssh && printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/plugins && chmod 600 ~/.ssh/plugins
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/plugins -o IdentitiesOnly=yes"
+          git clone --depth 1 git@github.com:engenty/wizards-plugins.git "$RUNNER_TEMP/plugins"
+          cd "$RUNNER_TEMP/plugins"
+          # The build is the whole repository: what it no longer writes goes.
+          git rm -rq --ignore-unmatch . && cp -R "$GITHUB_WORKSPACE/dist/agent-plugins/." .
+          git add -A
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q --allow-empty -m "release: $GITHUB_REF_NAME"
+          git tag "$GITHUB_REF_NAME"
+          git push origin HEAD "$GITHUB_REF_NAME"
 
   # The installer, as a person runs it, with the package of this commit instead of the registry's:
   # its own Node, the runtime, the command, then a start that answers.
@@ -236,7 +283,7 @@ jobs:
           if ($code -ne "302") { Write-Error "open --print answered $code"; exit 1 }
 
   publish:
-    needs: [package, installer, installer-windows, templates, runner]
+    needs: [package, installer, installer-windows, templates, runner, agent-plugins]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -255,6 +302,10 @@ jobs:
         with:
           name: runner
           path: artifacts
+      - uses: actions/download-artifact@v8
+        with:
+          name: agent-plugins
+          path: artifacts
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -266,7 +317,8 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes \
-            artifacts/npm-package/*.tgz artifacts/templates.tgz artifacts/runner.tgz
+            artifacts/npm-package/*.tgz artifacts/templates.tgz artifacts/runner.tgz \
+            artifacts/agent-plugins-openai.zip
 
       # The runtime first, the launcher once npm serves it: the launcher installs the runtime of
       # its own version from npm. @engenty/wizards needs neither.

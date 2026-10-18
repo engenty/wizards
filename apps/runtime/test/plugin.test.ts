@@ -33,15 +33,17 @@ describe("Claude Code plugin of this deployment", () => {
     expect(Object.keys(files).sort()).toEqual([
       ".claude-plugin/plugin.json",
       ".mcp.json",
+      "LICENSE",
       "README.md",
+      "claude-code/engenty.ts",
+      "claude-code/hooks.json",
+      "claude-code/pane.test.tsx",
+      "claude-code/register.tsx",
+      "claude-code/types/index.d.ts",
       "commands/wizard.md",
-      "hooks/engenty.ts",
-      "hooks/hooks.json",
-      "hooks/pane.test.tsx",
-      "hooks/register.tsx",
+      "plugin.json",
       "skills/build-wizard/SKILL.md",
       "skills/use-wizard/SKILL.md",
-      "types/index.d.ts",
     ]);
     const mcp = JSON.parse(strFromU8(files[".mcp.json"]));
     expect(mcp.mcpServers["engenty-wizards"].url).toBe("https://wizards.example.com/api/mcp");
