@@ -781,7 +781,7 @@ function SpaceSidebar() {
  * space's name; the rest stands in its app bar along the bottom.
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
-  const startsOn = useFeature("starts");
+  const startsOn = useFeature("selfStart");
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:gap-3 sm:px-4 md:px-5">
       <SpaceSidebarToggle />

@@ -254,7 +254,7 @@ function useSheetHeight() {
 
 export function EditorPage() {
   const account = useFeature("account");
-  const startsOn = useFeature("starts");
+  const startsOn = useFeature("selfStart");
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();

@@ -71,7 +71,7 @@ export const FEATURES = {
     label: "Goose",
     hint: "The studio's assistant: its chat at the foot of the page and in the sidebar.",
   },
-  starts: {
+  selfStart: {
     kind: "release",
     default: false,
     label: "Starts by itself",
