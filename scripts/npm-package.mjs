@@ -92,6 +92,8 @@ for (const path of [
   "plugin",
   "bin",
   "LICENSE",
+  "LICENSE-FIGURES",
+  "TRADEMARKS.md",
   "README.md",
 ]) {
   cpSync(join(root, path), join(stage, path), { recursive: true });
@@ -201,10 +203,11 @@ writeFileSync(
       version,
       description: `${DESCRIPTION} The runtime, which \`npx wizards\` installs.`,
       ...about,
+      license: `${pkg.license} AND CC-BY-4.0`,
       type: "module",
       bin: { wizards: "bin/wizards.mjs" },
       engines: pkg.engines,
-      files: ["apps", "bin", "modules", "plugin"],
+      files: ["apps", "bin", "modules", "plugin", "LICENSE-FIGURES", "TRADEMARKS.md"],
       dependencies: sorted(Object.keys(dependencies).filter((name) => !OPTIONAL.includes(name))),
       optionalDependencies: sorted(OPTIONAL.filter((name) => name in dependencies)),
       bundleDependencies: bundled,
@@ -223,7 +226,7 @@ chmodSync(join(launcherStage, "bin", "wizards.mjs"), 0o755);
 for (const file of ["install.sh", "install.ps1"]) {
   cpSync(join(root, "apps", "web", "public", file), join(launcherStage, file));
 }
-for (const file of ["LICENSE", "README.md"]) {
+for (const file of ["LICENSE", "LICENSE-FIGURES", "TRADEMARKS.md", "README.md"]) {
   cpSync(join(root, file), join(launcherStage, file));
 }
 writeFileSync(
@@ -236,7 +239,8 @@ writeFileSync(
       ...about,
       type: "module",
       bin: { wizards: "bin/wizards.mjs" },
-      files: ["bin", "install.sh", "install.ps1"],
+      license: `${pkg.license} AND CC-BY-4.0`,
+      files: ["bin", "install.sh", "install.ps1", "LICENSE-FIGURES", "TRADEMARKS.md"],
     },
     null,
     2,

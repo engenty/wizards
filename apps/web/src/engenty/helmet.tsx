@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CC-BY-4.0
 // Flat SVG icon helmet. The volumetric helmet lives in goose-helmet-geometry.ts; this one is
 // drawn from the same placement, so small and large engenties wear the same helmet.
 import { useId } from "react";
