@@ -15,13 +15,8 @@ void main(){
   float rim=uEye.z*1.35;
   float fringe=sin(eyeAngle*19.0)*0.025+sin(eyeAngle*37.0)*0.015;
   float socket=mix(1.0,smoothstep(rim*(0.88+fringe),rim*(1.08+fringe),eyeDistance),front);
-  socket=mix(socket,mix(1.0,smoothstep(rim*1.22,rim*1.4,eyeDistance),front),uGoggles);
-  float bandY=aRoot.y-uEye.y+1.7*pow((aRoot.x-uEye.x)/max(uScale,1.0),2.0);
-  float strap=(1.0-smoothstep(uEye.z*0.3,uEye.z*0.5,abs(bandY)))*uGoggles*smoothstep(0.5,6.0,-sdBody(aRoot.xy));
-  // Compress the pile only on the facing surface; side tufts cover strap ends.
-  strap*=smoothstep(0.45,0.8,abs(aNormal.z));
   float underfur=1.0-step(0.36,aRandom.x);
-  float len=uFur*mix(0.55+aRandom.x*0.55,0.3+aRandom.x*0.5,underfur)*socket*(1.0-strap*0.75);
+  float len=uFur*mix(0.55+aRandom.x*0.55,0.3+aRandom.x*0.5,underfur)*socket;
   vec3 tangent=normalize(cross(aNormal,abs(aNormal.y)>0.9?vec3(1.0,0.0,0.0):vec3(0.0,1.0,0.0)));
   vec3 flow=aNormal*0.95+tangent*(aRandom.y-0.5)*0.5+vec3(0.04,0.12,0.0);
   float nearEye=front*(1.0-smoothstep(rim, rim*1.5,eyeDistance));
@@ -42,7 +37,7 @@ void main(){
   vColor*=0.82+aRandom.y*0.32;
   vColor+=vec3(0.08)*pow(lit,12.0)*t;
   vAcross=side;
-  vCoverage=min(1.0,radius/(pixel*0.7))*socket*(1.0-strap*0.85);
+  vCoverage=min(1.0,radius/(pixel*0.7))*socket;
 }
 `;
 export const STRAND_FRAGMENT_SHADER = `#version 300 es

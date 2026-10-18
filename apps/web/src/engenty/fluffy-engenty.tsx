@@ -75,9 +75,7 @@ export interface FluffyEngentyProps {
   className?: string;
   /** Continuous strand fur (default) or a translucent jelly over the same body. */
   coat?: EngentyCoat;
-  /** Old-school pilot goggles over the eye: the copilot's look. */
-  goggles?: boolean;
-  /** Rigid red Goose flight helmet for round, dome or drop. */
+  /** Rigid red Goose flight helmet for the shapes in GOOSE_HELMET_KINDS. */
   gooseHelmet?: boolean;
   /** Pointer-driven lean and gaze. Off for purely decorative instances. */
   interactive?: boolean;
@@ -117,7 +115,6 @@ export function FluffyEngenty({
   animationSpeed = 1,
   turn,
   coat = "fur",
-  goggles = false,
   gooseHelmet = false,
   interactive = true,
   look = null,
@@ -147,7 +144,6 @@ export function FluffyEngenty({
     animationSpeed,
     motion,
     turn,
-    goggles,
     helmetKind,
     blobs,
     extras,
@@ -164,7 +160,6 @@ export function FluffyEngenty({
     animationSpeed,
     motion,
     turn,
-    goggles,
     helmetKind,
     blobs,
     extras,
@@ -188,7 +183,6 @@ export function FluffyEngenty({
     size,
     interactive,
     look,
-    goggles,
     helmetKind,
     motion,
     animationSpeed,
@@ -307,7 +301,6 @@ export function FluffyEngenty({
         extras: current.extras.geometry,
         eye: [current.form.eye.x, current.form.eye.y, current.form.eye.r],
         gaze: [gaze.x, gaze.y],
-        goggles: current.goggles && !current.helmetKind,
         gooseHelmet: Boolean(current.helmetKind),
         helmetKind: current.helmetKind,
         turn: current.turn
@@ -381,7 +374,6 @@ export function FluffyEngenty({
     return (
       <Engenty
         className={className}
-        goggles={goggles && !helmetKind}
         kind={kind}
         size={size}
       />

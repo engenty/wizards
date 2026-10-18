@@ -139,7 +139,6 @@ void main(){
   acc.rgb = acc.rgb * (1.0 - da) + (extras.rgb + coat * extras.a * 0.5) * 0.92;
   acc.a = acc.a * (1.0 - da) + da;
 
-  vec4 goggles = gogglesOver(p, aaPx, front);
-  outColor = goggles + acc * (1.0 - goggles.a);
+  outColor = acc;
 }
 `;

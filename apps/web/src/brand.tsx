@@ -29,7 +29,6 @@ export function Mascot({
   size = 64,
   fluffy,
   coat,
-  goggles = false,
   helmet = false,
   interactive = true,
 }: {
@@ -37,8 +36,7 @@ export function Mascot({
   size?: number;
   fluffy?: boolean;
   coat?: EngentyCoat;
-  goggles?: boolean;
-  /** Goose's flight helmet; it replaces the goggles. */
+  /** Goose's flight helmet. */
   helmet?: boolean;
   interactive?: boolean;
 }) {
@@ -47,13 +45,8 @@ export function Mascot({
   const wear = coat ?? (theme === "dark" ? "jelly" : "fur");
   if (fluffy && size >= 120 && (wear === "fur" || theme === "dark")) {
     return (
-      <Suspense
-        fallback={
-          <Engenty goggles={goggles} helmet={helmet} kind={k} size={Math.round(size * 0.62)} />
-        }
-      >
+      <Suspense fallback={<Engenty helmet={helmet} kind={k} size={Math.round(size * 0.62)} />}>
         <Fluffy
-          goggles={goggles}
           gooseHelmet={helmet}
           coat={wear}
           kind={k}
@@ -89,13 +82,8 @@ export function Mascot({
           }}
         />
         <div className="relative" style={{ marginTop: size * 0.04 }}>
-          <Suspense
-            fallback={
-              <Engenty goggles={goggles} helmet={helmet} kind={k} size={Math.round(inner * 0.62)} />
-            }
-          >
+          <Suspense fallback={<Engenty helmet={helmet} kind={k} size={Math.round(inner * 0.62)} />}>
             <Fluffy
-              goggles={goggles}
               gooseHelmet={helmet}
               coat="jelly"
               kind={k}
@@ -108,7 +96,7 @@ export function Mascot({
       </div>
     );
   }
-  return <Engenty goggles={goggles} helmet={helmet} kind={k} size={size} animated={interactive} />;
+  return <Engenty helmet={helmet} kind={k} size={size} animated={interactive} />;
 }
 
 /**
