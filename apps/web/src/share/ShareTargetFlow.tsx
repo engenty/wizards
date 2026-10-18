@@ -40,7 +40,7 @@ export function Steps({ steps, now }: { steps: string[]; now: number }) {
   );
 }
 
-interface Deliverable {
+export interface Deliverable {
   from: string;
   label: string;
   formats: Format[];
@@ -63,7 +63,7 @@ function deliverablesOf(view: RunView): Deliverable[] {
 }
 
 /** The picked format per deliverable; null = not sent. */
-type Picked = Record<string, Format | null>;
+export type Picked = Record<string, Format | null>;
 
 /** What the person filled in for one target: kept while the sheet is open, so a second try starts from it. */
 export interface ShareDraft {
@@ -71,7 +71,7 @@ export interface ShareDraft {
   picked: Picked;
 }
 
-function FilePicker({
+export function FilePicker({
   deliverables,
   picked,
   onPick,
@@ -131,7 +131,7 @@ function FilePicker({
   );
 }
 
-function FieldInput({
+export function FieldInput({
   field,
   value,
   choices,

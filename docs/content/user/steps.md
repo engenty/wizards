@@ -180,16 +180,29 @@ Each entry of the result page names a step and the formats the person can downlo
 | List | Excel, CSV, JSON, Markdown; ZIP with the files its rows name |
 
 Under “Send & publish” the step says where a person can send or publish the result with one
-button, besides the link and the downloads (see [Share a result](./run.md#share-a-result)):
+button, besides the link and the downloads (see [Share a result](./run.md#share-a-result)). Each
+target is a row with a switch and its state: “Ready”, “AI agent · only you”, or “Not set up”.
+A sentence above the rows says what visitors get and what only you get.
 
-| Choice | Means |
+| Label | Means |
 |---|---|
-| “Default” | Every target that needs no AI agent: email, cloud folders, Slack. In the studio you see the agent targets too |
-| “Own list” | Only the targets you list, in this order, each with its own name on the result page and prefilled fields. An agent target then runs for everyone with the link, on your credits |
-| “Off” | The result has only the link and the downloads |
+| “Default” | Every target that is set up and needs no AI agent. Targets with an agent only you get |
+| “Own list” | You switched a target off, prefilled one or added one: only the targets switched on, in this order. An agent target then runs for everyone with the link, on your credits |
+| “Off” | Every target switched off: the result has only the link and the downloads |
 
-Prefilled fields take the placeholders of instructions: `{{email}}` for a field, `{{steps.offer}}`
-for a step’s output, `{{brand.name}}` for the space.
+“Reset” brings the default back. Targets that are not set up on this server are listed under
+“not set up”, with “Set up” to the connectors.
+
+The arrow on a row opens its form: the name on the result page and what each field starts with.
+“Insert” puts a placeholder where the cursor is: an answer, a written result or the brand name.
+In the wizard file they read `{{email}}`, `{{steps.offer}}` and `{{brand.name}}`.
+
+While the result step is chosen, the studio shows its result page beside the flow, filled from
+the last test run. “Visitor” and “You” switch between what each of them gets. A target opens to
+its form as the visitor sees it, with the test run’s answers in it; nothing is sent from there.
+On a tablet or a phone, “Result page” switches the view, and “See the result page” opens it from
+the step. The result node on the flow shows the targets too: filled for visitors, a ring for
+you only.
 
 ## Branches
 

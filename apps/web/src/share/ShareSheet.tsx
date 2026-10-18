@@ -1,17 +1,13 @@
 import type { RunView } from "@engenty-wizards/shared/run";
-import type { ShareIcon, ShareJobView, ShareOverview } from "@engenty-wizards/shared/sharing";
+import type { ShareJobView, ShareOverview } from "@engenty-wizards/shared/sharing";
 import {
   ArrowLeft,
   Check,
   ChevronRight,
   Copy,
-  FolderUp,
-  Globe,
   Link2,
   type LucideIcon,
   Mail,
-  MessageSquare,
-  Plug,
   Share2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -19,6 +15,7 @@ import { api } from "../lib/api";
 import { appCall, appCan } from "../lib/app";
 import { lang, t } from "../lib/i18n";
 import { Button, cn, Dialog, IconButton, Spinner } from "../ui";
+import { TARGET_ICON } from "./icons";
 import { ShareJob } from "./ShareJob";
 import { type ShareDraft, ShareTargetFlow } from "./ShareTargetFlow";
 
@@ -52,14 +49,6 @@ function intents(url: string, title: string) {
 }
 
 const MONOGRAM: Record<string, string> = { x: "𝕏", linkedin: "in", whatsapp: "WA", facebook: "f" };
-
-export const TARGET_ICON: Record<ShareIcon, LucideIcon> = {
-  mail: Mail,
-  folder: FolderUp,
-  chat: MessageSquare,
-  plug: Plug,
-  globe: Globe,
-};
 
 /** Where the sheet stands: the choice of targets, the link, one target's steps, or a job at work. */
 type Screen =
@@ -191,32 +180,51 @@ export function ShareResultButton({ view, title }: { view: RunView; title: strin
   );
 }
 
-function Tile({
+/** One way to share on the sheet; without `onClick` it only shows (the editor's preview). */
+export function Tile({
   icon: Icon,
   name,
   description,
   onClick,
+  selected,
 }: {
   icon: LucideIcon;
   name: string;
   description: string;
-  onClick: () => void;
+  onClick?: () => void;
+  selected?: boolean;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex items-center gap-3 rounded-xl bg-card p-3 text-left ring-1 ring-input transition hover:ring-ember"
-    >
-      <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-paper-2 text-ink-2 transition group-hover:bg-ember-tint group-hover:text-ember-strong">
+  const body = (
+    <>
+      <span
+        className={cn(
+          "flex size-11 shrink-0 items-center justify-center rounded-full bg-paper-2 text-ink-2 transition",
+          onClick && "group-hover:bg-ember-tint group-hover:text-ember-strong",
+          selected && "bg-ember-tint text-ember-strong",
+        )}
+      >
         <Icon className="size-5" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium text-[0.9375rem]">{name}</span>
         <span className="block text-[0.8125rem] text-ink-3 leading-snug">{description}</span>
       </span>
-      <ChevronRight className="size-4 shrink-0 text-ink-4 transition group-hover:text-ember-strong" />
+      {onClick ? (
+        <ChevronRight className="size-4 shrink-0 text-ink-4 transition group-hover:text-ember-strong" />
+      ) : null}
+    </>
+  );
+  const look = cn(
+    "group flex items-center gap-3 rounded-xl bg-card p-3 text-left ring-1 ring-input transition",
+    onClick && "hover:ring-ember",
+    selected && "ring-2 ring-ember",
+  );
+  return onClick ? (
+    <button type="button" onClick={onClick} className={look}>
+      {body}
     </button>
+  ) : (
+    <div className={look}>{body}</div>
   );
 }
 

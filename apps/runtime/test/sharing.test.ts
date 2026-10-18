@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseWizard } from "@engenty-wizards/shared/definition";
 import type { RunView } from "@engenty-wizards/shared/run";
-import type { ShareOverview } from "@engenty-wizards/shared/sharing";
+import type { ShareOverview, SharePreview } from "@engenty-wizards/shared/sharing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "wizards-sharing-"));
@@ -429,5 +429,82 @@ describe("share options in a wizard", () => {
       expect.stringContaining('Unknown share target "fax"'),
       expect.stringContaining('"{{phone}}" refers to a field that is not asked'),
     ]);
+  });
+});
+
+/** A wizard with this result; with `tested`, a finished test run of it. */
+async function draftWizard(share: unknown, tested?: string): Promise<string> {
+  const wizards = await import("../src/services/wizards");
+  const parsed = parseWizard(definition(share));
+  if (!parsed.ok) {
+    throw new Error(JSON.stringify(parsed.issues));
+  }
+  return client.withTenant(TENANT, async () => {
+    const wizard = await wizards.createWizard("local", { definition: parsed.wizard });
+    if (tested) {
+      await client.db.insert(client.schema.run).values({
+        id: tested,
+        wizardId: wizard.id,
+        tenantId: TENANT,
+        definition: parsed.wizard,
+        files: [],
+        version: null,
+        mode: "test",
+        status: "done",
+        cursor: "done",
+        state: {
+          values: { email: "kundin@example.com" },
+          outputs: { write: { text: "# Bericht\n\nAlles im Plan.", at: new Date().toISOString() } },
+          history: ["start"],
+          notes: {},
+        },
+      });
+    }
+    return wizard.id;
+  });
+}
+
+describe("the editor's preview of a result", () => {
+  it("fills the listed targets from the last test run and names what is left out", async () => {
+    const id = await draftWizard(
+      [
+        { target: "email", label: "An mich", values: { to: "{{email}}", message: "Grüße, {{brand.name}}" } },
+        { target: "storage:google-drive" },
+      ],
+      "run-preview",
+    );
+    const { status, body } = await call<SharePreview>(
+      `/api/studio/wizards/${id}/share-preview?lang=en`,
+      member,
+    );
+    expect(status).toBe(200);
+    expect(body.run?.id).toBe("run-preview");
+    expect(body.targets.map((t) => t.key)).toEqual(["0:email"]);
+    const email = body.targets[0];
+    expect(email.name).toBe("An mich");
+    expect(email.fields.find((f) => f.id === "to")?.value).toBe("kundin@example.com");
+    // The project has no name yet: the placeholder comes out empty, and the preview says which.
+    expect(email.empty).toEqual(["brand.name"]);
+    // Drive has no OAuth client here: nobody gets it.
+    expect(body.left.map((l) => l.why)).toEqual(["setup"]);
+    expect(body.outputs.write).toBe("# Bericht\n\nAlles im Plan.");
+  });
+
+  it("gives a visitor the default targets that need no agent, the owner all of them", async () => {
+    const id = await draftWizard(undefined);
+    const visitor = await call<SharePreview>(`/api/studio/wizards/${id}/share-preview`, member);
+    expect(visitor.body.run).toBeNull();
+    expect(visitor.body.outputs).toEqual({});
+    expect(visitor.body.targets.map((t) => t.target)).toContain("email");
+    expect(visitor.body.targets.every((t) => !t.agent)).toBe(true);
+    expect(visitor.body.left).toContainEqual({ name: "Slack", why: "setup" });
+    const owner = await call<SharePreview>(
+      `/api/studio/wizards/${id}/share-preview?as=owner`,
+      member,
+    );
+    const agents = owner.body.targets.filter((t) => t.agent).map((t) => t.name);
+    for (const name of agents) {
+      expect(visitor.body.left).toContainEqual({ name, why: "agent" });
+    }
   });
 });

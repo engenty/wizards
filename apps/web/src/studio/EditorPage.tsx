@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
+  Flag,
   Lock,
   Maximize2,
   Minimize2,
@@ -44,9 +45,11 @@ import { currentDecisions, FlowDiagram, type StepLive } from "./editor/FlowDiagr
 import { Inspector } from "./editor/Inspector";
 import { LiveDialog } from "./editor/LiveDialog";
 import { MemoryPanel } from "./editor/MemoryPanel";
+import { type Audience, ResultPreview } from "./editor/ResultPreview";
 import { RunLog } from "./editor/RunLog";
 import { RunsPanel } from "./editor/RunsPanel";
 import { ShareDialog } from "./editor/ShareDialog";
+import { ResultPageOpener } from "./editor/share";
 import { LiveChip, useLiveDraft } from "./live";
 import { LookSwitch, useRunLook } from "./RunDrawer";
 import { WizardMenu } from "./WizardMenu";
@@ -286,7 +289,17 @@ export function EditorPage() {
   const [liveOpen, setLiveOpen] = useState(false);
   /** The test run open in the main area, which shows it or the diagram. */
   const [drawerRun, setDrawerRun] = useState<string | null>(null);
-  const [view, setView] = useState<"flow" | "test">("flow");
+  /** What the main area shows where it has no room for two: the flow, the test run, the result page. */
+  const [view, setView] = useState<"flow" | "test" | "result">("flow");
+  /** Whom the result page is shown as: a visitor, or the wizard's owner. */
+  const [audience, setAudience] = useState<Audience>("visitor");
+  /** The result page beside the flow, closed until another step is chosen. */
+  const [pageClosed, setPageClosed] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another step, the page may open again
+  useEffect(() => {
+    setPageClosed(false);
+    setView((v) => (v === "result" ? "flow" : v));
+  }, [selected]);
   /** On a desk the test run can take the whole window, the side panel set aside. */
   const [runWide, setRunWide] = useState(false);
   /** Counts the side panel's slides, so the diagram fits the room it ends with. */
@@ -302,14 +315,21 @@ export function EditorPage() {
   const openInsert = useCallback((at: number) => setInsertAt(at), []);
   /** The open test run as it reports itself: its step, status and log. */
   const [runView, setRunView] = useState<RunView | null>(null);
-  const onRunView = useCallback((view: RunView | null) => {
-    setRunView(view);
-    setActiveStep(view && view.status !== "done" ? (view.step?.id ?? null) : null);
-    // Kept when the drawer closes: the step panel it covered shows the last test run's decisions.
-    if (view) {
-      setDecisions(view.decisions);
-    }
-  }, []);
+  const onRunView = useCallback(
+    (view: RunView | null) => {
+      setRunView(view);
+      // A finished test run fills the result page's preview anew.
+      if (view?.status === "done") {
+        void qc.invalidateQueries({ queryKey: ["share-preview", id] });
+      }
+      setActiveStep(view && view.status !== "done" ? (view.step?.id ?? null) : null);
+      // Kept when the drawer closes: the step panel it covered shows the last test run's decisions.
+      if (view) {
+        setDecisions(view.decisions);
+      }
+    },
+    [qc, id],
+  );
   // What the run's step in effect does, for its node in the diagram.
   const live = useMemo<StepLive | null>(() => {
     const step = drawerRun ? runView?.step : null;
@@ -435,6 +455,20 @@ export function EditorPage() {
   // A first build covers the diagram; a step asked for in place is shown in its place instead.
   const building = chat.phase !== "idle" && w.blank && !adding;
   const hasIssues = w.issues.length > 0;
+  // The result page shows while its step is chosen and no test run is open: beside the flow where
+  // there is room, else in its place, behind a switch.
+  const chosen = def.steps.find((s) => s.id === selected);
+  const resultStep = chosen?.type === "result" && !building && !drawerRun ? chosen : null;
+  const pageBeside = Boolean(resultStep) && !pageClosed && mainWidth >= SPLIT_MIN;
+  const pageInPlace = Boolean(resultStep) && mainWidth < SPLIT_MIN;
+  const openPage =
+    resultStep && !pageBeside
+      ? () => {
+          setPageClosed(false);
+          setView("result");
+          sheet.fold();
+        }
+      : null;
   /** Asks the assistant to mend the draft's issues, in the chat. */
   const fixIssues = () => {
     setShareOpen(false);
@@ -642,6 +676,48 @@ export function EditorPage() {
     </div>
   ) : null;
 
+  /** Flow or result page, where the main area shows one of them. */
+  const pageSwitch = (
+    <fieldset
+      aria-label={t("editor.view")}
+      className="m-0 flex min-w-0 rounded-full border-0 bg-paper-2 p-0.5"
+    >
+      {(["flow", "result"] as const).map((v) => (
+        <button
+          key={v}
+          type="button"
+          aria-pressed={(view === "result") === (v === "result")}
+          onClick={() => setView(v)}
+          className={cn(
+            "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-3 font-medium text-[0.8125rem] transition coarse:h-9",
+            (view === "result") === (v === "result")
+              ? "bg-card text-ink shadow-soft"
+              : "text-ink-3 hover:text-ink",
+          )}
+        >
+          {v === "flow" ? <Workflow className="size-3.5" /> : <Flag className="size-3.5" />}
+          {t(v === "flow" ? "editor.flow" : "resultPreview.title")}
+        </button>
+      ))}
+    </fieldset>
+  );
+  const page = (lead: React.ReactNode, onClose?: () => void) =>
+    resultStep ? (
+      <ResultPreview
+        wizardId={w.id}
+        def={def}
+        step={resultStep}
+        revision={w.revision}
+        audience={audience}
+        onAudience={setAudience}
+        lead={lead}
+        onTest={() => testRun.mutate()}
+        testBusy={testRun.isPending}
+        testDisabled={hasIssues}
+        onClose={onClose}
+      />
+    ) : null;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {readOnlyNote ? (
@@ -707,11 +783,11 @@ export function EditorPage() {
       </header>
 
       {/* Where the pane is a sheet: the diagram behind it, and on a phone test and share. A test
-          run's bar takes this row's place. */}
+          run's bar, or the result page's, takes this row's place. */}
       <div
         className={cn(
           "flex shrink-0 items-center gap-2 px-3 pb-2 lg:hidden",
-          drawerRun && "hidden",
+          (drawerRun || (pageInPlace && view === "result")) && "hidden",
         )}
       >
         <Button variant="secondary" size="sm" aria-expanded={sheet.folded} onClick={sheet.toggle}>
@@ -726,8 +802,13 @@ export function EditorPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row-reverse lg:overflow-hidden">
-        <section ref={setMainEl} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <section ref={setMainEl} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           {split ? null : runBar}
+          {pageInPlace ? (
+            <div className="kb-hide flex h-12 shrink-0 items-center gap-1 border-border-soft border-b px-3">
+              {pageSwitch}
+            </div>
+          ) : null}
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="relative min-h-0 flex-1">
@@ -854,7 +935,7 @@ export function EditorPage() {
                     issueSteps={issueSteps}
                     activeStep={drawerRun ? activeStep : null}
                     live={live}
-                    fitKey={`${split}:${Boolean(drawerRun)}:${paneMoves}`}
+                    fitKey={`${split || pageBeside}:${Boolean(drawerRun)}:${paneMoves}`}
                     pulse={remote?.steps}
                     wizardId={w.id}
                     decisions={shownDecisions}
@@ -934,7 +1015,38 @@ export function EditorPage() {
                 </div>
               </div>
             ) : null}
+            {pageBeside ? (
+              <div
+                className="relative shrink-0 animate-slide-in"
+                style={{ width: `min(${runPane.width}px, calc(100% - ${RUN_ROOM}px))` }}
+              >
+                {/* biome-ignore lint/a11y/useSemanticElements: a draggable splitter has no element of its own */}
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label={t("editor.resize")}
+                  aria-valuenow={runPane.width}
+                  tabIndex={0}
+                  title={t("editor.resize")}
+                  onPointerDown={runPane.onPointerDown}
+                  onKeyDown={runPane.onKeyDown}
+                  onDoubleClick={runPane.reset}
+                  className="group -left-5 absolute inset-y-0 z-10 w-5 cursor-col-resize outline-none"
+                >
+                  <span className="-translate-y-1/2 absolute top-1/2 left-[7px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
+                </div>
+                <div className="flex h-full flex-col overflow-hidden rounded-tl-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)]">
+                  {page(<Chip>{t("resultPreview.title")}</Chip>, () => setPageClosed(true))}
+                </div>
+              </div>
+            ) : null}
           </div>
+          {/* The result page in place of the flow, its switch at the top. */}
+          {pageInPlace && view === "result" ? (
+            <div className="absolute inset-0 z-30 animate-fade-in bg-background">
+              {page(pageSwitch)}
+            </div>
+          ) : null}
           {/* The run's log across the whole width, under the diagram and the run. */}
           {drawerRun ? (
             <RunLog
@@ -1031,20 +1143,22 @@ export function EditorPage() {
               <div className="flex h-full min-h-0 flex-col">
                 {/* A swipe left or right moves to the next or the previous step. */}
                 <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
-                  <Inspector
-                    def={def}
-                    selected={selected}
-                    update={save}
-                    onSelect={select}
-                    issues={w.issues}
-                    mcpServers={w.mcpServers}
-                    files={w.files}
-                    wizardId={w.id}
-                    readOnly={w.readOnly}
-                    decisions={shownDecisions}
-                    branchFocus={branchFocus}
-                    assistant={assistant}
-                  />
+                  <ResultPageOpener.Provider value={openPage}>
+                    <Inspector
+                      def={def}
+                      selected={selected}
+                      update={save}
+                      onSelect={select}
+                      issues={w.issues}
+                      mcpServers={w.mcpServers}
+                      files={w.files}
+                      wizardId={w.id}
+                      readOnly={w.readOnly}
+                      decisions={shownDecisions}
+                      branchFocus={branchFocus}
+                      assistant={assistant}
+                    />
+                  </ResultPageOpener.Provider>
                 </div>
                 {/* The chat's composer stays at hand while a step is open; its thread is the Chat tab's. */}
                 {readOnlyNote ? null : (

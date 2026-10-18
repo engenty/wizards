@@ -234,7 +234,7 @@ import {
   writeDraft,
 } from "../services/wizards.js";
 import { readSetting, writeSetting } from "../settings.js";
-import { projectShareTargets } from "../sharing/index.js";
+import { projectShareTargets, sharePreview } from "../sharing/index.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
@@ -1247,6 +1247,20 @@ export const studio = new Hono<Vars>()
   .get("/wizards/:id/share-targets", async (c) => {
     const w = await ownedWizard(c.get("user").id, c.req.param("id"));
     return c.json(await projectShareTargets(w.projectId, requestLang(c)));
+  })
+  // The draft's result page with its share sheet, for a visitor (`as=visitor`) or the owner.
+  .get("/wizards/:id/share-preview", async (c) => {
+    const user = c.get("user");
+    const w = await ownedWizard(user.id, c.req.param("id"));
+    return c.json(
+      await sharePreview(
+        w,
+        user.id,
+        c.req.query("step") || null,
+        c.req.query("as") === "owner",
+        requestLang(c),
+      ),
+    );
   })
   .get("/wizards/:id", async (c) => {
     const user = c.get("user");

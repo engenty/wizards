@@ -1087,7 +1087,7 @@ function StepBody({
             })}
           </Section>
           <Section title={t("inspector.share")}>
-            <ShareEditor wizardId={wizardId} step={step} set={set} />
+            <ShareEditor wizardId={wizardId} def={def} step={step} set={set} />
           </Section>
         </>
       );

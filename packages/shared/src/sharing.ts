@@ -119,5 +119,27 @@ export interface ShareTargetInfo {
   agent: boolean;
   /** Whether it can work on this server right now; a target that is not set up is not offered to people. */
   usable: boolean;
+  /** A result that lists no targets offers it. */
+  byDefault: boolean;
   fields: Pick<ShareField, "id" | "label" | "kind">[];
+}
+
+/** A target as the editor's preview shows it, with the placeholders that came out empty. */
+export interface SharePreviewTarget extends ShareTargetView {
+  /** Placeholders of its prefilled fields that are empty in the run the preview is filled from. */
+  empty: string[];
+}
+
+/**
+ * `GET /api/studio/wizards/<id>/share-preview`: the draft's result page as a visitor or as the
+ * owner gets it, filled from the wizard's last finished test run.
+ */
+export interface SharePreview {
+  /** The test run the texts come from; null when none has finished. */
+  run: { id: string; at: string } | null;
+  targets: SharePreviewTarget[];
+  /** Targets of the result this audience does not get: an agent drives it, or it is not set up. */
+  left: { name: string; why: "agent" | "setup" }[];
+  /** The start of each written deliverable in that run, by step id. */
+  outputs: Record<string, string>;
 }
