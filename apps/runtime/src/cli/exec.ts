@@ -65,7 +65,8 @@ export function runLogged(
 
 /**
  * Runs a file and gives what it printed, like execFile: it rejects when the file is not there,
- * ends with another code than 0, or takes longer than `timeout`.
+ * ends with another code than 0, or takes longer than `timeout` (then with `killed` and `signal`
+ * set, as execFile does).
  */
 export function runFile(
   file: string,
@@ -95,6 +96,8 @@ export function runFile(
         reject(
           Object.assign(new Error(`${file} ended with ${signal ?? code}`), {
             code,
+            signal,
+            killed: child.killed,
             stdout,
             stderr,
           }),

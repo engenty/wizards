@@ -47,6 +47,13 @@ describe("whether an AI client is installed", () => {
     expect((await detectHarness("codex", true))?.version).toBeNull();
   });
 
+  it("says a file that ran out of time was killed, as the probe reads it", async () => {
+    const { runFile } = await import("../src/cli/exec");
+    await expect(
+      runFile(process.execPath, ["-e", "setTimeout(() => {}, 5000)"], { timeout: 100 }),
+    ).rejects.toMatchObject({ killed: true, signal: "SIGTERM" });
+  });
+
   it("reads a missing binary as not installed", async () => {
     const { probeVersion } = await import("../src/harness/env");
     expect(await probeVersion("/nonexistent/claude", {}, (s) => s.trim())).toBeNull();
