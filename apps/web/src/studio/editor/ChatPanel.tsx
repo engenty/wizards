@@ -1,6 +1,6 @@
 import { Markdown } from "@engenty/wizards-runner";
 import type { AssistantStep } from "@engenty/wizards-shared/assistant";
-import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { EngentyCostume, WizardDefinition } from "@engenty/wizards-shared/definition";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Paperclip, Plug, Sparkles } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
@@ -348,6 +348,7 @@ function UserMessage({
 export function Messages({
   chat,
   avatar,
+  costume,
   changedLabel,
   card,
   calls,
@@ -355,6 +356,7 @@ export function Messages({
 }: {
   chat: Chat;
   avatar: string;
+  costume?: EngentyCostume;
   changedLabel: string;
   card?: (card: ChatCard) => ReactNode;
   calls?: (message: ChatMessage) => ReactNode;
@@ -368,7 +370,7 @@ export function Messages({
         ) : (
           <div key={m.id} className="flex items-start gap-3">
             <div className="shrink-0">
-              <Mascot kind={avatar} size={28} interactive={false} />
+              <Mascot kind={avatar} costume={costume} size={28} interactive={false} />
             </div>
             <div className="min-w-0 pt-0.5 text-[0.875rem]">
               {m.source === "mcp" ? (
@@ -513,6 +515,7 @@ function ThreadGrip({
 export function ChatPanel({
   chat,
   avatar,
+  costume,
   hello = t("editor.chatHello"),
   placeholder = t("editor.composer"),
   changedLabel = t("editor.flowChanged"),
@@ -524,6 +527,7 @@ export function ChatPanel({
 }: {
   chat: Chat;
   avatar: string;
+  costume?: EngentyCostume;
   hello?: string;
   placeholder?: string;
   changedLabel?: string;
@@ -648,12 +652,18 @@ export function ChatPanel({
           {chat.messages.length === 0 && !closed
             ? (intro ?? (
                 <div className="flex items-start gap-3">
-                  <Mascot kind={avatar} size={32} interactive={false} />
+                  <Mascot kind={avatar} costume={costume} size={32} interactive={false} />
                   <p className="pt-1 text-[0.875rem] text-ink-2 leading-relaxed">{hello}</p>
                 </div>
               ))
             : null}
-          <Messages chat={chat} avatar={avatar} changedLabel={changedLabel} card={card} />
+          <Messages
+            chat={chat}
+            avatar={avatar}
+            costume={costume}
+            changedLabel={changedLabel}
+            card={card}
+          />
           {chat.error ? (
             <div className="mt-4 rounded-lg bg-rose-tint px-3 py-2 text-[0.8125rem] text-rose">
               {chat.error}

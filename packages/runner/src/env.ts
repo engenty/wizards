@@ -1,3 +1,4 @@
+import type { EngentyCostume } from "@engenty/wizards-shared/definition";
 import type { RunView } from "@engenty/wizards-shared/run";
 import type { ComponentType } from "react";
 import { type Api, createApi } from "./api.js";
@@ -32,6 +33,7 @@ export interface AppBridge {
 
 export interface MascotProps {
   kind: string;
+  costume?: EngentyCostume;
   size?: number;
   fluffy?: boolean;
 }

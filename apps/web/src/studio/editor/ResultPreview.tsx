@@ -157,7 +157,7 @@ export function ResultPreview({
 
           {/* The head as the result page draws it. */}
           <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-4">
-            <Mascot kind={def.avatar} size={56} interactive={false} />
+            <Mascot kind={def.avatar} costume={def.costume} size={56} interactive={false} />
             <div className="min-w-0 flex-1 basis-[12rem]">
               <h2 className="text-balance font-display font-semibold text-[1.5rem] leading-tight tracking-tight">
                 {step.title}

@@ -1147,7 +1147,12 @@ export function EditorPage() {
           </nav>
           <div className={cn("min-h-0 flex-1 overflow-y-auto", sheet.folded && "max-lg:hidden")}>
             {tab === "chat" ? (
-              <ChatPanel chat={chat} avatar={def.avatar} closed={readOnlyNote ?? undefined} />
+              <ChatPanel
+                chat={chat}
+                avatar={def.avatar}
+                costume={def.costume}
+                closed={readOnlyNote ?? undefined}
+              />
             ) : tab === "step" ? (
               <div className="flex h-full min-h-0 flex-col">
                 {/* A swipe left or right moves to the next or the previous step. */}
@@ -1172,7 +1177,13 @@ export function EditorPage() {
                 {/* The chat's composer stays at hand while a step is open; its thread is the Chat tab's. */}
                 {readOnlyNote ? null : (
                   <div className="shrink-0 px-3 pt-2 pb-3">
-                    <ChatPanel compact chat={chat} avatar={def.avatar} foldOn={drawerRun} />
+                    <ChatPanel
+                      compact
+                      chat={chat}
+                      avatar={def.avatar}
+                      costume={def.costume}
+                      foldOn={drawerRun}
+                    />
                   </div>
                 )}
               </div>

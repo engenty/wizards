@@ -1,4 +1,5 @@
 import {
+  type EngentyCostume,
   type Format,
   LANGS,
   type Lang,
@@ -420,6 +421,7 @@ export interface MarketplaceSummary {
   /** What people ask for when they mean this entry: searched, never shown. */
   terms: string[];
   avatar: string;
+  costume?: EngentyCostume;
   formats: ItemFormat[];
   industries: Industry[];
   useCases: UseCase[];

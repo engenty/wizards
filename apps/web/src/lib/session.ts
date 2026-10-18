@@ -1,4 +1,5 @@
 import {
+  type EngentyCostume,
   type ModelClass,
   TEXT_CLASSES,
   type WizardDefinition,
@@ -317,6 +318,7 @@ export interface WizardSummary {
   title: string;
   description: string;
   avatar: string;
+  costume?: EngentyCostume;
   revision: number;
   published: boolean;
   publishedVersion: number | null;
