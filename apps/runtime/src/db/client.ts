@@ -210,9 +210,35 @@ export const db: Db = new Proxy({} as Db, {
 
 export { schema };
 
+/**
+ * Runs `fn` again after each wait in `waits` (milliseconds) while it fails: a remote database
+ * drops a connection now and then. The last failure is thrown.
+ */
+export async function retried<T>(
+  label: string,
+  fn: () => Promise<T>,
+  waits: number[] = [1_000, 3_000, 10_000],
+): Promise<T> {
+  for (const wait of waits) {
+    try {
+      return await fn();
+    } catch (err) {
+      console.warn(`[${label}] failed, trying again in ${wait / 1000}s:`, (err as Error).message);
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
+  return fn();
+}
+
 /** Brings every known tenant database to the current schema (after a release). */
-export async function migrateAllTenants(): Promise<{ migrated: number; failed: string[] }> {
-  const tenants = await controlDb.select({ id: control.tenant.id }).from(control.tenant);
+export async function migrateAllTenants(
+  waits?: number[],
+): Promise<{ migrated: number; failed: string[] }> {
+  const tenants = await retried(
+    "migrate",
+    () => controlDb.select({ id: control.tenant.id }).from(control.tenant),
+    waits,
+  );
   const failed: string[] = [];
   let migrated = 0;
   const queue = [...tenants];
@@ -220,7 +246,8 @@ export async function migrateAllTenants(): Promise<{ migrated: number; failed: s
     Array.from({ length: 4 }, async () => {
       for (let t = queue.shift(); t; t = queue.shift()) {
         try {
-          await openTenantDb(t.id);
+          const id = t.id;
+          await retried(`migrate ${id}`, () => openTenantDb(id), waits);
           migrated++;
         } catch (err) {
           console.error(`[migrate ${t.id}]`, err);
