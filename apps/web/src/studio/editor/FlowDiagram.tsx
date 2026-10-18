@@ -2,6 +2,7 @@ import dagre from "@dagrejs/dagre";
 import {
   type Condition,
   conditionsOf,
+  type EngentyCostume,
   isOtherwise,
   type ResultStep,
   type Step,
@@ -96,7 +97,12 @@ function Elapsed({ since }: { since: number }) {
     <span className="shrink-0 tabular-nums">{Math.max(0, Math.round((now - since) / 1000))} s</span>
   );
 }
-type StartData = { title: string; avatar: string; selected: boolean };
+type StartData = {
+  title: string;
+  avatar: string;
+  costume?: EngentyCostume;
+  selected: boolean;
+};
 
 function StepNode({ data }: NodeProps<Node<StepData>>) {
   const { step, selected, issue, active, pulse, cost, passed, onAddAfter, live, share } = data;
@@ -271,7 +277,7 @@ function StartNode({ data }: NodeProps<Node<StartData>>) {
         data.selected ? "ring-2 ring-ember" : "hover:bg-paper-3",
       )}
     >
-      <Mascot kind={data.avatar} size={40} interactive={false} />
+      <Mascot kind={data.avatar} costume={data.costume} size={40} interactive={false} />
       <span className="truncate font-display font-semibold text-[0.9375rem]">{data.title}</span>
       <Handle type="source" position={Position.Bottom} />
     </div>
@@ -529,7 +535,12 @@ function layout(
       id: "__start",
       type: "start",
       position: { x: g.node("__start").x - NODE_W / 2, y: g.node("__start").y - 26 },
-      data: { title: def.title, avatar: def.avatar, selected: selected === "__wizard" },
+      data: {
+        title: def.title,
+        avatar: def.avatar,
+        costume: def.costume,
+        selected: selected === "__wizard",
+      },
       draggable: false,
     },
     ...def.steps.map((s, index) => {

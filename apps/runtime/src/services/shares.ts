@@ -84,7 +84,12 @@ export async function shareView(run: RunRow): Promise<ShareView> {
     token: run.shareToken ?? "",
     title: result?.title ?? def.title,
     message: result?.type === "result" ? (result.message ?? null) : null,
-    wizard: { title: def.title, description: def.description, avatar: def.avatar },
+    wizard: {
+      title: def.title,
+      description: def.description,
+      avatar: def.avatar,
+      costume: def.costume,
+    },
     brand: await brandView(w?.projectId ?? "", def.style),
     shown,
     createdAt: run.createdAt.toISOString(),

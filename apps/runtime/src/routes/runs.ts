@@ -353,6 +353,7 @@ async function publicBody(
     title: def.title,
     description: def.description,
     avatar: def.avatar,
+    costume: def.costume,
     intro: def.intro ?? null,
     brand: await brandView(w.projectId, def.style),
     turnstileSiteKey: env.turnstile.siteKey || null,

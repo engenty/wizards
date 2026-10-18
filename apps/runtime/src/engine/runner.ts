@@ -1131,6 +1131,7 @@ export async function runView(run: RunRow, brand: RunView["brand"]): Promise<Run
       title: def.title,
       description: def.description,
       avatar: def.avatar,
+      costume: def.costume,
       intro: def.intro,
     },
     lang: wizardLang(run.definition),

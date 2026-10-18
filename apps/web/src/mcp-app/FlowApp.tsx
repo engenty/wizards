@@ -1,5 +1,9 @@
 import { Markdown } from "@engenty/wizards-runner";
-import { slotText, type WizardDefinition } from "@engenty/wizards-shared/definition";
+import {
+  type EngentyCostume,
+  slotText,
+  type WizardDefinition,
+} from "@engenty/wizards-shared/definition";
 import type { RunView } from "@engenty/wizards-shared/run";
 import { App, type McpUiHostContext } from "@modelcontextprotocol/ext-apps";
 import {
@@ -95,6 +99,7 @@ interface FlowView {
     title: string;
     description?: string;
     avatar?: string;
+    costume?: EngentyCostume;
     shows: "draft" | "published";
     published: boolean;
     issues?: number;
@@ -475,7 +480,12 @@ function WizardIntro({ view, onStart }: { view: FlowView; onStart: () => Promise
       style={{ maxHeight: WIDGET_HEIGHT }}
     >
       <div className="mx-auto flex max-w-lg flex-col items-center px-6 pt-6 pb-6 text-center">
-        <Mascot kind={view.wizard.avatar ?? view.definition.avatar} size={120} fluffy />
+        <Mascot
+          kind={view.wizard.avatar ?? view.definition.avatar}
+          costume={view.wizard.costume ?? view.definition.costume}
+          size={120}
+          fluffy
+        />
         <h1 className="mt-2 text-balance font-display font-semibold text-[1.625rem] leading-[1.1] tracking-tight">
           {view.wizard.title}
         </h1>

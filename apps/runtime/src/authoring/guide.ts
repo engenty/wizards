@@ -13,6 +13,7 @@ type Wizard = {
   title: string                 // short, what the end user gets ("Rechnung erstellen")
   description: string           // one sentence
   avatar: "round"|"drop"|"dome"|"flame"|"oval"|"bean"|"pebble"|"sprout"|"tower"|"wedge"  // the engenty mascot shown to end users
+  costume?: "witch"|"devil"|"bat"|"pumpkin"  // a Halloween costume the mascot wears; leave it out for none
   intro?: string                // one friendly sentence above the first page
   lang?: string                 // two-letter code of the language the wizard's texts are in ("en", "de", "it", "fr") — ALWAYS set it to the language you write them in
   lists?: List[]                // tabular data the wizard KEEPS between runs — separately for each person who runs it, or for all with "shared"

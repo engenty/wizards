@@ -337,7 +337,12 @@ function Working({
   const latest = [...recent].reverse().find((ev) => ev.asset)?.asset;
   return (
     <div className="flex animate-rise flex-col items-center pt-6 text-center">
-      <Mascot kind={view.wizard.avatar} size={compact ? 130 : 170} fluffy />
+      <Mascot
+        kind={view.wizard.avatar}
+        costume={view.wizard.costume}
+        size={compact ? 130 : 170}
+        fluffy
+      />
       <h2 className="mt-4 font-display font-semibold text-[1.375rem] tracking-tight">{label}</h2>
       <div className="mt-1 text-[0.8125rem] text-ink-4 tabular-nums">
         {t("run.elapsed", { s: Math.max(0, Math.round((now - started) / 1000)) })}
@@ -659,7 +664,7 @@ function Result({
   return (
     <div className="animate-rise">
       <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-5">
-        <Mascot kind={view.wizard.avatar} size={64} />
+        <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={64} />
         {/* On a phone the title keeps the row; the share button goes below it. */}
         <div className="min-w-0 flex-1 basis-[12rem]">
           <h1 className="text-balance font-display font-semibold text-[1.75rem] leading-tight tracking-tight sm:text-[2rem]">
@@ -750,7 +755,7 @@ function Failed({ view, run }: { view: RunView; run: Run }) {
   const { Mascot } = runnerEnv();
   return (
     <div className="flex animate-rise flex-col items-center pt-8 text-center">
-      <Mascot kind={view.wizard.avatar} size={90} />
+      <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={90} />
       <h2 className="mt-4 font-display font-semibold text-[1.375rem]">{t("run.failed")}</h2>
       <p className="mt-2 max-w-md text-[0.9375rem] text-ink-3">
         <LinkedText text={view.error ?? ""} />

@@ -5,6 +5,7 @@ import {
   type Condition,
   conditionsOf,
   declaredShape,
+  ENGENTY_COSTUMES,
   ENGENTY_KINDS,
   FIELD_KINDS,
   type Field,
@@ -1153,9 +1154,31 @@ export function WizardSettings({ def, update }: { def: WizardDefinition; update:
               )}
               aria-label={k}
             >
-              <Mascot kind={k} size={44} interactive={false} />
+              <Mascot kind={k} costume={def.costume} size={44} interactive={false} />
             </button>
           ))}
+        </div>
+        <div>
+          <Label>{t("inspector.costume")}</Label>
+          <div className="grid grid-cols-5 gap-2">
+            {[undefined, ...ENGENTY_COSTUMES].map((c) => (
+              <button
+                key={c ?? "none"}
+                type="button"
+                onClick={() => update({ ...def, costume: c })}
+                className={cn(
+                  "flex aspect-square items-center justify-center rounded-xl transition",
+                  def.costume === c
+                    ? "bg-ember-tint ring-2 ring-ember"
+                    : "bg-paper hover:bg-paper-2",
+                )}
+                aria-label={t(c ? `inspector.costume.${c}` : "inspector.costumeNone")}
+                title={t(c ? `inspector.costume.${c}` : "inspector.costumeNone")}
+              >
+                <Mascot kind={def.avatar} costume={c} size={44} interactive={false} />
+              </button>
+            ))}
+          </div>
         </div>
       </Section>
       <WizardLook def={def} update={update} />

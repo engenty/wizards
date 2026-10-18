@@ -32,6 +32,7 @@ tool may read and write wizards.
 | `title` | What people get, short. See [Title, description and intro](#title-description-and-intro) |
 | `description` | One sentence about the wizard |
 | `avatar` | The engenty shown to people. See [The avatar](#the-avatar) |
+| `costume` | A Halloween costume the avatar wears. See [The avatar](#the-avatar) |
 | `intro` | One sentence in the wizard’s voice, in the chat |
 | `lang` | The language the wizard speaks, as a two-letter code. See [Languages](#languages) |
 | `lists` | Tables the wizard keeps between runs. See [Lists and connections](./lists-and-connections.md) |
@@ -71,6 +72,9 @@ chat and calls, and in the studio’s and marketplace’s lists. It is one of te
 
 The list is fixed. Any other value is an error in the JSON Schema and in `wizards validate`, and
 a wizard cannot bring a picture of its own. Each shape has its own colour.
+
+`costume` dresses the avatar up for Halloween: `witch`, `devil`, `bat` or `pumpkin`. Leave it out
+and the avatar wears none.
 
 Every shape is in [`assets/engenty/`](https://github.com/engenty/wizards/tree/main/assets/engenty)
 as a 512 × 512 PNG on a transparent ground. Seven of them also come wearing Goose’s flight

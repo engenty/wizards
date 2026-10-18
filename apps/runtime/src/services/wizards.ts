@@ -90,6 +90,7 @@ export function wizardSummary(w: WizardRow) {
     title: w.title,
     description: w.draft.description,
     avatar: w.draft.avatar,
+    costume: w.draft.costume,
     revision: w.revision,
     published: w.publishedVersion !== null,
     publishedVersion: w.publishedVersion,

@@ -142,6 +142,15 @@
             "wedge"
           ]
         },
+        "costume": {
+          "type": "string",
+          "enum": [
+            "witch",
+            "devil",
+            "bat",
+            "pumpkin"
+          ]
+        },
         "intro": {
           "type": "string"
         },

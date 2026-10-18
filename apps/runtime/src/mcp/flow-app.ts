@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { EngentyCostume, WizardDefinition } from "@engenty/wizards-shared/definition";
 import { RESOURCE_MIME_TYPE, registerAppResource } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { env } from "../env.js";
@@ -48,6 +48,7 @@ export interface FlowView {
     title: string;
     description?: string;
     avatar?: string;
+    costume?: EngentyCostume;
     /** Which definition the diagram shows. */
     shows: "draft" | "published";
     published: boolean;
@@ -127,6 +128,7 @@ export async function flowView(
       title: definition.title,
       description: definition.description,
       avatar: definition.avatar,
+      costume: definition.costume,
       shows,
       published: w.publishedVersion !== null,
       issues: shows === "draft" ? (await draftIssues(w)).length : undefined,
