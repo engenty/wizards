@@ -14,7 +14,7 @@ const appVersion: string = JSON.parse(
 
 export default defineConfig(({ command }) => ({
   // Built, the app's files sit below the studio (`/studio/assets`, `/studio/icons`): the root of
-  // the host belongs to others. The server serves `install.sh`, `embed.js` and `sw.js` at the
+  // the host belongs to others. The server serves `install.sh`, `install.ps1`, `embed.js` and `sw.js` at the
   // root as well. In development everything is served at the root.
   base: command === "build" ? `${basePath}/studio/` : "/",
   plugins: [react(), tailwindcss()],

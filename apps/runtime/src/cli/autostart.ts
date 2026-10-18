@@ -3,7 +3,7 @@ import { lstatSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { installedByScript, type Layout } from "./home.js";
+import { installedByScript, installedScript, type Layout } from "./home.js";
 import { findOnPath } from "./machine.js";
 
 const run = promisify(execFile);
@@ -11,8 +11,9 @@ const run = promisify(execFile);
 /**
  * engenty wizards starting by itself when the person logs in, so that links and AI clients
  * reach it without anybody starting it: `wizards start --no-open`, on a Mac from a
- * LaunchAgent, on Linux from a systemd user service. Only for an install made by install.sh,
- * whose command stays where it is.
+ * LaunchAgent, on Linux from a systemd user service, on Windows from a scheduled task (or, where
+ * Windows refuses one without an administrator, a shortcut in the Startup folder). Only for an
+ * install made by the installer, whose command stays where it is.
  */
 
 export const LOGIN_LABEL = "com.engenty.wizards.login";
@@ -95,6 +96,104 @@ async function systemdHere(): Promise<boolean> {
   }
 }
 
+const TASK = "engenty wizards";
+const TASK_HOW = `a scheduled task, ${TASK}`;
+const STARTUP_HOW = "a shortcut in the Startup folder";
+
+/** The shortcut Windows starts at login when no task may be made. */
+function startupShortcut(env: NodeJS.ProcessEnv = process.env): string {
+  return join(
+    env.APPDATA ?? join(homedir(), "AppData", "Roaming"),
+    "Microsoft",
+    "Windows",
+    "Start Menu",
+    "Programs",
+    "Startup",
+    `${TASK}.lnk`,
+  );
+}
+
+/**
+ * What Windows starts: the install's Node and script through conhost without a window — Node is
+ * a console program, and the task or shortcut would otherwise open a console at every login.
+ */
+export function windowsStart(paths: Layout): { file: string; args: string[] } {
+  const { node, script } = installedScript(paths, "win32");
+  return {
+    file: join(process.env.SystemRoot ?? "C:\\Windows", "System32", "conhost.exe"),
+    args: ["--headless", node, script, "start", "--no-open"],
+  };
+}
+
+const quoted = (arg: string) => (/[\s"]/.test(arg) ? `"${arg.replaceAll('"', '\\"')}"` : arg);
+
+async function windowsState(): Promise<Autostart> {
+  try {
+    await run("schtasks", ["/Query", "/TN", TASK], { timeout: 10_000 });
+    return { on: true, how: TASK_HOW };
+  } catch {
+    return present(startupShortcut())
+      ? { on: true, how: STARTUP_HOW }
+      : { on: false, how: TASK_HOW };
+  }
+}
+
+/** The Windows login item, as the uninstall names it; null without one. */
+export async function windowsLoginItem(): Promise<string | null> {
+  const state = await windowsState();
+  if (!("on" in state) || !state.on) {
+    return null;
+  }
+  return state.how === STARTUP_HOW ? startupShortcut() : `the scheduled task “${TASK}”`;
+}
+
+/** Takes the scheduled task and the Startup shortcut away. */
+export async function removeWindowsLoginItem(): Promise<void> {
+  await run("schtasks", ["/Delete", "/F", "/TN", TASK], { timeout: 10_000 }).catch(() => undefined);
+  rmSync(startupShortcut(), { force: true });
+}
+
+async function setWindows(paths: Layout, on: boolean): Promise<Autostart> {
+  await run("schtasks", ["/Delete", "/F", "/TN", TASK], { timeout: 10_000 }).catch(() => undefined);
+  rmSync(startupShortcut(), { force: true });
+  if (!on) {
+    return windowsState();
+  }
+  // Takes effect at the next login, as on a Mac; nothing is started now.
+  const { file, args } = windowsStart(paths);
+  const command = [file, ...args].map(quoted).join(" ");
+  try {
+    await run(
+      "schtasks",
+      ["/Create", "/F", "/TN", TASK, "/SC", "ONLOGON", "/RL", "LIMITED", "/TR", command],
+      {
+        timeout: 15_000,
+      },
+    );
+  } catch {
+    // A task at logon may need an administrator; the Startup folder needs none.
+    const ps = (text: string) => `'${text.replaceAll("'", "''")}'`;
+    await run(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        [
+          "$s = (New-Object -ComObject WScript.Shell).CreateShortcut(" +
+            ps(startupShortcut()) +
+            ")",
+          `$s.TargetPath = ${ps(file)}`,
+          `$s.Arguments = ${ps(args.map(quoted).join(" "))}`,
+          `$s.WorkingDirectory = ${ps(paths.home)}`,
+          "$s.Save()",
+        ].join("; "),
+      ],
+      { timeout: 15_000 },
+    );
+  }
+  return windowsState();
+}
+
 /**
  * Whether a file is there. Unlike existsSync, a folder it may not look into (a sandbox, its
  * permissions) is an error, not "no file": `autostart off` must not say it's off then.
@@ -117,10 +216,13 @@ export function present(file: string): boolean {
  * write one.
  */
 export async function autostartState(paths: Layout): Promise<Autostart> {
-  if (process.platform !== "darwin" && process.platform !== "linux") {
-    return {
-      unavailable: process.platform === "win32" ? "not on Windows" : `not on ${process.platform}`,
-    };
+  if (!["darwin", "linux", "win32"].includes(process.platform)) {
+    return { unavailable: `not on ${process.platform}` };
+  }
+  if (process.platform === "win32") {
+    return installedByScript(paths)
+      ? windowsState()
+      : { unavailable: "only for installs made with the install script" };
   }
   const file = process.platform === "darwin" ? LOGIN_ITEM : unitFile();
   const there = present(file);
@@ -171,6 +273,9 @@ export async function setAutostart(paths: Layout, on: boolean): Promise<Autostar
   const state = await autostartState(paths);
   if ("unavailable" in state) {
     return state;
+  }
+  if (process.platform === "win32") {
+    return setWindows(paths, on);
   }
   if (process.platform === "darwin") {
     // Takes effect at the next login; nothing is started or stopped now.

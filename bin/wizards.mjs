@@ -4,8 +4,8 @@
 //
 // The same file is two things. In the npm package `wizards` (`npx wizards`, `npm install -g
 // wizards`) it is the launcher, with nothing beside it but the installer (install.sh) and no
-// dependencies: on macOS and Linux it installs engenty wizards into ~/.engenty/wizards with that
-// installer (its own Node, the runtime @engenty/wizards-runtime, the `wizards` command), brings an
+// dependencies: it installs engenty wizards into ~/.engenty/wizards with that installer (on Windows
+// install.ps1: its own Node, the runtime @engenty/wizards-runtime, the `wizards` command), brings an
 // older install there up to its own version, and hands the command to it. In the runtime, which
 // the installer puts there, it is the command itself.
 //
@@ -27,17 +27,24 @@ const home = join(
   "wizards",
 );
 const runtime = join(home, "runtime");
-const wrapper = join(home, "bin", "wizards");
+const windows = process.platform === "win32";
+const wrapper = join(home, "bin", windows ? "wizards.cmd" : "wizards");
 /** The runtime's npm package. Up to 0.7.4 it was `wizards` itself; that name is the launcher now. */
 const RUNTIME = "@engenty/wizards-runtime";
 /** Whether this copy is the runtime, or the launcher without it. */
 const hasRuntime = existsSync(join(root, "apps", "runtime", "dist", "cli", "main.js"));
 /** The installer: beside the launcher, or in the runtime's built SPA. */
-const installer = [join(root, "install.sh"), join(root, "apps", "web", "dist", "install.sh")].find(
-  (file) => existsSync(file),
-);
+const installerName = windows ? "install.ps1" : "install.sh";
+const installer = [
+  join(root, installerName),
+  join(root, "apps", "web", "dist", installerName),
+].find((file) => existsSync(file));
 // uninstall: never installs or hands over first; the install it takes away may no longer run.
 const RUN_HERE = ["help", "validate", "mcp", "uninstall"];
+/** The installer's line, as a person types it here. */
+const installLine = windows
+  ? "  irm https://engenty.ai/install.ps1 | iex\n"
+  : "  curl -fsSL https://engenty.ai/install.sh | bash\n";
 const tilde = (path) =>
   path.startsWith(homedir() + sep) ? `~${path.slice(homedir().length)}` : path;
 
@@ -112,7 +119,12 @@ function isInstall() {
 function terminalEnv() {
   const env = {};
   for (const [key, value] of Object.entries(process.env)) {
-    if (!key.startsWith("npm_") && !["INIT_CWD", "NODE", "COLOR"].includes(key)) {
+    // PATH comes after, once: Windows calls it Path, and two of them would leave one to chance.
+    if (
+      !key.startsWith("npm_") &&
+      !["INIT_CWD", "NODE", "COLOR"].includes(key) &&
+      key.toUpperCase() !== "PATH"
+    ) {
       env[key] = value;
     }
   }
@@ -128,7 +140,10 @@ function install(version, quiet) {
   if (!installer) {
     return false;
   }
-  const result = spawnSync("bash", [installer, "--no-setup"], {
+  const [shell, ...shellArgs] = windows
+    ? ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", installer, "-NoSetup"]
+    : ["bash", installer, "--no-setup"];
+  const result = spawnSync(shell, shellArgs, {
     // A command whose output is read (validate --json, mcp) keeps its stdout to itself.
     stdio: ["ignore", quiet ? 2 : "inherit", "inherit"],
     env: {
@@ -161,10 +176,29 @@ function runs() {
   }
 }
 
+/**
+ * The installed command with these arguments. On Windows its Node and script, which is what
+ * wizards.cmd runs: a .cmd file starts only through cmd.exe, which would read the arguments again.
+ */
+function installedCommand(argv) {
+  if (!windows) {
+    return [wrapper, argv];
+  }
+  const script = join(runtime, "current", "node_modules", RUNTIME, "bin", "wizards.mjs");
+  return [join(home, "tools", "node", "node.exe"), [script, ...argv]];
+}
+
+/** Runs the installed command with these arguments, waiting for it. */
+function installedRun(argv, quiet) {
+  const [file, all] = installedCommand(argv);
+  spawnSync(file, all, { stdio: ["ignore", quiet ? 2 : "inherit", "inherit"], env: terminalEnv() });
+}
+
 /** Runs the installed command with these arguments; its exit code. */
 function handOver() {
   return new Promise((done) => {
-    const child = spawn(wrapper, args, { stdio: "inherit", env: terminalEnv() });
+    const [file, argv] = installedCommand(args);
+    const child = spawn(file, argv, { stdio: "inherit", env: terminalEnv() });
     // Ctrl-C reaches the installed command as well (same terminal); this one waits for it.
     process.on("SIGINT", () => undefined);
     process.on("SIGTERM", () => child.kill("SIGTERM"));
@@ -184,19 +218,6 @@ if (command === "version") {
 const own = versionOf(root) || "0.0.0";
 const quiet = RUN_HERE.includes(command);
 const checkout = existsSync(join(root, "pnpm-workspace.yaml"));
-// Windows has no installer yet, and the setup, the service and the AI clients are written for
-// macOS and Linux: it says so instead of half working. What needs no install still runs.
-if (process.platform === "win32" && !checkout && !(hasRuntime && RUN_HERE.includes(command))) {
-  console.error(
-    "engenty wizards for Windows is coming soon.\n\n" +
-      "Until then it runs in WSL (Windows Subsystem for Linux). In PowerShell:\n\n" +
-      "  wsl --install\n\n" +
-      "then, in the Ubuntu terminal that opens:\n\n" +
-      "  curl -fsSL https://engenty.ai/install.sh | bash\n\n" +
-      "https://engenty.ai/docs/user/install\n",
-  );
-  process.exit(1);
-}
 if (isInstall() && !hasRuntime) {
   // The launcher in the install's place: an update of 0.7.4 or older fetched `wizards`, the
   // runtime's name then, and its next start switched to it. The installer it carries brings the
@@ -217,7 +238,7 @@ if (isInstall() && !hasRuntime) {
   }
   process.exit(await handOver());
 }
-const fromNpm = process.platform !== "win32" && !checkout && !isInstall();
+const fromNpm = !checkout && !isInstall();
 if (fromNpm && command === "uninstall" && !hasRuntime) {
   // The install's own uninstall takes it away; it never updates first. An install the update
   // left without its runtime gets it back (above, in the installed command) and then uninstalls.
@@ -235,15 +256,18 @@ if (
   const installed = installedVersion();
   if (!installed || older(installed, own)) {
     const running = installed && runs();
-    if (install(own, quiet)) {
-      // What runs is still the old version: it starts again as the new one.
-      if (running) {
-        spawnSync(wrapper, ["restart"], {
-          stdio: ["ignore", quiet ? 2 : "inherit", "inherit"],
-          env: terminalEnv(),
-        });
-      }
-    } else if (hasRuntime && currentNode && !installed) {
+    // Windows keeps the files of a running program locked: the runtime stops for the update.
+    if (running && windows) {
+      installedRun(["stop"], quiet);
+    }
+    const done = install(own, quiet);
+    // What ran is still the old version: it starts again as the new one.
+    if (running && windows) {
+      installedRun(["start", "--background", "--no-open"], quiet);
+    } else if (running && done) {
+      installedRun(["restart"], quiet);
+    }
+    if (!done && hasRuntime && currentNode && !installed) {
       console.error(
         `The install into ${tilde(home)} failed; this time engenty wizards runs from npm.\n`,
       );
@@ -259,14 +283,14 @@ if (
   if (!hasRuntime) {
     console.error(
       `engenty wizards couldn’t be installed into ${tilde(home)}. The installer on its own:\n\n` +
-        "  curl -fsSL https://engenty.ai/install.sh | bash\n",
+        installLine,
     );
     process.exit(1);
   }
 }
 if (!currentNode && command === "uninstall") {
   // The install's own Node, if it is still there, runs this copy's uninstall.
-  const node = join(home, "tools", "node", "bin", "node");
+  const node = join(home, "tools", "node", windows ? "node.exe" : "bin/node");
   const result = existsSync(node)
     ? spawnSync(node, [fileURLToPath(import.meta.url), ...args], { stdio: "inherit" })
     : null;
@@ -276,7 +300,7 @@ if (!currentNode) {
   console.error(
     `engenty wizards needs Node.js 24.11 or newer. This is ${process.version}.\n` +
       "The installer brings its own and leaves yours alone:\n\n" +
-      "  curl -fsSL https://engenty.ai/install.sh | bash\n",
+      installLine,
   );
   process.exit(1);
 }

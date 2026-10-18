@@ -51,9 +51,8 @@ const fills = Object.fromEntries(
   ENGENTY_KINDS.map((kind) => [kind, ENGENTY_FILL[ENGENTY_KIND_FILL[kind]]]),
 );
 
-const shapesModule = (
-  by: string,
-) => `// Written by ${by} from apps/web/src/engenty — do not edit by hand.
+const shapesModule = (by: string) => `// SPDX-License-Identifier: CC-BY-4.0
+// Written by ${by} from apps/web/src/engenty — do not edit by hand.
 
 export type EngentyKind = ${ENGENTY_KINDS.map((k) => JSON.stringify(k)).join(" | ")};
 

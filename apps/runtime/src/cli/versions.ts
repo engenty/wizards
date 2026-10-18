@@ -9,7 +9,7 @@ import {
   rmSync,
   symlinkSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { Layout } from "./home.js";
 
 /**
@@ -19,6 +19,8 @@ import type { Layout } from "./home.js";
  *                          node_modules/wizards), package.json, package-lock.json
  *   runtime/current        → <version>, the one `bin/wizards` starts
  *   runtime/node_modules   → current/node_modules, for commands written before the versions
+ *
+ * On Windows the links are junctions, which need no administrator (install.ps1 makes them too).
  *
  * Up to 0.6.2 `runtime/` itself was the prefix; `switchTo` moves such an install into its
  * version folder first. A process keeps the files of the version it started with.
@@ -69,7 +71,8 @@ const isLink = (path: string) => {
 /** The version `bin/wizards` starts; null without a runtime. */
 export function currentVersion(paths: Layout): string | null {
   if (isLink(currentLink(paths))) {
-    return versionIn(join(paths.runtime, readlinkSync(currentLink(paths))));
+    // A junction names its target in full; a link here names the version folder alone.
+    return versionIn(resolve(paths.runtime, readlinkSync(currentLink(paths))));
   }
   return versionIn(paths.runtime);
 }
@@ -85,8 +88,16 @@ export function installedVersions(paths: Layout): string[] {
   }
 }
 
-/** Points `link` at `target` in one step: a new link renamed over the old one. */
+/**
+ * Points `link` at `target` in one step: a new link renamed over the old one. On Windows a
+ * junction, with its target in full, which takes the old one's place.
+ */
 function link(target: string, path: string) {
+  if (process.platform === "win32") {
+    rmSync(path, { force: true });
+    symlinkSync(resolve(dirname(path), target), path, "junction");
+    return;
+  }
   const tmp = `${path}.${process.pid}.tmp`;
   rmSync(tmp, { force: true });
   symlinkSync(target, tmp);
@@ -141,7 +152,8 @@ export function promote(paths: Layout, staged: string, version: string) {
   }
   // As install.sh leaves it: a command of 0.7.4 or older finds the runtime under its old name.
   const legacy = join(staged, "node_modules", LEGACY_PACKAGE);
-  if (!existsSync(legacy)) {
+  // Windows has no command of 0.7.4 or older.
+  if (!existsSync(legacy) && process.platform !== "win32") {
     symlinkSync(RUNTIME_PACKAGE, legacy);
   }
   rmSync(runtimeDir(paths, version), { recursive: true, force: true });

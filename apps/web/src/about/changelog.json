@@ -1,7 +1,33 @@
 [
   {
+    "version": "v0.7.11",
+    "timestamp": 1792305838,
+    "commits": [
+      {
+        "id": "5b263d6",
+        "message": "no goggles, a helmet on seven shapes, a smirking drop, figure PNGs as CC BY assets; the builder moves to the closed repo (#65)",
+        "group": "Added",
+        "scope": "engenty",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.7.10",
+    "timestamp": 1792275371,
+    "commits": [
+      {
+        "id": "33ef1f1",
+        "message": "install engenty wizards on Windows (#51)",
+        "group": "Added",
+        "scope": "cli",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.7.9",
-    "timestamp": 1792274736,
+    "timestamp": 1792274836,
     "commits": [
       {
         "id": "133d961",

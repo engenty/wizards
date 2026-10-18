@@ -4,6 +4,12 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.7.11] - 2026-10-18
+- ADDED **[engenty]** No goggles, a helmet on seven shapes, a smirking drop, figure PNGs as CC BY assets; the builder moves to the closed repo (#65)
+
+## [0.7.10] - 2026-10-17
+- ADDED **[cli]** Install engenty wizards on Windows (#51)
+
 ## [0.7.9] - 2026-10-17
 - ADDED **[plugin]** The /wizards pane beside the chat, installable from GitHub as wizards@engenty (#3)
 - ADDED **[engenty]** Goose's flight helmet, built in Blender, worn by any engenty (#47)

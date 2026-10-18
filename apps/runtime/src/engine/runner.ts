@@ -71,7 +71,8 @@ import { runEnded } from "../plugins/events.js";
 import { projectFiles } from "../services/project-files.js";
 import { projectProfile } from "../services/projects.js";
 import { storedTranslation } from "../services/translations.js";
-import { listRows, scopeOf } from "../store/index.js";
+import { latestShareJob } from "../sharing/state.js";
+import { listRows, listSecrets, scopeOf } from "../store/index.js";
 import {
   claimRun,
   disownRuns,
@@ -151,7 +152,7 @@ export async function projectIdOf(run: RunRow): Promise<string> {
   return w?.projectId ?? "";
 }
 
-async function loadProject(run: RunRow): Promise<ProjectRow> {
+export async function loadProject(run: RunRow): Promise<ProjectRow> {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
   const p = w && (await db.query.project.findFirst({ where: eq(schema.project.id, w.projectId) }));
   if (!p) {
@@ -479,16 +480,21 @@ async function storedLists(
   return out;
 }
 
-async function makeContext(
+/**
+ * What a step works with. A share job works with the same — the run's browser, store and
+ * answers — under a step id, progress lines and questions of its own.
+ */
+export async function makeContext(
   run: RunRow,
   project: ProjectRow,
   state: RunState,
   signal: AbortSignal,
+  own: Partial<Pick<StepContext, "stepId" | "emit" | "ask">> = {},
 ): Promise<StepContext> {
   const store = scopeOf(run);
   const resources = resourcesFor(run.id);
   resources.bind(store);
-  const stepId = run.cursor ?? "";
+  const stepId = own.stepId ?? run.cursor ?? "";
   return {
     runId: run.id,
     tenantId: run.tenantId,
@@ -509,15 +515,16 @@ async function makeContext(
     projectFiles: (await projectFiles(project.id)).filter((f) => f.status === "ready"),
     signal,
     resources,
-    ask: (ask) => askOf(run, ask, stepId, signal),
-    emit: (type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset),
+    ask: own.ask ?? ((ask) => askOf(run, ask, stepId, signal)),
+    emit:
+      own.emit ?? ((type, message, asset) => emitEvent(run.id, run.cursor, type, message, asset)),
     call: { runId: run.id, stepId },
     chargeUsd: (usd) => addLocalCost(run.id, stepId, usd),
     saveAsset: (input) =>
       saveAsset({
         ...input,
         runId: run.id,
-        stepId: input.stepId ?? run.cursor,
+        stepId: input.stepId ?? own.stepId ?? run.cursor,
       }),
   };
 }
@@ -1259,8 +1266,12 @@ export async function runView(run: RunRow, brand: RunView["brand"]): Promise<Run
             textLang(wizardLang(def)),
           )
         : [],
-    keeps: Boolean(def.lists?.length || def.connections?.length),
+    keeps:
+      Boolean(def.lists?.length || def.connections?.length) ||
+      // An account connected for sharing is kept too, and can be deleted the same way.
+      (run.status === "done" && (await listSecrets(scopeOf(run))).length > 0),
     shareUrl: run.shareToken ? `${env.publicUrl}/s/${run.shareToken}` : null,
     expiresAt: run.expiresAt?.toISOString() ?? null,
+    shareJob: run.status === "done" ? await latestShareJob(run.id) : null,
   };
 }

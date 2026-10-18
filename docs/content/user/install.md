@@ -1,15 +1,21 @@
 ---
 title: Install
-description: One command on macOS or Linux. It brings its own Node.js and asks for no password.
+description: One command on macOS, Linux or Windows. It brings its own Node.js and asks for no password.
 version: 0.5.0
 ---
 
 ## Install
 
-In a terminal, on macOS or Linux (arm64 or x64; on Windows, in WSL):
+In a terminal, on macOS or Linux (arm64 or x64):
 
 ```bash
 curl -fsSL https://engenty.ai/install.sh | bash
+```
+
+On Windows 10 or 11, in PowerShell:
+
+```powershell
+irm https://engenty.ai/install.ps1 | iex
 ```
 
 Or, with Node.js 20 or newer on the machine:
@@ -18,14 +24,18 @@ Or, with Node.js 20 or newer on the machine:
 npx wizards
 ```
 
-Both do the same. `npx wizards` downloads only a small launcher (no dependencies) and runs the
-installer it brings along, then the setup, then the
+All three do the same. On Windows, if PowerShell refuses `npx` (“running scripts is disabled
+on this system”), type `npx.cmd wizards`. `npx wizards` downloads only a small launcher (no
+dependencies) and runs the installer it brings along, then the setup, then the
 `wizards` menu, where “Start as service” starts it and opens the studio. Run again, it hands over
 to the installed `wizards`, and brings an older install up to its own version first.
 
-The installer needs nothing but `curl` and `tar`. It brings its own Node.js (a Node you already
-have is left alone), installs engenty wizards into `~/.engenty/wizards` (about 650 MB), links the
-`wizards` command into `~/.local/bin` and then walks you through the rest:
+The installer needs nothing but `curl` and `tar`. On Windows it needs nothing, except Microsoft’s
+Visual C++ runtime, which many programs bring along: where it is missing, the installer installs
+it, and Windows asks once whether it may. It brings its own Node.js
+(a Node you already have is left alone), installs engenty wizards into `~/.engenty/wizards`
+(about 650 MB), links the `wizards` command into `~/.local/bin` (on Windows it puts
+`~\.engenty\wizards\bin` on your PATH) and then walks you through the rest:
 
 | Step | What it does |
 |---|---|
@@ -33,7 +43,7 @@ have is left alone), installs engenty wizards into `~/.engenty/wizards` (about 6
 | An AI client | Looks for Codex, Claude Code, Antigravity and Cursor Agent and offers to install the ones that are missing. It puts first the one whose app (ChatGPT, Claude, Antigravity, Cursor) is on your Mac, as you most likely have that subscription already. You can also use your account’s credits, an API key, [Ollama](https://ollama.com) or, on a Mac with Apple silicon and macOS 26, Apple Intelligence: the studio’s [first page](./first-start.md) offers them |
 | A browser and ffmpeg | Names the browser for PDF and PNG exports and steps on websites: the first of Chrome, Edge and Chromium it finds (on a Mac also Brave). engenty wizards uses that one; [`CHROME_PATH`](./command-line.md#settings) picks another. It also says whether ffmpeg is there for MP4 videos of animated widgets, and with Homebrew it offers to install it |
 | A decision model (optional) | Offers to install [Ollama](https://ollama.com) if it isn’t there and to download Cloudflare’s Clef-flash into it (about 11 GB). The wizards then make their decisions, such as which branch to take, on your computer, without a key or credits. On a Mac the Ollama app goes into Applications and, when it first starts, asks once for your Mac’s password to set up its `ollama` command (cancel works too); on Linux Ollama’s own installer runs, installs `zstd` if it is missing, and asks for your password |
-| Start at login (optional) | engenty wizards starts in the background when you log in, so links and AI apps can always reach it. It is a LaunchAgent on a Mac and a systemd user service on Linux |
+| Start at login (optional) | engenty wizards starts in the background when you log in, so links and AI apps can always reach it. It is a LaunchAgent on a Mac, a systemd user service on Linux and a scheduled task on Windows (a shortcut in the Startup folder where Windows allows no task) |
 | Your AI apps (optional) | Offers to add your wizards to the [AI apps](./ai-apps.md) it finds, such as Claude Desktop, Cursor or Codex |
 | The command | If `~/.local/bin` is not on your PATH, it offers to add it in your shell’s settings file |
 

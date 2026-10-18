@@ -3,6 +3,7 @@ import {
   type Condition,
   conditionsOf,
   isOtherwise,
+  type ResultStep,
   type Step,
   type WizardDefinition,
 } from "@engenty-wizards/shared/definition";
@@ -21,17 +22,40 @@ import {
   ReactFlowProvider,
   useReactFlow,
 } from "@xyflow/react";
-import { AlertCircle, Check, Clock, Minus, Plus, Scan, Sparkles } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Clock,
+  Link2,
+  type LucideIcon,
+  Minus,
+  Plus,
+  Scan,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mascot } from "../../brand";
 import { lang, t } from "../../lib/i18n";
+import { TARGET_ICON } from "../../share/icons";
 import { cn, Spinner } from "../../ui";
 import type { Adding } from "./AddStep";
 import { useEstimate } from "./estimate";
 import { stepIcon, stepSummary, TYPE_TONE, typeLabel } from "./meta";
+import { audiences, type ShareMode, type ShareRow, shareRows, useShareTargets } from "./share";
 
 const NODE_W = 280;
 const NODE_H = 92;
+/** A result with its share targets under its downloads. */
+const RESULT_H = NODE_H + 34;
+
+/** Where a result goes besides its link: what visitors get, only the owner, nobody. */
+export interface NodeShare {
+  mode: ShareMode;
+  visitors: ShareRow[];
+  onlyYou: ShareRow[];
+  broken: ShareRow[];
+}
 
 type StepData = {
   step: Step;
@@ -49,6 +73,8 @@ type StepData = {
   onAddAfter?: () => void;
   /** What a test run does in this step right now, in place of its summary. */
   live?: StepLive | null;
+  /** A result's share targets. */
+  share?: NodeShare;
 };
 
 /** A test run's step in effect: what it does, since when it runs, or why it stopped. */
@@ -74,7 +100,7 @@ function Elapsed({ since }: { since: number }) {
 type StartData = { title: string; avatar: string; selected: boolean; starts: number };
 
 function StepNode({ data }: NodeProps<Node<StepData>>) {
-  const { step, selected, issue, active, pulse, cost, passed, onAddAfter, live } = data;
+  const { step, selected, issue, active, pulse, cost, passed, onAddAfter, live, share } = data;
   const Icon = stepIcon(step);
   return (
     <div
@@ -150,6 +176,7 @@ function StepNode({ data }: NodeProps<Node<StepData>>) {
       ) : (
         <div className="truncate text-[0.75rem] text-ink-3">{stepSummary(step) || " "}</div>
       )}
+      {share ? <ShareLine share={share} /> : null}
       <Handle type="source" position={Position.Bottom} />
       {onAddAfter ? (
         <button
@@ -168,6 +195,71 @@ function StepNode({ data }: NodeProps<Node<StepData>>) {
           <Sparkles className="size-3.5" /> {t("addStep.add")}
         </button>
       ) : null}
+    </div>
+  );
+}
+
+function ShareDot({
+  icon: Icon,
+  name,
+  tone,
+}: {
+  icon: LucideIcon;
+  name: string;
+  tone: "on" | "you" | "warn";
+}) {
+  return (
+    <span
+      title={name}
+      className={cn(
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-full",
+        tone === "on" && "bg-paper-2 text-ink-2",
+        tone === "you" && "text-ink-3 ring-1 ring-input ring-inset",
+        tone === "warn" && "bg-amber-tint text-amber",
+      )}
+    >
+      <Icon className="size-3" />
+    </span>
+  );
+}
+
+/** The result's targets on its node: filled for visitors, a ring for the owner only. */
+function ShareLine({ share }: { share: NodeShare }) {
+  const { mode, visitors, onlyYou, broken } = share;
+  const icon = (row: ShareRow) => TARGET_ICON[row.info?.icon ?? "plug"];
+  const text = broken.length
+    ? t("flow.notSetUp", { name: broken[0].name })
+    : mode === "off"
+      ? t("flow.linkOnly")
+      : mode === "own"
+        ? t("shareEditor.own")
+        : [
+            t("flow.forVisitors", { n: visitors.length + 1 }),
+            onlyYou.length ? t("flow.forYou", { n: onlyYou.length }) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+  return (
+    <div className="mt-2 flex items-center gap-1 border-border-soft border-t pt-2">
+      <ShareDot icon={Link2} name={t("share.link")} tone="on" />
+      {visitors.map((row) => (
+        <ShareDot key={row.key} icon={icon(row)} name={row.name} tone="on" />
+      ))}
+      {onlyYou.map((row) => (
+        <ShareDot key={row.key} icon={icon(row)} name={row.name} tone="you" />
+      ))}
+      {broken.map((row) => (
+        <ShareDot key={row.key} icon={icon(row)} name={row.name} tone="warn" />
+      ))}
+      <span
+        className={cn(
+          "ml-1 flex min-w-0 flex-1 items-center gap-1 text-[0.6875rem]",
+          broken.length ? "text-amber" : "text-ink-3",
+        )}
+      >
+        {broken.length ? <TriangleAlert className="size-3 shrink-0" /> : null}
+        <span className="truncate">{text}</span>
+      </span>
     </div>
   );
 }
@@ -334,13 +426,15 @@ function layout(
   onInsert?: (at: number) => void,
   live?: StepLive | null,
   starts = 0,
+  share?: (step: ResultStep) => NodeShare,
 ) {
+  const heightOf = (s: Step) => (s.type === "result" && share ? RESULT_H : NODE_H);
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "TB", nodesep: 48, ranksep: 46, marginx: 20, marginy: 20 });
   g.setDefaultEdgeLabel(() => ({}));
   g.setNode("__start", { width: NODE_W, height: 52 });
   for (const s of def.steps) {
-    g.setNode(s.id, { width: NODE_W, height: NODE_H });
+    g.setNode(s.id, { width: NODE_W, height: heightOf(s) });
   }
   const edges: Edge[] = [];
   const edgeStyle = {
@@ -457,7 +551,7 @@ function layout(
       return {
         id: s.id,
         type: "step",
-        position: { x: n.x - NODE_W / 2, y: n.y - NODE_H / 2 },
+        position: { x: n.x - NODE_W / 2, y: n.y - heightOf(s) / 2 },
         data: {
           step: s,
           selected: selected === s.id,
@@ -469,6 +563,7 @@ function layout(
           passed: passed.has(s.id),
           onAddAfter: onInsert && s.type !== "result" ? () => onInsert(index + 1) : undefined,
           live: live?.step === s.id ? live : null,
+          share: s.type === "result" && share ? share(s) : undefined,
         },
         draggable: false,
       } satisfies Node<StepData>;
@@ -552,6 +647,8 @@ interface CanvasProps {
   live?: StepLive | null;
   /** How many starts are on: the start node wears a clock when any is. */
   starts?: number;
+  /** Where a result is sent or published, for its node. */
+  share?: (step: ResultStep) => NodeShare;
 }
 
 function Inner({
@@ -571,6 +668,7 @@ function Inner({
   onInsert,
   live = null,
   starts = 0,
+  share,
 }: CanvasProps) {
   const { nodes, edges } = useMemo(
     () =>
@@ -587,6 +685,7 @@ function Inner({
         onInsert,
         live,
         starts,
+        share,
       ),
     [
       starts,
@@ -601,6 +700,7 @@ function Inner({
       adding,
       onInsert,
       live,
+      share,
     ],
   );
   const rf = useReactFlow();
@@ -711,7 +811,22 @@ export function FlowCanvas(props: CanvasProps) {
 /** The studio's flow, with what each step is expected to cost. */
 export function FlowDiagram({ wizardId, ...props }: CanvasProps & { wizardId: string }) {
   const estimate = useEstimate(wizardId, props.def);
+  const targets = useShareTargets(wizardId).data;
+  const share = useMemo(
+    () =>
+      targets
+        ? (step: ResultStep): NodeShare => {
+            const { mode, rows } = shareRows(step, targets);
+            return { mode, ...audiences(mode, rows) };
+          }
+        : undefined,
+    [targets],
+  );
   return (
-    <FlowCanvas {...props} costs={estimate.data?.available ? estimate.data.steps : NO_COSTS} />
+    <FlowCanvas
+      {...props}
+      costs={estimate.data?.available ? estimate.data.steps : NO_COSTS}
+      share={share}
+    />
   );
 }

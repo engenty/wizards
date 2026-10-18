@@ -21,6 +21,9 @@
 - **Share it with a link.** Anyone can run a wizard in the browser, on a phone too: camera,
   code scan, voice notes, location and a drawn signature included. Results download as PDF,
   Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link.
+- **Send the result on.** From the result, by email, into Google Drive, OneDrive or S3, to a
+  Slack channel, through any connected service, or onto a website the wizard opens in its
+  browser – you sign in yourself and confirm before anything goes public.
 - **Runs on your machine, on your subscription.** It uses Codex, Claude Code, Antigravity
   or Cursor Agent when one is installed and signed in, so no API key is needed. Or bring a key
   (Vercel AI Gateway, OpenAI, Anthropic), or a local model through Ollama. Your wizards and
@@ -57,7 +60,8 @@ the cloud behind the same links. On macOS or Linux, in a terminal:
 curl -fsSL https://engenty.ai/install.sh | bash
 ```
 
-With Node.js 20 or newer on the machine, `npx wizards` does the same.
+On Windows, in PowerShell: `irm https://engenty.ai/install.ps1 | iex`. With Node.js 20 or newer on
+the machine, `npx wizards` does the same.
 
 It needs nothing but `curl` and `tar` and asks for no password. It brings its own Node.js (a
 Node you already have is left alone), installs engenty wizards into `~/.engenty/wizards` and
@@ -129,7 +133,8 @@ Change it later under Settings → Models.
 - **Make a wizard:** describe it in the studio’s chat, or start from one of the templates.
   You see the steps as a diagram and can change any of them.
 - **Run and share:** try it yourself, then share the link. Shared results are kept for 7 days
-  for people without an account.
+  for people without an account. “Teilen” on a result also sends it by email, saves it to a
+  cloud folder or posts it: [Sharing a result](docs/development.md#sharing-a-result).
 - **Connect services:** Gmail, Google Drive, Calendar, Contacts, Outlook, OneDrive, Slack,
   GitHub, HubSpot and S3 are built in; any other service can be added from its API description
   or MCP server through the [integrations.sh](https://integrations.sh) registry. Services that
@@ -211,5 +216,7 @@ and is a site of its own: `pnpm dev:docs`.
 
 [FSL-1.1-MIT](LICENSE): use it for yourself and your company, run it, change it – just don’t
 offer it to others as a competing product or service. Each release becomes MIT two years
-after it is published. [COPYRIGHTS.md](COPYRIGHTS.md) names the owner, the marks, what is not ours and the
+after it is published. The engenty figures are free artwork under CC BY 4.0
+([LICENSE-FIGURES](LICENSE-FIGURES)); the name and the figures as a brand are trademarks
+([TRADEMARKS.md](TRADEMARKS.md)). [COPYRIGHTS.md](COPYRIGHTS.md) names the owner, the marks, what is not ours and the
 third-party software with its licences.

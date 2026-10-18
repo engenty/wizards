@@ -55,10 +55,12 @@ function ConfirmPanel({ runId, ask }: { runId: string; ask: ConfirmAsk }) {
       <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-paper-2 p-4 text-[0.8125rem] leading-relaxed ring-1 ring-border-soft">
         {ask.input}
       </pre>
-      <div className="mt-5 flex items-center gap-4">
-        <Switch checked={remember} onChange={setRemember} label={t("ask.allowRest")} />
-        <span className="flex-1 text-[0.8125rem] text-ink-2">{t("ask.allowRest")}</span>
-      </div>
+      {ask.once ? null : (
+        <div className="mt-5 flex items-center gap-4">
+          <Switch checked={remember} onChange={setRemember} label={t("ask.allowRest")} />
+          <span className="flex-1 text-[0.8125rem] text-ink-2">{t("ask.allowRest")}</span>
+        </div>
+      )}
       {error ? (
         <div className="mt-3 rounded-lg bg-rose-tint px-4 py-3 text-[0.875rem] text-rose">
           {error}

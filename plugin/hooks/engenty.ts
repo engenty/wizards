@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CC-BY-4.0
 /**
  * The flat engenties of the studio (apps/web/src/engenty/engenty.tsx) at rest, as one SVG
  * string per kind: the same bodies, the one eye, no animation. The fills are the studio's
@@ -38,7 +39,7 @@ const stroke = (d: string, color: string, width: number, opacity: number) =>
 const KINDS: Record<string, Kind> = {
   round: {
     fill: FILL.cobalt,
-    body: "M60 22 Q96 26 96 62 Q96 96 60 100 Q24 96 24 62 Q24 26 60 22 Z",
+    body: "M60 22 C65.2 22 71.2 24 75.8 26 C80.2 28 84 30.7 87 34 C90 37.3 92.2 41.3 93.8 46 C95.2 50.7 96 56.8 96 62 C96 67.2 95.2 72.7 93.8 77.1 C92.2 81.5 90 85.3 87 88.5 C84 91.7 80.2 94.2 75.8 96.1 C71.2 98 65.2 100 60 100 C54.8 100 48.8 98 44.2 96.1 C39.8 94.2 36 91.7 33 88.5 C30 85.3 27.8 81.5 26.2 77.1 C24.8 72.7 24 67.2 24 62 C24 56.8 24.8 50.7 26.2 46 C27.8 41.3 30 37.3 33 34 C36 30.7 39.8 28 44.2 26 C48.8 24 54.8 22 60 22 Z",
     over: `<circle cx="97" cy="34" r="6" fill="${FILL.cobalt}" opacity="0.5"/><circle cx="106" cy="24" r="3.5" fill="${FILL.cobalt}" opacity="0.35"/>`,
     eye: { ex: 68, ey: 58, r: 8, ink: "oklch(18% 0.08 260)" },
     shadow: { cy: 108, rx: 26 },
@@ -47,7 +48,7 @@ const KINDS: Record<string, Kind> = {
     fill: FILL.amber,
     body: "M60 16 Q90 34 90 66 Q90 96 60 98 Q30 96 30 66 Q30 34 60 16 Z",
     eye: { ex: 60, ey: 56, r: 8, ink: "oklch(30% 0.10 60)" },
-    after: stroke("M48 76 Q54 72 60 76 Q66 80 72 76", "oklch(30% 0.10 55)", 2.6, 1),
+    after: stroke("M49 75 C54 78 64 78.5 71 71.4", "oklch(30% 0.10 55)", 2.6, 1),
     shadow: { cy: 106, rx: 24 },
   },
   dome: {

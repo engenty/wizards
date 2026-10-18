@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CC-BY-4.0
 /**
  * Fills, one per engenty kind: the vibrant engenty cast. Fixed, high-chroma
  * colours rather than the semantic accents (`--moss` is the success green,

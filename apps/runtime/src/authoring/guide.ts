@@ -283,7 +283,8 @@ type ReviewStep = { type: "review", show: (stepId | "lists.<listId>")[], edit?: 
 // shows earlier outputs; the person accepts, edits text outputs (edit), or asks for a new version with a note (regenerate)
 // a shown list is edited in place by the person
 
-type ResultStep = { type: "result", message?: string, deliverables: { from: stepId | "lists.<listId>", label?, formats: Format[] }[] }
+type ResultStep = { type: "result", message?: string, deliverables: { from: stepId | "lists.<listId>", label?, formats: Format[] }[],
+                    share?: { target: string, label?: string, values?: { [fieldId]: string } }[] }
 // formats per source: image→png · video→mp4 (several results: zip) · voice→mp3 · document→pdf docx html md png · dashboard→html pdf png
 //                     film widget (video: true)→mp4 png · film→mp4
 //                     widget→html png pdf mp4 json (mp4 only when the widget registers a timeline)
@@ -291,6 +292,16 @@ type ResultStep = { type: "result", message?: string, deliverables: { from: step
 //                     agent json with schema→json csv xlsx md pdf
 //                     agent, any format→zip: the FILES the step kept with mail_save / browser_download
 //                     lists.<id>→xlsx csv json md · zip (a list with check.file: the kept files its rows name, plus the list)
+// share: where the person can send or publish the result with one button, besides the link and the downloads. They pick the
+//   target, connect their account once, check the prefilled form and send. Targets and the fields "values" can prefill:
+//     "email" (to, subject, message — the picked files go as attachments) · "slack" (channel, message)
+//     "storage:google-drive" | "storage:microsoft-onedrive" | "storage:s3" (folder)
+//     "connector:<connectorId>" (instructions — an agent does it with the connector's actions and asks the person before every change)
+//     "browser" (url, instructions — an agent posts it on any website in the wizard's browser; the person signs in themselves and confirms before it goes public)
+//   Left out: every target that needs no model. []: none. A list: exactly these, in this order — "browser" and "connector:…" then run
+//   for END USERS too, on the admin's credits. "label" names the button ("Auf LinkedIn posten"); values take {{templates}}:
+//   { target: "email", label: "An mich senden", values: { to: "{{email}}", subject: "Dein Angebot von {{brand.name}}" } }
+//   { target: "browser", label: "Auf LinkedIn posten", values: { url: "https://www.linkedin.com/feed/", instructions: "Erstelle einen Beitrag mit dem Text und dem Bild." } }
 
 Templates (in instructions/prompt): {{fieldId}} · {{steps.stepId}} (whole output) · {{steps.stepId.key}} (json key)
   · {{itemsField}} (line items as a table WITH computed net/VAT/total) · {{itemsField.net|vat|gross}} · {{today}}
@@ -319,7 +330,8 @@ How good wizards look:
 - Money/totals: use an "items" field with vat — the runner computes totals; documents must use {{items}} verbatim. Never let a model compute totals.
 - Facts from the web need an agent step with web_search + web_fetch BEFORE writing; documents then cite those notes.
 - Live data with a free public JSON API (weather and wind: api.open-meteo.com; sunrise/sunset is in it too) → an agent step with the http tool and model "standard" that calls the API and returns json. Far cheaper and more exact than web research; use web research only when no API exists.
-- Writing into other systems (CRM, database, spreadsheet, website): an agent step with the matching mcp server, http, or browser tool, preceded by a review step.
+- Writing into other systems (CRM, database, spreadsheet, website): an agent step with the matching mcp server, http, or browser tool, preceded by a review step. Such a step hands over an earlier step's output as a file by naming it "result:<stepId>.<format>" — to browser_upload, or as "file:result:<stepId>.<format>" where a connector action takes "*_base64".
+- Sending the finished result on (mail it, file it in a cloud folder, post it on social media or a website, put it into an ads account): do not build a step for it. Put the targets into the result step's "share": the person sees the result first and sends it with one button. Build an agent step only when the wizard must write somewhere without being asked.
 ${sandboxGuideLine()}
 - Remembering between runs ("merke dir", "führe eine Liste"): declare a list and let an agent step save into it with list_write; a later run reads it as {{lists.id}} or list_read. Give it a key column so known rows are updated, not duplicated. Never make the person re-upload last time's result.
 - Collecting from everyone who runs the wizard (requests, leads, sign-ups, feedback): a list with "shared": true, saved with list_write. It is the admin's, under Space → Data; never show one person's rows to another. Longer text for every run (a running summary, a log): the "pages" tool.

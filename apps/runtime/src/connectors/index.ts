@@ -36,7 +36,7 @@ import {
 /** The connectors a person can pick for each kind of connection. */
 const CONNECTORS: Record<ConnectionKind, ConnectorDefinition[]> = { mail: MAIL_CONNECTORS };
 
-const HINTS: Record<string, ServerKey> = { imap: "imapHint" };
+const HINTS: Record<string, ServerKey> = { imap: "imapHint", smtp: "imapHint" };
 
 type FieldWords = Record<string, Record<string, { label?: string; placeholder?: string }>>;
 
@@ -48,6 +48,11 @@ const FIELD_WORDS: { [L in Exclude<Lang, "en">]?: FieldWords } = {
       password: { label: "Passwort oder App-Passwort" },
       host: { label: "IMAP-Server", placeholder: "leer lassen bei Gmail, GMX, iCloud …" },
     },
+    smtp: {
+      email: { label: "E-Mail-Adresse", placeholder: "name@firma.at" },
+      password: { label: "Passwort oder App-Passwort" },
+      host: { label: "SMTP-Server", placeholder: "leer lassen bei Gmail, GMX, iCloud …" },
+    },
   },
 };
 
@@ -56,7 +61,10 @@ const FIELD_WORDS: { [L in Exclude<Lang, "en">]?: FieldWords } = {
  * may use needs. A wizard that only reads never asks for the right to send or delete.
  */
 function scopesFor(connection: ConnectionDef, connector: ConnectorDefinition): string[] {
-  const scopes = new Set(scopesForGroups(connector, new Set(["read"] as const)));
+  // A share target's connection asks for what its actions need and nothing to read with.
+  const scopes = new Set(
+    scopesForGroups(connector, new Set(connection.target ? [] : (["read"] as const))),
+  );
   for (const action of connector.actions) {
     if (connection.actions?.includes(action.id)) {
       for (const scope of action.providerScopes ?? []) {
@@ -65,6 +73,39 @@ function scopesFor(connection: ConnectionDef, connector: ConnectorDefinition): s
     }
   }
   return [...scopes];
+}
+
+type RunRow = typeof schema.run.$inferSelect;
+
+/** Connections that are not part of a wizard definition: a share target brings its own. */
+type ConnectionSource = (
+  run: RunRow,
+  connectionId: string,
+  projectId: string,
+) => Promise<ConnectionDef | null>;
+const sources: ConnectionSource[] = [];
+
+export function registerConnectionSource(source: ConnectionSource) {
+  sources.push(source);
+}
+
+/** A connection of a run by id: one the wizard declares, or one of a share target. */
+export async function findConnection(
+  run: RunRow,
+  connectionId: string,
+  projectId: string,
+): Promise<ConnectionDef | null> {
+  const declared = run.definition.connections?.find((c) => c.id === connectionId);
+  if (declared) {
+    return declared;
+  }
+  for (const source of sources) {
+    const found = await source(run, connectionId, projectId);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
 }
 
 /** Where the provider sends the person back; must be registered with the OAuth client. */
@@ -88,8 +129,17 @@ interface StoredConnection {
 const open = (connector: ConnectorDefinition) =>
   connector.auth.kind === "api_key" && connector.auth.apiKey.fields.length === 0;
 
-/** The connectors behind a connection: the built-in ones of its kind, or the one it names. */
+/**
+ * The connectors behind a connection: the built-in ones of its kind, the one it names, or the
+ * ones a share target lets the person pick from.
+ */
 async function candidates(connection: ConnectionDef, projectId: string) {
+  if (connection.target) {
+    const found = await Promise.all(
+      connection.target.connectors.map((id) => resolveConnector(projectId, id)),
+    );
+    return found.flatMap((f) => (f ? [f.connector] : []));
+  }
   if (connection.connector) {
     const found = await resolveConnector(projectId, connection.connector);
     return found ? [found.connector] : [];
@@ -265,7 +315,7 @@ export async function finishOAuth(
     throw new Error("The sign-in has expired. Connect again.");
   }
   const run = await db.query.run.findFirst({ where: eq(schema.run.id, state.runId) });
-  const connection = run?.definition.connections?.find((c) => c.id === state.connectionId);
+  const connection = run ? await findConnection(run, state.connectionId, state.projectId) : null;
   if (!connection) {
     throw new Error("The run this sign-in belongs to is gone.");
   }

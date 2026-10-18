@@ -1536,11 +1536,7 @@ function ResultTurn({
       "result:replies",
       <>
         {made.length ? (
-          <ShareResultButton
-            runId={view.id}
-            title={`${step.title} · ${view.wizard.title}`}
-            initial={view.shareUrl ? { url: view.shareUrl, expiresAt: view.expiresAt } : null}
-          />
+          <ShareResultButton view={view} title={`${step.title} · ${view.wizard.title}`} />
         ) : null}
         {onRestart ? (
           <Reply onClick={onRestart}>

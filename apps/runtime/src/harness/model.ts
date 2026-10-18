@@ -1,10 +1,11 @@
-import { spawn } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Effort } from "@engenty-wizards/shared/definition";
 import type { RunNote } from "@engenty-wizards/shared/run";
 import { note } from "@engenty-wizards/shared/run";
 import type { ImageModel, LanguageModel } from "ai";
+import spawn from "cross-spawn";
 import { nanoid } from "nanoid";
 import { env } from "../env.js";
 import { type BridgeTool, openBridge } from "../mcp/bridge.js";
@@ -118,7 +119,7 @@ export function runClient(
       stdio: ["pipe", "pipe", "pipe"],
       signal: opts.signal,
       env: opts.env,
-    });
+    }) as ChildProcessWithoutNullStreams;
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => {

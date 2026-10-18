@@ -1,5 +1,5 @@
 // Low-frequency elastic waves and shallow dents deform the actual gel surface.
-// The same transform attaches the eye, strap and goggles to the moving material.
+// The same transform attaches the eye to the moving material.
 export const JELLY_DEFORMATION_GLSL = `
 vec3 deformJelly(vec3 p) {
   vec3 q=p-vec3(60.0,60.0,0.0);

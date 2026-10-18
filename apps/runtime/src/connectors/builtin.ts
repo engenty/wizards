@@ -17,12 +17,13 @@ import { managed } from "../manage.js";
 import { gmailConnector as mailGmail } from "./gmail.js";
 import { imapConnector } from "./imap.js";
 import { outlookConnector as mailOutlook } from "./outlook.js";
+import { smtpConnector } from "./smtp.js";
 import { googleThroughAccount } from "./via-account.js";
 
 /**
  * engenty's own connectors, as engenty ships them: Gmail, Drive, Calendar, Contacts, Outlook,
- * OneDrive, Slack, GitHub, HubSpot, S3. Every project has them; an OAuth one can be connected
- * once its client is configured.
+ * OneDrive, Slack, GitHub, HubSpot, S3 — and SMTP, for sending from any mailbox. Every project
+ * has them; an OAuth one can be connected once its client is configured.
  */
 export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [
   ...googleConnectors,
@@ -32,6 +33,7 @@ export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [
   githubConnector,
   hubspotConnector,
   s3Connector,
+  smtpConnector,
 ];
 
 /** The connectors behind a connection of kind "mail": one read-only shape for any mailbox. */
