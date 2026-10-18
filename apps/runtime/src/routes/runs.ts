@@ -15,6 +15,7 @@ import {
   type PublicWizard,
   type RunNote,
 } from "@engenty-wizards/shared/run";
+import type { ConnectionView } from "@engenty-wizards/shared/store";
 import {
   machineTranslated,
   type TranslationMemory,
@@ -35,6 +36,7 @@ import {
   connectionViews,
   connectWithCredentials,
   disconnect,
+  findConnection,
   finishOAuth,
   oauthStateLang,
   oauthStateRun,
@@ -86,6 +88,8 @@ import {
   uiTexts,
 } from "../services/translations.js";
 import { isIconFile, wizardAvatarSvg, wizardIcon } from "../services/wizard-icon.js";
+import { shareOverview } from "../sharing/index.js";
+import { cancelShare, ShareInputError, shareChoices, startShare } from "../sharing/jobs.js";
 import {
   clearStore,
   deleteRows,
@@ -805,6 +809,8 @@ export const runRoutes = new Hono()
       return c.json(notFoundAnswer(c), 404);
     }
     try {
+      // A result that is on its way somewhere stops going there when the person steps back.
+      await cancelShare(run.id);
       await goBack(run.id);
       return c.json({ ok: true });
     } catch (err) {
@@ -1036,7 +1042,11 @@ export const runRoutes = new Hono()
   // Who drives the wizard's browser: the wizard, or the person who took it over.
   .get("/:id/browser/seat", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
-    const resources = run?.status === "running" ? liveResources(run.id) : null;
+    // A step of the run has it open, or a share job that is asking the person.
+    const resources =
+      run && (run.status === "running" || (await pendingAsk(run.id)))
+        ? liveResources(run.id)
+        : null;
     if (!resources?.openPage()) {
       // The run may work in another process: its runner answers.
       return (run && (await fromOwner(c, run.id))) || c.json(notFoundAnswer(c), 404);
@@ -1189,9 +1199,10 @@ export const runRoutes = new Hono()
   // --- the person's accounts ----------------------------------------------------
   .post("/:id/connections/:connectionId/oauth/:connectorId", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
-    const connection = run?.definition.connections?.find(
-      (x) => x.id === c.req.param("connectionId"),
-    );
+    const projectId = run ? await projectIdOf(run) : "";
+    const connection = run
+      ? await findConnection(run, c.req.param("connectionId"), projectId)
+      : null;
     if (!run || !connection) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1214,9 +1225,10 @@ export const runRoutes = new Hono()
   })
   .post("/:id/connections/:connectionId/credentials/:connectorId", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
-    const connection = run?.definition.connections?.find(
-      (x) => x.id === c.req.param("connectionId"),
-    );
+    const projectId = run ? await projectIdOf(run) : "";
+    const connection = run
+      ? await findConnection(run, c.req.param("connectionId"), projectId)
+      : null;
     if (!run || !connection) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1226,7 +1238,7 @@ export const runRoutes = new Hono()
     try {
       const label = await connectWithCredentials(
         scopeOf(run),
-        await projectIdOf(run),
+        projectId,
         connection,
         c.req.param("connectorId"),
         values,
@@ -1336,17 +1348,32 @@ export const runRoutes = new Hono()
         })),
     );
     const secrets = await listSecrets(scope);
+    // Accounts connected for sharing are kept like the wizard's own connections.
+    const forSharing: ConnectionView[] = secrets
+      .filter((x) => x.slot.startsWith("connection:share:"))
+      .map((x) => ({
+        id: x.slot.slice("connection:".length),
+        kind: null,
+        connector: null,
+        title: null,
+        description: null,
+        account: { connector: x.provider, label: x.label, connectedAt: x.createdAt },
+        connectors: [],
+      }));
     return c.json({
       lists,
       files: await storeFiles(scope),
-      connections: (
-        await connectionViews(
-          run.definition.connections ?? [],
-          scope,
-          await projectIdOf(run),
-          requestLang(c),
-        )
-      ).filter((x) => x.account),
+      connections: [
+        ...(
+          await connectionViews(
+            run.definition.connections ?? [],
+            scope,
+            await projectIdOf(run),
+            requestLang(c),
+          )
+        ).filter((x) => x.account),
+        ...forSharing,
+      ],
       keepsSignIns: secrets.some((s) => s.slot === "browser"),
     });
   })
@@ -1428,9 +1455,83 @@ export const runRoutes = new Hono()
     }
     await unshareRun(run);
     return c.json({ ok: true });
+  })
+  // --- sending the result on: by e-mail, into a folder, to a channel, onto a website ---------
+  .get("/:id/share/targets", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json({ error: "not found" }, 404);
+    }
+    return c.json(
+      await shareOverview(run, await projectIdOf(run), await isMember(c, run), langOf(c)),
+    );
+  })
+  .get("/:id/share/targets/:key/choices/:field", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json({ error: "not found" }, 404);
+    }
+    try {
+      return c.json({
+        choices: await shareChoices(run, c.req.param("key"), c.req.param("field"), {
+          member: await isMember(c, run),
+          lang: langOf(c),
+        }),
+      });
+    } catch (err) {
+      if (err instanceof ServiceError) {
+        return c.json(err.toJSON(requestLang(c)), err.status);
+      }
+      // The account answered with an error: the form shows it and lets the person type instead.
+      return c.json({ error: String((err as Error).message).slice(0, 200) }, 502);
+    }
+  })
+  .post("/:id/share/jobs", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json({ error: "not found" }, 404);
+    }
+    const request = z
+      .object({
+        target: z.string().min(1).max(200),
+        items: z
+          .array(z.object({ from: z.string().max(80), format: z.enum(FORMATS) }))
+          .max(20)
+          .default([]),
+        values: z.record(z.string().max(60), z.string().max(20_000)).default({}),
+        lang: z.enum(["de", "en"]).optional(),
+      })
+      .parse(await c.req.json());
+    try {
+      return c.json(await startShare(run, request, { member: await isMember(c, run) }));
+    } catch (err) {
+      if (err instanceof ShareInputError) {
+        return c.json({ error: err.message, fields: err.fields }, 422);
+      }
+      if (err instanceof ServiceError) {
+        return c.json(err.toJSON(requestLang(c)), err.status);
+      }
+      throw err;
+    }
+  })
+  .post("/:id/share/jobs/:jobId/cancel", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json({ error: "not found" }, 404);
+    }
+    await cancelShare(run.id, c.req.param("jobId"));
+    return c.json({ ok: true });
   });
 
 type RunRow = typeof schema.run.$inferSelect;
+
+/** Signed in to the studio of the run's tenant: the wizard is their own. */
+async function isMember(c: Context, run: RunRow): Promise<boolean> {
+  const user = await principalOf(c);
+  return Boolean(user && user.tenantId === run.tenantId);
+}
+
+const langOf = (c: Context) => (c.req.query("lang") === "en" ? "en" : "de");
 
 function listError(c: Context, err: unknown) {
   if (err instanceof TableColumnValueError || err instanceof StoreError) {

@@ -8,6 +8,7 @@ import { db, schema } from "../db/client.js";
 import { parseDocument, type ScanKind, scanDocument } from "../documents/parse.js";
 import type { StepContext } from "../engine/types.js";
 import { loadAsset } from "../files/storage.js";
+import { parseResultRef, resultFile } from "../sharing/files.js";
 import { deleteRows, listRows, readStoreFile, saveRows, storeFiles } from "../store/index.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
 
@@ -40,8 +41,28 @@ export async function personUploads(ctx: StepContext): Promise<UploadRef[]> {
   return out;
 }
 
-/** A file by the name agents use: `upload:<id>` (given by the person) or a path in the store. */
+/**
+ * A file by the name agents use: `upload:<id>` (given by the person), `result:<step>.<format>`
+ * (an output of this run, rendered) or a path in the store.
+ */
 export async function resolveFile(ctx: StepContext, file: string) {
+  const result = parseResultRef(file);
+  if (result) {
+    const found = await resultFile(
+      { def: ctx.def, state: ctx.state, store: ctx.store },
+      result.from,
+      result.format,
+    );
+    if (!found) {
+      throw new Error(`No result ${file}.`);
+    }
+    const { data, filename, mime } = found.download;
+    return {
+      data: typeof data === "string" ? new TextEncoder().encode(data) : data,
+      name: filename,
+      mime,
+    };
+  }
   if (file.startsWith("upload:")) {
     const found = await loadAsset(file.slice("upload:".length));
     if (!found || found.row.runId !== ctx.runId) {

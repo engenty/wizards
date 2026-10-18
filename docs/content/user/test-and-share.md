@@ -1,7 +1,7 @@
 ---
 title: Test and share
 description: Try the wizard, publish it, and hand out its link or put it on a website.
-version: 0.5.0
+version: 0.7.11
 ---
 
 ## Test
@@ -216,7 +216,8 @@ On WordPress the plugin writes this code for you, and its results show the page:
 
 On the result page, a person can share what they got as a link. The result of a run over the
 wizard’s link, and the link to it, are deleted after 7 days. The person can withdraw the link
-earlier.
+earlier. “Share” also sends the result on – by email, into a cloud folder, to Slack or onto a
+website: see [Share a result](./run.md#share-a-result).
 
 ## Move a wizard
 

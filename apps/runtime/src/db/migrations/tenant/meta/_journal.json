@@ -127,6 +127,13 @@
       "when": 1792271496354,
       "tag": "0017_run_client",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1792274808825,
+      "tag": "0018_share_job",
+      "breakpoints": true
     }
   ]
 }

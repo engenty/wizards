@@ -237,6 +237,12 @@ export const env = {
     secretAccessKey: str("S3_SECRET_ACCESS_KEY"),
   },
 
+  /**
+   * An address of the server's own to send results from: with it, sharing by e-mail needs no
+   * mailbox of the person. `smtps://user:password@host:465`; empty = people send as themselves.
+   */
+  mail: { smtpUrl: str("SMTP_URL"), from: str("MAIL_FROM") },
+
   turnstile: { siteKey: str("TURNSTILE_SITE_KEY"), secret: str("TURNSTILE_SECRET_KEY") },
 
   /**

@@ -66,6 +66,12 @@ export interface ConnectionDef {
   policy?: Record<string, "allow" | "ask">;
   title?: string;
   description?: string;
+  /**
+   * Share targets only (never in a wizard definition): the connectors the person can pick from,
+   * and the provider is asked for no more than `actions` need — a target that sends never asks
+   * for the right to read.
+   */
+  target?: { connectors: string[] };
 }
 
 /** A connector the person can pick for a connection: an OAuth sign-in or a credentials form. */

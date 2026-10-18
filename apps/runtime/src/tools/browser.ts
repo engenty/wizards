@@ -21,6 +21,7 @@ import { env } from "../env.js";
 import { costOf, textModel } from "../models.js";
 import { assertPublicUrl } from "./net-guard.js";
 import { attempt, type FileKeeper, imageOutput } from "./shared.js";
+import { resolveFile } from "./store.js";
 
 /** The page as an agent step reads it; retried while the page is between two documents. */
 export async function readPage(page: Page): Promise<PageView> {
@@ -643,6 +644,54 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
         .describe("One sentence for the person, in their language: what to do on the page."),
     }),
     execute: ({ reason }) => acting(() => handOver({ reason, fields: [] })),
+  });
+
+  tools.browser_upload = createTool({
+    id: "browser_upload",
+    description:
+      'Attach a file to the page: give the [number] of the file input, or of the button that opens the file picker ("Add photo", "Upload"). The file is one the person gave (`upload:<id>`), a result of this run (`result:<step>.<format>`) or a kept file\'s path.',
+    inputSchema: z.object({
+      ref: z.number().describe("[number] of the file input or the upload button."),
+      file: z.string().describe("upload:<id>, result:<step>.<format>, or a kept file's path."),
+    }),
+    execute: ({ ref: n, file }) =>
+      acting(async () => {
+        const p = await page();
+        const target = await atRef(p, n);
+        if ("error" in target) {
+          return target;
+        }
+        const el = await handleOf(p, n);
+        if (!el) {
+          return { error: targetError(n, { error: "gone" }), page: await read(p) };
+        }
+        const found = await resolveFile(ctx, file);
+        const payload = { name: found.name, mimeType: found.mime, buffer: Buffer.from(found.data) };
+        await ctx.emit("tool", { code: "attaches", params: { name: found.name } });
+        const isFileInput = await el
+          .evaluate((node) => (node as HTMLInputElement).type === "file")
+          .catch(() => false);
+        if (isFileInput) {
+          await el.setInputFiles(payload, { timeout: 15_000 });
+        } else {
+          // The button opens the browser's file picker; a page that keeps its input hidden
+          // and opens no picker takes the file through that input.
+          const chooser = p.waitForEvent("filechooser", { timeout: 6000 }).catch(() => null);
+          await el.click({ timeout: 10_000 });
+          const opened = await chooser;
+          if (opened) {
+            await opened.setFiles(payload);
+          } else {
+            const hidden = p.locator("input[type=file]").first();
+            if (!(await hidden.count())) {
+              return { error: "No file picker opened.", page: await read(p) };
+            }
+            await hidden.setInputFiles(payload, { timeout: 15_000 });
+          }
+        }
+        await settle(p);
+        return { attached: found.name, page: await read(ctx.resources.openPage() ?? p) };
+      }),
   });
 
   tools.browser_download = createTool({

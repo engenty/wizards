@@ -21,6 +21,9 @@
 - **Share it with a link.** Anyone can run a wizard in the browser, on a phone too: camera,
   code scan, voice notes, location and a drawn signature included. Results download as PDF,
   Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link.
+- **Send the result on.** From the result, by email, into Google Drive, OneDrive or S3, to a
+  Slack channel, through any connected service, or onto a website the wizard opens in its
+  browser – you sign in yourself and confirm before anything goes public.
 - **Runs on your machine, on your subscription.** It uses Codex, Claude Code, Antigravity
   or Cursor Agent when one is installed and signed in, so no API key is needed. Or bring a key
   (Vercel AI Gateway, OpenAI, Anthropic), or a local model through Ollama. Your wizards and
@@ -130,7 +133,8 @@ Change it later under Settings → Models.
 - **Make a wizard:** describe it in the studio’s chat, or start from one of the templates.
   You see the steps as a diagram and can change any of them.
 - **Run and share:** try it yourself, then share the link. Shared results are kept for 7 days
-  for people without an account.
+  for people without an account. “Teilen” on a result also sends it by email, saves it to a
+  cloud folder or posts it: [Sharing a result](docs/development.md#sharing-a-result).
 - **Connect services:** Gmail, Google Drive, Calendar, Contacts, Outlook, OneDrive, Slack,
   GitHub, HubSpot and S3 are built in; any other service can be added from its API description
   or MCP server through the [integrations.sh](https://integrations.sh) registry. Services that
