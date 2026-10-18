@@ -1,0 +1,19 @@
+{
+  "title": "The wizard format",
+  "pages": [
+    "index",
+    "validate",
+    "wizard-file",
+    "---Steps---",
+    "pages-and-fields",
+    "agent-steps",
+    "generate-steps",
+    "views-and-widgets",
+    "film-steps",
+    "review-and-result",
+    "---Across steps---",
+    "templates",
+    "branches",
+    "lists-and-connections"
+  ]
+}
