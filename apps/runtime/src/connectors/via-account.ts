@@ -1,4 +1,4 @@
-import { note } from "@engenty-wizards/shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import { accountToken } from "../auth/account.js";
 import type { OAuth2Tokens } from "../engenty/connections-sdk/oauth2.js";
 import { env } from "../env.js";

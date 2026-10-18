@@ -9,3 +9,7 @@ dist
 
 # Claude Code writes its API declarations beside a plugin it loads from the folder
 plugin/.claude-plugin/types/
+
+# git-cliff's full context, written by pnpm release and read by scripts/write-about-data.mjs;
+# the app's copy apps/web/src/about/changelog.json is tracked
+/changelog.json

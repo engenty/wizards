@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-The built package (dist/) also contains these modules of @engenty-wizards/shared,
+The built package (dist/) also contains these modules of @engenty/wizards-shared,
 which are under FSL-1.1-MIT OR MIT (packages/shared/LICENSE-MIT) and are included
 here under the MIT licence above: definition, fit, run, store, surface and
 engenty/data-tables/columns, columns-format.

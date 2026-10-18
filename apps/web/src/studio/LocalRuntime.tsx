@@ -3,7 +3,7 @@ import {
   PROVIDERS,
   type ProviderInfo,
   providerOfRef,
-} from "@engenty-wizards/shared/providers";
+} from "@engenty/wizards-shared/providers";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, ExternalLink } from "lucide-react";
 import { type ReactNode, useState } from "react";

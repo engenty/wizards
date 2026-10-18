@@ -1,5 +1,5 @@
-import { versionChanges } from "@engenty-wizards/shared/changes";
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
+import { versionChanges } from "@engenty/wizards-shared/changes";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
 
 /** What "Änderungen live schalten" lists: the draft against the version people run. */

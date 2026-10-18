@@ -1,19 +1,19 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
+import type { Lang } from "@engenty/wizards-shared/definition";
 import {
   type TableColumn,
   TableColumnValueError,
   tableColumnsSchema,
-} from "@engenty-wizards/shared/engenty/data-tables";
-import type { CategoryInput } from "@engenty-wizards/shared/knowledge";
-import { note } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/engenty/data-tables";
+import type { CategoryInput } from "@engenty/wizards-shared/knowledge";
+import { note } from "@engenty/wizards-shared/run";
 import {
   editCells,
   SPACE_DATA_LIMITS,
   type SpaceData,
   type SpacePage,
   type SpaceTable,
-} from "@engenty-wizards/shared/space-data";
-import { rowKey } from "@engenty-wizards/shared/store";
+} from "@engenty/wizards-shared/space-data";
+import { rowKey } from "@engenty/wizards-shared/store";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";

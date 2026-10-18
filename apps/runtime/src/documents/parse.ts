@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { note } from "@engenty-wizards/shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import { generateText, Output } from "ai";
 import PostalMime from "postal-mime";
 import { z } from "zod";

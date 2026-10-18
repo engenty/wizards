@@ -1,4 +1,4 @@
-import type { TextClass } from "@engenty-wizards/shared/definition";
+import type { TextClass } from "@engenty/wizards-shared/definition";
 import { api } from "../lib/api";
 import { appCall, appCan } from "../lib/app";
 

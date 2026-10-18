@@ -1,4 +1,4 @@
-import { describeStart, type WizardStart } from "@engenty-wizards/shared/starts";
+import { describeStart, type WizardStart } from "@engenty/wizards-shared/starts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, CircleAlert, PauseCircle, UserRound } from "lucide-react";
 import { useRef, useState } from "react";

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
-import { parseWizard, type ValidationIssue } from "@engenty-wizards/shared/definition";
-import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty-wizards/shared/wizard-package";
+import { parseWizard, type ValidationIssue } from "@engenty/wizards-shared/definition";
+import { PACKAGE_FILES, PACKAGE_MANIFEST } from "@engenty/wizards-shared/wizard-package";
 import { json, readManifest, readPackage } from "../services/package-file.js";
 import { bad, dim, ok } from "./ui.js";
 

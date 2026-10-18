@@ -1,8 +1,8 @@
 import { anthropic } from "@ai-sdk/anthropic";
-import type { Lang } from "@engenty-wizards/shared/definition";
-import { describeStart, startInputSchema } from "@engenty-wizards/shared/starts";
-import { SURFACE_GUIDE } from "@engenty-wizards/shared/surface";
-import { isTextMime } from "@engenty-wizards/shared/workspace";
+import type { Lang } from "@engenty/wizards-shared/definition";
+import { describeStart, startInputSchema } from "@engenty/wizards-shared/starts";
+import { SURFACE_GUIDE } from "@engenty/wizards-shared/surface";
+import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { Agent } from "@mastra/core/agent";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";

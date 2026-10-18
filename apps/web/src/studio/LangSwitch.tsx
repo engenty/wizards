@@ -1,4 +1,4 @@
-import { isLang, LANG_NAMES, LANGS, langName } from "@engenty-wizards/shared/definition";
+import { isLang, LANG_NAMES, LANGS, langName } from "@engenty/wizards-shared/definition";
 import { useLayoutEffect, useRef, useState } from "react";
 import { localSide, t, useLang } from "../lib/i18n";
 import { useMediaQuery } from "../lib/media";

@@ -1,4 +1,4 @@
-import { describeStart, type StartedBy, type WizardStart } from "@engenty-wizards/shared/starts";
+import { describeStart, type StartedBy, type WizardStart } from "@engenty/wizards-shared/starts";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Link2, Table2, Wand2 } from "lucide-react";
 import { api } from "../../lib/api";

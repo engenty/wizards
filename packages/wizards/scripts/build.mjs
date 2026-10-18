@@ -6,7 +6,7 @@
 //             the types of those modules inlined (API Extractor); styles.css, the runner's
 //             runner.css; LICENSE-MIT, the runner's licence
 //
-// Nothing in dist/ names a workspace package (@engenty-wizards/*), and every package the bundle
+// Nothing in dist/ names a workspace package (@engenty/wizards-*), and every package the bundle
 // imports is a dependency or a peer of package.json: the build fails otherwise.
 // Inside the repo everything imports the sources ("wizards-source"); the runner is built first
 // (pnpm -r builds it before this package), its runner.css and its .d.ts are read from its dist/.
@@ -19,7 +19,7 @@ const root = resolve(import.meta.dirname, "..");
 const dist = join(root, "dist");
 const tsc = join(dist, ".tsc");
 const runner = join(root, "..", "runner");
-const WORKSPACE = ["@engenty-wizards/runner", "@engenty-wizards/shared"];
+const WORKSPACE = ["@engenty/wizards-runner", "@engenty/wizards-shared"];
 
 const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, stdio: "inherit" });
 
@@ -107,7 +107,7 @@ for (const file of walk(dist)) {
   }
   const text = readFileSync(file, "utf8");
   const where = file.slice(root.length + 1);
-  if (text.includes("@engenty-wizards/")) {
+  if (text.includes("@engenty/wizards-")) {
     problems.push(`${where} names a workspace package`);
   }
   for (const [, specifier] of text.matchAll(

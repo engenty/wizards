@@ -1,4 +1,4 @@
-import { note } from "@engenty-wizards/shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import {
   firstRowAt,
   type ListDef,
@@ -8,8 +8,8 @@ import {
   rowKey,
   STORE_LIMITS,
   type StoreFile,
-} from "@engenty-wizards/shared/store";
-import { cleanPath, mimeForPath } from "@engenty-wizards/shared/workspace";
+} from "@engenty/wizards-shared/store";
+import { cleanPath, mimeForPath } from "@engenty/wizards-shared/workspace";
 import { and, asc, eq, inArray, like, lt, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";

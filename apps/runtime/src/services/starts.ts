@@ -1,5 +1,5 @@
-import { allFields } from "@engenty-wizards/shared/definition";
-import { startsSchema, type WizardStart } from "@engenty-wizards/shared/starts";
+import { allFields } from "@engenty/wizards-shared/definition";
+import { startsSchema, type WizardStart } from "@engenty/wizards-shared/starts";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";

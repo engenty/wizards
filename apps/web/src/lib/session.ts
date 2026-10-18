@@ -2,7 +2,7 @@ import {
   type ModelClass,
   TEXT_CLASSES,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
+} from "@engenty/wizards-shared/definition";
 import type {
   AssetSection,
   BrandColor,
@@ -14,9 +14,9 @@ import type {
   LogoSection,
   ProjectFact,
   TextStyle,
-} from "@engenty-wizards/shared/projects";
-import type { WizardStart } from "@engenty-wizards/shared/starts";
-import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
+} from "@engenty/wizards-shared/projects";
+import type { WizardStart } from "@engenty/wizards-shared/starts";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
 import { ApiError, api } from "./api";

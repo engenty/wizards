@@ -4,6 +4,11 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.8.0] - 2026-10-18
+- ADDED Send or publish a result from its share sheet, with its result page in the editor (#67)
+- DOCS **[format]** The wizard format as a folder of pages (#70)
+- FIXED **[runtime]** Keep an installed AI client installed while the machine is busy (#68)
+
 ## [0.7.11] - 2026-10-18
 - ADDED **[engenty]** No goggles, a helmet on seven shapes, a smirking drop, figure PNGs as CC BY assets; the builder moves to the closed repo (#65)
 

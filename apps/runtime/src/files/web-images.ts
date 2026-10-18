@@ -5,7 +5,7 @@
  * once, saved as an asset of the run and referred to as asset://ID — inlined wherever the page
  * is shown or converted, and still there when the site has taken the picture down.
  */
-import type { AssetRef } from "@engenty-wizards/shared/run";
+import type { AssetRef } from "@engenty/wizards-shared/run";
 import { safeFetch } from "../tools/net-guard.js";
 import type { SaveAssetInput } from "./storage.js";
 

@@ -1,11 +1,11 @@
-import type { CategoryInput } from "@engenty-wizards/shared/knowledge";
+import type { CategoryInput } from "@engenty/wizards-shared/knowledge";
 import {
   PROJECT_LIMITS,
   type ProjectFileKind,
   type ProjectFileView,
   projectFileLimit,
-} from "@engenty-wizards/shared/projects";
-import { note } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/projects";
+import { note } from "@engenty/wizards-shared/run";
 import { generateText } from "ai";
 import { and, asc, count, eq, max } from "drizzle-orm";
 import { db, schema } from "../db/client.js";

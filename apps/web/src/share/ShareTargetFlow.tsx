@@ -1,13 +1,13 @@
-import { ConnectionField, FORMAT_LABEL } from "@engenty-wizards/runner";
-import type { Format } from "@engenty-wizards/shared/definition";
-import type { RunView } from "@engenty-wizards/shared/run";
+import { ConnectionField, FORMAT_LABEL } from "@engenty/wizards-runner";
+import type { Format } from "@engenty/wizards-shared/definition";
+import type { RunView } from "@engenty/wizards-shared/run";
 import type {
   ShareChoice,
   ShareField,
   ShareItem,
   ShareJobView,
   ShareTargetView,
-} from "@engenty-wizards/shared/sharing";
+} from "@engenty/wizards-shared/sharing";
 import { ArrowRight, Bot, Send } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ApiError, api } from "../lib/api";

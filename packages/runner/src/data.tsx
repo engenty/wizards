@@ -1,5 +1,5 @@
-import { type AgentStep, stepShape } from "@engenty-wizards/shared/definition";
-import type { StepOutput } from "@engenty-wizards/shared/run";
+import { type AgentStep, stepShape } from "@engenty/wizards-shared/definition";
+import type { StepOutput } from "@engenty/wizards-shared/run";
 import {
   type FieldShape,
   type ListShape,
@@ -7,7 +7,7 @@ import {
   type ObjectShape,
   shapeJsonSchema,
   titleKey,
-} from "@engenty-wizards/shared/shape";
+} from "@engenty/wizards-shared/shape";
 import {
   Braces,
   Check,

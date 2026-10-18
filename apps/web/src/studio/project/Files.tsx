@@ -1,4 +1,4 @@
-import type { ProjectFileView } from "@engenty-wizards/shared/projects";
+import type { ProjectFileView } from "@engenty/wizards-shared/projects";
 import { Box, Check, Eye, FileText, Film, Music, Plus, Sparkles, Star, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { t } from "../../lib/i18n";

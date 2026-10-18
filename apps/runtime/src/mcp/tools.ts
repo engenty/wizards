@@ -1,4 +1,4 @@
-import { describeStart, startInputSchema } from "@engenty-wizards/shared/starts";
+import { describeStart, startInputSchema } from "@engenty/wizards-shared/starts";
 import type { CallToolResult, McpServer, ToolCallback } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { authoringGuide } from "../authoring/guide.js";

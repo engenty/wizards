@@ -68,7 +68,7 @@ jobs:
       - name: Install
         run: >-
           pnpm install --frozen-lockfile
-          --filter "${{ matrix.check != 'docs' && '!' || '' }}@engenty-wizards/docs"
+          --filter "${{ matrix.check != 'docs' && '!' || '' }}@engenty/wizards-docs"
 
       # How long each test file took last time: vitest starts the longest first, so
       # apps/runtime/test/sandbox.test.ts (half a minute) runs beside the others instead of
@@ -95,7 +95,7 @@ jobs:
       # The docs site is type-checked in its own check, where its packages are installed.
       - name: Typecheck
         if: matrix.check == 'typecheck'
-        run: pnpm -r --filter "!@engenty-wizards/docs" typecheck
+        run: pnpm -r --filter "!@engenty/wizards-docs" typecheck
 
       - name: Test
         if: matrix.check == 'test'
@@ -113,7 +113,7 @@ jobs:
       # The docs site (apps/docs, docs/content) is not part of the product's build.
       - name: Docs
         if: matrix.check == 'docs'
-        run: pnpm --filter @engenty-wizards/docs typecheck && pnpm build:docs
+        run: pnpm --filter @engenty/wizards-docs typecheck && pnpm build:docs
 
   # The cloud runtime's two images and the documentation's, built on GitHub's runners: the server
   # only pulls them. The layers come from the registry's cache, so a release rebuilds only what

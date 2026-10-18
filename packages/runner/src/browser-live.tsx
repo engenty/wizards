@@ -1,4 +1,4 @@
-import type { BrowserAct } from "@engenty-wizards/shared/run";
+import type { BrowserAct } from "@engenty/wizards-shared/run";
 import { ArrowDown, ArrowUp, CornerDownLeft, MousePointerClick } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api, runBase, withBase } from "./env.js";

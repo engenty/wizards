@@ -1,5 +1,5 @@
 import type { PluginSpaceData } from "@engenty/wizards/plugin";
-import type { CategoryInput } from "@engenty-wizards/shared/knowledge";
+import type { CategoryInput } from "@engenty/wizards-shared/knowledge";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { UnreadableDocument } from "../documents/parse.js";

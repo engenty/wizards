@@ -16,7 +16,7 @@ importers:
       '@biomejs/biome':
         specifier: 2.5.0
         version: 2.5.0
-      '@engenty-wizards/shared':
+      '@engenty/wizards-shared':
         specifier: workspace:*
         version: link:packages/shared
       concurrently:
@@ -119,12 +119,12 @@ importers:
       '@clack/prompts':
         specifier: ^1.8.1
         version: 1.8.1
-      '@engenty-wizards/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@engenty/wizards':
         specifier: workspace:*
         version: link:../../packages/wizards
+      '@engenty/wizards-shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@executor-js/plugin-openapi':
         specifier: 1.6.10
         version: 1.6.10(@types/react@19.3.0)(drizzle-orm@0.45.3(@libsql/client@0.18.0)(better-sqlite3@12.11.1)(kysely@0.28.17))(effect@4.0.0-beta.59)(ioredis@5.11.1)(react@19.3.0)(typeorm@0.3.31(better-sqlite3@12.11.1)(ioredis@5.11.1))
@@ -210,8 +210,8 @@ importers:
         specifier: 1.1.0
         version: 1.1.0
       nodemailer:
-        specifier: ^7.0.13
-        version: 7.0.13
+        specifier: ^10.0.9
+        version: 10.0.9
       pdf-parse:
         specifier: ^2.4.5
         version: 2.4.5
@@ -264,15 +264,15 @@ importers:
       '@dagrejs/dagre':
         specifier: ^3.1.1
         version: 3.1.1
-      '@engenty-wizards/runner':
-        specifier: workspace:*
-        version: link:../../packages/runner
-      '@engenty-wizards/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@engenty/wizards':
         specifier: workspace:*
         version: link:../../packages/wizards
+      '@engenty/wizards-runner':
+        specifier: workspace:*
+        version: link:../../packages/runner
+      '@engenty/wizards-shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@modelcontextprotocol/client':
         specifier: 2.2.0
         version: 2.2.0
@@ -392,12 +392,12 @@ importers:
 
   examples/plugins/run-log:
     devDependencies:
-      '@engenty-wizards/web':
-        specifier: workspace:*
-        version: link:../../../apps/web
       '@engenty/wizards':
         specifier: workspace:*
         version: link:../../../packages/wizards
+      '@engenty/wizards-studio':
+        specifier: workspace:*
+        version: link:../../../apps/web
       '@tanstack/react-query':
         specifier: ^5.104.0
         version: 5.104.0(react@19.3.0)
@@ -425,7 +425,7 @@ importers:
 
   packages/runner:
     dependencies:
-      '@engenty-wizards/shared':
+      '@engenty/wizards-shared':
         specifier: workspace:*
         version: link:../shared
       dompurify:
@@ -515,10 +515,10 @@ importers:
         specifier: 1.4.2
         version: 1.4.2
     devDependencies:
-      '@engenty-wizards/runner':
+      '@engenty/wizards-runner':
         specifier: workspace:*
         version: link:../runner
-      '@engenty-wizards/shared':
+      '@engenty/wizards-shared':
         specifier: workspace:*
         version: link:../shared
       '@libsql/client':
@@ -6116,8 +6116,8 @@ packages:
   no-case@3.0.4:
     resolution: {integrity: sha512-fgAN3jGAh+RoxUGZHTSOLJIqUc2wmoBwGR4tbpNAKmmovFoWq0OdRkb0VkldReO2a2iBT/OEulG9XSUc10r3zg==}
 
-  node-abi@3.96.0:
-    resolution: {integrity: sha512-rebQ/lz7i0EkoLzUVSrKRzA69zMkwLp95kKMWoMDkkM00Suxz0D7zEQPwRml5fQum24mj7bPvmlgLAmu2JCiYg==}
+  node-abi@3.99.0:
+    resolution: {integrity: sha512-lLdwkeg2XUVPTHqWjPltTxH81zbQNbUWC+AEb9ni50KjxkUzAAx1HGtMT21sbntzfUGfIphhcklvs3imJeqDXw==}
     engines: {node: '>=10'}
 
   node-addon-api@7.1.1:
@@ -6134,9 +6134,9 @@ packages:
   node-pty@1.1.0:
     resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
 
-  nodemailer@7.0.13:
-    resolution: {integrity: sha512-PNDFSJdP+KFgdsG3ZzMXCgquO7I6McjY2vlqILjtJd0hy8wEvtugS9xKRF2NWlPNGxvLCXlTNIae4serI7dinw==}
-    engines: {node: '>=6.0.0'}
+  nodemailer@10.0.9:
+    resolution: {integrity: sha512-BF0qcyplCwp+jMk6HCjFykBz/YhhZSsxrARhOldLwFWH+8kGjQsd2WIMIZhqEuyXRoGFi0ONbDeWDMDoL8MhLw==}
+    engines: {node: '>=20.0.0'}
 
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
@@ -6402,8 +6402,8 @@ packages:
   qr-scanner@1.4.2:
     resolution: {integrity: sha512-kV1yQUe2FENvn59tMZW6mOVfpq9mGxGf8l6+EGaXUOd4RBOLg7tRC83OrirM5AtDvZRpdjdlXURsHreAOSPOUw==}
 
-  qs@6.16.0:
-    resolution: {integrity: sha512-h6fhOIaRrID2CbEY2fqs+7t+UXZo+MLAnU5gRIq85uFtdiUPCdsApMlHhXogKVM4HM2DVbIjGNTTYH2OcmP1vA==}
+  qs@6.16.1:
+    resolution: {integrity: sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg==}
     engines: {node: '>=0.6'}
 
   quansync@0.2.11:
@@ -10549,7 +10549,7 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.3
       on-finished: 2.4.1
-      qs: 6.16.0
+      qs: 6.16.1
       raw-body: 3.0.2
       type-is: 2.1.0
     transitivePeerDependencies:
@@ -11439,7 +11439,7 @@ snapshots:
       once: 1.4.0
       parseurl: 1.3.3
       proxy-addr: 2.0.8
-      qs: 6.16.0
+      qs: 6.16.1
       range-parser: 1.3.0
       router: 2.2.0
       send: 1.2.1
@@ -13166,7 +13166,7 @@ snapshots:
       lower-case: 2.0.2
       tslib: 2.8.1
 
-  node-abi@3.96.0:
+  node-abi@3.99.0:
     dependencies:
       semver: 7.8.5
     optional: true
@@ -13189,7 +13189,7 @@ snapshots:
     dependencies:
       node-addon-api: 7.1.1
 
-  nodemailer@7.0.13: {}
+  nodemailer@10.0.9: {}
 
   normalize-path@3.0.0: {}
 
@@ -13408,7 +13408,7 @@ snapshots:
       minimist: 1.2.8
       mkdirp-classic: 0.5.3
       napi-build-utils: 2.0.0
-      node-abi: 3.96.0
+      node-abi: 3.99.0
       pump: 3.0.4
       rc: 1.2.8
       simple-get: 4.0.1
@@ -13473,7 +13473,7 @@ snapshots:
     dependencies:
       '@types/offscreencanvas': 2019.7.3
 
-  qs@6.16.0:
+  qs@6.16.1:
     dependencies:
       es-define-property: 1.0.1
       side-channel: 1.1.1

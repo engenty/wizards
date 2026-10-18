@@ -1,4 +1,4 @@
-import type { AssistantPage } from "@engenty-wizards/shared/assistant";
+import type { AssistantPage } from "@engenty/wizards-shared/assistant";
 import { useEffect, useId, useRef, useSyncExternalStore } from "react";
 import { STUDIO } from "../../lib/base";
 import { currentCrumbs, SCROLL_ROOT_ID } from "../AppFrame";

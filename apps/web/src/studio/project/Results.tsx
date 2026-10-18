@@ -5,8 +5,12 @@ import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { RunnerBody } from "../../runner/RunnerView";
 import { Card, Chip, Empty, Input, Select } from "../../ui";
+import { usePrimaryAction } from "../primary-action";
 import { RunDrawer } from "../RunDrawer";
 import { Section } from "./Section";
+
+/** The search above the results: a phone's round button goes to it. */
+const SEARCH_ID = "results-search";
 
 export interface SpaceResults {
   /** The space's wizards, with how many results each has; the one with the latest first. */
@@ -62,15 +66,34 @@ export function useResults(
   });
 }
 
-/** Search, live or test, and the period, above the list. The words count after a short pause. */
+/**
+ * The wizard, search, live or test, and the period, above the list. The words count after a
+ * short pause. The wizards offered are the ones with a result; the one picked stays.
+ */
 function FilterBar({
+  data,
+  wizardId,
+  onWizard,
   filter,
   onFilter,
 }: {
+  data: SpaceResults;
+  wizardId: string | null;
+  onWizard: (id: string | null) => void;
   filter: ResultsFilter;
   onFilter: (next: ResultsFilter) => void;
 }) {
   const [text, setText] = useState(filter.q);
+  // A phone's round button goes to the search here.
+  usePrimaryAction({
+    icon: Search,
+    label: t("space.resultsSearch"),
+    run: () => {
+      const field = document.getElementById(SEARCH_ID);
+      field?.scrollIntoView({ block: "center", behavior: "smooth" });
+      field?.focus();
+    },
+  });
   useEffect(() => {
     if (text === filter.q) {
       return;
@@ -80,12 +103,24 @@ function FilterBar({
   }, [text, filter, onFilter]);
   return (
     <div className="flex flex-wrap gap-2">
+      <Select
+        value={wizardId ?? ""}
+        onChange={(id) => onWizard(id || null)}
+        options={[
+          { value: "", label: t("space.resultsAllWizards") },
+          ...data.wizards
+            .filter((w) => w.results || w.id === wizardId)
+            .map((w) => ({ value: w.id, label: `${w.title} (${w.results})` })),
+        ]}
+        className="w-56 max-sm:w-full"
+      />
       <div className="relative min-w-0 flex-1 basis-56">
         <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-ink-3" />
         <Input
           type="search"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          id={SEARCH_ID}
           placeholder={t("space.resultsSearch")}
           aria-label={t("space.resultsSearch")}
           className="w-full pl-9"
@@ -123,11 +158,13 @@ function FilterBar({
 export function Results({
   data,
   wizardId,
+  onWizard,
   filter,
   onFilter,
 }: {
   data: SpaceResults;
   wizardId: string | null;
+  onWizard: (id: string | null) => void;
   filter: ResultsFilter;
   onFilter: (next: ResultsFilter) => void;
 }) {
@@ -141,7 +178,13 @@ export function Results({
         hint={t("space.resultsHint")}
         plain
       >
-        <FilterBar filter={filter} onFilter={onFilter} />
+        <FilterBar
+          data={data}
+          wizardId={wizardId}
+          onWizard={onWizard}
+          filter={filter}
+          onFilter={onFilter}
+        />
         {data.runs.length ? (
           <Card className="flex flex-col p-1.5">
             {data.runs.map((r) => (

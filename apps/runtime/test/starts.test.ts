@@ -4,7 +4,7 @@ import {
   scheduleDue,
   startSchema,
   type WizardStart,
-} from "@engenty-wizards/shared/starts";
+} from "@engenty/wizards-shared/starts";
 import { describe, expect, it } from "vitest";
 
 const vienna = "Europe/Vienna";

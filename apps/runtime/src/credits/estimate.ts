@@ -4,8 +4,8 @@ import {
   type Step,
   type TextClass,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
-import type { RunEstimate, StepEstimate } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/definition";
+import type { RunEstimate, StepEstimate } from "@engenty/wizards-shared/run";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { mostAlongOnePath } from "../engine/requirements.js";

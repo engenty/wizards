@@ -1,6 +1,6 @@
 import type { PluginSpace, PluginTool } from "@engenty/wizards/plugin";
-import { type AgentStep, pluginToolOf } from "@engenty-wizards/shared/definition";
-import { note } from "@engenty-wizards/shared/run";
+import { type AgentStep, pluginToolOf } from "@engenty/wizards-shared/definition";
+import { note } from "@engenty/wizards-shared/run";
 import { createTool } from "@mastra/core/tools";
 import { type StepContext, StepError } from "../engine/types.js";
 import { loadedPlugin, pluginIdsOf, pluginsOf } from "../plugins/registry.js";

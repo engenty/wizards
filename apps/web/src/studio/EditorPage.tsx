@@ -1,5 +1,5 @@
-import { type ModelClass, TEXT_CLASSES } from "@engenty-wizards/shared/definition";
-import type { MissingModel, RunView } from "@engenty-wizards/shared/run";
+import { type ModelClass, TEXT_CLASSES } from "@engenty/wizards-shared/definition";
+import type { MissingModel, RunView } from "@engenty/wizards-shared/run";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -650,8 +650,15 @@ export function EditorPage() {
                 view === v ? "bg-card text-ink shadow-soft" : "text-ink-3 hover:text-ink",
               )}
             >
-              {v === "flow" ? <Workflow className="size-3.5" /> : <Play className="size-3.5" />}
-              {t(v === "flow" ? "editor.flow" : "run.testChip")}
+              {v === "flow" ? (
+                <Workflow className="size-3.5 max-sm:size-4" />
+              ) : (
+                <Play className="size-3.5 max-sm:size-4" />
+              )}
+              {/* A phone has the glyphs alone: the row is narrow. */}
+              <span className="max-sm:sr-only">
+                {t(v === "flow" ? "editor.flow" : "run.testChip")}
+              </span>
               {/* The diagram follows the run: its step in effect is lit there. */}
               {v === "flow" && activeStep && view === "test" ? (
                 <span className="size-1.5 animate-pulse rounded-full bg-ember" aria-hidden="true" />
@@ -804,7 +811,8 @@ export function EditorPage() {
         )}
       >
         <Button variant="secondary" size="sm" aria-expanded={sheet.folded} onClick={sheet.toggle}>
-          <Workflow className="size-4" /> {t("editor.flow")}
+          <Workflow className="size-4" />
+          <span className="max-sm:sr-only">{t("editor.flow")}</span>
           {sheet.folded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
         </Button>
         <span className="flex-1" />
@@ -1086,8 +1094,9 @@ export function EditorPage() {
             // On a desk it slides out to the left for a test run, its content unchanged, and back.
             "lg:motion-safe:transition-[margin-left,visibility] lg:motion-safe:duration-300 lg:motion-safe:ease-out",
             drawerRun && runWide && "lg:invisible lg:ml-[calc(var(--pane)*-1)]",
-            // Folded under a test run on a phone, it makes way for the keyboard of the run's fields.
-            drawerRun && view === "test" && sheet.folded && "kb-hide",
+            // A test run on a small screen gets all of it: the sheet slides down out of the way,
+            // and back up when the flow is shown again.
+            drawerRun && view === "test" && "max-lg:h-0! max-lg:overflow-hidden max-lg:shadow-none",
           )}
           style={{ "--pane": `${pane.width}px`, "--sheet": sheet.height } as React.CSSProperties}
         >

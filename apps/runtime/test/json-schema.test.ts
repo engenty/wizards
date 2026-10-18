@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFINITION_VERSION, parseWizard } from "@engenty-wizards/shared/definition";
-import { packageJsonSchema, wizardJsonSchema } from "@engenty-wizards/shared/json-schema";
+import { DEFINITION_VERSION, parseWizard } from "@engenty/wizards-shared/definition";
+import { packageJsonSchema, wizardJsonSchema } from "@engenty/wizards-shared/json-schema";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";

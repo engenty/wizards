@@ -8,13 +8,11 @@ import {
   Folder,
   Laptop,
   LogOut,
-  PanelLeft,
   Pencil,
   Plus,
   WandSparkles,
 } from "lucide-react";
 import {
-  type ComponentType,
   Fragment,
   type ReactNode,
   type RefObject,
@@ -23,7 +21,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Link, NavLink, useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { api } from "../lib/api";
 import { type AppBarPosition, besideBar, useAppBar } from "../lib/appbar";
 import { useFeature } from "../lib/features";
@@ -38,17 +36,13 @@ import {
   useCurrentProject,
   useMayCreate,
 } from "../lib/session";
-import { useStudioPlugins } from "../plugins/host";
 import { Button, cn, Dialog, Input } from "../ui";
-import { AppRail } from "./AppRail";
+import { AppRail, PhoneBar } from "./AppRail";
 import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/StudioAssistant";
 import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner, InstallDialog } from "./InstallBanner";
 import { LangSwitch } from "./LangSwitch";
 import { NoticesBell } from "./Notices";
-import { spaceGroups, withParts } from "./project-sections";
-import { settingsSections } from "./settings-sections";
-import { setAreaSlot, setSpaceSidebar, useHasSideMenu, useSpaceSidebar } from "./side-menu";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
 import { hostOf } from "./where";
@@ -180,7 +174,8 @@ export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, cl
     if (!open) {
       return;
     }
-    const onDown = (e: MouseEvent) => {
+    // Pointer, not mouse: a touch screen does not always send a mouse press for a tap.
+    const onDown = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) {
         closeRef.current();
       }
@@ -190,10 +185,10 @@ export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, cl
         closeRef.current();
       }
     };
-    document.addEventListener("mousedown", onDown);
+    document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
     };
   }, [ref, open]);
@@ -221,15 +216,19 @@ export function SpaceFace({
   size = "md",
 }: {
   project: Project | null;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
 }) {
   const color = project?.brand.colors?.[0]?.value;
   const initials = initialsOf(project?.name ?? "");
   const face = (
     <span
       className={cn(
-        "grid shrink-0 place-items-center rounded-lg font-semibold tracking-wide",
-        size === "md" ? "size-10 text-[0.8125rem]" : "size-9 text-[0.75rem]",
+        "grid shrink-0 place-items-center font-semibold tracking-wide",
+        size === "md"
+          ? "size-10 rounded-lg text-[0.8125rem]"
+          : size === "sm"
+            ? "size-9 rounded-lg text-[0.75rem]"
+            : "size-6 rounded-md text-[0.5625rem]",
         color ? null : "bg-paper-3 text-ink ring-1 ring-border",
       )}
       style={color ? { background: color, color: onFill(color) } : undefined}
@@ -253,7 +252,8 @@ export function SpaceFace({
 
 /**
  * The spaces, listed as Slack lists its workspaces: the one shown first (its row opens its
- * wizards; its page is behind the home in the bar), the others to switch to, and a row that adds one — not there at the plan's limit. The
+ * wizards), the others to switch to, its wizards and a new one, a row that renames it and one
+ * that adds a space — not there at the plan's limit. The
  * trigger is the caller's: the space's tile in the app bar, its name in the top bar. `label`:
  * the trigger's name for a screen reader where it shows no text.
  */
@@ -490,6 +490,8 @@ function SpacePlace({ me, project }: { me: Me; project: Project }) {
 
 function SpaceName({ me }: { me: Me }) {
   const { project } = useCurrentProject();
+  // A phone's bar holds no space: its tile stands here, in the top left corner, before its name.
+  const { phone } = useAppBar();
   if (!project) {
     return null;
   }
@@ -500,13 +502,25 @@ function SpaceName({ me }: { me: Me }) {
         placement="below"
         label={project.name}
         className={(open) =>
-          cn(
-            "-mx-1 max-w-[16rem] translate-y-[0.5px] truncate rounded-md px-2 py-0.5 text-left font-medium text-[0.9375rem] text-ink transition hover:bg-accent",
-            open && "bg-accent",
-          )
+          phone
+            ? cn(
+                "-ml-1 flex max-w-[16rem] items-center gap-2.5 rounded-xl py-1 pr-2 pl-1 text-left font-medium text-[0.9375rem] text-ink transition hover:bg-accent",
+                open && "bg-accent",
+              )
+            : cn(
+                "-mx-1 max-w-[16rem] translate-y-[0.5px] truncate rounded-md px-2 py-0.5 text-left font-medium text-[0.9375rem] text-ink transition hover:bg-accent",
+                open && "bg-accent",
+              )
         }
       >
-        {project.name}
+        {phone ? (
+          <>
+            <SpaceFace project={project} size="sm" />
+            <span className="truncate">{project.name}</span>
+          </>
+        ) : (
+          project.name
+        )}
       </SpaceMenu>
       <SpacePlace me={me} project={project} />
     </span>
@@ -518,10 +532,9 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { position } = useAppBar();
-  const plugins = useStudioPlugins();
+  const { position, phone } = useAppBar();
   useDismiss(ref, open, () => setOpen(false));
-  // The studio as an app on this device: Chrome's offer taken up at once, else how the browser does it.
+  // A phone's bar has no engenty menu: the studio as an app on this device is offered here.
   const installPrompt = useInstallPrompt();
   const [installOpen, setInstallOpen] = useState(false);
   const initials = initialsOf(me.user.name);
@@ -617,26 +630,12 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
               </span>
             </button>
           ) : null}
-          <div className="px-3 pt-1.5 pb-1 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.07em]">
-            {t("nav.settings")}
-          </div>
-          {settingsSections(me, plugins)
-            .filter((s) => s.menu)
-            .map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                className={item}
-                onClick={() => {
-                  setOpen(false);
-                  navigate(`/settings/${s.id}`);
-                }}
-              >
-                <s.icon className="size-4" /> {s.label}
-              </button>
-            ))}
-          <div className="mx-2 my-1.5 h-px bg-border-soft" />
-          {standalone() ? null : (
+          {me.manageUrl ? (
+            <a className={item} href={`${me.manageUrl}/account`} target="_blank" rel="noreferrer">
+              <CreditCard className="size-4" /> {t("nav.account")}
+            </a>
+          ) : null}
+          {phone && !standalone() ? (
             <button
               type="button"
               className={item}
@@ -651,19 +650,15 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
             >
               <AppWindow className="size-4" /> {t("install.app.action")}
             </button>
-          )}
-          {me.manageUrl ? (
-            <a className={item} href={`${me.manageUrl}/account`} target="_blank" rel="noreferrer">
-              <CreditCard className="size-4" /> {t("nav.account")}
-            </a>
           ) : null}
-          <div className="flex items-center justify-between gap-3 px-3 py-2 text-[0.875rem] text-ink-2">
-            {t("nav.language")}
-            <LangSwitch tone="surface" />
-          </div>
+          {/* The person's own look and language (Settings › Account has both too). */}
           <div className="flex items-center justify-between gap-3 px-3 py-2 text-[0.875rem] text-ink-2">
             {t("nav.theme")}
             <ThemeSwitch />
+          </div>
+          <div className="flex items-center justify-between gap-3 px-3 py-2 text-[0.875rem] text-ink-2">
+            {t("nav.language")}
+            <LangSwitch tone="surface" />
           </div>
           {me.mode === "managed" ? (
             <button type="button" className={item} onClick={() => void signOut()}>
@@ -678,113 +673,16 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
   );
 }
 
-/** Left of the space's name: opens and closes the space's sidebar. */
-function SpaceSidebarToggle() {
-  const open = useSpaceSidebar();
-  return (
-    <button
-      type="button"
-      aria-pressed={open}
-      aria-label={t("nav.spaceMenu")}
-      title={t("nav.spaceMenu")}
-      onClick={() => setSpaceSidebar(!open)}
-      className={cn(
-        "grid size-8 shrink-0 place-items-center rounded-lg transition hover:bg-accent hover:text-ink max-lg:hidden",
-        open ? "bg-accent text-ink" : "text-ink-3",
-      )}
-    >
-      <PanelLeft className="size-[1.125rem]" />
-    </button>
-  );
-}
-
-type SidebarRow = {
-  to: string;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-  end: boolean;
-};
-
-/** The space's menu beside the page: its wizards, a new one, and the parts of its page. */
-function SpaceSidebar() {
-  const open = useSpaceSidebar();
-  const inArea = useHasSideMenu();
-  const { project } = useCurrentProject();
-  const plugins = useStudioPlugins();
-  const mayCreate = useMayCreate();
-  if (!project) {
-    return null;
-  }
-  // The rows of the areas' own menu, so both read alike.
-  const item = ({ isActive }: { isActive: boolean }) =>
-    cn(
-      "group flex items-center gap-2 rounded-lg px-2 py-1 text-[0.875rem] transition",
-      isActive ? "bg-paper-2 font-medium text-ink" : "text-ink-2 hover:bg-accent hover:text-ink",
-    );
-  const icon = "size-4 transition-transform duration-200 ease-out group-hover:scale-110";
-  const wizards: SidebarRow[] = [
-    { to: "/", label: t("nav.wizards"), icon: WandSparkles, end: true },
-    ...(mayCreate ? [{ to: "/new", label: t("home.new"), icon: Plus, end: false }] : []),
-  ];
-  // The space's own parts, under the heading the area menus give their groups.
-  const parts = withParts(spaceGroups(), plugins).map((part) => ({
-    to: `/space/${part.id}`,
-    label: part.label,
-    icon: part.icon,
-    end: false,
-  }));
-  const list = (rows: SidebarRow[]) => (
-    <ul className="flex flex-col gap-0.5">
-      {rows.map((row) => (
-        <li key={row.to}>
-          <NavLink to={row.to} end={row.end} className={item}>
-            <span className="grid size-7 shrink-0 place-items-center">
-              <row.icon className={icon} />
-            </span>
-            <span className="min-w-0 flex-1 truncate">{row.label}</span>
-          </NavLink>
-        </li>
-      ))}
-    </ul>
-  );
-  return (
-    // The width animates; the content keeps its own, so it slides away instead of reflowing. Below
-    // `lg` the window has no room for it and it stays closed, whatever was picked.
-    <aside
-      aria-hidden={!open}
-      inert={!open}
-      className={cn(
-        "shrink-0 overflow-hidden transition-[width] duration-300 ease-out motion-reduce:transition-none max-md:hidden",
-        open ? "w-64 max-lg:w-0" : "w-0",
-      )}
-    >
-      <div className="flex h-full w-64 flex-col overflow-y-auto px-4 pb-4">
-        {/* In an area its own menu stands here (the page draws it in); else the space's. */}
-        <div ref={setAreaSlot} className={inArea ? "pt-4 animate-rise sm:pt-6" : "hidden"} />
-        {inArea ? null : (
-          <div className="pt-4 animate-rise sm:pt-6">
-            {list(wizards)}
-            <p className="mt-5 mb-1 px-2 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em]">
-              {t("nav.project")}
-            </p>
-            {list(parts)}
-          </div>
-        )}
-      </div>
-    </aside>
-  );
-}
-
 /**
  * The row at the top of the page: the space's name, which switches between spaces, then the
- * trail and the credits. No wordmark: the mark stands in the app bar. A phone starts at the
+ * trail and the credits. No wordmark: the app bar holds the places. A phone starts at the
  * space's name; the rest stands in its app bar along the bottom.
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
   const startsOn = useFeature("startTriggers");
+  const { phone } = useAppBar();
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:gap-3 sm:px-4 md:px-5">
-      <SpaceSidebarToggle />
       <SpaceName me={me} />
       <div className="flex min-w-0 flex-1 items-center">
         <Trail />
@@ -792,6 +690,8 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
       </div>
       {startsOn ? <NoticesBell /> : null}
       <CreditsPill me={me} />
+      {/* A phone's bar keeps the places: the person stands up here. */}
+      {phone ? <UserMenu me={me} /> : null}
     </header>
   );
 }
@@ -835,12 +735,16 @@ export function AppFrame({
   full?: boolean;
   children: ReactNode;
 }) {
-  const { position } = useAppBar();
+  const { position, phone } = useAppBar();
   const column = useRef<HTMLDivElement>(null);
+  // A phone's bar floats over the page: the page keeps its height free below the last line. A
+  // page that fills the frame (the editor) has its own way back and its own bar at the bottom:
+  // there the phone's bar steps aside, as a tab bar does on a screen pushed onto it.
+  const clear = phone && !full ? " + 4.75rem + env(safe-area-inset-bottom)" : "";
   const goose = useFeature("goose");
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
-      <AppRail me={me} />
+      {phone ? full ? null : <PhoneBar me={me} /> : <AppRail me={me} />}
       <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", INSET[position])}>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
           <UpdateBanner />
@@ -850,11 +754,9 @@ export function AppFrame({
               {children}
             </main>
           ) : (
-            // The top bar runs across, over the sidebar and the page, open or closed.
             <div className="flex min-h-0 flex-1 flex-col">
               <TopBar me={me} />
               <div className="flex min-h-0 flex-1">
-                <SpaceSidebar />
                 <div ref={column} className="relative flex min-w-0 flex-1 flex-col">
                   {/* `relative`: what a page places out of flow without a positioned parent (a
                     hidden file field) stays in the page's own scroll, not in a frame around it,
@@ -863,7 +765,7 @@ export function AppFrame({
                   <main
                     id={SCROLL_ROOT_ID}
                     className="relative min-h-0 flex-1 overflow-y-auto"
-                    style={{ paddingBottom: "var(--assistant-dock, 0px)" }}
+                    style={{ paddingBottom: `calc(var(--assistant-dock, 0px)${clear})` }}
                   >
                     <div
                       className={cn(

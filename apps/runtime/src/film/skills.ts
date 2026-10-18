@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";
 

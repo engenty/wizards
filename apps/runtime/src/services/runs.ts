@@ -7,8 +7,8 @@ import {
   shownFields,
   slotText,
   wizardLang,
-} from "@engenty-wizards/shared/definition";
-import { note } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/definition";
+import { note } from "@engenty/wizards-shared/run";
 import { and, count, desc, eq, gte, inArray, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";

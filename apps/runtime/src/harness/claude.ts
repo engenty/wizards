@@ -1,6 +1,6 @@
-import type { Effort, TextClass } from "@engenty-wizards/shared/definition";
-import { note } from "@engenty-wizards/shared/run";
-import { resolveEnv, run } from "./env.js";
+import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
+import { note } from "@engenty/wizards-shared/run";
+import { probeVersion, resolveEnv, run } from "./env.js";
 import {
   failureOf,
   type HarnessAnswer,
@@ -176,14 +176,8 @@ export const claude: Harness = {
   name: "Claude Code",
   bin: CLAUDE_BIN,
   classes: CLASSES,
-  async version(env) {
-    try {
-      const { stdout } = await run(CLAUDE_BIN, ["--version"], { timeout: 5000, env });
-      return stdout.trim().split(/\s+/)[0] || stdout.trim();
-    } catch {
-      return null;
-    }
-  },
+  version: (env) =>
+    probeVersion(CLAUDE_BIN, env, (stdout) => stdout.trim().split(/\s+/)[0] || stdout.trim()),
   login: { args: ["auth", "login"], interactive: false },
   model: (alias: string, effort?: Effort) => new ClaudeCodeModel(claude, alias || "sonnet", effort),
   exhausted: note("anthropicAccountClaudeCode"),

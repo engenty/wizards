@@ -1,6 +1,6 @@
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
-import type { AskInput, AssetRef, RunNote, RunState } from "@engenty-wizards/shared/run";
-import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { AskInput, AssetRef, RunNote, RunState } from "@engenty/wizards-shared/run";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import type { schema } from "../db/client.js";
 import type { SaveAssetInput } from "../files/storage.js";
 import { NotedError } from "../model-errors.js";

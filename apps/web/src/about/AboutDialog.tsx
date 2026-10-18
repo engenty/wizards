@@ -17,7 +17,8 @@ import {
 import { Credits } from "./Credits";
 import { UpdateCheck } from "./UpdateCheck";
 
-type Tab = "new" | "earlier" | "credits";
+export type AboutTab = "new" | "earlier" | "credits";
+type Tab = AboutTab;
 const TABS: Tab[] = ["new", "earlier", "credits"];
 const label = (tab: Tab) =>
   tab === "new"
@@ -30,30 +31,32 @@ const label = (tab: Tab) =>
 const changes = (n: number) => (n === 1 ? t("about.change") : t("about.changes", { n }));
 
 /**
- * Behind the mark in the app bar: which release this is and how it got here; on a runtime that
- * runs alone, whether a newer one is out — checked now on a word, installed from here where it
- * can be — then three tabs: what is new in the newest release known, the earlier releases (each
- * unfolding to its changes), and the credits.
+ * Which release this is and how it got here; on a runtime that runs alone, whether a newer one
+ * is out — checked now on a word, installed from here where it can be — then three tabs: what
+ * is new in the newest release known, the earlier releases (each unfolding to its changes), and
+ * the credits. In the settings as their About section, and in a dialog where there are none.
+ * `active`: shown now (it loads the releases and checks for updates only then).
  */
-export function AboutDialog({
-  open,
-  onClose,
+export function AboutPanel({
   me,
+  active,
+  initialTab = "new",
 }: {
-  open: boolean;
-  onClose: () => void;
-  /** Without a session (a public page) the dialog says the version and what is new, no updates. */
   me?: Me | null;
+  active: boolean;
+  /** The tab it opens on; another one asked for later switches to it. */
+  initialTab?: AboutTab;
 }) {
   const local = me?.mode === "local";
-  const { data, latest } = useUpdate(local && open);
+  const { data, latest } = useUpdate(local && active);
   const [releases, setReleases] = useState<ChangelogRelease[] | null>(null);
-  const [tab, setTab] = useState<Tab>("new");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  useEffect(() => setTab(initialTab), [initialTab]);
   const step = useStepDirection(TABS.indexOf(tab));
   // The notes of the newest release known: the newer one from GitHub, else this build's own.
   const shown = data?.newer && latest ? latest : APP_VERSION;
   useEffect(() => {
-    if (!open) {
+    if (!active) {
       return;
     }
     let cancelled = false;
@@ -66,18 +69,12 @@ export function AboutDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, shown]);
+  }, [active, shown]);
   const newest = releases?.find((r) => r.version === `v${shown}`) ?? releases?.[0] ?? null;
   const earlier = releases?.filter((r) => r !== newest) ?? [];
   const kind = local ? (data?.kind ?? null) : "cloud";
   return (
-    <Dialog open={open} onClose={onClose} wide height="tall">
-      {/* No title: the mark says what this is. The close stays in the corner while it scrolls. */}
-      <div className="-mt-2 -mr-2 sticky top-0 z-10 flex h-0 justify-end">
-        <IconButton label={t("common.close")} onClick={onClose}>
-          <X className="size-4" />
-        </IconButton>
-      </div>
+    <>
       <div className="flex flex-col items-center pt-4 text-center">
         <EngentyLogoMark size={96} />
         <div className="mt-4 font-display font-semibold text-[1.5rem] tracking-tight">
@@ -92,7 +89,7 @@ export function AboutDialog({
 
       {local ? (
         <div className="mt-5">
-          <UpdateCheck enabled={open} />
+          <UpdateCheck enabled={active} />
         </div>
       ) : null}
 
@@ -150,6 +147,30 @@ export function AboutDialog({
         ) : null}
         {tab === "credits" ? <Credits active /> : null}
       </div>
+    </>
+  );
+}
+
+/** The About panel in a dialog of its own: on a public page, where there are no settings. */
+export function AboutDialog({
+  open,
+  onClose,
+  me,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Without a session (a public page) the dialog says the version and what is new, no updates. */
+  me?: Me | null;
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} wide height="tall">
+      {/* No title: the mark says what this is. The close stays in the corner while it scrolls. */}
+      <div className="-mt-2 -mr-2 sticky top-0 z-10 flex h-0 justify-end">
+        <IconButton label={t("common.close")} onClick={onClose}>
+          <X className="size-4" />
+        </IconButton>
+      </div>
+      <AboutPanel me={me} active={open} />
     </Dialog>
   );
 }

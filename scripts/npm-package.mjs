@@ -36,7 +36,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const outDir = join(root, "dist", "npm");
@@ -143,7 +143,12 @@ const collect = (dir) => {
   const installed = resolved(dir);
   for (const [name, range] of Object.entries(readJson(`${dir}/package.json`).dependencies ?? {})) {
     if (range.startsWith("workspace:")) {
-      const from = `packages/${name.split("/").pop()}`;
+      // The workspace folder pnpm linked the package from.
+      const linked = installed[name]?.path;
+      if (!linked) {
+        throw new Error(`${name} (${dir}) is not linked — run pnpm install.`);
+      }
+      const from = relative(root, linked);
       const manifest = readJson(`${from}/package.json`);
       bundled.push(name);
       dependencies[name] = manifest.version;

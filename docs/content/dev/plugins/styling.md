@@ -1,7 +1,7 @@
 ---
 title: Styles and components
 description: The studio's components, Tailwind against the studio's theme, and why a plugin's styles never leak.
-version: 0.5.0
+version: 0.8.0
 ---
 
 A plugin’s page should look like the studio. Two things make that easy: the studio’s components
@@ -9,7 +9,7 @@ and its theme.
 
 ## Components
 
-`@engenty-wizards/web/ui` is what the studio itself is drawn with:
+`@engenty/wizards-studio/ui` is what the studio itself is drawn with:
 
 | Component | For | Props beside the element’s own |
 |---|---|---|
@@ -28,7 +28,7 @@ and its theme.
 | `DateRangePicker` | A day or a period in one month: the first click is the start, the second the end | `from`, `to`, `onChange({ from, to })`, `min`, `max` |
 | `TimePicker` | A time of day from an hour and a minute column; arrow keys on the field move it by `step` | `value` (“HH:MM” or “”), `onChange`, `step` (minutes, default 5), `compact` (narrow, no clock) |
 | `PageMenu` | A page’s own menu: a list at the side with one level below that slides in, tabs on a phone | `title`, `entries` ({ id, label, icon?, to, entries? }), `current`, `footer` |
-| `MenuPage` | A page with a menu of its own: the menu stands at the page’s left, or in the studio’s sidebar while that is open, so there is only ever one menu at the left | `menu` (a `PageMenu`, or any), `children` (the page) |
+| `MenuPage` | A page with a menu of its own: the menu stands at the page’s left | `menu` (a `PageMenu`, or any), `children` (the page) |
 | `Composer` | The field a message is written in: text, dictation, files, send | `onSend(text, files)` (false keeps the draft), `placeholder`, `disabled`, `attach`, `floating` |
 | `Dialog` | A modal; on a phone it fills the screen | `open`, `onClose`, `title`, `wide` (`true`, or `"page"` for a document), `height="tall"` (for tabs, folds or lists: its height does not jump), `bare` (the children are the panel) |
 | `Spinner`, `Empty` | Loading, and nothing there yet | |
@@ -45,7 +45,7 @@ and its theme.
 | `newId()` | A short id for something new | |
 
 ```tsx
-import { Button, Card, Chip, Label, Input } from "@engenty-wizards/web/ui";
+import { Button, Card, Chip, Label, Input } from "@engenty/wizards-studio/ui";
 
 <Card className="flex flex-col gap-4 p-5">
   <Label hint="Where the message goes.">Address</Label>
@@ -57,11 +57,14 @@ import { Button, Card, Chip, Label, Input } from "@engenty-wizards/web/ui";
 </Card>
 ```
 
+A plugin written against the earlier name, `@engenty-wizards/web/ui`, still builds: the build
+maps both names to the same components.
+
 Icons are from `lucide-react`.
 
-Most of these components live in the runner package (`@engenty-wizards/runner`), so a wizard’s
-run page looks like the studio. Import them from `@engenty-wizards/web/ui` all the same: that is
-the import the studio shares. `@engenty-wizards/runner` is not shared, so the build would bundle
+Most of these components live in the runner package (`@engenty/wizards-runner`), so a wizard’s
+run page looks like the studio. Import them from `@engenty/wizards-studio/ui` all the same: that is
+the import the studio shares. `@engenty/wizards-runner` is not shared, so the build would bundle
 it into `client.js`.
 
 ## Tailwind

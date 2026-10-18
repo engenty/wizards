@@ -1,4 +1,4 @@
-import { defaultFeatures, type FeatureName, featureOn } from "@engenty-wizards/shared/features";
+import { defaultFeatures, type FeatureName, featureOn } from "@engenty/wizards-shared/features";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { setPublicBase } from "./base";

@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { Lang } from "@engenty-wizards/shared/definition";
+import type { Lang } from "@engenty/wizards-shared/definition";
 
 const dir = mkdtempSync(join(tmpdir(), "wizards-apple-"));
 process.env.DATA_DIR = dir;
@@ -21,7 +21,7 @@ describe("Apple Intelligence on this Mac as a model", () => {
 
   it("names why it waits: switched off, still loading, or not this device", async () => {
     const { appleReasonOf, appleUnavailableNote } = await import("../src/harness/apple");
-    const { noteText } = await import("@engenty-wizards/shared/run");
+    const { noteText } = await import("@engenty/wizards-shared/run");
     const appleUnavailable = (status: Parameters<typeof appleUnavailableNote>[0], lang: Lang) =>
       noteText(appleUnavailableNote(status), lang);
     expect(appleReasonOf("appleIntelligenceNotEnabled")).toBe("off");

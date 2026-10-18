@@ -6,7 +6,7 @@ import {
   type GradientType,
   gradientCss,
   parseGradient,
-} from "@engenty-wizards/shared/projects";
+} from "@engenty/wizards-shared/projects";
 import { Copy, Download, ImageUp, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";

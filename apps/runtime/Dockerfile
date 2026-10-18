@@ -30,7 +30,7 @@ RUN pnpm install --frozen-lockfile
 # so it does not run again for every change of the source.
 FROM base AS prod-deps
 COPY --from=manifests /app ./
-RUN pnpm install --prod --frozen-lockfile --filter "@engenty-wizards/runtime..."
+RUN pnpm install --prod --frozen-lockfile --filter "@engenty/wizards-runtime..."
 
 FROM deps AS build
 COPY . .

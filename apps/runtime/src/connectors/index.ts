@@ -1,11 +1,11 @@
-import { isLang, type Lang } from "@engenty-wizards/shared/definition";
-import { note, type RunNote } from "@engenty-wizards/shared/run";
+import { isLang, type Lang } from "@engenty/wizards-shared/definition";
+import { note, type RunNote } from "@engenty/wizards-shared/run";
 import type {
   ConnectionDef,
   ConnectionKind,
   ConnectionView,
   ConnectorOption,
-} from "@engenty-wizards/shared/store";
+} from "@engenty/wizards-shared/store";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import {

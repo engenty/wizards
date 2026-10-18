@@ -1,5 +1,5 @@
-import type { Surface, SurfaceComponent } from "@engenty-wizards/shared/surface";
-import { bound } from "@engenty-wizards/shared/surface";
+import type { Surface, SurfaceComponent } from "@engenty/wizards-shared/surface";
+import { bound } from "@engenty/wizards-shared/surface";
 import { Check, ChevronRight, Clock, Lightbulb, Share2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { lang, t } from "./i18n.js";

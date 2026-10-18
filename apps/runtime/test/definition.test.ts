@@ -6,7 +6,7 @@ import {
   itemsTotals,
   nextStepId,
   parseWizard,
-} from "@engenty-wizards/shared/definition";
+} from "@engenty/wizards-shared/definition";
 import { EXAMPLE_WIZARD } from "../src/authoring/example";
 
 // The marketplace's entries are checked where they live (the marketplace app); the guide's

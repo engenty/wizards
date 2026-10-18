@@ -1,5 +1,5 @@
-import type { ResultStep, ShareOption, WizardDefinition } from "@engenty-wizards/shared/definition";
-import type { ShareTargetInfo } from "@engenty-wizards/shared/sharing";
+import type { ResultStep, ShareOption, WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { ShareTargetInfo } from "@engenty/wizards-shared/sharing";
 import { Bot, ChevronDown, Eye, Link2, Lock, Plug, RotateCcw } from "lucide-react";
 import { useContext, useRef, useState } from "react";
 import { useNavigate } from "react-router";

@@ -1,5 +1,5 @@
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
-import type { TableColumn } from "@engenty-wizards/shared/engenty/data-tables";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
 import type {
   AssetSection,
   BrandColor,
@@ -11,13 +11,13 @@ import type {
   LogoSection,
   ProjectFact,
   TextStyle,
-} from "@engenty-wizards/shared/projects";
-import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty-wizards/shared/run";
-import type { RunnerSettings } from "@engenty-wizards/shared/runners";
-import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty-wizards/shared/sharing";
-import type { StartedBy, WizardStart } from "@engenty-wizards/shared/starts";
-import type { TranslationMemory } from "@engenty-wizards/shared/translation";
-import type { WorkspaceFile } from "@engenty-wizards/shared/workspace";
+} from "@engenty/wizards-shared/projects";
+import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
+import type { RunnerSettings } from "@engenty/wizards-shared/runners";
+import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
+import type { StartedBy, WizardStart } from "@engenty/wizards-shared/starts";
+import type { TranslationMemory } from "@engenty/wizards-shared/translation";
+import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { sql } from "drizzle-orm";
 import {
   type AnySQLiteColumn,

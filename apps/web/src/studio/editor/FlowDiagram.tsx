@@ -6,8 +6,8 @@ import {
   type ResultStep,
   type Step,
   type WizardDefinition,
-} from "@engenty-wizards/shared/definition";
-import type { BranchDecision, RunEstimate, ShownDecision } from "@engenty-wizards/shared/run";
+} from "@engenty/wizards-shared/definition";
+import type { BranchDecision, RunEstimate, ShownDecision } from "@engenty/wizards-shared/run";
 import {
   BaseEdge,
   type Edge,
@@ -587,9 +587,10 @@ function layout(
 function ZoomBar() {
   const rf = useReactFlow();
   const btn =
-    "inline-flex size-8 items-center justify-center rounded-full text-ink-3 hover:bg-accent hover:text-ink";
+    "inline-flex size-8 items-center justify-center rounded-full text-ink-3 hover:bg-accent hover:text-ink coarse:size-10";
   return (
-    <div className="absolute bottom-4 left-4 z-10 flex items-center gap-0.5 rounded-full bg-card p-1 shadow-soft ring-1 ring-border-soft max-sm:hidden">
+    // On a phone it stands at the bottom right, under the thumb, its buttons larger for fingers.
+    <div className="absolute bottom-4 left-4 z-10 flex items-center gap-0.5 rounded-full bg-card p-1 shadow-soft ring-1 ring-border-soft max-sm:right-3 max-sm:bottom-3 max-sm:left-auto">
       <button
         type="button"
         className={btn}
@@ -789,6 +790,8 @@ function Inner({
         panOnScroll
         zoomOnScroll={false}
         zoomOnPinch
+        // A double tap or click on the free canvas zooms in, as the + does.
+        zoomOnDoubleClick
         minZoom={0.3}
         maxZoom={1.4}
         proOptions={{ hideAttribution: true }}

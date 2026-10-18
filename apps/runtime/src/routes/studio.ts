@@ -7,7 +7,7 @@ import {
   type AssistantSignal,
   assistantSignalSchema,
   assistantTurnSchema,
-} from "@engenty-wizards/shared/assistant";
+} from "@engenty/wizards-shared/assistant";
 import {
   LANGS,
   type Lang,
@@ -15,17 +15,17 @@ import {
   TEXT_CLASSES,
   type WizardDefinition,
   wizardLang,
-} from "@engenty-wizards/shared/definition";
-import { CATEGORY_TYPES, whereSchema } from "@engenty-wizards/shared/knowledge";
-import { PROJECT_FILE_KINDS } from "@engenty-wizards/shared/projects";
-import { isCreditsRef } from "@engenty-wizards/shared/providers";
-import { note } from "@engenty-wizards/shared/run";
-import { wizardTexts } from "@engenty-wizards/shared/translation";
+} from "@engenty/wizards-shared/definition";
+import { CATEGORY_TYPES, whereSchema } from "@engenty/wizards-shared/knowledge";
+import { PROJECT_FILE_KINDS } from "@engenty/wizards-shared/projects";
+import { isCreditsRef } from "@engenty/wizards-shared/providers";
+import { note } from "@engenty/wizards-shared/run";
+import { wizardTexts } from "@engenty/wizards-shared/translation";
 import {
   PACKAGE_EXTENSION,
   PACKAGE_MAX_BYTES,
   PACKAGE_MIME,
-} from "@engenty-wizards/shared/wizard-package";
+} from "@engenty/wizards-shared/wizard-package";
 import { generateText } from "ai";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";

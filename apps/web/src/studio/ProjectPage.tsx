@@ -1,6 +1,5 @@
-import { Home, Layers, LayoutGrid, Puzzle, WandSparkles } from "lucide-react";
+import { Inbox, Layers, LayoutGrid, Puzzle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
@@ -40,7 +39,6 @@ import {
   useNarrow,
   useStepDirection,
 } from "./settings-menu";
-import { useSideMenuSlot } from "./side-menu";
 
 /**
  * The section in view: the last whose top passed the upper third of the page's scroll
@@ -153,17 +151,30 @@ export function ProjectPage() {
   // picking a part opens its menu.
   const atParts = (location.state as { parts?: boolean } | null)?.parts === true;
   const entries = withParts(spaceGroups(), plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
-  const entry = entries.find((e) => e.id === open);
+  // Results have a place of their own in the app bar: no part among the others, no way up.
+  const resultsEntry = {
+    id: "results",
+    label: t("space.results"),
+    icon: Inbox,
+    to: "/space/results",
+  };
+  const entry = group === "results" ? resultsEntry : entries.find((e) => e.id === open);
   const show = params.get("show");
   // A phone: 0 the parts, 1 the part's menu, 2 the page.
-  const phone = !open ? 0 : show ? 2 : 1;
-  const level = narrow ? Math.min(phone, 1) : open && upAt !== open && !atParts ? 1 : 0;
+  // Results have no menu: the page at once, the wizard picked above the list.
+  const phone = group === "results" ? 2 : !open ? 0 : show ? 2 : 1;
+  const level =
+    group === "results"
+      ? 1
+      : narrow
+        ? Math.min(phone, 1)
+        : open && upAt !== open && !atParts
+          ? 1
+          : 0;
   const levelStep = useStepDirection(level);
   const pageStep = useStepDirection(phone);
   const menu = useMemo(() => ({ slot, narrow, setDetail }), [slot, narrow]);
   const title = project ? project.brand.name?.trim() || project.name : t("nav.project");
-  const areaSlot = useSideMenuSlot();
-  const inSidebar = Boolean(areaSlot) && !narrow;
 
   // Typography waits behind its switch.
   const off = useFeature("typography") ? [] : ["typography"];
@@ -219,7 +230,7 @@ export function ProjectPage() {
         : undefined;
 
   useCrumbs([
-    { label: t("nav.project"), to: "/space" },
+    ...(group === "results" ? [] : [{ label: t("nav.project"), to: "/space" }]),
     ...(entry ? [{ label: entry.label, to: `/space/${entry.id}` }] : []),
     ...(entry && (detail ?? wizardTitle ?? pickedTitle)
       ? [{ label: (detail ?? wizardTitle ?? pickedTitle) as string }]
@@ -336,16 +347,20 @@ export function ProjectPage() {
   // On a phone the menu marks nothing: a row opens the page.
   const marked = narrow ? undefined : inView;
 
-  // The area's menu: in the sidebar while that is open, else at the page's left.
+  // The area's menu, at the page's left.
   const menuBody = (
     <>
       <LevelHead
         title={title}
         open={level === 1 ? (entry ?? null) : null}
-        onBack={() => (narrow ? navigate("/space") : setUpAt(open ?? null))}
-        // The house's own name in the bar, and the way back to the wizards.
+        onBack={
+          group === "results"
+            ? undefined
+            : () => (narrow ? navigate("/space") : setUpAt(open ?? null))
+        }
+        // The page's own name in the bar, and the way back to the wizards.
         root={{
-          icon: Home,
+          icon: Layers,
           label: t("nav.project"),
           backLabel: t("nav.wizards"),
           onBack: () => navigate("/"),
@@ -366,16 +381,15 @@ export function ProjectPage() {
   );
   return (
     <SettingsMenuContext.Provider value={menu}>
-      {inSidebar && areaSlot ? createPortal(menuBody, areaSlot) : null}
       <div className="animate-rise">
         <div
           className={cn(
             "grid gap-6",
-            !inSidebar &&
-              "md:grid-cols-[13.5rem_minmax(0,1fr)] md:gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10",
+            group !== "results" &&
+              "md:grid-cols-[10.5rem_minmax(0,1fr)] md:gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10",
           )}
         >
-          {inSidebar ? null : (
+          {group === "results" ? null : (
             <aside
               className={cn(
                 "min-w-0 md:sticky md:top-6 md:self-start",
@@ -394,7 +408,7 @@ export function ProjectPage() {
                 narrow && pageStep === "deeper" && stepClass("deeper"),
               )}
             >
-              {narrow ? (
+              {narrow && group !== "results" ? (
                 <div className="mb-3">
                   <BackRow
                     label={entry?.label ?? title}
@@ -408,38 +422,7 @@ export function ProjectPage() {
                 </div>
               ) : null}
 
-              {group === "results" ? (
-                <SubMenu>
-                  <ul className="flex flex-col gap-0.5">
-                    <MenuRow
-                      icon={Layers}
-                      label={t("space.resultsAll")}
-                      selected={!narrow && !wizardId}
-                      onPick={() => pick("all")}
-                    />
-                    {/* The wizards that have a result; the one picked stays. */}
-                    {results.data?.wizards
-                      .filter((w) => w.results || w.id === wizardId)
-                      .map((w) => (
-                        <MenuRow
-                          key={w.id}
-                          icon={WandSparkles}
-                          label={w.title}
-                          badge={
-                            w.results ? (
-                              <span className="text-[0.75rem] text-ink-3 tabular-nums">
-                                {w.results}
-                              </span>
-                            ) : null
-                          }
-                          selected={!narrow && w.id === wizardId}
-                          onPick={() => pick(w.id)}
-                        />
-                      ))}
-                  </ul>
-                  <SectionRows groups={added} current={marked} onPick={jump} />
-                </SubMenu>
-              ) : group === "data" ? (
+              {group === "data" ? (
                 <SubMenu>
                   <ul className="flex flex-col gap-0.5">
                     <MenuRow
@@ -643,6 +626,7 @@ export function ProjectPage() {
                     <Results
                       data={results.data}
                       wizardId={wizardId}
+                      onWizard={(id) => pick(id ?? "all")}
                       filter={filter}
                       onFilter={setFilter}
                     />

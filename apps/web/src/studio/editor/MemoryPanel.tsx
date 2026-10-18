@@ -1,4 +1,4 @@
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus } from "lucide-react";
 import { useState } from "react";

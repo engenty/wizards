@@ -1,10 +1,11 @@
-import type { SpaceData } from "@engenty-wizards/shared/space-data";
+import type { SpaceData } from "@engenty/wizards-shared/space-data";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Plus, Table2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { Button, Card, Dialog, Empty, Input, Label, Select } from "../../ui";
+import { usePrimaryAction } from "../primary-action";
 import { Section } from "./Section";
 
 /** The space's tables and pages, and its wizards to name whose they are. */
@@ -137,6 +138,10 @@ export function DataOverview({
   onOpen: (key: string) => void;
 }) {
   const [making, setMaking] = useState<"table" | "page" | null>(null);
+  // A phone's round button makes a new table here.
+  usePrimaryAction(
+    readOnly ? null : { icon: Plus, label: t("data.newTable"), run: () => setMaking("table") },
+  );
   const groups = dataGroups(data);
   const updated = new Map<string, string>([
     ...data.tables.map((x) => [`t:${x.id}`, x.updatedAt] as const),

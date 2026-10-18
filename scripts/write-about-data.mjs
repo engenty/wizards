@@ -7,8 +7,9 @@
 //   pnpm about:data --changelog   the changelog only (pnpm release --changelog runs this)
 //   pnpm about:data --credits     the credits and COPYRIGHTS.md only
 //
-// The changelog is the root changelog.json (git-cliff's context, written by pnpm release) cut
-// down to what the page shows. The credits are the direct dependencies the workspace's
+// The changelog is git-cliff's context cut down to what the page shows: the root changelog.json
+// pnpm release writes (generated, not tracked), or, when there is none, git-cliff run here.
+// The credits are the direct dependencies the workspace's
 // package.json files declare (not the whole tree), with version and license from
 // `pnpm licenses list`, grouped as
 //   shared: declared by two or more workspaces
@@ -17,6 +18,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { cliffContext } from "./git-cliff.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const CHANGELOG_JSON = join(root, "changelog.json");
@@ -27,8 +29,10 @@ const OUT_COPYRIGHTS = join(root, "COPYRIGHTS.md");
 const COPYRIGHTS_BEGIN =
   "<!-- third-party: written by scripts/write-about-data.mjs, do not edit by hand -->";
 const COPYRIGHTS_END = "<!-- /third-party -->";
-/** The workspace's own packages: no credit to give. */
-const OWN_SCOPE = "@engenty-wizards/";
+/** The workspace's own packages, by name: no credit to give. */
+const OWN = ownPackages();
+/** A workspace's label: its name without the product's prefix (`@engenty/wizards-shared` → `shared`). */
+const OWN_PREFIX = "@engenty/wizards-";
 /** Workspaces that are not part of the app people run: the docs site. */
 const NOT_THE_APP = new Set(["apps/docs"]);
 
@@ -43,11 +47,37 @@ function die(message) {
   process.exit(1);
 }
 
-function writeSlimChangelog() {
-  if (!existsSync(CHANGELOG_JSON)) {
-    die(`${relative(root, CHANGELOG_JSON)} is missing — run \`pnpm release --changelog\` first.`);
+/** The names of every package of the workspace (pnpm-workspace.yaml), `@engenty/wizards` among them. */
+function ownPackages() {
+  let stdout;
+  try {
+    stdout = execFileSync("pnpm", ["-r", "ls", "--depth", "-1", "--json"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+  } catch {
+    die("`pnpm -r ls` failed — run `pnpm install` first.");
   }
-  const slim = JSON.parse(readFileSync(CHANGELOG_JSON, "utf8"))
+  return new Set(
+    JSON.parse(stdout)
+      .map((project) => project.name)
+      .filter(Boolean),
+  );
+}
+
+/**
+ * git-cliff's context: the root changelog.json when pnpm release wrote one (a release stamps
+ * its version onto the commits there), else fresh from the commits.
+ */
+function changelogContext() {
+  if (existsSync(CHANGELOG_JSON)) {
+    return JSON.parse(readFileSync(CHANGELOG_JSON, "utf8"));
+  }
+  return cliffContext();
+}
+
+function writeSlimChangelog() {
+  const slim = changelogContext()
     .filter((release) => Array.isArray(release.commits) && release.commits.length > 0)
     .map((release) => ({
       version: release.version ?? null,
@@ -99,18 +129,18 @@ function workspaceDirectDeps(all = false) {
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
     const id = relative(root, dirname(pkgPath)).replaceAll("\\", "/") || "root";
     const kind = id === "root" ? "root" : id.startsWith("apps/") ? "app" : "package";
-    const label = pkg.name?.startsWith(OWN_SCOPE) ? pkg.name.slice(OWN_SCOPE.length) : id;
+    const label = pkg.name?.startsWith(OWN_PREFIX) ? pkg.name.slice(OWN_PREFIX.length) : id;
     const deps = new Set();
     for (const field of ["dependencies", "optionalDependencies"]) {
       for (const name of Object.keys(pkg[field] ?? {})) {
-        if (!name.startsWith(OWN_SCOPE)) {
+        if (!OWN.has(name)) {
           deps.add(name);
         }
       }
     }
     const dev = new Set();
     for (const name of Object.keys(pkg.devDependencies ?? {})) {
-      if (!name.startsWith(OWN_SCOPE)) {
+      if (!OWN.has(name)) {
         dev.add(name);
       }
     }

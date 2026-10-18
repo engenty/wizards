@@ -1,11 +1,6 @@
 {
   "shared": [
     {
-      "name": "@engenty/wizards",
-      "version": "",
-      "license": "Unknown"
-    },
-    {
       "name": "@modelcontextprotocol/client",
       "version": "2.2.0",
       "license": "MIT",
@@ -259,6 +254,12 @@
           "homepage": "https://github.com/microsoft/node-pty"
         },
         {
+          "name": "nodemailer",
+          "version": "10.0.9",
+          "license": "MIT-0",
+          "homepage": "https://nodemailer.com/"
+        },
+        {
           "name": "pdf-parse",
           "version": "2.4.5",
           "license": "Apache-2.0",
@@ -299,7 +300,7 @@
     {
       "id": "apps/web",
       "kind": "app",
-      "label": "web",
+      "label": "studio",
       "packages": [
         {
           "name": "@dagrejs/dagre",

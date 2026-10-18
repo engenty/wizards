@@ -1,8 +1,8 @@
-import { RunnerBody as Body, type RunSource } from "@engenty-wizards/runner";
+import { RunnerBody as Body, type RunSource } from "@engenty/wizards-runner";
 
-export { initialValues, useDoneSignal } from "@engenty-wizards/runner";
+export { initialValues, useDoneSignal } from "@engenty/wizards-runner";
 
-import type { RunView } from "@engenty-wizards/shared/run";
+import type { RunView } from "@engenty/wizards-shared/run";
 import { useRun } from "./useRun";
 
 export type { RunSource };

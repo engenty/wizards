@@ -4,15 +4,15 @@ import {
   runnerTable,
   setRunnerLang,
   setRunnerTable,
-} from "@engenty-wizards/runner/i18n";
+} from "@engenty/wizards-runner/i18n";
 import {
   isLang,
   type Lang,
   localLang,
   viewerLang as viewerLangOf,
-} from "@engenty-wizards/shared/definition";
-import { noteText, type RunNote } from "@engenty-wizards/shared/run";
-import { type Line, lineText, type Texts, textOf } from "@engenty-wizards/shared/texts";
+} from "@engenty/wizards-shared/definition";
+import { noteText, type RunNote } from "@engenty/wizards-shared/run";
+import { type Line, lineText, type Texts, textOf } from "@engenty/wizards-shared/texts";
 import { useSyncExternalStore } from "react";
 
 // Wording: docs/copy-style.md (voice, glossary, EN/DE mechanics). Write each language as its
@@ -422,13 +422,14 @@ const de: Record<Key, Line> = {
   "readonly.server":
     "Hier laufen die Wizards, die du in engenty wizards auf deinem Computer veröffentlichst. Gebaut und bearbeitet wird dort.",
   "nav.wizards": "Wizards",
-  "nav.spaceMenu": "Space-Menü",
+  "nav.home": "Start",
   "nav.renameSpace": "Space-Namen bearbeiten",
   "nav.wizardsInSpace": "Wizards im Space",
   "nav.addWizard": "Wizard hinzufügen",
   "nav.spaceLocal": "Auf diesem Computer",
   "nav.spaceCloud": "In der Cloud",
   "nav.settings": "Einstellungen",
+  "nav.more": "Mehr",
   "nav.project": "Space",
   "nav.switchSpace": "Space wechseln",
   "nav.addSpace": "Space hinzufügen",
@@ -493,6 +494,7 @@ const de: Record<Key, Line> = {
   "nav.credits": { one: "{n} Credit", other: "{n} Credits" },
   "about.version": "Version {v}",
   "about.title": "Über engenty wizards",
+  "about.nav": "Über",
   "about.kind.script": "Auf deinem Computer",
   "about.kind.checkout": "Entwicklungs-Checkout",
   "about.kind.npm": "Mit npm installiert",
@@ -500,6 +502,7 @@ const de: Record<Key, Line> = {
   "about.update.check": "Nach Updates suchen",
   "about.update.checking": "Sucht nach Updates …",
   "about.update.upToDate": "Du bist auf dem neuesten Stand.",
+  "about.update.upToDateShort": "Aktuell",
   "about.update.checkedAt": "zuletzt geprüft {when}",
   "about.update.unknown": "Die Prüfung hat nicht geklappt. Keine Verbindung zu GitHub?",
   "about.update.off": "Die Suche nach Updates ist abgeschaltet.",
@@ -524,6 +527,7 @@ const de: Record<Key, Line> = {
   "about.unreleased": "Noch nicht veröffentlicht",
   "about.breaking": "inkompatibel",
   "about.credits": "Open Source",
+  "about.creditsMenu": "Credits und Lizenzen",
   "about.creditsHint": "engenty wizards und die Open-Source-Software, auf der es aufbaut.",
   "about.creditsProduct": "engenty",
   "about.creditsBuiltWith": "Gebaut mit",
@@ -1638,6 +1642,7 @@ const de: Record<Key, Line> = {
   "space.data": "Daten",
   "space.results": "Ergebnisse",
   "space.resultsAll": "Alle Ergebnisse",
+  "space.resultsAllWizards": "Alle Wizards",
   "space.resultsHint": "Abgeschlossene Läufe deiner Wizards, die neuesten zuerst.",
   "space.resultsEmpty": "Noch keine Ergebnisse. Ein Lauf steht hier, sobald er fertig ist.",
   "space.resultCredits": { one: "{n} Credit", other: "{n} Credits" },
@@ -2536,13 +2541,14 @@ const en = {
   "readonly.server":
     "Wizards run here once you publish them in engenty wizards on your computer. You build and edit them there.",
   "nav.wizards": "Wizards",
-  "nav.spaceMenu": "Space menu",
+  "nav.home": "Home",
   "nav.renameSpace": "Rename space",
   "nav.wizardsInSpace": "Wizards in space",
   "nav.addWizard": "Add wizard",
   "nav.spaceLocal": "On this computer",
   "nav.spaceCloud": "In the cloud",
   "nav.settings": "Settings",
+  "nav.more": "More",
   "nav.project": "Space",
   "nav.switchSpace": "Switch space",
   "nav.addSpace": "Add space",
@@ -2606,6 +2612,7 @@ const en = {
   "nav.credits": { one: "{n} credit", other: "{n} credits" },
   "about.version": "Version {v}",
   "about.title": "About engenty wizards",
+  "about.nav": "About",
   "about.kind.script": "On your computer",
   "about.kind.checkout": "Development checkout",
   "about.kind.npm": "Installed with npm",
@@ -2613,6 +2620,7 @@ const en = {
   "about.update.check": "Check for updates",
   "about.update.checking": "Checking for updates…",
   "about.update.upToDate": "You’re up to date.",
+  "about.update.upToDateShort": "Up to date",
   "about.update.checkedAt": "last checked {when}",
   "about.update.unknown":
     "Couldn’t check for updates. Check your connection to GitHub and try again.",
@@ -2638,6 +2646,7 @@ const en = {
   "about.unreleased": "Unreleased",
   "about.breaking": "breaking",
   "about.credits": "Credits",
+  "about.creditsMenu": "Credits and licences",
   "about.creditsHint": "engenty wizards and the open-source software it builds on.",
   "about.creditsProduct": "engenty",
   "about.creditsBuiltWith": "Built with",
@@ -3728,6 +3737,7 @@ const en = {
   "space.data": "Data",
   "space.results": "Results",
   "space.resultsAll": "All results",
+  "space.resultsAllWizards": "All wizards",
   "space.resultsHint": "Runs of your wizards that reached their result, newest first.",
   "space.resultsEmpty": "No results yet. A run shows up here once it’s done.",
   "space.resultCredits": { one: "{n} credit", other: "{n} credits" },

@@ -1,7 +1,7 @@
 ---
 title: The studio half
 description: Pages, icons in the app bar, sections of the settings and of the space page – written in React, built once, drawn inside the studio.
-version: 0.5.0
+version: 0.8.0
 ---
 
 The studio half is `ui/plugin.tsx`. Its default export is a function; the studio calls it after
@@ -10,7 +10,7 @@ same router, the same components.
 
 ```tsx
 import { defineStudioPlugin } from "@engenty/wizards/plugin/studio";
-import { Button, Card, Empty, Spinner } from "@engenty-wizards/web/ui";
+import { Button, Card, Empty, Spinner } from "@engenty/wizards-studio/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users } from "lucide-react";
 
@@ -268,12 +268,11 @@ studio.useCrumbs([{ label: t("title"), to: "/contacts" }, { label: person.name ?
 ## A page with a menu
 
 A page with parts of its own puts its menu where the studio’s own pages put theirs. `MenuPage`
-from `@engenty-wizards/web/ui` draws the menu in the studio’s sidebar while that is open, and at
-the page’s left otherwise, so there is only ever one menu at the left. `PageMenu` draws the menu
+from `@engenty/wizards-studio/ui` draws the menu at the page’s left. `PageMenu` draws the menu
 as the settings do: a list with one level below it, and tabs on a phone.
 
 ```tsx
-import { MenuPage, PageMenu } from "@engenty-wizards/web/ui";
+import { MenuPage, PageMenu } from "@engenty/wizards-studio/ui";
 import { useParams } from "react-router";
 
 function ContactsPage() {
@@ -338,7 +337,7 @@ there is one React and one router on the page:
 | `react-dom` | `createPortal`, `flushSync` |
 | `react-router` | `Link`, `NavLink`, `Navigate`, `useNavigate`, `useParams`, `useLocation`, `useSearchParams` |
 | `@tanstack/react-query` | `useQuery`, `useMutation`, `useQueryClient` |
-| `@engenty-wizards/web/ui` | The studio’s components, see [Styles and components](./styling.md) |
+| `@engenty/wizards-studio/ui` | The studio’s components, see [Styles and components](./styling.md). The earlier name `@engenty-wizards/web/ui` still works |
 | `@engenty/wizards/plugin/studio` | `defineStudioPlugin` and the types |
 
 Everything else a plugin imports is bundled into `client.js`. A package the plugin’s folder

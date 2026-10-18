@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { PluginRunReport, PluginRunSignal, PluginRuns } from "@engenty/wizards/plugin";
-import { LANGS, type Lang, textLang, wizardLang } from "@engenty-wizards/shared/definition";
-import { noteText, type RunNote } from "@engenty-wizards/shared/run";
+import { LANGS, type Lang, textLang, wizardLang } from "@engenty/wizards-shared/definition";
+import { noteText, type RunNote } from "@engenty/wizards-shared/run";
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, schema, withTenant } from "../db/client.js";
 import { answerAsk } from "../engine/asks.js";

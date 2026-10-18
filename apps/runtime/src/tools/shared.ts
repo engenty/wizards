@@ -1,4 +1,4 @@
-import type { AssetRef } from "@engenty-wizards/shared/run";
+import type { AssetRef } from "@engenty/wizards-shared/run";
 import type { StepContext } from "../engine/types.js";
 import { ServiceError } from "../services/errors.js";
 import { type StoreScope, writeStoreFile } from "../store/index.js";

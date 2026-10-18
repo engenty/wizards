@@ -1,13 +1,13 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { WizardDefinition } from "@engenty-wizards/shared/definition";
+import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import {
   BUILT_IN_RUNNERS,
   type RunnerInfo,
   runnerFit,
   runnersFor,
-} from "@engenty-wizards/shared/runners";
+} from "@engenty/wizards-shared/runners";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const dir = mkdtempSync(join(tmpdir(), "wizards-runners-"));

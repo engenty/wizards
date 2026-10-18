@@ -115,7 +115,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @engenty-wizards/runner build
+      - run: pnpm --filter @engenty/wizards-runner build
       - name: The runner as one archive
         run: mkdir -p dist && (cd packages/runner && tar -czf ../../dist/runner.tgz dist LICENSE README.md package.json)
       - uses: actions/upload-artifact@v7

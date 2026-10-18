@@ -1,5 +1,5 @@
-import type { RunnerFit, RunnerInfo, RunnerSettings } from "@engenty-wizards/shared/runners";
-import type { WizardStart } from "@engenty-wizards/shared/starts";
+import type { RunnerFit, RunnerInfo, RunnerSettings } from "@engenty/wizards-shared/runners";
+import type { WizardStart } from "@engenty/wizards-shared/starts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,

@@ -5,7 +5,7 @@ import {
   type StartKind,
   scheduleDue,
   type WizardStart,
-} from "@engenty-wizards/shared/starts";
+} from "@engenty/wizards-shared/starts";
 import { eq, ne, sql } from "drizzle-orm";
 import { canSpend } from "../credits/credits.js";
 import { db, knownTenants, schema, withTenant } from "../db/client.js";

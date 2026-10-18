@@ -1,5 +1,5 @@
-import { AskPanel, Markdown } from "@engenty-wizards/runner";
-import type { ShareJobView } from "@engenty-wizards/shared/sharing";
+import { AskPanel, Markdown } from "@engenty/wizards-runner";
+import type { ShareJobView } from "@engenty/wizards-shared/sharing";
 import { Check, ExternalLink, Sparkles, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { api } from "../lib/api";

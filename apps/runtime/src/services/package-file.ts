@@ -1,4 +1,4 @@
-import { note, type Said } from "@engenty-wizards/shared/run";
+import { note, type Said } from "@engenty/wizards-shared/run";
 import {
   type Manifest,
   manifestSchema,
@@ -6,8 +6,8 @@ import {
   PACKAGE_FORMAT,
   PACKAGE_MANIFEST,
   PACKAGE_MAX_BYTES,
-} from "@engenty-wizards/shared/wizard-package";
-import { cleanPath, WORKSPACE_LIMITS } from "@engenty-wizards/shared/workspace";
+} from "@engenty/wizards-shared/wizard-package";
+import { cleanPath, WORKSPACE_LIMITS } from "@engenty/wizards-shared/workspace";
 import { strFromU8, unzipSync } from "fflate";
 import { ServiceError } from "./errors.js";
 

@@ -1,4 +1,4 @@
-import { type AudioValue, isAudioValue } from "@engenty-wizards/shared/definition";
+import { type AudioValue, isAudioValue } from "@engenty/wizards-shared/definition";
 import { FileAudio, Mic, RotateCcw, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { stamp } from "./camera";

@@ -1,5 +1,5 @@
-import type { TableColumn } from "@engenty-wizards/shared/engenty/data-tables";
-import { cellValue } from "@engenty-wizards/shared/store";
+import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
+import { cellValue } from "@engenty/wizards-shared/store";
 import { describe, expect, it } from "vitest";
 
 const col = (c: Record<string, unknown>) => ({ id: "c", name: "C", ...c }) as unknown as TableColumn;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Step, WizardDefinition } from "@engenty-wizards/shared/definition";
-import { mergeDrafts } from "@engenty-wizards/shared/merge";
+import type { Step, WizardDefinition } from "@engenty/wizards-shared/definition";
+import { mergeDrafts } from "@engenty/wizards-shared/merge";
 
 const page = (id: string, title = id): Step => ({
   id,

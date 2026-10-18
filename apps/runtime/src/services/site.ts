@@ -1,6 +1,6 @@
-import type { Lang } from "@engenty-wizards/shared/definition";
-import { factKey, PROJECT_LIMITS } from "@engenty-wizards/shared/projects";
-import { note } from "@engenty-wizards/shared/run";
+import type { Lang } from "@engenty/wizards-shared/definition";
+import { factKey, PROJECT_LIMITS } from "@engenty/wizards-shared/projects";
+import { note } from "@engenty/wizards-shared/run";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { runStudioAssistant } from "../agents/studio-assistant.js";

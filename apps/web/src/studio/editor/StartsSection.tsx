@@ -1,4 +1,4 @@
-import type { Field } from "@engenty-wizards/shared/definition";
+import type { Field } from "@engenty/wizards-shared/definition";
 import {
   describeStart,
   nextRunAt,
@@ -6,7 +6,7 @@ import {
   START_KINDS,
   type StartKind,
   type WizardStart,
-} from "@engenty-wizards/shared/starts";
+} from "@engenty/wizards-shared/starts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Clock, Link2, Play, Plus, Table2, Wand2 } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
