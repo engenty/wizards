@@ -1,7 +1,7 @@
 ---
 title: Examples
 description: Two plugins in the repository to read, run and copy.
-version: 0.5.0
+version: 0.8.0
 ---
 
 The repository has two example plugins. Load them from a checkout with one line in `.env.local`:
@@ -75,8 +75,7 @@ node scripts/build-plugin.mjs examples/plugins/run-log --watch
 Then, in the studio:
 
 1. Test a wizard to its end.
-2. Open the space’s Results: choose “Results” under Space in the sidebar, or open the space’s
-   page with the house icon in the app bar and go to Results. “Runs” stands below the results
+2. Open the space’s Results with the tray icon in the app bar. “Runs” stands below the results
    and shows the last five runs of the space’s wizards. Its last line, “All … runs”, opens the
    page with the whole log.
 3. Settings → Runs shows how many lines are kept, and “Delete all” deletes them.

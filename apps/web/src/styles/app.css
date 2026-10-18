@@ -488,3 +488,81 @@ dialog.media-sheet::backdrop {
     animation: none;
   }
 }
+
+/*
+ * Liquid glass, as iOS draws its tab bar: clear enough to read what passes under it, softened by a
+ * small blur that lets its colours through, and no colour of its own. It looks thick by its light:
+ * a bright edge along the top, a faint glow all round inside (after nikdelvin/liquid-glass), a
+ * hairline of red and blue at the rim where light splits, a highlight caught at the upper left,
+ * a soft shade inside along the bottom, and a shadow below. No refraction of the page behind:
+ * Safari cannot draw it, and in Chromium it cost frames. Less transparency, asked for, makes it
+ * solid.
+ */
+.liquid-glass {
+  /* Positioned by its user: the highlight below needs a positioned box. */
+  isolation: isolate;
+  background: oklch(1 0 0 / 0.08);
+  /* No saturation in the dark: it would turn the page's blue into a louder one. */
+  -webkit-backdrop-filter: blur(8px) brightness(1.12);
+  backdrop-filter: blur(8px) brightness(1.12);
+  box-shadow:
+    inset 0 1px 0.5px oklch(1 0 0 / 0.35),
+    inset 0 0 4px oklch(0.98 0 0 / 0.22),
+    inset 0.75px 0 0 oklch(0.75 0.15 25 / 0.18),
+    inset -0.75px 0 0 oklch(0.7 0.15 250 / 0.22),
+    inset 0 -8px 16px -10px oklch(0 0 0 / 0.35),
+    0 0 0 0.5px oklch(1 0 0 / 0.12),
+    0 8px 24px -8px oklch(0 0 0 / 0.45);
+}
+.liquid-glass::before {
+  /* The highlight: light caught at the upper left, gone before the middle. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(120% 90% at 18% 0%, oklch(1 0 0 / 0.16), oklch(1 0 0 / 0) 55%);
+  pointer-events: none;
+}
+:root:not(.dark) .liquid-glass {
+  background: oklch(1 0 0 / 0.3);
+  -webkit-backdrop-filter: blur(6px) saturate(170%) brightness(1.04);
+  backdrop-filter: blur(6px) saturate(170%) brightness(1.04);
+  box-shadow:
+    inset 0 1px 0.5px oklch(1 0 0 / 0.95),
+    inset 0 0 4px oklch(1 0 0 / 0.7),
+    inset 0.75px 0 0 oklch(0.7 0.15 25 / 0.16),
+    inset -0.75px 0 0 oklch(0.65 0.15 250 / 0.2),
+    inset 0 -8px 16px -10px oklch(0 0 0 / 0.14),
+    0 0 0 0.5px oklch(0 0 0 / 0.06),
+    0 8px 24px -8px oklch(0 0 0 / 0.2);
+}
+:root:not(.dark) .liquid-glass::before {
+  background: radial-gradient(120% 90% at 18% 0%, oklch(1 0 0 / 0.55), oklch(1 0 0 / 0) 55%);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .liquid-glass,
+  :root:not(.dark) .liquid-glass {
+    background: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/*
+ * Glass that gives under a finger: it swells a little on a spring while pressed, as iOS's glass
+ * does. Not where less motion was asked for.
+ */
+.glass-press {
+  transition: scale 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.glass-press:active {
+  scale: 1.12;
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass-press,
+  .glass-press:active {
+    transition: none;
+    scale: none;
+  }
+}

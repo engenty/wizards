@@ -1,5 +1,5 @@
 import { featureOn } from "@engenty/wizards-shared/features";
-import { Blocks, Cable, Cpu, type LucideIcon, Plug, UserRound, Users } from "lucide-react";
+import { Blocks, Cable, Cpu, Info, type LucideIcon, Plug, UserRound, Users } from "lucide-react";
 import type { ComponentType } from "react";
 import { t } from "../lib/i18n";
 import type { Me } from "../lib/session";
@@ -17,7 +17,7 @@ export interface SettingsSection {
 
 /**
  * The sections of the settings, in the order of their list: the studio's own, then what the
- * plugins added, then the plugins themselves.
+ * plugins added, then the plugins themselves, then About.
  */
 export function settingsSections(
   me: Me | null | undefined,
@@ -45,5 +45,7 @@ export function settingsSections(
     ...(plugins.plugins.length || plugins.problems.length || (plugins.canReload && me?.account)
       ? [{ id: "plugins", label: t("plugins.title"), icon: Blocks, menu: false }]
       : []),
+    // Which release this is, its updates, what is new, the credits.
+    { id: "about", label: t("about.nav"), icon: Info, menu: false },
   ];
 }
