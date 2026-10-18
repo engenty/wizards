@@ -13,7 +13,7 @@
     "ai-workflows",
     "mcp"
   ],
-  "types": "./types/index.d.ts",
+  "types": "./claude-code/types/index.d.ts",
   "userConfig": {
     "server": {
       "type": "string",
@@ -27,5 +27,6 @@
       "description": "The MCP server of the app's browser pane, whose navigate tool opens a wizard beside the chat.",
       "default": "Claude_Browser"
     }
-  }
+  },
+  "hooks": "./claude-code/hooks.json"
 }

@@ -101,15 +101,36 @@ only named itself is marked “Name given by the app itself”.
 You disconnect an app at engenty.ai under Account → Connected apps. Its access ends within half
 a minute, even with a token it already holds.
 
-## The Claude Code plugin
+## The plugin from your app’s store
 
-Claude Code can also install a plugin. It adds the `/wizard` command, the skills to build and
-use wizards, and `/wizards`, a pane beside the chat that lists your wizards and opens one in the
-app’s browser pane. From GitHub, for the `engenty-wizards` server your AI apps already have:
+The plugin “engenty wizards” brings your wizards from engenty.ai into your AI app. It adds the
+skills to build and use wizards and connects the app to `https://engenty.ai/api/mcp`. The first
+time you use it, the app asks you to sign in with your engenty account.
+
+| App | How |
+|---|---|
+| Claude Code | `claude plugin marketplace add engenty/wizards-plugins`, then `claude plugin install wizards@engenty` |
+| Codex | `codex plugin marketplace add engenty/wizards-plugins`, then `/plugins` in Codex |
+| ChatGPT | Plugins → search “engenty wizards” |
+| Cursor | Customize → Plugins → search “engenty wizards” |
+| VS Code (Copilot) | “Chat: Install Plugin From Source” → `https://github.com/engenty/wizards-plugins` |
+| Gemini CLI | `gemini extensions install https://github.com/engenty/wizards-plugins --auto-update` |
+
+As long as an app’s store doesn’t list the plugin yet, add `https://engenty.ai/api/mcp` as a
+custom MCP server or connector in the app’s settings. The steps under
+[Apps on the web](#apps-on-the-web) work the same way.
+
+In Claude Code the plugin also adds `/wizard`, which builds a wizard from a description, and
+`/wizards`, a pane beside the chat that lists your wizards and opens one in the app’s browser
+pane. In Claude Code’s auto mode the pane’s own calls need allow rules. The plugin’s README names
+them.
+
+For engenty wizards on your computer, install the Claude Code plugin from the product’s
+repository. It uses the `engenty-wizards` server that `wizards connect` added:
 
 ```bash
 claude plugin marketplace add engenty/wizards
-claude plugin install wizards@engenty
+claude plugin install wizards@engenty-local
 ```
 
 If engenty wizards has a public https address, it serves the plugin with its server bundled:
@@ -119,5 +140,4 @@ claude plugin marketplace add <your address>/api/claude-plugin/marketplace.json
 claude plugin install wizards@<your-host-with-dashes>   # wizards.example.com → wizards-example-com
 ```
 
-`claude plugin update wizards` brings the next version. In Claude Code’s auto mode the pane’s own
-calls need allow rules; the plugin’s README names them.
+`claude plugin update wizards` brings the next version.

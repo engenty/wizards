@@ -80,12 +80,39 @@ function spaceFrom(p: { origin: string | null }): "your computer" | "here" {
   return p.origin === "local" ? "your computer" : "here";
 }
 
+/**
+ * What a tool does to the person's data, as the MCP annotations say it. Every hint is set: a
+ * missing `destructiveHint` counts as destructive, and the app directories require all three.
+ * - `readOnly`: changes nothing.
+ * - `destructive`: deletes, overwrites, revokes, cancels, or allows a write into a connected
+ *   account, even where a revision can undo it.
+ * - `openWorld`: reaches past the person's own workspace: publishes, or runs steps that search
+ *   the web and use connected accounts.
+ */
+type ToolConfig<S extends z.ZodObject> = {
+  title: string;
+  description: string;
+  input: S;
+  readOnly?: boolean;
+  destructive?: boolean;
+  openWorld?: boolean;
+};
+
+function annotationsOf(config: { readOnly?: boolean; destructive?: boolean; openWorld?: boolean }) {
+  const readOnly = config.readOnly ?? false;
+  return {
+    readOnlyHint: readOnly,
+    destructiveHint: !readOnly && (config.destructive ?? false),
+    openWorldHint: config.openWorld ?? false,
+  };
+}
+
 export function registerTools(server: McpServer, who: Principal) {
   const writer: Writer = { source: "mcp", client: who.client };
   const tool = <S extends z.ZodObject>(
     name: string,
     scope: Scope,
-    config: { title: string; description: string; input: S; readOnly?: boolean },
+    config: ToolConfig<S>,
     run: (args: z.infer<S>) => Promise<unknown>,
   ) => {
     if (!who.scopes.includes(scope)) {
@@ -97,7 +124,7 @@ export function registerTools(server: McpServer, who: Principal) {
         title: config.title,
         description: config.description,
         inputSchema: config.input,
-        annotations: { readOnlyHint: config.readOnly ?? false, openWorldHint: false },
+        annotations: annotationsOf(config),
       },
       // The SDK has parsed `args` with `input` before this runs.
       (async (args: z.infer<S>) => {
@@ -114,7 +141,7 @@ export function registerTools(server: McpServer, who: Principal) {
   const appTool = <S extends z.ZodObject>(
     name: string,
     scope: Scope,
-    config: { title: string; description: string; input: S; readOnly?: boolean },
+    config: ToolConfig<S>,
     run: (args: z.infer<S>) => Promise<{ result: Record<string, unknown>; view: FlowView }>,
   ) => {
     if (!who.scopes.includes(scope)) {
@@ -126,7 +153,7 @@ export function registerTools(server: McpServer, who: Principal) {
         title: config.title,
         description: config.description,
         inputSchema: config.input,
-        annotations: { readOnlyHint: config.readOnly ?? false, openWorldHint: false },
+        annotations: annotationsOf(config),
         _meta: flowAppMeta,
       },
       (async (args: z.infer<S>) => {
@@ -407,6 +434,7 @@ Returns the new revision and the issues.`,
         ops: z.array(wizardOpSchema).min(1).max(50),
         note,
       }),
+      destructive: true,
     },
     async ({ wizardId, ...input }) => {
       const { revision, issues } = await editWizard(who.userId, wizardId, input, writer);
@@ -421,6 +449,7 @@ Returns the new revision and the issues.`,
       title: "Replace wizard",
       description: "Replace the whole draft. Use edit_wizard for smaller changes.",
       input: z.object({ wizardId: z.string(), baseRevision, definition, note }),
+      destructive: true,
     },
     async ({ wizardId, ...input }) => {
       const { revision, issues } = await writeDraft(who.userId, wizardId, input, writer);
@@ -437,6 +466,8 @@ Returns the new revision and the issues.`,
       description:
         "Publish the draft as a new version behind the share link. Refused while the draft has issues. Only when the person asked for it.",
       input: z.object({ wizardId: z.string() }),
+      destructive: true,
+      openWorld: true,
     },
     async ({ wizardId }) => publishAndSync(who.userId, wizardId),
   );
@@ -452,6 +483,8 @@ Returns the new revision and the issues.`,
         enabled: z.boolean().optional(),
         dailyRunLimit: z.number().int().min(1).max(10_000).optional(),
       }),
+      destructive: true,
+      openWorld: true,
     },
     async ({ wizardId, enabled, dailyRunLimit }) => {
       const w = await updateWizardSettings(who.userId, wizardId, {
@@ -485,6 +518,7 @@ Returns the new revision and the issues.`,
           ),
         acceptReviews: z.boolean().default(true),
       }),
+      openWorld: true,
     },
     async ({ wizardId, answers, acceptReviews }) => {
       const { runId } = await startTestRun(who.userId, wizardId, { answers, acceptReviews });
@@ -569,6 +603,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
         wizardId: z.string(),
         answers: z.record(z.string(), z.unknown()).default({}),
       }),
+      openWorld: true,
     },
     async ({ wizardId, answers }) => {
       const { runId, refused } = await startRun(who.userId, wizardId, answers);
@@ -614,6 +649,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
         values: z.record(z.string(), z.unknown()),
         waitSeconds,
       }),
+      openWorld: true,
     },
     async ({ runId, stepId, values, waitSeconds }) => {
       await answerRunPage(who.userId, runId, stepId, values);
@@ -644,6 +680,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
         ]),
         waitSeconds,
       }),
+      openWorld: true,
     },
     async ({ runId, stepId, action, waitSeconds }) => {
       await reviewRun(who.userId, runId, stepId, action);
@@ -664,6 +701,8 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
         answer: z.enum(["allow", "skip"]),
         waitSeconds,
       }),
+      destructive: true,
+      openWorld: true,
     },
     async ({ runId, askId, answer, waitSeconds }) => {
       await answerRunAsk(who.userId, runId, askId, answer);
@@ -679,6 +718,8 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
       description:
         "back: return to the previous page or review. retry: run the failed step again. cancel: stop the run.",
       input: z.object({ runId: z.string(), action: z.enum(["back", "retry", "cancel"]) }),
+      destructive: true,
+      openWorld: true,
     },
     async ({ runId, action }) => {
       await controlRun(who.userId, runId, action);
@@ -727,6 +768,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
         base64: z.string().optional(),
         mime: z.string().optional(),
       }),
+      destructive: true,
     },
     async ({ wizardId, path, content, base64, mime }) => {
       if ((content === undefined) === (base64 === undefined)) {
@@ -749,6 +791,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
       title: "Delete workspace file",
       description: "Remove a file from the workspace.",
       input: z.object({ wizardId: z.string(), path: z.string() }),
+      destructive: true,
     },
     async ({ wizardId, path }) => {
       await deleteFile(who.userId, wizardId, path);
@@ -772,7 +815,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
         description:
           "Load a widget step of the draft in a real browser with its sample data: script errors, the timeline it registered (seconds, for the MP4 export) and a screenshot.",
         inputSchema: input,
-        annotations: { readOnlyHint: true, openWorldHint: false },
+        annotations: annotationsOf({ readOnly: true }),
       },
       (async ({ wizardId, stepId, data }: z.infer<typeof input>) => {
         try {

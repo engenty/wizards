@@ -1,0 +1,39 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "engenty-wizards",
+  "version": "0.9.0",
+  "description": "Build page-by-page AI wizards that people open on a shared link, test and publish them from the chat, and run your published ones here.",
+  "author": {
+    "name": "engenty",
+    "url": "https://engenty.ai"
+  },
+  "homepage": "https://engenty.ai",
+  "repository": "https://github.com/engenty/wizards-plugins",
+  "license": "MIT",
+  "keywords": ["wizards", "forms", "ai-workflows", "mcp"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "engenty wizards",
+        "shortDescription": "Build and run AI wizards",
+        "longDescription": "An engenty wizard is a page-by-page AI flow that people open on a shared link. They answer a few questions per page. AI steps research, write, and make images, videos and documents. The person reviews each result, and the run ends with files to download.\n\nWith this plugin you build, change, test and publish your wizards from the chat, and run your published ones here. Everything you change shows up live in the studio on engenty.ai. Runs and test runs use the credits of your engenty account.",
+        "developerName": "engenty",
+        "category": "Productivity",
+        "capabilities": ["Interactive", "Write"],
+        "websiteURL": "https://engenty.ai",
+        "supportURL": "https://engenty.ai/docs/user/ai-apps",
+        "privacyPolicyURL": "https://engenty.ai/privacy",
+        "termsOfServiceURL": "https://engenty.ai/terms",
+        "defaultPrompt": [
+          "Which wizards do I have in engenty?",
+          "Build a wizard that turns three answers about an event into a social post with an image.",
+          "Run my newest published wizard."
+        ],
+        "brandColor": "#c43700",
+        "brandColorDark": "#c43700",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/logo.png"
+      }
+    }
+  }
+}

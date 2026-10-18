@@ -474,13 +474,22 @@ claude mcp add --transport http --scope user engenty-wizards <APP_URL>/api/mcp
 codex mcp add engenty-wizards --url <APP_URL>/api/mcp && codex mcp login engenty-wizards
 ```
 
-The plugin is `plugin/`, a valid plugin as it is in git (the root `.claude-plugin/marketplace.json`
-is the marketplace `engenty`); the runtime serves a copy with this deployment's address, version and bundled server
+The plugin is `plugin/`, a valid Claude Code plugin as it is in git (the root
+`.claude-plugin/marketplace.json` is the marketplace `engenty-local`, for a server the person
+configured); the runtime serves a copy with this deployment's address, version and bundled server
 (`apps/runtime/src/plugin.ts`). It holds the `/wizard` command, the skills `build-wizard` and
-`use-wizard`, and the `/wizards` pane — a mod (`plugin/hooks/register.tsx`) that lists the
+`use-wizard`, and the `/wizards` pane — a mod (`plugin/claude-code/register.tsx`) that lists the
 wizards beside the chat and opens one in the app's browser pane. In auto mode its own calls need
 allow rules; `plugin/README.md` names them. `claude plugin validate plugin` and
 `claude plugin test plugin` check the mod.
+
+**The marketplaces.** `node scripts/build-agent-plugins.mjs` builds `plugin/` for every AI app
+with engenty.ai's server bundled: Claude Code and VS Code read `.claude-plugin/` and `.mcp.json`;
+ChatGPT, Codex and Cursor read the portable `plugin.json` and `mcp.json` (Agent Plugins 1.0);
+Gemini CLI reads `gemini-extension.json`; the MCP Registry takes `server.json`. Its output is the
+public repository engenty/wizards-plugins, which a release tag updates (`release.yml`), and
+`dist/agent-plugins-openai.zip`, the upload for OpenAI's plugin portal. How each listing is
+submitted: `docs/content/dev/integration/marketplaces.md`.
 Test runs that a client starts spend the tenant's credits. Writes from a client show up live in an
 open editor.
 

@@ -26,7 +26,8 @@ import { cliff, cliffContext } from "./git-cliff.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const PKG = join(root, "package.json");
-const PLUGIN_MANIFEST = join(root, "plugin/.claude-plugin/plugin.json");
+/** The plugin's manifests: Claude Code's, and the portable one (ChatGPT, Codex, Cursor, VS Code). */
+const PLUGIN_MANIFESTS = ["plugin/.claude-plugin/plugin.json", "plugin/plugin.json"];
 const CHANGELOG = join(root, "CHANGELOG.md");
 const CHANGELOG_JSON = join(root, "changelog.json");
 const CHANGELOG_ONLY = process.argv.includes("--changelog");
@@ -34,7 +35,7 @@ const TAG_ONLY = process.argv.includes("--tag");
 /** What a release commit holds. */
 const RELEASE_FILES = [
   "package.json",
-  "plugin/.claude-plugin/plugin.json",
+  ...PLUGIN_MANIFESTS,
   "CHANGELOG.md",
   "apps/web/src/about/changelog.json",
   "apps/web/src/about/oss-credits.json",
@@ -325,10 +326,12 @@ async function main() {
   const pkg = JSON.parse(readFileSync(PKG, "utf8"));
   pkg.version = version;
   writeFileSync(PKG, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
-  // The Claude Code plugin's manifest says the same version: it is installed from GitHub too.
-  const manifest = JSON.parse(readFileSync(PLUGIN_MANIFEST, "utf8"));
-  manifest.version = version;
-  writeFileSync(PLUGIN_MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  // The plugin's manifests say the same version: the plugin is installed from GitHub too.
+  for (const file of PLUGIN_MANIFESTS) {
+    const manifest = JSON.parse(readFileSync(join(root, file), "utf8"));
+    manifest.version = version;
+    writeFileSync(join(root, file), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  }
   // main takes changes only through pull requests: the release is a branch of its own.
   const releaseBranch = `release/${tag}`;
   if (git("rev-parse --abbrev-ref HEAD") !== releaseBranch) {

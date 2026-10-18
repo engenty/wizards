@@ -77,6 +77,22 @@ describe("MCP endpoint", () => {
     expect(guide.body).toContain("type Wizard");
   });
 
+  it("says what each tool does to the person's data, with all three hints", async () => {
+    const client = await connect();
+    const { tools } = await client.listTools();
+    for (const t of tools) {
+      expect(t.title, t.name).toBeTruthy();
+      for (const hint of ["readOnlyHint", "destructiveHint", "openWorldHint"] as const) {
+        expect(typeof t.annotations?.[hint], `${t.name}.${hint}`).toBe("boolean");
+      }
+    }
+    const hints = (name: string) => tools.find((t) => t.name === name)?.annotations;
+    expect(hints("list_wizards")).toMatchObject({ readOnlyHint: true, destructiveHint: false });
+    expect(hints("create_wizard")).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+    expect(hints("delete_file")).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    expect(hints("publish_wizard")).toMatchObject({ destructiveHint: true, openWorldHint: true });
+  });
+
   it("creates, edits with revisions, refuses stale writes and unclean publishes", async () => {
     const client = await connect();
     const created = await call(client, "create_wizard", { note: "Leeren Wizard angelegt." });
