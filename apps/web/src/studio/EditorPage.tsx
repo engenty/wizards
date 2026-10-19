@@ -164,7 +164,7 @@ function useDragWidth({
 const SHEET_KEY = "wizards.editor.sheet";
 /** Percent of the room below the header: open, the sheet takes all of it. */
 const SHEET_DEFAULT = 100;
-/** The folded sheet: its handle and tabs. */
+/** The least a sheet being dragged keeps: its handle and a little of the composer. */
 const SHEET_MIN = 76;
 /** A drag let go above this percent opens the sheet to the whole room, below it folds. */
 const SHEET_SNAP = 50;
@@ -265,8 +265,8 @@ function useSheetHeight() {
       toggle();
     }
   };
-  /** The sheet's height, kept between folded and the whole room. */
-  const height = `clamp(${SHEET_MIN}px, ${percent}%, 100%)`;
+  /** The sheet's height: folded, its handle and the composer; else up to the whole room. */
+  const height = folded && !dragging ? "auto" : `clamp(${SHEET_MIN}px, ${percent}%, 100%)`;
   return { ref, percent, height, folded, dragging, unfold, fold, toggle, onPointerDown, onKeyDown };
 }
 
@@ -434,6 +434,18 @@ export function EditorPage() {
       void chat.send(prompt);
     }
   }, [params, wizard.data, chat, setParams]);
+
+  // Opened on a step or the result, the editor has one from the start: so do the preview and the strip.
+  useEffect(() => {
+    const steps = wizard.data?.draft.steps;
+    if (selected || !steps || (column !== "step" && column !== "result")) {
+      return;
+    }
+    const first = steps.find((s) => (column === "result") === (s.type === "result"));
+    if (first) {
+      setSelected(first.id);
+    }
+  }, [wizard.data, column, selected]);
 
   // Models the draft needs that this runtime cannot serve: a step on every path blocks the test.
   const models = useQuery({
@@ -680,6 +692,8 @@ export function EditorPage() {
       value={withFlow ? column : mode}
       onChange={pickMode}
       options={[
+        // The wizard as a whole first, then the steps in their order, the result last.
+        { id: "profile", label: t("editor.profile"), icon: <Settings className="size-3.5" /> },
         ...(withFlow
           ? [
               {
@@ -689,11 +703,7 @@ export function EditorPage() {
               },
             ]
           : []),
-        {
-          id: "step" as const,
-          label: t("editor.stepEditor"),
-          icon: <ListChecks className="size-3.5" />,
-        },
+        { id: "step", label: t("editor.stepEditor"), icon: <ListChecks className="size-3.5" /> },
         ...(resultStep
           ? [
               {
@@ -703,11 +713,6 @@ export function EditorPage() {
               },
             ]
           : []),
-        {
-          id: "profile" as const,
-          label: t("editor.profile"),
-          icon: <Settings className="size-3.5" />,
-        },
       ]}
     />
   );
@@ -745,19 +750,18 @@ export function EditorPage() {
       onSelect={select}
       issues={w.issues}
       run={drawerRun ? { shown: showRun, at: activeStep, onShow: () => setShowRun(true) } : null}
-      end={
-        flowBeside ? null : (
-          <Pills<"show" | "edit">
-            label={t("editor.view")}
-            value={editing ? "edit" : "show"}
-            onChange={(v) => setEditing(v === "edit")}
-            options={[
-              { id: "show", label: t("editor.preview") },
-              { id: "edit", label: t("editor.edit") },
-            ]}
-          />
-        )
-      }
+    />
+  );
+  /** Where there is no column: show the step or edit it, at the start of the main area's bar. */
+  const showOrEdit = flowBeside ? null : (
+    <Pills<"show" | "edit">
+      label={t("editor.view")}
+      value={editing ? "edit" : "show"}
+      onChange={(v) => setEditing(v === "edit")}
+      options={[
+        { id: "show", label: t("editor.preview") },
+        { id: "edit", label: t("editor.edit") },
+      ]}
     />
   );
 
@@ -939,12 +943,8 @@ export function EditorPage() {
       ) : null}
       <header className="flex h-12 shrink-0 items-center gap-1 px-2 coarse:h-14 sm:gap-2 sm:px-4 lg:h-14 lg:pl-0">
         {/* Above the side panel: the wizard. Above the main area: what it shows. */}
-        <div
-          className={cn(
-            "flex min-w-0 items-center gap-1 sm:gap-2 max-lg:flex-1 lg:shrink-0",
-            "lg:w-(--pane)",
-          )}
-        >
+        {/* At least as wide as the side panel, wider where the title needs it and there is room. */}
+        <div className="flex min-w-0 items-center gap-1 sm:gap-2 max-lg:flex-1 lg:min-w-(--pane)">
           <IconButton label={t("common.back")} onClick={() => navigate("/")}>
             <ArrowLeft className="size-5" />
           </IconButton>
@@ -1098,10 +1098,12 @@ export function EditorPage() {
             {/* The grip sits in the gap beside the pane's edge, clear of its scrollbar. */}
             <span className="-translate-y-1/2 absolute top-1/2 right-[5px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
           </div>
-          <div className="flex h-9 shrink-0 items-center px-5 font-medium text-[0.8125rem] text-ink-2 lg:hidden">
-            {t("editor.chat")}
-            {readOnlyNote ? <Lock className="ml-1.5 size-3 text-ink-3 sm:hidden" /> : null}
-          </div>
+          {/* Folded, the sheet keeps the composer at hand; its thread opens with the sheet. */}
+          {sheet.folded && !readOnlyNote ? (
+            <div className="shrink-0 px-3 pb-3 lg:hidden">
+              <ChatPanel compact chat={chat} avatar={def.avatar} costume={def.costume} />
+            </div>
+          ) : null}
           <div className={cn("min-h-0 flex-1 overflow-y-auto", sheet.folded && "max-lg:hidden")}>
             <ChatPanel
               chat={chat}
@@ -1116,14 +1118,18 @@ export function EditorPage() {
           {notices}
           {shownView === "preview" && editing && !flowBeside ? (
             <>
-              {strip}
-              <div className="@container flex h-12 shrink-0 items-center border-border-soft border-b px-3">
+              {/* The preview's bar, holding what is edited in place of the preview's switches. */}
+              <div className="@container flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-border-soft border-b px-3 [scrollbar-width:none]">
+                {showOrEdit}
+                <span className="flex-1" />
                 {modes(false)}
               </div>
+              {strip}
               {editor}
             </>
           ) : shownView === "preview" ? (
             <PreviewPane
+              lead={showOrEdit}
               // The flow beside the preview shows the steps: no strip then, and the run is a button away.
               strip={flowBeside && column === "flow" ? null : strip}
               onEdit={
