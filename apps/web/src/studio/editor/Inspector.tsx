@@ -40,6 +40,7 @@ import {
   ChevronRight,
   ChevronUp,
   Info,
+  Play,
   Plus,
   Sparkles,
   Trash2,
@@ -1237,14 +1238,20 @@ const WIZARD = "__wizard";
 /**
  * The wizard's steps in a row, in run order, with the wizard's own settings first: one click or
  * the arrows (on screen or ← / → on the keyboard) move from step to step without going back to
- * the diagram.
+ * the diagram. With a test run open it starts with the run, and lights the step the run is at.
+ * `end` stands at the row's end.
  */
-function StepNav({
+export function StepNav({
   def,
   selected,
   onSelect,
   issues,
-}: Pick<InspectorProps, "def" | "selected" | "onSelect" | "issues">) {
+  run,
+  end,
+}: Pick<InspectorProps, "def" | "selected" | "onSelect" | "issues"> & {
+  run?: { shown: boolean; at: string | null; onShow: () => void } | null;
+  end?: React.ReactNode;
+}) {
   const ids = [WIZARD, ...def.steps.map((s) => s.id)];
   const at = selected ? ids.indexOf(selected) : -1;
   const current = useRef<HTMLButtonElement>(null);
@@ -1286,7 +1293,7 @@ function StepNav({
   }, []);
   const dot = "inline-flex size-8 shrink-0 items-center justify-center rounded-full transition";
   return (
-    <div className="sticky top-0 z-10 flex items-center gap-1 border-border-soft border-b bg-card/95 px-2 py-2 backdrop-blur">
+    <div className="flex shrink-0 items-center gap-1 border-border-soft border-b px-2 py-2">
       <IconButton
         label={t("editor.prevStep")}
         className="size-8 shrink-0"
@@ -1296,6 +1303,24 @@ function StepNav({
         <ChevronLeft className="size-4" />
       </IconButton>
       <div className="flex min-w-0 flex-1 items-center overflow-x-auto p-1 [scrollbar-width:none]">
+        {run ? (
+          <>
+            <button
+              ref={run.shown ? current : undefined}
+              type="button"
+              aria-current={run.shown ? "step" : undefined}
+              onClick={run.onShow}
+              className={cn(
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-paper-2 px-3 font-medium text-[0.75rem] text-ink-2 transition",
+                run.shown ? "ring-2 ring-ember" : "hover:ring-2 hover:ring-border-soft",
+              )}
+            >
+              <Play className="size-3.5" />
+              {t("run.testChip")}
+            </button>
+            <span className="h-px w-3 shrink-0 bg-border-soft" />
+          </>
+        ) : null}
         <button
           ref={selected === WIZARD ? current : undefined}
           type="button"
@@ -1335,6 +1360,8 @@ function StepNav({
                 <Icon className="size-4" />
                 {broken ? (
                   <span className="-top-0.5 -right-0.5 absolute size-2.5 rounded-full bg-rose ring-2 ring-card" />
+                ) : run?.at === step.id ? (
+                  <span className="-top-0.5 -right-0.5 absolute size-2.5 animate-pulse rounded-full bg-ember ring-2 ring-card" />
                 ) : null}
               </button>
             </div>
@@ -1352,6 +1379,7 @@ function StepNav({
       >
         <ChevronRight className="size-4" />
       </IconButton>
+      {end}
     </div>
   );
 }
@@ -1400,7 +1428,6 @@ export function Inspector(props: InspectorProps) {
     <ReadOnly value={readOnly}>
       <Assistant.Provider value={props.assistant}>
         <div>
-          <StepNav def={def} selected={selected} onSelect={onSelect} issues={issues} />
           {selected === WIZARD ? (
             <WizardSettings
               def={def}

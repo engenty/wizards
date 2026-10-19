@@ -38,10 +38,10 @@ import {
 import { ChatPanel, useArchitectChat, Working } from "./editor/ChatPanel";
 import { FilesPanel } from "./editor/FilesPanel";
 import { currentDecisions, FlowDiagram, type StepLive } from "./editor/FlowDiagram";
-import { Inspector } from "./editor/Inspector";
+import { Inspector, StepNav } from "./editor/Inspector";
 import { LiveDialog } from "./editor/LiveDialog";
 import { MemoryPanel } from "./editor/MemoryPanel";
-import { PreviewPane } from "./editor/PreviewPane";
+import { Pills, PreviewPane } from "./editor/PreviewPane";
 import type { Audience } from "./editor/ResultPreview";
 import { RunLog } from "./editor/RunLog";
 import { RunsPanel } from "./editor/RunsPanel";
@@ -51,15 +51,12 @@ import { LiveChip, useLiveDraft } from "./live";
 import { WizardMenu } from "./WizardMenu";
 import { WhereChip, whereItRuns } from "./where";
 
-/** The side panel's two tabs: the conversation, and the step chosen. */
-type Side = "chat" | "step";
 /** What the main area shows. The flow has a column of its own where the window is wide. */
 type View = "preview" | "flow" | "files" | "memory" | "runs";
 
 /** The model classes an account's credits run: text, images, videos. */
 const CREDIT_CLASSES: readonly ModelClass[] = [...TEXT_CLASSES, "image", "video"];
 
-const SIDE_LABEL: Record<Side, Key> = { chat: "editor.chat", step: "editor.step" };
 const VIEW_LABEL: Record<View, Key> = {
   preview: "editor.preview",
   flow: "editor.flow",
@@ -87,11 +84,16 @@ const DESK = "(min-width: 1024px)";
 /** From this width the flow stands in a column of its own beside the preview. */
 const WIDE = "(min-width: 1440px)";
 const FLOW_KEY = "wizards.editor.flow";
-const FLOW_DEFAULT = 320;
+const FLOW_DEFAULT = 380;
 const FLOW_MIN = 260;
 /** Room the preview keeps next to the flow's column. */
 const flowMax = () => Math.max(FLOW_MIN, window.innerWidth - PANE_MIN - 640);
 const FLOW_SHOWN_KEY = "wizards.editor.flowShown";
+/** What the column beside the preview shows: the flow, or the step chosen to edit. */
+type Column = "flow" | "step";
+const COLUMN_KEY = "wizards.editor.column";
+/** Steps a person sees: shown first; the others are edited first where there is no room for both. */
+const SHOWN_FIRST = new Set(["page", "review", "result"]);
 
 /**
  * A column's width on wide screens, dragged at its inner edge; remembered per browser. `dir` is
@@ -284,6 +286,28 @@ function useFlowShown(): [boolean, (shown: boolean) => void] {
   ];
 }
 
+/** What the column beside the preview shows; remembered per browser. */
+function useColumn(): [Column, (column: Column) => void] {
+  const [column, setColumn] = useState<Column>(() => {
+    try {
+      return localStorage.getItem(COLUMN_KEY) === "step" ? "step" : "flow";
+    } catch {
+      return "flow";
+    }
+  });
+  return [
+    column,
+    (next) => {
+      setColumn(next);
+      try {
+        localStorage.setItem(COLUMN_KEY, next);
+      } catch {
+        // only lasts this page then
+      }
+    },
+  ];
+}
+
 export function EditorPage() {
   const account = useFeature("account");
   const { id } = useParams();
@@ -298,7 +322,6 @@ export function EditorPage() {
     refetchOnWindowFocus: false,
   });
   const [selected, setSelected] = useState<string | null>(null);
-  const [side, setSide] = useState<Side>("chat");
   const [view, setView] = useState<View>("preview");
   const pane = useDragWidth({
     key: PANE_KEY,
@@ -319,29 +342,29 @@ export function EditorPage() {
   const [flowShown, setFlowShown] = useFlowShown();
   /** On a desk the preview can take the whole window, the side panel and the flow set aside. */
   const [previewWide, setPreviewWide] = useState(false);
-  /** The flow stands in its own column beside the preview: no tab of its own then. */
+  /** A column beside the preview holds the flow or the step's editor: no tab for the flow then. */
   const flowBeside = wideWindow && flowShown && !previewWide;
+  const [column, setColumn] = useColumn();
+  /** Where there is no column: the main area edits the step chosen instead of showing it. */
+  const [editing, setEditing] = useState(false);
   const shownView: View = flowBeside && view === "flow" ? "preview" : view;
   const sheet = useSheetHeight();
   // The tab in effect stays in view where the row scrolls (a phone).
-  const tabsRef = useRef<HTMLElement>(null);
   const viewsRef = useRef<HTMLElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: the tab in effect is what moves into view
   useEffect(() => {
-    for (const row of [tabsRef.current, viewsRef.current]) {
-      row
-        ?.querySelector("[data-active]")
-        ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-    }
-  }, [side, shownView, sheet.folded]);
+    viewsRef.current
+      ?.querySelector("[data-active]")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }, [shownView]);
   /** Where a touch on the step panel began, for a swipe. */
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
   /** The test run the preview shows. */
   const [drawerRun, setDrawerRun] = useState<string | null>(null);
-  /** The step the preview shows; null: the test run, or the start. */
-  const [previewStep, setPreviewStep] = useState<string | null>(null);
+  /** The preview shows the open test run, not the step chosen. */
+  const [showRun, setShowRun] = useState(false);
   /** Whom the result page is shown as: a visitor, or the wizard's owner. */
   const [audience, setAudience] = useState<Audience>("visitor");
   const [activeStep, setActiveStep] = useState<string | null>(null);
@@ -423,7 +446,8 @@ export function EditorPage() {
   const openRun = (runId: string) => {
     setDrawerRun(runId);
     setRunView(null);
-    setPreviewStep(null);
+    setShowRun(true);
+    setEditing(false);
     setView("preview");
     sheet.fold();
   };
@@ -476,7 +500,9 @@ export function EditorPage() {
   /** The result page in the preview, from the step panel's button. */
   const openPage = resultStep
     ? () => {
-        setPreviewStep(resultStep.id);
+        setSelected(resultStep.id);
+        setShowRun(false);
+        setEditing(false);
         setView("preview");
         sheet.fold();
       }
@@ -485,7 +511,7 @@ export function EditorPage() {
   const fixIssues = () => {
     setShareOpen(false);
     setLiveOpen(false);
-    setSide("chat");
+    sheet.unfold();
     void chat.send(
       `${t("editor.fixIssuesAsk")}\n${w.issues.map((i) => `- ${i.message}`).join("\n")}`,
     );
@@ -513,16 +539,12 @@ export function EditorPage() {
   /** A write the server refused, in its own words. */
   const failed = refused ?? (publish.error ? (publish.error as Error).message : null);
 
+  /** A step chosen: the preview shows it, and where there is no column it opens shown or edited by its kind. */
   const select = (sid: string | null) => {
     setSelected(sid);
-    // The preview follows: it shows the step chosen.
-    if (sid && sid !== "__wizard") {
-      setPreviewStep(sid);
-    }
-    if (sid) {
-      setSide("step");
-      sheet.unfold();
-    }
+    setShowRun(false);
+    const step = def.steps.find((s) => s.id === sid);
+    setEditing(!step || !SHOWN_FIRST.has(step.type));
   };
 
   /** A swipe on the step panel: left to the next step, right to the one before (the wizard's own settings first). */
@@ -575,7 +597,6 @@ export function EditorPage() {
       const added = latest?.steps.find((s) => !before.has(s.id));
       if (added) {
         setSelected(added.id);
-        setSide((k) => (k === "chat" ? k : "step"));
       }
     });
     return true;
@@ -593,10 +614,7 @@ export function EditorPage() {
           return true;
         },
         working: <Working chat={chat} />,
-        showChat: () => {
-          setSide("chat");
-          sheet.unfold();
-        },
+        showChat: () => sheet.unfold(),
       };
 
   const shareButton = (
@@ -609,6 +627,35 @@ export function EditorPage() {
       <Share2 className="size-3.5 max-sm:size-4" />
       <span className="max-sm:sr-only">{t("editor.share")}</span>
     </Button>
+  );
+
+  const stepOf = (sid: string | null) => def.steps.find((s) => s.id === sid) ?? null;
+  /** The step chosen, or the wizard's own settings: what the strip and the editor are on. */
+  const chosenStep = selected === "__wizard" ? selected : stepOf(selected)?.id;
+  /** The step's editor: in the column beside the preview, or in the preview's place. */
+  const editor = (
+    // A swipe left or right moves to the next or the previous step.
+    <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
+      <div className="mx-auto w-full max-w-3xl">
+        <ResultPageOpener.Provider value={openPage}>
+          <Inspector
+            def={def}
+            selected={selected}
+            update={save}
+            onSelect={select}
+            issues={w.issues}
+            mcpServers={w.mcpServers}
+            files={w.files}
+            wizardId={w.id}
+            projectId={w.projectId}
+            readOnly={w.readOnly}
+            decisions={shownDecisions}
+            branchFocus={branchFocus}
+            assistant={assistant}
+          />
+        </ResultPageOpener.Provider>
+      </div>
+    </div>
   );
 
   const views: View[] = flowBeside
@@ -938,93 +985,58 @@ export function EditorPage() {
             {/* The grip sits in the gap beside the pane's edge, clear of its scrollbar. */}
             <span className="-translate-y-1/2 absolute top-1/2 right-[5px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
           </div>
-          <nav
-            ref={tabsRef}
-            className="flex shrink-0 gap-1 overflow-x-auto px-3 [scrollbar-width:none] lg:pt-3"
-          >
-            {(["chat", "step"] as Side[]).map((k) => (
-              <button
-                key={k}
-                type="button"
-                data-active={side === k || undefined}
-                onClick={() => {
-                  setSide(k);
-                  sheet.unfold();
-                }}
-                className={cn(
-                  "h-9 shrink-0 rounded-full px-4 font-medium text-[0.8125rem] transition",
-                  side === k ? "bg-paper-2 text-ink" : "text-ink-3 hover:text-ink",
-                )}
-              >
-                {t(SIDE_LABEL[k])}
-                {readOnlyNote ? (
-                  <Lock className="ml-1.5 inline size-3 align-[-1px] text-ink-3 sm:hidden" />
-                ) : null}
-              </button>
-            ))}
-          </nav>
+          <div className="flex h-9 shrink-0 items-center px-5 font-medium text-[0.8125rem] text-ink-2 lg:hidden">
+            {t("editor.chat")}
+            {readOnlyNote ? <Lock className="ml-1.5 size-3 text-ink-3 sm:hidden" /> : null}
+          </div>
           <div className={cn("min-h-0 flex-1 overflow-y-auto", sheet.folded && "max-lg:hidden")}>
-            {side === "chat" ? (
-              <ChatPanel
-                chat={chat}
-                avatar={def.avatar}
-                costume={def.costume}
-                closed={readOnlyNote ?? undefined}
-              />
-            ) : (
-              <div className="flex h-full min-h-0 flex-col">
-                {/* A swipe left or right moves to the next or the previous step. */}
-                <div className="min-h-0 flex-1 overflow-y-auto" {...stepSwipe}>
-                  <ResultPageOpener.Provider value={openPage}>
-                    <Inspector
-                      def={def}
-                      selected={selected}
-                      update={save}
-                      onSelect={select}
-                      issues={w.issues}
-                      mcpServers={w.mcpServers}
-                      files={w.files}
-                      wizardId={w.id}
-                      projectId={w.projectId}
-                      readOnly={w.readOnly}
-                      decisions={shownDecisions}
-                      branchFocus={branchFocus}
-                      assistant={assistant}
-                    />
-                  </ResultPageOpener.Provider>
-                </div>
-                {/* The chat's composer stays at hand while a step is open; its thread is the Chat tab's. */}
-                {readOnlyNote ? null : (
-                  <div className="shrink-0 px-3 pt-2 pb-3">
-                    <ChatPanel
-                      compact
-                      chat={chat}
-                      avatar={def.avatar}
-                      costume={def.costume}
-                      foldOn={drawerRun}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+            <ChatPanel
+              chat={chat}
+              avatar={def.avatar}
+              costume={def.costume}
+              closed={readOnlyNote ?? undefined}
+            />
           </div>
         </aside>
 
         <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card lg:rounded-3xl lg:shadow-[0_0_0_1px_var(--border-soft)]">
           {notices}
           {shownView === "preview" ? (
+            <StepNav
+              def={def}
+              selected={showRun && drawerRun ? null : selected}
+              onSelect={select}
+              issues={w.issues}
+              run={
+                drawerRun
+                  ? { shown: showRun, at: activeStep, onShow: () => setShowRun(true) }
+                  : null
+              }
+              end={
+                flowBeside || !chosenStep ? null : (
+                  <Pills<"show" | "edit">
+                    label={t("editor.view")}
+                    value={editing ? "edit" : "show"}
+                    onChange={(v) => setEditing(v === "edit")}
+                    options={[
+                      { id: "show", label: t("editor.preview") },
+                      { id: "edit", label: t("editor.edit") },
+                    ]}
+                  />
+                )
+              }
+            />
+          ) : null}
+          {shownView === "preview" && editing && !flowBeside && chosenStep ? (
+            editor
+          ) : shownView === "preview" ? (
             <PreviewPane
               wizard={w}
               runId={drawerRun}
               runView={runView}
               onView={onRunView}
-              stepId={previewStep}
-              onStep={(sid) => {
-                setPreviewStep(sid);
-                if (sid) {
-                  setSelected(sid);
-                }
-              }}
+              stepId={showRun && drawerRun ? null : (stepOf(selected)?.id ?? null)}
+              onStep={select}
               audience={audience}
               onAudience={setAudience}
               test={{
@@ -1088,14 +1100,24 @@ export function EditorPage() {
             >
               <span className="-translate-y-1/2 absolute top-1/2 left-[5px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
             </div>
-            <div className="flex h-12 shrink-0 items-center gap-2 border-border-soft border-b pr-1.5 pl-4">
-              <Workflow className="size-4 text-ink-3" />
-              <span className="flex-1 font-medium text-[0.8125rem]">{t("editor.flow")}</span>
+            <div className="flex h-12 shrink-0 items-center gap-2 border-border-soft border-b pr-1.5 pl-3">
+              <Pills<Column>
+                label={t("editor.view")}
+                value={column}
+                onChange={setColumn}
+                options={[
+                  { id: "flow", label: t("editor.flow") },
+                  { id: "step", label: t("editor.stepEditor") },
+                ]}
+              />
+              <span className="flex-1" />
               <IconButton label={t("editor.flowHide")} onClick={() => setFlowShown(false)}>
                 <PanelRightClose className="size-4" />
               </IconButton>
             </div>
-            <div className="min-h-0 flex-1 overflow-hidden rounded-b-3xl">{flow}</div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-b-3xl">
+              {column === "flow" ? flow : editor}
+            </div>
           </section>
         ) : null}
       </div>
