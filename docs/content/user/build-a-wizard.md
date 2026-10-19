@@ -71,13 +71,16 @@ the settings. The first change makes a theme named after the wizard.
 |---|---|
 | Theme | Which theme the wizard wears: one of the space’s, the space’s brand, or a neutral look without a brand. It sits above the preview |
 | Pages | Dark first, light first, dark only or light only. With only one, everyone sees those pages and the theme switch is hidden |
-| Accent, Background | The colour of buttons and marks, and the ground the pages stand on, for each kind of pages |
+| Colours | Accent, ground and text for dark and for light pages, as small swatches. A dashed one takes the brand’s colour. A click opens the brand’s colours, a colour of your own, and “As in the brand” |
 | Font for headings, Font for text | The brand’s font, or one of the fonts engenty wizards ships, from Inter to the spooky Creepster |
 | Shape | Corners (soft, sharp, round), cards (solid, outline, glass) and headings (as written, in capitals) |
 | Effects | One row to switch on: glow, fog, spider webs or frost in the corners, embers, snow, confetti or stars, dots or a grid, and figures that wear the wizard’s costume |
 
 A theme two wizards wear changes for both. The section says which other wizards wear it and
 offers a copy for this wizard only. A wizard file carries the themes its wizard wears.
+
+The test run beside the diagram wears the wizard’s theme, with its effects. The studio around it
+keeps its own look.
 
 The assistant sets the look too. Ask it, for example: “Make it dark and spooky for Halloween.”
 
