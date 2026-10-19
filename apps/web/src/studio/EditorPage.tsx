@@ -10,8 +10,8 @@ import {
   ListChecks,
   Lock,
   NotebookTabs,
+  Settings,
   Share2,
-  Sparkles,
   Workflow,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -91,7 +91,7 @@ const flowMax = () => Math.max(FLOW_MIN, window.innerWidth - PANE_MIN - 640);
 const FLOW_SHOWN_KEY = "wizards.editor.flowShown";
 /**
  * What the column beside the preview shows: the flow, or what is edited — a step, the result
- * (what people get and how it reaches them), or the wizard's own presence (its words, figure and
+ * (what people get and how it reaches them), or the wizard's own settings (its words, figure and
  * look).
  */
 type Column = "flow" | "step" | "result" | "profile";
@@ -544,7 +544,7 @@ export function EditorPage() {
   const failed = refused ?? (publish.error ? (publish.error as Error).message : null);
 
   const stepOf = (sid: string | null) => def.steps.find((s) => s.id === sid) ?? null;
-  /** What edits a choice: the result step the result, no step the wizard's presence. */
+  /** What edits a choice: the result step the result, no step the wizard's settings. */
   const modeOf = (sid: string | null): Mode => {
     const step = stepOf(sid);
     return !step ? "profile" : step.type === "result" ? "result" : "step";
@@ -706,7 +706,7 @@ export function EditorPage() {
         {
           id: "profile" as const,
           label: t("editor.profile"),
-          icon: <Sparkles className="size-3.5" />,
+          icon: <Settings className="size-3.5" />,
         },
       ]}
     />
