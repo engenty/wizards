@@ -371,6 +371,22 @@ describe("the page data sent to the Manage-App", () => {
     ]);
   });
 
+  it("keeps the wizard's address on the page once made, whatever its title becomes", async () => {
+    const current = (await studio("GET", `/wizards/${wizard}`, cookie)).body;
+    await studio("PUT", `/wizards/${wizard}/draft`, cookie, {
+      definition: { ...current.draft, title: "Belege sortieren" },
+      baseRevision: current.revision,
+    });
+    await studio("POST", `/wizards/${wizard}/publish`, cookie);
+    const sent = await lastPush();
+    expect(sent.space.wizards[0]).toMatchObject({
+      slug: "belege-fuers-quartal-sortieren",
+      title: "Belege sortieren",
+    });
+    const page = (await studio("GET", "/projects", cookie)).body.find((p: any) => p.id === space).page;
+    expect(page.slugs).toEqual({ [wizard]: "belege-fuers-quartal-sortieren" });
+  });
+
   it("takes the wizard off the page when its sharing is switched off, and back on", async () => {
     await studio("PATCH", `/wizards/${wizard}`, cookie, { shareEnabled: false });
     expect((await lastPush()).space).toBeNull();

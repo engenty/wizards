@@ -165,6 +165,7 @@ export const projectPageSchema = z.object({
   form: z.enum(["du", "sie"]).optional(),
   wizards: z.array(z.string().max(40)).max(60),
   examples: z.record(z.string().max(40), z.string().regex(/^[A-Za-z0-9_-]{1,40}$/)),
+  slugs: z.record(z.string().max(40), z.string().regex(PAGE_SLUG)).optional(),
 });
 
 export const projectPatchSchema = z.object({
@@ -409,6 +410,10 @@ async function checkedPage(p: ProjectRow, page: ProjectPage): Promise<ProjectPag
   );
   const wizards = [...new Set(page.wizards)].filter((id) => own.has(id));
   const examples = Object.fromEntries(Object.entries(page.examples).filter(([id]) => own.has(id)));
+  // The wizards' addresses are kept as made (pages.ts); a wizard that is gone frees its address.
+  const slugs = Object.fromEntries(
+    Object.entries({ ...p.page?.slugs, ...page.slugs }).filter(([id]) => own.has(id)),
+  );
   return {
     on: page.on,
     slug: page.slug,
@@ -419,6 +424,7 @@ async function checkedPage(p: ProjectRow, page: ProjectPage): Promise<ProjectPag
     ...(page.lang === "de" && page.form ? { form: page.form } : {}),
     wizards,
     examples,
+    ...(Object.keys(slugs).length ? { slugs } : {}),
   };
 }
 

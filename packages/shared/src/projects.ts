@@ -126,6 +126,12 @@ export interface ProjectPage {
   wizards: string[];
   /** A run the owner shared (`/s/<token>`) as a wizard's example on the page, by wizard id. */
   examples: Record<string, string>;
+  /**
+   * Each listed wizard's address on the page (`…/<space>/<slug>`), by wizard id: made from the
+   * title when the wizard first goes on the page, kept once made, so links hold when a title
+   * changes. The runtime writes it; the studio sends it back as it is.
+   */
+  slugs?: Record<string, string>;
 }
 
 export const PAGE_LIMITS = { slug: 48, title: 80, headline: 160, intro: 600 } as const;

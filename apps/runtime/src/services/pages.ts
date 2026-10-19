@@ -169,7 +169,7 @@ export function imprintOf(facts: ProjectFact[], fallbackName: string): PageSpace
   };
 }
 
-/** A wizard's address on the page, from its title, unique among the page's wizards. */
+/** A wizard's address on the page, from its title, unique among the page's wizards; kept once made. */
 function wizardSlug(title: string, taken: Set<string>): string {
   const base = pageSlugOf(title) || "wizard";
   let slug = base;
@@ -207,7 +207,10 @@ export async function pageTeam(): Promise<PageTeam | null> {
         ),
       })
     : [];
-  const taken = new Set<string>();
+  // Addresses made before hold; a wizard new to the page gets one that is free among them.
+  const kept = page.slugs ?? {};
+  const taken = new Set<string>(Object.values(kept));
+  const made: Record<string, string> = {};
   const wizards: PageWizard[] = [];
   for (const id of page.wizards) {
     const w = listed.find((x) => x.id === id);
@@ -239,8 +242,12 @@ export async function pageTeam(): Promise<PageTeam | null> {
       : null;
     const shown =
       example?.status === "done" && !(example.expiresAt && example.expiresAt < new Date());
+    const slug = kept[w.id] ?? wizardSlug(def.title, taken);
+    if (!kept[w.id]) {
+      made[w.id] = slug;
+    }
     wizards.push({
-      slug: wizardSlug(def.title, taken),
+      slug,
       title: def.title.slice(0, 120),
       description: def.description.slice(0, 600),
       avatar: def.avatar,
@@ -251,6 +258,12 @@ export async function pageTeam(): Promise<PageTeam | null> {
       runUrl: `${env.publicUrl}/w/${w.shareToken}`,
       ...(shown ? { exampleUrl: `${env.publicUrl}/s/${exampleToken}` } : {}),
     });
+  }
+  if (Object.keys(made).length) {
+    await db
+      .update(schema.project)
+      .set({ page: { ...page, slugs: { ...kept, ...made } } })
+      .where(eq(schema.project.id, space.id));
   }
   if (!wizards.length) {
     return { ...base, space: null };
