@@ -4,6 +4,18 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.9.1] - 2026-10-19
+- ADDED **[themes]** Themes: a wizard's look – colours for light and dark pages, fonts, shape and effects – as values kept in its space and carried in its wizard file (#88, #92)
+- ADDED **[themes]** The effect library: glow, spider webs or frost in the corners, embers, snow, confetti or stars, engenties in costume flying past or peeking in, fog, dots or a grid (#88)
+- ADDED **[themes]** The place that shows a wizard picks its theme: the embed's `data-theme`, MCP Apps, OpenUI (#89)
+- ADDED **[studio]** The Look section: a preview card, the theme select, pages, colours with the brand's palette, fonts, shape and effect chips; the test run wears the theme (#85, #93, #94)
+- ADDED Brand fonts with a source – an uploaded file or the space's own website (#90)
+- ADDED **[engenty]** Halloween costumes for every engenty, flat and fluffy, and a wizard's engenty wears one (#81, #82)
+- ADDED **[plugin]** The plugin for every AI app's marketplace (#80)
+- DOCS Themes in the wizard format, the user guide and the plan (#86, #87, #95)
+- FIXED **[install]** One install at a time, and only a complete runtime is promoted (#91)
+- FIXED **[runtime]** Retry the startup tenant migration on a dropped connection (#79)
+
 ## [0.9.0] - 2026-10-18
 - ADDED **[studio]** New app rail, phone bar and phone editor (#77)
 - CHANGED Workspace packages named @engenty/wizards-* (#74)

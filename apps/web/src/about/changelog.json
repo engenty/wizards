@@ -1,7 +1,132 @@
 [
   {
+    "version": "v0.9.1",
+    "timestamp": 1792414249,
+    "commits": [
+      {
+        "id": "194dedd",
+        "message": "themes as built – the Look section, the themed test run, what is still open (#95)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "42deb3e",
+        "message": "one install at a time, and only a complete runtime is promoted (#91)",
+        "group": "Fixed",
+        "scope": "install",
+        "breaking": false
+      },
+      {
+        "id": "ee57c11",
+        "message": "the test run wears the wizard's theme; colours as a compact grid with the brand's palette (#94)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "314a086",
+        "message": "a simpler Look – theme above the preview, one control for pages, effects as chips (#93)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "3bcf0ed",
+        "message": "colours as an ordered list of schemes – the first shows first (#92)",
+        "group": "Added",
+        "scope": "themes",
+        "breaking": false
+      },
+      {
+        "id": "103eeca",
+        "message": "brand fonts with a source – our copy of the file or the space's website (#90)",
+        "group": "Added",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "f37d6a9",
+        "message": "the place that shows a wizard picks its theme (#89)",
+        "group": "Added",
+        "scope": "themes",
+        "breaking": false
+      },
+      {
+        "id": "8701747",
+        "message": "themes – a wizard's look as values in its space, with an effect library (#88)",
+        "group": "Added",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "0a704e3",
+        "message": "themes hold values only, with an effect library (#87)",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "e1d67f8",
+        "message": "themes as their own document, shipped with the wizard (#86)",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "9d4d584",
+        "message": "the look folds into a preview, with a CSS help of stable names (#85)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "a842c3c",
+        "message": "dev server reads the root .env.local and binds 127.0.0.1 (#84)",
+        "group": "Fixed",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "40589d5",
+        "message": "wizards get a look of their own – colours, fonts, effects and CSS (#83)",
+        "group": "Added",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "f1850e0",
+        "message": "a wizard's engenty wears a Halloween costume (#82)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "d38fd4b",
+        "message": "Halloween costumes for every engenty, flat and fluffy (#81)",
+        "group": "Added",
+        "scope": "engenty",
+        "breaking": false
+      },
+      {
+        "id": "31810ff",
+        "message": "the plugin for every AI app's marketplace (#80)",
+        "group": "Added",
+        "scope": "plugin",
+        "breaking": false
+      },
+      {
+        "id": "5e6d4ff",
+        "message": "retry the startup tenant migration on a dropped connection (#79)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.9.0",
-    "timestamp": 1792318416,
+    "timestamp": 1792318567,
     "commits": [
       {
         "id": "280b1d0",

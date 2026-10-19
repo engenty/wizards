@@ -309,6 +309,84 @@
           "homepage": "https://github.com/dagrejs/dagre#readme"
         },
         {
+          "name": "@fontsource/bricolage-grotesque",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/bricolage-grotesque"
+        },
+        {
+          "name": "@fontsource/caveat",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/caveat"
+        },
+        {
+          "name": "@fontsource/creepster",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/creepster"
+        },
+        {
+          "name": "@fontsource/dm-sans",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/dm-sans"
+        },
+        {
+          "name": "@fontsource/figtree",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/figtree"
+        },
+        {
+          "name": "@fontsource/fraunces",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/fraunces"
+        },
+        {
+          "name": "@fontsource/fredoka",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/fredoka"
+        },
+        {
+          "name": "@fontsource/inter",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/inter"
+        },
+        {
+          "name": "@fontsource/lora",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/lora"
+        },
+        {
+          "name": "@fontsource/nosifer",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/nosifer"
+        },
+        {
+          "name": "@fontsource/nunito",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/nunito"
+        },
+        {
+          "name": "@fontsource/playfair-display",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/playfair-display"
+        },
+        {
+          "name": "@fontsource/young-serif",
+          "version": "5.3.0",
+          "license": "OFL-1.1",
+          "homepage": "https://fontsource.org/fonts/young-serif"
+        },
+        {
           "name": "@tanstack/react-query",
           "version": "5.104.0",
           "license": "MIT",
