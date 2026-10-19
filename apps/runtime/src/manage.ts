@@ -153,6 +153,10 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export interface TenantInfo {
   id: string;
   name: string;
+  /** The team's address: `organization.slug` at the Manage-App; an older one names none. */
+  slug?: string;
+  /** Where the team's public page lives: `acme.wizards.page` (services/pages.ts). */
+  pagesHost?: string;
   status: "active" | "suspended" | "deleted";
   balanceCredits: number;
   /** The plan the tenant is on (Free, Pro, Team, …); an older Manage-App names none. */

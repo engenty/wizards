@@ -100,6 +100,59 @@ export const BASIC_FACTS = [
 ] as const;
 export type BasicFact = (typeof BASIC_FACTS)[number];
 
+// --- the public page -----------------------------------------------------------------
+// A space's page at `<team>.wizards.page/<slug>` (docs/plans/wizards-page-launch.md in the
+// Manage repository): what the space says there and which of its wizards it lists. One space per
+// team has it on. Nothing of it sits on a wizard; the teasers come from the published definitions.
+
+export const PAGE_LANGS = ["de", "en"] as const;
+export type PageLang = (typeof PAGE_LANGS)[number];
+
+/** How a German page addresses its readers. */
+export type PageForm = "du" | "sie";
+
+export interface ProjectPage {
+  on: boolean;
+  /** Its address under the team's: `<team>.wizards.page/<slug>`. */
+  slug: string;
+  /** The name on the page; the space's own name never shows. */
+  title: string;
+  headline?: string;
+  intro?: string;
+  lang: PageLang;
+  /** German only: du or Sie in the page's own words. */
+  form?: PageForm;
+  /** The wizards shown, by id, in order; the first is shown large. */
+  wizards: string[];
+  /** A run the owner shared (`/s/<token>`) as a wizard's example on the page, by wizard id. */
+  examples: Record<string, string>;
+}
+
+export const PAGE_LIMITS = { slug: 48, title: 80, headline: 160, intro: 600 } as const;
+
+/** A page's address: lower-case letters a–z, digits and hyphens, not at the start or end. */
+export const PAGE_SLUG = /^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/;
+
+/** A name as a page address: `Müller & Söhne GmbH` → `mueller-soehne-gmbh`. */
+export function pageSlugOf(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      // "Anna’s team" is anna-s-team otherwise.
+      .replace(/['’]/g, "")
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, PAGE_LIMITS.slug)
+      .replace(/-+$/, "")
+  );
+}
+
 // --- brand -----------------------------------------------------------------------
 
 export interface BrandColor {

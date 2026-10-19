@@ -14,6 +14,7 @@ import type {
   ColorSection,
   LogoSection,
   ProjectFact,
+  ProjectPage,
   TextStyle,
 } from "@engenty/wizards-shared/projects";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
@@ -98,6 +99,8 @@ export interface Me {
     role: "owner" | "admin" | "member";
     /** The plan the team is on (Free, Pro, Team, …); null alone. */
     plan: { id: string; name: string } | null;
+    /** The team's address for its public page (`acme.wizards.page`); null alone. */
+    pagesHost: string | null;
   };
   /** The plan's feature switches; alone, everything is on. `ownKeys`: own API keys here. */
   features: Record<string, boolean>;
@@ -253,6 +256,8 @@ export interface Project {
     logoRules?: BrandRule[];
   };
   facts: ProjectFact[];
+  /** The space's public page; null until it is set up. */
+  page: ProjectPage | null;
   mcpServers: { id: string; name: string; url: string; headers?: Record<string, string> }[];
   wizardCount: number;
   /** `local`: sent here by a local install, where it is changed. */

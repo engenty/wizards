@@ -15,13 +15,17 @@ import {
   GRADIENT_TYPES,
   type LogoSection,
   orderColors,
+  PAGE_LANGS,
+  PAGE_LIMITS,
+  PAGE_SLUG,
   PROJECT_LIMITS,
   type ProjectFact,
+  type ProjectPage,
   RULE_MARKS,
   type TextStyle,
 } from "@engenty/wizards-shared/projects";
 import { note } from "@engenty/wizards-shared/run";
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db, schema } from "../db/client.js";
@@ -141,8 +145,30 @@ export const projectFactSchema = z.object({
   type: z.enum(FACT_TYPES).optional(),
 });
 
+const trimmed = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((v) => v || undefined)
+    .optional();
+
+/** The space's public page as the studio sends it, whole. */
+export const projectPageSchema = z.object({
+  on: z.boolean(),
+  slug: z.string().trim().toLowerCase().max(PAGE_LIMITS.slug),
+  title: z.string().trim().min(1).max(PAGE_LIMITS.title),
+  headline: trimmed(PAGE_LIMITS.headline),
+  intro: trimmed(PAGE_LIMITS.intro),
+  lang: z.enum(PAGE_LANGS),
+  form: z.enum(["du", "sie"]).optional(),
+  wizards: z.array(z.string().max(40)).max(60),
+  examples: z.record(z.string().max(40), z.string().regex(/^[A-Za-z0-9_-]{1,40}$/)),
+});
+
 export const projectPatchSchema = z.object({
   name: z.string().min(1).max(80).optional(),
+  page: projectPageSchema.optional(),
   brand: z
     .object({
       name: z.string().max(120).optional(),
@@ -331,6 +357,7 @@ export async function updateProject(
   if (patch.brand?.fonts) {
     await linkFontFiles(p.id, patch.brand.fonts);
   }
+  const page = patch.page ? await checkedPage(p, patch.page) : undefined;
   await db
     .update(schema.project)
     .set({
@@ -338,10 +365,57 @@ export async function updateProject(
       ...(patch.brand ? { brand: brandAfter(p.brand, patch.brand) } : {}),
       ...(patch.facts ? { facts: patch.facts } : {}),
       ...(mcpServers ? { mcpServers } : {}),
+      ...(page ? { page } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.project.id, p.id));
   spaceChanged("space.updated", p.id);
+  return { pageChanged: page !== undefined };
+}
+
+/**
+ * The page as it is kept: its address made of the allowed characters and taken by no other space
+ * of the tenant, only this tenant's wizards of this space on it, and the page on in one space at
+ * most (`409 page_taken`, naming that space). The form is German's alone.
+ */
+async function checkedPage(p: ProjectRow, page: ProjectPage): Promise<ProjectPage> {
+  if (!PAGE_SLUG.test(page.slug)) {
+    throw new ServiceError("invalid", note("pageSlugInvalid"));
+  }
+  const others = await db.query.project.findMany({
+    where: and(eq(schema.project.tenantId, currentTenant()), ne(schema.project.id, p.id)),
+    columns: { id: true, name: true, page: true },
+  });
+  if (others.some((o) => o.page?.slug === page.slug)) {
+    throw new ServiceError("invalid", note("pageSlugTaken"));
+  }
+  const holder = page.on ? others.find((o) => o.page?.on) : undefined;
+  if (holder) {
+    throw new ServiceError("page_taken", note("pageTaken", { space: holder.name }), {
+      project: { id: holder.id, name: holder.name },
+    });
+  }
+  const own = new Set(
+    (
+      await db.query.wizard.findMany({
+        where: eq(schema.wizard.projectId, p.id),
+        columns: { id: true },
+      })
+    ).map((w) => w.id),
+  );
+  const wizards = [...new Set(page.wizards)].filter((id) => own.has(id));
+  const examples = Object.fromEntries(Object.entries(page.examples).filter(([id]) => own.has(id)));
+  return {
+    on: page.on,
+    slug: page.slug,
+    title: page.title,
+    ...(page.headline ? { headline: page.headline } : {}),
+    ...(page.intro ? { intro: page.intro } : {}),
+    lang: page.lang,
+    ...(page.lang === "de" && page.form ? { form: page.form } : {}),
+    wizards,
+    examples,
+  };
 }
 
 /**
