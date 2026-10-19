@@ -5,6 +5,9 @@ by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
 ## [0.9.2] - 2026-10-19
+- ADDED **[uploads]** Uploaded files are checked: a file must be what its type says, photos lose their location and camera details, SVGs lose scripts and outside references (#104)
+- DOCS **[readme]** New studio and wizard pictures, and the text brought up to date (#105)
+- DOCS Themes have a page of their own in the developer docs (#103)
 - FIXED **[runtime]** Drop Node's localStorage before a dependency reads it (#101)
 - FIXED **[runtime]** The built-in terminal starts on Linux too (#99)
 - FIXED **[studio]** The test run no longer slides off the right edge when the side panel is away (#98)
