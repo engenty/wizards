@@ -15,6 +15,7 @@ import type {
 import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
+import type { Theme } from "@engenty/wizards-shared/theme";
 import type { TranslationMemory } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { sql } from "drizzle-orm";
@@ -83,6 +84,8 @@ export const project = sqliteTable(
     name: text("name").notNull(),
     brand: text("brand", { mode: "json" }).$type<BrandConfig>().notNull().default({}),
     facts: text("facts", { mode: "json" }).$type<ProjectFact[]>().notNull().default([]),
+    /** The space's themes: values only (docs/plans/themes.md). Wizards name them in `themes`. */
+    themes: text("themes", { mode: "json" }).$type<Theme[]>().notNull().default([]),
     mcpServers: text("mcp_servers", { mode: "json" })
       .$type<McpServerConfig[]>()
       .notNull()

@@ -1,5 +1,6 @@
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { luminance } from "@engenty/wizards-shared/projects";
+import type { Theme } from "@engenty/wizards-shared/theme";
 import { useEffect } from "react";
 import { Mascot } from "../../brand";
 import { SpiderWeb } from "../../runner/effects";
@@ -9,26 +10,38 @@ const LIGHT = { ground: "#faf8f5", ink: "#1f1b16", soft: "#6b6259" };
 const DARK = { ground: "#17131d", ink: "#f4efe8", soft: "#b4aabd" };
 
 /**
- * A small run page in the wizard's look: its ground, a heading and a line of text in its
- * typefaces, the start button in its accent, its engenty, and its effects drawn small. What the
- * wizard leaves to the space shows in the runner's own look.
+ * A small run page in the wizard's look: its ground, a heading and a line of text in its fonts,
+ * the start button in its accent, its engenty, and its effects drawn small — in the pages the
+ * theme prefers. Without a theme it shows the runner's own look. Drawn from values only: no
+ * theme ever reaches the studio's page as CSS.
  */
-export function LookPreview({ def }: { def: WizardDefinition }) {
-  const style = def.style ?? {};
-  const dark = style.dark ?? (style.background ? luminance(style.background) < 0.18 : false);
+export function LookPreview({ def, theme }: { def: WizardDefinition; theme: Theme | undefined }) {
+  const mode =
+    theme?.light && !theme.dark
+      ? "light"
+      : theme?.dark && !theme.light
+        ? "dark"
+        : (theme?.prefer ?? "light");
+  const colours = theme?.[mode] ?? {};
+  const dark = colours.background ? luminance(colours.background) < 0.18 : mode === "dark";
   const tone = dark ? DARK : LIGHT;
-  const ground = style.background ?? tone.ground;
-  const accent = style.accent ?? "#e0531b";
-  const effects = new Set(style.effects ?? []);
+  const ground = colours.background ?? tone.ground;
+  const accent = colours.accent ?? "#e0531b";
+  const effects = new Map((theme?.effects ?? []).map((e) => [e.id, e]));
   const glow = effects.has("glow");
+  const heading =
+    theme?.fonts?.heading && theme.fonts.heading !== "brand" ? theme.fonts.heading : null;
+  const text = theme?.fonts?.text && theme.fonts.text !== "brand" ? theme.fonts.text : null;
   useEffect(() => {
-    loadWizardFont(style.displayFont);
-    loadWizardFont(style.bodyFont);
-  }, [style.displayFont, style.bodyFont]);
+    loadWizardFont(heading);
+    loadWizardFont(text);
+  }, [heading, text]);
+  const corners = effects.get("corners")?.kind;
+  const figures = effects.get("figures");
   return (
     <div
       className="relative h-28 overflow-hidden rounded-xl ring-1 ring-border-soft"
-      style={{ background: ground, color: tone.ink }}
+      style={{ background: ground, color: colours.text ?? tone.ink }}
     >
       {effects.has("fog") ? (
         <div
@@ -38,7 +51,7 @@ export function LookPreview({ def }: { def: WizardDefinition }) {
           }}
         />
       ) : null}
-      {effects.has("webs") ? (
+      {corners === "webs" ? (
         <>
           <SpiderWeb
             side="left"
@@ -56,9 +69,9 @@ export function LookPreview({ def }: { def: WizardDefinition }) {
         </div>
         <div className="min-w-0 flex-1">
           <div
-            className="truncate text-[1.125rem] leading-tight"
+            className={`truncate text-[1.125rem] leading-tight ${theme?.shape?.headings === "uppercase" ? "uppercase tracking-wide" : ""}`}
             style={{
-              fontFamily: style.displayFont ? `"${style.displayFont}"` : "var(--f-display)",
+              fontFamily: heading ? `"${heading}"` : "var(--f-display)",
               textShadow: glow
                 ? `0 0 0.6em color-mix(in oklch, ${accent} 75%, transparent)`
                 : undefined,
@@ -68,17 +81,15 @@ export function LookPreview({ def }: { def: WizardDefinition }) {
           </div>
           <div
             className="mt-0.5 truncate text-[0.8125rem]"
-            style={{
-              fontFamily: style.bodyFont ? `"${style.bodyFont}"` : "var(--f-ui)",
-              color: tone.soft,
-            }}
+            style={{ fontFamily: text ? `"${text}"` : "var(--f-ui)", color: tone.soft }}
           >
             {def.description || def.intro}
           </div>
           <div
-            className="mt-2 inline-flex h-6 w-20 items-center justify-center rounded-full"
+            className="mt-2 inline-flex h-6 w-20 items-center justify-center"
             style={{
               background: accent,
+              borderRadius: theme?.shape?.radius === "sharp" ? "0.3rem" : "999px",
               boxShadow: glow
                 ? `0 0 0.9rem color-mix(in oklch, ${accent} 65%, transparent)`
                 : undefined,
@@ -89,9 +100,14 @@ export function LookPreview({ def }: { def: WizardDefinition }) {
             </span>
           </div>
         </div>
-        {effects.has("bats") ? (
+        {figures ? (
           <div className="absolute top-2 right-16 rotate-[-8deg]">
-            <Mascot kind="round" costume="bat" size={30} interactive={false} />
+            <Mascot
+              kind="round"
+              costume={typeof figures.costume === "string" ? (figures.costume as never) : undefined}
+              size={30}
+              interactive={false}
+            />
           </div>
         ) : null}
       </div>

@@ -2,7 +2,11 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFINITION_VERSION, parseWizard } from "@engenty/wizards-shared/definition";
-import { packageJsonSchema, wizardJsonSchema } from "@engenty/wizards-shared/json-schema";
+import {
+  packageJsonSchema,
+  themeJsonSchema,
+  wizardJsonSchema,
+} from "@engenty/wizards-shared/json-schema";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
@@ -27,6 +31,7 @@ describe("the published JSON Schemas", () => {
   it("are the ones the Zod schemas give (pnpm schema writes them)", () => {
     expect(published(`v${DEFINITION_VERSION}/wizard.json`)).toEqual(wizardJsonSchema());
     expect(published(`v${DEFINITION_VERSION}/wizard-package.json`)).toEqual(packageJsonSchema());
+    expect(published("theme/v1/theme.json")).toEqual(themeJsonSchema());
   });
 
   it("take what the app takes", () => {

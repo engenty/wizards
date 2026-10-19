@@ -5,7 +5,6 @@ import { readNumber } from "./numbers.js";
 import { type ObjectShape, outputShapeSchema, shapeOfFields } from "./shape.js";
 import { isShareTargetId } from "./sharing.js";
 import { CONNECTION_KINDS } from "./store.js";
-import { cssProblems, wizardStyleSchema } from "./style.js";
 import { type SurfaceComponent, surfaceComponentsSchema, validateSurface } from "./surface.js";
 
 /** The engenty avatars a wizard can wear. Same cast as engenty's ui-core. */
@@ -25,6 +24,9 @@ export type EngentyKind = (typeof ENGENTY_KINDS)[number];
 
 /** The Halloween costumes a wizard's engenty can wear. Same list as the web app's engenty figures. */
 export const ENGENTY_COSTUMES = ["witch", "devil", "bat", "pumpkin"] as const;
+
+/** A theme's id: `halloween`, or `@owner/halloween` for a theme from the catalog (theme.ts). */
+export const THEME_ID = /^(@[a-z0-9-]{1,39}\/)?[a-z0-9][a-z0-9-]{0,47}$/;
 export type EngentyCostume = (typeof ENGENTY_COSTUMES)[number];
 
 // --- languages -------------------------------------------------------------------------------
@@ -1018,7 +1020,12 @@ export const wizardSchema = z.object({
   /** Accounts the person connects; kept between runs, per person. */
   connections: z.array(connectionSchema).max(12).optional(),
   /** How the wizard's pages look, over its space's brand: colours, typefaces, effects, CSS. */
-  style: wizardStyleSchema.optional(),
+  /**
+   * The themes the wizard offers, in its order: ids of the space's themes, or `brand`, `host`
+   * and `default`. The place that shows the wizard picks one; its own pages take the first the
+   * space has. Without any: the space's brand.
+   */
+  themes: z.array(z.string().regex(THEME_ID)).max(8).optional(),
   steps: z.array(stepSchema).min(1),
 });
 export type WizardDefinition = z.infer<typeof wizardSchema>;
@@ -1119,11 +1126,8 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
     });
   }
 
-  const refused = cssProblems(def.style?.css ?? "");
-  if (refused.length) {
-    issues.push({
-      message: `The wizard's CSS uses ${refused.join(", ")}. A run page loads nothing from CSS, so it would leave all of it out. Remove these parts.`,
-    });
+  if (def.themes && new Set(def.themes).size !== def.themes.length) {
+    issues.push({ message: "A theme is named twice in themes." });
   }
 
   for (const list of def.lists ?? []) {

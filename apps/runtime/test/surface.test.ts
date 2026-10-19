@@ -1,6 +1,15 @@
 import { assembleSurface, parseWizard, type SurfaceStep } from "@engenty/wizards-shared/definition";
 import { runTheme } from "@engenty/wizards-shared/projects";
-import { safeCss, wizardTheme } from "@engenty/wizards-shared/style";
+import {
+  chosenTheme,
+  freeThemeId,
+  lookColours,
+  type Theme,
+  themeContentKey,
+  themedLook,
+  themeIdFrom,
+  themeIdProblem,
+} from "@engenty/wizards-shared/theme";
 import { bound, pointer, validateSurface, worded } from "@engenty/wizards-shared/surface";
 import { describe, expect, it, vi } from "vitest";
 
@@ -157,8 +166,10 @@ describe("the run's theme", () => {
       body: "Instrument Sans",
       dark: false,
       pinned: false,
+      modes: null,
+      prefer: null,
+      shape: null,
       effects: [],
-      css: null,
     });
   });
 
@@ -172,13 +183,15 @@ describe("the run's theme", () => {
       body: null,
       dark: false,
       pinned: false,
+      modes: null,
+      prefer: null,
+      shape: null,
       effects: [],
-      css: null,
     });
   });
 });
 
-describe("a wizard's own style", () => {
+describe("themes", () => {
   const brand = runTheme({
     colors: [
       { name: "Primär", value: "#2f5d50" },
@@ -189,41 +202,72 @@ describe("a wizard's own style", () => {
       { family: "Young Serif", role: "Überschriften" },
     ],
   });
+  const halloween: Theme = {
+    id: "halloween",
+    name: "Halloween",
+    version: "1.0.0",
+    base: "brand",
+    dark: { accent: "#ff7a1a", background: "#140b1f" },
+    fonts: { heading: "Creepster", text: "brand" },
+    effects: [{ id: "glow" }, { id: "corners", kind: "webs" }],
+  };
 
-  it("is the brand's look while it sets nothing", () => {
-    expect(wizardTheme(brand, undefined)).toBe(brand);
+  it("is the brand while the wizard names none the space has", () => {
+    expect(themedLook(brand, chosenTheme(undefined, [halloween]))).toBe(brand);
+    expect(themedLook(brand, chosenTheme(["gone"], [halloween]))).toBe(brand);
+    expect(themedLook(brand, chosenTheme(["brand", "halloween"], [halloween]))).toBe(brand);
   });
 
-  it("goes over the brand where it sets something", () => {
-    const theme = wizardTheme(brand, {
-      accent: "#ff7a1a",
-      background: "#120a1c",
-      displayFont: "Creepster",
-      effects: ["glow", "webs", "webs"],
-      css: "h1 { letter-spacing: 0.05em; }",
-    });
-    expect(theme).toMatchObject({
-      accent: "#ff7a1a",
-      background: "#120a1c",
+  it("takes the first theme of the chain the space has, built on the brand", () => {
+    const look = themedLook(brand, chosenTheme(["gone", "halloween"], [halloween]));
+    expect(look).toMatchObject({
+      accent: "#2f5d50",
       display: "Creepster",
       body: "Instrument Sans",
       dark: true,
-      pinned: false,
-      effects: ["glow", "webs"],
-      css: "h1 { letter-spacing: 0.05em; }",
+      pinned: true,
+      modes: { light: null, dark: { accent: "#ff7a1a", background: "#140b1f" } },
+      effects: [{ id: "glow" }, { id: "corners", kind: "webs" }],
+    });
+    expect(lookColours(look, "dark")).toEqual({
+      accent: "#ff7a1a",
+      background: "#140b1f",
+      text: null,
     });
   });
 
-  it("pins dark or light only when it says so", () => {
-    expect(wizardTheme(brand, { dark: false })).toMatchObject({ dark: false, pinned: true });
-    expect(wizardTheme(brand, { dark: true })).toMatchObject({ dark: true, pinned: true });
+  it("leaves light and dark to the person when it has both, showing what it prefers first", () => {
+    const both = themedLook(brand, {
+      ...halloween,
+      light: { accent: "#e8630a" },
+      prefer: "light",
+    });
+    expect(both).toMatchObject({ pinned: false, prefer: "light", dark: false });
+    expect(lookColours(both, "light").accent).toBe("#e8630a");
+    expect(lookColours(both, "light").background).toBe("#eff2ec");
   });
 
-  it("leaves out CSS that would load something", () => {
-    expect(wizardTheme(brand, { css: "body { background: url(https://x.example/a.png) }" }).css).toBeNull();
-    expect(wizardTheme(brand, { css: "@import 'https://x.example/a.css';" }).css).toBeNull();
-    expect(wizardTheme(brand, { css: "a { b: \\75rl(x) }" }).css).toBeNull();
-    expect(safeCss("  h2 { color: red }  ")).toBe("h2 { color: red }");
+  it("shows engenty wizards' own look for default", () => {
+    expect(themedLook(brand, "default")).toMatchObject({ accent: null, display: null });
+  });
+
+  it("refuses reserved ids and scopes, and takes the catalog's", () => {
+    expect(themeIdProblem("halloween")).toBeNull();
+    expect(themeIdProblem("@wizards/halloween")).toBeNull();
+    expect(themeIdProblem("@someone/halloween")).toBeNull();
+    expect(themeIdProblem("brand")).toMatch(/reserved/);
+    expect(themeIdProblem("wizards")).toMatch(/reserved/);
+    expect(themeIdProblem("@engenty/x")).toMatch(/reserved/);
+    expect(themeIdProblem("Halloween!")).toMatch(/no theme id/);
+  });
+
+  it("knows the same content in another order, and finds a free id", () => {
+    const shuffled = { ...halloween, effects: halloween.effects, fonts: { text: "brand", heading: "Creepster" } };
+    expect(themeContentKey(shuffled)).toBe(themeContentKey(halloween));
+    expect(themeContentKey({ ...halloween, name: "Other" })).not.toBe(themeContentKey(halloween));
+    expect(freeThemeId("halloween", new Set(["halloween", "halloween-2"]))).toBe("halloween-3");
+    expect(themeIdFrom("Spukhaus-Exposé")).toBe("spukhaus-expose");
+    expect(themeIdFrom("Brand")).toBe("look");
   });
 });
 

@@ -22,8 +22,8 @@ export const wizardOpSchema = z.discriminatedUnion("op", [
     costume: z.enum(ENGENTY_COSTUMES).nullable().optional(),
     /** null removes the intro. */
     intro: z.string().nullable().optional(),
-    /** The wizard's whole look; replaces the one there was, null removes it. */
-    style: z.looseObject({}).nullable().optional(),
+    /** The themes the wizard offers, in its order (ids of the space's themes); null removes them. */
+    themes: z.array(z.string()).max(8).nullable().optional(),
   }),
   z.object({
     op: z.literal("upsert_step"),
@@ -38,6 +38,11 @@ export const wizardOpSchema = z.discriminatedUnion("op", [
     op: z.literal("set_connections"),
     connections: z.array(z.looseObject({ id: z.string() })),
   }),
+  /**
+   * A theme of the space, made or replaced, worn first by this wizard: values only (colours for
+   * light and dark, fonts, shape, effects). Its id names it in `themes`.
+   */
+  z.object({ op: z.literal("set_theme"), theme: z.looseObject({ id: z.string() }) }),
   z.object({ op: z.literal("remove_step"), stepId: z.string() }),
   z.object({ op: z.literal("move_step"), stepId: z.string(), ...position }),
 ]);
@@ -73,7 +78,7 @@ export function applyOps(def: WizardDefinition, ops: WizardOp[]): unknown {
     const steps = next.steps;
     switch (op.op) {
       case "set_meta": {
-        const { op: _, intro, costume, style, ...meta } = op;
+        const { op: _, intro, costume, themes, ...meta } = op;
         Object.assign(
           next,
           Object.fromEntries(Object.entries(meta).filter(([, v]) => v !== undefined)),
@@ -88,11 +93,16 @@ export function applyOps(def: WizardDefinition, ops: WizardOp[]): unknown {
         } else if (costume !== undefined) {
           next.costume = costume;
         }
-        if (style === null) {
-          delete next.style;
-        } else if (style !== undefined) {
-          Object.assign(next, { style });
+        if (themes === null) {
+          delete next.themes;
+        } else if (themes !== undefined) {
+          next.themes = themes;
         }
+        return;
+      }
+      case "set_theme": {
+        const id = op.theme.id;
+        next.themes = [id, ...(next.themes ?? []).filter((x) => x !== id)];
         return;
       }
       case "set_lists":

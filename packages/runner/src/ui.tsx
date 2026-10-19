@@ -400,7 +400,10 @@ export function Card({
 }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("rounded-xl bg-card shadow-soft ring-1 ring-border-soft", className)}
+      className={cn(
+        "wizard-card rounded-xl bg-card shadow-soft ring-1 ring-border-soft",
+        className,
+      )}
       {...rest}
     >
       {children}

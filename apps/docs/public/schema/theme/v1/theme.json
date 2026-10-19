@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engenty.ai/schema/theme/v1/theme.json",
+  "$comment": "MIT License. Copyright (c) 2026 Matthias Platzer.",
+  "title": "engenty.wizards theme",
+  "description": "A theme of a space: colours for light and dark pages, fonts, shape and effects from the runner's library. Values only.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "The JSON Schema an editor checks this file against; the app does not read it."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^(@[a-z0-9-]{1,39}\\/)?[a-z0-9][a-z0-9-]{0,47}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "version": {
+      "default": "1.0.0",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "base": {
+      "default": "brand",
+      "type": "string",
+      "enum": [
+        "brand",
+        "host",
+        "default"
+      ]
+    },
+    "light": {
+      "type": "object",
+      "properties": {
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "text": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "dark": {
+      "type": "object",
+      "properties": {
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "text": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "prefer": {
+      "type": "string",
+      "enum": [
+        "light",
+        "dark"
+      ]
+    },
+    "fonts": {
+      "type": "object",
+      "properties": {
+        "heading": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        }
+      },
+      "additionalProperties": false
+    },
+    "shape": {
+      "type": "object",
+      "properties": {
+        "radius": {
+          "type": "string",
+          "enum": [
+            "sharp",
+            "soft",
+            "round"
+          ]
+        },
+        "cards": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "outline",
+            "glass"
+          ]
+        },
+        "headings": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "uppercase"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "effects": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 40
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "required": [
+    "id",
+    "name"
+  ],
+  "additionalProperties": false
+}

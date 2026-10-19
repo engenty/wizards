@@ -8,7 +8,7 @@ import {
 } from "@engenty/wizards-shared/projects";
 import type { BrandView } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
-import { type WizardStyle, wizardTheme } from "@engenty/wizards-shared/style";
+import { chosenTheme, lookColours, themedLook } from "@engenty/wizards-shared/theme";
 import { generateText, Output } from "ai";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -29,16 +29,20 @@ export async function mainLogoId(projectId: string): Promise<string | null> {
 
 /**
  * What end users see of the project: its title, accent and logo — never the project name — and the
- * look of the wizard's pages, the brand's with the wizard's own style on top.
+ * look of the wizard's pages: the first theme of the wizard's chain the space has, else the brand.
  */
-export async function brandView(projectId: string, style?: WizardStyle): Promise<BrandView> {
+export async function brandView(projectId: string, chain?: readonly string[]): Promise<BrandView> {
   const p = await db.query.project.findFirst({ where: eq(schema.project.id, projectId) });
   const logo = p ? await mainLogoId(p.id) : null;
+  const theme = themedLook(runTheme(p?.brand ?? {}), chosenTheme(chain, p?.themes ?? []));
   return {
     name: p?.brand.name ?? "",
-    accent: style?.accent ?? p?.brand.colors?.[0]?.value ?? null,
+    accent:
+      lookColours(theme, theme.dark ? "dark" : "light").accent ??
+      p?.brand.colors?.[0]?.value ??
+      null,
     logoUrl: logo ? `/api/public/logos/${logo}` : null,
-    theme: wizardTheme(runTheme(p?.brand ?? {}), style),
+    theme,
   };
 }
 

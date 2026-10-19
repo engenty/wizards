@@ -80,6 +80,163 @@
         "additionalProperties": false
       }
     },
+    "themes": {
+      "default": [],
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(@[a-z0-9-]{1,39}\\/)?[a-z0-9][a-z0-9-]{0,47}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "version": {
+            "default": "1.0.0",
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$"
+          },
+          "base": {
+            "default": "brand",
+            "type": "string",
+            "enum": [
+              "brand",
+              "host",
+              "default"
+            ]
+          },
+          "light": {
+            "type": "object",
+            "properties": {
+              "accent": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "background": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "text": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "dark": {
+            "type": "object",
+            "properties": {
+              "accent": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "background": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "text": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "prefer": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark"
+            ]
+          },
+          "fonts": {
+            "type": "object",
+            "properties": {
+              "heading": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              }
+            },
+            "additionalProperties": false
+          },
+          "shape": {
+            "type": "object",
+            "properties": {
+              "radius": {
+                "type": "string",
+                "enum": [
+                  "sharp",
+                  "soft",
+                  "round"
+                ]
+              },
+              "cards": {
+                "type": "string",
+                "enum": [
+                  "solid",
+                  "outline",
+                  "glass"
+                ]
+              },
+              "headings": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "uppercase"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "effects": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    },
     "knowledge": {
       "type": "object",
       "properties": {
@@ -656,75 +813,13 @@
             "additionalProperties": false
           }
         },
-        "style": {
-          "type": "object",
-          "properties": {
-            "accent": {
-              "type": "string",
-              "pattern": "^#[0-9a-fA-F]{6}$"
-            },
-            "background": {
-              "type": "string",
-              "pattern": "^#[0-9a-fA-F]{6}$"
-            },
-            "dark": {
-              "type": "boolean"
-            },
-            "displayFont": {
-              "type": "string",
-              "enum": [
-                "Inter",
-                "Figtree",
-                "DM Sans",
-                "Nunito",
-                "Fredoka",
-                "Bricolage Grotesque",
-                "Fraunces",
-                "Playfair Display",
-                "Lora",
-                "Young Serif",
-                "Caveat",
-                "Creepster",
-                "Nosifer"
-              ]
-            },
-            "bodyFont": {
-              "type": "string",
-              "enum": [
-                "Inter",
-                "Figtree",
-                "DM Sans",
-                "Nunito",
-                "Fredoka",
-                "Bricolage Grotesque",
-                "Fraunces",
-                "Playfair Display",
-                "Lora",
-                "Young Serif",
-                "Caveat",
-                "Creepster",
-                "Nosifer"
-              ]
-            },
-            "effects": {
-              "maxItems": 4,
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "glow",
-                  "webs",
-                  "bats",
-                  "fog"
-                ]
-              }
-            },
-            "css": {
-              "type": "string",
-              "maxLength": 8000
-            }
-          },
-          "additionalProperties": false
+        "themes": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(@[a-z0-9-]{1,39}\\/)?[a-z0-9][a-z0-9-]{0,47}$"
+          }
         },
         "steps": {
           "minItems": 1,

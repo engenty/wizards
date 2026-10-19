@@ -380,8 +380,10 @@ export function runTheme(brand: {
     body: body?.family ?? null,
     dark: background ? luminance(background) < 0.18 : false,
     pinned: false,
+    modes: null,
+    prefer: null,
+    shape: null,
     effects: [],
-    css: null,
   };
 }
 

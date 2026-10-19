@@ -6,7 +6,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DEFINITION_VERSION } from "../src/definition.js";
-import { packageJsonSchema, wizardJsonSchema } from "../src/json-schema.js";
+import { packageJsonSchema, themeJsonSchema, wizardJsonSchema } from "../src/json-schema.js";
 
 const out = resolve(import.meta.dirname, "../../../apps/docs/public/schema");
 
@@ -19,3 +19,4 @@ function write(path: string, schema: unknown) {
 
 write(`v${DEFINITION_VERSION}/wizard.json`, wizardJsonSchema());
 write(`v${DEFINITION_VERSION}/wizard-package.json`, packageJsonSchema());
+write("theme/v1/theme.json", themeJsonSchema());

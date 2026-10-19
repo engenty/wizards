@@ -1167,6 +1167,7 @@ export function EditorPage() {
                       mcpServers={w.mcpServers}
                       files={w.files}
                       wizardId={w.id}
+                      projectId={w.projectId}
                       readOnly={w.readOnly}
                       decisions={shownDecisions}
                       branchFocus={branchFocus}

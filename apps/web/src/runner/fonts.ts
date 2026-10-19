@@ -1,8 +1,8 @@
-import type { WizardFont } from "@engenty/wizards-shared/style";
+import type { ShippedFont } from "@engenty/wizards-shared/theme";
 
-// The typefaces a wizard can choose (WIZARD_FONTS), shipped with the runner: each loads only when
+// The fonts a theme can name (SHIPPED_FONTS), shipped with the runner: each loads only when
 // a wizard uses it, from this site, in the weights the pages use (text 400–700).
-const LOADERS: Record<WizardFont, () => Promise<unknown>[]> = {
+const LOADERS: Record<ShippedFont, () => Promise<unknown>[]> = {
   Inter: () => [
     import("@fontsource/inter/400.css"),
     import("@fontsource/inter/500.css"),
@@ -76,5 +76,5 @@ export function loadWizardFont(family: string | null | undefined) {
     return;
   }
   loaded.add(family);
-  Promise.all(LOADERS[family as WizardFont]()).catch(() => loaded.delete(family));
+  Promise.all(LOADERS[family as ShippedFont]()).catch(() => loaded.delete(family));
 }

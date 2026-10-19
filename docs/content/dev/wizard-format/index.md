@@ -37,7 +37,7 @@ tool may read and write wizards.
 | `lang` | The language the wizard speaks, as a two-letter code. See [Languages](#languages) |
 | `lists` | Tables the wizard keeps between runs. See [Lists and connections](./lists-and-connections.md) |
 | `connections` | Accounts the person connects during a run. See [Lists and connections](./lists-and-connections.md) |
-| `style` | How the wizard’s pages look over its space’s brand. See [Style](#style) |
+| `themes` | The space’s themes the wizard offers, in order. See [Themes](#themes) |
 | `steps` | What the run does, from top to bottom |
 
 ## JSON Schema
@@ -88,54 +88,61 @@ engenty figures © Thru The Heart Creative GmbH - Matthias Platzer, CC BY 4.0, e
 Using a figure or the name engenty as your own brand, logo or mascot needs permission. See
 [TRADEMARKS.md](https://github.com/engenty/wizards/blob/main/TRADEMARKS.md).
 
-## Style
+## Themes
 
-`style` gives the wizard a look of its own on its run page and on its shared results. Every key is
-optional, and what is left out stays the space’s.
+`themes` names the looks the wizard offers, in its order: ids of the space’s themes, or the
+built-in `brand` (the space’s brand), `host` (the look of the place the wizard runs in) and
+`default` (engenty wizards’ own look). Its own run and share pages show the first the space has;
+without any, the brand. A wizard file carries the themes its wizard names, in `wizard.json`
+beside the definition.
+
+A theme holds values only, no CSS and no files. Its JSON Schema is
+`https://engenty.ai/schema/theme/v1/theme.json`.
 
 | Key | What it holds |
 |---|---|
-| `accent` | Buttons and marks, as `#rrggbb` |
-| `background` | The ground the pages stand on, as `#rrggbb`. A dark one makes the pages dark |
-| `dark` | `true` or `false`: dark or light pages for everyone. The visitor’s theme switch is hidden then |
-| `displayFont` | The font of headings |
-| `bodyFont` | The font of text, fields and buttons |
-| `effects` | Any of `glow`, `webs`, `bats` and `fog` |
-| `css` | CSS added to the pages, up to 8,000 characters |
+| `id` | Lowercase letters, digits and dashes (`halloween`); `@owner/halloween` for a theme from the catalog. `brand`, `host`, `default`, `engenty`, `wizard` and `wizards` are reserved |
+| `name` | Shown in the studio |
+| `base` | `brand`, `host` or `default`: what the theme builds on. What it leaves out comes from there |
+| `light`, `dark` | `accent`, `background` and `text` as `#rrggbb`, for light and for dark pages. With only one of them the pages are always that |
+| `prefer` | With both: `light` or `dark`, shown until the person picks |
+| `fonts` | `heading` and `text`: a font engenty wizards ships, or `brand` for the space’s |
+| `shape` | `radius` (`sharp`, `soft`, `round`), `cards` (`solid`, `outline`, `glass`), `headings` (`normal`, `uppercase`) |
+| `effects` | Effects from the runner’s library, each with its options. A runner that does not know an effect leaves it out |
+
+| Effect | Options |
+|---|---|
+| `glow` | |
+| `corners` | `kind`: `webs`, `frost` |
+| `particles` | `kind`: `embers`, `snow`, `confetti`, `stars` |
+| `figures` | `costume`: `witch`, `devil`, `bat`, `pumpkin`; `motion`: `fly`, `peek` |
+| `fog` | |
+| `pattern` | `kind`: `dots`, `grid` |
 
 The fonts ship with engenty wizards, so a run page loads no font from another site: `Inter`,
 `Figtree`, `DM Sans`, `Nunito`, `Fredoka`, `Bricolage Grotesque`, `Fraunces`,
 `Playfair Display`, `Lora`, `Young Serif`, `Caveat`, `Creepster` and `Nosifer`. Creepster and
 Nosifer are display fonts for headings.
 
-`css` may not load anything. `url()`, `image-set()`, `@import` and backslash escapes are refused:
-`wizards validate` reports them, and a run page leaves such CSS out completely.
-
-These names stay the same when the run page changes. Rely on nothing else:
-
-| Name | What it is |
-|---|---|
-| `.wizard-page` | The whole page |
-| `.wizard-title` | The title of a page |
-| `.wizard-heading` | Headings on a page |
-| `.wizard-button` | The button that goes on |
-| `.wizard-field` | Fields |
-| `--wizard-accent`, `--wizard-background`, `--wizard-text` | The accent, background and text colour, to read with `var()` |
-| `--wizard-font-heading`, `--wizard-font-text` | The font for headings and the font for text, to read with `var()` |
-
-The look’s own keys (`accent`, `background`, the fonts) decide the colours and fonts. CSS reads
-them and does not set them.
-
 ```json
-"style": {
-  "accent": "#ff7a1a",
-  "background": "#140b1f",
-  "dark": true,
-  "displayFont": "Creepster",
-  "bodyFont": "Nunito",
-  "effects": ["glow", "webs", "bats", "fog"]
+{
+  "id": "halloween",
+  "name": "Halloween",
+  "dark": { "accent": "#ff7a1a", "background": "#140b1f" },
+  "fonts": { "heading": "Creepster", "text": "Nunito" },
+  "effects": [
+    { "id": "glow" },
+    { "id": "corners", "kind": "webs" },
+    { "id": "figures", "costume": "bat", "motion": "fly" },
+    { "id": "particles", "kind": "embers" }
+  ]
 }
 ```
+
+For hosts that style the runner around it, these names stay the same: `.wizard-page`,
+`.wizard-title`, `.wizard-heading`, `.wizard-button`, `.wizard-field`, `.wizard-card`, and the
+variables `--wizard-accent`, `--wizard-background`, `--wizard-text`, `--wizard-font-heading` and
+`--wizard-font-text`.
 
 ## Languages
 

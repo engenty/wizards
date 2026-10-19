@@ -28,12 +28,6 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { readNumber } from "@engenty/wizards-shared/numbers";
 import type { BranchDecision, RunEstimate } from "@engenty/wizards-shared/run";
-import {
-  WIZARD_EFFECTS,
-  WIZARD_FONTS,
-  type WizardEffect,
-  type WizardStyle,
-} from "@engenty/wizards-shared/style";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -51,7 +45,6 @@ import {
   Trash2,
   Upload,
   Wand2,
-  X,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { withBase } from "@/lib/base";
@@ -66,7 +59,6 @@ import {
   Label,
   Segmented,
   Select,
-  Swatch,
   Switch,
   Textarea,
 } from "../../ui";
@@ -81,14 +73,13 @@ import {
   uniqueId,
   withEmptyStep,
 } from "./AddStep";
-import { CssHelp } from "./CssHelp";
 import { ModelClassControl, StepCost, useEstimate } from "./estimate";
 import { conditionText, percent } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
-import { LookPreview } from "./LookPreview";
 import { stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
 import { ShareEditor } from "./ShareEditor";
 import { SurfaceBody } from "./SurfaceEditor";
+import { ThemeLook } from "./ThemeLook";
 
 type Update = (next: WizardDefinition) => void;
 
@@ -1105,7 +1096,17 @@ function StepBody({
   }
 }
 
-export function WizardSettings({ def, update }: { def: WizardDefinition; update: Update }) {
+export function WizardSettings({
+  def,
+  update,
+  projectId,
+  wizardId,
+}: {
+  def: WizardDefinition;
+  update: Update;
+  projectId: string;
+  wizardId: string;
+}) {
   return (
     <div>
       <Section>
@@ -1183,7 +1184,7 @@ export function WizardSettings({ def, update }: { def: WizardDefinition; update:
           </div>
         </div>
       </Section>
-      <WizardLook def={def} update={update} />
+      <ThemeLook def={def} update={update} projectId={projectId} wizardId={wizardId} />
       {def.lists?.length || def.connections?.length ? (
         <Section title={t("inspector.remembers")}>
           <p className="text-[0.8125rem] text-ink-3">{t("inspector.remembersHint")}</p>
@@ -1210,183 +1211,6 @@ export function WizardSettings({ def, update }: { def: WizardDefinition; update:
   );
 }
 
-/** A colour of the wizard's own, or the space's while none is set. */
-function LookColour({
-  label,
-  value,
-  fallback,
-  onChange,
-}: {
-  label: string;
-  value: string | undefined;
-  fallback: string;
-  onChange: (v: string | undefined) => void;
-}) {
-  return (
-    <div>
-      <Label hint={value ? undefined : t("inspector.fromSpace")}>{label}</Label>
-      <div className="flex items-center gap-2">
-        <Swatch value={value ?? fallback} onChange={(e) => onChange(e.target.value)} />
-        {value ? (
-          <>
-            <span className="font-mono text-[0.8125rem] text-ink-3">{value}</span>
-            <IconButton label={t("inspector.lookReset")} onClick={() => onChange(undefined)}>
-              <X className="size-4" />
-            </IconButton>
-          </>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-const PAGES = ["space", "dark", "light"] as const;
-
-/**
- * How the wizard's pages look over its space's brand: colours, dark or light, typefaces, effects
- * and CSS of its own. What is left empty stays the space's.
- */
-function WizardLook({ def, update }: { def: WizardDefinition; update: Update }) {
-  const style = def.style ?? {};
-  const set = (patch: Partial<WizardStyle>) => {
-    const next: Record<string, unknown> = { ...style, ...patch };
-    for (const key of Object.keys(next)) {
-      const v = next[key];
-      if (v === undefined || v === "" || (Array.isArray(v) && v.length === 0)) {
-        delete next[key];
-      }
-    }
-    update({ ...def, style: Object.keys(next).length ? (next as WizardStyle) : undefined });
-  };
-  const fonts = [
-    { value: "", label: t("inspector.fromSpace") },
-    ...WIZARD_FONTS.map((f) => ({ value: f, label: f })),
-  ];
-  const [open, setOpen] = useState(false);
-  const head = useRef<HTMLButtonElement>(null);
-  // Opened, the section moves up into view, so the settings it opens are seen.
-  useEffect(() => {
-    if (open) {
-      head.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [open]);
-  return (
-    <Section loose>
-      <button
-        ref={head}
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="-my-1 flex items-center justify-between text-left"
-      >
-        <span className="font-medium text-[0.75rem] text-ink-3 uppercase tracking-[0.07em]">
-          {t("inspector.look")}
-        </span>
-        <ChevronDown className={cn("size-4 text-ink-4 transition", open && "rotate-180")} />
-      </button>
-      {open ? (
-        <LookPreview def={def} />
-      ) : (
-        <button
-          type="button"
-          aria-label={t("inspector.lookOpen")}
-          onClick={() => setOpen(true)}
-          className="rounded-xl text-left transition hover:brightness-110"
-        >
-          <LookPreview def={def} />
-        </button>
-      )}
-      {open ? <LookFields style={style} set={set} fonts={fonts} /> : null}
-    </Section>
-  );
-}
-
-function LookFields({
-  style,
-  set,
-  fonts,
-}: {
-  style: WizardStyle;
-  set: (patch: Partial<WizardStyle>) => void;
-  fonts: { value: string; label: string }[];
-}) {
-  const [help, setHelp] = useState(false);
-  return (
-    <Fields className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-4">
-        <LookColour
-          label={t("inspector.lookAccent")}
-          value={style.accent}
-          fallback="#e0531b"
-          onChange={(accent) => set({ accent })}
-        />
-        <LookColour
-          label={t("inspector.lookBackground")}
-          value={style.background}
-          fallback="#faf8f5"
-          onChange={(background) => set({ background })}
-        />
-      </div>
-      <div>
-        <Label hint={t("inspector.lookPagesHint")}>{t("inspector.lookPages")}</Label>
-        <Segmented
-          value={style.dark === undefined ? "space" : style.dark ? "dark" : "light"}
-          options={[...PAGES]}
-          label={(o) => t(`inspector.lookPages.${o as (typeof PAGES)[number]}`)}
-          onChange={(o: (typeof PAGES)[number]) =>
-            set({ dark: o === "space" ? undefined : o === "dark" })
-          }
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label>{t("inspector.lookDisplayFont")}</Label>
-          <Select
-            value={style.displayFont ?? ""}
-            options={fonts}
-            onChange={(v) => set({ displayFont: (v || undefined) as WizardStyle["displayFont"] })}
-          />
-        </div>
-        <div>
-          <Label>{t("inspector.lookBodyFont")}</Label>
-          <Select
-            value={style.bodyFont ?? ""}
-            options={fonts}
-            onChange={(v) => set({ bodyFont: (v || undefined) as WizardStyle["bodyFont"] })}
-          />
-        </div>
-      </div>
-      <div>
-        <Label>{t("inspector.lookEffects")}</Label>
-        <Segmented
-          multi
-          value={style.effects ?? []}
-          options={[...WIZARD_EFFECTS]}
-          label={(o) => t(`inspector.lookEffect.${o as WizardEffect}`)}
-          onChange={(effects: WizardEffect[]) => set({ effects })}
-        />
-      </div>
-      <div>
-        <div className="flex items-start justify-between gap-2">
-          <Label hint={t("inspector.lookCssHint")}>{t("inspector.lookCss")}</Label>
-          <IconButton label={t("inspector.cssHelp.open")} onClick={() => setHelp(true)}>
-            <Info className="size-4" />
-          </IconButton>
-        </div>
-        <CssHelp open={help} onClose={() => setHelp(false)} />
-        <Textarea
-          minRows={3}
-          className="font-mono text-[0.8125rem]"
-          spellCheck={false}
-          placeholder={".wizard-title { letter-spacing: 0.04em; }"}
-          value={style.css ?? ""}
-          onChange={(e) => set({ css: e.target.value })}
-        />
-      </div>
-    </Fields>
-  );
-}
-
 interface InspectorProps {
   def: WizardDefinition;
   selected: string | null;
@@ -1396,6 +1220,8 @@ interface InspectorProps {
   mcpServers: { id: string; name: string }[];
   files: WorkspaceFile[];
   wizardId: string;
+  /** The wizard's space: its themes are the looks the wizard can wear. */
+  projectId: string;
   /** The wizard is shown here and changed elsewhere: every setting is there to read. */
   readOnly?: boolean;
   /** What the last test run's decided branches answered, by step. */
@@ -1576,7 +1402,12 @@ export function Inspector(props: InspectorProps) {
         <div>
           <StepNav def={def} selected={selected} onSelect={onSelect} issues={issues} />
           {selected === WIZARD ? (
-            <WizardSettings def={def} update={update} />
+            <WizardSettings
+              def={def}
+              update={update}
+              projectId={props.projectId}
+              wizardId={props.wizardId}
+            />
           ) : step ? (
             <StepInspector {...props} update={update} step={step} />
           ) : (
