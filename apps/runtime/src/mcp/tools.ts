@@ -603,15 +603,22 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
       input: z.object({
         wizardId: z.string(),
         answers: z.record(z.string(), z.unknown()).default({}),
+        theme: z
+          .string()
+          .max(80)
+          .optional()
+          .describe(
+            "The widget's look: the id of a theme the wizard names (its definition's themes), brand or default. Left out: host, this app's own look. Only when the person asks for the wizard's look.",
+          ),
       }),
       openWorld: true,
     },
-    async ({ wizardId, answers }) => {
+    async ({ wizardId, answers, theme }) => {
       const { runId, refused } = await startRun(who.userId, wizardId, answers);
       const report = await runReport(who.userId, runId, 2);
       return {
         result: { ...report, ...(refused ? { refusedAnswers: refused } : {}) },
-        view: await flowView(who.userId, wizardId, { run: report }),
+        view: await flowView(who.userId, wizardId, { run: report, theme }),
       };
     },
   );

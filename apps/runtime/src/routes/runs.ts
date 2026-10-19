@@ -338,7 +338,10 @@ export function pageFields(def: WizardDefinition): PublicField[] {
   );
 }
 
-/** What a wizard's page shows before a run: in the viewer's language where `as` is given. */
+/**
+ * What a wizard's page shows before a run: in the viewer's language where `as` is given, in the
+ * theme the request asks for where the wizard offers it.
+ */
 async function publicBody(
   c: Context,
   w: NonNullable<Awaited<ReturnType<typeof publishedWizard>>>["w"],
@@ -355,7 +358,8 @@ async function publicBody(
     avatar: def.avatar,
     costume: def.costume,
     intro: def.intro ?? null,
-    brand: await brandView(w.projectId, def.themes),
+    // `?theme=`: the theme the page showing the wizard asks for (an embed's `data-theme`).
+    brand: await brandView(w.projectId, def.themes, c.req.query("theme")?.slice(0, 80)),
     turnstileSiteKey: env.turnstile.siteKey || null,
     available: !reason,
     unavailableReason: reason && noteText(reason, requestLang(c)),

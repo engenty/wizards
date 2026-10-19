@@ -1,7 +1,7 @@
 ---
 title: Test and share
 description: Try the wizard, publish it, and hand out its link or put it on a website.
-version: 0.7.11
+version: 0.9.0
 ---
 
 ## Test
@@ -204,6 +204,7 @@ always opens the chat.
 | `data-color` | The colour of the chat button and of the bubble |
 | `data-height` | The height of a chat in the page, in px |
 | `data-page` | The page a run is started on, kept with its result. Without it, the page’s own address is used |
+| `data-theme` | Which of the wizard’s themes the website shows: the id of one it wears, `brand` or `default`. Without it, the wizard’s first theme. See [Embed](../dev/integration/embed.md) |
 
 Your website’s own styles reach the button through the class `engenty-wizard-button`, the chat
 button through `engenty-wizard-launcher` and the bubble through `engenty-wizard-bubble`. A page

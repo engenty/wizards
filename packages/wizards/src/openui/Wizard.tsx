@@ -5,9 +5,10 @@ import {
   type MascotProps,
   RunnerBody,
 } from "@engenty/wizards-runner";
-import type { RunView } from "@engenty/wizards-shared/run";
+import type { PublicWizard, RunTheme, RunView } from "@engenty/wizards-shared/run";
 import { defineComponent } from "@openuidev/react-lang";
-import { useEffect, useRef } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type WizardLookProps, wizardLook } from "./look.js";
 import { useMessageRun, useReport } from "./message.js";
 import { useWizardRun } from "./run.js";
 import { WIZARD_COMPONENT, WIZARD_DESCRIPTION, type WizardProps, wizardProps } from "./server.js";
@@ -22,7 +23,19 @@ export interface WizardsConfig {
   lang?: Lang;
   /** The wizard's mascot above its pages; a plain dot in the wizard's colour unless given. */
   Mascot?: (props: MascotProps) => React.ReactNode;
+  /**
+   * The wizard's look here: `host` (your page's own `--wizard-*` variables, nothing of the
+   * wizard's), `brand`, `default` or the id of a theme the wizard offers. Unless given, or one the
+   * wizard does not offer: its first theme.
+   */
+  theme?: string;
+  /** Light or dark, as your page shows; else what the theme prefers. */
+  mode?: "light" | "dark";
+  /** The effects of the wizard's theme the card may draw (`CARD_EFFECTS`); none unless given. */
+  effects?: readonly string[];
 }
+
+let shown: Pick<WizardsConfig, "theme" | "mode" | "effects"> = {};
 
 /** A plain stand-in for the studio's engenty. */
 function Dot({ size = 64 }: MascotProps) {
@@ -46,6 +59,40 @@ export function configureWizards(config: WizardsConfig) {
     asset: (path) => `${base}/${path.replace(/^\/+/, "")}`,
     Mascot: config.Mascot ?? Dot,
   });
+  shown = { theme: config.theme, mode: config.mode, effects: config.effects };
+  looks.clear();
+}
+
+/** Each wizard's look, asked once a page. */
+const looks = new Map<string, Promise<RunTheme | null>>();
+
+function lookOf(token: string): Promise<RunTheme | null> {
+  let found = looks.get(token);
+  if (!found) {
+    const query = shown.theme ? `?theme=${encodeURIComponent(shown.theme)}` : "";
+    found = api.get<PublicWizard>(`/api/public/wizards/${encodeURIComponent(token)}${query}`).then(
+      (w) => w.brand.theme,
+      () => null,
+    );
+    looks.set(token, found);
+  }
+  return found;
+}
+
+/** The look of the wizard behind `token` on its card; none for `host`, or while it loads. */
+function useLook(token: string): WizardLookProps | null {
+  const [look, setLook] = useState<RunTheme | null>(null);
+  useEffect(() => {
+    if (shown.theme === "host") {
+      return;
+    }
+    let live = true;
+    void lookOf(token).then((found) => live && setLook(found));
+    return () => {
+      live = false;
+    };
+  }, [token]);
+  return look ? wizardLook(look, { mode: shown.mode, effects: shown.effects }) : null;
 }
 
 /** Starts a run of the published wizard behind `token`, as a visitor of the runtime. */
@@ -66,6 +113,7 @@ function WizardRun({ props }: { props: WizardProps }) {
   const { runId, failed } = useMessageRun(props.wizard, startRun);
   const run = useWizardRun(runId, props.prefill);
   const report = useReport();
+  const look = useLook(props.wizard);
 
   // The chat hears of a run it saw finish. A message shown again with a done run tells nothing.
   const view = run.view;
@@ -83,7 +131,11 @@ function WizardRun({ props }: { props: WizardProps }) {
   }, [view, report]);
 
   return (
-    <div className="engenty-runner overflow-hidden rounded-2xl border border-paper-3 bg-paper">
+    <div
+      {...look}
+      style={look?.style as CSSProperties | undefined}
+      className="engenty-runner overflow-hidden rounded-2xl border border-paper-3 bg-paper"
+    >
       {props.note ? <p className="px-5 pt-4 text-[0.9375rem] text-ink-2">{props.note}</p> : null}
       <div className="px-5 pb-6">
         {failed ? (

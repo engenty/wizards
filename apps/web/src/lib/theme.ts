@@ -56,6 +56,9 @@ let pinned: Theme | null = null;
 /** What a wizard's look shows while the visitor has not picked; `null`: dark, as without a look. */
 let preferred: Theme | null = null;
 
+/** What the app around the page shows (an MCP host's light or dark); `null`: no such app. */
+let hosted: Theme | null = null;
+
 /** Whether the visitor picked dark, light or the OS setting, here or on engenty's other pages. */
 function picked(): boolean {
   try {
@@ -67,7 +70,8 @@ function picked(): boolean {
 
 /**
  * The visitor's pick (dark until there is one, or the OS setting if asked); a page on its own
- * ground is always dark, a wizard that sets dark or light shows that.
+ * ground is always dark, a wizard that sets dark or light shows that, and an app the page is
+ * shown in decides before the visitor's pick.
  */
 function current(): Theme {
   if (grounded > 0) {
@@ -75,6 +79,9 @@ function current(): Theme {
   }
   if (pinned) {
     return pinned;
+  }
+  if (hosted) {
+    return hosted;
   }
   if (preferred && !picked()) {
     return preferred;
@@ -127,6 +134,15 @@ export function setTheme(theme: Theme | null) {
     document.documentElement.classList.toggle("dark", (theme ?? current()) === "dark");
     return;
   }
+  apply();
+}
+
+/**
+ * The app the page is shown in decides light or dark (an MCP host), over the visitor's pick and
+ * a wizard's preference; a look with only dark or only light pages still shows them.
+ */
+export function setHostTheme(theme: Theme | null) {
+  hosted = theme;
   apply();
 }
 

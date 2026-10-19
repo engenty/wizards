@@ -169,14 +169,25 @@ export function themeIdFrom(title: string): string {
 }
 
 /**
- * The theme a wizard's own pages show: the first of its chain the space has (a built-in name
- * counts). Undefined: none of them, so the brand.
+ * Whether the place that shows a wizard may pick `asked`: a built-in name, or a theme of the
+ * wizard's own chain. The host always wins, but only among what the wizard offers.
+ */
+export function themeOffered(asked: string, chain: readonly string[] | undefined): boolean {
+  return (BUILT_IN_THEMES as readonly string[]).includes(asked) || Boolean(chain?.includes(asked));
+}
+
+/**
+ * The theme a wizard's pages show: what the place showing it asks for (`asked`, an embed's
+ * `data-theme`), where the wizard offers it and the space has it; else the first of its chain
+ * the space has (a built-in name counts). Undefined: none of them, so the brand.
  */
 export function chosenTheme(
   chain: readonly string[] | undefined,
   themes: readonly Theme[],
+  asked?: string | null,
 ): Theme | BuiltInTheme | undefined {
-  for (const id of chain ?? []) {
+  const ask = asked && themeOffered(asked, chain) ? [asked] : [];
+  for (const id of [...ask, ...(chain ?? [])]) {
     if ((BUILT_IN_THEMES as readonly string[]).includes(id)) {
       return id as BuiltInTheme;
     }
@@ -235,6 +246,15 @@ export function themedLook(brand: RunTheme, theme: Theme | BuiltInTheme | undefi
     shape: theme.shape ?? null,
     effects: theme.effects ?? [],
   };
+}
+
+const SANS = "ui-sans-serif, system-ui, sans-serif";
+const SERIF = "ui-serif, Georgia, serif";
+const SERIFS = /serif|fraunces|playfair|lora|young serif/i;
+
+/** A family as CSS takes it, with a fallback of its kind while it loads or where it is missing. */
+export function fontStack(family: string): string {
+  return `"${family.replace(/"/g, "")}", ${SERIFS.test(family) && !/sans/i.test(family) ? SERIF : SANS}`;
 }
 
 /** The colours a page shows in light or dark: the theme's for that mode, else the base's. */

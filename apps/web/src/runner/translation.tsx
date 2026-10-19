@@ -4,6 +4,7 @@ import type { PublicWizard, UiTexts } from "@engenty/wizards-shared/run";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { api } from "../lib/api";
+import { themeQuery } from "../lib/embed";
 import { showLang, t, viewerLang } from "../lib/i18n";
 import { LangPill } from "../studio/LangSwitch";
 import { cn } from "../ui";
@@ -75,7 +76,9 @@ export function usePageLanguage(wizard: PublicWizard | undefined): PageLanguage 
     queryKey: ["public-translation", token, wanted],
     enabled: Boolean(token && wanted !== own),
     queryFn: () =>
-      api.post<PublicWizard>(`/api/public/wizards/${token}/translation`, { lang: wanted }),
+      api.post<PublicWizard>(`/api/public/wizards/${token}/translation${themeQuery}`, {
+        lang: wanted,
+      }),
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   });

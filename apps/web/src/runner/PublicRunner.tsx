@@ -7,7 +7,7 @@ import { BASE, withBase } from "@/lib/base";
 import { BRAND, Mascot, ThemeToggle } from "../brand";
 import { api, isOffline } from "../lib/api";
 import { appLink, appTell, IN_APP } from "../lib/app";
-import { closeEmbed, EMBED, EMBED_PAGE, useEmbed } from "../lib/embed";
+import { closeEmbed, EMBED, EMBED_PAGE, themeQuery, useEmbed } from "../lib/embed";
 import { t } from "../lib/i18n";
 import { useStage } from "../lib/theme";
 import { Button, cn, IconButton, Spinner } from "../ui";
@@ -527,8 +527,8 @@ export function PublicRunner({
   const { token, runId } = useParams();
   const navigate = useNavigate();
   const wizard = useQuery({
-    queryKey: ["public", token],
-    queryFn: () => api.get<PublicWizard>(`/api/public/wizards/${token}`),
+    queryKey: ["public", token, themeQuery],
+    queryFn: () => api.get<PublicWizard>(`/api/public/wizards/${token}${themeQuery}`),
     // A wizard that is gone stays gone; a phone without signal gets a few more tries.
     retry: (count, err) => isOffline(err) && count < 3,
   });
