@@ -1,8 +1,29 @@
 [
   {
     "version": "v0.9.2",
-    "timestamp": 1792423970,
+    "timestamp": 1792440804,
     "commits": [
+      {
+        "id": "34d5500",
+        "message": "new studio and wizard pictures, and the text brought up to date (#105)",
+        "group": "Docs",
+        "scope": "readme",
+        "breaking": false
+      },
+      {
+        "id": "56073b0",
+        "message": "give themes a page of their own in the wizard format (#103)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "71eeda2",
+        "message": "check uploads by their bytes and draw pictures again without metadata (#104)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
       {
         "id": "901f641",
         "message": "drop Node's localStorage before a dependency reads it (#101)",
