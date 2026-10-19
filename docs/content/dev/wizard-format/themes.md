@@ -193,6 +193,28 @@ The reasoning is in [docs/plans/themes.md](https://github.com/engenty/wizards/bl
 ## Styling around the runner
 
 A page that shows the runner as a component (OpenUI) can style around it with these names. They
-stay the same across releases: `.wizard-page`, `.wizard-title`, `.wizard-heading`,
-`.wizard-button`, `.wizard-field`, `.wizard-card`, and the variables `--wizard-accent`,
-`--wizard-background`, `--wizard-text`, `--wizard-font-heading` and `--wizard-font-text`.
+stay the same across releases. Anything else on the runner’s elements may change.
+
+| Name | What it is |
+|---|---|
+| `.wizard-page` | The whole page |
+| `.wizard-title` | A page’s title |
+| `.wizard-heading` | Headings on a page |
+| `.wizard-button` | The button that goes on |
+| `.wizard-field` | Fields |
+| `.wizard-card` | Cards on a page |
+| `var(--wizard-accent)` | Accent colour |
+| `var(--wizard-background)` | Background |
+| `var(--wizard-text)` | Text colour |
+| `var(--wizard-font-heading)` | Font for headings |
+| `var(--wizard-font-text)` | Font for text |
+
+The variables are for reading. The theme sets them.
+
+```css
+.wizard-title { letter-spacing: 0.04em; }
+.wizard-button {
+  border-radius: 0.5rem;
+  outline: 2px solid var(--wizard-accent);
+}
+```
