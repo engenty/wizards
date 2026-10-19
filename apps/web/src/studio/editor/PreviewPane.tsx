@@ -9,6 +9,7 @@ import {
   Minimize2,
   Monitor,
   Moon,
+  Pencil,
   Play,
   RotateCcw,
   Smartphone,
@@ -146,6 +147,7 @@ export function PreviewPane({
   log,
   strip,
   onShowRun,
+  onEdit,
 }: {
   wizard: WizardDetail;
   runId: string | null;
@@ -170,6 +172,8 @@ export function PreviewPane({
   strip: ReactNode;
   /** Where there is no strip: back from the step shown to the open test run. */
   onShowRun?: () => void;
+  /** Opens the editor of the step chosen, where it is out of sight. */
+  onEdit?: () => void;
 }) {
   const def = w.draft;
 
@@ -300,6 +304,12 @@ export function PreviewPane({
             </button>
           ) : null}
           <span className="flex-1" />
+          {onEdit ? (
+            <Button variant="secondary" size="sm" onClick={onEdit}>
+              <Pencil className="size-3.5" />
+              {t("editor.edit")}
+            </Button>
+          ) : null}
           {ways.length > 1 && !shown ? (
             <span className="shrink-0">
               <LookSwitch look={shownWay} onChange={setWay} ways={[...ways]} />

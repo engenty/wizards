@@ -730,7 +730,14 @@ export function EditorPage() {
         <FlowDiagram
           def={def}
           selected={selected}
-          onSelect={select}
+          onSelect={(sid) => {
+            // Beside the preview a second click on the step chosen opens its editor.
+            if (flowBeside && sid && sid === selected) {
+              setColumn("step");
+              return;
+            }
+            select(sid);
+          }}
           issueSteps={issueSteps}
           activeStep={drawerRun ? activeStep : null}
           live={live}
@@ -1034,6 +1041,9 @@ export function EditorPage() {
             <PreviewPane
               // The flow beside the preview shows the steps: no strip then, and the run is a button away.
               strip={flowBeside && column === "flow" ? null : strip}
+              onEdit={
+                flowBeside && column === "flow" && chosenStep ? () => setColumn("step") : undefined
+              }
               onShowRun={
                 flowBeside && column === "flow" && drawerRun && !showRun && stepOf(selected)
                   ? () => setShowRun(true)

@@ -616,8 +616,8 @@ export async function draftStepView(
     shareToken: null,
   };
   const view = await runView(run, await brandView(w.projectId, def.themes));
-  // What the latest run said while it worked is its own; only this step's words stay.
-  return { ...view, events: view.events.filter((ev) => ev.stepId === step.id) };
+  // What the latest run said while it worked, and when, is its own: nothing works here.
+  return { ...view, events: [] };
 }
 
 export async function listRuns(userId: string, wizardId: string) {
