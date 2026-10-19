@@ -103,7 +103,8 @@ icon at the right of the address bar.
 
 ### From source
 
-You need Node.js 24.11 or newer and pnpm 10 (`corepack enable`).
+You need Node.js 24.11 or newer and pnpm 10 (`corepack enable`; Node 25 and later ship without
+corepack, so install it first with `npm install -g corepack`).
 
 ```bash
 git clone https://github.com/engenty/wizards.git

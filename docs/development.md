@@ -191,10 +191,9 @@ Manage-App.
 GitHub runs lint and typecheck, test, build and the docs' build side by side on every push to
 `main`, every pull request and every release tag (`.github/workflows/ci.yml`).
 
-The packages type-check and compile with TypeScript 7. Two stay on TypeScript 6, because a
-tool there calls the compiler's JavaScript API, which TypeScript 7 no longer has: `apps/docs`
-(Next.js checks types in its build) and `packages/runner` (`vite-plugin-dts` writes its
-declaration files).
+The packages type-check and compile with TypeScript 7. `packages/runner` stays on TypeScript 6:
+`vite-plugin-dts` writes its declaration files through the compiler's JavaScript API, which
+TypeScript 7 no longer has.
 
 ## Releases and changelog
 
