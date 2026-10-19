@@ -3,10 +3,13 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { EngentyCostume, WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { RunTheme } from "@engenty/wizards-shared/run";
+import { themeOffered } from "@engenty/wizards-shared/theme";
 import { RESOURCE_MIME_TYPE, registerAppResource } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { env } from "../env.js";
 import { runTicket } from "../secrets/signing.js";
+import { brandView } from "../services/brand.js";
 import type { RunReport } from "../services/runs.js";
 import { draftIssues, ownedWizard, publishedVersion } from "../services/wizards.js";
 
@@ -58,6 +61,12 @@ export interface FlowView {
   run?: RunReport;
   /** Where the widget reaches the run itself, to show it as the wizard does: this runtime and the run's ticket. */
   runtime?: { base: string; ticket: string };
+  /**
+   * The theme the widget shows: `host` (the styles the app hands the widget, over the space's
+   * brand) unless the app asked for one the wizard offers. `look` is its values.
+   */
+  theme: string;
+  look: RunTheme;
 }
 
 export function registerFlowApp(server: McpServer) {
@@ -116,12 +125,21 @@ export function registerFlowApp(server: McpServer) {
 export async function flowView(
   userId: string,
   wizardId: string,
-  options: { shows?: "draft" | "published"; run?: RunReport; definition?: WizardDefinition } = {},
+  options: {
+    shows?: "draft" | "published";
+    run?: RunReport;
+    definition?: WizardDefinition;
+    theme?: string;
+  } = {},
 ): Promise<FlowView> {
   const w = await ownedWizard(userId, wizardId);
   const published = options.shows === "draft" ? null : await publishedVersion(w);
   const shows = published ? "published" : "draft";
   const definition = options.definition ?? published?.definition ?? w.draft;
+  // The app's own look unless it asks for one the wizard offers.
+  const theme =
+    options.theme && themeOffered(options.theme, definition.themes) ? options.theme : "host";
+  const { theme: look } = await brandView(w.projectId, definition.themes, theme);
   return {
     wizard: {
       id: w.id,
@@ -138,6 +156,8 @@ export async function flowView(
     runtime: options.run
       ? { base: env.publicUrl, ticket: runTicket(options.run.runId) }
       : undefined,
+    theme,
+    look,
   };
 }
 

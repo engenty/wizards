@@ -5,6 +5,12 @@
  * and the list of wizards.
  */
 
+export {
+  CARD_EFFECTS,
+  type WizardLookOptions,
+  type WizardLookProps,
+  wizardLook,
+} from "./look.js";
 export { useWizardRun } from "./run.js";
 export {
   addWizard,

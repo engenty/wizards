@@ -29,12 +29,17 @@ export async function mainLogoId(projectId: string): Promise<string | null> {
 
 /**
  * What end users see of the project: its title, accent and logo — never the project name — and the
- * look of the wizard's pages: the first theme of the wizard's chain the space has, else the brand.
+ * look of the wizard's pages: the theme the place showing it asks for where the wizard offers
+ * it, else the first theme of the wizard's chain the space has, else the brand.
  */
-export async function brandView(projectId: string, chain?: readonly string[]): Promise<BrandView> {
+export async function brandView(
+  projectId: string,
+  chain?: readonly string[],
+  asked?: string | null,
+): Promise<BrandView> {
   const p = await db.query.project.findFirst({ where: eq(schema.project.id, projectId) });
   const logo = p ? await mainLogoId(p.id) : null;
-  const theme = themedLook(runTheme(p?.brand ?? {}), chosenTheme(chain, p?.themes ?? []));
+  const theme = themedLook(runTheme(p?.brand ?? {}), chosenTheme(chain, p?.themes ?? [], asked));
   return {
     name: p?.brand.name ?? "",
     accent:

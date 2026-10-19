@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ENGENTY_COSTUMES, THEME_ID } from "./definition.js";
 import { luminance } from "./projects.js";
-import type { RunTheme } from "./run.js";
+import type { RunFontFace, RunTheme } from "./run.js";
 
 // --- themes ------------------------------------------------------------------------
 // How a wizard's pages look, as a document of its own: values only (colours for light and dark,
@@ -176,14 +176,25 @@ export function themeIdFrom(title: string): string {
 }
 
 /**
- * The theme a wizard's own pages show: the first of its chain the space has (a built-in name
- * counts). Undefined: none of them, so the brand.
+ * Whether the place that shows a wizard may pick `asked`: a built-in name, or a theme of the
+ * wizard's own chain. The host always wins, but only among what the wizard offers.
+ */
+export function themeOffered(asked: string, chain: readonly string[] | undefined): boolean {
+  return (BUILT_IN_THEMES as readonly string[]).includes(asked) || Boolean(chain?.includes(asked));
+}
+
+/**
+ * The theme a wizard's pages show: what the place showing it asks for (`asked`, an embed's
+ * `data-theme`), where the wizard offers it and the space has it; else the first of its chain
+ * the space has (a built-in name counts). Undefined: none of them, so the brand.
  */
 export function chosenTheme(
   chain: readonly string[] | undefined,
   themes: readonly Theme[],
+  asked?: string | null,
 ): Theme | BuiltInTheme | undefined {
-  for (const id of chain ?? []) {
+  const ask = asked && themeOffered(asked, chain) ? [asked] : [];
+  for (const id of [...ask, ...(chain ?? [])]) {
     if ((BUILT_IN_THEMES as readonly string[]).includes(id)) {
       return id as BuiltInTheme;
     }
@@ -247,6 +258,28 @@ export function themedLook(brand: RunTheme, theme: Theme | BuiltInTheme | undefi
     shape: theme.shape ?? null,
     effects: theme.effects ?? [],
   };
+}
+
+const SANS = "ui-sans-serif, system-ui, sans-serif";
+const SERIF = "ui-serif, Georgia, serif";
+const SERIFS =
+  /serif|fraunces|playfair|lora|garamond|antiqua|baskerville|caslon|bodoni|didot|times|georgia|merriweather|tiempos/i;
+
+/** A family looks like a serif by its name: what takes its place is a serif too. */
+export const serifFamily = (family: string) => SERIFS.test(family) && !/sans/i.test(family);
+
+/** The shipped font that shows where a brand font does not load: one of its kind. */
+export const shippedLike = (family: string): ShippedFont =>
+  serifFamily(family) ? "Lora" : "Inter";
+
+/**
+ * A family as CSS takes it, with a fallback of its kind while it loads or where it is missing. A
+ * brand font with a source (`faces`) names the shipped font of its kind next: it shows if the
+ * brand font does not load.
+ */
+export function fontStack(family: string, faces: readonly RunFontFace[] = []): string {
+  const next = faces.some((f) => f.family === family) ? `"${shippedLike(family)}", ` : "";
+  return `"${family.replace(/"/g, "")}", ${next}${serifFamily(family) ? SERIF : SANS}`;
 }
 
 /** The colours a page shows in light or dark: the theme's for that mode, else the base's. */

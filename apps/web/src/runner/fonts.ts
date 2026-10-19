@@ -1,5 +1,5 @@
 import type { RunFontFace } from "@engenty/wizards-shared/run";
-import type { ShippedFont } from "@engenty/wizards-shared/theme";
+import { type ShippedFont, shippedLike } from "@engenty/wizards-shared/theme";
 import { withBase } from "../lib/base";
 
 // The fonts a theme can name (SHIPPED_FONTS), shipped with the runner: each loads only when
@@ -80,16 +80,6 @@ export function loadWizardFont(family: string | null | undefined) {
   loaded.add(family);
   Promise.all(LOADERS[family as ShippedFont]()).catch(() => loaded.delete(family));
 }
-
-const SERIFS =
-  /serif|fraunces|playfair|lora|garamond|antiqua|baskerville|caslon|bodoni|didot|times|georgia|merriweather|tiempos/i;
-
-/** A family looks like a serif by its name: what takes its place is a serif too. */
-export const serifFamily = (family: string) => SERIFS.test(family) && !/sans/i.test(family);
-
-/** The shipped font that shows where a brand font does not load: one of its kind. */
-export const shippedLike = (family: string): ShippedFont =>
-  serifFamily(family) ? "Lora" : "Inter";
 
 /** How long a website has to send a brand font before the shipped one is loaded beside it. */
 const FACE_WAIT_MS = 3000;

@@ -15,6 +15,10 @@
 //     a round button at the bottom right of every page that opens it in the window;
 //     `data-text` puts a short line beside it, `data-color` gives it the website's colour
 //
+// `data-theme`: the look the wizard shows here, from those it offers: "host" (the website's, today
+// the space's brand), "brand", "default" or the id of one of the wizard's themes. Left out, or one
+// the wizard does not offer: the wizard's first theme.
+//
 // The button takes the website's own styles: `.engenty-wizard-button`, `.engenty-wizard-launcher`,
 // `.engenty-wizard-bubble`. `data-page`: the address of the page the run is started on, kept with its
 // result (the page's own address when left out).
@@ -33,12 +37,13 @@
   const chat = script.dataset.runner === "chat" || mode === "popout";
   const label = script.dataset.label || (mode === "popout" ? "" : "Start");
   const page = (script.dataset.page || location.href).split("#")[0].slice(0, 2000);
+  const theme = (script.dataset.theme || "").trim().slice(0, 80);
 
   const frame = () => {
     const el = document.createElement("iframe");
     // In the bubble the wizard opens in the same window as behind a button.
     const shown = mode === "bubble" ? "modal" : mode;
-    el.src = `${app.href}w/${encodeURIComponent(token)}${chat ? "/chat" : ""}?embed=${shown}&page=${encodeURIComponent(page)}`;
+    el.src = `${app.href}w/${encodeURIComponent(token)}${chat ? "/chat" : ""}?embed=${shown}&page=${encodeURIComponent(page)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}`;
     el.title = label;
     // What a page of the wizard may ask the visitor for: photos, voice notes, the position.
     el.allow = "camera; microphone; geolocation; clipboard-write; fullscreen; screen-wake-lock";

@@ -1,7 +1,7 @@
 ---
 title: Wizards in OpenUI chats
 description: A Wizard component for OpenUI’s React renderer. The chat’s model decides that a wizard runs, and the wizard runs its own pages inside the conversation.
-version: 0.7.4
+version: 0.9.0
 ---
 
 A chat built with [OpenUI](https://github.com/thesysdev/openui) composes its answers as it
@@ -104,7 +104,8 @@ const library = addWizard(openuiChatLibrary, Wizard);
 - `configureWizards({ runtime })` names the runtime once, as the browser reaches it: a path the
   host proxies to it, or the runtime’s address. A proxy on the host’s own address keeps the
   runner’s visitor cookie first-party. `lang` sets the language of the runner’s own words
-  (`en` unless given), `Mascot` draws the wizard’s mascot above its pages.
+  (`en` unless given), `Mascot` draws the wizard’s mascot above its pages. `theme`, `mode` and
+  `effects` set the wizard’s look (see [The wizard’s look](#the-wizards-look)).
 - `addWizard(library, Wizard)` is the same extension as on the server, with the drawing
   component. Both make the same prompt.
 
@@ -129,6 +130,56 @@ What happens in the message:
 
 The chat hears of a run it saw finish. A message shown again with a done run shows the result
 and tells the chat nothing new.
+
+### The wizard’s look
+
+The wizard runs in your page, not in a frame, so your page decides how much of its theme shows.
+The component puts the theme’s values on its own element, `.engenty-runner`, and never adds CSS
+to your page. The runner’s styles (`styles.css`) derive every colour from them.
+
+```tsx
+configureWizards({
+  runtime: "/wizards-runtime",
+  theme: "halloween-calm",
+  mode: "dark",
+  effects: ["glow"],
+});
+```
+
+| Option | Does |
+|---|---|
+| `theme` | Which of the wizard’s themes shows: the id of one it wears, `brand` or `default`. Left out, or an id the wizard does not wear: its first theme. `host`: nothing of the wizard’s, only your own `--wizard-*` variables |
+| `mode` | `light` or `dark`, as your page shows. Left out: what the theme shows first. A theme with only dark or only light pages keeps them |
+| `effects` | The effects of the theme the wizard’s card may draw. None unless given |
+
+The component reads the theme once per wizard (`GET /api/public/wizards/:token?theme=<id>`, its
+`brand.theme`) and sets on `.engenty-runner`:
+
+| On `.engenty-runner` | Holds |
+|---|---|
+| `--wizard-accent` | The colour of buttons and marks |
+| `--wizard-background` | The ground. A dark one turns the card’s text and lines light |
+| `--wizard-text` | Text, where the theme sets it. Else it follows from the ground |
+| `--wizard-font-heading`, `--wizard-font-text` | The fonts, by family name with a fallback of their kind |
+| `--wizard-radius` | The corner radius the others derive from |
+| `data-cards` | `solid`, `outline` or `glass` |
+| `data-headings` | `normal` or `uppercase` |
+| `data-effects` | The effects drawn: `glow`, `pattern-dots`, `pattern-grid` |
+
+- **Fonts.** A shipped font or the brand’s font comes as its family name only. Your page loads
+  it, for example from its own `@font-face`. Until then the fallback shows.
+- **Effects.** The card draws `glow` and `pattern` itself, inside its own box (`CARD_EFFECTS`).
+  The others of the library (corners, particles, figures, fog) need the whole page and stay on
+  the wizard’s own page and in a frame. The theme’s values carry them all, so your page can draw
+  its own.
+- **The ground.** Where the theme sets a ground, the element gets `background-color:
+  var(--paper)`, the ground as the runner derives it.
+- **Your own look.** With `theme: "host"`, set the variables in your CSS instead, on
+  `.engenty-runner`, and its `background-color` to `var(--paper)` if you set a ground. The
+  runner’s own look fills what you leave out.
+
+`wizardLook(look, { mode, effects })` is the same step on its own: it turns a theme’s values
+(`RunTheme`) into the props for the runner’s element, for a host that draws runs itself.
 
 ### Who runs, who pays
 
@@ -164,9 +215,10 @@ things.
 | | `WizardSpec`, `wizardProps`, `WizardProps` | The component as a prompt sees it, and its props |
 | | `WIZARD_COMPONENT`, `WIZARD_DESCRIPTION` | Its name and description |
 | `@engenty/wizards/openui` | all of the above | |
-| | `configureWizards(config)` | Names the runtime, the language and the mascot |
+| | `configureWizards(config)` | Names the runtime, the language, the mascot and the look |
 | | `Wizard` | The drawing component |
 | | `useWizardRun(runId, prefill)` | One run, live, for a host that draws runs itself |
+| | `wizardLook(look, options)`, `CARD_EFFECTS` | A theme’s values as props for `.engenty-runner`, and the effects the card draws |
 | `@engenty/wizards/openui/styles.css` | | The runner’s styles, scoped to the wizard |
 
 `@openuidev/react-lang`, `react`, `react-dom` and `zod` are peer dependencies: the chat brings
