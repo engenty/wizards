@@ -812,7 +812,9 @@ export function EditorPage() {
         </span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row-reverse lg:overflow-hidden">
+      {/* Clipped, not hidden: the side panel slid out to the left still lies in this row, and a
+          scroll into view inside it (its tabs, the step list) would scroll the row sideways. */}
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row-reverse lg:overflow-clip">
         <section ref={setMainEl} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           {split ? null : runBar}
           {pageInPlace ? (
