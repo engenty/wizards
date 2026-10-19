@@ -24,6 +24,16 @@ export const EMBED = read();
  */
 export const EMBED_PAGE = EMBED ? new URLSearchParams(window.location.search).get("page") : null;
 
+/**
+ * The theme the place showing the wizard asks for (`?theme=`: `embed.js`'s `data-theme`, or a
+ * link with a theme set): `host`, `brand`, `default` or a theme of the wizard's. The runtime shows
+ * it where the wizard offers it, else the wizard's first. Read once, as `?embed=` is.
+ */
+const ASKED_THEME = new URLSearchParams(window.location.search).get("theme");
+
+/** `?theme=…` for the runtime's answers about the wizard, or nothing. */
+export const themeQuery = ASKED_THEME ? `?theme=${encodeURIComponent(ASKED_THEME)}` : "";
+
 const tell = (type: "height" | "close", data: Record<string, unknown> = {}) =>
   window.parent.postMessage({ type: `engenty-wizard:${type}`, ...data }, "*");
 

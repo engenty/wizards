@@ -9,6 +9,7 @@ import {
   themedLook,
   themeIdFrom,
   themeIdProblem,
+  themeOffered,
 } from "@engenty/wizards-shared/theme";
 import { bound, pointer, validateSurface, worded } from "@engenty/wizards-shared/surface";
 import { describe, expect, it, vi } from "vitest";
@@ -245,6 +246,20 @@ describe("themes", () => {
     expect(both).toMatchObject({ pinned: false, prefer: "light", dark: false });
     expect(lookColours(both, "light").accent).toBe("#e8630a");
     expect(lookColours(both, "light").background).toBe("#eff2ec");
+  });
+
+  it("shows what the place asks for where the wizard offers it, else the first of the chain", () => {
+    const calm: Theme = { ...halloween, id: "calm", effects: [] };
+    const chain = ["halloween", "calm"];
+    expect(chosenTheme(chain, [halloween, calm], "calm")).toBe(calm);
+    expect(chosenTheme(chain, [halloween, calm], "host")).toBe("host");
+    expect(chosenTheme(chain, [halloween, calm], "default")).toBe("default");
+    // A theme of the space the wizard does not name, or one the space lacks: the wizard's first.
+    expect(chosenTheme(["halloween"], [halloween, calm], "calm")).toBe(halloween);
+    expect(chosenTheme(["gone", "halloween"], [halloween], "gone")).toBe(halloween);
+    expect(themeOffered("brand", undefined)).toBe(true);
+    expect(themeOffered("calm", chain)).toBe(true);
+    expect(themeOffered("other", chain)).toBe(false);
   });
 
   it("shows engenty wizards' own look for default", () => {

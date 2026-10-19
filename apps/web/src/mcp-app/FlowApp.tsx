@@ -4,8 +4,14 @@ import {
   slotText,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
-import type { RunView } from "@engenty/wizards-shared/run";
-import { App, type McpUiHostContext } from "@modelcontextprotocol/ext-apps";
+import type { RunTheme, RunView } from "@engenty/wizards-shared/run";
+import {
+  App,
+  applyHostFonts,
+  applyHostStyleVariables,
+  type McpUiHostContext,
+  type McpUiStyleVariableKey,
+} from "@modelcontextprotocol/ext-apps";
 import {
   ArrowRight,
   Download,
@@ -27,7 +33,10 @@ import {
 import { Mascot } from "../brand";
 import { setRemoteRuntime, withBase } from "../lib/base";
 import { eventText, lang, setLang, t } from "../lib/i18n";
+import { setHostTheme } from "../lib/theme";
+import { WizardEffects } from "../runner/effects";
 import { RunnerBody } from "../runner/RunnerView";
+import { useRunTheme } from "../runner/theme";
 import { FlowCanvas } from "../studio/editor/FlowDiagram";
 import {
   Button,
@@ -107,6 +116,9 @@ interface FlowView {
   definition: WizardDefinition;
   run?: RunReport;
   runtime?: { base: string; ticket: string };
+  /** `host`, or the theme of the wizard the app asked for; `look` is its values. */
+  theme: string;
+  look: RunTheme;
 }
 
 /** Whether the widget reaches the runtime itself: hosts that keep it off the network say no. */
@@ -170,11 +182,57 @@ function applyHost(ctx: McpUiHostContext | undefined) {
     return;
   }
   if (ctx.theme) {
-    document.documentElement.classList.toggle("dark", ctx.theme === "dark");
+    setHostTheme(ctx.theme);
   }
   if (ctx.locale) {
     setLang(ctx.locale.toLowerCase().startsWith("de") ? "de" : "en");
   }
+}
+
+/** The page's tokens the app's style variables stand for (MCP Apps, `McpUiStyles`). */
+const HOST_TOKENS: [string, McpUiStyleVariableKey][] = [
+  ["--paper", "--color-background-primary"],
+  ["--background", "--color-background-primary"],
+  ["--card", "--color-background-primary"],
+  ["--paper-2", "--color-background-secondary"],
+  ["--muted", "--color-background-secondary"],
+  ["--paper-3", "--color-background-tertiary"],
+  ["--ink", "--color-text-primary"],
+  ["--ink-2", "--color-text-secondary"],
+  ["--ink-3", "--color-text-tertiary"],
+  ["--border", "--color-border-primary"],
+  ["--input", "--color-border-primary"],
+  ["--f-ui", "--font-sans"],
+  ["--f-display", "--font-sans"],
+  ["--f-mono", "--font-mono"],
+  ["--radius", "--border-radius-md"],
+];
+
+/**
+ * The `host` theme: the styles the app hands the widget, over the space's brand. Each token the
+ * app gives a variable for takes it, the rest stays the brand's; `!important` puts them over the
+ * brand's seeds on the root. A theme the app asked for leaves the app's styles out.
+ */
+function useHostLook(styles: McpUiHostContext["styles"], on: boolean) {
+  const key = on ? JSON.stringify(styles ?? {}) : "";
+  useEffect(() => {
+    if (!key) {
+      return;
+    }
+    const given = JSON.parse(key) as NonNullable<McpUiHostContext["styles"]>;
+    if (given.variables) {
+      applyHostStyleVariables(given.variables);
+    }
+    if (given.css?.fonts) {
+      applyHostFonts(given.css.fonts);
+    }
+    const sheet = document.createElement("style");
+    sheet.textContent = `:root{${HOST_TOKENS.filter(([, theirs]) => given.variables?.[theirs])
+      .map(([ours, theirs]) => `${ours}:var(${theirs}) !important`)
+      .join(";")}}`;
+    document.head.append(sheet);
+    return () => sheet.remove();
+  }, [key]);
 }
 
 export function FlowApp() {
@@ -335,6 +393,17 @@ export function FlowApp() {
     };
   }, [runId, running, reach, call, tellModel]);
 
+  // `host`: the app's light or dark and its styles, over the brand. A theme the app asked for
+  // shows as on the wizard's own page.
+  const hosted = !view || view.theme === "host";
+  useRunTheme(
+    view?.look &&
+      (hosted
+        ? { ...view.look, dark: false, pinned: false, prefer: null, effects: [] }
+        : view.look),
+  );
+  useHostLook(host?.styles, hosted);
+
   const passed = useMemo(() => new Set(report?.passed ?? []), [report]);
   const fullscreen = host?.displayMode === "fullscreen";
   const canFullscreen = host?.availableDisplayModes?.includes("fullscreen");
@@ -361,6 +430,7 @@ export function FlowApp() {
         className="overflow-y-auto overscroll-contain bg-background text-ink"
         style={{ minHeight: WIDGET_MIN, maxHeight: WIDGET_HEIGHT }}
       >
+        {hosted ? null : <WizardEffects effects={view.look.effects} />}
         {/* A runner that breaks here leaves the panel, not an empty frame the host folds away. */}
         <Fallback key={report.runId} onError={() => setReach("no")}>
           <RunnerBody runId={report.runId} compact stickyProgress onView={onRunView} />

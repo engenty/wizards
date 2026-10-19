@@ -1,8 +1,9 @@
 /*
- * A wizard's page on a website that has no Tailwind of its own (the WordPress plugin): the
- * utilities the components use, built over this package's sources; the studio's light tokens as
- * values (apps/web/src/styles/ember-primitives.css computes them); the helper rules of the
- * studio's app.css the runner relies on. scripts/css.mjs scopes every rule to `.engenty-runner`.
+ * A wizard's page on a website that has no Tailwind of its own (the WordPress plugin, OpenUI): the
+ * utilities the components use, built over this package's sources; the studio's tokens, derived
+ * from the look a host passes (as apps/web/src/styles/ember-primitives.css derives them); the
+ * helper rules of the studio's app.css the runner relies on. scripts/css.mjs scopes every rule to
+ * `.engenty-runner`.
  */
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
@@ -10,20 +11,50 @@
 @source "./";
 
 :root {
-  --raw-primary: #e0531b;
-  --paper: #f7f5f2;
-  --paper-2: #eae7e4;
-  --paper-3: #e0ddd9;
-  --card: #ffffff;
+  /*
+   * The look a host passes on `.engenty-runner` (@engenty/wizards/openui `wizardLook`, or its own
+   * CSS): --wizard-accent, --wizard-background, --wizard-text, --wizard-font-heading,
+   * --wizard-font-text, --wizard-radius. Every colour below derives from the accent and the
+   * ground, on a light ground and a dark one alike; without them it is engenty wizards' own look.
+   * `D` in the comments is 1 on a dark ground, 0 on a light one: clamp(0, (0.5 - l) * 1000, 1).
+   */
+  --raw-primary: var(--wizard-accent, #e0531b);
+  --raw-background: var(--wizard-background, #faf8f5);
+  /* Light: a fixed lightness in the ground's hue. Dark (D): the ground itself, and steps above it. */
+  --paper: oklch(
+    from var(--raw-background) calc(0.97 - (0.97 - l) * clamp(0, (0.5 - l) * 1000, 1)) c h
+  );
+  --paper-2: oklch(
+    from var(--raw-background) calc(0.93 - (0.88 - l) * clamp(0, (0.5 - l) * 1000, 1)) calc(c * 1.2)
+      h
+  );
+  --paper-3: oklch(
+    from var(--raw-background) calc(0.9 - (0.81 - l) * clamp(0, (0.5 - l) * 1000, 1)) calc(c * 1.5)
+      h
+  );
+  --card: oklch(
+    from var(--raw-background) calc(1 - (0.96 - l) * clamp(0, (0.5 - l) * 1000, 1))
+      calc(c * clamp(0, (0.5 - l) * 1000, 1)) h
+  );
   --background: var(--paper);
   --foreground: var(--ink);
-  --ink: #282623;
-  --ink-2: #575552;
-  --ink-3: #81807e;
-  --ink-4: #afaeac;
+  --ink: var(
+    --wizard-text,
+    oklch(
+      from var(--raw-background) calc(0.27 + 0.67 * clamp(0, (0.5 - l) * 1000, 1))
+        calc(c * (1.2 - 0.9 * clamp(0, (0.5 - l) * 1000, 1))) h
+    )
+  );
+  --ink-2: oklch(from var(--raw-background) calc(0.45 + 0.35 * clamp(0, (0.5 - l) * 1000, 1)) c h);
+  --ink-3: oklch(
+    from var(--raw-background) calc(0.6 + 0.06 * clamp(0, (0.5 - l) * 1000, 1)) calc(c * 0.8) h
+  );
+  --ink-4: oklch(
+    from var(--raw-background) calc(0.75 - 0.25 * clamp(0, (0.5 - l) * 1000, 1)) calc(c * 0.6) h
+  );
   --ember: var(--raw-primary);
-  --ember-strong: #c43700;
-  --ember-tint: #ffeae0;
+  --ember-strong: oklch(from var(--raw-primary) calc(l - 0.08) c h);
+  --ember-tint: color-mix(in oklch, var(--ember) 14%, var(--card));
   --ember-veil: color-mix(in oklch, var(--ember) 10%, transparent);
   --ember-mark: oklch(from var(--ember) min(l, 0.65) c h);
   --ember-strong-mark: oklch(from var(--ember-strong) min(l, 0.65) c h);
@@ -36,33 +67,33 @@
   );
   --secondary: var(--paper-2);
   --secondary-foreground: var(--ink);
-  --accent: #efece9;
+  --accent: color-mix(in oklch, var(--ink) 7.5%, var(--paper));
   --accent-foreground: var(--ink);
-  --muted: #f0edea;
+  --muted: color-mix(in oklch, var(--paper-3) 32%, var(--card));
   --muted-foreground: var(--ink-3);
   --destructive: var(--rose);
-  --border: #dbd9d6;
+  --border: color-mix(in oklch, var(--ink) 12%, var(--paper));
   --border-soft: color-mix(in oklch, var(--border) 50%, transparent);
-  --input: #e0dedb;
+  --input: color-mix(in oklch, var(--ink) 10%, var(--paper));
   --ring: color-mix(in oklch, var(--ember) 45%, transparent);
   --focus-line: color-mix(in oklch, var(--ink) 26%, transparent);
   --focus-glow: transparent;
   --card-foreground: var(--ink);
   --popover: var(--card);
   --moss: #006527;
-  --moss-tint: #eafaec;
+  --moss-tint: color-mix(in oklch, var(--moss) 10%, var(--card));
   --second: var(--moss);
   --second-tint: var(--moss-tint);
   --cobalt: #2b5fd9;
-  --cobalt-tint: #ebf0fd;
+  --cobalt-tint: color-mix(in oklch, var(--cobalt) 10%, var(--card));
   --amber: #e2a324;
-  --amber-tint: #fff1d9;
+  --amber-tint: color-mix(in oklch, var(--amber) 14%, var(--card));
   --rose: #db373a;
-  --rose-tint: #ffeeeb;
-  --f-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --f-ui: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --rose-tint: color-mix(in oklch, var(--rose) 10%, var(--card));
+  --f-display: var(--wizard-font-heading, "Space Grotesk", ui-sans-serif, system-ui, sans-serif);
+  --f-ui: var(--wizard-font-text, "Geist", ui-sans-serif, system-ui, sans-serif);
   --f-mono: "Geist Mono", ui-monospace, monospace;
-  --radius: 0.5rem;
+  --radius: var(--wizard-radius, 0.5rem);
   --shadow-ember-soft: 0 1px 2px rgba(40, 38, 35, 0.03), 0 3px 10px rgba(40, 38, 35, 0.05);
   --shadow-ember-elevated: 0 1px 2px rgba(40, 38, 35, 0.04), 0 6px 18px rgba(40, 38, 35, 0.06);
   --shadow-ember-overlay: 0 2px 4px rgba(40, 38, 35, 0.08), 0 10px 28px rgba(40, 38, 35, 0.16);
@@ -353,6 +384,45 @@ dialog.media-sheet::backdrop {
     border-radius: calc(var(--radius) * 2);
     overflow: hidden;
   }
+}
+
+/* A theme's shape and the effects a host turns on (`wizardLook`), inside the wizard's card only. */
+.engenty-runner[data-cards="outline"] .wizard-card {
+  background: transparent;
+  box-shadow: none;
+  border: 1px solid color-mix(in oklch, var(--ink) 25%, transparent);
+}
+.engenty-runner[data-cards="glass"] .wizard-card {
+  background: color-mix(in oklch, var(--card) 55%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.engenty-runner[data-headings="uppercase"] :is(.wizard-title, .wizard-heading) {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.engenty-runner[data-effects~="glow"] :is(h1, h2, .font-display) {
+  text-shadow:
+    0 0 0.55em color-mix(in oklch, var(--primary) 70%, transparent),
+    0 0 0.12em color-mix(in oklch, var(--primary) 45%, transparent);
+}
+.engenty-runner[data-effects~="glow"] button[data-variant="primary"] {
+  box-shadow:
+    0 0 1.4rem color-mix(in oklch, var(--primary) 60%, transparent),
+    0 0 0.35rem color-mix(in oklch, var(--primary) 80%, transparent);
+}
+.engenty-runner[data-effects~="pattern-dots"] {
+  background-image: radial-gradient(
+    color-mix(in oklch, var(--ink) 12%, transparent) 1px,
+    transparent 1.5px
+  );
+  background-size: 22px 22px;
+}
+.engenty-runner[data-effects~="pattern-grid"] {
+  background-image:
+    linear-gradient(color-mix(in oklch, var(--ink) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--ink) 7%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
 }
 
 @media (prefers-reduced-motion: reduce) {
