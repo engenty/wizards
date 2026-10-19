@@ -68,6 +68,7 @@ A path starts with a letter, a digit, `_` or `-`. So hidden files such as `.env`
     { "id": "billomat", "name": "Billomat", "domain": "billomat.com", "sourceKind": "openapi" }
   ],
   "mcpServers": [{ "id": "notion", "name": "Notion" }],
+  "themes": [{ "id": "invoice-calm", "name": "Invoice, calm", "colors": [ … ] }],
   "knowledge": { "pages": 12, "truncated": false }
 }
 ```
@@ -81,6 +82,7 @@ A path starts with a letter, a digit, `_` or `-`. So hidden files such as `.env`
 | `definition` | The wizard. See [The wizard format](./index.md) |
 | `connectors` | Imported connectors the wizard’s connections name: `id`, `name`, `domain` and `sourceKind` (`openapi` or `mcp`), at most 50 |
 | `mcpServers` | The space’s connected systems its agent steps name: `id` and `name`, at most 10 |
+| `themes` | The space’s themes the definition names, in full, at most 8. See [Themes](./themes.md#in-a-wizard-file) |
 | `knowledge` | Only with Knowledge: how many pages, and whether the cap left some out |
 
 `connectors` and `mcpServers` hold names, never addresses, headers or credentials. They let the
