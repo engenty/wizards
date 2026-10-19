@@ -47,6 +47,7 @@ main() {
   LINK=1
   [ -n "${ENGENTY_WIZARDS_NO_LINK:-}" ] && LINK=0
   VERSION=""
+  REUSABLE=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --yes | -y) YES=1 ;;
@@ -552,8 +553,43 @@ package() {
       die "Version $VERSION holds the package under its old name, $OLD_NAME. This installer installs 0.1.9 and newer."
       ;;
     0.[1-6].* | 0.7.[0-4]) SPEC="$RELEASES/download/v$VERSION/$LEGACY_NAME-$VERSION.tgz" ;;
-    *) SPEC="$RELEASES/download/v$VERSION/$PACKAGE_FILE-$VERSION.tgz" ;;
+    *)
+      SPEC="$RELEASES/download/v$VERSION/$PACKAGE_FILE-$VERSION.tgz"
+      # Only a runtime under its name of now can start from the version before (see reuse).
+      REUSABLE=1
+      ;;
   esac
+}
+
+# Fills the empty npm prefix $1 with the version that runs now, so npm only changes what is
+# different instead of unpacking every package again. Only a prefix that holds the runtime under
+# its name of now and nothing else qualifies; anything else, or a copy that fails, starts empty.
+# The copy is a clone where the disk can (APFS on macOS, btrfs or XFS on Linux): next to no space.
+reuse() {
+  local stage="$1" from
+  [ "$REUSABLE" = 1 ] || return 1
+  from="$HOME_DIR/runtime/current"
+  [ -d "$from/node_modules/$PACKAGE_NAME" ] && [ -f "$from/package-lock.json" ] || return 1
+  MANIFEST="$from/package.json" NAME="$PACKAGE_NAME" "$NODE_DIR/bin/node" -e '
+    const deps = Object.keys(require(process.env.MANIFEST).dependencies || {});
+    process.exit(deps.length === 1 && deps[0] === process.env.NAME ? 0 : 1);
+  ' >>"$LOG" 2>&1 || return 1
+  local clone="--reflink=auto"
+  if [ "$OS" = darwin ]; then clone="-c"; fi
+  if cp -R "$clone" "$from/." "$stage/" 2>>"$LOG" ||
+    { empty "$stage" && cp -R "$from/." "$stage/" 2>>"$LOG"; }; then
+    # The link for commands of 0.7.4 and older is written again after the install. Without the
+    # old lock npm resolves as for a fresh install, keeping what fits: from a lock it would also
+    # add the packages for the other libc.
+    rm -f "$stage/node_modules/$LEGACY_NAME" "$stage/package-lock.json"
+    return 0
+  fi
+  empty "$stage"
+  return 1
+}
+
+empty() {
+  find "$1" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 }
 
 runtime() {
@@ -573,7 +609,11 @@ runtime() {
   # them. --legacy-peer-deps: no peers on top, which nothing here uses (about 70 MB less).
   stage="$(mktemp -d "$dir/.staging-XXXXXX")"
   STAGE="$stage"
-  if ! spin "Installing engenty wizards (about 650 MB on disk, a minute or two)" \
+  local what="Installing engenty wizards (about 650 MB on disk, a minute or two)"
+  if reuse "$stage"; then
+    what="Updating engenty wizards to $VERSION (only what changed)"
+  fi
+  if ! spin "$what" \
     env PATH="$NODE_DIR/bin:$PATH" "$NODE_DIR/bin/npm" install --prefix "$stage" \
     --omit=dev --ignore-scripts --legacy-peer-deps --no-audit --no-fund --loglevel=error "$SPEC"; then
     rm -rf "$stage"
@@ -589,7 +629,7 @@ runtime() {
   if [ -f "$stage/node_modules/$PACKAGE_NAME/package.json" ]; then
     PACKAGE="$PACKAGE_NAME"
     # A command or an update of 0.7.4 or older looks for the runtime under its old name.
-    ln -s "$PACKAGE_NAME" "$stage/node_modules/$LEGACY_NAME"
+    ln -sfn "$PACKAGE_NAME" "$stage/node_modules/$LEGACY_NAME"
   elif [ -d "$stage/node_modules/$LEGACY_NAME/apps/runtime" ]; then
     PACKAGE="$LEGACY_NAME"
   else
