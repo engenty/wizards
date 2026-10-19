@@ -15,8 +15,8 @@ import { ServiceError } from "./errors.js";
 import { ownedProject } from "./projects.js";
 
 /**
- * The space's themes, which of its wizards name each, and the brand's fonts for headings and
- * text: what `brand` means in a theme of this space.
+ * The space's themes, which of its wizards name each, the brand's fonts for headings and text
+ * (what `brand` means in a theme of this space) and the brand's named colours.
  */
 export async function listThemes(userId: string, projectId: string) {
   const p = await ownedProject(userId, projectId);
@@ -28,6 +28,10 @@ export async function listThemes(userId: string, projectId: string) {
   return {
     themes: p.themes,
     brandFonts: { heading: display, text: body, faces },
+    /** The brand's named colours: a theme's colour picker offers them first. */
+    brandColors: (p.brand.colors ?? [])
+      .filter((c) => !c.section)
+      .map(({ name, value }) => ({ name, value })),
     usedBy: Object.fromEntries(
       p.themes.map((t) => [
         t.id,

@@ -12,17 +12,17 @@
 /* What a wizard's style draws around its pages (effects.tsx, WIZARD_EFFECTS). */
 
 /* glow: headings and the main buttons light up in the accent */
-:root.fx-glow :is(h1, h2, .font-display) {
+:is(:root, .wizard-themed).fx-glow :is(h1, h2, .font-display) {
   text-shadow:
     0 0 0.55em color-mix(in oklch, var(--primary) 70%, transparent),
     0 0 0.12em color-mix(in oklch, var(--primary) 45%, transparent);
 }
-:root.fx-glow button[data-variant="primary"] {
+:is(:root, .wizard-themed).fx-glow button[data-variant="primary"] {
   box-shadow:
     0 0 1.4rem color-mix(in oklch, var(--primary) 60%, transparent),
     0 0 0.35rem color-mix(in oklch, var(--primary) 80%, transparent);
 }
-:root.fx-glow :is(input, textarea, select):focus-visible {
+:is(:root, .wizard-themed).fx-glow :is(input, textarea, select):focus-visible {
   box-shadow: 0 0 0.9rem color-mix(in oklch, var(--primary) 45%, transparent);
 }
 
@@ -297,14 +297,16 @@
 }
 
 /* pattern: a quiet pattern on the ground */
-:root.fx-pattern-dots body {
+:root.fx-pattern-dots body,
+.wizard-themed.fx-pattern-dots {
   background-image: radial-gradient(
     color-mix(in oklch, var(--ink) 12%, transparent) 1px,
     transparent 1.5px
   );
   background-size: 22px 22px;
 }
-:root.fx-pattern-grid body {
+:root.fx-pattern-grid body,
+.wizard-themed.fx-pattern-grid {
   background-image:
     linear-gradient(color-mix(in oklch, var(--ink) 7%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in oklch, var(--ink) 7%, transparent) 1px, transparent 1px);
@@ -312,30 +314,30 @@
 }
 
 /* shape: corners, cards, headings */
-:root.shape-radius-sharp {
+:is(:root, .wizard-themed).shape-radius-sharp {
   --radius-lg: 0.25rem;
   --radius-xl: 0.3rem;
   --radius-2xl: 0.4rem;
 }
-:root.shape-radius-sharp .wizard-button {
+:is(:root, .wizard-themed).shape-radius-sharp .wizard-button {
   border-radius: 0.3rem;
 }
-:root.shape-radius-round {
+:is(:root, .wizard-themed).shape-radius-round {
   --radius-lg: 0.9rem;
   --radius-xl: 1.2rem;
   --radius-2xl: 1.6rem;
 }
-:root.shape-cards-outline .wizard-card {
+:is(:root, .wizard-themed).shape-cards-outline .wizard-card {
   background: transparent;
   box-shadow: none;
   border: 1px solid color-mix(in oklch, var(--ink) 25%, transparent);
 }
-:root.shape-cards-glass .wizard-card {
+:is(:root, .wizard-themed).shape-cards-glass .wizard-card {
   background: color-mix(in oklch, var(--card) 55%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
-:root.shape-headings-uppercase :is(.wizard-title, .wizard-heading) {
+:is(:root, .wizard-themed).shape-headings-uppercase :is(.wizard-title, .wizard-heading) {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -345,4 +347,22 @@
   .wizard-peek {
     display: none;
   }
+}
+
+/* a look on one element of a page with its own (the studio's test run): useScopedLook */
+.wizard-themed {
+  overflow: hidden;
+  background-color: var(--background);
+  color: var(--ink);
+  font-family: var(--f-ui);
+}
+.wizard-fx.wizard-fx-contained {
+  position: absolute;
+}
+.wizard-fog.wizard-fx-contained {
+  position: absolute;
+  z-index: 0;
+}
+.wizard-fx-contained :is(.wizard-web, .wizard-frost) {
+  width: min(24%, 9rem);
 }

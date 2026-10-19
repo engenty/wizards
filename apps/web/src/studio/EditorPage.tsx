@@ -28,7 +28,9 @@ import {
   type WizardDetail,
 } from "../lib/session";
 import { ChatBody } from "../runner/ChatView";
+import { WizardEffects } from "../runner/effects";
 import { RunnerBody } from "../runner/RunnerView";
+import { useScopedLook } from "../runner/theme";
 import { Button, Chip, cn, IconButton, LinkedText, Spinner } from "../ui";
 import { CreditsPill } from "./AppFrame";
 import {
@@ -315,6 +317,7 @@ export function EditorPage() {
   const openInsert = useCallback((at: number) => setInsertAt(at), []);
   /** The open test run as it reports itself: its step, status and log. */
   const [runView, setRunView] = useState<RunView | null>(null);
+  const runLook = useScopedLook(runView?.brand.theme);
   const onRunView = useCallback(
     (view: RunView | null) => {
       setRunView(view);
@@ -1001,24 +1004,31 @@ export function EditorPage() {
                   )}
                 >
                   {split ? runBar : null}
-                  <div className="min-h-0 flex-1 overflow-y-auto">
-                    {look === "chat" ? (
-                      <ChatBody
-                        key={drawerRun}
-                        runId={drawerRun}
-                        onRestart={() => testRun.mutate()}
-                        onView={onRunView}
-                      />
-                    ) : (
-                      <RunnerBody
-                        key={drawerRun}
-                        runId={drawerRun}
-                        compact
-                        studio
-                        onRestart={() => testRun.mutate()}
-                        onView={onRunView}
-                      />
-                    )}
+                  {/* The wizard's theme shows in the test run, on this part of the page only. */}
+                  <div
+                    className={cn("relative min-h-0 flex-1", runLook?.className)}
+                    style={runLook?.style}
+                  >
+                    <WizardEffects effects={runView?.brand.theme.effects} contained />
+                    <div className="absolute inset-0 overflow-y-auto">
+                      {look === "chat" ? (
+                        <ChatBody
+                          key={drawerRun}
+                          runId={drawerRun}
+                          onRestart={() => testRun.mutate()}
+                          onView={onRunView}
+                        />
+                      ) : (
+                        <RunnerBody
+                          key={drawerRun}
+                          runId={drawerRun}
+                          compact
+                          studio
+                          onRestart={() => testRun.mutate()}
+                          onView={onRunView}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

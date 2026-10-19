@@ -11,20 +11,24 @@ import {
   themeIdFrom,
 } from "@engenty/wizards-shared/theme";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
-import { Button, cn, IconButton, Label, Segmented, Select, Swatch } from "../../ui";
+import { Button, cn, Label, Segmented, Select, Swatch } from "../../ui";
+import { usePopover } from "../../ui/date-picker";
 import { LookPreview } from "./LookPreview";
 
 type Update = (def: WizardDefinition) => void;
 /** The brand's fonts for headings and text: what `brand` stands for in this space's themes. */
 export type BrandFonts = { heading: string | null; text: string | null; faces: RunFontFace[] };
+/** A colour the brand names. */
+type BrandColour = { name: string; value: string };
 type ThemesAnswer = {
   themes: Theme[];
   usedBy: Record<string, { id: string; title: string }[]>;
   brandFonts: BrandFonts;
+  brandColors: BrandColour[];
 };
 type Mode = "light" | "dark";
 
@@ -173,6 +177,7 @@ export function ThemeLook({
               <ThemeFields
                 theme={draft}
                 brandFonts={brandFonts}
+                brandColors={answer.data?.brandColors ?? []}
                 costume={def.costume}
                 change={change}
               />
@@ -184,31 +189,90 @@ export function ThemeLook({
   );
 }
 
-function ColourField({
+/**
+ * One colour of a theme as a small swatch. It opens a picker: the brand's named colours, a colour
+ * of one's own, or the brand's colour for the role again. Empty, it shows the brand's in a ring.
+ */
+function ColourPick({
   label,
   value,
   fallback,
+  brand,
   onChange,
 }: {
   label: string;
   value: string | undefined;
   fallback: string;
+  brand: BrandColour[];
   onChange: (v: string | undefined) => void;
 }) {
+  const { open, setOpen, close, anchor, panel, place } = usePopover();
   return (
-    <div>
-      <Label hint={value ? undefined : t("inspector.fromSpace")}>{label}</Label>
-      <div className="flex items-center gap-2">
-        <Swatch value={value ?? fallback} onChange={(e) => onChange(e.target.value)} />
-        {value ? (
-          <>
-            <span className="font-mono text-[0.8125rem] text-ink-3">{value}</span>
-            <IconButton label={t("inspector.lookReset")} onClick={() => onChange(undefined)}>
-              <X className="size-4" />
-            </IconButton>
-          </>
-        ) : null}
-      </div>
+    <div className="relative">
+      <button
+        ref={anchor}
+        type="button"
+        aria-label={`${label}: ${value ?? t("inspector.lookColourReset")}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        title={value ?? t("inspector.lookColourReset")}
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "size-8 rounded-lg ring-1 ring-border transition hover:scale-105",
+          !value && "opacity-60 ring-2 ring-dashed",
+        )}
+        style={{ background: value ?? fallback }}
+      />
+      {open ? (
+        <div
+          ref={panel}
+          role="dialog"
+          aria-label={label}
+          className="fixed z-50 w-60 rounded-xl bg-card p-3 shadow-lg ring-1 ring-border"
+          style={place ? { top: place.top, left: place.left } : { visibility: "hidden" }}
+        >
+          {brand.length ? (
+            <>
+              <div className="mb-2 text-[0.75rem] text-ink-3">{t("inspector.lookColourBrand")}</div>
+              <div className="mb-3 flex flex-wrap gap-2">
+                {brand.map((c) => (
+                  <button
+                    key={`${c.name}-${c.value}`}
+                    type="button"
+                    title={`${c.name} · ${c.value}`}
+                    aria-label={c.name}
+                    onClick={() => {
+                      onChange(c.value);
+                      close();
+                    }}
+                    className={cn(
+                      "size-7 rounded-md ring-1 ring-border transition hover:scale-110",
+                      value?.toLowerCase() === c.value.toLowerCase() && "ring-2 ring-ember",
+                    )}
+                    style={{ background: c.value }}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+          <label className="flex items-center gap-2 text-[0.8125rem] text-ink-2">
+            <Swatch value={value ?? fallback} onChange={(e) => onChange(e.target.value)} />
+            {t("inspector.lookColourOwn")}
+          </label>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="mt-2 w-full justify-start"
+            disabled={!value}
+            onClick={() => {
+              onChange(undefined);
+              close();
+            }}
+          >
+            {t("inspector.lookColourReset")}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -245,14 +309,23 @@ const chipOf = (e: ThemeEffect): string | undefined =>
   CHIPS.find((c) => c.effect.id === e.id && (!("kind" in c.effect) || c.effect.kind === e.kind))
     ?.chip;
 
+/** The roles a theme gives a colour, and what the runner shows where a theme leaves one out. */
+const COLOUR_ROLES = ["accent", "background", "text"] as const;
+const FALLBACK = {
+  dark: { accent: "#e0531b", background: "#17131d", text: "#f4efe8" },
+  light: { accent: "#e0531b", background: "#faf8f5", text: "#1f1b16" },
+} as const;
+
 function ThemeFields({
   theme,
   brandFonts,
+  brandColors,
   costume,
   change,
 }: {
   theme: Theme | undefined;
   brandFonts: BrandFonts | undefined;
+  brandColors: BrandColour[];
   /** The wizard's costume: the figures wear it. */
   costume: string | undefined;
   change: (patch: (t: Theme) => Theme) => void;
@@ -346,22 +419,33 @@ function ThemeFields({
           onChange={setPages}
         />
       </div>
-      {modes.map((mode) => (
-        <div key={mode} className="grid grid-cols-2 gap-4">
-          <ColourField
-            label={t(`inspector.lookAccent.${mode}`)}
-            value={themeColors(theme, mode)?.accent}
-            fallback="#e0531b"
-            onChange={(v) => colour(mode, "accent", v)}
-          />
-          <ColourField
-            label={t(`inspector.lookBackground.${mode}`)}
-            value={themeColors(theme, mode)?.background}
-            fallback={mode === "dark" ? "#17131d" : "#faf8f5"}
-            onChange={(v) => colour(mode, "background", v)}
-          />
+      <div>
+        <Label hint={t("inspector.lookColoursHint")}>{t("inspector.lookColours")}</Label>
+        <div className="grid grid-cols-[auto_repeat(3,2.5rem)] items-center gap-x-4 gap-y-2">
+          <span />
+          {COLOUR_ROLES.map((role) => (
+            <span key={role} className="text-center text-[0.75rem] text-ink-3">
+              {t(`inspector.lookColour.${role}`)}
+            </span>
+          ))}
+          {modes.map((mode) => (
+            <Fragment key={mode}>
+              <span className="text-[0.8125rem] text-ink-2">{t(`inspector.lookMode.${mode}`)}</span>
+              {COLOUR_ROLES.map((role) => (
+                <div key={role} className="flex justify-center">
+                  <ColourPick
+                    label={`${t(`inspector.lookColour.${role}`)} · ${t(`inspector.lookMode.${mode}`)}`}
+                    value={themeColors(theme, mode)?.[role]}
+                    fallback={FALLBACK[mode][role]}
+                    brand={brandColors}
+                    onChange={(v) => colour(mode, role, v)}
+                  />
+                </div>
+              ))}
+            </Fragment>
+          ))}
         </div>
-      ))}
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label>{t("inspector.lookDisplayFont")}</Label>
