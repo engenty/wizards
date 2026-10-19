@@ -1,6 +1,7 @@
 # Themes
 
-Decided 2026-10-19 over four rounds. Not built. Open: themes in the catalog (see the end).
+Decided 2026-10-19 over five rounds, the last after a security review. Not built. Open: themes
+in the catalog (see the end).
 
 ## Why
 
@@ -9,8 +10,8 @@ fonts, four effects and CSS. It works, but it puts two things into one document:
 
 - **The wizard** is pages, steps and a result. Its author decides it, and it is versioned with it.
 - **The look** belongs to where the wizard is shown. A website that embeds it, ChatGPT or Claude,
-  WordPress and a call each have a look of their own. The same Halloween look also fits many
-  wizards and comes back every October.
+  OpenUI, WordPress and a call each have a look of their own. The same Halloween look also fits
+  many wizards and comes back every October.
 
 Fonts and effects are also closed lists in the wizard’s schema today. Each new one changes the
 published JSON Schema, and an older install then refuses a wizard that uses it.
@@ -18,10 +19,10 @@ published JSON Schema, and an older install then refuses a wizard that uses it.
 So a theme becomes a document of its own. A wizard can still ship with its themes: a Halloween
 wizard arrives with its Halloween look.
 
-## The theme document
+## Values only
 
-A theme is `theme.json` plus its files. It has a schema of its own, versioned apart from the
-wizard’s (`engenty.ai/schema/theme/v1/theme.json`).
+A theme holds values and nothing else: no CSS, no files, no fonts from elsewhere. Everything a
+theme can show is drawn by the runner’s own code, which we review once and extend over time.
 
 ```json
 {
@@ -33,8 +34,14 @@ wizard’s (`engenty.ai/schema/theme/v1/theme.json`).
   "dark": { "accent": "#ff7a1a", "background": "#140b1f" },
   "prefer": "dark",
   "fonts": { "heading": "Creepster", "text": "Nunito" },
-  "effects": [{ "id": "glow" }, { "id": "particles", "kind": "embers" }],
-  "css": "css/theme.css"
+  "shape": { "radius": "soft", "cards": "glass", "headings": "uppercase" },
+  "effects": [
+    { "id": "glow" },
+    { "id": "corners", "kind": "webs" },
+    { "id": "particles", "kind": "embers" },
+    { "id": "figures", "costume": "bat", "motion": "fly" },
+    { "id": "fog" }
+  ]
 }
 ```
 
@@ -43,10 +50,68 @@ wizard’s (`engenty.ai/schema/theme/v1/theme.json`).
 - **Dark and light live in one theme.** `light` and `dark` hold the colours of each. `prefer`
   says which one the theme shows when the person has not chosen. A theme with only one of them
   pins it, as `dark: true` does today.
-- **Files** sit beside `theme.json`: CSS, SVG, images and font files.
-- **Effects are open names with options.** The runner draws those it knows and skips the rest
-  without an error. A new effect needs no schema change, and an older install still opens a theme
-  that names it.
+- **Fonts** come from the list the runner ships (13 today, more over time), by family.
+- **`shape`** sets a few choices of form: corner radius, how cards look, how headings are set.
+- **Effects** come from the runner’s library (below), each with its options.
+
+The theme schema is versioned apart from the wizard’s (`engenty.ai/schema/theme/v1/theme.json`).
+Its effect names are open strings: the runner draws those it knows and skips the rest without an
+error. A new effect is a runner release, but no schema change, and an older install still opens
+a theme that names a newer effect.
+
+## The effect library
+
+All effects are our code. We extend the library regularly: seasons, occasions, business looks.
+
+| Effect | Options | Examples |
+|---|---|---|
+| `glow` | strength | Headings and the main button light up in the accent |
+| `corners` | `webs`, `frost`, `garland`, `leaves` | Spider webs in the top corners, with a spider |
+| `particles` | `embers`, `snow`, `confetti`, `stars` | Embers rising, snow falling |
+| `figures` | a costume, `fly` or `peek` | engenties with bat wings flying across, a witch peeking in |
+| `fog` | strength | Fog drifting along the bottom |
+| `pattern` | `dots`, `grid`, `paper` | A quiet pattern on the ground, for business looks |
+
+Effects never take a click, stay behind or around the content, and stop moving where the
+person asked for reduced motion.
+
+We publish ready themes from it under `@wizards`: `@wizards/halloween`, `@wizards/christmas`,
+`@wizards/party`, a few business looks. Hosts and clients with a renderer of their own (OpenUI,
+an own UI, WordPress) get the same values and draw the effects they support in their own way.
+
+## Why values only
+
+Free CSS and files were in an earlier round of this plan. A security review took them out:
+
+| Left out | What it would have risked |
+|---|---|
+| Free CSS | CSS runs in the run page itself, next to the person’s answers. With an address function the check misses, it can send typed answers to another site. It can hide or relabel what must stay as it is: the question before a connector acts, a sign-in, the EU “AI” labels, “Made with engenty wizards”. A check by pattern has to know every CSS function a browser will ever have |
+| Theme files | An SVG or HTML file opened at our address runs scripts there. Every file type needs checking, cleaning and safe serving |
+| Fonts from elsewhere | Every visitor’s address goes to a third party: a privacy question in the EU |
+| Effects by anyone | Code we have not reviewed |
+
+With values only, a theme is data that a schema checks completely. The catalog needs no review
+of code, and a theme looks the same in every place a wizard runs.
+
+The `css` of #83 does not move into themes. If an escape hatch is needed later, it is CSS of a
+space’s own, behind a feature switch, and it never leaves the space: not in a wizard file, not in
+the catalog.
+
+A Content-Security-Policy on run and share pages is still worth adding, as protection against
+our own mistakes (a script hole anywhere in the app). It is no longer a condition for themes.
+
+## The places a wizard runs
+
+A theme is values, so every place can apply it as far as it can draw it:
+
+| Place | Who draws it | What of a theme applies |
+|---|---|---|
+| Own run page and share page | The runtime, a page of its own | Everything |
+| Website embed (`embed.js`) | The runtime, in a frame on the website | Everything. The snippet picks the theme (`data-theme`) |
+| ChatGPT, Claude (MCP Apps) | The runtime, in the host’s sandboxed frame | `host` by default: the styles the app hands over. A theme of the wizard if the app asks for it |
+| OpenUI, an own UI | The host’s page; the runner is a component in it | Colours, fonts and shape as CSS variables on `.engenty-runner`. Effects only inside the wizard’s card, and only those the host turns on |
+| WordPress | The plugin | Like the embed when it shows a frame, like OpenUI when it draws inline |
+| A call | Nothing to draw | The theme does not matter |
 
 ## In the wizard file
 
@@ -55,11 +120,8 @@ spukhaus.wizard
 ├─ wizard.json                  manifest and definition
 ├─ files/                       the workspace, as today
 └─ themes/
-   ├─ halloween/
-   │  ├─ theme.json
-   │  ├─ css/theme.css
-   │  └─ files/web.svg
-   └─ halloween-calm/…
+   ├─ halloween.json
+   └─ halloween-calm.json
 ```
 
 The definition names its themes and nothing more:
@@ -96,7 +158,7 @@ shows the wizard picks from that chain:
 | A link or channel with a theme set | That theme, if the chain has it |
 | A website embed | What the snippet asks for (`data-theme="host"`, a theme’s id, or the first in the chain) |
 | An AI app (MCP) | `host` by default; the app can ask for a theme of the chain |
-| A call | Nothing to show; the theme does not matter |
+| OpenUI, an own UI | What the host passes to the component; else the first in the chain |
 
 The host always wins. A wizard cannot insist on its theme.
 
@@ -104,37 +166,13 @@ The host always wins. A wizard cannot insist on its theme.
 
 - **Inside a space** a theme’s id is a free slug, like a file name. Anybody can invent one, as in
   WordPress.
-- **On import** the files decide. Same id and same content: the space’s theme is used. Same id
-  and different content: the theme comes in as `halloween-2`, and the wizard’s reference is
+- **On import** the content decides. Same id and same content: the space’s theme is used. Same
+  id and different content: the theme comes in as `halloween-2`, and the wizard’s reference is
   rewritten. Nothing is overwritten without asking.
 - **In the catalog** a theme has a scope, `@owner/id`. A scope belongs to an account.
 - **Reserved:** the scope `@wizards` is ours (`@wizards/halloween`). The scopes `@engenty` and
   `@wizard` are reserved, and so are the ids `brand`, `host`, `default`, `engenty`, `wizard` and
   `wizards`.
-
-## Fonts
-
-- **Shipped:** the 13 fonts the runner carries today stay, named by family.
-- **Embedded:** a theme may bring font files (`.woff2`) under its files, each with its licence
-  in `theme.json`. The page serves them from its own address.
-- **External:** the schema allows a font from another address. Such a font breaks the rule that a
-  run page loads nothing from elsewhere, so it is the one exception: the studio says so where the
-  theme is edited, and a theme in the catalog may not use one.
-
-## Effects and CSS
-
-A theme’s CSS follows the rules that hold today (no `@import`, no backslash escapes), with two
-new kinds of address that stay on our own site:
-
-- `url(theme:files/web.svg)`: a file of the same theme.
-- `url(engenty:round-bat)`: one of the engenty figures in any costume, built into the runner.
-
-Spider webs, bats and fog become CSS and SVG in the Halloween theme. The runner keeps a few
-named effects that CSS cannot do well (`glow`, `particles`, figures flying or peeking in) and
-skips names it does not know.
-
-The stable names from #85 stay: `.wizard-page`, `.wizard-title`, `.wizard-heading`,
-`.wizard-button`, `.wizard-field` and the `--wizard-…` variables.
 
 ## The studio
 
@@ -145,7 +183,12 @@ theme. Behind the scenes it is a theme of the space:
 - A theme two wizards use changes for both. The section says so (“Also used by …”) and offers to
   make a copy for this wizard only.
 - Choosing another theme of the space, or adding one to the chain, is a select above the preview.
+- The fields become the theme’s values: colours for light and dark, the two fonts, shape, and
+  the effects with their options. The field “Your own CSS” and its help go away.
 - The space gets a list of its themes beside the brand, for renaming, copying and deleting.
+
+The stable class names of #85 (`.wizard-page`, `.wizard-title`, …) stay on the run page, for
+hosts that style the runner around it.
 
 ## Without migration
 
@@ -156,19 +199,23 @@ Halloween templates.
 ## Build order
 
 1. The theme schema and its checks (shared package), with the JSON Schema published.
-2. Themes in the space: table, files, the import rules for ids.
-3. `themes` in the definition; `style` removed; the `.wizard` file carries `themes/`.
-4. The run page: resolving the chain, `light`/`dark`, fonts, the new `url()` addresses, the named
-   effects. The share page as well.
-5. The studio: the Look section on a theme, the select, “Also used by”, the space’s list.
-6. Hosts: the embed snippet’s `data-theme`, the styles of an MCP host, WordPress.
-7. `@wizards/halloween` and the Halloween templates.
+2. The effect library in the runner: `glow`, `corners`, `particles`, `figures`, `fog`,
+   `pattern`, as values in and drawing out, with reduced motion.
+3. Themes in the space: table, the import rules for ids.
+4. `themes` in the definition; `style` removed; the `.wizard` file carries `themes/`.
+5. The run page and the share page: resolving the chain, `light`/`dark`, fonts, shape, effects.
+6. The studio: the Look section on a theme, the select, “Also used by”, the space’s list.
+7. Hosts: the embed snippet’s `data-theme`, the styles of an MCP host, the values for OpenUI and
+   WordPress.
+8. `@wizards/halloween` with the Halloween templates, then `@wizards/christmas` and the business
+   looks.
 
 ## Open: themes in the catalog
 
-Not decided yet:
+Not decided yet. With values only, the catalog checks a theme against the schema and nothing
+more. Still to settle:
 
-- How a theme is published, and whether alone or only with a wizard.
-- Updates: how a space learns that `@owner/id` has a newer version, and whether it takes it.
-- Who may publish under which scope, and how a scope is claimed.
-- What the catalog checks before it lists a theme (no external fonts, the CSS rules, licences).
+- Whether a theme is listed on its own, or only together with a wizard.
+- What a scope is: the account’s handle, a team’s name.
+- Updates: a notice and one click, or automatic.
+- Whether the first theme of a new scope is reviewed by us.
