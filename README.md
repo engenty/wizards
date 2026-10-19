@@ -20,21 +20,22 @@
   or a browser. Anything that changes an account asks first.
 - **Share it with a link.** Anyone can run a wizard in the browser, on a phone too: camera,
   code scan, voice notes, location and a drawn signature included. Results download as PDF,
-  Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link.
+  Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link. Each wizard
+  wears a theme of your space: its colours, fonts and effects.
 - **Send the result on.** From the result, by email, into Google Drive, OneDrive or S3, to a
   Slack channel, through any connected service, or onto a website the wizard opens in its
   browser – you sign in yourself and confirm before anything goes public.
 - **Runs on your machine, on your subscription.** It uses Codex, Claude Code, Antigravity
   or Cursor Agent when one is installed and signed in, so no API key is needed. Or bring a key
-  (Vercel AI Gateway, OpenAI, Anthropic), or a local model through Ollama. Your wizards and
+  (Vercel AI Gateway, OpenAI, Anthropic, Google), or a local model through Ollama. Your wizards and
   results stay in a folder on your machine.
 
 ## How it looks
 
-The studio: a wizard’s steps as a flow with its branches, next to the conversation that changes them.
+The studio: the conversation that changes a wizard, next to its steps as a flow with its branches.
 
 <p align="center">
-  <img src="docs/assets/studio.png" alt="The studio of engenty wizards: the flow of a wizard that collects a month's receipts for bookkeeping – two pages of questions, AI steps that branch to the inbox and to customer portals, a review and the result – with the conversation beside it">
+  <img src="docs/assets/studio.png" alt="The studio of engenty wizards: the assistant explains where a wizard that collects a month's receipts for bookkeeping looks for them; beside it the wizard's flow – two pages of questions, AI steps that branch to the mailbox and to customer portals, a review and the result">
 </p>
 
 A wizard in use: it asks on one page, then on the next, and ends with the result to download or share.
@@ -74,14 +75,14 @@ then walks you through the rest:
   `--local` leaves the account out: nothing leaves the computer, links answer on it only
   ([local only](https://engenty.ai/docs/user/local-only)).
 - **An AI client.** It looks for Codex, Claude Code, Antigravity and Cursor Agent and
-  offers to install the missing ones – first the one whose app (Claude, ChatGPT, Cursor) is
-  on your Mac, as its subscription is most likely yours already. The first page of the studio
+  offers to install the missing ones – first the one whose app (Claude, ChatGPT, Antigravity,
+  Cursor) is on your Mac, as its subscription is most likely yours already. The first page of the studio
   installs them too. Or use your account’s credits, an API key, [Ollama](https://ollama.com) or,
   on a Mac with Apple silicon and macOS 26, Apple Intelligence.
 - **A browser and ffmpeg** (optional): Chrome, Edge or Chromium (on a Mac also Brave) for PDF
   and PNG exports and for steps that use a browser, ffmpeg for MP4 videos of animated widgets.
 - **Start at login** (optional): engenty wizards starts in the background when you log in (a
-  LaunchAgent on a Mac, a systemd user service on Linux). Links and AI clients then always
+  LaunchAgent on a Mac, a systemd user service on Linux, a scheduled task on Windows). Links and AI clients then always
   reach it. `wizards autostart on` or `off` switches it later.
 - **Your AI apps** (optional): adds your wizards to the AI apps it finds, such as Claude
   Desktop, Cursor or Codex. `wizards connect` and `wizards disconnect` do it later.
@@ -116,8 +117,8 @@ pnpm wizards
 
 pnpm may list “Ignored build scripts” – that’s expected, nothing to do.
 
-Code steps (shell, Node, Python) run in a sandbox when Docker and the sandbox image are on the
-machine; a checkout brings its own sandbox, the installed version has none yet.
+Code steps (shell, Node, Python) run in a sandbox. `wizards sandbox add` installs one (about
+340 MB, no Docker needed); a checkout also uses Docker when the sandbox image is on the machine.
 
 ## First start
 
@@ -134,17 +135,22 @@ Change it later under Settings → Models.
 - **Make a wizard:** describe it in the studio’s chat, or start from one of the templates.
   You see the steps as a diagram and can change any of them.
 - **Run and share:** try it yourself, then share the link. Shared results are kept for 7 days
-  for people without an account. “Teilen” on a result also sends it by email, saves it to a
+  for people without an account. “Share” on a result also sends it by email, saves it to a
   cloud folder or posts it: [Sharing a result](docs/development.md#sharing-a-result).
 - **Connect services:** Gmail, Google Drive, Calendar, Contacts, Outlook, OneDrive, Slack,
   GitHub, HubSpot and S3 are built in; any other service can be added from its API description
   or MCP server through the [integrations.sh](https://integrations.sh) registry. Services that
   sign in with OAuth need a few settings first: [Connectors](docs/development.md#connectors).
+- **Give it a look:** under “Look” a wizard wears a theme of your space – colours, fonts and
+  effects – or ask the assistant, for example “Make it dark and spooky for Halloween.”
 - **Build from Claude Code or Codex:** Settings → Integrate adds engenty wizards to your AI
   apps (Claude Desktop, Claude Code, Codex, Cursor and others), or `wizards connect` from a
-  terminal.
+  terminal. In Claude Code, the plugin also lists your wizards beside the chat:
+  `claude plugin marketplace add engenty/wizards`, then `claude plugin install wizards@engenty`.
 
-Your machine only answers on `localhost`. To let others open shared wizards, run it on a server.
+Your machine only answers on `localhost`. To let others open shared wizards, sign in with your
+account: every version that goes live also runs on engenty.ai, even while your computer is off.
+Or run it on a server.
 
 ## Your data
 
@@ -156,6 +162,10 @@ Back up the folder; delete it to start over. Settings go into `~/.engenty/wizard
 `pnpm start` in a checkout keeps its data in the `data` folder next to the code instead.
 
 ## Update
+
+engenty wizards updates itself: it looks for a new version at start and once a day, downloads
+it in the background and switches to it at the next start, never during a run.
+`wizards autoupdate off` turns that off. To update now:
 
 ```bash
 wizards update
