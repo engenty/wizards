@@ -1,8 +1,8 @@
-import { setRunnerLang } from "@engenty/wizards-runner";
+import { RunnerBody as RunnerPage, setRunnerLang } from "@engenty/wizards-runner";
 import { isLang, langName, wizardLang } from "@engenty/wizards-shared/definition";
 import type { RunTheme, RunView } from "@engenty/wizards-shared/run";
 import { DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   Flag,
   Maximize2,
@@ -21,7 +21,7 @@ import { lang, t } from "../../lib/i18n";
 import type { WizardDetail } from "../../lib/session";
 import { ChatBody } from "../../runner/ChatView";
 import { WizardEffects } from "../../runner/effects";
-import { RunnerBody } from "../../runner/RunnerView";
+import { RunnerBody, type RunSource } from "../../runner/RunnerView";
 import { bothModes, useScopedLook } from "../../runner/theme";
 import { Button, cn, IconButton } from "../../ui";
 import { LookSwitch, type RunLook } from "../RunDrawer";
@@ -33,9 +33,6 @@ interface ThemeLook {
   name: string | null;
   theme: RunTheme;
 }
-
-/** The two things the preview shows: the test run, or the result page. */
-export type PreviewPage = "run" | "result";
 
 type Mode = "light" | "dark";
 
@@ -82,11 +79,14 @@ function Choice({
   value,
   onChange,
   options,
+  long,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
+  /** Its options are titles: it takes more room. */
+  long?: boolean;
 }) {
   return (
     <label className="relative flex shrink-0 items-center">
@@ -95,7 +95,10 @@ function Choice({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         title={label}
-        className="h-8 max-w-40 appearance-none truncate rounded-full border-0 bg-paper-2 py-0 pr-7 pl-3 font-medium text-[0.75rem] text-ink outline-none focus-visible:ring-2 focus-visible:ring-ember coarse:h-10"
+        className={cn(
+          "h-8 appearance-none truncate rounded-full border-0 bg-paper-2 py-0 pr-7 pl-3 font-medium text-[0.75rem] text-ink outline-none focus-visible:ring-2 focus-visible:ring-ember coarse:h-10",
+          long ? "max-w-64" : "max-w-40",
+        )}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -124,19 +127,19 @@ function lookName(look: ThemeLook): string {
 }
 
 /**
- * The editor's main view: the wizard as the people who use it see it. The test run in the
- * wizard's look, with the switches the wizard is configured for — its themes, light and dark
- * pages, its languages, page by page or as a chat — and how it sits on a desk or a phone. Or the
- * result page, as visitors or the owner see it. Without a run it offers to start one.
+ * The editor's main view: the wizard as the people who use it see it, in its look, with the
+ * switches it is configured for — its themes, light and dark pages, its languages, page by page
+ * or as a chat — and how it sits on a desk or a phone. It shows the step chosen as a run shows
+ * it there, filled from the latest test run (the result step as its result page), or the test
+ * run itself; with neither it offers to start one.
  */
 export function PreviewPane({
   wizard: w,
   runId,
   runView,
   onView,
-  page,
-  onPage,
-  resultStep,
+  stepId,
+  onStep,
   audience,
   onAudience,
   test,
@@ -150,10 +153,9 @@ export function PreviewPane({
   runId: string | null;
   runView: RunView | null;
   onView: (view: RunView | null) => void;
-  page: PreviewPage;
-  onPage: (page: PreviewPage) => void;
-  /** The wizard's result step, where it has one: the result page can be shown. */
-  resultStep: Parameters<typeof ResultPreview>[0]["step"] | null;
+  /** The step shown; null: the test run, or without one the start. */
+  stepId: string | null;
+  onStep: (stepId: string | null) => void;
   audience: Audience;
   onAudience: (audience: Audience) => void;
   test: { start: () => void; busy: boolean; disabled: boolean };
@@ -228,30 +230,62 @@ export function PreviewPane({
 
   const [device, setDevice] = useState<"desk" | "phone">("desk");
 
-  const pageSwitch = resultStep ? (
-    <Pills<PreviewPage>
-      label={t("editor.view")}
-      value={page}
-      onChange={onPage}
+  // The step chosen, as a run shows it there; the result step is its result page.
+  const shown = stepId ? (def.steps.find((s) => s.id === stepId) ?? null) : null;
+  const resultStep = def.steps.find((s) => s.type === "result") ?? null;
+  const stepView = useQuery({
+    queryKey: ["draft-step-view", w.id, shown?.id, w.revision, shownLang],
+    queryFn: () =>
+      api.get<RunView>(
+        `/api/studio/wizards/${w.id}/steps/${encodeURIComponent(shown?.id ?? "")}/view${
+          shownLang === own ? "" : `?lang=${encodeURIComponent(shownLang)}`
+        }`,
+      ),
+    enabled: Boolean(shown && shown.type !== "result"),
+    placeholderData: keepPreviousData,
+  });
+  // Shown, not run: what a page or a review would do is not done.
+  const still = async () => false;
+  const stepSource: RunSource | null =
+    shown && stepView.data
+      ? {
+          view: stepView.data,
+          notFound: false,
+          error: null,
+          busy: false,
+          fieldErrors: {},
+          submitPage: still,
+          accept: still,
+          regenerate: still,
+          back: still,
+          retry: still,
+        }
+      : null;
+
+  const START = "__start";
+  const picker = (
+    <Choice
+      long
+      label={t("editor.previewStep")}
+      value={shown?.id ?? START}
+      onChange={(v) => onStep(v === START ? null : v)}
       options={[
-        { id: "run", label: t("run.testChip") },
-        { id: "result", label: t("resultPreview.title") },
+        { value: START, label: t(runId ? "run.testChip" : "editor.previewStart") },
+        ...def.steps.map((s, i) => ({ value: s.id, label: `${i + 1} · ${s.title}` })),
       ]}
     />
-  ) : (
-    <span className="px-1 font-medium text-[0.8125rem] text-ink-2">{t("run.testChip")}</span>
   );
 
-  if (page === "result" && resultStep) {
+  if (shown?.type === "result") {
     return (
       <ResultPreview
         wizardId={w.id}
         def={def}
-        step={resultStep}
+        step={shown}
         revision={w.revision}
         audience={audience}
         onAudience={onAudience}
-        lead={pageSwitch}
+        lead={picker}
         onTest={test.start}
         testBusy={test.busy}
         testDisabled={test.disabled}
@@ -262,9 +296,9 @@ export function PreviewPane({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="kb-hide flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-border-soft border-b px-3 [scrollbar-width:none]">
-        {pageSwitch}
+        {picker}
         <span className="flex-1" />
-        {ways.length > 1 ? (
+        {ways.length > 1 && !shown ? (
           <span className="shrink-0">
             <LookSwitch look={shownWay} onChange={setWay} ways={[...ways]} />
           </span>
@@ -361,6 +395,16 @@ export function PreviewPane({
               <div className="flex h-full items-center justify-center px-6 text-[0.875rem] text-ink-3">
                 {building}
               </div>
+            ) : shown ? (
+              stepSource ? (
+                // A view that arrives anew starts the page again from its values.
+                <RunnerPage
+                  key={`${shown.id}:${stepView.dataUpdatedAt}`}
+                  run={stepSource}
+                  compact
+                  studio
+                />
+              ) : null
             ) : runId ? (
               shownWay === "chat" ? (
                 <ChatBody key={runId} runId={runId} onRestart={test.start} onView={onView} />
@@ -394,7 +438,7 @@ export function PreviewPane({
                 {resultStep ? (
                   <button
                     type="button"
-                    onClick={() => onPage("result")}
+                    onClick={() => onStep(resultStep.id)}
                     className="inline-flex items-center gap-1.5 text-[0.8125rem] text-ink-3 underline-offset-4 hover:text-ink hover:underline"
                   >
                     <Flag className="size-3.5" />

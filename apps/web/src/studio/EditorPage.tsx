@@ -41,7 +41,7 @@ import { currentDecisions, FlowDiagram, type StepLive } from "./editor/FlowDiagr
 import { Inspector } from "./editor/Inspector";
 import { LiveDialog } from "./editor/LiveDialog";
 import { MemoryPanel } from "./editor/MemoryPanel";
-import { type PreviewPage, PreviewPane } from "./editor/PreviewPane";
+import { PreviewPane } from "./editor/PreviewPane";
 import type { Audience } from "./editor/ResultPreview";
 import { RunLog } from "./editor/RunLog";
 import { RunsPanel } from "./editor/RunsPanel";
@@ -340,8 +340,8 @@ export function EditorPage() {
   const [liveOpen, setLiveOpen] = useState(false);
   /** The test run the preview shows. */
   const [drawerRun, setDrawerRun] = useState<string | null>(null);
-  /** The preview shows the test run or the result page. */
-  const [previewPage, setPreviewPage] = useState<PreviewPage>("run");
+  /** The step the preview shows; null: the test run, or the start. */
+  const [previewStep, setPreviewStep] = useState<string | null>(null);
   /** Whom the result page is shown as: a visitor, or the wizard's owner. */
   const [audience, setAudience] = useState<Audience>("visitor");
   const [activeStep, setActiveStep] = useState<string | null>(null);
@@ -408,14 +408,6 @@ export function EditorPage() {
     }
   }, [params, wizard.data, chat, setParams]);
 
-  // The result step chosen beside the preview shows its page there.
-  const chosenResult = wizard.data?.draft.steps.find((s) => s.id === selected)?.type === "result";
-  useEffect(() => {
-    if (chosenResult && flowBeside) {
-      setPreviewPage("result");
-    }
-  }, [chosenResult, flowBeside]);
-
   // Models the draft needs that this runtime cannot serve: a step on every path blocks the test.
   const models = useQuery({
     queryKey: ["wizard-models", id, wizard.data?.revision],
@@ -431,7 +423,7 @@ export function EditorPage() {
   const openRun = (runId: string) => {
     setDrawerRun(runId);
     setRunView(null);
-    setPreviewPage("run");
+    setPreviewStep(null);
     setView("preview");
     sheet.fold();
   };
@@ -484,7 +476,7 @@ export function EditorPage() {
   /** The result page in the preview, from the step panel's button. */
   const openPage = resultStep
     ? () => {
-        setPreviewPage("result");
+        setPreviewStep(resultStep.id);
         setView("preview");
         sheet.fold();
       }
@@ -523,6 +515,10 @@ export function EditorPage() {
 
   const select = (sid: string | null) => {
     setSelected(sid);
+    // The preview follows: it shows the step chosen.
+    if (sid && sid !== "__wizard") {
+      setPreviewStep(sid);
+    }
     if (sid) {
       setSide("step");
       sheet.unfold();
@@ -1022,9 +1018,13 @@ export function EditorPage() {
               runId={drawerRun}
               runView={runView}
               onView={onRunView}
-              page={previewPage}
-              onPage={setPreviewPage}
-              resultStep={resultStep?.type === "result" ? resultStep : null}
+              stepId={previewStep}
+              onStep={(sid) => {
+                setPreviewStep(sid);
+                if (sid) {
+                  setSelected(sid);
+                }
+              }}
               audience={audience}
               onAudience={setAudience}
               test={{
