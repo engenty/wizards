@@ -38,6 +38,7 @@ import { serverText } from "../texts.js";
 import { mayBuild, requireAdmin, requireBuild, requireWritable } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
 import { forgetWizardLinks } from "./links.js";
+import { pushPages } from "./pages.js";
 import { removeProjectFiles } from "./project-files.js";
 
 export type ProjectRow = typeof schema.project.$inferSelect;
@@ -370,7 +371,10 @@ export async function updateProject(
     })
     .where(eq(schema.project.id, p.id));
   spaceChanged("space.updated", p.id);
-  return { pageChanged: page !== undefined };
+  // The page itself, and what it is drawn from: the brand, the facts as the imprint.
+  if (page || patch.brand || patch.facts) {
+    pushPages();
+  }
 }
 
 /**
@@ -610,4 +614,5 @@ export async function removeProject(projectId: string) {
     .delete(schema.project)
     .where(and(eq(schema.project.id, projectId), eq(schema.project.tenantId, currentTenant())));
   spaceChanged("space.deleted", projectId);
+  pushPages();
 }

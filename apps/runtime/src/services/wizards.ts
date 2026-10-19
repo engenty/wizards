@@ -27,6 +27,7 @@ import { notFound, ServiceError } from "./errors.js";
 import { copyFiles, draftFiles, sameFiles, seedFiles } from "./files.js";
 import { forgetWizardLinks } from "./links.js";
 import { asLang, countInstall, marketplaceWizard } from "./marketplace.js";
+import { pushPages } from "./pages.js";
 import { defaultProject, ownedProject } from "./projects.js";
 import { checkRunnerSettings } from "./runners.js";
 import { saveTheme } from "./themes.js";
@@ -462,6 +463,10 @@ export async function updateWizardSettings(
     .update(schema.wizard)
     .set({ ...patch, ...(runners ? { runners } : {}), updatedAt: new Date() })
     .where(eq(schema.wizard.id, w.id));
+  // Switched off, the wizard leaves the team's public page; on, it may return to it.
+  if (patch.shareEnabled !== undefined && patch.shareEnabled !== w.shareEnabled) {
+    pushPages();
+  }
   return wizardSummary(await ownedWizard(userId, wizardId));
 }
 
@@ -474,6 +479,8 @@ export async function rotateShareLink(userId: string, wizardId: string) {
     .where(eq(schema.wizard.id, w.id));
   await dropLinks([w.shareToken]);
   await putLink(token, "wizard", w.id);
+  // The public page's start button leads to the new link.
+  pushPages();
   return { shareToken: token, shareUrl: shareUrl(token) };
 }
 
@@ -500,11 +507,32 @@ export async function duplicateWizard(userId: string, wizardId: string) {
 
 export async function deleteWizard(userId: string, wizardId: string) {
   await requireAdmin();
-  await writableWizard(userId, wizardId);
+  const w = await writableWizard(userId, wizardId);
   await forgetWizardLinks(wizardId);
   await db
     .delete(schema.wizard)
     .where(and(eq(schema.wizard.id, wizardId), eq(schema.wizard.tenantId, currentTenant())));
+  await unlistWizard(w.projectId, wizardId);
+}
+
+/** A wizard that is gone leaves its space's public page, which is sent again without it. */
+async function unlistWizard(projectId: string, wizardId: string) {
+  const p = await db.query.project.findFirst({
+    where: eq(schema.project.id, projectId),
+    columns: { page: true },
+  });
+  if (!p?.page?.wizards.includes(wizardId)) {
+    return;
+  }
+  const { [wizardId]: _gone, ...examples } = p.page.examples;
+  await db
+    .update(schema.project)
+    .set({
+      page: { ...p.page, wizards: p.page.wizards.filter((id) => id !== wizardId), examples },
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.project.id, projectId));
+  pushPages();
 }
 
 /** A wizard with validator issues is never published — same rule for studio and MCP. */
@@ -532,5 +560,7 @@ export async function publishWizard(userId: string, wizardId: string) {
     .update(schema.wizard)
     .set({ publishedVersion: version, updatedAt: new Date() })
     .where(eq(schema.wizard.id, w.id));
+  // The team's public page shows the new version's title, results and steps.
+  pushPages();
   return { version, shareUrl: shareUrl(w.shareToken), shareEnabled: w.shareEnabled };
 }

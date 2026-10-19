@@ -291,3 +291,114 @@ describe("the public page of a space", () => {
     await studio("PATCH", `/projects/${space}`, cookie, { page: PAGE });
   });
 });
+
+describe("the page data sent to the Manage-App", () => {
+  let cookie = "";
+  let space = "";
+  let wizard = "";
+  const settled = async () => (await import("../src/services/pages")).pagesSettled();
+  const lastPush = async () => {
+    await settled();
+    return pushes.at(-1)?.body;
+  };
+
+  it("sends no page while no listed wizard is published and shared", async () => {
+    cookie = await signIn(TENANT);
+    const projects = (await studio("GET", "/projects", cookie)).body;
+    space = projects.find((p: any) => p.page?.on).id;
+    wizard = (await studio("GET", `/projects/${space}/wizards`, cookie)).body[0].id;
+    await studio("PATCH", `/projects/${space}`, cookie, { page: { ...PAGE, wizards: [wizard] } });
+    const sent = await lastPush();
+    expect(sent).toEqual({ slug: "berger-partner", name: "Berger & Partner", lang: "de", space: null });
+  });
+
+  it("sends the space with the published wizard as a teaser after a publish", async () => {
+    const current = (await studio("GET", `/wizards/${wizard}`, cookie)).body;
+    const draft = await studio("PUT", `/wizards/${wizard}/draft`, cookie, {
+      definition: definition("Belege fürs Quartal sortieren"),
+      baseRevision: current.revision,
+    });
+    expect(draft.status).toBe(200);
+    await studio("PATCH", `/projects/${space}`, cookie, {
+      brand: { name: "Berger & Partner", colors: [{ name: "Primär", value: "#0f4c5c" }] },
+      facts: [
+        { key: "firma", label: "Firma", value: "Berger & Partner Steuerberatung GmbH" },
+        { key: "adresse", label: "Adresse", value: "Hauptplatz 4" },
+        { key: "plz", label: "PLZ", value: "8010" },
+        { key: "ort", label: "Ort", value: "Graz" },
+        { key: "e_mail", label: "E-Mail", value: "kanzlei@berger-partner.at" },
+        { key: "website", label: "Website", value: "berger-partner.at" },
+      ],
+    });
+    const published = await studio("POST", `/wizards/${wizard}/publish`, cookie);
+    expect(published.status).toBe(200);
+    const sent = await lastPush();
+    expect(sent.space).toMatchObject({
+      slug: "steuer",
+      title: "Steuer",
+      headline: "Bereiten Sie Ihre Steuer vor.",
+      lang: "de",
+      form: "sie",
+      brand: { name: "Berger & Partner", logoUrl: null, theme: { accent: "#0f4c5c", dark: false } },
+      imprint: {
+        name: "Berger & Partner Steuerberatung GmbH",
+        lines: ["Hauptplatz 4", "8010 Graz", "kanzlei@berger-partner.at"],
+        website: "https://berger-partner.at",
+      },
+    });
+    expect(sent.space.intro).toBeUndefined();
+    expect(sent.space.wizards).toEqual([
+      {
+        slug: "belege-fuers-quartal-sortieren",
+        title: "Belege fürs Quartal sortieren",
+        description: "Fotografiere die Belege, die KI sortiert sie.",
+        avatar: "drop",
+        lang: "de",
+        results: [
+          { title: "Belegliste", kind: "table", formats: ["xlsx"] },
+          { title: "Übersicht", kind: "text", formats: ["pdf"] },
+        ],
+        effort: { fields: 2, reviews: 1, minutes: expect.any(Number), uploads: true },
+        steps: [
+          { title: "Belege hochladen", by: "you" },
+          { title: "Belege lesen", by: "ai" },
+          { title: "Liste prüfen", by: "you" },
+          { title: "Summen bilden", by: "ai" },
+          { title: "Dateien", by: "ai" },
+        ],
+        runUrl: `${RUNTIME}/w/${current.shareToken}`,
+      },
+    ]);
+  });
+
+  it("takes the wizard off the page when its sharing is switched off, and back on", async () => {
+    await studio("PATCH", `/wizards/${wizard}`, cookie, { shareEnabled: false });
+    expect((await lastPush()).space).toBeNull();
+    await studio("PATCH", `/wizards/${wizard}`, cookie, { shareEnabled: true });
+    expect((await lastPush()).space.wizards).toHaveLength(1);
+  });
+
+  it("logs a failed send and sends everything again on the next change", async () => {
+    const before = pushes.length;
+    pagesDown = true;
+    const res = await studio("PATCH", `/projects/${space}`, cookie, {
+      page: { ...PAGE, wizards: [wizard], headline: "Neu" },
+    });
+    expect(res.status).toBe(200);
+    await settled();
+    expect(pushes.length).toBe(before);
+    pagesDown = false;
+    await studio("PATCH", `/projects/${space}`, cookie, {
+      page: { ...PAGE, wizards: [wizard], headline: "Neu", intro: "Ein paar Worte." },
+    });
+    const sent = await lastPush();
+    expect(sent.space).toMatchObject({ headline: "Neu", intro: "Ein paar Worte." });
+  });
+
+  it("sends no page once the listed wizard is deleted, and forgets it on the page", async () => {
+    await studio("DELETE", `/wizards/${wizard}`, cookie);
+    expect((await lastPush()).space).toBeNull();
+    const page = (await studio("GET", "/projects", cookie)).body.find((p: any) => p.id === space).page;
+    expect(page.wizards).toEqual([]);
+  });
+});

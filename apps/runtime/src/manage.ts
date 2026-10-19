@@ -443,6 +443,18 @@ export function bookChannelUsage(
   );
 }
 
+/**
+ * The team's public page data, whole (services/pages.ts): Manage keeps it and serves the page at
+ * `<slug>.<PAGES_DOMAIN>`. What it answers names the page's address.
+ */
+export function putPages(tenantId: string, data: unknown) {
+  return call<{ ok: boolean; url: string }>(
+    "PUT",
+    `/v1/pages/${encodeURIComponent(tenantId)}`,
+    data,
+  );
+}
+
 /** A push to the mobile app on one device; the Manage-App holds the APNs and FCM keys. */
 export function pushToDevice(input: {
   tenantId: string;
