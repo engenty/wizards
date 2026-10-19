@@ -5,10 +5,10 @@ import { DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   Flag,
-  Maximize2,
-  Minimize2,
   Monitor,
   Moon,
+  PanelRightClose,
+  PanelRightOpen,
   Pencil,
   Play,
   RotateCcw,
@@ -49,7 +49,10 @@ export function Pills<T extends string>({
   value: T;
   onChange: (v: T) => void;
   options: { id: T; label: string; icon?: ReactNode }[];
-  /** The one picked says its name beside its icon, like the language switch. */
+  /**
+   * The one picked says its name beside its icon, like the language switch; every one does where
+   * the row around it (an `@container`) has room.
+   */
   named?: boolean;
 }) {
   return (
@@ -70,7 +73,13 @@ export function Pills<T extends string>({
           )}
         >
           {o.icon}
-          <span className={cn(Boolean(o.icon) && !(named && value === o.id) && "sr-only")}>
+          <span
+            className={cn(
+              Boolean(o.icon) && !(named && value === o.id) && "sr-only",
+              // Where the row has room every one says its name.
+              named && "@min-[26rem]:not-sr-only",
+            )}
+          >
             {o.label}
           </span>
         </button>
@@ -145,8 +154,8 @@ export function PreviewPane({
   audience,
   onAudience,
   test,
-  wide,
-  onWide,
+  column,
+  onColumn,
   onClose,
   building,
   log,
@@ -165,9 +174,9 @@ export function PreviewPane({
   audience: Audience;
   onAudience: (audience: Audience) => void;
   test: { start: () => void; busy: boolean; disabled: boolean };
-  /** Whether the preview fills the window, the side panel and the flow set aside; null: no room for that. */
-  wide: boolean | null;
-  onWide: (wide: boolean) => void;
+  /** Whether the column beside the preview shows; null: the window has no room for it. */
+  column: boolean | null;
+  onColumn: (shown: boolean) => void;
   onClose: () => void;
   /** Shown in place of the preview while the assistant builds the first draft. */
   building: ReactNode;
@@ -375,12 +384,16 @@ export function PreviewPane({
               <RotateCcw className="size-4" />
             </IconButton>
           ) : null}
-          {wide === null ? null : (
+          {column === null ? null : (
             <IconButton
-              label={t(wide ? "editor.runNarrow" : "editor.runWide")}
-              onClick={() => onWide(!wide)}
+              label={t(column ? "editor.columnHide" : "editor.columnShow")}
+              onClick={() => onColumn(!column)}
             >
-              {wide ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+              {column ? (
+                <PanelRightClose className="size-4" />
+              ) : (
+                <PanelRightOpen className="size-4" />
+              )}
             </IconButton>
           )}
           {runId ? (

@@ -10,7 +10,6 @@ import {
   ListChecks,
   Lock,
   NotebookTabs,
-  PanelRightClose,
   Share2,
   Sparkles,
   Workflow,
@@ -82,8 +81,6 @@ const PANE_MIN = 340;
 /** Room the main area keeps next to the pane. */
 const paneMax = () => Math.max(PANE_MIN, window.innerWidth - 560);
 
-/** From this width the side panel stands beside the main area, not over it as a sheet. */
-const DESK = "(min-width: 1024px)";
 /** From this width the flow stands in a column of its own beside the preview. */
 const WIDE = "(min-width: 1440px)";
 const FLOW_KEY = "wizards.editor.flow";
@@ -347,13 +344,10 @@ export function EditorPage() {
     max: flowMax,
     dir: -1,
   });
-  const desk = useMediaQuery(DESK);
   const wideWindow = useMediaQuery(WIDE);
   const [flowShown, setFlowShown] = useFlowShown();
-  /** On a desk the preview can take the whole window, the side panel and the flow set aside. */
-  const [previewWide, setPreviewWide] = useState(false);
   /** A column beside the preview holds the flow or the step's editor: no tab for the flow then. */
-  const flowBeside = wideWindow && flowShown && !previewWide;
+  const flowBeside = wideWindow && flowShown;
   const [column, setColumn] = useColumn();
   /** Where there is no column: the main area edits the step chosen instead of showing it. */
   const [editing, setEditing] = useState(false);
@@ -774,7 +768,7 @@ export function EditorPage() {
   const flowPulse = Boolean(drawerRun && activeStep) && shownView !== "flow";
   const pickView = (v: View) => {
     // Where the window is wide the flow has its column: its tab brings the column back.
-    if (v === "flow" && wideWindow && !previewWide) {
+    if (v === "flow" && wideWindow) {
       setFlowShown(true);
       return;
     }
@@ -948,7 +942,7 @@ export function EditorPage() {
         <div
           className={cn(
             "flex min-w-0 items-center gap-1 sm:gap-2 max-lg:flex-1 lg:shrink-0",
-            !previewWide && "lg:w-(--pane)",
+            "lg:w-(--pane)",
           )}
         >
           <IconButton label={t("common.back")} onClick={() => navigate("/")}>
@@ -1068,7 +1062,6 @@ export function EditorPage() {
             "relative flex h-(--sheet) min-h-0 w-full shrink-0 flex-col rounded-t-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)] max-lg:order-last lg:h-auto lg:w-(--pane) lg:rounded-t-none lg:rounded-r-3xl",
             !sheet.dragging &&
               "max-lg:motion-safe:transition-[height] max-lg:motion-safe:duration-200",
-            previewWide && "lg:hidden",
           )}
         >
           {/* On small screens the pane is a sheet over the bottom: its handle drags its height, a
@@ -1124,7 +1117,7 @@ export function EditorPage() {
           {shownView === "preview" && editing && !flowBeside ? (
             <>
               {strip}
-              <div className="flex h-12 shrink-0 items-center border-border-soft border-b px-3">
+              <div className="@container flex h-12 shrink-0 items-center border-border-soft border-b px-3">
                 {modes(false)}
               </div>
               {editor}
@@ -1154,8 +1147,8 @@ export function EditorPage() {
                 busy: testRun.isPending,
                 disabled: hasIssues || building || blocked,
               }}
-              wide={desk ? previewWide : null}
-              onWide={setPreviewWide}
+              column={wideWindow ? flowShown : null}
+              onColumn={setFlowShown}
               onClose={closeRun}
               building={building ? <Working chat={chat} spinner="size-4 text-ember" /> : null}
               log={
@@ -1210,12 +1203,8 @@ export function EditorPage() {
             >
               <span className="-translate-y-1/2 absolute top-1/2 left-[5px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
             </div>
-            <div className="flex h-12 shrink-0 items-center gap-2 border-border-soft border-b pr-1.5 pl-3">
+            <div className="@container flex h-12 shrink-0 items-center gap-2 border-border-soft border-b px-3">
               {modes(true)}
-              <span className="flex-1" />
-              <IconButton label={t("editor.flowHide")} onClick={() => setFlowShown(false)}>
-                <PanelRightClose className="size-4" />
-              </IconButton>
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-b-3xl">
               {column === "flow" ? flow : editor}
