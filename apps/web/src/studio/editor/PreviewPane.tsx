@@ -293,6 +293,11 @@ export function PreviewPane({
       {/* Kept while the result page shows, so an open run keeps its place. */}
       <div className={cn("flex min-h-0 flex-1 flex-col", result && "hidden")}>
         <div className="kb-hide flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-border-soft border-b px-3 [scrollbar-width:none]">
+          {ways.length > 1 && !shown ? (
+            <span className="shrink-0">
+              <LookSwitch look={shownWay} onChange={setWay} ways={[...ways]} />
+            </span>
+          ) : null}
           {onShowRun ? (
             <button
               type="button"
@@ -309,11 +314,6 @@ export function PreviewPane({
               <Pencil className="size-3.5" />
               {t("editor.edit")}
             </Button>
-          ) : null}
-          {ways.length > 1 && !shown ? (
-            <span className="shrink-0">
-              <LookSwitch look={shownWay} onChange={setWay} ways={[...ways]} />
-            </span>
           ) : null}
           {looks && looks.length > 1 && look ? (
             <Choice

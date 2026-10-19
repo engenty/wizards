@@ -116,7 +116,8 @@ export function LookSwitch({
           )}
         >
           <Icon className="size-3.5" />
-          <span className="max-sm:hidden">{label}</span>
+          {/* The way in effect says its name; the other its icon, like the language switch. */}
+          <span className={cn(look !== id && "sr-only")}>{label}</span>
         </button>
       ))}
     </fieldset>
