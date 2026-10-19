@@ -1,3 +1,5 @@
+// First: drops Node's `localStorage` before a dependency reads it (no-webstorage.ts).
+import "./no-webstorage.js";
 import { serve } from "@hono/node-server";
 import { localEntryUrl, purgeSessions } from "./auth/index.js";
 import { startClientChecks } from "./clients.js";
