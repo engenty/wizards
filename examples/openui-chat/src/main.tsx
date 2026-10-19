@@ -1,6 +1,6 @@
 import "@openuidev/react-ui/index.css";
 import "@engenty/wizards/openui/styles.css";
-import { addWizard, configureWizards, Wizard } from "@engenty/wizards/openui";
+import { addWizard, CARD_EFFECTS, configureWizards, Wizard } from "@engenty/wizards/openui";
 import {
   AgentInterface,
   type ConversationStarterProps,
@@ -13,7 +13,7 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 // The wizards runtime, through this page's own proxy (vite.config.ts).
-configureWizards({ runtime: "/wizards-runtime" });
+configureWizards({ runtime: "/wizards-runtime", effects: CARD_EFFECTS });
 
 // OpenUI's chat library plus the Wizard component: the server's prompt names the same.
 const library = addWizard(openuiChatLibrary, Wizard);

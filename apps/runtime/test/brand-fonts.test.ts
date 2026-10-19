@@ -124,3 +124,35 @@ describe("a brand font on the space's website", () => {
     expect(plain.status).toBe(400);
   });
 });
+
+describe("the fonts the runner ships", () => {
+  it("come as a stylesheet with the weights the pages use and its files next to it, to any origin", async () => {
+    const sheet = await app.fetch(new Request(url("/api/public/fonts/shipped/bricolage-grotesque.css")));
+    expect(sheet.status).toBe(200);
+    expect(sheet.headers.get("content-type")).toContain("text/css");
+    expect(sheet.headers.get("access-control-allow-origin")).toBe("*");
+    const css = await sheet.text();
+    expect(css).toContain("font-family: 'Bricolage Grotesque'");
+    for (const weight of [400, 500, 600, 700]) {
+      expect(css).toContain(`./files/bricolage-grotesque-latin-${weight}-normal.woff2`);
+    }
+
+    const file = await app.fetch(
+      new Request(url("/api/public/fonts/shipped/files/bricolage-grotesque-latin-700-normal.woff2")),
+    );
+    expect(file.status).toBe(200);
+    expect(file.headers.get("content-type")).toBe("font/woff2");
+    expect((await file.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+  });
+
+  it("are only ours: another family or another file is not found", async () => {
+    for (const path of [
+      "/api/public/fonts/shipped/comic-sans.css",
+      "/api/public/fonts/shipped/files/comic-sans-latin-400-normal.woff2",
+      "/api/public/fonts/shipped/files/inter-latin-400-normal.css",
+      "/api/public/fonts/shipped/files/..%2Fpackage.json",
+    ]) {
+      expect((await app.fetch(new Request(url(path)))).status, path).toBe(404);
+    }
+  });
+});

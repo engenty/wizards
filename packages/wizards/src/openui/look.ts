@@ -29,8 +29,8 @@ const RADIUS = { sharp: "0.25rem", soft: "0.5rem", round: "0.8rem" } as const;
 /**
  * A theme's values as props for the runner's element: colours, fonts by family and the corner
  * radius as `--wizard-*` variables, how cards and headings look as data attributes, and of the
- * effects only those the host turns on and the card can draw. A brand font is named by its
- * family; the host loads it.
+ * effects only those the host turns on and the card can draw. A brand font with a source names
+ * the shipped font of its kind next, which shows where it does not load (`loadLookFonts`).
  */
 export function wizardLook(look: RunTheme, options: WizardLookOptions = {}): WizardLookProps {
   const own = look.dark ? "dark" : "light";
@@ -45,8 +45,8 @@ export function wizardLook(look: RunTheme, options: WizardLookOptions = {}): Wiz
   set("--wizard-accent", colours.accent);
   set("--wizard-background", colours.background);
   set("--wizard-text", colours.text);
-  set("--wizard-font-heading", look.display ? fontStack(look.display) : null);
-  set("--wizard-font-text", look.body ? fontStack(look.body) : null);
+  set("--wizard-font-heading", look.display ? fontStack(look.display, look.faces) : null);
+  set("--wizard-font-text", look.body ? fontStack(look.body, look.faces) : null);
   set("--wizard-radius", look.shape?.radius ? RADIUS[look.shape.radius] : null);
   // runner.css styles what is inside the element; the ground of the element itself is set here.
   set("backgroundColor", colours.background ? "var(--paper)" : null);

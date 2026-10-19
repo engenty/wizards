@@ -8,6 +8,7 @@ const halloween: RunTheme = {
   background: "#eff2ec",
   display: "Creepster",
   body: "Instrument Sans",
+  faces: [],
   dark: true,
   pinned: true,
   modes: { light: null, dark: { accent: "#ff7a1a", background: "#140b1f" } },
@@ -17,6 +18,16 @@ const halloween: RunTheme = {
 };
 
 describe("wizardLook", () => {
+  it("names the shipped font of its kind after a brand font with a source", () => {
+    const look: RunTheme = {
+      ...halloween,
+      faces: [{ family: "Instrument Sans", url: "https://acme.example/sans.css", stylesheet: true }],
+    };
+    expect(wizardLook(look).style["--wizard-font-text"]).toBe(
+      '"Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif',
+    );
+  });
+
   it("puts colours, fonts by family and the radius in variables, shape in attributes", () => {
     expect(wizardLook(halloween)).toEqual({
       style: {

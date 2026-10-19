@@ -8,6 +8,7 @@ import {
 import type { PublicWizard, RunTheme, RunView } from "@engenty/wizards-shared/run";
 import { defineComponent } from "@openuidev/react-lang";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { loadLookFonts } from "./fonts.js";
 import { type WizardLookProps, wizardLook } from "./look.js";
 import { useMessageRun, useReport } from "./message.js";
 import { useWizardRun } from "./run.js";
@@ -36,6 +37,8 @@ export interface WizardsConfig {
 }
 
 let shown: Pick<WizardsConfig, "theme" | "mode" | "effects"> = {};
+/** The runtime as the browser reaches it, without a trailing slash. */
+let runtime = "";
 
 /** A plain stand-in for the studio's engenty. */
 function Dot({ size = 64 }: MascotProps) {
@@ -52,6 +55,7 @@ function Dot({ size = 64 }: MascotProps) {
 /** Names the runtime the Wizard component talks to. Once, before the first render. */
 export function configureWizards(config: WizardsConfig) {
   const base = config.runtime.replace(/\/+$/, "");
+  runtime = base;
   configureRunner({
     lang: config.lang ?? "en",
     runBase: (runId) => `/api/runs/${runId}`,
@@ -63,7 +67,7 @@ export function configureWizards(config: WizardsConfig) {
   looks.clear();
 }
 
-/** Each wizard's look, asked once a page. */
+/** Each wizard's look, asked once a page; its fonts load when it comes. */
 const looks = new Map<string, Promise<RunTheme | null>>();
 
 function lookOf(token: string): Promise<RunTheme | null> {
@@ -71,7 +75,10 @@ function lookOf(token: string): Promise<RunTheme | null> {
   if (!found) {
     const query = shown.theme ? `?theme=${encodeURIComponent(shown.theme)}` : "";
     found = api.get<PublicWizard>(`/api/public/wizards/${encodeURIComponent(token)}${query}`).then(
-      (w) => w.brand.theme,
+      (w) => {
+        loadLookFonts(w.brand.theme, runtime);
+        return w.brand.theme;
+      },
       () => null,
     );
     looks.set(token, found);

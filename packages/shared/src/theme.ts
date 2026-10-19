@@ -289,6 +289,19 @@ export const serifFamily = (family: string) => SERIFS.test(family) && !/sans/i.t
 export const shippedLike = (family: string): ShippedFont =>
   serifFamily(family) ? "Lora" : "Inter";
 
+/** A shipped font's name in its package and its files: "Bricolage Grotesque" → bricolage-grotesque. */
+export const shippedFontSlug = (family: ShippedFont) => family.toLowerCase().replace(/ /g, "-");
+
+/**
+ * Where the runtime serves a shipped font's stylesheet, for pages that are not its own (a host's
+ * OpenUI chat); null for a family that is not one of ours. Its files sit next to it.
+ */
+export function shippedFontStylesheet(family: string): string | null {
+  return (SHIPPED_FONTS as readonly string[]).includes(family)
+    ? `/api/public/fonts/shipped/${shippedFontSlug(family as ShippedFont)}.css`
+    : null;
+}
+
 /**
  * A family as CSS takes it, with a fallback of its kind while it loads or where it is missing. A
  * brand font with a source (`faces`) names the shipped font of its kind next: it shows if the

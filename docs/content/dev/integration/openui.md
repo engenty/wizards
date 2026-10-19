@@ -166,8 +166,10 @@ The component reads the theme once per wizard (`GET /api/public/wizards/:token?t
 | `data-headings` | `normal` or `uppercase` |
 | `data-effects` | The effects drawn: `glow`, `pattern-dots`, `pattern-grid` |
 
-- **Fonts.** A shipped font or the brand’s font comes as its family name only. Your page loads
-  it, for example from its own `@font-face`. Until then the fallback shows.
+- **Fonts.** The component loads the theme’s fonts, as the wizard’s own page does. A brand font
+  comes from where its space keeps it. A font the runner ships comes from the runtime
+  (`/api/public/fonts/shipped/<name>.css`). Where a brand font does not load, the shipped font of
+  its kind shows, and until a font has loaded, the fallback shows.
 - **Effects.** The card draws `glow` and `pattern` itself, inside its own box (`CARD_EFFECTS`).
   The others of the library (corners, particles, figures, fog) need the whole page and stay on
   the wizard’s own page and in a frame. The theme’s values carry them all, so your page can draw
@@ -180,6 +182,7 @@ The component reads the theme once per wizard (`GET /api/public/wizards/:token?t
 
 `wizardLook(look, { mode, effects })` is the same step on its own: it turns a theme’s values
 (`RunTheme`) into the props for the runner’s element, for a host that draws runs itself.
+`loadLookFonts(look, runtime)` loads the theme’s fonts from the runtime at `runtime`.
 
 ### Who runs, who pays
 
@@ -219,6 +222,7 @@ things.
 | | `Wizard` | The drawing component |
 | | `useWizardRun(runId, prefill)` | One run, live, for a host that draws runs itself |
 | | `wizardLook(look, options)`, `CARD_EFFECTS` | A theme’s values as props for `.engenty-runner`, and the effects the card draws |
+| | `loadLookFonts(look, runtime)` | Loads a theme’s fonts: the brand’s from their source, the shipped ones from the runtime |
 | `@engenty/wizards/openui/styles.css` | | The runner’s styles, scoped to the wizard |
 
 `@openuidev/react-lang`, `react`, `react-dom` and `zod` are peer dependencies: the chat brings
