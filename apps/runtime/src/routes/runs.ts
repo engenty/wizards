@@ -81,6 +81,7 @@ import { brandView } from "../services/brand.js";
 import { ServiceError } from "../services/errors.js";
 import { publicRunners, servePageRunner } from "../services/runners.js";
 import { sharedRun, shareImage, shareRun, shareView, unshareRun } from "../services/shares.js";
+import { shippedFontCss, shippedFontFile } from "../services/shipped-fonts.js";
 import {
   isLangCode,
   storedTranslation,
@@ -626,6 +627,31 @@ export const publicRoutes = new Hono()
       "x-content-type-options": "nosniff",
       // An SVG logo is shown, never run.
       "content-security-policy": "sandbox",
+    });
+  })
+  // The fonts the runner ships, for a theme shown in a host's own page: any origin may load them.
+  .get("/fonts/shipped/:sheet{[a-z0-9-]+\\.css}", async (c) => {
+    const css = await shippedFontCss(c.req.param("sheet").replace(/\.css$/, ""));
+    if (css === null) {
+      return c.notFound();
+    }
+    return c.body(css, 200, {
+      "content-type": "text/css; charset=utf-8",
+      "cache-control": "public, max-age=86400",
+      "access-control-allow-origin": "*",
+    });
+  })
+  .get("/fonts/shipped/files/:file", async (c) => {
+    const file = c.req.param("file");
+    const data = await shippedFontFile(file);
+    if (!data) {
+      return c.notFound();
+    }
+    return c.body(new Uint8Array(data), 200, {
+      "content-type": file.endsWith(".woff2") ? "font/woff2" : "font/woff",
+      "cache-control": "public, max-age=604800",
+      "access-control-allow-origin": "*",
+      "cross-origin-resource-policy": "cross-origin",
     });
   })
   // A brand font's own file, while its space's brand names it: run pages, embeds and hosts'

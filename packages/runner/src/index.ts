@@ -35,6 +35,7 @@ export {
   type ShareResultProps,
 } from "./env.js";
 export { FieldInput, textHints, type Values } from "./fields.js";
+export { loadBrandFace } from "./fonts.js";
 export {
   choiceLabel,
   eventText,

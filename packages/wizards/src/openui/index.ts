@@ -5,6 +5,7 @@
  * and the list of wizards.
  */
 
+export { loadLookFonts } from "./fonts.js";
 export {
   CARD_EFFECTS,
   type WizardLookOptions,
