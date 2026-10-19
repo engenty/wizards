@@ -47,7 +47,7 @@ function ConfirmPanel({ runId, ask }: { runId: string; ask: ConfirmAsk }) {
         </div>
         <div className="min-w-0">
           <p className="text-[0.8125rem] text-ink-3">{t("ask.wants", { service: ask.service })}</p>
-          <h2 className="font-display font-semibold text-[1.25rem] leading-snug tracking-tight">
+          <h2 className="wizard-heading font-display font-semibold text-[1.25rem] leading-snug tracking-tight">
             {ask.reason}
           </h2>
         </div>
@@ -108,7 +108,7 @@ function LoginPanel({ runId, ask }: { runId: string; ask: LoginAsk }) {
           <LockKeyhole className="size-5" />
         </div>
         <div className="min-w-0">
-          <h2 className="font-display font-semibold text-[1.25rem] leading-snug tracking-tight">
+          <h2 className="wizard-heading font-display font-semibold text-[1.25rem] leading-snug tracking-tight">
             {ask.reason}
           </h2>
           <p className="mt-0.5 truncate text-[0.8125rem] text-ink-3">

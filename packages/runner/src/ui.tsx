@@ -49,6 +49,7 @@ export const Button = forwardRef<
         size === "md" && "h-10 px-4 text-sm coarse:h-11",
         size === "lg" && "h-12 px-6 text-[0.9375rem]",
         VARIANTS[variant],
+        variant === "primary" && "wizard-button",
         className,
       )}
       {...rest}
@@ -82,7 +83,7 @@ export function IconButton({
 }
 
 const fieldBase =
-  "rounded-lg border border-input bg-card px-3.5 text-[0.9375rem] text-ink shadow-[inset_0_1px_0_oklch(0%_0_0/0.02)] outline-none transition placeholder:text-ink-4 focus:border-focus focus:ring-4 focus:ring-focus-glow disabled:opacity-60";
+  "wizard-field rounded-lg border border-input bg-card px-3.5 text-[0.9375rem] text-ink shadow-[inset_0_1px_0_oklch(0%_0_0/0.02)] outline-none transition placeholder:text-ink-4 focus:border-focus focus:ring-4 focus:ring-focus-glow disabled:opacity-60";
 
 /** A field fills its row unless the caller gives it a width. */
 function fieldWidth(className?: string) {

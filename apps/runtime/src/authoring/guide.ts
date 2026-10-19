@@ -65,8 +65,8 @@ type Style = {                  // every key optional; what is left out stays th
                                 // glow: headings and main buttons light up in the accent · webs: spider webs in the top
                                 //   corners and a spider · bats: engenties with bat wings fly across · fog: drifts along the bottom
   css?: string                  // CSS added to the pages (up to 8000 characters). It may load NOTHING: no url(), no @import,
-                                //   no backslash escapes. Hooks: the variables --raw-primary, --raw-background, --f-display, --f-ui;
-                                //   h1, h2, .font-display; button[data-variant="primary"]
+                                //   no backslash escapes. Stable hooks only: .wizard-page, .wizard-title, .wizard-heading,
+                                //   .wizard-button, .wizard-field; read var(--wizard-accent|background|text|font-heading|font-text)
 }
 // Font: "Inter"|"Figtree"|"DM Sans"|"Nunito"|"Fredoka"|"Bricolage Grotesque"|"Fraunces"|"Playfair Display"|"Lora"|
 //   "Young Serif"|"Caveat"|"Creepster"|"Nosifer" — shipped with the runner. Creepster and Nosifer are spooky display faces:

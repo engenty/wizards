@@ -57,7 +57,7 @@ export function SharePage() {
   const date = (iso: string) =>
     new Intl.DateTimeFormat(lang, { dateStyle: "long" }).format(new Date(iso));
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="wizard-page flex min-h-dvh flex-col">
       <WizardEffects effects={view.brand.theme.effects} />
       <BrandHeader brand={view.brand} />
       <main className="mx-auto w-full max-w-3xl flex-1 animate-rise px-4 pt-6 pb-12 sm:px-6">

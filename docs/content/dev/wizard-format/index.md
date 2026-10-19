@@ -109,9 +109,22 @@ The fonts ship with engenty wizards, so a run page loads no font from another si
 Nosifer are display fonts for headings.
 
 `css` may not load anything. `url()`, `image-set()`, `@import` and backslash escapes are refused:
-`wizards validate` reports them, and a run page leaves such CSS out completely. The CSS can set
-the theme variables `--raw-primary`, `--raw-background`, `--f-display` and `--f-ui`, and style
-`h1`, `h2`, `.font-display` and `button[data-variant="primary"]`.
+`wizards validate` reports them, and a run page leaves such CSS out completely.
+
+These names stay the same when the run page changes. Rely on nothing else:
+
+| Name | What it is |
+|---|---|
+| `.wizard-page` | The whole page |
+| `.wizard-title` | The title of a page |
+| `.wizard-heading` | Headings on a page |
+| `.wizard-button` | The button that goes on |
+| `.wizard-field` | Fields |
+| `--wizard-accent`, `--wizard-background`, `--wizard-text` | The accent, background and text colour, to read with `var()` |
+| `--wizard-font-heading`, `--wizard-font-text` | The font for headings and the font for text, to read with `var()` |
+
+The look’s own keys (`accent`, `background`, the fonts) decide the colours and fonts. CSS reads
+them and does not set them.
 
 ```json
 "style": {

@@ -1,3 +1,14 @@
+/* The names a wizard's own CSS relies on (CssHelp in the studio). They stay as they are: the
+   variables are read-only views of the page's tokens; the classes sit on the run page's elements
+   (wizard-page, wizard-title, wizard-heading, wizard-button, wizard-field). */
+:root {
+  --wizard-accent: var(--primary);
+  --wizard-background: var(--background);
+  --wizard-text: var(--ink);
+  --wizard-font-heading: var(--f-display);
+  --wizard-font-text: var(--f-ui);
+}
+
 /* What a wizard's style draws around its pages (effects.tsx, WIZARD_EFFECTS). */
 
 /* glow: headings and the main buttons light up in the accent */

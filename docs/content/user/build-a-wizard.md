@@ -64,7 +64,8 @@ greeting, its avatar, and the language it speaks to people in. With “Automatic
 the wizard speaks the language its texts are written in.
 
 Under “Look” the wizard gets a look of its own over the space’s brand. Everything you leave empty
-stays as in the space.
+stays as in the space. Folded, the section shows a small preview of the wizard’s page; a click
+on it opens the settings.
 
 | Setting | What it does |
 |---|---|
@@ -72,7 +73,7 @@ stays as in the space.
 | Pages | Dark or light for everyone who opens the wizard. The theme switch on its pages is then hidden |
 | Font for headings, Font for text | One of the fonts engenty wizards ships, from Inter to the spooky Creepster. The pages load them from engenty wizards itself, never from another site |
 | Effects | Glow lights up headings and buttons in the accent colour. Spider webs hang in the top corners with a spider. Bats are engenties with bat wings that fly across. Fog drifts along the bottom |
-| Your own CSS | Styles of your own for the wizard’s pages. CSS that loads something (`url()`, `@import`) is not applied, and the wizard shows it as a fix |
+| Your own CSS | Styles of your own for the wizard’s pages. CSS that loads something (`url()`, `@import`) is not applied, and the wizard shows it as a fix. The ⓘ button beside it lists the names that stay the same |
 
 The assistant sets the look too. Ask it, for example: “Make it dark and spooky for Halloween.”
 
