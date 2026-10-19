@@ -75,8 +75,11 @@ main() {
   LOCAL_BIN="$HOME/.local/bin"
 
   style
-  trap 'printf "%s" "$SHOW"' EXIT
+  trap 'unlock; printf "%s" "$SHOW"' EXIT
   trap 'failed' ERR
+  # A signal ends it through the EXIT trap, which gives the lock back.
+  trap 'exit 130' INT
+  trap 'exit 143' TERM HUP
 
   command -v curl >/dev/null 2>&1 || die "curl is needed and was not found."
   command -v tar >/dev/null 2>&1 || die "tar is needed and was not found."
@@ -85,6 +88,7 @@ main() {
 
   banner
   printf '%s  Installing into %s\n%s\n' "${GRAY}┌$RESET" "$BOLD$(tilde "$HOME_DIR")$RESET" "$BAR"
+  lock
   platform
   package
   node
@@ -95,6 +99,7 @@ main() {
     printf '%s  %s\n\n' "${GRAY}└$RESET" "Installed. Next, a few questions to set it up."
     printf '%s' "$SHOW"
     trap - EXIT ERR
+    unlock
     # --local goes on to the setup: it is the setup's account step that keeps the install off
     # the account. The questions need a terminal; stdin may be the pipe this script came through.
     SETUP_ARGS=""
@@ -313,6 +318,7 @@ die() {
   [ "${TTY:-0}" = 1 ] && printf '\r\033[K'
   printf '%s  %s\n' "${RED:-}■${RESET:-}" "$1" >&2
   trap - EXIT ERR
+  unlock
   exit 1
 }
 
@@ -378,6 +384,52 @@ download() {
   wait "$pid"
 }
 
+# --- one install at a time ------------------------------------------------------------------
+
+# An update the studio starts, `wizards update`, an install by hand and the runtime's own updates
+# (autoupdate.ts) may come together; two of them in runtime/ at once leave a runtime with files
+# missing. The lock is a folder, which only one of them can make, with its owner's pid in it.
+# A second install waits for the first, then does its own.
+LOCK_WAIT="${ENGENTY_WIZARDS_LOCK_WAIT:-900}"
+
+lock() {
+  STEP="Waiting for the other install"
+  LOCK="$HOME_DIR/install.lock"
+  local waited=0 owner said=""
+  while ! mkdir "$LOCK" 2>/dev/null; do
+    owner="$(cat "$LOCK/pid" 2>/dev/null || true)"
+    # Its owner ended without giving it back (killed), or never wrote its pid.
+    if { [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; } ||
+      { [ -z "$owner" ] && [ "$waited" -ge 10 ]; }; then
+      rm -rf "$LOCK"
+      continue
+    fi
+    if [ "$waited" -ge "$LOCK_WAIT" ]; then
+      die "Another install (pid ${owner:-?}) is still running after ${LOCK_WAIT}s. Try again when it is done."
+    fi
+    if [ -z "$said" ]; then
+      printf '%s  %s\n' "${MAGENTA}◒$RESET" "Another install is running (pid ${owner:-?}): waiting for it"
+      said=1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  printf '%s\n' "$$" >"$LOCK/pid"
+  LOCKED=1
+  [ -n "$said" ] && done_step "The other install is done"
+  return 0
+}
+
+# Gives the lock back, and takes along what this install left half done.
+unlock() {
+  [ -z "${STAGE:-}" ] || rm -rf "$STAGE"
+  STAGE=""
+  if [ -n "${LOCKED:-}" ]; then
+    rm -rf "$LOCK"
+    LOCKED=""
+  fi
+}
+
 # --- the steps -------------------------------------------------------------------------------
 
 platform() {
@@ -416,6 +468,31 @@ sha256_of() {
   else
     sha256sum "$1" | awk '{ print $1 }'
   fi
+}
+
+# Whether the npm prefix $1 holds every package its package-lock.json names (the ones for other
+# machines aside); what is missing goes to stdout.
+complete() {
+  PREFIX="$1" "$NODE_DIR/bin/node" -e '
+    const { existsSync, readFileSync } = require("fs");
+    const { join } = require("path");
+    const prefix = process.env.PREFIX;
+    let packages;
+    try {
+      packages = JSON.parse(readFileSync(join(prefix, "package-lock.json"), "utf8")).packages;
+    } catch {
+      console.log("npm wrote no package-lock.json");
+      process.exit(1);
+    }
+    const missing = Object.entries(packages || {})
+      .filter(([where, p]) => where && !p.optional && !p.devOptional && !p.dev && !p.peer)
+      .filter(([where]) => !existsSync(join(prefix, where, "package.json")))
+      .map(([where]) => where);
+    if (missing.length || !Object.keys(packages || {}).length) {
+      console.log("missing", missing.length, "packages:", missing.slice(0, 20).join(" "));
+      process.exit(1);
+    }
+  '
 }
 
 node() {
@@ -481,20 +558,32 @@ package() {
 
 runtime() {
   STEP="Installing engenty wizards"
-  local dir="$HOME_DIR/runtime" stage previous path
+  local dir="$HOME_DIR/runtime" stage previous path old
   # An install of the package under its old name is replaced, not kept beside the new one.
   if [ -d "$dir/node_modules/$OLD_NAME" ]; then
     rm -rf "$dir"
   fi
   mkdir -p "$dir"
+  # What an install that was stopped halfway left: its npm prefix, or a version it was replacing.
+  # Old enough that no installer from before the lock is still writing into it.
+  find "$dir" -maxdepth 1 -name '.staging-*' -mmin +30 -exec rm -rf {} + 2>/dev/null || true
   # Each version has its folder (runtime/<version>/, an npm prefix); `current` names the one the
   # command starts, and a version that runs keeps its files. npm is a script that asks for
   # `node`: ours comes first on the PATH. No install scripts run; the runtime works without
   # them. --legacy-peer-deps: no peers on top, which nothing here uses (about 70 MB less).
   stage="$(mktemp -d "$dir/.staging-XXXXXX")"
-  spin "Installing engenty wizards (about 650 MB on disk, a minute or two)" \
+  STAGE="$stage"
+  if ! spin "Installing engenty wizards (about 650 MB on disk, a minute or two)" \
     env PATH="$NODE_DIR/bin:$PATH" "$NODE_DIR/bin/npm" install --prefix "$stage" \
-    --omit=dev --ignore-scripts --legacy-peer-deps --no-audit --no-fund --loglevel=error "$SPEC"
+    --omit=dev --ignore-scripts --legacy-peer-deps --no-audit --no-fund --loglevel=error "$SPEC"; then
+    rm -rf "$stage"
+    failed
+  fi
+  # npm stopped halfway leaves packages out; only a whole install takes a version's place.
+  if ! complete "$stage" >>"$LOG" 2>&1; then
+    rm -rf "$stage"
+    die "npm did not install everything engenty wizards needs (the log names what is missing). Run the installer again."
+  fi
   # The runtime under its name, or under the one it had up to 0.7.4 (`--version 0.7.4`). The
   # package `wizards` of now is only the launcher: no runtime in it.
   if [ -f "$stage/node_modules/$PACKAGE_NAME/package.json" ]; then
@@ -514,9 +603,17 @@ runtime() {
     rm -rf "$dir/node_modules" "$dir/package.json" "$dir/package-lock.json"
   fi
   previous="$(readlink "$dir/current" 2>/dev/null || true)"
-  rm -rf "${dir:?}/$INSTALLED"
+  # The version that is there already steps aside in one move and goes once the new one is in,
+  # so the folder holds one whole runtime or the other, never half of one.
+  old=""
+  if [ -e "$dir/$INSTALLED" ]; then
+    old="$(mktemp -d "$dir/.staging-XXXXXX")"
+    mv "$dir/$INSTALLED" "$old/"
+  fi
   mv "$stage" "$dir/$INSTALLED"
+  STAGE=""
   ln -sfn "$INSTALLED" "$dir/current"
+  [ -z "$old" ] || rm -rf "$old"
   # For a command written before the version folders (an older bin/wizards or npx wizards).
   ln -sfn "current/node_modules" "$dir/node_modules"
   # This version and the one before stay; older ones go.

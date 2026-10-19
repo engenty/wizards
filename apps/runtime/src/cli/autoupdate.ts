@@ -18,6 +18,7 @@ import {
   RUNTIME_PACKAGE,
   runtimeDir,
   switchTo,
+  tryInstallLock,
   versionIn,
 } from "./versions.js";
 
@@ -217,6 +218,11 @@ export async function checkForUpdate(
   if (!options.force && now.getTime() - Date.parse(state.checkedAt ?? "0") < HOUR) {
     return { kind: "skipped", reason: "asked within the hour" };
   }
+  // An install or another update is at work in runtime/: the next check comes after it.
+  const unlock = tryInstallLock(paths);
+  if (!unlock) {
+    return { kind: "skipped", reason: "another install is running" };
+  }
   state.checkedAt = now.toISOString();
   delete state.error;
   const tmp = mkdtempSync(join(paths.home, "update-"));
@@ -238,6 +244,7 @@ export async function checkForUpdate(
   } finally {
     writeUpdateState(paths, state);
     rmSync(tmp, { recursive: true, force: true });
+    unlock();
   }
 }
 
@@ -261,6 +268,11 @@ export function applyPendingUpdate(
   if (!pending || !from) {
     return null;
   }
+  // Waits for the next start while an install is at work in runtime/.
+  const unlock = tryInstallLock(paths);
+  if (!unlock) {
+    return null;
+  }
   delete state.pending;
   try {
     if (!isNewer(pending.version, from)) {
@@ -275,6 +287,7 @@ export function applyPendingUpdate(
     return null;
   } finally {
     writeUpdateState(paths, state);
+    unlock();
   }
 }
 

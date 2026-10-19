@@ -8,6 +8,7 @@ import {
   renameSync,
   rmSync,
   symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Layout } from "./home.js";
@@ -141,10 +142,37 @@ export function prune(paths: Layout, keep: string[]): string[] {
   return stale;
 }
 
+/**
+ * The packages the package-lock.json of an npm prefix names that are not there (the ones for
+ * other machines aside). An npm stopped halfway, or two installs at once, leave some out without
+ * saying so; install.sh checks the same.
+ */
+export function missingPackages(prefix: string): string[] {
+  let packages: Record<
+    string,
+    { optional?: boolean; devOptional?: boolean; dev?: boolean; peer?: boolean }
+  >;
+  try {
+    packages = JSON.parse(readFileSync(join(prefix, "package-lock.json"), "utf8")).packages ?? {};
+  } catch {
+    return ["package-lock.json"];
+  }
+  return Object.entries(packages)
+    .filter(([where, p]) => where && !p.optional && !p.devOptional && !p.dev && !p.peer)
+    .filter(([where]) => !existsSync(join(prefix, where, "package.json")))
+    .map(([where]) => where);
+}
+
 /** Puts an npm prefix installed elsewhere into its version folder (never the current one). */
 export function promote(paths: Layout, staged: string, version: string) {
   if (versionIn(staged) !== version) {
     throw new Error(`The download holds version ${versionIn(staged) ?? "none"}, not ${version}.`);
+  }
+  const missing = missingPackages(staged);
+  if (missing.length) {
+    throw new Error(
+      `The download of ${version} misses ${missing.length} packages (${missing.slice(0, 3).join(", ")}).`,
+    );
   }
   if (currentVersion(paths) === version) {
     rmSync(staged, { recursive: true, force: true });
@@ -158,4 +186,51 @@ export function promote(paths: Layout, staged: string, version: string) {
   }
   rmSync(runtimeDir(paths, version), { recursive: true, force: true });
   renameSync(staged, runtimeDir(paths, version));
+}
+
+// --- one install at a time -------------------------------------------------------------------
+
+const lockDir = (paths: Layout) => join(paths.home, "install.lock");
+
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+};
+
+/**
+ * Takes the lock install.sh takes (a folder with its owner's pid in it), so that an update in
+ * the background never writes runtime/ while an install does. Returns how to give it back, or
+ * null while somebody else holds it; a lock whose owner is gone is taken over.
+ */
+export function tryInstallLock(paths: Layout): (() => void) | null {
+  const dir = lockDir(paths);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      mkdirSync(paths.home, { recursive: true });
+      mkdirSync(dir);
+    } catch (error) {
+      // A home folder it cannot write to: no update either way.
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        return null;
+      }
+      let owner = Number.NaN;
+      try {
+        owner = Number(readFileSync(join(dir, "pid"), "utf8").trim());
+      } catch {
+        // Made a moment ago, its pid not written yet: held.
+      }
+      if (Number.isInteger(owner) && owner > 0 && !alive(owner)) {
+        rmSync(dir, { recursive: true, force: true });
+        continue;
+      }
+      return null;
+    }
+    writeFileSync(join(dir, "pid"), `${process.pid}\n`);
+    return () => rmSync(dir, { recursive: true, force: true });
+  }
+  return null;
 }
