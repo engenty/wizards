@@ -2,7 +2,8 @@
 
 /* shadcn semantic tokens → Ember (light) */
 :root,
-.dark .tone-flip {
+.dark .tone-flip,
+.wizard-themed {
   --background: var(--canvas);
   --foreground: var(--ink);
   --card: oklch(100% 0 0);

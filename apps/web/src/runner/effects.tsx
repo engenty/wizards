@@ -176,7 +176,14 @@ const COSTUMES: readonly string[] = ["witch", "devil", "bat", "pumpkin"];
  * the root alone (`useRunTheme`). An effect or option this runner does not know is left out.
  * Nothing here takes a click.
  */
-export function WizardEffects({ effects }: { effects: readonly ThemeEffect[] | undefined }) {
+export function WizardEffects({
+  effects,
+  contained,
+}: {
+  effects: readonly ThemeEffect[] | undefined;
+  /** Drawn inside one element of the page (the studio's test run), not over the whole window. */
+  contained?: boolean;
+}) {
   const drawn = (effects ?? []).filter((e) =>
     ["corners", "particles", "figures", "fog"].includes(e.id),
   );
@@ -187,8 +194,13 @@ export function WizardEffects({ effects }: { effects: readonly ThemeEffect[] | u
     typeof e[key] === "string" ? String(e[key]) : "";
   return (
     <>
-      {drawn.some((e) => e.id === "fog") ? <div aria-hidden="true" className="wizard-fog" /> : null}
-      <div aria-hidden="true" className="wizard-fx">
+      {drawn.some((e) => e.id === "fog") ? (
+        <div
+          aria-hidden="true"
+          className={contained ? "wizard-fog wizard-fx-contained" : "wizard-fog"}
+        />
+      ) : null}
+      <div aria-hidden="true" className={contained ? "wizard-fx wizard-fx-contained" : "wizard-fx"}>
         {drawn.map((e, n) => {
           const key = `${e.id}-${n}`;
           if (e.id === "corners") {

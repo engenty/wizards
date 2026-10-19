@@ -3,7 +3,8 @@
  * Consumed by apps/ui and apps/manage via shadcn-ember.css.
  */
 :root,
-.dark .tone-flip {
+.dark .tone-flip,
+.wizard-themed {
   /* ==========================================================================
      1. CORE INPUT SEEDS (Hex inputs set by JS with default fallbacks)
      ========================================================================== */
