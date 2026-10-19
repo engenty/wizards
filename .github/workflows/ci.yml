@@ -59,7 +59,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           # No cache of pnpm's store: restoring it (~1 GB) took as long as fetching the packages
           # from the registry.
           package-manager-cache: false

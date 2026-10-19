@@ -6,9 +6,10 @@
 #
 # Built on GitHub's runners and pulled by the server (.github/workflows/ci.yml, job `images`;
 # deploy/Dockerfile.docs).
-FROM node:24-bookworm-slim AS base
+FROM node:26-bookworm-slim AS base
 WORKDIR /app
-RUN corepack enable
+# Node 25 and later ship without corepack; it comes from npm and reads `packageManager`.
+RUN npm install -g corepack@0.36.0 && corepack enable
 
 # `pnpm release` bumps the root package.json's version every release; a copy with the version
 # blanked out keeps the install below cached until a dependency really changes.
@@ -30,7 +31,7 @@ ENV NEXT_PUBLIC_DOCS_SITE_URL=$NEXT_PUBLIC_DOCS_SITE_URL \
     NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter "@engenty/wizards-docs" build
 
-FROM node:24-bookworm-slim
+FROM node:26-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=8896 \

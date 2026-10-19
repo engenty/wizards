@@ -5,9 +5,10 @@
 # compose.cloud.yaml). The stages are ordered so that a release reuses every layer whose
 # inputs did not change: the system packages, both dependency installs, and in the final image
 # the large node_modules layers, so the server downloads only what is new.
-FROM node:24-bookworm-slim AS base
+FROM node:26-bookworm-slim AS base
 WORKDIR /app
-RUN corepack enable
+# Node 25 and later ship without corepack; it comes from npm and reads `packageManager`.
+RUN npm install -g corepack@0.36.0 && corepack enable
 
 # The manifests the installs need, and nothing else. `pnpm release` bumps the root package.json's
 # version every release; a copy with the version blanked out keeps both installs below cached
@@ -53,7 +54,7 @@ RUN mkdir -p /opt/engines \
     && SANDBOX_ENGINES_DIR=/opt/engines node apps/runtime/dist/sandbox/install.js "$SANDBOX_ENGINES"; \
   fi
 
-FROM node:24-bookworm-slim
+FROM node:26-bookworm-slim
 RUN apt-get update \
   && apt-get install -y --no-install-recommends chromium ffmpeg fonts-liberation fonts-noto-color-emoji fonts-inter ca-certificates \
   && rm -rf /var/lib/apt/lists/*
