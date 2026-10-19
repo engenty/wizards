@@ -99,7 +99,7 @@ server.registerPublicRoute({
 | `runs.control(runId, "back" \| "retry" \| "cancel")` | |
 | `runs.subscribe(runId, listener)` | Hears every change of the run: its events with their note in both languages, or a status change. Returns the function that stops it |
 | `runs.handoffUrl(runId)` | The run page with the run’s ticket: the link to send for what the door cannot do. The person who opens it and the door’s person are one to the wizard |
-| `runs.upload(runId, { data, mime, name })` | A file of the person; the asset id goes into an image or file field with `answerPage` |
+| `runs.upload(runId, { data, mime, name })` | A file of the person, checked as an upload on the run page is ([Uploads](../wizard-format/pages-and-fields.md#uploads)); the asset id goes into an image or file field with `answerPage` |
 | `runs.transcribe(runId, { data, mime })` | What is said in a recording of the person (a voice message), written down with the tenant’s audio model and charged to the run. Up to 10 MB |
 
 A refused command throws an error with a `status` and a `code` (`not_found`, `invalid`,

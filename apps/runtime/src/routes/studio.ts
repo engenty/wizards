@@ -240,7 +240,7 @@ import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
 import { applyUpdate, updateStatus } from "../update.js";
-import { byteRange } from "./delivery.js";
+import { bareMime, byteRange } from "./delivery.js";
 import { notFoundAnswer, requestLang, say } from "./lang.js";
 
 type Vars = { Variables: { user: SessionUser } };
@@ -875,7 +875,7 @@ export const studio = new Hono<Vars>()
     const project = await ownedProject(c.get("user").id, c.req.param("id"));
     const { row, data } = await projectFileContent(project.id, c.req.param("fileId"));
     const headers: Record<string, string> = {
-      "content-type": row.mime,
+      "content-type": bareMime(row.mime) ?? "application/octet-stream",
       "cache-control": "private, max-age=3600",
       "x-content-type-options": "nosniff",
       // An uploaded SVG or HTML file is shown, never run. A PDF is left to the browser's own

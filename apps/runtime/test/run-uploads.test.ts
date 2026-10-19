@@ -32,27 +32,43 @@ const cookie = "wz_vid=run-uploads-0123456789ab";
 let runId = "";
 
 /** A multipart upload written by hand: the part's type is exactly what a sender puts there. */
-async function upload(type: string, body: string, name = "x.bin") {
+function post(type: string, body: string | Uint8Array, name: string) {
   const boundary = "----wizards-test-boundary";
-  const payload = [
+  const head = [
     `--${boundary}`,
     `Content-Disposition: form-data; name="file"; filename="${name}"`,
     `Content-Type: ${type}`,
     "",
-    body,
-    `--${boundary}--`,
     "",
   ].join("\r\n");
-  const res = await app.fetch(
+  const payload = Buffer.concat([
+    Buffer.from(head),
+    Buffer.from(body),
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+  return app.fetch(
     new Request(`http://localhost:5181/api/runs/${runId}/uploads`, {
       method: "POST",
       headers: { "content-type": `multipart/form-data; boundary=${boundary}`, cookie },
       body: payload,
     }),
   );
-  expect(res.status).toBe(200);
-  return (await res.json()) as { id: string; mime: string };
 }
+
+async function upload(type: string, body: string | Uint8Array, name = "x.bin") {
+  const res = await post(type, body, name);
+  expect(res.status).toBe(200);
+  return (await res.json()) as { id: string; mime: string; name: string };
+}
+
+/** A real 4 × 4 PNG. */
+async function png() {
+  const { createCanvas } = await import("@napi-rs/canvas");
+  return new Uint8Array(await createCanvas(4, 4).encode("png"));
+}
+
+/** The start of a WebM recording, then ten bytes that stand for the sound. */
+const webm = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.from("0123456789")]);
 
 const asset = (id: string, headers: Record<string, string> = {}) =>
   app.fetch(
@@ -98,7 +114,7 @@ describe("a visitor's upload, served back", () => {
   });
 
   it("shows a photo in place, sandboxed, and an SVG only as a download", async () => {
-    const photo = await upload("image/png", "png", "photo.png");
+    const photo = await upload("image/png", await png(), "photo.png");
     expect(photo.mime).toBe("image/png");
     const shown = await asset(photo.id);
     expect(shown.headers.get("content-type")).toBe("image/png");
@@ -113,12 +129,12 @@ describe("a visitor's upload, served back", () => {
   });
 
   it("plays a recording in parts and leaves a PDF to the browser's viewer", async () => {
-    const voice = await upload("audio/webm;codecs=opus", "0123456789", "note.webm");
+    const voice = await upload("audio/webm;codecs=opus", webm, "note.webm");
     expect(voice.mime).toBe("audio/webm");
-    const part = await asset(voice.id, { range: "bytes=2-5" });
+    const part = await asset(voice.id, { range: "bytes=6-9" });
     expect(part.status).toBe(206);
     expect(part.headers.get("content-type")).toBe("audio/webm");
-    expect(part.headers.get("content-range")).toBe("bytes 2-5/10");
+    expect(part.headers.get("content-range")).toBe("bytes 6-9/14");
     expect(await part.text()).toBe("2345");
 
     const pdf = await upload("application/pdf", "%PDF-1.4", "a.pdf");
@@ -126,6 +142,30 @@ describe("a visitor's upload, served back", () => {
     expect(opened.headers.get("content-type")).toBe("application/pdf");
     expect(opened.headers.get("content-disposition")).toBeNull();
     expect(opened.headers.get("content-security-policy")).toBeNull();
+  });
+
+  it("refuses a page that says it is a photo, and says why", async () => {
+    const res = await post("image/png", "<html><script>parent.owned = 1</script>", "x.png");
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toMatch(/picture/);
+  });
+
+  it("refuses a recording that isn't one", async () => {
+    const res = await post("audio/webm", "0123456789", "note.webm");
+    expect(res.status).toBe(400);
+  });
+
+  it("keeps a clean name and an SVG without its script", async () => {
+    const ref = await upload(
+      "image/svg+xml",
+      "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script><rect width='1'/></svg>",
+      "../logo\u202Egvs.svg",
+    );
+    expect(ref.name).toBe("logogvs.svg");
+    const res = await asset(ref.id);
+    const body = await res.text();
+    expect(body).toContain("<rect");
+    expect(body).not.toContain("script");
   });
 
   it("does not echo a type kept before uploads were checked", async () => {

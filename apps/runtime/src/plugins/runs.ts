@@ -18,6 +18,7 @@ import {
   submitPage,
 } from "../engine/runner.js";
 import { saveAsset } from "../files/storage.js";
+import { checkUpload } from "../files/upload-check.js";
 import { wizardUnavailable } from "../limits.js";
 import { transcribeAudio } from "../media/transcribe.js";
 import { errorText, ModelUnavailableError } from "../model-errors.js";
@@ -219,13 +220,15 @@ export function runsApiFor(pluginId: string): PluginRuns {
     async upload(runId, file) {
       await pluginRun(runId);
       // The type comes from the channel's sender: kept only when it is one a wizard takes.
-      const mime = uploadMime(file.mime);
+      const checked = await checkUpload({
+        name: file.name,
+        mime: uploadMime(file.mime),
+        data: file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data),
+      });
       const asset = await saveAsset({
         runId,
-        kind: mime.startsWith("image/") ? "image" : "file",
-        mime,
-        name: file.name,
-        data: file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data),
+        kind: checked.mime.startsWith("image/") ? "image" : "file",
+        ...checked,
       });
       return { assetId: asset.id };
     },

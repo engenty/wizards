@@ -1,6 +1,6 @@
 ---
 title: Run a wizard
-description: What you see when you open a wizard's link, on a computer or a phone.
+description: What you see when you open a wizard’s link, on a computer or a phone.
 version: 0.7.11
 ---
 
@@ -73,6 +73,20 @@ the field offers: choose a photo, type the address or choose an audio file.
 With “Tell me when it’s done” you can switch apps during a long step: a notification, a sound
 or a buzz brings you back. “Add to home screen” puts the wizard on your phone like an app. On a
 computer, “Bookmark this wizard” shows how to keep it in your bookmarks.
+
+## Photos and files you upload
+
+engenty wizards checks each file before the wizard keeps it:
+
+- **A photo is drawn again.** It looks the same and stays upright. It loses where it was taken,
+  the camera’s details and anything else hidden in the file.
+- **A file must be what its type says.** A page that calls itself a photo is refused, and the
+  wizard says why.
+- **A photo can have up to 50 megapixels.** Phones take smaller ones.
+- **Some pictures are kept as they are:** moving GIFs and WebPs, and HEIC photos from an iPhone,
+  their location included. An iPhone usually sends a web page a JPEG instead.
+
+The checks run where engenty wizards runs. Your files don’t go to another service for them.
 
 ## When the wizard needs you
 
