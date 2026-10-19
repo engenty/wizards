@@ -145,6 +145,7 @@ export function PreviewPane({
   building,
   log,
   strip,
+  onShowRun,
 }: {
   wizard: WizardDetail;
   runId: string | null;
@@ -167,6 +168,8 @@ export function PreviewPane({
   log: ReactNode;
   /** The steps in a row, under the preview's switches. */
   strip: ReactNode;
+  /** Where there is no strip: back from the step shown to the open test run. */
+  onShowRun?: () => void;
 }) {
   const def = w.draft;
 
@@ -286,6 +289,16 @@ export function PreviewPane({
       {/* Kept while the result page shows, so an open run keeps its place. */}
       <div className={cn("flex min-h-0 flex-1 flex-col", result && "hidden")}>
         <div className="kb-hide flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-border-soft border-b px-3 [scrollbar-width:none]">
+          {onShowRun ? (
+            <button
+              type="button"
+              onClick={onShowRun}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-paper-2 px-3 font-medium text-[0.75rem] text-ink-2 transition hover:text-ink"
+            >
+              <Play className="size-3.5" />
+              {t("run.testChip")}
+            </button>
+          ) : null}
           <span className="flex-1" />
           {ways.length > 1 && !shown ? (
             <span className="shrink-0">

@@ -1032,7 +1032,13 @@ export function EditorPage() {
             </>
           ) : shownView === "preview" ? (
             <PreviewPane
-              strip={strip}
+              // The flow beside the preview shows the steps: no strip then, and the run is a button away.
+              strip={flowBeside && column === "flow" ? null : strip}
+              onShowRun={
+                flowBeside && column === "flow" && drawerRun && !showRun && stepOf(selected)
+                  ? () => setShowRun(true)
+                  : undefined
+              }
               wizard={w}
               runId={drawerRun}
               runView={runView}
