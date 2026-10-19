@@ -658,6 +658,30 @@ export function EditorPage() {
     </div>
   );
 
+  /** The steps in a row, under the preview's switches: what the preview and the editor are on. */
+  const strip = (
+    <StepNav
+      def={def}
+      selected={showRun && drawerRun ? null : selected}
+      onSelect={select}
+      issues={w.issues}
+      run={drawerRun ? { shown: showRun, at: activeStep, onShow: () => setShowRun(true) } : null}
+      end={
+        flowBeside || !chosenStep ? null : (
+          <Pills<"show" | "edit">
+            label={t("editor.view")}
+            value={editing ? "edit" : "show"}
+            onChange={(v) => setEditing(v === "edit")}
+            options={[
+              { id: "show", label: t("editor.preview") },
+              { id: "edit", label: t("editor.edit") },
+            ]}
+          />
+        )
+      }
+    />
+  );
+
   const views: View[] = flowBeside
     ? ["preview", "files", "memory", "runs"]
     : ["preview", "flow", "files", "memory", "runs"];
@@ -1001,36 +1025,14 @@ export function EditorPage() {
 
         <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card lg:rounded-3xl lg:shadow-[0_0_0_1px_var(--border-soft)]">
           {notices}
-          {shownView === "preview" ? (
-            <StepNav
-              def={def}
-              selected={showRun && drawerRun ? null : selected}
-              onSelect={select}
-              issues={w.issues}
-              run={
-                drawerRun
-                  ? { shown: showRun, at: activeStep, onShow: () => setShowRun(true) }
-                  : null
-              }
-              end={
-                flowBeside || !chosenStep ? null : (
-                  <Pills<"show" | "edit">
-                    label={t("editor.view")}
-                    value={editing ? "edit" : "show"}
-                    onChange={(v) => setEditing(v === "edit")}
-                    options={[
-                      { id: "show", label: t("editor.preview") },
-                      { id: "edit", label: t("editor.edit") },
-                    ]}
-                  />
-                )
-              }
-            />
-          ) : null}
           {shownView === "preview" && editing && !flowBeside && chosenStep ? (
-            editor
+            <>
+              {strip}
+              {editor}
+            </>
           ) : shownView === "preview" ? (
             <PreviewPane
+              strip={strip}
               wizard={w}
               runId={drawerRun}
               runView={runView}

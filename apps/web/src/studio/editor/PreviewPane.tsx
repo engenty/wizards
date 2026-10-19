@@ -144,6 +144,7 @@ export function PreviewPane({
   onClose,
   building,
   log,
+  strip,
 }: {
   wizard: WizardDetail;
   runId: string | null;
@@ -164,6 +165,8 @@ export function PreviewPane({
   building: ReactNode;
   /** The run's log, under the run. */
   log: ReactNode;
+  /** The steps in a row, under the preview's switches. */
+  strip: ReactNode;
 }) {
   const def = w.draft;
 
@@ -273,6 +276,7 @@ export function PreviewPane({
             audience={audience}
             onAudience={onAudience}
             lead={null}
+            under={strip}
             onTest={test.start}
             testBusy={test.busy}
             testDisabled={test.disabled}
@@ -358,6 +362,7 @@ export function PreviewPane({
           ) : null}
         </div>
 
+        {strip}
         {/* The wizard's theme shows on this part of the page only. */}
         <div
           className={cn(

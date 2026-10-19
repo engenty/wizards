@@ -62,6 +62,7 @@ export function ResultPreview({
   audience,
   onAudience,
   lead,
+  under,
   onTest,
   testBusy,
   testDisabled,
@@ -75,6 +76,8 @@ export function ResultPreview({
   onAudience: (audience: Audience) => void;
   /** The bar's start: a chip beside the flow, the view switch in its place. */
   lead: ReactNode;
+  /** Under the bar, above the page. */
+  under?: ReactNode;
   onTest: () => void;
   testBusy: boolean;
   testDisabled: boolean;
@@ -143,6 +146,7 @@ export function ResultPreview({
           </IconButton>
         ) : null}
       </div>
+      {under}
 
       <div className="@container min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">
