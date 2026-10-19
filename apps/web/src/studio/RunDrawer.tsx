@@ -5,7 +5,6 @@ import { cn, IconButton } from "../ui";
 
 const WIDTH_KEY = "wizards.runDrawer.width";
 const WIDE_KEY = "wizards.runDrawer.wide";
-const LOOK_KEY = "wizards.runDrawer.look";
 const WIDTH_DEFAULT = 680;
 const WIDTH_MIN = 400;
 
@@ -80,32 +79,25 @@ function useDrawerWidth() {
   };
 }
 
-/** How a test run is shown: page by page, or as a chat; remembered per browser. */
+/** How a test run is shown: page by page, or as a chat. */
 export type RunLook = "steps" | "chat";
 
-export function useRunLook(): [RunLook, (look: RunLook) => void] {
-  const [look, setLook] = useState<RunLook>(() => (stored(LOOK_KEY) === "chat" ? "chat" : "steps"));
-  return [
-    look,
-    (next) => {
-      setLook(next);
-      store(LOOK_KEY, next);
-    },
-  ];
-}
-
-/** The switch between the two, for the drawer's bar. */
+/** The switch between the ways a wizard offers, for a run's bar. */
 export function LookSwitch({
   look,
   onChange,
+  ways: offered = ["steps", "chat"],
 }: {
   look: RunLook;
   onChange: (look: RunLook) => void;
+  ways?: RunLook[];
 }) {
-  const ways = [
-    { id: "steps", label: t("chat.steps"), Icon: ListOrdered },
-    { id: "chat", label: t("chat.chat"), Icon: MessagesSquare },
-  ] as const;
+  const ways = (
+    [
+      { id: "steps", label: t("chat.steps"), Icon: ListOrdered },
+      { id: "chat", label: t("chat.chat"), Icon: MessagesSquare },
+    ] as const
+  ).filter((way) => offered.includes(way.id));
   return (
     <fieldset
       aria-label={t("chat.view")}

@@ -125,7 +125,7 @@ import {
   readChat,
   turnHistory,
 } from "../services/assistant-chats.js";
-import { describeGradient } from "../services/brand.js";
+import { describeGradient, themeLooks } from "../services/brand.js";
 import {
   checkForCloud,
   cloudLinked,
@@ -1524,6 +1524,11 @@ export const studio = new Hono<Vars>()
   .get("/wizards/:id/runs", async (c) =>
     c.json(await listRuns(c.get("user").id, c.req.param("id"))),
   )
+  // The looks of the themes the draft offers: what the test run's preview switches between.
+  .get("/wizards/:id/looks", async (c) => {
+    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
+    return c.json({ looks: await themeLooks(w.projectId, w.draft.themes) });
+  })
 
   // --- workspace -------------------------------------------------------------
   .get("/wizards/:id/files", async (c) =>

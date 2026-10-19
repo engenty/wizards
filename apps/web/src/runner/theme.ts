@@ -52,6 +52,11 @@ export function lookSeeds(t: Partial<RunTheme>, mode: "light" | "dark") {
   };
 }
 
+/** Whether a look has light and dark pages, so the person may pick between them. */
+export function bothModes(t: Partial<RunTheme> | null | undefined): boolean {
+  return Boolean(t && !t.pinned && t.modes?.light && t.modes.dark);
+}
+
 /** Loads the fonts a look names: shipped ones by family, the brand's from their source. */
 function loadFonts(t: Partial<RunTheme>) {
   for (const face of t.faces ?? []) {
@@ -101,9 +106,13 @@ export function useRunTheme(theme: Partial<RunTheme> | null | undefined) {
 /**
  * A wizard's look on one element of a page that has its own (the studio's test run): the element
  * takes the seeds and marks, `.wizard-themed` derives every token again from them inside it, and
- * nothing outside changes. It shows the pages the look shows first.
+ * nothing outside changes. It shows the pages the look shows first, or `picked` where the look
+ * has both light and dark ones.
  */
-export function useScopedLook(theme: Partial<RunTheme> | null | undefined) {
+export function useScopedLook(
+  theme: Partial<RunTheme> | null | undefined,
+  picked?: "light" | "dark" | null,
+) {
   const key = JSON.stringify(theme ?? {});
   useEffect(() => {
     loadFonts(JSON.parse(key) as Partial<RunTheme>);
@@ -111,7 +120,8 @@ export function useScopedLook(theme: Partial<RunTheme> | null | undefined) {
   if (!theme) {
     return null;
   }
-  const mode = theme.pinned || !theme.prefer ? (theme.dark ? "dark" : "light") : theme.prefer;
+  const first = theme.pinned || !theme.prefer ? (theme.dark ? "dark" : "light") : theme.prefer;
+  const mode = picked && bothModes(theme) ? picked : first;
   const { props, marks, dark } = lookSeeds(theme, mode);
   return {
     className: ["wizard-themed", ...marks, dark ? "dark" : ""].filter(Boolean).join(" "),

@@ -6,7 +6,7 @@ import {
   mainLogo,
   runTheme,
 } from "@engenty/wizards-shared/projects";
-import type { BrandView } from "@engenty/wizards-shared/run";
+import type { BrandView, RunTheme } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
 import { chosenTheme, lookColours, themedLook } from "@engenty/wizards-shared/theme";
 import { generateText, Output } from "ai";
@@ -49,6 +49,38 @@ export async function brandView(
     logoUrl: logo ? `/api/public/logos/${logo}` : null,
     theme,
   };
+}
+
+/** A look a wizard's pages can show: one theme it offers, as a page draws it. */
+export interface ThemeLook {
+  id: string;
+  /** The space theme's name; null for a built-in one (`brand`, `host`, `default`). */
+  name: string | null;
+  theme: RunTheme;
+}
+
+/**
+ * The looks of the themes a wizard offers, in its order: what the studio's preview switches
+ * between. A theme the space no longer has is left out.
+ */
+export async function themeLooks(
+  projectId: string,
+  chain: readonly string[] | undefined,
+): Promise<ThemeLook[]> {
+  const p = await db.query.project.findFirst({ where: eq(schema.project.id, projectId) });
+  const brand = runTheme(p?.brand ?? {});
+  return (chain ?? []).flatMap((id) => {
+    const theme = chosenTheme([id], p?.themes ?? []);
+    return theme
+      ? [
+          {
+            id,
+            name: typeof theme === "string" ? null : theme.name,
+            theme: themedLook(brand, theme),
+          },
+        ]
+      : [];
+  });
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
