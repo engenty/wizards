@@ -1,7 +1,8 @@
 # Themes
 
-Decided 2026-10-19 over six rounds, the last two after a security review. Built 2026-10-19 except the hosts (step 7) and the catalog. Open: themes
-in the catalog (see the end).
+Decided 2026-10-19 over six rounds, the last two after a security review. Built on 2026-10-19
+in #88, #89, #90, #92, #93 and #94. Not built yet: the space’s list of themes, the WordPress
+plugin’s side, `@wizards/halloween` with the templates. Open: themes in the catalog (see the end).
 
 ## Why
 
@@ -206,17 +207,23 @@ The host always wins. A wizard cannot insist on its theme.
 
 ## The studio
 
-The studio stays as it is now. The “Look” section with its preview edits the wizard’s first
-theme. Behind the scenes it is a theme of the space:
+The “Look” section edits the wizard’s first theme. Behind the scenes it is a theme of the space:
 
 - A wizard without a theme gets one the first time its look is changed, named after the wizard.
 - A theme two wizards use changes for both. The section says so (“Also used by …”) and offers to
   make a copy for this wizard only.
-- Choosing another theme of the space, or adding one to the chain, is a select above the preview.
-- The font selects list the shipped fonts and the space’s brand fonts.
-- The fields become the theme’s values: colours for light and dark, the two fonts, shape, and
-  the effects with their options. The field “Your own CSS” and its help go away.
-- The space gets a list of its themes beside the brand, for renaming, copying and deleting.
+- The theme select sits above the preview: the space’s themes, its brand, or the neutral look.
+- Pages are one control: dark first, light first, dark only, light only. It writes the order of
+  `colors`.
+- Colours are a grid of small swatches, a row per scheme and a column per role. A dashed swatch
+  takes the brand’s colour; a click offers the brand’s named colours, a colour of one’s own, and
+  “As in the brand”.
+- The font selects list the brand’s font first, then the shipped fonts.
+- Shape is three selects in one row. Effects are one row of chips; a chip takes the place of the
+  other one of its kind, and figures wear the wizard’s costume.
+- The test run beside the diagram wears the theme on its own panel (`useScopedLook`,
+  `.wizard-themed`); the studio around it keeps its look.
+- Not built yet: the space’s list of themes beside the brand, for renaming, copying and deleting.
 
 The stable class names of #85 (`.wizard-page`, `.wizard-title`, …) stay on the run page, for
 hosts that style the runner around it.
