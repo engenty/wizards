@@ -81,9 +81,11 @@ import {
   uniqueId,
   withEmptyStep,
 } from "./AddStep";
+import { CssHelp } from "./CssHelp";
 import { ModelClassControl, StepCost, useEstimate } from "./estimate";
 import { conditionText, percent } from "./FlowDiagram";
 import { HoldToDelete } from "./HoldToDelete";
+import { LookPreview } from "./LookPreview";
 import { stepIcon, stepSummary, TYPE_TONE, toolLabel, typeLabel } from "./meta";
 import { ShareEditor } from "./ShareEditor";
 import { SurfaceBody } from "./SurfaceEditor";
@@ -1260,8 +1262,57 @@ function WizardLook({ def, update }: { def: WizardDefinition; update: Update }) 
     { value: "", label: t("inspector.fromSpace") },
     ...WIZARD_FONTS.map((f) => ({ value: f, label: f })),
   ];
+  const [open, setOpen] = useState(false);
+  const head = useRef<HTMLButtonElement>(null);
+  // Opened, the section moves up into view, so the settings it opens are seen.
+  useEffect(() => {
+    if (open) {
+      head.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [open]);
   return (
-    <Section title={t("inspector.look")}>
+    <Section loose>
+      <button
+        ref={head}
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="-my-1 flex items-center justify-between text-left"
+      >
+        <span className="font-medium text-[0.75rem] text-ink-3 uppercase tracking-[0.07em]">
+          {t("inspector.look")}
+        </span>
+        <ChevronDown className={cn("size-4 text-ink-4 transition", open && "rotate-180")} />
+      </button>
+      {open ? (
+        <LookPreview def={def} />
+      ) : (
+        <button
+          type="button"
+          aria-label={t("inspector.lookOpen")}
+          onClick={() => setOpen(true)}
+          className="rounded-xl text-left transition hover:brightness-110"
+        >
+          <LookPreview def={def} />
+        </button>
+      )}
+      {open ? <LookFields style={style} set={set} fonts={fonts} /> : null}
+    </Section>
+  );
+}
+
+function LookFields({
+  style,
+  set,
+  fonts,
+}: {
+  style: WizardStyle;
+  set: (patch: Partial<WizardStyle>) => void;
+  fonts: { value: string; label: string }[];
+}) {
+  const [help, setHelp] = useState(false);
+  return (
+    <Fields className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-4">
         <LookColour
           label={t("inspector.lookAccent")}
@@ -1316,17 +1367,23 @@ function WizardLook({ def, update }: { def: WizardDefinition; update: Update }) 
         />
       </div>
       <div>
-        <Label hint={t("inspector.lookCssHint")}>{t("inspector.lookCss")}</Label>
+        <div className="flex items-start justify-between gap-2">
+          <Label hint={t("inspector.lookCssHint")}>{t("inspector.lookCss")}</Label>
+          <IconButton label={t("inspector.cssHelp.open")} onClick={() => setHelp(true)}>
+            <Info className="size-4" />
+          </IconButton>
+        </div>
+        <CssHelp open={help} onClose={() => setHelp(false)} />
         <Textarea
           minRows={3}
           className="font-mono text-[0.8125rem]"
           spellCheck={false}
-          placeholder={"h1 { letter-spacing: 0.04em; }"}
+          placeholder={".wizard-title { letter-spacing: 0.04em; }"}
           value={style.css ?? ""}
           onChange={(e) => set({ css: e.target.value })}
         />
       </div>
-    </Section>
+    </Fields>
   );
 }
 

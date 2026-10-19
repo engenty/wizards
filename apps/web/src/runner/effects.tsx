@@ -42,9 +42,14 @@ function webPath(seed: number): string {
 
 const WEBS = { left: webPath(1), right: webPath(9) };
 
-function Web({ side }: { side: "left" | "right" }) {
+/** A spider web in a top corner; the studio's look preview draws it small with its own class. */
+export function SpiderWeb({ side, className }: { side: "left" | "right"; className?: string }) {
   return (
-    <svg className={`wizard-web wizard-web-${side}`} viewBox="0 0 200 200" aria-hidden="true">
+    <svg
+      className={className ?? `wizard-web wizard-web-${side}`}
+      viewBox="0 0 200 200"
+      aria-hidden="true"
+    >
       <path d={WEBS[side]} fill="none" stroke="currentColor" strokeLinecap="round" />
     </svg>
   );
@@ -95,8 +100,8 @@ export function WizardEffects({ effects }: { effects: readonly WizardEffect[] | 
       <div aria-hidden="true" className="wizard-fx">
         {on.has("webs") ? (
           <>
-            <Web side="left" />
-            <Web side="right" />
+            <SpiderWeb side="left" />
+            <SpiderWeb side="right" />
             <Spider />
           </>
         ) : null}

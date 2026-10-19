@@ -320,7 +320,7 @@ function StartScreen({ wizard, page }: { wizard: PublicWizard; page: PageLanguag
   return (
     <div className="mx-auto flex max-w-lg animate-rise flex-col items-center px-6 pt-6 pb-12 text-center sm:pt-16 sm:pb-16">
       <Mascot kind={wizard.avatar} costume={wizard.costume} size={190} fluffy />
-      <h1 className="mt-2 text-balance font-display font-semibold text-[1.875rem] leading-[1.1] tracking-tight sm:text-[2.125rem]">
+      <h1 className="wizard-title mt-2 text-balance font-display font-semibold text-[1.875rem] leading-[1.1] tracking-tight sm:text-[2.125rem]">
         {wizard.title}
       </h1>
       {wizard.description ? (
@@ -614,7 +614,7 @@ export function PublicRunner({
       <MadeWith className="pb-[max(0.375rem,env(safe-area-inset-bottom))] text-[0.6875rem]" />
     );
     return (
-      <div className="flex h-dvh flex-col">
+      <div className="wizard-page flex h-dvh flex-col">
         <WizardEffects effects={wizard.data.brand.theme.effects} />
         {translating ??
           (runId ? (
@@ -634,7 +634,7 @@ export function PublicRunner({
     );
   }
   return (
-    <div className={cn("flex flex-col", PAGE)}>
+    <div className={cn("wizard-page flex flex-col", PAGE)}>
       <WizardEffects effects={wizard.data.brand.theme.effects} />
       {/* The website around an inline wizard carries the brand; in the window its close button takes the corner. */}
       {/* In the app its own top bar names the wizard. */}

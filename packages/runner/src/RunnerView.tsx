@@ -95,7 +95,7 @@ function StepHeading({
       {kicker ? (
         <p className="kb-hide mb-4 text-[0.9375rem] text-ink-2 leading-relaxed">{kicker}</p>
       ) : null}
-      <h1 className="font-display font-semibold text-[1.75rem] leading-[1.15] tracking-tight sm:text-[2rem]">
+      <h1 className="wizard-title font-display font-semibold text-[1.75rem] leading-[1.15] tracking-tight sm:text-[2rem]">
         {title}
       </h1>
       {description ? (
@@ -343,7 +343,9 @@ function Working({
         size={compact ? 130 : 170}
         fluffy
       />
-      <h2 className="mt-4 font-display font-semibold text-[1.375rem] tracking-tight">{label}</h2>
+      <h2 className="wizard-heading mt-4 font-display font-semibold text-[1.375rem] tracking-tight">
+        {label}
+      </h2>
       <div className="mt-1 text-[0.8125rem] text-ink-4 tabular-nums">
         {t("run.elapsed", { s: Math.max(0, Math.round((now - started) / 1000)) })}
       </div>
@@ -667,7 +669,7 @@ function Result({
         <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={64} />
         {/* On a phone the title keeps the row; the share button goes below it. */}
         <div className="min-w-0 flex-1 basis-[12rem]">
-          <h1 className="text-balance font-display font-semibold text-[1.75rem] leading-tight tracking-tight sm:text-[2rem]">
+          <h1 className="wizard-title text-balance font-display font-semibold text-[1.75rem] leading-tight tracking-tight sm:text-[2rem]">
             {step.title}
           </h1>
           {step.message ? <p className="mt-1 text-[0.9375rem] text-ink-3">{step.message}</p> : null}
@@ -756,7 +758,9 @@ function Failed({ view, run }: { view: RunView; run: Run }) {
   return (
     <div className="flex animate-rise flex-col items-center pt-8 text-center">
       <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={90} />
-      <h2 className="mt-4 font-display font-semibold text-[1.375rem]">{t("run.failed")}</h2>
+      <h2 className="wizard-heading mt-4 font-display font-semibold text-[1.375rem]">
+        {t("run.failed")}
+      </h2>
       <p className="mt-2 max-w-md text-[0.9375rem] text-ink-3">
         <LinkedText text={view.error ?? ""} />
       </p>
