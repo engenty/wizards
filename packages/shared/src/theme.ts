@@ -75,6 +75,13 @@ export const themeColoursSchema = z.object({
 });
 export type ThemeColours = z.infer<typeof themeColoursSchema>;
 
+export const COLOR_SCHEMES = ["light", "dark"] as const;
+export type ColorScheme = (typeof COLOR_SCHEMES)[number];
+
+/** The colours of light or of dark pages (`scheme`, as CSS's `color-scheme` names them). */
+export const themeColorsSchema = themeColoursSchema.extend({ scheme: z.enum(COLOR_SCHEMES) });
+export type ThemeColors = z.infer<typeof themeColorsSchema>;
+
 export const themeShapeSchema = z.object({
   radius: z.enum(["sharp", "soft", "round"]).optional(),
   cards: z.enum(["solid", "outline", "glass"]).optional(),
@@ -103,10 +110,18 @@ export const themeSchema = z.object({
     .default("1.0.0"),
   /** What the theme builds on: what it leaves out comes from there. */
   base: z.enum(BUILT_IN_THEMES).default("brand"),
-  light: themeColoursSchema.optional(),
-  dark: themeColoursSchema.optional(),
-  /** Which of the two the pages show while the person has not chosen. */
-  prefer: z.enum(["light", "dark"]).optional(),
+  /**
+   * The colours of light and of dark pages, in order: the first shows until the person picks.
+   * One entry: the pages are always that.
+   */
+  colors: z
+    .array(themeColorsSchema)
+    .min(1)
+    .max(2)
+    .refine((list) => new Set(list.map((c) => c.scheme)).size === list.length, {
+      message: "Each scheme once: light, dark.",
+    })
+    .optional(),
   fonts: z
     .object({
       heading: fontName.optional(),
@@ -242,9 +257,10 @@ export function themedLook(brand: RunTheme, theme: Theme | BuiltInTheme | undefi
     name === "brand" ? brand[role] : (name ?? base[role]);
   const display = font(theme.fonts?.heading, "display");
   const body = font(theme.fonts?.text, "body");
-  const only = theme.light && !theme.dark ? "light" : theme.dark && !theme.light ? "dark" : null;
-  const shown = only ?? theme.prefer ?? (base.dark ? "dark" : "light");
-  const background = (shown === "dark" ? theme.dark : theme.light)?.background;
+  const schemes = (theme.colors ?? []).map((c) => c.scheme);
+  const only = schemes.length === 1 ? schemes[0] : null;
+  const shown = schemes[0] ?? (base.dark ? "dark" : "light");
+  const background = themeColors(theme, shown)?.background;
   return {
     ...base,
     display,
@@ -252,9 +268,10 @@ export function themedLook(brand: RunTheme, theme: Theme | BuiltInTheme | undefi
     faces: brand.faces.filter((f) => f.family === display || f.family === body),
     dark: background ? luminance(background) < 0.18 : shown === "dark",
     pinned: only !== null,
-    modes:
-      theme.light || theme.dark ? { light: theme.light ?? null, dark: theme.dark ?? null } : null,
-    prefer: only ? null : (theme.prefer ?? null),
+    modes: schemes.length
+      ? { light: themeColors(theme, "light") ?? null, dark: themeColors(theme, "dark") ?? null }
+      : null,
+    prefer: schemes.length === 2 ? shown : null,
     shape: theme.shape ?? null,
     effects: theme.effects ?? [],
   };
@@ -280,6 +297,19 @@ export const shippedLike = (family: string): ShippedFont =>
 export function fontStack(family: string, faces: readonly RunFontFace[] = []): string {
   const next = faces.some((f) => f.family === family) ? `"${shippedLike(family)}", ` : "";
   return `"${family.replace(/"/g, "")}", ${next}${serifFamily(family) ? SERIF : SANS}`;
+}
+
+/** A theme's colours for light or dark pages, without the scheme's name; undefined: it has none. */
+export function themeColors(
+  theme: Pick<Theme, "colors"> | undefined,
+  scheme: ColorScheme,
+): ThemeColours | undefined {
+  const found = theme?.colors?.find((c) => c.scheme === scheme);
+  if (!found) {
+    return undefined;
+  }
+  const { scheme: _, ...colours } = found;
+  return colours;
 }
 
 /** The colours a page shows in light or dark: the theme's for that mode, else the base's. */

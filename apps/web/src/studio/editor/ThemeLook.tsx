@@ -5,9 +5,11 @@ import {
   SHIPPED_FONTS,
   THEME_EFFECTS,
   type Theme,
+  type ThemeColors,
   type ThemeColours,
   type ThemeEffect,
   type ThemeEffectId,
+  themeColors,
   themeIdFrom,
 } from "@engenty/wizards-shared/theme";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -231,18 +233,40 @@ function ThemeFields({
   brandFonts: BrandFonts | undefined;
   change: (patch: (t: Theme) => Theme) => void;
 }) {
-  const pages =
-    theme?.light && !theme.dark ? "light" : theme?.dark && !theme.light ? "dark" : "both";
-  const modes: Mode[] = pages === "both" ? ["light", "dark"] : [pages];
+  // The theme's colours in their order: the first scheme shows first, one alone pins it.
+  const listed = theme?.colors ?? [];
+  const pages = listed.length === 1 ? listed[0].scheme : "both";
+  const first: Mode = listed[0]?.scheme ?? "dark";
+  const modes: Mode[] = pages === "both" ? [first, first === "dark" ? "light" : "dark"] : [pages];
+  const entry = (list: ThemeColors[], scheme: Mode): ThemeColors =>
+    list.find((c) => c.scheme === scheme) ?? { scheme };
   const colour = (mode: Mode, key: keyof ThemeColours, v: string | undefined) =>
-    change((x) => ({ ...x, [mode]: compact({ ...(x[mode] ?? {}), [key]: v }) }));
+    change((x) => {
+      const list = x.colors ?? [];
+      const next = { ...entry(list, mode), [key]: v } as ThemeColors;
+      if (v === undefined) {
+        delete next[key];
+      }
+      const rest = list.filter((c) => c.scheme !== mode);
+      const colors = list.some((c) => c.scheme === mode)
+        ? list.map((c) => (c.scheme === mode ? next : c))
+        : [...rest, next];
+      return { ...x, colors };
+    });
   const setPages = (p: (typeof PAGES)[number]) =>
-    change((x) => ({
-      ...x,
-      light: p === "dark" ? undefined : (x.light ?? {}),
-      dark: p === "light" ? undefined : (x.dark ?? {}),
-      prefer: p === "both" ? x.prefer : undefined,
-    }));
+    change((x) => {
+      const list = x.colors ?? [];
+      const order: Mode[] =
+        p === "both"
+          ? [list[0]?.scheme ?? "dark", list[0]?.scheme === "light" ? "dark" : "light"]
+          : [p];
+      return { ...x, colors: order.map((s) => entry(list, s)) };
+    });
+  const showFirst = (s: Mode) =>
+    change((x) => {
+      const list = x.colors ?? [];
+      return { ...x, colors: [entry(list, s), entry(list, s === "dark" ? "light" : "dark")] };
+    });
   // The brand's font for the role comes first; choosing it stores the role, never the family.
   const fonts = (family: string | null | undefined) => [
     {
@@ -274,10 +298,10 @@ function ThemeFields({
         <div>
           <Label>{t("inspector.lookPrefer")}</Label>
           <Segmented
-            value={theme?.prefer ?? "dark"}
+            value={first}
             options={["light", "dark"]}
             label={(o) => t(`inspector.lookMode.${o as Mode}`)}
-            onChange={(o: Mode) => change((x) => ({ ...x, prefer: o }))}
+            onChange={showFirst}
           />
         </div>
       ) : null}
@@ -285,13 +309,13 @@ function ThemeFields({
         <div key={mode} className="grid grid-cols-2 gap-4">
           <ColourField
             label={t(`inspector.lookAccent.${mode}`)}
-            value={theme?.[mode]?.accent}
+            value={themeColors(theme, mode)?.accent}
             fallback="#e0531b"
             onChange={(v) => colour(mode, "accent", v)}
           />
           <ColourField
             label={t(`inspector.lookBackground.${mode}`)}
-            value={theme?.[mode]?.background}
+            value={themeColors(theme, mode)?.background}
             fallback={mode === "dark" ? "#17131d" : "#faf8f5"}
             onChange={(v) => colour(mode, "background", v)}
           />

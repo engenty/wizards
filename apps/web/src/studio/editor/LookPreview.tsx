@@ -1,6 +1,6 @@
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { luminance } from "@engenty/wizards-shared/projects";
-import type { Theme } from "@engenty/wizards-shared/theme";
+import { type Theme, themeColors } from "@engenty/wizards-shared/theme";
 import { useEffect } from "react";
 import { Mascot } from "../../brand";
 import { SpiderWeb } from "../../runner/effects";
@@ -26,13 +26,9 @@ export function LookPreview({
   /** What `brand` stands for: the preview sets it in the brand's own fonts. */
   brandFonts?: BrandFonts;
 }) {
-  const mode =
-    theme?.light && !theme.dark
-      ? "light"
-      : theme?.dark && !theme.light
-        ? "dark"
-        : (theme?.prefer ?? "light");
-  const colours = theme?.[mode] ?? {};
+  // The scheme the theme shows first.
+  const mode = theme?.colors?.[0]?.scheme ?? "light";
+  const colours = themeColors(theme, mode) ?? {};
   const dark = colours.background ? luminance(colours.background) < 0.18 : mode === "dark";
   const tone = dark ? DARK : LIGHT;
   const ground = colours.background ?? tone.ground;

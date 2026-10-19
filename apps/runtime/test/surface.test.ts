@@ -231,7 +231,7 @@ describe("themes", () => {
     name: "Halloween",
     version: "1.0.0",
     base: "brand",
-    dark: { accent: "#ff7a1a", background: "#140b1f" },
+    colors: [{ scheme: "dark", accent: "#ff7a1a", background: "#140b1f" }],
     fonts: { heading: "Creepster", text: "brand" },
     effects: [{ id: "glow" }, { id: "corners", kind: "webs" }],
   };
@@ -260,11 +260,10 @@ describe("themes", () => {
     });
   });
 
-  it("leaves light and dark to the person when it has both, showing what it prefers first", () => {
+  it("leaves light and dark to the person when it has both, showing the first first", () => {
     const both = themedLook(brand, {
       ...halloween,
-      light: { accent: "#e8630a" },
-      prefer: "light",
+      colors: [{ scheme: "light", accent: "#e8630a" }, ...(halloween.colors ?? [])],
     });
     expect(both).toMatchObject({ pinned: false, prefer: "light", dark: false });
     expect(lookColours(both, "light").accent).toBe("#e8630a");
@@ -290,6 +289,15 @@ describe("themes", () => {
       body: null,
       faces: [],
     });
+  });
+
+  it("names each scheme once", () => {
+    const twice = [
+      { scheme: "dark", accent: "#ff7a1a" },
+      { scheme: "dark", accent: "#000000" },
+    ];
+    expect(themeSchema.safeParse({ ...halloween, colors: twice }).success).toBe(false);
+    expect(themeSchema.safeParse({ ...halloween, colors: [] }).success).toBe(false);
   });
 
   it("holds fonts by name or role, never an address", () => {
