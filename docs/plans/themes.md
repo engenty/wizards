@@ -1,6 +1,6 @@
 # Themes
 
-Decided 2026-10-19 over five rounds, the last after a security review. Not built. Open: themes
+Decided 2026-10-19 over six rounds, the last two after a security review. Not built. Open: themes
 in the catalog (see the end).
 
 ## Why
@@ -50,7 +50,9 @@ theme can show is drawn by the runner’s own code, which we review once and ext
 - **Dark and light live in one theme.** `light` and `dark` hold the colours of each. `prefer`
   says which one the theme shows when the person has not chosen. A theme with only one of them
   pins it, as `dark: true` does today.
-- **Fonts** come from the list the runner ships (13 today, more over time), by family.
+- **Fonts** come from the list the runner ships (13 today, more over time), by family, or from
+  the space’s brand by role: `"heading": "brand"` means the brand’s font for headings (see
+  [Brand fonts](#brand-fonts)).
 - **`shape`** sets a few choices of form: corner radius, how cards look, how headings are set.
 - **Effects** come from the runner’s library (below), each with its options.
 
@@ -87,7 +89,7 @@ Free CSS and files were in an earlier round of this plan. A security review took
 |---|---|
 | Free CSS | CSS runs in the run page itself, next to the person’s answers. With an address function the check misses, it can send typed answers to another site. It can hide or relabel what must stay as it is: the question before a connector acts, a sign-in, the EU “AI” labels, “Made with engenty wizards”. A check by pattern has to know every CSS function a browser will ever have |
 | Theme files | An SVG or HTML file opened at our address runs scripts there. Every file type needs checking, cleaning and safe serving |
-| Fonts from elsewhere | Every visitor’s address goes to a third party: a privacy question in the EU |
+| Fonts from elsewhere in a theme | Every visitor’s address goes to a third party: a privacy question in the EU. A theme would carry the address to every space that imports it. Fonts of one’s own go into the brand instead (see [Brand fonts](#brand-fonts)) |
 | Effects by anyone | Code we have not reviewed |
 
 With values only, a theme is data that a schema checks completely. The catalog needs no review
@@ -100,6 +102,36 @@ the catalog.
 A Content-Security-Policy on run and share pages is still worth adding, as protection against
 our own mistakes (a script hole anywhere in the app). It is no longer a condition for themes.
 
+## Brand fonts
+
+A space can use a font of its own, for example the one its website already uses. The font
+belongs to the space’s brand, not to a theme, so it never travels.
+
+- **A brand font gets a source.** Today the brand holds only family names. New: each brand font
+  has an uploaded `.woff2` file, served from our own address, or the address of the font on the
+  space’s own website (the file or its stylesheet). The licence field the brand font has stays.
+- **A theme names it by role.** `"heading": "brand"` and `"text": "brand"` mean the brand’s
+  fonts for headings and text. A theme never holds a font’s address. On another space, `brand`
+  means that space’s fonts.
+- **The studio’s font select** lists the shipped fonts and the space’s brand fonts. Choosing a
+  brand font in a theme stores the role.
+- **On the run page** the runtime resolves the role and adds an `@font-face` for the font, from
+  our copy or from the website.
+- **It never leaves the space.** A wizard file carries no brand, and a theme in the catalog may
+  name only shipped fonts and roles.
+
+What the studio checks and says when an address is entered:
+
+| Point | What happens |
+|---|---|
+| The website does not allow other sites to use the font | Browsers load a font from another site only with that site’s permission (`Access-Control-Allow-Origin`). The studio tries the address and says so, with two ways out: allow it on the website, or upload the file |
+| Licence | Web font licences are often tied to one domain. The studio asks to confirm the licence |
+| Privacy | Visitors’ browsers contact the website. The studio says so once |
+| The website does not answer | The page shows the shipped font of the same kind (sans or serif) |
+
+When run and share pages get a Content-Security-Policy, its `font-src` is built per page and
+holds exactly the address of the space’s font.
+
 ## The places a wizard runs
 
 A theme is values, so every place can apply it as far as it can draw it:
@@ -109,7 +141,7 @@ A theme is values, so every place can apply it as far as it can draw it:
 | Own run page and share page | The runtime, a page of its own | Everything |
 | Website embed (`embed.js`) | The runtime, in a frame on the website | Everything. The snippet picks the theme (`data-theme`) |
 | ChatGPT, Claude (MCP Apps) | The runtime, in the host’s sandboxed frame | `host` by default: the styles the app hands over. A theme of the wizard if the app asks for it |
-| OpenUI, an own UI | The host’s page; the runner is a component in it | Colours, fonts and shape as CSS variables on `.engenty-runner`. Effects only inside the wizard’s card, and only those the host turns on |
+| OpenUI, an own UI | The host’s page; the runner is a component in it | Colours, fonts and shape as CSS variables on `.engenty-runner`; a brand font by family name only, the host loads it. Effects only inside the wizard’s card, and only those the host turns on |
 | WordPress | The plugin | Like the embed when it shows a frame, like OpenUI when it draws inline |
 | A call | Nothing to draw | The theme does not matter |
 
@@ -183,6 +215,7 @@ theme. Behind the scenes it is a theme of the space:
 - A theme two wizards use changes for both. The section says so (“Also used by …”) and offers to
   make a copy for this wizard only.
 - Choosing another theme of the space, or adding one to the chain, is a select above the preview.
+- The font selects list the shipped fonts and the space’s brand fonts.
 - The fields become the theme’s values: colours for light and dark, the two fonts, shape, and
   the effects with their options. The field “Your own CSS” and its help go away.
 - The space gets a list of its themes beside the brand, for renaming, copying and deleting.
@@ -201,7 +234,8 @@ Halloween templates.
 1. The theme schema and its checks (shared package), with the JSON Schema published.
 2. The effect library in the runner: `glow`, `corners`, `particles`, `figures`, `fog`,
    `pattern`, as values in and drawing out, with reduced motion.
-3. Themes in the space: table, the import rules for ids.
+3. Themes in the space: table, the import rules for ids. Brand fonts with a source: upload or
+   website address, with the studio’s checks.
 4. `themes` in the definition; `style` removed; the `.wizard` file carries `themes/`.
 5. The run page and the share page: resolving the chain, `light`/`dark`, fonts, shape, effects.
 6. The studio: the Look section on a theme, the select, “Also used by”, the space’s list.
