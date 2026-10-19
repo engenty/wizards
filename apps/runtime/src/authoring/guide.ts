@@ -59,9 +59,9 @@ type Theme = {                  // a look of the SPACE, values only: no CSS, no 
   id: string                    // lowercase-dashes, unique in the space ("halloween"); not brand/host/default
   name: string                  // shown in the studio ("Halloween")
   base?: "brand"|"host"|"default"   // what it builds on; what it leaves out comes from there (default "brand")
-  light?: { accent?, background?, text? }   // colours "#rrggbb" for light pages
-  dark?:  { accent?, background?, text? }   // and for dark pages. Only one of the two: the pages are always that
-  prefer?: "light"|"dark"       // with both: what shows until the person picks
+  colors?: { scheme: "light"|"dark", accent?, background?, text? }[]
+                                // colours "#rrggbb" for light and for dark pages, in order: the first shows until the
+                                //   person picks. One entry: the pages are always that scheme. Each scheme once
   fonts?: { heading?: Font|"brand", text?: Font|"brand" }
   shape?: { radius?: "sharp"|"soft"|"round", cards?: "solid"|"outline"|"glass", headings?: "normal"|"uppercase" }
   effects?: Effect[]            // from the runner's library; an unknown one is left out

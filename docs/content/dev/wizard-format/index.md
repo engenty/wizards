@@ -104,8 +104,7 @@ A theme holds values only, no CSS and no files. Its JSON Schema is
 | `id` | Lowercase letters, digits and dashes (`halloween`); `@owner/halloween` for a theme from the catalog. `brand`, `host`, `default`, `engenty`, `wizard` and `wizards` are reserved |
 | `name` | Shown in the studio |
 | `base` | `brand`, `host` or `default`: what the theme builds on. What it leaves out comes from there |
-| `light`, `dark` | `accent`, `background` and `text` as `#rrggbb`, for light and for dark pages. With only one of them the pages are always that |
-| `prefer` | With both: `light` or `dark`, shown until the person picks |
+| `colors` | The colours of light and dark pages, in order: each entry has a `scheme` (`light` or `dark`) and `accent`, `background` and `text` as `#rrggbb`. The first shows until the person picks; with one entry the pages are always that scheme |
 | `fonts` | `heading` and `text`: a font engenty wizards ships, or `brand` for the space’s |
 | `shape` | `radius` (`sharp`, `soft`, `round`), `cards` (`solid`, `outline`, `glass`), `headings` (`normal`, `uppercase`) |
 | `effects` | Effects from the runner’s library, each with its options. A runner that does not know an effect leaves it out |
@@ -128,7 +127,7 @@ Nosifer are display fonts for headings.
 {
   "id": "halloween",
   "name": "Halloween",
-  "dark": { "accent": "#ff7a1a", "background": "#140b1f" },
+  "colors": [{ "scheme": "dark", "accent": "#ff7a1a", "background": "#140b1f" }],
   "fonts": { "heading": "Creepster", "text": "Nunito" },
   "effects": [
     { "id": "glow" },

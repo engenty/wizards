@@ -30,9 +30,10 @@ theme can show is drawn by the runner’s own code, which we review once and ext
   "name": "Halloween",
   "version": "1.0.0",
   "base": "brand",
-  "light": { "accent": "#e8630a", "background": "#faf3ea" },
-  "dark": { "accent": "#ff7a1a", "background": "#140b1f" },
-  "prefer": "dark",
+  "colors": [
+    { "scheme": "dark", "accent": "#ff7a1a", "background": "#140b1f" },
+    { "scheme": "light", "accent": "#e8630a", "background": "#faf3ea" }
+  ],
   "fonts": { "heading": "Creepster", "text": "Nunito" },
   "shape": { "radius": "soft", "cards": "glass", "headings": "uppercase" },
   "effects": [
@@ -47,9 +48,9 @@ theme can show is drawn by the runner’s own code, which we review once and ext
 
 - **`base`.** What the theme builds on: `brand`, `host` or `default`. What it leaves out comes
   from there, so a theme that only adds an accent and spider webs fits any space.
-- **Dark and light live in one theme.** `light` and `dark` hold the colours of each. `prefer`
-  says which one the theme shows when the person has not chosen. A theme with only one of them
-  pins it, as `dark: true` does today.
+- **Dark and light live in one theme.** `colors` lists the colours of each scheme, in order: the
+  first shows until the person picks, as the order of a wizard’s `themes` is its preference. A
+  theme with one entry pins that scheme.
 - **Fonts** come from the list the runner ships (13 today, more over time), by family, or from
   the space’s brand by role: `"heading": "brand"` means the brand’s font for headings (see
   [Brand fonts](#brand-fonts)).
