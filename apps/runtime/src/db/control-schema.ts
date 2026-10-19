@@ -35,9 +35,10 @@ export const link = sqliteTable(
     tenantId: text("tenant_id").notNull(),
     /**
      * `wizard` = a share link `/w/<token>`, `result` = a shared result `/s/<token>`, `logo` = a
-     * brand logo, `code` = a wizard's ID to type in (its `ref` is the wizard's share token).
+     * brand logo, `font` = a brand font's file, `code` = a wizard's ID to type in (its `ref` is
+     * the wizard's share token).
      */
-    kind: text("kind", { enum: ["wizard", "result", "logo", "code"] }).notNull(),
+    kind: text("kind", { enum: ["wizard", "result", "logo", "font", "code"] }).notNull(),
     ref: text("ref").notNull(),
     createdAt: createdAt(),
   },

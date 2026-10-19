@@ -5,7 +5,7 @@ import { currentTenant } from "./tenant.js";
 
 // What the runtime looks up before it knows the tenant: public tokens and run ids.
 
-type LinkKind = "wizard" | "result" | "logo" | "code";
+type LinkKind = "wizard" | "result" | "logo" | "font" | "code";
 
 /** Remembers which tenant a public token belongs to. */
 export async function putLink(token: string, kind: LinkKind, ref: string) {

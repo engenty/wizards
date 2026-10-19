@@ -1,6 +1,6 @@
 # Themes
 
-Decided 2026-10-19 over six rounds, the last two after a security review. Built 2026-10-19 except the brand fonts with a source, the hosts (step 7) and the catalog. Open: themes
+Decided 2026-10-19 over six rounds, the last two after a security review. Built 2026-10-19 except the hosts (step 7) and the catalog. Open: themes
 in the catalog (see the end).
 
 ## Why

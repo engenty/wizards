@@ -12,7 +12,8 @@ import { type CSSProperties, type InputHTMLAttributes, useEffect, useState } fro
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
 import { Button, cn, Dialog, IconButton, Input, Label } from "../../ui";
-import { useAutosave } from "./data";
+import { useAutosave, useProjectFiles } from "./data";
+import { FontSourceDialog, sourceLine } from "./FontSource";
 import {
   type AddEntry,
   AddMenu,
@@ -77,6 +78,7 @@ const USE_LABELS: Record<FontUse, Parameters<typeof t>[0]> = {
 };
 
 function FontCard({
+  projectId,
   font,
   first,
   readOnly,
@@ -84,6 +86,7 @@ function FontCard({
   onChange,
   onRemove,
 }: {
+  projectId: string;
   font: BrandFont;
   first: boolean;
   readOnly?: boolean;
@@ -92,6 +95,8 @@ function FontCard({
   onRemove: () => void;
 }) {
   useWebFont(font.family);
+  const files = useProjectFiles(projectId).data?.files ?? [];
+  const [sourcing, setSourcing] = useState(false);
   return (
     <div className="group/font relative flex flex-col gap-2 rounded-lg bg-paper p-3 ring-1 ring-border-soft">
       <div
@@ -203,6 +208,26 @@ function FontCard({
           </div>
         )}
       </div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8125rem] text-ink-3">
+        <span className="min-w-0 truncate">{sourceLine(font, files)}</span>
+        {readOnly || !font.family.trim() ? null : (
+          <button
+            type="button"
+            onClick={() => setSourcing(true)}
+            className="text-ink underline decoration-border underline-offset-2 hover:decoration-ink"
+          >
+            {t(font.source ? "project.fontSourceChange" : "project.fontSourceSet")}
+          </button>
+        )}
+      </div>
+      {sourcing ? (
+        <FontSourceDialog
+          projectId={projectId}
+          font={font}
+          onSave={onChange}
+          onClose={() => setSourcing(false)}
+        />
+      ) : null}
       {readOnly ? null : (
         <IconButton
           label={t("project.remove")}
@@ -600,6 +625,7 @@ export function Typography({
             {fonts.map((f, i) => (
               <FontCard
                 key={f.id}
+                projectId={projectId}
                 font={f}
                 first={i === 0}
                 readOnly={readOnly}

@@ -1,4 +1,5 @@
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
+import type { RunFontFace } from "@engenty/wizards-shared/run";
 import {
   freeThemeId,
   SHIPPED_FONTS,
@@ -18,7 +19,13 @@ import { Button, cn, IconButton, Label, Segmented, Select, Swatch } from "../../
 import { LookPreview } from "./LookPreview";
 
 type Update = (def: WizardDefinition) => void;
-type ThemesAnswer = { themes: Theme[]; usedBy: Record<string, { id: string; title: string }[]> };
+/** The brand's fonts for headings and text: what `brand` stands for in this space's themes. */
+export type BrandFonts = { heading: string | null; text: string | null; faces: RunFontFace[] };
+type ThemesAnswer = {
+  themes: Theme[];
+  usedBy: Record<string, { id: string; title: string }[]>;
+  brandFonts: BrandFonts;
+};
 type Mode = "light" | "dark";
 
 const PAGES = ["both", "dark", "light"] as const;
@@ -115,7 +122,8 @@ export function ThemeLook({
   const others = (chosen ? (answer.data?.usedBy[chosen] ?? []) : []).filter(
     (w) => w.id !== wizardId,
   );
-  const preview = <LookPreview def={def} theme={draft} />;
+  const brandFonts = answer.data?.brandFonts;
+  const preview = <LookPreview def={def} theme={draft} brandFonts={brandFonts} />;
   return (
     <div className="border-border-soft border-t px-5 py-5">
       <div className="flex flex-col gap-4">
@@ -169,7 +177,9 @@ export function ThemeLook({
                 </Button>
               </div>
             ) : null}
-            {chosen === "default" ? null : <ThemeFields theme={draft} change={change} />}
+            {chosen === "default" ? null : (
+              <ThemeFields theme={draft} brandFonts={brandFonts} change={change} />
+            )}
           </>
         ) : null}
       </div>
@@ -214,9 +224,11 @@ function compact<T extends object>(value: T): T | undefined {
 
 function ThemeFields({
   theme,
+  brandFonts,
   change,
 }: {
   theme: Theme | undefined;
+  brandFonts: BrandFonts | undefined;
   change: (patch: (t: Theme) => Theme) => void;
 }) {
   const pages =
@@ -231,8 +243,12 @@ function ThemeFields({
       dark: p === "light" ? undefined : (x.dark ?? {}),
       prefer: p === "both" ? x.prefer : undefined,
     }));
-  const fonts = [
-    { value: "", label: t("inspector.lookFontBrand") },
+  // The brand's font for the role comes first; choosing it stores the role, never the family.
+  const fonts = (family: string | null | undefined) => [
+    {
+      value: "brand",
+      label: family ? t("inspector.lookFontBrandNamed", { family }) : t("inspector.lookFontBrand"),
+    },
     ...SHIPPED_FONTS.map((f) => ({ value: f, label: f })),
   ];
   const effect = (id: string) => theme?.effects?.find((e) => e.id === id);
@@ -285,21 +301,17 @@ function ThemeFields({
         <div>
           <Label>{t("inspector.lookDisplayFont")}</Label>
           <Select
-            value={theme?.fonts?.heading ?? ""}
-            options={fonts}
-            onChange={(v) =>
-              change((x) => ({ ...x, fonts: compact({ ...x.fonts, heading: v || undefined }) }))
-            }
+            value={theme?.fonts?.heading ?? "brand"}
+            options={fonts(brandFonts?.heading)}
+            onChange={(v) => change((x) => ({ ...x, fonts: compact({ ...x.fonts, heading: v }) }))}
           />
         </div>
         <div>
           <Label>{t("inspector.lookBodyFont")}</Label>
           <Select
-            value={theme?.fonts?.text ?? ""}
-            options={fonts}
-            onChange={(v) =>
-              change((x) => ({ ...x, fonts: compact({ ...x.fonts, text: v || undefined }) }))
-            }
+            value={theme?.fonts?.text ?? "brand"}
+            options={fonts(brandFonts?.text)}
+            onChange={(v) => change((x) => ({ ...x, fonts: compact({ ...x.fonts, text: v }) }))}
           />
         </div>
       </div>

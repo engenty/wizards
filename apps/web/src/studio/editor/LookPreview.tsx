@@ -4,7 +4,8 @@ import type { Theme } from "@engenty/wizards-shared/theme";
 import { useEffect } from "react";
 import { Mascot } from "../../brand";
 import { SpiderWeb } from "../../runner/effects";
-import { loadWizardFont } from "../../runner/fonts";
+import { loadBrandFace, loadWizardFont } from "../../runner/fonts";
+import type { BrandFonts } from "./ThemeLook";
 
 const LIGHT = { ground: "#faf8f5", ink: "#1f1b16", soft: "#6b6259" };
 const DARK = { ground: "#17131d", ink: "#f4efe8", soft: "#b4aabd" };
@@ -15,7 +16,16 @@ const DARK = { ground: "#17131d", ink: "#f4efe8", soft: "#b4aabd" };
  * theme prefers. Without a theme it shows the runner's own look. Drawn from values only: no
  * theme ever reaches the studio's page as CSS.
  */
-export function LookPreview({ def, theme }: { def: WizardDefinition; theme: Theme | undefined }) {
+export function LookPreview({
+  def,
+  theme,
+  brandFonts,
+}: {
+  def: WizardDefinition;
+  theme: Theme | undefined;
+  /** What `brand` stands for: the preview sets it in the brand's own fonts. */
+  brandFonts?: BrandFonts;
+}) {
   const mode =
     theme?.light && !theme.dark
       ? "light"
@@ -29,13 +39,23 @@ export function LookPreview({ def, theme }: { def: WizardDefinition; theme: Them
   const accent = colours.accent ?? "#e0531b";
   const effects = new Map((theme?.effects ?? []).map((e) => [e.id, e]));
   const glow = effects.has("glow");
-  const heading =
-    theme?.fonts?.heading && theme.fonts.heading !== "brand" ? theme.fonts.heading : null;
-  const text = theme?.fonts?.text && theme.fonts.text !== "brand" ? theme.fonts.text : null;
+  // `brand`, or nothing on a theme built on the brand: the brand's font for the role.
+  const brandOr = (name: string | undefined, role: "heading" | "text") =>
+    name === "brand" || (!name && theme?.base !== "default")
+      ? (brandFonts?.[role] ?? null)
+      : (name ?? null);
+  const heading = brandOr(theme?.fonts?.heading, "heading");
+  const text = brandOr(theme?.fonts?.text, "text");
+  const faces = JSON.stringify(
+    (brandFonts?.faces ?? []).filter((f) => f.family === heading || f.family === text),
+  );
   useEffect(() => {
+    for (const face of JSON.parse(faces) as BrandFonts["faces"]) {
+      loadBrandFace(face);
+    }
     loadWizardFont(heading);
     loadWizardFont(text);
-  }, [heading, text]);
+  }, [heading, text, faces]);
   const corners = effects.get("corners")?.kind;
   const figures = effects.get("figures");
   return (

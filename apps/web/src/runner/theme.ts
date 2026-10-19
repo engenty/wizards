@@ -1,16 +1,19 @@
-import type { RunTheme } from "@engenty/wizards-shared/run";
+import type { RunFontFace, RunTheme } from "@engenty/wizards-shared/run";
 import { lookColours } from "@engenty/wizards-shared/theme";
 import { useEffect } from "react";
 import { usePinnedTheme, usePreferredLook, useTheme } from "../lib/theme";
-import { loadWizardFont } from "./fonts";
+import { loadBrandFace, loadWizardFont, serifFamily, shippedLike } from "./fonts";
 
 const SANS = "ui-sans-serif, system-ui, sans-serif";
 const SERIF = "ui-serif, Georgia, serif";
-const SERIFS = /serif|fraunces|playfair|lora|young serif/i;
 
-/** A family as CSS takes it, with a fallback of its kind while it loads or where it is missing. */
-function stack(family: string): string {
-  return `"${family.replace(/"/g, "")}", ${SERIFS.test(family) && !/sans/i.test(family) ? SERIF : SANS}`;
+/**
+ * A family as CSS takes it, with a fallback of its kind while it loads or where it is missing; a
+ * brand font with a source names the shipped font of its kind next, which shows if it fails.
+ */
+function stack(family: string, faces: RunFontFace[]): string {
+  const own = faces.some((f) => f.family === family) ? `"${shippedLike(family)}", ` : "";
+  return `"${family.replace(/"/g, "")}", ${own}${serifFamily(family) ? SERIF : SANS}`;
 }
 
 /**
@@ -28,6 +31,10 @@ export function useRunTheme(theme: Partial<RunTheme> | null | undefined) {
   useEffect(() => {
     const t = JSON.parse(key) as Partial<RunTheme>;
     const root = document.documentElement;
+    const faces = t.faces ?? [];
+    for (const face of faces) {
+      loadBrandFace(face);
+    }
     loadWizardFont(t.display);
     loadWizardFont(t.body);
     const themed = Boolean(t.modes);
@@ -50,8 +57,8 @@ export function useRunTheme(theme: Partial<RunTheme> | null | undefined) {
           : null,
       ],
       ["--ink", colours.text],
-      ["--f-display", t.display ? stack(t.display) : null],
-      ["--f-ui", t.body ? stack(t.body) : null],
+      ["--f-display", t.display ? stack(t.display, faces) : null],
+      ["--f-ui", t.body ? stack(t.body, faces) : null],
       // A face that comes in one weight shows in it, not in a bold the browser makes up.
       ["font-synthesis-weight", t.display || t.body ? "none" : null],
     ];

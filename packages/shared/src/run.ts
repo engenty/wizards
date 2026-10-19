@@ -484,6 +484,7 @@ const NOTES_EN = {
     other: "A page can have at most {count} characters.",
   },
   chooseFileUpTo: "Choose a file of {mb} MB or less.",
+  fontSourceNoFont: "{family} needs a font file of the space: choose a .woff2 from the assets.",
   roomMostFiles: {
     one: "There’s room for at most {count} file here.",
     other: "There’s room for at most {count} files here.",
@@ -814,6 +815,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   },
   pageMostChars: "Eine Seite hat höchstens {count} Zeichen.",
   chooseFileUpTo: "Wähl eine Datei bis {mb} MB.",
+  fontSourceNoFont:
+    "{family} braucht eine Schriftdatei des Space: Wähl eine .woff2 aus den Assets.",
   roomMostFiles: {
     one: "Hier hat höchstens {count} Datei Platz.",
     other: "Hier haben höchstens {count} Dateien Platz.",
@@ -1000,6 +1003,8 @@ export interface RunTheme {
   /** Typefaces as CSS names them. */
   display: string | null;
   body: string | null;
+  /** The brand fonts of the two typefaces that have a source: the page loads them from there. */
+  faces: RunFontFace[];
   /** The brand stands on a dark ground. */
   dark: boolean;
   /** The theme has only dark or only light pages: the person's own setting does not change it. */
@@ -1011,6 +1016,14 @@ export interface RunTheme {
   shape: ThemeShape | null;
   /** Effects from the runner's library (`THEME_EFFECTS`); names it does not know are skipped. */
   effects: ThemeEffect[];
+}
+
+/** A brand font as a run page loads it: from our copy of its file, or from the space's website. */
+export interface RunFontFace {
+  family: string;
+  /** Ours (`/api/public/fonts/…`) or the website's: the font file or a stylesheet that holds it. */
+  url: string;
+  stylesheet: boolean;
 }
 
 export interface PublicWizard {

@@ -87,6 +87,13 @@ export const themeEffectSchema = z
   .catchall(z.union([z.string().max(40), z.number(), z.boolean()]));
 export type ThemeEffect = z.infer<typeof themeEffectSchema>;
 
+/** A shipped family by name, or `brand`: never an address. */
+const fontName = z
+  .string()
+  .min(1)
+  .max(60)
+  .regex(/^[A-Za-z0-9 -]+$/, "a font by its family name, or brand");
+
 export const themeSchema = z.object({
   id: z.string().regex(THEME_ID, "a theme id: lowercase letters, digits and dashes"),
   name: z.string().min(1).max(80),
@@ -102,8 +109,8 @@ export const themeSchema = z.object({
   prefer: z.enum(["light", "dark"]).optional(),
   fonts: z
     .object({
-      heading: z.string().min(1).max(60).optional(),
-      text: z.string().min(1).max(60).optional(),
+      heading: fontName.optional(),
+      text: fontName.optional(),
     })
     .optional(),
   shape: themeShapeSchema.optional(),
@@ -195,6 +202,7 @@ const NEUTRAL: RunTheme = {
   background: null,
   display: null,
   body: null,
+  faces: [],
   dark: false,
   pinned: false,
   modes: null,
@@ -218,15 +226,19 @@ export function themedLook(brand: RunTheme, theme: Theme | BuiltInTheme | undefi
     return NEUTRAL;
   }
   const base = theme.base === "default" ? NEUTRAL : brand;
-  const font = (name: string | undefined, fallback: string | null) =>
-    !name || name === "brand" ? fallback : name;
+  // `brand` is the brand's font for the role, whatever the theme builds on.
+  const font = (name: string | undefined, role: "display" | "body") =>
+    name === "brand" ? brand[role] : (name ?? base[role]);
+  const display = font(theme.fonts?.heading, "display");
+  const body = font(theme.fonts?.text, "body");
   const only = theme.light && !theme.dark ? "light" : theme.dark && !theme.light ? "dark" : null;
   const shown = only ?? theme.prefer ?? (base.dark ? "dark" : "light");
   const background = (shown === "dark" ? theme.dark : theme.light)?.background;
   return {
     ...base,
-    display: font(theme.fonts?.heading, base.display),
-    body: font(theme.fonts?.text, base.body),
+    display,
+    body,
+    faces: brand.faces.filter((f) => f.family === display || f.family === body),
     dark: background ? luminance(background) < 0.18 : shown === "dark",
     pinned: only !== null,
     modes:

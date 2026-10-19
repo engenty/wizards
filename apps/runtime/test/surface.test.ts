@@ -1,5 +1,5 @@
 import { assembleSurface, parseWizard, type SurfaceStep } from "@engenty/wizards-shared/definition";
-import { runTheme } from "@engenty/wizards-shared/projects";
+import { fontFace, runTheme } from "@engenty/wizards-shared/projects";
 import {
   chosenTheme,
   freeThemeId,
@@ -9,6 +9,7 @@ import {
   themedLook,
   themeIdFrom,
   themeIdProblem,
+  themeSchema,
 } from "@engenty/wizards-shared/theme";
 import { bound, pointer, validateSurface, worded } from "@engenty/wizards-shared/surface";
 import { describe, expect, it, vi } from "vitest";
@@ -164,6 +165,7 @@ describe("the run's theme", () => {
       background: "#eff2ec",
       display: "Young Serif",
       body: "Instrument Sans",
+      faces: [],
       dark: false,
       pinned: false,
       modes: null,
@@ -181,6 +183,7 @@ describe("the run's theme", () => {
       background: null,
       display: null,
       body: null,
+      faces: [],
       dark: false,
       pinned: false,
       modes: null,
@@ -188,6 +191,26 @@ describe("the run's theme", () => {
       shape: null,
       effects: [],
     });
+  });
+
+  it("loads the brand's fonts from their source: our copy, the website's file or its stylesheet", () => {
+    const look = runTheme({
+      fonts: [
+        { family: "Acme Display", role: "Headings", source: { file: "f1" } },
+        { family: "Acme Text", role: "Body", source: { url: "https://acme.example/fonts.css?v=2" } },
+        { family: "Acme Mono", role: "Code", source: { url: "https://acme.example/mono.woff2" } },
+      ],
+    });
+    expect(look.faces).toEqual([
+      { family: "Acme Display", url: "/api/public/fonts/f1", stylesheet: false },
+      { family: "Acme Text", url: "https://acme.example/fonts.css?v=2", stylesheet: true },
+    ]);
+    expect(fontFace({ family: "Acme Mono", source: { url: "https://acme.example/mono.woff2?x" } })).toEqual({
+      family: "Acme Mono",
+      url: "https://acme.example/mono.woff2?x",
+      stylesheet: false,
+    });
+    expect(fontFace({ family: "Acme Mono" })).toBeNull();
   });
 });
 
@@ -245,6 +268,34 @@ describe("themes", () => {
     expect(both).toMatchObject({ pinned: false, prefer: "light", dark: false });
     expect(lookColours(both, "light").accent).toBe("#e8630a");
     expect(lookColours(both, "light").background).toBe("#eff2ec");
+  });
+
+  it("names the brand's fonts by role, whatever it builds on, and loads only those it shows", () => {
+    const sourced = runTheme({
+      fonts: [
+        { family: "Acme Display", role: "Headings", source: { file: "f1" } },
+        { family: "Acme Text", role: "Body", source: { file: "f2" } },
+      ],
+    });
+    const look = themedLook(sourced, {
+      ...halloween,
+      base: "default",
+      fonts: { heading: "Creepster", text: "brand" },
+    });
+    expect(look).toMatchObject({ display: "Creepster", body: "Acme Text" });
+    expect(look.faces.map((f) => f.family)).toEqual(["Acme Text"]);
+    expect(themedLook(sourced, { ...halloween, base: "default", fonts: undefined })).toMatchObject({
+      display: null,
+      body: null,
+      faces: [],
+    });
+  });
+
+  it("holds fonts by name or role, never an address", () => {
+    expect(themeSchema.safeParse({ ...halloween, fonts: { heading: "Fraunces" } }).success).toBe(true);
+    expect(
+      themeSchema.safeParse({ ...halloween, fonts: { heading: "https://x.example/f.woff2" } }).success,
+    ).toBe(false);
   });
 
   it("shows engenty wizards' own look for default", () => {
