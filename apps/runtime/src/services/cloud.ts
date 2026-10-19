@@ -13,6 +13,7 @@ import { ServiceError } from "./errors.js";
 import { projectFileContent, projectFiles } from "./project-files.js";
 import { ownedProject } from "./projects.js";
 import type { ServerProblem, SpaceInput, SyncDataInput, SyncResult } from "./spaces.js";
+import { themesOf } from "./themes.js";
 import { ownedWizard, publishedVersion, publishWizard } from "./wizards.js";
 
 /**
@@ -318,6 +319,10 @@ export async function syncToCloud(userId: string, wizardId: string): Promise<Clo
         files,
         shareEnabled: w.shareEnabled,
         dailyRunLimit: w.dailyRunLimit,
+        themes: themesOf(
+          version.definition.themes,
+          (await ownedProject(userId, w.projectId)).themes,
+        ),
       },
       120_000,
     );

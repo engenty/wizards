@@ -1,0 +1,1 @@
+ALTER TABLE `project` ADD `themes` text DEFAULT '[]' NOT NULL;

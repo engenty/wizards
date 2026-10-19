@@ -18,6 +18,7 @@ import { draftFiles, writeFile } from "./files.js";
 import { pageTree } from "./knowledge.js";
 import { readPackage } from "./package-file.js";
 import { ownedProject } from "./projects.js";
+import { importThemes, themesOf } from "./themes.js";
 import { createWizard, deleteWizard, draftIssues, ownedWizard, parseDraft } from "./wizards.js";
 
 /** A wizard as a file — the format is `@engenty/wizards-shared/wizard-package`'s. */
@@ -85,6 +86,7 @@ export async function exportWizard(
     mcpServers: project.mcpServers
       .filter((s) => servers.has(s.id))
       .map((s) => ({ id: s.id, name: s.name })),
+    themes: themesOf(definition.themes, project.themes),
   };
   const entries: Record<string, Uint8Array> = {};
   for (const f of live ? live.files : await draftFiles(w.id)) {
@@ -186,6 +188,11 @@ export async function importWizard(
     files.map((f) => f.path),
   );
   const lacks = await missing(userId, projectId, draft, manifest);
+  // The wizard's looks come into the space; one whose id is taken by another look is renamed.
+  const renamed = await importThemes(projectId, manifest.themes);
+  if (draft.themes) {
+    draft.themes = draft.themes.map((id) => renamed[id] ?? id);
+  }
   const counts = {
     name,
     steps: serverText(lang, "stepCount", { count: draft.steps.length }),

@@ -29,7 +29,14 @@ export function json(data: Uint8Array): unknown {
 /** A manifest, or a bare definition: a wizard without workspace is fully told by its JSON. */
 export function readManifest(raw: unknown): Manifest {
   if ((raw as { format?: unknown } | null)?.format !== PACKAGE_FORMAT) {
-    return { format: PACKAGE_FORMAT, version: 1, definition: raw, connectors: [], mcpServers: [] };
+    return {
+      format: PACKAGE_FORMAT,
+      version: 1,
+      definition: raw,
+      connectors: [],
+      mcpServers: [],
+      themes: [],
+    };
   }
   const parsed = manifestSchema.safeParse(raw);
   if (!parsed.success) {

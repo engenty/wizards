@@ -11,9 +11,9 @@ import {
 } from "./definition.js";
 import type { ShareJobView } from "./sharing.js";
 import type { ConnectionView, ListDef, ListRow } from "./store.js";
-import type { WizardEffect } from "./style.js";
 import type { Surface } from "./surface.js";
 import { type Gap, type Line, lineText, type Texts, type TextTable, textOf } from "./texts.js";
+import type { ThemeColours, ThemeEffect, ThemeShape } from "./theme.js";
 
 export type RunStatus = "waiting_input" | "running" | "done" | "failed" | "cancelled";
 
@@ -988,7 +988,7 @@ export interface BrandView {
 
 /**
  * How a wizard's pages look: its space's brand (`runTheme`) with the wizard's own style on top
- * (`wizardTheme`). Null: the runner's own.
+ * (`themedLook`). Null: the runner's own.
  */
 export interface RunTheme {
   /** Buttons and marks. */
@@ -1002,12 +1002,15 @@ export interface RunTheme {
   body: string | null;
   /** The brand stands on a dark ground. */
   dark: boolean;
-  /** The wizard says dark or light: the person's own setting does not change it. */
+  /** The theme has only dark or only light pages: the person's own setting does not change it. */
   pinned: boolean;
-  /** Effects drawn around the pages (`WIZARD_EFFECTS`). */
-  effects: WizardEffect[];
-  /** The wizard's own CSS, already checked (`safeCss`). */
-  css: string | null;
+  /** The theme's colours for light and for dark pages; the page takes those of what it shows. */
+  modes: { light: ThemeColours | null; dark: ThemeColours | null } | null;
+  /** Which of the two the pages show while the person has not chosen. */
+  prefer: "light" | "dark" | null;
+  shape: ThemeShape | null;
+  /** Effects from the runner's library (`THEME_EFFECTS`); names it does not know are skipped. */
+  effects: ThemeEffect[];
 }
 
 export interface PublicWizard {

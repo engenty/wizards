@@ -50,8 +50,20 @@ function stored(): Theme | null {
 /** Pages shown right now that stand on a vivid ground of their own, whatever the theme. */
 let grounded = 0;
 
-/** The theme a wizard's own style sets while its pages are shown; `null`: the visitor's pick. */
+/** The theme a wizard's look pins while its pages are shown; `null`: the visitor's pick. */
 let pinned: Theme | null = null;
+
+/** What a wizard's look shows while the visitor has not picked; `null`: dark, as without a look. */
+let preferred: Theme | null = null;
+
+/** Whether the visitor picked dark, light or the OS setting, here or on engenty's other pages. */
+function picked(): boolean {
+  try {
+    return sharedPick() !== null || localStorage.getItem(KEY) !== null;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * The visitor's pick (dark until there is one, or the OS setting if asked); a page on its own
@@ -61,7 +73,13 @@ function current(): Theme {
   if (grounded > 0) {
     return "dark";
   }
-  return pinned ?? stored() ?? (system.matches ? "dark" : "light");
+  if (pinned) {
+    return pinned;
+  }
+  if (preferred && !picked()) {
+    return preferred;
+  }
+  return stored() ?? (system.matches ? "dark" : "light");
 }
 
 /**
@@ -191,9 +209,24 @@ export function useStage(kind: string | null | undefined) {
   }, [kind]);
 }
 
+/** A wizard's look that prefers dark or light shows it until the visitor picks one. */
+export function usePreferredLook(theme: Theme | null) {
+  useEffect(() => {
+    if (!theme) {
+      return;
+    }
+    preferred = theme;
+    apply();
+    return () => {
+      preferred = null;
+      apply();
+    };
+  }, [theme]);
+}
+
 /**
- * A wizard that sets dark or light pages shows them that way while it is shown, whatever the
- * visitor picked; the theme switch then goes away (`useThemePinned`).
+ * A wizard whose look has only dark or only light pages shows them that way while it is shown,
+ * whatever the visitor picked; the theme switch then goes away (`useThemePinned`).
  */
 export function usePinnedTheme(theme: Theme | null) {
   useEffect(() => {
@@ -209,7 +242,7 @@ export function usePinnedTheme(theme: Theme | null) {
   }, [theme]);
 }
 
-/** Whether a wizard's style decides dark or light right now. */
+/** Whether a wizard's look decides dark or light right now. */
 export function useThemePinned(): boolean {
   return useSyncExternalStore(
     (listener) => {

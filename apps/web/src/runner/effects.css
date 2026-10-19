@@ -163,3 +163,186 @@
     animation: none;
   }
 }
+
+/* corners: frost */
+.wizard-frost {
+  position: absolute;
+  top: 0;
+  width: min(30vmin, 13rem);
+  height: auto;
+  color: color-mix(in oklch, #d9f0ff 75%, transparent);
+  stroke-width: 1.4;
+  filter: drop-shadow(0 0 4px color-mix(in oklch, #9fd8ff 70%, transparent));
+}
+.wizard-frost.wizard-web-left {
+  left: 0;
+}
+.wizard-frost.wizard-web-right {
+  right: 0;
+  transform: scaleX(-1);
+}
+
+/* particles: embers rise, snow and confetti fall, stars twinkle */
+.wizard-particles {
+  position: absolute;
+  inset: 0;
+}
+.wizard-particles span {
+  position: absolute;
+  display: block;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.wizard-particles-embers span {
+  bottom: -1rem;
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: #ffb35a;
+  box-shadow: 0 0 8px 2px color-mix(in oklch, #ff7a1a 80%, transparent);
+  animation-name: wizard-rise;
+}
+.wizard-particles-snow span {
+  top: -1rem;
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: #fff;
+  opacity: 0.85;
+  box-shadow: 0 0 6px color-mix(in oklch, #cfe8ff 80%, transparent);
+  animation-name: wizard-fall;
+}
+.wizard-particles-confetti span {
+  top: -1rem;
+  width: 7px;
+  height: 11px;
+  border-radius: 2px;
+  background: oklch(72% 0.19 calc(var(--hue) * 1deg));
+  animation-name: wizard-tumble;
+}
+.wizard-particles-stars span {
+  width: 3px;
+  height: 3px;
+  border-radius: 99px;
+  background: #fff8d6;
+  box-shadow: 0 0 6px 1px color-mix(in oklch, #fff3b0 70%, transparent);
+  animation-name: wizard-twinkle;
+  animation-timing-function: ease-in-out;
+}
+@keyframes wizard-rise {
+  from {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(2rem, -105vh);
+    opacity: 0;
+  }
+}
+@keyframes wizard-fall {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(-2rem, 105vh);
+  }
+}
+@keyframes wizard-tumble {
+  from {
+    transform: translate(0, 0) rotate(0);
+  }
+  to {
+    transform: translate(3rem, 105vh) rotate(720deg);
+  }
+}
+@keyframes wizard-twinkle {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* figures: peeking in from a bottom corner now and then */
+.wizard-peek {
+  position: absolute;
+  bottom: 0;
+  transform: translateY(110%);
+  animation-name: wizard-peek;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  filter: drop-shadow(0 0 1rem color-mix(in oklch, var(--primary) 60%, transparent));
+}
+.wizard-peek-right {
+  right: 6vw;
+}
+.wizard-peek-left {
+  left: 6vw;
+}
+@keyframes wizard-peek {
+  0%,
+  70%,
+  100% {
+    transform: translateY(110%);
+  }
+  78%,
+  92% {
+    transform: translateY(45%) rotate(-6deg);
+  }
+}
+
+/* pattern: a quiet pattern on the ground */
+:root.fx-pattern-dots body {
+  background-image: radial-gradient(
+    color-mix(in oklch, var(--ink) 12%, transparent) 1px,
+    transparent 1.5px
+  );
+  background-size: 22px 22px;
+}
+:root.fx-pattern-grid body {
+  background-image:
+    linear-gradient(color-mix(in oklch, var(--ink) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--ink) 7%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* shape: corners, cards, headings */
+:root.shape-radius-sharp {
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.3rem;
+  --radius-2xl: 0.4rem;
+}
+:root.shape-radius-sharp .wizard-button {
+  border-radius: 0.3rem;
+}
+:root.shape-radius-round {
+  --radius-lg: 0.9rem;
+  --radius-xl: 1.2rem;
+  --radius-2xl: 1.6rem;
+}
+:root.shape-cards-outline .wizard-card {
+  background: transparent;
+  box-shadow: none;
+  border: 1px solid color-mix(in oklch, var(--ink) 25%, transparent);
+}
+:root.shape-cards-glass .wizard-card {
+  background: color-mix(in oklch, var(--card) 55%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+:root.shape-headings-uppercase :is(.wizard-title, .wizard-heading) {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wizard-particles,
+  .wizard-peek {
+    display: none;
+  }
+}

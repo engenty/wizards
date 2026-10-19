@@ -58,13 +58,20 @@ describe("applyOps", () => {
     expect(base.title).toBe("T");
   });
 
-  it("sets the whole style and removes it with null", () => {
-    const styled = applyOps(base, [
-      { op: "set_meta", style: { accent: "#ff7a1a", effects: ["webs"] } },
+  it("sets the themes and removes them with null", () => {
+    const themed = applyOps(base, [
+      { op: "set_meta", themes: ["halloween", "brand"] },
     ]) as WizardDefinition;
-    expect(styled.style).toEqual({ accent: "#ff7a1a", effects: ["webs"] });
-    const plain = applyOps(styled, [{ op: "set_meta", style: null }]) as WizardDefinition;
-    expect(plain.style).toBeUndefined();
+    expect(themed.themes).toEqual(["halloween", "brand"]);
+    const plain = applyOps(themed, [{ op: "set_meta", themes: null }]) as WizardDefinition;
+    expect(plain.themes).toBeUndefined();
+  });
+
+  it("puts a theme it sets first in the chain", () => {
+    const themed = applyOps({ ...base, themes: ["brand", "winter"] }, [
+      { op: "set_theme", theme: { id: "winter", name: "Winter" } },
+    ]) as WizardDefinition;
+    expect(themed.themes).toEqual(["winter", "brand"]);
   });
 
   it("names the op that points at a missing step", () => {

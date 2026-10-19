@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { DEFINITION_VERSION } from "./definition.js";
+import { MAX_WIZARD_THEMES, themeSchema } from "./theme.js";
 
 /**
  * A wizard as a file, `<title>.wizard`: a zip with `wizard.json` — the definition and what it
- * needs from its project — and the workspace under `files/`. What belongs to people (runs, lists, connected
+ * needs from its project, with the space's themes it names — and the workspace under `files/`. What belongs to people (runs, lists, connected
  * accounts) and to the project (brand, credentials) stays where it is.
  */
 
@@ -25,6 +26,8 @@ export const PACKAGE_MAX_BYTES = 30_000_000;
 export const SCHEMA_BASE_URL = `https://engenty.ai/schema/v${DEFINITION_VERSION}`;
 export const WIZARD_SCHEMA_URL = `${SCHEMA_BASE_URL}/wizard.json`;
 export const PACKAGE_SCHEMA_URL = `${SCHEMA_BASE_URL}/wizard-package.json`;
+/** A theme's schema, versioned apart from the wizard's. */
+export const THEME_SCHEMA_URL = "https://engenty.ai/schema/theme/v1/theme.json";
 
 export const manifestSchema = z.object({
   /** The JSON Schema an editor checks the file against; the app does not read it. */
@@ -50,6 +53,8 @@ export const manifestSchema = z.object({
     .array(z.object({ id: z.string().max(31), name: z.string().max(60) }))
     .max(10)
     .default([]),
+  /** The space's themes the wizard names: a wizard file ships its looks with it. */
+  themes: z.array(themeSchema).max(MAX_WIZARD_THEMES).default([]),
   /** The project's pages under `files/knowledge/`, when they were asked for: how many, and whether the cap cut some. */
   knowledge: z.object({ pages: z.number().int(), truncated: z.boolean() }).optional(),
 });

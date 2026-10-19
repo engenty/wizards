@@ -5,6 +5,7 @@ import { CATEGORY_TYPES } from "@engenty/wizards-shared/knowledge";
 import { PROJECT_LIMITS } from "@engenty/wizards-shared/projects";
 import { note } from "@engenty/wizards-shared/run";
 import { SPACE_DATA_LIMITS } from "@engenty/wizards-shared/space-data";
+import { MAX_WIZARD_THEMES, type Theme, themeSchema } from "@engenty/wizards-shared/theme";
 import { WORKSPACE_LIMITS } from "@engenty/wizards-shared/workspace";
 import { and, count, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -81,6 +82,8 @@ export const syncWizardSchema = z.object({
     .default([]),
   shareEnabled: z.boolean().default(true),
   dailyRunLimit: z.number().int().min(1).max(10_000).optional(),
+  /** The install's themes the wizard names; the cloud keeps them as the install has them. */
+  themes: z.array(themeSchema).max(MAX_WIZARD_THEMES).default([]),
 });
 export type SyncWizardInput = z.infer<typeof syncWizardSchema>;
 
@@ -264,6 +267,18 @@ async function syncLogo(projectId: string, logo: SpaceInput["logo"]): Promise<vo
   }
 }
 
+/** The install's themes as it has them: a synced space is a mirror, so the install's version wins. */
+async function mirrorThemes(project: ProjectRow, themes: Theme[]) {
+  if (!themes.length) {
+    return;
+  }
+  const ids = new Set(themes.map((t) => t.id));
+  await db
+    .update(schema.project)
+    .set({ themes: [...project.themes.filter((t) => !ids.has(t.id)), ...themes] })
+    .where(eq(schema.project.id, project.id));
+}
+
 /** Makes or updates the synced project: its name and what it says about itself (the logo: syncLogo). */
 async function syncSpace(spaceId: string, space: SpaceInput): Promise<ProjectRow> {
   const existing = await syncedProject(spaceId);
@@ -324,6 +339,7 @@ export async function syncWizard(
     );
     const taken = await inTransaction(async () => {
       const project = await syncSpace(spaceId, input.space);
+      await mirrorThemes(project, input.themes);
       const existing = await db.query.wizard.findFirst({
         where: and(eq(schema.wizard.id, wizardId), eq(schema.wizard.tenantId, currentTenant())),
       });

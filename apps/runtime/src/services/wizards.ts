@@ -29,6 +29,7 @@ import { forgetWizardLinks } from "./links.js";
 import { asLang, countInstall, marketplaceWizard } from "./marketplace.js";
 import { defaultProject, ownedProject } from "./projects.js";
 import { checkRunnerSettings } from "./runners.js";
+import { saveTheme } from "./themes.js";
 
 export type WizardRow = typeof schema.wizard.$inferSelect;
 
@@ -417,6 +418,12 @@ export async function editWizard(
     throw new ServiceError("revision_conflict", note("wizardChangedMeantime"), {
       revision: w.revision,
     });
+  }
+  // A theme belongs to the space: it is saved there first, and the ops put it into the chain.
+  for (const op of input.ops) {
+    if (op.op === "set_theme") {
+      await saveTheme(userId, w.projectId, op.theme);
+    }
   }
   let definition: unknown;
   try {

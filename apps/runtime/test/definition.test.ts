@@ -255,41 +255,25 @@ describe("how many files a field takes", () => {
   });
 });
 
-describe("a wizard's style", () => {
+describe("a wizard's themes", () => {
   const steps = [
     { id: "p", type: "page", title: "P", fields: [{ id: "topic", label: "T", kind: "text" }] },
     { id: "r", type: "result", title: "R", deliverables: [] },
   ];
 
-  it("takes colours, typefaces, effects and CSS", () => {
-    const parsed = parseWizard({
-      title: "x",
-      style: {
-        accent: "#ff7a1a",
-        background: "#120a1c",
-        dark: true,
-        displayFont: "Creepster",
-        bodyFont: "Nunito",
-        effects: ["glow", "webs", "bats", "fog"],
-        css: "h1 { letter-spacing: 0.04em; }",
-      },
-      steps,
-    });
+  it("names themes of the space and the built-in ones", () => {
+    const parsed = parseWizard({ title: "x", themes: ["halloween", "@wizards/winter", "brand"], steps });
     expect(parsed.ok).toBe(true);
     expect(parsed.issues).toEqual([]);
   });
 
-  it("refuses a font it does not ship and a colour it cannot read", () => {
-    expect(parseWizard({ title: "x", style: { displayFont: "Comic Sans" }, steps }).ok).toBe(false);
-    expect(parseWizard({ title: "x", style: { accent: "orange" }, steps }).ok).toBe(false);
+  it("refuses an id that is no theme id, and names a theme named twice", () => {
+    expect(parseWizard({ title: "x", themes: ["Halloween"], steps }).ok).toBe(false);
+    const twice = parseWizard({ title: "x", themes: ["a", "a"], steps });
+    expect(twice.issues.map((i) => i.message).join(" ")).toMatch(/twice/);
   });
 
-  it("names what its CSS would load", () => {
-    const parsed = parseWizard({
-      title: "x",
-      style: { css: "@import 'a.css'; body { background: url(x.png) }" },
-      steps,
-    });
-    expect(parsed.issues.map((i) => i.message).join(" ")).toMatch(/url\(\).*@import/);
+  it("has no style any more", () => {
+    expect(parseWizard({ title: "x", style: { accent: "#ff7a1a" }, steps } as never).issues).toEqual([]);
   });
 });

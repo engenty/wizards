@@ -1,4 +1,5 @@
-import type { WizardEffect } from "@engenty/wizards-shared/style";
+import type { EngentyCostume } from "@engenty/wizards-shared/definition";
+import type { ThemeEffect } from "@engenty/wizards-shared/theme";
 import type { EngentyKind } from "../engenty/colors";
 import { Engenty } from "../engenty/engenty";
 import "./effects.css";
@@ -77,51 +78,152 @@ function Spider() {
   );
 }
 
-/** The engenties that fly across with bat wings: which one, where, how big, when. */
-const BATS: { kind: EngentyKind; top: number; size: number; seconds: number; delay: number }[] = [
+/** A corner of frost: ice needles growing from the top corner of a 200 × 200 box. */
+function Frost({ side }: { side: "left" | "right" }) {
+  const needles = Array.from({ length: 9 }, (_, k) => {
+    const a = ((k + 0.5) / 9) * (Math.PI / 2);
+    const len = 70 + rand(k + 40) * 110;
+    const x = Math.cos(a) * len;
+    const y = Math.sin(a) * len;
+    const bx = Math.cos(a) * len * 0.55;
+    const by = Math.sin(a) * len * 0.55;
+    const tw = 14 + rand(k + 50) * 16;
+    return `M0 0L${x.toFixed(1)} ${y.toFixed(1)}M${bx.toFixed(1)} ${by.toFixed(1)}l${(Math.cos(a + 0.6) * tw).toFixed(1)} ${(Math.sin(a + 0.6) * tw).toFixed(1)}M${bx.toFixed(1)} ${by.toFixed(1)}l${(Math.cos(a - 0.6) * tw).toFixed(1)} ${(Math.sin(a - 0.6) * tw).toFixed(1)}`;
+  }).join("");
+  return (
+    <svg className={`wizard-frost wizard-web-${side}`} viewBox="0 0 200 200" aria-hidden="true">
+      <path d={needles} fill="none" stroke="currentColor" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** A few dozen specks that rise, fall or twinkle: embers, snow, confetti, stars. */
+function Particles({ kind }: { kind: string }) {
+  const count = kind === "stars" ? 28 : 22;
+  return (
+    <div className={`wizard-particles wizard-particles-${kind}`}>
+      {Array.from({ length: count }, (_, k) => (
+        <span
+          key={k}
+          style={{
+            left: `${(rand(k + 1) * 100).toFixed(2)}%`,
+            top: kind === "stars" ? `${(rand(k + 2) * 100).toFixed(2)}%` : undefined,
+            animationDuration: `${(kind === "stars" ? 2.5 : 9) + rand(k + 3) * 8}s`,
+            animationDelay: `${(-rand(k + 4) * 16).toFixed(2)}s`,
+            scale: (0.6 + rand(k + 5) * 0.9).toFixed(2),
+            ["--hue" as string]: `${Math.round(rand(k + 6) * 360)}`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+const FLYERS: { kind: EngentyKind; top: number; size: number; seconds: number; delay: number }[] = [
   { kind: "round", top: 16, size: 64, seconds: 17, delay: 1 },
   { kind: "drop", top: 42, size: 48, seconds: 21, delay: 7 },
   { kind: "tower", top: 26, size: 56, seconds: 19, delay: 12.5 },
 ];
+const PEEKERS: { kind: EngentyKind; side: "left" | "right"; seconds: number; delay: number }[] = [
+  { kind: "flame", side: "right", seconds: 14, delay: 2 },
+  { kind: "sprout", side: "left", seconds: 16, delay: 9 },
+];
 
-/**
- * What a wizard's style draws around its pages (`WIZARD_EFFECTS`): spider webs in the top corners
- * with a spider letting itself down, engenties flying across with bat wings, fog along the
- * bottom. `glow` is CSS on the root alone (`fx-glow`). Nothing here takes a click.
- */
-export function WizardEffects({ effects }: { effects: readonly WizardEffect[] | undefined }) {
-  const on = new Set(effects ?? []);
-  if (!on.has("webs") && !on.has("bats") && !on.has("fog")) {
-    return null;
+/** engenties in a costume: flying across the page, or peeking in from a bottom corner now and then. */
+function Figures({ costume, motion }: { costume: EngentyCostume | undefined; motion: string }) {
+  if (motion === "peek") {
+    return (
+      <>
+        {PEEKERS.map((p) => (
+          <div
+            key={p.kind}
+            className={`wizard-peek wizard-peek-${p.side}`}
+            style={{ animationDuration: `${p.seconds}s`, animationDelay: `${p.delay}s` }}
+          >
+            <Engenty kind={p.kind} costume={costume} size={96} />
+          </div>
+        ))}
+      </>
+    );
   }
   return (
     <>
-      {on.has("fog") ? <div aria-hidden="true" className="wizard-fog" /> : null}
+      {FLYERS.map((b) => (
+        <div
+          key={b.kind}
+          className="wizard-bat"
+          style={{
+            top: `${b.top}%`,
+            animationDuration: `${b.seconds}s`,
+            animationDelay: `${b.delay}s`,
+          }}
+        >
+          <div className="wizard-bat-bob">
+            <Engenty kind={b.kind} costume={costume} size={b.size} />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+const COSTUMES: readonly string[] = ["witch", "devil", "bat", "pumpkin"];
+
+/**
+ * What a wizard's look draws around its pages, from the runner's effect library (THEME_EFFECTS):
+ * corners (spider webs with a spider, frost), particles (embers, snow, confetti, stars), figures
+ * (engenties in a costume flying across or peeking in) and fog. `glow` and `pattern` are CSS on
+ * the root alone (`useRunTheme`). An effect or option this runner does not know is left out.
+ * Nothing here takes a click.
+ */
+export function WizardEffects({ effects }: { effects: readonly ThemeEffect[] | undefined }) {
+  const drawn = (effects ?? []).filter((e) =>
+    ["corners", "particles", "figures", "fog"].includes(e.id),
+  );
+  if (!drawn.length) {
+    return null;
+  }
+  const option = (e: ThemeEffect, key: string) =>
+    typeof e[key] === "string" ? String(e[key]) : "";
+  return (
+    <>
+      {drawn.some((e) => e.id === "fog") ? <div aria-hidden="true" className="wizard-fog" /> : null}
       <div aria-hidden="true" className="wizard-fx">
-        {on.has("webs") ? (
-          <>
-            <SpiderWeb side="left" />
-            <SpiderWeb side="right" />
-            <Spider />
-          </>
-        ) : null}
-        {on.has("bats")
-          ? BATS.map((b) => (
-              <div
-                key={b.kind}
-                className="wizard-bat"
-                style={{
-                  top: `${b.top}%`,
-                  animationDuration: `${b.seconds}s`,
-                  animationDelay: `${b.delay}s`,
-                }}
-              >
-                <div className="wizard-bat-bob">
-                  <Engenty kind={b.kind} costume="bat" size={b.size} />
-                </div>
+        {drawn.map((e, n) => {
+          const key = `${e.id}-${n}`;
+          if (e.id === "corners") {
+            const kind = option(e, "kind") || "webs";
+            return kind === "frost" ? (
+              <div key={key}>
+                <Frost side="left" />
+                <Frost side="right" />
               </div>
-            ))
-          : null}
+            ) : kind === "webs" ? (
+              <div key={key}>
+                <SpiderWeb side="left" />
+                <SpiderWeb side="right" />
+                <Spider />
+              </div>
+            ) : null;
+          }
+          if (e.id === "particles") {
+            const kind = option(e, "kind") || "embers";
+            return ["embers", "snow", "confetti", "stars"].includes(kind) ? (
+              <Particles key={key} kind={kind} />
+            ) : null;
+          }
+          if (e.id === "figures") {
+            const costume = option(e, "costume");
+            return (
+              <Figures
+                key={key}
+                costume={COSTUMES.includes(costume) ? (costume as EngentyCostume) : undefined}
+                motion={option(e, "motion") || "fly"}
+              />
+            );
+          }
+          return null;
+        })}
       </div>
     </>
   );

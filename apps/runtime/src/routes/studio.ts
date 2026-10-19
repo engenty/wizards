@@ -211,6 +211,7 @@ import {
   updateTable,
   updateTableRow,
 } from "../services/space-data.js";
+import { deleteTheme, listThemes, saveTheme } from "../services/themes.js";
 import {
   deleteTranslation,
   editTranslation,
@@ -750,6 +751,17 @@ export const studio = new Hono<Vars>()
   .patch("/projects/:id", async (c) => {
     const patch = projectPatchSchema.parse(await c.req.json());
     await updateProject(c.get("user").id, c.req.param("id"), patch);
+    return c.json({ ok: true });
+  })
+  // --- the space's themes: how its wizards' pages look (docs/plans/themes.md) ---
+  .get("/projects/:id/themes", async (c) =>
+    c.json(await listThemes(c.get("user").id, c.req.param("id"))),
+  )
+  .put("/projects/:id/themes", async (c) =>
+    c.json(await saveTheme(c.get("user").id, c.req.param("id"), await c.req.json())),
+  )
+  .delete("/projects/:id/themes/:themeId{.+}", async (c) => {
+    await deleteTheme(c.get("user").id, c.req.param("id"), c.req.param("themeId"));
     return c.json({ ok: true });
   })
   // --- what a project holds for all its wizards: logos, assets, documents -------

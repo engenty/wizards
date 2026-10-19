@@ -1,7 +1,7 @@
 import type { RunTheme } from "@engenty/wizards-shared/run";
-import { safeCss } from "@engenty/wizards-shared/style";
+import { lookColours } from "@engenty/wizards-shared/theme";
 import { useEffect } from "react";
-import { usePinnedTheme } from "../lib/theme";
+import { usePinnedTheme, usePreferredLook, useTheme } from "../lib/theme";
 import { loadWizardFont } from "./fonts";
 
 const SANS = "ui-sans-serif, system-ui, sans-serif";
@@ -15,32 +15,41 @@ function stack(family: string): string {
 
 /**
  * A wizard's look on the page while it is shown: every Ember token derives from the seeds set here
- * (accent, second colour, ground) and the two typefaces. A dark brand turns the page dark; a
- * wizard that sets dark or light keeps the page so. Effects are marked on the root as `fx-<name>`
- * classes, the wizard's own CSS goes into a style element after the app's. All is taken back when
- * the page goes.
+ * (accent, second colour, ground, for the light or dark pages shown) and the two typefaces. A look
+ * with only dark or only light pages keeps them so; one that prefers one shows it until the person
+ * picks. Shape and the effects drawn by CSS are marked on the root as classes (`shape-…`, `fx-…`);
+ * the other effects are `WizardEffects`. All is taken back when the page goes.
  */
 export function useRunTheme(theme: Partial<RunTheme> | null | undefined) {
-  const key = JSON.stringify(theme ?? {});
   usePinnedTheme(theme?.pinned ? (theme.dark ? "dark" : "light") : null);
+  usePreferredLook(theme?.prefer ?? null);
+  const mode = useTheme();
+  const key = JSON.stringify(theme ?? {});
   useEffect(() => {
     const t = JSON.parse(key) as Partial<RunTheme>;
     const root = document.documentElement;
     loadWizardFont(t.display);
     loadWizardFont(t.body);
+    const themed = Boolean(t.modes);
+    const colours = lookColours(
+      { accent: t.accent ?? null, background: t.background ?? null, modes: t.modes ?? null },
+      themed ? mode : t.dark ? "dark" : "light",
+    );
+    const dark = themed ? mode === "dark" : Boolean(t.dark);
     const seeds: [string, string | null | undefined][] = [
-      ["--raw-primary", t.accent],
+      ["--raw-primary", colours.accent],
       ["--raw-second", t.second],
-      ["--raw-background", t.background],
-      // Dark pages stand on a stage: a dark brand's own ground, else a deep tone of its ground's hue.
+      ["--raw-background", colours.background],
+      // Dark pages stand on a stage: a dark look's own ground, else a deep tone of its ground's hue.
       [
         "--brand-stage",
-        t.background
-          ? t.dark
-            ? t.background
-            : `oklch(from ${t.background} 0.3 clamp(0.02, calc(c * 3), 0.1) h)`
+        colours.background
+          ? dark
+            ? colours.background
+            : `oklch(from ${colours.background} 0.3 clamp(0.02, calc(c * 3), 0.1) h)`
           : null,
       ],
+      ["--ink", colours.text],
       ["--f-display", t.display ? stack(t.display) : null],
       ["--f-ui", t.body ? stack(t.body) : null],
       // A face that comes in one weight shows in it, not in a bold the browser makes up.
@@ -50,29 +59,32 @@ export function useRunTheme(theme: Partial<RunTheme> | null | undefined) {
     for (const [name, value] of props) {
       root.style.setProperty(name, value);
     }
-    const effects = (t.effects ?? []).map((e) => `fx-${e}`);
-    root.classList.add(...effects);
+    const marks = [
+      ...Object.entries(t.shape ?? {})
+        .filter(([, v]) => v)
+        .map(([k, v]) => `shape-${k}-${v}`),
+      ...(t.effects ?? []).flatMap((e) =>
+        e.id === "glow"
+          ? ["fx-glow"]
+          : e.id === "pattern"
+            ? [`fx-pattern-${e.kind ?? "dots"}`]
+            : [],
+      ),
+    ];
+    root.classList.add(...marks);
+    // A brand on a dark ground turns the pages dark, as long as no look decides.
     const wasDark = root.classList.contains("dark");
-    if (t.dark && !t.pinned) {
+    if (!themed && t.dark && !t.pinned) {
       root.classList.add("dark");
-    }
-    let css: HTMLStyleElement | null = null;
-    const text = safeCss(t.css);
-    if (text) {
-      css = document.createElement("style");
-      css.dataset.wizardCss = "";
-      css.textContent = text;
-      document.head.append(css);
     }
     return () => {
       for (const [name] of props) {
         root.style.removeProperty(name);
       }
-      root.classList.remove(...effects);
-      if (t.dark && !t.pinned && !wasDark) {
+      root.classList.remove(...marks);
+      if (!themed && t.dark && !t.pinned && !wasDark) {
         root.classList.remove("dark");
       }
-      css?.remove();
     };
-  }, [key]);
+  }, [key, mode]);
 }

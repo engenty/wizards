@@ -1,6 +1,6 @@
 # Themes
 
-Decided 2026-10-19 over six rounds, the last two after a security review. Not built. Open: themes
+Decided 2026-10-19 over six rounds, the last two after a security review. Built 2026-10-19 except the brand fonts with a source, the hosts (step 7) and the catalog. Open: themes
 in the catalog (see the end).
 
 ## Why
@@ -147,22 +147,19 @@ A theme is values, so every place can apply it as far as it can draw it:
 
 ## In the wizard file
 
-```
-spukhaus.wizard
-├─ wizard.json                  manifest and definition
-├─ files/                       the workspace, as today
-└─ themes/
-   ├─ halloween.json
-   └─ halloween-calm.json
-```
-
-The definition names its themes and nothing more:
+Themes are values only, so they travel inside `wizard.json`, beside the definition: a wizard file
+that is plain JSON carries them as well.
 
 ```json
-"themes": ["halloween", "halloween-calm"]
+{
+  "format": "engenty-wizard",
+  "definition": { "title": "Spukhaus", "themes": ["halloween", "halloween-calm"], "steps": [] },
+  "themes": [{ "id": "halloween", "name": "Halloween" }, { "id": "halloween-calm", "name": "Halloween, calm" }]
+}
 ```
 
-The order is the wizard’s chain of choices (see below). The `style` key goes away.
+The definition names its themes and nothing more. The order is the wizard’s chain of choices
+(see below). The `style` key is gone.
 
 A wizard file always carries full copies of its themes. A wizard never breaks because a theme
 somewhere else changed.
@@ -236,7 +233,7 @@ Halloween templates.
    `pattern`, as values in and drawing out, with reduced motion.
 3. Themes in the space: table, the import rules for ids. Brand fonts with a source: upload or
    website address, with the studio’s checks.
-4. `themes` in the definition; `style` removed; the `.wizard` file carries `themes/`.
+4. `themes` in the definition; `style` removed; `wizard.json` carries the themes.
 5. The run page and the share page: resolving the chain, `light`/`dark`, fonts, shape, effects.
 6. The studio: the Look section on a theme, the select, “Also used by”, the space’s list.
 7. Hosts: the embed snippet’s `data-theme`, the styles of an MCP host, the values for OpenUI and

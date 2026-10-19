@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { DEFINITION_VERSION, wizardSchema } from "./definition.js";
-import { manifestSchema, PACKAGE_SCHEMA_URL, WIZARD_SCHEMA_URL } from "./wizard-package.js";
+import { themeSchema } from "./theme.js";
+import {
+  manifestSchema,
+  PACKAGE_SCHEMA_URL,
+  THEME_SCHEMA_URL,
+  WIZARD_SCHEMA_URL,
+} from "./wizard-package.js";
 
 /**
  * The definition and the package's `wizard.json` as JSON Schema, for editors and for checks
@@ -82,5 +88,18 @@ export function packageJsonSchema(): JsonSchema {
       definition: { $ref: "#/$defs/definition" },
     },
     $defs: { definition: withSchemaProperty(generate(wizardSchema)) },
+  };
+}
+
+/** A theme: how a wizard's pages look, values only (docs/plans/themes.md). Versioned apart from the wizard's. */
+export function themeJsonSchema(): JsonSchema {
+  return {
+    $schema: DIALECT,
+    $id: THEME_SCHEMA_URL,
+    $comment: LICENSE_COMMENT,
+    title: "engenty.wizards theme",
+    description:
+      "A theme of a space: colours for light and dark pages, fonts, shape and effects from the runner's library. Values only.",
+    ...withSchemaProperty(generate(themeSchema)),
   };
 }
