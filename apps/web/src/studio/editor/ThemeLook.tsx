@@ -3,12 +3,10 @@ import type { RunFontFace } from "@engenty/wizards-shared/run";
 import {
   freeThemeId,
   SHIPPED_FONTS,
-  THEME_EFFECTS,
   type Theme,
   type ThemeColors,
   type ThemeColours,
   type ThemeEffect,
-  type ThemeEffectId,
   themeColors,
   themeIdFrom,
 } from "@engenty/wizards-shared/theme";
@@ -29,16 +27,6 @@ type ThemesAnswer = {
   brandFonts: BrandFonts;
 };
 type Mode = "light" | "dark";
-
-const PAGES = ["both", "dark", "light"] as const;
-const OFF = "off";
-
-/** The effects with one option to choose, and the option's values (THEME_EFFECTS). */
-const CHOICES: { id: ThemeEffectId; option: string; values: readonly string[] }[] = [
-  { id: "corners", option: "kind", values: THEME_EFFECTS.corners.kind },
-  { id: "particles", option: "kind", values: THEME_EFFECTS.particles.kind },
-  { id: "pattern", option: "kind", values: THEME_EFFECTS.pattern.kind },
-];
 
 /**
  * How the wizard's pages look: the first theme the wizard names, edited in place. Behind the
@@ -142,18 +130,6 @@ export function ThemeLook({
           <ChevronDown className={cn("size-4 text-ink-4 transition", open && "rotate-180")} />
         </button>
         {open ? (
-          preview
-        ) : (
-          <button
-            type="button"
-            aria-label={t("inspector.lookOpen")}
-            onClick={() => setOpen(true)}
-            className="rounded-xl text-left transition hover:brightness-110"
-          >
-            {preview}
-          </button>
-        )}
-        {open ? (
           <>
             <div>
               <Label>{t("inspector.lookTheme")}</Label>
@@ -167,6 +143,20 @@ export function ThemeLook({
                 ]}
               />
             </div>
+            {preview}
+          </>
+        ) : (
+          <button
+            type="button"
+            aria-label={t("inspector.lookOpen")}
+            onClick={() => setOpen(true)}
+            className="rounded-xl text-left transition hover:brightness-110"
+          >
+            {preview}
+          </button>
+        )}
+        {open ? (
+          <>
             {others.length ? (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-paper-2 px-3 py-2.5 text-[0.8125rem] text-ink-3">
                 <span>
@@ -180,7 +170,12 @@ export function ThemeLook({
               </div>
             ) : null}
             {chosen === "default" ? null : (
-              <ThemeFields theme={draft} brandFonts={brandFonts} change={change} />
+              <ThemeFields
+                theme={draft}
+                brandFonts={brandFonts}
+                costume={def.costume}
+                change={change}
+              />
             )}
           </>
         ) : null}
@@ -224,20 +219,50 @@ function compact<T extends object>(value: T): T | undefined {
   return Object.keys(kept).length ? (kept as T) : undefined;
 }
 
+/** How the pages show light and dark: both with one first, or one only. */
+const PAGES = ["darkFirst", "lightFirst", "dark", "light"] as const;
+type Pages = (typeof PAGES)[number];
+
+/**
+ * The effect library as one row of chips. A group holds choices of one effect, so a chip of a
+ * group takes the place of the group's other one.
+ */
+const CHIPS = [
+  { chip: "glow", effect: { id: "glow" } },
+  { chip: "fog", effect: { id: "fog" } },
+  { chip: "webs", group: "corners", effect: { id: "corners", kind: "webs" } },
+  { chip: "frost", group: "corners", effect: { id: "corners", kind: "frost" } },
+  { chip: "embers", group: "particles", effect: { id: "particles", kind: "embers" } },
+  { chip: "snow", group: "particles", effect: { id: "particles", kind: "snow" } },
+  { chip: "confetti", group: "particles", effect: { id: "particles", kind: "confetti" } },
+  { chip: "stars", group: "particles", effect: { id: "particles", kind: "stars" } },
+  { chip: "dots", group: "pattern", effect: { id: "pattern", kind: "dots" } },
+  { chip: "grid", group: "pattern", effect: { id: "pattern", kind: "grid" } },
+  { chip: "figures", effect: { id: "figures" } },
+] as const;
+
+const chipOf = (e: ThemeEffect): string | undefined =>
+  CHIPS.find((c) => c.effect.id === e.id && (!("kind" in c.effect) || c.effect.kind === e.kind))
+    ?.chip;
+
 function ThemeFields({
   theme,
   brandFonts,
+  costume,
   change,
 }: {
   theme: Theme | undefined;
   brandFonts: BrandFonts | undefined;
+  /** The wizard's costume: the figures wear it. */
+  costume: string | undefined;
   change: (patch: (t: Theme) => Theme) => void;
 }) {
   // The theme's colours in their order: the first scheme shows first, one alone pins it.
   const listed = theme?.colors ?? [];
-  const pages = listed.length === 1 ? listed[0].scheme : "both";
   const first: Mode = listed[0]?.scheme ?? "dark";
-  const modes: Mode[] = pages === "both" ? [first, first === "dark" ? "light" : "dark"] : [pages];
+  const pages: Pages = listed.length === 1 ? first : first === "dark" ? "darkFirst" : "lightFirst";
+  const modes: Mode[] =
+    listed.length === 1 ? [first] : [first, first === "dark" ? "light" : "dark"];
   const entry = (list: ThemeColors[], scheme: Mode): ThemeColors =>
     list.find((c) => c.scheme === scheme) ?? { scheme };
   const colour = (mode: Mode, key: keyof ThemeColours, v: string | undefined) =>
@@ -247,25 +272,17 @@ function ThemeFields({
       if (v === undefined) {
         delete next[key];
       }
-      const rest = list.filter((c) => c.scheme !== mode);
       const colors = list.some((c) => c.scheme === mode)
         ? list.map((c) => (c.scheme === mode ? next : c))
-        : [...rest, next];
+        : [...list, next];
       return { ...x, colors };
     });
-  const setPages = (p: (typeof PAGES)[number]) =>
+  const setPages = (p: Pages) =>
     change((x) => {
       const list = x.colors ?? [];
       const order: Mode[] =
-        p === "both"
-          ? [list[0]?.scheme ?? "dark", list[0]?.scheme === "light" ? "dark" : "light"]
-          : [p];
+        p === "darkFirst" ? ["dark", "light"] : p === "lightFirst" ? ["light", "dark"] : [p];
       return { ...x, colors: order.map((s) => entry(list, s)) };
-    });
-  const showFirst = (s: Mode) =>
-    change((x) => {
-      const list = x.colors ?? [];
-      return { ...x, colors: [entry(list, s), entry(list, s === "dark" ? "light" : "dark")] };
     });
   // The brand's font for the role comes first; choosing it stores the role, never the family.
   const fonts = (family: string | null | undefined) => [
@@ -275,14 +292,49 @@ function ThemeFields({
     },
     ...SHIPPED_FONTS.map((f) => ({ value: f, label: f })),
   ];
-  const effect = (id: string) => theme?.effects?.find((e) => e.id === id);
-  const setEffect = (id: string, next: ThemeEffect | undefined) =>
+  const shape = <K extends keyof NonNullable<Theme["shape"]>>(
+    key: K,
+    values: readonly string[],
+  ) => (
+    <div>
+      <div className="mb-1 text-[0.8125rem] text-ink-3">{t(`inspector.lookShape.${key}`)}</div>
+      <Select
+        value={String(theme?.shape?.[key] ?? values[0])}
+        options={values.map((v) => ({
+          value: v,
+          label: t(`inspector.lookShape.${key}.${v}` as never),
+        }))}
+        onChange={(v) => change((x) => ({ ...x, shape: compact({ ...x.shape, [key]: v }) }))}
+      />
+    </div>
+  );
+  const active = (theme?.effects ?? []).map(chipOf).filter((c): c is string => Boolean(c));
+  const setChips = (on: string[]) =>
     change((x) => {
-      const rest = (x.effects ?? []).filter((e) => e.id !== id);
-      const effects = next ? [...rest, next] : rest;
-      return { ...x, effects: effects.length ? effects : undefined };
+      const added = on.filter((c) => !active.includes(c));
+      // A chip of a group takes the place of the group's chip that was on.
+      const kept = on.filter((c) => {
+        const group = CHIPS.find((x) => x.chip === c && "group" in x);
+        if (!group || !("group" in group)) {
+          return true;
+        }
+        const rival = added.find(
+          (a) =>
+            a !== c && CHIPS.some((x) => x.chip === a && "group" in x && x.group === group.group),
+        );
+        return !rival;
+      });
+      const figure = costume ?? "bat";
+      const effects = kept.map((c) => {
+        const found = CHIPS.find((x) => x.chip === c);
+        return c === "figures"
+          ? { id: "figures", costume: figure, motion: figure === "bat" ? "fly" : "peek" }
+          : ({ ...found?.effect } as ThemeEffect);
+      });
+      const others = (x.effects ?? []).filter((e) => !chipOf(e));
+      const all = [...effects, ...others];
+      return { ...x, effects: all.length ? all : undefined };
     });
-  const figures = effect("figures");
   return (
     <>
       <div>
@@ -290,21 +342,10 @@ function ThemeFields({
         <Segmented
           value={pages}
           options={[...PAGES]}
-          label={(o) => t(`inspector.lookPages.${o as (typeof PAGES)[number]}`)}
+          label={(o) => t(`inspector.lookPages.${o as Pages}`)}
           onChange={setPages}
         />
       </div>
-      {pages === "both" ? (
-        <div>
-          <Label>{t("inspector.lookPrefer")}</Label>
-          <Segmented
-            value={first}
-            options={["light", "dark"]}
-            label={(o) => t(`inspector.lookMode.${o as Mode}`)}
-            onChange={showFirst}
-          />
-        </div>
-      ) : null}
       {modes.map((mode) => (
         <div key={mode} className="grid grid-cols-2 gap-4">
           <ColourField
@@ -341,97 +382,21 @@ function ThemeFields({
       </div>
       <div>
         <Label>{t("inspector.lookShape")}</Label>
-        <div className="flex flex-col gap-2">
-          <Segmented
-            value={theme?.shape?.radius ?? "soft"}
-            options={["sharp", "soft", "round"]}
-            label={(o) => t(`inspector.lookShape.radius.${o as "sharp" | "soft" | "round"}`)}
-            onChange={(o: "sharp" | "soft" | "round") =>
-              change((x) => ({ ...x, shape: compact({ ...x.shape, radius: o }) }))
-            }
-          />
-          <Segmented
-            value={theme?.shape?.cards ?? "solid"}
-            options={["solid", "outline", "glass"]}
-            label={(o) => t(`inspector.lookShape.cards.${o as "solid" | "outline" | "glass"}`)}
-            onChange={(o: "solid" | "outline" | "glass") =>
-              change((x) => ({ ...x, shape: compact({ ...x.shape, cards: o }) }))
-            }
-          />
-          <Segmented
-            value={theme?.shape?.headings ?? "normal"}
-            options={["normal", "uppercase"]}
-            label={(o) => t(`inspector.lookShape.headings.${o as "normal" | "uppercase"}`)}
-            onChange={(o: "normal" | "uppercase") =>
-              change((x) => ({ ...x, shape: compact({ ...x.shape, headings: o }) }))
-            }
-          />
+        <div className="grid grid-cols-3 gap-3">
+          {shape("radius", ["soft", "sharp", "round"])}
+          {shape("cards", ["solid", "outline", "glass"])}
+          {shape("headings", ["normal", "uppercase"])}
         </div>
       </div>
       <div>
-        <Label>{t("inspector.lookEffects")}</Label>
-        <div className="flex flex-col gap-3">
-          <Segmented
-            multi
-            value={["glow", "fog"].filter((id) => effect(id))}
-            options={["glow", "fog"]}
-            label={(o) => t(`inspector.lookEffect.${o as "glow" | "fog"}`)}
-            onChange={(on: string[]) => {
-              for (const id of ["glow", "fog"]) {
-                if (on.includes(id) !== Boolean(effect(id))) {
-                  setEffect(id, on.includes(id) ? { id } : undefined);
-                }
-              }
-            }}
-          />
-          {CHOICES.map((c) => (
-            <div key={c.id}>
-              <div className="mb-1 text-[0.8125rem] text-ink-3">
-                {t(`inspector.lookEffect.${c.id}`)}
-              </div>
-              <Segmented
-                value={String(effect(c.id)?.[c.option] ?? OFF)}
-                options={[OFF, ...c.values]}
-                label={(o) => t(`inspector.lookEffectOption.${o}` as never)}
-                onChange={(o: string) =>
-                  setEffect(c.id, o === OFF ? undefined : { id: c.id, [c.option]: o })
-                }
-              />
-            </div>
-          ))}
-          <div>
-            <div className="mb-1 text-[0.8125rem] text-ink-3">
-              {t("inspector.lookEffect.figures")}
-            </div>
-            <div className="flex flex-col gap-2">
-              <Segmented
-                value={String(figures?.costume ?? OFF)}
-                options={[OFF, ...THEME_EFFECTS.figures.costume]}
-                label={(o) =>
-                  o === OFF
-                    ? t("inspector.lookEffectOption.off")
-                    : t(`inspector.costume.${o}` as never)
-                }
-                onChange={(o: string) =>
-                  setEffect(
-                    "figures",
-                    o === OFF
-                      ? undefined
-                      : { id: "figures", costume: o, motion: String(figures?.motion ?? "fly") },
-                  )
-                }
-              />
-              {figures ? (
-                <Segmented
-                  value={String(figures.motion ?? "fly")}
-                  options={[...THEME_EFFECTS.figures.motion]}
-                  label={(o) => t(`inspector.lookEffectOption.${o}` as never)}
-                  onChange={(o: string) => setEffect("figures", { ...figures, motion: o })}
-                />
-              ) : null}
-            </div>
-          </div>
-        </div>
+        <Label hint={t("inspector.lookEffectsHint")}>{t("inspector.lookEffects")}</Label>
+        <Segmented
+          multi
+          value={active}
+          options={CHIPS.map((c) => c.chip)}
+          label={(o) => t(`inspector.lookChip.${o as (typeof CHIPS)[number]["chip"]}`)}
+          onChange={setChips}
+        />
       </div>
     </>
   );

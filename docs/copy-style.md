@@ -62,6 +62,7 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 | what a team pays for | plan | das Paket | Plan, Tarif |
 | the exported file | wizard file (.wizard) | Wizard-Datei | Paket (that is the plan) |
 | pre-made wizard | template | Vorlage | starter, gallery item |
+| how a wizard's pages look: colours, fonts, effects | theme | das Theme, die Themes | Thema, Design, Stil, Look (except the studio's section “Look” / „Aussehen“) |
 | documents the AI looks things up in | knowledge | Wissen | |
 | tables and pages wizards keep | data | Daten | |
 | build chat in the editor | the assistant; the chat | der Assistent; der Chat | conversation, thread |

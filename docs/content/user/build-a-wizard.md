@@ -69,12 +69,12 @@ the settings. The first change makes a theme named after the wizard.
 
 | Setting | What it does |
 |---|---|
-| Theme | Which theme the wizard wears: one of the space’s, the space’s brand, or a neutral look without a brand |
-| Pages | Light and dark, or only one of them. With only one, everyone sees those pages and the theme switch is hidden. With both, “Shows first” says which one people see until they pick |
-| Accent, Background | The colour of buttons and marks, and the ground the pages stand on, for light and for dark pages |
-| Font for headings, Font for text | One of the fonts engenty wizards ships, from Inter to the spooky Creepster, or the brand’s, shown as “– from the brand”. The pages load shipped fonts from engenty wizards itself. A brand font loads from its source: our copy of its file, or your website |
-| Shape | Sharp, soft or round corners. Cards as solid areas, outlines or glass. Headings as written or in capitals |
-| Effects | Glow lights up headings and buttons. Corners: spider webs with a spider, or frost. Particles: embers, snow, confetti or stars. Figures: engenties in a costume that fly past or peek in. Fog drifts along the bottom. Pattern: dots or a grid on the ground |
+| Theme | Which theme the wizard wears: one of the space’s, the space’s brand, or a neutral look without a brand. It sits above the preview |
+| Pages | Dark first, light first, dark only or light only. With only one, everyone sees those pages and the theme switch is hidden |
+| Accent, Background | The colour of buttons and marks, and the ground the pages stand on, for each kind of pages |
+| Font for headings, Font for text | The brand’s font, or one of the fonts engenty wizards ships, from Inter to the spooky Creepster |
+| Shape | Corners (soft, sharp, round), cards (solid, outline, glass) and headings (as written, in capitals) |
+| Effects | One row to switch on: glow, fog, spider webs or frost in the corners, embers, snow, confetti or stars, dots or a grid, and figures that wear the wizard’s costume |
 
 A theme two wizards wear changes for both. The section says which other wizards wear it and
 offers a copy for this wizard only. A wizard file carries the themes its wizard wears.
