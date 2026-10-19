@@ -43,11 +43,14 @@ export function Pills<T extends string>({
   value,
   onChange,
   options,
+  named,
 }: {
   label: string;
   value: T;
   onChange: (v: T) => void;
   options: { id: T; label: string; icon?: ReactNode }[];
+  /** The one picked says its name beside its icon, like the language switch. */
+  named?: boolean;
 }) {
   return (
     <fieldset
@@ -67,7 +70,9 @@ export function Pills<T extends string>({
           )}
         >
           {o.icon}
-          <span className={cn(o.icon ? "sr-only" : undefined)}>{o.label}</span>
+          <span className={cn(Boolean(o.icon) && !(named && value === o.id) && "sr-only")}>
+            {o.label}
+          </span>
         </button>
       ))}
     </fieldset>

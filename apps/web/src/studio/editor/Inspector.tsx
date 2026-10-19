@@ -45,7 +45,6 @@ import {
   Sparkles,
   Trash2,
   Upload,
-  Wand2,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { withBase } from "@/lib/base";
@@ -1233,12 +1232,10 @@ interface InspectorProps {
   assistant?: StepAssistant;
 }
 
-const WIZARD = "__wizard";
-
 /**
- * The wizard's steps in a row, in run order, with the wizard's own settings first: one click or
- * the arrows (on screen or ← / → on the keyboard) move from step to step without going back to
- * the diagram. With a test run open it starts with the run, and lights the step the run is at.
+ * The wizard's steps in a row, in run order: one click or the arrows (on screen or ← / → on the
+ * keyboard) move from step to step without going back to the diagram. With a test run open it
+ * starts with the run, and lights the step the run is at.
  * `end` stands at the row's end.
  */
 export function StepNav({
@@ -1252,7 +1249,7 @@ export function StepNav({
   run?: { shown: boolean; at: string | null; onShow: () => void } | null;
   end?: React.ReactNode;
 }) {
-  const ids = [WIZARD, ...def.steps.map((s) => s.id)];
+  const ids = def.steps.map((s) => s.id);
   const at = selected ? ids.indexOf(selected) : -1;
   const current = useRef<HTMLButtonElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: the selected step is what moves into view
@@ -1261,7 +1258,7 @@ export function StepNav({
   }, [selected]);
   const go = (dir: -1 | 1) => {
     // Nothing picked: forward starts at the first step, back at the last.
-    const next = at === -1 ? (dir === 1 ? 1 : ids.length - 1) : at + dir;
+    const next = at === -1 ? (dir === 1 ? 0 : ids.length - 1) : at + dir;
     if (next >= 0 && next < ids.length) {
       onSelect(ids[next]);
     }
@@ -1297,7 +1294,7 @@ export function StepNav({
       <IconButton
         label={t("editor.prevStep")}
         className="size-8 shrink-0"
-        disabled={at === 0}
+        disabled={at <= 0}
         onClick={() => go(-1)}
       >
         <ChevronLeft className="size-4" />
@@ -1321,28 +1318,13 @@ export function StepNav({
             <span className="h-px w-3 shrink-0 bg-border-soft" />
           </>
         ) : null}
-        <button
-          ref={selected === WIZARD ? current : undefined}
-          type="button"
-          title={def.title}
-          aria-label={def.title}
-          aria-current={selected === WIZARD ? "step" : undefined}
-          onClick={() => onSelect(WIZARD)}
-          className={cn(
-            dot,
-            "bg-paper-2 text-ink-2",
-            selected === WIZARD ? "ring-2 ring-ember" : "hover:ring-2 hover:ring-border-soft",
-          )}
-        >
-          <Wand2 className="size-4" />
-        </button>
         {def.steps.map((step, i) => {
           const Icon = stepIcon(step);
           const active = step.id === selected;
           const broken = issues.some((issue) => issue.stepId === step.id);
           return (
             <div key={step.id} className="flex shrink-0 items-center">
-              <span className="h-px w-3 bg-border-soft" />
+              {i > 0 ? <span className="h-px w-3 bg-border-soft" /> : null}
               <button
                 ref={active ? current : undefined}
                 type="button"
@@ -1369,7 +1351,7 @@ export function StepNav({
         })}
       </div>
       <span className="shrink-0 px-1 text-[0.75rem] text-ink-4 tabular-nums">
-        {at > 0 ? `${at} / ${def.steps.length}` : ""}
+        {at >= 0 ? `${at + 1} / ${def.steps.length}` : ""}
       </span>
       <IconButton
         label={t("editor.nextStep")}
