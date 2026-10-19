@@ -21,9 +21,11 @@ import { type Layout, layout } from "../src/cli/home.js";
 import {
   currentVersion,
   installedVersions,
+  missingPackages,
   prune,
   RUNTIME_PACKAGE,
   switchTo,
+  tryInstallLock,
   versionIn,
 } from "../src/cli/versions.js";
 
@@ -52,6 +54,10 @@ function fakePrefix(prefix: string, version: string, as: "runtime" | "legacy" | 
   }
   writeFileSync(join(pkg, "package.json"), JSON.stringify({ name, version }));
   writeFileSync(join(prefix, "package.json"), "{}");
+  writeFileSync(
+    join(prefix, "package-lock.json"),
+    JSON.stringify({ packages: { "": {}, [`node_modules/${name}`]: { version } } }),
+  );
 }
 
 /** An install as install.sh made it up to 0.6.2: runtime/ is the prefix itself. */
@@ -65,8 +71,11 @@ function legacyInstall(version: string) {
 
 const on = { on: true, reason: "on" };
 
-/** npm's registry naming `version` as latest; `fails` makes the install fail. */
-function fakeRegistry(version: string, fails = false): UpdateDeps {
+/**
+ * npm's registry naming `version` as latest; `fails` makes the install fail, `partial` leaves
+ * a package of the lockfile out as an npm stopped halfway does.
+ */
+function fakeRegistry(version: string, fails = false, partial = false): UpdateDeps {
   return {
     now: () => new Date("2026-10-15T12:00:00Z"),
     fetch: (async (url: string) => {
@@ -79,11 +88,44 @@ function fakeRegistry(version: string, fails = false): UpdateDeps {
         throw new Error("npm install of the new version failed (exit 1)");
       }
       fakePrefix(prefix, version);
+      if (partial) {
+        writeFileSync(
+          join(prefix, "package-lock.json"),
+          JSON.stringify({
+            packages: {
+              "": {},
+              [`node_modules/${RUNTIME_PACKAGE}`]: { version },
+              "node_modules/fast-wrap-ansi": { version: "0.1.0" },
+              "node_modules/@esbuild/win32-x64": { version: "0.25.0", optional: true },
+            },
+          }),
+        );
+      }
     },
   };
 }
 
 describe("the version folders", () => {
+  it("names the packages of the lockfile that are missing, the ones for other machines aside", () => {
+    const prefix = join(home, "prefix");
+    fakePrefix(prefix, "0.9.0");
+    expect(missingPackages(prefix)).toEqual([]);
+    writeFileSync(
+      join(prefix, "package-lock.json"),
+      JSON.stringify({
+        packages: {
+          "": {},
+          [`node_modules/${RUNTIME_PACKAGE}`]: {},
+          "node_modules/fast-wrap-ansi": {},
+          "node_modules/fsevents": { optional: true },
+        },
+      }),
+    );
+    expect(missingPackages(prefix)).toEqual(["node_modules/fast-wrap-ansi"]);
+    rmSync(join(prefix, "package-lock.json"));
+    expect(missingPackages(prefix)).toEqual(["package-lock.json"]);
+  });
+
   it("moves an install from before them into its folder and switches, keeping the old path", () => {
     legacyInstall("0.6.2");
     expect(currentVersion(paths)).toBe("0.6.2");
@@ -197,6 +239,34 @@ describe("an update", () => {
     expect(installedVersions(paths)).toEqual([]);
     expect(readUpdateState(paths).pending).toBeUndefined();
     expect(readUpdateState(paths).error).toMatch(/npm install/);
+  });
+
+  it("never puts a download with packages missing into its version folder", async () => {
+    legacyInstall("0.6.2");
+    const result = await checkForUpdate(paths, { policy: on }, fakeRegistry("0.7.0", false, true));
+    expect(result).toMatchObject({ kind: "failed", reason: expect.stringMatching(/misses 1 packages/) });
+    expect(installedVersions(paths)).toEqual([]);
+    expect(readUpdateState(paths).pending).toBeUndefined();
+  });
+
+  it("waits while an install holds the lock, and takes over one whose owner is gone", async () => {
+    legacyInstall("0.6.2");
+    const unlock = tryInstallLock(paths);
+    expect(unlock).not.toBeNull();
+    expect(tryInstallLock(paths)).toBeNull();
+    expect(await checkForUpdate(paths, { policy: on }, fakeRegistry("0.7.0"))).toEqual({
+      kind: "skipped",
+      reason: "another install is running",
+    });
+    unlock?.();
+
+    // install.sh killed halfway: its lock stays with the pid of a process that is gone.
+    mkdirSync(join(paths.home, "install.lock"));
+    writeFileSync(join(paths.home, "install.lock", "pid"), "999999999\n");
+    expect((await checkForUpdate(paths, { policy: on }, fakeRegistry("0.7.0"))).kind).toBe(
+      "downloaded",
+    );
+    expect(existsSync(join(paths.home, "install.lock"))).toBe(false);
   });
 
   it("does nothing when off, or when it is the newest already", async () => {
