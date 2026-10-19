@@ -431,7 +431,7 @@ marketplace (default `https://engenty.ai/wizards`, `off` = none).
 ## Sharing a result
 
 A finished result has the link, the downloads — and share targets that send or publish it. The
-person picks one on the result ("Teilen"), connects the account it sends with, checks the form
+person picks one on the result ("Share"), connects the account it sends with, checks the form
 and sends; what happens shows live, and a sign-in or a confirmation is asked for in the same sheet.
 
 | Target | What it does | Needs |
@@ -457,8 +457,8 @@ it in `apps/runtime/src/sharing/index.ts`; the share sheet and the editor show i
 Admins can author wizards in Claude Code, Codex, Cursor, claude.ai or Claude Desktop, on their own
 subscription. The MCP endpoint is `<APP_URL>/api/mcp`. Managed, clients sign in with OAuth 2.1 at
 the Manage-App (discovery, dynamic registration or a client metadata document, consent there);
-connected apps and API keys are managed in the account. Alone, Settings → "Mit Claude Code & Co.
-bauen" issues API keys.
+connected apps and API keys are managed in the account. Alone, Settings → "Integrate" issues API
+keys.
 
 ```bash
 # Claude Code: the plugin from GitHub (uses the engenty-wizards server the person has)
