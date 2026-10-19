@@ -662,7 +662,7 @@ export function EditorPage() {
   const strip = (
     <StepNav
       def={def}
-      selected={showRun && drawerRun ? null : selected}
+      selected={showRun && drawerRun ? null : (selected ?? "__wizard")}
       onSelect={select}
       issues={w.issues}
       run={drawerRun ? { shown: showRun, at: activeStep, onShow: () => setShowRun(true) } : null}

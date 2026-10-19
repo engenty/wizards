@@ -1384,43 +1384,8 @@ export function StepNav({
   );
 }
 
-/** Nothing picked yet: the steps as a list to pick from. */
-function StepList({ def, onSelect, issues }: Pick<InspectorProps, "def" | "onSelect" | "issues">) {
-  return (
-    <div className="flex flex-col gap-1 p-3">
-      {def.steps.map((step, i) => {
-        const Icon = stepIcon(step);
-        const broken = issues.some((issue) => issue.stepId === step.id);
-        return (
-          <button
-            key={step.id}
-            type="button"
-            onClick={() => onSelect(step.id)}
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-paper-2"
-          >
-            <span className="w-4 text-right text-[0.75rem] text-ink-4 tabular-nums">{i + 1}</span>
-            <span
-              className={cn(
-                "inline-flex size-7 shrink-0 items-center justify-center rounded-md",
-                TYPE_TONE[step.type],
-              )}
-            >
-              <Icon className="size-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.875rem]">{step.title}</span>
-              <span className="block text-[0.75rem] text-ink-4">{typeLabel(step)}</span>
-            </span>
-            {broken ? <span className="size-2 shrink-0 rounded-full bg-rose" /> : null}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export function Inspector(props: InspectorProps) {
-  const { def, selected, onSelect, issues, readOnly = false } = props;
+  const { def, selected, readOnly = false } = props;
   // A read-only wizard takes no change, whatever a control inside still sends.
   const update: Update = readOnly ? () => {} : props.update;
   const step = def.steps.find((s) => s.id === selected);
@@ -1428,17 +1393,16 @@ export function Inspector(props: InspectorProps) {
     <ReadOnly value={readOnly}>
       <Assistant.Provider value={props.assistant}>
         <div>
-          {selected === WIZARD ? (
+          {/* No step chosen, or one that is gone: the wizard's own settings. */}
+          {step ? (
+            <StepInspector {...props} update={update} step={step} />
+          ) : (
             <WizardSettings
               def={def}
               update={update}
               projectId={props.projectId}
               wizardId={props.wizardId}
             />
-          ) : step ? (
-            <StepInspector {...props} update={update} step={step} />
-          ) : (
-            <StepList def={def} onSelect={onSelect} issues={issues} />
           )}
         </div>
       </Assistant.Provider>
