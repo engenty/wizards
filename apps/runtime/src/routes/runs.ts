@@ -68,6 +68,7 @@ import {
 } from "../engine/runner.js";
 import { basePath, env } from "../env.js";
 import { loadAsset, saveAsset } from "../files/storage.js";
+import { type CheckedUpload, checkUpload } from "../files/upload-check.js";
 import { reverseGeocode } from "../geocode.js";
 import { allowed, hashIp, verifyTurnstile, wizardUnavailable } from "../limits.js";
 import { mintConversation } from "../media/conversation.js";
@@ -620,8 +621,9 @@ export const publicRoutes = new Hono()
       return c.notFound();
     }
     return c.body(new Uint8Array(found.data), 200, {
-      "content-type": found.row.mime,
+      "content-type": bareMime(found.row.mime) ?? "application/octet-stream",
       "cache-control": "public, max-age=86400",
+      "x-content-type-options": "nosniff",
       // An SVG logo is shown, never run.
       "content-security-policy": "sandbox",
     });
@@ -642,8 +644,9 @@ export const publicRoutes = new Hono()
       return c.notFound();
     }
     return c.body(new Uint8Array(found.data), 200, {
-      "content-type": found.row.mime,
+      "content-type": bareMime(found.row.mime) ?? "application/octet-stream",
       "cache-control": "public, max-age=86400",
+      "x-content-type-options": "nosniff",
       "access-control-allow-origin": "*",
       "cross-origin-resource-policy": "cross-origin",
     });
@@ -1008,12 +1011,24 @@ export const runRoutes = new Hono()
         400,
       );
     }
+    let checked: CheckedUpload;
+    try {
+      checked = await checkUpload({
+        name: file.name,
+        mime,
+        data: new Uint8Array(await file.arrayBuffer()),
+      });
+    } catch (err) {
+      const said = noteOf(err);
+      if (said) {
+        return refuse(c, said, 400);
+      }
+      throw err;
+    }
     const ref = await saveAsset({
       runId: run.id,
-      kind: mime.startsWith("image/") ? "upload-image" : "upload",
-      mime,
-      name: file.name.slice(0, 120),
-      data: new Uint8Array(await file.arrayBuffer()),
+      kind: checked.mime.startsWith("image/") ? "upload-image" : "upload",
+      ...checked,
     });
     return c.json(ref);
   })

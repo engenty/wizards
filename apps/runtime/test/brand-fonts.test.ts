@@ -78,6 +78,7 @@ describe("a brand font's own file", () => {
     const served = await app.fetch(new Request(url(`/api/public/fonts/${id}`)));
     expect(served.status).toBe(200);
     expect(served.headers.get("content-type")).toBe("font/woff2");
+    expect(served.headers.get("x-content-type-options")).toBe("nosniff");
     expect(served.headers.get("access-control-allow-origin")).toBe("*");
     expect(new Uint8Array(await served.arrayBuffer())).toEqual(bytes);
 
@@ -96,7 +97,9 @@ describe("a brand font's own file", () => {
   });
 
   it("must be a font of the space", async () => {
-    const png = await upload("pixel.png", "image/png", new Uint8Array([0x89, 0x50, 0x4e, 0x47]));
+    const { createCanvas } = await import("@napi-rs/canvas");
+    const pixel = new Uint8Array(await createCanvas(1, 1).encode("png"));
+    const png = await upload("pixel.png", "image/png", pixel);
     const res = await send("PATCH", `/api/studio/projects/${spaceId}`, {
       brand: { fonts: [font({ file: png })] },
     });

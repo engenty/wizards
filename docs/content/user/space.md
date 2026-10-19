@@ -42,6 +42,10 @@ Logos, Colours and Brand assets each have an “Add” menu in their head.
 | Brand assets | Images, videos, audio, PDFs, fonts, Lottie and 3D files, in tabs you can search | AI steps place pictures in documents and choose them by their description |
 | Typography | Fonts, each with what it is for, its weights and its licence. “Add a source” says where wizard pages load a font from: a font file you upload, or its address on your website. engenty wizards tries the address and asks you to confirm the licence | Steps set documents in the brand’s fonts. Wizard pages show a font with a source to everyone. If your website does not answer, a shipped font of the same kind shows |
 
+Pictures you add here are checked as a run’s uploads are (see [Run](./run.md#photos-and-files-you-upload)).
+An SVG keeps its drawing and loses scripts, links and anything it would load from another site.
+An SVG with a DOCTYPE is refused: save it again as a plain SVG.
+
 ## Knowledge
 
 Knowledge is the ground truth your wizards’ steps look things up in: pages, tables and files. You

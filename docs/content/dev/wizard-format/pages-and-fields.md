@@ -41,6 +41,23 @@ field has a `label` and a `kind`, and may have `required`, `placeholder`, `help`
 | `connection` | Connects one of their accounts | `connection`: the id of a wizard connection |
 | `list` | Checks and corrects a stored list | `list`: the id of a wizard list |
 
+## Uploads
+
+The runtime checks each file an `image` or `file` field receives, from the run page or a runner
+plugin’s `runs.upload`, before it keeps it. A space’s files go through the same check. Up to
+15 MB per file, 40 MB for a clip.
+
+| Check | What happens |
+|---|---|
+| Name | Folders, control characters and direction overrides go. At most 120 characters |
+| Type | The first bytes must fit the declared type: a picture, a recording or clip, a PDF, an Office file, a font, text. Otherwise the upload is refused with `400`. A picture is kept under the type its bytes show |
+| Size | A picture of more than 50 megapixels or 16 384 pixels on a side is refused before it is decoded |
+| Pictures | PNG, JPEG, WebP and AVIF are decoded and encoded again in their own format, in a separate process: no EXIF, XMP or GPS, nothing after the picture’s end, upright as the EXIF orientation said. Animated pictures, GIF, HEIC, BMP and ICO keep their bytes |
+| SVG | Written again from an allowlist of drawing elements. Scripts, `foreignObject`, animations, event handlers and references that don’t start with `#` go. A DOCTYPE or entity declaration is refused |
+
+A type the runtime doesn’t check (`application/octet-stream`, for example) is kept and served
+only as a download. The plan with what comes next is [docs/plans/upload-checks.md](https://github.com/engenty/wizards/blob/main/docs/plans/upload-checks.md).
+
 ## Line items
 
 An `items` field takes positions and computes the totals itself:

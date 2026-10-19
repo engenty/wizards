@@ -11,6 +11,7 @@ import { and, asc, count, eq, max } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { documentMime, UnreadableDocument } from "../documents/parse.js";
 import { loadAsset, removeAsset, replaceAsset, saveAsset } from "../files/storage.js";
+import { checkUpload } from "../files/upload-check.js";
 import { embeddingModel, textModel } from "../models.js";
 import { spaceFileChanged } from "../plugins/events.js";
 import { dropLinks, putLink } from "../tenants/control.js";
@@ -103,8 +104,8 @@ export async function addProjectFile(
   },
 ): Promise<ProjectFileRow> {
   await requireWritableProject(projectId);
-  const mime = documentMime(input.name, input.mime) || "application/octet-stream";
-  if (!accepts(input.kind, mime)) {
+  const declared = documentMime(input.name, input.mime) || "application/octet-stream";
+  if (!accepts(input.kind, declared)) {
     throw new ServiceError(
       "invalid",
       input.kind === "logo"
@@ -114,13 +115,21 @@ export async function addProjectFile(
           : note("filesGoHere"),
     );
   }
-  const limit = projectFileLimit(input.kind, mime);
+  const limit = projectFileLimit(input.kind, declared);
   if (!input.data.byteLength || input.data.byteLength > limit) {
     throw new ServiceError(
       "invalid",
       note("chooseFileUpTo", { mb: Math.round(limit / 1_000_000) }),
     );
   }
+  // The bytes say what the file is; a picture is drawn again without its metadata.
+  const checked = await checkUpload({
+    name: input.name,
+    mime: declared,
+    data: input.data,
+    fallbackName: "datei",
+  });
+  const { mime, data, name } = checked;
   const scope = and(
     eq(schema.projectFile.projectId, projectId),
     eq(schema.projectFile.kind, input.kind),
@@ -135,12 +144,11 @@ export async function addProjectFile(
       note("roomMostFiles", { count: PROJECT_LIMITS.files[input.kind] }),
     );
   }
-  const name = input.name.slice(0, 120) || "datei";
   const ref = await saveAsset({
     kind: input.kind === "logo" ? "logo" : "project",
     mime,
     name,
-    data: input.data,
+    data,
   });
   const description = input.description?.trim().slice(0, 600) ?? "";
   const work = input.kind === "document" || (!description && SEEN_BY_MODEL.includes(mime));
@@ -152,7 +160,7 @@ export async function addProjectFile(
       kind: input.kind,
       name,
       mime,
-      size: input.data.byteLength,
+      size: data.byteLength,
       description,
       source: input.source ?? null,
       position: (last ?? -1) + 1,
