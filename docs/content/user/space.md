@@ -1,7 +1,7 @@
 ---
 title: Space
 description: What your wizards share and produce – who you are, what they look things up in, and the results of their runs.
-version: 0.8.0
+version: 0.9.0
 ---
 
 Your space holds what all your wizards share, and what they produce. Every AI step knows it, so a
@@ -40,6 +40,7 @@ Logos, Colours and Brand assets each have an “Add” menu in their head.
 | Logos | One or several, each with a description of what it is for. Upload one, or take it from a web address (“Logo from URL”) | People see the main logo. The description tells a step what a variant is for |
 | Colours | Named colours, each with a note on its use. Add one, or read them off a web page (“Colours from URL”) | The first colour is the accent of documents, dashboards and public pages |
 | Brand assets | Images, videos, audio, PDFs, fonts, Lottie and 3D files, in tabs you can search | AI steps place pictures in documents and choose them by their description |
+| Typography | Fonts, each with what it is for, its weights and its licence. “Add a source” says where wizard pages load a font from: a font file you upload, or its address on your website. engenty wizards tries the address and asks you to confirm the licence | Steps set documents in the brand’s fonts. Wizard pages show a font with a source to everyone. If your website does not answer, a shipped font of the same kind shows |
 
 ## Knowledge
 

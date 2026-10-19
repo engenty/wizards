@@ -28,6 +28,7 @@ import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { managed, tenantInfo } from "../manage.js";
 import { spaceChanged } from "../plugins/events.js";
+import { putLink } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
 import { mayBuild, requireAdmin, requireBuild, requireWritable } from "./access.js";
@@ -95,6 +96,18 @@ export const brandFontSchema = z.object({
   weights: z.array(z.number().int().min(100).max(900)).max(FONT_WEIGHTS.length + 3),
   license: z.string().max(200).optional(),
   uses: z.array(z.enum(FONT_USES)).max(FONT_USES.length).optional(),
+  source: z
+    .union([
+      z.object({ file: z.string().max(40) }),
+      z.object({
+        url: z
+          .string()
+          .max(600)
+          .url()
+          .refine((u) => u.startsWith("https://"), "an https:// address"),
+      }),
+    ])
+    .optional(),
 });
 
 export const textStyleSchema = z.object({
@@ -315,6 +328,9 @@ export async function updateProject(
   if (patch.facts && new Set(patch.facts.map((f) => f.key)).size !== patch.facts.length) {
     throw new ServiceError("invalid", note("twoEntriesSameKey"));
   }
+  if (patch.brand?.fonts) {
+    await linkFontFiles(p.id, patch.brand.fonts);
+  }
   await db
     .update(schema.project)
     .set({
@@ -326,6 +342,28 @@ export async function updateProject(
     })
     .where(eq(schema.project.id, p.id));
   spaceChanged("space.updated", p.id);
+}
+
+/**
+ * A brand font's own file is a font of the space; run pages ask for it by its id, before the
+ * tenant is known, so the control database learns it.
+ */
+async function linkFontFiles(projectId: string, fonts: BrandFont[]) {
+  for (const f of fonts) {
+    if (!(f.source && "file" in f.source)) {
+      continue;
+    }
+    const file = await db.query.projectFile.findFirst({
+      where: and(
+        eq(schema.projectFile.id, f.source.file),
+        eq(schema.projectFile.projectId, projectId),
+      ),
+    });
+    if (!file?.mime.startsWith("font/")) {
+      throw new ServiceError("invalid", note("fontSourceNoFont", { family: f.family }));
+    }
+    await putLink(file.id, "font", file.id);
+  }
 }
 
 /**

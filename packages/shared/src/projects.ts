@@ -1,4 +1,4 @@
-import type { RunTheme } from "./run.js";
+import type { RunFontFace, RunTheme } from "./run.js";
 
 // --- facts ---------------------------------------------------------------------
 // What a project knows about itself as label and value: an address, a VAT id, anything. Every
@@ -316,6 +316,30 @@ export interface BrandFont {
    * a system font.
    */
   uses?: FontUse[];
+  /**
+   * Where a run page loads it from: a `.woff2` of the space (a project file), served from our
+   * address, or the address of the font on the space's own website (the file or its stylesheet).
+   * None: the family name alone, as a computer that has it installed shows it.
+   */
+  source?: BrandFontSource;
+}
+
+export type BrandFontSource = { file: string } | { url: string };
+
+/** A font file by its address; anything else on a website is taken as a stylesheet. */
+const FONT_FILE = /\.(woff2?|ttf|otf)$/i;
+
+/** Where a run page loads a brand font from, or null when it has no source. */
+export function fontFace(font: Pick<BrandFont, "family" | "source">): RunFontFace | null {
+  const family = font.family.trim();
+  if (!(family && font.source)) {
+    return null;
+  }
+  if ("file" in font.source) {
+    return { family, url: `/api/public/fonts/${font.source.file}`, stylesheet: false };
+  }
+  const path = URL.canParse(font.source.url) ? new URL(font.source.url).pathname : "";
+  return { family, url: font.source.url, stylesheet: !FONT_FILE.test(path) };
 }
 
 const BACKGROUND_WORDS = /hintergrund|background|untergrund|grund|paper|papier|fläche|surface/i;
@@ -358,7 +382,7 @@ function colourful(hex: string): boolean {
  */
 export function runTheme(brand: {
   colors?: BrandColor[];
-  fonts?: Pick<BrandFont, "family" | "role">[];
+  fonts?: Pick<BrandFont, "family" | "role" | "source">[];
 }): RunTheme {
   const standard = (brand.colors ?? []).filter((c) => !c.section && rgbOf(c.value));
   const accent = standard[0]?.value ?? null;
@@ -378,6 +402,7 @@ export function runTheme(brand: {
     background,
     display: display?.family ?? null,
     body: body?.family ?? null,
+    faces: [...new Set([display, body])].flatMap((f) => (f ? (fontFace(f) ?? []) : [])),
     dark: background ? luminance(background) < 0.18 : false,
     pinned: false,
     modes: null,

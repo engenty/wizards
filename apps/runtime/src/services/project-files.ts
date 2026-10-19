@@ -412,7 +412,7 @@ async function removeRow(row: ProjectFileRow) {
   await dropConverted(row.id);
   await db.delete(schema.projectFile).where(eq(schema.projectFile.id, row.id));
   await removeAsset(row.id);
-  if (row.kind === "logo") {
+  if (row.kind === "logo" || row.mime.startsWith("font/")) {
     await dropLinks([row.id]);
   }
   spaceFileChanged("space.file.removed", row);

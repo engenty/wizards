@@ -255,6 +255,7 @@ function tenantFrom(find: (c: Context) => Promise<string | null>): MiddlewareHan
 const wizardLink = tenantFrom((c) => tenantOfLink(c.req.param("token") ?? "", "wizard"));
 const resultLink = tenantFrom((c) => tenantOfLink(c.req.param("token") ?? "", "result"));
 const logoLink = tenantFrom((c) => tenantOfLink(c.req.param("id") ?? "", "logo"));
+const fontLink = tenantFrom((c) => tenantOfLink(c.req.param("id") ?? "", "font"));
 const runTenant = tenantFrom((c) => tenantOfRun(c.req.param("id") ?? ""));
 
 /** Wrong guesses at a wizard's ID, per address and hour: 32^8 IDs stay out of reach. */
@@ -401,6 +402,7 @@ export const publicRoutes = new Hono()
   .use("/wizards/:token", wizardLink)
   .use("/wizards/:token/*", wizardLink)
   .use("/logos/:id", logoLink)
+  .use("/fonts/:id", fontLink)
   .get("/wizards/:token", async (c) => {
     const found = await publishedWizard(c.req.param("token"));
     if (!found) {
@@ -622,6 +624,28 @@ export const publicRoutes = new Hono()
       "cache-control": "public, max-age=86400",
       // An SVG logo is shown, never run.
       "content-security-policy": "sandbox",
+    });
+  })
+  // A brand font's own file, while its space's brand names it: run pages, embeds and hosts'
+  // frames load it from here, so any origin may.
+  .get("/fonts/:id", async (c) => {
+    const id = c.req.param("id");
+    const row = await db.query.projectFile.findFirst({ where: eq(schema.projectFile.id, id) });
+    const p = row
+      ? await db.query.project.findFirst({ where: eq(schema.project.id, row.projectId) })
+      : null;
+    const named = p?.brand.fonts?.some(
+      (f) => f.source && "file" in f.source && f.source.file === id,
+    );
+    const found = named && row?.mime.startsWith("font/") ? await loadAsset(id) : null;
+    if (!found) {
+      return c.notFound();
+    }
+    return c.body(new Uint8Array(found.data), 200, {
+      "content-type": found.row.mime,
+      "cache-control": "public, max-age=86400",
+      "access-control-allow-origin": "*",
+      "cross-origin-resource-policy": "cross-origin",
     });
   });
 

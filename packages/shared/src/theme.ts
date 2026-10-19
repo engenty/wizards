@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ENGENTY_COSTUMES, THEME_ID } from "./definition.js";
 import { luminance } from "./projects.js";
-import type { RunTheme } from "./run.js";
+import type { RunFontFace, RunTheme } from "./run.js";
 
 // --- themes ------------------------------------------------------------------------
 // How a wizard's pages look, as a document of its own: values only (colours for light and dark,
@@ -87,6 +87,13 @@ export const themeEffectSchema = z
   .catchall(z.union([z.string().max(40), z.number(), z.boolean()]));
 export type ThemeEffect = z.infer<typeof themeEffectSchema>;
 
+/** A shipped family by name, or `brand`: never an address. */
+const fontName = z
+  .string()
+  .min(1)
+  .max(60)
+  .regex(/^[A-Za-z0-9 -]+$/, "a font by its family name, or brand");
+
 export const themeSchema = z.object({
   id: z.string().regex(THEME_ID, "a theme id: lowercase letters, digits and dashes"),
   name: z.string().min(1).max(80),
@@ -102,8 +109,8 @@ export const themeSchema = z.object({
   prefer: z.enum(["light", "dark"]).optional(),
   fonts: z
     .object({
-      heading: z.string().min(1).max(60).optional(),
-      text: z.string().min(1).max(60).optional(),
+      heading: fontName.optional(),
+      text: fontName.optional(),
     })
     .optional(),
   shape: themeShapeSchema.optional(),
@@ -206,6 +213,7 @@ const NEUTRAL: RunTheme = {
   background: null,
   display: null,
   body: null,
+  faces: [],
   dark: false,
   pinned: false,
   modes: null,
@@ -229,15 +237,19 @@ export function themedLook(brand: RunTheme, theme: Theme | BuiltInTheme | undefi
     return NEUTRAL;
   }
   const base = theme.base === "default" ? NEUTRAL : brand;
-  const font = (name: string | undefined, fallback: string | null) =>
-    !name || name === "brand" ? fallback : name;
+  // `brand` is the brand's font for the role, whatever the theme builds on.
+  const font = (name: string | undefined, role: "display" | "body") =>
+    name === "brand" ? brand[role] : (name ?? base[role]);
+  const display = font(theme.fonts?.heading, "display");
+  const body = font(theme.fonts?.text, "body");
   const only = theme.light && !theme.dark ? "light" : theme.dark && !theme.light ? "dark" : null;
   const shown = only ?? theme.prefer ?? (base.dark ? "dark" : "light");
   const background = (shown === "dark" ? theme.dark : theme.light)?.background;
   return {
     ...base,
-    display: font(theme.fonts?.heading, base.display),
-    body: font(theme.fonts?.text, base.body),
+    display,
+    body,
+    faces: brand.faces.filter((f) => f.family === display || f.family === body),
     dark: background ? luminance(background) < 0.18 : shown === "dark",
     pinned: only !== null,
     modes:
@@ -250,11 +262,24 @@ export function themedLook(brand: RunTheme, theme: Theme | BuiltInTheme | undefi
 
 const SANS = "ui-sans-serif, system-ui, sans-serif";
 const SERIF = "ui-serif, Georgia, serif";
-const SERIFS = /serif|fraunces|playfair|lora|young serif/i;
+const SERIFS =
+  /serif|fraunces|playfair|lora|garamond|antiqua|baskerville|caslon|bodoni|didot|times|georgia|merriweather|tiempos/i;
 
-/** A family as CSS takes it, with a fallback of its kind while it loads or where it is missing. */
-export function fontStack(family: string): string {
-  return `"${family.replace(/"/g, "")}", ${SERIFS.test(family) && !/sans/i.test(family) ? SERIF : SANS}`;
+/** A family looks like a serif by its name: what takes its place is a serif too. */
+export const serifFamily = (family: string) => SERIFS.test(family) && !/sans/i.test(family);
+
+/** The shipped font that shows where a brand font does not load: one of its kind. */
+export const shippedLike = (family: string): ShippedFont =>
+  serifFamily(family) ? "Lora" : "Inter";
+
+/**
+ * A family as CSS takes it, with a fallback of its kind while it loads or where it is missing. A
+ * brand font with a source (`faces`) names the shipped font of its kind next: it shows if the
+ * brand font does not load.
+ */
+export function fontStack(family: string, faces: readonly RunFontFace[] = []): string {
+  const next = faces.some((f) => f.family === family) ? `"${shippedLike(family)}", ` : "";
+  return `"${family.replace(/"/g, "")}", ${next}${serifFamily(family) ? SERIF : SANS}`;
 }
 
 /** The colours a page shows in light or dark: the theme's for that mode, else the base's. */

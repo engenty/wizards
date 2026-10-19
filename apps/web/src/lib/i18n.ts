@@ -1442,6 +1442,7 @@ const de: Record<Key, Line> = {
   "inspector.lookCopy": "Nur für diesen Wizard kopieren",
   "inspector.lookCopyName": "{name} (Kopie)",
   "inspector.lookFontBrand": "Wie in der Marke",
+  "inspector.lookFontBrandNamed": "{family} – aus der Marke",
   "inspector.lookPages.both": "Hell und dunkel",
   "inspector.lookPages.dark": "Nur dunkel",
   "inspector.lookPages.light": "Nur hell",
@@ -1769,6 +1770,38 @@ const de: Record<Key, Line> = {
   "project.fontRole": "Wofür, z. B. Fließtext",
   "project.fontLicense": "Lizenz",
   "project.fontLicensePlaceholder": "Lizenz, z. B. SIL Open Font License",
+  "project.fontLicenseHint": "Lizenzen für Webschriften gelten oft nur für eine Domain.",
+  "project.fontLicenseConfirm":
+    "Die Lizenz erlaubt {family} auf Wizard-Seiten, die außerhalb deiner Website laufen.",
+  "project.fontSourceNone":
+    "Noch keine Quelle. Wizard-Seiten zeigen die Schrift nur, wo sie installiert ist.",
+  "project.fontSourceFile": "Lädt aus unserer Kopie: {name}",
+  "project.fontSourceUrl": "Lädt von {host}",
+  "project.fontSourceSet": "Quelle angeben",
+  "project.fontSourceChange": "Quelle ändern",
+  "project.fontSourceTitle": "Woher Wizard-Seiten {family} laden",
+  "project.fontSourceHint":
+    "Mit einer Quelle zeigen Wizard-Seiten die Schrift allen. Lade die Datei hoch oder gib ihre Adresse auf deiner Website an.",
+  "project.fontSourceKind.file": "Datei hochladen",
+  "project.fontSourceKind.url": "Adresse auf deiner Website",
+  "project.fontSourceFiles": "Schriftdateien des Space",
+  "project.fontSourceUpload": ".woff2 hochladen",
+  "project.fontSourceUrlLabel": "Adresse der Schrift oder ihres Stylesheets",
+  "project.fontSourceUrlPlaceholder": "z. B. https://example.com/fonts/marke.woff2",
+  "project.fontSourceCheck": "Adresse prüfen",
+  "project.fontCheck.ok": "Die Schrift lädt von dieser Adresse.",
+  "project.fontCheck.cors":
+    "{host} erlaubt anderen Websites nicht, die Schrift zu nutzen. Erlaub es auf der Website mit dem Header Access-Control-Allow-Origin oder lade stattdessen die Datei hoch.",
+  "project.fontCheck.down":
+    "{host} antwortet unter dieser Adresse nicht. Prüf die Adresse oder lade stattdessen die Datei hoch.",
+  "project.fontCheck.missing":
+    "Das Stylesheet hat keine Schrift namens {family}. Prüf den Namen oder gib die Adresse der Schriftdatei an.",
+  "project.fontCheck.noFont":
+    "Die Datei unter dieser Adresse ist keine Schrift, die ein Browser zeigen kann.",
+  "project.fontPrivacy":
+    "Wer eine Wizard-Seite öffnet, lädt die Schrift dann von {host}, und diese Website sieht die IP-Adresse.",
+  "project.fontSourceSave": "Quelle übernehmen",
+  "project.fontSourceRemove": "Quelle entfernen",
   "project.fontUses": "Erlaubt für",
   "project.fontUseWeb": "Web",
   "project.fontUseDocuments": "Dokumente",
@@ -3543,6 +3576,7 @@ const en = {
   "inspector.lookCopy": "Copy for this wizard only",
   "inspector.lookCopyName": "{name} (copy)",
   "inspector.lookFontBrand": "As in the brand",
+  "inspector.lookFontBrandNamed": "{family} – from the brand",
   "inspector.lookPages.both": "Light and dark",
   "inspector.lookPages.dark": "Dark only",
   "inspector.lookPages.light": "Light only",
@@ -3862,6 +3896,36 @@ const en = {
   "project.fontRole": "What for, e.g. body text",
   "project.fontLicense": "Licence",
   "project.fontLicensePlaceholder": "Licence, e.g. SIL Open Font License",
+  "project.fontLicenseHint": "Web font licences are often tied to one domain.",
+  "project.fontLicenseConfirm":
+    "The licence allows {family} on wizard pages, which run outside your own website.",
+  "project.fontSourceNone": "No source yet. Wizard pages show it only where it is installed.",
+  "project.fontSourceFile": "Loads from our copy: {name}",
+  "project.fontSourceUrl": "Loads from {host}",
+  "project.fontSourceSet": "Add a source",
+  "project.fontSourceChange": "Change source",
+  "project.fontSourceTitle": "Where wizard pages load {family} from",
+  "project.fontSourceHint":
+    "With a source, wizard pages show the font to everyone. Upload the file or give its address on your website.",
+  "project.fontSourceKind.file": "Upload a file",
+  "project.fontSourceKind.url": "Address on your website",
+  "project.fontSourceFiles": "Font files of the space",
+  "project.fontSourceUpload": "Upload .woff2",
+  "project.fontSourceUrlLabel": "Address of the font or its stylesheet",
+  "project.fontSourceUrlPlaceholder": "e.g. https://example.com/fonts/brand.woff2",
+  "project.fontSourceCheck": "Check address",
+  "project.fontCheck.ok": "The font loads from this address.",
+  "project.fontCheck.cors":
+    "{host} does not let other sites use the font. Allow it on the website with the header Access-Control-Allow-Origin, or upload the file instead.",
+  "project.fontCheck.down":
+    "{host} does not answer at this address. Check the address, or upload the file instead.",
+  "project.fontCheck.missing":
+    "The stylesheet has no font named {family}. Check the name, or give the address of the font file.",
+  "project.fontCheck.noFont": "The file at this address is no font a browser can show.",
+  "project.fontPrivacy":
+    "Everyone who opens a wizard page then loads the font from {host}, and that website sees their IP address.",
+  "project.fontSourceSave": "Use this source",
+  "project.fontSourceRemove": "Remove source",
   "project.fontUses": "Allowed for",
   "project.fontUseWeb": "Web",
   "project.fontUseDocuments": "Documents",

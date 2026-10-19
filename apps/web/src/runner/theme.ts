@@ -2,7 +2,7 @@ import type { RunTheme } from "@engenty/wizards-shared/run";
 import { fontStack, lookColours } from "@engenty/wizards-shared/theme";
 import { useEffect } from "react";
 import { usePinnedTheme, usePreferredLook, useTheme } from "../lib/theme";
-import { loadWizardFont } from "./fonts";
+import { loadBrandFace, loadWizardFont } from "./fonts";
 
 /**
  * A wizard's look on the page while it is shown: every Ember token derives from the seeds set here
@@ -19,6 +19,10 @@ export function useRunTheme(theme: Partial<RunTheme> | null | undefined) {
   useEffect(() => {
     const t = JSON.parse(key) as Partial<RunTheme>;
     const root = document.documentElement;
+    const faces = t.faces ?? [];
+    for (const face of faces) {
+      loadBrandFace(face);
+    }
     loadWizardFont(t.display);
     loadWizardFont(t.body);
     const themed = Boolean(t.modes);
@@ -41,8 +45,8 @@ export function useRunTheme(theme: Partial<RunTheme> | null | undefined) {
           : null,
       ],
       ["--ink", colours.text],
-      ["--f-display", t.display ? fontStack(t.display) : null],
-      ["--f-ui", t.body ? fontStack(t.body) : null],
+      ["--f-display", t.display ? fontStack(t.display, faces) : null],
+      ["--f-ui", t.body ? fontStack(t.body, faces) : null],
       // A face that comes in one weight shows in it, not in a bold the browser makes up.
       ["font-synthesis-weight", t.display || t.body ? "none" : null],
     ];

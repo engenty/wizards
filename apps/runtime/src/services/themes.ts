@@ -1,3 +1,4 @@
+import { runTheme } from "@engenty/wizards-shared/projects";
 import {
   freeThemeId,
   MAX_SPACE_THEMES,
@@ -13,15 +14,20 @@ import { requireBuild, requireWritable } from "./access.js";
 import { ServiceError } from "./errors.js";
 import { ownedProject } from "./projects.js";
 
-/** The space's themes, and which of its wizards name each. */
+/**
+ * The space's themes, which of its wizards name each, and the brand's fonts for headings and
+ * text: what `brand` means in a theme of this space.
+ */
 export async function listThemes(userId: string, projectId: string) {
   const p = await ownedProject(userId, projectId);
   const wizards = await db.query.wizard.findMany({
     columns: { id: true, title: true, draft: true },
     where: eq(schema.wizard.projectId, p.id),
   });
+  const { display, body, faces } = runTheme(p.brand);
   return {
     themes: p.themes,
+    brandFonts: { heading: display, text: body, faces },
     usedBy: Object.fromEntries(
       p.themes.map((t) => [
         t.id,
