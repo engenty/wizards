@@ -1,6 +1,5 @@
 import { accessSync, chmodSync, constants } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
 import { note } from "@engenty/wizards-shared/run";
 import { nanoid } from "nanoid";
 import { ServiceError } from "../services/errors.js";
@@ -50,16 +49,21 @@ type PtyModule = {
   spawn(file: string, args: string[], opts: Record<string, unknown>): Pty;
 };
 
-/** The prebuilt helper node-pty forks must be executable; an install that skips scripts leaves it without the bit. */
+/**
+ * @lydell/node-pty: node-pty with its binaries built for every platform it supports (Linux too),
+ * one package per platform, so nothing compiles at install. On macOS it forks through a helper
+ * that must be executable; a copy that lost the bit gets it back.
+ */
+const PTY = "@lydell/node-pty";
+
 function ensureHelper() {
+  if (process.platform !== "darwin") {
+    return;
+  }
   try {
-    const entry = createRequire(import.meta.url).resolve("node-pty");
-    const helper = join(
-      dirname(entry),
-      "..",
-      "prebuilds",
-      `${process.platform}-${process.arch}`,
-      "spawn-helper",
+    const entry = createRequire(import.meta.url).resolve(PTY);
+    const helper = createRequire(entry).resolve(
+      `${PTY}-${process.platform}-${process.arch}/spawn-helper`,
     );
     try {
       accessSync(helper, constants.X_OK);
@@ -67,19 +71,19 @@ function ensureHelper() {
       chmodSync(helper, 0o755);
     }
   } catch {
-    // Not on this platform, or not ours to change: spawning tells.
+    // Not installed, or not ours to change: spawning tells.
   }
 }
 
 async function ptyModule(): Promise<PtyModule> {
   try {
     ensureHelper();
-    const mod = (await import("node-pty")) as unknown as Partial<PtyModule> & {
+    const mod = (await import("@lydell/node-pty")) as unknown as Partial<PtyModule> & {
       default?: PtyModule;
     };
     const spawn = mod.spawn ?? mod.default?.spawn;
     if (!spawn) {
-      throw new Error("node-pty has no spawn");
+      throw new Error(`${PTY} has no spawn`);
     }
     return { spawn };
   } catch {

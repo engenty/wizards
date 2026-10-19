@@ -93,6 +93,7 @@ Declared by two or more of the workspaces below:
 | [@executor-js/plugin-openapi](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/plugins/openapi) | 1.6.10 | MIT |
 | [@hono/node-server](https://github.com/honojs/node-server) | 2.1.3 | MIT |
 | [@libsql/client](https://github.com/tursodatabase/libsql-client-ts#readme) | 0.18.0 | MIT |
+| [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
 | [@mastra/core](https://mastra.ai) | 1.77.0 | Apache-2.0 |
 | [@mastra/docker](https://mastra.ai) | 0.8.0 | Apache-2.0 |
 | [@mastra/mcp](https://mastra.ai) | 2.4.0 | Apache-2.0 |
@@ -113,7 +114,6 @@ Declared by two or more of the workspaces below:
 | [jose](https://github.com/panva/jose) | 6.2.12 | MIT |
 | [mammoth](https://github.com/mwilliamson/mammoth.js#readme) | 1.13.0 | BSD-2-Clause |
 | [nanoid](https://github.com/ai/nanoid#readme) | 5.1.16 | MIT |
-| [node-pty](https://github.com/microsoft/node-pty) | 1.1.0 | MIT |
 | [nodemailer](https://nodemailer.com/) | 10.0.9 | MIT-0 |
 | [pdf-parse](https://mehmet-kozan.github.io/pdf-parse/) | 2.4.5 | Apache-2.0 |
 | [playwright-core](https://playwright.dev) | 1.63.0 | Apache-2.0 |
