@@ -225,6 +225,11 @@ const SOURCE_DIRS = [
 const NOT_COPY = [
   ["apps/web/src/dev", null, "the dev-only mascot builder, not shipped to people"],
   [
+    "apps/web/src/studio/project/page-words.ts",
+    null,
+    "the public page's own words in the page's language, as Manage writes them",
+  ],
+  [
     "apps/runtime/src/agents/architect.ts",
     "Neuer Schritt",
     "AI prompt: the German words the studio sends",

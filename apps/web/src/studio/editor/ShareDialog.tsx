@@ -45,10 +45,11 @@ import {
   type ServerProblem,
   useCloud,
   useMe,
+  useProjects,
   type WizardDetail,
 } from "../../lib/session";
 import { PluginFrame, type StudioPlugins, useStudioPlugins } from "../../plugins/host";
-import { Button, cn, Dialog, IconButton, Input, Spinner, Switch } from "../../ui";
+import { Button, cn, Dialog, IconButton, Input, Select, Spinner, Switch } from "../../ui";
 import { LinkStatus, useAccountLink } from "../Account";
 import { openExternal } from "../LocalRuntime";
 import {
@@ -60,6 +61,7 @@ import {
   channelsOfRunners,
   runnerSettingsOf,
 } from "../NewWizardChannels";
+import { pageAddress } from "../project/page-address";
 import { FitChip, NeedList, useStandalone } from "../StandaloneNeeds";
 import { sharedLink, type WhereItRuns, whereItRuns } from "../where";
 import { useEstimate } from "./estimate";
@@ -136,6 +138,120 @@ const HEADINGS: Record<Exclude<View, "main" | "setup">, Key> = {
   settings: "share.settings",
   channels: "new.where",
 };
+
+/** A run of the wizard as the studio lists them; `shareToken` set where its result is shared. */
+interface SharedRun {
+  id: string;
+  status: string;
+  createdAt: string;
+  shareToken: string | null;
+}
+
+/**
+ * The team's public page (the space part "Öffentliche Seite"): whether this wizard stands on it,
+ * and which run the owner shared stands in for its result there. Only the switch and the example
+ * live here; the page's own words are the space's. Nothing where the team has no page address.
+ */
+function PageSection({ wizard }: { wizard: WizardDetail }) {
+  const qc = useQueryClient();
+  const id = useId();
+  const me = useMe();
+  const host = me.data?.tenant.pagesHost;
+  const projects = useProjects(Boolean(host));
+  const project = projects.data?.find((p) => p.id === wizard.projectId);
+  const page = project?.page ?? null;
+  const on = Boolean(page?.wizards.includes(wizard.id));
+  const runs = useQuery({
+    queryKey: ["runs", wizard.id],
+    queryFn: () => api.get<SharedRun[]>(`/api/studio/wizards/${wizard.id}/runs`),
+    enabled: Boolean(host && page && on),
+  });
+  const change = useMutation({
+    mutationFn: (patch: { wizards?: string[]; examples?: Record<string, string> }) =>
+      api.patch(`/api/studio/projects/${project?.id}`, { page: { ...page, ...patch } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
+  });
+  if (!(host && project)) {
+    return null;
+  }
+  const shared = (runs.data ?? []).filter((r) => r.shareToken);
+  const example = page?.examples[wizard.id] ?? "";
+  const when = new Intl.DateTimeFormat(lang, { dateStyle: "medium" });
+  // The page's own name where it has one; the space's title before that.
+  const space = page?.title || project.brand.name?.trim() || project.name;
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-3 rounded-xl bg-paper-2 px-4 py-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 id={id} className="font-medium text-[0.9375rem]">
+            {t("share.onPage", { space })}
+          </h3>
+          <p className="text-[0.8125rem] text-ink-3">
+            {page ? (
+              <>
+                <span className="font-mono">{pageAddress(host, page.slug)}</span> ·{" "}
+                {page.on ? (
+                  t("share.onPageOn")
+                ) : (
+                  <Link to="/space/page" className="text-ink underline-offset-2 hover:underline">
+                    {t("share.onPageOff")}
+                  </Link>
+                )}
+              </>
+            ) : (
+              <>
+                {t("share.onPageNone")}{" "}
+                <Link to="/space/page" className="text-ink underline-offset-2 hover:underline">
+                  {t("page.setUp")}
+                </Link>
+              </>
+            )}
+          </p>
+        </div>
+        {page ? (
+          <Switch
+            checked={on}
+            label={t("page.showOnPage")}
+            disabled={wizard.readOnly || !wizard.published || change.isPending}
+            onChange={(show) =>
+              change.mutate({
+                wizards: show
+                  ? [...page.wizards, wizard.id]
+                  : page.wizards.filter((x) => x !== wizard.id),
+              })
+            }
+          />
+        ) : null}
+      </div>
+      {page && on && !wizard.shareEnabled ? (
+        <p className="text-[0.8125rem] text-ink-3">{t("share.onPageNotShared")}</p>
+      ) : null}
+      {page && on ? (
+        <div className="flex flex-col gap-1.5">
+          <span className="font-medium text-[0.8125rem]">{t("share.example")}</span>
+          <Select
+            value={shared.some((r) => r.shareToken === example) ? example : ""}
+            onChange={(token) => {
+              const { [wizard.id]: _was, ...rest } = page.examples;
+              change.mutate({ examples: token ? { ...rest, [wizard.id]: token } : rest });
+            }}
+            options={[
+              { value: "", label: t("share.exampleNone") },
+              ...shared.map((r) => ({
+                value: r.shareToken as string,
+                label: t("share.exampleRun", { date: when.format(new Date(r.createdAt)) }),
+              })),
+            ]}
+          />
+          <p className="text-[0.8125rem] text-ink-3">{t("share.exampleHint")}</p>
+        </div>
+      ) : null}
+      {change.error ? (
+        <p className="text-[0.8125rem] text-rose">{(change.error as Error).message}</p>
+      ) : null}
+    </section>
+  );
+}
 
 /** The channels that are on, as rows, by kind: the browser's (with `base`, the link), the phone's, the messages'. */
 function waysOf(answer: RunnersAnswer, base: string | null): Way[] {
@@ -1465,6 +1581,7 @@ function SharePanel({
             {access.error ? (
               <p className="-mt-4 text-[0.8125rem] text-rose">{(access.error as Error).message}</p>
             ) : null}
+            {here ? null : <PageSection wizard={wizard} />}
             {runners.data ? (
               <Ways
                 ways={ways}

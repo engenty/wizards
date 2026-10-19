@@ -150,6 +150,7 @@ import {
 import { writeSummary } from "../services/knowledge-model.js";
 import { applyWebsite, finishOnboarding, needsOnboarding } from "../services/onboarding.js";
 import { exportWizard, importWizard } from "../services/package.js";
+import { pagePreview } from "../services/pages.js";
 import {
   profileSchema,
   saveProfile,
@@ -756,6 +757,11 @@ export const studio = new Hono<Vars>()
     const patch = projectPatchSchema.parse(await c.req.json());
     await updateProject(c.get("user").id, c.req.param("id"), patch);
     return c.json({ ok: true });
+  })
+  // The team's public page as Manage will draw it, for the preview beside the page's fields.
+  .get("/projects/:id/page", async (c) => {
+    await ownedProject(c.get("user").id, c.req.param("id"));
+    return c.json(await pagePreview());
   })
   // --- the space's themes: how its wizards' pages look (docs/plans/themes.md) ---
   .get("/projects/:id/themes", async (c) =>

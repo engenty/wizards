@@ -648,6 +648,8 @@ export async function listRuns(userId: string, wizardId: string) {
     credits: Math.ceil(r.costMicros / MICROS_PER_CREDIT),
     assets: assetCounts.find((a) => a.runId === r.id)?.n ?? 0,
     stepTitle: r.definition.steps.find((s) => s.id === r.cursor)?.title ?? null,
+    /** The token of its shared result (`/s/<token>`); null while it is not shared. */
+    shareToken: r.status === "done" ? r.shareToken : null,
   }));
 }
 

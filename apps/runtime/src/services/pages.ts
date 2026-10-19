@@ -276,6 +276,31 @@ export async function pageTeam(): Promise<PageTeam | null> {
   };
 }
 
+/**
+ * Where the team's page is opened: `https://<host>`; on a `.localhost` domain in development
+ * `http://<host>:<Manage's port>`, as Manage serves it there.
+ */
+export function pageOrigin(host: string): string {
+  if (host.endsWith(".localhost")) {
+    const port = URL.canParse(env.manage.url) ? new URL(env.manage.url).port : "";
+    return `http://${host}${port ? `:${port}` : ""}`;
+  }
+  return `https://${host}`;
+}
+
+/** What the studio's "Public page" part shows beside its fields: the team's address and page data. */
+export async function pagePreview(): Promise<{
+  host: string | null;
+  origin: string | null;
+  team: PageTeam | null;
+}> {
+  if (!managed) {
+    return { host: null, origin: null, team: null };
+  }
+  const host = (await tenantInfo(currentTenant())).pagesHost ?? null;
+  return { host, origin: host ? pageOrigin(host) : null, team: await pageTeam() };
+}
+
 let last: Promise<void> = Promise.resolve();
 
 /**

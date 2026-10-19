@@ -13,6 +13,7 @@ import { FileView } from "./project/Documents";
 import { CategoryItems, ItemRow, KnowledgeOverview, useKnowledge } from "./project/Knowledge";
 import { PageEditor } from "./project/PageEditor";
 import { ProjectSettings } from "./project/ProjectSettings";
+import { PublicPage } from "./project/PublicPage";
 import { NO_FILTER, Results, type ResultsFilter, useResults } from "./project/Results";
 import { Anchor, Section } from "./project/Section";
 import { DATA_ICON, DataOverview, dataGroups, useSpaceData } from "./project/SpaceData";
@@ -122,8 +123,8 @@ function SectionRows({
 }
 
 /**
- * The space at /space/<part>: what all its wizards share, in four parts — Info & brand, Knowledge,
- * Data and Results. The left container shows one level at a time, as the settings do: the
+ * The space at /space/<part>: what all its wizards share, in five parts — Info & brand, Knowledge,
+ * Data, Public page and Results. The left container shows one level at a time, as the settings do: the
  * parts, or the menu of the part that is open, which jumps to its sections and marks the one in
  * view (Results: picks a wizard). On a phone the parts, a part's menu and the page take
  * turns. Plugins add sections to a part, each plugin's under its name, and parts of their own.
@@ -176,8 +177,11 @@ export function ProjectPage() {
   const menu = useMemo(() => ({ slot, narrow, setDetail }), [slot, narrow]);
   const title = project ? project.brand.name?.trim() || project.name : t("nav.project");
 
-  // Typography waits behind its switch.
-  const off = useFeature("typography") ? [] : ["typography"];
+  // Typography waits behind its switch; the page's words and wizards exist once the page is on.
+  const off = [
+    ...(useFeature("typography") ? [] : ["typography"]),
+    ...(project?.page?.on ? [] : ["page-words", "page-wizards"]),
+  ];
   const partMenu = part ? (plugins.spaceMenus[part.id] ?? []) : [];
   const sections = part
     ? [{ plugin: null, label: null, sections: partMenu }]
@@ -587,6 +591,12 @@ export function ProjectPage() {
                   )}
                   {group === "info" ? pluginSections(added) : null}
                 </ProjectSettings>
+              ) : null}
+              {project && group === "page" ? (
+                <div className="flex flex-col gap-9 pb-20">
+                  <PublicPage key={project.id} project={project} />
+                  {pluginSections(added)}
+                </div>
               ) : null}
               {project && part ? (
                 <PluginFrame of={part}>

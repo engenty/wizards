@@ -15,8 +15,9 @@ import {
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { type Key, lang, t } from "../../lib/i18n";
-import type { PublishResult, WizardDetail } from "../../lib/session";
+import { type PublishResult, useMe, useProjects, type WizardDetail } from "../../lib/session";
 import { Button, cn, Dialog, Spinner } from "../../ui";
+import { pageAddress, pageUrl } from "../project/page-address";
 
 /**
  * "Änderungen live schalten": the draft becomes the version people run, from a dialog that
@@ -160,6 +161,12 @@ function LivePanel({
   const [error, setError] = useState<string | null>(null);
   const live = changes.data?.version ?? wizard.publishedVersion ?? 0;
   const next = live + 1;
+  // The team's public page, where the wizard stands on it: it shows the new version too.
+  const me = useMe();
+  const host = me.data?.tenant.pagesHost ?? null;
+  const projects = useProjects(Boolean(host));
+  const page = projects.data?.find((p) => p.id === wizard.projectId)?.page;
+  const onPage = host && page?.on && page.wizards.includes(wizard.id) ? page : null;
 
   if (done) {
     return (
@@ -180,6 +187,29 @@ function LivePanel({
             </p>
           ) : null}
         </div>
+        {onPage && host ? (
+          <div className="flex items-center justify-between gap-3 border-border-soft border-t py-3">
+            <div className="min-w-0">
+              <div className="font-medium text-[0.875rem]">{t("live.pageRow")}</div>
+              <p className="truncate font-mono text-[0.8125rem] text-ink-3">
+                {pageAddress(host, onPage.slug)}
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                window.open(
+                  pageUrl(host, onPage.slug, me.data?.manageUrl ?? null),
+                  "_blank",
+                  "noopener",
+                )
+              }
+            >
+              {t("page.open")}
+            </Button>
+          </div>
+        ) : null}
         <div className="mt-4 flex flex-wrap items-center gap-2 max-sm:flex-col-reverse max-sm:items-stretch">
           <Button variant="ghost" onClick={onClose}>
             {t("live.close")}
@@ -203,6 +233,7 @@ function LivePanel({
         })
       : null,
     cloud ? t("live.cloud", { v: next }) : null,
+    onPage && host ? t("live.page", { address: pageAddress(host, onPage.slug) }) : null,
   ].filter((n): n is string => Boolean(n));
 
   return (

@@ -43,10 +43,10 @@ export interface StudioSettingsSection {
 
 /**
  * The parts of the space page: `info` (who the space is, its logos, colours, assets and facts),
- * `knowledge` (its documents and what its steps search), `data` (what its wizards keep) and
- * `results` (what its runs produced).
+ * `knowledge` (its documents and what its steps search), `data` (what its wizards keep), `page`
+ * (its public page at `<team>.wizards.page/<slug>`) and `results` (what its runs produced).
  */
-export type StudioSpaceGroup = "info" | "knowledge" | "data" | "results";
+export type StudioSpaceGroup = "info" | "knowledge" | "data" | "page" | "results";
 
 /**
  * A section of the space page, in one of its parts, below the part's own sections. The studio
