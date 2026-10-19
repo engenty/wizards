@@ -4,6 +4,12 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.9.2] - 2026-10-19
+- FIXED **[runtime]** Drop Node's localStorage before a dependency reads it (#101)
+- FIXED **[runtime]** The built-in terminal starts on Linux too (#99)
+- FIXED **[studio]** The test run no longer slides off the right edge when the side panel is away (#98)
+- FIXED **[install]** An update starts from the version that runs and only changes what is different (#97)
+
 ## [0.9.1] - 2026-10-19
 - ADDED **[themes]** Themes: a wizard's look – colours for light and dark pages, fonts, shape and effects – as values kept in its space and carried in its wizard file (#88, #92)
 - ADDED **[themes]** The effect library: glow, spider webs or frost in the corners, embers, snow, confetti or stars, engenties in costume flying past or peeking in, fog, dots or a grid (#88)
