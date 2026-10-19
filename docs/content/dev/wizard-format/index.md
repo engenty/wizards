@@ -37,7 +37,7 @@ tool may read and write wizards.
 | `lang` | The language the wizard speaks, as a two-letter code. See [Languages](#languages) |
 | `lists` | Tables the wizard keeps between runs. See [Lists and connections](./lists-and-connections.md) |
 | `connections` | Accounts the person connects during a run. See [Lists and connections](./lists-and-connections.md) |
-| `themes` | The space’s themes the wizard offers, in order. See [Themes](#themes) |
+| `themes` | The space’s themes the wizard offers, in order. See [Themes](./themes.md) |
 | `steps` | What the run does, from top to bottom |
 
 ## JSON Schema
@@ -90,58 +90,9 @@ Using a figure or the name engenty as your own brand, logo or mascot needs permi
 
 ## Themes
 
-`themes` names the looks the wizard offers, in its order: ids of the space’s themes, or the
-built-in `brand` (the space’s brand), `host` (the look of the place the wizard runs in) and
-`default` (engenty wizards’ own look). Its own run and share pages show the first the space has;
-without any, the brand. A wizard file carries the themes its wizard names, in `wizard.json`
-beside the definition.
-
-A theme holds values only, no CSS and no files. Its JSON Schema is
-`https://engenty.ai/schema/theme/v1/theme.json`.
-
-| Key | What it holds |
-|---|---|
-| `id` | Lowercase letters, digits and dashes (`halloween`); `@owner/halloween` for a theme from the catalog. `brand`, `host`, `default`, `engenty`, `wizard` and `wizards` are reserved |
-| `name` | Shown in the studio |
-| `base` | `brand`, `host` or `default`: what the theme builds on. What it leaves out comes from there |
-| `colors` | The colours of light and dark pages, in order: each entry has a `scheme` (`light` or `dark`) and `accent`, `background` and `text` as `#rrggbb`. The first shows until the person picks; with one entry the pages are always that scheme |
-| `fonts` | `heading` and `text`: a font engenty wizards ships, or `brand` for the space’s |
-| `shape` | `radius` (`sharp`, `soft`, `round`), `cards` (`solid`, `outline`, `glass`), `headings` (`normal`, `uppercase`) |
-| `effects` | Effects from the runner’s library, each with its options. A runner that does not know an effect leaves it out |
-
-| Effect | Options |
-|---|---|
-| `glow` | |
-| `corners` | `kind`: `webs`, `frost` |
-| `particles` | `kind`: `embers`, `snow`, `confetti`, `stars` |
-| `figures` | `costume`: `witch`, `devil`, `bat`, `pumpkin`; `motion`: `fly`, `peek` |
-| `fog` | |
-| `pattern` | `kind`: `dots`, `grid` |
-
-The fonts ship with engenty wizards, so a run page loads no font from another site: `Inter`,
-`Figtree`, `DM Sans`, `Nunito`, `Fredoka`, `Bricolage Grotesque`, `Fraunces`,
-`Playfair Display`, `Lora`, `Young Serif`, `Caveat`, `Creepster` and `Nosifer`. Creepster and
-Nosifer are display fonts for headings.
-
-```json
-{
-  "id": "halloween",
-  "name": "Halloween",
-  "colors": [{ "scheme": "dark", "accent": "#ff7a1a", "background": "#140b1f" }],
-  "fonts": { "heading": "Creepster", "text": "Nunito" },
-  "effects": [
-    { "id": "glow" },
-    { "id": "corners", "kind": "webs" },
-    { "id": "figures", "costume": "bat", "motion": "fly" },
-    { "id": "particles", "kind": "embers" }
-  ]
-}
-```
-
-For hosts that style the runner around it, these names stay the same: `.wizard-page`,
-`.wizard-title`, `.wizard-heading`, `.wizard-button`, `.wizard-field`, `.wizard-card`, and the
-variables `--wizard-accent`, `--wizard-background`, `--wizard-text`, `--wizard-font-heading` and
-`--wizard-font-text`.
+`themes` names the looks the wizard offers, in order: ids of the space’s themes, or the built-in
+`brand`, `host` and `default`. Without it the wizard wears its space’s brand. A theme holds
+colours, fonts, shape and effects, values only. See [Themes](./themes.md).
 
 ## Languages
 
