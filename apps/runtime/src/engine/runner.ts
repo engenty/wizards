@@ -66,6 +66,7 @@ import {
   noteFreeTierRefusal,
 } from "../models.js";
 import { runEnded } from "../plugins/events.js";
+import { reportRun } from "../services/manage-reports.js";
 import { projectFiles } from "../services/project-files.js";
 import { projectProfile } from "../services/projects.js";
 import { switchedOffRunners } from "../services/runners.js";
@@ -178,6 +179,9 @@ async function updateRun(runId: string, patch: Partial<typeof schema.run.$inferI
     if (patch.status !== "cancelled") {
       void pushRun(runId, patch.status);
     }
+  }
+  if (patch.status) {
+    reportRun(runId, patch.status);
   }
   signalChanged(runId);
 }
@@ -304,6 +308,7 @@ export async function createRun(input: {
         : null,
   });
   await indexRun({ runId: id, visitorId: input.visitorId, ipHash: input.ipHash });
+  reportRun(id, first.type === "page" ? "waiting_input" : "running");
   if (first.type !== "page") {
     kick(id);
   }
@@ -338,6 +343,8 @@ async function take(runId: string, tenant: string): Promise<void> {
   // The heartbeat keeps the claim and hears of a cancel the web wrote while a step works.
   const beat = setInterval(() => {
     void heartbeatRuns([runId]).catch((err) => console.warn(`[run ${runId}] heartbeat:`, err));
+    // At work all along: the admin app hears it now and then, so a long step is not stuck.
+    void withTenant(tenant, () => reportRun(runId, "running")).catch(() => undefined);
     void withTenant(tenant, () => loadRun(runId))
       .then((run) => {
         if (run && run.status !== "running") {

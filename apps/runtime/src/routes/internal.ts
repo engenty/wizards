@@ -66,7 +66,7 @@ export const internalRoutes = new Hono()
       return c.json({ error: "bad tenant id" }, 400);
     }
     const { action } = z
-      .object({ action: z.enum(["suspend", "resume", "delete"]) })
+      .object({ action: z.enum(["suspend", "resume", "delete", "holds"]) })
       .parse(await c.req.json());
     forgetTenant(id);
     if (action === "delete") {

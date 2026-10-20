@@ -27,6 +27,7 @@ import { changedSteps, emitDraftChanged } from "./draft-events.js";
 import { notFound, ServiceError } from "./errors.js";
 import { copyFiles, draftFiles, sameFiles, seedFiles } from "./files.js";
 import { forgetWizardLinks } from "./links.js";
+import { pushWizards } from "./manage-reports.js";
 import { asLang, countInstall, marketplaceWizard } from "./marketplace.js";
 import { pushPages } from "./pages.js";
 import { defaultProject, ownedProject } from "./projects.js";
@@ -345,6 +346,7 @@ export async function createWizard(
     starterRevision: fromStarter?.revision ?? null,
   });
   await putLink(shareToken, "wizard", id);
+  pushWizards();
   if (fromStarter) {
     await seedFiles(id, fromStarter.files);
     // Counted at the marketplace, beside the request; a plugin's starter is not the marketplace's.
@@ -467,6 +469,7 @@ export async function updateWizardSettings(
   // Switched off, the wizard leaves the organization's public page; on, it may return to it.
   if (patch.shareEnabled !== undefined && patch.shareEnabled !== w.shareEnabled) {
     pushPages();
+    pushWizards();
   }
   return wizardSummary(await ownedWizard(userId, wizardId));
 }
@@ -482,6 +485,7 @@ export async function rotateShareLink(userId: string, wizardId: string) {
   await putLink(token, "wizard", w.id);
   // The public page's start button leads to the new link.
   pushPages();
+  pushWizards();
   return { shareToken: token, shareUrl: shareUrl(token) };
 }
 
@@ -503,6 +507,7 @@ export async function duplicateWizard(userId: string, wizardId: string) {
   });
   await putLink(shareToken, "wizard", id);
   await copyFiles(w.id, id);
+  pushWizards();
   return { id };
 }
 
@@ -514,6 +519,7 @@ export async function deleteWizard(userId: string, wizardId: string) {
     .delete(schema.wizard)
     .where(and(eq(schema.wizard.id, wizardId), eq(schema.wizard.tenantId, currentTenant())));
   await unlistWizard(w.projectId, wizardId);
+  pushWizards();
 }
 
 /** A wizard that is gone leaves its space's public page, which is sent again without it. */
@@ -563,5 +569,6 @@ export async function publishWizard(userId: string, wizardId: string) {
     .where(eq(schema.wizard.id, w.id));
   // The organization's public page shows the new version's title, results and steps.
   pushPages();
+  pushWizards();
   return { version, shareUrl: shareUrl(w.shareToken), shareEnabled: w.shareEnabled };
 }

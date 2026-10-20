@@ -4,6 +4,8 @@ import { and, count, eq, gte } from "drizzle-orm";
 import { canSpend } from "./credits/credits.js";
 import { db, schema } from "./db/client.js";
 import { env } from "./env.js";
+import { managed, tenantInfo } from "./manage.js";
+import { currentTenant } from "./tenants/tenant.js";
 
 export function hashIp(ip: string | null | undefined): string | null {
   if (!ip) {
@@ -28,6 +30,9 @@ export async function wizardUnavailable(w: WizardRow): Promise<RunNote | null> {
   if (!w.shareEnabled || w.publishedVersion === null) {
     return { code: "wizardUnavailable" };
   }
+  if (await held(w.id)) {
+    return { code: "wizardPaused" };
+  }
   const [{ n }] = await db
     .select({ n: count() })
     .from(schema.run)
@@ -45,6 +50,18 @@ export async function wizardUnavailable(w: WizardRow): Promise<RunNote | null> {
     return { code: "wizardUnavailable" };
   }
   return null;
+}
+
+/**
+ * An admin held the wizard, or the team's whole page, at the Manage-App: no new run starts. Out
+ * of reach, the Manage-App holds nothing up.
+ */
+export async function held(wizardId: string): Promise<boolean> {
+  if (!managed) {
+    return false;
+  }
+  const info = await tenantInfo(currentTenant()).catch(() => null);
+  return Boolean(info?.holds?.wizards.some((h) => h.id === wizardId));
 }
 
 export async function verifyTurnstile(
