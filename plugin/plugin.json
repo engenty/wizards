@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "engenty-wizards",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Build page-by-page AI wizards that people open on a shared link, test and publish them from the chat, and run your published ones here.",
   "author": {
     "name": "engenty",
