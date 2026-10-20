@@ -301,6 +301,33 @@ function WhoCard({
 type Device = "desktop" | "tablet" | "mobile";
 const DEVICE_WIDTH: Record<Device, number> = { desktop: 1280, tablet: 768, mobile: 390 };
 const DEVICE_KEY = "wizards.pagePreviewDevice";
+const HEIGHT_KEY = "wizards.pagePreviewHeight";
+/** The frame's height: the default by the room, what the person dragged it to within these. */
+const MIN_HEIGHT = 360;
+const defaultHeight = (tall: boolean) => (tall ? 640 : 480);
+/** The most the frame may take: the window less the studio's bar and the card's head. */
+const maxHeight = () => Math.max(MIN_HEIGHT, window.innerHeight - 140);
+
+function storedHeight(): number | null {
+  try {
+    const v = Number(localStorage.getItem(HEIGHT_KEY));
+    return v >= MIN_HEIGHT ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function keepHeight(height: number | null) {
+  try {
+    if (height === null) {
+      localStorage.removeItem(HEIGHT_KEY);
+    } else {
+      localStorage.setItem(HEIGHT_KEY, String(Math.round(height)));
+    }
+  } catch {
+    // A private window: the height lasts the visit.
+  }
+}
 
 /** The device picked last time, kept with the browser. */
 function storedDevice(): Device {
@@ -341,7 +368,16 @@ function PageFrame({ url, version, device }: { url: string; version: number; dev
     return () => watch.disconnect();
   }, []);
   const width = DEVICE_WIDTH[device];
-  const height = room.tall ? 640 : 480;
+  // Dragged to a height of its own, else the default for the room; a double click goes back.
+  const [own, setOwn] = useState<number | null>(storedHeight);
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ y: number; height: number } | null>(null);
+  const height = Math.min(own ?? defaultHeight(room.tall), room.width ? maxHeight() : 9999);
+  const resize = (next: number) => {
+    const clamped = Math.round(Math.min(maxHeight(), Math.max(MIN_HEIGHT, next)));
+    setOwn(clamped);
+    return clamped;
+  };
   const phone = device === "mobile";
   // A phone's frame takes some of the room; the page inside stays as wide as a phone.
   const bezel = phone ? 12 : 0;
@@ -360,7 +396,8 @@ function PageFrame({ url, version, device }: { url: string; version: number; dev
           title={t("page.previewTitle")}
           src={`${url}${url.includes("?") ? "&" : "?"}v=${version}`}
           tabIndex={-1}
-          className="absolute top-0 left-0 border-0"
+          // While the handle is dragged the page may not take the pointer.
+          className={cn("absolute top-0 left-0 border-0", dragging && "pointer-events-none")}
           style={{
             width,
             height: Math.ceil(height / scale),
@@ -369,6 +406,57 @@ function PageFrame({ url, version, device }: { url: string; version: number; dev
           }}
         />
       ) : null}
+      <button
+        type="button"
+        aria-label={t("page.resize")}
+        title={t("page.resize")}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch {
+            // A pointer the browser does not track (a test's): the drag still follows the moves.
+          }
+          drag.current = { y: e.clientY, height };
+          setDragging(true);
+        }}
+        onPointerMove={(e) => {
+          if (drag.current) {
+            resize(drag.current.height + e.clientY - drag.current.y);
+          }
+        }}
+        onPointerUp={(e) => {
+          if (drag.current) {
+            keepHeight(resize(drag.current.height + e.clientY - drag.current.y));
+            drag.current = null;
+          }
+          setDragging(false);
+        }}
+        onPointerCancel={() => {
+          drag.current = null;
+          setDragging(false);
+        }}
+        onDoubleClick={() => {
+          setOwn(null);
+          keepHeight(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            e.preventDefault();
+            keepHeight(resize(height + (e.key === "ArrowDown" ? 24 : -24)));
+          }
+        }}
+        className="absolute right-1 bottom-1 z-10 grid size-7 cursor-ns-resize touch-none place-items-center rounded-md bg-card/90 text-ink-3 shadow-soft ring-1 ring-border-soft hover:text-ink coarse:size-9"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path
+            d="M11 1 1 11M11 5 5 11M11 9 9 11"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
     </div>
   );
   return (
