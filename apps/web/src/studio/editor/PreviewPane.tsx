@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { Mascot } from "../../brand";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import type { WizardDetail } from "../../lib/session";
@@ -470,6 +471,8 @@ export function PreviewPane({
                 </>
               ) : (
                 <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+                  {/* The wizard's engenty in its costume, as its start page shows it. */}
+                  <Mascot kind={def.avatar} costume={def.costume} size={160} fluffy />
                   <h2 className="text-balance font-display font-semibold text-[1.5rem] tracking-tight">
                     {def.title}
                   </h2>
