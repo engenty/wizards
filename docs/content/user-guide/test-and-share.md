@@ -53,16 +53,21 @@ The ⋯ menu on a card and in the editor has “Duplicate”, “Export as a wiz
 
 “Share” says who may open the wizard and how others reach it, and it copies the link.
 
+![The share dialog with numbered parts: Access, How others reach it, QR code, Website, Copy link and the settings gear. On this computer without an account, a box above offers “Sign in” and “Create account”](../../assets/guide-share.png)
+
 | Part | Does |
 |---|---|
-| Access | With “Anyone with the link”, anyone can open and fill it in, up to the runs a day set under “Settings”. “Only you” switches the link off: everyone else sees a notice, and you test in the studio |
-| How others reach it | The ways the wizard runs (see below). Each row copies its own link. “Change” lets you choose them, from the same list as for a new wizard |
-| QR code | One of the links as a QR code to download or print |
-| Website | The code for a website (see below) |
-| Copy link | The link people open. It opens the first way that is on, and the wizard offers the other on its first page |
-| Settings (the gear) | “Limit per day” (50 runs unless you change it, with what that costs at most), “Offer a translation” (a machine translation per language, which you can edit), and “Create a new link”: the old link and its QR code stop working, in the cloud too |
+| 1 · Access | With “Anyone with the link”, anyone can open and fill it in, up to the runs a day set under “Settings”. “Only you” switches the link off: everyone else sees a notice, and you test in the studio |
+| 2 · How others reach it | The ways the wizard runs (see below). Each row copies its own link. “Change” lets you choose them, from the same list as for a new wizard |
+| 3 · QR code | One of the links as a QR code to download or print |
+| 4 · Website | The code for a website (see below) |
+| 5 · Copy link | The link people open. It opens the first way that is on, and the wizard offers the other on its first page |
+| 6 · Settings (the gear) | “Limit per day” (50 runs unless you change it, with what that costs at most), “Offer a translation” (a machine translation per language, which you can edit), and “Create a new link”: the old link and its QR code stop working, in the cloud too |
 
-Where the draft has changes, the dialog says so at the top and leads to “Publish changes”.
+The picture is from a computer without an account: the box at the top offers “Sign in” and
+“Create account”, and “Access” says “Only on this computer” (see
+[Who can open the link](#who-can-open-the-link)). Where the draft has changes, the dialog says so
+at the top and leads to “Publish changes”.
 
 One visitor can start 6 runs an hour.
 
@@ -149,7 +154,9 @@ has both the step-by-step page and the chat on, you first choose what the websit
 <script async src="https://example.com/embed.js" data-wizard="TOKEN" data-mode="bubble" data-label="Questions?" data-text="A quote in 2 minutes"></script>
 ```
 
-The code only works once the wizard is published and open to anyone with the link. A chat in the
+The dialog gives the code once the wizard is published, open to anyone with the link, and
+reachable by others: on your computer that takes an account (see
+[Who can open the link](#who-can-open-the-link)). Until then it says so instead. A chat in the
 page that is switched off for the wizard shows the step-by-step page instead. The chat button
 always opens the chat.
 
