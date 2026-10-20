@@ -1258,6 +1258,7 @@ export function StepNav({
   const ids = [SETTINGS, ...steps.map((s) => s.id), ...(result ? [result.id] : [])];
   const at = selected ? ids.indexOf(selected) : -1;
   const current = useRef<HTMLButtonElement>(null);
+  const row = useRef<HTMLDivElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: the selected step is what moves into view
   useEffect(() => {
     current.current?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
@@ -1274,7 +1275,8 @@ export function StepNav({
   // ← / → step through while this tab is open, unless the keys belong to a field or a control.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
+      // Only the strip in sight steps: a hidden one (the preview kept behind the editor) does not.
+      if ((e.key !== "ArrowLeft" && e.key !== "ArrowRight") || !row.current?.offsetParent) {
         return;
       }
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
@@ -1297,7 +1299,10 @@ export function StepNav({
   const dot = "inline-flex size-8 shrink-0 items-center justify-center rounded-full transition";
   const place = steps.findIndex((s) => s.id === selected);
   return (
-    <div className="flex shrink-0 items-center gap-1 border-border-soft border-b px-2 py-2">
+    <div
+      ref={row}
+      className="flex shrink-0 items-center gap-1 border-border-soft border-b px-2 py-2"
+    >
       {/* The wizard's settings stand first, outside the steps, always in reach. */}
       <button
         type="button"

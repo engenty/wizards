@@ -122,6 +122,7 @@ function useDragWidth({
       return initial;
     }
   });
+  const [dragging, setDragging] = useState(false);
   const set = (next: number) => {
     const w = Math.round(Math.min(Math.max(next, min), max()));
     setWidth(w);
@@ -141,7 +142,9 @@ function useDragWidth({
       window.removeEventListener("pointerup", up);
       document.body.style.removeProperty("cursor");
       document.body.style.removeProperty("user-select");
+      setDragging(false);
     };
+    setDragging(true);
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     window.addEventListener("pointermove", move);
@@ -154,7 +157,7 @@ function useDragWidth({
       set(width + (e.key === "ArrowRight" ? dir : -dir) * step);
     }
   };
-  return { width, onPointerDown, onKeyDown, reset: () => set(initial) };
+  return { width, dragging, onPointerDown, onKeyDown, reset: () => set(initial) };
 }
 
 const SHEET_KEY = "wizards.editor.sheet";
@@ -1064,51 +1067,60 @@ function Editor() {
 
         <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card lg:rounded-3xl lg:shadow-[0_0_0_1px_var(--border-soft)]">
           {notices}
+          {/* Editing in its place, the preview stays: its picks and an open run keep their state. */}
           {shownView === "preview" && editing && !columnBeside ? (
-            <>
+            <div key="edit" className="flex min-h-0 flex-1 flex-col animate-fade-in">
               {/* The preview's bar, with only the switch back while editing. */}
               <div className="@container flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-border-soft border-b px-3 [scrollbar-width:none]">
                 {showOrEdit}
               </div>
               {strip}
               {editor}
-            </>
-          ) : shownView === "preview" ? (
-            <PreviewPane
-              lead={showOrEdit}
-              // The flow beside the preview shows the steps: no strip then, and the run is a button away.
-              strip={columnBeside && column === "flow" ? null : strip}
-              onEdit={columnBeside && column === "flow" ? () => setColumn("edit") : undefined}
-              onShowRun={
-                columnBeside && column === "flow" && drawerRun && !showRun && stepOf(selected)
-                  ? () => setShowRun(true)
-                  : undefined
-              }
-              wizard={w}
-              runId={drawerRun}
-              runView={runView}
-              onView={onRunView}
-              stepId={showRun && drawerRun ? null : (stepOf(selected)?.id ?? null)}
-              audience={audience}
-              onAudience={setAudience}
-              test={{
-                start: () => testRun.mutate(),
-                busy: testRun.isPending,
-                disabled: hasIssues || building || blocked,
-              }}
-              column={wideWindow ? columnShown : null}
-              onColumn={setColumnShown}
-              onClose={closeRun}
-              building={building ? <Working chat={chat} spinner="size-4 text-ember" /> : null}
-              log={
-                <RunLog
-                  view={runView}
-                  steps={def.steps}
-                  onSelect={select}
-                  className="border-border-soft border-t"
-                />
-              }
-            />
+            </div>
+          ) : null}
+          {shownView === "preview" ? (
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col",
+                editing && !columnBeside ? "hidden" : "animate-fade-in",
+              )}
+            >
+              <PreviewPane
+                lead={showOrEdit}
+                // The flow beside the preview shows the steps: no strip then, and the run is a button away.
+                strip={columnBeside && column === "flow" ? null : strip}
+                onEdit={columnBeside && column === "flow" ? () => setColumn("edit") : undefined}
+                onShowRun={
+                  columnBeside && column === "flow" && drawerRun && !showRun && stepOf(selected)
+                    ? () => setShowRun(true)
+                    : undefined
+                }
+                wizard={w}
+                runId={drawerRun}
+                runView={runView}
+                onView={onRunView}
+                stepId={showRun && drawerRun ? null : (stepOf(selected)?.id ?? null)}
+                audience={audience}
+                onAudience={setAudience}
+                test={{
+                  start: () => testRun.mutate(),
+                  busy: testRun.isPending,
+                  disabled: hasIssues || building || blocked,
+                }}
+                column={wideWindow ? columnShown : null}
+                onColumn={setColumnShown}
+                onClose={closeRun}
+                building={building ? <Working chat={chat} spinner="size-4 text-ember" /> : null}
+                log={
+                  <RunLog
+                    view={runView}
+                    steps={def.steps}
+                    onSelect={select}
+                    className="border-border-soft border-t"
+                  />
+                }
+              />
+            </div>
           ) : shownView === "flow" ? (
             flow
           ) : (
@@ -1131,11 +1143,20 @@ function Editor() {
           )}
         </section>
 
-        {columnBeside ? (
+        {/* On a wide window the column is always there: shown and hidden, it slides. */}
+        {wideWindow ? (
           <section
             aria-label={t("editor.flow")}
-            className="relative flex min-h-0 shrink-0 flex-col overflow-visible rounded-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)] max-lg:hidden"
-            style={{ width: columnPane.width }}
+            aria-hidden={!columnBeside}
+            inert={!columnBeside}
+            className={cn(
+              "relative min-h-0 shrink-0",
+              !columnPane.dragging &&
+                "motion-safe:transition-[width,margin,opacity] motion-safe:duration-300 motion-safe:ease-out",
+              // Hidden, it gives back its width and the gap before it.
+              !columnBeside && "-ml-3 opacity-0",
+            )}
+            style={{ width: columnBeside ? columnPane.width : 0 }}
           >
             {/* biome-ignore lint/a11y/useSemanticElements: a draggable splitter has no element of its own */}
             <div
@@ -1152,34 +1173,50 @@ function Editor() {
             >
               <span className="-translate-y-1/2 absolute top-1/2 left-[5px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
             </div>
-            <div className="@container flex h-12 shrink-0 items-center gap-2 border-border-soft border-b px-3">
-              <Pills<ColumnPick>
-                named
-                label={t("editor.view")}
-                value={columnPick}
-                onChange={pickColumn}
-                options={[
-                  {
-                    id: "settings",
-                    label: t("editor.profile"),
-                    icon: <Settings className="size-3.5" />,
-                  },
-                  { id: "flow", label: t("editor.flow"), icon: <Workflow className="size-3.5" /> },
-                  { id: "edit", label: t("editor.edit"), icon: <Pencil className="size-3.5" /> },
-                  ...(resultStep
-                    ? [
-                        {
-                          id: "result" as const,
-                          label: t("editor.result"),
-                          icon: <Flag className="size-3.5" />,
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-b-3xl">
-              {column === "flow" ? flow : editor}
+            {/* The card keeps its width while the column slides: nothing inside reflows. */}
+            <div className="h-full overflow-hidden rounded-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)]">
+              <div className="flex h-full flex-col" style={{ width: columnPane.width }}>
+                <div className="@container flex h-12 shrink-0 items-center gap-2 border-border-soft border-b px-3">
+                  <Pills<ColumnPick>
+                    named
+                    label={t("editor.view")}
+                    value={columnPick}
+                    onChange={pickColumn}
+                    options={[
+                      {
+                        id: "settings",
+                        label: t("editor.profile"),
+                        icon: <Settings className="size-3.5" />,
+                      },
+                      {
+                        id: "flow",
+                        label: t("editor.flow"),
+                        icon: <Workflow className="size-3.5" />,
+                      },
+                      {
+                        id: "edit",
+                        label: t("editor.edit"),
+                        icon: <Pencil className="size-3.5" />,
+                      },
+                      ...(resultStep
+                        ? [
+                            {
+                              id: "result" as const,
+                              label: t("editor.result"),
+                              icon: <Flag className="size-3.5" />,
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-b-3xl">
+                  <div key={column} className="flex min-h-0 flex-1 flex-col animate-fade-in">
+                    {/* Hidden, the column holds no editor: the main area has it then. */}
+                    {column === "flow" ? flow : columnBeside ? editor : null}
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
         ) : null}
