@@ -10,32 +10,41 @@
   Let AI do the work.
 </p>
 
+**For personal use and small businesses**\
+Turn a task you repeat into a wizard, or pick a ready one from the
+[gallery](https://engenty.ai/wizards). Use it yourself or share it with colleagues and clients: the
+wizard guides you step by step, you confirm its drafts, and you get the result.
+
+**For developers**\
+Wizards are skills on steroids: workflows with their own interface, built and run on your machine
+with Codex, Claude Code or your own API key. They connect to other systems over MCP and HTTP. And
+you can put them into other places, such as Claude and other AI chats, or your own website with an
+embed code.
+
+**For enterprises**\
+Wizards make AI dependable. Your domain experts define the business processes themselves, without
+waiting for developers. Host it in the cloud or inside your own walls, with any model provider.
+[Get in touch](mailto:contact@engenty.ai).
+
 ## What it does
 
-- **Describe it, get a wizard.** Say in plain words what you do again and again – a post with
-  an image, a research briefing, an invoice, a quote, a damage report – and engenty builds a
-  wizard for it: pages that ask what it needs, AI steps that do the work.
-- **AI steps do the work.** They research the web, write, draw images, render video, read PDFs,
-  scans and emails, build documents and dashboards, and write into other services over MCP, HTTP
-  or a browser. Anything that changes an account asks first.
-- **Share it with a link.** Anyone can run a wizard in the browser, on a phone too: camera,
-  code scan, voice notes, location and a drawn signature included. Results download as PDF,
-  Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link. Each wizard
-  wears a theme of your space: its colours, fonts and effects.
-- **Send the result on.** From the result, by email, into Google Drive, OneDrive or S3, to a
-  Slack channel, through any connected service, or onto a website the wizard opens in its
-  browser – you sign in yourself and confirm before anything goes public.
-- **Runs on your machine, on your subscription.** It uses Codex, Claude Code, Antigravity
-  or Cursor Agent when one is installed and signed in, so no API key is needed. Or bring a key
-  (Vercel AI Gateway, OpenAI, Anthropic, Google), or a local model through Ollama. Your wizards and
-  results stay in a folder on your machine.
+<table>
+  <tr><td><strong>Wizards Studio</strong></td><td>Say in plain words what you need, and the studio builds the workflow and its pages. Preview every step and test it before you share.</td></tr>
+  <tr><td><strong>Any LLM</strong></td><td>Use any model provider. Each step gets the right model: a light one for simple work, a strong one where it counts, and no AI where none is needed.</td></tr>
+  <tr><td><strong>Works anywhere</strong></td><td>In the browser and on a phone, with the camera, voice notes and a signature. It even runs inside Claude, ChatGPT or your own chatbot.</td></tr>
+  <tr><td><strong>Create Results</strong></td><td>Reports, tables, images, videos, documents, dashboards: anything AI can make.</td></tr>
+  <tr><td><strong>Review &amp; Refine</strong></td><td>People confirm the AI’s drafts or ask for another try, and anything that changes an account or goes public asks first.</td></tr>
+  <tr><td><strong>Keeps Memory</strong></td><td>A wizard keeps notes and lists across all its runs.</td></tr>
+  <tr><td><strong>Your Look</strong></td><td>Each wizard wears your theme: colours, fonts and effects, in light and dark.</td></tr>
+  <tr><td><strong>Integrate &amp; Share</strong></td><td>Share a wizard as a link or an embed code, and send its results by email, to Drive or Slack, or through any connector.</td></tr>
+</table>
 
 ## How it looks
 
-The studio: the conversation that changes a wizard, next to its steps as a flow with its branches.
+The studio: the conversation that changes a wizard, the preview of each page as people see it, and its steps as a flow with its branches.
 
 <p align="center">
-  <img src="docs/assets/studio.png" alt="The studio of engenty wizards: the assistant explains where a wizard that collects a month's receipts for bookkeeping looks for them; beside it the wizard's flow – two pages of questions, AI steps that branch to the mailbox and to customer portals, a review and the result">
+  <img src="docs/assets/studio.png" alt="The studio of engenty wizards: on the left the assistant explains where a wizard that turns property photos into a walkthrough video branches – an optional voice-over and two ways to animate the rooms; in the middle the preview of its first page, which property, with title, key facts and location; on the right the flow with those branches">
 </p>
 
 A wizard in use: it asks on one page, then on the next, and ends with the result to download or share.
@@ -73,7 +82,7 @@ then walks you through the rest:
   you publish on this computer then runs in the cloud too. Esc while it waits, or say no, and
   `wizards account sign-in` does it any time.
   `--local` leaves the account out: nothing leaves the computer, links answer on it only
-  ([local only](https://engenty.ai/docs/user/local-only)).
+  ([local only](https://engenty.ai/docs/user-guide/local-only)).
 - **An AI client.** It looks for Codex, Claude Code, Antigravity and Cursor Agent and
   offers to install the missing ones – first the one whose app (Claude, ChatGPT, Antigravity,
   Cursor) is on your Mac, as its subscription is most likely yours already. The first page of the studio
@@ -132,25 +141,11 @@ Change it later under Settings → Models.
 
 ## Using it
 
-- **Make a wizard:** describe it in the studio’s chat, or start from one of the templates.
-  You see the steps as a diagram and can change any of them.
-- **Run and share:** try it yourself, then share the link. Shared results are kept for 7 days
-  for people without an account. “Share” on a result also sends it by email, saves it to a
-  cloud folder or posts it: [Sharing a result](docs/development.md#sharing-a-result).
-- **Connect services:** Gmail, Google Drive, Calendar, Contacts, Outlook, OneDrive, Slack,
-  GitHub, HubSpot and S3 are built in; any other service can be added from its API description
-  or MCP server through the [integrations.sh](https://integrations.sh) registry. Services that
-  sign in with OAuth need a few settings first: [Connectors](docs/development.md#connectors).
-- **Give it a look:** under “Look” a wizard wears a theme of your space – colours, fonts and
-  effects – or ask the assistant, for example “Make it dark and spooky for Halloween.”
-- **Build from Claude Code or Codex:** Settings → Integrate adds engenty wizards to your AI
-  apps (Claude Desktop, Claude Code, Codex, Cursor and others), or `wizards connect` from a
-  terminal. In Claude Code, the plugin also lists your wizards beside the chat:
-  `claude plugin marketplace add engenty/wizards`, then `claude plugin install wizards@engenty`.
-
-Your machine only answers on `localhost`. To let others open shared wizards, sign in with your
-account: every version that goes live also runs on engenty.ai, even while your computer is off.
-Or run it on a server.
+The [user guide](https://engenty.ai/docs/user) shows how to
+[build a wizard](https://engenty.ai/docs/user/build-a-wizard),
+[test and share it](https://engenty.ai/docs/user/test-and-share),
+[connect services](https://engenty.ai/docs/user/connectors) and
+[use it from your AI apps](https://engenty.ai/docs/user/ai-apps).
 
 ## Your data
 

@@ -1,7 +1,7 @@
 ---
 title: Your data
 description: Where wizards, results, files and keys are kept, how to back them up and how to start over.
-version: 0.5.0
+version: 0.9.3
 ---
 
 ## Where it is

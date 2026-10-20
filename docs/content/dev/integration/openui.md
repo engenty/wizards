@@ -188,7 +188,7 @@ The component reads the theme once per wizard (`GET /api/public/wizards/:token?t
 
 The browser talks to the runtime as a visitor, as on the wizard’s own page: the runtime sets a
 visitor cookie, lets a visitor start 6 runs an hour
-([`LIMIT_VISITOR_RUNS_PER_HOUR`](../../user/command-line.md#settings)) and spends the wizard’s own
+([`LIMIT_VISITOR_RUNS_PER_HOUR`](../../user-guide/command-line.md#settings)) and spends the wizard’s own
 credits or model keys. The chat’s model and the wizards’ model are two different things: the
 chat picks the model that writes its answers, and each wizard’s steps run on what its space
 has.

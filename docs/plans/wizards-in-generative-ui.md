@@ -38,7 +38,7 @@ progress while AI steps work, the review and the result with its downloads. The 
 regenerate the steps, so they are what the author defined. At the end the component hands the
 result back to the conversation (an OpenUI action) and the agent goes on with it.
 
-This is the same split as today in Claude and ChatGPT over MCP (`docs/content/user/ai-apps.md`):
+This is the same split as today in Claude and ChatGPT over MCP (`docs/content/user-guide/ai-apps.md`):
 the chat decides, the runtime owns the flow. The difference is the look. Today a step is our
 page in an iframe (an MCP App). Here it is the host's own components, inline in the
 conversation.

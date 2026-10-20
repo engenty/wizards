@@ -12,7 +12,7 @@ and change with notice. Everything else is the studio’s own and changes withou
 | Part | For | Signed in as |
 |---|---|---|
 | `/api/v1/…` | programs that build and publish wizards: the spaces of a local install, importing a wizard | an access token of the account, with scopes (`wizards:read`, `wizards:write`, `wizards:publish`, `runs:test`); see [the Manage-App contract](https://github.com/engenty/engenty-wizards/blob/main/docs/manage-contract.md) |
-| `/api/mcp` | AI apps: every tool of [the MCP server](../user/ai-apps.md) | the same tokens, or the local ticket `wizards mcp` carries |
+| `/api/mcp` | AI apps: every tool of [the MCP server](../user-guide/ai-apps.md) | the same tokens, or the local ticket `wizards mcp` carries |
 | The public run API: `/api/public/wizards/:token`, `/api/public/wizards/:token/runs`, `/api/public/codes/:code`, `/api/runs/:id/…` | running a published wizard by its link: what the runner in a browser does | nobody; a visitor cookie, or the `x-wizards-visitor` header where a cookie does not survive |
 
 ## Private

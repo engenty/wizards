@@ -1,7 +1,7 @@
 ---
 title: Space
 description: What your wizards share and produce – who you are, what they look things up in, and the results of their runs.
-version: 0.9.0
+version: 0.9.3
 ---
 
 Your space holds what all your wizards share, and what they produce. Every AI step knows it, so a
@@ -27,7 +27,7 @@ Results have no menu: the list above them picks one wizard or all of them.
 |---|---|---|
 | Info & brand | Basics, Facts, Logos, Colours, Brand assets | Who you are and how you look |
 | Knowledge | All, then each category, then the sections plugins add | What every AI step looks things up in |
-| Data | All data, General, then each wizard | Tables and pages the wizards keep |
+| Data | All data, then each wizard | Tables and pages the wizards keep |
 
 ## Info & brand
 
@@ -40,7 +40,6 @@ Logos, Colours and Brand assets each have an “Add” menu in their head.
 | Logos | One or several, each with a description of what it is for. Upload one, or take it from a web address (“Logo from URL”) | People see the main logo. The description tells a step what a variant is for |
 | Colours | Named colours, each with a note on its use. Add one, or read them off a web page (“Colours from URL”) | The first colour is the accent of documents, dashboards and public pages |
 | Brand assets | Images, videos, audio, PDFs, fonts, Lottie and 3D files, in tabs you can search | AI steps place pictures in documents and choose them by their description |
-| Typography | Fonts, each with what it is for, its weights and its licence. “Add a source” says where wizard pages load a font from: a font file you upload, or its address on your website. engenty wizards tries the address and asks you to confirm the licence | Steps set documents in the brand’s fonts. Wizard pages show a font with a source to everyone. If your website does not answer, a shipped font of the same kind shows |
 
 Pictures you add here are checked as a run’s uploads are (see [Run](./run.md#photos-and-files-you-upload)).
 An SVG keeps its drawing and loses scripts, links and anything it would load from another site.
@@ -81,11 +80,10 @@ no longer updates it.
 
 ## Data
 
-Data holds the tables and pages of the space and its wizards. Those of the space itself stand
-under “General”, a wizard’s under its name. A wizard fills its own: a shared list becomes one of
+Data holds the tables and pages your wizards keep, each under the wizard’s name. The space’s own
+tables and pages are in Knowledge. A wizard fills its own: a shared list becomes one of
 its tables, and a step with the “Pages” tool writes its pages. The columns of a shared list come
-from the wizard. The buttons “Table” and “Page” add one, for the space or for one of its
-wizards.
+from the wizard. The buttons “Table” and “Page” add one for one of its wizards.
 
 - **Table**: columns of a type (text, number, date, duration, choice, yes/no) and a row per
   line. Type into a cell; it is saved when you leave it. A value that doesn’t fit the column is
@@ -104,32 +102,24 @@ shows them without changing them. Files stay on your computer.
 ## Results
 
 Results lists every run that reached its result, newest first: of all wizards, or of the one you
-choose in the menu, where the wizard with the latest result stands first. The search finds words
+choose above the list, where the wizard with the latest result stands first. The search finds words
 in the wizard’s name, in what was answered and in what the run produced. The filters keep live or
 test runs, and the last 24 hours, 7 or 30 days. A run opens beside the list as the person saw it,
 with its files.
 
-## Have it filled in
-
-[Goose](./assistant.md), at the bottom of the page, fills in the space for you where it is
-switched on. Tell it about yourselves, name your website or give it files:
-
-> Read our website example.com
-
-It enters what it finds: title, description, logo, colours and facts. You correct the rest.
-
-In the cloud, the first visit to the studio does the same: it asks for your website and your
-first documents. See [Create an account](./create-account.md).
-
 ## One space
 
-engenty wizards on your computer has one space, called “My computer” at first (“Mein Computer” in German). On engenty.ai the
-team’s plan says how many spaces it may have. The space’s name in the top bar opens a menu: it
-switches between spaces, “Rename space” renames this one, and “Add space” adds one while the plan
-has room. Each space
-has its own wizards, Info & brand, Knowledge, Data, connectors and results. The account, the
-models and the plugins are the same for every space.
+engenty wizards on your computer has one space, called “My computer” at first (“Mein Computer” in
+German). On engenty.ai the team’s plan says how many spaces it may have. The space’s tile in the
+app bar opens a menu: it switches between spaces, “Rename space” renames this one, and “Add space”
+adds one while the plan has room. Each space has its own wizards, Info & brand, Knowledge, Data,
+connectors and results. The account, the models and the plugins are the same for every space.
 
 When you publish wizards from your computer with an account signed in, their space shows up in
 the cloud too, marked with a laptop. You can only look at it there: you edit it in engenty
 wizards on your computer, and changes show up in the cloud the next time you publish a wizard.
+
+## Filled in for you
+
+In the cloud, the first visit to the studio asks for your website and your first documents and
+fills in the space from them. See [Create an account](./create-account.md).

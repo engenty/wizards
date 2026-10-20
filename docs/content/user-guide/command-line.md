@@ -1,7 +1,7 @@
 ---
 title: Command line
 description: The wizards command – start, setup, status, update – and the settings file on your computer.
-version: 0.5.0
+version: 0.9.3
 ---
 
 ## Commands
@@ -16,18 +16,19 @@ version: 0.5.0
 | `wizards open` | Signs this browser in to the running studio. `--print` only prints the link; it works once, within a minute |
 | `wizards status` | Shows what is installed and running, with the browser it uses for PDF, PNG and websites |
 | `wizards doctor` | Shows the status and checks for problems |
-| `wizards logs [n]` | Prints the last lines engenty wizards printed while running (100, or `n` up to 2000). Keys and tokens are taken out |
-| `wizards report` | Sends the status, the model settings (never a key) and the last 500 log lines to your [account](./models.md#account), so support can see what went wrong. Nothing is sent unless you run it. The command names the report’s ID. If this computer isn’t signed in, it tells you to sign in under Settings → Account or with `wizards account sign-in` |
+| `wizards logs [n]` | While it runs, prints the last lines engenty wizards printed while running (100, or `n` up to 2000). Keys and tokens are taken out |
+| `wizards report` | While it runs, sends the status, the model settings (never a key) and the last 500 log lines to your [account](./models.md#account), so support can see what went wrong. Nothing is sent unless you run it. The command names the report’s ID. If this computer isn’t signed in, it tells you to sign in under Settings → Account or with `wizards account sign-in` |
 | `wizards stop` | Stops it, with any other copy of it still running in the background. Your data is kept. AI apps that use your wizards start it again when you use one there |
 | `wizards restart` | Stops it and starts it again; after an update, that is the new version. If it isn’t running, it starts in the background |
 | `wizards update` | Installs the latest version |
-| `wizards sandbox add` / `remove` | Adds the sandbox where AI steps run code, or removes it. It is agentOS, about 340 MB, and needs no Docker. Without a sandbox, steps can’t run code. `wizards sandbox` alone shows whether it is there. Name an engine to add another one: `wizards sandbox add agentos` |
-| `wizards autostart on` / `off` | Starts it when you log in, or stops doing so. It is a LaunchAgent on macOS and a systemd user service on Linux |
+| `wizards sandbox add` / `remove` | Adds the sandbox where AI steps run code, or removes it. It is agentOS, about 340 MB, needs no Docker and runs on macOS and Linux. Without a sandbox, steps can’t run code. It is used from the next start (`wizards restart`). `wizards sandbox` alone shows whether it is there |
+| `wizards autostart on` / `off` | Starts it when you log in, or stops doing so. It is a LaunchAgent on macOS, a systemd user service on Linux and a scheduled task on Windows |
+| `wizards autoupdate on` / `off` | Updates by itself or not. See [Update](./install.md#update) |
 | `wizards connect [app …]` | Adds your wizards to your [AI apps](./ai-apps.md): every app found, or the ones you name |
 | `wizards disconnect [app …]` | Takes them out again |
 | `wizards mcp` | Runs the MCP server over stdio. AI apps start it; you don’t |
 | `wizards uninstall` | Takes engenty wizards off this computer. It shows what it will remove first and asks about your data on its own; your data is kept unless you choose to delete it. `--dry-run` only shows the plan, `--yes` asks nothing and keeps your data, `--yes --delete-data` deletes it too. See [Remove](./install.md#remove) |
-| `wizards validate <path …>` | Checks wizards without the studio: `.wizard` files, unpacked wizard files, or a wizard’s JSON. `--json` prints the problems as JSON. A space’s connectors and plugins are checked when you import it |
+| `wizards validate <path …>` | Checks wizards without the studio: `.wizard` files, unpacked wizard files, or a wizard’s JSON. `--json` prints the problems as JSON. |
 
 | Option | What it does |
 |---|---|
@@ -35,7 +36,7 @@ version: 0.5.0
 | `--local` | Sets up without an account, so nothing leaves this computer ([Local only](./local-only.md)) |
 | `--client <name>` | Installs this AI client without asking: `codex`, `claude`, `antigravity`, `cursor` |
 | `--no-open` | Starts without opening the browser |
-| `--background`, `-s` | Starts it in the background (`--service` still works): detached from the terminal, and the command returns. `wizards stop` stops it, and its output goes to `logs/runtime.log` |
+| `--background`, `-s` | Starts it in the background: detached from the terminal, and the command returns. `wizards stop` stops it, and its output goes to `logs/runtime.log` |
 | `--version`, `-v` | Prints the version |
 | `--help`, `-h` | Lists every command |
 

@@ -1,14 +1,14 @@
 ---
 title: Steps
 description: What a wizard is made of – pages, AI steps, generated media, widgets, reviews and the result.
-version: 0.7.11
+version: 0.9.3
 ---
 
 A wizard runs its steps from top to bottom. The last step is always the result.
 
 | Step | What it does |
 |---|---|
-| Page | Asks the person: one to five fields |
+| Page | Asks the person: one field or more, five at most on a good page |
 | AI step | Does a task with tools: research, read documents, call an API, work in a connected service |
 | Generate | Makes one thing: an image, a video, a voice-over, a document or a dashboard |
 | Widget | Shows an interactive view built once for this wizard: a map, a timeline, a calculator, a film |
@@ -19,7 +19,7 @@ A wizard runs its steps from top to bottom. The last step is always the result.
 
 ## Pages
 
-A page has a title, up to five fields and a button. Each field has a kind:
+A page has a title, its fields (a good page has at most five) and a button. Each field has a kind:
 
 | Kind | The person |
 |---|---|
@@ -71,6 +71,7 @@ An AI step has instructions and the tools you allow it:
 | Code & shell | run code in a sandbox, where engenty wizards has one |
 | Images | make images while it works |
 | API | call an HTTP API |
+| Programs over tools | write one small program that calls the step’s other tools many times, for example to fetch 30 pages or go through every row |
 | Pages | write pages of the wizard in Markdown, kept for every later run, and read them and the pages of the space’s Knowledge |
 
 Every AI step can also read and write the wizard’s lists, list its files and read documents:
@@ -150,7 +151,7 @@ A film step hands a brief, the run’s material (voice-overs, pictures, uploads,
 space’s brand to the AI client installed on your computer (Claude Code). The client writes the
 film as code, looks at its frames and fixes them. engenty wizards then renders the MP4: 16:9,
 9:16 or square. A film step runs only where Claude Code is set up with your subscription, never
-on credits or in the cloud, and it takes 10 to 40 minutes. The voice comes from a generate step
+on credits or in the cloud, and it takes 5 to 40 minutes. The voice comes from a generate step
 before it.
 
 ## Reviews
@@ -175,34 +176,19 @@ Each entry of the result page names a step and the formats the person can downlo
 | View | JSON |
 | Film | MP4 |
 | AI step, text | Markdown, text, Word, PDF, HTML |
-| AI step, data | JSON, CSV, Excel, Markdown |
+| AI step, data | JSON, CSV, Excel, Markdown; nested data also PDF |
 | AI step, collected files | ZIP |
 | List | Excel, CSV, JSON, Markdown; ZIP with the files its rows name |
 
-Under “Send & publish” the step says where a person can send or publish the result with one
-button, besides the link and the downloads (see [Share a result](./run.md#share-a-result)). Each
-target is a row with a switch and its state: “Ready”, “AI agent · only you”, or “Not set up”.
-A sentence above the rows says what visitors get and what only you get.
+Under “Send & publish” you choose where people can send or publish the result with one button,
+besides the link and the downloads. Each target shows its state: “Ready”, “AI agent · only you”
+or “Not set up”. Switch targets off, or prefill their forms with “Insert”, and the result keeps
+its own list; “Reset” brings the default back. See [Share a result](./run.md#share-a-result).
 
-| Label | Means |
-|---|---|
-| “Default” | Every target that is set up and needs no AI agent. Targets with an agent only you get |
-| “Own list” | You switched a target off, prefilled one or added one: only the targets switched on, in this order. An agent target then runs for everyone with the link, on your credits |
-| “Off” | Every target switched off: the result has only the link and the downloads |
-
-“Reset” brings the default back. Targets that are not set up on this server are listed under
-“not set up”, with “Set up” to the connectors.
-
-The arrow on a row opens its form: the name on the result page and what each field starts with.
-“Insert” puts a placeholder where the cursor is: an answer, a written result or the brand name.
-In the wizard file they read `{{email}}`, `{{steps.offer}}` and `{{brand.name}}`.
-
-While the result step is chosen, the studio shows its result page beside the flow, filled from
-the last test run. “Visitor” and “You” switch between what each of them gets. A target opens to
-its form as the visitor sees it, with the test run’s answers in it; nothing is sent from there.
-On a tablet or a phone, “Result page” switches the view, and “See the result page” opens it from
-the step. The result node on the flow shows the targets too: filled for visitors, a ring for
-you only.
+When you choose the result (the flag), the preview shows its result page, filled from the last
+test run. “Visitor” and “You” switch between what each of them gets. A target opens to its form
+as the visitor sees it, with the test run’s answers in it; nothing is sent from there. The
+result node on the flow shows the targets too: filled for visitors, a ring for you only.
 
 ## Branches
 
@@ -215,8 +201,8 @@ follows. The diagram shows the branches with their conditions.
 
 A branch can also be decided by the AI: instead of a condition it has a statement (“The person
 wants a refund, not an exchange”). When no condition matched, the AI reads what was answered and
-found so far and takes the branch whose statement is true; if none clearly is, the next step
-follows. All such branches of a step cost one small decision together.
+found so far and takes the branch whose statement is true; if none clearly is, the step’s
+“otherwise” branch, or else the next step, follows. All such branches of a step cost one small decision together.
 
 A branch back to an earlier step makes a loop, for example “write, check, write again until the
 check passes”. A loop stops after the number of times you allow, at most ten if you set nothing.

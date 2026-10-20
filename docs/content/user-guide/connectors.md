@@ -1,13 +1,12 @@
 ---
 title: Connectors
 description: Services a wizard works in for the person who runs it – built in, from the registry or over MCP.
-version: 0.5.0
+version: 0.9.3
 ---
 
 Settings → Connectors lists the services the space’s wizards can work in. A wizard uses a
 connector with the account of the person who runs it: they connect their account during the run,
-on a page that asks for it. Each space has its own connectors. In a team on engenty.ai, the owner
-and the admins add and remove them. In the cloud, a space you publish from your computer shows
+on a page that asks for it. Each space has its own connectors. In the cloud, a space you publish from your computer shows
 its connectors without letting you change them: you change them on your computer.
 
 ## Built in
@@ -20,6 +19,7 @@ its connectors without letting you change them: you change them on your computer
 | GitHub | GitHub (OAuth) |
 | HubSpot | A token they enter |
 | S3 | Keys they enter |
+| Email over SMTP, for sending | Address and password (or app password) they enter |
 
 The OAuth services need an OAuth client of your own, which you enter in the settings file of
 engenty wizards. A built-in connector shows up in the list once it can be connected, so a service

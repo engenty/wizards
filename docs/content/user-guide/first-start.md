@@ -1,7 +1,7 @@
 ---
 title: First start
 description: Choose how the AI runs on your computer. The studio opens once a test call works.
-version: 0.5.0
+version: 0.9.3
 ---
 
 The first page of the studio on your computer is the setup, “Choose how the AI runs”. It asks
@@ -42,8 +42,8 @@ has a “Sign in” button that opens your browser for it. If you set engenty wi
 After you connect, one short call checks that the model can be reached. The setup stays until
 that call works. Then “Open the studio” takes you in.
 
-With your own keys, each key has its own Test. It checks the key with the provider, stores it in
-this computer’s keychain and sets that provider’s models for what no other key covers yet. One
+With your own keys, each key has its own Test. It checks the key with the provider, stores it on
+this computer (on a Mac in the Keychain, elsewhere encrypted in your data folder) and sets that provider’s models for what no other key covers yet. One
 key that works is enough. Which model does which job you change later under
 [Settings → Models](./models.md).
 

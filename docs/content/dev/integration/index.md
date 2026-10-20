@@ -13,8 +13,7 @@ other systems, from a plain link to a chat that starts the wizard by itself.
 |---|---|
 | [Link and QR code](./link-and-share.md) | The wizard’s own page, as a link or a QR code |
 | [Embed](./embed.md) | The wizard on your website, inline, as a button or a chat |
-| [WordPress](./wordpress.md) | The plugin “engenty wizards” places wizards and reads their results |
-| [Channels](./channels.md) | A chat, a conversation or a call, and WhatsApp, SMS or the phone |
+| [Channels](./channels.md) | Page by page or as a chat, and channels of your own |
 
 ## For AI apps
 
@@ -33,5 +32,5 @@ other systems, from a plain link to a chat that starts the wizard by itself.
 | [Your own UI](./own-ui.md) | Your app draws the run with `@engenty/wizards-runner` |
 | [Results to your systems](./results.md) | What a run produces goes on to your own systems |
 
-Each way starts from a published wizard. [Test and share](../../user/test-and-share.md) in the
+Each way starts from a published wizard. [Test and share](../../user-guide/test-and-share.md) in the
 user guide explains how you publish one.

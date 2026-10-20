@@ -60,4 +60,4 @@ npx -p @engenty/wizards-runtime wizards validate wizards/*.wizard
 ```
 
 What belongs to a space is checked only on import. See
-[What the import takes](./wizard-file.md#what-the-import-takes).
+[What the import does](./wizard-file.md#what-the-import-does).

@@ -1358,6 +1358,7 @@ function SharePanel({
 }) {
   const qc = useQueryClient();
   const account = useFeature("account");
+  const wordpress = useFeature("wordpress");
   const me = useMe();
   const local = me.data?.mode === "local";
   // A local install with an account sends what it publishes on to the account's cloud.
@@ -1633,7 +1634,7 @@ function SharePanel({
           url={blocked ? null : base}
           title={title}
           enabled={runners.data?.settings.enabled ?? []}
-          wordpress={account}
+          wordpress={account && wordpress}
           onPackage={() => setView("package")}
         />
       ) : null}

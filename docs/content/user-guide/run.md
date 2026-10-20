@@ -1,19 +1,29 @@
 ---
 title: Run a wizard
 description: What you see when you open a wizard’s link, on a computer or a phone.
-version: 0.7.11
+version: 0.9.3
 ---
 
 ## From the link to the result
 
-1. The link opens the wizard. “Let’s go” starts a run.
-2. Pages ask their questions. “Continue” takes you to the next page, “Back” to the one before.
-3. While an AI step works, the page says what it is doing. The screen stays on.
-4. A review shows what was made. “Looks good” accepts it. “New version” asks for another one,
-   with a note on what should change. “Edit” lets you change a text by hand.
-5. The result page offers the downloads, “Copy text” and “Share”.
+![A wizard on a phone with numbered parts: its first screen with “Let’s go”, “Or: Chat” and “Bookmark this wizard”, and its first page with a photo field, a text field and “Continue”](../../assets/guide-runner.png)
 
-If you left a run, you can pick it up again with “Continue your last run”.
+1. **“Let’s go”** starts a run. The link opens the wizard on this screen.
+2. **“Or: Chat”** runs the same wizard as a chat, where its owner switched that on.
+3. **“Bookmark this wizard”** shows how to keep it in your bookmarks. Where the phone offers it,
+   “Add to home screen” puts it there like an app.
+4. **A photo field** takes pictures from the library, or from the camera page after page.
+5. **A text field.** Pages ask their questions; a star marks what must be filled in.
+6. **“Continue”** takes you to the next page, “Back” to the one before.
+
+While an AI step works, the page says what it is doing, and the screen stays on. A review shows
+what was made: “Looks good” accepts it, “New version” asks for another one with a note on what
+should change, and “Edit” lets you change a text by hand. The result page offers the downloads,
+“Copy text” and “Share”.
+
+If you left a run, you can pick it up again with “Continue your last run”. A wizard written in
+another language than yours is translated for you (“Machine-translated”); “Show original” shows its
+own words.
 
 ## As a chat
 
@@ -25,34 +35,10 @@ question, and every answer stays in the chat. The composer has these buttons:
 |---|---|
 | Speaker (“Read aloud”) | Reads what the wizard says aloud, with the browser’s own voice in the wizard’s language. It costs nothing and stays on in this browser |
 | Microphone (“Dictate”, ⌘⇧M, Ctrl⇧M on Windows) | Dictates into the composer. Where the browser can recognise speech, it writes along. Elsewhere the wizard’s own model writes the recording down when you stop, like a voice note |
-| Phone (“Start talking”) | Starts a live conversation: you talk, and the wizard talks back and fills its pages from what you say, one question at a time. Files and signatures stay on the screen, and the wizard tells you so. The button is there only where the owner switched on live voice or the video call for the wizard (always in the owner’s test run), and for now only where the app that runs it has an OpenAI API key under Models |
-| Camera, in a conversation | The wizard sees what you show it (“is the dent on the left?”) and takes photos into a photo field when you hold something still. The small picture shows what it sees |
 
 When a step works on a website, the chat shows that page live with what the wizard just did.
 “Take over” lets you click and type in it yourself while the wizard waits. “Hand back” lets the
 wizard go on from where you left the page.
-
-## As a live conversation
-
-Where the owner switched it on, the wizard opens at `…/talk`, or straight on its link, as a
-live audio screen. “Start talking” begins the conversation. The wizard’s engenty stands alone
-in the middle: it breathes while it speaks and glows while it listens. The whole transcript of
-what either of you said runs under it, with “Mute”, the camera and “Leave” underneath. The chat
-sits beside it as the screen the wizard draws on. If you switch the camera on, it becomes the
-video call below.
-
-## As a video call
-
-Where the owner switched it on, the wizard runs as a call, at `…/video` or straight on its link.
-A stage shows your camera and the wizard’s engenty as the two on the call, with what either of
-you said as captions. The controls underneath are “Mute”, the camera, “Switch camera” on a phone
-and “Leave”. The chat sits beside the stage (under it on a phone) and is the screen the wizard
-draws on: the questions and answers as they go, a photo field filled from the camera, a
-signature or a file where only the screen can take it, and the result at the end.
-
-“Let’s go” starts the run, and “Join” starts the call. Your browser then asks for the microphone
-and the camera. The conversation is the same as the chat’s live voice, with the camera on from
-the start. For now it needs an OpenAI API key under Models.
 
 ## On a phone
 
@@ -83,7 +69,7 @@ engenty wizards checks each file before the wizard keeps it:
 - **A file must be what its type says.** A page that calls itself a photo is refused, and the
   wizard says why.
 - **A photo can have up to 50 megapixels.** Phones take smaller ones.
-- **Some pictures are kept as they are:** moving GIFs and WebPs, and HEIC photos from an iPhone,
+- **Some pictures are kept as they are:** GIFs, moving WebPs, and HEIC photos from an iPhone,
   their location included. An iPhone usually sends a web page a JPEG instead.
 
 The checks run where engenty wizards runs. Your files don’t go to another service for them.
