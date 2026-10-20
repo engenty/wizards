@@ -303,8 +303,14 @@ export function grantActive(userId: string, clientId: string, tenantId: string) 
   return call<{ active: boolean }>("POST", "/v1/grants/check", { userId, clientId, tenantId });
 }
 
-export function reserve(tenantId: string, runId: string, credits: number) {
-  return call<{ id: string }>("POST", "/v1/reservations", { tenantId, runId, credits });
+/** `guest`: a visitor started the run, so it counts against the organization's guest budget. */
+export function reserve(tenantId: string, runId: string, credits: number, guest = false) {
+  return call<{ id: string }>("POST", "/v1/reservations", {
+    tenantId,
+    runId,
+    credits,
+    ...(guest ? { guest: true } : {}),
+  });
 }
 
 export function release(runId: string) {

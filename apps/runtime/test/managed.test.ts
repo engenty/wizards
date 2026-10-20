@@ -20,6 +20,8 @@ const profiles: { tenantId: string; body: any }[] = [];
 const channelUsage: { tenantId: string; body: any }[] = [];
 // The Manage-App fails on tenant B's plan while this is set.
 let tenantBDown = false;
+// The Manage-App refuses reservations for visitors' runs while this is set (its guest budget).
+let guestFull = false;
 let issuer = "";
 
 function token(claims: Record<string, unknown>, aud: string) {
@@ -153,6 +155,9 @@ const manage: Server = createServer(async (req, res) => {
   if (url.pathname === "/v1/reservations") {
     const body = JSON.parse(raw);
     reservations.push(body);
+    if (body.guest && guestFull) {
+      return json({ error: "The guest budget is used up.", code: "guest_budget" }, 429);
+    }
     return json({ id: `res-${reservations.length}` });
   }
   if (url.pathname === "/v1/reservations/release") {
@@ -475,6 +480,23 @@ describe("a runtime of a Manage-App", () => {
     expect(broke.status).toBe(402);
     const ok = await post(`/api/studio/wizards/${wizardOfA}/test-runs`, a, {});
     expect(ok.status).toBe(200);
+  });
+
+  it("tells the Manage-App when a visitor starts a run, and says so when its budget is used up", async () => {
+    const { reserveForRun } = await import("../src/credits/credits");
+    const { withTenant } = await import("../src/db/client");
+    reservations.length = 0;
+    expect(await withTenant("tenant-a", () => reserveForRun("run-member", 5))).toBe(true);
+    expect(await withTenant("tenant-a", () => reserveForRun("run-guest", 5, true))).toBe(true);
+    expect(reservations.map((r: any) => [r.runId, r.guest ?? false])).toEqual([
+      ["run-member", false],
+      ["run-guest", true],
+    ]);
+    guestFull = true;
+    expect(await withTenant("tenant-a", () => reserveForRun("run-guest-2", 5, true))).toBe("guest_budget");
+    // A member's run is not held to the visitors' budget.
+    expect(await withTenant("tenant-a", () => reserveForRun("run-member-2", 5))).toBe(true);
+    guestFull = false;
   });
 
   it("accepts the Manage-App's tokens and keys on the MCP endpoint, in the token's tenant", async () => {

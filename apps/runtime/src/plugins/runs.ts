@@ -10,6 +10,7 @@ import { fieldErrorsIn } from "../engine/input.js";
 import {
   cancel,
   createRun,
+  GuestBudgetError,
   goBack,
   NoCreditsError,
   RunInputError,
@@ -90,6 +91,12 @@ export function runsApiFor(pluginId: string): PluginRuns {
           throw new ServiceError(
             "refused",
             errorText(err, textLang(wizardLang(version.definition))),
+          );
+        }
+        if (err instanceof GuestBudgetError) {
+          throw new ServiceError(
+            "refused",
+            noteText({ code: "guestBudget" }, wizardLang(version.definition)),
           );
         }
         if (err instanceof NoCreditsError) {
