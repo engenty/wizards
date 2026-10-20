@@ -2,7 +2,7 @@ import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { capabilitiesOf, effortOf } from "@engenty/wizards-shared/marketplace";
 import { resultsOf } from "@engenty/wizards-shared/marketplace-entry";
 import { and, eq, inArray } from "drizzle-orm";
-import { db, schema, withTenant } from "../db/client.js";
+import { db, knownTenants, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { managed, postRunReport, putWizards } from "../manage.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -58,13 +58,29 @@ export async function wizardsReport() {
         publishedAt: live?.createdAt.toISOString() ?? null,
         template: w.starter ? { id: w.starter, revision: w.starterRevision ?? null } : null,
         runUrl: live && w.shareEnabled ? `${env.publicUrl}/w/${w.shareToken}` : null,
-        effort: effortOf(def),
+        effort: effortSent(def),
         results: [...new Set(resultsOf(def).map((r) => r.kind))],
         capabilities: capabilitiesOf(def),
         steps: def.steps.length,
         changedAt: w.updatedAt.toISOString(),
       };
     }),
+  };
+}
+
+/** Fields whose answer is a file the person brings. */
+const UPLOAD_KINDS = new Set(["file", "image", "audio"]);
+
+/** What a run asks of the person: fields, drafts to check, minutes, and whether files come along. */
+function effortSent(def: WizardDefinition) {
+  const effort = effortOf(def);
+  return {
+    fields: effort.fields,
+    reviews: effort.reviews,
+    minutes: effort.minutes,
+    uploads: def.steps.some(
+      (s) => s.type === "page" && s.fields.some((f) => UPLOAD_KINDS.has(f.kind)),
+    ),
   };
 }
 
@@ -86,6 +102,22 @@ export function wizardsSettled(): Promise<void> {
   return last;
 }
 
+/**
+ * Every team's wizards once, at the start: what changed while no report went out, and the wizards
+ * of teams from before this report existed. One team after the other.
+ */
+export async function reportAllWizards(): Promise<void> {
+  if (!managed) {
+    return;
+  }
+  for (const tenantId of await knownTenants()) {
+    await withTenant(tenantId, async () => {
+      pushWizards();
+      await wizardsSettled();
+    }).catch((err) => console.warn(`[reports] ${tenantId}:`, (err as Error).message));
+  }
+}
+
 // --- runs ----------------------------------------------------------------------------------
 
 type RunStatus = "waiting_input" | "running" | "done" | "failed" | "cancelled";
@@ -102,6 +134,8 @@ const STATE: Record<RunStatus, string> = {
 const AGAIN_MS = 2 * 60_000;
 const said = new Map<string, { state: string; at: number }>();
 
+const OWN_CLIENTS = new Set(["web", "app"]);
+
 /** Where the run came from, as the admin app sorts it. */
 function viaOf(run: {
   mode: string;
@@ -112,7 +146,8 @@ function viaOf(run: {
   if (run.mode === "test") {
     return "test";
   }
-  if (run.client) {
+  // The run page names itself `web`, the mobile app `app`: any other client is the public API's.
+  if (run.client && !OWN_CLIENTS.has(run.client)) {
     return "api";
   }
   if (run.origin) {
