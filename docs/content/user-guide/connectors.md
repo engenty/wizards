@@ -4,10 +4,10 @@ description: Services a wizard works in for the person who runs it – built in,
 version: 0.9.3
 ---
 
-Settings → Connectors lists the services the space’s wizards can work in. A wizard uses a
-connector with the account of the person who runs it: they connect their account during the run,
-on a page that asks for it. Each space has its own connectors. In the cloud, a space you publish from your computer shows
-its connectors without letting you change them: you change them on your computer.
+Settings → Connectors lists the services the space’s wizards can work in. A wizard uses a connector
+with the account of the person who runs it: they connect their account during the run, on a page
+that asks for it. Each space has its own connectors. In the cloud, a space you publish from your
+computer shows its connectors without letting you change them: you change them on your computer.
 
 ## Built in
 

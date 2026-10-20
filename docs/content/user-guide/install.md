@@ -89,22 +89,22 @@ and the studio then say “Updated to …” with what changed. To turn it off:
 wizards autoupdate off
 ```
 
-or set `WIZARDS_DISABLE_AUTOUPDATE=1` (in the terminal or in `~/.engenty/wizards/.env`). `npx wizards` never updates itself. To update now:
+or set `WIZARDS_DISABLE_AUTOUPDATE=1` (in the terminal or in `~/.engenty/wizards/.env`). `npx
+wizards` never updates itself. To update now:
 
 ```bash
 wizards update
 ```
 
 This runs the installer again without its questions. If engenty wizards is running, `wizards
-restart` then starts the new version; the command tells you so. "Update" in the `wizards` menu
+restart` then starts the new version; the command tells you so. “Update” in the `wizards` menu
 restarts it into the new version by itself.
 
-The studio also tells you in a banner at the top when a new version is out (“Version … of
-engenty wizards is out.”). “Update” there installs it and starts the new version. The menu
-behind the engenty mark in the app bar shows it too (“Check for updates”, “About engenty
-wizards”), and so does the line at the top of Settings → Account: its version number opens the
-About dialog with what is new. Your data is
-brought up to date at the next start.
+The studio also tells you in a banner at the top when a new version is out (“Version … of engenty
+wizards is out.”). “Update” there installs it and starts the new version. The menu behind the
+engenty mark in the app bar shows it too (“Check for updates”, “About engenty wizards”), and so
+does the line at the top of Settings → Account: its version number opens the About dialog with what
+is new. Your data is brought up to date at the next start.
 
 ## Remove
 

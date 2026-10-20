@@ -81,9 +81,9 @@ no longer updates it.
 ## Data
 
 Data holds the tables and pages your wizards keep, each under the wizard’s name. The space’s own
-tables and pages are in Knowledge. A wizard fills its own: a shared list becomes one of
-its tables, and a step with the “Pages” tool writes its pages. The columns of a shared list come
-from the wizard. The buttons “Table” and “Page” add one for one of its wizards.
+tables and pages are in Knowledge. A wizard fills its own: a shared list becomes one of its tables,
+and a step with the “Pages” tool writes its pages. The columns of a shared list come from the
+wizard. The buttons “Table” and “Page” add one to a wizard.
 
 - **Table**: columns of a type (text, number, date, duration, choice, yes/no) and a row per
   line. Type into a cell; it is saved when you leave it. A value that doesn’t fit the column is

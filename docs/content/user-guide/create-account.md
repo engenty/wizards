@@ -15,8 +15,9 @@ email as soon as a seat is free. Once you have a code, the same button opens the
 2. Sign in with Google, GitHub or a link by email. There is no password.
 3. The studio opens at [engenty.ai/studio](https://engenty.ai/studio).
 
-Your account is a **team**: it holds your credits and your spaces. It starts with credits, and some of them expire on a set date. The account pages at
-[account.engenty.ai](https://account.engenty.ai) show them.
+Your account is a **team**: it holds your credits and your spaces. It starts with credits, and some
+of them expire on a set date. The account pages at [account.engenty.ai](https://account.engenty.ai)
+show them.
 
 ## The first visit
 
@@ -36,7 +37,7 @@ sentence, or start from a template. See [Build a wizard](./build-a-wizard.md).
 ## What the cloud does
 
 - Wizards you build here run behind a link that works day and night, on the team’s credits.
-- Share links, the tag for your website, QR codes and the channels of [Test and share](./test-and-share.md) work as they do on your computer.
+- Share links, the code for your website, QR codes and the chat of [Test and share](./test-and-share.md) work as they do on your computer.
 - The team decides what the wizards run on: see [Models and account](./models.md).
 
 ## Also on your computer

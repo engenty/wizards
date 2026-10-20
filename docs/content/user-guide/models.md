@@ -5,7 +5,7 @@ version: 0.9.3
 ---
 
 Settings → Models decides what runs the AI in your wizards. On your computer you set it up
-yourself. On engenty.ai you set them in the studio there.
+yourself. On engenty.ai you set it in the studio there.
 
 ## What the wizards can do
 
@@ -52,15 +52,14 @@ out of text and short copy. A step of these classes runs there without its tools
 no web, no lists or documents). A step whose text is too long fails with a note that says so.
 Give such a step the class High, or choose something else for the class.
 
-High and Highest keep what they ran on before. The page names it under the choice. If you later choose something else for text,
-Classifier and Standard leave Apple Intelligence again.
+High and Highest keep what they ran on before. The page names it under the choice. If you later
+choose something else for text, Classifier and Standard leave Apple Intelligence again.
 
 “Voice notes” offers Apple Intelligence on the same Macs, even with Apple Intelligence switched
-off. The Mac writes a recording down itself, in the language of the run, and
-it costs nothing. The first note in a language waits while Apple downloads that language. A
-recording from Chrome or Firefox (WebM, Ogg) needs ffmpeg on the Mac, which turns it into WAV
-first. Recordings from Safari need nothing. Without ffmpeg, the page “Voice notes”
-says so.
+off. The Mac writes a recording down itself, in the language of the run, and it costs nothing. The
+first note in a language waits while Apple downloads that language. A recording from Chrome or
+Firefox (WebM, Ogg) needs ffmpeg on the Mac, which turns it into WAV first. Recordings from Safari
+need nothing. Without ffmpeg, the page “Voice notes” says so.
 
 ## Keys
 
