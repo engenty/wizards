@@ -194,7 +194,20 @@ describe("how a wizard is offered", () => {
     ).rejects.toThrow(/turned on/);
   });
 
+  it("has no live voice or video call until their switches are on", async () => {
+    const { runnersOf } = await import("../src/services/runners");
+    const ids = async () => (await client.withTenant("tenant-a", () => runnersOf())).map((r) => r.id);
+    process.env.FEATURES = "";
+    expect(await ids()).toEqual(["steps", "chat"]);
+    process.env.FEATURES = "channelVoice=on";
+    expect(await ids()).toEqual(["steps", "chat", "talk"]);
+    process.env.FEATURES = "channelVideo=on";
+    expect(await ids()).toEqual(["steps", "chat", "video"]);
+    delete process.env.FEATURES;
+  });
+
   it("the studio sees every runner with its fit, and the settings as they stand", async () => {
+    process.env.FEATURES = "channelVoice=on,channelVideo=on";
     const w = await client.withTenant("tenant-a", () => wizards.ownedWizard("user-a", wizardId));
     const { wizardRunners } = await import("../src/services/runners");
     const seen = await client.withTenant("tenant-a", () => wizardRunners(w));
@@ -215,5 +228,6 @@ describe("how a wizard is offered", () => {
     );
     const offered = await (await get(`/api/public/wizards/${token}`)).json();
     expect(offered.runners.map((r: { id: string }) => r.id)).toEqual(["steps"]);
+    delete process.env.FEATURES;
   });
 });

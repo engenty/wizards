@@ -24,6 +24,12 @@
 # the brand's fonts in info & brand
 # typography=on|off
 #
+# wizards run as a spoken conversation in the browser (off by default)
+# channelVoice=on|off
+#
+# wizards run as a video call in the browser (off by default)
+# channelVideo=on|off
+#
 # Goose, the studio's assistant
 # goose=on|off
 #
