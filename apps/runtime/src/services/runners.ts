@@ -16,6 +16,7 @@ import {
   runnerFit,
 } from "@engenty/wizards-shared/runners";
 import { env } from "../env.js";
+import { feature, remoteFeatures } from "../features.js";
 import { conversationAccess, conversationAvailable } from "../models.js";
 import { pluginsOf, type RegisteredRunner } from "../plugins/registry.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -28,9 +29,19 @@ import { shareUrl, type WizardRow } from "./wizards.js";
  * link opens, and the ones switched on beside it.
  */
 
-/** The runners this tenant has, built-ins first. */
+/** The built-in runners switched off for the tenant at hand: live voice and video call each have a switch. */
+export async function switchedOffRunners(): Promise<Set<string>> {
+  const remote = await remoteFeatures();
+  return new Set([
+    ...(feature("channelVoice", remote) ? [] : ["talk"]),
+    ...(feature("channelVideo", remote) ? [] : ["video"]),
+  ]);
+}
+
+/** The runners this tenant has, built-ins first; a built-in one switched off is not there. */
 export async function runnersOf(tenantId = currentTenant()): Promise<RunnerInfo[]> {
   const plugins = await pluginsOf(tenantId);
+  const off = await switchedOffRunners();
   const talk = (await conversationAvailable())
     ? null
     : await conversationAccess()
@@ -54,7 +65,7 @@ export async function runnersOf(tenantId = currentTenant()): Promise<RunnerInfo[
     ),
   );
   return [
-    ...BUILT_IN_RUNNERS.map((r) =>
+    ...BUILT_IN_RUNNERS.filter((r) => !off.has(r.id)).map((r) =>
       CONVERSATION_RUNNERS.includes(r.id) ? { ...r, problem: talk } : r,
     ),
     ...ofPlugins,

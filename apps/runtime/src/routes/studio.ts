@@ -125,7 +125,7 @@ import {
   readChat,
   turnHistory,
 } from "../services/assistant-chats.js";
-import { describeGradient } from "../services/brand.js";
+import { describeGradient, themeLooks } from "../services/brand.js";
 import {
   checkForCloud,
   cloudLinked,
@@ -182,7 +182,7 @@ import {
   updateProject,
 } from "../services/projects.js";
 import { runnersOf, wizardRunners } from "../services/runners.js";
-import { listResults, listRuns, startTestRun } from "../services/runs.js";
+import { draftStepView, listResults, listRuns, startTestRun } from "../services/runs.js";
 import {
   addCategoryValue,
   categoryRow,
@@ -1524,6 +1524,22 @@ export const studio = new Hono<Vars>()
   .get("/wizards/:id/runs", async (c) =>
     c.json(await listRuns(c.get("user").id, c.req.param("id"))),
   )
+  // One step of the draft as a run shows it: the preview of the step chosen.
+  .get("/wizards/:id/steps/:stepId/view", async (c) =>
+    c.json(
+      await draftStepView(
+        c.get("user").id,
+        c.req.param("id"),
+        c.req.param("stepId"),
+        c.req.query("lang") ?? null,
+      ),
+    ),
+  )
+  // The looks of the themes the draft offers: what the test run's preview switches between.
+  .get("/wizards/:id/looks", async (c) => {
+    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
+    return c.json({ looks: await themeLooks(w.projectId, w.draft.themes) });
+  })
 
   // --- workspace -------------------------------------------------------------
   .get("/wizards/:id/files", async (c) =>

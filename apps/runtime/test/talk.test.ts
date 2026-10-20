@@ -34,6 +34,8 @@ const runOf = (mode: "test" | "live") => ({ mode, wizardId }) as Run;
 
 describe("a live conversation on a run", () => {
   beforeAll(async () => {
+    // Live voice and video call are switched off by default; these runs have them on.
+    process.env.FEATURES = "channelVoice=on,channelVideo=on";
     client = await import("../src/db/client");
     await client.migrateControlDb();
     wizards = await import("../src/services/wizards");
@@ -54,6 +56,17 @@ describe("a live conversation on a run", () => {
     await client.withTenant("tenant-a", async () => {
       expect(await runner.talkAllowed(runOf("test"))).toBe(true);
     });
+  });
+
+  it("is closed to every run while both switches are off", async () => {
+    process.env.FEATURES = "";
+    try {
+      await client.withTenant("tenant-a", async () => {
+        expect(await runner.talkAllowed(runOf("test"))).toBe(false);
+      });
+    } finally {
+      process.env.FEATURES = "channelVoice=on,channelVideo=on";
+    }
   });
 
   it("opens to visitors once live voice or video is on", async () => {

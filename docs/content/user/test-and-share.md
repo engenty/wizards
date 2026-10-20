@@ -1,13 +1,14 @@
 ---
 title: Test and share
 description: Try the wizard, publish it, and hand out its link or put it on a website.
-version: 0.9.0
+version: 0.9.2
 ---
 
 ## Test
 
-“Test” in the editor starts a run of the draft, just as a person would see it. Test runs are
-listed under “Runs”. A test spends what a real run spends: your model’s usage, or credits. A test
+“Test” in the preview’s bar starts a run of the draft, just as a person would see it, in the
+preview. “Test run” at the start of the row of steps comes back to it after you looked at a step.
+Test runs are listed under “Runs”. A test spends what a real run spends: your model’s usage, or credits. A test
 run reads the wizard’s memory, but it writes into a copy of its own, which goes with the run.
 
 Where runs spend credits, each AI step shows an estimate. At first it is a formula. After five
@@ -67,10 +68,11 @@ One visitor can start 6 runs an hour.
 
 ### Channels
 
-A wizard can run page by page, as a chat, as a live conversation on top of the chat, or as a
-video call on a stage with the chat beside it. In a conversation or a call, the person talks,
-and the wizard talks back and sees the camera. For now, both need an OpenAI API key under
-Models. A plugin can add further ways, such as a kiosk page or a messenger.
+A wizard can run page by page or as a chat. Where this studio offers them, it can also run as a
+live conversation on top of the chat, or as a video call on a stage with the chat beside it. In
+a conversation or a call, the person talks, and the wizard talks back and sees the camera. For
+now, both need an OpenAI API key under Models. A plugin can add further ways, such as a kiosk
+page or a messenger.
 
 A wizard you start on the “New wizard” page runs step by step unless you choose more under “How
 should it run?”. A wizard without its own choice, such as one from a template or an import, has

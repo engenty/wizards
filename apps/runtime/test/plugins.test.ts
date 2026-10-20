@@ -704,14 +704,8 @@ describe("a plugin's runners", () => {
 
   it("are registered with what they can do, and the studio lists the tenant's runners", async () => {
     const listed = await json(get("/api/studio/runners"));
-    expect(listed.map((r: { id: string }) => r.id)).toEqual([
-      "steps",
-      "chat",
-      "talk",
-      "video",
-      "kiosk",
-      "phone",
-    ]);
+    // Live voice and video call are switched off by default: a plugin's runners follow the chat.
+    expect(listed.map((r: { id: string }) => r.id)).toEqual(["steps", "chat", "kiosk", "phone"]);
     expect(listed.find((r: { id: string }) => r.id === "kiosk")).toMatchObject({
       kind: "page",
       plugin: "kiosk",

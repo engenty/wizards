@@ -39,12 +39,14 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Flag,
   Info,
+  Play,
   Plus,
+  Settings,
   Sparkles,
   Trash2,
   Upload,
-  Wand2,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { withBase } from "@/lib/base";
@@ -1096,6 +1098,32 @@ function StepBody({
   }
 }
 
+/** The costume the wizard's engenty wears: on its pages and in its theme's figures. */
+function CostumePicker({ def, update }: { def: WizardDefinition; update: Update }) {
+  return (
+    <div>
+      <Label>{t("inspector.costume")}</Label>
+      <div className="grid grid-cols-5 gap-2">
+        {[undefined, ...ENGENTY_COSTUMES].map((c) => (
+          <button
+            key={c ?? "none"}
+            type="button"
+            onClick={() => update({ ...def, costume: c })}
+            className={cn(
+              "flex aspect-square items-center justify-center rounded-xl transition",
+              def.costume === c ? "bg-ember-tint ring-2 ring-ember" : "bg-paper hover:bg-paper-2",
+            )}
+            aria-label={t(c ? `inspector.costume.${c}` : "inspector.costumeNone")}
+            title={t(c ? `inspector.costume.${c}` : "inspector.costumeNone")}
+          >
+            <Mascot kind={def.avatar} costume={c} size={44} interactive={false} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function WizardSettings({
   def,
   update,
@@ -1161,30 +1189,14 @@ export function WizardSettings({
             </button>
           ))}
         </div>
-        <div>
-          <Label>{t("inspector.costume")}</Label>
-          <div className="grid grid-cols-5 gap-2">
-            {[undefined, ...ENGENTY_COSTUMES].map((c) => (
-              <button
-                key={c ?? "none"}
-                type="button"
-                onClick={() => update({ ...def, costume: c })}
-                className={cn(
-                  "flex aspect-square items-center justify-center rounded-xl transition",
-                  def.costume === c
-                    ? "bg-ember-tint ring-2 ring-ember"
-                    : "bg-paper hover:bg-paper-2",
-                )}
-                aria-label={t(c ? `inspector.costume.${c}` : "inspector.costumeNone")}
-                title={t(c ? `inspector.costume.${c}` : "inspector.costumeNone")}
-              >
-                <Mascot kind={def.avatar} costume={c} size={44} interactive={false} />
-              </button>
-            ))}
-          </div>
-        </div>
       </Section>
-      <ThemeLook def={def} update={update} projectId={projectId} wizardId={wizardId} />
+      <ThemeLook
+        def={def}
+        update={update}
+        projectId={projectId}
+        wizardId={wizardId}
+        costume={<CostumePicker def={def} update={update} />}
+      />
       {def.lists?.length || def.connections?.length ? (
         <Section title={t("inspector.remembers")}>
           <p className="text-[0.8125rem] text-ink-3">{t("inspector.remembersHint")}</p>
@@ -1232,29 +1244,38 @@ interface InspectorProps {
   assistant?: StepAssistant;
 }
 
-const WIZARD = "__wizard";
+/** What the strip and the editor name the wizard's own settings by. */
+const SETTINGS = "__wizard";
 
 /**
- * The wizard's steps in a row, in run order, with the wizard's own settings first: one click or
- * the arrows (on screen or ← / → on the keyboard) move from step to step without going back to
- * the diagram.
+ * The wizard's steps in a row, in run order: one click or the arrows (on screen or ← / → on the
+ * keyboard) move from step to step without going back to the diagram. With a test run open it
+ * starts with the run, and lights the step the run is at. The wizard's settings stand fixed
+ * before the steps, the result fixed after them.
  */
-function StepNav({
+export function StepNav({
   def,
   selected,
   onSelect,
   issues,
-}: Pick<InspectorProps, "def" | "selected" | "onSelect" | "issues">) {
-  const ids = [WIZARD, ...def.steps.map((s) => s.id)];
+  run,
+}: Pick<InspectorProps, "def" | "selected" | "onSelect" | "issues"> & {
+  run?: { shown: boolean; at: string | null; onShow: () => void } | null;
+}) {
+  const result = def.steps.find((s) => s.type === "result") ?? null;
+  const steps = def.steps.filter((s) => s !== result);
+  // The arrows walk from the wizard's settings through the steps to the result.
+  const ids = [SETTINGS, ...steps.map((s) => s.id), ...(result ? [result.id] : [])];
   const at = selected ? ids.indexOf(selected) : -1;
   const current = useRef<HTMLButtonElement>(null);
+  const row = useRef<HTMLDivElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: the selected step is what moves into view
   useEffect(() => {
     current.current?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
   }, [selected]);
   const go = (dir: -1 | 1) => {
     // Nothing picked: forward starts at the first step, back at the last.
-    const next = at === -1 ? (dir === 1 ? 1 : ids.length - 1) : at + dir;
+    const next = at === -1 ? (dir === 1 ? 1 : ids.length - 2) : at + dir;
     if (next >= 0 && next < ids.length) {
       onSelect(ids[next]);
     }
@@ -1264,7 +1285,8 @@ function StepNav({
   // ← / → step through while this tab is open, unless the keys belong to a field or a control.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
+      // Only the strip in sight steps: a hidden one (the preview kept behind the editor) does not.
+      if ((e.key !== "ArrowLeft" && e.key !== "ArrowRight") || !row.current?.offsetParent) {
         return;
       }
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
@@ -1285,8 +1307,27 @@ function StepNav({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const dot = "inline-flex size-8 shrink-0 items-center justify-center rounded-full transition";
+  const place = steps.findIndex((s) => s.id === selected);
   return (
-    <div className="sticky top-0 z-10 flex items-center gap-1 border-border-soft border-b bg-card/95 px-2 py-2 backdrop-blur">
+    <div
+      ref={row}
+      className="flex shrink-0 items-center gap-1 border-border-soft border-b px-2 py-2"
+    >
+      {/* The wizard's settings stand first, outside the steps, always in reach. */}
+      <button
+        type="button"
+        title={t("editor.profile")}
+        aria-label={t("editor.profile")}
+        aria-current={selected === SETTINGS ? "step" : undefined}
+        onClick={() => onSelect(SETTINGS)}
+        className={cn(
+          dot,
+          "bg-paper-2 text-ink-2",
+          selected === SETTINGS ? "ring-2 ring-ember" : "hover:ring-2 hover:ring-border-soft",
+        )}
+      >
+        <Settings className="size-4" />
+      </button>
       <IconButton
         label={t("editor.prevStep")}
         className="size-8 shrink-0"
@@ -1296,28 +1337,31 @@ function StepNav({
         <ChevronLeft className="size-4" />
       </IconButton>
       <div className="flex min-w-0 flex-1 items-center overflow-x-auto p-1 [scrollbar-width:none]">
-        <button
-          ref={selected === WIZARD ? current : undefined}
-          type="button"
-          title={def.title}
-          aria-label={def.title}
-          aria-current={selected === WIZARD ? "step" : undefined}
-          onClick={() => onSelect(WIZARD)}
-          className={cn(
-            dot,
-            "bg-paper-2 text-ink-2",
-            selected === WIZARD ? "ring-2 ring-ember" : "hover:ring-2 hover:ring-border-soft",
-          )}
-        >
-          <Wand2 className="size-4" />
-        </button>
-        {def.steps.map((step, i) => {
+        {run ? (
+          <>
+            <button
+              ref={run.shown ? current : undefined}
+              type="button"
+              aria-current={run.shown ? "step" : undefined}
+              onClick={run.onShow}
+              className={cn(
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-paper-2 px-3 font-medium text-[0.75rem] text-ink-2 transition",
+                run.shown ? "ring-2 ring-ember" : "hover:ring-2 hover:ring-border-soft",
+              )}
+            >
+              <Play className="size-3.5" />
+              {t("run.testChip")}
+            </button>
+            <span className="h-px w-3 shrink-0 bg-border-soft" />
+          </>
+        ) : null}
+        {steps.map((step, i) => {
           const Icon = stepIcon(step);
           const active = step.id === selected;
           const broken = issues.some((issue) => issue.stepId === step.id);
           return (
             <div key={step.id} className="flex shrink-0 items-center">
-              <span className="h-px w-3 bg-border-soft" />
+              {i > 0 ? <span className="h-px w-3 bg-border-soft" /> : null}
               <button
                 ref={active ? current : undefined}
                 type="button"
@@ -1335,6 +1379,8 @@ function StepNav({
                 <Icon className="size-4" />
                 {broken ? (
                   <span className="-top-0.5 -right-0.5 absolute size-2.5 rounded-full bg-rose ring-2 ring-card" />
+                ) : run?.at === step.id ? (
+                  <span className="-top-0.5 -right-0.5 absolute size-2.5 animate-pulse rounded-full bg-ember ring-2 ring-card" />
                 ) : null}
               </button>
             </div>
@@ -1342,7 +1388,7 @@ function StepNav({
         })}
       </div>
       <span className="shrink-0 px-1 text-[0.75rem] text-ink-4 tabular-nums">
-        {at > 0 ? `${at} / ${def.steps.length}` : ""}
+        {place >= 0 ? `${place + 1} / ${steps.length}` : ""}
       </span>
       <IconButton
         label={t("editor.nextStep")}
@@ -1352,47 +1398,33 @@ function StepNav({
       >
         <ChevronRight className="size-4" />
       </IconButton>
-    </div>
-  );
-}
-
-/** Nothing picked yet: the steps as a list to pick from. */
-function StepList({ def, onSelect, issues }: Pick<InspectorProps, "def" | "onSelect" | "issues">) {
-  return (
-    <div className="flex flex-col gap-1 p-3">
-      {def.steps.map((step, i) => {
-        const Icon = stepIcon(step);
-        const broken = issues.some((issue) => issue.stepId === step.id);
-        return (
-          <button
-            key={step.id}
-            type="button"
-            onClick={() => onSelect(step.id)}
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-paper-2"
-          >
-            <span className="w-4 text-right text-[0.75rem] text-ink-4 tabular-nums">{i + 1}</span>
-            <span
-              className={cn(
-                "inline-flex size-7 shrink-0 items-center justify-center rounded-md",
-                TYPE_TONE[step.type],
-              )}
-            >
-              <Icon className="size-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.875rem]">{step.title}</span>
-              <span className="block text-[0.75rem] text-ink-4">{typeLabel(step)}</span>
-            </span>
-            {broken ? <span className="size-2 shrink-0 rounded-full bg-rose" /> : null}
-          </button>
-        );
-      })}
+      {/* The result stands last, outside the steps, always in reach. */}
+      {result ? (
+        <button
+          type="button"
+          title={result.title}
+          aria-label={result.title}
+          aria-current={selected === result.id ? "step" : undefined}
+          onClick={() => onSelect(result.id)}
+          className={cn(
+            dot,
+            "relative",
+            TYPE_TONE.result,
+            selected === result.id ? "ring-2 ring-ember" : "hover:ring-2 hover:ring-border-soft",
+          )}
+        >
+          <Flag className="size-4" />
+          {issues.some((issue) => issue.stepId === result.id) ? (
+            <span className="-top-0.5 -right-0.5 absolute size-2.5 rounded-full bg-rose ring-2 ring-card" />
+          ) : null}
+        </button>
+      ) : null}
     </div>
   );
 }
 
 export function Inspector(props: InspectorProps) {
-  const { def, selected, onSelect, issues, readOnly = false } = props;
+  const { def, selected, readOnly = false } = props;
   // A read-only wizard takes no change, whatever a control inside still sends.
   const update: Update = readOnly ? () => {} : props.update;
   const step = def.steps.find((s) => s.id === selected);
@@ -1400,18 +1432,27 @@ export function Inspector(props: InspectorProps) {
     <ReadOnly value={readOnly}>
       <Assistant.Provider value={props.assistant}>
         <div>
-          <StepNav def={def} selected={selected} onSelect={onSelect} issues={issues} />
-          {selected === WIZARD ? (
-            <WizardSettings
-              def={def}
-              update={update}
-              projectId={props.projectId}
-              wizardId={props.wizardId}
-            />
-          ) : step ? (
+          {/* No step chosen, or one that is gone: the wizard's own settings. */}
+          {step ? (
             <StepInspector {...props} update={update} step={step} />
           ) : (
-            <StepList def={def} onSelect={onSelect} issues={issues} />
+            <>
+              {/* Named like a step's editor, so it says what is edited. */}
+              <div className="flex items-center gap-2 px-5 py-4">
+                <span className="inline-flex size-7 items-center justify-center rounded-md bg-paper-2 text-ink-2">
+                  <Settings className="size-4" />
+                </span>
+                <span className="font-medium text-[0.75rem] text-ink-3 uppercase tracking-[0.07em]">
+                  {t("editor.profile")}
+                </span>
+              </div>
+              <WizardSettings
+                def={def}
+                update={update}
+                projectId={props.projectId}
+                wizardId={props.wizardId}
+              />
+            </>
           )}
         </div>
       </Assistant.Provider>

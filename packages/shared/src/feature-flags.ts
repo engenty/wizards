@@ -65,6 +65,18 @@ export const FEATURES = {
     label: "Typography in Info & brand",
     hint: "The brand's fonts, their licences and a type scale.",
   },
+  channelVoice: {
+    kind: "release",
+    default: false,
+    label: "Live voice",
+    hint: "Wizards run as a spoken conversation in the browser: offered when building and sharing.",
+  },
+  channelVideo: {
+    kind: "release",
+    default: false,
+    label: "Video call",
+    hint: "Wizards run as a video call in the browser: offered when building and sharing.",
+  },
   goose: {
     kind: "release",
     default: false,

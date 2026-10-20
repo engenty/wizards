@@ -12,12 +12,11 @@ import {
   Eye,
   History,
   Link2,
-  RotateCcw,
+  Play,
   Share2,
   TriangleAlert,
   User,
   Users,
-  X,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router";
@@ -62,10 +61,11 @@ export function ResultPreview({
   audience,
   onAudience,
   lead,
+  under,
+  end,
   onTest,
   testBusy,
   testDisabled,
-  onClose,
 }: {
   wizardId: string;
   def: WizardDefinition;
@@ -75,10 +75,13 @@ export function ResultPreview({
   onAudience: (audience: Audience) => void;
   /** The bar's start: a chip beside the flow, the view switch in its place. */
   lead: ReactNode;
+  /** Under the bar, above the page. */
+  under?: ReactNode;
+  /** At the bar's end. */
+  end?: ReactNode;
   onTest: () => void;
   testBusy: boolean;
   testDisabled: boolean;
-  onClose?: () => void;
 }) {
   const preview = useQuery({
     queryKey: ["share-preview", wizardId, step.id, revision, audience, lang],
@@ -126,23 +129,20 @@ export function ResultPreview({
             </button>
           ))}
         </fieldset>
+        {/* A new test run fills the page anew, started as in the preview's bar. */}
         <Button
-          variant="ghost"
           size="sm"
-          title={t("resultPreview.newTest")}
+          variant="secondary"
           busy={testBusy}
           disabled={testDisabled}
           onClick={onTest}
         >
-          <RotateCcw className="size-3.5" />
-          <span className="max-md:sr-only">{t("resultPreview.newTest")}</span>
+          <Play className="size-3.5" />
+          {t("editor.test")}
         </Button>
-        {onClose ? (
-          <IconButton label={t("editor.close")} onClick={onClose}>
-            <X className="size-5" />
-          </IconButton>
-        ) : null}
+        {end}
       </div>
+      {under}
 
       <div className="@container min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">

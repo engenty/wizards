@@ -8,7 +8,7 @@ import {
   slotText,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import { note } from "@engenty/wizards-shared/run";
+import { note, type RunState, type RunView } from "@engenty/wizards-shared/run";
 import { and, count, desc, eq, gte, inArray, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
@@ -26,12 +26,15 @@ import {
   RunInputError,
   retry,
   reviewStep,
+  runView,
   submitPage,
 } from "../engine/runner.js";
 import { ModelUnavailableError, saidOf } from "../model-errors.js";
 import { signedUrl } from "../secrets/signing.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { brandView } from "./brand.js";
 import { notFound, ServiceError } from "./errors.js";
+import { storedTranslation } from "./translations.js";
 import { ownedWizard, requireClean, shareUrl, studioUrl } from "./wizards.js";
 
 type RunRow = typeof schema.run.$inferSelect;
@@ -535,6 +538,86 @@ export async function answerRunAsk(
   if (!(await answerAsk(runId, askId, answer === "allow" ? { type: "done" } : { type: "skip" }))) {
     throw new ServiceError("refused", { code: "askClosed" });
   }
+}
+
+/**
+ * One step of the draft as a run shows it there, without a run: the studio's preview of the
+ * step chosen. Answers and outputs of the steps before it come from the wizard's latest
+ * finished test run, else its latest one. Nothing is stored and nothing runs: pages wait for
+ * input, steps that work show their working screen, the result shows as done. `lang`: in a
+ * language the wizard is kept in, else its own.
+ */
+export async function draftStepView(
+  userId: string,
+  wizardId: string,
+  stepId: string,
+  lang: string | null,
+): Promise<RunView> {
+  const w = await ownedWizard(userId, wizardId);
+  const def = w.draft;
+  const step = def.steps.find((s) => s.id === stepId);
+  if (!step) {
+    throw notFound();
+  }
+  // The latest finished test run has every answer and output; else the latest one at all.
+  const tests = and(eq(schema.run.wizardId, w.id), eq(schema.run.mode, "test"));
+  const latest =
+    (await db.query.run.findFirst({
+      where: and(tests, eq(schema.run.status, "done")),
+      orderBy: desc(schema.run.createdAt),
+    })) ?? (await db.query.run.findFirst({ where: tests, orderBy: desc(schema.run.createdAt) }));
+  const before = new Set(def.steps.slice(0, def.steps.indexOf(step)).map((s) => s.id));
+  const state: RunState = {
+    values: latest?.state.values ?? {},
+    outputs: Object.fromEntries(
+      Object.entries(latest?.state.outputs ?? {}).filter(([id]) => before.has(id)),
+    ),
+    history: (latest?.state.history ?? []).filter((id) => before.has(id)),
+    notes: {},
+  };
+  const status: RunRow["status"] =
+    step.type === "page" || step.type === "review"
+      ? "waiting_input"
+      : step.type === "result"
+        ? "done"
+        : "running";
+  const now = new Date();
+  // That run lends its id too: the outputs' files are reached through it.
+  const run: RunRow = {
+    ...(latest ?? {
+      id: `draft-${w.id}`,
+      wizardId: w.id,
+      tenantId: w.tenantId,
+      files: [],
+      version: null,
+      mode: "test" as const,
+      runner: null,
+      visitorId: null,
+      userId,
+      ipHash: null,
+      origin: null,
+      client: null,
+      unattended: false,
+      deviceOffer: null,
+      costMicros: 0,
+      sharedAt: null,
+      expiresAt: null,
+      createdAt: now,
+      updatedAt: now,
+    }),
+    definition: def,
+    status,
+    cursor: step.id,
+    state,
+    lang: lang && lang !== wizardLang(def) && (await storedTranslation(w.id, lang)) ? lang : null,
+    error: null,
+    ask: null,
+    answer: null,
+    shareToken: null,
+  };
+  const view = await runView(run, await brandView(w.projectId, def.themes));
+  // What the latest run said while it worked, and when, is its own: nothing works here.
+  return { ...view, events: [] };
 }
 
 export async function listRuns(userId: string, wizardId: string) {

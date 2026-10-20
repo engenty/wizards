@@ -129,9 +129,12 @@ export function ChannelIcon({ channel, className }: { channel: Channel; classNam
   );
 }
 
-/** The channels the tenant's runners serve; until the runners are known, the browser's own. */
+/**
+ * The channels the tenant's runners serve; until the runners are known, the page and the chat
+ * (live voice and video call have switches of their own, so the runtime's answer says).
+ */
 function offeredOf(runners: RunnerInfo[] | undefined): Channel[] {
-  const have = new Set(runners?.map((r) => r.id) ?? ["steps", "chat", "talk", "video"]);
+  const have = new Set(runners?.map((r) => r.id) ?? ["steps", "chat"]);
   return CHANNELS.filter((c) => have.has(c.runner));
 }
 

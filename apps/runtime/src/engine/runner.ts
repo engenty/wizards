@@ -68,6 +68,7 @@ import {
 import { runEnded } from "../plugins/events.js";
 import { projectFiles } from "../services/project-files.js";
 import { projectProfile } from "../services/projects.js";
+import { switchedOffRunners } from "../services/runners.js";
 import { storedTranslation } from "../services/translations.js";
 import { latestShareJob } from "../sharing/state.js";
 import { listRows, listSecrets, scopeOf } from "../store/index.js";
@@ -1055,11 +1056,13 @@ function prefillOf(
 }
 
 /**
- * Whether a run may hold a live conversation: a speech model is set up, and the wizard has live
- * voice or video switched on. Its owner's test run always may.
+ * Whether a run may hold a live conversation: live voice or video call is switched on for the
+ * tenant, a speech model is set up, and the wizard has one of them on. Its owner's test run
+ * always may, where one of them is switched on.
  */
 export async function talkAllowed(run: RunRow): Promise<boolean> {
-  if (!(await conversationAvailable())) {
+  const off = await switchedOffRunners();
+  if (CONVERSATION_RUNNERS.every((id) => off.has(id)) || !(await conversationAvailable())) {
     return false;
   }
   if (run.mode === "test") {
@@ -1067,7 +1070,7 @@ export async function talkAllowed(run: RunRow): Promise<boolean> {
   }
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
   const { enabled } = w?.runners ?? DEFAULT_RUNNER_SETTINGS;
-  return enabled.some((id) => CONVERSATION_RUNNERS.includes(id));
+  return enabled.some((id) => CONVERSATION_RUNNERS.includes(id) && !off.has(id));
 }
 
 export async function runView(run: RunRow, brand: RunView["brand"]): Promise<RunView> {
