@@ -91,12 +91,16 @@ Gender: neutral wording first („wer deine Website besucht“), else the colon 
 asterisk, Binnen-I or generic masculine. „20 %“, „z. B.“. *Website* is the site, *Seite* a page
 in engenty.
 
-## CLI, server, docs
+## CLI, server, emails, docs
 
 - **CLI** (English only): help lines are lower-case verb phrases ("install the latest version").
   Commands written in full and cyan, paths with `~`. Spinners: "Starting…", then a short result.
 - **Server:** the `error` a person sees is a sentence in their language; machine codes go in
   `code`.
+- **Emails:** every rule here applies to them too, including the mails engenty-wizards-manage
+  sends (`apps/server/src/mails/`, `apps/server/src/download-mail.ts`). The subject says what the
+  mail is about, and the title is a short sentence. One button, verb + object. The grey footer
+  says why the mail came and what to do if it wasn't expected, in full sentences.
 - **Docs:** user pages talk to *you* in full sentences; quote UI labels exactly as the app shows
   them, and search the docs when a label changes. Set a changed page's `version` to the current
   release.
