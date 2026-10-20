@@ -77,6 +77,12 @@ export const FEATURES = {
     label: "Video call",
     hint: "Wizards run as a video call in the browser: offered when building and sharing.",
   },
+  wordpress: {
+    kind: "release",
+    default: false,
+    label: "WordPress plugin",
+    hint: "The plugin for WordPress sites, and a wizard as a package for one: offered in the share dialog and under Settings → Integrate.",
+  },
   goose: {
     kind: "release",
     default: false,

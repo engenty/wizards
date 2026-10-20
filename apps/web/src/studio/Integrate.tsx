@@ -1228,7 +1228,8 @@ export function Integrate() {
   });
   const [params, setParams] = useSearchParams();
   const { narrow } = useSettingsMenu();
-  const show = params.get("show");
+  const wordpress = featureOn(me.data?.features, "wordpress");
+  const show = wordpress || params.get("show") !== "wordpress" ? params.get("show") : null;
   const current = CLIENTS.find((c) => c.id === show) ?? null;
   useDetail(show === "wordpress" ? "WordPress" : (current?.name ?? null));
   if (!me.data || (!managed && !apps.data)) {
@@ -1325,12 +1326,14 @@ export function Integrate() {
             selected={false}
             disabled
           />
-          <MenuRow
-            icon={Globe}
-            label="WordPress"
-            selected={show === "wordpress"}
-            onPick={() => open("wordpress")}
-          />
+          {wordpress ? (
+            <MenuRow
+              icon={Globe}
+              label="WordPress"
+              selected={show === "wordpress"}
+              onPick={() => open("wordpress")}
+            />
+          ) : null}
           <MenuRow
             icon={Globe}
             label={t("integrate.shareSite")}
