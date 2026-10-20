@@ -17,7 +17,6 @@ import {
   TriangleAlert,
   User,
   Users,
-  X,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router";
@@ -67,7 +66,6 @@ export function ResultPreview({
   onTest,
   testBusy,
   testDisabled,
-  onClose,
 }: {
   wizardId: string;
   def: WizardDefinition;
@@ -84,7 +82,6 @@ export function ResultPreview({
   onTest: () => void;
   testBusy: boolean;
   testDisabled: boolean;
-  onClose?: () => void;
 }) {
   const preview = useQuery({
     queryKey: ["share-preview", wizardId, step.id, revision, audience, lang],
@@ -144,11 +141,6 @@ export function ResultPreview({
           {t("editor.test")}
         </Button>
         {end}
-        {onClose ? (
-          <IconButton label={t("editor.close")} onClick={onClose}>
-            <X className="size-5" />
-          </IconButton>
-        ) : null}
       </div>
       {under}
 

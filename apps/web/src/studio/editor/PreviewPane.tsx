@@ -4,7 +4,6 @@ import type { RunTheme, RunView } from "@engenty/wizards-shared/run";
 import { DEFAULT_RUNNER_SETTINGS } from "@engenty/wizards-shared/runners";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
-  Flag,
   Monitor,
   Moon,
   PanelRightClose,
@@ -142,7 +141,7 @@ function lookName(look: ThemeLook): string {
  * switches it is configured for — its themes, light and dark pages, its languages, page by page
  * or as a chat — and how it sits on a desk or a phone. It shows the step chosen as a run shows
  * it there, filled from the latest test run (the result step as its result page), or the test
- * run itself; with neither it offers to start one.
+ * run itself; with neither, the start, where a test run begins.
  */
 export function PreviewPane({
   wizard: w,
@@ -150,7 +149,6 @@ export function PreviewPane({
   runView,
   onView,
   stepId,
-  onStep,
   audience,
   onAudience,
   test,
@@ -170,8 +168,6 @@ export function PreviewPane({
   onView: (view: RunView | null) => void;
   /** The step shown; null: the test run, or without one the start. */
   stepId: string | null;
-  /** Shows a step: the result page, from the start. */
-  onStep: (stepId: string) => void;
   audience: Audience;
   onAudience: (audience: Audience) => void;
   test: { start: () => void; busy: boolean; disabled: boolean };
@@ -198,6 +194,8 @@ export function PreviewPane({
   const looks = useQuery({
     queryKey: ["wizard-looks", w.id, w.revision],
     queryFn: () => api.get<{ looks: ThemeLook[] }>(`/api/studio/wizards/${w.id}/looks`),
+    // An edit asks again; the look stays meanwhile instead of falling back to none.
+    placeholderData: keepPreviousData,
   }).data?.looks;
   const [lookId, setLookId] = useState<string | null>(null);
   const look = looks?.find((x) => x.id === lookId) ?? looks?.[0] ?? null;
@@ -256,7 +254,6 @@ export function PreviewPane({
 
   // The step chosen, as a run shows it there; the result step is its result page.
   const shown = stepId ? (def.steps.find((s) => s.id === stepId) ?? null) : null;
-  const resultStep = def.steps.find((s) => s.type === "result") ?? null;
   const stepView = useQuery({
     queryKey: ["draft-step-view", w.id, shown?.id, w.revision, shownLang],
     queryFn: () =>
@@ -266,7 +263,8 @@ export function PreviewPane({
         }`,
       ),
     enabled: Boolean(shown && shown.type !== "result"),
-    placeholderData: keepPreviousData,
+    // An edit asks again and the step stays meanwhile; another step never shows the one before.
+    placeholderData: (previous, query) => (query?.queryKey[2] === shown?.id ? previous : undefined),
   });
   // Shown, not run: what a page or a review would do is not done.
   const still = async () => false;
@@ -445,13 +443,7 @@ export function PreviewPane({
               ) : shown || runId ? (
                 <>
                   {shown && stepSource ? (
-                    // A view that arrives anew starts the page again from its values.
-                    <RunnerPage
-                      key={`${shown.id}:${stepView.dataUpdatedAt}`}
-                      run={stepSource}
-                      compact
-                      studio
-                    />
+                    <RunnerPage key={shown.id} run={stepSource} compact studio />
                   ) : null}
                   {/* The run stays while a step is shown, so it goes on and keeps its place. */}
                   {runId ? (
@@ -493,16 +485,6 @@ export function PreviewPane({
                   <p className="max-w-sm text-balance text-[0.8125rem] text-ink-3">
                     {t("editor.previewEmpty")}
                   </p>
-                  {resultStep ? (
-                    <button
-                      type="button"
-                      onClick={() => onStep(resultStep.id)}
-                      className="inline-flex items-center gap-1.5 text-[0.8125rem] text-ink-3 underline-offset-4 hover:text-ink hover:underline"
-                    >
-                      <Flag className="size-3.5" />
-                      {t("resultPreview.title")}
-                    </button>
-                  ) : null}
                 </div>
               )}
             </div>

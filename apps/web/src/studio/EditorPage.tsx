@@ -5,9 +5,12 @@ import {
   ArrowLeft,
   Eye,
   FileText,
+  Flag,
   History,
   Lock,
   NotebookTabs,
+  Pencil,
+  Settings,
   Share2,
   Workflow,
 } from "lucide-react";
@@ -78,16 +81,18 @@ const PANE_MIN = 340;
 /** Room the main area keeps next to the pane. */
 const paneMax = () => Math.max(PANE_MIN, window.innerWidth - 560);
 
-/** From this width the flow stands in a column of its own beside the preview. */
+/** From this width a column stands beside the preview: the flow or the editor. */
 const WIDE = "(min-width: 1440px)";
-const FLOW_KEY = "wizards.editor.flow";
-const FLOW_DEFAULT = 380;
-const FLOW_MIN = 260;
-/** Room the preview keeps next to the flow's column. */
-const flowMax = () => Math.max(FLOW_MIN, window.innerWidth - PANE_MIN - 640);
-const FLOW_SHOWN_KEY = "wizards.editor.flowShown";
+const COLUMN_WIDTH_KEY = "wizards.editor.columnWidth";
+const COLUMN_DEFAULT = 380;
+const COLUMN_MIN = 260;
+/** Room the preview keeps next to the column. */
+const columnMax = () => Math.max(COLUMN_MIN, window.innerWidth - PANE_MIN - 640);
+const COLUMN_SHOWN_KEY = "wizards.editor.columnShown";
 /** What the column beside the preview shows: the flow, or the editor of what the strip has chosen. */
 type Column = "flow" | "edit";
+/** The column's switch: the editor named by what it is on, the wizard's settings and result apart. */
+type ColumnPick = "settings" | "flow" | "edit" | "result";
 const COLUMN_KEY = "wizards.editor.column";
 /** Steps a person sees: shown first; the others are edited first where there is no room for both. */
 const SHOWN_FIRST = new Set(["page", "review", "result"]);
@@ -261,11 +266,11 @@ function useSheetHeight() {
   return { ref, percent, height, folded, dragging, unfold, fold, toggle, onPointerDown, onKeyDown };
 }
 
-/** Whether the flow's column shows where the window is wide; remembered per browser. */
-function useFlowShown(): [boolean, (shown: boolean) => void] {
+/** Whether the column beside the preview shows where the window is wide; remembered per browser. */
+function useColumnShown(): [boolean, (shown: boolean) => void] {
   const [shown, setShown] = useState(() => {
     try {
-      return localStorage.getItem(FLOW_SHOWN_KEY) !== "0";
+      return localStorage.getItem(COLUMN_SHOWN_KEY) !== "0";
     } catch {
       return true;
     }
@@ -275,7 +280,7 @@ function useFlowShown(): [boolean, (shown: boolean) => void] {
     (next) => {
       setShown(next);
       try {
-        localStorage.setItem(FLOW_SHOWN_KEY, next ? "1" : "0");
+        localStorage.setItem(COLUMN_SHOWN_KEY, next ? "1" : "0");
       } catch {
         // only lasts this page then
       }
@@ -305,7 +310,13 @@ function useColumn(): [Column, (column: Column) => void] {
   ];
 }
 
+/** The editor of the wizard the address names; another wizard gets an editor of its own. */
 export function EditorPage() {
+  const { id } = useParams();
+  return <Editor key={id} />;
+}
+
+function Editor() {
   const account = useFeature("account");
   const { id } = useParams();
   const navigate = useNavigate();
@@ -327,21 +338,22 @@ export function EditorPage() {
     max: paneMax,
     dir: 1,
   });
-  const flowPane = useDragWidth({
-    key: FLOW_KEY,
-    initial: FLOW_DEFAULT,
-    min: FLOW_MIN,
-    max: flowMax,
+  const columnPane = useDragWidth({
+    key: COLUMN_WIDTH_KEY,
+    initial: COLUMN_DEFAULT,
+    min: COLUMN_MIN,
+    max: columnMax,
     dir: -1,
   });
   const wideWindow = useMediaQuery(WIDE);
-  const [flowShown, setFlowShown] = useFlowShown();
-  /** A column beside the preview holds the flow or the step's editor: no tab for the flow then. */
-  const flowBeside = wideWindow && flowShown;
+  const [columnShown, setColumnShown] = useColumnShown();
+  /** A column beside the preview holds the flow or the editor, while the window is wide and it is shown. */
+  const columnBeside = wideWindow && columnShown;
   const [column, setColumn] = useColumn();
   /** Where there is no column: the main area edits the step chosen instead of showing it. */
   const [editing, setEditing] = useState(false);
-  const shownView: View = flowBeside && view === "flow" ? "preview" : view;
+  // On a wide window the flow lives in the column, never as a view of the main area.
+  const shownView: View = wideWindow && view === "flow" ? "preview" : view;
   const sheet = useSheetHeight();
   // The tab in effect stays in view where the row scrolls (a phone).
   const viewsRef = useRef<HTMLElement>(null);
@@ -448,6 +460,7 @@ export function EditorPage() {
   const closeRun = () => {
     setDrawerRun(null);
     setRunView(null);
+    setShowRun(false);
   };
   const testRun = useMutation({
     mutationFn: () => api.post<{ runId: string }>(`/api/studio/wizards/${id}/test-runs`),
@@ -664,7 +677,7 @@ export function EditorPage() {
     />
   );
   /** Where there is no column: show the step or edit it, at the start of the main area's bar. */
-  const showOrEdit = flowBeside ? null : (
+  const showOrEdit = columnBeside ? null : (
     <Pills<"show" | "edit">
       label={t("editor.view")}
       value={editing ? "edit" : "show"}
@@ -676,17 +689,40 @@ export function EditorPage() {
     />
   );
 
-  const views: View[] = flowBeside
+  /**
+   * The column's switch: the flow, or the editor — on the wizard's settings, a step, or the
+   * result, like the strip's gear, steps and flag.
+   */
+  const chosen = stepOf(selected);
+  const columnPick: ColumnPick =
+    column === "flow"
+      ? "flow"
+      : !chosen
+        ? "settings"
+        : chosen.type === "result"
+          ? "result"
+          : "edit";
+  const pickColumn = (pick: ColumnPick) => {
+    setColumn(pick === "flow" ? "flow" : "edit");
+    if (pick === "settings") {
+      select("__wizard");
+    } else if (pick === "result" && resultStep) {
+      select(resultStep.id);
+    } else if (pick === "edit" && (!chosen || chosen.type === "result")) {
+      const first = def.steps.find((s) => s.type !== "result");
+      if (first) {
+        select(first.id);
+      }
+    }
+  };
+
+  // The tabs follow the window's width alone: wide, the flow is in the column.
+  const views: View[] = wideWindow
     ? ["preview", "files", "memory", "runs"]
     : ["preview", "flow", "files", "memory", "runs"];
   /** The diagram follows a run where it is not in sight: its tab says so. */
   const flowPulse = Boolean(drawerRun && activeStep) && shownView !== "flow";
   const pickView = (v: View) => {
-    // Where the window is wide the flow has its column: its tab brings the column back.
-    if (v === "flow" && wideWindow) {
-      setFlowShown(true);
-      return;
-    }
     setView(v);
     sheet.fold();
   };
@@ -726,7 +762,7 @@ export function EditorPage() {
           selected={selected}
           onSelect={(sid) => {
             // Beside the preview a second click on the step chosen opens its editor.
-            if (flowBeside && sid && sid === selected) {
+            if (columnBeside && sid && sid === selected) {
               setColumn("edit");
               return;
             }
@@ -735,7 +771,7 @@ export function EditorPage() {
           issueSteps={issueSteps}
           activeStep={drawerRun ? activeStep : null}
           live={live}
-          fitKey={`${flowBeside}:${shownView}:${flowBeside ? flowPane.width : 0}`}
+          fitKey={`${columnBeside}:${shownView}:${columnBeside ? columnPane.width : 0}`}
           pulse={remote?.steps}
           wizardId={w.id}
           decisions={shownDecisions}
@@ -1028,7 +1064,7 @@ export function EditorPage() {
 
         <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card lg:rounded-3xl lg:shadow-[0_0_0_1px_var(--border-soft)]">
           {notices}
-          {shownView === "preview" && editing && !flowBeside ? (
+          {shownView === "preview" && editing && !columnBeside ? (
             <>
               {/* The preview's bar, with only the switch back while editing. */}
               <div className="@container flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-border-soft border-b px-3 [scrollbar-width:none]">
@@ -1041,10 +1077,10 @@ export function EditorPage() {
             <PreviewPane
               lead={showOrEdit}
               // The flow beside the preview shows the steps: no strip then, and the run is a button away.
-              strip={flowBeside && column === "flow" ? null : strip}
-              onEdit={flowBeside && column === "flow" ? () => setColumn("edit") : undefined}
+              strip={columnBeside && column === "flow" ? null : strip}
+              onEdit={columnBeside && column === "flow" ? () => setColumn("edit") : undefined}
               onShowRun={
-                flowBeside && column === "flow" && drawerRun && !showRun && stepOf(selected)
+                columnBeside && column === "flow" && drawerRun && !showRun && stepOf(selected)
                   ? () => setShowRun(true)
                   : undefined
               }
@@ -1053,7 +1089,6 @@ export function EditorPage() {
               runView={runView}
               onView={onRunView}
               stepId={showRun && drawerRun ? null : (stepOf(selected)?.id ?? null)}
-              onStep={select}
               audience={audience}
               onAudience={setAudience}
               test={{
@@ -1061,8 +1096,8 @@ export function EditorPage() {
                 busy: testRun.isPending,
                 disabled: hasIssues || building || blocked,
               }}
-              column={wideWindow ? flowShown : null}
-              onColumn={setFlowShown}
+              column={wideWindow ? columnShown : null}
+              onColumn={setColumnShown}
               onClose={closeRun}
               building={building ? <Working chat={chat} spinner="size-4 text-ember" /> : null}
               log={
@@ -1096,35 +1131,50 @@ export function EditorPage() {
           )}
         </section>
 
-        {flowBeside ? (
+        {columnBeside ? (
           <section
             aria-label={t("editor.flow")}
             className="relative flex min-h-0 shrink-0 flex-col overflow-visible rounded-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)] max-lg:hidden"
-            style={{ width: flowPane.width }}
+            style={{ width: columnPane.width }}
           >
             {/* biome-ignore lint/a11y/useSemanticElements: a draggable splitter has no element of its own */}
             <div
               role="separator"
               aria-orientation="vertical"
               aria-label={t("editor.resize")}
-              aria-valuenow={flowPane.width}
+              aria-valuenow={columnPane.width}
               tabIndex={0}
               title={t("editor.resize")}
-              onPointerDown={flowPane.onPointerDown}
-              onKeyDown={flowPane.onKeyDown}
-              onDoubleClick={flowPane.reset}
+              onPointerDown={columnPane.onPointerDown}
+              onKeyDown={columnPane.onKeyDown}
+              onDoubleClick={columnPane.reset}
               className="group -left-4 absolute inset-y-0 z-10 w-4 cursor-col-resize outline-none"
             >
               <span className="-translate-y-1/2 absolute top-1/2 left-[5px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
             </div>
             <div className="@container flex h-12 shrink-0 items-center gap-2 border-border-soft border-b px-3">
-              <Pills<Column>
+              <Pills<ColumnPick>
+                named
                 label={t("editor.view")}
-                value={column}
-                onChange={setColumn}
+                value={columnPick}
+                onChange={pickColumn}
                 options={[
-                  { id: "flow", label: t("editor.flow") },
-                  { id: "edit", label: t("editor.edit") },
+                  {
+                    id: "settings",
+                    label: t("editor.profile"),
+                    icon: <Settings className="size-3.5" />,
+                  },
+                  { id: "flow", label: t("editor.flow"), icon: <Workflow className="size-3.5" /> },
+                  { id: "edit", label: t("editor.edit"), icon: <Pencil className="size-3.5" /> },
+                  ...(resultStep
+                    ? [
+                        {
+                          id: "result" as const,
+                          label: t("editor.result"),
+                          icon: <Flag className="size-3.5" />,
+                        },
+                      ]
+                    : []),
                 ]}
               />
             </div>
