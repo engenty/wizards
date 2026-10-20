@@ -39,9 +39,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Flag,
   Info,
   Play,
   Plus,
+  Settings,
   Sparkles,
   Trash2,
   Upload,
@@ -1232,11 +1234,14 @@ interface InspectorProps {
   assistant?: StepAssistant;
 }
 
+/** What the strip and the editor name the wizard's own settings by. */
+const SETTINGS = "__wizard";
+
 /**
  * The wizard's steps in a row, in run order: one click or the arrows (on screen or ← / → on the
  * keyboard) move from step to step without going back to the diagram. With a test run open it
- * starts with the run, and lights the step the run is at.
- * `end` stands at the row's end.
+ * starts with the run, and lights the step the run is at. The wizard's settings stand fixed
+ * before the steps, the result fixed after them.
  */
 export function StepNav({
   def,
@@ -1244,12 +1249,13 @@ export function StepNav({
   onSelect,
   issues,
   run,
-  end,
 }: Pick<InspectorProps, "def" | "selected" | "onSelect" | "issues"> & {
   run?: { shown: boolean; at: string | null; onShow: () => void } | null;
-  end?: React.ReactNode;
 }) {
-  const ids = def.steps.map((s) => s.id);
+  const result = def.steps.find((s) => s.type === "result") ?? null;
+  const steps = def.steps.filter((s) => s !== result);
+  // The arrows walk from the wizard's settings through the steps to the result.
+  const ids = [SETTINGS, ...steps.map((s) => s.id), ...(result ? [result.id] : [])];
   const at = selected ? ids.indexOf(selected) : -1;
   const current = useRef<HTMLButtonElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: the selected step is what moves into view
@@ -1258,7 +1264,7 @@ export function StepNav({
   }, [selected]);
   const go = (dir: -1 | 1) => {
     // Nothing picked: forward starts at the first step, back at the last.
-    const next = at === -1 ? (dir === 1 ? 0 : ids.length - 1) : at + dir;
+    const next = at === -1 ? (dir === 1 ? 1 : ids.length - 2) : at + dir;
     if (next >= 0 && next < ids.length) {
       onSelect(ids[next]);
     }
@@ -1289,12 +1295,28 @@ export function StepNav({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const dot = "inline-flex size-8 shrink-0 items-center justify-center rounded-full transition";
+  const place = steps.findIndex((s) => s.id === selected);
   return (
     <div className="flex shrink-0 items-center gap-1 border-border-soft border-b px-2 py-2">
+      {/* The wizard's settings stand first, outside the steps, always in reach. */}
+      <button
+        type="button"
+        title={t("editor.profile")}
+        aria-label={t("editor.profile")}
+        aria-current={selected === SETTINGS ? "step" : undefined}
+        onClick={() => onSelect(SETTINGS)}
+        className={cn(
+          dot,
+          "bg-paper-2 text-ink-2",
+          selected === SETTINGS ? "ring-2 ring-ember" : "hover:ring-2 hover:ring-border-soft",
+        )}
+      >
+        <Settings className="size-4" />
+      </button>
       <IconButton
         label={t("editor.prevStep")}
         className="size-8 shrink-0"
-        disabled={at <= 0}
+        disabled={at === 0}
         onClick={() => go(-1)}
       >
         <ChevronLeft className="size-4" />
@@ -1318,7 +1340,7 @@ export function StepNav({
             <span className="h-px w-3 shrink-0 bg-border-soft" />
           </>
         ) : null}
-        {def.steps.map((step, i) => {
+        {steps.map((step, i) => {
           const Icon = stepIcon(step);
           const active = step.id === selected;
           const broken = issues.some((issue) => issue.stepId === step.id);
@@ -1351,7 +1373,7 @@ export function StepNav({
         })}
       </div>
       <span className="shrink-0 px-1 text-[0.75rem] text-ink-4 tabular-nums">
-        {at >= 0 ? `${at + 1} / ${def.steps.length}` : ""}
+        {place >= 0 ? `${place + 1} / ${steps.length}` : ""}
       </span>
       <IconButton
         label={t("editor.nextStep")}
@@ -1361,7 +1383,27 @@ export function StepNav({
       >
         <ChevronRight className="size-4" />
       </IconButton>
-      {end}
+      {/* The result stands last, outside the steps, always in reach. */}
+      {result ? (
+        <button
+          type="button"
+          title={result.title}
+          aria-label={result.title}
+          aria-current={selected === result.id ? "step" : undefined}
+          onClick={() => onSelect(result.id)}
+          className={cn(
+            dot,
+            "relative",
+            TYPE_TONE.result,
+            selected === result.id ? "ring-2 ring-ember" : "hover:ring-2 hover:ring-border-soft",
+          )}
+        >
+          <Flag className="size-4" />
+          {issues.some((issue) => issue.stepId === result.id) ? (
+            <span className="-top-0.5 -right-0.5 absolute size-2.5 rounded-full bg-rose ring-2 ring-card" />
+          ) : null}
+        </button>
+      ) : null}
     </div>
   );
 }

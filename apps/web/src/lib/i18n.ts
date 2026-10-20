@@ -899,7 +899,6 @@ const de: Record<Key, Line> = {
   "resultPreview.from": "Gefüllt aus dem Testlauf von {time}",
   "resultPreview.none":
     "Noch kein Testlauf ist fertig. Die Seite zeigt, was der Wizard machen wird.",
-  "resultPreview.newTest": "Neuer Testlauf",
   "resultPreview.notMade": "Das macht der Testlauf.",
   "resultPreview.agentLeft":
     "{names} bekommst nur du: Ein KI-Agent erledigt die Arbeit, auf deine Credits.",
@@ -3052,7 +3051,6 @@ const en = {
   "resultPreview.you": "You",
   "resultPreview.from": "Filled from the test run of {time}",
   "resultPreview.none": "No test run has finished yet. The page shows what the wizard will make.",
-  "resultPreview.newTest": "New test run",
   "resultPreview.notMade": "The test run makes this.",
   "resultPreview.agentLeft": "Only you get {names}: an AI agent does the work, on your credits.",
   "resultPreview.setupLeft": "Not set up, so nobody gets it: {names}.",

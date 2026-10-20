@@ -287,6 +287,16 @@ export function PreviewPane({
       : null;
 
   const result = shown?.type === "result" ? shown : null;
+  /** Shows or hides the column beside the preview, where the window has room for it. */
+  const columnToggle =
+    column === null ? null : (
+      <IconButton
+        label={t(column ? "editor.columnHide" : "editor.columnShow")}
+        onClick={() => onColumn(!column)}
+      >
+        {column ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
+      </IconButton>
+    );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -299,8 +309,9 @@ export function PreviewPane({
             revision={w.revision}
             audience={audience}
             onAudience={onAudience}
-            lead={null}
+            lead={lead}
             under={strip}
+            end={columnToggle}
             onTest={test.start}
             testBusy={test.busy}
             testDisabled={test.disabled}
@@ -400,18 +411,7 @@ export function PreviewPane({
               {t("editor.test")}
             </Button>
           )}
-          {column === null ? null : (
-            <IconButton
-              label={t(column ? "editor.columnHide" : "editor.columnShow")}
-              onClick={() => onColumn(!column)}
-            >
-              {column ? (
-                <PanelRightClose className="size-4" />
-              ) : (
-                <PanelRightOpen className="size-4" />
-              )}
-            </IconButton>
-          )}
+          {columnToggle}
           {runId ? (
             <IconButton label={t("editor.close")} onClick={onClose}>
               <X className="size-4" />

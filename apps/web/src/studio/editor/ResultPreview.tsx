@@ -12,7 +12,7 @@ import {
   Eye,
   History,
   Link2,
-  RotateCcw,
+  Play,
   Share2,
   TriangleAlert,
   User,
@@ -63,6 +63,7 @@ export function ResultPreview({
   onAudience,
   lead,
   under,
+  end,
   onTest,
   testBusy,
   testDisabled,
@@ -78,6 +79,8 @@ export function ResultPreview({
   lead: ReactNode;
   /** Under the bar, above the page. */
   under?: ReactNode;
+  /** At the bar's end. */
+  end?: ReactNode;
   onTest: () => void;
   testBusy: boolean;
   testDisabled: boolean;
@@ -129,17 +132,18 @@ export function ResultPreview({
             </button>
           ))}
         </fieldset>
+        {/* A new test run fills the page anew, started as in the preview's bar. */}
         <Button
-          variant="ghost"
           size="sm"
-          title={t("resultPreview.newTest")}
+          variant="secondary"
           busy={testBusy}
           disabled={testDisabled}
           onClick={onTest}
         >
-          <RotateCcw className="size-3.5" />
-          <span className="max-md:sr-only">{t("resultPreview.newTest")}</span>
+          <Play className="size-3.5" />
+          {t("editor.test")}
         </Button>
+        {end}
         {onClose ? (
           <IconButton label={t("editor.close")} onClick={onClose}>
             <X className="size-5" />
