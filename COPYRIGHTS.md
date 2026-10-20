@@ -55,6 +55,19 @@ Declared by two or more of the workspaces below:
 
 | Package | Version | Licence |
 |---|---|---|
+| [@fontsource/bricolage-grotesque](https://fontsource.org/fonts/bricolage-grotesque) | 5.3.0 | OFL-1.1 |
+| [@fontsource/caveat](https://fontsource.org/fonts/caveat) | 5.3.0 | OFL-1.1 |
+| [@fontsource/creepster](https://fontsource.org/fonts/creepster) | 5.3.0 | OFL-1.1 |
+| [@fontsource/dm-sans](https://fontsource.org/fonts/dm-sans) | 5.3.0 | OFL-1.1 |
+| [@fontsource/figtree](https://fontsource.org/fonts/figtree) | 5.3.0 | OFL-1.1 |
+| [@fontsource/fraunces](https://fontsource.org/fonts/fraunces) | 5.3.0 | OFL-1.1 |
+| [@fontsource/fredoka](https://fontsource.org/fonts/fredoka) | 5.3.0 | OFL-1.1 |
+| [@fontsource/inter](https://fontsource.org/fonts/inter) | 5.3.0 | OFL-1.1 |
+| [@fontsource/lora](https://fontsource.org/fonts/lora) | 5.3.0 | OFL-1.1 |
+| [@fontsource/nosifer](https://fontsource.org/fonts/nosifer) | 5.3.0 | OFL-1.1 |
+| [@fontsource/nunito](https://fontsource.org/fonts/nunito) | 5.3.0 | OFL-1.1 |
+| [@fontsource/playfair-display](https://fontsource.org/fonts/playfair-display) | 5.3.0 | OFL-1.1 |
+| [@fontsource/young-serif](https://fontsource.org/fonts/young-serif) | 5.3.0 | OFL-1.1 |
 | [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.2.0 | MIT |
 | [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.3 | MIT |
 | [dompurify](https://github.com/cure53/DOMPurify) | 3.4.16 | (MPL-2.0 OR Apache-2.0) |
@@ -127,19 +140,6 @@ Declared by two or more of the workspaces below:
 | Package | Version | Licence |
 |---|---|---|
 | [@dagrejs/dagre](https://github.com/dagrejs/dagre#readme) | 3.1.1 | MIT |
-| [@fontsource/bricolage-grotesque](https://fontsource.org/fonts/bricolage-grotesque) | 5.3.0 | OFL-1.1 |
-| [@fontsource/caveat](https://fontsource.org/fonts/caveat) | 5.3.0 | OFL-1.1 |
-| [@fontsource/creepster](https://fontsource.org/fonts/creepster) | 5.3.0 | OFL-1.1 |
-| [@fontsource/dm-sans](https://fontsource.org/fonts/dm-sans) | 5.3.0 | OFL-1.1 |
-| [@fontsource/figtree](https://fontsource.org/fonts/figtree) | 5.3.0 | OFL-1.1 |
-| [@fontsource/fraunces](https://fontsource.org/fonts/fraunces) | 5.3.0 | OFL-1.1 |
-| [@fontsource/fredoka](https://fontsource.org/fonts/fredoka) | 5.3.0 | OFL-1.1 |
-| [@fontsource/inter](https://fontsource.org/fonts/inter) | 5.3.0 | OFL-1.1 |
-| [@fontsource/lora](https://fontsource.org/fonts/lora) | 5.3.0 | OFL-1.1 |
-| [@fontsource/nosifer](https://fontsource.org/fonts/nosifer) | 5.3.0 | OFL-1.1 |
-| [@fontsource/nunito](https://fontsource.org/fonts/nunito) | 5.3.0 | OFL-1.1 |
-| [@fontsource/playfair-display](https://fontsource.org/fonts/playfair-display) | 5.3.0 | OFL-1.1 |
-| [@fontsource/young-serif](https://fontsource.org/fonts/young-serif) | 5.3.0 | OFL-1.1 |
 | [@tanstack/react-query](https://tanstack.com/query) | 5.104.0 | MIT |
 | [@xterm/addon-fit](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.11.0 | MIT |
 | [@xterm/addon-web-links](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.12.0 | MIT |
