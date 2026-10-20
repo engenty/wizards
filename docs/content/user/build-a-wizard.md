@@ -1,7 +1,7 @@
 ---
 title: Build a wizard
 description: Describe what the wizard should do, or start from a template. Then change it in the chat or step by step.
-version: 0.9.0
+version: 0.9.2
 ---
 
 ## Start one
@@ -26,8 +26,8 @@ You can change everything afterwards in the chat.
 
 - **How it runs.** “Runs as” above the text field says how people will reach the wizard: as a
   “Step-by-step wizard” unless you choose otherwise. The + beside it asks “How should it run?”
-  and lists the other channels this studio offers, for example “Chat”, “Live voice” or “Video
-  call”. One channel always stays on. The assistant builds the wizard for what you chose.
+  and lists the other channels this studio offers, for example “Chat”. One channel always stays
+  on. The assistant builds the wizard for what you chose.
 - **Files.** Attach examples, price lists or screenshots with the + in the text field, or paste
   or drop them there. They go into the wizard’s files, and the assistant looks at them.
 - **Dictation.** The microphone button lets you speak instead of type.
@@ -47,29 +47,36 @@ You can change everything afterwards in the chat.
 
 ## The editor
 
+The chat stands on the left, the wizard as people see it in the middle, and on a wide window a
+column on the right.
+
 | Part | What it is for |
 |---|---|
-| The diagram, left | The steps as a flow with their branches. Click a step to open it |
-| Chat | Say what should change. The assistant edits the flow and tells you what it did |
-| Steps | One step at a time: its texts, fields, tools and model class. Move it up or down, or delete it |
+| Chat, left | Say what should change. The assistant edits the wizard and tells you what it did |
+| Preview | The wizard as people see it: the step you chose, filled with the answers of the latest test run, or the test run itself. Its bar holds “Test”, the wizard’s themes, light or dark pages, its languages, and a desk or a phone |
+| The row of steps | Under the preview’s bar: the settings (the gear) first, the steps in their order, the result (the flag) last. The arrows, or ← and → on the keyboard, move from one to the next |
+| The column, right | “Settings”, “Flow” (the diagram with its branches), “Edit” (the step you chose) and “Result”. The button at the end of the preview’s bar shows or hides it |
 | Files | Files the wizard uses on every run, like widget code, libraries or price lists. Upload your own or let the assistant write them |
 | Memory | What the wizard knows across all its runs: the notes that AI steps with the “Pages” tool read and add to, and the tables of its shared lists |
 | Runs | The test runs and live runs of this wizard |
 
-On a phone or a narrow window the panels sit in a sheet over the bottom of the diagram. Drag its handle to make it taller, or tap
-it to fold it away.
+On a smaller window “Flow” is a tab beside “Preview”, and “Preview” and “Edit” switch the main
+area between showing the step and editing it. On a phone the chat sits in a sheet over the
+bottom: folded it keeps the text field, drag its handle to open it.
 
-A click on the wizard’s name in the top bar opens its own settings: its title, description and
-greeting, its avatar, and the language it speaks to people in. With “Automatic, from its texts”
-the wizard speaks the language its texts are written in.
+The gear in the row of steps, or a click on the wizard’s name in the top bar, opens its own
+settings: its title, description and greeting, its avatar, and the language it speaks to people
+in. With “Automatic, from its texts” the wizard speaks the language its texts are written in.
 
 Under “Look” the wizard wears a theme: a look kept in the space, which other wizards of the space
-can wear too. Folded, the section shows a small preview of the wizard’s page; a click on it opens
-the settings. The first change makes a theme named after the wizard.
+can wear too. Folded, the section shows the theme, a small preview of the wizard’s page and a
+line on what the look is; “Adjust” opens the settings. The first change makes a theme named after
+the wizard.
 
 | Setting | What it does |
 |---|---|
-| Theme | Which theme the wizard wears: one of the space’s, the space’s brand, or a neutral look without a brand. It sits above the preview |
+| Theme | Which theme the wizard wears: one of the space’s, the space’s brand, or a neutral look without a brand. It sits above the preview, folded or open |
+| Costume | What the wizard’s engenty wears, on its pages and in the theme’s figures |
 | Pages | Dark first, light first, dark only or light only. With only one, everyone sees those pages and the theme switch is hidden |
 | Colours | Accent, ground and text for dark and for light pages, as small swatches. A dashed one takes the brand’s colour. A click opens the brand’s colours, a colour of your own, and “As in the brand” |
 | Font for headings, Font for text | The brand’s font, or one of the fonts engenty wizards ships, from Inter to the spooky Creepster |
@@ -79,8 +86,7 @@ the settings. The first change makes a theme named after the wizard.
 A theme two wizards wear changes for both. The section says which other wizards wear it and
 offers a copy for this wizard only. A wizard file carries the themes its wizard wears.
 
-The test run beside the diagram wears the wizard’s theme, with its effects. The studio around it
-keeps its own look.
+The preview wears the wizard’s theme, with its effects. The studio around it keeps its own look.
 
 The assistant sets the look too. Ask it, for example: “Make it dark and spooky for Halloween.”
 
@@ -97,10 +103,10 @@ whoever manages the team can delete a wizard. The same menu is on the wizard’s
 
 ### Step by step
 
-Open a step from the diagram or under “Steps”. What you can set depends on its type: see
-[Steps](./steps.md).
+Open a step from the row of steps or the diagram; a second click on a step in the diagram opens
+its editor. What you can set depends on its type: see [Steps](./steps.md).
 
-“Add step” on a step in the diagram, or under “Steps”, puts a new step after it. Say what it
+“Add step” on a step in the diagram, or in a step’s editor, puts a new step after it. Say what it
 should do and choose its kind, or leave it to “AI chooses”. Then say when it runs: “Always”,
 “Only if…” a condition holds, or when “AI decides…”. “Create” lets the assistant build the step
 in the chat. “Insert empty” adds a blank step of the kind you choose, for you to fill in.
