@@ -6,8 +6,8 @@ version: 0.9.3
 
 ## Start one
 
-“New wizard” on the list of your wizards, or “Add wizard” in the space’s menu, opens the page “What should your
-wizard do?”. It gives you three ways in:
+“New wizard” on the list of your wizards, or “Add wizard” in the space’s menu, opens the page “What
+should your wizard do?”. It gives you three ways in:
 
 | Way | How |
 |---|---|
@@ -25,9 +25,9 @@ You can change everything afterwards in the chat.
 ### Before you build
 
 - **How it runs.** “Runs as” above the text field says how people will reach the wizard: as a
-  “Step-by-step wizard” unless you choose otherwise. The + beside it asks “How should it run?”
-  and lists the other channels this studio offers, for example “Chat”. One channel always stays
-  on. The assistant builds the wizard for what you chose.
+  “Step-by-step wizard” unless you choose otherwise. The + beside it asks “How should it run?” and
+  offers “Chat” as well. One way always stays on. The assistant builds the wizard for what you
+  chose.
 - **Files.** Attach examples, price lists or screenshots with the + in the text field, or paste
   or drop them there. They go into the wizard’s files, and the assistant looks at them.
 - **Dictation.** The microphone button lets you speak instead of type.
@@ -64,9 +64,9 @@ You can change everything afterwards in the chat.
 7. **Share.** Publishes the wizard and gives you its link. See [Test and share](./test-and-share.md).
 
 On a smaller window “Flow” is a tab beside “Preview”, and “Preview” and “Edit” switch the main
-area between showing the step and editing it. On a phone the chat sits in a sheet over the
-bottom: folded it keeps the text field, drag its handle to open it. This holds on any window
-narrower than a laptop, a tablet too.
+area between showing the step and editing it. On a window narrower than a laptop, a tablet or a
+phone, the chat sits in a sheet over the bottom: folded it keeps the text field, drag its handle
+to open it.
 
 The gear in the row of steps, or a click on the wizard’s name in the top bar, opens its own
 settings: its title, description and greeting, its avatar, and the language it speaks to people
@@ -94,8 +94,8 @@ The preview wears the wizard’s theme, with its effects. The studio around it k
 
 The assistant sets the look too. Ask it, for example: “Make it dark and spooky for Halloween.”
 
-The ⋯ button in the top bar (“More”) duplicates the wizard, exports it, or deletes it. Only
-whoever manages the team can delete a wizard. The same menu is on the wizard’s card in the list.
+The ⋯ button in the top bar (“More”) duplicates the wizard, exports it, or deletes it. The same
+menu is on the wizard’s card in the list.
 
 ### In the chat
 

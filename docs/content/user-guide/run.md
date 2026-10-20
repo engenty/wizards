@@ -56,9 +56,8 @@ Your browser asks before it uses the camera, the microphone or your location. If
 allow it in your browser’s site settings (the lock icon in the address bar). Or use the fallback
 the field offers: choose a photo, type the address or choose an audio file.
 
-With “Tell me when it’s done” you can switch apps during a long step: a notification, a sound
-or a buzz brings you back. “Add to home screen” puts the wizard on your phone like an app. On a
-computer, “Bookmark this wizard” shows how to keep it in your bookmarks.
+With “Tell me when it’s done” you can switch apps during a long step: a notification, a sound or a
+buzz brings you back.
 
 ## Photos and files you upload
 

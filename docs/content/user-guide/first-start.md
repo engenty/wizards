@@ -43,9 +43,9 @@ After you connect, one short call checks that the model can be reached. The setu
 that call works. Then “Open the studio” takes you in.
 
 With your own keys, each key has its own Test. It checks the key with the provider, stores it on
-this computer (on a Mac in the Keychain, elsewhere encrypted in your data folder) and sets that provider’s models for what no other key covers yet. One
-key that works is enough. Which model does which job you change later under
-[Settings → Models](./models.md).
+this computer (on a Mac in the Keychain, elsewhere encrypted in your data folder) and sets that
+provider’s models for what no other key covers yet. One key that works is enough. Which model does
+which job you change later under [Settings → Models](./models.md).
 
 ## What an AI client does not cover
 

@@ -16,7 +16,7 @@ version: 0.9.3
 | `wizards open` | Signs this browser in to the running studio. `--print` only prints the link; it works once, within a minute |
 | `wizards status` | Shows what is installed and running, with the browser it uses for PDF, PNG and websites |
 | `wizards doctor` | Shows the status and checks for problems |
-| `wizards logs [n]` | While it runs, prints the last lines engenty wizards printed while running (100, or `n` up to 2000). Keys and tokens are taken out |
+| `wizards logs [n]` | While it runs, prints its last lines (100, or `n` up to 2000). Keys and tokens are taken out |
 | `wizards report` | While it runs, sends the status, the model settings (never a key) and the last 500 log lines to your [account](./models.md#account), so support can see what went wrong. Nothing is sent unless you run it. The command names the report’s ID. If this computer isn’t signed in, it tells you to sign in under Settings → Account or with `wizards account sign-in` |
 | `wizards stop` | Stops it, with any other copy of it still running in the background. Your data is kept. AI apps that use your wizards start it again when you use one there |
 | `wizards restart` | Stops it and starts it again; after an update, that is the new version. If it isn’t running, it starts in the background |
@@ -28,7 +28,7 @@ version: 0.9.3
 | `wizards disconnect [app …]` | Takes them out again |
 | `wizards mcp` | Runs the MCP server over stdio. AI apps start it; you don’t |
 | `wizards uninstall` | Takes engenty wizards off this computer. It shows what it will remove first and asks about your data on its own; your data is kept unless you choose to delete it. `--dry-run` only shows the plan, `--yes` asks nothing and keeps your data, `--yes --delete-data` deletes it too. See [Remove](./install.md#remove) |
-| `wizards validate <path …>` | Checks wizards without the studio: `.wizard` files, unpacked wizard files, or a wizard’s JSON. `--json` prints the problems as JSON. |
+| `wizards validate <path …>` | Checks wizards without the studio: `.wizard` files, unpacked wizard files, or a wizard’s JSON. `--json` prints the problems as JSON |
 
 | Option | What it does |
 |---|---|
@@ -66,7 +66,7 @@ the studio doesn’t: one `NAME=value` per line. Restart engenty wizards after a
 |---|---|---|
 | `APP_URL` | The address you open. Links and sign-ins use it | `http://localhost:24368` |
 | `API_PORT` | The port | `24368`; if it is taken, the next free one up to `24387` |
-| `CHROME_PATH` | The browser for PDF and PNG exports and steps on websites: Chrome, Edge, Chromium or Brave | The first one found: on a Mac Google Chrome, Microsoft Edge, Chromium or Brave in `/Applications` or `~/Applications`; on Linux `google-chrome`, `chromium`, `chromium-browser` or `microsoft-edge` on the PATH. `wizards status` names it |
+| `CHROME_PATH` | The browser for PDF and PNG exports and steps on websites: Chrome, Edge, Chromium or Brave | The first one found: on a Mac Google Chrome, Microsoft Edge, Chromium or Brave in `/Applications` or `~/Applications`; on Linux `google-chrome`, `chromium`, `chromium-browser` or `microsoft-edge` on the PATH; on Windows Chrome, Edge, Chromium or Brave under Program Files or your local AppData. `wizards status` names it |
 | `FFMPEG_PATH` | ffmpeg for MP4 videos | `ffmpeg` |
 | `SANDBOX_ALLOW_HOSTS` | Addresses the sandbox reaches besides the npm and PyPI registries, comma-separated: `api.example.com`. It reaches nothing else | not set |
 | `OLLAMA_URL` | Where Ollama answers | `http://127.0.0.1:11434/v1` |

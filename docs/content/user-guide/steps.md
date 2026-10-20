@@ -45,10 +45,11 @@ person chose delivery, “Which allergy?” only when they ticked “Allergies�
 read another field of the same page, and the field then appears as the person answers. It can
 also read anything known before the page. A hidden field is not required and is not kept.
 
-The choices of a choice field can come from earlier data (“Choices from earlier data”) instead
-of a fixed list: the suppliers a research step found, one column of a table it made, or a column
-of a list the wizard keeps. The fixed choices stand in while that data is empty. When the choices are the rows of a table, each
-can show as a card with a picture, a line or two of text and “Details” to open its page.
+The choices of a choice field can come from earlier data (“Choices from earlier data”) instead of a
+fixed list: the suppliers a research step found, one column of a table it made, or a column of a
+list the wizard keeps. The fixed choices stand in while that data is empty. When the choices are
+the rows of a table, each can show as a card with a picture, a line or two of text and “Details” to
+open its page.
 
 An appointment field takes its times the same way, usually from an AI step that looked up the
 free times in a calendar. The times show in the calendar’s own time zone, grouped by day.
@@ -202,7 +203,8 @@ follows. The diagram shows the branches with their conditions.
 A branch can also be decided by the AI: instead of a condition it has a statement (“The person
 wants a refund, not an exchange”). When no condition matched, the AI reads what was answered and
 found so far and takes the branch whose statement is true; if none clearly is, the step’s
-“otherwise” branch, or else the next step, follows. All such branches of a step cost one small decision together.
+“otherwise” branch, or else the next step, follows. All such branches of a step cost one small
+decision together.
 
 A branch back to an earlier step makes a loop, for example “write, check, write again until the
 check passes”. A loop stops after the number of times you allow, at most ten if you set nothing.

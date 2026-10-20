@@ -25,7 +25,7 @@ answer “no” to the sign-in, then run `wizards setup --local`.
   run engenty wizards [on a server](./server.md) of your own.
 - It runs on your AI clients, your own API keys, Ollama or Apple Intelligence
   ([First start](./first-start.md)). Without an account, video and audio need your own API key.
-- The studio shows nothing about an account: no sign-in, no credits, no copy in the cloud. 
+- The studio shows nothing about an account: no sign-in, no credits, no copy in the cloud.
 - `wizards status` and the `wizards` menu say “only on this computer, no account”.
 
 ## Connect an account later
