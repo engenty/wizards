@@ -10,25 +10,34 @@
   Let AI do the work.
 </p>
 
+**For personal use and small businesses**\
+Turn a task you repeat into a wizard, or pick a ready one from the
+[gallery](https://engenty.ai/wizards). Use it yourself or share it with colleagues and clients: the
+wizard guides you step by step, you confirm its drafts, and you get the result.
+
+**For developers**\
+Wizards are skills on steroids: workflows with their own interface, built and run on your machine
+with Codex, Claude Code or your own API key. They connect to other systems over MCP and HTTP. And
+you can put them into other places, such as Claude and other AI chats, or your own website with an
+embed code.
+
+**For enterprises**\
+Wizards make AI dependable. Your domain experts define the business processes themselves, without
+waiting for developers. Host it in the cloud or inside your own walls, with any model provider.
+[Get in touch](mailto:contact@engenty.ai).
+
 ## What it does
 
-- **Describe it, get a wizard.** Say in plain words what you do again and again – a post with
-  an image, a research briefing, an invoice, a quote, a damage report – and engenty builds a
-  wizard for it: pages that ask what it needs, AI steps that do the work.
-- **AI steps do the work.** They research the web, write, draw images, render video, read PDFs,
-  scans and emails, build documents and dashboards, and write into other services over MCP, HTTP
-  or a browser. Anything that changes an account asks first.
-- **Share it with a link.** Anyone can run a wizard in the browser, on a phone too: camera,
-  code scan, voice notes, location and a drawn signature included. Results download as PDF,
-  Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link. Each wizard
-  wears a theme of your space: its colours, fonts and effects.
-- **Send the result on.** From the result, by email, into Google Drive, OneDrive or S3, to a
-  Slack channel, through any connected service, or onto a website the wizard opens in its
-  browser – you sign in yourself and confirm before anything goes public.
-- **Runs on your machine, on your subscription.** It uses Codex, Claude Code, Antigravity
-  or Cursor Agent when one is installed and signed in, so no API key is needed. Or bring a key
-  (Vercel AI Gateway, OpenAI, Anthropic, Google), or a local model through Ollama. Your wizards and
-  results stay in a folder on your machine.
+| Feature | What it means |
+|---|---|
+| **Wizards Studio** | Say in plain words what you need, and the studio builds the workflow and its pages. Preview every step and test it before you share. |
+| **Any LLM** | Use any model provider. Each step gets the right model: a light one for simple work, a strong one where it counts, and no AI where none is needed. |
+| **Works anywhere** | In the browser and on a phone, with the camera, voice notes and a signature. It even runs inside Claude, ChatGPT or your own chatbot. |
+| **Create Results** | Reports, tables, images, videos, documents, dashboards: anything AI can make. |
+| **Review & Refine** | People confirm the AI’s drafts or ask for another try, and anything that changes an account or goes public asks first. |
+| **Keeps Memory** | A wizard keeps notes and lists across all its runs. |
+| **Your Look** | Each wizard wears your theme: colours, fonts and effects, in light and dark. |
+| **Integrate & Share** | Share a wizard as a link or an embed code, and send its results by email, to Drive or Slack, or through any connector. |
 
 ## How it looks
 
