@@ -5,11 +5,15 @@ import { BrowserRouter } from "react-router";
 import { PublicApp, StudioApp } from "./App";
 import { BASE, STUDIO } from "./lib/base";
 import { watchErrors } from "./lib/report";
+import { Crashed } from "./report/Crashed";
+import { keepConsole } from "./report/log";
+import { ReportHost } from "./report/ReportDialog";
 import "./lib/runner-env";
 import "./lib/theme";
 import "./styles/app.css";
 
 watchErrors();
+keepConsole();
 
 // A page loaded before a deploy asks for its build's files, which the new build no longer has:
 // it loads anew, once. A second failure within a minute is a real one and stays an error.
@@ -54,7 +58,10 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter basename={studio ? STUDIO : BASE}>
-        {studio ? <StudioApp /> : <PublicApp />}
+        <Crashed where={studio ? "studio" : "run"}>
+          {studio ? <StudioApp /> : <PublicApp />}
+          <ReportHost />
+        </Crashed>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,
