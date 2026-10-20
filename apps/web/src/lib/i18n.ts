@@ -1496,6 +1496,12 @@ const de: Record<Key, Line> = {
   "inspector.lookDisplayFont": "Schrift für Überschriften",
   "inspector.lookBodyFont": "Schrift für Text",
   "inspector.lookEffects": "Effekte",
+  "inspector.lookAdjust": "Anpassen",
+  "inspector.lookEffectCount": { one: "{n} Effekt", other: "{n} Effekte" },
+  "inspector.lookAlsoIn": {
+    one: "auch in einem weiteren Wizard",
+    other: "auch in {n} weiteren Wizards",
+  },
   "inspector.remembers": "Merkt sich für jede Person",
   "inspector.remembersHint":
     "Bleibt zwischen den Läufen erhalten – getrennt für jede Person, die den Wizard nutzt. Ändern kannst du das im Chat.",
@@ -3638,6 +3644,9 @@ const en = {
   "inspector.lookDisplayFont": "Font for headings",
   "inspector.lookBodyFont": "Font for text",
   "inspector.lookEffects": "Effects",
+  "inspector.lookAdjust": "Adjust",
+  "inspector.lookEffectCount": { one: "{n} effect", other: "{n} effects" },
+  "inspector.lookAlsoIn": { one: "also in one other wizard", other: "also in {n} other wizards" },
   "inspector.remembers": "Remembers for each person",
   "inspector.remembersHint":
     "Kept between runs – separately for each person who uses the wizard. You can change this in the chat.",

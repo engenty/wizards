@@ -1098,6 +1098,32 @@ function StepBody({
   }
 }
 
+/** The costume the wizard's engenty wears: on its pages and in its theme's figures. */
+function CostumePicker({ def, update }: { def: WizardDefinition; update: Update }) {
+  return (
+    <div>
+      <Label>{t("inspector.costume")}</Label>
+      <div className="grid grid-cols-5 gap-2">
+        {[undefined, ...ENGENTY_COSTUMES].map((c) => (
+          <button
+            key={c ?? "none"}
+            type="button"
+            onClick={() => update({ ...def, costume: c })}
+            className={cn(
+              "flex aspect-square items-center justify-center rounded-xl transition",
+              def.costume === c ? "bg-ember-tint ring-2 ring-ember" : "bg-paper hover:bg-paper-2",
+            )}
+            aria-label={t(c ? `inspector.costume.${c}` : "inspector.costumeNone")}
+            title={t(c ? `inspector.costume.${c}` : "inspector.costumeNone")}
+          >
+            <Mascot kind={def.avatar} costume={c} size={44} interactive={false} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function WizardSettings({
   def,
   update,
@@ -1163,30 +1189,14 @@ export function WizardSettings({
             </button>
           ))}
         </div>
-        <div>
-          <Label>{t("inspector.costume")}</Label>
-          <div className="grid grid-cols-5 gap-2">
-            {[undefined, ...ENGENTY_COSTUMES].map((c) => (
-              <button
-                key={c ?? "none"}
-                type="button"
-                onClick={() => update({ ...def, costume: c })}
-                className={cn(
-                  "flex aspect-square items-center justify-center rounded-xl transition",
-                  def.costume === c
-                    ? "bg-ember-tint ring-2 ring-ember"
-                    : "bg-paper hover:bg-paper-2",
-                )}
-                aria-label={t(c ? `inspector.costume.${c}` : "inspector.costumeNone")}
-                title={t(c ? `inspector.costume.${c}` : "inspector.costumeNone")}
-              >
-                <Mascot kind={def.avatar} costume={c} size={44} interactive={false} />
-              </button>
-            ))}
-          </div>
-        </div>
       </Section>
-      <ThemeLook def={def} update={update} projectId={projectId} wizardId={wizardId} />
+      <ThemeLook
+        def={def}
+        update={update}
+        projectId={projectId}
+        wizardId={wizardId}
+        costume={<CostumePicker def={def} update={update} />}
+      />
       {def.lists?.length || def.connections?.length ? (
         <Section title={t("inspector.remembers")}>
           <p className="text-[0.8125rem] text-ink-3">{t("inspector.remembersHint")}</p>

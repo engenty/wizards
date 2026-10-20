@@ -12,7 +12,7 @@ import {
 } from "@engenty/wizards-shared/theme";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
 import { Button, cn, Label, Segmented, Select, Swatch } from "../../ui";
@@ -42,11 +42,14 @@ export function ThemeLook({
   update,
   projectId,
   wizardId,
+  costume,
 }: {
   def: WizardDefinition;
   update: Update;
   projectId: string;
   wizardId: string;
+  /** The engenty's costume picker: part of the look, shown with its settings. */
+  costume: ReactNode;
 }) {
   const qc = useQueryClient();
   const key = ["themes", projectId];
@@ -117,6 +120,26 @@ export function ThemeLook({
     (w) => w.id !== wizardId,
   );
   const brandFonts = answer.data?.brandFonts;
+  // What the folded section says: where the look comes from, its pages, effects and costume.
+  const listed = draft?.colors ?? [];
+  const firstScheme = listed[0]?.scheme;
+  const summary = [
+    chosen === undefined
+      ? t("inspector.lookThemeBrand")
+      : chosen === "default"
+        ? t("inspector.lookThemeDefault")
+        : (draft?.name ?? chosen),
+    firstScheme
+      ? t(
+          `inspector.lookPages.${listed.length === 1 ? firstScheme : firstScheme === "dark" ? "darkFirst" : "lightFirst"}`,
+        )
+      : null,
+    draft?.effects?.length ? t("inspector.lookEffectCount", { n: draft.effects.length }) : null,
+    def.costume ? t(`inspector.costume.${def.costume}`) : null,
+    others.length ? t("inspector.lookAlsoIn", { n: others.length }) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const preview = <LookPreview def={def} theme={draft} brandFonts={brandFonts} />;
   return (
     <div className="border-border-soft border-t px-5 py-5">
@@ -133,34 +156,47 @@ export function ThemeLook({
           </span>
           <ChevronDown className={cn("size-4 text-ink-4 transition", open && "rotate-180")} />
         </button>
+        {/* Which theme it wears is picked open or folded. */}
+        <div>
+          <Label>{t("inspector.lookTheme")}</Label>
+          <Select
+            value={chosen ?? ""}
+            onChange={(v) => choose(v || undefined)}
+            options={[
+              { value: "", label: t("inspector.lookThemeBrand") },
+              { value: "default", label: t("inspector.lookThemeDefault") },
+              ...themes.map((x) => ({ value: x.id, label: x.name })),
+            ]}
+          />
+        </div>
         {open ? (
-          <>
-            <div>
-              <Label>{t("inspector.lookTheme")}</Label>
-              <Select
-                value={chosen ?? ""}
-                onChange={(v) => choose(v || undefined)}
-                options={[
-                  { value: "", label: t("inspector.lookThemeBrand") },
-                  { value: "default", label: t("inspector.lookThemeDefault") },
-                  ...themes.map((x) => ({ value: x.id, label: x.name })),
-                ]}
-              />
-            </div>
-            {preview}
-          </>
+          preview
         ) : (
-          <button
-            type="button"
-            aria-label={t("inspector.lookOpen")}
-            onClick={() => setOpen(true)}
-            className="rounded-xl text-left transition hover:brightness-110"
-          >
-            {preview}
-          </button>
+          <>
+            <button
+              type="button"
+              aria-label={t("inspector.lookOpen")}
+              onClick={() => setOpen(true)}
+              className="rounded-xl text-left transition hover:brightness-110"
+            >
+              {preview}
+            </button>
+            {/* Folded, a line says what the look is, so the section reads as done, not loading. */}
+            <div className="flex items-start justify-between gap-3 pb-1">
+              <p className="text-[0.8125rem] text-ink-3">{summary}</p>
+              <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="shrink-0 font-medium text-[0.8125rem] text-ink-2 underline-offset-4 hover:text-ink hover:underline"
+              >
+                {t("inspector.lookAdjust")}
+              </button>
+            </div>
+          </>
         )}
         {open ? (
           <>
+            {costume}
             {others.length ? (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-paper-2 px-3 py-2.5 text-[0.8125rem] text-ink-3">
                 <span>
