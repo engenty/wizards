@@ -35,7 +35,7 @@
 The studio: the conversation that changes a wizard, the preview of each page as people see it, and its steps as a flow with its branches.
 
 <p align="center">
-  <img src="docs/assets/studio.png" alt="The studio of engenty wizards: on the left the assistant is asked to add dietary needs and allergies to a party enquiry and does it; in the middle the preview of that first page – occasion, date, number of guests, food budget and the new question; on the right the flow from that page to the AI proposal and the result">
+  <img src="docs/assets/studio.png" alt="The studio of engenty wizards: on the left the assistant explains where a wizard that turns property photos into a walkthrough video branches – an optional voice-over and two ways to animate the rooms; in the middle the preview of its first page, which property, with title, key facts and location; on the right the flow with those branches">
 </p>
 
 A wizard in use: it asks on one page, then on the next, and ends with the result to download or share.
