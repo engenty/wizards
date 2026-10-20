@@ -30,7 +30,7 @@
 # arriving through it.
 set -Eeuo pipefail
 
-NODE_VERSION="${ENGENTY_WIZARDS_NODE_VERSION:-24.14.0}"
+NODE_VERSION="${ENGENTY_WIZARDS_NODE_VERSION:-26.12.0}"
 # The runtime's npm package, and its file on the GitHub release (npm pack names it so).
 PACKAGE_NAME="@engenty/wizards-runtime"
 PACKAGE_FILE="engenty-wizards-runtime"
