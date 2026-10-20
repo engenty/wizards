@@ -226,6 +226,11 @@ describe("what the runtime reports to the admin app", () => {
       runUrl: `${RUNTIME}/w/${shareToken}`,
       steps: 2,
       effort: expect.objectContaining({ fields: 1 }),
+      outline: [
+        { title: "Notiz", by: "you" },
+        { title: "Fertig", by: "ai" },
+      ],
+      deliverables: [],
     });
   });
 

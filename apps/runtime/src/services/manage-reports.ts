@@ -6,6 +6,7 @@ import { db, knownTenants, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { managed, postRunReport, putWizards } from "../manage.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { pageLangOf, pageSteps } from "./pages.js";
 
 /**
  * What the Manage-App's admin app learns of a team (docs/plans/wizards-admin.md in the Manage
@@ -60,6 +61,11 @@ export async function wizardsReport() {
         runUrl: live && w.shareEnabled ? `${env.publicUrl}/w/${w.shareToken}` : null,
         effort: effortSent(def),
         results: [...new Set(resultsOf(def).map((r) => r.kind))],
+        // The overview the admin app shows: the intro, the way through as the page's teaser
+        // draws it (about five rows), and each result with its kind and files.
+        intro: (def.intro ?? "").slice(0, 1000),
+        outline: pageSteps(def, pageLangOf(def, "en")),
+        deliverables: resultsOf(def).slice(0, 12),
         capabilities: capabilitiesOf(def),
         steps: def.steps.length,
         changedAt: w.updatedAt.toISOString(),
