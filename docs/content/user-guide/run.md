@@ -6,18 +6,24 @@ version: 0.9.3
 
 ## From the link to the result
 
-![A wizard on a phone, three pages: which week and how many children, what is on the table, and the finished weekly plan with PDF, PNG and sharing](../../assets/wizard.png)
+![A wizard on a phone with numbered parts: its first screen with “Let’s go”, “Or: Chat” and “Bookmark this wizard”, and its first page with a photo field, a text field and “Continue”](../../assets/guide-runner.png)
 
-1. The link opens the wizard. “Let’s go” starts a run.
-2. Pages ask their questions. “Continue” takes you to the next page, “Back” to the one before.
-3. While an AI step works, the page says what it is doing. The screen stays on.
-4. A review shows what was made. “Looks good” accepts it. “New version” asks for another one,
-   with a note on what should change. “Edit” lets you change a text by hand.
-5. The result page offers the downloads, “Copy text” and “Share”.
+1. **“Let’s go”** starts a run. The link opens the wizard on this screen.
+2. **“Or: Chat”** runs the same wizard as a chat, where its owner switched that on.
+3. **“Bookmark this wizard”** shows how to keep it in your bookmarks. Where the phone offers it,
+   “Add to home screen” puts it there like an app.
+4. **A photo field** takes pictures from the library, or from the camera page after page.
+5. **A text field.** Pages ask their questions; a star marks what must be filled in.
+6. **“Continue”** takes you to the next page, “Back” to the one before.
 
-If you left a run, you can pick it up again with “Continue your last run”. A wizard written in another
-language than yours is translated for you (“Machine-translated”); “Show original” shows its own
-words.
+While an AI step works, the page says what it is doing, and the screen stays on. A review shows
+what was made: “Looks good” accepts it, “New version” asks for another one with a note on what
+should change, and “Edit” lets you change a text by hand. The result page offers the downloads,
+“Copy text” and “Share”.
+
+If you left a run, you can pick it up again with “Continue your last run”. A wizard written in
+another language than yours is translated for you (“Machine-translated”); “Show original” shows its
+own words.
 
 ## As a chat
 
