@@ -297,20 +297,21 @@ function WhoCard({
 }
 
 /**
- * The page as Manage serves it right now, scaled to the column. A new `version` loads it again
- * past Manage's minute of caching, after each change the runtime sent.
+ * The page as Manage serves it right now, scaled to the width it gets, as tall as a window on
+ * its top: the header, the headline and the first teaser. A new `version` loads it again past
+ * Manage's minute of caching, after each change the runtime sent.
  */
 function PageFrame({ url, version }: { url: string; version: number }) {
   const box = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.25);
+  const [scale, setScale] = useState(0.5);
   const WIDTH = 1280;
-  const HEIGHT = 2400;
+  const HEIGHT = 520;
   useEffect(() => {
     const el = box.current;
     if (!el) {
       return;
     }
-    const fit = () => setScale(el.clientWidth / WIDTH);
+    const fit = () => setScale(Math.min(1, el.clientWidth / WIDTH));
     fit();
     const watch = new ResizeObserver(fit);
     watch.observe(el);
@@ -320,7 +321,7 @@ function PageFrame({ url, version }: { url: string; version: number }) {
     <div
       ref={box}
       className="relative w-full overflow-hidden rounded-lg bg-paper-2 ring-1 ring-border-soft"
-      style={{ height: Math.round(HEIGHT * scale) }}
+      style={{ height: HEIGHT }}
     >
       <iframe
         key={version}
@@ -330,7 +331,7 @@ function PageFrame({ url, version }: { url: string; version: number }) {
         className="pointer-events-none absolute top-0 left-0 border-0"
         style={{
           width: WIDTH,
-          height: HEIGHT,
+          height: Math.ceil(HEIGHT / scale),
           transform: `scale(${scale})`,
           transformOrigin: "top left",
         }}
@@ -496,9 +497,36 @@ export function PublicPage({ project }: { project: Project }) {
   );
   const fieldsLocked = readOnly || !page;
 
+  const previewCard = (
+    <Card className="flex flex-col gap-2.5 p-4">
+      <h3 className="font-medium text-[0.875rem]">{t("page.previewTitle")}</h3>
+      {on ? (
+        <PageFrame url={url} version={version} />
+      ) : (
+        <p className={hint}>{t("page.previewOff")}</p>
+      )}
+      {on ? <p className={hint}>{t("page.previewHint")}</p> : null}
+    </Card>
+  );
+  const shareCard = (
+    <Card className="flex flex-col gap-3 p-4">
+      <h3 className="font-medium text-[0.875rem]">{t("page.inShare")}</h3>
+      <div className="flex items-center justify-between gap-3 rounded-lg bg-paper-2 px-3 py-2.5">
+        <span className="min-w-0">
+          <span className="block truncate font-medium text-[0.875rem]">
+            {t("share.onPage", { space: page?.title || name })}
+          </span>
+          <span className={cn("block truncate font-mono", hint)}>{address}</span>
+        </span>
+        <Switch checked disabled label={t("page.showOnPage")} onChange={() => {}} />
+      </div>
+      <p className={hint}>{t("page.inShareHint")}</p>
+    </Card>
+  );
+
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
-      <div className="flex min-w-0 flex-col gap-9">
+    <div className="flex min-w-0 flex-col gap-9">
+      <div className="contents">
         <Anchor id="page">
           <section className="flex flex-col gap-4">
             <div className="px-1">
@@ -537,10 +565,9 @@ export function PublicPage({ project }: { project: Project }) {
               </span>
             </Card>
             <Section title={t("page.sectionPage")} locked={readOnly}>
-              <div
-                role="group"
+              <fieldset
                 aria-label={t("page.sectionPage")}
-                className="grid gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))]"
+                className="grid min-w-0 gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))]"
               >
                 <WhoCard
                   title={t("page.whoOff")}
@@ -563,11 +590,12 @@ export function PublicPage({ project }: { project: Project }) {
                   later
                   onPick={() => {}}
                 />
-              </div>
+              </fieldset>
               {failed ? <p className="mt-3 text-[0.875rem] text-rose">{failed.message}</p> : null}
             </Section>
           </section>
         </Anchor>
+        {previewCard}
         <Anchor id="page-words">
           <Section
             title={t("page.sectionWords")}
@@ -650,30 +678,7 @@ export function PublicPage({ project }: { project: Project }) {
           </Section>
         </Anchor>
       </div>
-      <aside className="flex min-w-0 flex-col gap-6 xl:sticky xl:top-6">
-        <Card className="flex flex-col gap-2.5 p-4">
-          <h3 className="font-medium text-[0.875rem]">{t("page.previewTitle")}</h3>
-          {on ? (
-            <PageFrame url={url} version={version} />
-          ) : (
-            <p className={hint}>{t("page.previewOff")}</p>
-          )}
-          {on ? <p className={hint}>{t("page.previewHint")}</p> : null}
-        </Card>
-        <Card className="flex flex-col gap-3 p-4">
-          <h3 className="font-medium text-[0.875rem]">{t("page.inShare")}</h3>
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-paper-2 px-3 py-2.5">
-            <span className="min-w-0">
-              <span className="block truncate font-medium text-[0.875rem]">
-                {t("share.onPage", { space: page?.title || name })}
-              </span>
-              <span className={cn("block truncate font-mono", hint)}>{address}</span>
-            </span>
-            <Switch checked disabled label={t("page.showOnPage")} onChange={() => {}} />
-          </div>
-          <p className={hint}>{t("page.inShareHint")}</p>
-        </Card>
-      </aside>
+      {shareCard}
     </div>
   );
 }
