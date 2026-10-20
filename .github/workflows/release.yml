@@ -10,13 +10,17 @@ name: Release
 # NPM_TOKEN holds a token that may publish `wizards`, `@engenty/wizards-runtime` and
 # `@engenty/wizards` without a second factor: the runtime for the updates and the launcher, then
 # the launcher for `npx wizards`, then what code outside the repo imports (scripts/npm-package.mjs).
-# On a pull request that touches what a local install is made of, and run by hand
-# (workflow_dispatch), it builds and tests everything and publishes nothing.
+# Run by hand (workflow_dispatch), it builds and tests everything and publishes nothing. On a pull
+# request that touches what a local install is made of it does the same, except that the Mac
+# helper, the package and the installers run only when what the installers test changes (the job
+# `changes`); the tag runs them all before it publishes.
 on:
   push:
     tags: ["v*"]
   pull_request:
     branches: [main]
+    # `closed` starts a run that does nothing but cancel the PR's runs still going (concurrency).
+    types: [opened, synchronize, reopened, closed]
     paths:
       - apps/runtime/**
       - apps/web/public/install.sh
@@ -35,10 +39,60 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request, or its merge, cancels the PR's run still going. Tags and runs by
+# hand each get a group of their own and are never cancelled.
+concurrency:
+  group: release-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # What a pull request changed. `installer` is true for a tag and a run by hand; on a pull request
+  # only when one of these changed:
+  #   install.sh, install.ps1    the installers themselves
+  #   bin/**                     the launcher `npx wizards` and the command `wizards`, both packed
+  #   scripts/npm-package.mjs    how the three packages are staged and packed
+  #   apps/runtime/package.json, packages/*/package.json, pnpm-lock.yaml, pnpm-workspace.yaml
+  #                              the dependencies the runtime package lists and bundles; a version
+  #                              bump of the root package.json (every release PR) is not one
+  #   apps/runtime/apple/**, apps/runtime/scripts/build-apple.mjs
+  #                              the Mac helper the package carries
+  #   release.yml                this workflow
+  # Runtime and studio code reach the package as `pnpm build` leaves it, which ci.yml builds and
+  # tests on every pull request.
+  changes:
+    # The run a merge starts only cancels: every job needs this one and skips with it.
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      installer: ${{ github.event_name != 'pull_request' || steps.filter.outputs.installer == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@v4.0.3
+        if: github.event_name == 'pull_request'
+        id: filter
+        with:
+          filters: |
+            installer:
+              - apps/web/public/install.sh
+              - apps/web/public/install.ps1
+              - bin/**
+              - scripts/npm-package.mjs
+              - apps/runtime/package.json
+              - packages/*/package.json
+              - pnpm-lock.yaml
+              - pnpm-workspace.yaml
+              - apps/runtime/apple/**
+              - apps/runtime/scripts/build-apple.mjs
+              - .github/workflows/release.yml
+
   # Apple Intelligence as a model (apps/runtime/src/harness/apple.ts) runs through a Swift helper
   # that only a Mac with the macOS 26 SDK builds; the package made on Linux takes it from here.
   apple:
+    needs: changes
+    if: needs.changes.outputs.installer == 'true'
     runs-on: macos-26
     timeout-minutes: 15
     steps:
@@ -52,7 +106,8 @@ jobs:
           if-no-files-found: error
 
   package:
-    needs: apple
+    needs: [changes, apple]
+    if: needs.changes.outputs.installer == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -85,6 +140,7 @@ jobs:
   # WordPress plugin ships for sites without an account (its release workflow takes the ones
   # that run there as they are). Nothing of an account is needed.
   templates:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -107,6 +163,7 @@ jobs:
   # The runner package as a host without this repository takes it: the WordPress plugin's
   # release vendors it (packages/runner/README.md).
   runner:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -131,6 +188,7 @@ jobs:
   # Claude Code, Codex, ChatGPT, Cursor, VS Code and Gemini CLI install from and the directories
   # track, as a commit and the same tag. The deploy key PLUGINS_DEPLOY_KEY may write there.
   agent-plugins:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -174,7 +232,8 @@ jobs:
   # The installer, as a person runs it, with the package of this commit instead of the registry's:
   # its own Node, the runtime, the command, then a start that answers.
   installer:
-    needs: package
+    needs: [changes, package]
+    if: needs.changes.outputs.installer == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -198,9 +257,11 @@ jobs:
           export ENGENTY_HOME="$RUNNER_TEMP/engenty"
           runtime="$(ls "$PWD"/dist/npm/engenty-wizards-runtime-*.tgz)"
           ENGENTY_WIZARDS_PACKAGE="$runtime" bash apps/web/public/install.sh --yes --no-link
-          echo "ENGENTY_HOME=$ENGENTY_HOME" >> "$GITHUB_ENV"
-          echo "RUNTIME_TGZ=$runtime" >> "$GITHUB_ENV"
-          echo "LAUNCHER_TGZ=$(ls "$PWD"/dist/npm/wizards-*.tgz)" >> "$GITHUB_ENV"
+          {
+            echo "ENGENTY_HOME=$ENGENTY_HOME"
+            echo "RUNTIME_TGZ=$runtime"
+            echo "LAUNCHER_TGZ=$(ls "$PWD"/dist/npm/wizards-*.tgz)"
+          } >> "$GITHUB_ENV"
 
       - name: Start, enter, stop
         run: |
@@ -250,7 +311,8 @@ jobs:
 
   # The same on Windows, with install.ps1 in the Windows PowerShell that Windows ships.
   installer-windows:
-    needs: package
+    needs: [changes, package]
+    if: needs.changes.outputs.installer == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
