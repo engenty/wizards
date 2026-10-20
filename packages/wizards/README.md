@@ -1,5 +1,8 @@
 # @engenty/wizards
 
+Licence: FSL-1.1-MIT, source available
+([LICENSE](https://github.com/engenty/wizards/blob/main/LICENSE)).
+
 What code outside engenty wizards imports, one subpath per use. The runtime and the studio of
 engenty wizards are not in it.
 

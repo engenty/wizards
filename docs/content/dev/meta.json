@@ -8,6 +8,7 @@
     "wizard-format",
     "integration",
     "plugins",
-    "api"
+    "api",
+    "licensing"
   ]
 }
