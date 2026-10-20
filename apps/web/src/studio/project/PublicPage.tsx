@@ -5,7 +5,7 @@ import {
   pageSlugOf,
 } from "@engenty/wizards-shared/projects";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUpRight, Check, Copy, GripVertical } from "lucide-react";
+import { ArrowUpRight, Check, Copy, GripVertical, Monitor, Smartphone, Tablet } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Mascot } from "../../brand";
@@ -13,6 +13,7 @@ import { api } from "../../lib/api";
 import { type Key, lang as studioLang, t } from "../../lib/i18n";
 import { type Project, useMe, type WizardSummary } from "../../lib/session";
 import { Button, Card, cn, Input, Label, Select, Switch, Textarea } from "../../ui";
+import { Pills } from "../editor/PreviewPane";
 import { useAutosave } from "./data";
 import { langOfVoice, type PageVoice, pageAddress, pageUrl, voiceOf } from "./page-address";
 import { Anchor, Section } from "./Section";
@@ -296,46 +297,83 @@ function WhoCard({
   );
 }
 
+/** The widths the preview lays the page out at, as the devices people open it on. */
+type Device = "desktop" | "tablet" | "mobile";
+const DEVICE_WIDTH: Record<Device, number> = { desktop: 1280, tablet: 768, mobile: 390 };
+const DEVICE_KEY = "wizards.pagePreviewDevice";
+
+/** The device picked last time, kept with the browser. */
+function storedDevice(): Device {
+  try {
+    const v = localStorage.getItem(DEVICE_KEY);
+    return v && v in DEVICE_WIDTH ? (v as Device) : "desktop";
+  } catch {
+    return "desktop";
+  }
+}
+
+function keepDevice(device: Device) {
+  try {
+    localStorage.setItem(DEVICE_KEY, device);
+  } catch {
+    // A private window: the choice lasts the visit.
+  }
+}
+
 /**
- * The page as Manage serves it right now, scaled to the width it gets, as tall as a window on
- * its top: the header, the headline and the first teaser. A new `version` loads it again past
- * Manage's minute of caching, after each change the runtime sent.
+ * The page as Manage serves it right now, laid out at the device's width and scaled down to fit
+ * the card, in a frame of a fixed height the page scrolls inside. A phone gets a phone's frame.
+ * A new `version` loads it again past Manage's minute of caching, after each change the runtime
+ * sent.
  */
-function PageFrame({ url, version }: { url: string; version: number }) {
+function PageFrame({ url, version, device }: { url: string; version: number; device: Device }) {
   const box = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.5);
-  const WIDTH = 1280;
-  const HEIGHT = 520;
+  const [room, setRoom] = useState({ width: 0, tall: true });
   useEffect(() => {
     const el = box.current;
     if (!el) {
       return;
     }
-    const fit = () => setScale(Math.min(1, el.clientWidth / WIDTH));
+    const fit = () => setRoom({ width: el.clientWidth, tall: el.clientWidth >= 640 });
     fit();
     const watch = new ResizeObserver(fit);
     watch.observe(el);
     return () => watch.disconnect();
   }, []);
-  return (
+  const width = DEVICE_WIDTH[device];
+  const height = room.tall ? 640 : 480;
+  const phone = device === "mobile";
+  // A phone's frame takes some of the room; the page inside stays as wide as a phone.
+  const bezel = phone ? 12 : 0;
+  const scale = room.width ? Math.min(1, (room.width - 2 * bezel) / width) : 1;
+  const frame = (
     <div
-      ref={box}
-      className="relative w-full overflow-hidden rounded-lg bg-paper-2 ring-1 ring-border-soft"
-      style={{ height: HEIGHT }}
+      className={cn(
+        "relative overflow-hidden bg-paper-2",
+        phone ? "rounded-[1.5rem]" : "rounded-lg ring-1 ring-border-soft",
+      )}
+      style={{ width: Math.round(width * scale), height }}
     >
-      <iframe
-        key={version}
-        title={t("page.previewTitle")}
-        src={`${url}${url.includes("?") ? "&" : "?"}v=${version}`}
-        tabIndex={-1}
-        className="pointer-events-none absolute top-0 left-0 border-0"
-        style={{
-          width: WIDTH,
-          height: Math.ceil(HEIGHT / scale),
-          transform: `scale(${scale})`,
-          transformOrigin: "top left",
-        }}
-      />
+      {room.width ? (
+        <iframe
+          key={version}
+          title={t("page.previewTitle")}
+          src={`${url}${url.includes("?") ? "&" : "?"}v=${version}`}
+          tabIndex={-1}
+          className="absolute top-0 left-0 border-0"
+          style={{
+            width,
+            height: Math.ceil(height / scale),
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+        />
+      ) : null}
+    </div>
+  );
+  return (
+    <div ref={box} className="flex w-full justify-center">
+      {phone ? <div className="rounded-[2.25rem] bg-ink p-3 shadow-soft">{frame}</div> : frame}
     </div>
   );
 }
@@ -406,6 +444,7 @@ export function PublicPage({ project }: { project: Project }) {
   // The page is saved whole: every change goes out with the rest as it stands now. Each save
   // counts, so the preview loads the page again.
   const [version, setVersion] = useState(1);
+  const [device, setDevice] = useState<Device>(storedDevice);
   const latest = useRef(page);
   latest.current = page;
   const save = async (next: ProjectPage) => {
@@ -499,9 +538,39 @@ export function PublicPage({ project }: { project: Project }) {
 
   const previewCard = (
     <Card className="flex flex-col gap-2.5 p-4">
-      <h3 className="font-medium text-[0.875rem]">{t("page.previewTitle")}</h3>
+      <div className="@container flex items-center justify-between gap-3">
+        <h3 className="font-medium text-[0.875rem]">{t("page.previewTitle")}</h3>
+        {on ? (
+          <Pills
+            named
+            label={t("editor.device")}
+            value={device}
+            onChange={(d) => {
+              setDevice(d);
+              keepDevice(d);
+            }}
+            options={[
+              {
+                id: "desktop",
+                label: t("editor.deviceDesk"),
+                icon: <Monitor className="size-3.5" />,
+              },
+              {
+                id: "tablet",
+                label: t("page.deviceTablet"),
+                icon: <Tablet className="size-3.5" />,
+              },
+              {
+                id: "mobile",
+                label: t("editor.devicePhone"),
+                icon: <Smartphone className="size-3.5" />,
+              },
+            ]}
+          />
+        ) : null}
+      </div>
       {on ? (
-        <PageFrame url={url} version={version} />
+        <PageFrame url={url} version={version} device={device} />
       ) : (
         <p className={hint}>{t("page.previewOff")}</p>
       )}
