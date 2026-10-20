@@ -28,16 +28,16 @@ waiting for developers. Host it in the cloud or inside your own walls, with any 
 
 ## What it does
 
-| Feature | What it means |
-|---|---|
-| **Wizards Studio** | Say in plain words what you need, and the studio builds the workflow and its pages. Preview every step and test it before you share. |
-| **Any LLM** | Use any model provider. Each step gets the right model: a light one for simple work, a strong one where it counts, and no AI where none is needed. |
-| **Works anywhere** | In the browser and on a phone, with the camera, voice notes and a signature. It even runs inside Claude, ChatGPT or your own chatbot. |
-| **Create Results** | Reports, tables, images, videos, documents, dashboards: anything AI can make. |
-| **Review & Refine** | People confirm the AI’s drafts or ask for another try, and anything that changes an account or goes public asks first. |
-| **Keeps Memory** | A wizard keeps notes and lists across all its runs. |
-| **Your Look** | Each wizard wears your theme: colours, fonts and effects, in light and dark. |
-| **Integrate & Share** | Share a wizard as a link or an embed code, and send its results by email, to Drive or Slack, or through any connector. |
+<table>
+  <tr><td><strong>Wizards Studio</strong></td><td>Say in plain words what you need, and the studio builds the workflow and its pages. Preview every step and test it before you share.</td></tr>
+  <tr><td><strong>Any LLM</strong></td><td>Use any model provider. Each step gets the right model: a light one for simple work, a strong one where it counts, and no AI where none is needed.</td></tr>
+  <tr><td><strong>Works anywhere</strong></td><td>In the browser and on a phone, with the camera, voice notes and a signature. It even runs inside Claude, ChatGPT or your own chatbot.</td></tr>
+  <tr><td><strong>Create Results</strong></td><td>Reports, tables, images, videos, documents, dashboards: anything AI can make.</td></tr>
+  <tr><td><strong>Review &amp; Refine</strong></td><td>People confirm the AI’s drafts or ask for another try, and anything that changes an account or goes public asks first.</td></tr>
+  <tr><td><strong>Keeps Memory</strong></td><td>A wizard keeps notes and lists across all its runs.</td></tr>
+  <tr><td><strong>Your Look</strong></td><td>Each wizard wears your theme: colours, fonts and effects, in light and dark.</td></tr>
+  <tr><td><strong>Integrate &amp; Share</strong></td><td>Share a wizard as a link or an embed code, and send its results by email, to Drive or Slack, or through any connector.</td></tr>
+</table>
 
 ## How it looks
 
@@ -141,25 +141,11 @@ Change it later under Settings → Models.
 
 ## Using it
 
-- **Make a wizard:** describe it in the studio’s chat, or start from one of the templates.
-  You see the steps as a diagram and can change any of them.
-- **Run and share:** try it yourself, then share the link. Shared results are kept for 7 days
-  for people without an account. “Share” on a result also sends it by email, saves it to a
-  cloud folder or posts it: [Sharing a result](docs/development.md#sharing-a-result).
-- **Connect services:** Gmail, Google Drive, Calendar, Contacts, Outlook, OneDrive, Slack,
-  GitHub, HubSpot and S3 are built in; any other service can be added from its API description
-  or MCP server through the [integrations.sh](https://integrations.sh) registry. Services that
-  sign in with OAuth need a few settings first: [Connectors](docs/development.md#connectors).
-- **Give it a look:** under “Look” a wizard wears a theme of your space – colours, fonts and
-  effects – or ask the assistant, for example “Make it dark and spooky for Halloween.”
-- **Build from Claude Code or Codex:** Settings → Integrate adds engenty wizards to your AI
-  apps (Claude Desktop, Claude Code, Codex, Cursor and others), or `wizards connect` from a
-  terminal. In Claude Code, the plugin also lists your wizards beside the chat:
-  `claude plugin marketplace add engenty/wizards`, then `claude plugin install wizards@engenty`.
-
-Your machine only answers on `localhost`. To let others open shared wizards, sign in with your
-account: every version that goes live also runs on engenty.ai, even while your computer is off.
-Or run it on a server.
+The [user guide](https://engenty.ai/docs/user) shows how to
+[build a wizard](https://engenty.ai/docs/user/build-a-wizard),
+[test and share it](https://engenty.ai/docs/user/test-and-share),
+[connect services](https://engenty.ai/docs/user/connectors) and
+[use it from your AI apps](https://engenty.ai/docs/user/ai-apps).
 
 ## Your data
 
