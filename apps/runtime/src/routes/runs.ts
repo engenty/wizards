@@ -55,6 +55,7 @@ import {
   cancel,
   createRun,
   editOutput,
+  GuestBudgetError,
   goBack,
   NoCreditsError,
   projectIdOf,
@@ -529,6 +530,9 @@ export const publicRoutes = new Hono()
       });
       return c.json({ runId });
     } catch (err) {
+      if (err instanceof GuestBudgetError) {
+        return refuse(c, { code: "guestBudget" }, 429);
+      }
       if (err instanceof NoCreditsError || err instanceof ModelUnavailableError) {
         return refuse(c, { code: "wizardUnavailable" }, 403);
       }

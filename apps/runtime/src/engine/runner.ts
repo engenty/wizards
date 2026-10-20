@@ -115,6 +115,13 @@ export class NoCreditsError extends NotedError {
   }
 }
 
+/** A visitor's run past the day's or the month's budget for visitors (the Manage-App's guest budget). */
+export class GuestBudgetError extends NotedError {
+  constructor() {
+    super(note("guestBudget"));
+  }
+}
+
 /** The runs this process drives right now, with the handle that stops each. */
 const active = new Map<string, AbortController>();
 
@@ -260,7 +267,15 @@ export async function createRun(input: {
     input.definition,
     await stepsWithoutModel(input.definition),
   );
-  if (!(await reserveForRun(id, estimate.reserve))) {
+  const held = await reserveForRun(
+    id,
+    estimate.reserve,
+    input.mode === "live" && !!input.visitorId,
+  );
+  if (held === "guest_budget") {
+    throw new GuestBudgetError();
+  }
+  if (!held) {
     throw new NoCreditsError();
   }
   await db.insert(schema.run).values({

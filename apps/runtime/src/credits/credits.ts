@@ -35,17 +35,27 @@ export async function balanceCredits(): Promise<number | null> {
   return (await tenantInfo(currentTenant(), true).catch(() => null))?.balanceCredits ?? null;
 }
 
-/** Holds credits for a run before it starts. False = the free balance does not cover it. */
-export async function reserveForRun(runId: string, credits: number): Promise<boolean> {
+/**
+ * Holds credits for a run before it starts. False = the free balance does not cover it;
+ * "guest_budget" = a visitor's run past what visitors may spend on this tenant's wizards.
+ */
+export async function reserveForRun(
+  runId: string,
+  credits: number,
+  guest = false,
+): Promise<boolean | "guest_budget"> {
   if (!managed || credits <= 0) {
     return true;
   }
   try {
-    await reserve(currentTenant(), runId, Math.ceil(credits));
+    await reserve(currentTenant(), runId, Math.ceil(credits), guest);
     return true;
   } catch (err) {
     if (err instanceof ManageError && err.status === 402) {
       return false;
+    }
+    if (err instanceof ManageError && err.code === "guest_budget") {
+      return "guest_budget";
     }
     throw err;
   }

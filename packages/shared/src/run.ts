@@ -236,6 +236,7 @@ const NOTES_EN = {
   translationPlaceholder:
     "The translation of “{text}” needs every placeholder in curly brackets the original has.",
   wizardLimit: "This wizard has reached its limit for today. Try again tomorrow.",
+  guestBudget: "This page has reached its limit for today. Try again tomorrow.",
   confirmHuman: "Confirm that you’re a person.",
   tooManyRuns: "You’ve started a lot of runs just now. Try again in an hour.",
   clientRefused: "This app may not start runs here.",
@@ -573,6 +574,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   translationPlaceholder:
     "Die Übersetzung von „{text}“ braucht jeden Platzhalter in geschweiften Klammern, den das Original hat.",
   wizardLimit: "Für heute ist das Limit dieses Wizards erreicht. Versuch es morgen wieder.",
+  guestBudget: "Für heute ist das Limit dieser Seite erreicht. Versuch es morgen wieder.",
   confirmHuman: "Bestätige kurz, dass du ein Mensch bist.",
   tooManyRuns: "Du hast gerade viele Läufe gestartet. Versuch es in einer Stunde wieder.",
   clientRefused: "Diese App darf hier keine Läufe starten.",
