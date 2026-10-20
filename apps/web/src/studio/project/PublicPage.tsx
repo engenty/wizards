@@ -156,7 +156,7 @@ function WordFields({
   // Two columns in the settings; the setup's dialog is narrow and takes one.
   const wide = setup ? "" : "sm:col-span-2";
   return (
-    <div className={cn("grid gap-5", !setup && "sm:grid-cols-2")}>
+    <div className={cn("grid gap-5", !setup && "sm:grid-cols-[repeat(2,minmax(0,1fr))]")}>
       <div>
         <Label>{t("page.title")}</Label>
         <Input
@@ -683,8 +683,8 @@ export function PublicPage({ project }: { project: Project }) {
   const address = pageAddress(host, page!.slug);
   const url = pageUrl(host, page!.slug, manageUrl);
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start">
-      <div className="flex flex-col gap-9">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start">
+      <div className="flex min-w-0 flex-col gap-9">
         <Anchor id="page">
           <Section
             title={t("space.page")}
@@ -769,7 +769,7 @@ export function PublicPage({ project }: { project: Project }) {
           </Section>
         </Anchor>
       </div>
-      <aside className="flex flex-col gap-6 xl:sticky xl:top-6">
+      <aside className="flex min-w-0 flex-col gap-6 xl:sticky xl:top-6">
         <section className="flex flex-col gap-2.5 rounded-xl bg-card p-4 shadow-soft ring-1 ring-border-soft">
           <h3 className="font-medium text-[0.875rem]">{t("page.preview")}</h3>
           {preview.data ? <Teaser preview={preview.data} /> : null}
