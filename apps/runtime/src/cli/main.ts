@@ -1,3 +1,5 @@
+// First: drops Node's `localStorage` before a dependency reads it (no-webstorage.ts).
+import "../no-webstorage.js";
 import "./install-env.js";
 import { accountCommand } from "./account.js";
 import { apps, connectCommand } from "./connect.js";

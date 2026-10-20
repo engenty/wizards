@@ -41,7 +41,7 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-$NodeVersion = if ($env:ENGENTY_WIZARDS_NODE_VERSION) { $env:ENGENTY_WIZARDS_NODE_VERSION } else { "24.14.0" }
+$NodeVersion = if ($env:ENGENTY_WIZARDS_NODE_VERSION) { $env:ENGENTY_WIZARDS_NODE_VERSION } else { "26.12.0" }
 $Package = "@engenty/wizards-runtime"
 $PackageFile = "engenty-wizards-runtime"
 $Releases = "https://github.com/engenty/wizards/releases"
