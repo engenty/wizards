@@ -4,6 +4,20 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.9.4] - 2026-10-20
+- ADDED **[runtime]** A space's public page on wizards.page, behind the pages switch (#111)
+- ADDED **[studio]** The WordPress plugin behind a switch, off until it is published (#120)
+- DOCS User guide wording after a full reread (#123)
+- DOCS A marked picture of the share dialog, and when the website code appears (#121)
+- DOCS **[copy]** The copy style applies to emails, including the ones Manage sends (#122)
+- DOCS A marked picture of a wizard on a phone in Run a wizard (#119)
+- DOCS The user guide moves to /docs/user-guide, checked against the app, without unreleased features (#118)
+- DOCS The README's feature table without headings and Using it points to the user guide (#117)
+- DOCS The README says who wizards are for and what they do (#116)
+- DOCS The README's studio picture with a branching wizard and a light preview (#115)
+- DOCS A light README studio picture with a party enquiry (#114)
+- DOCS The README's studio picture and the assistant's words for the new editor (#113)
+
 ## [0.9.3] - 2026-10-20
 - ADDED **[studio]** One editor screen around the preview (#109)
 - ADDED **[openui]** The wizard card loads its theme's fonts (#107)
