@@ -180,11 +180,8 @@ export function ProjectPage() {
   const menu = useMemo(() => ({ slot, narrow, setDetail }), [slot, narrow]);
   const title = project ? project.brand.name?.trim() || project.name : t("nav.project");
 
-  // Typography waits behind its switch; the page's words and wizards exist once the page is on.
-  const off = [
-    ...(useFeature("typography") ? [] : ["typography"]),
-    ...(project?.page?.on ? [] : ["page-words", "page-wizards"]),
-  ];
+  // Typography waits behind its switch.
+  const off = useFeature("typography") ? [] : ["typography"];
   const partMenu = part ? (plugins.spaceMenus[part.id] ?? []) : [];
   const sections = part
     ? [{ plugin: null, label: null, sections: partMenu }]
