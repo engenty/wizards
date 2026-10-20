@@ -4,7 +4,7 @@ description: AI apps that support MCP Apps show the wizard itself as a widget, p
 version: 0.9.0
 ---
 
-[What an app can do](../../user/ai-apps.md#what-an-app-can-do) in the user guide lists what an app
+[What an app can do](../../user-guide/ai-apps.md#what-an-app-can-do) in the user guide lists what an app
 with MCP Apps shows. This page adds how the widget looks.
 
 ## The look in an AI app

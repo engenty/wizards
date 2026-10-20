@@ -1,7 +1,7 @@
 ---
 title: Plugins
 description: Add pages, settings and tools for steps to engenty wizards on your computer. What a plugin may do, and how to install one.
-version: 0.5.0
+version: 0.9.3
 ---
 
 A plugin adds to engenty wizards without changing it:
@@ -13,7 +13,7 @@ A plugin adds to engenty wizards without changing it:
 | A page | Behind an icon in the studio’s app bar |
 | A settings section | In the settings |
 | A section of the space page | In one of the space page’s parts |
-| A part of the space page | In the space’s menu, beside Info & brand, Knowledge and Data |
+| A part of the space page | In the space’s menu, beside Info & brand, Knowledge, Data and Results |
 | A template | First among the templates of a new wizard |
 | A channel a wizard runs through | Under “How should it run?” on a new wizard, and under “How others reach it” in the share dialog, where “Set up” opens the plugin’s own setup |
 | Something that happens when a run ends, or again and again | Nowhere: it works in the background, for example posts a message |

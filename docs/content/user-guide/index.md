@@ -1,7 +1,7 @@
 ---
 title: User Guide
 description: Install engenty wizards, build a wizard, run and share it.
-version: 0.5.0
+version: 0.9.3
 ---
 
 engenty wizards turns something you do again and again into a wizard: pages that ask what it
@@ -30,7 +30,7 @@ briefing, an invoice, a quote, a damage report.
 | Word | Means |
 |---|---|
 | Account | You, signed in at engenty.ai with Google, GitHub or a link by email |
-| Team | What the sign-up creates: it holds your credits, your spaces and, on the Team plan, your colleagues |
+| Team | What the sign-up creates: it holds your credits and your spaces |
 | Space | What all your wizards know and produce: name, logo, colours, facts, documents, data, results. A team’s first one in the cloud is “My wizards”; on your computer it is “My computer” (in German: “Meine Wizards”, “Mein Computer”) |
 | Studio | Where you build wizards: engenty.ai/studio, or `/studio` on your computer |
 | Wizard | A flow of steps a person walks through on a link |

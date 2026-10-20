@@ -1,7 +1,7 @@
 ---
 title: Troubleshooting
 description: What to do when a link no longer works, a client shows as not signed in, or an export fails.
-version: 0.5.0
+version: 0.9.3
 ---
 
 `wizards doctor` checks engenty wizards on your computer and says what is wrong. Start there.
@@ -35,16 +35,15 @@ version: 0.5.0
 
 | What you see | What to do |
 |---|---|
-| PDF or PNG export, or a step on a website, fails | `wizards doctor` names the browser engenty wizards uses. Install Chrome, Edge or Chromium (on a Mac also Brave), or set `CHROME_PATH` to one; see [Settings](./command-line.md#settings) |
+| PDF or PNG export, or a step on a website, fails | `wizards doctor` names the browser engenty wizards uses. Install Chrome, Edge or Chromium (on a Mac and on Windows also Brave), or set `CHROME_PATH` to one; see [Settings](./command-line.md#settings) |
 | A widget offers no video | Install ffmpeg, or set `FFMPEG_PATH` |
 | “This wizard isn’t available right now.” | The link is switched off, or the account the wizard runs on has no credits left. See [Test and share](./test-and-share.md) |
 | “This wizard has reached its limit for today. Try again tomorrow.” | The link’s runs for the day are used up; the day starts at midnight UTC. Raise “Limit per day” under Settings (the gear) in the share dialog |
 | “You’ve started a lot of runs just now. Try again in an hour.” | One visitor started more runs in an hour than the link allows (`LIMIT_VISITOR_RUNS_PER_HOUR`, see [Settings](./command-line.md#settings)) |
 | “This wizard doesn’t exist or was deleted.” | It is not published, or its link was replaced by a new one |
 | Others can’t open the link | engenty wizards on your computer answers on `localhost` only. See [who can open the link](./test-and-share.md#who-can-open-the-link) |
-| The chat has no phone button, or “Join” stays grey | A live conversation needs “Live voice” or “Video call” switched on for the wizard (see [Channels](./test-and-share.md#channels); your own test run always has it) and an OpenAI API key under Settings → Models |
 | The camera, microphone or location doesn’t work | Allow it in the browser’s site settings (the lock icon in the address bar) |
-| A connector says “not set up” | engenty wizards needs an OAuth client for it. See [Connectors](./connectors.md) |
+| A built-in connector is missing from Settings → Connectors | It needs an OAuth client in the settings file. See [Connectors](./connectors.md) |
 | A step stops at a plugin’s tool | That plugin is not installed here. See [Plugins](./plugins.md) |
 
 ## Updating

@@ -18,7 +18,12 @@ const config = {
   /** Mermaid is large ESM; transpilation avoids subtle Turbopack/webpack issues. */
   transpilePackages: ["mermaid"],
   async redirects() {
-    return [{ source: "/", destination: "/docs", basePath: false, permanent: false }];
+    return [
+      { source: "/", destination: "/docs", basePath: false, permanent: false },
+      // The user guide was at /docs/user until 0.9.3; links to it keep working.
+      { source: "/user", destination: "/user-guide", permanent: true },
+      { source: "/user/:path*", destination: "/user-guide/:path*", permanent: true },
+    ];
   },
   async rewrites() {
     return [

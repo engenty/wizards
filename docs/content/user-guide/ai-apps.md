@@ -1,12 +1,11 @@
 ---
 title: AI apps
 description: Run and build your wizards inside Claude Desktop, Cursor, Codex and other AI apps.
-version: 0.5.0
+version: 0.9.3
 ---
 
 Settings → Integrate brings your wizards to where you work. engenty wizards is an MCP server: an
-AI app that adds it gets the tools to find, run and build wizards. Under “Share”, the same page
-has the WordPress plugin: see [WordPress](./wordpress.md).
+AI app that adds it gets the tools to find, run and build wizards.
 
 ## What an app can do
 
@@ -111,8 +110,8 @@ time you use it, the app asks you to sign in with your engenty account.
 |---|---|
 | Claude Code | `claude plugin marketplace add engenty/wizards-plugins`, then `claude plugin install wizards@engenty` |
 | Codex | `codex plugin marketplace add engenty/wizards-plugins`, then `/plugins` in Codex |
-| ChatGPT | Plugins → search “engenty wizards” |
-| Cursor | Customize → Plugins → search “engenty wizards” |
+| ChatGPT | Add a custom MCP server: `https://engenty.ai/api/mcp` |
+| Cursor | Settings → MCP → add `https://engenty.ai/api/mcp` |
 | VS Code (Copilot) | “Chat: Install Plugin From Source” → `https://github.com/engenty/wizards-plugins` |
 | Gemini CLI | `gemini extensions install https://github.com/engenty/wizards-plugins --auto-update` |
 

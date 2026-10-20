@@ -188,7 +188,7 @@ field with that id.
 | `apps/web/src/studio/editor/ShareDialog.tsx`, `editor/StartsSection.tsx` | The section, the four cards, the sentence, the chips, the switch |
 | `apps/web/src/studio/editor/FlowDiagram.tsx`, `RunsPanel.tsx` | Badge on the first node; "started by" line and filter; "Run again" |
 | `apps/web/src/studio/AppFrame.tsx` | The bell |
-| `docs/content/user/test-and-share.md`, `steps.md`, `docs/content/dev/plugins/events.md`, `server.md` | "Starts by itself"; `values.start`; `records` hooks |
+| `docs/content/user-guide/test-and-share.md`, `steps.md`, `docs/content/dev/plugins/events.md`, `server.md` | "Starts by itself"; `values.start`; `records` hooks |
 | `apps/runtime/test/starts.test.ts` | Schedule arithmetic across DST, a missed schedule after a restart, a row that starts a run once, the loop rule, a webhook body filling a page, the three-failures pause |
 
 ## Open

@@ -1,7 +1,7 @@
 ---
 title: Install
 description: One command on macOS, Linux or Windows. It brings its own Node.js and asks for no password.
-version: 0.5.0
+version: 0.9.3
 ---
 
 ## Install
@@ -24,25 +24,22 @@ Or, with Node.js 20 or newer on the machine:
 npx wizards
 ```
 
-All three do the same. On Windows, if PowerShell refuses `npx` (“running scripts is disabled
-on this system”), type `npx.cmd wizards`. `npx wizards` downloads only a small launcher (no
-dependencies) and runs the installer it brings along, then the setup, then the
-`wizards` menu, where “Start as service” starts it and opens the studio. Run again, it hands over
-to the installed `wizards`, and brings an older install up to its own version first.
+All three do the same. On Windows, if PowerShell refuses `npx` (“running scripts is disabled on
+this system”), type `npx.cmd wizards`. `npx wizards` runs the same installer and setup, then the
+`wizards` menu. Run again, it opens the installed one and updates it first if needed.
 
-The installer needs nothing but `curl` and `tar`. On Windows it needs nothing, except Microsoft’s
-Visual C++ runtime, which many programs bring along: where it is missing, the installer installs
-it, and Windows asks once whether it may. It brings its own Node.js
-(a Node you already have is left alone), installs engenty wizards into `~/.engenty/wizards`
-(about 650 MB), links the `wizards` command into `~/.local/bin` (on Windows it puts
-`~\.engenty\wizards\bin` on your PATH) and then walks you through the rest:
+The installer needs nothing but `curl` and `tar`. On Windows it may add Microsoft’s Visual C++
+runtime; Windows asks once. It brings its own Node.js (a Node you already have is left alone),
+installs engenty wizards into `~/.engenty/wizards` (about 650 MB), links the `wizards` command into
+`~/.local/bin` (on Windows it puts `~\.engenty\wizards\bin` on your PATH) and then walks you
+through the rest:
 
 | Step | What it does |
 |---|---|
 | Your engenty account | Asks “Sign in or create your account now?”. If you say yes, it shows a link and a code and opens your browser for the sign-in at account.engenty.ai; check that the page shows the same code (if you have no account yet, the page creates one with your invitation code, or puts you on the waitlist). While it waits, Enter opens the page again and Esc goes on without an account. Once you are signed in, what you publish on this computer runs in the cloud too. If you say no, `wizards account sign-in` does it any time. Setting it up again with `--local` signs an account out. `--local` leaves the account out altogether: see [Local only](./local-only.md) |
-| An AI client | Looks for Codex, Claude Code, Antigravity and Cursor Agent and offers to install the ones that are missing. It puts first the one whose app (ChatGPT, Claude, Antigravity, Cursor) is on your Mac, as you most likely have that subscription already. You can also use your account’s credits, an API key, [Ollama](https://ollama.com) or, on a Mac with Apple silicon and macOS 26, Apple Intelligence: the studio’s [first page](./first-start.md) offers them |
-| A browser and ffmpeg | Names the browser for PDF and PNG exports and steps on websites: the first of Chrome, Edge and Chromium it finds (on a Mac also Brave). engenty wizards uses that one; [`CHROME_PATH`](./command-line.md#settings) picks another. It also says whether ffmpeg is there for MP4 videos of animated widgets, and with Homebrew it offers to install it |
-| A decision model (optional) | Offers to install [Ollama](https://ollama.com) if it isn’t there and to download Cloudflare’s Clef-flash into it (about 11 GB). The wizards then make their decisions, such as which branch to take, on your computer, without a key or credits. On a Mac the Ollama app goes into Applications and, when it first starts, asks once for your Mac’s password to set up its `ollama` command (cancel works too); on Linux Ollama’s own installer runs, installs `zstd` if it is missing, and asks for your password |
+| An AI client | Looks for Codex, Claude Code, Antigravity and Cursor Agent and, if none is installed, offers to install one. `wizards setup --client <name>` adds another later. It puts first the one whose app (ChatGPT, Claude, Antigravity, Cursor) is on your Mac, as you most likely have that subscription already. You can also use your account’s credits, an API key, [Ollama](https://ollama.com) or, on a Mac with Apple silicon and macOS 26, Apple Intelligence: the studio’s [first page](./first-start.md) offers them |
+| A browser and ffmpeg | Names the browser for PDF and PNG exports and steps on websites: the first of Chrome, Edge and Chromium it finds (on a Mac and on Windows also Brave). engenty wizards uses that one; [`CHROME_PATH`](./command-line.md#settings) picks another. It also says whether ffmpeg is there for MP4 videos of animated widgets, and with Homebrew it offers to install it |
+| A decision model (optional) | On macOS and Linux, with 16 GB of memory, offers to install [Ollama](https://ollama.com) if it isn’t there and to download Cloudflare’s Clef-flash into it (about 11 GB). The wizards then make their decisions, such as which branch to take, on your computer, without a key or credits. Ollama may ask for your password once |
 | Start at login (optional) | engenty wizards starts in the background when you log in, so links and AI apps can always reach it. It is a LaunchAgent on a Mac, a systemd user service on Linux and a scheduled task on Windows (a shortcut in the Startup folder where Windows allows no task) |
 | Your AI apps (optional) | Offers to add your wizards to the [AI apps](./ai-apps.md) it finds, such as Claude Desktop, Cursor or Codex |
 | The command | If `~/.local/bin` is not on your PATH, it offers to add it in your shell’s settings file |
@@ -72,7 +69,7 @@ If the command is not found, open a new terminal or run `~/.local/bin/wizards`.
 
 In Chrome or Edge you can install the studio as an app, with its own window and its own icon in
 the Dock or taskbar. The studio offers it in a banner at the top, or you click the install icon at
-the right of the address bar.
+the right of the address bar. In Safari on a Mac, File → Add to Dock does the same.
 
 ## Other ways to get it
 
@@ -92,9 +89,7 @@ and the studio then say “Updated to …” with what changed. To turn it off:
 wizards autoupdate off
 ```
 
-or set `WIZARDS_DISABLE_AUTOUPDATE=1` (in the terminal or in `~/.engenty/wizards/.env`). In CI,
-and for an install set up without a terminal, it is off unless you turn it on with `wizards
-autoupdate on`. `npx wizards` never updates itself. To update now:
+or set `WIZARDS_DISABLE_AUTOUPDATE=1` (in the terminal or in `~/.engenty/wizards/.env`). `npx wizards` never updates itself. To update now:
 
 ```bash
 wizards update
@@ -105,9 +100,10 @@ restart` then starts the new version; the command tells you so. "Update" in the 
 restarts it into the new version by itself.
 
 The studio also tells you in a banner at the top when a new version is out (“Version … of
-engenty wizards is out.”). “Update” there installs it and starts the new version. The About
-dialog behind the engenty mark in the app bar shows the same, and so does the line at the top of
-Settings → Account: its version number opens the About dialog with what is new. Your data is
+engenty wizards is out.”). “Update” there installs it and starts the new version. The menu
+behind the engenty mark in the app bar shows it too (“Check for updates”, “About engenty
+wizards”), and so does the line at the top of Settings → Account: its version number opens the
+About dialog with what is new. Your data is
 brought up to date at the next start.
 
 ## Remove

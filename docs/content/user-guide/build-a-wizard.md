@@ -1,12 +1,12 @@
 ---
 title: Build a wizard
 description: Describe what the wizard should do, or start from a template. Then change it in the chat or step by step.
-version: 0.9.2
+version: 0.9.3
 ---
 
 ## Start one
 
-“New wizard” on the list of your wizards, or in the space’s menu, opens the page “What should your
+“New wizard” on the list of your wizards, or “Add wizard” in the space’s menu, opens the page “What should your
 wizard do?”. It gives you three ways in:
 
 | Way | How |
@@ -47,22 +47,26 @@ You can change everything afterwards in the chat.
 
 ## The editor
 
-The chat stands on the left, the wizard as people see it in the middle, and on a wide window a
-column on the right.
+![The editor with numbered parts: the chat on the left, the tabs at the top, the row of steps and the preview bar above the preview, the column on the right, and Share](../../assets/guide-editor.png)
 
-| Part | What it is for |
-|---|---|
-| Chat, left | Say what should change. The assistant edits the wizard and tells you what it did |
-| Preview | The wizard as people see it: the step you chose, filled with the answers of the latest test run, or the test run itself. Its bar holds “Test”, the wizard’s themes, light or dark pages, its languages, and a desk or a phone |
-| The row of steps | Under the preview’s bar: the settings (the gear) first, the steps in their order, the result (the flag) last. The arrows, or ← and → on the keyboard, move from one to the next |
-| The column, right | “Settings”, “Flow” (the diagram with its branches), “Edit” (the step you chose) and “Result”. The button at the end of the preview’s bar shows or hides it |
-| Files | Files the wizard uses on every run, like widget code, libraries or price lists. Upload your own or let the assistant write them |
-| Memory | What the wizard knows across all its runs: the notes that AI steps with the “Pages” tool read and add to, and the tables of its shared lists |
-| Runs | The test runs and live runs of this wizard |
+1. **Chat.** Say what should change. The assistant edits the wizard and tells you what it did.
+2. **Preview, Files, Memory, Runs.** Files are what the wizard uses on every run, like price
+   lists or widget code. Memory is what it knows across all its runs: notes its AI steps read
+   and add to, and its shared lists. Runs are its test runs and live runs.
+3. **The row of steps.** The settings (the gear) first, the steps in their order, the result
+   (the flag) last. The arrows, or ← and → on the keyboard, move from one to the next.
+4. **The preview’s bar.** The wizard’s themes, light or dark pages, its languages, a desk or a
+   phone, and “Test”. The button at its end shows or hides the column on the right.
+5. **Preview.** The step you chose as people see it, filled with the answers of the latest test
+   run, or the test run itself.
+6. **The column.** “Settings”, “Flow” (the diagram with its branches), “Edit” (the step you
+   chose) and “Result”.
+7. **Share.** Publishes the wizard and gives you its link. See [Test and share](./test-and-share.md).
 
 On a smaller window “Flow” is a tab beside “Preview”, and “Preview” and “Edit” switch the main
 area between showing the step and editing it. On a phone the chat sits in a sheet over the
-bottom: folded it keeps the text field, drag its handle to open it.
+bottom: folded it keeps the text field, drag its handle to open it. This holds on any window
+narrower than a laptop, a tablet too.
 
 The gear in the row of steps, or a click on the wizard’s name in the top bar, opens its own
 settings: its title, description and greeting, its avatar, and the language it speaks to people
@@ -79,7 +83,7 @@ the wizard.
 | Costume | What the wizard’s engenty wears, on its pages and in the theme’s figures |
 | Pages | Dark first, light first, dark only or light only. With only one, everyone sees those pages and the theme switch is hidden |
 | Colours | Accent, ground and text for dark and for light pages, as small swatches. A dashed one takes the brand’s colour. A click opens the brand’s colours, a colour of your own, and “As in the brand” |
-| Font for headings, Font for text | The brand’s font, or one of the fonts engenty wizards ships, from Inter to the spooky Creepster |
+| Font for headings, Font for text | “As in the brand”, or one of the fonts engenty wizards ships, from Inter to the spooky Creepster |
 | Shape | Corners (soft, sharp, round), cards (solid, outline, glass) and headings (as written, in capitals) |
 | Effects | One row to switch on: glow, fog, spider webs or frost in the corners, embers, snow, confetti or stars, dots or a grid, and figures that wear the wizard’s costume |
 
@@ -136,8 +140,3 @@ start. If only one branch needs it, choose another path when you test.
 
 “Export as a wizard file (.wizard)” in the wizard’s ⋯ menu downloads its steps and its files as
 one file. “Import a wizard file” on the “New wizard” page of any studio takes it in.
-
-The share dialog downloads a wizard file too, under “Website” → “Without an account: as a
-package”. It holds the published version, or the draft while there is none, for a WordPress site
-that runs it without an account. With “Take the knowledge along”, the space’s pages go with it
-as files. See [WordPress](./wordpress.md#without-an-account).
