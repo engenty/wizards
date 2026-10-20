@@ -151,7 +151,10 @@ export function ProjectPage() {
   // The folder in the top bar opens the space at its parts, with the first one beside them;
   // picking a part opens its menu.
   const atParts = (location.state as { parts?: boolean } | null)?.parts === true;
-  const entries = withParts(spaceGroups(), plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
+  // The public page waits behind its switch.
+  const pagesOn = useFeature("pages");
+  const groups = spaceGroups().filter((g) => pagesOn || g.id !== "page");
+  const entries = withParts(groups, plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
   // Results have a place of their own in the app bar: no part among the others, no way up.
   const resultsEntry = {
     id: "results",
@@ -592,7 +595,7 @@ export function ProjectPage() {
                   {group === "info" ? pluginSections(added) : null}
                 </ProjectSettings>
               ) : null}
-              {project && group === "page" ? (
+              {project && group === "page" && pagesOn ? (
                 <div className="flex flex-col gap-9 pb-20">
                   <PublicPage key={project.id} project={project} />
                   {pluginSections(added)}

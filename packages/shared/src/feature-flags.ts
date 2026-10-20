@@ -77,6 +77,12 @@ export const FEATURES = {
     label: "Video call",
     hint: "Wizards run as a video call in the browser: offered when building and sharing.",
   },
+  pages: {
+    kind: "release",
+    default: false,
+    label: "Public page",
+    hint: "A space's page at the team's address on wizards.page: its part in the space, the share dialog's switch.",
+  },
   goose: {
     kind: "release",
     default: false,

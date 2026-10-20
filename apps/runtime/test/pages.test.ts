@@ -20,6 +20,8 @@ let issuer = "";
 const pushes: { tenantId: string; body: any }[] = [];
 // While set, the stand-in answers the push with an error.
 let pagesDown = false;
+/** The team's `pages` switch, as the fake Manage-App says it. */
+let pagesOn = true;
 
 function token(tenant: string, aud = RUNTIME) {
   return new SignJWT({
@@ -88,6 +90,7 @@ const manage: Server = createServer(async (req, res) => {
       name: "Berger & Partner",
       slug: "berger-partner",
       pagesHost: "berger-partner.wizards.localhost",
+      features: { pages: pagesOn },
       status: "active",
       balanceCredits: 500,
       limits: { concurrentRuns: 2, projects: 3, build: true },
@@ -409,6 +412,23 @@ describe("the page data sent to the Manage-App", () => {
     });
     const sent = await lastPush();
     expect(sent.space).toMatchObject({ headline: "Neu", intro: "Ein paar Worte." });
+  });
+
+  it("behind its switch: no address in the studio and no page sent", async () => {
+    pagesOn = false;
+    const { forgetTenant } = await import("../src/manage");
+    forgetTenant(TENANT);
+    try {
+      const me = await studio("GET", "/me", cookie);
+      expect(me.body.tenant.pagesHost).toBeNull();
+      await studio("PATCH", `/projects/${space}`, cookie, {
+        page: { ...PAGE, wizards: [wizard], headline: "Aus" },
+      });
+      expect((await lastPush()).space).toBeNull();
+    } finally {
+      pagesOn = true;
+      forgetTenant(TENANT);
+    }
   });
 
   it("sends no page once the listed wizard is deleted, and forgets it on the page", async () => {

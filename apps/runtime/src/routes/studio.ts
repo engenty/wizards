@@ -440,8 +440,10 @@ export const studio = new Hono<Vars>()
         role: user.role,
         /** The plan the team is on; null alone, or where the Manage-App names none. */
         plan: info?.plan ?? null,
-        /** The team's address for its public page (`acme.wizards.page`); null alone. */
-        pagesHost: info?.pagesHost ?? null,
+        /** The team's address for its public page (`acme.wizards.page`); null alone, or behind its switch. */
+        pagesHost: feature("pages", { ...info?.features, ...person?.features })
+          ? (info?.pagesHost ?? null)
+          : null,
       },
       /** The feature switches: the code's defaults, what the Manage-App says of the team and the person, this install's file. */
       features: features(

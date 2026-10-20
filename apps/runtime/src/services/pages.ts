@@ -18,6 +18,7 @@ import type { RunTheme } from "@engenty/wizards-shared/run";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
+import { feature } from "../features.js";
 import { managed, putPages, tenantInfo } from "../manage.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { mainLogoId } from "./brand.js";
@@ -191,7 +192,8 @@ export async function pageTeam(): Promise<PageTeam | null> {
   const spaces = await db.query.project.findMany({
     where: eq(schema.project.tenantId, tenantId),
   });
-  const space = spaces.find((p) => p.page?.on) ?? null;
+  // Behind its switch the team has no page: what Manage holds is sent as none.
+  const space = feature("pages", team.features) ? (spaces.find((p) => p.page?.on) ?? null) : null;
   const page = space?.page;
   const lang: PageLang = page?.lang ?? "de";
   const base = { slug: team.slug ?? tenantId, name: team.name, lang };
@@ -310,7 +312,8 @@ export async function pagePreview(): Promise<{
   if (!managed) {
     return { host: null, origin: null, team: null };
   }
-  const host = (await tenantInfo(currentTenant())).pagesHost ?? null;
+  const team = await tenantInfo(currentTenant());
+  const host = feature("pages", team.features) ? (team.pagesHost ?? null) : null;
   return { host, origin: host ? pageOrigin(host) : null, team: await pageTeam() };
 }
 
