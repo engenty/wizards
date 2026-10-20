@@ -82,7 +82,7 @@ then walks you through the rest:
   you publish on this computer then runs in the cloud too. Esc while it waits, or say no, and
   `wizards account sign-in` does it any time.
   `--local` leaves the account out: nothing leaves the computer, links answer on it only
-  ([local only](https://engenty.ai/docs/user/local-only)).
+  ([local only](https://engenty.ai/docs/user-guide/local-only)).
 - **An AI client.** It looks for Codex, Claude Code, Antigravity and Cursor Agent and
   offers to install the missing ones – first the one whose app (Claude, ChatGPT, Antigravity,
   Cursor) is on your Mac, as its subscription is most likely yours already. The first page of the studio

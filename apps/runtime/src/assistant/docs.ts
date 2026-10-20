@@ -17,7 +17,7 @@ function contentDir(): string | null {
     join(here, "..", "docs"),
     join(here, "..", "..", "..", "..", "docs", "content"),
   ]) {
-    if (existsSync(join(dir, "user"))) {
+    if (existsSync(join(dir, "user-guide"))) {
       return dir;
     }
   }
@@ -25,7 +25,7 @@ function contentDir(): string | null {
 }
 
 export interface DocPage {
-  /** Its path below docs/content without the extension: `user/steps`, `dev/plugins/tools`. */
+  /** Its path below docs/content without the extension: `user-guide/steps`, `dev/plugins/tools`. */
   id: string;
   title: string;
   description: string;

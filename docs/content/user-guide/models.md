@@ -1,11 +1,11 @@
 ---
 title: Models and account
 description: What runs the AI in your wizards – an AI client on your computer, your own API keys, a local model or credits.
-version: 0.5.0
+version: 0.9.3
 ---
 
 Settings → Models decides what runs the AI in your wizards. On your computer you set it up
-yourself. On engenty.ai the settings belong to the team, and only its admins can change them.
+yourself. On engenty.ai you set them in the studio there.
 
 ## What the wizards can do
 
@@ -14,7 +14,7 @@ green on something of your own, amber on credits, hollow when nothing is set up.
 
 | Capability | Used for | Classes |
 |---|---|---|
-| Text & reasoning | Writing, research and decisions; Goose and the assistant in the editor | Classifier, Standard, High, Highest |
+| Text & reasoning | Writing, research and decisions; the assistant in the editor | Classifier, Standard, High, Highest |
 | Images | Logos, product shots, illustrations | Image |
 | Videos | Short clips from text or an image | Video |
 | Voice | Reading text aloud | Speech |
@@ -50,25 +50,17 @@ The model is small. It reads at most 4,096 tokens for a prompt and its answer to
 uses no tools. So it takes only the classes Classifier and Standard: decisions, picking values
 out of text and short copy. A step of these classes runs there without its tools (no API calls,
 no web, no lists or documents). A step whose text is too long fails with a note that says so.
-Give such a step the class High, or choose something else for the class. The binding is
-`apple:default`; `apple:tagging` is Apple’s adapter for tagging and extraction.
+Give such a step the class High, or choose something else for the class.
 
-High and Highest keep what they ran on before: the AI client on this computer, an API key or the
-credits. The page names it under the choice. If you later choose something else for text,
+High and Highest keep what they ran on before. The page names it under the choice. If you later choose something else for text,
 Classifier and Standard leave Apple Intelligence again.
 
 “Voice notes” offers Apple Intelligence on the same Macs, even with Apple Intelligence switched
-off. The Mac writes a recording down itself (`apple:transcribe`), in the language of the run, and
+off. The Mac writes a recording down itself, in the language of the run, and
 it costs nothing. The first note in a language waits while Apple downloads that language. A
 recording from Chrome or Firefox (WebM, Ogg) needs ffmpeg on the Mac, which turns it into WAV
-first. Recordings from Safari and the app need nothing. Without ffmpeg, the page “Voice notes”
+first. Recordings from Safari need nothing. Without ffmpeg, the page “Voice notes”
 says so.
-
-**In the app.** On an iPhone with iOS 26, the engenty wizards app writes voice notes down on the
-phone. Once Apple Intelligence is switched on, it also answers a run’s short text calls:
-Classifier and Standard steps without tools or files of their own. A run in the cloud then
-spends no credits on them, and that text never leaves the phone. Where the phone doesn’t answer,
-the run uses what these settings say.
 
 ## Keys
 
@@ -104,7 +96,7 @@ A step names a class, never a model. For text, “Adjust per class” sets the m
 |---|---|
 | Classifier | Decisions, picking values out of text |
 | Standard | Short copy, API calls |
-| High | Research, long documents; [Goose](./assistant.md) |
+| High | Research, long documents |
 | Highest | Hard reasoning, code; the assistant in the editor |
 
 You write a model as `vendor/model` for the AI Gateway, with the provider in front for the others
@@ -114,8 +106,8 @@ You write a model as `vendor/model` for the AI Gateway, with the provider in fro
 Some decisions go to a decision model, Jev, wherever one can be reached: decisions in a wizard (a
 branch with a statement, a field shown when the AI finds a statement true) and the check of what
 a Knowledge search found. Jev is reached through an AI Gateway key, a TypeSafe key
-(`TYPESAFE_API_KEY` in the settings file) or an account. Without one of them, the Classifier class
-decides.
+(`TYPESAFE_API_KEY` in the settings file), the Clef-flash model in Ollama on this computer, or
+your account. Without any of them, the Classifier class decides.
 
 ## The editor’s chat
 

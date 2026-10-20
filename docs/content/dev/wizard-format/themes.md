@@ -109,7 +109,7 @@ headings.
 
 A space’s own font, for example the one its website uses, belongs to its brand, not to a theme:
 uploaded as a file, or loaded from the website’s address after you confirm the licence (see
-[Space](../../user/space.md#info--brand)). A theme only names it, with `brand`. A theme that goes
+[Space](../../user-guide/space.md#info--brand)). A theme only names it, with `brand`. A theme that goes
 to another space shows that space’s brand font, or a shipped font of the same kind.
 
 ### Effects
@@ -170,7 +170,7 @@ along, and they replace the cloud space’s themes with the same ids.
 ## From the studio and from agents
 
 The studio’s “Look” section edits the theme a wizard wears (see
-[Build a wizard](../../user/build-a-wizard.md)). The first change makes a theme named after the
+[Build a wizard](../../user-guide/build-a-wizard.md)). The first change makes a theme named after the
 wizard.
 
 Agents and MCP clients use two operations of `edit_wizard`:

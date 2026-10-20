@@ -1,7 +1,7 @@
 # Developing engenty wizards
 
 For working on the code. To install and use engenty wizards, see the [README](../README.md) and
-the user guide in [content/user](content/user/index.md).
+the user guide in [content/user-guide](content/user-guide/index.md).
 
 ## Two ways to run it
 
@@ -125,7 +125,7 @@ pnpm build:docs   # what CI runs; `pnpm build` leaves the site out
 ```
 
 - **Sections.** A folder whose `meta.json` says `"root": true` is a section of the sidebar's
-  chooser and a card on the first page: `user`, `dev`. `pages` in a `meta.json` is the order of
+  chooser and a card on the first page: `user-guide`, `dev`. `pages` in a `meta.json` is the order of
   its sidebar; `---Title---` is a heading there.
 - **A page** is a `.md` file with `title` and `description` in its frontmatter and no `#`
   heading of its own. Links to other pages are relative file paths (`./install.md`,

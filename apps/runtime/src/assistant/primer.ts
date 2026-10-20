@@ -1,6 +1,6 @@
 /**
  * What engenty wizards is, on one page, in every turn of the studio assistant. Written from the
- * user guide (docs/content/user/index.md and the pages it links); the details are a docs_search
+ * user guide (docs/content/user-guide/index.md and the pages it links); the details are a docs_search
  * away.
  */
 export const PRIMER = `ENGENTY WIZARDS IN ONE PAGE

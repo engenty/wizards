@@ -291,7 +291,7 @@ between the JSON table a review shows today and a widget.
 | `apps/web/src/runner/RunnerView.tsx`, `fields.tsx` | live `when` for same-page conditions, resolved options |
 | `apps/web/src/runner/surface.tsx`, `outputs.tsx` | render surfaces in reviews and results |
 | `apps/web/src/studio/editor/Inspector.tsx`, `FlowDiagram.tsx` | "shown when", "decide" rows; dashed decided edges; loop edges with their `max` |
-| `docs/content/user/steps.md` | branches, loops, conditional fields, surfaces |
+| `docs/content/user-guide/steps.md` | branches, loops, conditional fields, surfaces |
 | `engenty-wizards-manage` `gateway/decide.ts` | `score` questions; the `/v4/ai/systemone` route answers with probabilities as given |
 
 ## Open questions

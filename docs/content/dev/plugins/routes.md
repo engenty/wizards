@@ -79,7 +79,7 @@ throw Object.assign(new Error("No such contact."), { status: 404, code: "no_cont
 
 ## With a key
 
-A program that is not the studio, such as the [WordPress plugin](../../user/wordpress.md),
+A program that is not the studio, such as a website’s backend,
 calls the same routes below `/api/v1/plugins/<id>`. It signs in with an API key or with an
 access token of engenty.ai. On a runtime that runs alone, you create the key under Settings →
 Integrate; on engenty.ai, in your account:
