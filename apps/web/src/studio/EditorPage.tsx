@@ -5,12 +5,9 @@ import {
   ArrowLeft,
   Eye,
   FileText,
-  Flag,
   History,
-  ListChecks,
   Lock,
   NotebookTabs,
-  Settings,
   Share2,
   Workflow,
 } from "lucide-react";
@@ -89,14 +86,8 @@ const FLOW_MIN = 260;
 /** Room the preview keeps next to the flow's column. */
 const flowMax = () => Math.max(FLOW_MIN, window.innerWidth - PANE_MIN - 640);
 const FLOW_SHOWN_KEY = "wizards.editor.flowShown";
-/**
- * What the column beside the preview shows: the flow, or what is edited — a step, the result
- * (what people get and how it reaches them), or the wizard's own settings (its words, figure and
- * look).
- */
-type Column = "flow" | "step" | "result" | "profile";
-type Mode = Exclude<Column, "flow">;
-const COLUMNS: readonly Column[] = ["flow", "step", "result", "profile"];
+/** What the column beside the preview shows: the flow, or the editor of what the strip has chosen. */
+type Column = "flow" | "edit";
 const COLUMN_KEY = "wizards.editor.column";
 /** Steps a person sees: shown first; the others are edited first where there is no room for both. */
 const SHOWN_FIRST = new Set(["page", "review", "result"]);
@@ -296,8 +287,7 @@ function useFlowShown(): [boolean, (shown: boolean) => void] {
 function useColumn(): [Column, (column: Column) => void] {
   const [column, setColumn] = useState<Column>(() => {
     try {
-      const stored = localStorage.getItem(COLUMN_KEY) as Column;
-      return COLUMNS.includes(stored) ? stored : "flow";
+      return localStorage.getItem(COLUMN_KEY) === "edit" ? "edit" : "flow";
     } catch {
       return "flow";
     }
@@ -435,18 +425,6 @@ export function EditorPage() {
     }
   }, [params, wizard.data, chat, setParams]);
 
-  // Opened on a step or the result, the editor has one from the start: so do the preview and the strip.
-  useEffect(() => {
-    const steps = wizard.data?.draft.steps;
-    if (selected || !steps || (column !== "step" && column !== "result")) {
-      return;
-    }
-    const first = steps.find((s) => (column === "result") === (s.type === "result"));
-    if (first) {
-      setSelected(first.id);
-    }
-  }, [wizard.data, column, selected]);
-
   // Models the draft needs that this runtime cannot serve: a step on every path blocks the test.
   const models = useQuery({
     queryKey: ["wizard-models", id, wizard.data?.revision],
@@ -556,51 +534,16 @@ export function EditorPage() {
   const failed = refused ?? (publish.error ? (publish.error as Error).message : null);
 
   const stepOf = (sid: string | null) => def.steps.find((s) => s.id === sid) ?? null;
-  /** What edits a choice: the result step the result, no step the wizard's settings. */
-  const modeOf = (sid: string | null): Mode => {
-    const step = stepOf(sid);
-    return !step ? "profile" : step.type === "result" ? "result" : "step";
-  };
   /**
-   * A step chosen: the preview shows it, the editor beside it follows to what edits it, and where
-   * there is no column it opens shown or edited by its kind.
+   * A step chosen, the result or the wizard's settings: the preview shows it, the editor edits it,
+   * and where there is no column it opens shown or edited by its kind.
    */
   const select = (sid: string | null) => {
     setSelected(sid);
     setShowRun(false);
-    if (column !== "flow") {
-      setColumn(modeOf(sid));
-    }
     const step = stepOf(sid);
     setEditing(!step || !SHOWN_FIRST.has(step.type));
   };
-  /** What is edited, picked: the preview and the strip move to it. */
-  const pickMode = (next: Column) => {
-    setColumn(next);
-    if (next === "flow" || modeOf(selected) === next) {
-      return;
-    }
-    const target =
-      next === "result"
-        ? resultStep?.id
-        : next === "profile"
-          ? "__wizard"
-          : def.steps.find((s) => s.type !== "result")?.id;
-    if (target) {
-      setSelected(target);
-      setShowRun(false);
-    }
-  };
-  /** What the editor edits: the column's pick, or with the flow there what is chosen. */
-  const mode: Mode = column === "flow" ? modeOf(selected) : column;
-  const editorTarget =
-    mode === "result"
-      ? (resultStep?.id ?? null)
-      : mode === "profile"
-        ? "__wizard"
-        : modeOf(selected) === "step"
-          ? selected
-          : (def.steps.find((s) => s.type !== "result")?.id ?? null);
 
   /** A swipe on the step panel: left to the next step, right to the one before (the wizard's own settings first). */
   const stepSwipe = {
@@ -684,38 +627,6 @@ export function EditorPage() {
     </Button>
   );
 
-  /** The switch between what is edited; with the flow where it shares the column. */
-  const modes = (withFlow: boolean) => (
-    <Pills<Column>
-      named
-      label={t("editor.view")}
-      value={withFlow ? column : mode}
-      onChange={pickMode}
-      options={[
-        // The wizard as a whole first, then the steps in their order, the result last.
-        { id: "profile", label: t("editor.profile"), icon: <Settings className="size-3.5" /> },
-        ...(withFlow
-          ? [
-              {
-                id: "flow" as const,
-                label: t("editor.flow"),
-                icon: <Workflow className="size-3.5" />,
-              },
-            ]
-          : []),
-        { id: "step", label: t("editor.stepEditor"), icon: <ListChecks className="size-3.5" /> },
-        ...(resultStep
-          ? [
-              {
-                id: "result" as const,
-                label: t("editor.result"),
-                icon: <Flag className="size-3.5" />,
-              },
-            ]
-          : []),
-      ]}
-    />
-  );
   /** The step's editor: in the column beside the preview, or in the preview's place. */
   const editor = (
     // A swipe left or right moves to the next or the previous step.
@@ -724,7 +635,7 @@ export function EditorPage() {
         <ResultPageOpener.Provider value={openPage}>
           <Inspector
             def={def}
-            selected={editorTarget}
+            selected={selected}
             update={save}
             onSelect={select}
             issues={w.issues}
@@ -816,7 +727,7 @@ export function EditorPage() {
           onSelect={(sid) => {
             // Beside the preview a second click on the step chosen opens its editor.
             if (flowBeside && sid && sid === selected) {
-              setColumn(modeOf(sid));
+              setColumn("edit");
               return;
             }
             select(sid);
@@ -951,8 +862,8 @@ export function EditorPage() {
           <button
             type="button"
             onClick={() => {
-              pickMode("profile");
-              setEditing(true);
+              select("__wizard");
+              setColumn("edit");
               setView("preview");
             }}
             className="min-w-0 truncate rounded-md px-1 py-1 text-left hover:bg-accent sm:px-2"
@@ -961,21 +872,7 @@ export function EditorPage() {
               {def.title}
             </span>
           </button>
-          <span className="hidden shrink-0 sm:inline-flex">
-            {w.published ? (
-              <WhereChip
-                where={whereItRuns(w, me.data, cloudLinked ? cloud.data : null)}
-                me={me.data}
-                version={w.publishedVersion}
-              />
-            ) : (
-              <Chip>{t("editor.notPublished")}</Chip>
-            )}
-          </span>
           {saving ? <Spinner className="size-4 shrink-0 text-ink-4" /> : null}
-          <span className="hidden shrink-0 xl:inline-flex">
-            <LiveChip remote={remote} merged={merged} />
-          </span>
         </div>
         <nav
           aria-label={t("editor.view")}
@@ -1009,6 +906,21 @@ export function EditorPage() {
           })}
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          {/* Where it runs and in which version, beside sharing it. */}
+          <span className="hidden shrink-0 xl:inline-flex">
+            <LiveChip remote={remote} merged={merged} />
+          </span>
+          <span className="hidden shrink-0 sm:inline-flex">
+            {w.published ? (
+              <WhereChip
+                where={whereItRuns(w, me.data, cloudLinked ? cloud.data : null)}
+                me={me.data}
+                version={w.publishedVersion}
+              />
+            ) : (
+              <Chip>{t("editor.notPublished")}</Chip>
+            )}
+          </span>
           {/* The first version goes live by sharing; every later one by its own dialog. */}
           {w.published && w.dirty && !w.readOnly ? (
             <Button variant="secondary" size="sm" onClick={() => setLiveOpen(true)}>
@@ -1018,7 +930,7 @@ export function EditorPage() {
             </Button>
           ) : null}
           {shareButton}
-          <span className="ml-2 hidden md:inline-flex">
+          <span className="contents max-md:hidden">
             <CreditsPill me={me.data} />
           </span>
           {/* At the very right: a copy, the package to keep, deleting it. */}
@@ -1118,11 +1030,9 @@ export function EditorPage() {
           {notices}
           {shownView === "preview" && editing && !flowBeside ? (
             <>
-              {/* The preview's bar, holding what is edited in place of the preview's switches. */}
+              {/* The preview's bar, with only the switch back while editing. */}
               <div className="@container flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-border-soft border-b px-3 [scrollbar-width:none]">
                 {showOrEdit}
-                <span className="flex-1" />
-                {modes(false)}
               </div>
               {strip}
               {editor}
@@ -1132,9 +1042,7 @@ export function EditorPage() {
               lead={showOrEdit}
               // The flow beside the preview shows the steps: no strip then, and the run is a button away.
               strip={flowBeside && column === "flow" ? null : strip}
-              onEdit={
-                flowBeside && column === "flow" ? () => setColumn(modeOf(selected)) : undefined
-              }
+              onEdit={flowBeside && column === "flow" ? () => setColumn("edit") : undefined}
               onShowRun={
                 flowBeside && column === "flow" && drawerRun && !showRun && stepOf(selected)
                   ? () => setShowRun(true)
@@ -1210,7 +1118,15 @@ export function EditorPage() {
               <span className="-translate-y-1/2 absolute top-1/2 left-[5px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
             </div>
             <div className="@container flex h-12 shrink-0 items-center gap-2 border-border-soft border-b px-3">
-              {modes(true)}
+              <Pills<Column>
+                label={t("editor.view")}
+                value={column}
+                onChange={setColumn}
+                options={[
+                  { id: "flow", label: t("editor.flow") },
+                  { id: "edit", label: t("editor.edit") },
+                ]}
+              />
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-b-3xl">
               {column === "flow" ? flow : editor}

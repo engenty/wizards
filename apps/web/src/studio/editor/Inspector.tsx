@@ -1421,12 +1421,23 @@ export function Inspector(props: InspectorProps) {
           {step ? (
             <StepInspector {...props} update={update} step={step} />
           ) : (
-            <WizardSettings
-              def={def}
-              update={update}
-              projectId={props.projectId}
-              wizardId={props.wizardId}
-            />
+            <>
+              {/* Named like a step's editor, so it says what is edited. */}
+              <div className="flex items-center gap-2 px-5 py-4">
+                <span className="inline-flex size-7 items-center justify-center rounded-md bg-paper-2 text-ink-2">
+                  <Settings className="size-4" />
+                </span>
+                <span className="font-medium text-[0.75rem] text-ink-3 uppercase tracking-[0.07em]">
+                  {t("editor.profile")}
+                </span>
+              </div>
+              <WizardSettings
+                def={def}
+                update={update}
+                projectId={props.projectId}
+                wizardId={props.wizardId}
+              />
+            </>
           )}
         </div>
       </Assistant.Provider>
