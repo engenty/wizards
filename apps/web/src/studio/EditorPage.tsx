@@ -6,6 +6,7 @@ import {
   Eye,
   FileText,
   Flag,
+  Globe,
   History,
   Lock,
   NotebookTabs,
@@ -50,6 +51,7 @@ import { RunsPanel } from "./editor/RunsPanel";
 import { ShareDialog } from "./editor/ShareDialog";
 import { ResultPageOpener } from "./editor/share";
 import { LiveChip, useLiveDraft } from "./live";
+import { pageAddress, pageUrl } from "./project/page-address";
 import { WizardMenu } from "./WizardMenu";
 import { WhereChip, whereItRuns } from "./where";
 
@@ -449,6 +451,13 @@ function Editor() {
   const missing = models.data?.missing ?? [];
   // A local install with an account sends what it publishes on to the account's cloud.
   const cloudLinked = me.data?.mode === "local" && Boolean(me.data.account);
+  // The team's public page, where the wizard stands on it: one more place it runs.
+  const pagesHost = me.data?.tenant.pagesHost ?? null;
+  const spacePage = projects.data?.find((p) => p.id === wizard.data?.projectId)?.page;
+  const onPage =
+    pagesHost && spacePage?.on && wizard.data && spacePage.wizards.includes(wizard.data.id)
+      ? spacePage
+      : null;
   const cloud = useCloud(id ?? "", Boolean(id) && cloudLinked);
   const blocked = missing.some((m) => m.blocking);
   /** A run opens in the preview; on a phone the sheet folds so the run gets the screen. */
@@ -960,6 +969,19 @@ function Editor() {
               <Chip>{t("editor.notPublished")}</Chip>
             )}
           </span>
+          {onPage && pagesHost && w.published ? (
+            <a
+              href={pageUrl(pagesHost, onPage.slug, me.data?.manageUrl ?? null)}
+              target="_blank"
+              rel="noreferrer"
+              title={t("live.pageRow")}
+              className="hidden shrink-0 lg:inline-flex"
+            >
+              <Chip tone="live" icon={<Globe className="size-3.5" />}>
+                {pageAddress(pagesHost, onPage.slug)}
+              </Chip>
+            </a>
+          ) : null}
           {/* The first version goes live by sharing; every later one by its own dialog. */}
           {w.published && w.dirty && !w.readOnly ? (
             <Button variant="secondary" size="sm" onClick={() => setLiveOpen(true)}>

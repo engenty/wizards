@@ -150,6 +150,7 @@ import {
 import { writeSummary } from "../services/knowledge-model.js";
 import { applyWebsite, finishOnboarding, needsOnboarding } from "../services/onboarding.js";
 import { exportWizard, importWizard } from "../services/package.js";
+import { pagePreview } from "../services/pages.js";
 import {
   profileSchema,
   saveProfile,
@@ -439,6 +440,10 @@ export const studio = new Hono<Vars>()
         role: user.role,
         /** The plan the team is on; null alone, or where the Manage-App names none. */
         plan: info?.plan ?? null,
+        /** The team's address for its public page (`acme.wizards.page`); null alone, or behind its switch. */
+        pagesHost: feature("pages", { ...info?.features, ...person?.features })
+          ? (info?.pagesHost ?? null)
+          : null,
       },
       /** The feature switches: the code's defaults, what the Manage-App says of the team and the person, this install's file. */
       features: features(
@@ -735,6 +740,8 @@ export const studio = new Hono<Vars>()
         name: p.name,
         brand: p.brand,
         facts: p.facts,
+        /** The space's public page; null until it is set up. */
+        page: p.page ?? null,
         mcpServers: maskedServers(p),
         wizardCount: p.wizardCount,
         /** `local`: synced from a local install, where it is changed. */
@@ -752,6 +759,11 @@ export const studio = new Hono<Vars>()
     const patch = projectPatchSchema.parse(await c.req.json());
     await updateProject(c.get("user").id, c.req.param("id"), patch);
     return c.json({ ok: true });
+  })
+  // The team's public page as Manage will draw it, for the preview beside the page's fields.
+  .get("/projects/:id/page", async (c) => {
+    await ownedProject(c.get("user").id, c.req.param("id"));
+    return c.json(await pagePreview());
   })
   // --- the space's themes: how its wizards' pages look (docs/plans/themes.md) ---
   .get("/projects/:id/themes", async (c) =>

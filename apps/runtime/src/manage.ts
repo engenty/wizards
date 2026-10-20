@@ -153,6 +153,10 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export interface TenantInfo {
   id: string;
   name: string;
+  /** The team's address: `organization.slug` at the Manage-App; an older one names none. */
+  slug?: string;
+  /** Where the team's public page lives: `acme.wizards.page` (services/pages.ts). */
+  pagesHost?: string;
   status: "active" | "suspended" | "deleted";
   balanceCredits: number;
   /** The plan the tenant is on (Free, Pro, Team, …); an older Manage-App names none. */
@@ -436,6 +440,18 @@ export function bookChannelUsage(
     "POST",
     `/v1/tenants/${encodeURIComponent(id)}/channels/usage`,
     input,
+  );
+}
+
+/**
+ * The team's public page data, whole (services/pages.ts): Manage keeps it and serves the page at
+ * `<slug>.<PAGES_DOMAIN>`. What it answers names the page's address.
+ */
+export function putPages(tenantId: string, data: unknown) {
+  return call<{ ok: boolean; url: string }>(
+    "PUT",
+    `/v1/pages/${encodeURIComponent(tenantId)}`,
+    data,
   );
 }
 

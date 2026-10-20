@@ -5,7 +5,9 @@ import {
   Database,
   FileText,
   Fingerprint,
+  Globe,
   Images,
+  LayoutGrid,
   ListChecks,
   type LucideIcon,
   Palette,
@@ -27,13 +29,15 @@ export interface SpaceGroup {
 
 /**
  * The space page's own parts, in the order of the menu; plugins add theirs (`withParts`). Results
- * are a group of the page too, but stand behind their own place in the app bar.
+ * are a group of the page too, but stand behind their own place in the app bar. The public page
+ * is the last of the parts: what the space shows the world (`project/PublicPage.tsx`).
  */
 export function spaceGroups(): SpaceGroup[] {
   return [
     { id: "info", label: t("space.info"), icon: Fingerprint },
     { id: "knowledge", label: t("space.knowledge"), icon: BookOpen },
     { id: "data", label: t("space.data"), icon: Database },
+    { id: "page", label: t("space.page"), icon: Globe },
   ];
 }
 
@@ -60,7 +64,7 @@ export function withParts(own: SpaceGroup[], plugins: StudioPlugins): SpacePartE
 }
 
 export function isSpaceGroup(id: string | undefined): id is SpaceGroupId {
-  return id === "info" || id === "knowledge" || id === "data" || id === "results";
+  return id === "info" || id === "knowledge" || id === "data" || id === "page" || id === "results";
 }
 
 export interface ProjectSection {
@@ -87,6 +91,9 @@ const OWN: { id: string; group: SpaceGroupId; label: Key; icon: LucideIcon }[] =
   { id: "typography", group: "info", label: "project.typography", icon: ALargeSmall },
   { id: "assets", group: "info", label: "project.assets", icon: Images },
   { id: "documents", group: "knowledge", label: "project.documents", icon: FileText },
+  { id: "page", group: "page", label: "page.sectionPage", icon: Globe },
+  { id: "page-words", group: "page", label: "page.sectionWords", icon: Type },
+  { id: "page-wizards", group: "page", label: "page.sectionWizards", icon: LayoutGrid },
 ];
 
 export const OWN_SPACE_SECTIONS = OWN.map((s) => s.id);

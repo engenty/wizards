@@ -10,6 +10,7 @@ import type {
   ColorSection,
   LogoSection,
   ProjectFact,
+  ProjectPage,
   TextStyle,
 } from "@engenty/wizards-shared/projects";
 import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
@@ -86,6 +87,8 @@ export const project = sqliteTable(
     facts: text("facts", { mode: "json" }).$type<ProjectFact[]>().notNull().default([]),
     /** The space's themes: values only (docs/plans/themes.md). Wizards name them in `themes`. */
     themes: text("themes", { mode: "json" }).$type<Theme[]>().notNull().default([]),
+    /** The space's public page at `<team>.wizards.page/<slug>`; null until it is set up. */
+    page: text("page", { mode: "json" }).$type<ProjectPage>(),
     mcpServers: text("mcp_servers", { mode: "json" })
       .$type<McpServerConfig[]>()
       .notNull()
