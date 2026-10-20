@@ -835,7 +835,7 @@ const de: Record<Key, Line> = {
   "log.kind.info": "Info",
   "log.kind.error": "Fehler",
   "editor.chatHello":
-    "Beschreibe mir, was dein Wizard tun soll. Ich baue den Ablauf und zeige ihn dir als Diagramm.",
+    "Beschreibe mir, was dein Wizard tun soll. Ich baue ihn, und du siehst ihn rechts in der Vorschau.",
   "shareRun.button": "Teilen",
   "shareRun.title": "Ergebnis teilen",
   "shareRun.email": "E-Mail",
@@ -2993,7 +2993,7 @@ const en = {
   "log.kind.info": "Info",
   "log.kind.error": "Error",
   "editor.chatHello":
-    "Tell me what your wizard should do. I’ll build the flow and show it to you as a diagram.",
+    "Tell me what your wizard should do. I’ll build it, and you see it in the preview on the right.",
   "shareRun.button": "Share",
   "shareRun.title": "Share result",
   "shareRun.email": "Email",
