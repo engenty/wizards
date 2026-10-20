@@ -20,7 +20,17 @@ export interface ReportContext {
   error?: { message: string; stack?: string } | null;
 }
 
-let opened: ReportContext | null = null;
+interface Opened {
+  context: ReportContext;
+  /** What the person saw when they asked, taken before the dialog opened; null where it failed. */
+  shot: string | null;
+  /** Each opening its own: the dialog starts empty again. */
+  n: number;
+}
+
+let opened: Opened | null = null;
+let capturing = false;
+let count = 0;
 const listeners = new Set<() => void>();
 const tell = () => {
   for (const l of listeners) {
@@ -28,9 +38,20 @@ const tell = () => {
   }
 };
 
-/** Opens the dialog from anywhere: a button, the crash page. */
-export function openReport(context: ReportContext) {
-  opened = context;
+/**
+ * Opens the dialog from anywhere: a button, the crash page. The page is captured first, so the
+ * screenshot shows what the person saw and not the dialog.
+ */
+export async function openReport(context: ReportContext) {
+  if (capturing) {
+    return;
+  }
+  capturing = true;
+  tell();
+  const shot = await screenshot();
+  capturing = false;
+  count += 1;
+  opened = { context, shot, n: count };
   tell();
 }
 
@@ -39,14 +60,14 @@ const closeReport = () => {
   tell();
 };
 
-const useOpened = () =>
-  useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => opened,
-  );
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
+};
+const useOpened = () => useSyncExternalStore(subscribe, () => opened);
+const useCapturing = () => useSyncExternalStore(subscribe, () => capturing);
 
 /** A field's own value never shows on the screenshot: the clone carries dots in its place. */
 function coverFields(node: Node) {
@@ -229,38 +250,9 @@ function Annotate({ src, onChange }: { src: string; onChange: (png: string) => v
 
 /** The dialog, mounted once at the page's root; `openReport` opens it. */
 export function ReportHost() {
-  const context = useOpened();
-  const [shot, setShot] = useState<string | null>(null);
-  const [marked, setMarked] = useState<string | null>(null);
-  const [capturing, setCapturing] = useState(false);
-  const [withShot, setWithShot] = useState(true);
-  const [withLogs, setWithLogs] = useState(true);
-  const [comment, setComment] = useState("");
-  const [contact, setContact] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
-  const logs = keptLines().map(masked);
-  const url = masked(window.location.href);
-
-  useEffect(() => {
-    if (!context) {
-      return;
-    }
-    setState("idle");
-    setComment("");
-    setMarked(null);
-    setCapturing(true);
-    // The dialog is not open yet while the page is captured: it shows what the person saw.
-    void screenshot().then((png) => {
-      setShot(png);
-      setWithShot(Boolean(png));
-      setCapturing(false);
-    });
-  }, [context]);
-
-  if (!context) {
-    return null;
-  }
-  if (capturing) {
+  const open = useOpened();
+  const busy = useCapturing();
+  if (busy) {
     return (
       <div
         data-report-skip
@@ -272,6 +264,18 @@ export function ReportHost() {
       </div>
     );
   }
+  return open ? <ReportForm key={open.n} context={open.context} shot={open.shot} /> : null;
+}
+
+function ReportForm({ context, shot }: { context: ReportContext; shot: string | null }) {
+  const [marked, setMarked] = useState<string | null>(null);
+  const [withShot, setWithShot] = useState(Boolean(shot));
+  const [withLogs, setWithLogs] = useState(true);
+  const [comment, setComment] = useState("");
+  const [contact, setContact] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  const logs = keptLines().map(masked);
+  const url = masked(window.location.href);
   const send = async () => {
     setState("sending");
     try {
