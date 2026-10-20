@@ -4,6 +4,10 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.9.3] - 2026-10-20
+- ADDED **[studio]** One editor screen around the preview (#109)
+- ADDED **[openui]** The wizard card loads its theme's fonts (#107)
+
 ## [0.9.2] - 2026-10-19
 - ADDED **[uploads]** Uploaded files are checked: a file must be what its type says, photos lose their location and camera details, SVGs lose scripts and outside references (#104)
 - DOCS **[readme]** New studio and wizard pictures, and the text brought up to date (#105)
