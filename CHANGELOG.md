@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.9.5] - 2026-10-20
+- ADDED **[runtime]** A visitor's run counts against the organization's guest budget (#126)
+
 ## [0.9.4] - 2026-10-20
 - ADDED **[runtime]** A space's public page on wizards.page, behind the pages switch (#111)
 - ADDED **[studio]** The WordPress plugin behind a switch, off until it is published (#120)

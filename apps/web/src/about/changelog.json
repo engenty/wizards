@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.9.5",
+    "timestamp": 1792526597,
+    "commits": [
+      {
+        "id": "acdb6f0",
+        "message": "a visitor's run counts against the organization's guest budget (#126)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.9.4",
-    "timestamp": 1792505729,
+    "timestamp": 1792505925,
     "commits": [
       {
         "id": "75da3eb",
