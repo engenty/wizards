@@ -32,10 +32,10 @@
 
 ## How it looks
 
-The studio: the conversation that changes a wizard, next to its steps as a flow with its branches.
+The studio: the conversation that changes a wizard, the preview of each page as people see it, and its steps as a flow with its branches.
 
 <p align="center">
-  <img src="docs/assets/studio.png" alt="The studio of engenty wizards: the assistant explains where a wizard that collects a month's receipts for bookkeeping looks for them; beside it the wizard's flow – two pages of questions, AI steps that branch to the mailbox and to customer portals, a review and the result">
+  <img src="docs/assets/studio.png" alt="The studio of engenty wizards: on the left the assistant explains where a wizard that collects a month's receipts for bookkeeping looks for them; in the middle the preview of its first page, which month and which bank statement; on the right the wizard's flow – two pages of questions, then AI steps that branch to the mailbox and to customer portals">
 </p>
 
 A wizard in use: it asks on one page, then on the next, and ends with the result to download or share.

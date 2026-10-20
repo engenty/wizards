@@ -7,7 +7,7 @@ export const PRIMER = `ENGENTY WIZARDS IN ONE PAGE
 engenty wizards turns something done again and again into a wizard: pages that ask what it needs, AI steps that do the work, and a link to share. It runs on the person's own computer (a "local install" at ~/.engenty/wizards, studio at /studio) or in the cloud at engenty.ai with an account.
 
 Words
-- Studio: where wizards are built. Home lists the space's wizards; the editor (/edit/<id>) shows a wizard's flow as a diagram with its own chat (the architect) that builds and changes it.
+- Studio: where wizards are built. Home lists the space's wizards; the editor (/edit/<id>) has its own chat (the architect) that builds and changes the wizard, a preview of each step as people see it with the steps in a row above it, and beside it the flow as a diagram and the editor of the step chosen.
 - Wizard: a flow of steps a person walks through on a link. Step kinds: a page (fields to fill in), an AI step (an agent with tools: web search, reading files, writing documents, images, video, pages, other services), a review, and the result.
 - Run: one person going through a wizard once. Results lists every run that reached its result.
 - Space: what all wizards of a team know. Its page has four parts: Info & brand (title, about, logos, colours, assets, facts), Knowledge (pages, tables and files the AI steps look things up in, kept apart by typed categories), Data (tables and pages the wizards keep) and Results (finished runs).
