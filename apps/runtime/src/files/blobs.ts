@@ -23,3 +23,18 @@ export async function getBlob(hash: string): Promise<Buffer> {
   }
   return data;
 }
+
+/** Whether the store has the bytes of this hash. */
+export async function hasBlob(hash: string): Promise<boolean> {
+  return /^[a-f0-9]{64}$/.test(hash) && objects.has(blobKey(hash));
+}
+
+/** Keeps bytes that arrived for a hash, after checking they are what the hash says. */
+export async function putBlobOf(hash: string, data: Uint8Array): Promise<void> {
+  if (createHash("sha256").update(data).digest("hex") !== hash) {
+    throw new Error("blob does not match its hash");
+  }
+  if (!(await objects.has(blobKey(hash)))) {
+    await objects.put(blobKey(hash), data);
+  }
+}

@@ -32,6 +32,7 @@ import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { managed, tenantInfo } from "../manage.js";
 import { spaceChanged } from "../plugins/events.js";
+import { cloudSpaceLimit, twoWayActive } from "../sync/state.js";
 import { putLink } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
@@ -206,6 +207,16 @@ export async function projectLimit(): Promise<number> {
     }
     if (info?.limits.projects) {
       return info.limits.projects;
+    }
+  }
+  // A local install that syncs both ways has the organization's spaces: its number counts.
+  if (twoWayActive()) {
+    const limit = cloudSpaceLimit();
+    if (limit === null) {
+      return Number.POSITIVE_INFINITY;
+    }
+    if (limit !== undefined) {
+      return Math.max(1, limit);
     }
   }
   return Math.max(1, env.limits.projects);
