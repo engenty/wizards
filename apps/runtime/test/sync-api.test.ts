@@ -169,7 +169,7 @@ describe("the cloud's sync calls", () => {
       schema: schemaTag,
       items: [{ kind: "wizard", item: WIZARD, base: seq, record: { ...record, title: "Stale" } }],
     });
-    expect(stale.body.results[0]).toMatchObject({ status: "conflict", record: { title: "Renamed" } });
+    expect(stale.body.results[0]).toMatchObject({ status: "conflict", record: { draft: { title: "Renamed" } } });
   });
 
   it("lets a member change a wizard but not make one or a space", async () => {

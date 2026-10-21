@@ -241,6 +241,14 @@ const nameOf = (x: unknown): string | null => {
 
 const same = (a: unknown, b: unknown) => canonical(a as never) === canonical(b as never);
 
+/** A place as people read it; a wizard's places are its draft's, so the draft is not named. */
+function placeLabel(path: MergePath, root: unknown): string {
+  if (path[0] === "draft" && path.length > 1) {
+    return pathLabel(path.slice(1), (root as Record<string, unknown> | null)?.draft, nameOf);
+  }
+  return pathLabel(path, root, nameOf);
+}
+
 /** The places one side changed against the base, as people read them; a few levels deep. */
 function placesChanged(base: unknown, side: unknown): string[] {
   const isObj = (v: unknown): v is Record<string, unknown> =>
@@ -248,7 +256,7 @@ function placesChanged(base: unknown, side: unknown): string[] {
   const keyedList = (v: unknown): v is Record<string, unknown>[] =>
     Array.isArray(v) && v.every((x) => isObj(x) && typeof x.id === "string");
   const label = (path: MergePath) =>
-    pathLabel(path, valueAt(side, path) === undefined ? base : side, nameOf);
+    placeLabel(path, valueAt(side, path) === undefined ? base : side);
   const walk = (b: unknown, s: unknown, path: MergePath): string[] => {
     if (same(b, s)) {
       return [];
@@ -817,7 +825,7 @@ async function conflictView(
     item: row.item,
     title: def.title(local ?? remote, row.item),
     deleted: local === null ? "local" : remote === null ? "remote" : null,
-    conflicts: conflicts.map((c) => ({ ...c, label: pathLabel(c.path, local ?? remote, nameOf) })),
+    conflicts: conflicts.map((c) => ({ ...c, label: placeLabel(c.path, local ?? remote) })),
     at: row.createdAt.toISOString(),
   };
 }
@@ -938,7 +946,7 @@ export async function resolveConflict(id: string, how: Resolution): Promise<void
     }
     await settle(record, false);
   }
-  void syncSpace(row.projectId, "push");
+  await syncSpace(row.projectId, "push");
 }
 
 /** Every conflict of a space settled with the cloud's version. */
@@ -964,7 +972,7 @@ export async function undoMerge(id: string, take: "local" | "remote"): Promise<v
     { quiet: false },
   );
   await db.delete(schema.syncMerge).where(eq(schema.syncMerge.id, id));
-  void syncSpace(m.projectId, "push");
+  await syncSpace(m.projectId, "push");
 }
 
 export async function mergesSeen(ids: string[]): Promise<void> {
@@ -1003,7 +1011,7 @@ export async function proposeMerge(id: string): Promise<{ record: SyncRecord; is
         `The version both started from:\n${JSON.stringify(row.base ?? null)}`,
         `This computer's version:\n${JSON.stringify(local)}`,
         `The cloud's version:\n${JSON.stringify(remote)}`,
-        `Where they differ: ${m.conflicts.map((c) => pathLabel(c.path, local, nameOf)).join("; ") || "see the versions"}`,
+        `Where they differ: ${m.conflicts.map((c) => placeLabel(c.path, local)).join("; ") || "see the versions"}`,
         ...(last ? [`Your last answer did not pass the checks: ${last}. Fix that.`] : []),
       ].join("\n\n"),
     });

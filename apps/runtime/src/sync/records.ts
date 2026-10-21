@@ -213,7 +213,7 @@ const wizard: KindDef = {
       projectId: w.projectId,
       record: {
         projectId: w.projectId,
-        title: w.title,
+        // The title is the draft's: it travels once, in the draft.
         draft: w.draft,
         shareEnabled: w.shareEnabled,
         dailyRunLimit: w.dailyRunLimit,
@@ -241,7 +241,7 @@ const wizard: KindDef = {
     const before = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, id) });
     const values = {
       projectId,
-      title: str(r.title) ?? draft.title,
+      title: draft.title,
       draft,
       shareEnabled: bool(r.shareEnabled, true),
       ...(num(r.dailyRunLimit) ? { dailyRunLimit: num(r.dailyRunLimit) as number } : {}),
@@ -308,7 +308,7 @@ const wizard: KindDef = {
       .where(eq(schema.wizard.projectId, projectId));
     return rows.map((r) => r.id);
   },
-  title: (r, item) => str(r?.title) ?? item,
+  title: (r, item) => str(obj(r?.draft).title) ?? item,
   blobs: (r) => arr<Record<string, unknown>>(r.files).map((f) => String(f.hash)),
   check(merged, local, remote) {
     const paths = (r: SyncRecord | null) =>

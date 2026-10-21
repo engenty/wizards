@@ -33,8 +33,9 @@ The limits:
   save is the one the cloud refuses, and the choice opens in your studio right there. People
   editing in the cloud's studio never meet a conflict, because their saves go straight into
   the cloud's database.
-- **Publishing goes through the cloud.** Version numbers are made there, so two sides never
-  both make version 4. A version published offline is published when the cloud is reached.
+- **Publishing goes through the cloud.** Each side keeps its own versions: publishing on the
+  install publishes there, pushes the draft and has the cloud publish it as the cloud's next
+  version. A publish that could not reach the cloud is sent again by the minute loop.
 - **Some data stays on the side where it was made.** Encrypted data, per-person data (the
   wizard's store, the studio assistant's chats) and the knowledge index stay put. The index is
   rebuilt on each side.
@@ -264,7 +265,7 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 |---|---|---|
 | The space | `project`: `name`, `brand`, `facts`, `themes`, `page` | editable on both sides; a conflict asks (below) |
 | Wizards: draft and workspace | `wizard` (`title`, `draft`), `wizard_file` and their blobs | editable on both sides; a conflict asks |
-| Wizards: published versions | `wizard_version` | published in the cloud, numbered there; append-only |
+| Wizards: published versions | `wizard_version` | do not travel: each side numbers its own; publishing on the install has the cloud publish the pushed draft |
 | Wizards: sharing settings | `wizard`: `share_enabled`, `daily_run_limit`, `runners`, `translate` | editable on both sides; the link itself is the cloud's |
 | Translations | `wizard_translation` | editable on both sides; a conflict asks per text |
 | The wizard's build chat | `wizard_message` | append-only, never in conflict |
@@ -274,7 +275,6 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 | Files and documents | `project_file` (when `ready`), their assets, `text_hash` blobs | per row; bytes by hash |
 | Connectors | `project_connector` | per (project, id) |
 | Connected systems | `project.mcp_servers` | without `headers` (decided) |
-| Stars | `marketplace_star` | a set |
 
 **Stays on the side where it is (not synced):**
 
@@ -447,8 +447,8 @@ sides sync only when their tenant schema is the same.
 ## Files and blobs
 
 - Blobs: `HEAD` per hash before upload, and upload only what is missing. The contract (step 1)
-  sets the size limits; today it is 48 MB per wizard. Downloads happen lazily on first read on
-  the install: `getBlob` would fall back to the cloud for a space that syncs.
+  sets the size limits; today it is 48 MB per wizard. A pull fetches the bytes it lacks before
+  it writes the records that point to them.
 - Assets: by id. A replaced asset (`replaceAsset`) keeps its id and syncs as a changed row with
   a new path. Only assets that a synced row points to travel (project files, logos). An asset
   with a `run_id` is a run's and stays.
@@ -508,6 +508,50 @@ Turso. What it changes: the cloud's copy becomes the one that counts, so the `/d
 needs a backup (decided 2026-10-21). That is set up on the server (Coolify) before a client's
 data syncs, outside these pull requests. Moving the tenant databases to Turso (the paid plan,
 for the Platform API and for more than 100 databases) stays a later, separate choice.
+
+## Built on 2026-10-21
+
+All eleven steps, behind the switch `twoWaySync` (off by default, `.features`). Contract:
+docs/manage-contract.md, "Two-way sync of a space".
+
+| Step | Where |
+|---|---|
+| 1. Contract | `docs/manage-contract.md`; `packages/shared/src/sync.ts` (records, push and pull) |
+| 2. Change log | tenant migration `0021_sync` (`sync_change`, `sync_guard`, `sync_base`, `sync_conflict`, `sync_merge`, three triggers per synced table) |
+| 3. Records | `apps/runtime/src/sync/records.ts`, `apply.ts` (one transaction, foreign keys checked at the commit, dangling points let go) |
+| 4.–5. Cloud: push and pull | `apps/runtime/src/sync/hub.ts`, routes in `routes/api.ts` |
+| 6. Install: loop | `apps/runtime/src/sync/client.ts`; the minute loop in `index.ts`; the studio's hooks in `app.ts` (pull before a load, push after a save) |
+| 7. Conflicts | `client.ts` (`reconcile`, `resolveConflict`, `undoMerge`); studio routes `/api/studio/sync/*` |
+| 8. Merge and check | `packages/shared/src/sync-merge.ts` (JSON by ids), `text-merge.ts` (diff3); the records' checks |
+| 9. Help from a model | `proposeMerge` (class `highest`, three tries, the checks) |
+| 10. Several spaces | `projectLimit()` reads the organization's number (`sync/state.ts`); spaces of either side join by themselves, a switch per space turns one off |
+| 11. Move over | `POST /sync/spaces/:id/adopt` when a space starts to sync; the one-way sync stays for installs without the switch |
+| Studio | `apps/web/src/studio/CloudSync.tsx`: Settings › Spaces in the cloud, the notice on a wizard, page or table, the bar above every page |
+
+Tested: `test/sync-merge.test.ts` (the cases of the study), `test/sync.test.ts` (both sides in
+one process: first sync, push, pull, deletes, merges with their notice and undo, conflicts and
+choices, files, categories of the same name, a space made in the cloud, the model's proposal,
+the schema), `test/sync-api.test.ts` (the cloud's calls on a managed runtime: roles, scopes,
+bytes, the schema). Walked through on 2026-10-21 with two processes (a managed cloud runtime and a
+local install linked through the sign-in) and the studio in a browser.
+
+Different from the plan above:
+
+- Versions do not travel (see the table). Marketplace stars do not either: they are the
+  tenant's, not a space's.
+- A pull fetches the bytes it lacks at once, not on the first read.
+- Two categories of the same name made on both sides become one: the id that arrives first wins
+  on both, and what pointed to the other moves to it.
+- An install where the two-way sync runs leaves every plugin job to the cloud, not only those of
+  synced spaces: a job works on the tenant, not on one space.
+
+Not built yet:
+
+- An open page or table does not show what a pull wrote while it is open; it does after it is
+  opened again (an open wizard does, through its draft events).
+- The device code at the Manage-App picks no organization (manage repository); the browser
+  sign-in does.
+- The user guide: it follows when the switch flips.
 
 ## Risks
 

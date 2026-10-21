@@ -9,7 +9,7 @@ import type {
 import type { MergeChoice } from "@engenty/wizards-shared/sync-merge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CloudAlert, GitMerge, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../lib/api";
 import { type Key, lang, t } from "../lib/i18n";
@@ -102,6 +102,76 @@ const KINDS: Record<SyncKind, Key> = {
   connector: "cloudSync.kind.connector",
 };
 
+/** The places of an item in plain words: `steps › “File it” › title` reads `Steps › “File it” › Title`. */
+const WORDS: Record<string, Key> = {
+  title: "cloudSync.word.title",
+  markdown: "cloudSync.word.text",
+  description: "cloudSync.word.description",
+  steps: "cloudSync.word.steps",
+  fields: "cloudSync.word.fields",
+  instructions: "cloudSync.word.instructions",
+  prompt: "cloudSync.word.prompt",
+  label: "cloudSync.word.label",
+  cells: "cloudSync.word.cells",
+  columns: "cloudSync.word.columns",
+  name: "cloudSync.word.name",
+  brand: "cloudSync.word.brand",
+  facts: "cloudSync.word.facts",
+  themes: "cloudSync.word.themes",
+  files: "cloudSync.word.files",
+  options: "cloudSync.word.options",
+  categories: "cloudSync.word.categories",
+  values: "cloudSync.word.values",
+  texts: "cloudSync.word.texts",
+  mcpServers: "cloudSync.word.mcpServers",
+  page: "cloudSync.word.page",
+};
+
+function placeText(label: string): string {
+  return label
+    .split(" › ")
+    .map((part) => (part.startsWith("“") || !WORDS[part] ? part : t(WORDS[part])))
+    .join(" › ");
+}
+
+/**
+ * Items whose own notice is on screen: the bar above every page says nothing more of them.
+ * A small store, so the notice deep in a page and the bar at the top agree.
+ */
+const shown = new Map<string, number>();
+const listeners = new Set<() => void>();
+function useShowing(id: string | null) {
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+    shown.set(id, (shown.get(id) ?? 0) + 1);
+    for (const l of listeners) {
+      l();
+    }
+    return () => {
+      shown.set(id, (shown.get(id) ?? 1) - 1);
+      if (!shown.get(id)) {
+        shown.delete(id);
+      }
+      for (const l of listeners) {
+        l();
+      }
+    };
+  }, [id]);
+}
+function useShown(): string[] {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const l = () => tick((n) => n + 1);
+    listeners.add(l);
+    return () => {
+      listeners.delete(l);
+    };
+  }, []);
+  return [...shown.keys()];
+}
+
 // --- the section in Settings ------------------------------------------------------------
 
 export function CloudSyncSection() {
@@ -177,7 +247,7 @@ function SpaceLine({
         </p>
       ) : space.waiting ? (
         <Chip tone="warn">{t("cloudSync.state.waiting", { count: space.waiting })}</Chip>
-      ) : (
+      ) : space.conflicts ? null : (
         <Chip tone="live">{t("cloudSync.state.ok")}</Chip>
       )}
       {space.conflicts ? (
@@ -295,7 +365,7 @@ function ConflictCard({ conflict }: { conflict: SyncConflictView }) {
         <div className="flex flex-col gap-3 rounded-lg bg-paper-2 p-3">
           {conflict.conflicts.map((place, i) => (
             <div key={place.label} className="flex flex-col gap-1.5">
-              <p className="font-medium text-[0.8125rem]">{place.label}</p>
+              <p className="font-medium text-[0.8125rem]">{placeText(place.label)}</p>
               {(["local", "remote"] as const).map((side) => (
                 <label
                   key={side}
@@ -392,12 +462,12 @@ function MergeNote({ merge, compact }: { merge: SyncMergeView; compact?: boolean
         </p>
         {merge.local.length ? (
           <p className="mt-0.5 text-ink-3">
-            {t("cloudSync.mergedHere", { places: merge.local.join(", ") })}
+            {t("cloudSync.mergedHere", { places: merge.local.map(placeText).join(", ") })}
           </p>
         ) : null}
         {merge.remote.length ? (
           <p className="mt-0.5 text-ink-3">
-            {t("cloudSync.mergedThere", { places: merge.remote.join(", ") })}
+            {t("cloudSync.mergedThere", { places: merge.remote.map(placeText).join(", ") })}
           </p>
         ) : null}
       </div>
@@ -438,6 +508,7 @@ export function SyncNotice({ kind, item }: { kind: SyncKind; item: string }) {
   const sync = useCloudSync();
   const conflict = sync.data?.conflicts.find((c) => c.kind === kind && c.item === item);
   const merge = sync.data?.merges.find((m) => m.kind === kind && m.item === item);
+  useShowing(conflict ? conflict.id : null);
   if (conflict) {
     return (
       <div className="flex shrink-0 items-center gap-3 border-border-soft border-b bg-amber-tint px-4 py-2 text-[0.8125rem] text-ink-2 sm:px-6">
@@ -465,7 +536,8 @@ export function SyncNotice({ kind, item }: { kind: SyncKind; item: string }) {
 /** Above every page while something waits for the person: what both sides changed differently. */
 export function CloudSyncBar({ me }: { me: Me }) {
   const sync = useCloudSync();
-  const count = sync.data?.conflicts.length ?? 0;
+  const onScreen = useShown();
+  const count = (sync.data?.conflicts ?? []).filter((c) => !onScreen.includes(c.id)).length;
   if (!cloudSyncOn(me) || !count) {
     return null;
   }

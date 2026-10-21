@@ -1,8 +1,9 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { MockLanguageModelV3 } from "ai/test";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { Transport } from "../src/sync/client";
-import { beforeAll, describe, expect, it } from "vitest";
 
 // The two-way sync end to end, in one process: the tenant `local` is the install, the tenant
 // `org` stands in for the organization in the cloud. The install's calls go straight to the
@@ -20,6 +21,35 @@ process.env.MARKETPLACE_URL = "off";
 process.env.AI_GATEWAY_API_KEY = "";
 process.env.OPENAI_API_KEY = "";
 process.env.ANTHROPIC_API_KEY = "";
+
+// The model "Solve with AI" asks: it answers what a test queued, one answer per call.
+const llm = { answers: [] as string[], prompts: [] as string[] };
+vi.mock("../src/models.js", async (original) => {
+  const models = await original<typeof import("../src/models.js")>();
+  return {
+    ...models,
+    textModel: async () => ({
+      model: new MockLanguageModelV3({
+        doGenerate: async (options) => {
+          llm.prompts.push(JSON.stringify(options.prompt));
+          return {
+            content: [{ type: "text", text: llm.answers.shift() ?? "" }],
+            finishReason: { unified: "stop", raw: "stop" },
+            usage: {
+              inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+              outputTokens: { total: 1, text: 1, reasoning: undefined },
+            },
+            warnings: [],
+          };
+        },
+      }),
+      ref: "test/scripted",
+      vendor: "test",
+      gateway: false,
+      metered: true,
+    }),
+  };
+});
 
 let client: typeof import("../src/db/client");
 let sync: typeof import("../src/sync/client");
@@ -244,7 +274,7 @@ describe("both sides changed the same item", () => {
     await local(() => sync.syncSpace(spaceId, "push"));
     const view = await local(() => sync.syncView());
     const conflict = view.conflicts.find((c) => c.item === wizardId);
-    expect(conflict?.conflicts.map((c) => c.label)).toEqual(["draft › steps › “My title” › title"]);
+    expect(conflict?.conflicts.map((c) => c.label)).toEqual(["steps › “My title” › title"]);
     expect(view.spaces.find((s) => s.spaceId === spaceId)?.conflicts).toBe(1);
     // The cloud keeps its own until the person chose.
     expect((await draftOf(cloud, wizardId)).steps[0].title).toBe("Cloud's title");
@@ -354,6 +384,36 @@ describe("more of the space", () => {
     await local(() => sync.resolveConflict(conflict!.id, { take: "local" }));
     await local(() => sync.syncSpace(spaceId, "push"));
     expect((await cloud(() => data.getPage(USER, extra.id))).markdown).toBe("Changed here.");
+  });
+});
+
+describe("help from a model", () => {
+  it("proposes a merge that passes the checks, and the person takes it", async () => {
+    await local(() => sync.syncSpace(spaceId));
+    await edit(cloud, wizardId, (d) => {
+      d.steps[0].title = "Cloud's A";
+    });
+    await edit(local, wizardId, (d) => {
+      d.steps[0].title = "My A";
+    });
+    await local(() => sync.syncSpace(spaceId, "push"));
+    const conflict = (await local(() => sync.syncView())).conflicts.find((c) => c.item === wizardId);
+    expect(conflict).toBeTruthy();
+    const merged = await local(async () => {
+      const base = (await import("../src/sync/records")).KINDS.wizard;
+      const read = await base.read(wizardId);
+      return read && read !== "skip" ? structuredClone(read.record) : null;
+    });
+    (merged as any).draft.steps[0].title = "Both A";
+    // The first answer is no JSON: it is asked again, with why.
+    llm.answers = ["I would merge them like this.", JSON.stringify(merged)];
+    const proposal = await local(() => sync.proposeMerge(conflict!.id));
+    expect((proposal.record as any).draft.steps[0].title).toBe("Both A");
+    expect(llm.prompts.at(-1)).toContain("did not pass the checks");
+    // Nothing is written until the person takes it.
+    expect((await draftOf(local, wizardId)).steps[0].title).toBe("My A");
+    await local(() => sync.resolveConflict(conflict!.id, { record: proposal.record }));
+    expect((await draftOf(cloud, wizardId)).steps[0].title).toBe("Both A");
   });
 });
 
