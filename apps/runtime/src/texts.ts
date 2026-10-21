@@ -164,6 +164,14 @@ const EN = {
   shareInterrupted: "Sending was interrupted. Try again.",
   shareNotInResult: "“{name}” ({format}) is not part of this result.",
   shareCannotRender: "“{name}” couldn’t be made as {format}. Choose another format.",
+  // The labels of the facts the first visit reads from a website, as the Info & brand page has them.
+  factAddress: "Address",
+  factPostcode: "Postcode",
+  factCity: "City",
+  factVatId: "VAT ID",
+  factPhone: "Phone",
+  factEmail: "Email",
+  factWebsite: "Website",
 } as const satisfies Record<string, Line>;
 export type ServerKey = keyof typeof EN;
 
@@ -330,6 +338,13 @@ const DE: Partial<Record<ServerKey, Line>> = {
   shareInterrupted: "Das Senden wurde unterbrochen. Versuch es noch einmal.",
   shareNotInResult: "„{name}“ ({format}) gehört nicht zu diesem Ergebnis.",
   shareCannotRender: "„{name}“ ließ sich nicht als {format} erstellen. Wähle ein anderes Format.",
+  factAddress: "Adresse",
+  factPostcode: "PLZ",
+  factCity: "Ort",
+  factVatId: "USt-IdNr.",
+  factPhone: "Telefon",
+  factEmail: "E-Mail",
+  factWebsite: "Website",
 };
 
 export const SERVER_TEXTS: Texts<ServerKey> = { en: EN, de: DE };

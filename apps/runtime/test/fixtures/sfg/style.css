@@ -1,0 +1,7 @@
+:root{--sfg-color-black:#000;--sfg-color-white:#fff;--sfg-color-gray-background:#f7f7f5;--sfg-color-gray-border:#e6e6e3;--sfg-color-gray-dark:#343434;--sfg-color-primary:#a6c93f;--sfg-color-primary-dark:#608000;--sfg-color-primary-darker:#5c7a00;--sfg-color-secondary:#432a74;--sfg-color-secondary-dark:#2d1c4f;--sfg-color-secondary-light:#5d4c8a;--sfg-color-text:#343434;--sfg-color-yellow:#fdf872;--sfg-color-background:var(--sfg-color-white);--sfg-color-border:var(--sfg-color-gray-border)}
+body{color:var(--sfg-color-text);background:var(--sfg-color-background)}
+a{color:var(--sfg-color-primary-dark)}
+.sfg-downloads{--downloads-item-accent-color:#608000}
+.sfg-downloads__item{border-color:var(--downloads-item-accent-color)}
+.sfg-button{background:var(--sfg-color-primary);color:var(--sfg-color-white)}
+.sfg-button--secondary{background:var(--sfg-color-secondary)}
