@@ -68,7 +68,7 @@ Declared by two or more of the workspaces below:
 | [@fontsource/nunito](https://fontsource.org/fonts/nunito) | 5.3.0 | OFL-1.1 |
 | [@fontsource/playfair-display](https://fontsource.org/fonts/playfair-display) | 5.3.0 | OFL-1.1 |
 | [@fontsource/young-serif](https://fontsource.org/fonts/young-serif) | 5.3.0 | OFL-1.1 |
-| [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.2.0 | MIT |
+| [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
 | [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.3 | MIT |
 | [dompurify](https://github.com/cure53/DOMPurify) | 3.4.16 | (MPL-2.0 OR Apache-2.0) |
 | [fflate](https://101arrowz.github.io/fflate) | 0.8.3 | MIT |
@@ -111,7 +111,7 @@ Declared by two or more of the workspaces below:
 | [@mastra/docker](https://mastra.ai) | 0.8.0 | Apache-2.0 |
 | [@mastra/mcp](https://mastra.ai) | 2.4.0 | Apache-2.0 |
 | [@mastra/quickjs](https://mastra.ai) | 0.1.3 | Apache-2.0 |
-| [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.2.0 | MIT |
+| [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 0.1.80 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.1 | MIT |
 | [ai](https://ai-sdk.dev/docs) | 7.0.102 | Apache-2.0 |
@@ -173,11 +173,11 @@ Used to build, check and test; not part of what people run:
 | [drizzle-kit](https://orm.drizzle.team) | 0.31.11 | MIT |
 | [git-cliff](https://github.com/orhun/git-cliff#readme) | 2.14.2 | MIT OR Apache-2.0 |
 | [jsdom](https://github.com/jsdom/jsdom#readme) | 30.1.3 | MIT |
-| [postcss](https://postcss.org/) | 8.5.28 | MIT |
+| [postcss](https://postcss.org/) | 8.5.31 | MIT |
 | [tailwindcss](https://tailwindcss.com) | 4.3.3 | MIT |
 | [tsx](https://tsx.hirok.io) | 4.23.15 | MIT |
 | [typescript](https://www.typescriptlang.org/) | 7.0.2 | Apache-2.0 |
-| [vite](https://vite.dev) | 8.3.2 | MIT |
+| [vite](https://vite.dev) | 8.3.4 | MIT |
 | [vite-plugin-dts](https://github.com/qmhc/vite-plugin-dts#readme) | 4.5.4 | MIT |
 | [vite-plugin-singlefile](https://github.com/richardtallent/vite-plugin-singlefile/tree/main/#readme) | 2.3.3 | MIT |
 | [vitest](https://vitest.dev) | 4.1.11 | MIT |
