@@ -147,5 +147,20 @@ describe("studio chat on the Claude subscription", () => {
     await setChatEngine("cursor");
     expect(await chatEngine(true)).toBe("models");
     expect(await chatEngine(false)).toBe("claude");
+    // A provider without its key, or credits without an account, cannot answer yet.
+    await setChatEngine("openai");
+    expect(await chatEngine(true)).toBe("models");
+    await setChatEngine("account");
+    expect(await chatEngine(true)).toBe("models");
+  });
+
+  it("gives Goose and the editor a client's own model of the class", async () => {
+    const { chatModel } = await import("../src/models");
+    const { HarnessModel } = await import("../src/harness/model");
+    const goose = await chatModel("codex", "high");
+    expect(goose.ref).toBe("codex/gpt-6.1-sol");
+    expect(goose.model).toBeInstanceOf(HarnessModel);
+    expect((await chatModel("claude", "highest")).ref).toBe("claude/opus");
+    await expect(chatModel("openai", "high")).rejects.toThrow(/OpenAI/);
   });
 });

@@ -22,10 +22,11 @@ import { importFromRegistry, listConnectors, searchRegistry } from "../connector
 import {
   agentModel,
   attachTools,
+  type ChatWay,
+  chatModel,
   costOf,
   gatewayTools,
   type ResolvedModel,
-  textModel,
   totalUsage,
 } from "../models.js";
 import { pluginToolsOf } from "../plugins/registry.js";
@@ -41,6 +42,8 @@ import { runScript } from "../widgets/script.js";
 import { thoughtLine } from "./thought.js";
 
 export interface ArchitectInput {
+  /** What answers: the text classes, a provider's key or the credits (a subscription runs on its own). */
+  way: ChatWay;
   userId: string;
   wizardId: string;
   message: string;
@@ -414,7 +417,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
   const files = await listFiles(input.userId, input.wizardId);
   let changed = false;
   // Building a wizard is the hardest job here: widgets are code.
-  const resolved = await textModel("highest");
+  const resolved = await chatModel(input.way, "highest");
   const tools = buildTools(input, resolved, () => {
     changed = true;
   });

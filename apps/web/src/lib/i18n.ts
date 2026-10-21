@@ -86,13 +86,6 @@ const de: Record<Key, Line> = {
   "local.ollamaWhere": "auf diesem Computer",
   "local.modelsLater":
     "Welches Modell was übernimmt, lässt sich später unter Einstellungen → Modelle ändern.",
-  "local.chat": "Der Chat im Studio antwortet über",
-  "local.chatModels": "Modellklasse Highest",
-  "local.chatClaude": "Claude-Abo (Claude Code)",
-  "local.chatCodex": "ChatGPT-Abo (Codex)",
-  "local.chatCursor": "Cursor-Abo (Cursor Agent)",
-  "local.subscription":
-    "Das gilt für den Chat im Editor, der deinen Wizard baut. Mit einem Abo baut das gewählte Programm auf diesem Computer, angemeldet mit deinem Konto dort. Läufe nutzen weiter, was oben eingestellt ist.",
   "harness.hint":
     "Texte schreibt {name} auf diesem Computer, mit deinem {sub}. Kein API-Key nötig. Bilder, Videos und Audio brauchen weiter einen API-Key.",
   "harness.hintImages":
@@ -132,7 +125,13 @@ const de: Record<Key, Line> = {
   "local.testHint": "Ein kurzer Aufruf prüft, ob das Modell erreichbar ist.",
   "local.testOk": "Antwort in {s} s über {ref}: „{reply}“",
   "local.testFailed": "Der Test hat nicht geklappt: {error}",
-  "models.groupCaps": "Fähigkeiten",
+  "models.groupStudio": "Im Studio",
+  "models.groupRuns": "In Läufen",
+  "models.cap.chat": "Chat",
+  "models.cap.chat.hint": "Goose und der Chat im Editor, der deine Wizards baut.",
+  "models.chatModels": "Wie Text & Denken",
+  "models.chatHint":
+    "Mit einem Abo arbeitet das Programm auf diesem Computer, angemeldet mit deinem Konto dort. Es nutzt dabei nur die Werkzeuge von engenty wizards. Für Läufe gilt, was unter „In Läufen“ eingestellt ist.",
   "models.groupAccess": "Zugänge",
   "models.groupMore": "Weitere Anbieter",
   "models.cap.text": "Text & Denken",
@@ -2329,13 +2328,6 @@ const en = {
   "local.keyWorksPlain": "Works.",
   "local.ollamaWhere": "on this computer",
   "local.modelsLater": "Which model does which job can be changed later under Settings → Models.",
-  "local.chat": "The studio chat uses",
-  "local.chatModels": "Model class Highest",
-  "local.chatClaude": "Claude subscription (Claude Code)",
-  "local.chatCodex": "ChatGPT subscription (Codex)",
-  "local.chatCursor": "Cursor subscription (Cursor Agent)",
-  "local.subscription":
-    "This applies to the chat in the editor that builds your wizard. With a subscription, the program you choose builds it on this computer, using your sign-in there. Runs keep using what is set above.",
   "harness.hint":
     "Text runs on {name} on this computer, using your {sub}. No key needed. Images, video and audio still need a key.",
   "harness.hintImages":
@@ -2374,7 +2366,13 @@ const en = {
   "local.testHint": "One short call checks that the model can be reached.",
   "local.testOk": "Answered in {s} s on {ref}: “{reply}”",
   "local.testFailed": "The test didn’t work: {error}",
-  "models.groupCaps": "Capabilities",
+  "models.groupStudio": "In the studio",
+  "models.groupRuns": "In runs",
+  "models.cap.chat": "Chat",
+  "models.cap.chat.hint": "Goose and the chat in the editor that builds your wizards.",
+  "models.chatModels": "Same as Text & reasoning",
+  "models.chatHint":
+    "With a subscription, the program works on this computer, using your sign-in there. It uses only the tools of engenty wizards. Runs use what is set under “In runs”.",
   "models.groupAccess": "Access",
   "models.groupMore": "More providers",
   "models.cap.text": "Text & reasoning",

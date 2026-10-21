@@ -9,7 +9,7 @@ import { internalKey } from "../auth/keys.js";
 import { env } from "../env.js";
 import { resolveEnv } from "../harness/env.js";
 import { detectHarness, harness, signedOut } from "../harness/index.js";
-import { localModelSettings } from "../models.js";
+import { CHAT_WAYS, type ChatWay, chatWayReady, localModelSettings } from "../models.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
 import { type ServerKey, serverText } from "../texts.js";
@@ -259,28 +259,30 @@ export async function subscriptionTurn(
   }
 }
 
-/** Which engine answers the studio chat on a runtime that runs alone. */
-export const CHAT_ENGINES = ["models", "claude", "codex", "cursor"] as const;
+/** The ways that can answer the studio's chats now, in the order the settings offer them. */
+export async function chatWays(textModelReady: boolean): Promise<ChatWay[]> {
+  const ready = await Promise.all(CHAT_WAYS.map((w) => chatWayReady(w, textModelReady)));
+  return CHAT_WAYS.filter((_, i) => ready[i]);
+}
 
-export type ChatEngine = (typeof CHAT_ENGINES)[number];
-
-export async function chatEngine(textModelReady: boolean): Promise<ChatEngine> {
-  const clients = await subscriptionClients();
-  const chosen = await readSetting<ChatEngine>("chat-engine");
-  if (chosen && chosen !== "models" && clients.includes(chosen)) {
+/**
+ * What answers the studio's chats, Goose and the editor's chat, on a runtime that runs alone: the
+ * way chosen while it can answer, else the text classes, or Claude Code where it is the source.
+ */
+export async function chatEngine(textModelReady: boolean): Promise<ChatWay> {
+  const chosen = await readSetting<ChatWay>("chat-engine");
+  if (chosen && CHAT_WAYS.includes(chosen) && (await chatWayReady(chosen, textModelReady))) {
     return chosen;
   }
-  if (chosen === "models" && textModelReady) {
-    return "models";
-  }
+  const claude = await chatWayReady("claude", textModelReady);
   // Nothing chosen: where Claude Code is the source of models, it answers the chat too.
-  if (clients.includes("claude") && localModelSettings().source === "claude") {
+  if (claude && localModelSettings().source === "claude") {
     return "claude";
   }
   // Else a configured model answers; without one, the Claude subscription does.
-  return textModelReady || !clients.includes("claude") ? "models" : "claude";
+  return textModelReady || !claude ? "models" : "claude";
 }
 
-export function setChatEngine(engine: ChatEngine) {
-  return writeSetting("chat-engine", engine);
+export function setChatEngine(way: ChatWay) {
+  return writeSetting("chat-engine", way);
 }

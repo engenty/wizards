@@ -17,6 +17,10 @@ process.env.PLUGIN_JOBS = "0";
 process.env.AI_GATEWAY_API_KEY = "";
 process.env.OPENAI_API_KEY = "";
 process.env.ANTHROPIC_API_KEY = "";
+// No AI client of this machine answers Goose here: without a model the turn fails.
+process.env.CLAUDE_BIN = join(dir, "no-claude");
+process.env.CODEX_BIN = join(dir, "no-codex");
+process.env.CURSOR_AGENT_BIN = join(dir, "no-cursor-agent");
 
 type App = { fetch: (req: Request) => Response | Promise<Response> };
 let app: App;

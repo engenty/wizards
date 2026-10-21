@@ -32,6 +32,7 @@ import {
   KeyRound,
   Laptop,
   type LucideIcon,
+  MessageCircle,
   PenLine,
   Volume2,
 } from "lucide-react";
@@ -39,7 +40,14 @@ import { type ReactNode, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../lib/api";
 import { lang, t } from "../lib/i18n";
-import { type HarnessId, type HarnessStatus, type Me, useMe, withoutApple } from "../lib/session";
+import {
+  type ChatWay,
+  type HarnessId,
+  type HarnessStatus,
+  type Me,
+  useMe,
+  withoutApple,
+} from "../lib/session";
 import { Button, Card, cn, Input, LinkedText, Select, Spinner, Switch } from "../ui";
 import { billingUrl } from "./AppFrame";
 import { HarnessPanel } from "./Harness";
@@ -1178,8 +1186,6 @@ function CapabilityPanel({
             <TryIt key={`${cap}:${way.ref}`} cap={cap} disabled={!runs || !place.canEdit} />
           </Part>
         )}
-
-        {isText(cap) && me.subscriptions.length > 0 && !place.cloud ? <ChatEngine me={me} /> : null}
       </Card>
     </div>
   );
@@ -1278,45 +1284,138 @@ function OllamaPart({ state, disabled }: { state: ModelsState; disabled?: boolea
   );
 }
 
-/** What answers the studio chat where a subscription is there: a model or one of the clients. */
-function ChatEngine({ me }: { me: Me }) {
-  const qc = useQueryClient();
-  const chat = useMutation({
-    mutationFn: (engine: Me["chatEngine"]) => api.put("/api/studio/local/chat", { engine }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
-  });
-  const engines: Me["chatEngine"][] = ["models", ...me.subscriptions];
-  return (
-    <Part title={t("local.chat")}>
-      <div className="flex flex-wrap gap-2">
-        {engines.map((engine) => (
-          <button
-            key={engine}
-            type="button"
-            aria-pressed={me.chatEngine === engine}
-            onClick={() => chat.mutate(engine)}
-            className={cn(
-              "h-9 rounded-full border px-3.5 text-[0.8125rem] transition",
-              me.chatEngine === engine
-                ? "border-ember bg-ember-tint text-ink"
-                : "border-input bg-card text-ink-2 hover:text-ink",
-            )}
-          >
-            {t(CHAT_ENGINE_LABEL[engine])}
-          </button>
-        ))}
-      </div>
-      <Hint>{t("local.subscription")}</Hint>
-    </Part>
-  );
+/** The ways a studio chat can take, by the kind the panel groups them in. */
+const CHAT_CLIENTS = ["claude", "codex", "cursor"] as const;
+const CHAT_KEYS = ["openai", "anthropic", "google", "gateway"] as const;
+
+/** The name of a chat way, as the menu and the panel's status say it. */
+function chatWayName(way: ChatWay, me: Me, place: Place): string {
+  if (way === "models") {
+    return t("models.chatModels");
+  }
+  if (way === "account") {
+    return place.cloud ? t("models.creditsTeam") : t("models.creditsName");
+  }
+  return me.harnesses.find((h) => h.id === way)?.name ?? providerInfo(way)?.name ?? (way as string);
 }
 
-const CHAT_ENGINE_LABEL = {
-  models: "local.chatModels",
-  claude: "local.chatClaude",
-  codex: "local.chatCodex",
-  cursor: "local.chatCursor",
-} as const satisfies Record<Me["chatEngine"], string>;
+/**
+ * The studio's chats, Goose and the editor's chat: they follow Text & reasoning, or run on a
+ * subscription (the client works through engenty wizards' tools), a key or the credits.
+ */
+function ChatPanel({
+  me,
+  state,
+  place,
+  onOpen,
+}: {
+  me: Me;
+  state: ModelsState;
+  place: Place;
+  onOpen: (target: Target) => void;
+}) {
+  const qc = useQueryClient();
+  const chat = useMutation({
+    mutationFn: (engine: ChatWay) => api.put("/api/studio/local/chat", { engine }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
+  });
+  const [needsAccount, setNeedsAccount] = useState(false);
+  const ready = (way: ChatWay) => me.chatWays.includes(way);
+  const pick = (way: ChatWay) => {
+    setNeedsAccount(false);
+    if (way === "account" && !ready(way)) {
+      setNeedsAccount(true);
+      return;
+    }
+    if (CHAT_KEYS.includes(way as (typeof CHAT_KEYS)[number]) && !ready(way)) {
+      // The key comes first: its page takes it.
+      onOpen({ type: "provider", id: way as ProviderId });
+      return;
+    }
+    chat.mutate(way);
+  };
+  const clients = place.harnesses.filter(
+    (h) => CHAT_CLIENTS.includes(h.id as (typeof CHAT_CLIENTS)[number]) && h.version !== null,
+  );
+  const option = (way: ChatWay, title: string, note: string, done: boolean, disabled = false) => (
+    <Option
+      key={way}
+      title={title}
+      note={note}
+      noteTone={done ? "done" : undefined}
+      selected={me.chatEngine === way}
+      disabled={!place.canEdit || disabled}
+      onPick={() => pick(way)}
+    />
+  );
+  return (
+    <div className="flex flex-col gap-5">
+      <PanelHead
+        icon={MessageCircle}
+        title={t("models.cap.chat")}
+        lead={t("models.cap.chat.hint")}
+        status={
+          <Status
+            text={chatWayName(me.chatEngine, me, place)}
+            tone={ready(me.chatEngine) ? "done" : "warn"}
+          />
+        }
+      />
+      <Card className="flex flex-col gap-6 p-3.5 sm:p-5 sm:p-6">
+        <Part title={t("models.who")}>
+          <div className="flex flex-col gap-3">
+            {clients.length ? (
+              <OptionGroup label={t("models.optSubscription")}>
+                {clients.map((h) =>
+                  option(
+                    h.id as ChatWay,
+                    h.name,
+                    clientNote(h).note,
+                    ready(h.id as ChatWay),
+                    !ready(h.id as ChatWay),
+                  ),
+                )}
+              </OptionGroup>
+            ) : null}
+            <OptionGroup label={t("models.optKey")}>
+              {CHAT_KEYS.map((id) =>
+                option(
+                  id,
+                  providerInfo(id)?.name ?? id,
+                  state.keys[id] ? t("models.noteKey") : t("models.noteNoKey"),
+                  Boolean(state.keys[id]),
+                ),
+              )}
+            </OptionGroup>
+            <OptionGroup label={t("models.optOther")}>
+              {option(
+                "models",
+                t("models.chatModels"),
+                wayText(state.ways.highest, place).text,
+                ready("models"),
+              )}
+              {option(
+                "account",
+                chatWayName("account", me, place),
+                ready("account") ? t("models.noteUsage") : t("models.noteNeedsAccount"),
+                ready("account"),
+              )}
+            </OptionGroup>
+          </div>
+          {needsAccount ? (
+            <p className="text-[0.8125rem] text-ink-2">
+              {t("local.sourceNeedsAccount")} <AccountLink />
+            </p>
+          ) : null}
+          {chat.isError ? (
+            <p className="text-[0.8125rem] text-rose">{(chat.error as Error).message}</p>
+          ) : null}
+          <Hint>{t("models.chatHint")}</Hint>
+        </Part>
+      </Card>
+    </div>
+  );
+}
 
 /** One provider: its key, and what it does for which capability. */
 function ProviderPanel({
@@ -1617,6 +1716,7 @@ function CreditsPanel({
 // --- the page ----------------------------------------------------------------------
 
 type Target =
+  | { type: "chat" }
   | { type: "cap"; id: ModelCapability }
   | { type: "provider"; id: ProviderId }
   | { type: "client"; id: HarnessId }
@@ -1629,6 +1729,9 @@ function targetOf(show: string | null): Target {
   if (show === "credits") {
     return { type: "credits" };
   }
+  if (show === "chat") {
+    return { type: "chat" };
+  }
   if ((MODEL_CAPABILITIES as readonly string[]).includes(show)) {
     return { type: "cap", id: show as ModelCapability };
   }
@@ -1638,7 +1741,8 @@ function targetOf(show: string | null): Target {
   return { type: "client", id: show as HarnessId };
 }
 
-const showOf = (target: Target) => (target.type === "credits" ? "credits" : target.id);
+const showOf = (target: Target) =>
+  target.type === "credits" || target.type === "chat" ? target.type : target.id;
 
 /** In development the page can be looked at as the local install, with an account, or in the cloud. */
 function Preview({ view, onView }: { view: View; onView: (v: View) => void }) {
@@ -1674,6 +1778,8 @@ function capTone(way: ClassWay): MenuTone {
 /** What the page shows, for the trail in the top bar. */
 function targetLabel(target: Target, me: Me | null | undefined): string {
   switch (target.type) {
+    case "chat":
+      return t("models.cap.chat");
     case "cap":
       return t(`models.cap.${target.id}`);
     case "provider":
@@ -1718,7 +1824,19 @@ export function Models() {
   return (
     <>
       <SubMenu>
-        <MenuGroup label={t("models.groupCaps")}>
+        {place.cloud ? null : (
+          <MenuGroup label={t("models.groupStudio")}>
+            <MenuRow
+              icon={MessageCircle}
+              label={t("models.cap.chat")}
+              tone={me.data.chatWays.includes(me.data.chatEngine) ? "done" : "off"}
+              toneLabel={chatWayName(me.data.chatEngine, me.data, place)}
+              selected={isOpen({ type: "chat" })}
+              onPick={() => open({ type: "chat" })}
+            />
+          </MenuGroup>
+        )}
+        <MenuGroup label={t("models.groupRuns")}>
           {MODEL_CAPABILITIES.map((cap) => {
             const way = state.ways[LEAD_CLASS[cap]];
             return (
@@ -1804,7 +1922,9 @@ export function Models() {
           {t("models.readOnly")}
         </p>
       )}
-      {target.type === "cap" ? (
+      {target.type === "chat" ? (
+        <ChatPanel me={me.data} state={state} place={place} onOpen={open} />
+      ) : target.type === "cap" ? (
         <CapabilityPanel
           key={target.id}
           cap={target.id}

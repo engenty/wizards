@@ -24,8 +24,21 @@ import { ApiError, api } from "./api";
 import { STUDIO, withBase } from "./base";
 import { type Lang, setLang, storedLang } from "./i18n";
 
-/** The AI clients whose subscription can answer the studio chat. */
+/** The AI clients whose subscription can answer the studio's chats. */
 export type SubscriptionClient = "claude" | "codex" | "cursor";
+
+/**
+ * What answers the studio's chats, Goose and the editor's chat: the text classes (`models`), a
+ * subscription, a provider's key, or the credits (`account`).
+ */
+export type ChatWay =
+  | "models"
+  | SubscriptionClient
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "gateway"
+  | "account";
 
 /** An AI client installed on this machine that can think for the app, on its own subscription. */
 export type HarnessId = "claude" | "codex" | "antigravity" | "cursor";
@@ -140,8 +153,10 @@ export interface Me {
   setupDone: boolean;
   /** The cloud studio's first visit: the short wizard that names the organization and fills the space. */
   onboarding: boolean;
-  /** What answers the studio chat. */
-  chatEngine: "models" | SubscriptionClient;
+  /** What answers the studio's chats. */
+  chatEngine: ChatWay;
+  /** The ways that can answer the studio's chats now. */
+  chatWays: ChatWay[];
   aiReady: boolean;
   /** Where an admin's own MCP client (Claude Code, Cursor, Codex) connects. */
   mcpUrl: string;

@@ -14,7 +14,7 @@ green on something of your own, amber on credits, hollow when nothing is set up.
 
 | Capability | Used for | Classes |
 |---|---|---|
-| Text & reasoning | Writing, research and decisions; the assistant in the editor | Classifier, Standard, High, Highest |
+| Text & reasoning | Writing, research and decisions in the steps | Classifier, Standard, High, Highest |
 | Images | Logos, product shots, illustrations | Image |
 | Videos | Short clips from text or an image | Video |
 | Voice | Reading text aloud | Speech |
@@ -108,22 +108,21 @@ a Knowledge search found. Jev is reached through an AI Gateway key, a TypeSafe k
 (`TYPESAFE_API_KEY` in the settings file), the Clef-flash model in Ollama on this computer, or
 your account. Without any of them, the Classifier class decides.
 
-## The editor’s chat
+## The studio’s chat
 
-Where Claude Code, Codex or Cursor Agent is installed and signed in on this computer, “The
-studio chat uses” (on the page “Text & reasoning”) sets what builds your wizards in the editor’s
-chat. It lists each client it finds:
+Settings → Models has two groups. “In the studio” holds **Chat**: what answers Goose and the
+editor’s chat that builds your wizards. “In runs” holds what your wizards’ steps use: text,
+images, video, voice and voice notes.
 
 | Choice | Means |
 |---|---|
-| Model class Highest | The model set for that class |
-| Claude subscription (Claude Code) | Claude Code on this computer builds the wizard, using your sign-in there |
-| ChatGPT subscription (Codex) | Codex on this computer builds the wizard, using your sign-in there |
-| Cursor subscription (Cursor Agent) | Cursor Agent on this computer builds the wizard, using your sign-in there |
+| Your subscription: Claude Code, Codex, Cursor Agent | The program on this computer answers, using your sign-in there. It works only through the tools of engenty wizards: it runs no commands and changes no files of its own |
+| Your own API key: OpenAI, Anthropic, Google Gemini, Vercel AI Gateway | A model of that provider answers, on your key |
+| Same as Text & reasoning | The model set for Text & reasoning answers |
+| engenty credits | The credits pay, through your account |
 
-The client works only through the wizard tools of engenty wizards: it runs no commands and
-changes no files of its own. The choice covers the editor’s chat only. Runs keep using what is
-set for each class.
+The list shows each program that is installed and signed in. Without a choice, the chat follows
+Text & reasoning, or Claude Code where it is the source of your models.
 
 ## Account
 

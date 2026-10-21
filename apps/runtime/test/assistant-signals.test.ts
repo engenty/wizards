@@ -46,15 +46,17 @@ const model = new MockLanguageModelV3({
     return { stream: convertArrayToReadableStream(next.chunks as never[]) };
   },
 });
+const scripted = async () => ({
+  model,
+  ref: "test/scripted",
+  vendor: "test",
+  gateway: false,
+  metered: true,
+});
 vi.mock("../src/models.js", async (original) => ({
   ...(await original<typeof import("../src/models.js")>()),
-  textModel: async () => ({
-    model,
-    ref: "test/scripted",
-    vendor: "test",
-    gateway: false,
-    metered: true,
-  }),
+  textModel: scripted,
+  chatModel: scripted,
 }));
 
 type App = { fetch: (req: Request) => Response | Promise<Response> };
