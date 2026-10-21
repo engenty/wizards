@@ -1,7 +1,7 @@
 ---
 title: Steps
 description: What a wizard is made of – pages, AI steps, generated media, widgets, reviews and the result.
-version: 0.9.3
+version: 0.9.7
 ---
 
 A wizard runs its steps from top to bottom. The last step is always the result.
@@ -90,22 +90,23 @@ Further tools come from three places:
 
 ### Model class
 
-A step names the kind of model it needs, never a model:
+A step names the model class it needs, never a model:
 
 | Class | For |
 |---|---|
 | Classifier | Routing, yes/no, picking from options, pulling a few values out of text. Cheapest |
-| Standard | Short copy, calling an API, reformatting |
-| High | Research with tools, long documents, weighing many sources. The default |
-| Highest | Hard reasoning or code. Several times the cost of High |
+| Low | Short copy, calling an API, reformatting |
+| Standard | Research with tools, long documents, weighing many sources. The default |
+| High | Hard reasoning or code. Several times the cost of Standard |
 
-On a Mac, Classifier and Standard can run on [Apple Intelligence](./models.md#apple-intelligence).
+On a Mac, Classifier and Low can run on [Apple Intelligence](./models.md#apple-intelligence).
 It is free and stays on your computer, but it handles only short texts and no tools. There, give
-a step that calls an API or reads documents the class High.
+a step that calls an API or reads documents the class Standard.
 
 Images, video, voice notes and voice-overs have classes of their own. You choose which model
-serves a class under [Models and account](./models.md). “Thinking effort” sets how much effort
-the model puts in. Leave it on “Automatic” unless a step is clearly trivial or clearly hard.
+serves a class under [Models and account](./models.md). “Effort” is not a class: it sets how much
+work the step’s model puts in, from “Brief” to “Thorough”. Leave it on “Automatic” unless a step
+is clearly trivial or clearly hard.
 
 ### What a step hands on
 

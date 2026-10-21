@@ -1,5 +1,6 @@
 import { versionChanges } from "@engenty/wizards-shared/changes";
 import {
+  DEFINITION_VERSION,
   type Lang,
   pluginToolOf,
   shapeIssues,
@@ -40,7 +41,7 @@ export type Writer = { source: "studio" } | { source: "mcp"; client: string };
 /** The wizard a new one starts as, in the language of whoever makes it. */
 function blankWizard(lang: Lang): WizardDefinition {
   return {
-    version: 1,
+    version: DEFINITION_VERSION,
     title: serverText(lang, "newWizard"),
     description: "",
     avatar: "round",

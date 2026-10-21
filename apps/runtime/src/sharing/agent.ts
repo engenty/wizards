@@ -46,7 +46,7 @@ export async function runShareAgent(
     throw new ShareError(line("shareNoCredits"));
   }
   const step = await ctx.step();
-  const resolved = await textModel("high", step.call);
+  const resolved = await textModel("standard", step.call);
   const tools = await job.tools(step, new FileKeeper(step, []));
   attachTools(resolved, tools);
   const prompt = [

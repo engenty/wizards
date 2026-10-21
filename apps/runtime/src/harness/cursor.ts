@@ -23,9 +23,9 @@ export const CURSOR_BIN = process.env.CURSOR_AGENT_BIN?.trim() || "cursor-agent"
 /** "auto" = the model the client picks itself; a binding `cursor/<model>` names one. */
 const CLASSES: Record<TextClass, string> = {
   classifier: "auto",
+  low: "auto",
   standard: "auto",
   high: "auto",
-  highest: "auto",
 };
 
 /** The escape sequences a terminal app draws with. */

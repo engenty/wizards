@@ -613,7 +613,7 @@ export async function writeSummary(valueId: string): Promise<string> {
   if (!items.length) {
     throw new ServiceError("invalid", note("nothingFiledUnderValue"));
   }
-  const model = await textModel("standard");
+  const model = await textModel("low");
   const result = await generateText({
     model: model.model,
     maxOutputTokens: 2000,

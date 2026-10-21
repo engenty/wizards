@@ -391,16 +391,31 @@ export function pluginToolOf(id: string): { plugin: string; tool: string } | nul
 }
 
 /**
- * The kinds of model a step can ask for. A step names a class; which model serves it is bound
- * outside the wizard (the model-gateway, or the settings of a runtime that runs alone).
+ * The model classes a step can ask for (its `model`), cheapest first. A step names a class;
+ * which model serves it is bound outside the wizard (the model-gateway, or the settings of a
+ * runtime that runs alone).
  */
-export const TEXT_CLASSES = ["classifier", "standard", "high", "highest"] as const;
+export const TEXT_CLASSES = ["classifier", "low", "standard", "high"] as const;
 export type TextClass = (typeof TEXT_CLASSES)[number];
 export const MODEL_CLASSES = [...TEXT_CLASSES, "image", "video", "audio", "speech"] as const;
 export type ModelClass = (typeof MODEL_CLASSES)[number];
-/** How hard the model should think, where the bound model can be told. */
+/**
+ * How hard the bound model should think (a step's `effort`), where it can be told. Not a model
+ * class: `model: "high"` picks the strongest model, `effort: "high"` lets any model think longer.
+ */
 export const EFFORTS = ["low", "medium", "high"] as const;
 export type Effort = (typeof EFFORTS)[number];
+
+/** A step's `model`: the model class it runs on. */
+const modelClassSchema = z.enum(TEXT_CLASSES).optional().meta({
+  description:
+    'The model class the step runs on, cheapest first: "classifier", "low", "standard", "high". Not the effort.',
+});
+/** A step's `effort`: how hard its model thinks. */
+const effortSchema = z.enum(EFFORTS).optional().meta({
+  description:
+    'How hard the model works: "low", "medium", "high". Not the model class, which `model` names.',
+});
 export type ToolId = (typeof TOOL_IDS)[number];
 
 export const ASSET_KINDS = ["image", "video", "voice", "document", "dashboard"] as const;
@@ -673,9 +688,9 @@ export const agentStepSchema = z.object({
       surface: z.union([z.boolean(), surfaceComponentsSchema]).optional(),
     })
     .default({ format: "markdown" }),
-  /** The kind of model the step needs; default `high`. The model itself is bound elsewhere. */
-  model: z.enum(TEXT_CLASSES).optional(),
-  effort: z.enum(EFFORTS).optional(),
+  /** The model class the step needs; default `standard`. The model itself is bound elsewhere. */
+  model: modelClassSchema,
+  effort: effortSchema,
   /** Shown to the person while it works. */
   /**
    * One run of the step per entry, at most twenty: the rows of a table output
@@ -717,9 +732,9 @@ export const generateStepSchema = z.object({
    * `referenceImage` gives each entry its own image when it holds as many.
    */
   each: z.string().optional(),
-  /** For document/dashboard: the kind of model that writes it; default `high`. */
-  model: z.enum(TEXT_CLASSES).optional(),
-  effort: z.enum(EFFORTS).optional(),
+  /** For document/dashboard: the model class that writes it; default `standard`. */
+  model: modelClassSchema,
+  effort: effortSchema,
   working: z.string().optional(),
 });
 
@@ -797,9 +812,9 @@ export const filmStepSchema = z.object({
   from: z.string().optional(),
   /** About how long the film runs, in seconds. */
   seconds: z.number().int().min(3).max(600).optional(),
-  /** The kind of model; default `standard` — the kit carries the craft. */
-  model: z.enum(TEXT_CLASSES).optional(),
-  effort: z.enum(EFFORTS).optional(),
+  /** The model class; default `low` — the kit carries the craft. */
+  model: modelClassSchema,
+  effort: effortSchema,
   working: z.string().optional(),
 });
 
@@ -993,10 +1008,49 @@ export const connectionSchema = z.object({
   description: z.string().optional(),
 });
 
-/** The version of the definition this app writes and reads; raised only by a breaking change. */
-export const DEFINITION_VERSION = 1 as const;
+/**
+ * The version of the definition this app writes; raised only by a breaking change. It reads the
+ * earlier ones too (`upgradeDefinition`). Version 1 named the text classes one step lower: its
+ * `standard`, `high` and `highest` are `low`, `standard` and `high` since version 2.
+ */
+export const DEFINITION_VERSION = 2 as const;
 
-export const wizardSchema = z.object({
+const CLASSES_OF_VERSION_1: Record<string, TextClass> = {
+  standard: "low",
+  high: "standard",
+  highest: "high",
+};
+
+/**
+ * A definition of an earlier version, brought to this one; anything else comes back as it is.
+ * One without a version is of version 1, unless `unversioned` says which one its writer read:
+ * a model that wrote it from today's authoring guide writes today's (`DEFINITION_VERSION`).
+ */
+export function upgradeDefinition(raw: unknown, unversioned = 1): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return raw;
+  }
+  const def = raw as { version?: unknown; steps?: unknown };
+  const version = def.version ?? unversioned;
+  if (version === DEFINITION_VERSION) {
+    return def.version === undefined ? { ...def, version } : def;
+  }
+  if (version !== 1) {
+    return raw;
+  }
+  const steps = Array.isArray(def.steps)
+    ? def.steps.map((step) => {
+        const model = (step as { model?: unknown } | null)?.model;
+        return typeof model === "string" && CLASSES_OF_VERSION_1[model]
+          ? { ...step, model: CLASSES_OF_VERSION_1[model] }
+          : step;
+      })
+    : def.steps;
+  return { ...def, version: DEFINITION_VERSION, steps };
+}
+
+/** A definition of this version, as it is written: what the JSON Schema describes. */
+export const currentWizardSchema = z.object({
   version: z.literal(DEFINITION_VERSION).default(DEFINITION_VERSION),
   title: z.string().min(1),
   description: z.string().default(""),
@@ -1028,7 +1082,10 @@ export const wizardSchema = z.object({
   themes: z.array(z.string().regex(THEME_ID)).max(8).optional(),
   steps: z.array(stepSchema).min(1),
 });
-export type WizardDefinition = z.infer<typeof wizardSchema>;
+
+/** A definition of any version this app reads, brought to this one. */
+export const wizardSchema = z.preprocess((raw) => upgradeDefinition(raw), currentWizardSchema);
+export type WizardDefinition = z.infer<typeof currentWizardSchema>;
 
 export const INTERACTIVE: ReadonlySet<StepType> = new Set(["page", "review", "result"]);
 
@@ -2280,6 +2337,7 @@ function keepsAll(given: unknown, read: unknown): boolean {
 
 /** True when this app's schema reads the definition without losing anything of it. */
 export function readable(definition: unknown): boolean {
-  const parsed = wizardSchema.safeParse(definition);
-  return parsed.success && keepsAll(definition, parsed.data);
+  const upgraded = upgradeDefinition(definition);
+  const parsed = currentWizardSchema.safeParse(upgraded);
+  return parsed.success && keepsAll(upgraded, parsed.data);
 }

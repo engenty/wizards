@@ -59,9 +59,9 @@ const catalog = {
   webSearchCredits: 1,
   classes: {
     classifier: { model: "anthropic/claude-haiku-4.5", kind: "text" },
-    standard: { model: "anthropic/claude-haiku-4.5", kind: "text" },
-    high: { model: "anthropic/claude-sonnet-5.5", kind: "text" },
-    highest: { model: "anthropic/claude-opus-5", kind: "text" },
+    low: { model: "anthropic/claude-haiku-4.5", kind: "text" },
+    standard: { model: "anthropic/claude-sonnet-5.5", kind: "text" },
+    high: { model: "anthropic/claude-opus-5", kind: "text" },
     image: { model: "google/gemini-3.1-flash-image", kind: "image" },
     video: { model: "google/veo-3.1-fast-generate-001", kind: "video" },
     speech: { model: "google/gemini-3.8-flash-tts", kind: "speech" },
@@ -97,38 +97,38 @@ async function start(source: string, bindings: Record<string, string> = {}) {
 /** What Settings → Models and the setup send when Apple Intelligence is picked for text. */
 const pickApple = () =>
   models.saveLocalModels({
-    bindings: { classifier: "apple:default", standard: "apple:default" },
+    bindings: { classifier: "apple:default", low: "apple:default" },
   });
 
 /** How each text class runs: kind, by whom, on what. */
 async function textWays() {
   const ways = await models.classWays();
   return Object.fromEntries(
-    (["classifier", "standard", "high", "highest"] as const).map((c) => [
+    (["classifier", "low", "standard", "high"] as const).map((c) => [
       c,
       { kind: ways[c].kind, by: ways[c].by, ref: ways[c].ref },
     ]),
   );
 }
 
-describe("Apple Intelligence beside the way High and Highest had", () => {
+describe("Apple Intelligence beside the way Standard and High had", () => {
   beforeEach(() => {
     mac.apple = { supported: true, available: true, reason: null };
     mac.ffmpeg = true;
   });
 
-  it("keeps an installed client for High and Highest, and the source with it", async () => {
+  it("keeps an installed client for Standard and High, and the source with it", async () => {
     await start("claude");
     await pickApple();
     expect(models.localModelSettings().source).toBe("claude");
     expect(await textWays()).toEqual({
       classifier: { kind: "local", by: "apple", ref: "apple:default" },
-      standard: { kind: "local", by: "apple", ref: "apple:default" },
+      low: { kind: "local", by: "apple", ref: "apple:default" },
+      standard: { kind: "client", by: "claude", ref: "claude/opus" },
       high: { kind: "client", by: "claude", ref: "claude/opus" },
-      highest: { kind: "client", by: "claude", ref: "claude/opus" },
     });
     // A film of a Standard step still runs on the client, on its model of the class.
-    expect(await models.filmClient("standard")).toMatchObject({ alias: "sonnet" });
+    expect(await models.filmClient("low")).toMatchObject({ alias: "sonnet" });
   });
 
   it("gives the client all text again once it is picked after Apple", async () => {
@@ -137,17 +137,17 @@ describe("Apple Intelligence beside the way High and Highest had", () => {
     // What the page sends for the client: the source, and Apple's classes unbound.
     await models.saveLocalModels({
       source: "claude",
-      bindings: { classifier: "", standard: "" },
+      bindings: { classifier: "", low: "" },
     });
     expect(await textWays()).toEqual({
       classifier: { kind: "client", by: "claude", ref: "claude/haiku" },
-      standard: { kind: "client", by: "claude", ref: "claude/sonnet" },
+      low: { kind: "client", by: "claude", ref: "claude/sonnet" },
+      standard: { kind: "client", by: "claude", ref: "claude/opus" },
       high: { kind: "client", by: "claude", ref: "claude/opus" },
-      highest: { kind: "client", by: "claude", ref: "claude/opus" },
     });
   });
 
-  it("keeps an own key for High and Highest", async () => {
+  it("keeps an own key for Standard and High", async () => {
     await start("own", openaiText);
     await models.saveLocalModels({ keys: { openai: "sk-test" } });
     try {
@@ -155,34 +155,34 @@ describe("Apple Intelligence beside the way High and Highest had", () => {
       expect(models.localModelSettings().source).toBe("own");
       expect(await textWays()).toEqual({
         classifier: { kind: "local", by: "apple", ref: "apple:default" },
-        standard: { kind: "local", by: "apple", ref: "apple:default" },
+        low: { kind: "local", by: "apple", ref: "apple:default" },
+        standard: { kind: "key", by: "openai", ref: openaiText.standard },
         high: { kind: "key", by: "openai", ref: openaiText.high },
-        highest: { kind: "key", by: "openai", ref: openaiText.highest },
       });
     } finally {
       await models.saveLocalModels({ keys: { openai: "" } });
     }
   });
 
-  it("keeps the account's credits for High and Highest", async () => {
+  it("keeps the account's credits for Standard and High", async () => {
     await start("account");
     await pickApple();
     expect(models.localModelSettings().source).toBe("account");
     expect(await textWays()).toEqual({
       classifier: { kind: "local", by: "apple", ref: "apple:default" },
-      standard: { kind: "local", by: "apple", ref: "apple:default" },
+      low: { kind: "local", by: "apple", ref: "apple:default" },
+      standard: { kind: "credits", by: null, ref: catalog.classes.standard.model },
       high: { kind: "credits", by: null, ref: catalog.classes.high.model },
-      highest: { kind: "credits", by: null, ref: catalog.classes.highest.model },
     });
     // Picking the credits for text afterwards takes Classifier and Standard off Apple.
     await models.saveLocalModels({
       source: "account",
-      bindings: { classifier: "", standard: "" },
+      bindings: { classifier: "", low: "" },
     });
-    expect((await textWays()).standard).toEqual({
+    expect((await textWays()).low).toEqual({
       kind: "credits",
       by: null,
-      ref: catalog.classes.standard.model,
+      ref: catalog.classes.low.model,
     });
   });
 
@@ -191,8 +191,8 @@ describe("Apple Intelligence beside the way High and Highest had", () => {
     await pickApple();
     mac.apple = { supported: true, available: false, reason: "off" };
     const ways = await models.classWays();
-    expect(ways.standard.problem).toEqual(appleUnavailableNote(mac.apple as never));
-    expect(ways.high.problem).toBeNull();
+    expect(ways.low.problem).toEqual(appleUnavailableNote(mac.apple as never));
+    expect(ways.standard.problem).toBeNull();
   });
 });
 

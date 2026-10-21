@@ -78,6 +78,13 @@
       "when": 1792044240154,
       "tag": "0010_tan_snowbird",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1792568617256,
+      "tag": "0011_model_classes",
+      "breakpoints": true
     }
   ]
 }

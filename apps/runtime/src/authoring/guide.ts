@@ -9,7 +9,7 @@ import { EXAMPLE_WIZARD } from "./example.js";
  */
 export const SCHEMA_DOC = `
 type Wizard = {
-  version: 1
+  version: 2                    // always write it: the class names below are those of version 2
   title: string                 // short, what the end user gets ("Rechnung erstellen")
   description: string           // one sentence
   avatar: "round"|"drop"|"dome"|"flame"|"oval"|"bean"|"pebble"|"sprout"|"tower"|"wedge"  // the engenty mascot shown to end users
@@ -165,8 +165,8 @@ type AgentStep = {
                                 //   one table, steps.<id>.rows: the entry's columns plus the step's output fields, a row per entry.
                                 // a table with columns gives rows as objects with exactly those keys — what widgets read
                                 // "yesno" answers the question in its description with true/false; "choice" picks one of its options
-  model?: "classifier"|"standard"|"high"|"highest"  // the kind of model, see "Models"; default "high"
-  effort?: "low"|"medium"|"high"                    // how hard it should think; leave out unless it matters
+  model?: "classifier"|"low"|"standard"|"high"   // the MODEL CLASS, see "Models"; default "standard"
+  effort?: "low"|"medium"|"high"                 // the EFFORT: how hard the model works, not which model; leave out unless it matters
   working?: string              // shown while it runs ("Recherchiert im Web …")
 }
 // Every agent step also has, without listing them: list_read / list_write (the wizard's lists), files_list,
@@ -288,7 +288,7 @@ type FilmStep = {
   from?: string                 // "steps.<filmStepId>": start from that earlier film's code and lay it out for this format —
                                 //   the second format of a film in minutes; made from scratch when that step did not run
   seconds?: number              // about how long
-  model?: "standard" | "high"   // default standard
+  model?: "low" | "standard"   // the model class; default "low"
   effort?: Effort
   working?: string
 }
@@ -351,7 +351,7 @@ How good wizards look:
   correct or regenerate. A result people can simply make again needs no review before it.
 - Money/totals: use an "items" field with vat — the runner computes totals; documents must use {{items}} verbatim. Never let a model compute totals.
 - Facts from the web need an agent step with web_search + web_fetch BEFORE writing; documents then cite those notes.
-- Live data with a free public JSON API (weather and wind: api.open-meteo.com; sunrise/sunset is in it too) → an agent step with the http tool and model "standard" that calls the API and returns json. Far cheaper and more exact than web research; use web research only when no API exists.
+- Live data with a free public JSON API (weather and wind: api.open-meteo.com; sunrise/sunset is in it too) → an agent step with the http tool and model "low" that calls the API and returns json. Far cheaper and more exact than web research; use web research only when no API exists.
 - Writing into other systems (CRM, database, spreadsheet, website): an agent step with the matching mcp server, http, or browser tool, preceded by a review step. Such a step hands over an earlier step's output as a file by naming it "result:<stepId>.<format>" — to browser_upload, or as "file:result:<stepId>.<format>" where a connector action takes "*_base64".
 - Sending the finished result on (mail it, file it in a cloud folder, post it on social media or a website, put it into an ads account): do not build a step for it. Put the targets into the result step's "share": the person sees the result first and sends it with one button. Build an agent step only when the wizard must write somewhere without being asked.
 ${sandboxGuideLine()}
@@ -370,8 +370,8 @@ ${sandboxGuideLine()}
 - Going through documents one by one (receipts against payments): never one model step per document. One step reads them in batches (scan_documents takes 30 at once) and writes rows into a list with "check"; the review shows that list split-screen — the person answers each row beside its file, without any model call.
 - Video that convinces is built in stages, each with its own review: idea and script (agent, json with a table of shots) → one still per shot (generate image with "each", starting from the person's product photo) → one clip per still (generate video with "each" and referenceImage = the stills step) → a voice-over (generate voice) → a film widget (video: true) that cuts clips, captions, voice and a closing card with the call to action. The starters "facebook-video-ad" and "property-film" carry such a widget (film/film.js) to copy. Offer a cheaper path without clips: the film animates the stills.
 - Motion-graphics films (explainers, product spots, shorts) are a "film" step after the preparation, each with a review:
-  research and script (agent, high) → the voice-over (one generate voice step for the whole script; the film step finds the
-  word timings itself) → film (inputs: the voice, pictures, the script). The look comes from a style kit in the workspace (kit), so the film step stays on "standard".
+  research and script (agent, standard) → the voice-over (one generate voice step for the whole script; the film step finds the
+  word timings itself) → film (inputs: the voice, pictures, the script). The look comes from a style kit in the workspace (kit), so the film step stays on "low".
 - Prices come from a file the admin keeps in the workspace (a CSV price list): the agent step looks them up with read_workspace_file and proposes positions as a table; the next page shows them in an "items" field with "prefill" for the person to correct; the runner computes the totals.
 - AI media is marked for you (EU AI Act, Art. 50): images, clips, voice-overs and films carry the marking in their file metadata, and the pages lay the EU's "AI" label over them. Never ask an image step to draw such a label into the picture. A film is different — it leaves the page as a video file, so its widget shows the EU label in the picture: wizard.ai tells a widget whether the run's media in its data is "generated" or "edited" (film/film.js draws the matching icon).
 - Every step a person sees later (review/result) must come from an earlier step id.
@@ -484,14 +484,14 @@ ${mcpServersLine(mcp)}
 
 ${connectorsLine(connectors)}${pluginToolsLine(pluginTools)}
 
-Models: a step names the KIND of model it needs, never a model. Pick the cheapest class that does the job:
+Models: a step names the MODEL CLASS it needs ("model"), never a model. Pick the cheapest class that does the job:
 - "classifier": routing, yes/no, picking from options, pulling a few values out of text.
   A DECISION is a "classifier" step with no tools whose json output has only "yesno", "choice" and "score" fields: it is answered in one fast, very cheap call. A branch can also read how sure it is: "steps.<id>.<field>.p" is the probability of its answer (a number 0–1; 1 or 0 where no decision model is set up), e.g. { field: "steps.check.urgent.p", op: "gt", value: 0.8 }. Write the question into each field's description, give the step everything it must judge in its instructions via {{templates}}, and branch on the answer with "next" (e.g. { when: { field: "steps.check.refund", op: "equals", value: true }, goto: "refund" }).
-- "standard": short copy, calling an API, reformatting, simple summaries.
-- "high": research with tools, long documents, reasoning over many sources (the default).
-- "highest": hard reasoning or writing code; rare in a run, several times the cost of "high".
-"effort" ("low" | "medium" | "high") tells the model how hard to think where it can be told; leave it out unless a step is clearly trivial ("low") or clearly hard ("high").
-A generate step for a document or dashboard takes the same "model" (default "high"). Image and video steps use the image and video class; which model serves a class is set by the platform, not in the wizard.
+- "low": short copy, calling an API, reformatting, simple summaries.
+- "standard": research with tools, long documents, reasoning over many sources (the default).
+- "high": hard reasoning or writing code; rare in a run, several times the cost of "standard".
+"effort" ("low" | "medium" | "high") is not a model class: it tells the step's model how hard to work where it can be told. model "high" picks the strongest model; effort "high" lets any model take longer. Leave effort out unless a step is clearly trivial ("low") or clearly hard ("high").
+A generate step for a document or dashboard takes the same "model" (default "standard"). Image and video steps use the image and video class; which model serves a class is set by the platform, not in the wizard.
 
 Editing:
 - Every write returns the new "revision" and the validator's "issues". Pass the revision you last saw as "baseRevision"; on revision_conflict re-read with get_wizard and apply your change again.

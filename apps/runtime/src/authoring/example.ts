@@ -5,7 +5,7 @@ import type { WizardDefinition } from "@engenty/wizards-shared/definition";
  * the guide's own, not a marketplace entry, so the guide never depends on the marketplace.
  */
 export const EXAMPLE_WIZARD: WizardDefinition = {
-  version: 1,
+  version: 2,
   title: "X post with an image",
   description: "Turns a topic into a finished post with an image.",
   avatar: "flame",
@@ -43,7 +43,7 @@ export const EXAMPLE_WIZARD: WizardDefinition = {
         "Write a post for X (Twitter) on the topic: {{topic}}. Tone: {{tone}}. At most 270 characters including the link, and at most two hashtags. If a link is given ({{link}}), put it at the end. A strong first sentence. Output only the post.",
       tools: [],
       output: { format: "text" },
-      model: "standard",
+      model: "low",
     },
     {
       id: "visual",

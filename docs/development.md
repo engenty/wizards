@@ -11,7 +11,7 @@ the user guide in [content/user-guide](content/user-guide/index.md).
 | Sign-in | a one-time link at start (the command line opens it itself); an account is optional | at the Manage-App (OAuth 2.1 / OIDC); the token names user, tenant and role |
 | Database | `DATA_DIR/tenants/local.db` + `DATA_DIR/control.db` | one libSQL database per tenant + a control database (Turso) |
 | Models | an AI client installed on the machine, on its own subscription (Claude Code, Codex, Antigravity, Cursor Agent), own keys (AI Gateway, OpenAI, Anthropic), a local model (Ollama), or a linked account's credits | the Manage-App's model-gateway; the runtime holds no model keys |
-| Studio chat | a model of class `highest`, or the admin's own Claude subscription (the installed Claude Code runs headless) | a model of class `highest` |
+| Studio chat | a model of class `high`, or the admin's own Claude subscription (the installed Claude Code runs headless) | a model of class `high` |
 | Files | `DATA_DIR/objects` | an S3-compatible bucket (R2) |
 
 The Manage-App (accounts, tenants, credits, the model-gateway) is a separate, closed app. What
@@ -26,7 +26,7 @@ A runtime takes **plugins**: tools for agent steps, routes with tables of their 
 studio, loaded from their files at start and again while it runs. How they are found, written
 and built is in the developer docs: [content/dev/plugins](content/dev/plugins/index.md).
 
-A step names a **model class** — `classifier`, `standard`, `high`, `highest`, plus `image`,
+A step names a **model class** — `classifier`, `low`, `standard`, `high`, plus `image`,
 `video`, `audio` (listens to voice notes), `speech` (reads a voice-over aloud) — and an optional
 effort hint, never a model. Which model serves a class is
 bound outside the wizard: in the model-gateway, or under Settings → "Modelle & Konto".

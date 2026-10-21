@@ -67,9 +67,9 @@ describe("the setup's test of a key", () => {
     expect(models.localModelSettings().keys.openai).toBe(true);
     expect(bindings()).toMatchObject({
       classifier: "openai:gpt-5.4-mini",
-      standard: "openai:gpt-5.4-mini",
+      low: "openai:gpt-5.4-mini",
+      standard: "openai:gpt-5.5",
       high: "openai:gpt-5.5",
-      highest: "openai:gpt-5.5",
       image: "openai:gpt-image-2",
       speech: "openai:gpt-4o-mini-tts",
       audio: "openai:gpt-4o-mini-transcribe",
@@ -81,7 +81,7 @@ describe("the setup's test of a key", () => {
     await models.setUpKey("openai", "sk-test");
     const result = await models.setUpKey("anthropic", "sk-ant-test");
     expect(result.text).toBe("openai:gpt-5.4-mini");
-    expect(bindings().highest).toBe("openai:gpt-5.5");
+    expect(bindings().high).toBe("openai:gpt-5.5");
   });
 
   it("tests a stored key again when none is given", async () => {
@@ -94,7 +94,7 @@ describe("the setup's test of a key", () => {
     const result = await models.setUpKey("openai", "sk-wrong");
     expect(result.ok).toBe(false);
     expect(models.localModelSettings().keys.openai).toBe(false);
-    expect(bindings().standard).toBe("");
+    expect(bindings().low).toBe("");
   });
 });
 
@@ -103,7 +103,7 @@ describe("the setup's test of Ollama", () => {
     net.ollama = ["llama3.2", "qwen3"];
     const result = await models.setUpOllama("http://127.0.0.1:11434/v1/");
     expect(result).toEqual({ ok: true, message: null, text: "ollama:llama3.2" });
-    expect(bindings().highest).toBe("ollama:llama3.2");
+    expect(bindings().high).toBe("ollama:llama3.2");
     expect(models.localModelSettings().ollamaUrl).toBe("http://127.0.0.1:11434/v1");
   });
 
@@ -112,6 +112,6 @@ describe("the setup's test of Ollama", () => {
     expect((await models.setUpOllama("http://127.0.0.1:11434/v1")).ok).toBe(false);
     net.ollama = null;
     expect((await models.setUpOllama("http://127.0.0.1:11434/v1")).ok).toBe(false);
-    expect(bindings().standard).toBe("");
+    expect(bindings().low).toBe("");
   });
 });

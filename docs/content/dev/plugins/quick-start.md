@@ -1,7 +1,7 @@
 ---
 title: Quick start
 description: A tool for AI steps in one file. No build, no restart.
-version: 0.5.0
+version: 0.9.7
 ---
 
 You write one file. The running app finds it, and every AI step can use the tool in it.
@@ -72,7 +72,7 @@ In a wizard’s definition the step lists the tool by its full id:
   "title": "Count the working days",
   "instructions": "Count the working days from {{start}} to {{end}}.",
   "tools": ["workdays.count"],
-  "model": "standard",
+  "model": "low",
   "output": { "format": "json", "fields": [{ "id": "days", "kind": "number", "description": "Working days" }] }
 }
 ```

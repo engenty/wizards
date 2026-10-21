@@ -1,5 +1,9 @@
 import { anthropic } from "@ai-sdk/anthropic";
-import type { Lang } from "@engenty/wizards-shared/definition";
+import {
+  DEFINITION_VERSION,
+  type Lang,
+  upgradeDefinition,
+} from "@engenty/wizards-shared/definition";
 import { SURFACE_GUIDE } from "@engenty/wizards-shared/surface";
 import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { Agent } from "@mastra/core/agent";
@@ -206,7 +210,8 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
         attempt(async () => {
           const w = await ownedWizard(userId, wizardId);
           const { issues } = await writeDraft(userId, wizardId, {
-            definition: wizard,
+            // Written from today's authoring guide: today's version, said or not.
+            definition: upgradeDefinition(wizard, DEFINITION_VERSION),
             baseRevision: w.revision,
           });
           wrote();
@@ -414,7 +419,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
   const files = await listFiles(input.userId, input.wizardId);
   let changed = false;
   // Building a wizard is the hardest job here: widgets are code.
-  const resolved = await textModel("highest");
+  const resolved = await textModel("high");
   const tools = buildTools(input, resolved, () => {
     changed = true;
   });

@@ -1,7 +1,7 @@
 ---
 title: Models and account
 description: What runs the AI in your wizards – an AI client on your computer, your own API keys, a local model or credits.
-version: 0.9.3
+version: 0.9.7
 ---
 
 Settings → Models decides what runs the AI in your wizards. On your computer you set it up
@@ -14,7 +14,7 @@ green on something of your own, amber on credits, hollow when nothing is set up.
 
 | Capability | Used for | Classes |
 |---|---|---|
-| Text & reasoning | Writing, research and decisions; the assistant in the editor | Classifier, Standard, High, Highest |
+| Text & reasoning | Writing, research and decisions; the assistant in the editor | Classifier, Low, Standard, High |
 | Images | Logos, product shots, illustrations | Image |
 | Videos | Short clips from text or an image | Video |
 | Voice | Reading text aloud | Speech |
@@ -47,13 +47,13 @@ then, the choice says why it can’t be used yet: “switched off” or “Apple
 model”.
 
 The model is small. It reads at most 4,096 tokens for a prompt and its answer together, and it
-uses no tools. So it takes only the classes Classifier and Standard: decisions, picking values
+uses no tools. So it takes only the classes Classifier and Low: decisions, picking values
 out of text and short copy. A step of these classes runs there without its tools (no API calls,
 no web, no lists or documents). A step whose text is too long fails with a note that says so.
-Give such a step the class High, or choose something else for the class.
+Give such a step the class Standard, or choose something else for the class.
 
-High and Highest keep what they ran on before. The page names it under the choice. If you later
-choose something else for text, Classifier and Standard leave Apple Intelligence again.
+Standard and High keep what they ran on before. The page names it under the choice. If you later
+choose something else for text, Classifier and Low leave Apple Intelligence again.
 
 “Voice notes” offers Apple Intelligence on the same Macs, even with Apple Intelligence switched
 off. The Mac writes a recording down itself, in the language of the run, and it costs nothing. The
@@ -89,14 +89,23 @@ before a run say so, with a link to top up at Vercel.
 
 ## Model per class
 
-A step names a class, never a model. For text, “Adjust per class” sets the model of each class:
+A step names a class, never a model. For text, “Adjust per class” sets the model of each class.
+Under each class the page shows what its model needs at least, and warns when the chosen model
+lacks some of it:
 
-| Class | Used for |
-|---|---|
-| Classifier | Decisions, picking values out of text |
-| Standard | Short copy, API calls |
-| High | Research, long documents |
-| Highest | Hard reasoning, code; the assistant in the editor |
+| Class | Used for | Needs at least |
+|---|---|---|
+| Classifier | Decisions, picking values out of text | JSON output, 32k tokens of context |
+| Low | Short copy, API calls | Tool calls, JSON output, image input, 64k tokens of context |
+| Standard | Research, long documents; Goose | Tool calls, JSON output, image input, 128k tokens of context |
+| High | Hard reasoning, code; the assistant in the editor | Tool calls, JSON output, image input, reasoning, 200k tokens of context |
+
+What a model can do comes from the AI Gateway’s model list; a model that list doesn’t know isn’t
+checked. Goose and the assistant in the editor can’t work without tool calls: the page doesn’t
+save a model without them for Standard or High.
+
+With an AI Gateway key, the classes start on low-cost models: DeepSeek V4.1 Flash for Classifier,
+Low and Standard, Kimi K3 for High.
 
 You write a model as `vendor/model` for the AI Gateway, with the provider in front for the others
 (`openai:gpt-5.4-mini`, `fal:fal-ai/flux/schnell`, `ollama:qwen3`), or as `credits` /
@@ -115,7 +124,7 @@ reasoning”) sets what builds your wizards in the editor’s chat:
 
 | Choice | Means |
 |---|---|
-| Model class Highest | The model set for that class |
+| Model class High | The model set for that class |
 | Claude subscription (Claude Code) | Claude Code on this computer builds the wizard, using your sign-in there. Runs still use keys or credits |
 
 ## Account

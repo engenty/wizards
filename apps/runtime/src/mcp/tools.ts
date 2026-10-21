@@ -1,3 +1,4 @@
+import { DEFINITION_VERSION, upgradeDefinition } from "@engenty/wizards-shared/definition";
 import type { CallToolResult, McpServer, ToolCallback } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { authoringGuide } from "../authoring/guide.js";
@@ -41,6 +42,9 @@ import type { Scope } from "./scopes.js";
 const definition = z
   .record(z.string(), z.unknown())
   .describe("The complete wizard JSON as described by get_authoring_guide.");
+
+/** A wizard a model wrote from today's authoring guide is of today's version, said or not. */
+const authored = (raw: unknown) => upgradeDefinition(raw, DEFINITION_VERSION);
 const note = z
   .string()
   .max(500)
@@ -379,7 +383,7 @@ export function registerTools(server: McpServer, who: Principal) {
     },
     async (args) => {
       try {
-        const { issues } = parseDraft(args.definition);
+        const { issues } = parseDraft(authored(args.definition));
         return { ok: issues.length === 0, issues };
       } catch (err) {
         if (err instanceof ServiceError && err.code === "invalid") {
@@ -406,7 +410,11 @@ export function registerTools(server: McpServer, who: Principal) {
       }),
     },
     async (args) => {
-      const created = await createWizard(who.userId, args, writer);
+      const created = await createWizard(
+        who.userId,
+        { ...args, definition: args.definition && authored(args.definition) },
+        writer,
+      );
       return {
         wizardId: created.id,
         revision: created.revision,
@@ -453,7 +461,12 @@ Returns the new revision and the issues.`,
       destructive: true,
     },
     async ({ wizardId, ...input }) => {
-      const { revision, issues } = await writeDraft(who.userId, wizardId, input, writer);
+      const { revision, issues } = await writeDraft(
+        who.userId,
+        wizardId,
+        { ...input, definition: authored(input.definition) },
+        writer,
+      );
       return { revision, issues };
     },
   );

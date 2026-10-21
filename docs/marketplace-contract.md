@@ -31,7 +31,9 @@ verifying and voting will take a token of the Manage-App (scope `wizards:publish
 - **Versions**: `version` is the definition version the wizard is written in. A client whose
   `DEFINITION_VERSION` is lower shows the entry as needing a newer app. The schema drops what it
   does not know, so a client also reads the wizard before it starts one and refuses it when
-  anything would be lost.
+  anything would be lost. A client says the version it reads in `x-wizards-definition`. Without
+  it, the client is one from before version 2: entries come in version 1 (the text classes
+  `low`, `standard` and `high` named `standard`, `high` and `highest`), so it can still start them.
 - **Plugins and plans**: `plugins` names the plugins an entry's wizard uses (its tools named
   `<plugin>.<tool>`, `pluginsOf`), `plan` the plan that has them (`free`, or `pro` as soon as it
   uses a plugin: plugins come with Pro and Team), and `pluginStarter` the plugin's own starter

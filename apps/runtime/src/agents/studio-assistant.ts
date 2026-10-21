@@ -877,7 +877,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   // How often the space or a plugin's data changed: a part of the answer changed something when
   // this grew during it.
   let changes = 0;
-  const resolved = await textModel("high");
+  const resolved = await textModel("standard");
   const wrote = () => {
     changes++;
     input.onChanged?.();

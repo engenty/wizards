@@ -88,7 +88,7 @@ describe("decisions", () => {
   });
 
   it("is a decision only on the classifier class, without tools and other fields", () => {
-    expect(isDecisionStep(checkStep({ model: "standard" }))).toBe(false);
+    expect(isDecisionStep(checkStep({ model: "low" }))).toBe(false);
     expect(isDecisionStep(checkStep({ tools: ["web_search"] }))).toBe(false);
     expect(
       isDecisionStep(

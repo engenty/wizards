@@ -2,6 +2,7 @@ import { type ModelClass, TEXT_CLASSES, type TextClass } from "@engenty/wizards-
 import { featureOn } from "@engenty/wizards-shared/features";
 import {
   CAPABILITY_CLASSES,
+  CLASS_NEEDS,
   CREDITS,
   type CreditModel,
   capabilityOfKind,
@@ -10,6 +11,7 @@ import {
   isCreditsRef,
   MODEL_CAPABILITIES,
   type ModelCapability,
+  type ModelNeed,
   type ModelOption,
   modelLabel,
   PROVIDERS,
@@ -77,6 +79,8 @@ interface ModelsState {
   creditFallback: boolean;
   keys: Record<ProviderId, boolean>;
   ways: Record<ModelClass, ClassWay>;
+  /** Per text class, what of its minimums (`CLASS_NEEDS`) its model lacks; null: not checked. */
+  fit: Record<TextClass, ModelNeed[] | null>;
   /** Apple Intelligence on this Mac: shown where the machine can run it, picked once it answers. */
   apple?: AppleStatus | null;
   prices: Partial<Record<ModelClass, ClassPrice | null>> | null;
@@ -168,9 +172,9 @@ const CAP_ICON: Record<ModelCapability, LucideIcon> = {
   listening: Ear,
 };
 
-/** The class a capability is judged by: text by `standard`, the others by their one class. */
+/** The class a capability is judged by: text by `low`, the others by their one class. */
 const LEAD_CLASS: Record<ModelCapability, ModelClass> = {
-  text: "standard",
+  text: "low",
   image: "image",
   video: "video",
   speech: "speech",
@@ -194,7 +198,7 @@ function choiceOf(state: ModelsState, cap: ModelCapability, place: Place): Choic
   const cls = LEAD_CLASS[cap];
   if (isText(cap) && !place.cloud) {
     // Apple Intelligence thinks the short classes beside any source.
-    if (state.bindings.standard?.startsWith("apple:")) {
+    if (state.bindings.low?.startsWith("apple:")) {
       return { kind: "local", by: "apple" };
     }
     if (state.source === "account") {
@@ -645,10 +649,35 @@ function TextSummary({ provider, state }: { provider: ProviderInfo; state: Model
   return (
     <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-[0.875rem]">
       <dt className="text-ink-3">{t("models.textSimple")}</dt>
-      <dd className="truncate font-medium">{of("standard")}</dd>
+      <dd className="truncate font-medium">{of("low")}</dd>
       <dt className="text-ink-3">{t("models.textDemanding")}</dt>
-      <dd className="truncate font-medium">{of("high")}</dd>
+      <dd className="truncate font-medium">{of("standard")}</dd>
     </dl>
+  );
+}
+
+/** A minimum as the settings name it: "tool calls", "128k tokens of context". */
+function needText(cls: TextClass, need: ModelNeed): string {
+  return need === "context"
+    ? t("need.context", { tokens: `${Math.round(CLASS_NEEDS[cls].context / 1000)}k` })
+    : t(`need.${need}`);
+}
+
+/** What a class asks of its model, and what the model it runs on lacks of it. */
+function ClassNeedsNote({ cls, lacks }: { cls: TextClass; lacks: ModelNeed[] | null }) {
+  const needs = [...CLASS_NEEDS[cls].needs, "context" as const];
+  return (
+    <>
+      <div className="text-[0.6875rem] text-ink-4 leading-snug">
+        {t("class.needs", { needs: needs.map((n) => needText(cls, n)).join(", ") })}
+      </div>
+      {lacks?.length ? (
+        <div className="flex items-start gap-1 text-[0.6875rem] text-amber leading-snug">
+          <CircleAlert className="mt-px size-3 shrink-0" />
+          {t("class.lacks", { needs: lacks.map((n) => needText(cls, n)).join(", ") })}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -688,6 +717,9 @@ function PerClass({
               disabled={disabled}
               onPick={(ref) => onPick(cls, ref)}
             />
+            <div className="flex flex-col gap-0.5 sm:col-start-2">
+              <ClassNeedsNote cls={cls} lacks={state.fit[cls]} />
+            </div>
           </div>
         ))}
       </div>
@@ -1199,9 +1231,9 @@ function appleBindings(state: ModelsState): Partial<Record<ModelClass, string>> 
   };
   return {
     classifier: "apple:default",
-    standard: "apple:default",
+    low: "apple:default",
+    standard: keep("standard"),
     high: keep("high"),
-    highest: keep("highest"),
   };
 }
 
@@ -1233,7 +1265,7 @@ function ApplePart({
     <Part title={t("models.optApple")}>
       <Hint>
         {isText(cap)
-          ? t("models.appleHint", { way: wayText(state.ways.high, place).text })
+          ? t("models.appleHint", { way: wayText(state.ways.standard, place).text })
           : t("models.appleListenHint")}
       </Hint>
     </Part>
@@ -1244,7 +1276,7 @@ function OllamaPart({ state, disabled }: { state: ModelsState; disabled?: boolea
   const save = useSave();
   const [url, setUrl] = useState(state.ollamaUrl);
   const [model, setModel] = useState(
-    (state.bindings.standard ?? "ollama:qwen3").replace(/^ollama:/, ""),
+    (state.bindings.low ?? "ollama:qwen3").replace(/^ollama:/, ""),
   );
   return (
     <Part title={t("models.optLocal")}>

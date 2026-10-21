@@ -100,8 +100,8 @@ describe("what a wizard needs of the models before it starts", () => {
     const missingClient = { code: "clientNotInstalled", params: { name: "Claude Code" } } as const;
     const ideas = { id: "ideas", title: "Ideen finden" };
     const blocked = blockingMessage([
-      { cls: "standard", problem: missingClient, steps: [ideas], blocking: true },
-      { cls: "high", problem: missingClient, steps: [ideas, ideas], blocking: true },
+      { cls: "low", problem: missingClient, steps: [ideas], blocking: true },
+      { cls: "standard", problem: missingClient, steps: [ideas, ideas], blocking: true },
       {
         cls: "image",
         problem: { code: "noModelFor", params: { makes: "image" } },

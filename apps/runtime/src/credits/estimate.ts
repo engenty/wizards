@@ -66,7 +66,7 @@ function stepFormula(step: Step, catalog: GatewayCatalog): number {
         ? TOKENS.tools
         : TOKENS.plain;
     // A step with `each` runs once per entry; until it has run, three stand in.
-    let credits = textCredits(cls(step.model ?? "high"), shape) * (step.each ? 3 : 1);
+    let credits = textCredits(cls(step.model ?? "standard"), shape) * (step.each ? 3 : 1);
     if (step.tools.includes("web_search")) {
       credits += 4 * catalog.webSearchCredits;
     }
@@ -77,24 +77,22 @@ function stepFormula(step: Step, catalog: GatewayCatalog): number {
       credits += textCredits(cls("classifier"), TOKENS.structure);
     }
     if (step.output.surface === true) {
-      credits += textCredits(cls("standard"), TOKENS.structure);
+      credits += textCredits(cls("low"), TOKENS.structure);
     }
     return credits;
   }
   if (step.type === "generate") {
     if (step.asset === "image") {
-      return (
-        (catalog.classes.image?.creditsPerImage ?? 0) + textCredits(cls("standard"), TOKENS.prompt)
-      );
+      return (catalog.classes.image?.creditsPerImage ?? 0) + textCredits(cls("low"), TOKENS.prompt);
     }
     if (step.asset === "video") {
       const seconds = Math.min(Math.max(Math.round(step.options?.duration ?? 8), 4), 10);
       return (
         seconds * (catalog.classes.video?.creditsPerSecond ?? 0) +
-        textCredits(cls("standard"), TOKENS.prompt)
+        textCredits(cls("low"), TOKENS.prompt)
       );
     }
-    return textCredits(cls(step.model ?? "high"), TOKENS.document);
+    return textCredits(cls(step.model ?? "standard"), TOKENS.document);
   }
   return 0;
 }

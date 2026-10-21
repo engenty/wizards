@@ -19,7 +19,7 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { CATEGORY_TYPES, whereSchema } from "@engenty/wizards-shared/knowledge";
 import { PROJECT_FILE_KINDS } from "@engenty/wizards-shared/projects";
-import { isCreditsRef } from "@engenty/wizards-shared/providers";
+import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
 import { note } from "@engenty/wizards-shared/run";
 import { wizardTexts } from "@engenty/wizards-shared/translation";
 import {
@@ -88,6 +88,7 @@ import { generateImageMedia, generateSpeechMedia, generateVideoMedia } from "../
 import { transcribeAudio } from "../media/transcribe.js";
 import { errorText, saidOf } from "../model-errors.js";
 import {
+  blockedBinding,
   checkKey,
   classProblem,
   classWays,
@@ -263,15 +264,15 @@ async function markTested(source: string) {
 
 /**
  * The chosen source has passed a test call and can still answer: its client is there and signed
- * in. Where Apple Intelligence thinks the short classes, the test ran there; a client behind High
- * and Highest is no condition then.
+ * in. Where Apple Intelligence thinks the short classes, the test ran there; a client behind
+ * Standard and High is no condition then.
  */
 async function setupDone(): Promise<boolean> {
   const { source, bindings } = localModelSettings();
   if (!(await testedSources()).includes(source)) {
     return false;
   }
-  const client = bindings.standard.startsWith("apple:") ? null : harness(source);
+  const client = bindings.low.startsWith("apple:") ? null : harness(source);
   if (client) {
     const status = await detectHarness(client.id);
     return Boolean(status?.version) && status?.auth !== "none";
@@ -483,7 +484,7 @@ export const studio = new Hono<Vars>()
       setupDone: managed ? true : await setupDone(),
       /** The cloud studio's first visit: the short wizard that names the team and fills the space (services/onboarding.ts). */
       onboarding: await needsOnboarding(user),
-      /** What answers the studio chat: a model of class `highest`, or the admin's own subscription. */
+      /** What answers the studio chat: a model of class `high`, or the admin's own subscription. */
       chatEngine: managed ? "models" : await chatEngine(await hasTextModel()),
       aiReady: (await hasTextModel()) || (!managed && (await subscriptionClients()).length > 0),
       mcpUrl: `${env.appUrl}/api/mcp`,
@@ -1721,6 +1722,20 @@ export const studio = new Hono<Vars>()
           403,
         );
       }
+    }
+    const blocked = input.bindings ? blockedBinding(input.bindings) : null;
+    if (blocked) {
+      return c.json(
+        {
+          error: say(c, "modelLacksForClass", {
+            model: modelLabel(blocked.ref),
+            cls: CLASS_NAMES[blocked.cls],
+            needs: blocked.needs.map((n) => say(c, `need.${n}`)).join(", "),
+          }),
+          code: "model_lacks",
+        },
+        400,
+      );
     }
     await saveModels(input);
     return c.json(await modelSettings(requestLang(c)));

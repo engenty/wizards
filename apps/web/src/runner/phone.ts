@@ -10,7 +10,7 @@ import { appCall, appCan } from "../lib/app";
  */
 
 /** The classes a phone's small model takes, and the longest prompt (4k tokens ≈ 12k chars). */
-const THINKS: TextClass[] = ["classifier", "standard"];
+const THINKS: TextClass[] = ["classifier", "low"];
 const MAX_CHARS = 12_000;
 
 export interface DeviceRequest {

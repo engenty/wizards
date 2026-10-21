@@ -30,9 +30,9 @@ export const CODEX_BIN = process.env.CODEX_BIN?.trim() || "codex";
  */
 const CLASSES: Record<TextClass, string> = {
   classifier: "gpt-6-luna",
+  low: "gpt-6.1-sol",
   standard: "gpt-6.1-sol",
-  high: "gpt-6.1-sol",
-  highest: "gpt-6-astra",
+  high: "gpt-6-astra",
 };
 
 const spec: EnvSpec = {
@@ -213,7 +213,7 @@ class CodexImageModel extends HarnessImageModel {
       "-c",
       'web_search="disabled"',
       "-m",
-      this.modelId === "image" ? CLASSES.standard : this.modelId,
+      this.modelId === "image" ? CLASSES.low : this.modelId,
     ];
     for (const file of call.files) {
       args.push("-i", file);
