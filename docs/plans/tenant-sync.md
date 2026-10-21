@@ -549,9 +549,10 @@ Different from the plan above:
 Not built yet:
 
 - An open page or table does not show what a pull wrote while it is open; it does after it is
-  opened again (an open wizard does, through its draft events).
-- The device code at the Manage-App picks no organization (manage repository); the browser
-  sign-in does.
+  opened again (an open wizard does, through its draft events). Planned in
+  [live-changes.md](live-changes.md).
+- The device code at the Manage-App picks no organization: fixed in
+  engenty/engenty-wizards-manage#74, not merged yet.
 - The user guide: it follows when the switch flips.
 
 ## Risks
