@@ -16,13 +16,21 @@ Build it as an extension of the sync that exists ("Spaces of a local install",
 - Exchanges the changes over the cloud runtime's `/api/v1`, with the cloud as the one hub that
   orders them.
 - Applies them through the services, so roles, `asSync()` and the share links stay right.
-- Gives each wizard a **home**, the one place where its draft is edited, as proposed in
-  [cloud-first-onboarding.md](cloud-first-onboarding.md). Knowledge and data merge row by row.
+- Lets both sides edit everything that syncs, wizards included.
+- Asks the person when both sides changed the same item since they last agreed. They keep the
+  cloud's version, keep this computer's, or merge. A merge is checked first. When it is clean,
+  the studio says so and the person confirms. When it is not, the person picks per place, or a
+  model proposes a solution that is checked and confirmed in the same way.
+
+A wizard is JSON, and a merge matched by ids handles it well. A classic line merge does not:
+see "Can a classic merge handle a wizard?" below.
 
 The limits:
 
-- **Wizard drafts are never merged.** One place edits a draft at a time. "Edit here" moves the
-  home.
+- **Conflicts are settled on the install.** The cloud only takes changes made on top of its
+  latest version. Whoever pushes second resolves, on their computer, with their model.
+- **Publishing goes through the cloud.** Version numbers are made there, so two sides never
+  both make version 4. A version published offline is published when the cloud is reached.
 - **Some data stays on the side where it was made.** Encrypted data, per-person data (the
   wizard's store, the studio assistant's chats) and the knowledge index stay put. The index is
   rebuilt on each side.
@@ -114,8 +122,13 @@ No libSQL/Turso sync feature carries this today:
   up to an hour (`retryFailedSends`). The state is kept in the control database's `setting`
   (`cloud:<wizardId>`, `cloud-data:<projectId>`).
 - `cloud-first-onboarding.md` already plans the next step: `wizard.home`, the pull on sign-in,
-  space data to every install, and runs up (this plan leaves runs out). Its decision 5 asks: `wizard.home` (no merge) or a
-  true two-way sync of drafts? This study answers it: `wizard.home`.
+  space data to every install, and runs up (this plan leaves runs out). Its decision 5 asks:
+  `wizard.home` (no merge) or a true two-way sync of drafts? Decided on 2026-10-21: a true
+  two-way sync, editable on both sides, with the person choosing in a conflict.
+- The studio already merges drafts three ways: `mergeDrafts` (`packages/shared/src/merge.ts`)
+  in `apps/web/src/studio/live.tsx`, when a draft was written elsewhere while the studio
+  edited it. It merges step by step and lets the studio's side win without saying so. The sync
+  builds on it, but it must report conflicts instead of settling them.
 
 ### Accounts and organizations
 
@@ -210,6 +223,14 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 - **State on the install.** The control database's `setting` holds `sync:<projectId>`: the last
   pushed local `seq`, the last pulled cloud `seq`, the schema version and the last error. It
   sits beside the `cloud:*` keys of today.
+- **The base of each item.** A table `sync_base` in the install's tenant database keeps, per
+  synced row, the version both sides last agreed on, with the cloud `seq` it had. This is the
+  common ancestor every three-way merge needs. Files are kept by hash, so a base costs a row,
+  not a copy of the bytes.
+- **Conflicts are found at the hub.** A push names, per row, the cloud `seq` its base had. The
+  cloud takes the row when its own copy has not changed since. Otherwise it answers `conflict`
+  with its current row. That one item then waits for the person, and the rest of the space
+  goes on syncing.
 
 ### What syncs and what stays
 
@@ -217,14 +238,14 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 
 | Data | Tables | Rule |
 |---|---|---|
-| The space | `project`: `name`, `brand`, `facts`, `themes`, `page` | merge per field; `brand` per top-level key |
-| Wizards: draft and workspace | `wizard`, `wizard_file` and their blobs | only the home edits; others receive |
-| Wizards: published versions | `wizard_version` | published at the home; append-only by `version` |
-| Wizards: sharing settings | `wizard`: `share_enabled`, `daily_run_limit`, `runners`, `translate` | the cloud's values count (the link is the cloud's) |
-| Translations | `wizard_translation` | per (wizard, lang), the newer arrival wins |
-| The wizard's build chat | `wizard_message` | append-only |
-| Knowledge: pages | `space_page` | per row, conflict copy (below) |
-| Data: tables and rows | `space_table`, `space_table_row` | table per field; rows per cell |
+| The space | `project`: `name`, `brand`, `facts`, `themes`, `page` | editable on both sides; a conflict asks (below) |
+| Wizards: draft and workspace | `wizard` (`title`, `draft`), `wizard_file` and their blobs | editable on both sides; a conflict asks |
+| Wizards: published versions | `wizard_version` | published in the cloud, numbered there; append-only |
+| Wizards: sharing settings | `wizard`: `share_enabled`, `daily_run_limit`, `runners`, `translate` | editable on both sides; the link itself is the cloud's |
+| Translations | `wizard_translation` | editable on both sides; a conflict asks per text |
+| The wizard's build chat | `wizard_message` | append-only, never in conflict |
+| Knowledge: pages | `space_page` | editable on both sides; a conflict asks |
+| Data: tables and rows | `space_table`, `space_table_row` | editable on both sides; a conflict asks |
 | Categories | `space_category`, `space_category_value`, `space_item_category` | matched by name and value, not by id |
 | Files and documents | `project_file` (when `ready`), their assets, `text_hash` blobs | per row; bytes by hash |
 | Connectors | `project_connector` | per (project, id) |
@@ -266,20 +287,112 @@ read them.
   (`LOCAL_TENANT` appears 23 times in 7 files, and `local` as a user id more often). That is
   a later step (decision 6).
 
-## Conflict rules
+## Conflicts: the person chooses
+
+### When an item is in conflict
+
+Only when both sides changed it since its base. A change on one side applies with no question,
+however large. "Item" means one row: a wizard (its draft and workspace together), a page, a
+table row, the space's details, one translation.
+
+### The choice
+
+The studio on the install shows the conflict on the item ("Changed here and in the cloud") with
+three choices:
+
+1. **Keep the cloud's version.** This computer's change is set aside, and it can be restored
+   from the conflict until the next sync.
+2. **Keep this computer's version.** It goes up on top of the cloud's version.
+3. **Merge.** The merge for the item's kind runs (table below), then the checks.
+   - **Clean:** the studio says the merge is clean. It lists what each side changed, as the
+     studio's "Änderungen live schalten" list does today (`versionChanges`,
+     `packages/shared/src/changes.ts`). The person confirms, and the merge goes up.
+   - **Not clean:** the studio lists the places where both sides changed the same thing, such
+     as "step 'File the report' › title" or "row 12 › Status". It shows them side by side. For
+     each place the person picks a side or writes the value. "Solve with AI" offers a
+     proposal (below). The result goes through the same checks, and the person confirms.
+
+Nothing is merged or overwritten without the person's confirmation. Until they decide, each
+side keeps its own version, the cloud's version stays live for runs, and the rest of the space
+goes on syncing. The studio counts open conflicts per space.
+
+### How each kind merges
+
+| Item | Merge | Checks after it |
+|---|---|---|
+| Wizard definition (`draft`) | structural three-way merge of the JSON: objects by key, arrays of items with an `id` (steps, fields, columns) by id, their order kept from the side that changed it. It extends `mergeDrafts` to go into the steps and to report conflicts instead of settling them. | `wizardSchema` (zod) and `validateWizard` (ids, references between steps, templates) |
+| Workspace files (`wizard_file`) | per path: text (widget code, libraries, reference data) by a classic line merge (diff3); other files: pick a side | the widget build, where one exists |
+| Pages (`space_page`) | `title` per field; `markdown` by a classic line merge (diff3), which suits prose | none |
+| Table rows (`space_table_row`) | `cells` per column id | the columns' types (`TableColumn`) |
+| Tables (`space_table`) | per field; `columns` by id | the rows still fit the columns |
+| The space (`project`) | `brand`, `facts`, `themes`, `page` as JSON, like the definition | `themes` and `page` by their schemas |
+| Translations | per original text | none |
+| Files (`project_file`) | pick a side | none |
+
+### Help from a model
+
+"Solve with AI" hands a model the base, both versions, the places in conflict and, for a
+wizard, the issues `validateWizard` found. The model answers with the merged item as JSON.
+
+- The runtime parses the answer with the item's schema and runs the checks. An answer that
+  fails goes back to the model with the issues, up to three times.
+- The studio shows the proposal as a change list against both sides. The person confirms or
+  edits it.
+- The model is the class `highest`, as for the studio chat. On the install it runs on what
+  Settings → "Modelle & Konto" binds: Matthias's own subscription (Claude Code, Codex …), else
+  credits. The model sees only what the studio chat may already read, the space's own content.
+- Without a model the choice and the manual merge still work.
+
+### Further rules
 
 | Case | Rule |
 |---|---|
-| The same wizard edited on both sides | Cannot happen: only the home edits. Elsewhere the wizard is read-only ("edited on <device>") with "Edit here". Moving the home pushes the old home's unsent changes first. If the old home is offline, the person confirms a takeover, and the old home's draft comes back there as a copy of the wizard. `wizard.revision` still refuses stale writes within one side. |
-| Publishing | Only the home publishes. `wizard_version.version` is unique per wizard (`wizard_version_n`), so two sides cannot both make version 4. |
-| A page edited on both sides since the last sync | The first arrival in the cloud stays the page. The second becomes a sibling page "<title> (<device>)" with `review` set, so a person looks at it. Markdown is never merged by machine. |
-| A table row edited on both sides | Merge per cell (`cells` is keyed by column id). For the same cell, the later arrival in the cloud wins, which is Turso Sync's "last push wins" too. The table gets `review` naming the rows. |
-| `project.brand`, `facts`, `themes`, `page` | Per top-level field, the later arrival wins. |
-| Edit against delete | The edit wins and the row comes back. A space is deleted only by an owner or admin, in the cloud, and the install then moves its copy aside instead of erasing it. |
+| The same wizard edited at the same moment within one side | As today: `wizard.revision` refuses a stale write, and the studio merges with `mergeDrafts` (`live.tsx`). |
+| Publishing | Publishing on the install pushes the draft, then asks the cloud to publish it. The cloud numbers the version (`wizard_version_n` is unique per wizard), and the version comes down. A draft in conflict is published only after the conflict is settled. |
+| Edit against delete | A conflict like the others: "Deleted in the cloud, changed here" with "Delete it" and "Keep it". A space is deleted only by an owner or admin, in the cloud, and the install then moves its copy aside instead of erasing it. |
 | Two sides create the same category, value or list | Matched by `space_category_name`, `space_category_value_value` and `space_table_list`. The arriving id is remapped to the existing one. |
 | Plugin-written items (`origin`, `origin_key`) | A plugin's jobs for a synced space run in the cloud only. The install receives their pages and tables. `kept` and `review` work as today. |
 | Id collisions | Text ids: `nanoid` is long enough. The cloud refuses an id it already has with a different owner (`id_taken`), as today. Integer ids never travel as ids: `space_item_category` rows are matched by (category, item, value), and `run_event`, `device_call` and `project_chunk` do not sync at all. |
 | Share tokens | The cloud's link is the wizard's link. `wizard.share_token` comes down from the cloud. A token the install made for itself does not go up, and the cloud makes its own (`rotate-link` exists). |
+
+## Can a classic merge handle a wizard?
+
+Tried on 2026-10-21 with a real definition: `examples/wizards/alderbrook/report-a-problem.wizard`,
+with five steps (page, agent, two generate steps, result). Two edits were made to copies of it,
+and each pair was merged two ways:
+
+- **Classic:** `git merge-file` on the definition as indented JSON (`JSON.stringify(def, null, 2)`).
+- **Structural:** a three-way merge of the JSON that matches steps and fields by `id`, as
+  described above.
+
+Both results then went through a reference check like `validateWizard`'s.
+
+| Edits on the two sides | Classic line merge | Structural merge |
+|---|---|---|
+| Different steps edited | clean | clean |
+| Same step, keys far apart (`instructions`, `title` and `model`) | clean | clean |
+| Same step, neighbouring keys (`instructions`, `tools`) | **conflict** | clean |
+| Both add a step at the same place | **conflict** | clean, both steps in |
+| Both add a field at the end of one page | **conflict** (the comma on the line before) | clean |
+| One moves a step, the other edits another one | clean | clean |
+| One moves a step, the other edits that step | **conflict** | clean |
+| Same key, different values (both rename one step) | conflict | conflict, named: `steps[file].title` |
+| One deletes a step, the other edits it | conflict | conflict, named: `steps[located]` |
+| One renames the field `email` to `mail` and its uses; the other adds `{{email}}` to a prompt | clean, but the wizard is broken | clean, but the wizard is broken |
+
+What this shows:
+
+- A classic merge raises false conflicts in four of the ten cases. In those, the two sides
+  touched neighbouring lines or the end of a list, not the same thing. It also cannot say
+  where a conflict is in terms a person reads.
+- Drafts are stored as compact JSON on one line (`text(..., { mode: "json" })`). On the stored
+  form a line merge would call every pair of edits a conflict. It works only on an indented
+  form with a fixed key order.
+- The structural merge raised only the two real conflicts, and it names the step and the key.
+- Neither merge catches a broken reference (the last row). So the checks run after every
+  merge, `validateWizard` included, and a failed check counts as a conflict.
+- The classic merge stays the right tool for text: page Markdown and the text files of a
+  wizard's workspace.
 
 ## Migrations and releases
 
@@ -339,14 +452,18 @@ Behind a switch in `.features` until the last step. The sizes are relative.
 5. **Cloud: pull.** `GET /api/v1/spaces/:id/changes?since=` with paging. Small.
 6. **Install: loop.** Push, pull and blobs on demand, the `sync:<projectId>` state, and the
    status line in the studio, building on the retry loop. Medium.
-7. **Wizard home.** The `wizard.home` column, read-only elsewhere, "Edit here", takeover and the
-   copy. It replaces `project.origin = "local"` for the spaces it covers. Medium.
-8. **Merges.** Page conflict copies with `review`, per-cell rows, brand per field. Small to
-   medium.
-9. **Several spaces.** On the install, `projectLimit()` reads the linked organization's
-   `limits.projects`. The pull on sign-in brings every space the person may see, and a choice
-   says which ones this computer keeps. Small.
-10. **Move over.** Spaces synced one way today (`origin = "local"`) become two-way. `FromLocal`
+7. **Conflicts.** `sync_base`, the `conflict` answer of the push, and in the studio the
+   conflict on the item with its three choices and the count per space. Publishing through
+   the cloud. Medium.
+8. **Merge and check.** The structural JSON merge (`mergeDrafts` widened, reporting conflicts
+   per place), diff3 for pages and workspace text files, cells per column, and the checks after
+   each merge. The cases of the experiment above become its tests. Medium.
+9. **Help from a model.** "Solve with AI": the prompt, schema parsing, the checks with retries,
+   and the proposal shown for confirmation. Small to medium.
+10. **Several spaces.** On the install, `projectLimit()` reads the linked organization's
+    `limits.projects`. The pull on sign-in brings every space the person may see, and a choice
+    says which ones this computer keeps. Small.
+11. **Move over.** Spaces synced one way today (`origin = "local"`) become two-way. `FromLocal`
     goes, then the switch flips and the user guide follows. Small.
 
 Before step 4 reaches a client's data: turn on the `turso` provisioner (a paid plan) so the
@@ -363,20 +480,30 @@ but the sync makes the cloud copy the one that counts.
   synced space run in the cloud" needs enforcing in `plugins/jobs.ts`.
 - **Live updates.** The studio's draft events are per process (`services/draft-events.ts`). An
   arrival needs its own notice in the open studio, else people see changes only after a reload.
-- **Size of the work.** About 10 pull requests. The triggers and appliers touch about 15 tables,
+- **A clean merge can still be wrong.** The checks catch broken ids and references, not
+  meaning. Two sides can each tighten a prompt in ways that contradict each other. That is why
+  the person confirms every merge.
+- **Many conflicts after a long time offline.** Each one asks. The count per space and a
+  "keep the cloud's version for all" make it bearable; decision 1 could add more.
+- **Size of the work.** About 11 pull requests. The triggers and appliers touch about 15 tables,
   and every new table later has to choose: synced or not.
 - **Turso Sync matures.** If it reaches 1.0 with FTS, the change log could move onto it. The
   JSON contract would stay, so the choice is reversible.
 
 ## Decisions for Matthias
 
-1. **A home per wizard instead of merging drafts** (closes decision 5 of
-   cloud-first-onboarding.md). Recommended: the home.
+Decided on 2026-10-21: runs do not sync, wizards are editable on both sides, and in a conflict
+the person chooses (keep either side, or merge, checked and confirmed, with a model's help when
+asked).
+
+1. **Clean merges.** Every conflict asks, clean or not, as decided. Later a setting could let
+   clean merges that pass the checks apply by themselves, listed afterwards. Recommended: ask
+   for now and decide after real use.
 2. **Assistant chats.** Recommended: they stay where they were written.
 3. **Connected systems' headers.** Recommended: sync the servers without `headers`, and enter
    the headers on each side like API keys.
-4. **Offline edits.** Recommended: knowledge and data take edits offline, and they wait in the
-   log. Wizards are edited offline only at their home.
+4. **Offline edits.** Recommended: everything that syncs takes edits offline, and they wait in
+   the log. Conflicts are settled when the computer is online again.
 5. **One organization per install** (a second data folder for a second client) or a tenant
    switch in one install. Recommended: one per install first.
 6. **The Turso paid plan and the `turso` provisioner** before a client's data lives in the
