@@ -1,7 +1,7 @@
 ---
 title: Models and account
 description: What runs the AI in your wizards – an AI client on your computer, your own API keys, a local model or credits.
-version: 0.9.7
+version: 0.9.6
 ---
 
 Settings → Models decides what runs the AI in your wizards. On your computer you set it up

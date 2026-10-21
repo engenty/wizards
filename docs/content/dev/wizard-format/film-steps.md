@@ -1,7 +1,7 @@
 ---
 title: Films
 description: A film step has the AI client on your computer write a film as code, and the runtime renders it.
-version: 0.9.7
+version: 0.9.6
 ---
 
 A `film` step makes a motion-graphics film. The AI client on your computer (Claude Code) writes

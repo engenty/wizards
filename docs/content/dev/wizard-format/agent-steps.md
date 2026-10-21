@@ -1,7 +1,7 @@
 ---
 title: Agent steps
 description: An AI step's instructions, tools, output, model class, decisions, and one run per entry.
-version: 0.9.7
+version: 0.9.6
 ---
 
 An `agent` step is an AI step. It reads its `instructions`, may call tools, and returns its
