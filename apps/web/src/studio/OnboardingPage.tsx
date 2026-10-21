@@ -270,6 +270,7 @@ interface Outcome {
   name: string;
   about: boolean;
   colors: number;
+  fonts: number;
   logo: boolean;
   facts: number;
   assets: number;
@@ -440,6 +441,7 @@ export function OnboardingPage() {
     ? [
         outcome.about ? t("onboard.readAbout") : "",
         outcome.colors ? t("onboard.readColors", { n: outcome.colors }) : "",
+        outcome.fonts ? t("onboard.readFonts", { n: outcome.fonts }) : "",
         outcome.logo ? t("onboard.readLogo") : "",
         outcome.facts ? t("onboard.readFacts", { n: outcome.facts }) : "",
         outcome.assets ? t("onboard.readAssets", { n: outcome.assets }) : "",

@@ -12,6 +12,8 @@ export interface WebsiteReading {
   url: string;
   status: number;
   title: string;
+  /** The name the site gives itself: `og:site_name`, `application-name`, its structured data. */
+  siteName: string;
   description: string;
   text: string;
   brand: {
@@ -23,8 +25,8 @@ export interface WebsiteReading {
     logos: { url: string; hint: string }[];
     /** `hero`: the page's big picture (its share image, a hero, a banner): brand material. */
     images: { url: string; alt: string; hero?: boolean }[];
-    /** The typefaces it uses, most used first. */
-    fonts: { family: string; weights: number[] }[];
+    /** The typefaces it uses, most used first; `headings`: the page sets its headings in it. */
+    fonts: { family: string; weights: number[]; headings?: boolean }[];
   };
   /** Pages of the same site that say who the company is, its imprint and contact page first. */
   links: { url: string; text: string }[];
@@ -613,6 +615,15 @@ async function cssOf(html: string, base: string, signal?: AbortSignal): Promise<
 const GENERIC_FONT =
   /^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-[a-z-]+|-apple-system|blinkmacsystemfont|inherit|initial|unset|revert|emoji|math|fangsong|segoe ui( emoji| symbol)?|helvetica( neue)?|arial|roboto|noto (sans|color emoji)|apple color emoji|courier( new)?|times( new roman)?|georgia|menlo|monaco|consolas|var\(.*|liberation mono|sfmono-regular|sf mono|sf pro( text| display)?|dejavu sans( mono)?)$/i;
 
+/** Faces that draw icons, not text: "icons", Font Awesome, Dashicons, … */
+const ICON_FONT = /icon|awesome|glyph|fontello|icomoon|^(slick|swiper|feather)$/i;
+
+/**
+ * No family at all: the object-fit polyfill's `font-family: "object-fit: cover;"`, and other
+ * values that carry CSS rather than a name.
+ */
+const NO_FAMILY = /[:;=(){}]|^\d/;
+
 /** "Geist Variable" is Geist: a variable font's file name, not another family. */
 const familyName = (raw: string) =>
   raw
@@ -620,47 +631,85 @@ const familyName = (raw: string) =>
     .replace(/\s+variable$/i, "")
     .trim();
 
+/** The weight a face's name carries: "Geomanist-Medium", "Inter Bold". */
+const WEIGHT_WORDS: Record<string, number> = {
+  thin: 100,
+  hairline: 100,
+  extralight: 200,
+  ultralight: 200,
+  light: 300,
+  book: 400,
+  regular: 400,
+  normal: 400,
+  medium: 500,
+  semibold: 600,
+  demibold: 600,
+  bold: 700,
+  extrabold: 800,
+  ultrabold: 800,
+  heavy: 900,
+  black: 900,
+};
+
+const STYLED =
+  /^(.+?)([-\s])((?:extra|ultra|semi|demi)?-?(?:thin|hairline|light|book|regular|normal|medium|bold|heavy|black))?\s?(italic|oblique)?$/i;
+
+/** A `font-weight` as numbers: "400", "bold", "100 900". */
+const weightsOf = (value: string) =>
+  value
+    .trim()
+    .split(/\s+/)
+    .map((w) => (/^normal$/i.test(w) ? 400 : /^bold$/i.test(w) ? 700 : Number(w)))
+    .filter((n) => n >= 100 && n <= 900);
+
 /**
  * The typefaces a page uses, most used first, with the weights its `@font-face` rules or its
- * Google / Bunny Fonts links name.
+ * Google / Bunny Fonts links name. A face named for its weight ("Geomanist-Medium") is a weight
+ * of its family; icon fonts and values that are no names are left out. `headings`: the page sets
+ * its headings in it.
  */
-function fontsOf(css: string, html: string): { family: string; weights: number[] }[] {
+function fontsOf(
+  css: string,
+  html: string,
+): { family: string; weights: number[]; headings?: boolean }[] {
   const counts = new Map<string, number>();
-  const weights = new Map<string, Set<number>>();
+  const faces: { family: string; weights: number[] | null }[] = [];
+  const google = new Map<string, number[]>();
+  const heading = new Set<string>();
   const count = (family: string, n = 1) => counts.set(family, (counts.get(family) ?? 0) + n);
-  const weigh = (family: string, list: number[]) => {
-    const set = weights.get(family) ?? new Set<number>();
-    for (const w of list) {
-      set.add(w);
-    }
-    weights.set(family, set);
-  };
   const first = (decl: string) =>
     decl
       .split(",")
       .map(familyName)
       .find((f) => /[a-z]/i.test(f) && !GENERIC_FONT.test(f));
+  const own = (family: string | undefined) =>
+    family && !NO_FAMILY.test(family) && !ICON_FONT.test(family) ? family : undefined;
   // --font-weight-…, --font-size-… and the like are no families.
-  for (const m of css.matchAll(
-    /(?:font-family|--font-(?!weight|size|feature|variation|style|stretch)[\w-]+)\s*:\s*([^;}]+)/gi,
-  )) {
-    const family = first(m[1]);
+  const DECL =
+    /(?:font-family|--font-(?!weight|size|feature|variation|style|stretch)[\w-]+)\s*:\s*([^;}]+)/gi;
+  for (const m of css.matchAll(DECL)) {
+    const family = own(first(m[1]));
     if (family) {
       count(family);
     }
   }
+  for (const rule of css.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+    if (/^\s*@font-face/i.test(rule[1])) {
+      continue;
+    }
+    const forHeadings = /(^|[\s,>+~])h[1-3]\b|heading|headline|title|display/i.test(rule[1]);
+    for (const m of rule[2].matchAll(DECL)) {
+      const family = own(first(m[1]));
+      if (family && (forHeadings || /^--font-(heading|headline|display|title)/i.test(m[0]))) {
+        heading.add(family);
+      }
+    }
+  }
   for (const m of css.matchAll(/@font-face\s*\{([^}]*)\}/gi)) {
-    const family = first(m[1].match(/font-family\s*:\s*([^;]+)/i)?.[1] ?? "");
-    const range = (m[1].match(/font-weight\s*:\s*([^;]+)/i)?.[1] ?? "400")
-      .split(/\s+/)
-      .map(Number)
-      .filter((n) => n >= 100 && n <= 900);
-    if (family && range.length) {
-      const [lo, hi] = [Math.min(...range), Math.max(...range)];
-      weigh(
-        family,
-        FONT_WEIGHTS.filter((w) => w >= lo && w <= hi),
-      );
+    const family = own(first(m[1].match(/font-family\s*:\s*([^;]+)/i)?.[1] ?? ""));
+    const weight = m[1].match(/font-weight\s*:\s*([^;]+)/i)?.[1];
+    if (family) {
+      faces.push({ family, weights: weight ? weightsOf(weight) : null });
     }
   }
   // fonts.googleapis.com/css2?family=Inter:wght@400;700 and fonts.bunny.net/css?family=inter:400,700
@@ -676,19 +725,53 @@ function fontsOf(css: string, html: string): { family: string; weights: number[]
           (c) => c.toUpperCase(),
         );
         count(family, 3);
-        weigh(
-          family,
-          (spec.match(/\d{3}/g) ?? []).map(Number).filter((w) => w >= 100 && w <= 900),
-        );
+        google.set(family, [
+          ...(google.get(family) ?? []),
+          ...(spec.match(/\d{3}/g) ?? []).map(Number).filter((w) => w >= 100 && w <= 900),
+        ]);
       }
     }
   }
-  return [...counts.entries()]
+  // A face named for its weight is that weight of its family: always with a hyphen, as font
+  // files name them; with a space only where the family is used too ("Archivo Black" is one).
+  const named = new Set([...counts.keys(), ...faces.map((f) => f.family)]);
+  const fold = (name: string): { family: string; weight?: number } => {
+    const m = name.match(STYLED);
+    if (!(m && (m[3] || m[4])) || (m[2] !== "-" && !named.has(m[1]))) {
+      return { family: name };
+    }
+    return { family: m[1], weight: m[3] ? WEIGHT_WORDS[m[3].toLowerCase().replace("-", "")] : 400 };
+  };
+  const total = new Map<string, number>();
+  const weights = new Map<string, Set<number>>();
+  const weigh = (family: string, list: number[]) =>
+    weights.set(family, new Set([...(weights.get(family) ?? []), ...list]));
+  for (const [name, n] of counts) {
+    const { family } = fold(name);
+    total.set(family, (total.get(family) ?? 0) + n);
+  }
+  for (const face of faces) {
+    const { family, weight } = fold(face.family);
+    const range = face.weights ?? [weight ?? 400];
+    if (range.length) {
+      const [lo, hi] = [Math.min(...range), Math.max(...range)];
+      weigh(
+        family,
+        FONT_WEIGHTS.filter((w) => w >= lo && w <= hi),
+      );
+    }
+  }
+  for (const [family, list] of google) {
+    weigh(family, list);
+  }
+  const headings = new Set([...heading].map((f) => fold(f).family));
+  return [...total.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([family]) => ({
       family,
       weights: [...(weights.get(family) ?? [])].sort((a, b) => a - b),
+      ...(headings.has(family) ? { headings: true } : {}),
     }));
 }
 
@@ -765,9 +848,54 @@ export interface CompanyContact {
   phone?: string;
   email?: string;
   vatId?: string;
+  /** The company's name with its legal form, as its imprint gives it. */
+  company?: string;
+  /** Its number in the company register: "FN 44903 i", "HRB 12345". */
+  register?: string;
+  /** The court that keeps the register. */
+  court?: string;
+  /** Who manages it: "Christoph Ludwig". */
+  management?: string;
+  /** What the company does, as the imprint's "Unternehmensgegenstand" says it. */
+  purpose?: string;
+  linkedin?: string;
+  facebook?: string;
+  instagram?: string;
+  youtube?: string;
+  xing?: string;
+  x?: string;
+  tiktok?: string;
 }
 
+/** What makes the facts every space has; with them all, the contact page is not read. */
 const CONTACT_KEYS = ["street", "postcode", "city", "phone", "email", "vatId"] as const;
+
+/** The company's profiles on social networks, as their links show them. */
+export const SOCIAL_PROFILES = [
+  [
+    "linkedin",
+    /^https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/(?:company|school|showcase|in)\/[^/?#]+/i,
+  ],
+  [
+    "facebook",
+    /^https?:\/\/(?:www\.|m\.)?facebook\.com\/(?!sharer|share|dialog|plugins|tr\b|login)[^/?#]+/i,
+  ],
+  ["instagram", /^https?:\/\/(?:www\.)?instagram\.com\/(?!p\/|reels?\/|explore\/)[^/?#]+/i],
+  ["youtube", /^https?:\/\/(?:www\.)?youtube\.com\/(?:@|channel\/|c\/|user\/)[^/?#]+/i],
+  ["xing", /^https?:\/\/(?:www\.)?xing\.com\/(?:pages|companies)\/[^/?#]+/i],
+  ["x", /^https?:\/\/(?:www\.)?(?:twitter|x)\.com\/(?!intent|share|home|hashtag|search)[^/?#]+/i],
+  ["tiktok", /^https?:\/\/(?:www\.)?tiktok\.com\/@[^/?#]+/i],
+] as const satisfies readonly (readonly [keyof CompanyContact, RegExp])[];
+
+const ALL_KEYS = [
+  ...CONTACT_KEYS,
+  "company",
+  "register",
+  "court",
+  "management",
+  "purpose",
+  ...SOCIAL_PROFILES.map(([key]) => key),
+] as const;
 
 /** Text as a browser reads it: one block or line break per line, character references resolved. */
 function linesOf(html: string): string[] {
@@ -796,8 +924,13 @@ const STREET = /^(\p{L}[\p{L}.' -]{1,60}?\s\d{1,4}\s?[a-z]?(?:\s?[/-]\s?\d{1,4}[
 /** "8020 Graz", "A-8020 Graz", "D-10115 Berlin". */
 const TOWN = /^(?:[A-Z]{1,2}-)?(\d{4,5})\s+(\p{Lu}[\p{L}. -]{1,40}?)(?:\s*[,|/–-]\s*.*)?$/u;
 
-/** The first street and town that follow each other: on one line ("…, 8020 Graz") or two. */
-function addressOf(lines: string[]): Pick<CompanyContact, "street" | "postcode" | "city"> {
+/**
+ * The first street and town that follow each other: on one line ("…, 8020 Graz") or two. `above`:
+ * what comes before the street, where an imprint names the company.
+ */
+function addressOf(
+  lines: string[],
+): Pick<CompanyContact, "street" | "postcode" | "city"> & { above?: string } {
   for (let i = 0; i < lines.length; i++) {
     const parts = lines[i].split(/\s*[,|·•]\s*/).filter(Boolean);
     for (let j = 0; j < parts.length; j++) {
@@ -808,7 +941,8 @@ function addressOf(lines: string[]): Pick<CompanyContact, "street" | "postcode" 
       const before = j > 0 ? parts[j - 1] : lines[i - 1]?.split(/\s*[,|·•]\s*/).pop();
       const street = before?.match(STREET)?.[1];
       if (street) {
-        return { street, postcode: town[1], city: town[2].trim() };
+        const above = j > 1 ? parts.slice(0, j - 1).join(", ") : lines[j > 0 ? i - 1 : i - 2];
+        return { street, postcode: town[1], city: town[2].trim(), above };
       }
     }
   }
@@ -831,15 +965,77 @@ function labelled(lines: string[], label: RegExp, value: RegExp): string | undef
 const PHONE = /\+?\(?\d[\d ()/.-]{5,22}\d/;
 const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[a-z]{2,}/;
 
+/** The legal forms a company's name ends in: "GmbH", "m.b.H.", "AG", "e.U.", "Ltd." … */
+const LEGAL_FORM =
+  /(?:GmbH(?:\s?&\s?Co\.?\s?KG)?|Ges\.?\s?m\.?\s?b\.?\s?H\.?|m\.?\s?b\.?\s?H\.?|AG|KG|OG|e\.\s?U\.|GesbR|KEG|eG|e\.\s?V\.|UG(?:\s\(haftungsbeschränkt\))?|SE|Ltd\.?|Limited|Inc\.?|LLC|S\.\s?A\.|S\.\s?r\.\s?l\.|Sàrl|B\.\s?V\.|N\.\s?V\.)/
+    .source;
+/** "Steirische Wirtschaftsförderungsgesellschaft m.b.H.": a name and its legal form, no more. */
+const LEGAL_NAME = new RegExp(`^(\\p{Lu}[\\p{L}\\d&.,'’ -]{1,90}?\\s${LEGAL_FORM})$`, "u");
+
+/** "FN 44903 i" (Austria's company register), "HRB 12345 B" (Germany's). */
+const REGISTER = /\bFN\s?\d{1,7}\s?[a-z]\b|\bHR[AB]\s?\d{1,7}(?:\s[A-Z](?=$|[\s,;]))?/;
+const COURT_LABEL =
+  /(?:^|\s)(?:Firmenbuchgericht|Firmenbuch-Gericht|Handelsregistergericht|Registergericht|Gericht|Register court|Registration court)\s*:\s*(.{4,100})$/i;
+const COURT =
+  /(?:Landes-?\s(?:als\s)?)?(?:Landes|Handels|Amts)gericht(?:\s(?:für\s)?\p{Lu}[\p{L}.-]*){1,3}/u;
+const MANAGEMENT =
+  /^(?:Vertretungsberechtigte[rn]?\s)?(?:Geschäftsführ(?:ung|er(?:in)?(?:innen|nen)?)|Managing Directors?)\s*:?\s*(.*)$/i;
+const PURPOSE =
+  /^(?:Unternehmensgegenstand|Gegenstand des Unternehmens|Geschäftszweck|Firmenzweck|Tätigkeitsbereich|Business purpose|Purpose of the company)\s*:?\s*(.*)$/i;
+
+/** "Christoph Ludwig", "Mag. Anna Berger und DI Max Muster": people's names, nothing else. */
+function names(value: string | undefined): string | undefined {
+  const v = value?.trim();
+  if (!v || v.length > 160 || /[\d@:]/.test(v)) {
+    return undefined;
+  }
+  const people = v.split(/\s*(?:,|;|\sund\s|\sand\s|\s&\s)\s*/).filter(Boolean);
+  const word = /^(?:\p{Lu}[\p{L}.'’-]*|\([\p{L}.]+\)|von|van|de|der|den|zu|di|da|le)$/u;
+  return people.every((p) => {
+    const words = p.split(/\s+/);
+    return words.length >= 2 && words.length <= 6 && words.every((w) => word.test(w));
+  })
+    ? v
+    : undefined;
+}
+
+/** What follows a label: on its line, or the next line when the label stands alone. */
+function after(lines: string[], label: RegExp): { value: string; next?: string } | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(label);
+    if (m) {
+      return { value: m[1].trim(), next: lines[i + 1] };
+    }
+  }
+  return undefined;
+}
+
+/** A link to a profile, as the address a person opens: without its query, readable. */
+function profileOf(href: string): [keyof CompanyContact, string] | undefined {
+  for (const [key, pattern] of SOCIAL_PROFILES) {
+    const m = href.trim().match(pattern);
+    if (m) {
+      let url = m[0].replace(/^http:/i, "https:");
+      try {
+        url = decodeURI(url);
+      } catch {
+        // Kept as written.
+      }
+      return [key, url];
+    }
+  }
+  return undefined;
+}
+
 /**
  * What a page states about the company: its structured data (an Organization, a LocalBusiness)
  * first, then what its text says the way an imprint or a contact page says it.
  */
 export function contactOf(html: string, base: string): CompanyContact {
   const contact: CompanyContact = {};
-  const put = (key: keyof CompanyContact, value: unknown) => {
+  const put = (key: keyof CompanyContact, value: unknown, max = 200) => {
     if (typeof value === "string" && value.trim() && !contact[key]) {
-      contact[key] = value.replace(/\s+/g, " ").trim().slice(0, 200);
+      contact[key] = value.replace(/\s+/g, " ").trim().slice(0, max);
     }
   };
   for (const item of jsonLdOf(html)) {
@@ -857,6 +1053,13 @@ export function contactOf(html: string, base: string): CompanyContact {
     put("phone", o.telephone);
     put("email", typeof o.email === "string" ? o.email.replace(/^mailto:/i, "") : undefined);
     put("vatId", o.vatID ?? o.taxID);
+    put("company", o.legalName);
+    for (const href of [o.sameAs].flat()) {
+      const profile = typeof href === "string" ? profileOf(href) : undefined;
+      if (profile) {
+        put(...profile);
+      }
+    }
   }
   const lines = linesOf(html.match(/<body\b[\s\S]*/i)?.[0] ?? html);
   const address = addressOf(lines);
@@ -880,32 +1083,56 @@ export function contactOf(html: string, base: string): CompanyContact {
     /[A-Z]{2,3}[ -]?[\dA-Z][\dA-Z .-]{6,16}[\dA-Z]/,
   );
   put("vatId", vat?.replace(/[\s.-]/g, "").match(/^[A-Z]{2,3}[\dA-Z]{8,13}$/)?.[0]);
+  // Who the company is, as an imprint says it: its name above its address, its register entry,
+  // who runs it and what it does.
+  put("company", address.above?.match(LEGAL_NAME)?.[1]);
+  const registered = lines.find((l) => REGISTER.test(l));
+  put("register", registered?.match(REGISTER)?.[0]);
+  put("court", after(lines, COURT_LABEL)?.value.replace(/[,;|].*$/, ""));
+  put("court", registered?.replace(REGISTER, "").match(COURT)?.[0]);
+  const managed = after(lines, MANAGEMENT);
+  put("management", names(managed?.value) ?? (managed?.value ? undefined : names(managed?.next)));
+  const purpose = after(lines, PURPOSE);
+  put(
+    "purpose",
+    // A link's text ends where the tag did: "… Landesrechnungshofs</a>." reads "… Landesrechnungshofs ."
+    (purpose && purpose.value.length >= 3 ? purpose.value : purpose?.next)?.replace(
+      /\s+([.,;:!?])(?=\s|$)/g,
+      "$1",
+    ),
+    1200,
+  );
+  for (const m of html.matchAll(/<a\b([^>]*)>/gi)) {
+    const profile = profileOf(attr(`<a ${m[1]}>`, "href"));
+    if (profile) {
+      put(...profile);
+    }
+  }
   return contact;
 }
 
 const complete = (c: CompanyContact) => CONTACT_KEYS.every((k) => c[k]);
 
 /**
- * What a company's site states about it, from its home page and, where that leaves gaps, its
- * imprint and contact page: one or two more fetches.
+ * What a company's site states about it, from its home page, its imprint (where the company's
+ * name, register entry and management are) and, where that leaves gaps, its contact page: one or
+ * two more fetches.
  */
 export async function readContact(
   reading: Pick<WebsiteReading, "url" | "links" | "contact">,
   signal?: AbortSignal,
 ): Promise<CompanyContact> {
   const contact = { ...reading.contact };
-  const pages = [
-    reading.links.find((l) => /impressum|imprint|legal-notice/i.test(l.url)),
-    reading.links.find((l) => /kontakt|contact/i.test(l.url)),
-  ].filter((l): l is { url: string; text: string } => Boolean(l));
-  for (const page of pages) {
-    if (complete(contact)) {
-      break;
+  const imprint = reading.links.find((l) => /impressum|imprint|legal-notice/i.test(l.url));
+  const page = reading.links.find((l) => /kontakt|contact/i.test(l.url));
+  for (const link of [imprint, page]) {
+    if (!link || (link === page && complete(contact))) {
+      continue;
     }
     try {
-      const { base, html } = await loadPage(page.url, signal);
+      const { base, html } = await loadPage(link.url, signal);
       const found = contactOf(html, base);
-      for (const key of CONTACT_KEYS) {
+      for (const key of ALL_KEYS) {
         contact[key] ??= found[key];
       }
     } catch {
@@ -913,6 +1140,22 @@ export async function readContact(
     }
   }
   return contact;
+}
+
+/** The name a site gives itself, where it says so apart from its title. */
+function siteNameOf(html: string): string {
+  const website = jsonLdOf(html).find((item) =>
+    /WebSite/.test([(item as { "@type"?: unknown } | null)?.["@type"]].flat().join(" ")),
+  ) as { name?: unknown } | undefined;
+  return (
+    [
+      metaOf(html, "og:site_name"),
+      metaOf(html, "application-name"),
+      typeof website?.name === "string" ? website.name : "",
+    ]
+      .map((name) => name.replace(/\s+/g, " ").trim())
+      .find(Boolean) ?? ""
+  );
 }
 
 export async function readWebsite(
@@ -971,6 +1214,7 @@ export async function readWebsite(
     url: base,
     status: res.status,
     title: html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1].trim() ?? "",
+    siteName: siteNameOf(html),
     description: meta("description") || meta("og:description"),
     text:
       text.length > 9000
