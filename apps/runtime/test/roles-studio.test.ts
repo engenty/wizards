@@ -59,6 +59,11 @@ describe("RUNTIME_ROLE=studio", () => {
       return;
     }
     expect((await get("/studio/")).status).toBe(200);
+    expect((await get("/studio/settings")).status).toBe(200);
+    // A file of an earlier build (a page loaded before a deploy asks for it) is not the start page.
+    const stale = await get("/studio/assets/OnboardingPage-gone.js");
+    expect(stale.status).toBe(404);
+    expect(stale.headers.get("content-type")).not.toContain("text/html");
     expect((await get("/")).status).toBe(302);
     expect((await get("/w/abcdefgh")).status).toBe(404);
     expect((await get("/s/abcdefgh")).status).toBe(404);
