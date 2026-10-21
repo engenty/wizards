@@ -68,8 +68,8 @@ Later steps read a `json` step’s keys as `steps.<id>.<key>`.
 
 ## Model class and effort
 
-A step names the model class it needs in `model`, never a model. Which model serves a class is
-set outside the wizard.
+A step names the kind of model it needs, never a model. Which model serves a class is set
+outside the wizard.
 
 | `model` | For |
 |---|---|
@@ -78,10 +78,8 @@ set outside the wizard.
 | `standard` | Research with tools, long documents, reasoning over many sources. The default |
 | `high` | Hard reasoning or writing code. Several times the cost of `standard` |
 
-`effort` (`low`, `medium`, `high`) is not a model class. It tells the step’s model how hard to
-work, where the bound model can be told. `"model": "high"` picks the strongest model;
-`"effort": "high"` lets any model take longer. Leave `effort` out unless a step is clearly simple
-or clearly hard.
+`effort` (`low`, `medium`, `high`) tells the model how hard to think, where the bound model can be
+told. Leave it out unless a step is clearly simple or clearly hard.
 
 Version 1 of the format named these classes one step lower: its `standard`, `high` and `highest`
 are `low`, `standard` and `high` now. A file without `version`, or with `"version": 1`, is read

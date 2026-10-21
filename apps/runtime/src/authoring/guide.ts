@@ -165,8 +165,8 @@ type AgentStep = {
                                 //   one table, steps.<id>.rows: the entry's columns plus the step's output fields, a row per entry.
                                 // a table with columns gives rows as objects with exactly those keys — what widgets read
                                 // "yesno" answers the question in its description with true/false; "choice" picks one of its options
-  model?: "classifier"|"low"|"standard"|"high"   // the MODEL CLASS, see "Models"; default "standard"
-  effort?: "low"|"medium"|"high"                 // the EFFORT: how hard the model works, not which model; leave out unless it matters
+  model?: "classifier"|"low"|"standard"|"high"  // the kind of model, see "Models"; default "standard"
+  effort?: "low"|"medium"|"high"                // how hard it should think; leave out unless it matters
   working?: string              // shown while it runs ("Recherchiert im Web …")
 }
 // Every agent step also has, without listing them: list_read / list_write (the wizard's lists), files_list,
@@ -484,13 +484,13 @@ ${mcpServersLine(mcp)}
 
 ${connectorsLine(connectors)}${pluginToolsLine(pluginTools)}
 
-Models: a step names the MODEL CLASS it needs ("model"), never a model. Pick the cheapest class that does the job:
+Models: a step names the KIND of model it needs, never a model. Pick the cheapest class that does the job:
 - "classifier": routing, yes/no, picking from options, pulling a few values out of text.
   A DECISION is a "classifier" step with no tools whose json output has only "yesno", "choice" and "score" fields: it is answered in one fast, very cheap call. A branch can also read how sure it is: "steps.<id>.<field>.p" is the probability of its answer (a number 0–1; 1 or 0 where no decision model is set up), e.g. { field: "steps.check.urgent.p", op: "gt", value: 0.8 }. Write the question into each field's description, give the step everything it must judge in its instructions via {{templates}}, and branch on the answer with "next" (e.g. { when: { field: "steps.check.refund", op: "equals", value: true }, goto: "refund" }).
 - "low": short copy, calling an API, reformatting, simple summaries.
 - "standard": research with tools, long documents, reasoning over many sources (the default).
 - "high": hard reasoning or writing code; rare in a run, several times the cost of "standard".
-"effort" ("low" | "medium" | "high") is not a model class: it tells the step's model how hard to work where it can be told. model "high" picks the strongest model; effort "high" lets any model take longer. Leave effort out unless a step is clearly trivial ("low") or clearly hard ("high").
+"effort" ("low" | "medium" | "high") tells the model how hard to think where it can be told; leave it out unless a step is clearly trivial ("low") or clearly hard ("high").
 A generate step for a document or dashboard takes the same "model" (default "standard"). Image and video steps use the image and video class; which model serves a class is set by the platform, not in the wizard.
 
 Editing:

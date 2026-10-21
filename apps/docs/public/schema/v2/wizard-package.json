@@ -2887,7 +2887,6 @@
                     "additionalProperties": false
                   },
                   "model": {
-                    "description": "The model class the step runs on, cheapest first: \"classifier\", \"low\", \"standard\", \"high\". Not the effort.",
                     "type": "string",
                     "enum": [
                       "classifier",
@@ -2897,7 +2896,6 @@
                     ]
                   },
                   "effort": {
-                    "description": "How hard the model works: \"low\", \"medium\", \"high\". Not the model class, which `model` names.",
                     "type": "string",
                     "enum": [
                       "low",
@@ -3121,7 +3119,6 @@
                     "type": "string"
                   },
                   "model": {
-                    "description": "The model class the step runs on, cheapest first: \"classifier\", \"low\", \"standard\", \"high\". Not the effort.",
                     "type": "string",
                     "enum": [
                       "classifier",
@@ -3131,7 +3128,6 @@
                     ]
                   },
                   "effort": {
-                    "description": "How hard the model works: \"low\", \"medium\", \"high\". Not the model class, which `model` names.",
                     "type": "string",
                     "enum": [
                       "low",
@@ -3900,7 +3896,6 @@
                     "maximum": 600
                   },
                   "model": {
-                    "description": "The model class the step runs on, cheapest first: \"classifier\", \"low\", \"standard\", \"high\". Not the effort.",
                     "type": "string",
                     "enum": [
                       "classifier",
@@ -3910,7 +3905,6 @@
                     ]
                   },
                   "effort": {
-                    "description": "How hard the model works: \"low\", \"medium\", \"high\". Not the model class, which `model` names.",
                     "type": "string",
                     "enum": [
                       "low",

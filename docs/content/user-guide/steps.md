@@ -90,7 +90,7 @@ Further tools come from three places:
 
 ### Model class
 
-A step names the model class it needs, never a model:
+A step names the kind of model it needs, never a model:
 
 | Class | For |
 |---|---|
@@ -104,9 +104,8 @@ It is free and stays on your computer, but it handles only short texts and no to
 a step that calls an API or reads documents the class Standard.
 
 Images, video, voice notes and voice-overs have classes of their own. You choose which model
-serves a class under [Models and account](./models.md). “Effort” is not a class: it sets how much
-work the step’s model puts in, from “Brief” to “Thorough”. Leave it on “Automatic” unless a step
-is clearly trivial or clearly hard.
+serves a class under [Models and account](./models.md). “Thinking effort” sets how much effort
+the model puts in. Leave it on “Automatic” unless a step is clearly trivial or clearly hard.
 
 ### What a step hands on
 

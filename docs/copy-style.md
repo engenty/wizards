@@ -72,7 +72,6 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 | taken out, still exists elsewhere | remove | entfernen | |
 | picking from options | choose | wählen | pick, select |
 | model classes | Classifier, Low, Standard, High (always English, capitalised) | same | Klassifizieren |
-| how hard a step’s model works | effort; Brief, Balanced, Thorough | Aufwand; Knapp, Ausgewogen, Gründlich | thinking effort, Denkaufwand |
 | artificial intelligence | AI | KI | |
 | email | email | E-Mail | E-mail |
 | the product | engenty wizards (lower case) | engenty wizards | Engenty, engenty.wizards |

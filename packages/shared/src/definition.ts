@@ -399,23 +399,9 @@ export const TEXT_CLASSES = ["classifier", "low", "standard", "high"] as const;
 export type TextClass = (typeof TEXT_CLASSES)[number];
 export const MODEL_CLASSES = [...TEXT_CLASSES, "image", "video", "audio", "speech"] as const;
 export type ModelClass = (typeof MODEL_CLASSES)[number];
-/**
- * How hard the bound model should think (a step's `effort`), where it can be told. Not a model
- * class: `model: "high"` picks the strongest model, `effort: "high"` lets any model think longer.
- */
+/** How hard the model should think, where the bound model can be told. */
 export const EFFORTS = ["low", "medium", "high"] as const;
 export type Effort = (typeof EFFORTS)[number];
-
-/** A step's `model`: the model class it runs on. */
-const modelClassSchema = z.enum(TEXT_CLASSES).optional().meta({
-  description:
-    'The model class the step runs on, cheapest first: "classifier", "low", "standard", "high". Not the effort.',
-});
-/** A step's `effort`: how hard its model thinks. */
-const effortSchema = z.enum(EFFORTS).optional().meta({
-  description:
-    'How hard the model works: "low", "medium", "high". Not the model class, which `model` names.',
-});
 export type ToolId = (typeof TOOL_IDS)[number];
 
 export const ASSET_KINDS = ["image", "video", "voice", "document", "dashboard"] as const;
@@ -689,8 +675,8 @@ export const agentStepSchema = z.object({
     })
     .default({ format: "markdown" }),
   /** The model class the step needs; default `standard`. The model itself is bound elsewhere. */
-  model: modelClassSchema,
-  effort: effortSchema,
+  model: z.enum(TEXT_CLASSES).optional(),
+  effort: z.enum(EFFORTS).optional(),
   /** Shown to the person while it works. */
   /**
    * One run of the step per entry, at most twenty: the rows of a table output
@@ -733,8 +719,8 @@ export const generateStepSchema = z.object({
    */
   each: z.string().optional(),
   /** For document/dashboard: the model class that writes it; default `standard`. */
-  model: modelClassSchema,
-  effort: effortSchema,
+  model: z.enum(TEXT_CLASSES).optional(),
+  effort: z.enum(EFFORTS).optional(),
   working: z.string().optional(),
 });
 
@@ -813,8 +799,8 @@ export const filmStepSchema = z.object({
   /** About how long the film runs, in seconds. */
   seconds: z.number().int().min(3).max(600).optional(),
   /** The model class; default `low` — the kit carries the craft. */
-  model: modelClassSchema,
-  effort: effortSchema,
+  model: z.enum(TEXT_CLASSES).optional(),
+  effort: z.enum(EFFORTS).optional(),
   working: z.string().optional(),
 });
 

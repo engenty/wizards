@@ -51,7 +51,7 @@ export function StepCost({ estimate, stepId }: { estimate?: RunEstimate; stepId:
   );
 }
 
-/** The model class a step asks for, and its effort: how hard that model works on it. */
+/** The kind of model a step asks for, and how hard it should think. */
 export function ModelClassControl({
   model,
   effort,
