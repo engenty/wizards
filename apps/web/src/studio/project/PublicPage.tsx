@@ -19,7 +19,7 @@ import { langOfVoice, type PageVoice, pageAddress, pageUrl, voiceOf } from "./pa
 import { Anchor, Section } from "./Section";
 
 /**
- * The space's public page at `<team>.wizards.page/<slug>` (the Manage repository's
+ * The space's public page at `<organization>.wizards.page/<slug>` (the Manage repository's
  * docs/plans/wizards-page-launch.md), as one screen: its address with the way to copy and open
  * it, who can open it (off, public, later members), how it looks (name, address, headline, a
  * few words, language, the wizards on it in order), and beside the fields the page itself,
@@ -39,7 +39,7 @@ const VOICES: { value: PageVoice; label: Key }[] = [
 const hint = "text-[0.8125rem] text-ink-3 leading-snug";
 const mono = "font-mono text-[0.875rem]";
 
-/** `…wizards.page/`: the team's host without its first label, as the address field's prefix. */
+/** `…wizards.page/`: the organization's host without its first label, as the address field's prefix. */
 const domainOf = (host: string) => host.slice(host.indexOf(".") + 1);
 
 function useCopied() {
@@ -85,7 +85,7 @@ function Sources() {
   );
 }
 
-/** The address field: the team's domain as a grey prefix, the space's slug typed after it. */
+/** The address field: the organization's domain as a grey prefix, the space's slug typed after it. */
 function SlugField({
   host,
   value,
@@ -615,7 +615,7 @@ export function PublicPage({ project }: { project: Project }) {
   const slug = page?.slug || pageSlugOf(name) || "…";
   const address = pageAddress(host, slug);
   const url = pageUrl(host, slug, manageUrl);
-  // The team's domain shows in grey, the space's part bold, as the person reads the address.
+  // The organization's domain shows in grey, the space's part bold, as the person reads the address.
   const addressLine = (
     <span className={cn(mono, "min-w-0 truncate")}>
       <span className="text-ink-3">{host}/</span>

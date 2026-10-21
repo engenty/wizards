@@ -74,10 +74,7 @@ const RULES = {
     ["space before …", / …/],
     ["straight quotes: use “ ”", /"/],
     ["straight apostrophe: use ’", /\w'\w|s' /],
-    [
-      "American spelling",
-      /\b(colors?|colored|summariz\w*|organiz\w*|analyz\w*|favorite|center|canceled)\b/i,
-    ],
+    ["American spelling", /\b(colors?|colored|summariz\w*|analyz\w*|favorite|center|canceled)\b/i],
     ["exclamation mark", /!/],
     ["please", /\bplease\b/i, AI_FACING],
     ["glossary: project → space", /\bprojects?\b/i],
@@ -149,10 +146,7 @@ const DOC_RULES = [
   ["em dash: use a spaced en dash –", /—/],
   ["straight quotes: use “ ”", /"/],
   ["straight apostrophe: use ’", /\w'\w/],
-  [
-    "American spelling",
-    /\b(colors?|colored|summariz\w*|organiz\w*|analyz\w*|favorite|canceled)\b/i,
-  ],
+  ["American spelling", /\b(colors?|colored|summariz\w*|analyz\w*|favorite|canceled)\b/i],
   ["please", /\bplease\b/i],
 ];
 const USER_DOC_RULES = [

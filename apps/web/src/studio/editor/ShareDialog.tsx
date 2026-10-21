@@ -148,9 +148,9 @@ interface SharedRun {
 }
 
 /**
- * The team's public page (the space part "Öffentliche Seite"): whether this wizard stands on it,
+ * The organization's public page (the space part "Öffentliche Seite"): whether this wizard stands on it,
  * and which run the owner shared stands in for its result there. Only the switch and the example
- * live here; the page's own words are the space's. Nothing where the team has no page address.
+ * live here; the page's own words are the space's. Nothing where the organization has no page address.
  */
 function PageSection({ wizard }: { wizard: WizardDetail }) {
   const qc = useQueryClient();

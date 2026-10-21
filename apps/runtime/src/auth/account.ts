@@ -14,8 +14,8 @@ export const CLIENT = { id: "wizards-desktop" };
 const REFRESH = "account.refresh";
 export const SCOPE =
   "openid profile email offline_access wizards:read wizards:write wizards:publish";
-/** The team of the linked account as the Manage-App last named it, for lines that must not wait on it. */
-const TEAM = "account.team";
+/** The organization of the linked account as the Manage-App last named it, for lines that must not wait on it. */
+const ORGANIZATION = "account.organization";
 
 export interface LinkedAccount {
   userId: string;
@@ -168,10 +168,10 @@ export async function unlink(): Promise<void> {
   cached = null;
   await vaultDelete(REFRESH);
   await deleteSetting("account");
-  await deleteSetting(TEAM);
+  await deleteSetting(ORGANIZATION);
 }
 
-export interface KnownTeam {
+export interface KnownOrganization {
   tenantId: string;
   name: string;
   balanceCredits: number;
@@ -179,25 +179,25 @@ export interface KnownTeam {
   at: string;
 }
 
-/** The team as the Manage-App last named it: `wizards status` and the menu show it without a round trip. */
-export function knownTeam(): Promise<KnownTeam | null> {
-  return readSetting<KnownTeam>(TEAM);
+/** The organization as the Manage-App last named it: `wizards status` and the menu show it without a round trip. */
+export function knownOrganization(): Promise<KnownOrganization | null> {
+  return readSetting<KnownOrganization>(ORGANIZATION);
 }
 
-let rememberedTeam: string | null = null;
+let rememberedOrganization: string | null = null;
 
-async function rememberTeam(tenant: { id: string; name: string; balanceCredits: number }) {
+async function rememberOrganization(tenant: { id: string; name: string; balanceCredits: number }) {
   const same = `${tenant.id}\n${tenant.name}\n${tenant.balanceCredits}`;
-  if (same === rememberedTeam) {
+  if (same === rememberedOrganization) {
     return;
   }
-  rememberedTeam = same;
-  await writeSetting(TEAM, {
+  rememberedOrganization = same;
+  await writeSetting(ORGANIZATION, {
     tenantId: tenant.id,
     name: tenant.name,
     balanceCredits: tenant.balanceCredits,
     at: new Date().toISOString(),
-  } satisfies KnownTeam);
+  } satisfies KnownOrganization);
 }
 
 /** Balance and tenants of the linked account, straight from the Manage-App. */
@@ -227,7 +227,7 @@ export async function accountOverview(): Promise<{
   }
   const overview = (await res.json()) as Awaited<ReturnType<typeof accountOverview>>;
   if (overview?.tenant) {
-    await rememberTeam(overview.tenant).catch(() => undefined);
+    await rememberOrganization(overview.tenant).catch(() => undefined);
   }
   return overview;
 }

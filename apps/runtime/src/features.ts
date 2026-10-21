@@ -25,8 +25,8 @@ import { currentTenantOrNull } from "./tenants/tenant.js";
  *   1. the defaults the code declares: the core's (packages/shared/src/feature-flags.ts) and the
  *      loaded plugins' (their manifests' `features`, under the plugin's id)
  *   2. the `FEATURES` environment variable (`teamPlans=on,site=off`): the cloud image, compose, dev
- *   3. what the Manage-App says — for the team of a cloud runtime, for the linked account of a
- *      local one; a plan's switches and what an admin set for the team or for everyone
+ *   3. what the Manage-App says — for the organization of a cloud runtime, for the linked account of a
+ *      local one; a plan's switches and what an admin set for the organization or for everyone
  *   4. the `.features` file of this install (`~/.engenty/wizards/.features`; a checkout reads
  *      the repo root's, a cloud runtime its data folder's) — this machine's word is the last
  *
@@ -74,7 +74,7 @@ export function declaredFeatures(
   return out;
 }
 
-/** The switches, with what the Manage-App said for the team or account laid in. */
+/** The switches, with what the Manage-App said for the organization or account laid in. */
 export function features(remote?: Features | null): Features {
   return resolveFeatures(
     defaultFeatures(declaredFeatures()),
@@ -91,7 +91,7 @@ export function feature(name: string, remote?: Features | null): boolean {
 let accountCache: { at: number; value: Features | null } | null = null;
 
 /**
- * What the Manage-App says for the tenant at hand: the team's switches on a cloud runtime
+ * What the Manage-App says for the tenant at hand: the organization's switches on a cloud runtime
  * (cached a minute by `tenantInfo`), the linked account's on a local one (cached a minute
  * here). Null when nothing is linked or the Manage-App does not answer.
  */

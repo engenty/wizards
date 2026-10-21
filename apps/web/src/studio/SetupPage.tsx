@@ -509,7 +509,7 @@ export function SetupPage() {
                       </p>
                       <p className="text-(color:--on)/75 text-[0.8125rem]">
                         {[
-                          me.data.account.team,
+                          me.data.account.organization,
                           me.data.account.credits === null
                             ? null
                             : t("setup.accountCredits", {
@@ -720,7 +720,7 @@ export function SetupPage() {
           {me.data.account?.signedIn
             ? t("setup.thisComputer", {
                 space: project?.name ?? "",
-                team: me.data.account.team ?? me.data.account.name,
+                organization: me.data.account.organization ?? me.data.account.name,
               })
             : t("setup.local")}
         </span>

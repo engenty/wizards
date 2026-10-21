@@ -101,9 +101,9 @@ export const BASIC_FACTS = [
 export type BasicFact = (typeof BASIC_FACTS)[number];
 
 // --- the public page -----------------------------------------------------------------
-// A space's page at `<team>.wizards.page/<slug>` (docs/plans/wizards-page-launch.md in the
+// A space's page at `<organization>.wizards.page/<slug>` (docs/plans/wizards-page-launch.md in the
 // Manage repository): what the space says there and which of its wizards it lists. One space per
-// team has it on. Nothing of it sits on a wizard; the teasers come from the published definitions.
+// organization has it on. Nothing of it sits on a wizard; the teasers come from the published definitions.
 
 export const PAGE_LANGS = ["de", "en"] as const;
 export type PageLang = (typeof PAGE_LANGS)[number];
@@ -113,7 +113,7 @@ export type PageForm = "du" | "sie";
 
 export interface ProjectPage {
   on: boolean;
-  /** Its address under the team's: `<team>.wizards.page/<slug>`. */
+  /** Its address under the organization's: `<organization>.wizards.page/<slug>`. */
   slug: string;
   /** The name on the page; the space's own name never shows. */
   title: string;

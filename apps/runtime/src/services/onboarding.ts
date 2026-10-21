@@ -9,9 +9,9 @@ import { addProjectFileFromUrl, projectFiles } from "./project-files.js";
 import { listProjects, ownedProject, updateProject } from "./projects.js";
 
 /**
- * The first visit of a team's studio in the cloud: a short wizard asks who the team is, reads
+ * The first visit of an organization's studio in the cloud: a short wizard asks who the organization is, reads
  * its website into the space, takes first documents and explains the space. It shows once, to
- * the people who may change the team, and never to a team that already has wizards; the mark
+ * the people who may change the organization, and never to an organization that already has wizards; the mark
  * that it is done sits in the control database under the tenant.
  */
 const key = (tenantId: string) => `onboarding:${tenantId}`;

@@ -10,11 +10,11 @@ export type ServiceErrorCode =
   | "revision_conflict"
   | "no_credits"
   | "refused"
-  /** Another space of the team has the public page; `data.project` names it. */
+  /** Another space of the organization has the public page; `data.project` names it. */
   | "page_taken"
   /** Nothing is changed here: the project is a local install's, or the tenant builds elsewhere. */
   | "read_only"
-  /** The person's role in the team does not allow it: a member edits wizards, an admin makes and deletes. */
+  /** The person's role in the organization does not allow it: a member edits wizards, an admin makes and deletes. */
   | "forbidden";
 
 const STATUS: Record<ServiceErrorCode, 400 | 402 | 403 | 404 | 409> = {

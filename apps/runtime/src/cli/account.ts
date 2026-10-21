@@ -1,8 +1,8 @@
 import * as p from "@clack/prompts";
 import {
   accountOverview,
-  type KnownTeam,
-  knownTeam,
+  type KnownOrganization,
+  knownOrganization,
   type LinkedAccount,
   linkedAccount,
   unlink,
@@ -14,7 +14,7 @@ import { featuresFile, fileFeatures, writeFeature } from "../features.js";
 import { type Layout, readInstallNote, writeInstallNote } from "./home.js";
 import type { SetupOptions } from "./setup.js";
 import { openBrowser, runningRuntime, settings } from "./start.js";
-import { bold, busy, cmd, cyan, dim, tilde } from "./ui.js";
+import { bold, busy, cmd, cyan, dim, spelled, tilde } from "./ui.js";
 
 /**
  * The account of this install, from the terminal. `wizards account` says where it stands,
@@ -30,12 +30,12 @@ import { bold, busy, cmd, cyan, dim, tilde } from "./ui.js";
  */
 
 export const INTRO =
-  "Your team, its space and your wizards live in the account. This computer joins the space.";
+  "Your organization, its space and your wizards live in the account. This computer joins the space.";
 
 export type AccountState =
   | { kind: "local" }
   | { kind: "none" }
-  | { kind: "linked"; account: LinkedAccount; team: KnownTeam | null };
+  | { kind: "linked"; account: LinkedAccount; organization: KnownOrganization | null };
 
 let prepared: Promise<void> | null = null;
 
@@ -78,21 +78,25 @@ export async function accountState(): Promise<AccountState> {
   if (!account) {
     return { kind: "none" };
   }
-  return { kind: "linked", account, team: await knownTeam() };
+  return { kind: "linked", account, organization: await knownOrganization() };
 }
 
-/** "Matthias · team Platzer Fenster & Türen · 120 credits", as far as it is known. */
+/** "Matthias · organization Platzer Fenster & Türen · 120 credits", as far as it is known. */
 export function described(
   account: LinkedAccount,
-  team: { name: string; balanceCredits: number } | null,
+  organization: { name: string; balanceCredits: number } | null,
   credits = true,
 ): string {
   const parts = [account.name || account.email];
-  if (team) {
-    // "Team Anna" and "New team" say it themselves: not "team Team Anna".
-    parts.push(/\bteam\b/i.test(team.name) ? team.name : `team ${team.name}`);
+  if (organization) {
+    // "Team Anna" and "New organization" say it themselves: not "organization Team Anna".
+    parts.push(
+      /\b(team|organi[sz]ation)\b/i.test(organization.name)
+        ? organization.name
+        : `${spelled("organization")} ${organization.name}`,
+    );
     if (credits) {
-      parts.push(`${team.balanceCredits} credits`);
+      parts.push(`${organization.balanceCredits} credits`);
     }
   }
   return parts.join(" · ");
@@ -106,7 +110,7 @@ export function describeAccount(state: AccountState): string {
     case "none":
       return "not signed in";
     default:
-      return described(state.account, state.team, false);
+      return described(state.account, state.organization, false);
   }
 }
 
@@ -127,12 +131,12 @@ async function status(): Promise<number> {
     return 0;
   }
   const overview = await accountOverview();
-  const team = overview?.tenant ?? state.team;
+  const organization = overview?.tenant ?? state.organization;
   console.log(
-    `Signed in as ${described(state.account, team)} · ${host()}${
+    `Signed in as ${described(state.account, organization)} · ${host()}${
       overview
         ? ""
-        : dim(`  (${host()} didn’t respond${team ? ", so this is from last time" : ""})`)
+        : dim(`  (${host()} didn’t respond${organization ? ", so this is from last time" : ""})`)
     }`,
   );
   return 0;
@@ -276,13 +280,13 @@ async function signIn(paths: Layout, interactive: boolean): Promise<number> {
   if (linked && isLocalOnly()) {
     // Set up with --local by an older version, which kept the link: it only needs switching on.
     joinedAccount(paths);
-    p.log.success(`Signed in as ${described(linked, await knownTeam(), false)} again.`);
+    p.log.success(`Signed in as ${described(linked, await knownOrganization(), false)} again.`);
     await pickUp(paths, interactive, SIGNED_IN);
     return 0;
   }
   if (linked) {
     p.log.info(
-      `Already signed in as ${described(linked, await knownTeam(), false)}. ${dim(
+      `Already signed in as ${described(linked, await knownOrganization(), false)}. ${dim(
         `To switch accounts, run ${cmd("account sign-out")} first.`,
       )}`,
     );
@@ -422,10 +426,12 @@ export async function accountStep(
   }
   if (state.kind === "linked") {
     const overview = await accountOverview();
-    p.log.success(`Signed in as ${described(state.account, overview?.tenant ?? state.team)}.`);
+    p.log.success(
+      `Signed in as ${described(state.account, overview?.tenant ?? state.organization)}.`,
+    );
     return;
   }
-  p.note(INTRO, "Your engenty account");
+  p.note(spelled(INTRO), "Your engenty account");
   if (!interactive) {
     p.log.info(dim(`To sign in later: ${cmd("account sign-in")}`));
     return;

@@ -112,7 +112,7 @@ interface TestResult {
 
 /**
  * Where the page stands: alone on this machine (with or without a linked account) or in the
- * cloud, for a team. Everything that differs between them is decided from here, so the page can
+ * cloud, for an organization. Everything that differs between them is decided from here, so the page can
  * be looked at as each of them (`Preview`, in development).
  */
 interface Place {
@@ -124,7 +124,7 @@ interface Place {
   topUp: string | null;
   harnesses: HarnessStatus[];
   canEdit: boolean;
-  /** Own API keys are a feature of the team's plan; alone they always are. */
+  /** Own API keys are a feature of the organization's plan; alone they always are. */
   ownKeys: boolean;
 }
 
@@ -139,7 +139,7 @@ function placeOf(me: Me, view: View): Place {
           ? {
               name: me.user.name,
               email: me.user.email,
-              team: null,
+              organization: null,
               credits: 1250,
               expiring: [],
               url: "",
@@ -282,7 +282,7 @@ function wayText(way: ClassWay, place: Place): { text: string; tone: "done" | "o
       };
     case "credits":
       return {
-        text: place.cloud ? t("models.way.creditsTeam") : t("models.way.credits"),
+        text: place.cloud ? t("models.way.creditsOrganization") : t("models.way.credits"),
         tone: "ok",
       };
     default:
@@ -473,7 +473,7 @@ function KeyField({
     setSaid({ ok: true, message: t("models.keyOk") });
   };
   const editing = !stored || replacing;
-  // Own keys are a feature of the team's plan: without it, the credits pay and no key is taken.
+  // Own keys are a feature of the organization's plan: without it, the credits pay and no key is taken.
   if (!place.ownKeys) {
     return <p className="text-[0.8125rem] text-ink-3">{t("models.ownKeysPlan")}</p>;
   }
@@ -1041,7 +1041,7 @@ function CapabilityPanel({
                 />
               ) : null}
               <Option
-                title={place.cloud ? t("models.creditsTeam") : t("models.creditsName")}
+                title={place.cloud ? t("models.creditsOrganization") : t("models.creditsName")}
                 note={place.credits ? priceNote(cap, state) : t("models.noteNeedsAccount")}
                 noteTone={place.credits ? "done" : undefined}
                 selected={chosen?.kind === "credits"}
@@ -1510,7 +1510,7 @@ function CreditsPanel({
   const onCredits = MODEL_CAPABILITIES.filter(
     (cap) => state.ways[LEAD_CLASS[cap]].kind === "credits",
   );
-  const name = place.cloud ? t("models.creditsTeam") : t("models.creditsName");
+  const name = place.cloud ? t("models.creditsOrganization") : t("models.creditsName");
   return (
     <div className="flex flex-col gap-5">
       <PanelHead
@@ -1675,7 +1675,7 @@ function targetLabel(target: Target, me: Me | null | undefined): string {
     case "client":
       return me?.harnesses.find((h) => h.id === target.id)?.name ?? target.id;
     default:
-      return me?.mode === "managed" ? t("models.creditsTeam") : t("models.creditsName");
+      return me?.mode === "managed" ? t("models.creditsOrganization") : t("models.creditsName");
   }
 }
 
@@ -1731,7 +1731,7 @@ export function Models() {
         <MenuGroup label={t("models.groupAccess")}>
           <MenuRow
             icon={Coins}
-            label={place.cloud ? t("models.creditsTeam") : t("models.creditsName")}
+            label={place.cloud ? t("models.creditsOrganization") : t("models.creditsName")}
             badge={
               place.balance !== null ? (
                 <span className="text-[0.75rem] text-ink-3 tabular-nums">

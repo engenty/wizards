@@ -75,7 +75,7 @@ function Studio({
   if (me.data.mode === "local" && !me.data.setupDone && location.pathname !== "/setup") {
     return <Navigate to="/setup" replace />;
   }
-  // A team's first visit of the cloud studio: who it is, its website, first documents, the space.
+  // An organization's first visit of the cloud studio: who it is, its website, first documents, the space.
   if (me.data.onboarding && location.pathname !== "/start") {
     return <Navigate to="/start" replace />;
   }

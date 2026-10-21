@@ -483,7 +483,7 @@ export function HomePage() {
     },
   });
   const total = projects.reduce((n, p) => n + p.wizardCount, 0);
-  /** Wizards are made in this project: the person makes things here, and the project is the team's own. */
+  /** Wizards are made in this project: the person makes things here, and the project is the organization's own. */
   const canCreate = create && !project?.readOnly;
   if (!loading && canCreate && projects.length && total === 0) {
     return <Navigate to="/new" replace />;
