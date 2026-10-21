@@ -38,23 +38,9 @@
       },
       {
         "id": "ad17376",
-        "message": "user guide wording after a full reread (#123)",
+        "message": "documentation updates (#113, #114, #115, #116, #117, #118, #119, #121, #122, #123)",
         "group": "Docs",
         "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "d308fe1",
-        "message": "a marked picture of the share dialog, and when the website code appears (#121)",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "14b6272",
-        "message": "the copy style applies to emails, including the ones Manage sends (#122)",
-        "group": "Docs",
-        "scope": "copy",
         "breaking": false
       },
       {
@@ -62,55 +48,6 @@
         "message": "the WordPress plugin behind a switch, off until it is published (#120)",
         "group": "Added",
         "scope": "studio",
-        "breaking": false
-      },
-      {
-        "id": "2b7ae96",
-        "message": "a marked picture of a wizard on a phone in Run a wizard (#119)",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "bd86776",
-        "message": "the user guide moves to /docs/user-guide, checked against the app, without unreleased features (#118)",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "d784eb6",
-        "message": "the README's feature table without headings and Using it points to the user guide (#117)",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "35e2989",
-        "message": "the README says who wizards are for and what they do (#116)",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "dcba768",
-        "message": "the README's studio picture with a branching wizard and a light preview (#115)",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "d0871a8",
-        "message": "a light README studio picture with a party enquiry (#114)",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "6a4b669",
-        "message": "the README's studio picture and the assistant's words for the new editor (#113)",
-        "group": "Docs",
-        "scope": null,
         "breaking": false
       }
     ]
@@ -141,14 +78,7 @@
     "commits": [
       {
         "id": "34d5500",
-        "message": "new studio and wizard pictures, and the text brought up to date (#105)",
-        "group": "Docs",
-        "scope": "readme",
-        "breaking": false
-      },
-      {
-        "id": "56073b0",
-        "message": "give themes a page of their own in the wizard format (#103)",
+        "message": "documentation updates (#103, #105)",
         "group": "Docs",
         "scope": null,
         "breaking": false
@@ -196,7 +126,7 @@
     "commits": [
       {
         "id": "194dedd",
-        "message": "themes as built – the Look section, the themed test run, what is still open (#95)",
+        "message": "documentation updates (#86, #87, #95)",
         "group": "Docs",
         "scope": null,
         "breaking": false
@@ -248,20 +178,6 @@
         "message": "themes – a wizard's look as values in its space, with an effect library (#88)",
         "group": "Added",
         "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "0a704e3",
-        "message": "themes hold values only, with an effect library (#87)",
-        "group": "Docs",
-        "scope": "plans",
-        "breaking": false
-      },
-      {
-        "id": "e1d67f8",
-        "message": "themes as their own document, shipped with the wizard (#86)",
-        "group": "Docs",
-        "scope": "plans",
         "breaking": false
       },
       {
@@ -328,16 +244,9 @@
       },
       {
         "id": "8e73815",
-        "message": "when a release is cut (#76)",
+        "message": "documentation updates (#75, #76)",
         "group": "Docs",
-        "scope": "agents",
-        "breaking": false
-      },
-      {
-        "id": "fa7f4ca",
-        "message": "why the studio's UI kit is not @engenty/wizards/plugin/ui yet (#75)",
-        "group": "Docs",
-        "scope": "plans",
+        "scope": null,
         "breaking": false
       },
       {
@@ -1172,16 +1081,9 @@
     "commits": [
       {
         "id": "5fc08ba",
-        "message": "a plain sign-in lands in the studio as well – noted with the manage commit",
+        "message": "documentation updates",
         "group": "Docs",
-        "scope": "plans",
-        "breaking": false
-      },
-      {
-        "id": "7924be2",
-        "message": "after the sign-up the account pages send a new account to the studio – the plan's note on the landing is settled",
-        "group": "Docs",
-        "scope": "plans",
+        "scope": null,
         "breaking": false
       },
       {
@@ -1402,14 +1304,7 @@
     "commits": [
       {
         "id": "e2e9e8d",
-        "message": "every page describes v0.2.56",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "00f92fc",
-        "message": "every page checked against v0.2.55 – the wizard format's example in English, the WordPress page's key link to the new Integrate page",
+        "message": "documentation updates",
         "group": "Docs",
         "scope": null,
         "breaking": false
@@ -1422,13 +1317,6 @@
         "breaking": false
       },
       {
-        "id": "04a7c61",
-        "message": "Apple Intelligence keeps High and Highest on their way; the WordPress import follows the shared check and a thinking step gets the pages that match it",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
         "id": "1881010",
         "message": "Apple Intelligence leaves High and Highest on their way, a visitor reads the runtime's answers in their language",
         "group": "Fixed",
@@ -1436,23 +1324,9 @@
         "breaking": false
       },
       {
-        "id": "8a4470f",
-        "message": "every page checked against v0.2.50",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
         "id": "c41c615",
         "message": "a live conversation only where the wizard has it on, the browser the setup found, plugin runs without device signals, the WordPress plugin's download",
         "group": "Fixed",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "d2038e8",
-        "message": "every page checked against v0.2.48, public pages only, versions tracked",
-        "group": "Docs",
         "scope": null,
         "breaking": false
       }
@@ -1549,30 +1423,9 @@
       },
       {
         "id": "163b3ad",
-        "message": "the plugin's source strings are English with German as de_DE; what make-json does to a built file named admin.js and why the bundle is app.js",
+        "message": "documentation updates",
         "group": "Docs",
-        "scope": "plans",
-        "breaking": false
-      },
-      {
-        "id": "9b21051",
-        "message": "the plugin repository is public as engenty/engenty-wizards-wp-plugin; what Plugin Check found and what changed for wordpress.org, the listing's assets, and what the submission still needs from the user",
-        "group": "Docs",
-        "scope": "plans",
-        "breaking": false
-      },
-      {
-        "id": "5e3d7f4",
-        "message": "the no-key path shown through Ollama on the site, the Word branch and the prompt filter as deviations recorded",
-        "group": "Docs",
-        "scope": "plans",
-        "breaking": false
-      },
-      {
-        "id": "fdabceb",
-        "message": "checkpoints 7 and 8 shown on the test site (the pull against a stubbed account, the Word branch closed and the open way run), the photo run, the step timeout and the Ollama finding; the login-shell test of the harness gets twenty seconds on a loaded machine",
-        "group": "Docs",
-        "scope": "plans",
+        "scope": null,
         "breaking": false
       },
       {
@@ -1597,45 +1450,10 @@
         "breaking": false
       },
       {
-        "id": "b660d72",
-        "message": "standalone mode of the WordPress plugin – wizards run on the site without an account: the browser follows the flow and draws, PHP keeps the prompts and the run and calls WordPress 7.0's AI Client once per thinking step with the site's Connectors provider; one shared check (needs, standaloneFit) labels every wizard full / with less / needs an account in the studio and on upload; the start stays the hero, 'Eigene KI erstellen' opens the choice between an engenty account and local with the site's own provider, local sites pick from wizards shipped with the plugin and run them without credits; tables, routes, the PHP ports line for line, files, phases, checkpoints, what is open; mockups on the design canvas",
-        "group": "Docs",
-        "scope": "plans",
-        "breaking": false
-      },
-      {
-        "id": "645bbed",
-        "message": "connecting by hand with an address and an API Key",
-        "group": "Docs",
-        "scope": "wordpress",
-        "breaking": false
-      },
-      {
-        "id": "47e70bf",
-        "message": "the plugin's repository is engenty/engenty-wizards-wordpress – the studio's download link, the docs page and the plan",
-        "group": "Docs",
-        "scope": "wordpress",
-        "breaking": false
-      },
-      {
         "id": "77c9ff9",
         "message": "what the WordPress plugin calls – /api/v1/me (account, plan, plugins and the ones the plan lacks, spaces, credits, the studio's and the account's addresses), /wizards (published with token, ID and icon; drafts without), POST /wizards from a template published at once, /templates, /runs and /runs/:id with scope runs:read (live runs with the answers by the fields' labels, the e-mail, the page they started on), /space and POST /space/site (a website's own statements fill the space's empty details, its pages go into Wissen under the origin wordpress, the space assistant reads the rest; a job to ask after), /plugins/:id/* calling a plugin's routes as the token's person and answering 403 plugin for a plan without it; run.origin from embed.js's data-page (migration 0011); embed.js has a bubble at the bottom right with data-text and data-color; the share dialog offers it as a third mode; Settings → Integrate → WordPress; docs page WordPress and the contract's section on clients of an account; the plan says what was built",
         "group": "Added",
         "scope": "api",
-        "breaking": false
-      },
-      {
-        "id": "b6ccc62",
-        "message": "how the WordPress plugin is built – its own public GPL repository engenty-wordpress with the PHP, block and admin app laid out; the eight runtime changes in order with the files and what they reuse; seven steps with a checkpoint each; what is left out",
-        "group": "Docs",
-        "scope": "plans",
-        "breaking": false
-      },
-      {
-        "id": "11fba36",
-        "message": "the WordPress plugin – a client of a runtime (engenty.ai or an own server), never PHP: block, shortcode, Elementor widget, PHP function and a bubble render the embed tag; the admin lists wizards, results and the Pro plugins' contacts and bookings through a PHP proxy with the key; what the runtime needs (/api/v1/me, /wizards, /runs, plugin routes with a key, run.origin, a bubble mode), phases and open decisions; mockups on the canvas",
-        "group": "Docs",
-        "scope": "plans",
         "breaking": false
       },
       {
@@ -1660,13 +1478,6 @@
         "breaking": false
       },
       {
-        "id": "7b71d7e",
-        "message": "Apple's local models – what the iOS simulator showed: the 26.5 runtime answers a run's Standard step on the phone, 26.2 fails with ModelManagerError 1026 and the runtime falls back; no simulator holds speech assets, so transcription is verified on the Mac",
-        "group": "Docs",
-        "scope": "plans",
-        "breaking": false
-      },
-      {
         "id": "81a5fa6",
         "message": "Apple's models on the phone and voice notes on the Mac – an Expo module in Swift (the same Shared.swift as the Mac helper) gives the runner bridge `transcribe` (SpeechAnalyzer, iOS 26) and `think` (Apple Intelligence, where switched on), named to a page only where the phone has them; the runner writes a recording down on the phone before the field keeps it and offers the phone for a run's Classifier and Standard calls, which the runtime sends over the run's stream as `device` events and takes back by POST, falling back to its own way when the phone does not answer in time, errs, the prompt is too long, or the step declared tools or has uploads; the Mac's helper writes voice notes down as well (`apple:transcribe`, offered under Voice notes); the recorder prefers AAC where the phone transcribes",
         "group": "Added",
@@ -1678,13 +1489,6 @@
         "message": "Apple Intelligence on this Mac as a model – the on-device model of macOS 26 answers the Classifier and Standard classes through a Swift helper (wizards-apple: status, guided generation from the step's JSON schema), shown in the setup and under Text & Denken only on a Mac with Apple silicon on macOS 26, picked once Apple Intelligence is switched on; High and Highest keep their way; nothing leaves the Mac. The release builds the helper on a macOS 26 runner and packs it in; the plan for the phone side (transcription, then text over the app's bridge) is in docs/plans/local-models-apple.md",
         "group": "Added",
         "scope": "models",
-        "breaking": false
-      },
-      {
-        "id": "8d90e30",
-        "message": "COPYRIGHTS.md – who owns the code, the FSL-1.1-MIT terms in one paragraph, the marks, what is not ours (the Commission's AI labels) and every third-party package with its licence; pnpm about:data --credits writes that part beside the About page's credits, with the docs site and the development tooling the page leaves out",
-        "group": "Docs",
-        "scope": null,
         "breaking": false
       }
     ]
@@ -1963,7 +1767,7 @@
       },
       {
         "id": "79805e8",
-        "message": "the share dialog's Channels list, the chat's embed modes and the sub-path addresses in the user docs; the plan records what of phase 2 is built",
+        "message": "documentation updates",
         "group": "Docs",
         "scope": null,
         "breaking": false
@@ -1986,13 +1790,6 @@
         "id": "b709c4c",
         "message": "a run's report (get_run, run_wizard, answer_page over MCP) lists a page as the run page shows it – fields a decision kept, choices taken from earlier data, what the fields' conditions read from before the page, and for a field with a condition the condition itself and whether it holds now – so a client that asks one field at a time asks the right ones",
         "group": "Added",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "c1d2517",
-        "message": "two plans for the doors a wizard runs through – the concept (six channel patterns, what a wizard needs from a door, the admin's, owner's and customer's view) and the plan with the hooks the plugin framework needs (a run API for plugins, a runner registry with capabilities, sub-paths with a fallback) and the order of the work",
-        "group": "Docs",
         "scope": null,
         "breaking": false
       },
@@ -3008,7 +2805,7 @@
     "commits": [
       {
         "id": "21f70df",
-        "message": "the German tagline on the sign-in page follows the new one",
+        "message": "documentation updates",
         "group": "Docs",
         "scope": null,
         "breaking": false
@@ -3017,13 +2814,6 @@
         "id": "765ae7c",
         "message": "the studio says when a newer release is out and, on an install made by wizards.sh, updates it from the footer",
         "group": "Added",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "825da6c",
-        "message": "the tagline is \"Make a wish. Get your wizard.\" In the README, the npm package description and the banner of wizards.sh.",
-        "group": "Docs",
         "scope": null,
         "breaking": false
       },
@@ -3077,7 +2867,7 @@
     "commits": [
       {
         "id": "71cc075",
-        "message": "install with wizards.sh; the local install and how its pieces share it",
+        "message": "documentation updates",
         "group": "Docs",
         "scope": null,
         "breaking": false
@@ -3230,13 +3020,6 @@
         "breaking": false
       },
       {
-        "id": "c6a06cc",
-        "message": "plan for definition versions and importing older packages",
-        "group": "Docs",
-        "scope": null,
-        "breaking": false
-      },
-      {
         "id": "a37e826",
         "message": "wizard packages carry their own extension, .wizard",
         "group": "Added",
@@ -3380,13 +3163,6 @@
         "id": "ca2207e",
         "message": "the drop engenty as app icon, tray icon and favicon",
         "group": "Added",
-        "scope": null,
-        "breaking": false
-      },
-      {
-        "id": "90fcbce",
-        "message": "a README for people who install it, developer notes in docs/development.md",
-        "group": "Docs",
         "scope": null,
         "breaking": false
       },

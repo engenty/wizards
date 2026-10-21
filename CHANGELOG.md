@@ -13,16 +13,7 @@ bump is a notable or breaking change, **patch** is fixes and small features.
 ## [0.9.4] - 2026-10-20
 - ADDED **[runtime]** A space's public page on wizards.page, behind the pages switch (#111)
 - ADDED **[studio]** The WordPress plugin behind a switch, off until it is published (#120)
-- DOCS User guide wording after a full reread (#123)
-- DOCS A marked picture of the share dialog, and when the website code appears (#121)
-- DOCS **[copy]** The copy style applies to emails, including the ones Manage sends (#122)
-- DOCS A marked picture of a wizard on a phone in Run a wizard (#119)
-- DOCS The user guide moves to /docs/user-guide, checked against the app, without unreleased features (#118)
-- DOCS The README's feature table without headings and Using it points to the user guide (#117)
-- DOCS The README says who wizards are for and what they do (#116)
-- DOCS The README's studio picture with a branching wizard and a light preview (#115)
-- DOCS A light README studio picture with a party enquiry (#114)
-- DOCS The README's studio picture and the assistant's words for the new editor (#113)
+- DOCS Documentation updates (#113, #114, #115, #116, #117, #118, #119, #121, #122, #123)
 
 ## [0.9.3] - 2026-10-20
 - ADDED **[studio]** One editor screen around the preview (#109)
@@ -30,8 +21,7 @@ bump is a notable or breaking change, **patch** is fixes and small features.
 
 ## [0.9.2] - 2026-10-19
 - ADDED **[uploads]** Uploaded files are checked: a file must be what its type says, photos lose their location and camera details, SVGs lose scripts and outside references (#104)
-- DOCS **[readme]** New studio and wizard pictures, and the text brought up to date (#105)
-- DOCS Themes have a page of their own in the developer docs (#103)
+- DOCS Documentation updates (#103, #105)
 - FIXED **[runtime]** Drop Node's localStorage before a dependency reads it (#101)
 - FIXED **[runtime]** The built-in terminal starts on Linux too (#99)
 - FIXED **[studio]** The test run no longer slides off the right edge when the side panel is away (#98)
@@ -52,8 +42,7 @@ bump is a notable or breaking change, **patch** is fixes and small features.
 ## [0.9.0] - 2026-10-18
 - ADDED **[studio]** New app rail, phone bar and phone editor (#77)
 - CHANGED Workspace packages named @engenty/wizards-* (#74)
-- DOCS **[agents]** When a release is cut (#76)
-- DOCS **[plans]** Why the studio's UI kit is not @engenty/wizards/plugin/ui yet (#75)
+- DOCS Documentation updates (#75, #76)
 
 ## [0.8.0] - 2026-10-18
 - ADDED Send or publish a result from its share sheet, with its result page in the editor (#67)
@@ -216,8 +205,7 @@ bump is a notable or breaking change, **patch** is fixes and small features.
 
 ## [0.4.0] - 2026-10-13
 - ADDED **[onboarding]** The account becomes the front door – a cloud studio's first visit is a wizard of four pages (the team's name, the website read into the space, first documents, the space explained), the setup on a computer starts with the account (a device code in the terminal, the panel and "engenty credits" as an engine on the setup page), install.sh --local and wizards account keep and name the install without one, the cloud home offers the computer with the install mail, and the docs start with "Create an account"
-- DOCS **[plans]** A plain sign-in lands in the studio as well – noted with the manage commit
-- DOCS **[plans]** After the sign-up the account pages send a new account to the studio – the plan's note on the landing is settled
+- DOCS Documentation updates
 
 ## [0.3.8] - 2026-10-13
 - ADDED **[assistant]** The studio assistant is Goose and takes what is written while it works – Enter sends a message into the running answer, which reads it before its next step (or goes on with it after its answer), ⌘↩ queues it for after the answer, "Jetzt senden" stops and sends at once, Stop stands where Send does; the chat at the bottom moves by its grip, stays where it is put and snaps to the middle or the right near the bottom and into the sidebar near the right side, the handle on top sets the thread's height and folds it, ✕ closes it into the engenty at the lower right, which opens it where it stood (the small card is gone); "New chat" clears at once and writes the old chat's summary meanwhile, the next turn waits for it; developer mode (ASSISTANT_DEV here, the platform's admins when managed) shows each step's model, tokens, time and cost, the tools' arguments and results, the context window, and the turns' timeline, prompt and events to copy or download
@@ -265,11 +253,7 @@ bump is a notable or breaking change, **patch** is fixes and small features.
 - ADDED **[runtime]** The runner is its own process – RUNTIME_ROLE web | runner | all (a runtime that runs alone stays one process). The line of runs lives in the control database: run_index gained owner and seen, a runner claims a run in one statement that counts the tenant's held runs against its limit, reports every 10 s, hears of a cancel the web wrote and hands its runs back when it stops; a runner silent for 30 s loses them. A step's question and the person's answer go through the run's row (run.answer; run.unattended marks an autopilot), so the web that takes the answer need not be the process that asked. watchRun tells the stream, the autopilot and waitWhileMoving of changes another process made within a second. Runners register with an address (table runner, RUNNER_URL); the web hands a run's browser screen and acts on it to the runner holding it. compose.cloud.yaml runs web and runner apart. docs/plans/runner-process.md
 
 ## [0.2.56] - 2026-10-11
-- DOCS Every page describes v0.2.56
-- DOCS Every page checked against v0.2.55 – the wizard format's example in English, the WordPress page's key link to the new Integrate page
-- DOCS Apple Intelligence keeps High and Highest on their way; the WordPress import follows the shared check and a thinking step gets the pages that match it
-- DOCS Every page checked against v0.2.50
-- DOCS Every page checked against v0.2.48, public pages only, versions tracked
+- DOCS Documentation updates
 - FIXED A wizard package's errors in English like the definition's issues – wizards validate, the studio's import and the runner's check (which the WordPress plugin carries) said them in German
 - FIXED Apple Intelligence leaves High and Highest on their way, a visitor reads the runtime's answers in their language
 - FIXED A live conversation only where the wizard has it on, the browser the setup found, plugin runs without device signals, the WordPress plugin's download
@@ -303,17 +287,7 @@ bump is a notable or breaking change, **patch** is fixes and small features.
 - ADDED **[app]** The tab bar as glass that shows – the capsule gets a light tint and answers a touch with the glass's shimmer, and the active tab sits under a clear-glass lens that slides to the tab just picked (a plain pill where there is no Liquid Glass); Glass takes a tint and a clear kind
 - ADDED **[app]** Apple's models on the phone and voice notes on the Mac – an Expo module in Swift (the same Shared.swift as the Mac helper) gives the runner bridge `transcribe` (SpeechAnalyzer, iOS 26) and `think` (Apple Intelligence, where switched on), named to a page only where the phone has them; the runner writes a recording down on the phone before the field keeps it and offers the phone for a run's Classifier and Standard calls, which the runtime sends over the run's stream as `device` events and takes back by POST, falling back to its own way when the phone does not answer in time, errs, the prompt is too long, or the step declared tools or has uploads; the Mac's helper writes voice notes down as well (`apple:transcribe`, offered under Voice notes); the recorder prefers AAC where the phone transcribes
 - ADDED **[models]** Apple Intelligence on this Mac as a model – the on-device model of macOS 26 answers the Classifier and Standard classes through a Swift helper (wizards-apple: status, guided generation from the step's JSON schema), shown in the setup and under Text & Denken only on a Mac with Apple silicon on macOS 26, picked once Apple Intelligence is switched on; High and Highest keep their way; nothing leaves the Mac. The release builds the helper on a macOS 26 runner and packs it in; the plan for the phone side (transcription, then text over the app's bridge) is in docs/plans/local-models-apple.md
-- DOCS **[plans]** The plugin's source strings are English with German as de_DE; what make-json does to a built file named admin.js and why the bundle is app.js
-- DOCS **[plans]** The plugin repository is public as engenty/engenty-wizards-wp-plugin; what Plugin Check found and what changed for wordpress.org, the listing's assets, and what the submission still needs from the user
-- DOCS **[plans]** The no-key path shown through Ollama on the site, the Word branch and the prompt filter as deviations recorded
-- DOCS **[plans]** Checkpoints 7 and 8 shown on the test site (the pull against a stubbed account, the Word branch closed and the open way run), the photo run, the step timeout and the Ollama finding; the login-shell test of the harness gets twenty seconds on a loaded machine
-- DOCS **[plans]** Standalone mode of the WordPress plugin – wizards run on the site without an account: the browser follows the flow and draws, PHP keeps the prompts and the run and calls WordPress 7.0's AI Client once per thinking step with the site's Connectors provider; one shared check (needs, standaloneFit) labels every wizard full / with less / needs an account in the studio and on upload; the start stays the hero, 'Eigene KI erstellen' opens the choice between an engenty account and local with the site's own provider, local sites pick from wizards shipped with the plugin and run them without credits; tables, routes, the PHP ports line for line, files, phases, checkpoints, what is open; mockups on the design canvas
-- DOCS **[wordpress]** Connecting by hand with an address and an API Key
-- DOCS **[wordpress]** The plugin's repository is engenty/engenty-wizards-wordpress – the studio's download link, the docs page and the plan
-- DOCS **[plans]** How the WordPress plugin is built – its own public GPL repository engenty-wordpress with the PHP, block and admin app laid out; the eight runtime changes in order with the files and what they reuse; seven steps with a checkpoint each; what is left out
-- DOCS **[plans]** The WordPress plugin – a client of a runtime (engenty.ai or an own server), never PHP: block, shortcode, Elementor widget, PHP function and a bubble render the embed tag; the admin lists wizards, results and the Pro plugins' contacts and bookings through a PHP proxy with the key; what the runtime needs (/api/v1/me, /wizards, /runs, plugin routes with a key, run.origin, a bubble mode), phases and open decisions; mockups on the canvas
-- DOCS **[plans]** Apple's local models – what the iOS simulator showed: the 26.5 runtime answers a run's Standard step on the phone, 26.2 fails with ModelManagerError 1026 and the runtime falls back; no simulator holds speech assets, so transcription is verified on the Mac
-- DOCS COPYRIGHTS.md – who owns the code, the FSL-1.1-MIT terms in one paragraph, the marks, what is not ours (the Commission's AI labels) and every third-party package with its licence; pnpm about:data --credits writes that part beside the About page's credits, with the docs site and the development tooling the page leaves out
+- DOCS Documentation updates
 
 ## [0.2.48] - 2026-10-11
 - ADDED **[core]** What a shop plugin needs from the runtime – a select or multiselect draws the rows of a table output as cards (cards: label, value, image, subtitle, meta, link; the runner shows a grid with Auswählen and Details), server.web.read hands over a page's JSON-LD so a product page costs no model, server.connections takes keys (available names the fields, connect tries them once and keeps them sealed; the same account again replaces the first), server.secrets seals keys a plugin keeps itself, and server.spaceData reads the space's own pages and files for a plugin that learns from Wissen; a plan for the shop plugin in docs/plans
@@ -367,8 +341,7 @@ bump is a notable or breaking change, **patch** is fixes and small features.
 - ADDED The chat button in a website's corner shows the wizard's engenty on the pale ground of its hue (new /api/public/wizards/<token>/avatar.svg); the speech bubble stands in where it cannot load, the chevron while the chat is open
 - ADDED The chat's quick replies stand in the thread, left under the wizard's question, instead of at the bottom; the composer stays below and waits greyed out while the answer is tapped or the wizard works
 - ADDED Experiment – a wizard can also run as a chat: it asks one field at a time, answers come from the composer or quick replies, reviews and results arrive as messages; on the wizard's link with ?ui=chat, in a website as an inline chat (data-ui="chat") or a chat button in the corner that opens it above (data-mode="popout"), and in the editor's test drawer through a Steps/Chat switch
-- DOCS The share dialog's Channels list, the chat's embed modes and the sub-path addresses in the user docs; the plan records what of phase 2 is built
-- DOCS Two plans for the doors a wizard runs through – the concept (six channel patterns, what a wizard needs from a door, the admin's, owner's and customer's view) and the plan with the hooks the plugin framework needs (a run API for plugins, a runner registry with capabilities, sub-paths with a fallback) and the order of the work
+- DOCS Documentation updates
 - FIXED An agent step's JSON answer is taken as it stands when it fits the step's fields – a list in a table cell joined, a missing column empty – and only otherwise structured by a second model, which on Claude Code could fail after five tries on kilobytes of listings; Claude Code's own reason for a failure (subtype, errors) reaches the run log instead of "error"; web_fetch reads a PDF or Word file as text and answers an image or other bytes with their type and size instead of garbage
 - FIXED The chat's quick replies keep their outline – the scrolling row cut off the top of a picked answer's ring
 
@@ -577,8 +550,7 @@ bump is a notable or breaking change, **patch** is fixes and small features.
 - ADDED The studio moves to /studio; the root of a host is free for a landing page
 - ADDED The marketplace is an app of its own; the runtime searches it live and keeps its starters and the starred entries for offline use
 - ADDED Engenty-wizards://new?starter=<id> opens a marketplace template in the desktop app
-- DOCS The German tagline on the sign-in page follows the new one
-- DOCS The tagline is "Make a wish. Get your wizard." In the README, the npm package description and the banner of wizards.sh.
+- DOCS Documentation updates
 - FIXED Ctrl-C stops engenty-wizards again — the login shell that reads the person's variables runs in a session of its own and no longer keeps the terminal
 
 ## [0.1.0] - 2026-10-04
@@ -629,9 +601,7 @@ bump is a notable or breaking change, **patch** is fixes and small features.
 - ADDED MCP endpoint for authoring wizards with personal API keys
 - ADDED Engenty wizards — prompt-built AI wizards with shareable links
 - CHANGED Pnpm workspace with apps/ and packages/
-- DOCS Install with wizards.sh; the local install and how its pieces share it
-- DOCS Plan for definition versions and importing older packages
-- DOCS A README for people who install it, developer notes in docs/development.md
+- DOCS Documentation updates
 - FIXED The search skips filler words with umlauts too
 - FIXED The gallery's footer stays without version, changelog and open-source links
 - FIXED An entry's search terms are scored one by one, not as one long text

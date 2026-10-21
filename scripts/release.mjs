@@ -22,7 +22,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { emitKeypressEvents } from "node:readline";
-import { cliff, cliffContext } from "./git-cliff.mjs";
+import { cliff, cliffContext, groupDocsLines } from "./git-cliff.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const PKG = join(root, "package.json");
@@ -227,7 +227,7 @@ async function main() {
 
   if (CHANGELOG_ONLY) {
     if (unreleased.length > 0) {
-      writeChangelogBlock(cliff(["--unreleased", "--strip", "all"]));
+      writeChangelogBlock(groupDocsLines(cliff(["--unreleased", "--strip", "all"])));
     }
     writeData(cliffContext(), { credits: false });
     out(
@@ -245,7 +245,7 @@ async function main() {
   }
   out(`\n${c.b("Unreleased changes:")}`);
   out(
-    cliff(["--unreleased", "--strip", "all"])
+    groupDocsLines(cliff(["--unreleased", "--strip", "all"]))
       .replace(/^## .*$/m, "")
       .trimEnd(),
   );
@@ -293,7 +293,7 @@ async function main() {
   }
 
   // The release block, to accept or edit.
-  let block = cliff(["--unreleased", "--tag", tag, "--strip", "all"]).trim();
+  let block = groupDocsLines(cliff(["--unreleased", "--tag", tag, "--strip", "all"])).trim();
   const choice = envBump
     ? "accept"
     : await select(`Release ${c.b(tag)} — the entry above`, [

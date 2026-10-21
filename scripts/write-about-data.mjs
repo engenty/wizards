@@ -18,7 +18,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { cliffContext } from "./git-cliff.mjs";
+import { cliffContext, groupDocsCommits } from "./git-cliff.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const CHANGELOG_JSON = join(root, "changelog.json");
@@ -82,7 +82,7 @@ function writeSlimChangelog() {
     .map((release) => ({
       version: release.version ?? null,
       timestamp: release.timestamp ?? null,
-      commits: release.commits.map((commit) => ({
+      commits: groupDocsCommits(release.commits).map((commit) => ({
         id: typeof commit.id === "string" ? commit.id.slice(0, 7) : "",
         // The subject only: git-cliff's message can carry the body.
         message: (commit.message ?? "").split(/\r?\n/, 1)[0],

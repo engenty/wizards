@@ -36,3 +36,46 @@ export function cliff(args) {
 export function cliffContext(args = []) {
   return JSON.parse(cliff(["--context", ...args]));
 }
+
+/** The pull request numbers a commit's subject ends with, `(#12)` or `(#12, #15)`. */
+const prNumbers = (message) => [...message.matchAll(/#(\d+)/g)].map((m) => Number(m[1]));
+
+/** One docs entry for a release, with the pull requests it stands for. */
+function docsMessage(messages) {
+  const prs = [...new Set(messages.flatMap(prNumbers))].sort((a, b) => a - b);
+  return `documentation updates${prs.length > 0 ? ` (${prs.map((n) => `#${n}`).join(", ")})` : ""}`;
+}
+
+/**
+ * A release's docs commits as one entry, where the first of them was: small docs changes
+ * would otherwise crowd out what changed in the product. One docs commit stays as it is.
+ */
+export function groupDocsCommits(commits) {
+  const docs = commits.filter((commit) => commit.group === "Docs");
+  if (docs.length < 2) {
+    return commits;
+  }
+  const message = docsMessage(docs.map((commit) => (commit.message ?? "").split(/\r?\n/, 1)[0]));
+  return commits
+    .filter((commit) => commit.group !== "Docs" || commit === docs[0])
+    .map((commit) => (commit === docs[0] ? { ...commit, message, scope: null } : commit));
+}
+
+/** The same for rendered release blocks (`- DOCS …` lines), one or more `## [x.y.z]` sections. */
+export function groupDocsLines(markdown) {
+  return markdown
+    .split(/^(?=## \[)/m)
+    .map((section) => {
+      const lines = section.split("\n");
+      const docs = lines.filter((line) => line.startsWith("- DOCS "));
+      if (docs.length < 2) {
+        return section;
+      }
+      const line = `- DOCS ${docsMessage(docs).replace(/^./, (c) => c.toUpperCase())}`;
+      return lines
+        .filter((l) => !l.startsWith("- DOCS ") || l === docs[0])
+        .map((l) => (l === docs[0] ? line : l))
+        .join("\n");
+    })
+    .join("");
+}
