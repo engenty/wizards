@@ -737,7 +737,7 @@ export function AppFrame({
   // A phone's bar floats over the page: the page keeps its height free below the last line. A
   // page that fills the frame (the editor) has its own way back and its own bar at the bottom:
   // there the phone's bar steps aside, as a tab bar does on a screen pushed onto it.
-  const clear = phone && !full ? " + 4.75rem + env(safe-area-inset-bottom)" : "";
+  const clear = phone && !full ? "calc(4.75rem + env(safe-area-inset-bottom))" : "0px";
   const goose = useFeature("goose");
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
@@ -757,15 +757,14 @@ export function AppFrame({
               <div ref={column} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
                 {/* `relative`: what a page places out of flow without a positioned parent (a
                     hidden file field) stays in the page's own scroll, not in a frame around it,
-                    which a jump to a section would scroll as well. The page ends above the
-                    assistant's dock (`--assistant-dock`): nothing scrolls under it. */}
+                    which a jump to a section would scroll as well. The page runs to the frame's
+                    edge and scrolls under the assistant's docked card; it keeps that card's
+                    height (`--assistant-dock`) free below its last section, or the phone's bar,
+                    whichever is higher. */}
                 <main
                   id={SCROLL_ROOT_ID}
                   className="relative min-h-0 flex-1 overflow-y-auto"
-                  style={{
-                    marginBottom: "var(--assistant-dock, 0px)",
-                    ...(clear ? { paddingBottom: `calc(0px${clear})` } : {}),
-                  }}
+                  style={{ paddingBottom: `max(var(--assistant-dock, 0px), ${clear})` }}
                 >
                   <div
                     className={cn(

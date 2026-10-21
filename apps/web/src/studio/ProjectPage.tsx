@@ -421,8 +421,13 @@ export function ProjectPage() {
                 narrow && phone === 2 && "hidden",
                 narrow && pageStep === "back" && stepClass("back"),
               )}
-              // A menu longer than the page's frame scrolls on its own, beside the page.
-              style={!narrow && rootHeight ? { maxHeight: rootHeight - 48 } : undefined}
+              // A menu longer than the page's frame scrolls on its own, beside the page, and ends
+              // above Goose's docked card, which the page scrolls under.
+              style={
+                !narrow && rootHeight
+                  ? { maxHeight: `calc(${rootHeight - 48}px - var(--assistant-dock, 0px))` }
+                  : undefined
+              }
             >
               {menuBody}
             </aside>
