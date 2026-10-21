@@ -1,4 +1,8 @@
-import { isRealLanguage, langOf, localLang, textLang, validateWizard, wizardLang, wizardSchema } from "@engenty/wizards-shared/definition";
+import {
+  britishEnglish,
+  britishSpelling,
+  isRealLanguage,
+  langOf, localLang, textLang, validateWizard, wizardLang, wizardSchema } from "@engenty/wizards-shared/definition";
 import { describe, expect, it } from "vitest";
 
 describe("the language beside English", () => {
@@ -50,5 +54,23 @@ describe("a wizard's own language", () => {
     expect(isRealLanguage("qq")).toBe(false);
     expect(textLang("it")).toBe("en");
     expect(textLang("de")).toBe("de");
+  });
+});
+
+describe("British English", () => {
+  it("goes by the first English one of the reader's languages", () => {
+    expect(britishEnglish(["en-GB", "de"])).toBe(true);
+    expect(britishEnglish(["de-AT", "en_GB.UTF-8"])).toBe(true);
+    expect(britishEnglish(["en-UK"])).toBe(true);
+    expect(britishEnglish(["en-US", "en-GB"])).toBe(false);
+    expect(britishEnglish(["en"])).toBe(false);
+    expect(britishEnglish([])).toBe(false);
+  });
+
+  it("spells organization the British way, and nothing else", () => {
+    expect(britishSpelling("Organization credits for your organization’s plan")).toBe(
+      "Organisation credits for your organisation’s plan",
+    );
+    expect(britishSpelling("Your colour")).toBe("Your colour");
   });
 });

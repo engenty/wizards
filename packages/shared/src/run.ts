@@ -366,7 +366,7 @@ const NOTES_EN = {
   },
   twoEntriesSameKey: "Two entries have the same key.",
   pageSlugInvalid: "A page address holds lower-case letters a–z, digits and hyphens.",
-  pageSlugTaken: "Another space of your organisation has this address.",
+  pageSlugTaken: "Another space of your organization has this address.",
   pageTaken: "The page is already at “{space}”.",
   notDeleteLastSpace: "You can’t delete the last space.",
   notFound: "This doesn’t exist or was deleted.",
@@ -422,7 +422,7 @@ const NOTES_EN = {
   unknownSpace: "There’s no space “{space}”.",
   noParentPage: "There’s no page with the key “{parent}” to put this page under.",
   onlyOrganizationAdmins:
-    "Only organisation admins can do that. As a member, you can edit the wizards that already exist.",
+    "Only organization admins can do that. As a member, you can edit the wizards that already exist.",
   spaceEditedLocally: "You edit this space in engenty wizards on your computer, not here.",
   wizardsRunOncePublished:
     "Wizards run here once you publish them in engenty wizards on your computer. You build and edit them there.",

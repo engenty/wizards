@@ -315,7 +315,19 @@ describe("a runtime of a Manage-App", () => {
     // Making: refused for a wizard, a space, a copy; by every door.
     const made = await post("/api/studio/wizards", m, { projectId: project.id });
     expect(made.status).toBe(403);
-    expect(await made.json()).toMatchObject({ code: "forbidden" });
+    expect(await made.json()).toMatchObject({
+      code: "forbidden",
+      error: expect.stringContaining("Only organization admins"),
+    });
+    // A reader whose English is British reads it spelt their way.
+    const british = await app.fetch(
+      new Request(`${RUNTIME}/api/studio/wizards`, {
+        method: "POST",
+        headers: { cookie: m, "content-type": "application/json", "accept-language": "en-GB,en;q=0.8" },
+        body: JSON.stringify({ projectId: project.id }),
+      }),
+    );
+    expect(((await british.json()) as { error: string }).error).toContain("Only organisation admins");
     expect((await post("/api/studio/projects", m, { name: "Neu" })).status).toBe(403);
     // A wizard the owner made: the member edits it, copies and deletes it not.
     const w = (await (await post("/api/studio/wizards", a, { projectId: project.id })).json()) as { id: string };

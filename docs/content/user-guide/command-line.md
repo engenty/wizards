@@ -12,7 +12,7 @@ version: 0.9.3
 | `wizards start` | Starts it and opens the studio. It runs in that terminal, and Ctrl-C stops it. The first time, the setup runs first |
 | `wizards studio` | Opens the studio in your browser. If it isn’t running, it starts in the background first |
 | `wizards setup` | Runs the guided setup again: your account, an AI client, the browser and ffmpeg, a decision model, start at login, your AI apps. `--local` leaves the account out ([Local only](./local-only.md)) |
-| `wizards account` | Shows the account this computer is signed in to: who, which organisation, the credits. `sign-in` shows a link and a code and opens your browser; `sign-out` disconnects this computer |
+| `wizards account` | Shows the account this computer is signed in to: who, which organization, the credits. `sign-in` shows a link and a code and opens your browser; `sign-out` disconnects this computer |
 | `wizards open` | Signs this browser in to the running studio. `--print` only prints the link; it works once, within a minute |
 | `wizards status` | Shows what is installed and running, with the browser it uses for PDF, PNG and websites |
 | `wizards doctor` | Shows the status and checks for problems |

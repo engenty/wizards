@@ -14,7 +14,7 @@ import { featuresFile, fileFeatures, writeFeature } from "../features.js";
 import { type Layout, readInstallNote, writeInstallNote } from "./home.js";
 import type { SetupOptions } from "./setup.js";
 import { openBrowser, runningRuntime, settings } from "./start.js";
-import { bold, busy, cmd, cyan, dim, tilde } from "./ui.js";
+import { bold, busy, cmd, cyan, dim, spelled, tilde } from "./ui.js";
 
 /**
  * The account of this install, from the terminal. `wizards account` says where it stands,
@@ -30,7 +30,7 @@ import { bold, busy, cmd, cyan, dim, tilde } from "./ui.js";
  */
 
 export const INTRO =
-  "Your organisation, its space and your wizards live in the account. This computer joins the space.";
+  "Your organization, its space and your wizards live in the account. This computer joins the space.";
 
 export type AccountState =
   | { kind: "local" }
@@ -81,7 +81,7 @@ export async function accountState(): Promise<AccountState> {
   return { kind: "linked", account, organization: await knownOrganization() };
 }
 
-/** "Matthias · organisation Platzer Fenster & Türen · 120 credits", as far as it is known. */
+/** "Matthias · organization Platzer Fenster & Türen · 120 credits", as far as it is known. */
 export function described(
   account: LinkedAccount,
   organization: { name: string; balanceCredits: number } | null,
@@ -89,11 +89,11 @@ export function described(
 ): string {
   const parts = [account.name || account.email];
   if (organization) {
-    // "Team Anna" and "New organization" say it themselves: not "organisation Team Anna".
+    // "Team Anna" and "New organization" say it themselves: not "organization Team Anna".
     parts.push(
       /\b(team|organi[sz]ation)\b/i.test(organization.name)
         ? organization.name
-        : `organisation ${organization.name}`,
+        : `${spelled("organization")} ${organization.name}`,
     );
     if (credits) {
       parts.push(`${organization.balanceCredits} credits`);
@@ -431,7 +431,7 @@ export async function accountStep(
     );
     return;
   }
-  p.note(INTRO, "Your engenty account");
+  p.note(spelled(INTRO), "Your engenty account");
   if (!interactive) {
     p.log.info(dim(`To sign in later: ${cmd("account sign-in")}`));
     return;

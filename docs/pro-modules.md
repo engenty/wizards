@@ -13,7 +13,7 @@ linked account, in Settings → Plugins → Pro modules.
 2. The runtime asks the account's Manage-App which modules are built for its release and which
    of them the plan includes (`GET /v1/modules`,
    [contract](manage-contract.md#pro-modules-of-a-local-install)).
-   The answer holds an entitlement the Manage-App signed: the organisation, the plan's modules, an end
+   The answer holds an entitlement the Manage-App signed: the organization, the plan's modules, an end
    about a week ahead.
 3. "Install" downloads the module's zip. The runtime takes it only when its SHA-256 matches and
    the signature over id, version, release and that hash checks out against the public key it
@@ -44,7 +44,7 @@ the plan includes it again. "Remove" deletes its files, not its tables.
 
 ## What this protects, and what not
 
-- **Protected:** only an organisation whose plan includes a module can download it; a package that engenty
+- **Protected:** only an organization whose plan includes a module can download it; a package that engenty
   did not sign, or that was changed after signing, never loads – whatever the Manage-App or the
   network in between hand over.
 - **Not protected:** the code is on the person's machine. Someone who edits the runtime or its

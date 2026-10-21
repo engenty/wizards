@@ -22,7 +22,7 @@ loads them from their files and loads a plugin again when its files change.
 | Tables | In every tenant’s database | [Tables](./tables.md) |
 | A listener on runs that end and spaces that change | Nowhere: it works in the background | [Events](./events.md) |
 | A job, again and again | Nowhere: it works in the background | [The server half](./server.md#jobs) |
-| The organisation’s own number for texts and calls, on engenty.ai | Where the plugin’s runner and pages use it | [The server half](./server.md#numbers-of-the-manage-app) |
+| The organization’s own number for texts and calls, on engenty.ai | Where the plugin’s runner and pages use it | [The server half](./server.md#numbers-of-the-manage-app) |
 | An account of a space (a calendar, a mailbox), signed in through a built-in connector | Where the plugin’s own pages offer it | [Accounts](./connections.md) |
 | A wizard as a template | First among the templates of a new wizard, and in the MCP `list_starters` | [Starters](./starters.md) |
 | A page of the studio | Behind an icon in the app bar, or at its address | [The studio half](./studio.md) |

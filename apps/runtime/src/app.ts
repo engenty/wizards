@@ -23,7 +23,7 @@ import { PLUGIN_NAME, pluginArchive, pluginMarketplace } from "./plugin.js";
 import { apiRoutes } from "./routes/api.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
 import { internalRoutes } from "./routes/internal.js";
-import { notFoundAnswer, requestLang, say } from "./routes/lang.js";
+import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
 import { marketplaceGuest, marketplaceStudio } from "./routes/marketplace.js";
 import { publicPluginRoutes } from "./routes/plugin-public.js";
 import { pluginRoutes } from "./routes/plugins.js";
@@ -44,7 +44,8 @@ const { serves } = env;
 
 app.onError((err, c) => {
   if (err instanceof ServiceError) {
-    return c.json(err.toJSON(requestLang(c)), err.status);
+    const body = err.toJSON(requestLang(c));
+    return c.json({ ...body, error: spelledFor(c, body.error) }, err.status);
   }
   if (err instanceof ZodError) {
     return c.json({ error: say(c, "invalidInput"), issues: err.issues }, 400);

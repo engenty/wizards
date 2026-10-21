@@ -10,6 +10,7 @@ process.env.APP_URL = "http://localhost:5181";
 process.env.MARKETPLACE_URL = "off";
 process.env.PLUGINS_WATCH = "0";
 delete process.env.MANAGE_URL;
+process.env.LC_ALL = "en_US.UTF-8";
 
 let cli: typeof import("../src/cli/account");
 
@@ -61,11 +62,11 @@ describe("the account line", () => {
   it("names the person, the organization and the credits as far as they are known", () => {
     expect(cli.described(account, null)).toBe("Matthias");
     expect(cli.described(account, { name: "Platzer Fenster & Türen", balanceCredits: 120 })).toBe(
-      "Matthias · organisation Platzer Fenster & Türen · 120 credits",
+      "Matthias · organization Platzer Fenster & Türen · 120 credits",
     );
     expect(
       cli.described(account, { name: "Platzer Fenster & Türen", balanceCredits: 120 }, false),
-    ).toBe("Matthias · organisation Platzer Fenster & Türen");
+    ).toBe("Matthias · organization Platzer Fenster & Türen");
     expect(cli.described({ ...account, name: "" }, null)).toBe("m@test.local");
     expect(
       cli.describeAccount({
@@ -77,5 +78,10 @@ describe("the account line", () => {
     expect(cli.described(account, { name: "Team Anna", balanceCredits: 500 })).toBe(
       "Matthias · Team Anna · 500 credits",
     );
+    process.env.LC_ALL = "en_GB.UTF-8";
+    expect(cli.described(account, { name: "Platzer Fenster & Türen", balanceCredits: 120 })).toBe(
+      "Matthias · organisation Platzer Fenster & Türen · 120 credits",
+    );
+    process.env.LC_ALL = "en_US.UTF-8";
   });
 });

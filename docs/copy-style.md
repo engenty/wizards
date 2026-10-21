@@ -59,7 +59,7 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 | code extension | plugin | das Plugin | |
 | a key the user brings | API key; your own API key | der API-Key; dein eigener API-Key | API Key (DE), Schlüssel, an own key |
 | Claude / ChatGPT plan | subscription | das Abo | |
-| what an organisation pays for | plan | das Paket | Plan, Tarif |
+| what an organization pays for | plan | das Paket | Plan, Tarif |
 | the exported file | wizard file (.wizard) | Wizard-Datei | Paket (that is the plan) |
 | pre-made wizard | template | Vorlage | starter, gallery item |
 | how a wizard's pages look: colours, fonts, effects | theme | das Theme, die Themes | Thema, Design, Stil, Look (except the studio's section “Look” / „Aussehen“) |
@@ -78,9 +78,10 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 
 ## English
 
-British spelling (colour, organise). Sentence case. Spaced en dash ` – `. `…` without a space.
-Curly quotes “ ” and ’. Contractions (don't, it's). No Oxford comma. `&` only in labels. Figures
-for numbers; "about", not "~".
+British spelling (colour, organise), except *organization*, as on the account pages; the studio,
+the server and the CLI write “organisation” for a reader whose English is en-GB. Sentence case.
+Spaced en dash ` – `. `…` without a space. Curly quotes “ ” and ’. Contractions (don't, it's). No
+Oxford comma. `&` only in labels. Figures for numbers; "about", not "~".
 
 ## German
 

@@ -8,7 +8,7 @@ import { declaredFeatures, featuresFile, fileFeatures, writeFeature } from "../f
 import { discoverPlugins } from "../plugins/discovery.js";
 import { pluginDirs } from "../plugins/loader.js";
 import { proModulesDir } from "../plugins/pro-state.js";
-import { cmd, tilde } from "./ui.js";
+import { cmd, spelled, tilde } from "./ui.js";
 
 /**
  * `wizards features` — the feature switches of this install, from its `.features` file. Not in
@@ -36,11 +36,13 @@ export function featuresCommand(args: string[]): number {
       const d = declared[n];
       const kind = d ? d.kind : "?";
       console.log(
-        `${all[n] ? "on " : "off"}  ${n.padEnd(28)} ${kind.padEnd(8)} ${source.padEnd(9)} ${d?.label ?? ""}`,
+        `${all[n] ? "on " : "off"}  ${n.padEnd(28)} ${kind.padEnd(8)} ${source.padEnd(9)} ${spelled(d?.label ?? "")}`,
       );
     }
     console.log(
-      `\nFile: ${tilde(file)}\nWhile engenty wizards runs, account and organisation switches apply on top of these.`,
+      spelled(
+        `\nFile: ${tilde(file)}\nWhile engenty wizards runs, account and organization switches apply on top of these.`,
+      ),
     );
     return 0;
   }

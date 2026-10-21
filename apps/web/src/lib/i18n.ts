@@ -6,6 +6,8 @@ import {
   setRunnerTable,
 } from "@engenty/wizards-runner/i18n";
 import {
+  britishEnglish,
+  britishSpelling,
   isLang,
   type Lang,
   localLang,
@@ -2376,7 +2378,7 @@ const en = {
   "models.cap.listening.hint": "Understands speech and turns voice notes into text.",
   "models.way.local": "Local model",
   "models.way.credits": "Credits",
-  "models.way.creditsOrganization": "Organisation credits",
+  "models.way.creditsOrganization": "Organization credits",
   "models.way.none": "not set up",
   "models.who": "Who does it?",
   "models.optSubscription": "Your subscription",
@@ -2432,7 +2434,7 @@ const en = {
   "models.keyOk": "The key works.",
   "models.keyBad": "The key wasn’t accepted. Check it and try again.",
   "models.keyWhereLocal": "The key stays on this computer, never in the database.",
-  "models.keyWhereCloud": "The key is kept encrypted for the organisation. Nobody sees it again.",
+  "models.keyWhereCloud": "The key is kept encrypted for the organization. Nobody sees it again.",
   "models.keyFallback": "Until you add a key, credits step in.",
   "models.uses": "Used for",
   "models.useFor": "Use",
@@ -2452,7 +2454,7 @@ const en = {
   "models.tryHeardNothing": "Nothing heard – but the connection works.",
   "models.tryFailed": "That didn’t work: {error}",
   "models.creditsName": "engenty credits",
-  "models.creditsOrganization": "Organisation credits",
+  "models.creditsOrganization": "Organization credits",
   "models.creditsLocalLead":
     "Credits step in where you have no subscription or API key of your own.",
   "models.creditsCloudHint":
@@ -2475,7 +2477,7 @@ const en = {
   "models.clientImages": "{name} makes images with your {sub} – no API key of your own.",
   "models.clientNotChosen": "Text doesn’t run on {name} right now.",
   "models.ollamaHint": "Where Ollama runs and the model it serves.",
-  "models.readOnly": "Only the organisation’s admins can change its models.",
+  "models.readOnly": "Only the organization’s admins can change its models.",
   "models.viewAs": "Preview as",
   "models.view.auto": "as it is",
   "models.view.local": "this computer",
@@ -2488,16 +2490,16 @@ const en = {
   "setup.thisComputer": "This computer: space {space} of {organization}",
   "setup.account": "Your engenty account",
   "setup.accountText":
-    "Your organisation, its space and your wizards belong to the account. This computer joins the space.",
+    "Your organization, its space and your wizards belong to the account. This computer joins the space.",
   "setup.accountLinked": "Signed in as {name}",
   "setup.accountCredits": "{credits} credits",
   "setup.creditsChoice": "engenty credits",
   "setup.creditsDesc": "Runs on your account’s credits, as in the cloud. Nothing to install.",
   "onboard.kicker1": "Welcome, {name}",
   "onboard.kicker1Anon": "Welcome",
-  "onboard.organization": "What’s your organisation called?",
+  "onboard.organization": "What’s your organization called?",
   "onboard.organizationSub":
-    "Your company, your club or just your name. The organisation is your account: it holds your credits and your wizards. You can rename it any time.",
+    "Your company, your club or just your name. The organization is your account: it holds your credits and your wizards. You can rename it any time.",
   "onboard.organizationPlaceholder": "Berger Windows & Doors",
   "onboard.kind": "What will you use engenty for?",
   "onboard.kindSub": "So we can show you the templates and tips that fit.",
@@ -2583,7 +2585,7 @@ const en = {
   "onboard.kicker4": "Your space",
   "onboard.space": "All of that lives in your space.",
   "onboard.spaceSub":
-    "Your organisation’s first space is called {space}. All your wizards share it and add to it: every AI step knows it, so a wizard never asks for your name or your prices. You can rename it any time – the house icon in the app bar opens it.",
+    "Your organization’s first space is called {space}. All your wizards share it and add to it: every AI step knows it, so a wizard never asks for your name or your prices. You can rename it any time – the house icon in the app bar opens it.",
   "onboard.partInfo": "Info & brand",
   "onboard.partInfoText": "Who you are and how you look: title, about, logo, colours, facts.",
   "onboard.partKnow": "Knowledge",
@@ -2790,9 +2792,9 @@ const en = {
   "home.newProject": "New space",
   "home.projectName": "Space name",
   "home.projectLimit": { one: "At most {n} space", other: "At most {n} spaces" },
-  "organization.title": "Organisation",
+  "organization.title": "Organization",
   "organization.hint":
-    "Who’s in the organisation and which plan it’s on. You invite and manage members in the account.",
+    "Who’s in the organization and which plan it’s on. You invite and manage members in the account.",
   "organization.plan": "Plan",
   "organization.planFree": "Free",
   "organization.seats": "{taken} of {limit} seats",
@@ -2806,12 +2808,12 @@ const en = {
     "Owners and admins create and delete wizards and spaces. Members edit existing wizards.",
   "organization.memberNote":
     "You’re a member: you can edit wizards. Admins create and delete them.",
-  "organization.failed": "The organisation couldn’t be loaded. Try again.",
+  "organization.failed": "The organization couldn’t be loaded. Try again.",
   "organization.role.owner": "Owner",
   "organization.role.admin": "Admin",
   "organization.role.member": "Member",
   "models.ownKeysPlan":
-    "Your own API keys come with the Pro plan. Here, runs use the organisation’s credits.",
+    "Your own API keys come with the Pro plan. Here, runs use the organization’s credits.",
   "home.fromLocal": "Edited on your computer.",
   "home.syncedAt": "Arrived in the cloud: {when}.",
   "home.local.title": "Wizards you publish from your computer run here",
@@ -3871,7 +3873,7 @@ const en = {
   "page.inShareHint": "That is where you put each wizard on the page, one by one.",
   "page.sectionWizards": "Wizards on the page",
   "page.intro":
-    "People open this page and start your wizards without an account. Runs go on the organisation’s credits.",
+    "People open this page and start your wizards without an account. Runs go on the organization’s credits.",
   "page.setUp": "Set up the page",
   "page.cloudOnly": "A public page is there for spaces in the cloud.",
   "page.sources":
@@ -4618,10 +4620,22 @@ export function useLang(): Lang {
   return lang;
 }
 
+/** Whether this browser reads British English (en-GB): the studio's English then spells "organisation". */
+const british =
+  typeof navigator !== "undefined" && britishEnglish(navigator.languages ?? [navigator.language]);
+
+/** The studio's English as this browser's reader spells it. */
+function spelled(text: string): string {
+  return british && lang === "en" ? britishSpelling(text) : text;
+}
+
 /** What a run reports, in the language the person reads: its note where it has one. */
 export function eventText(ev: { message: string; note?: RunNote | null }): string {
   const table = runnerTable();
-  return (ev.note && noteText(ev.note, table?.lang ?? lang, table?.notes)) || ev.message;
+  if (table) {
+    return (ev.note && noteText(ev.note, table.lang, table.notes)) || ev.message;
+  }
+  return spelled((ev.note && noteText(ev.note, lang)) || ev.message);
 }
 
 /** A string in the language in effect: its plural form by `{count}` or `{n}`, its gaps filled. */
@@ -4632,7 +4646,19 @@ export function t(key: Key, vars?: Record<string, string | number>): string {
   if (table && own !== undefined) {
     return lineText(own, table.lang, vars);
   }
-  return textOf(TEXTS, key, lang, vars);
+  if (!(british && lang === "en")) {
+    return textOf(TEXTS, key, lang, vars);
+  }
+  // British spelling for the line's own words, never for what fills its gaps (a name).
+  const held: string[] = [];
+  const marked: Record<string, string | number> = {};
+  for (const [name, value] of Object.entries(vars ?? {})) {
+    marked[name] = typeof value === "number" ? value : `\uE000${held.push(value) - 1}\uE000`;
+  }
+  return britishSpelling(textOf(TEXTS, key, lang, marked)).replace(
+    /\uE000(\d+)\uE000/g,
+    (_, i: string) => held[Number(i)] ?? "",
+  );
 }
 
 if (typeof document !== "undefined") {

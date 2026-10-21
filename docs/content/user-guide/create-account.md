@@ -1,6 +1,6 @@
 ---
 title: Create an account
-description: Your organisation, its space and your wizards live in your account at engenty.ai. Sign up with an invitation code, answer four questions, build.
+description: Your organization, its space and your wizards live in your account at engenty.ai. Sign up with an invitation code, answer four questions, build.
 version: 0.9.3
 ---
 
@@ -15,7 +15,7 @@ email as soon as a seat is free. Once you have a code, the same button opens the
 2. Sign in with Google, GitHub or a link by email. There is no password.
 3. The studio opens at [engenty.ai/studio](https://engenty.ai/studio).
 
-Your account is an **organisation**: it holds your credits and your spaces. It starts with credits, and some
+Your account is an **organization**: it holds your credits and your spaces. It starts with credits, and some
 of them expire on a set date. The account pages at [account.engenty.ai](https://account.engenty.ai)
 show them.
 
@@ -26,7 +26,7 @@ changed later.
 
 | Page | Asks | Goes to |
 |---|---|---|
-| Welcome | “What will you use engenty for?” (Just me, Club, Small business, Company), a few details, then “What’s your organisation called?” (not asked for Just me) | Your organisation at account.engenty.ai |
+| Welcome | “What will you use engenty for?” (Just me, Club, Small business, Company), a few details, then “What’s your organization called?” (not asked for Just me) | Your organization at account.engenty.ai |
 | About you | “Where can the wizards read about you?”: your website. engenty reads your name, what you do, your logo and colours from it, or you write a line about yourself | [Space → Info & brand](./space.md#info--brand) |
 | Knowledge | “What should the wizards know?”: documents the wizards may look things up in, such as price lists, your terms or an FAQ | [Space → Knowledge](./space.md#knowledge) |
 | Your space | Nothing. It explains the space that holds all of this, “My wizards” (“Meine Wizards” in German) | – |
@@ -36,9 +36,9 @@ sentence, or start from a template. See [Build a wizard](./build-a-wizard.md).
 
 ## What the cloud does
 
-- Wizards you build here run behind a link that works day and night, on the organisation’s credits.
+- Wizards you build here run behind a link that works day and night, on the organization’s credits.
 - Share links, the code for your website, QR codes and the chat of [Test and share](./test-and-share.md) work as they do on your computer.
-- The organisation decides what the wizards run on: see [Models and account](./models.md).
+- The organization decides what the wizards run on: see [Models and account](./models.md).
 
 ## Also on your computer
 

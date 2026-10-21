@@ -110,7 +110,7 @@ with its files.
 ## One space
 
 engenty wizards on your computer has one space, called “My computer” at first (“Mein Computer” in
-German). On engenty.ai the organisation’s plan says how many spaces it may have. The space’s tile in the
+German). On engenty.ai the organization’s plan says how many spaces it may have. The space’s tile in the
 app bar opens a menu: it switches between spaces, “Rename space” renames this one, and “Add space”
 adds one while the plan has room. Each space has its own wizards, Info & brand, Knowledge, Data,
 connectors and results. The account, the models and the plugins are the same for every space.

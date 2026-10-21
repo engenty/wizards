@@ -65,13 +65,13 @@ need nothing. Without ffmpeg, the page “Voice notes” says so.
 
 engenty wizards checks a key with its provider before it stores it. On your computer, keys stay
 in the Keychain on a Mac and in an encrypted file in the data folder elsewhere. On engenty.ai
-they are kept encrypted for the organisation. They are never in the database, and nobody sees them again.
+they are kept encrypted for the organization. They are never in the database, and nobody sees them again.
 
 Under “Access” you find the credits, the AI clients on this computer and each provider you gave
 a key. The other providers are under “More providers”. A provider’s page holds its key, what it
 is used for, and which of its models run on credits without your own API key.
 
-On engenty.ai, your own API keys come with the Pro plan. Without them, runs use the organisation’s
+On engenty.ai, your own API keys come with the Pro plan. Without them, runs use the organization’s
 credits.
 
 Vercel refuses many models for an AI Gateway key on its free tier. The Models page and the check
