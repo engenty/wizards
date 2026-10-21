@@ -2114,8 +2114,7 @@ const de: Record<Key, Line> = {
   "assistant.end": "Beenden",
   "assistant.naturalVoice": "Natürliche Stimme (Sprachmodell)",
   "assistant.gotIt": "Verstanden",
-  "assistant.move":
-    "Ziehen, um Goose zu verschieben – nah am unteren oder rechten Rand rastet er ein",
+  "assistant.move": "Ziehen, um Goose zu verschieben – er dockt unten oder am rechten Rand an",
   "assistant.flap": "Verlauf: ziehen für die Höhe, klicken zum Ein- und Ausklappen",
   "assistant.busyComposer":
     "Dazwischen schreiben – Enter: vor dem nächsten Schritt, {keys}: danach",
@@ -4313,7 +4312,7 @@ const en = {
   "assistant.end": "End",
   "assistant.naturalVoice": "Natural voice (speech model)",
   "assistant.gotIt": "Got it",
-  "assistant.move": "Drag to move Goose – near the bottom or the right edge it snaps into place",
+  "assistant.move": "Drag to move Goose – it docks at the bottom or at the right edge",
   "assistant.flap": "Chat history: drag to resize, click to fold it in or out",
   "assistant.busyComposer": "Write in between – Enter: before the next step, {keys}: after",
   "assistant.pending": "Waiting for Goose",

@@ -1,18 +1,16 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Where Goose's chat stands at the bottom of the page, per browser: in the middle, at the right,
- * or where it was put down (`free`); how high its thread is; whether the developer mode is on.
- * And moving it: dragged by its grip it follows the pointer, near the bottom it snaps to the
- * middle or the right, near the right side (above the bottom) into the sidebar.
+ * Where Goose's chat stands at the bottom of the page, per browser: in the middle or at the right;
+ * how high its thread is; whether the developer mode is on. And moving it: dragged by its grip it
+ * follows the pointer and, let go, docks in the middle or at the right, whichever is nearer, or –
+ * near the right side, above the bottom – in the sidebar. It is never left over the page.
  */
 
-export type DockPlace = "center" | "right" | "free";
+export type DockPlace = "center" | "right";
 
 export interface DockPrefs {
   place: DockPlace;
-  /** Where it was put down: from the page column's left and bottom edge, in px. */
-  free: { left: number; bottom: number } | null;
   /** The thread's height in px, set with the handle on top; null: as high as it needs. */
   height: number | null;
   /** The developer mode, where it is offered. */
@@ -20,17 +18,13 @@ export interface DockPrefs {
 }
 
 const KEY = "wizards.assistant";
-const DEFAULT: DockPrefs = { place: "center", free: null, height: null, dev: false };
+const DEFAULT: DockPrefs = { place: "center", height: null, dev: false };
 
 function read(): DockPrefs {
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) ?? "null") as Partial<DockPrefs> | null;
     return {
-      place: stored?.place === "right" || stored?.place === "free" ? stored.place : "center",
-      free:
-        typeof stored?.free?.left === "number" && typeof stored.free.bottom === "number"
-          ? { left: stored.free.left, bottom: stored.free.bottom }
-          : null,
+      place: stored?.place === "right" ? "right" : "center",
       height: typeof stored?.height === "number" ? stored.height : null,
       dev: stored?.dev === true,
     };
@@ -87,9 +81,9 @@ export interface DockDrag {
   left: number;
   top: number;
   width: number;
-  /** Where it would snap if dropped now; null: it stays where it is put. */
-  zone: DockZone | null;
-  /** That zone's place, for the outline; kept while the outline fades out. */
+  /** Where it docks if dropped now. */
+  zone: DockZone;
+  /** That zone's place, for the outline. */
   spot: Rect | null;
 }
 
@@ -153,7 +147,7 @@ export function startDockDrag(
     onLeave?: () => void;
     /** Pressed and let go without a move. */
     onClick?: () => void;
-    onDrop: (zone: DockZone | "free", free?: { left: number; bottom: number }) => void;
+    onDrop: (zone: DockZone) => void;
   },
 ) {
   if (e.button !== 0) {
@@ -199,10 +193,11 @@ export function startDockDrag(
     // The side is a strip as the bottom is: the chat's right edge near the column's (above the
     // bottom, whose right end is a place of its own), or the pointer at the window's edge.
     const nearSide = column.width - (left + width) < SNAP || window.innerWidth - ev.clientX < SNAP;
-    let zone: DockZone | null = null;
+    let zone: DockZone;
     if (at.sidebar && nearSide && (!nearBottom || window.innerWidth - ev.clientX < SNAP)) {
       zone = "sidebar";
-    } else if (nearBottom) {
+    } else {
+      // Anywhere else it docks at the bottom, in the middle or at the right, whichever is nearer.
       const mid = left + width / 2;
       zone =
         at.right &&
@@ -210,7 +205,7 @@ export function startDockDrag(
           ? "right"
           : "center";
     }
-    last = { left, top, width, zone, spot: (zone && at[zone]) || last?.spot || null };
+    last = { left, top, width, zone, spot: at[zone] ?? last?.spot ?? null };
     setDrag(last);
   };
   const up = (ev: PointerEvent) => {
@@ -227,19 +222,9 @@ export function startDockDrag(
       opts.onClick?.();
       return;
     }
-    if (!ended) {
-      return;
-    }
-    if (ended.zone) {
+    if (ended?.zone) {
       opts.onDrop(ended.zone);
-      return;
     }
-    const column = opts.column()?.getBoundingClientRect();
-    const height = opts.frame()?.getBoundingClientRect().height ?? 0;
-    opts.onDrop("free", {
-      left: Math.round(ended.left),
-      bottom: Math.round((column?.height ?? 0) - ended.top - height),
-    });
   };
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
