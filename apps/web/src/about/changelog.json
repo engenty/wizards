@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.10.0",
+    "timestamp": 1792594005,
+    "commits": [
+      {
+        "id": "abf0c2d",
+        "message": "two-way sync of a local install's spaces with its organization in the cloud (#151)",
+        "group": "Added",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.9.8",
-    "timestamp": 1792571366,
+    "timestamp": 1792571508,
     "commits": [
       {
         "id": "a06e5aa",

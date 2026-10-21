@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.10.0] - 2026-10-21
+- ADDED Two-way sync of a local install's spaces with its organization in the cloud (#151)
+
 ## [0.9.8] - 2026-10-21
 - ADDED **[models]** Text classes classifier, low, standard, high, with minimums per class (#148) **[breaking]**
 
