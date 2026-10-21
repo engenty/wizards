@@ -1,3 +1,4 @@
+import { ASSISTANT_WIDTH } from "@engenty/wizards-shared/assistant";
 import type { MarketplaceEntry } from "@engenty/wizards-shared/marketplace";
 import {
   Activity,
@@ -34,7 +35,7 @@ import { lang, t } from "../../lib/i18n";
 import { spokenText } from "../../lib/read-aloud";
 import { PluginFrame, useStudioPlugins } from "../../plugins/host";
 import { Composer, type ComposerHandle, cn, IconButton, LATER_KEYS, Spinner } from "../../ui";
-import { useDismiss, useTrail } from "../AppFrame";
+import { scrollRoot, useDismiss, useTrail } from "../AppFrame";
 import { type ChatCard, type ChatToolCall, Messages, Working } from "../editor/ChatPanel";
 import { type AssistantState, useAssistant, useEarlierChats, useStoredChat } from "./chat";
 import { CopyThread, StepLines, ToolDetails, TurnsDialog, UsageMeter } from "./dev";
@@ -42,10 +43,14 @@ import {
   type DockZone,
   dockWidth,
   hasRight,
+  setAssistantSlot,
   setDockPrefs,
+  setSidebarMount,
   startDockDrag,
+  useAssistantSlot,
   useDockDrag,
   useDockPrefs,
+  useSidebarMount,
 } from "./dock";
 import { canLive } from "./live";
 import { type AssistantSuggestion, usePageAssistant } from "./page";
@@ -214,9 +219,12 @@ function defaultSuggestions(): AssistantSuggestion[] {
 function Hello({
   state,
   composer,
+  top,
 }: {
   state: AssistantState;
   composer: RefObject<ComposerHandle | null>;
+  /** At the top of the page: the page's words in full, the suggestions side by side. */
+  top?: boolean;
 }) {
   const page = usePageAssistant();
   const suggestions = (page.suggestions?.length ? page.suggestions : defaultSuggestions()).slice(
@@ -224,21 +232,36 @@ function Hello({
     3,
   );
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-start gap-3">
+    <div className={cn("flex flex-col", top ? "gap-5" : "gap-4")}>
+      <div className={cn("flex items-start", top ? "gap-4" : "gap-3")}>
         <div className="shrink-0">
-          <Mascot kind="round" size={44} helmet interactive={false} />
+          <Mascot kind="round" size={top ? 64 : 44} helmet interactive={false} />
         </div>
         <div className="min-w-0 pt-0.5">
-          <h2 className="font-display font-semibold text-[1.0625rem] leading-tight tracking-tight">
+          <h2
+            className={cn(
+              "font-display font-semibold leading-tight tracking-tight",
+              top ? "text-[1.25rem]" : "text-[1.0625rem]",
+            )}
+          >
             {page.title ?? t("assistant.helloTitle")}
           </h2>
-          <p className="mt-1 text-[0.875rem] text-ink-2 leading-relaxed">
+          <p
+            className={cn(
+              "mt-1 text-ink-2 leading-relaxed",
+              top ? "max-w-2xl text-[0.9375rem]" : "text-[0.875rem]",
+            )}
+          >
             {page.hello ?? t("assistant.hello")}
           </p>
+          {top && page.about ? (
+            <p className="mt-2 max-w-2xl text-[0.875rem] text-ink-3 leading-relaxed">
+              {page.about}
+            </p>
+          ) : null}
         </div>
       </div>
-      <div className="flex flex-col gap-1.5">
+      <div className={cn("flex gap-1.5", top ? "flex-wrap sm:pl-20" : "flex-col")}>
         {suggestions.map((s) => (
           <button
             key={s.label}
@@ -252,7 +275,10 @@ function Hello({
                 void state.chat.send(message);
               }
             }}
-            className="flex items-center gap-2 rounded-xl bg-paper-2 px-3.5 py-2.5 text-left text-[0.875rem] text-ink-2 transition hover:bg-paper-3 hover:text-ink disabled:opacity-60"
+            className={cn(
+              "flex items-center gap-2 bg-paper-2 text-left text-[0.875rem] text-ink-2 transition hover:bg-paper-3 hover:text-ink disabled:opacity-60",
+              top ? "rounded-full px-3.5 py-2" : "rounded-xl px-3.5 py-2.5",
+            )}
           >
             <span className="min-w-0 flex-1">{s.label}</span>
             {s.fill ? <SquarePen className="size-3.5 shrink-0 text-ink-4" /> : null}
@@ -332,9 +358,12 @@ function ReadChat({ id }: { id: string }) {
 function Thread({
   state,
   composer,
+  top,
 }: {
   state: AssistantState;
   composer: RefObject<ComposerHandle | null>;
+  /** At the top of the page, where it greets with the page's words in full. */
+  top?: boolean;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const { chat, view } = state;
@@ -362,7 +391,14 @@ function Thread({
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [chat.messages, chat.phase, view]);
   return (
-    <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+    <div
+      ref={scroller}
+      data-assistant-thread
+      className={cn(
+        "min-h-0 flex-1 overflow-y-auto px-4 py-4",
+        top ? "sm:px-6 sm:py-5" : "sm:px-5",
+      )}
+    >
       {view.kind === "earlier" ? (
         <Earlier state={state} />
       ) : view.kind === "read" ? (
@@ -379,7 +415,7 @@ function Thread({
           foot={(m) => (state.dev.on ? <StepLines steps={m.steps} /> : null)}
         />
       ) : (
-        <Hello state={state} composer={composer} />
+        <Hello state={state} composer={composer} top={top} />
       )}
       {chat.error && view.kind === "chat" ? (
         <div className="mt-4 rounded-lg bg-rose-tint px-3 py-2 text-[0.8125rem] text-rose">
@@ -525,17 +561,18 @@ function Header({
             </span>
           )}
           {state.dev.offered && state.view.kind === "chat" ? <DevSwitch state={state} /> : null}
+          {/* On the name's line: live, or what Goose sees, shortened where the row ends. */}
+          {live.state !== "off" ? (
+            <span className="flex shrink-0 items-center gap-1.5 text-[0.75rem] text-ember-strong">
+              <span className="size-1.5 animate-pulse-dot rounded-full bg-ember" />
+              {t("assistant.live")} · <Clock since={live.since} />
+            </span>
+          ) : sees ? (
+            <span className="min-w-0 truncate text-[0.75rem] text-ink-4">
+              {t("assistant.sees", { page: sees })}
+            </span>
+          ) : null}
         </div>
-        {live.state !== "off" ? (
-          <div className="flex items-center gap-1.5 text-[0.75rem] text-ember-strong">
-            <span className="size-1.5 animate-pulse-dot rounded-full bg-ember" />
-            {t("assistant.live")} · <Clock since={live.since} />
-          </div>
-        ) : sees ? (
-          <div className="truncate text-[0.75rem] text-ink-4">
-            {t("assistant.sees", { page: sees })}
-          </div>
-        ) : null}
       </div>
       {dev ? <UsageMeter messages={messages} narrow={narrow} /> : null}
       {dev ? (
@@ -1107,10 +1144,74 @@ function Flap({
 
 // --- the three places ----------------------------------------------------------------------
 
+/** Scrolled up this far past the column's top, the chat at the top of the page goes to the bottom. */
+const PAST = 48;
+/** How far Goose perching on the docked card stands above it (not on a phone). */
+const PERCH = 32;
+/** The chat's height at the top of a page before it is measured. */
+const SLOT_FIRST = 240;
+
 /**
- * At the bottom of the page and small at its lower right: drawn over the page's column. The
- * height of what stays at rest is written to `--assistant-dock` on the column, so the page's
- * last section stays clear of it – not while the chat stands where it was put.
+ * Where a page wants Goose's chat at its top (the space page's parts). Scrolled away, the chat
+ * goes to the bottom, and the slot keeps its height so the page does not jump; scrolled back, it
+ * returns. Where the chat stands in the sidebar or is closed into the engenty, the slot is empty.
+ */
+export function AssistantSlot() {
+  return <div ref={setAssistantSlot} className="hidden" />;
+}
+
+/**
+ * Whether the page's slot is scrolled out of the column, above it or below. `height`: the chat's
+ * height while it stood there, which the empty slot keeps.
+ */
+function useSlotAway(slot: HTMLElement | null, height: RefObject<number>): boolean {
+  const [away, setAway] = useState(false);
+  useLayoutEffect(() => {
+    if (!slot) {
+      setAway(false);
+      return;
+    }
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const root = scrollRoot();
+      const view = root.getBoundingClientRect();
+      const rect = slot.getBoundingClientRect();
+      // Hidden (a phone shows the part's menu): the chat stands at the bottom.
+      if (!slot.offsetParent) {
+        setAway(true);
+        return;
+      }
+      // Before the chat has stood there, the slot is empty: it counts as high as the chat's hello.
+      const bottom = rect.top + Math.max(rect.height, height.current || SLOT_FIRST);
+      setAway(bottom < view.top + PAST || rect.top > view.bottom);
+    };
+    const schedule = () => {
+      frame ||= requestAnimationFrame(update);
+    };
+    update();
+    const observer = new ResizeObserver(schedule);
+    observer.observe(slot);
+    // The page scrolls inside the frame: its scroll does not bubble, but it can be caught.
+    window.addEventListener("scroll", schedule, { passive: true, capture: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("scroll", schedule, { capture: true });
+      window.removeEventListener("resize", schedule);
+    };
+  }, [slot, height]);
+  return away;
+}
+
+/**
+ * At the bottom of the page and small at its lower right, in the page's column. The height of
+ * what stays there, the open thread included, is written to `--assistant-dock` on the column, and
+ * the page ends above it – not while the chat stands where it was put. Where the page has a slot
+ * at its top and the chat stands at the bottom, the chat stands in that slot until it is scrolled
+ * away; in the sidebar, in the sidebar's pane. All are one card in one node that moves, so the
+ * draft and the thread stay.
  */
 export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | null> }) {
   const state = useAssistant();
@@ -1125,7 +1226,10 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const where = useWhereOrNull(state);
   const prefs = useDockPrefs();
   const size = useSize(column);
-  const visible = state && where && where.where !== "sidebar";
+  const visible = state && where;
+  // In the sidebar, a pane of its own beside the page: the card is drawn there.
+  const sidebar = where?.where === "sidebar";
+  const sidebarMount = useSidebarMount();
   const width = dockWidth(size.width);
   // On a phone, and where the column has no room for it, the chat stands in the middle.
   const place =
@@ -1135,6 +1239,19 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
       ? "center"
       : prefs.place;
   const docked = place !== "free";
+  // At the top of the page: where the page has a slot, the chat stands at the bottom, and the
+  // slot is in view.
+  const slot = useAssistantSlot();
+  const wanted = slot && visible && where.where === "bottom" ? slot : null;
+  const slotHeight = useRef(0);
+  // The slot shows while the chat may stand in it.
+  useLayoutEffect(() => {
+    if (slot) {
+      slot.style.display = wanted ? "block" : "";
+    }
+  }, [slot, wanted]);
+  const away = useSlotAway(wanted, slotHeight);
+  const top = Boolean(wanted) && !away;
   // Made small, the chat folds into the engenty at the lower right; opened, it is the same chat
   // as at the bottom, where it last stood – over the page, which keeps room for the engenty only.
   const small = where?.where === "avatar";
@@ -1142,25 +1259,91 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const [focused, setFocused] = useState(false);
   const active =
     focused || open || state?.chat.phase !== "idle" || (state?.live.state ?? "off") !== "off";
-  const reserve = small ? !open : docked;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `rest` is the engenty or the bar, by `small` and `open`
+  const reserve = !(top || sidebar) && ((small && !open) || docked);
+  // A phone's bar floats at the bottom of the window: the chat stands above it.
+  const phone = Boolean(where?.phone);
+  const card = Boolean(visible) && !(small && !open);
+  // The node the card is drawn into, moved between the slot and the dock.
+  const [host] = useState(() => {
+    const el = document.createElement("div");
+    el.className = "flex min-h-0 flex-col";
+    return el;
+  });
+  const [mount, setMount] = useState<HTMLDivElement | null>(null);
+  const [placed, setPlaced] = useState(false);
   useLayoutEffect(() => {
-    const el = rest.current;
+    const target = sidebar ? sidebarMount : top ? wanted : mount;
+    host.className = cn("flex min-h-0 flex-col", sidebar && "flex-1");
+    if (!target || host.parentElement === target) {
+      return;
+    }
+    const focus = host.contains(document.activeElement) ? document.activeElement : null;
+    target.appendChild(host);
+    if (focus instanceof HTMLElement) {
+      focus.focus({ preventScroll: true });
+    }
+    // A moved node forgets its scroll: the thread shows its end again.
+    for (const el of host.querySelectorAll<HTMLElement>("[data-assistant-thread]")) {
+      el.scrollTop = el.scrollHeight;
+    }
+    setPlaced(true);
+  }, [sidebar, sidebarMount, top, wanted, mount, host]);
+  // Scrolled away, the slot keeps the chat's height.
+  useLayoutEffect(() => {
+    if (!slot) {
+      return;
+    }
+    slot.style.minHeight = wanted && away ? `${slotHeight.current}px` : "";
+    if (!(wanted && top)) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      slotHeight.current = host.offsetHeight;
+    });
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, [slot, wanted, away, top, host]);
+  useEffect(
+    () => () => {
+      host.remove();
+    },
+    [host],
+  );
+  // The page ends above what stands at rest – the engenty, or the docked chat as high as it is
+  // now, open or folded – so the chat never lies over a section.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the engenty or the dock's frame, by `small` and `open`, drawn once `placed`
+  useLayoutEffect(() => {
+    const el = small && !open ? rest.current : frame.current;
     const host = column.current;
     if (!(el && host && visible && reserve)) {
       host?.style.setProperty("--assistant-dock", "0px");
       return;
     }
-    const observer = new ResizeObserver(() => {
-      const below = pad.current?.offsetHeight ?? 0;
-      host.style.setProperty("--assistant-dock", `${Math.ceil(el.offsetHeight + below) + 8}px`);
-    });
+    const measure = () => {
+      // Above the docked card, room for Goose perching on it while the chat is in use.
+      const perched = el === frame.current && !phone ? PERCH : 0;
+      const below = host.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
+      host.style.setProperty(
+        "--assistant-dock",
+        `${Math.max(0, Math.ceil(below)) + perched + 8}px`,
+      );
+    };
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
+    observer.observe(host);
     return () => {
       observer.disconnect();
       host.style.setProperty("--assistant-dock", "0px");
     };
-  }, [column, visible, reserve, small, open]);
+  }, [column, visible, reserve, small, open, placed, phone]);
+  // Scrolled away from the top of the page, the chat docks folded: the page is what is read now.
+  const wasTop = useRef(top);
+  useEffect(() => {
+    if (wasTop.current && !top && wanted && state?.open) {
+      state.setOpen(false);
+    }
+    wasTop.current = top;
+  }, [top, wanted, state]);
   // Escape folds the opened chat away.
   useEffect(() => {
     if (!state?.open) {
@@ -1177,49 +1360,107 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   if (!(state && where && visible)) {
     return null;
   }
-  if (small && !open) {
-    return (
-      <DropZone
-        composer={composer}
-        className={cn("pointer-events-none absolute inset-0", lifted ? "z-[61]" : "z-30")}
-      >
-        {
-          <div
-            ref={rest}
-            className="pointer-events-auto absolute right-3 bottom-3 sm:right-4 sm:bottom-4"
-          >
-            <div className="flex items-center gap-1 rounded-full bg-card p-1 pr-1.5 shadow-overlay ring-1 ring-border">
-              <button
-                type="button"
-                onClick={() => state.setOpen(true)}
-                className="flex items-center gap-2 rounded-full py-0.5 pr-2 pl-0.5 text-[0.875rem] text-ink-2 transition hover:text-ink"
-              >
-                <span className="relative">
-                  <Mascot kind="round" size={36} helmet interactive={false} />
-                  {state.chat.phase !== "idle" || state.live.state !== "off" ? (
-                    <span className="absolute top-0 right-0 size-2.5 animate-pulse-dot rounded-full bg-ember ring-2 ring-card" />
-                  ) : null}
-                </span>
-                <span className="max-sm:hidden">{t("assistant.ask")}</span>
-              </button>
-              {canLive ? (
-                <IconButton
-                  label={t("assistant.talk")}
-                  onClick={() => {
-                    state.setOpen(true);
-                    void state.live.start();
-                  }}
-                  className="size-8 bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-                >
-                  <AudioLines className="size-4" />
-                </IconButton>
-              ) : null}
-            </div>
-          </div>
-        }
-      </DropZone>
+  // The thread is as high as the handle set it, within what the column leaves.
+  const maxThread = Math.max(THREAD.min, Math.min(THREAD.max, size.height - 220));
+  const threadHeight = prefs.height === null ? null : Math.min(prefs.height, maxThread);
+  const grip =
+    where.phone || top ? undefined : (
+      <Grip
+        state={state}
+        column={column}
+        frame={() => (sidebar ? null : frame.current)}
+        wide={where.wide}
+        from={sidebar ? "sidebar" : "bottom"}
+      />
     );
-  }
+  // One card: the open chat or the last turn on top, the bar below, melted together. At the top
+  // of the page it is always open and has no handle; the tree stays the same, so does the draft.
+  // The thread shows at the top of the page, in the sidebar, and opened at the bottom.
+  const expanded = open || top || sidebar;
+  const drawn =
+    card && placed
+      ? createPortal(
+          <DropZone
+            composer={composer}
+            className={cn("flex min-h-0 flex-col", sidebar && "flex-1")}
+          >
+            <div
+              className={cn(
+                "pointer-events-auto flex min-h-0 flex-col overflow-hidden",
+                sidebar
+                  ? "flex-1"
+                  : top
+                    ? "rounded-xl bg-card bg-linear-to-br from-ember-tint via-card to-card shadow-soft ring-1 ring-ember-veil focus-within:ring-ember"
+                    : "rounded-[1.375rem] bg-card shadow-overlay ring-1 ring-border focus-within:ring-focus",
+              )}
+            >
+              {/* The handle stays, open or folded: it sets the height, folds, and opens again. */}
+              {top || sidebar ? null : (
+                <Flap
+                  thread={thread}
+                  max={maxThread}
+                  folded={!open}
+                  onFold={() => state.setOpen(false)}
+                  onOpen={() => state.setOpen(true)}
+                />
+              )}
+              {/* The header stays, open or folded: the card keeps its head and only its thread
+                  opens and folds below it. */}
+              <div className={cn("relative flex min-h-0 flex-col", sidebar && "flex-1")}>
+                <div
+                  className={cn("flex min-h-0 flex-col", sidebar && "flex-1")}
+                  style={expanded && !(top || sidebar) ? { maxHeight: maxThread + 60 } : undefined}
+                >
+                  <Header
+                    state={state}
+                    where={sidebar ? "sidebar" : small ? "avatar" : "bottom"}
+                    wide={where.wide}
+                    phone={where.phone}
+                    compact={where.compact}
+                    grip={grip}
+                  />
+                  {expanded ? (
+                    <div
+                      ref={thread}
+                      className={cn(
+                        "flex min-h-0 flex-col border-border-soft border-b",
+                        sidebar ? "flex-1" : !top && "animate-rise",
+                      )}
+                      style={
+                        sidebar
+                          ? undefined
+                          : top
+                            ? { maxHeight: Math.min(480, maxThread) }
+                            : threadHeight === null
+                              ? // As high as it needs, up to about half the column: the page keeps the rest.
+                                { maxHeight: Math.min(maxThread, Math.round(size.height * 0.45)) }
+                              : { height: threadHeight }
+                      }
+                    >
+                      <Thread state={state} composer={composer} top={top} />
+                    </div>
+                  ) : state.chat.messages.length || state.chat.error ? (
+                    <LastTurn state={state} />
+                  ) : null}
+                </div>
+              </div>
+              <div
+                ref={rest}
+                onFocusCapture={() => setFocused(true)}
+                onBlurCapture={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                    setFocused(false);
+                  }
+                }}
+                className="relative w-full"
+              >
+                <Bottom state={state} composer={composer} floating bare />
+              </div>
+            </div>
+          </DropZone>,
+          host,
+        )
+      : null;
   // Goose perches while the chat is in use (focused, open, working or live): on top of whatever
   // stands highest – the open chat, the last turn, or the bar. It is the handle that moves the chat, too.
   const perch = (
@@ -1252,88 +1493,78 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
       <Mascot kind="round" size={44} helmet interactive={active} />
     </button>
   );
-  // The thread is as high as the handle set it, within what the column leaves.
-  const maxThread = Math.max(THREAD.min, Math.min(THREAD.max, size.height - 220));
-  const threadHeight = prefs.height === null ? null : Math.min(prefs.height, maxThread);
-  const grip = where.phone ? undefined : (
-    <Grip
-      state={state}
-      column={column}
-      frame={() => frame.current}
-      wide={where.wide}
-      from="bottom"
-    />
-  );
-  return (
+  // The engenty at the lower right, the chat folded into it.
+  const bubble = (
     <DropZone
       composer={composer}
       className={cn("pointer-events-none absolute inset-0", lifted ? "z-[61]" : "z-30")}
     >
-      {docked && !small ? (
-        <div
-          aria-hidden
-          className="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-paper/85 via-paper/55 to-paper/0 backdrop-blur-xl [mask-image:linear-gradient(to_top,black_45%,transparent)]"
-        />
-      ) : null}
-      <DropOutline />
-      <DockFrame place={place} free={prefs.free} width={width} column={size} frame={frame}>
-        {perch}
-        {/* One card: the open chat or the last turn on top, the bar below, melted together. */}
-        <div className="pointer-events-auto flex min-h-0 flex-col overflow-hidden rounded-[1.375rem] bg-card shadow-overlay ring-1 ring-border focus-within:ring-focus">
-          {/* The handle stays, open or folded: it sets the height, folds, and opens again. */}
-          <Flap
-            thread={thread}
-            max={maxThread}
-            folded={!open}
-            onFold={() => state.setOpen(false)}
-            onOpen={() => state.setOpen(true)}
-          />
-          {open ? (
-            <div className="relative flex min-h-0 flex-col">
-              <div
-                className="flex min-h-0 animate-rise flex-col border-border-soft border-b"
-                style={{ maxHeight: maxThread + 60 }}
-              >
-                <Header
-                  state={state}
-                  where={small ? "avatar" : "bottom"}
-                  wide={where.wide}
-                  phone={where.phone}
-                  compact={where.compact}
-                  grip={grip}
-                />
-                <div
-                  ref={thread}
-                  className="flex min-h-0 flex-col"
-                  style={
-                    threadHeight === null ? { maxHeight: maxThread } : { height: threadHeight }
-                  }
-                >
-                  <Thread state={state} composer={composer} />
-                </div>
-              </div>
-            </div>
-          ) : state.chat.messages.length || state.chat.error ? (
-            <LastTurn state={state} />
-          ) : null}
-          <div
-            ref={rest}
-            onFocusCapture={() => setFocused(true)}
-            onBlurCapture={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-                setFocused(false);
-              }
-            }}
-            className="relative w-full"
+      <div
+        ref={rest}
+        className={cn(
+          "pointer-events-auto absolute right-3 sm:right-4",
+          phone ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]" : "bottom-3 sm:bottom-4",
+        )}
+      >
+        <div className="flex items-center gap-1 rounded-full bg-card p-1 pr-1.5 shadow-overlay ring-1 ring-border">
+          <button
+            type="button"
+            onClick={() => state.setOpen(true)}
+            className="flex items-center gap-2 rounded-full py-0.5 pr-2 pl-0.5 text-[0.875rem] text-ink-2 transition hover:text-ink"
           >
-            <Bottom state={state} composer={composer} floating bare />
-          </div>
+            <span className="relative">
+              <Mascot kind="round" size={36} helmet interactive={false} />
+              {state.chat.phase !== "idle" || state.live.state !== "off" ? (
+                <span className="absolute top-0 right-0 size-2.5 animate-pulse-dot rounded-full bg-ember ring-2 ring-card" />
+              ) : null}
+            </span>
+            <span className="max-sm:hidden">{t("assistant.ask")}</span>
+          </button>
+          {canLive ? (
+            <IconButton
+              label={t("assistant.talk")}
+              onClick={() => {
+                state.setOpen(true);
+                void state.live.start();
+              }}
+              className="size-8 bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+            >
+              <AudioLines className="size-4" />
+            </IconButton>
+          ) : null}
         </div>
-        {docked ? (
-          <div ref={pad} className="h-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0" />
-        ) : null}
-      </DockFrame>
+      </div>
     </DropZone>
+  );
+  return (
+    <>
+      {drawn}
+      {top || sidebar ? null : small && !open ? (
+        bubble
+      ) : (
+        <DropZone
+          composer={composer}
+          className={cn("pointer-events-none absolute inset-0", lifted ? "z-[61]" : "z-30")}
+        >
+          <DropOutline />
+          <DockFrame place={place} free={prefs.free} width={width} column={size} frame={frame}>
+            {perch}
+            <div ref={setMount} className="flex min-h-0 flex-col" />
+            {docked ? (
+              <div
+                ref={pad}
+                className={cn(
+                  "shrink-0",
+                  phone
+                    ? "h-[calc(4.75rem+env(safe-area-inset-bottom))]"
+                    : "h-[max(0.75rem,env(safe-area-inset-bottom))]",
+                )}
+              />
+            ) : null}
+          </DockFrame>
+        </DropZone>
+      )}
+    </>
   );
 }
 
@@ -1369,35 +1600,101 @@ const STAND_IN = {
   chat: { messages: [] },
 } as unknown as AssistantState;
 
-/** The sidebar, beside the page, on a window wide enough; its grip pulls the chat out to the bottom. */
-export function AssistantSidebar({ column }: { column: RefObject<HTMLDivElement | null> }) {
+/** The most the sidebar takes of a window this wide: the page beside it keeps its room. */
+const sidebarMax = (room: number) =>
+  Math.max(ASSISTANT_WIDTH.min, Math.min(ASSISTANT_WIDTH.max, room - 1120));
+
+/**
+ * The handle in the gap left of the sidebar, as the editor's panels have: dragged, or with the
+ * arrow keys, it sets the width, kept for the person; a double-click sets the default again.
+ */
+function SidebarHandle({
+  state,
+  width,
+  max,
+}: {
+  state: AssistantState;
+  width: number;
+  max: number;
+}) {
+  const clamp = (w: number) => Math.round(Math.min(Math.max(w, ASSISTANT_WIDTH.min), max));
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a window splitter that moves is a focusable separator (WAI-ARIA)
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={t("editor.resize")}
+      aria-valuenow={width}
+      aria-valuemin={ASSISTANT_WIDTH.min}
+      aria-valuemax={max}
+      tabIndex={0}
+      title={t("editor.resize")}
+      onPointerDown={(e) => {
+        if (e.button !== 0) {
+          return;
+        }
+        e.preventDefault();
+        const startX = e.clientX;
+        let last = width;
+        // Dragged left, the sidebar grows.
+        const move = (ev: PointerEvent) => {
+          last = clamp(width - (ev.clientX - startX));
+          state.setWidth(last, false);
+        };
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          document.body.style.removeProperty("cursor");
+          document.body.style.removeProperty("user-select");
+          state.setWidth(last === ASSISTANT_WIDTH.initial ? null : last);
+        };
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          const step = e.shiftKey ? 64 : 16;
+          state.setWidth(clamp(width + (e.key === "ArrowLeft" ? step : -step)));
+        }
+      }}
+      onDoubleClick={() => state.setWidth(null)}
+      className="group -left-2 absolute inset-y-0 z-10 w-2 cursor-col-resize outline-none"
+    >
+      <span className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-8 w-1 rounded-full bg-ink-4/20 transition group-hover:bg-ember/60 group-focus-visible:bg-ember group-active:h-12 group-active:bg-ember" />
+    </div>
+  );
+}
+
+/**
+ * The sidebar: a pane of its own beside the page's, on a window wide enough, as wide as the
+ * person set it with the handle in the gap. The chat is drawn into it by the dock, so it stays
+ * the same chat when it snaps in or out; its grip pulls it out.
+ */
+export function AssistantSidebar() {
   const state = useAssistant();
   const lifted = Boolean(useHighlight());
-  const composer = useRef<ComposerHandle>(null);
   const where = useWhereOrNull(state);
+  const max = sidebarMax(useWindowWidth());
   if (!(state && where && where.where === "sidebar")) {
     return null;
   }
+  const width = Math.min(
+    Math.max(state.width ?? ASSISTANT_WIDTH.initial, ASSISTANT_WIDTH.min),
+    max,
+  );
   return (
-    <DropZone
-      composer={composer}
-      className={cn(
-        "flex w-[400px] shrink-0 flex-col border-border-soft border-l bg-card",
-        lifted && "relative z-[61]",
-      )}
-    >
-      <Header
-        state={state}
-        where="sidebar"
-        wide={where.wide}
-        phone={where.phone}
-        grip={
-          <Grip state={state} column={column} frame={() => null} wide={where.wide} from="sidebar" />
-        }
-      />
-      <Thread state={state} composer={composer} />
-      <Bottom state={state} composer={composer} />
-    </DropZone>
+    <div className={cn("relative flex shrink-0", lifted && "z-[61]")} style={{ width }}>
+      <SidebarHandle state={state} width={width} max={max} />
+      <aside
+        aria-label={t("assistant.name")}
+        className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-background shadow-elevated dark:ring-1 dark:ring-border-soft"
+      >
+        <div ref={setSidebarMount} className="flex min-h-0 flex-1 flex-col" />
+      </aside>
+    </div>
   );
 }
 

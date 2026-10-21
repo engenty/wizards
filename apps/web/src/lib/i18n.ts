@@ -1727,7 +1727,6 @@ const de: Record<Key, Line> = {
   "space.resultsDays": "Letzte {n} Tage",
   "space.resultsNone": "Nichts gefunden.",
   "space.resultFiles": { one: "{n} Datei", other: "{n} Dateien" },
-  "project.rename": "Space umbenennen",
   "project.saving": "Speichert …",
   "project.base": "Grundlagen",
   "project.baseHint": "Wer hinter den Wizards steht. Jeder KI-Schritt kennt das.",
@@ -2206,10 +2205,14 @@ const de: Record<Key, Line> = {
   "project.assistantTitle": "Erzähl mir von dir und deiner Firma",
   "project.assistantHello":
     "Nenn mir deine Website oder gib mir Dateien. Ich trage ein, was ich finde: Titel, Beschreibung, Logo, Farben und Fakten.",
+  "project.assistantAbout":
+    "Alle Wizards dieses Space nutzen diese Angaben. Unten kannst du jeden Abschnitt prüfen, ändern oder selbst ausfüllen.",
   "project.assistantComposer": "z. B. „Lies unsere Website example.at“ …",
   "project.assistantTitleKnowledge": "Was sollen deine Wizards wissen?",
   "project.assistantHelloKnowledge":
     "Gib mir Dokumente oder sag mir, wo das Wissen steht. Ich lese es ein – auf dieser Seite siehst du, was hineinkommt.",
+  "project.assistantAboutKnowledge":
+    "Gut eignen sich Preislisten, Produktblätter, FAQs und Richtlinien. Je genauer das Wissen, desto genauer schreiben deine Wizards.",
   "project.assistantComposerKnowledge": "Dokumente anhängen oder sagen, wo das Wissen steht …",
   "project.assistantChanged": "Space aktualisiert",
   "flowApp.loading": "Der Wizard kommt …",
@@ -3934,7 +3937,6 @@ const en = {
   "space.resultsDays": "Last {n} days",
   "space.resultsNone": "No matches.",
   "space.resultFiles": { one: "{n} file", other: "{n} files" },
-  "project.rename": "Rename space",
   "project.saving": "Saving…",
   "project.base": "Basics",
   "project.baseHint": "Who is behind the wizards. Every AI step knows this.",
@@ -4403,10 +4405,14 @@ const en = {
   "project.assistantTitle": "Tell me about your business",
   "project.assistantHello":
     "Give me your website or some files. I’ll fill in what I find: title, description, logo, colours and facts.",
+  "project.assistantAbout":
+    "All wizards in this space use these details. Below, you can check, change or fill in each section yourself.",
   "project.assistantComposer": "e.g. “Read our website example.com”…",
   "project.assistantTitleKnowledge": "What should your wizards know?",
   "project.assistantHelloKnowledge":
     "Give me documents or tell me where the knowledge is. I’ll read it in – this page shows what goes in.",
+  "project.assistantAboutKnowledge":
+    "Price lists, product sheets, FAQs and guidelines work well. The more precise the knowledge, the more precisely your wizards write.",
   "project.assistantComposerKnowledge": "Attach documents or say where the knowledge is…",
   "project.assistantChanged": "Space updated",
   "flowApp.loading": "The wizard is on its way…",

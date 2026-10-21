@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   ASSISTANT_LAYOUTS,
   ASSISTANT_PAGE_BYTES,
+  ASSISTANT_WIDTH,
   type AssistantEvents,
   type AssistantSignal,
   assistantSignalSchema,
@@ -117,6 +118,7 @@ import { architectTurn } from "../services/architect.js";
 import {
   addMessage,
   assistantLayout,
+  assistantWidth,
   currentChat,
   earlierChats,
   foldChat,
@@ -235,7 +237,7 @@ import {
   writableWizard,
   writeDraft,
 } from "../services/wizards.js";
-import { readSetting, writeSetting } from "../settings.js";
+import { deleteSetting, readSetting, writeSetting } from "../settings.js";
 import { projectShareTargets, sharePreview } from "../sharing/index.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -570,11 +572,37 @@ export const studio = new Hono<Vars>()
   .get("/assistant/chats/:id", async (c) =>
     c.json(await readChat(c.get("user"), c.req.param("id"))),
   )
-  .get("/assistant/layout", async (c) => c.json({ layout: await assistantLayout(c.get("user")) }))
+  // Where the assistant stands, and the sidebar's width (null: the default); a PUT sends either.
+  .get("/assistant/layout", async (c) =>
+    c.json({
+      layout: await assistantLayout(c.get("user")),
+      width: await assistantWidth(c.get("user")),
+    }),
+  )
   .put("/assistant/layout", async (c) => {
-    const { layout } = z.object({ layout: z.enum(ASSISTANT_LAYOUTS) }).parse(await c.req.json());
-    await writeSetting(`assistant-layout:${c.get("user").tenantId}:${c.get("user").id}`, layout);
-    return c.json({ layout });
+    const user = c.get("user");
+    const body = z
+      .object({
+        layout: z.enum(ASSISTANT_LAYOUTS).optional(),
+        width: z
+          .number()
+          .int()
+          .min(ASSISTANT_WIDTH.min)
+          .max(ASSISTANT_WIDTH.max)
+          .nullable()
+          .optional(),
+      })
+      .refine((b) => b.layout !== undefined || b.width !== undefined)
+      .parse(await c.req.json());
+    if (body.layout) {
+      await writeSetting(`assistant-layout:${user.tenantId}:${user.id}`, body.layout);
+    }
+    if (body.width === null) {
+      await deleteSetting(`assistant-width:${user.tenantId}:${user.id}`);
+    } else if (body.width !== undefined) {
+      await writeSetting(`assistant-width:${user.tenantId}:${user.id}`, body.width);
+    }
+    return c.json({ layout: await assistantLayout(user), width: await assistantWidth(user) });
   })
   // Live chat reads answers aloud with the speech model where one is set up; else the browser's voices.
   .get("/assistant/voice", async (c) => c.json({ way: (await classWays()).speech.kind }))

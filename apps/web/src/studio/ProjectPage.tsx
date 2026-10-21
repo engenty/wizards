@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
-import { useCurrentProject, useManyProjects } from "../lib/session";
+import { useCurrentProject } from "../lib/session";
 import { PluginFrame, SpacePartFrame, useStudioPlugins } from "../plugins/host";
 import { cn, Empty } from "../ui";
 import { scrollRoot, useCrumbs } from "./AppFrame";
@@ -17,7 +17,6 @@ import { PublicPage } from "./project/PublicPage";
 import { NO_FILTER, Results, type ResultsFilter, useResults } from "./project/Results";
 import { Anchor, Section } from "./project/Section";
 import { DATA_ICON, DataOverview, dataGroups, useSpaceData } from "./project/SpaceData";
-import { SpaceSwitcher } from "./project/SpaceSwitcher";
 import { TableEditor } from "./project/TableEditor";
 import {
   groupOfSection,
@@ -136,7 +135,6 @@ export function ProjectPage() {
   const location = useLocation();
   const { hash } = location;
   const { project, loading } = useCurrentProject();
-  const many = useManyProjects();
   const plugins = useStudioPlugins();
   const narrow = useNarrow();
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -420,12 +418,6 @@ export function ProjectPage() {
                   />
                 </div>
               ) : null}
-              {many && project ? (
-                <div className="mb-6">
-                  <SpaceSwitcher project={project} />
-                </div>
-              ) : null}
-
               {group === "data" ? (
                 <SubMenu>
                   <ul className="flex flex-col gap-0.5">
@@ -497,7 +489,12 @@ export function ProjectPage() {
               )}
 
               {project && (group === "info" || group === "knowledge") ? (
-                <ProjectSettings key={project.id} project={project} group={group}>
+                <ProjectSettings
+                  key={project.id}
+                  project={project}
+                  group={group}
+                  top={!picked || Boolean(pickedSection)}
+                >
                   {group !== "knowledge" ? null : item ? (
                     item.startsWith("p:") ? (
                       <PageEditor

@@ -135,3 +135,6 @@ export interface AssistantEvents {
 /** Where the assistant stands on the screen, per person. */
 export const ASSISTANT_LAYOUTS = ["bottom", "sidebar", "avatar"] as const;
 export type AssistantLayout = (typeof ASSISTANT_LAYOUTS)[number];
+
+/** The sidebar's width in px, set with its handle per person: the default, the least and the most. */
+export const ASSISTANT_WIDTH = { initial: 400, min: 320, max: 720 } as const;

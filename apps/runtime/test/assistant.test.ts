@@ -170,10 +170,18 @@ describe("one chat per person", () => {
   });
 
   it("keeps where the person wants the assistant", async () => {
-    expect(await json(send("GET", "/api/studio/assistant/layout"))).toEqual({ layout: "bottom" });
+    const layout = () => json(send("GET", "/api/studio/assistant/layout"));
+    expect(await layout()).toEqual({ layout: "bottom", width: null });
     await send("PUT", "/api/studio/assistant/layout", { layout: "sidebar" });
-    expect(await json(send("GET", "/api/studio/assistant/layout"))).toEqual({ layout: "sidebar" });
+    expect(await layout()).toEqual({ layout: "sidebar", width: null });
     expect((await send("PUT", "/api/studio/assistant/layout", { layout: "left" })).status).toBe(400);
+    // The sidebar's width goes with it; null is the default again.
+    await send("PUT", "/api/studio/assistant/layout", { width: 520 });
+    expect(await layout()).toEqual({ layout: "sidebar", width: 520 });
+    expect((await send("PUT", "/api/studio/assistant/layout", { width: 90 })).status).toBe(400);
+    expect((await send("PUT", "/api/studio/assistant/layout", {})).status).toBe(400);
+    await send("PUT", "/api/studio/assistant/layout", { width: null });
+    expect(await layout()).toEqual({ layout: "sidebar", width: null });
   });
 });
 

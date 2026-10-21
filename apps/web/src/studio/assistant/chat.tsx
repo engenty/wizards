@@ -112,6 +112,10 @@ export interface AssistantState {
   stop: () => void;
   layout: AssistantLayout;
   setLayout: (layout: AssistantLayout) => void;
+  /** The sidebar's width the person set with its handle; null: the default. */
+  width: number | null;
+  /** Kept for the person with the layout; `save: false` only shows it (while it is dragged). */
+  setWidth: (width: number | null, save?: boolean) => void;
   open: boolean;
   setOpen: (open: boolean) => void;
   view: AssistantView;
@@ -165,7 +169,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   });
   const savedLayout = useQuery({
     queryKey: ["assistant-layout"],
-    queryFn: () => api.get<{ layout: AssistantLayout }>("/api/studio/assistant/layout"),
+    queryFn: () =>
+      api.get<{ layout: AssistantLayout; width: number | null }>("/api/studio/assistant/layout"),
     enabled: signedIn,
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -179,6 +184,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<AssistantView>({ kind: "chat" });
   const [layout, setLayoutState] = useState<AssistantLayout | null>(null);
+  const [width, setWidthState] = useState<number | null | undefined>(undefined);
   const [pending, setPendingState] = useState<PendingMessage[]>([]);
   const [turns, setTurns] = useState<DevTurn[]>([]);
   const loaded = useRef<string | null>(null);
@@ -200,8 +206,24 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const setLayout = useCallback(
     (next: AssistantLayout) => {
       setLayoutState(next);
-      qc.setQueryData(["assistant-layout"], { layout: next });
+      qc.setQueryData(["assistant-layout"], (old: object | undefined) => ({
+        ...old,
+        layout: next,
+      }));
       void api.put("/api/studio/assistant/layout", { layout: next }).catch(() => null);
+    },
+    [qc],
+  );
+  const setWidth = useCallback(
+    (next: number | null, save = true) => {
+      setWidthState(next);
+      if (save) {
+        qc.setQueryData(["assistant-layout"], (old: object | undefined) => ({
+          ...old,
+          width: next,
+        }));
+        void api.put("/api/studio/assistant/layout", { width: next }).catch(() => null);
+      }
     },
     [qc],
   );
@@ -613,6 +635,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       stop,
       layout: layout ?? savedLayout.data?.layout ?? "bottom",
       setLayout,
+      width: width === undefined ? (savedLayout.data?.width ?? null) : width,
+      setWidth,
       open,
       setOpen,
       view,
@@ -633,6 +657,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       layout,
       savedLayout.data,
       setLayout,
+      width,
+      setWidth,
       open,
       view,
       live,
