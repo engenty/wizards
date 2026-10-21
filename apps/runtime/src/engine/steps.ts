@@ -425,7 +425,7 @@ async function composeSurface(
   const fields = shapeLines(shape).join("\n");
   const sample = JSON.stringify(json).slice(0, 4000);
   try {
-    const writer = await textModel("standard", ctx.call);
+    const writer = await textModel("low", ctx.call);
     let issues: string[] = [];
     for (let attempt = 0; attempt < 2; attempt++) {
       const result = await generateText({
@@ -590,7 +590,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
   if (step.each) {
     return runAgentEach(step, ctx);
   }
-  const resolved = await textModel(step.model ?? "high", { ...ctx.call, effort: step.effort });
+  const resolved = await textModel(step.model ?? "standard", { ...ctx.call, effort: step.effort });
   const uploads = await personUploads(ctx);
   const { tools, assets, instructions, close } = await buildStepTools(step, ctx, resolved, uploads);
   // A step without tools of its own and without uploads: the run's device may answer it alone.
@@ -932,7 +932,7 @@ async function writeHtml(
   ]
     .filter(Boolean)
     .join("\n\n");
-  const writer = await textModel(step.model ?? "high", { ...ctx.call, effort: step.effort });
+  const writer = await textModel(step.model ?? "standard", { ...ctx.call, effort: step.effort });
   const result = await generateText({
     model: writer.model,
     system,
@@ -962,7 +962,7 @@ async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry):
   const scope: TemplateScope = { ...ctx.scope, entry };
   const brief = renderTemplate(step.prompt, scope);
   const note = ctx.state.notes[step.id];
-  const prompter = await textModel("standard", ctx.call);
+  const prompter = await textModel("low", ctx.call);
   const from = entry.reference
     ? step.asset === "video"
       ? " The video STARTS FROM A GIVEN IMAGE: describe only what moves in it and how the camera moves; never re-describe or change what the image shows."

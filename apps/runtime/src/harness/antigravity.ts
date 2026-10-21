@@ -25,9 +25,9 @@ export const AGY_BIN = process.env.AGY_BIN?.trim() || "agy";
 /** The models carry their effort in the name: `gemini-3.8-flash-<low|medium|high>`. */
 const CLASSES: Record<TextClass, string> = {
   classifier: "gemini-3.8-flash-low",
-  standard: "gemini-3.8-flash-medium",
+  low: "gemini-3.8-flash-medium",
+  standard: "gemini-3.8-flash-high",
   high: "gemini-3.8-flash-high",
-  highest: "gemini-3.8-flash-high",
 };
 
 /** The model of that name at the effort a step asks for, where the name carries one. */
@@ -153,5 +153,5 @@ export const antigravity: Harness = {
   // No login command: the client asks for the Google sign-in when it starts without one.
   login: { args: [], interactive: true },
   model: (alias: string, effort?: Effort) =>
-    new AntigravityModel(antigravity, alias || CLASSES.standard, effort),
+    new AntigravityModel(antigravity, alias || CLASSES.low, effort),
 };

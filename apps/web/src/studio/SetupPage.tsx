@@ -330,15 +330,15 @@ export function SetupPage() {
   // A narrow page shows the opened choice alone; the person goes back to the choices from there.
   const [listOpen, setListOpen] = useState(false);
   const choose = useMutation({
-    // Apple Intelligence is the short classes bound on this Mac; the source stays and keeps High
-    // and Highest. Another choice after it unbinds them.
+    // Apple Intelligence is the short classes bound on this Mac; the source stays and keeps Standard
+    // and High. Another choice after it unbinds them.
     mutationFn: (pick: Pick) =>
       api.put(
         "/api/studio/local/models",
         pick === "apple"
-          ? { bindings: { classifier: "apple:default", standard: "apple:default" } }
+          ? { bindings: { classifier: "apple:default", low: "apple:default" } }
           : pick === "own"
-            ? { source: "own", bindings: { classifier: "", standard: "" } }
+            ? { source: "own", bindings: { classifier: "", low: "" } }
             : { source: pick, bindings: withoutApple(me.data?.models?.bindings ?? {}) },
       ),
     onSuccess: async (_saved, source) => {
@@ -369,14 +369,14 @@ export function SetupPage() {
   const installed = clients.filter((h) => h.version !== null);
   // A first start has nothing chosen yet; a source picked earlier (here or in the settings) stays picked.
   const apple = me.data.apple;
-  const appleChosen = models.bindings.standard?.startsWith("apple:");
+  const appleChosen = models.bindings.low?.startsWith("apple:");
   const selected: Pick | null = appleChosen
     ? "apple"
     : picked || me.data.setupDone || models.source !== "own"
       ? models.source
       : null;
   const client = me.data.harnesses.find((h) => h.id === selected);
-  // Beside Apple the source stays: High and Highest think on the client or the credits picked before.
+  // Beside Apple the source stays: Standard and High think on the client or the credits picked before.
   const keeps =
     models.source === "account"
       ? t("models.creditsName")

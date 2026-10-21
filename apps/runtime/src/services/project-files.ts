@@ -255,7 +255,7 @@ async function projectLine(projectId: string): Promise<string> {
 
 /** One sentence about a picture, for whoever picks among the project's files later. */
 async function describeImage(row: ProjectFileRow, data: Uint8Array): Promise<string> {
-  const seer = await textModel("standard");
+  const seer = await textModel("low");
   const result = await generateText({
     model: seer.model,
     maxOutputTokens: 300,

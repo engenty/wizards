@@ -1007,9 +1007,9 @@ function groupOf(cls: string): ClassGroup {
 
 const CLASS_GROUP: Record<ModelClass, Exclude<ClassGroup, "account">> = {
   classifier: "text",
+  low: "text",
   standard: "text",
   high: "text",
-  highest: "text",
   image: "image",
   video: "video",
   speech: "speech",

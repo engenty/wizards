@@ -66,11 +66,11 @@ export function ModelClassControl({
     <div className="flex flex-col gap-2">
       <Label>{t("class.label")}</Label>
       <Select
-        value={model ?? "high"}
+        value={model ?? "standard"}
         onChange={(v) => onChange({ model: v as TextClass, effort })}
         options={TEXT_CLASSES.map((c) => ({ value: c, label: t(`class.${c}`) }))}
       />
-      <p className="text-[0.75rem] text-ink-3">{t(`class.${model ?? "high"}.hint`)}</p>
+      <p className="text-[0.75rem] text-ink-3">{t(`class.${model ?? "standard"}.hint`)}</p>
       <Label>{t("class.effort")}</Label>
       <Segmented
         value={effort ? t(`class.effort.${effort}`) : none}

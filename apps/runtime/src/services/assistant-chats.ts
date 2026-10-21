@@ -177,7 +177,7 @@ async function summarise(
 ): Promise<{ title: string; summary: string }> {
   const firstAsk = messages.find((m) => m.role === "user")?.content ?? "";
   try {
-    const model = await textModel("standard");
+    const model = await textModel("low");
     const result = await generateText({
       model: model.model,
       maxOutputTokens: 900,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFINITION_VERSION, wizardSchema } from "./definition.js";
+import { currentWizardSchema, DEFINITION_VERSION } from "./definition.js";
 import { themeSchema } from "./theme.js";
 import {
   manifestSchema,
@@ -67,7 +67,7 @@ export function wizardJsonSchema(): JsonSchema {
     $comment: LICENSE_COMMENT,
     title: "engenty.wizards wizard definition",
     description: `A wizard's definition, version ${DEFINITION_VERSION}. Checked by \`wizards validate\`, which also checks what this schema cannot say: ids, references between steps and templates.`,
-    ...withSchemaProperty(generate(wizardSchema)),
+    ...withSchemaProperty(generate(currentWizardSchema)),
   };
 }
 
@@ -87,7 +87,7 @@ export function packageJsonSchema(): JsonSchema {
       ...properties,
       definition: { $ref: "#/$defs/definition" },
     },
-    $defs: { definition: withSchemaProperty(generate(wizardSchema)) },
+    $defs: { definition: withSchemaProperty(generate(currentWizardSchema)) },
   };
 }
 

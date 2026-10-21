@@ -882,7 +882,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   let changes = 0;
   // The way the settings chose for the studio's chats: on a client, its tools reach it over MCP.
   const way = managed ? "models" : await chatEngine(await hasTextModel());
-  const resolved = await chatModel(way, "high");
+  const resolved = await chatModel(way, "standard");
   const wrote = () => {
     changes++;
     input.onChanged?.();

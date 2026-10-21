@@ -85,7 +85,7 @@ export async function readCompany(input: {
     if (!(await canSpend())) {
       return null;
     }
-    const reader = await textModel("standard");
+    const reader = await textModel("low");
     const { output } = await generateText({
       model: reader.model,
       abortSignal: input.signal,

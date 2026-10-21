@@ -48,7 +48,7 @@ const definition = {
       type: "agent",
       title: "Bericht",
       instructions: "Schreibe den Bericht.",
-      model: "standard",
+      model: "low",
     },
     { id: "picture", type: "generate", title: "Bild", asset: "image", prompt: "Der Schaden" },
     { id: "check", type: "review", title: "Prüfen", show: ["draft", "picture"] },

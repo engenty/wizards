@@ -270,7 +270,7 @@ function apiFor(record: LoadedPlugin): WizardsPluginApi {
       },
       getTenantDb: () => db as unknown as PluginDb,
       async generate(request) {
-        const resolved = await textModel(request.model ?? "standard").catch((err: unknown) => {
+        const resolved = await textModel(request.model ?? "low").catch((err: unknown) => {
           // Said so a route can pass it on as it is: 503 with the code `no_model`.
           throw err instanceof ModelUnavailableError
             ? Object.assign(err, { name: "ModelUnavailableError", status: 503, code: "no_model" })

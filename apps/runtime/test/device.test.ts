@@ -122,7 +122,7 @@ describe("the device a run is watched from as a model", () => {
     await inTenant(async () => {
       await device.offerDevice(r1, { think: { classes: ["classifier"], maxChars: 1000 } });
       expect(await device.deviceThinks(r1, "classifier")).toEqual({ maxChars: 1000 });
-      expect(await device.deviceThinks(r1, "standard")).toBeNull();
+      expect(await device.deviceThinks(r1, "low")).toBeNull();
       expect(await device.deviceThinks(r2, "classifier")).toBeNull();
       await device.offerDevice(r1, {});
       expect(await device.deviceThinks(r1, "classifier")).toBeNull();

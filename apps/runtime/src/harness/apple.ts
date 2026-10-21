@@ -23,7 +23,7 @@ import {
  * installed AI client is run. Nothing leaves the machine and nothing is signed in. It is offered
  * where it can run: a Mac with Apple silicon on macOS 26 or later with the helper built, and it
  * answers once Apple Intelligence is switched on. The model is small (about 3B parameters,
- * 4,096 tokens for prompt and answer together): a way for the Classifier and Standard classes,
+ * 4,096 tokens for prompt and answer together): a way for the Classifier and Low classes,
  * not for research, long documents or code. `apple:default` is the model; `apple:tagging` is
  * Apple's adapter for tagging and extraction.
  */

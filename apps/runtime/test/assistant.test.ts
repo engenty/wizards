@@ -215,13 +215,13 @@ describe("the browser's tools", () => {
 describe("the guides", () => {
   it("are found by words and read by page", async () => {
     const { readDoc, searchDocs } = await import("../src/assistant/docs");
-    const hits = searchDocs("model class Highest assistant");
+    const hits = searchDocs("model class High assistant");
     expect(hits.length).toBeGreaterThan(0);
     expect(hits.map((h) => h.page)).toContain("user-guide/models");
     expect(hits[0].url).toMatch(/^https:\/\/engenty\.ai\/docs\//);
     const page = readDoc("user-guide/models");
     expect(page).toMatchObject({ page: "user-guide/models", url: "https://engenty.ai/docs/user-guide/models" });
-    expect((page as { text: string }).text).toContain("Highest");
+    expect((page as { text: string }).text).toContain("Classifier, Low, Standard, High");
     expect(readDoc("https://engenty.ai/docs/user-guide/steps")).toMatchObject({ page: "user-guide/steps" });
     expect(readDoc("nothing-here")).toMatchObject({ error: expect.any(String) });
   });

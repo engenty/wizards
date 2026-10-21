@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { cp } from "node:fs/promises";
 import { join } from "node:path";
+import { upgradeDefinition } from "@engenty/wizards-shared/definition";
 import { createClient, type InStatement } from "@libsql/client";
 import { env } from "../env.js";
 import { readSetting, writeSetting } from "../settings.js";
@@ -28,15 +29,15 @@ const TABLES = [
   "store_secret",
 ];
 
-const CLASS_OF: Record<string, string> = { fast: "standard", smart: "high" };
+const CLASS_OF: Record<string, string> = { fast: "low", smart: "standard" };
 
-/** Steps named a model speed before they named a model class. */
+/** Steps named a model speed before they named a model class; then classes of version 1. */
 function withClasses(json: unknown): unknown {
   if (typeof json !== "string") {
     return json;
   }
   try {
-    const def = JSON.parse(json) as { steps?: { model?: string }[] };
+    const def = upgradeDefinition(JSON.parse(json)) as { steps?: { model?: string }[] };
     for (const step of def.steps ?? []) {
       if (step.model && CLASS_OF[step.model]) {
         step.model = CLASS_OF[step.model];
