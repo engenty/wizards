@@ -21,7 +21,7 @@ function migrationsFolder(name: "tenant" | "control"): string {
 }
 
 /**
- * The tenant schema this release writes: the last migration's tag (`0021_sync`). The two-way
+ * The tenant schema this release writes: the last migration's tag (`0022_sync`). The two-way
  * sync runs only between sides that have the same.
  */
 export const tenantSchemaVersion: string = (() => {

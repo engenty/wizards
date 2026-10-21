@@ -4,7 +4,7 @@ import { db, schema } from "../db/client.js";
 
 /**
  * The change log of a tenant's database (`sync_change`, filled by the triggers of migration
- * 0021): in the cloud, the numbers a pull asks from; on an install, what was changed here and
+ * 0022): in the cloud, the numbers a pull asks from; on an install, what was changed here and
  * has not been pushed yet.
  */
 

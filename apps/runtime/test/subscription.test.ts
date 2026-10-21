@@ -157,10 +157,10 @@ describe("studio chat on the Claude subscription", () => {
   it("gives Goose and the editor a client's own model of the class", async () => {
     const { chatModel } = await import("../src/models");
     const { HarnessModel } = await import("../src/harness/model");
-    const goose = await chatModel("codex", "high");
+    const goose = await chatModel("codex", "standard");
     expect(goose.ref).toBe("codex/gpt-6.1-sol");
     expect(goose.model).toBeInstanceOf(HarnessModel);
-    expect((await chatModel("claude", "highest")).ref).toBe("claude/opus");
-    await expect(chatModel("openai", "high")).rejects.toThrow(/OpenAI/);
+    expect((await chatModel("claude", "high")).ref).toBe("claude/opus");
+    await expect(chatModel("openai", "standard")).rejects.toThrow(/OpenAI/);
   });
 });

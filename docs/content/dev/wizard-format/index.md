@@ -1,7 +1,7 @@
 ---
 title: The wizard format
 description: A wizard as one JSON document, what its keys mean, and where each part is described.
-version: 0.9.0
+version: 0.9.6
 ---
 
 A wizard is one JSON document, its **definition**. The studio exports it as a `.wizard` file
@@ -16,8 +16,8 @@ tool may read and write wizards.
 
 ```json
 {
-  "$schema": "https://engenty.ai/schema/v1/wizard.json",
-  "version": 1,
+  "$schema": "https://engenty.ai/schema/v2/wizard.json",
+  "version": 2,
   "title": "Create an invoice",
   "description": "A finished invoice from a few details.",
   "avatar": "round",
@@ -28,7 +28,7 @@ tool may read and write wizards.
 
 | Key | What it holds |
 |---|---|
-| `version` | The version of the format, `1`. See [Version](#version) |
+| `version` | The version of the format, `2`. See [Version](#version) |
 | `title` | What people get, short. See [Title, description and intro](#title-description-and-intro) |
 | `description` | One sentence about the wizard |
 | `avatar` | The engenty shown to people. See [The avatar](#the-avatar) |
@@ -117,11 +117,17 @@ wizard, and each language can be edited line by line there.
 ## Version
 
 `version` is the version of the format the definition is written in, not of the wizard. It is
-`1` today, and `1` is the default when it is left out.
+`2` today. Write it: a definition without it is read as version 1.
 
 It changes only with a breaking change to the format. The schemas of each version stay online in
 their own folder (`/schema/v1/`, `/schema/v2/`, …). An app reads only the versions it knows: it
-refuses a wizard of a newer version instead of running it the wrong way.
+refuses a wizard of a newer version instead of running it the wrong way. An older version it
+reads and saves in its own.
+
+| Version | What changed |
+|---|---|
+| 2 | The text model classes are `classifier`, `low`, `standard`, `high`. Version 1’s `standard`, `high` and `highest` are read as `low`, `standard` and `high`. See [Agent steps](./agent-steps.md#model-class-and-effort) |
+| 1 | The first version |
 
 The versions of a wizard itself, its drafts and what is published, are kept in the studio, not
 in the definition.
@@ -151,7 +157,7 @@ Steps run from top to bottom unless a step’s `next` sends the run elsewhere. S
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "title": "X post with an image",
   "description": "Turns a topic into a finished post with an image.",
   "avatar": "flame",
@@ -166,7 +172,7 @@ Steps run from top to bottom unless a step’s `next` sends the run elsewhere. S
       ]
     },
     {
-      "id": "post", "type": "agent", "title": "Write the post", "model": "standard",
+      "id": "post", "type": "agent", "title": "Write the post", "model": "low",
       "instructions": "Write a post for X on {{topic}}. Tone: {{tone}}. At most 270 characters.",
       "tools": [], "output": { "format": "text" }
     },

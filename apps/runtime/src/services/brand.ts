@@ -104,7 +104,7 @@ export async function describeGradient(
   text: string,
   current?: GradientShape,
 ): Promise<GradientShape> {
-  const model = await textModel("standard");
+  const model = await textModel("low");
   const result = await generateText({
     model: model.model,
     maxOutputTokens: 800,

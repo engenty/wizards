@@ -72,7 +72,7 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 | gone for good | delete | löschen | |
 | taken out, still exists elsewhere | remove | entfernen | |
 | picking from options | choose | wählen | pick, select |
-| model classes | Classifier, Standard, High, Highest (always English, capitalised) | same | Klassifizieren |
+| model classes | Classifier, Low, Standard, High (always English, capitalised) | same | Klassifizieren |
 | artificial intelligence | AI | KI | |
 | email | email | E-Mail | E-mail |
 | the product | engenty wizards (lower case) | engenty wizards | Engenty, engenty.wizards |

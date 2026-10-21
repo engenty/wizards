@@ -1,7 +1,7 @@
 ---
 title: Films
 description: A film step has the AI client on your computer write a film as code, and the runtime renders it.
-version: 0.7.10
+version: 0.9.6
 ---
 
 A `film` step makes a motion-graphics film. The AI client on your computer (Claude Code) writes
@@ -30,7 +30,7 @@ credits or in the cloud, and it takes 5 to 40 minutes.
 | `format` | `16:9` (the default), `9:16` or `1:1` |
 | `from` | `steps.<id>` of an earlier film step. This film starts from that one’s code and lays it out for its own format |
 | `seconds` | About how long the film runs, 3 to 600 |
-| `model`, `effort` | The model class, `standard` by default. The kit carries the craft |
+| `model`, `effort` | The model class, `low` by default. The kit carries the craft |
 
 Files among the inputs (uploads, voice lines, pictures) are copied into `input/<name>/`. Text is
 written to `input/<name>.md`, JSON to `input/<name>.json`.

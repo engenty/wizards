@@ -4,6 +4,22 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.9.8] - 2026-10-21
+- ADDED **[models]** Text classes classifier, low, standard, high, with minimums per class (#148) **[breaking]**
+
+## [0.9.7] - 2026-10-21
+- ADDED **[studio]** Agent chat in Settings › Models, Goose and the editor on a subscription, a key or the credits (#145)
+- ADDED **[runtime]** The website setup reads fonts, the full company name, the imprint's facts and an about text, with a model where one may be used (#147)
+- ADDED **[studio]** Goose only docks, in a more compact card (#143)
+- ADDED **[studio]** Goose's chat at the top of the space page, its sidebar a pane of its own (#140)
+- ADDED **[studio]** The first visit reads logo, colours, facts and pictures from the website (#141)
+- CHANGED Call the tenant an organization in the studio, the API and the docs (#137) **[breaking]**
+- FIXED **[studio]** Goose's menu offers earlier chats only when there are some; tighter header; space menu keeps its height (#146)
+- FIXED **[studio]** The page scrolls under Goose's docked card again (#144)
+- FIXED **[studio]** The space page's menu scrolls on its own, and a pick in Knowledge or Data starts at the top (#142)
+- FIXED **[studio]** "Lade Dokumente hoch" on the empty knowledge page (#139)
+- FIXED **[studio]** A page loaded before a deploy loads anew instead of going blank (#138)
+
 ## [0.9.6] - 2026-10-21
 - FIXED **[studio]** Centre the drag handles in their gap and make them slimmer (#133)
 

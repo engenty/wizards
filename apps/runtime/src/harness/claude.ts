@@ -21,9 +21,9 @@ export const CLAUDE_BIN = process.env.CLAUDE_BIN?.trim() || "claude";
 
 const CLASSES: Record<TextClass, string> = {
   classifier: "haiku",
-  standard: "sonnet",
+  low: "sonnet",
+  standard: "opus",
   high: "opus",
-  highest: "opus",
 };
 
 const spec: EnvSpec = {

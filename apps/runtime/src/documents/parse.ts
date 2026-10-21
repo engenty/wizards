@@ -112,7 +112,7 @@ class VisionProvider implements DocConverterProvider {
     _options?: ConversionOptions,
   ): Promise<ConversionResult> {
     // Reads scans and photos: the class it runs on must take PDFs and images.
-    const reader = await textModel("standard", this.call);
+    const reader = await textModel("low", this.call);
     const result = await generateText({
       model: reader.model,
       abortSignal: this.signal,

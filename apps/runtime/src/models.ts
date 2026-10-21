@@ -8,6 +8,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createReplicate } from "@ai-sdk/replicate";
 import type { Lang, VideoResolution } from "@engenty/wizards-shared/definition";
 import {
+  DEFINITION_VERSION,
   type Effort,
   MODEL_CLASSES,
   type ModelClass,
@@ -15,16 +16,21 @@ import {
   type TextClass,
 } from "@engenty/wizards-shared/definition";
 import {
+  blockingNeeds,
   CAPABILITY_CLASSES,
   type CreditModel,
   creditsModelOf,
   isCreditsRef,
   type ModelCapability,
+  type ModelNeed,
   type ModelOption,
+  type ModelTraits,
+  missingNeeds,
   PROVIDER_IDS,
   type ProviderId,
   providerInfo,
   providerOfRef,
+  traitsOf,
 } from "@engenty/wizards-shared/providers";
 import type { RunNote, RunNoteCode, Said } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
@@ -335,7 +341,7 @@ function reachable(cfg: ModelConfig, ref: string): boolean {
 /** What a class runs on without credits: a client, an own key or a local model. "" = no way of its own. */
 function ownRef(cfg: ModelConfig, cls: ModelClass): string {
   const bound = cfg.settings.bindings[cls];
-  // A text class bound to Apple Intelligence (Classifier, Standard) thinks on this Mac whatever
+  // A text class bound to Apple Intelligence (Classifier, Low) thinks on this Mac whatever
   // the source is: the others keep the installed client, the account's credits or the keys.
   if (isText(cls) && bound && parse(bound).provider === "apple") {
     return reachable(cfg, bound) ? bound : "";
@@ -368,9 +374,9 @@ function ownRef(cfg: ModelConfig, cls: ModelClass): string {
 /** What a class makes, to say that nothing makes it. */
 const MAKES: Record<ModelClass, RunNoteCode> = {
   classifier: "makesText",
+  low: "makesText",
   standard: "makesText",
   high: "makesText",
-  highest: "makesText",
   image: "makesImages",
   video: "makesVideos",
   speech: "makesSpeech",
@@ -458,11 +464,18 @@ function need(cfg: ModelConfig, name: LocalKey): string {
   return key;
 }
 
+/**
+ * Says the class names of this definition version: the gateway reads `wizards/<class>` and
+ * answers `/v1/models` in them. A caller without it is a runtime from before version 2.
+ */
+const DEFINITION_HEADER = { "x-wizards-definition": String(DEFINITION_VERSION) };
+
 function gatewayClient(access: GatewayAccess, meta: CallMeta) {
   return createGateway({
     baseURL: `${access.baseUrl}/v4/ai`,
     apiKey: access.token,
     headers: {
+      ...DEFINITION_HEADER,
       ...(access.tenant ? { "x-wizards-tenant": access.tenant } : {}),
       ...(meta.runId ? { "x-wizards-run": meta.runId } : {}),
       ...(meta.stepId ? { "x-wizards-step": meta.stepId } : {}),
@@ -512,6 +525,7 @@ export async function classCatalog(): Promise<GatewayCatalog | null> {
     const res = await fetch(`${access.baseUrl}/v1/models`, {
       headers: {
         authorization: `Bearer ${access.token}`,
+        ...DEFINITION_HEADER,
         ...(access.tenant ? { "x-wizards-tenant": access.tenant } : {}),
       },
       signal: AbortSignal.timeout(10_000),
@@ -673,7 +687,7 @@ export async function chatWayReady(way: ChatWay, textModelReady: boolean): Promi
  */
 export async function chatModel(
   way: ChatWay,
-  cls: "high" | "highest",
+  cls: "standard" | "high",
 ): Promise<ResolvedModel<LanguageModel>> {
   if (way === "models") {
     return textModel(cls);
@@ -1009,6 +1023,7 @@ export async function systemOneAccess(): Promise<SystemOneAccess | null> {
       authorization: `Bearer ${access.token}`,
       // Booked under the classifier class; its evaluation model answers.
       "ai-model-id": "wizards/classifier",
+      ...DEFINITION_HEADER,
       ...(access.tenant ? { "x-wizards-tenant": access.tenant } : {}),
     },
     model: null,
@@ -1227,7 +1242,7 @@ export async function filmClient(
 /** Whether any text model can answer at all: the studio says so before the first chat turn. */
 export async function hasTextModel(): Promise<boolean> {
   try {
-    await textModel("standard");
+    await textModel("low");
     return true;
   } catch {
     return false;
@@ -1331,6 +1346,7 @@ export function waysIn(ways: Record<ModelClass, ClassWay>, lang: Lang) {
 /** What the settings page shows: the choices, which keys are there (never the keys), and the ways. */
 export async function modelSettings(lang: Lang = "en") {
   const cfg = await config();
+  const ways = await classWays();
   return {
     source: cfg.settings.source,
     bindings: cfg.settings.bindings,
@@ -1340,7 +1356,9 @@ export async function modelSettings(lang: Lang = "en") {
       LocalKey,
       boolean
     >,
-    ways: waysIn(await classWays(), lang),
+    ways: waysIn(ways, lang),
+    /** Per text class, what of its minimums its model lacks (`CLASS_NEEDS`); null: not checked. */
+    fit: classFit(ways),
     /** Apple Intelligence on this Mac: shown where the machine can run it, picked once it answers. */
     apple: managed ? null : await appleStatus(),
     /** What a class costs on the credits, where they are at hand. */
@@ -1406,7 +1424,7 @@ export async function checkKey(
 export interface SetupOutcome {
   ok: boolean;
   message: string | null;
-  /** The model the Standard class now runs on without credits; null where none. */
+  /** The model the Low class now runs on without credits; null where none. */
   text: string | null;
 }
 
@@ -1426,7 +1444,7 @@ function freeClasses(
 const setupOutcome = (): SetupOutcome => ({
   ok: true,
   message: null,
-  text: ownRef(local, "standard") || null,
+  text: ownRef(local, "low") || null,
 });
 
 /** The setup's test of one key: checked with the provider, stored, and put to use. */
@@ -1475,7 +1493,7 @@ export async function setUpOllama(url: string, lang: Lang = "en"): Promise<Setup
   if (!models.length) {
     return { ok: false, message: serverText(lang, "ollamaNoModel"), text: null };
   }
-  const bound = local.settings.bindings.standard?.replace(/^ollama:/, "");
+  const bound = local.settings.bindings.low?.replace(/^ollama:/, "");
   const model = bound && models.includes(bound) ? bound : models[0];
   const text = Object.fromEntries(TEXT_CLASSES.map((c) => [c, `ollama:${model}`]));
   await saveLocalModels({ ollamaUrl: base, bindings: freeClasses(text) });
@@ -1488,6 +1506,7 @@ interface CatalogEntry {
   id: string;
   pricing?: Record<string, unknown>;
   context_window?: number;
+  tags?: string[];
 }
 
 let catalog = new Map<string, CatalogEntry>();
@@ -1519,11 +1538,66 @@ function priceOf(ref: string): Record<string, unknown> {
   );
 }
 
+/**
+ * The AI Gateway's entry of the model a binding names: by the gateway's id, and a provider's own
+ * id by the gateway's name for it (`anthropic:claude-sonnet-5-5` is `anthropic/claude-sonnet-5.5`).
+ */
+function catalogEntryOf(ref: string): CatalogEntry | undefined {
+  const { provider, id } = parse(ref);
+  if (provider === null || provider === "gateway") {
+    return catalog.get(id);
+  }
+  return (
+    catalog.get(`${provider}/${id}`) ??
+    catalog.get(`${provider}/${id.replace(/(\d)-(\d)/g, "$1.$2")}`)
+  );
+}
+
 /** A model's context window in tokens, as the AI Gateway's catalog gives it; null where unknown. */
 export function contextWindowOf(ref: string): number | null {
-  const { provider, id } = parse(ref);
-  const entry = catalog.get(provider === null || provider === "gateway" ? id : `${provider}/${id}`);
+  const entry = catalogEntryOf(ref);
   return typeof entry?.context_window === "number" ? entry.context_window : null;
+}
+
+/** What a bound model can do, by the AI Gateway's catalog; null for a model it does not list. */
+export function modelTraitsOf(ref: string): ModelTraits | null {
+  const entry = ref && !isCreditsRef(ref) ? catalogEntryOf(ref) : undefined;
+  return entry ? traitsOf(entry.tags ?? [], entry.context_window) : null;
+}
+
+/**
+ * Per text class, what of its minimums the model it runs on lacks: a key's or a local model's,
+ * where the catalog lists it. Null where nothing is checked: an installed client, the credits
+ * (the gateway's admin picks those models), a model the catalog does not know.
+ */
+export function classFit(
+  ways: Record<ModelClass, ClassWay>,
+): Record<TextClass, ModelNeed[] | null> {
+  return Object.fromEntries(
+    TEXT_CLASSES.map((cls) => {
+      const way = ways[cls];
+      const traits = way.kind === "key" || way.kind === "local" ? modelTraitsOf(way.ref) : null;
+      return [cls, traits ? missingNeeds(cls, traits) : null];
+    }),
+  ) as Record<TextClass, ModelNeed[] | null>;
+}
+
+/**
+ * The first binding of these that cannot work at all: a text class bound to a model the catalog
+ * knows to lack what the class cannot do without (Goose and the build chat call tools).
+ */
+export function blockedBinding(
+  bindings: Partial<Record<ModelClass, string>>,
+): { cls: TextClass; ref: string; needs: ModelNeed[] } | null {
+  for (const cls of TEXT_CLASSES) {
+    const ref = bindings[cls];
+    const traits = ref ? modelTraitsOf(ref) : null;
+    const needs = traits ? blockingNeeds(cls, missingNeeds(cls, traits)) : [];
+    if (ref && needs.length) {
+      return { cls, ref, needs };
+    }
+  }
+  return null;
 }
 
 const n = (v: unknown, fallback: number) => {

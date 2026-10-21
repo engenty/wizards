@@ -75,6 +75,8 @@ async function call<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
     const res = await fetch(`${env.marketplace.url}/api/v1${path}`, {
       ...init,
+      // Wizards in this version of the definition; a caller without it gets version 1.
+      headers: { ...init?.headers, "x-wizards-definition": String(DEFINITION_VERSION) },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) {
@@ -446,9 +448,9 @@ function listPrices(): GatewayCatalog {
     webSearchCredits: WEB_SEARCH_COST_USD * CREDITS_PER_USD,
     classes: {
       classifier: text(m.classifier),
+      low: text(m.low),
       standard: text(m.standard),
       high: text(m.high),
-      highest: text(m.highest),
       image: {
         model: m.image,
         kind: "image",

@@ -156,8 +156,8 @@ export interface PluginGenerateRequest<T = undefined> {
   system?: string;
   /** The answer as an object of this shape instead of text. */
   schema?: z.ZodType<T>;
-  /** The tenant's model class. Default `standard`; `classifier` is the fast, cheap one. */
-  model?: "classifier" | "standard" | "high" | "highest";
+  /** The tenant's model class. Default `low`; `classifier` is the fast, cheap one. */
+  model?: "classifier" | "low" | "standard" | "high";
   maxOutputTokens?: number;
   /** Default: two minutes. */
   signal?: AbortSignal;

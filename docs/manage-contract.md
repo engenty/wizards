@@ -301,9 +301,10 @@ The gateway speaks the Vercel AI Gateway protocol, so `@ai-sdk/gateway` works wi
 
 | | |
 |---|---|
-| Model id (header `ai-language-model-id` for language models, `ai-model-id` for the others — as `@ai-sdk/gateway` sends them) | `wizards/<class>` with class `classifier`, `standard`, `high`, `highest`, `image`, `video`, `audio`, `speech`; the gateway binds it to a model. A concrete model id — an AI Gateway id, `fal:<endpoint>`, `elevenlabs:<model>` — is refused unless the catalog enables it; `models` of `/v1/models` lists the media models it enables. |
+| Model id (header `ai-language-model-id` for language models, `ai-model-id` for the others — as `@ai-sdk/gateway` sends them) | `wizards/<class>` with class `classifier`, `low`, `standard`, `high`, `image`, `video`, `audio`, `speech`; the gateway binds it to a model. A concrete model id — an AI Gateway id, `fal:<endpoint>`, `elevenlabs:<model>` — is refused unless the catalog enables it; `models` of `/v1/models` lists the media models it enables. |
 | Caller: a person (desktop app) | `Authorization: Bearer <access token>`; the tenant is the token's |
 | Caller: a runtime | `Authorization: Bearer <service key>` plus `x-wizards-tenant`; visitors have no token |
+| Class names | `x-wizards-definition: 2` on every call and on `/v1/models`: the classes are named as in version 2 of the wizard definition. A caller without it is a runtime from before: its `standard`, `high` and `highest` are read as `low`, `standard` and `high`, and `/v1/models` answers it in those names |
 | Attribution (optional, both callers) | `x-wizards-run`, `x-wizards-step`, `x-wizards-effort` (`low` \| `medium` \| `high`); a runtime may add `x-wizards-user` |
 | Chat-image models | `wizards/image` may arrive on `/language-model` (models that answer a chat with an image, like Gemini) or on `/image-model` |
 | No balance | `402`, body `{ error: { message, type: "insufficient_credits" } }` — unless the run named in `x-wizards-run` holds a reservation |
@@ -315,7 +316,7 @@ The classifier class may be bound to a model that only decides (type `evaluation
 asks for a JSON object whose fields are all booleans or strings from a fixed set, with no tools
 and no stream, is a decision: the gateway asks the evaluation model and answers with that
 object. Every other call, and a decision the model leaves open, is answered by the model of the
-`standard` class and booked under `classifier`.
+`low` class and booked under `classifier`.
 
 `POST <GATEWAY_URL>/v4/ai/systemone` (header `ai-model-id: wizards/classifier`) asks the evaluation
 model directly, in TypeSafe's System One shape: `{ state, questions }` in, `{ model, answers,
@@ -334,7 +335,7 @@ its list — is refused with `403`, type `forbidden`, whatever the catalog enabl
 {
   "markup": 2,
   "classes": {
-    "standard": { "model": "google/gemini-3.5-flash-lite", "kind": "text", "inputCreditsPerMTok": 60, "outputCreditsPerMTok": 500 },
+    "low":      { "model": "deepseek/deepseek-v4.1-flash", "kind": "text", "inputCreditsPerMTok": 15, "outputCreditsPerMTok": 60 },
     "image":    { "model": "google/gemini-3.1-flash-image", "kind": "image", "creditsPerImage": 13.4 },
     "video":    { "model": "google/veo-3.1-fast-generate-001", "kind": "video", "creditsPerSecond": 30 },
     "audio":    { "model": "fal:fal-ai/wizper", "kind": "audio", "transcribes": true, "creditsPerMinute": 1.2 },

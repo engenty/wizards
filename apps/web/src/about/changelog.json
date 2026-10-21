@@ -1,7 +1,103 @@
 [
   {
+    "version": "v0.9.8",
+    "timestamp": 1792571366,
+    "commits": [
+      {
+        "id": "a06e5aa",
+        "message": "text classes classifier, low, standard, high, with minimums per class (#148)",
+        "group": "Added",
+        "scope": "models",
+        "breaking": true
+      }
+    ]
+  },
+  {
+    "version": "v0.9.7",
+    "timestamp": 1792571223,
+    "commits": [
+      {
+        "id": "179542c",
+        "message": "Agent chat in Settings › Models, Goose and the editor on a subscription, a key or the credits (#145)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "1964380",
+        "message": "the website setup reads fonts, the full company name, the imprint's facts and an about text, with a model where one may be used (#147)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "dee1367",
+        "message": "Goose's menu offers earlier chats only when there are some; tighter header; space menu keeps its height (#146)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "fa9b4b4",
+        "message": "Goose only docks, in a more compact card (#143)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "3ad2b96",
+        "message": "call the tenant an organization in the studio, the API and the docs (#137)",
+        "group": "Changed",
+        "scope": null,
+        "breaking": true
+      },
+      {
+        "id": "53dcb07",
+        "message": "the page scrolls under Goose's docked card again (#144)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "16924c2",
+        "message": "the space page's menu scrolls on its own, and a pick in Knowledge or Data starts at the top (#142)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "41a3f11",
+        "message": "Goose's chat at the top of the space page, its sidebar a pane of its own (#140)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "2e56666",
+        "message": "the first visit reads logo, colours, facts and pictures from the website (#141)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "eea6df1",
+        "message": "\"Lade Dokumente hoch\" on the empty knowledge page (#139)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "eb9843d",
+        "message": "a page loaded before a deploy loads anew instead of going blank (#138)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.9.6",
-    "timestamp": 1792562658,
+    "timestamp": 1792562762,
     "commits": [
       {
         "id": "e6df56c",

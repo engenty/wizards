@@ -1,7 +1,7 @@
 ---
 title: The server half
 description: The function a plugin exports, what it is handed, and the rules it runs under.
-version: 0.5.0
+version: 0.9.6
 ---
 
 The server half is a file whose default export is a function. The runtime calls it once when the
@@ -182,7 +182,7 @@ const { object } = await server.generate({
 | `prompt` | What the model is asked | required |
 | `system` | How it should answer | |
 | `schema` | A zod schema: `object` is the answer in that shape | text only |
-| `model` | `classifier` (fast, cheap), `standard`, `high`, `highest` | `standard` |
+| `model` | The model class: `classifier` (fast, cheap), `low`, `standard`, `high` | `low` |
 | `maxOutputTokens` | A limit on the answer | the model’s |
 | `signal` | Aborts the call | two minutes |
 | `files` | Pictures (PNG, JPEG, WebP, GIF) and PDFs the model looks at with the prompt: `{ data, mediaType, name? }[]`, `data` a `Uint8Array` | none |

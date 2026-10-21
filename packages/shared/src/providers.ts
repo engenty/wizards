@@ -9,7 +9,7 @@ export const MODEL_CAPABILITIES = ["text", "image", "video", "speech", "listenin
 export type ModelCapability = (typeof MODEL_CAPABILITIES)[number];
 
 export const CAPABILITY_CLASSES: Record<ModelCapability, readonly ModelClass[]> = {
-  text: ["classifier", "standard", "high", "highest"],
+  text: ["classifier", "low", "standard", "high"],
   image: ["image"],
   video: ["video"],
   speech: ["speech"],
@@ -20,6 +20,78 @@ export function capabilityOf(cls: ModelClass): ModelCapability {
   return (Object.keys(CAPABILITY_CLASSES) as ModelCapability[]).find((c) =>
     CAPABILITY_CLASSES[c].includes(cls),
   ) as ModelCapability;
+}
+
+/**
+ * What a model can do, as the AI Gateway's catalog says it (its tags and context window):
+ * calls tools, answers in a JSON shape, reads images, reasons before it answers.
+ */
+export interface ModelTraits {
+  tools: boolean;
+  json: boolean;
+  vision: boolean;
+  reasoning: boolean;
+  /** Tokens it reads at most; null where the catalog does not say. */
+  context: number | null;
+}
+
+/** The text classes by name, the same in every language. */
+export const CLASS_NAMES: Record<TextClass, string> = {
+  classifier: "Classifier",
+  low: "Low",
+  standard: "Standard",
+  high: "High",
+};
+
+/** A minimum a text class asks of its model. */
+export const MODEL_NEEDS = ["tools", "json", "vision", "reasoning", "context"] as const;
+export type ModelNeed = (typeof MODEL_NEEDS)[number];
+
+export interface ClassNeeds {
+  needs: Exclude<ModelNeed, "context">[];
+  /** Tokens the model must read at least. */
+  context: number;
+  /** Without these the class cannot work at all: a binding to a model that lacks one is refused. */
+  blocks: ModelNeed[];
+}
+
+/**
+ * What a model must be able to do to serve a text class. Classifier: decisions and values pulled
+ * out of text, in JSON. Low: short copy, API calls, a look at a picture or a PDF. Standard: AI
+ * steps with tools and pictures, and Goose. High: the build chat, which writes code and looks at
+ * screenshots. Goose and the build chat cannot work without tools.
+ */
+export const CLASS_NEEDS: Record<TextClass, ClassNeeds> = {
+  classifier: { needs: ["json"], context: 32_000, blocks: [] },
+  low: { needs: ["tools", "json", "vision"], context: 64_000, blocks: [] },
+  standard: { needs: ["tools", "json", "vision"], context: 128_000, blocks: ["tools"] },
+  high: { needs: ["tools", "json", "vision", "reasoning"], context: 200_000, blocks: ["tools"] },
+};
+
+/** A model's traits from an AI Gateway catalog entry: its tags and context window. */
+export function traitsOf(tags: readonly string[], context: number | null | undefined): ModelTraits {
+  return {
+    tools: tags.includes("tool-use"),
+    json: tags.includes("structured-output"),
+    vision: tags.includes("vision"),
+    reasoning: tags.includes("reasoning"),
+    context: typeof context === "number" && context > 0 ? context : null,
+  };
+}
+
+/** What of a class's minimums a model lacks; empty where it has them all. */
+export function missingNeeds(cls: TextClass, traits: ModelTraits): ModelNeed[] {
+  const want = CLASS_NEEDS[cls];
+  const missing: ModelNeed[] = want.needs.filter((need) => !traits[need]);
+  if (traits.context !== null && traits.context < want.context) {
+    missing.push("context");
+  }
+  return missing;
+}
+
+/** Of what a model lacks, what keeps its class from working at all. */
+export function blockingNeeds(cls: TextClass, missing: readonly ModelNeed[]): ModelNeed[] {
+  return missing.filter((need) => CLASS_NEEDS[cls].blocks.includes(need));
 }
 
 /**
@@ -169,9 +241,9 @@ export const PROVIDERS: readonly ProviderInfo[] = [
     keyPlaceholder: "sk-…",
     text: {
       classifier: "openai:gpt-5.4-mini",
-      standard: "openai:gpt-5.4-mini",
+      low: "openai:gpt-5.4-mini",
+      standard: "openai:gpt-5.5",
       high: "openai:gpt-5.5",
-      highest: "openai:gpt-5.5",
     },
     models: {
       text: [
@@ -211,9 +283,9 @@ export const PROVIDERS: readonly ProviderInfo[] = [
     keyPlaceholder: "sk-ant-…",
     text: {
       classifier: "anthropic:claude-haiku-4-5",
-      standard: "anthropic:claude-haiku-4-5",
-      high: "anthropic:claude-sonnet-5-5",
-      highest: "anthropic:claude-opus-5-5",
+      low: "anthropic:claude-haiku-4-5",
+      standard: "anthropic:claude-sonnet-5-5",
+      high: "anthropic:claude-opus-5-5",
     },
     models: {
       text: [
@@ -239,9 +311,9 @@ export const PROVIDERS: readonly ProviderInfo[] = [
     keyPlaceholder: "AIza…",
     text: {
       classifier: "google:gemini-flash-lite-latest",
-      standard: "google:gemini-flash-latest",
+      low: "google:gemini-flash-latest",
+      standard: "google:gemini-pro-latest",
       high: "google:gemini-pro-latest",
-      highest: "google:gemini-pro-latest",
     },
     models: {
       text: [
@@ -391,14 +463,22 @@ export const PROVIDERS: readonly ProviderInfo[] = [
     about: "about.gateway",
     keyUrl: "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai-gateway%2Fapi-keys",
     keyPlaceholder: "vck_…",
+    // Economical models that meet each class's minimums (CLASS_NEEDS).
     text: {
-      classifier: "anthropic/claude-haiku-4.5",
-      standard: "anthropic/claude-haiku-4.5",
-      high: "anthropic/claude-sonnet-5.5",
-      highest: "anthropic/claude-sonnet-5.5",
+      classifier: "deepseek/deepseek-v4.1-flash",
+      low: "deepseek/deepseek-v4.1-flash",
+      standard: "deepseek/deepseek-v4.1-flash",
+      high: "moonshotai/kimi-k3",
     },
     models: {
       text: [
+        {
+          ref: "deepseek/deepseek-v4.1-flash",
+          label: "DeepSeek V4.1 Flash",
+          note: "fastLowCost",
+        },
+        { ref: "moonshotai/kimi-k3", label: "Kimi K3" },
+        { ref: "zai/glm-5.3", label: "GLM 5.3" },
         {
           ref: "anthropic/claude-haiku-4.5",
           label: "Claude Haiku 4.5",

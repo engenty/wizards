@@ -366,7 +366,7 @@ wizard, the issues `validateWizard` found. The model answers with the merged ite
   fails goes back to the model with the issues, up to three times.
 - The studio shows the proposal as a change list against both sides. The person confirms or
   edits it.
-- The model is the class `highest`, as for the studio chat. On the install it runs on what
+- The model is the class `high`, the top text class. On the install it runs on what
   Settings → "Modelle & Konto" binds: Matthias's own subscription (Claude Code, Codex …), else
   credits. The model sees only what the studio chat may already read, the space's own content.
 - Without a model the choice and the manual merge still work.
@@ -428,9 +428,10 @@ Out of scope (decided 2026-10-21): syncing or merging between different schema v
 sides sync only when their tenant schema is the same.
 
 - Every push and pull carries the tenant schema version: the last drizzle migration's tag
-  (today `0020_project_page`), plus the plugins' SQL files of the synced tables, if any ever
-  sync. The runtime version travels too, for the log only. Releases that change no synced table
-  keep the schema, so they never pause the sync.
+  (`0022_sync` as built), plus the plugins' SQL files of the synced tables, if any ever
+  sync. The runtime version travels too, for the log only. A release that brings a tenant
+  migration changes the tag, so the sync pauses until the other side has that release too; a
+  release without one keeps the tag and never pauses it.
 - When the versions differ, the sync pauses and nothing is converted. The side that is behind
   says so: "Update engenty wizards to sync again" (`wizards update`) on the install, or
   `reason: "schema_mismatch"` from the cloud between a release and its deploy.
@@ -517,13 +518,13 @@ docs/manage-contract.md, "Two-way sync of a space".
 | Step | Where |
 |---|---|
 | 1. Contract | `docs/manage-contract.md`; `packages/shared/src/sync.ts` (records, push and pull) |
-| 2. Change log | tenant migration `0021_sync` (`sync_change`, `sync_guard`, `sync_base`, `sync_conflict`, `sync_merge`, three triggers per synced table) |
+| 2. Change log | tenant migration `0022_sync` (`sync_change`, `sync_guard`, `sync_base`, `sync_conflict`, `sync_merge`, three triggers per synced table) |
 | 3. Records | `apps/runtime/src/sync/records.ts`, `apply.ts` (one transaction, foreign keys checked at the commit, dangling points let go) |
 | 4.–5. Cloud: push and pull | `apps/runtime/src/sync/hub.ts`, routes in `routes/api.ts` |
 | 6. Install: loop | `apps/runtime/src/sync/client.ts`; the minute loop in `index.ts`; the studio's hooks in `app.ts` (pull before a load, push after a save) |
 | 7. Conflicts | `client.ts` (`reconcile`, `resolveConflict`, `undoMerge`); studio routes `/api/studio/sync/*` |
 | 8. Merge and check | `packages/shared/src/sync-merge.ts` (JSON by ids), `text-merge.ts` (diff3); the records' checks |
-| 9. Help from a model | `proposeMerge` (class `highest`, three tries, the checks) |
+| 9. Help from a model | `proposeMerge` (class `high`, three tries, the checks) |
 | 10. Several spaces | `projectLimit()` reads the organization's number (`sync/state.ts`); spaces of either side join by themselves, a switch per space turns one off |
 | 11. Move over | `POST /sync/spaces/:id/adopt` when a space starts to sync; the one-way sync stays for installs without the switch |
 | Studio | `apps/web/src/studio/CloudSync.tsx`: Settings › Spaces in the cloud, the notice on a wizard, page or table, the bar above every page |

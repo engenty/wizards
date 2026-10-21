@@ -114,7 +114,7 @@ function renderProblem(out: string): string {
 const RENDER_FIXES = 2;
 
 export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<StepOutput> {
-  const found = await filmClient(step.model ?? "standard");
+  const found = await filmClient(step.model ?? "low");
   if ("problem" in found) {
     throw new StepError(found.problem);
   }

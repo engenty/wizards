@@ -27,7 +27,7 @@ import { ServiceError } from "./errors.js";
 
 /**
  * A wizard in its viewer's language, on request (docs/plans/wizard-translation.md): one call per
- * wizard and language on the `standard` class at effort low, kept and shared by every viewer;
+ * wizard and language on the `low` class at effort low, kept and shared by every viewer;
  * the runner's own words once per language for the whole runtime. Booked to the wizard's owner
  * like any call of the tenant.
  */
@@ -71,7 +71,7 @@ async function translate(
   for (let i = 0; i < keys.length; i += size) {
     chunks.push(keys.slice(i, i + size));
   }
-  const model = await textModel("standard", { effort: "low" });
+  const model = await textModel("low", { effort: "low" });
   // The model sees short keys (t0, t1, …): some providers allow only letters, digits, "_", "."
   // and "-" in a schema's property names, and a text's own key may hold anything.
   const call = async (chunk: string[]): Promise<Record<string, string>> => {

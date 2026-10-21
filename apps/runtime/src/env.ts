@@ -188,10 +188,10 @@ export const env = {
 
   /** What each model class runs on when this runtime resolves classes itself (own keys, Ollama). */
   models: {
-    classifier: str("MODEL_CLASSIFIER", "anthropic/claude-haiku-4.5"),
-    standard: str("MODEL_STANDARD", "anthropic/claude-haiku-4.5"),
-    high: str("MODEL_HIGH", "anthropic/claude-sonnet-5.5"),
-    highest: str("MODEL_HIGHEST", "anthropic/claude-sonnet-5.5"),
+    classifier: str("MODEL_CLASSIFIER", "deepseek/deepseek-v4.1-flash"),
+    low: str("MODEL_LOW", "deepseek/deepseek-v4.1-flash"),
+    standard: str("MODEL_STANDARD", "deepseek/deepseek-v4.1-flash"),
+    high: str("MODEL_HIGH", "moonshotai/kimi-k3"),
     image: str("MODEL_IMAGE", "google/gemini-3.1-flash-image"),
     video: str("MODEL_VIDEO", "google/veo-3.1-fast-generate-001"),
     audio: str("MODEL_AUDIO", "google/gemini-3.5-flash-lite"),

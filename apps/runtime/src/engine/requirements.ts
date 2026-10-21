@@ -56,31 +56,31 @@ function ownClasses(step: Step): ModelClass[] {
       if (isDecisionStep(step)) {
         return ["classifier"];
       }
-      const classes: ModelClass[] = [step.model ?? "high"];
+      const classes: ModelClass[] = [step.model ?? "standard"];
       if (step.tools.includes("image")) {
         classes.push("image");
       }
       if (step.output.format === "json") {
         classes.push("classifier");
       }
-      if (step.output.surface === true && !classes.includes("standard")) {
-        classes.push("standard");
+      if (step.output.surface === true && !classes.includes("low")) {
+        classes.push("low");
       }
       return classes;
     }
     case "generate":
       switch (step.asset) {
         case "image":
-          return ["standard", "image"];
+          return ["low", "image"];
         case "video":
-          return ["standard", "video"];
+          return ["low", "video"];
         case "voice":
           return ["speech"];
         default:
-          return [step.model ?? "high"];
+          return [step.model ?? "standard"];
       }
     case "film":
-      return [step.model ?? "standard"];
+      return [step.model ?? "low"];
     case "page":
       // A voice note the page asks for is listened to before the next step reads it.
       return step.fields.some((f) => f.kind === "audio" && f.required) ? ["audio"] : [];
@@ -298,7 +298,7 @@ export async function missingModelsSaid(def: WizardDefinition): Promise<MissingM
     if (step.type !== "film") {
       continue;
     }
-    const cls = step.model ?? "standard";
+    const cls = step.model ?? "low";
     const found = await filmClient(cls);
     if ("problem" in found) {
       missing.push({
@@ -356,8 +356,8 @@ export function blockingMessage(missing: MissingModelSaid[]): RunNote | null {
 
 /** The class a marketplace capability stands for; the rest need no model of their own. */
 const CAPABILITY_CLASS: Partial<Record<Capability, ModelClass>> = {
-  text: "standard",
-  documents: "standard",
+  text: "low",
+  documents: "low",
   image: "image",
   video: "video",
   speech: "speech",
@@ -372,7 +372,7 @@ export async function missingCapabilities(): Promise<Set<Capability>> {
       missing.add(capability as Capability);
     }
   }
-  if ("problem" in (await filmClient("standard"))) {
+  if ("problem" in (await filmClient("low"))) {
     missing.add("film");
   }
   return missing;

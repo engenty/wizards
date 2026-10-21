@@ -994,7 +994,7 @@ export async function proposeMerge(id: string): Promise<{ record: SyncRecord; is
     throw new ServiceError("invalid", note("notFound"));
   }
   const m = await mergeItem(kind, row.base ?? null, local, remote);
-  const model = await textModel("highest");
+  const model = await textModel("high");
   let issues: string[] = [];
   let last = "";
   for (let attempt = 0; attempt < 3; attempt++) {

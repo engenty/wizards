@@ -90,7 +90,7 @@ const manage: Server = createServer(async (req, res) => {
     const text = { model: "test/model", kind: "text", inputCreditsPerMTok: 1, outputCreditsPerMTok: 1 };
     return json({
       markup: 2,
-      classes: { classifier: text, standard: text, high: text, highest: text, video: null },
+      classes: { classifier: text, low: text, standard: text, high: text, video: null },
       webSearchCredits: 2,
     });
   }

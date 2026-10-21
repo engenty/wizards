@@ -152,8 +152,15 @@
     {
       "idx": 21,
       "version": "6",
-      "when": 1792578823268,
-      "tag": "0021_sync",
+      "when": 1792568616734,
+      "tag": "0021_model_classes",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1792580809821,
+      "tag": "0022_sync",
       "breakpoints": true
     }
   ]
