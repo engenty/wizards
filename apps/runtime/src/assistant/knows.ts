@@ -193,7 +193,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     plans: createTool({
       id: "plans",
       description:
-        "The plans teams can be on (Free, Pro, Team): price a month, monthly credits, limits, and the credit packages to buy on top. Live from the account service.",
+        "The plans organizations can be on (Free, Pro, Team): price a month, monthly credits, limits, and the credit packages to buy on top. Live from the account service.",
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
@@ -205,7 +205,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     account: createTool({
       id: "account",
       description:
-        "The person, their team, their role, the team's plan, the credit balance and credits that end on a date.",
+        "The person, their organization, their role, the organization's plan, the credit balance and credits that end on a date.",
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
@@ -214,7 +214,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
             const info = await tenantInfo(user.tenantId, true);
             return {
               person: { name: user.name, email: user.email, role: user.role },
-              team: { name: info.name, plan: info.plan?.name ?? null, status: info.status },
+              organization: { name: info.name, plan: info.plan?.name ?? null, status: info.status },
               balanceCredits: Math.floor(info.balanceCredits),
               limits: info.limits,
               billingPage: `${env.manage.url}/billing`,
@@ -234,7 +234,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
           return {
             linked: true,
             person: overview.user,
-            team: { name: overview.tenant.name, role: overview.tenant.role },
+            organization: { name: overview.tenant.name, role: overview.tenant.role },
             plan: (overview.tenant as { plan?: { name: string } }).plan?.name ?? null,
             balanceCredits: Math.floor(overview.tenant.balanceCredits),
             expiring: overview.tenant.expiring ?? [],
@@ -245,7 +245,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     usage: createTool({
       id: "usage",
       description:
-        "Credits the team used per month (the last three), and the runs and wizards that cost the most.",
+        "Credits the organization used per month (the last three), and the runs and wizards that cost the most.",
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {

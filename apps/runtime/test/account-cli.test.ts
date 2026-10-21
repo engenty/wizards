@@ -58,20 +58,20 @@ describe("the code the terminal shows", () => {
 describe("the account line", () => {
   const account = { userId: "u", tenantId: "t", name: "Matthias", email: "m@test.local" };
 
-  it("names the person, the team and the credits as far as they are known", () => {
+  it("names the person, the organization and the credits as far as they are known", () => {
     expect(cli.described(account, null)).toBe("Matthias");
     expect(cli.described(account, { name: "Platzer Fenster & Türen", balanceCredits: 120 })).toBe(
-      "Matthias · team Platzer Fenster & Türen · 120 credits",
+      "Matthias · organisation Platzer Fenster & Türen · 120 credits",
     );
     expect(
       cli.described(account, { name: "Platzer Fenster & Türen", balanceCredits: 120 }, false),
-    ).toBe("Matthias · team Platzer Fenster & Türen");
+    ).toBe("Matthias · organisation Platzer Fenster & Türen");
     expect(cli.described({ ...account, name: "" }, null)).toBe("m@test.local");
     expect(
       cli.describeAccount({
         kind: "linked",
         account,
-        team: { tenantId: "t", name: "Team", balanceCredits: 1, at: "" },
+        organization: { tenantId: "t", name: "Team", balanceCredits: 1, at: "" },
       }),
     ).toBe("Matthias · Team");
     expect(cli.described(account, { name: "Team Anna", balanceCredits: 500 })).toBe(

@@ -94,7 +94,7 @@ connectors. They can’t reach your computer, so for them your wizards run on en
   you publish then go to engenty.ai, and claude.ai connects there. If you’d rather not use an
   account, use Claude Desktop on this computer.
 
-The consent page names the team the access is for and the address it goes back to. An app that
+The consent page names the organisation the access is for and the address it goes back to. An app that
 only named itself is marked “Name given by the app itself”.
 
 You disconnect an app at engenty.ai under Account → Connected apps. Its access ends within half

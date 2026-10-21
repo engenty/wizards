@@ -819,7 +819,7 @@ export const runRoutes = new Hono()
       .where(eq(schema.run.id, run.id));
     return c.json({ ok: true });
   })
-  // A json step's data, edited in the studio by someone of the team the run belongs to.
+  // A json step's data, edited in the studio by someone of the organization the run belongs to.
   .put("/:id/outputs/:stepId", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
     const user = await principalOf(c);

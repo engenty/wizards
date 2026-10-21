@@ -40,7 +40,7 @@ export function featuresCommand(args: string[]): number {
       );
     }
     console.log(
-      `\nFile: ${tilde(file)}\nWhile engenty wizards runs, account and team switches apply on top of these.`,
+      `\nFile: ${tilde(file)}\nWhile engenty wizards runs, account and organisation switches apply on top of these.`,
     );
     return 0;
   }

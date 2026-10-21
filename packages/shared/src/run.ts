@@ -366,7 +366,7 @@ const NOTES_EN = {
   },
   twoEntriesSameKey: "Two entries have the same key.",
   pageSlugInvalid: "A page address holds lower-case letters a–z, digits and hyphens.",
-  pageSlugTaken: "Another space of your team has this address.",
+  pageSlugTaken: "Another space of your organisation has this address.",
   pageTaken: "The page is already at “{space}”.",
   notDeleteLastSpace: "You can’t delete the last space.",
   notFound: "This doesn’t exist or was deleted.",
@@ -421,8 +421,8 @@ const NOTES_EN = {
   pageNeedsTitle: "A page needs a title.",
   unknownSpace: "There’s no space “{space}”.",
   noParentPage: "There’s no page with the key “{parent}” to put this page under.",
-  onlyTeamAdmins:
-    "Only team admins can do that. As a member, you can edit the wizards that already exist.",
+  onlyOrganizationAdmins:
+    "Only organisation admins can do that. As a member, you can edit the wizards that already exist.",
   spaceEditedLocally: "You edit this space in engenty wizards on your computer, not here.",
   wizardsRunOncePublished:
     "Wizards run here once you publish them in engenty wizards on your computer. You build and edit them there.",
@@ -711,7 +711,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   },
   twoEntriesSameKey: "Zwei Einträge haben denselben Schlüssel.",
   pageSlugInvalid: "Eine Seitenadresse besteht aus Kleinbuchstaben a–z, Ziffern und Bindestrichen.",
-  pageSlugTaken: "Ein anderer Space deines Teams hat diese Adresse.",
+  pageSlugTaken: "Ein anderer Space deiner Organisation hat diese Adresse.",
   pageTaken: "Die Seite ist schon bei „{space}“.",
   notDeleteLastSpace: "Der letzte Space lässt sich nicht löschen.",
   notFound: "Das gibt es nicht oder nicht mehr.",
@@ -766,8 +766,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   pageNeedsTitle: "Eine Seite braucht einen Titel.",
   unknownSpace: "Den Space „{space}“ gibt es nicht.",
   noParentPage: "Es gibt keine Seite mit dem Schlüssel „{parent}“, unter die diese Seite könnte.",
-  onlyTeamAdmins:
-    "Das dürfen nur Admins des Teams. Als Mitglied bearbeitest du die Wizards, die es schon gibt.",
+  onlyOrganizationAdmins:
+    "Das dürfen nur Admins der Organisation. Als Mitglied bearbeitest du die Wizards, die es schon gibt.",
   spaceEditedLocally:
     "Diesen Space bearbeitest du in engenty wizards auf deinem Computer, nicht hier.",
   wizardsRunOncePublished:

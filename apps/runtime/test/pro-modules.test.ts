@@ -251,7 +251,7 @@ describe("Pro modules on a local install", () => {
     await writeSetting(state_.ENTITLEMENT_SETTING, kept);
   });
 
-  it("counts no confirmation of another account, and refuses one signed for another team", async () => {
+  it("counts no confirmation of another account, and refuses one signed for another organization", async () => {
     const { readSetting, writeSetting } = await import("../src/settings");
     const kept = await readSetting<import("../src/plugins/pro-state").Entitlement>(
       state_.ENTITLEMENT_SETTING,

@@ -161,7 +161,7 @@ function LivePanel({
   const [error, setError] = useState<string | null>(null);
   const live = changes.data?.version ?? wizard.publishedVersion ?? 0;
   const next = live + 1;
-  // The team's public page, where the wizard stands on it: it shows the new version too.
+  // The organization's public page, where the wizard stands on it: it shows the new version too.
   const me = useMe();
   const host = me.data?.tenant.pagesHost ?? null;
   const projects = useProjects(Boolean(host));

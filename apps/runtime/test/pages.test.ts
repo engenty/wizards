@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// A stand-in Manage-App for one team with its address, which keeps what the runtime sends for
-// the team's public page (`PUT /v1/pages/:tenantId`, docs/manage-contract.md).
+// A stand-in Manage-App for one organization with its address, which keeps what the runtime sends for
+// the organization's public page (`PUT /v1/pages/:tenantId`, docs/manage-contract.md).
 const { publicKey, privateKey } = await generateKeyPair("ES256");
 const jwk = { ...(await exportJWK(publicKey)), kid: "k1", alg: "ES256", use: "sig" };
 
@@ -20,7 +20,7 @@ let issuer = "";
 const pushes: { tenantId: string; body: any }[] = [];
 // While set, the stand-in answers the push with an error.
 let pagesDown = false;
-/** The team's `pages` switch, as the fake Manage-App says it. */
+/** The organization's `pages` switch, as the fake Manage-App says it. */
 let pagesOn = true;
 
 function token(tenant: string, aud = RUNTIME) {
@@ -229,7 +229,7 @@ describe("the public page of a space", () => {
   let other = "";
   let wizard = "";
 
-  it("shows the team's address and no page until one is set up", async () => {
+  it("shows the organization's address and no page until one is set up", async () => {
     cookie = await signIn(TENANT);
     const me = await studio("GET", "/me", cookie);
     expect(me.body.tenant.pagesHost).toBe("berger-partner.wizards.localhost");
@@ -271,7 +271,7 @@ describe("the public page of a space", () => {
     expect(taken.body.error).toMatch(/address|Adresse/);
   });
 
-  it("lets one space of the team have the page on, and names it to the second", async () => {
+  it("lets one space of the organization have the page on, and names it to the second", async () => {
     const second = await studio("PATCH", `/projects/${other}`, cookie, {
       page: { ...PAGE, slug: "zweiter", title: "Zweiter" },
     });

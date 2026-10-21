@@ -59,7 +59,7 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 | code extension | plugin | das Plugin | |
 | a key the user brings | API key; your own API key | der API-Key; dein eigener API-Key | API Key (DE), Schlüssel, an own key |
 | Claude / ChatGPT plan | subscription | das Abo | |
-| what a team pays for | plan | das Paket | Plan, Tarif |
+| what an organisation pays for | plan | das Paket | Plan, Tarif |
 | the exported file | wizard file (.wizard) | Wizard-Datei | Paket (that is the plan) |
 | pre-made wizard | template | Vorlage | starter, gallery item |
 | how a wizard's pages look: colours, fonts, effects | theme | das Theme, die Themes | Thema, Design, Stil, Look (except the studio's section “Look” / „Aussehen“) |

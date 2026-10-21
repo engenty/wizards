@@ -24,7 +24,7 @@ export function asSync<T>(fn: () => T): T {
 const syncing = () => sync.getStore() === true;
 
 // --- roles -----------------------------------------------------------------------------
-// In a team, an owner or admin makes and deletes (wizards, spaces, connectors); a member edits
+// In an organization, an owner or admin makes and deletes (wizards, spaces, connectors); a member edits
 // the wizards there are. A runtime that runs alone has one person, who does everything.
 
 const actor = new AsyncLocalStorage<Role>();
@@ -41,9 +41,9 @@ export function currentRole(): Role {
 
 export const isAdminRole = (role: Role): boolean => role === "owner" || role === "admin";
 
-export const MEMBERS_EDIT_ONLY = note("onlyTeamAdmins");
+export const MEMBERS_EDIT_ONLY = note("onlyOrganizationAdmins");
 
-/** Refuses a member: making and deleting is for the owner and the admins of the team. */
+/** Refuses a member: making and deleting is for the owner and the admins of the organization. */
 export async function requireAdmin(): Promise<void> {
   if (syncing() || !managed || isAdminRole(currentRole())) {
     return;

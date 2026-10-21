@@ -77,7 +77,7 @@ import {
   installMail,
   managed,
   renameTenant,
-  saveTeamProfile,
+  saveOrganizationProfile,
   tenantInfo,
   tenantMembers,
   userInfo,
@@ -285,7 +285,7 @@ const modelsInput = z.object({
   keys: z.partialRecord(z.enum(LOCAL_KEYS), z.string().max(400)).optional(),
 });
 
-/** Alone the person changes everything; in a team its owner and admins. */
+/** Alone the person changes everything; in an organization its owner and admins. */
 function mayChangeModels(user: SessionUser): boolean {
   return !managed || user.role === "owner" || user.role === "admin";
 }
@@ -438,14 +438,14 @@ export const studio = new Hono<Vars>()
       tenant: {
         id: user.tenantId,
         role: user.role,
-        /** The plan the team is on; null alone, or where the Manage-App names none. */
+        /** The plan the organization is on; null alone, or where the Manage-App names none. */
         plan: info?.plan ?? null,
-        /** The team's address for its public page (`acme.wizards.page`); null alone, or behind its switch. */
+        /** The organization's address for its public page (`acme.wizards.page`); null alone, or behind its switch. */
         pagesHost: feature("pages", { ...info?.features, ...person?.features })
           ? (info?.pagesHost ?? null)
           : null,
       },
-      /** The feature switches: the code's defaults, what the Manage-App says of the team and the person, this install's file. */
+      /** The feature switches: the code's defaults, what the Manage-App says of the organization and the person, this install's file. */
       features: features(
         managed ? { ...info?.features, ...person?.features } : overview?.tenant.features,
       ),
@@ -460,8 +460,8 @@ export const studio = new Hono<Vars>()
         ? {
             name: linked.name,
             email: linked.email,
-            /** The team the account's space belongs to, as the Manage-App names it. */
-            team: overview?.tenant.name ?? null,
+            /** The organization the account's space belongs to, as the Manage-App names it. */
+            organization: overview?.tenant.name ?? null,
             credits: overview?.tenant.balanceCredits ?? null,
             /** What of the credits ends on a date, the nearest first. */
             expiring: overview?.tenant.expiring ?? [],
@@ -479,7 +479,7 @@ export const studio = new Hono<Vars>()
       subscriptions: managed ? [] : await subscriptionClients(),
       /** A runtime that runs alone keeps its setup in front until a test call has worked on the chosen source and the way is still open. */
       setupDone: managed ? true : await setupDone(),
-      /** The cloud studio's first visit: the short wizard that names the team and fills the space (services/onboarding.ts). */
+      /** The cloud studio's first visit: the short wizard that names the organization and fills the space (services/onboarding.ts). */
       onboarding: await needsOnboarding(user),
       /** What answers the studio chat: a model of class `highest`, or the admin's own subscription. */
       chatEngine: managed ? "models" : await chatEngine(await hasTextModel()),
@@ -499,8 +499,8 @@ export const studio = new Hono<Vars>()
       },
     });
   })
-  // The team as the Manage-App keeps it: its people, who is invited, the places the plan gives.
-  .get("/team", async (c) => {
+  // The organization as the Manage-App keeps it: its people, who is invited, the places the plan gives.
+  .get("/organization", async (c) => {
     if (!managed) {
       return c.json(
         {
@@ -511,16 +511,16 @@ export const studio = new Hono<Vars>()
       );
     }
     const user = c.get("user");
-    const [info, team] = await Promise.all([
+    const [info, organization] = await Promise.all([
       tenantInfo(user.tenantId).catch(() => null),
       tenantMembers(currentTenant()),
     ]);
     return c.json({
-      ...team,
+      ...organization,
       plan: info?.plan ?? null,
       /** Where members are invited and roles changed: the account pages of the Manage-App. */
       manageUrl: env.manage.url,
-      /** Whether this person manages the team there. */
+      /** Whether this person manages the organization there. */
       canManage: isAdminRole(user.role),
     });
   })
@@ -760,7 +760,7 @@ export const studio = new Hono<Vars>()
     await updateProject(c.get("user").id, c.req.param("id"), patch);
     return c.json({ ok: true });
   })
-  // The team's public page as Manage will draw it, for the preview beside the page's fields.
+  // The organization's public page as Manage will draw it, for the preview beside the page's fields.
   .get("/projects/:id/page", async (c) => {
     await ownedProject(c.get("user").id, c.req.param("id"));
     return c.json(await pagePreview());
@@ -1635,13 +1635,13 @@ export const studio = new Hono<Vars>()
     return c.json(localModelSettings());
   })
   // --- models: where each class runs, own API keys, the credits behind them -----------------
-  // Alone for this machine; on a Manage-App's runtime for the team, whose admins change it.
+  // Alone for this machine; on a Manage-App's runtime for the organization, whose admins change it.
   .get("/models", async (c) => c.json(await modelSettings(requestLang(c))))
   .put("/models", async (c) => {
     if (!mayChangeModels(c.get("user"))) {
       return c.json(
         {
-          error: say(c, "onlyTeamAdminsChange"),
+          error: say(c, "onlyOrganizationAdminsChange"),
           code: "forbidden",
         },
         403,
@@ -1663,7 +1663,7 @@ export const studio = new Hono<Vars>()
         400,
       );
     }
-    // Own keys and bindings to a provider's model are a feature of the team's plan.
+    // Own keys and bindings to a provider's model are a feature of the organization's plan.
     // When the Manage-App can't say what the plan holds, own keys wait: nothing is taken unchecked.
     const own =
       Object.values(input.keys ?? {}).some((key) => key?.trim()) ||
@@ -1687,7 +1687,7 @@ export const studio = new Hono<Vars>()
           {
             error: info.plan?.name
               ? say(c, "ownKeysNotInPlan", { plan: info.plan.name })
-              : say(c, "ownKeysNotInTeamPlan"),
+              : say(c, "ownKeysNotInOrganizationPlan"),
             code: "plan",
           },
           403,
@@ -1718,7 +1718,7 @@ export const studio = new Hono<Vars>()
     if (!mayChangeModels(c.get("user"))) {
       return c.json(
         {
-          error: say(c, "onlyTeamAdminsTest"),
+          error: say(c, "onlyOrganizationAdminsTest"),
           code: "forbidden",
         },
         403,
@@ -1900,8 +1900,8 @@ export const studio = new Hono<Vars>()
   })
   // The address the system browser opens: the account's sign-in, or — for someone without an
   // account — its sign-up page with the invitation code, which then goes on to the sign-in.
-  // --- the first visit of a cloud studio: who the team is, its website, first documents -----
-  .put("/team", async (c) => {
+  // --- the first visit of a cloud studio: who the organization is, its website, first documents -----
+  .put("/organization", async (c) => {
     if (!managed) {
       return c.json(
         {
@@ -1916,8 +1916,8 @@ export const studio = new Hono<Vars>()
     const info = await renameTenant(c.get("user").tenantId, name);
     return c.json({ name: info.name });
   })
-  // What the team uses engenty for, and the questions that fit: kept at the Manage-App.
-  .put("/team/profile", async (c) => {
+  // What the organization uses engenty for, and the questions that fit: kept at the Manage-App.
+  .put("/organization/profile", async (c) => {
     if (!managed) {
       return c.json(
         {
@@ -1942,7 +1942,12 @@ export const studio = new Hono<Vars>()
       })
       .parse(await c.req.json());
     const user = c.get("user");
-    await saveTeamProfile(user.tenantId, user.id, requestLang(c) === "de" ? "de" : "en", profile);
+    await saveOrganizationProfile(
+      user.tenantId,
+      user.id,
+      requestLang(c) === "de" ? "de" : "en",
+      profile,
+    );
     return c.json({ ok: true });
   })
   .post("/onboarding/done", async (c) => {

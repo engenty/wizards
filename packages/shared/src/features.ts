@@ -2,7 +2,7 @@ import { FEATURES, type FeatureDeclaration } from "./feature-flags.js";
 
 /**
  * Feature switches: how a flag of feature-flags.ts (or a plugin's manifest) gets its value.
- * The runtime resolves them from the defaults, what the Manage-App says for the team or the
+ * The runtime resolves them from the defaults, what the Manage-App says for the organization or the
  * linked account, and this install's `.features` file; the studio and plugins read the result.
  */
 

@@ -20,7 +20,7 @@ export interface FeatureDeclaration {
 
 /**
  * One entry per flag. `kind: "release"`: on or off for everyone by default, turned on for a
- * team or a machine before the default flips. `kind: "plan"`: on until a plan says `false`.
+ * organization or a machine before the default flips. `kind: "plan"`: on until a plan says `false`.
  */
 export const FEATURES = {
   account: {
@@ -44,8 +44,8 @@ export const FEATURES = {
   teamPlans: {
     kind: "release",
     default: false,
-    label: "Team plans",
-    hint: "The team page in the cloud studio, and plans that carry this switch on the account pages.",
+    label: "Organisation plans",
+    hint: "The organisation page in the cloud studio, and plans that carry this switch on the account pages.",
   },
   brandSections: {
     kind: "release",
@@ -81,7 +81,7 @@ export const FEATURES = {
     kind: "release",
     default: false,
     label: "Public page",
-    hint: "A space's page at the team's address on wizards.page: its part in the space, the share dialog's switch.",
+    hint: "A space's page at the organisation's address on wizards.page: its part in the space, the share dialog's switch.",
   },
   wordpress: {
     kind: "release",
@@ -99,6 +99,6 @@ export const FEATURES = {
     kind: "plan",
     default: true,
     label: "Own API keys",
-    hint: "The team puts its providers' keys into the cloud studio instead of running on credits.",
+    hint: "The organisation puts its providers' keys into the cloud studio instead of running on credits.",
   },
 } as const satisfies Record<string, FeatureDeclaration>;

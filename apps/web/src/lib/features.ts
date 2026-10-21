@@ -6,7 +6,7 @@ import { useMe } from "./session";
 
 /**
  * Which feature switches are on (packages/shared/src/features.ts). Signed in, `/api/studio/me`
- * brings them resolved for the team or the linked account; before that `/api/config` brings
+ * brings them resolved for the organization or the linked account; before that `/api/config` brings
  * what the runtime knows alone. Until either answered, the code's defaults count.
  */
 export interface Config {
