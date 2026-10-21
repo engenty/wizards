@@ -245,3 +245,29 @@ export function startDockDrag(
   window.addEventListener("pointerup", up);
   window.addEventListener("pointercancel", up);
 }
+
+// --- the place at the top of a page ------------------------------------------------------------
+
+let slot: HTMLElement | null = null;
+const slotListeners = new Set<() => void>();
+
+/**
+ * Where a page wants the chat at its top (the space page's parts); null when it wants none. A
+ * ref callback: the page's slot registers itself while it is drawn.
+ */
+export function setAssistantSlot(el: HTMLElement | null) {
+  slot = el;
+  for (const listener of slotListeners) {
+    listener();
+  }
+}
+
+export function useAssistantSlot(): HTMLElement | null {
+  return useSyncExternalStore(
+    (listener) => {
+      slotListeners.add(listener);
+      return () => slotListeners.delete(listener);
+    },
+    () => slot,
+  );
+}

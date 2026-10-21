@@ -18,6 +18,7 @@ import { t } from "../../lib/i18n";
 import { type Project, useIsAdmin, useManyProjects } from "../../lib/session";
 import { Button, Dialog, Input, Label, Textarea } from "../../ui";
 import { useAssistantPage } from "../assistant/page";
+import { AssistantSlot } from "../assistant/StudioAssistant";
 import { projectReadOnlyText, ReadOnlyNote } from "../ReadOnly";
 import { Assets } from "./Assets";
 import { Colors } from "./Colors";
@@ -87,10 +88,13 @@ function Base({ project, save }: { project: Project; save: (patch: Patch) => Pro
 export function ProjectSettings({
   project,
   group,
+  top = false,
   children,
 }: {
   project: Project;
   group: "info" | "knowledge";
+  /** Goose's chat stands at the top of the part: not on an item of Knowledge, opened on its own. */
+  top?: boolean;
   children?: ReactNode;
 }) {
   const qc = useQueryClient();
@@ -122,6 +126,7 @@ export function ProjectSettings({
       : {
           title: knowledge ? t("project.assistantTitleKnowledge") : t("project.assistantTitle"),
           hello: knowledge ? t("project.assistantHelloKnowledge") : t("project.assistantHello"),
+          about: knowledge ? t("project.assistantAboutKnowledge") : t("project.assistantAbout"),
           placeholder: knowledge
             ? t("project.assistantComposerKnowledge")
             : t("project.assistantComposer"),
@@ -150,7 +155,11 @@ export function ProjectSettings({
   );
   return (
     <div className="flex flex-col gap-9">
-      {readOnly ? <ReadOnlyNote>{projectReadOnlyText(project)}</ReadOnlyNote> : null}
+      {readOnly ? (
+        <ReadOnlyNote>{projectReadOnlyText(project)}</ReadOnlyNote>
+      ) : top ? (
+        <AssistantSlot />
+      ) : null}
       {group === "info" ? (
         <>
           <Anchor id="base">

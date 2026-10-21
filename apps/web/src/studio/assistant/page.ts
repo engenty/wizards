@@ -24,6 +24,8 @@ export interface PageAssistant
   /** The opened panel's heading before the first message. */
   title?: string;
   hello?: string;
+  /** More about the page, where the chat stands at its top: what goes in and what it is for. */
+  about?: string;
   placeholder?: string;
   suggestions?: AssistantSuggestion[];
   /** A page of full-height tables: the assistant starts small here unless opened. */
@@ -109,6 +111,7 @@ export function pageSnapshot(): AssistantPage {
   const {
     title: _title,
     hello: _hello,
+    about: _about,
     placeholder: _placeholder,
     suggestions: _suggestions,
     compact: _compact,
