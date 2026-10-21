@@ -114,6 +114,20 @@ command (`pnpm wizards`, `wizards`) uses `~/.engenty/wizards` instead: see
 A data folder from before tenants (`DATA_DIR/wizards.db`) is taken over into the local tenant at
 the first start; the old file stays.
 
+### Two-way sync on one machine
+
+```bash
+node apps/runtime/scripts/dev-two-way.mjs [--fresh]
+```
+
+It starts a stand-in account service (:8790, which signs anyone in as the owner of "Dev org"), a cloud
+runtime with its studio (http://localhost:5182) and a computer's studio with `twoWaySync` on
+(http://localhost:5181, Dev-Login). Settings › Account › Sign in links the computer to the
+organization, and Settings › Spaces in the cloud shows what syncs
+([plan](plans/tenant-sync.md)). The data is in `data/two-way/`, and `--fresh` starts over. Runs
+in the cloud have no AI, since the stand-in has no gateway. Runs on the computer use the engine
+picked in setup.
+
 ## Documentation
 
 The site is `apps/docs`, the same system as in the engenty repo: Next.js with

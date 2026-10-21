@@ -6,6 +6,7 @@ import { type MouseEvent, useState } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
 import { Button, Card, cn, IconButton, Spinner } from "../../ui";
+import { SyncNotice } from "../CloudSync";
 import { fileUrl, useAutosave } from "./data";
 import { KnowledgeHeader } from "./Knowledge";
 
@@ -249,5 +250,10 @@ export function PageEditor({
       <p className="text-[0.875rem] text-rose">{(page.error as Error).message}</p>
     ) : null;
   }
-  return <Editor key={page.data.id} page={page.data} onGone={onGone} onOpen={onOpen} />;
+  return (
+    <>
+      <SyncNotice kind="page" item={pageId} />
+      <Editor key={page.data.id} page={page.data} onGone={onGone} onOpen={onOpen} />
+    </>
+  );
 }

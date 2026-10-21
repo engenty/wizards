@@ -29,6 +29,12 @@ export const FEATURES = {
     label: "Account in a local install",
     hint: "Linking, Settings → Account, the offer to sign in.",
   },
+  twoWaySync: {
+    kind: "release",
+    default: true,
+    label: "Two-way sync with the cloud",
+    hint: "A local install with an account keeps its spaces in step with the organization in the cloud, both ways: wizards, knowledge, data and files.",
+  },
   unsetConnectors: {
     kind: "release",
     default: false,

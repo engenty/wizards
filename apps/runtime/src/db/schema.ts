@@ -870,3 +870,85 @@ export const pluginConnection = sqliteTable(
   },
   (t) => [index("plugin_connection_space").on(t.plugin, t.projectId)],
 );
+
+// --- The two-way sync -----------------------------------------------------------
+// A space that syncs with the organization in the cloud (docs/plans/tenant-sync.md). Triggers
+// on the synced tables note every write in `sync_change` (see the migration); the cloud numbers
+// its changes there, an install finds there what it has not pushed yet.
+
+/** One change of an item: which space, which kind of item, which one. */
+export const syncChange = sqliteTable(
+  "sync_change",
+  {
+    seq: integer("seq").primaryKey({ autoIncrement: true }),
+    projectId: text("project_id").notNull(),
+    kind: text("kind").notNull(),
+    item: text("item").notNull(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [
+    index("sync_change_item").on(t.kind, t.item),
+    index("sync_change_project").on(t.projectId, t.seq),
+  ],
+);
+
+/** One row: `applying` is 1 while an install writes what it pulled, so the triggers note none of it. */
+export const syncGuard = sqliteTable("sync_guard", {
+  id: integer("id").primaryKey(),
+  applying: integer("applying").notNull().default(0),
+});
+
+/**
+ * The version of an item both sides last agreed on, with the cloud's number of it: the common
+ * ancestor a three-way merge starts from. Kept by an install.
+ */
+export const syncBase = sqliteTable(
+  "sync_base",
+  {
+    kind: text("kind").notNull(),
+    item: text("item").notNull(),
+    projectId: text("project_id").notNull(),
+    seq: integer("seq").notNull(),
+    record: text("record", { mode: "json" }).$type<Record<string, unknown> | null>(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.item] }), index("sync_base_project").on(t.projectId)],
+);
+
+/** An item both sides changed, where the merge was not clean: it waits for the person. */
+export const syncConflict = sqliteTable(
+  "sync_conflict",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull(),
+    kind: text("kind").notNull(),
+    item: text("item").notNull(),
+    /** The cloud's number of its version. */
+    seq: integer("seq").notNull(),
+    base: text("base", { mode: "json" }).$type<Record<string, unknown> | null>(),
+    local: text("local", { mode: "json" }).$type<Record<string, unknown> | null>(),
+    remote: text("remote", { mode: "json" }).$type<Record<string, unknown> | null>(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("sync_conflict_item").on(t.kind, t.item)],
+);
+
+/** A merge the sync made by itself: the notice on the item, and what undoes it. */
+export const syncMerge = sqliteTable(
+  "sync_merge",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull(),
+    kind: text("kind").notNull(),
+    item: text("item").notNull(),
+    /** Labels of the places each side changed. */
+    local: text("local", { mode: "json" }).$type<string[]>().notNull(),
+    remote: text("remote", { mode: "json" }).$type<string[]>().notNull(),
+    /** Both sides before the merge. */
+    before: text("before", { mode: "json" })
+      .$type<{ local: Record<string, unknown> | null; remote: Record<string, unknown> | null }>()
+      .notNull(),
+    seen: integer("seen", { mode: "boolean" }).notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [index("sync_merge_item").on(t.kind, t.item, t.createdAt)],
+);

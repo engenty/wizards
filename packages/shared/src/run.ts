@@ -442,6 +442,14 @@ const NOTES_EN = {
   },
   accountSignedOut: "The account is signed out. Sign in again.",
   cloudNotReachedRight: "The cloud can’t be reached right now.",
+  syncUpdateHere:
+    "The cloud runs a newer version than this computer. Update engenty wizards, then your changes arrive in the cloud again.",
+  syncUpdateCloud:
+    "This computer runs a newer version than the cloud. Your changes arrive there once the cloud is updated.",
+  syncSpaceNotInCloud: "This space isn’t in the cloud.",
+  syncOtherSpace: "In the cloud this belongs to another space.",
+  syncChangeRefused: "The cloud doesn’t take this change: {detail}",
+  syncFileMissing: "A file of this change hasn’t arrived in the cloud yet. It’s sent again.",
   publishWizardFirst: "Publish the wizard first.",
   wizardJsonUnreadable: "This isn’t a wizard file: its wizard.json can’t be read.",
   wizardFileComesNewer:
@@ -788,6 +796,15 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   },
   accountSignedOut: "Das Konto ist abgemeldet. Melde dich neu an.",
   cloudNotReachedRight: "Die Cloud ist gerade nicht erreichbar.",
+  syncUpdateHere:
+    "Die Cloud hat eine neuere Version als dieser Computer. Aktualisiere engenty wizards, dann kommen deine Änderungen wieder in der Cloud an.",
+  syncUpdateCloud:
+    "Dieser Computer hat eine neuere Version als die Cloud. Deine Änderungen kommen dort an, sobald die Cloud aktualisiert ist.",
+  syncSpaceNotInCloud: "Diesen Space gibt es in der Cloud nicht.",
+  syncOtherSpace: "In der Cloud gehört das zu einem anderen Space.",
+  syncChangeRefused: "Diese Änderung nimmt die Cloud nicht an: {detail}",
+  syncFileMissing:
+    "Eine Datei dieser Änderung ist noch nicht in der Cloud angekommen. Sie wird noch einmal gesendet.",
   publishWizardFirst: "Veröffentliche den Wizard zuerst.",
   wizardJsonUnreadable: "Das ist keine Wizard-Datei: Die wizard.json darin lässt sich nicht lesen.",
   wizardFileComesNewer:

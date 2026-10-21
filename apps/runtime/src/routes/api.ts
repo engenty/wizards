@@ -1,4 +1,5 @@
 import { note } from "@engenty/wizards-shared/run";
+import { blobHash, missingBlobsSchema, pushSchema } from "@engenty/wizards-shared/sync";
 import { PACKAGE_MIME } from "@engenty/wizards-shared/wizard-package";
 import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -33,6 +34,17 @@ import {
   syncWizardSchema,
 } from "../services/spaces.js";
 import { createWizard, ownedWizard, publishWizard, writeDraft } from "../services/wizards.js";
+import {
+  adoptSpace,
+  blobBytes,
+  missingBlobs,
+  publishSynced,
+  pullChanges,
+  pushChanges,
+  rotateSynced,
+  syncOverview,
+  takeBlob,
+} from "../sync/hub.js";
 import { codeOf, tenantStatus } from "../tenants/control.js";
 import { notFoundAnswer, say } from "./lang.js";
 import { dispatchAs } from "./plugins.js";
@@ -95,6 +107,24 @@ async function caller(c: Context, scopes: Scope[]): Promise<Principal | Response
   }
   return who;
 }
+
+/**
+ * The two-way sync follows the studio's saves: an install pushes a space at most every few
+ * seconds while someone edits, and pulls when a page opens.
+ */
+const TWO_WAY_LIMITS = { push: 1200, pull: 3600 };
+
+function withinTwoWayLimit(c: Context, who: Principal, what: "push" | "pull"): Response | null {
+  return allowed(`two-way-${what}:${who.tenantId}`, TWO_WAY_LIMITS[what], HOUR)
+    ? null
+    : c.json({ error: say(c, "tooManyTransfersTry"), code: "rate_limited" }, 429);
+}
+
+/** What one push carries: records, without the files' bytes (they go one by one). */
+const twoWayBody = bodyLimit({
+  maxSize: 16 * 1024 * 1024,
+  onError: (c) => c.json({ error: "The request is too large.", code: "too_large" }, 413),
+});
 
 /** A local install sends when it publishes: more than this an hour is not an install at work. */
 function withinSyncLimit(c: Context, who: Principal): Response | null {
@@ -451,6 +481,102 @@ export const apiRoutes = new Hono()
       return who;
     }
     return inTenantAs(who, async () => c.json(await removeSyncedSpace(c.req.param("spaceId"))));
+  })
+  // --- the two-way sync of a space (docs/manage-contract.md, "Two-way sync of a space") ---
+  .get("/sync", async (c) => {
+    const who = await caller(c, ["wizards:read"]);
+    if (who instanceof Response) {
+      return who;
+    }
+    return inTenantAs(who, async () => c.json(await syncOverview()));
+  })
+  .get("/sync/spaces/:spaceId/changes", async (c) => {
+    const who = await caller(c, ["wizards:read"]);
+    if (who instanceof Response) {
+      return who;
+    }
+    const limited = withinTwoWayLimit(c, who, "pull");
+    if (limited) {
+      return limited;
+    }
+    const since = Math.max(0, Number.parseInt(c.req.query("since") ?? "0", 10) || 0);
+    const cursor = c.req.query("cursor") || undefined;
+    return inTenantAs(who, async () =>
+      c.json(await pullChanges(c.req.param("spaceId"), since, cursor)),
+    );
+  })
+  .post("/sync/spaces/:spaceId/changes", twoWayBody, async (c) => {
+    const who = await caller(c, ["wizards:write"]);
+    if (who instanceof Response) {
+      return who;
+    }
+    const limited = withinTwoWayLimit(c, who, "push");
+    if (limited) {
+      return limited;
+    }
+    const body = pushSchema.parse(await c.req.json());
+    return inTenantAs(who, async () => c.json(await pushChanges(c.req.param("spaceId"), body)));
+  })
+  .post("/sync/spaces/:spaceId/blobs/missing", async (c) => {
+    const who = await caller(c, ["wizards:write"]);
+    if (who instanceof Response) {
+      return who;
+    }
+    const body = missingBlobsSchema.parse(await c.req.json());
+    return inTenantAs(who, async () => c.json({ missing: await missingBlobs(body.hashes) }));
+  })
+  .put("/sync/spaces/:spaceId/blobs/:hash", tooLarge, async (c) => {
+    const who = await caller(c, ["wizards:write"]);
+    if (who instanceof Response) {
+      return who;
+    }
+    const hash = blobHash.parse(c.req.param("hash"));
+    const data = new Uint8Array(await c.req.arrayBuffer());
+    return inTenantAs(who, async () => {
+      await takeBlob(hash, data).catch(() => {
+        throw new ServiceError("invalid", "The bytes do not match their hash.");
+      });
+      return c.json({ ok: true });
+    });
+  })
+  .get("/sync/spaces/:spaceId/blobs/:hash", async (c) => {
+    const who = await caller(c, ["wizards:read"]);
+    if (who instanceof Response) {
+      return who;
+    }
+    const hash = blobHash.parse(c.req.param("hash"));
+    return inTenantAs(who, async () => {
+      const data = await blobBytes(hash).catch(() => null);
+      if (!data) {
+        return c.json({ error: "There are no such bytes here.", code: "not_found" }, 404);
+      }
+      return c.body(new Uint8Array(data), 200, { "content-type": "application/octet-stream" });
+    });
+  })
+  .post("/sync/spaces/:spaceId/wizards/:wizardId/publish", async (c) => {
+    const who = await caller(c, ["wizards:write", "wizards:publish"]);
+    if (who instanceof Response) {
+      return who;
+    }
+    return inTenantAs(who, async () =>
+      c.json(await publishSynced(who.userId, c.req.param("spaceId"), c.req.param("wizardId"))),
+    );
+  })
+  .post("/sync/spaces/:spaceId/wizards/:wizardId/rotate-link", async (c) => {
+    const who = await caller(c, ["wizards:publish"]);
+    if (who instanceof Response) {
+      return who;
+    }
+    return inTenantAs(who, async () =>
+      c.json(await rotateSynced(who.userId, c.req.param("spaceId"), c.req.param("wizardId"))),
+    );
+  })
+  .post("/sync/spaces/:spaceId/adopt", async (c) => {
+    const who = await caller(c, ["wizards:write"]);
+    if (who instanceof Response) {
+      return who;
+    }
+    return inTenantAs(who, async () => c.json(await adoptSpace(c.req.param("spaceId"))));
   })
   .post("/wizards/import", tooLarge, async (c) => {
     const authInfo = await authenticate(c.req.raw);

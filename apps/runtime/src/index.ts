@@ -24,6 +24,7 @@ import { clearRunning, writeRunning } from "./running.js";
 import { syncMarketplace } from "./services/marketplace.js";
 import { purgeExpiredRuns } from "./services/shares.js";
 import { purgeUnusedStores } from "./store/index.js";
+import { compactLog } from "./sync/log.js";
 import { forgetRunner, registerRunner } from "./tenants/control.js";
 import { LOCAL_TENANT } from "./tenants/tenant.js";
 import { onRestart, RESTART_EXIT, startUpdateChecks } from "./update.js";
@@ -108,9 +109,9 @@ if (env.serves.runner) {
 async function purge() {
   await purgeSessions();
   for (const id of await knownTenants()) {
-    await withTenant(id, () => Promise.all([purgeExpiredRuns(), purgeUnusedStores()])).catch(
-      (err) => console.error(`[retention ${id}]`, err),
-    );
+    await withTenant(id, () =>
+      Promise.all([purgeExpiredRuns(), purgeUnusedStores(), compactLog()]),
+    ).catch((err) => console.error(`[retention ${id}]`, err));
   }
 }
 void purge().catch((err) => console.error("[retention]", err));
@@ -124,6 +125,12 @@ if (!managed) {
       console.error("[cloud] retry failed:", err),
     );
   setInterval(() => void retry(), 60_000).unref();
+  // The two-way sync of the spaces with the account's organization (sync/client.ts).
+  const { syncAll } = await import("./sync/client.js");
+  const twoWay = () =>
+    withTenant(LOCAL_TENANT, () => syncAll()).catch((err) => console.error("[sync]", err));
+  setTimeout(() => void twoWay(), 5_000).unref();
+  setInterval(() => void twoWay(), 60_000).unref();
 }
 
 async function shutdown(code = 0) {

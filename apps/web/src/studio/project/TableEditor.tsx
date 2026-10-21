@@ -26,6 +26,7 @@ import {
   Switch,
   Textarea,
 } from "../../ui";
+import { SyncNotice } from "../CloudSync";
 import { KnowledgeHeader } from "./Knowledge";
 
 const MS: Record<DurationUnit, number> = {
@@ -570,6 +571,7 @@ export function TableEditor({
   const fromList = Boolean(table.data.list);
   return (
     <section className="flex flex-col gap-3">
+      <SyncNotice kind="table" item={tableId} />
       <div className="flex items-center gap-2 px-1">
         <input
           value={title}

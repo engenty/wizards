@@ -54,7 +54,15 @@ async function firstSync(): Promise<void> {
   try {
     // Loaded here: the services read the session this module makes.
     const { syncAllToCloud } = await import("../services/cloud.js");
-    await withTenant(LOCAL_TENANT, () => syncAllToCloud(localUser().id));
+    const twoWay = await import("../sync/client.js");
+    await withTenant(LOCAL_TENANT, async () => {
+      // With the two-way sync the spaces themselves go up and come down; else what is published.
+      if (await twoWay.twoWayAvailable()) {
+        await twoWay.syncAll();
+      } else {
+        await syncAllToCloud(localUser().id);
+      }
+    });
   } catch (err) {
     console.error("[cloud] first sync failed:", err);
   }

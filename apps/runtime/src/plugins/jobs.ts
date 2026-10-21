@@ -1,6 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { control, controlDb, withTenant } from "../db/client.js";
 import { env } from "../env.js";
+import { twoWayActive } from "../sync/state.js";
+import { LOCAL_TENANT } from "../tenants/tenant.js";
 import { loadedPlugins, pluginIdsOf } from "./registry.js";
 
 /**
@@ -26,6 +28,11 @@ export async function runDueJobs(now = new Date()): Promise<void> {
   });
   const started: Promise<void>[] = [];
   for (const tenant of tenants) {
+    // An install whose spaces sync both ways leaves the jobs to the cloud: both would write the
+    // same items of the same spaces (docs/plans/tenant-sync.md).
+    if (twoWayActive() && tenant.id === LOCAL_TENANT) {
+      continue;
+    }
     const has = await pluginIdsOf(tenant.id);
     for (const { plugin, name, job } of jobs) {
       const id = plugin.source.id;

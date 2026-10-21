@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Client, createClient } from "@libsql/client";
@@ -19,6 +19,17 @@ const here = dirname(fileURLToPath(import.meta.url));
 function migrationsFolder(name: "tenant" | "control"): string {
   return join(here, "migrations", name);
 }
+
+/**
+ * The tenant schema this release writes: the last migration's tag (`0022_sync`). The two-way
+ * sync runs only between sides that have the same.
+ */
+export const tenantSchemaVersion: string = (() => {
+  const journal = JSON.parse(
+    readFileSync(join(migrationsFolder("tenant"), "meta", "_journal.json"), "utf8"),
+  ) as { entries: { tag: string }[] };
+  return journal.entries.at(-1)?.tag ?? "";
+})();
 
 function open(url: string, authToken: string): Client {
   return createClient({ url, ...(authToken ? { authToken } : {}) });

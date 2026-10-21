@@ -224,6 +224,47 @@ Calls of the cloud runtime, below `<RUNTIME_URL>/api/v1`, with the account's acc
   transaction. The install sends again by itself — after a minute, then twice as long each time,
   up to an hour — until it arrives; not after a refusal (`4xx`), which only the person can mend.
 
+## Two-way sync of a space
+
+Behind the switch `twoWaySync` (off by default; docs/plans/tenant-sync.md). A runtime that runs
+alone, linked to an account, keeps its spaces the same as the organization's spaces on the cloud
+runtime, both ways: the space's details, wizards (draft and workspace), translations, the build
+chat, pages, tables and rows, categories, files and connectors. Runs, the studio assistant's
+chats, the wizard's store, connected accounts, the index and model settings stay on each side.
+
+The cloud is the hub. Triggers note every write of a synced table in its `sync_change`, and its
+number (`seq`) orders the changes. The install pushes an item with the number of the cloud's
+version it changed (`base`); the cloud takes it when its own version has not changed since, and
+otherwise answers with its version, which the install merges (sync/client.ts). Both sides must
+have the same tenant schema, the last migration's tag.
+
+Calls of the cloud runtime, below `<RUNTIME_URL>/api/v1`, with the account's access token:
+
+| Call | Scopes | Body → answer |
+|---|---|---|
+| `GET /sync` | `wizards:read` | → `{ tenantId, schema, role, limits: { projects }, spaces: [{ id, name, seq }] }` |
+| `GET /sync/spaces/:spaceId/changes?since=&cursor=` | `wizards:read` | → `{ changes: [{ kind, item, seq, record }], next, more, cursor? }` · `record: null` = deleted · from `since=0` every item of the space, a page at a time (`cursor`) · 300 a page |
+| `POST /sync/spaces/:spaceId/changes` | `wizards:write` | `{ schema, items: [{ kind, item, base, record }] }` → `{ results: [{ kind, item, status: "taken", seq } \| { status: "conflict", seq, record } \| { status: "refused", reason, message }], seq }` · 500 items, 16 MB · a space is made by the item `{ kind: "space", item: spaceId }` |
+| `POST /sync/spaces/:spaceId/blobs/missing` | `wizards:write` | `{ hashes }` → `{ missing }` · the files' bytes go before the records that point to them |
+| `PUT /sync/spaces/:spaceId/blobs/:sha256` | `wizards:write` | the bytes (`application/octet-stream`) → `{ ok }` · `400` when they are not what the hash says |
+| `GET /sync/spaces/:spaceId/blobs/:sha256` | `wizards:read` | → the bytes |
+| `POST /sync/spaces/:spaceId/wizards/:wizardId/publish` | `wizards:write wizards:publish` | → `{ wizardId, shareUrl, code, shareEnabled, publishedVersion, runnable, problems }` · publishes the cloud's draft, which the install pushed before |
+| `POST /sync/spaces/:spaceId/wizards/:wizardId/rotate-link` | `wizards:publish` | → `{ shareUrl, code }` |
+| `POST /sync/spaces/:spaceId/adopt` | `wizards:write` | → `{ adopted }` · a space synced one way (`origin = "local"`) becomes the cloud's own and syncs both ways |
+
+- **Kinds and items**: `space` (its id), `wizard`, `translation` (`<wizard>:<lang>`), `message`,
+  `page`, `table`, `row`, `category` (with its values), `file`, `connector` (`<space>:<id>`).
+  Records carry no tenant id, revision or time a write sets by itself; files go by the SHA-256 of
+  their bytes. A connected system's `headers` stay on each side.
+- **Roles**: the token's role counts. A member changes what is there; making or deleting a wizard,
+  and any change of the space's details or its connectors, is for owners and admins
+  (`reason: "forbidden"`). A tenant with `limits.build: false` is refused (`403 read_only`).
+- **Refusals**: `400 { reason: "schema_mismatch", schema }` when the tenant schemas differ (the
+  sync pauses until both match); `404 { reason: "not_found" }` for a space that is not there and
+  is not made by the push; per item `reason` `forbidden`, `id_taken`, `space_limit`,
+  `blob_missing`, `invalid`, `not_synced`.
+- **Limits**: 1200 pushes and 3600 pulls an hour per tenant (`429`).
+
 ## Clients of an account: the WordPress plugin
 
 The WordPress plugin is an OAuth client of the Manage-App like an MCP client: it registers itself

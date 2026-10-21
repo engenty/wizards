@@ -1,9 +1,20 @@
 import { featureOn } from "@engenty/wizards-shared/features";
-import { Blocks, Cable, Cpu, Info, type LucideIcon, Plug, UserRound, Users } from "lucide-react";
+import {
+  Blocks,
+  Cable,
+  CloudCog,
+  Cpu,
+  Info,
+  type LucideIcon,
+  Plug,
+  UserRound,
+  Users,
+} from "lucide-react";
 import type { ComponentType } from "react";
 import { t } from "../lib/i18n";
 import type { Me } from "../lib/session";
 import type { StudioPlugins } from "../plugins/host";
+import { cloudSyncOn } from "./CloudSync";
 
 export interface SettingsSection {
   id: string;
@@ -28,6 +39,10 @@ export function settingsSections(
     // In the cloud the studio is an organization's: who is in it, and its plan — once teamPlans is on.
     ...(me?.mode === "managed" && featureOn(me.features, "teamPlans")
       ? [{ id: "organization", label: t("organization.title"), icon: Users, menu: true }]
+      : []),
+    // This computer's spaces kept the same as the organization's in the cloud, both ways.
+    ...(cloudSyncOn(me)
+      ? [{ id: "cloud", label: t("cloudSync.title"), icon: CloudCog, menu: false }]
       : []),
     { id: "connectors", label: t("connectors.title"), icon: Plug, menu: true },
     // Alone for this machine; in the cloud for the organization, on its credits unless it brings keys.

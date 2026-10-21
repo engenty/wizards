@@ -30,6 +30,7 @@ import {
 } from "../lib/session";
 import { Button, Chip, cn, IconButton, LinkedText, Spinner } from "../ui";
 import { CreditsPill } from "./AppFrame";
+import { SyncNotice } from "./CloudSync";
 import {
   type Adding,
   AddStepPanel,
@@ -895,6 +896,7 @@ function Editor() {
           <p className="min-w-0 flex-1">{readOnlyNote}</p>
         </div>
       ) : null}
+      <SyncNotice kind="wizard" item={w.id} />
       {failed ? (
         <div className="shrink-0 bg-rose-tint px-4 py-2 text-[0.8125rem] text-rose sm:px-6">
           {failed}

@@ -12,6 +12,7 @@ import { Button, Card, cn, Empty, IconButton, Input } from "../ui";
 import { Account } from "./Account";
 import { useCrumbs } from "./AppFrame";
 import { useAssistantPage } from "./assistant/page";
+import { CloudSyncSection } from "./CloudSync";
 import { Connectors } from "./Connectors";
 import { ProjectSwitcher } from "./HomePage";
 import { Integrate } from "./Integrate";
@@ -348,6 +349,7 @@ export function SettingsPage() {
               {current.id === "models" ? <Models /> : null}
               {current.id === "integrate" ? <Integrate /> : null}
               {current.id === "account" && me.data ? <Account me={me.data} /> : null}
+              {current.id === "cloud" ? <CloudSyncSection /> : null}
               {current.id === "about" ? (
                 <Suspense fallback={null}>
                   <AboutPanel me={me.data} active initialTab={aboutTab(params.get("tab"))} />
