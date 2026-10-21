@@ -20,13 +20,22 @@ interface StoredKey {
 
 const hashOf = (key: string) => createHash("sha256").update(key).digest("hex");
 
-/** A key that lives only as long as this process: the studio chat's own client signs in with it. */
-let internal: string | null = null;
-export function internalKey(): string {
-  internal ??= `${API_KEY_PREFIX}${randomBytes(24).toString("base64url")}`;
-  return internal;
+/**
+ * Keys that live only as long as this process: the studio chat's own client signs in with one,
+ * named for that client ("Codex (Abo)"), so the changes it makes say who made them.
+ */
+const internal = new Map<string, string>();
+export function internalKey(client: string): string {
+  const name = `${client} (Abo)`;
+  for (const [key, known] of internal) {
+    if (known === name) {
+      return key;
+    }
+  }
+  const key = `${API_KEY_PREFIX}${randomBytes(24).toString("base64url")}`;
+  internal.set(key, name);
+  return key;
 }
-const INTERNAL_CLIENT = "Claude (Abo)";
 
 async function all(): Promise<StoredKey[]> {
   return (await readSetting<StoredKey[]>("apiKeys")) ?? [];
@@ -58,8 +67,9 @@ export async function deleteLocalKey(id: string) {
 }
 
 export async function verifyLocalKey(key: string): Promise<{ id: string; name: string } | null> {
-  if (internal && key === internal) {
-    return { id: "internal", name: INTERNAL_CLIENT };
+  const own = internal.get(key);
+  if (own) {
+    return { id: "internal", name: own };
   }
   const keys = await all();
   const found = keys.find((k) => k.hash === hashOf(key));

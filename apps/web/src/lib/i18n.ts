@@ -89,8 +89,10 @@ const de: Record<Key, Line> = {
   "local.chat": "Der Chat im Studio antwortet über",
   "local.chatModels": "Modellklasse Highest",
   "local.chatClaude": "Claude-Abo (Claude Code)",
+  "local.chatCodex": "ChatGPT-Abo (Codex)",
+  "local.chatCursor": "Cursor-Abo (Cursor Agent)",
   "local.subscription":
-    "Mit dem Abo baut Claude Code auf diesem Computer den Wizard – angemeldet mit deinem Konto dort. Läufe nutzen weiter API-Keys oder Guthaben.",
+    "Das gilt für den Chat im Editor, der deinen Wizard baut. Mit einem Abo baut das gewählte Programm auf diesem Computer, angemeldet mit deinem Konto dort. Läufe nutzen weiter, was oben eingestellt ist.",
   "harness.hint":
     "Texte schreibt {name} auf diesem Computer, mit deinem {sub}. Kein API-Key nötig. Bilder, Videos und Audio brauchen weiter einen API-Key.",
   "harness.hintImages":
@@ -2330,8 +2332,10 @@ const en = {
   "local.chat": "The studio chat uses",
   "local.chatModels": "Model class Highest",
   "local.chatClaude": "Claude subscription (Claude Code)",
+  "local.chatCodex": "ChatGPT subscription (Codex)",
+  "local.chatCursor": "Cursor subscription (Cursor Agent)",
   "local.subscription":
-    "With the subscription, Claude Code on this computer builds the wizard, using your sign-in there. Runs still use keys or credits.",
+    "This applies to the chat in the editor that builds your wizard. With a subscription, the program you choose builds it on this computer, using your sign-in there. Runs keep using what is set above.",
   "harness.hint":
     "Text runs on {name} on this computer, using your {sub}. No key needed. Images, video and audio still need a key.",
   "harness.hintImages":

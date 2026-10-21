@@ -59,12 +59,13 @@ export async function architectTurn(
   const images = await attachedImages(userId, w.id, message);
   const userMessageId = await addMessage(w.id, { role: "user", content: message });
   try {
-    // A runtime that runs alone can answer the chat on the admin's own Claude subscription.
+    // A runtime that runs alone can answer the chat on the admin's own subscription.
     const engine = managed ? "models" : await chatEngine(await hasTextModel());
     const result =
-      engine === "claude"
+      engine !== "models"
         ? {
             ...(await subscriptionTurn({
+              client: engine,
               wizardId: w.id,
               message,
               signal: io.signal,

@@ -33,7 +33,12 @@ import { streamSSE } from "hono/streaming";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { type AnswerPart, runStudioAssistant, signalText } from "../agents/studio-assistant.js";
-import { chatEngine, setChatEngine, subscriptionClients } from "../agents/subscription.js";
+import {
+  CHAT_ENGINES,
+  chatEngine,
+  setChatEngine,
+  subscriptionClients,
+} from "../agents/subscription.js";
 import { scanColors, scanFonts, scanImages, scanLogos } from "../agents/website.js";
 import { answerBrowser, awaitBrowser } from "../assistant/browser.js";
 import { endRun, signalRun, startRun, takeSignals } from "../assistant/runs.js";
@@ -1922,7 +1927,7 @@ export const studio = new Hono<Vars>()
     if (managed) {
       return c.notFound();
     }
-    const { engine } = z.object({ engine: z.enum(["models", "claude"]) }).parse(await c.req.json());
+    const { engine } = z.object({ engine: z.enum(CHAT_ENGINES) }).parse(await c.req.json());
     await setChatEngine(engine);
     return c.json({ ok: true });
   })

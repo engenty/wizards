@@ -24,6 +24,9 @@ import { ApiError, api } from "./api";
 import { STUDIO, withBase } from "./base";
 import { type Lang, setLang, storedLang } from "./i18n";
 
+/** The AI clients whose subscription can answer the studio chat. */
+export type SubscriptionClient = "claude" | "codex" | "cursor";
+
 /** An AI client installed on this machine that can think for the app, on its own subscription. */
 export type HarnessId = "claude" | "codex" | "antigravity" | "cursor";
 
@@ -131,14 +134,14 @@ export interface Me {
   apple: AppleStatus | null;
   /** The AI clients this runtime can think with — installed or not, and how each is signed in. */
   harnesses: HarnessStatus[];
-  /** Installed AI clients whose subscription can answer the studio chat. */
-  subscriptions: "claude"[];
+  /** Installed, signed-in AI clients whose subscription can answer the studio chat. */
+  subscriptions: SubscriptionClient[];
   /** A runtime that runs alone walks the person through its setup on first start. */
   setupDone: boolean;
   /** The cloud studio's first visit: the short wizard that names the organization and fills the space. */
   onboarding: boolean;
   /** What answers the studio chat. */
-  chatEngine: "models" | "claude";
+  chatEngine: "models" | SubscriptionClient;
   aiReady: boolean;
   /** Where an admin's own MCP client (Claude Code, Cursor, Codex) connects. */
   mcpUrl: string;

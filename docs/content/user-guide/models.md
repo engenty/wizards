@@ -110,13 +110,20 @@ your account. Without any of them, the Classifier class decides.
 
 ## The editor’s chat
 
-Where Claude Code is installed on this computer, “The studio chat uses” (on the page “Text &
-reasoning”) sets what builds your wizards in the editor’s chat:
+Where Claude Code, Codex or Cursor Agent is installed and signed in on this computer, “The
+studio chat uses” (on the page “Text & reasoning”) sets what builds your wizards in the editor’s
+chat. It lists each client it finds:
 
 | Choice | Means |
 |---|---|
 | Model class Highest | The model set for that class |
-| Claude subscription (Claude Code) | Claude Code on this computer builds the wizard, using your sign-in there. Runs still use keys or credits |
+| Claude subscription (Claude Code) | Claude Code on this computer builds the wizard, using your sign-in there |
+| ChatGPT subscription (Codex) | Codex on this computer builds the wizard, using your sign-in there |
+| Cursor subscription (Cursor Agent) | Cursor Agent on this computer builds the wizard, using your sign-in there |
+
+The client works only through the wizard tools of engenty wizards: it runs no commands and
+changes no files of its own. The choice covers the editor’s chat only. Runs keep using what is
+set for each class.
 
 ## Account
 

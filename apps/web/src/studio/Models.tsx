@@ -1179,9 +1179,7 @@ function CapabilityPanel({
           </Part>
         )}
 
-        {isText(cap) && me.subscriptions.includes("claude") && !place.cloud ? (
-          <ChatEngine me={me} />
-        ) : null}
+        {isText(cap) && me.subscriptions.length > 0 && !place.cloud ? <ChatEngine me={me} /> : null}
       </Card>
     </div>
   );
@@ -1280,17 +1278,18 @@ function OllamaPart({ state, disabled }: { state: ModelsState; disabled?: boolea
   );
 }
 
-/** What answers the studio chat where a Claude subscription is there. */
+/** What answers the studio chat where a subscription is there: a model or one of the clients. */
 function ChatEngine({ me }: { me: Me }) {
   const qc = useQueryClient();
   const chat = useMutation({
-    mutationFn: (engine: "models" | "claude") => api.put("/api/studio/local/chat", { engine }),
+    mutationFn: (engine: Me["chatEngine"]) => api.put("/api/studio/local/chat", { engine }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
   });
+  const engines: Me["chatEngine"][] = ["models", ...me.subscriptions];
   return (
     <Part title={t("local.chat")}>
       <div className="flex flex-wrap gap-2">
-        {(["models", "claude"] as const).map((engine) => (
+        {engines.map((engine) => (
           <button
             key={engine}
             type="button"
@@ -1303,7 +1302,7 @@ function ChatEngine({ me }: { me: Me }) {
                 : "border-input bg-card text-ink-2 hover:text-ink",
             )}
           >
-            {engine === "claude" ? t("local.chatClaude") : t("local.chatModels")}
+            {t(CHAT_ENGINE_LABEL[engine])}
           </button>
         ))}
       </div>
@@ -1311,6 +1310,13 @@ function ChatEngine({ me }: { me: Me }) {
     </Part>
   );
 }
+
+const CHAT_ENGINE_LABEL = {
+  models: "local.chatModels",
+  claude: "local.chatClaude",
+  codex: "local.chatCodex",
+  cursor: "local.chatCursor",
+} as const satisfies Record<Me["chatEngine"], string>;
 
 /** One provider: its key, and what it does for which capability. */
 function ProviderPanel({
