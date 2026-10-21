@@ -1961,8 +1961,10 @@ export const studio = new Hono<Vars>()
   .post("/projects/:id/website", async (c) => {
     const user = c.get("user");
     const project = await ownedProject(user.id, c.req.param("id"));
-    const { url } = z.object({ url: z.string().trim().min(3).max(400) }).parse(await c.req.json());
-    return c.json(await applyWebsite(user.id, project.id, url));
+    const { url, lang } = z
+      .object({ url: z.string().trim().min(3).max(400), lang: z.enum(LANGS).optional() })
+      .parse(await c.req.json());
+    return c.json(await applyWebsite(user.id, project.id, url, lang ?? requestLang(c)));
   })
   // The install command and the first steps, mailed to the signed-in person by the Manage-App.
   .post("/install-mail", async (c) => {

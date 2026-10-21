@@ -1,9 +1,12 @@
-import { readWebsite } from "../agents/website.js";
+import type { Lang } from "@engenty/wizards-shared/definition";
+import type { BasicFact, ProjectFact } from "@engenty/wizards-shared/projects";
+import { type CompanyContact, readContact, readWebsite } from "../agents/website.js";
 import { managed, type Role } from "../manage.js";
 import { readSetting, writeSetting } from "../settings.js";
+import { type ServerKey, serverText } from "../texts.js";
 import { isAdminRole } from "./access.js";
-import { addProjectFile, projectFiles } from "./project-files.js";
-import { listProjects, updateProject } from "./projects.js";
+import { addProjectFileFromUrl, projectFiles } from "./project-files.js";
+import { listProjects, ownedProject, updateProject } from "./projects.js";
 
 /**
  * The first visit of a team's studio in the cloud: a short wizard asks who the team is, reads
@@ -61,6 +64,24 @@ function telling(color: string): boolean {
   return spread > 24 && light > 24 && light < 235;
 }
 
+/** A colour's hue, 0–360. */
+function hue(color: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(color.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d === 0) {
+    return 0;
+  }
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+}
+
+/** Two colours of one hue, a shade of the other: one brand colour, not two. */
+function shadeOf(a: string, b: string): boolean {
+  const d = Math.abs(hue(a) - hue(b));
+  return Math.min(d, 360 - d) < 20;
+}
+
 /** A page title is often "Company – Slogan" or "Home | Company": the company's part of it. */
 export function companyOf(title: string): string {
   const parts = title
@@ -90,7 +111,8 @@ export function aboutOf(description: string, text: string): string {
 
 /**
  * Up to three brand colours out of what the site declares and uses: the theme colour first, then
- * the stylesheet's named colours, then the most used ones; greys and near-whites left out.
+ * the stylesheet's named colours, then the most used ones; greys and near-whites left out, and
+ * shades of a colour already taken.
  */
 export function brandColors(brand: {
   themeColor: string | null;
@@ -105,7 +127,7 @@ export function brandColors(brand: {
   const colors: { name: string; value: string }[] = [];
   for (const c of candidates) {
     const value = hex(c.value);
-    if (value && telling(value) && !colors.some((x) => x.value === value)) {
+    if (value && telling(value) && !colors.some((x) => shadeOf(x.value, value))) {
       colors.push({ name: c.name.replace(/^--/, "").slice(0, 120) || "Colour", value });
     }
     if (colors.length === 3) {
@@ -115,67 +137,140 @@ export function brandColors(brand: {
   return colors;
 }
 
+/** The facts a company's site states, by the keys the Info & brand page offers them under. */
+const FACTS: [BasicFact, keyof CompanyContact | "website", ServerKey][] = [
+  ["adresse", "street", "factAddress"],
+  ["plz", "postcode", "factPostcode"],
+  ["ort", "city", "factCity"],
+  ["uid", "vatId", "factVatId"],
+  ["telefon", "phone", "factPhone"],
+  ["e_mail", "email", "factEmail"],
+  ["website", "website", "factWebsite"],
+];
+
+/**
+ * The space's facts with what the site states added: a fact the space has a value for stays as
+ * it is, an empty one is filled, a missing one is added under its usual key and label.
+ */
+export function withFacts(
+  facts: ProjectFact[],
+  found: CompanyContact & { website?: string },
+  lang: Lang,
+): { facts: ProjectFact[]; added: number } {
+  const next = [...facts];
+  let added = 0;
+  for (const [key, field, label] of FACTS) {
+    const value = found[field]?.trim();
+    const name = serverText(lang, label);
+    const at = next.findIndex(
+      (f) => f.key === key || f.label.trim().toLowerCase() === name.toLowerCase(),
+    );
+    if (!value || (at >= 0 && next[at].value.trim())) {
+      continue;
+    }
+    if (at >= 0) {
+      next[at] = { ...next[at], value };
+    } else {
+      next.push({ key, label: name, value });
+    }
+    added++;
+  }
+  return { facts: next, added };
+}
+
 export interface WebsiteOutcome {
   name: string;
   about: boolean;
   colors: number;
   logo: boolean;
+  facts: number;
+  assets: number;
 }
+
+/** At most this many pictures of the home page become brand material. */
+const ASSETS = 4;
 
 /**
  * Reads a website into the space's Info & brand: the company's name, what it does, up to three
- * of its colours and, where the space has none yet, its logo. What the assistant does on
- * request, done once at the start without a model.
+ * of its colours, the facts its imprint and contact page state and, where the space has none
+ * yet, its logo and the big pictures of its home page as brand material. What the assistant
+ * does on request, done once at the start without a model.
  */
 export async function applyWebsite(
   userId: string,
   projectId: string,
   url: string,
+  lang: Lang,
 ): Promise<WebsiteOutcome> {
-  const reading = await readWebsite(url, AbortSignal.timeout(30_000));
+  const signal = AbortSignal.timeout(30_000);
+  const reading = await readWebsite(url, signal, { inline: true });
   const name = companyOf(reading.title || new URL(reading.url).hostname);
   const about = aboutOf(reading.description, reading.text);
   const colors = brandColors(reading.brand);
+  const contact = await readContact(reading, signal).catch(() => reading.contact);
+  const project = await ownedProject(userId, projectId);
+  const facts = withFacts(
+    project.facts,
+    { ...contact, website: new URL(reading.url).origin },
+    lang,
+  );
   await updateProject(userId, projectId, {
     brand: {
       name,
       ...(about ? { about } : {}),
       ...(colors.length ? { colors } : {}),
     },
+    ...(facts.added ? { facts: facts.facts } : {}),
   });
-  let logo = false;
-  const first = reading.brand.logos[0];
-  if (first && (await projectFiles(projectId, "logo")).length === 0) {
-    logo = await fetchLogo(projectId, first.url, first.hint);
-  }
-  return { name, about: Boolean(about), colors: colors.length, logo };
+  const host = new URL(reading.url).hostname;
+  const [logo, assets] = await Promise.all([
+    (async () => {
+      const first = reading.brand.logos[0];
+      if (!first || (await projectFiles(projectId, "logo")).length > 0) {
+        return false;
+      }
+      return keep(projectId, first.url, "logo", first.hint);
+    })(),
+    (async () => {
+      if ((await projectFiles(projectId, "asset")).length > 0) {
+        return 0;
+      }
+      const pictures = reading.brand.images.filter((i) => i.hero).slice(0, ASSETS);
+      const until = AbortSignal.timeout(30_000);
+      let kept = 0;
+      // One after the other: the brand material keeps the page's order.
+      for (const picture of pictures) {
+        const description = picture.alt.startsWith("share image")
+          ? `share image of ${host}`
+          : picture.alt || `picture on the home page of ${host}`;
+        kept += Number(await keep(projectId, picture.url, "asset", description, until));
+      }
+      return kept;
+    })(),
+  ]);
+  return {
+    name,
+    about: Boolean(about),
+    colors: colors.length,
+    logo,
+    facts: facts.added,
+    assets,
+  };
 }
 
-const LOGO_BYTES = 5 * 1024 * 1024;
-
-async function fetchLogo(projectId: string, url: string, hint: string): Promise<boolean> {
+/** A picture of the site kept in the space; one that cannot be fetched is no loss. */
+async function keep(
+  projectId: string,
+  url: string,
+  kind: "logo" | "asset",
+  description: string,
+  signal = AbortSignal.timeout(15_000),
+): Promise<boolean> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    const mime = res.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
-    if (!res.ok || !mime.startsWith("image/")) {
-      return false;
-    }
-    const data = new Uint8Array(await res.arrayBuffer());
-    if (data.byteLength === 0 || data.byteLength > LOGO_BYTES) {
-      return false;
-    }
-    const name = decodeURIComponent(new URL(url).pathname.split("/").pop() || "logo");
-    await addProjectFile(projectId, {
-      kind: "logo",
-      name,
-      mime,
-      data,
-      description: hint || undefined,
-      source: url,
-    });
+    await addProjectFileFromUrl(projectId, { url, kind, description, signal });
     return true;
   } catch {
-    // A logo that cannot be fetched is no loss: the person adds one under Space → Logos.
+    // The person adds it under Space → Logos or Brand material.
     return false;
   }
 }

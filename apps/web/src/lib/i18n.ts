@@ -332,6 +332,11 @@ const de: Record<Key, Line> = {
   "onboard.readAbout": ", was du tust",
   "onboard.readColors": ", {n} Farben",
   "onboard.readLogo": ", das Logo",
+  "onboard.readFacts": { one: ", {n} Fakt", other: ", {n} Fakten" },
+  "onboard.readAssets": {
+    one: ", {n} Bild fürs Markenmaterial",
+    other: ", {n} Bilder fürs Markenmaterial",
+  },
   "onboard.readFailed":
     "Die Seite ließ sich nicht lesen. Prüf die Adresse, oder schreib eine Zeile über dich.",
   "onboard.line": "Lieber eine Zeile schreiben",
@@ -2562,6 +2567,11 @@ const en = {
   "onboard.readAbout": ", what you do",
   "onboard.readColors": ", {n} colours",
   "onboard.readLogo": ", the logo",
+  "onboard.readFacts": { one: ", {n} fact", other: ", {n} facts" },
+  "onboard.readAssets": {
+    one: ", {n} picture for the brand assets",
+    other: ", {n} pictures for the brand assets",
+  },
   "onboard.readFailed":
     "That page couldn’t be read. Check the address, or write a line about yourself instead.",
   "onboard.line": "Write a line instead",

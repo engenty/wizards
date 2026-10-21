@@ -271,6 +271,8 @@ interface Outcome {
   about: boolean;
   colors: number;
   logo: boolean;
+  facts: number;
+  assets: number;
 }
 
 type UploadState = { name: string; state: "uploading" | "done" | "failed" };
@@ -394,7 +396,7 @@ export function OnboardingPage() {
   });
   const read = useMutation({
     mutationFn: (url: string) =>
-      api.post<Outcome>(`/api/studio/projects/${project?.id}/website`, { url }),
+      api.post<Outcome>(`/api/studio/projects/${project?.id}/website`, { url, lang }),
     onSuccess: async (result) => {
       setOutcome(result);
       await qc.invalidateQueries({ queryKey: ["projects"] });
@@ -439,6 +441,8 @@ export function OnboardingPage() {
         outcome.about ? t("onboard.readAbout") : "",
         outcome.colors ? t("onboard.readColors", { n: outcome.colors }) : "",
         outcome.logo ? t("onboard.readLogo") : "",
+        outcome.facts ? t("onboard.readFacts", { n: outcome.facts }) : "",
+        outcome.assets ? t("onboard.readAssets", { n: outcome.assets }) : "",
       ].join("")
     : "";
 
