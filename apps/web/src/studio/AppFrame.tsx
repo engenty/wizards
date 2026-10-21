@@ -757,12 +757,15 @@ export function AppFrame({
               <div ref={column} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
                 {/* `relative`: what a page places out of flow without a positioned parent (a
                     hidden file field) stays in the page's own scroll, not in a frame around it,
-                    which a jump to a section would scroll as well. The assistant's dock keeps
-                    its height free below the last section (`--assistant-dock`). */}
+                    which a jump to a section would scroll as well. The page ends above the
+                    assistant's dock (`--assistant-dock`): nothing scrolls under it. */}
                 <main
                   id={SCROLL_ROOT_ID}
                   className="relative min-h-0 flex-1 overflow-y-auto"
-                  style={{ paddingBottom: `calc(var(--assistant-dock, 0px)${clear})` }}
+                  style={{
+                    marginBottom: "var(--assistant-dock, 0px)",
+                    ...(clear ? { paddingBottom: `calc(0px${clear})` } : {}),
+                  }}
                 >
                   <div
                     className={cn(

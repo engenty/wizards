@@ -1144,6 +1144,8 @@ function Flap({
 
 /** Scrolled up this far past the column's top, the chat at the top of the page goes to the bottom. */
 const PAST = 48;
+/** How far Goose perching on the docked card stands above it (not on a phone). */
+const PERCH = 32;
 /** The chat's height at the top of a page before it is measured. */
 const SLOT_FIRST = 240;
 
@@ -1202,11 +1204,12 @@ function useSlotAway(slot: HTMLElement | null, height: RefObject<number>): boole
 }
 
 /**
- * At the bottom of the page and small at its lower right: drawn over the page's column. The
- * height of what stays at rest is written to `--assistant-dock` on the column, so the page's
- * last section stays clear of it – not while the chat stands where it was put. Where the page has
- * a slot at its top and the chat stands at the bottom, the chat stands in that slot until it is
- * scrolled away. Both are one card in one node that moves, so the draft and the thread stay.
+ * At the bottom of the page and small at its lower right, in the page's column. The height of
+ * what stays there, the open thread included, is written to `--assistant-dock` on the column, and
+ * the page ends above it – not while the chat stands where it was put. Where the page has a slot
+ * at its top and the chat stands at the bottom, the chat stands in that slot until it is scrolled
+ * away; in the sidebar, in the sidebar's pane. All are one card in one node that moves, so the
+ * draft and the thread stay.
  */
 export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | null> }) {
   const state = useAssistant();
@@ -1254,7 +1257,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const [focused, setFocused] = useState(false);
   const active =
     focused || open || state?.chat.phase !== "idle" || (state?.live.state ?? "off") !== "off";
-  const reserve = top || sidebar ? false : small ? !open : docked;
+  const reserve = !(top || sidebar) && ((small && !open) || docked);
   // A phone's bar floats at the bottom of the window: the chat stands above it.
   const phone = Boolean(where?.phone);
   const card = Boolean(visible) && !(small && !open);
@@ -1304,25 +1307,41 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     },
     [host],
   );
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `rest` is the engenty or the bar, by `small` and `open`, drawn once `placed`
+  // The page ends above what stands at rest – the engenty, or the docked chat as high as it is
+  // now, open or folded – so the chat never lies over a section.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the engenty or the dock's frame, by `small` and `open`, drawn once `placed`
   useLayoutEffect(() => {
-    const el = rest.current;
+    const el = small && !open ? rest.current : frame.current;
     const host = column.current;
     if (!(el && host && visible && reserve)) {
       host?.style.setProperty("--assistant-dock", "0px");
       return;
     }
-    const observer = new ResizeObserver(() => {
-      // A phone's bar below the chat: the page keeps its room free already.
-      const below = phone ? 0 : (pad.current?.offsetHeight ?? 0);
-      host.style.setProperty("--assistant-dock", `${Math.ceil(el.offsetHeight + below) + 8}px`);
-    });
+    const measure = () => {
+      // Above the docked card, room for Goose perching on it while the chat is in use.
+      const perched = el === frame.current && !phone ? PERCH : 0;
+      const below = host.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
+      host.style.setProperty(
+        "--assistant-dock",
+        `${Math.max(0, Math.ceil(below)) + perched + 8}px`,
+      );
+    };
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
+    observer.observe(host);
     return () => {
       observer.disconnect();
       host.style.setProperty("--assistant-dock", "0px");
     };
   }, [column, visible, reserve, small, open, placed, phone]);
+  // Scrolled away from the top of the page, the chat docks folded: the page is what is read now.
+  const wasTop = useRef(top);
+  useEffect(() => {
+    if (wasTop.current && !top && wanted && state?.open) {
+      state.setOpen(false);
+    }
+    wasTop.current = top;
+  }, [top, wanted, state]);
   // Escape folds the opened chat away.
   useEffect(() => {
     if (!state?.open) {
@@ -1407,7 +1426,8 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
                           : top
                             ? { maxHeight: Math.min(480, maxThread) }
                             : threadHeight === null
-                              ? { maxHeight: maxThread }
+                              ? // As high as it needs, up to about half the column: the page keeps the rest.
+                                { maxHeight: Math.min(maxThread, Math.round(size.height * 0.45)) }
                               : { height: threadHeight }
                       }
                     >
@@ -1520,12 +1540,6 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
           composer={composer}
           className={cn("pointer-events-none absolute inset-0", lifted ? "z-[61]" : "z-30")}
         >
-          {docked && !small ? (
-            <div
-              aria-hidden
-              className="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-paper/85 via-paper/55 to-paper/0 backdrop-blur-xl [mask-image:linear-gradient(to_top,black_45%,transparent)]"
-            />
-          ) : null}
           <DropOutline />
           <DockFrame place={place} free={prefs.free} width={width} column={size} frame={frame}>
             {perch}
