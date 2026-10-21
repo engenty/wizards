@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.9.8] - 2026-10-21
+- ADDED **[models]** Text classes classifier, low, standard, high, with minimums per class (#148) **[breaking]**
+
 ## [0.9.7] - 2026-10-21
 - ADDED **[studio]** Agent chat in Settings › Models, Goose and the editor on a subscription, a key or the credits (#145)
 - ADDED **[runtime]** The website setup reads fonts, the full company name, the imprint's facts and an about text, with a model where one may be used (#147)
