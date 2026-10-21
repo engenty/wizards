@@ -30,7 +30,7 @@ import { bindNavigation, browserTools, runBrowserTool, setHighlight } from "./to
 
 /**
  * The studio assistant's one chat, above the routes: it stays while the person moves between
- * pages, and the assistant may move them (navigate). Stored per person and team on the server.
+ * pages, and the assistant may move them (navigate). Stored per person and organization on the server.
  * While a turn runs the person writes on: Enter sends a message into the turn before its next
  * step (a signal), ⌘↩ queues it for after the turn; Stop ends the turn.
  */

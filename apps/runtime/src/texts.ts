@@ -97,7 +97,7 @@ const EN = {
   onlyAvailableComputer: "This is only available on your computer.",
   somethingWentWrongTry: "Something went wrong. Try again.",
   unknownApp: "Unknown app.",
-  onlyTeamAdminsChange: "Only team admins can change its models.",
+  onlyOrganizationAdminsChange: "Only organization admins can change its models.",
   modelLacksForClass:
     "{model} lacks what the class {cls} can’t work without: {needs}. Choose another model for it.",
   "need.tools": "tool calls",
@@ -107,11 +107,11 @@ const EN = {
   "need.context": "a long enough context",
   notAvailableCloud: "This isn’t available in the cloud.",
   noApiKeySet: "No API key is set.",
-  onlyTeamAdminsTest: "Only team admins can test its models.",
+  onlyOrganizationAdminsTest: "Only organization admins can test its models.",
   notFound: "This doesn’t exist or was deleted.",
   ownKeysNotInPlan: "Your own API keys aren’t part of the {plan} plan.",
-  ownKeysNotInTeamPlan: "Your own API keys aren’t part of the team’s plan.",
-  planUnavailable: "The team’s plan can’t be checked right now. Try again later.",
+  ownKeysNotInOrganizationPlan: "Your own API keys aren’t part of the organization’s plan.",
+  planUnavailable: "The organization’s plan can’t be checked right now. Try again later.",
   shareEmailName: "Email",
   shareEmailDescription: "As attachments to one or more addresses",
   shareTo: "To",
@@ -179,6 +179,16 @@ const EN = {
   factPhone: "Phone",
   factEmail: "Email",
   factWebsite: "Website",
+  factCompany: "Company",
+  factRegister: "Company register number",
+  factRegisterCourt: "Register court",
+  factTradeRegister: "Commercial register number",
+  factTradeRegisterCourt: "Register court",
+  factManagement: "Management",
+  // What the first visit writes as the purpose of a brand font.
+  fontRoleAll: "Headings and body text",
+  fontRoleHeadings: "Headings",
+  fontRoleText: "Body text",
 } as const satisfies Record<string, Line>;
 export type ServerKey = keyof typeof EN;
 
@@ -275,7 +285,7 @@ const DE: Partial<Record<ServerKey, Line>> = {
   onlyAvailableComputer: "Das gibt es nur auf deinem Computer.",
   somethingWentWrongTry: "Da ist etwas schiefgelaufen. Versuch es noch einmal.",
   unknownApp: "Diese App gibt es nicht.",
-  onlyTeamAdminsChange: "Nur Admins des Teams ändern seine Modelle.",
+  onlyOrganizationAdminsChange: "Nur Admins der Organisation ändern ihre Modelle.",
   modelLacksForClass:
     "{model} fehlt, was die Klasse {cls} unbedingt braucht: {needs}. Wähle dafür ein anderes Modell.",
   "need.tools": "Tool-Aufrufe",
@@ -285,12 +295,12 @@ const DE: Partial<Record<ServerKey, Line>> = {
   "need.context": "genug Kontext",
   notAvailableCloud: "Das gibt es nicht in der Cloud.",
   noApiKeySet: "Kein API-Key hinterlegt.",
-  onlyTeamAdminsTest: "Nur Admins des Teams testen seine Modelle.",
+  onlyOrganizationAdminsTest: "Nur Admins der Organisation testen ihre Modelle.",
   notFound: "Das gibt es nicht oder nicht mehr.",
   ownKeysNotInPlan: "Eigene API-Keys gibt es nicht im Paket {plan}.",
-  ownKeysNotInTeamPlan: "Eigene API-Keys gibt es nicht im Paket des Teams.",
+  ownKeysNotInOrganizationPlan: "Eigene API-Keys gibt es nicht im Paket der Organisation.",
   planUnavailable:
-    "Das Paket des Teams lässt sich gerade nicht prüfen. Versuch es später noch einmal.",
+    "Das Paket der Organisation lässt sich gerade nicht prüfen. Versuch es später noch einmal.",
   shareEmailName: "E-Mail",
   shareEmailDescription: "Als Anhang an eine oder mehrere Adressen",
   shareTo: "An",
@@ -359,6 +369,15 @@ const DE: Partial<Record<ServerKey, Line>> = {
   factPhone: "Telefon",
   factEmail: "E-Mail",
   factWebsite: "Website",
+  factCompany: "Firmenname",
+  factRegister: "Firmenbuchnummer",
+  factRegisterCourt: "Firmenbuchgericht",
+  factTradeRegister: "Handelsregisternummer",
+  factTradeRegisterCourt: "Registergericht",
+  factManagement: "Geschäftsführung",
+  fontRoleAll: "Überschriften und Fließtext",
+  fontRoleHeadings: "Überschriften",
+  fontRoleText: "Fließtext",
 };
 
 export const SERVER_TEXTS: Texts<ServerKey> = { en: EN, de: DE };

@@ -58,6 +58,17 @@ export function langOf(tag: string | null | undefined): Lang | null {
   return isLang(code) ? code : null;
 }
 
+/** Whether the reader's English is British: the first English one of their languages is en-GB (or en-UK). */
+export function britishEnglish(languages: readonly string[]): boolean {
+  const english = languages.find((tag) => langOf(tag) === "en");
+  return /^en[-_](gb|uk)\b/i.test(english?.trim() ?? "");
+}
+
+/** English as a British reader spells it: "organisation" where the copy says "organization". */
+export function britishSpelling(text: string): string {
+  return text.replace(/([Oo])rganiz/g, "$1rganis");
+}
+
 /**
  * The main language of each European country. It holds languages engenty does not speak yet:
  * `langOf` passes over them until they join `LANGS`.

@@ -95,7 +95,7 @@ export default defineStudioPlugin((studio) => {
 
 - The studio’s own addresses are taken: `/new`, `/edit`, `/settings`, `/space`, `/setup`,
   `/sign-in`.
-- The settings’ own sections are taken as ids: `account`, `team`, `connectors`, `models`,
+- The settings’ own sections are taken as ids: `account`, `organization`, `connectors`, `models`,
   `integrate` and `plugins`.
 - `label` is a function, since the language can change while the studio is open.
 - `icon` is a component that takes `className`: any icon of `lucide-react`.

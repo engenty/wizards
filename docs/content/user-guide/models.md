@@ -14,7 +14,7 @@ green on something of your own, amber on credits, hollow when nothing is set up.
 
 | Capability | Used for | Classes |
 |---|---|---|
-| Text & reasoning | Writing, research and decisions; the assistant in the editor | Classifier, Low, Standard, High |
+| Text & reasoning | Writing, research and decisions in the steps | Classifier, Low, Standard, High |
 | Images | Logos, product shots, illustrations | Image |
 | Videos | Short clips from text or an image | Video |
 | Voice | Reading text aloud | Speech |
@@ -65,13 +65,13 @@ need nothing. Without ffmpeg, the page “Voice notes” says so.
 
 engenty wizards checks a key with its provider before it stores it. On your computer, keys stay
 in the Keychain on a Mac and in an encrypted file in the data folder elsewhere. On engenty.ai
-they are kept encrypted for the team. They are never in the database, and nobody sees them again.
+they are kept encrypted for the organization. They are never in the database, and nobody sees them again.
 
 Under “Access” you find the credits, the AI clients on this computer and each provider you gave
 a key. The other providers are under “More providers”. A provider’s page holds its key, what it
 is used for, and which of its models run on credits without your own API key.
 
-On engenty.ai, your own API keys come with the Pro plan. Without them, runs use the team’s
+On engenty.ai, your own API keys come with the Pro plan. Without them, runs use the organization’s
 credits.
 
 Vercel refuses many models for an AI Gateway key on its free tier. The Models page and the check
@@ -117,15 +117,21 @@ a Knowledge search found. Jev is reached through an AI Gateway key, a TypeSafe k
 (`TYPESAFE_API_KEY` in the settings file), the Clef-flash model in Ollama on this computer, or
 your account. Without any of them, the Classifier class decides.
 
-## The editor’s chat
+## Agent chat
 
-Where Claude Code is installed on this computer, “The studio chat uses” (on the page “Text &
-reasoning”) sets what builds your wizards in the editor’s chat:
+Settings → Models has two groups. “In the studio” holds **Agent chat**: what answers Goose and the
+editor’s chat that builds your wizards. “In runs” holds what your wizards’ steps use: text,
+images, video, voice and voice notes.
 
 | Choice | Means |
 |---|---|
-| Model class High | The model set for that class |
-| Claude subscription (Claude Code) | Claude Code on this computer builds the wizard, using your sign-in there. Runs still use keys or credits |
+| Your subscription: Claude Code, Codex, Cursor Agent | The program on this computer answers, using your sign-in there. It works only through the tools of engenty wizards: it runs no commands and changes no files of its own |
+| Your own API key: OpenAI, Anthropic, Google Gemini, Vercel AI Gateway | A model of that provider answers, on your key |
+| Same as Text & reasoning | The model set for Text & reasoning answers |
+| engenty credits | The credits pay, through your account |
+
+The list shows each program that is installed and signed in. Without a choice, the chat follows
+Text & reasoning, or Claude Code where it is the source of your models.
 
 ## Account
 

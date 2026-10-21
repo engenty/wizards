@@ -25,12 +25,12 @@ export function settingsSections(
 ): SettingsSection[] {
   return [
     { id: "account", label: t("account.title"), icon: UserRound, menu: true },
-    // In the cloud the studio is a team's: who is in it, and the plan it is on — once team plans are on.
+    // In the cloud the studio is an organization's: who is in it, and its plan — once teamPlans is on.
     ...(me?.mode === "managed" && featureOn(me.features, "teamPlans")
-      ? [{ id: "team", label: t("team.title"), icon: Users, menu: true }]
+      ? [{ id: "organization", label: t("organization.title"), icon: Users, menu: true }]
       : []),
     { id: "connectors", label: t("connectors.title"), icon: Plug, menu: true },
-    // Alone for this machine; in the cloud for the team, on its credits unless it brings keys.
+    // Alone for this machine; in the cloud for the organization, on its credits unless it brings keys.
     { id: "models", label: t("local.title"), icon: Cpu, menu: true },
     { id: "integrate", label: t("integrate.nav"), icon: Cable, menu: true },
     ...plugins.sections.map((section) => ({

@@ -10,7 +10,7 @@ one thing: what should engenty wizards run on?
 ## Your account
 
 Your account stands above the choices. If you signed in during the [install](./install.md), it
-shows your name, your team and your credits. If you aren’t signed in yet, “Your engenty account”
+shows your name, your organization and your credits. If you aren’t signed in yet, “Your engenty account”
 has a “Sign in” button that opens your browser for it. If you set engenty wizards up
 [only for this computer](./local-only.md), the page shows nothing here.
 

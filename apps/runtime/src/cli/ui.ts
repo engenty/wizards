@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { emitKeypressEvents } from "node:readline";
 import { styleText } from "node:util";
 import * as p from "@clack/prompts";
+import { britishEnglish, britishSpelling } from "@engenty/wizards-shared/definition";
 import { command } from "./home.js";
 
 const colours = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
@@ -13,6 +14,12 @@ export const badge = (text: string) =>
 export const dim = (text: string) => styleText("dim", text);
 export const bold = (text: string) => styleText("bold", text);
 export const cyan = (text: string) => styleText("cyan", text);
+
+/** English as this shell's reader spells it: British where its locale is en_GB. */
+export function spelled(text: string): string {
+  const locale = process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANG || "";
+  return britishEnglish([locale]) ? britishSpelling(text) : text;
+}
 export const ok = styleText("green", "✓");
 export const no = styleText("yellow", "–");
 export const bad = styleText("red", "✗");

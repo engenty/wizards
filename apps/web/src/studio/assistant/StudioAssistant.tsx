@@ -40,6 +40,7 @@ import { type ChatCard, type ChatToolCall, Messages, Working } from "../editor/C
 import { type AssistantState, useAssistant, useEarlierChats, useStoredChat } from "./chat";
 import { CopyThread, StepLines, ToolDetails, TurnsDialog, UsageMeter } from "./dev";
 import {
+  type DockPlace,
   type DockZone,
   dockWidth,
   hasRight,
@@ -64,9 +65,9 @@ const MarketplaceCards = lazy(() =>
 /**
  * Goose, the studio assistant on every page but the editor: docked at the bottom (the default),
  * as a sidebar on a window wide enough, or small at the lower right. At the bottom it moves by its
- * grip – it stays where it is put, snaps to the middle or the right near the bottom, and into the
- * sidebar against the window's right edge; the handle on top sets the thread's height, a click on
- * it folds the chat away. Opened at the bottom, the chat rises above the bar; empty, it greets
+ * grip – let go, it docks in the middle or at the right of the bottom, whichever is nearer, or in
+ * the sidebar against the window's right edge; the handle on top sets the thread's height, a click
+ * on it folds the chat away. Opened at the bottom, the chat rises above the bar; empty, it greets
  * with the page's words and three suggestions.
  */
 
@@ -430,6 +431,8 @@ function Thread({
 
 function ChatMenu({ state }: { state: AssistantState }) {
   const [open, setOpen] = useState(false);
+  // "Earlier chats" only where there are some.
+  const earlier = Boolean(useEarlierChats(true).data?.chats.length);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, open, () => setOpen(false));
   const item =
@@ -464,17 +467,19 @@ function ChatMenu({ state }: { state: AssistantState }) {
           >
             <SquarePen className="size-4" /> {t("assistant.newChat")}
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            className={item}
-            onClick={() => {
-              setOpen(false);
-              state.setView({ kind: "earlier" });
-            }}
-          >
-            <History className="size-4" /> {t("assistant.earlier")}
-          </button>
+          {earlier ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                state.setView({ kind: "earlier" });
+              }}
+            >
+              <History className="size-4" /> {t("assistant.earlier")}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -534,8 +539,9 @@ function Header({
   return (
     <div
       className={cn(
-        "flex items-center border-border-soft border-b py-2",
-        narrow ? "gap-1 px-3" : "gap-1.5 px-3 sm:px-4",
+        "flex items-center border-border-soft border-b py-1",
+        // The actions stand close together: one 32 px button beside the next.
+        narrow ? "px-3" : "px-3 sm:px-4",
       )}
     >
       {grip}
@@ -551,7 +557,7 @@ function Header({
         <Mascot kind="round" size={26} helmet interactive={false} />
       )}
       {/* Never narrower than the name and the developer switch. */}
-      <div className="ml-0.5 min-w-[8.5rem] flex-1">
+      <div className="mr-1 ml-1.5 min-w-[8.5rem] flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
           {state.view.kind === "chat" ? (
             <ChatMenu state={state} />
@@ -917,15 +923,15 @@ function useSize(el: RefObject<HTMLElement | null>) {
   return size;
 }
 
-/** The chat at the bottom, or the sidebar, put where a drag ended. */
+/** The chat docked where a drag ended: in the middle or at the right of the bottom, or the sidebar. */
 function dropped(state: AssistantState) {
-  return (zone: DockZone | "free", free?: { left: number; bottom: number }) => {
+  return (zone: DockZone) => {
     if (zone === "sidebar") {
       state.setLayout("sidebar");
       return;
     }
     // Made small, it stays small: the place is where it opens next time.
-    setDockPrefs(zone === "free" ? { place: "free", free } : { place: zone });
+    setDockPrefs({ place: zone });
   };
 }
 
@@ -987,7 +993,7 @@ function Grip({
   );
 }
 
-/** Where a drag would snap: a dashed outline in the page column. */
+/** Where a drag docks the chat: a dashed outline in the page column. */
 function DropOutline() {
   const drag = useDockDrag();
   if (!drag?.spot) {
@@ -996,29 +1002,24 @@ function DropOutline() {
   return (
     <div
       aria-hidden
-      className={cn(
-        "pointer-events-none absolute rounded-2xl border-2 border-dashed transition-all duration-200",
-        drag.zone ? "border-ember bg-ember-veil opacity-100" : "border-ink-4 opacity-0",
-      )}
+      className="pointer-events-none absolute rounded-2xl border-2 border-ember border-dashed bg-ember-veil transition-all duration-200"
       style={drag.spot}
     />
   );
 }
 
 /**
- * Places the chat at the bottom: in the middle, at the right, where it was put, or – while it is
- * dragged – under the pointer. Only this re-renders while it moves, not the thread inside.
+ * Places the chat at the bottom: in the middle, at the right, or – while it is dragged – under
+ * the pointer. Only this re-renders while it moves, not the thread inside.
  */
 function DockFrame({
   place,
-  free,
   width,
   column,
   frame,
   children,
 }: {
-  place: "center" | "right" | "free";
-  free: { left: number; bottom: number } | null;
+  place: DockPlace;
   width: number;
   column: { width: number; height: number };
   frame: RefObject<HTMLDivElement | null>;
@@ -1028,12 +1029,6 @@ function DockFrame({
   let style: CSSProperties;
   if (drag) {
     style = { left: drag.left, top: drag.top, width };
-  } else if (place === "free" && free) {
-    style = {
-      left: Math.min(Math.max(free.left, 8), Math.max(8, column.width - width - 8)),
-      bottom: Math.min(Math.max(free.bottom, 8), Math.max(8, column.height - 200)),
-      width,
-    };
   } else {
     style = {
       left: place === "right" ? column.width - width - 12 : (column.width - width) / 2,
@@ -1135,7 +1130,8 @@ function Flap({
           (folded ? onOpen : onFold)();
         }
       }}
-      className="group flex h-3.5 shrink-0 cursor-row-resize touch-none items-center justify-center outline-none"
+      // In the header's top edge, between the name and the actions: it takes no row of its own.
+      className="group absolute top-0 left-1/2 z-10 flex h-3 w-16 -translate-x-1/2 cursor-row-resize touch-none items-center justify-center outline-none"
     >
       <span className="h-1 w-10 rounded-full bg-ink-4/40 transition group-hover:bg-ink-4 group-focus-visible:bg-ember" />
     </div>
@@ -1208,7 +1204,7 @@ function useSlotAway(slot: HTMLElement | null, height: RefObject<number>): boole
 /**
  * At the bottom of the page and small at its lower right, in the page's column. The height of
  * what stays there, the open thread included, is written to `--assistant-dock` on the column, and
- * the page ends above it – not while the chat stands where it was put. Where the page has a slot
+ * the page keeps it free below its last section. Where the page has a slot
  * at its top and the chat stands at the bottom, the chat stands in that slot until it is scrolled
  * away; in the sidebar, in the sidebar's pane. All are one card in one node that moves, so the
  * draft and the thread stay.
@@ -1232,13 +1228,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const sidebarMount = useSidebarMount();
   const width = dockWidth(size.width);
   // On a phone, and where the column has no room for it, the chat stands in the middle.
-  const place =
-    where?.phone ||
-    (prefs.place === "right" && !hasRight(size.width)) ||
-    (prefs.place === "free" && !prefs.free)
-      ? "center"
-      : prefs.place;
-  const docked = place !== "free";
+  const place = where?.phone || !hasRight(size.width) ? "center" : prefs.place;
   // At the top of the page: where the page has a slot, the chat stands at the bottom, and the
   // slot is in view.
   const slot = useAssistantSlot();
@@ -1253,13 +1243,13 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const away = useSlotAway(wanted, slotHeight);
   const top = Boolean(wanted) && !away;
   // Made small, the chat folds into the engenty at the lower right; opened, it is the same chat
-  // as at the bottom, where it last stood – over the page, which keeps room for the engenty only.
+  // as at the bottom, where it last stood, and the page keeps room for it as for the docked chat.
   const small = where?.where === "avatar";
   const open = Boolean(state?.open);
   const [focused, setFocused] = useState(false);
   const active =
     focused || open || state?.chat.phase !== "idle" || (state?.live.state ?? "off") !== "off";
-  const reserve = !(top || sidebar) && ((small && !open) || docked);
+  const reserve = !(top || sidebar);
   // A phone's bar floats at the bottom of the window: the chat stands above it.
   const phone = Boolean(where?.phone);
   const card = Boolean(visible) && !(small && !open);
@@ -1309,8 +1299,8 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     },
     [host],
   );
-  // The page ends above what stands at rest – the engenty, or the docked chat as high as it is
-  // now, open or folded – so the chat never lies over a section.
+  // The page keeps room below its last section for what stands at rest – the engenty, or the
+  // docked chat as high as it is now, open or folded – so every section scrolls clear of it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the engenty or the dock's frame, by `small` and `open`, drawn once `placed`
   useLayoutEffect(() => {
     const el = small && !open ? rest.current : frame.current;
@@ -1386,7 +1376,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
           >
             <div
               className={cn(
-                "pointer-events-auto flex min-h-0 flex-col overflow-hidden",
+                "pointer-events-auto relative flex min-h-0 flex-col overflow-hidden",
                 sidebar
                   ? "flex-1"
                   : top
@@ -1547,20 +1537,18 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
           className={cn("pointer-events-none absolute inset-0", lifted ? "z-[61]" : "z-30")}
         >
           <DropOutline />
-          <DockFrame place={place} free={prefs.free} width={width} column={size} frame={frame}>
+          <DockFrame place={place} width={width} column={size} frame={frame}>
             {perch}
             <div ref={setMount} className="flex min-h-0 flex-col" />
-            {docked ? (
-              <div
-                ref={pad}
-                className={cn(
-                  "shrink-0",
-                  phone
-                    ? "h-[calc(4.75rem+env(safe-area-inset-bottom))]"
-                    : "h-[max(0.75rem,env(safe-area-inset-bottom))]",
-                )}
-              />
-            ) : null}
+            <div
+              ref={pad}
+              className={cn(
+                "shrink-0",
+                phone
+                  ? "h-[calc(4.75rem+env(safe-area-inset-bottom))]"
+                  : "h-[max(0.75rem,env(safe-area-inset-bottom))]",
+              )}
+            />
           </DockFrame>
         </DropZone>
       )}
@@ -1575,7 +1563,7 @@ function LastTurn({ state }: { state: AssistantState }) {
     <button
       type="button"
       onClick={() => state.setOpen(true)}
-      className="flex w-full items-center gap-2 border-border-soft border-b px-4 py-3.5 text-left text-[0.8125rem] text-ink-3 transition hover:text-ink"
+      className="flex w-full items-center gap-2 border-border-soft border-b px-4 py-2.5 text-left text-[0.8125rem] text-ink-3 transition hover:text-ink"
     >
       {last?.pending ? (
         <Working chat={state.chat} className="flex-1" />

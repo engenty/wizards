@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-// The studio's assistant: one chat per person and team that a turn writes into, "new chat" with a
+// The studio's assistant: one chat per person and organization that a turn writes into, "new chat" with a
 // summary written meanwhile, earlier chats to read and search, the guides it reads, the browser's
 // tool results.
 
@@ -17,6 +17,10 @@ process.env.PLUGIN_JOBS = "0";
 process.env.AI_GATEWAY_API_KEY = "";
 process.env.OPENAI_API_KEY = "";
 process.env.ANTHROPIC_API_KEY = "";
+// No AI client of this machine answers Goose here: without a model the turn fails.
+process.env.CLAUDE_BIN = join(dir, "no-claude");
+process.env.CODEX_BIN = join(dir, "no-codex");
+process.env.CURSOR_AGENT_BIN = join(dir, "no-cursor-agent");
 
 type App = { fetch: (req: Request) => Response | Promise<Response> };
 let app: App;
@@ -137,7 +141,7 @@ describe("one chat per person", () => {
 
     const hits = await client.withTenant("local", () => chats_.searchChats(person, "Modelle"));
     expect(hits.map((h) => h.chatId)).toContain(before.id);
-    // Another person of the team finds nothing of it.
+    // Another person of the organization finds nothing of it.
     const other = { ...person, id: "someone-else" };
     expect(await client.withTenant("local", () => chats_.searchChats(other, "Modelle"))).toEqual([]);
     // The next turn carries the closed chat's summary.
@@ -217,7 +221,7 @@ describe("the guides", () => {
     expect(hits[0].url).toMatch(/^https:\/\/engenty\.ai\/docs\//);
     const page = readDoc("user-guide/models");
     expect(page).toMatchObject({ page: "user-guide/models", url: "https://engenty.ai/docs/user-guide/models" });
-    expect((page as { text: string }).text).toContain("Model class High");
+    expect((page as { text: string }).text).toContain("Classifier, Low, Standard, High");
     expect(readDoc("https://engenty.ai/docs/user-guide/steps")).toMatchObject({ page: "user-guide/steps" });
     expect(readDoc("nothing-here")).toMatchObject({ error: expect.any(String) });
   });

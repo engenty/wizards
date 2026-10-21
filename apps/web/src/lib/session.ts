@@ -24,6 +24,22 @@ import { ApiError, api } from "./api";
 import { STUDIO, withBase } from "./base";
 import { type Lang, setLang, storedLang } from "./i18n";
 
+/** The AI clients whose subscription can answer the studio's chats. */
+export type SubscriptionClient = "claude" | "codex" | "cursor";
+
+/**
+ * What answers the studio's chats, Goose and the editor's chat: the text classes (`models`), a
+ * subscription, a provider's key, or the credits (`account`).
+ */
+export type ChatWay =
+  | "models"
+  | SubscriptionClient
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "gateway"
+  | "account";
+
 /** An AI client installed on this machine that can think for the app, on its own subscription. */
 export type HarnessId = "claude" | "codex" | "antigravity" | "cursor";
 
@@ -97,9 +113,9 @@ export interface Me {
   tenant: {
     id: string;
     role: "owner" | "admin" | "member";
-    /** The plan the team is on (Free, Pro, Team, …); null alone. */
+    /** The plan the organization is on (Free, Pro, Team, …); null alone. */
     plan: { id: string; name: string } | null;
-    /** The team's address for its public page (`acme.wizards.page`); null alone. */
+    /** The organization's address for its public page (`acme.wizards.page`); null alone. */
     pagesHost: string | null;
   };
   /** The plan's feature switches; alone, everything is on. `ownKeys`: own API keys here. */
@@ -116,8 +132,8 @@ export interface Me {
   account: {
     name: string;
     email: string;
-    /** The team the account's space belongs to; null while the Manage-App has not answered. */
-    team: string | null;
+    /** The organization the account's space belongs to; null while the Manage-App has not answered. */
+    organization: string | null;
     credits: number | null;
     /** What of the credits ends on a date, the nearest first. */
     expiring: ExpiringCredits[];
@@ -131,14 +147,16 @@ export interface Me {
   apple: AppleStatus | null;
   /** The AI clients this runtime can think with — installed or not, and how each is signed in. */
   harnesses: HarnessStatus[];
-  /** Installed AI clients whose subscription can answer the studio chat. */
-  subscriptions: "claude"[];
+  /** Installed, signed-in AI clients whose subscription can answer the studio chat. */
+  subscriptions: SubscriptionClient[];
   /** A runtime that runs alone walks the person through its setup on first start. */
   setupDone: boolean;
-  /** The cloud studio's first visit: the short wizard that names the team and fills the space. */
+  /** The cloud studio's first visit: the short wizard that names the organization and fills the space. */
   onboarding: boolean;
-  /** What answers the studio chat. */
-  chatEngine: "models" | "claude";
+  /** What answers the studio's chats. */
+  chatEngine: ChatWay;
+  /** The ways that can answer the studio's chats now. */
+  chatWays: ChatWay[];
   aiReady: boolean;
   /** Where an admin's own MCP client (Claude Code, Cursor, Codex) connects. */
   mcpUrl: string;
@@ -169,12 +187,12 @@ export function useMayBuild(): boolean {
   return useMe().data?.limits.build ?? true;
 }
 
-/** Whether this person makes and deletes here: builds at all, and is no mere member of the team. */
+/** Whether this person makes and deletes here: builds at all, and is no mere member of the organization. */
 export function useMayCreate(): boolean {
   return useMe().data?.limits.create ?? true;
 }
 
-/** Whether this person manages the team: its owner or an admin, or alone. */
+/** Whether this person manages the organization: its owner or an admin, or alone. */
 export function useIsAdmin(): boolean {
   const me = useMe().data;
   return !me || me.mode === "local" || me.tenant.role !== "member";
@@ -470,7 +488,7 @@ export function signIn(returnTo = window.location.pathname, wish?: string) {
 }
 
 // What a guest asked to be built on the start page, kept in this browser across the sign-in
-// (and the team's first visit) until the new-wizard page has built it.
+// (and the organization's first visit) until the new-wizard page has built it.
 const WISH_KEY = "wizards.wish";
 /** A wish older than this is not built any more: the person has moved on. */
 const WISH_DAYS = 1;

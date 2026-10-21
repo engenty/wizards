@@ -464,7 +464,7 @@ export async function updateWizardSettings(
     .update(schema.wizard)
     .set({ ...patch, ...(runners ? { runners } : {}), updatedAt: new Date() })
     .where(eq(schema.wizard.id, w.id));
-  // Switched off, the wizard leaves the team's public page; on, it may return to it.
+  // Switched off, the wizard leaves the organization's public page; on, it may return to it.
   if (patch.shareEnabled !== undefined && patch.shareEnabled !== w.shareEnabled) {
     pushPages();
   }
@@ -561,7 +561,7 @@ export async function publishWizard(userId: string, wizardId: string) {
     .update(schema.wizard)
     .set({ publishedVersion: version, updatedAt: new Date() })
     .where(eq(schema.wizard.id, w.id));
-  // The team's public page shows the new version's title, results and steps.
+  // The organization's public page shows the new version's title, results and steps.
   pushPages();
   return { version, shareUrl: shareUrl(w.shareToken), shareEnabled: w.shareEnabled };
 }

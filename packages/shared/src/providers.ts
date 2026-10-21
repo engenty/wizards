@@ -95,7 +95,7 @@ export function blockingNeeds(cls: TextClass, missing: readonly ModelNeed[]): Mo
 }
 
 /**
- * A binding that sends a class to the credits of the account (or of the team in the cloud),
+ * A binding that sends a class to the credits of the account (or of the organization in the cloud),
  * whatever keys are there; engenty picks the model. `credits:<model>` names the model, as the
  * gateway lists it (`fal:fal-ai/flux/schnell`, `elevenlabs:eleven_multilingual_v2`,
  * `google/veo-3.1-fast-generate-001`).

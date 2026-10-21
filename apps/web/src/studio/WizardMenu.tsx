@@ -11,7 +11,7 @@ import { useDismiss } from "./AppFrame";
 
 /**
  * A wizard's ⋮ menu, in the editor's header and on its card: a copy of it, the package to keep,
- * and – for whoever manages the team – deleting it, behind a dialog that says what goes with it.
+ * and – for whoever manages the organization – deleting it, behind a dialog that says what goes with it.
  */
 export function WizardMenu({
   wizard,
