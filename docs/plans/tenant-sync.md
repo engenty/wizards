@@ -2,8 +2,9 @@
 
 A feasibility study, 2026-10-21. No code changes yet. The question: can a runtime that runs
 alone (the local install) and an organization (tenant) on the cloud runtime stay in step in
-both directions? That covers wizards, knowledge, brand, data, files and runs, across several
-spaces (projects). Model settings stay on each machine.
+both directions? That covers the data and the studio: wizards, knowledge, brand, data and
+files, across several spaces (projects). Runs do not sync (decided 2026-10-21). Model
+settings stay on each machine.
 
 ## Verdict
 
@@ -14,7 +15,7 @@ Build it as an extension of the sync that exists ("Spaces of a local install",
 - Records changes per space in a change log that triggers fill.
 - Exchanges the changes over the cloud runtime's `/api/v1`, with the cloud as the one hub that
   orders them.
-- Applies them through the services, so roles, `asSync()`, links and the run index stay right.
+- Applies them through the services, so roles, `asSync()` and the share links stay right.
 - Gives each wizard a **home**, the one place where its draft is edited, as proposed in
   [cloud-first-onboarding.md](cloud-first-onboarding.md). Knowledge and data merge row by row.
 
@@ -25,8 +26,8 @@ The limits:
 - **Some data stays on the side where it was made.** Encrypted data, per-person data (the
   wizard's store, the studio assistant's chats) and the knowledge index stay put. The index is
   rebuilt on each side.
-- **Runs do not mirror in full.** Results of runs on the install go up. Visitors' runs in the
-  cloud stay there unless they are opened.
+- **Runs never sync.** A run, its events and its results stay on the side where it ran. In the
+  cloud, wizards run from the published version that arrived there, as today.
 - **Both sides must run compatible schema versions.** The sync refuses a schema that is too
   new.
 
@@ -113,7 +114,7 @@ No libSQL/Turso sync feature carries this today:
   up to an hour (`retryFailedSends`). The state is kept in the control database's `setting`
   (`cloud:<wizardId>`, `cloud-data:<projectId>`).
 - `cloud-first-onboarding.md` already plans the next step: `wizard.home`, the pull on sign-in,
-  space data to every install, and runs up. Its decision 5 asks: `wizard.home` (no merge) or a
+  space data to every install, and runs up (this plan leaves runs out). Its decision 5 asks: `wizard.home` (no merge) or a
   true two-way sync of drafts? This study answers it: `wizard.home`.
 
 ### Accounts and organizations
@@ -197,8 +198,8 @@ install (tenant "local")                     cloud runtime (tenant <org>)
   `SyncDataInput` today, with the schema version they were written under. Unknown fields are
   ignored and missing ones take their defaults. So an install one release behind keeps working.
 - **Applied through the services.** The cloud applies a push in the tenant from the token,
-  under `asRole(role)` and `asSync()`. It writes the `link` and `run_index` rows that the rows
-  need and rewrites `tenant_id` and user ids (below). The install applies a pull the same way.
+  under `asRole(role)` and `asSync()`. It writes the `link` rows that the rows need (a
+  wizard's share link and code, logos, fonts) and rewrites `tenant_id` and user ids (below). The install applies a pull the same way.
   Then each side runs its own jobs: the index (`reindexSpace`), the plugins' `spaceChanged`.
 - **Files after rows.** A push first asks which blob hashes and asset ids the cloud lacks. It
   uploads those, then sends the rows (the order the one-way sync uses today). A pull fetches
@@ -229,7 +230,6 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 | Connectors | `project_connector` | per (project, id) |
 | Connected systems | `project.mcp_servers` | without `headers` (decision 4) |
 | Stars | `marketplace_star` | a set |
-| Results of runs started on the install | `run`, `run_event`, `run_cost`, `share_job`, their assets | up only; append-only |
 
 **Stays on the side where it is (not synced):**
 
@@ -245,8 +245,7 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 | The wizard's store | `store_holder`, `store_row`, `store_file`, `store_secret` | per person (`u:local` and `v:<visitor>`), and secrets are sealed per side |
 | A space's connected accounts | `plugin_connection` | sealed per side; connect again on each side |
 | Plugins' own tables | `plugin_migration` and the tables of the plugins' SQL files | unknown meaning and integer ids; a later opt-in per plugin |
-| Run working state | `device_call`, `run.ask`, `run.answer`, `run.device_offer`, `DATA_DIR/films` | belongs to the process that holds the run |
-| Visitors' runs in the cloud | `run` with `visitor_id`, `expires_at` | personal data of the client's customers; listed from the cloud, opened on demand (decision 2) |
+| Runs and results, test and live, on both sides | `run`, `run_event`, `run_cost`, `share_job`, `device_call`, the assets with a `run_id`, `DATA_DIR/films`; `run_index` and the `result` links in the control database | decided: runs stay where they ran; they hold end users' answers, and their working state belongs to the process that holds the run |
 | Control database | `link`, `run_index`, `session`, `runner`, `ui_translation`, `marketplace_cache`, `plugin_*` | each side writes its own when it applies rows |
 
 **Per organization (Manage-App, read on both sides, never synced):** plan, `limits` (`projects`,
@@ -257,7 +256,7 @@ read them.
 ### Tenant and user ids
 
 - On the install `tenant_id` stays `local`. The cloud writes the organization's id when it
-  applies, and the install writes `local` when it pulls. The ids of rows (wizards, pages, runs)
+  applies, and the install writes `local` when it pulls. The ids of rows (wizards, pages, files)
   are the same on both sides, as the one-way sync has it.
 - User ids: `local`, `u:local` and `created_by` on the install map to the linked account's
   `userId` on the way up, and back on the way down. Other members' ids arrive as they are.
@@ -279,7 +278,7 @@ read them.
 | Edit against delete | The edit wins and the row comes back. A space is deleted only by an owner or admin, in the cloud, and the install then moves its copy aside instead of erasing it. |
 | Two sides create the same category, value or list | Matched by `space_category_name`, `space_category_value_value` and `space_table_list`. The arriving id is remapped to the existing one. |
 | Plugin-written items (`origin`, `origin_key`) | A plugin's jobs for a synced space run in the cloud only. The install receives their pages and tables. `kept` and `review` work as today. |
-| Id collisions | Text ids: `nanoid` is long enough. The cloud refuses an id it already has with a different owner (`id_taken`), as today. Integer ids (`run_event`, `space_item_category`) never travel as ids: events get new numbers in their run's order, and assignments are matched by (category, item, value). |
+| Id collisions | Text ids: `nanoid` is long enough. The cloud refuses an id it already has with a different owner (`id_taken`), as today. Integer ids never travel as ids: `space_item_category` rows are matched by (category, item, value), and `run_event`, `device_call` and `project_chunk` do not sync at all. |
 | Share tokens | The cloud's link is the wizard's link. `wizard.share_token` comes down from the cloud. A token the install made for itself does not go up, and the cloud makes its own (`rotate-link` exists). |
 
 ## Migrations and releases
@@ -302,7 +301,8 @@ read them.
   sets the size limits; today it is 48 MB per wizard. Downloads happen lazily on first read on
   the install: `getBlob` would fall back to the cloud for a space that syncs.
 - Assets: by id. A replaced asset (`replaceAsset`) keeps its id and syncs as a changed row with
-  a new path.
+  a new path. Only assets that a synced row points to travel (project files, logos). An asset
+  with a `run_id` is a run's and stays.
 - Keys map from `t/local/…` to `t/<org>/…`. Bytes are copied, never shared across tenants.
 - Binary content travels as a stream, not base64 in JSON as `PUT /spaces/:id/wizards/:id` does
   today.
@@ -335,8 +335,7 @@ Behind a switch in `.features` until the last step. The sizes are relative.
 3. **Records.** Readers and appliers per table, the id mapping and the category matching, with
    unit tests on two file databases in one process. Medium.
 4. **Cloud: push.** `POST /api/v1/spaces/:id/changes` and the blob calls. It applies through
-   the services, writes `link` and `run_index`, and lifts `read_only` for spaces that sync both
-   ways. Medium.
+   the services, writes `link`, and lifts `read_only` for spaces that sync both ways. Medium.
 5. **Cloud: pull.** `GET /api/v1/spaces/:id/changes?since=` with paging. Small.
 6. **Install: loop.** Push, pull and blobs on demand, the `sync:<projectId>` state, and the
    status line in the studio, building on the retry loop. Medium.
@@ -344,12 +343,10 @@ Behind a switch in `.features` until the last step. The sizes are relative.
    copy. It replaces `project.origin = "local"` for the spaces it covers. Medium.
 8. **Merges.** Page conflict copies with `review`, per-cell rows, brand per field. Small to
    medium.
-9. **Runs up.** Results of the install's runs and their events, costs and assets, plus cloud
-   runs listed on the install and opened on demand. Medium.
-10. **Several spaces.** On the install, `projectLimit()` reads the linked organization's
-    `limits.projects`. The pull on sign-in brings every space the person may see, and a choice
-    says which ones this computer keeps. Small.
-11. **Move over.** Spaces synced one way today (`origin = "local"`) become two-way. `FromLocal`
+9. **Several spaces.** On the install, `projectLimit()` reads the linked organization's
+   `limits.projects`. The pull on sign-in brings every space the person may see, and a choice
+   says which ones this computer keeps. Small.
+10. **Move over.** Spaces synced one way today (`origin = "local"`) become two-way. `FromLocal`
     goes, then the switch flips and the user guide follows. Small.
 
 Before step 4 reaches a client's data: turn on the `turso` provisioner (a paid plan) so the
@@ -358,14 +355,15 @@ but the sync makes the cloud copy the one that counts.
 
 ## Risks
 
-- **Personal data on laptops.** A client's knowledge and runs on Matthias's computer is a data
-  processing question for sfg.at. Visitors' runs stay in the cloud by default.
+- **Client data on laptops.** A client's knowledge and data on Matthias's computer is still a
+  data processing question for sfg.at. End users' runs and answers never leave the side where
+  they ran.
 - **Plain-text secrets in `project.mcp_servers.headers`.** They would travel if not excluded.
 - **Plugins with jobs on both sides** write the same `origin_key` twice. The rule "jobs of a
   synced space run in the cloud" needs enforcing in `plugins/jobs.ts`.
 - **Live updates.** The studio's draft events are per process (`services/draft-events.ts`). An
   arrival needs its own notice in the open studio, else people see changes only after a reload.
-- **Size of the work.** About 11 pull requests. The triggers and appliers touch about 15 tables,
+- **Size of the work.** About 10 pull requests. The triggers and appliers touch about 15 tables,
   and every new table later has to choose: synced or not.
 - **Turso Sync matures.** If it reaches 1.0 with FTS, the change log could move onto it. The
   JSON contract would stay, so the choice is reversible.
@@ -374,16 +372,14 @@ but the sync makes the cloud copy the one that counts.
 
 1. **A home per wizard instead of merging drafts** (closes decision 5 of
    cloud-first-onboarding.md). Recommended: the home.
-2. **Which runs travel.** Recommended: results of runs started on the install go up. Cloud runs
-   are listed and opened on demand. Visitors' runs never come down in bulk.
-3. **Assistant chats.** Recommended: they stay where they were written.
-4. **Connected systems' headers.** Recommended: sync the servers without `headers`, and enter
+2. **Assistant chats.** Recommended: they stay where they were written.
+3. **Connected systems' headers.** Recommended: sync the servers without `headers`, and enter
    the headers on each side like API keys.
-5. **Offline edits.** Recommended: knowledge and data take edits offline, and they wait in the
+4. **Offline edits.** Recommended: knowledge and data take edits offline, and they wait in the
    log. Wizards are edited offline only at their home.
-6. **One organization per install** (a second data folder for a second client) or a tenant
+5. **One organization per install** (a second data folder for a second client) or a tenant
    switch in one install. Recommended: one per install first.
-7. **The Turso paid plan and the `turso` provisioner** before a client's data lives in the
+6. **The Turso paid plan and the `turso` provisioner** before a client's data lives in the
    cloud.
-8. **Who may push.** Recommended: the same roles as editing in the studio. Members edit, and
+7. **Who may push.** Recommended: the same roles as editing in the studio. Members edit, and
    owners and admins make and delete.
