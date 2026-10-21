@@ -1066,10 +1066,10 @@ function Editor() {
             onPointerDown={pane.onPointerDown}
             onKeyDown={pane.onKeyDown}
             onDoubleClick={pane.reset}
-            className="group -right-4 absolute inset-y-0 z-10 hidden w-4 cursor-col-resize outline-none lg:block"
+            className="group -right-3 absolute inset-y-0 z-10 hidden w-3 cursor-col-resize outline-none lg:block"
           >
-            {/* The grip sits in the gap beside the pane's edge, clear of its scrollbar. */}
-            <span className="-translate-y-1/2 absolute top-1/2 right-[5px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
+            {/* The grip is centred in the gap beside the pane's edge, clear of its scrollbar. */}
+            <span className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-8 w-1 rounded-full bg-ink-4/20 transition group-hover:bg-ember/60 group-focus-visible:bg-ember group-active:h-12 group-active:bg-ember" />
           </div>
           {/* Folded, the sheet keeps the composer at hand; its thread opens with the sheet. */}
           {sheet.folded && !readOnlyNote ? (
@@ -1191,9 +1191,9 @@ function Editor() {
               onPointerDown={columnPane.onPointerDown}
               onKeyDown={columnPane.onKeyDown}
               onDoubleClick={columnPane.reset}
-              className="group -left-4 absolute inset-y-0 z-10 w-4 cursor-col-resize outline-none"
+              className="group -left-3 absolute inset-y-0 z-10 w-3 cursor-col-resize outline-none"
             >
-              <span className="-translate-y-1/2 absolute top-1/2 left-[5px] h-12 w-1.5 rounded-full bg-ink-4/40 transition group-hover:bg-ember/70 group-focus-visible:bg-ember group-active:h-16 group-active:bg-ember" />
+              <span className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-8 w-1 rounded-full bg-ink-4/20 transition group-hover:bg-ember/60 group-focus-visible:bg-ember group-active:h-12 group-active:bg-ember" />
             </div>
             {/* The card keeps its width while the column slides: nothing inside reflows. */}
             <div className="h-full overflow-hidden rounded-3xl bg-card shadow-[0_0_0_1px_var(--border-soft)]">
