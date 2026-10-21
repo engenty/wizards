@@ -17,10 +17,10 @@ Build it as an extension of the sync that exists ("Spaces of a local install",
   orders them.
 - Applies them through the services, so roles, `asSync()` and the share links stay right.
 - Lets both sides edit everything that syncs, wizards included.
-- Asks the person when both sides changed the same item since they last agreed. They keep the
-  cloud's version, keep this computer's, or merge. A merge is checked first. When it is clean,
-  the studio says so and the person confirms. When it is not, the person picks per place, or a
-  model proposes a solution that is checked and confirmed in the same way.
+- Merges by itself when both sides changed the same item since they last agreed and the merge
+  is clean and passes the checks. The studio then says that a merge was needed. Only when it
+  is not clean does it ask: keep the cloud's version, keep this computer's, or pick per place,
+  with a model's proposal on request, checked and confirmed.
 
 A wizard is JSON, and a merge matched by ids handles it well. A classic line merge does not:
 see "Can a classic merge handle a wizard?" below.
@@ -273,7 +273,7 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 | Categories | `space_category`, `space_category_value`, `space_item_category` | matched by name and value, not by id |
 | Files and documents | `project_file` (when `ready`), their assets, `text_hash` blobs | per row; bytes by hash |
 | Connectors | `project_connector` | per (project, id) |
-| Connected systems | `project.mcp_servers` | without `headers` (decision 4) |
+| Connected systems | `project.mcp_servers` | without `headers` (open decision 1) |
 | Stars | `marketplace_star` | a set |
 
 **Stays on the side where it is (not synced):**
@@ -305,11 +305,10 @@ read them.
   are the same on both sides, as the one-way sync has it.
 - User ids: `local`, `u:local` and `created_by` on the install map to the linked account's
   `userId` on the way up, and back on the way down. Other members' ids arrive as they are.
-- One install holds one linked organization, as today. A second client means a second data
-  folder (`DATA_DIR`, `API_PORT`), which needs a check that the CLI and the desktop app handle
-  it. Several organizations in one install need a tenant switch on a runtime that runs alone
+- One install holds one linked organization, as today (decided 2026-10-21). Several
+  organizations in one install would need a tenant switch on a runtime that runs alone
   (`LOCAL_TENANT` appears 23 times in 7 files, and `local` as a user id more often). That is
-  a later step (decision 6).
+  not part of this plan.
 
 ## Conflicts: the person chooses
 
@@ -319,27 +318,31 @@ Only when both sides changed it since its base. A change on one side applies wit
 however large. "Item" means one row: a wizard (its draft and workspace together), a page, a
 table row, the space's details, one translation.
 
-### The choice
+### A clean merge applies by itself
 
-A conflict opens where the save was made: in the studio on the install, on the item being
+The merge for the item's kind runs first (table below), then the checks. When it is clean and
+the checks pass, it applies and goes up with no question (decided 2026-10-21). The studio
+notes on the item that a merge was needed ("Merged with changes from the cloud"). It lists
+what each side changed, as the studio's "Änderungen live schalten" list does today
+(`versionChanges`, `packages/shared/src/changes.ts`). The base before the merge is kept until
+the next sync, so "Undo the merge" can bring back either side.
+
+### When the merge is not clean: the choice
+
+The choice opens where the save was made: in the studio on the install, on the item being
 edited ("Changed here and in the cloud"). One that arrives while offline waits on its item and
-in the space's count. There are three choices:
+in the space's count. A merge that is clean but fails a check counts as not clean. The choices:
 
 1. **Keep the cloud's version.** This computer's change is set aside, and it can be restored
    from the conflict until the next sync.
 2. **Keep this computer's version.** It goes up on top of the cloud's version.
-3. **Merge.** The merge for the item's kind runs (table below), then the checks.
-   - **Clean:** the studio says the merge is clean. It lists what each side changed, as the
-     studio's "Änderungen live schalten" list does today (`versionChanges`,
-     `packages/shared/src/changes.ts`). The person confirms, and the merge goes up.
-   - **Not clean:** the studio lists the places where both sides changed the same thing, such
-     as "step 'File the report' › title" or "row 12 › Status". It shows them side by side. For
-     each place the person picks a side or writes the value. "Solve with AI" offers a
-     proposal (below). The result goes through the same checks, and the person confirms.
+3. **Pick per place.** The studio lists the places where both sides changed the same thing,
+   such as "step 'File the report' › title" or "row 12 › Status". It shows them side by side.
+   For each place the person picks a side or writes the value. "Solve with AI" offers a
+   proposal (below). The result goes through the same checks, and the person confirms.
 
-Nothing is merged or overwritten without the person's confirmation. Until they decide, each
-side keeps its own version, the cloud's version stays live for runs, and the rest of the space
-goes on syncing. The studio counts open conflicts per space.
+Until the person decides, each side keeps its own version, the cloud's version stays live for
+runs, and the rest of the space goes on syncing. The studio counts open conflicts per space.
 
 ### How each kind merges
 
@@ -485,9 +488,9 @@ Behind a switch in `.features` until the last step. The sizes are relative.
 5. **Cloud: pull.** `GET /api/v1/spaces/:id/changes?since=` with paging. Small.
 6. **Install: loop.** Push, pull and blobs on demand, the `sync:<projectId>` state, and the
    status line in the studio, building on the retry loop. Medium.
-7. **Conflicts.** `sync_base`, the `conflict` answer of the push, and in the studio the
-   conflict on the item with its three choices and the count per space. Publishing through
-   the cloud. Medium.
+7. **Conflicts.** `sync_base`, the `conflict` answer of the push, the clean merge applied by
+   itself with its notice and undo, and in the studio the choice for the rest with the count
+   per space. Publishing through the cloud. Medium.
 8. **Merge and check.** The structural JSON merge (`mergeDrafts` widened, reporting conflicts
    per place), diff3 for pages and workspace text files, cells per column, and the checks after
    each merge. The cases of the experiment above become its tests. Medium.
@@ -499,9 +502,11 @@ Behind a switch in `.features` until the last step. The sizes are relative.
 11. **Move over.** Spaces synced one way today (`origin = "local"`) become two-way. `FromLocal`
     goes, then the switch flips and the user guide follows. Small.
 
-Before step 4 reaches a client's data: turn on the `turso` provisioner (a paid plan) so the
-cloud's tenant databases are no longer files on one volume. This is independent of the sync,
-but the sync makes the cloud copy the one that counts.
+The sync needs no Turso plan. It goes through the cloud runtime's API and works the same on
+tenant databases that are files under `/data` (`TENANT_DB_PROVISIONER=none`, today) or on
+Turso. What it changes: the cloud's copy becomes the one that counts, so the `/data` volume
+needs a backup. Moving the tenant databases to Turso (the provisioner needs the paid plan for
+the Platform API and for more than 100 databases) is one way to get that, not a condition.
 
 ## Risks
 
@@ -514,10 +519,10 @@ but the sync makes the cloud copy the one that counts.
 - **Live updates.** The studio's draft events are per process (`services/draft-events.ts`). An
   arrival needs its own notice in the open studio, else people see changes only after a reload.
 - **A clean merge can still be wrong.** The checks catch broken ids and references, not
-  meaning. Two sides can each tighten a prompt in ways that contradict each other. That is why
-  the person confirms every merge.
-- **Many conflicts after a long time offline.** Each one asks. The count per space and a
-  "keep the cloud's version for all" make it bearable; decision 1 could add more.
+  meaning. Two sides can each tighten a prompt in ways that contradict each other. The notice
+  on the item and "Undo the merge" are the answer to that.
+- **Many conflicts after a long time offline.** Clean ones apply by themselves. The rest ask
+  each, with the count per space and a "keep the cloud's version for all".
 - **Size of the work.** About 11 pull requests. The triggers and appliers touch about 15 tables,
   and every new table later has to choose: synced or not.
 - **Turso Sync matures.** If it reaches 1.0 with FTS, the change log could move onto it. The
@@ -525,22 +530,28 @@ but the sync makes the cloud copy the one that counts.
 
 ## Decisions for Matthias
 
-Decided on 2026-10-21: runs do not sync, wizards are editable on both sides, and in a conflict
-the person chooses (keep either side, or merge, checked and confirmed, with a model's help when
-asked).
+Decided on 2026-10-21:
 
-1. **Clean merges.** Every conflict asks, clean or not, as decided. Later a setting could let
-   clean merges that pass the checks apply by themselves, listed afterwards. Recommended: ask
-   for now and decide after real use.
-2. **Assistant chats.** Recommended: they stay where they were written.
-3. **Connected systems' headers.** Recommended: sync the servers without `headers`, and enter
+- Runs do not sync.
+- Wizards are editable on both sides.
+- Different schema versions do not sync; the sync pauses until both match.
+- The sync hooks into the save, publish and load events that exist; saving stays as it is.
+- A clean merge that passes the checks applies by itself, with a notice that a merge was
+  needed. Only a merge that is not clean asks: keep either side or pick per place, with a
+  model's proposal on request.
+- No locks.
+- Assistant chats do not sync: they belong to a person.
+- One organization per install.
+- Who may push: the person signed in to the cloud on the install, with their role in the
+  organization. The cloud applies a push only with a valid token and under that role
+  (`access.ts`), as for every edit in the cloud's studio.
+- The sync needs no Turso plan (see "Steps").
+
+Open:
+
+1. **Connected systems' headers.** Recommended: sync the servers without `headers`, and enter
    the headers on each side like API keys.
-4. **Offline edits.** Recommended: everything that syncs takes edits offline, and they wait in
-   the log. A conflict found when the computer is online again waits on its item until the
-   person chooses.
-5. **One organization per install** (a second data folder for a second client) or a tenant
-   switch in one install. Recommended: one per install first.
-6. **The Turso paid plan and the `turso` provisioner** before a client's data lives in the
-   cloud.
-7. **Who may push.** Recommended: the same roles as editing in the studio. Members edit, and
-   owners and admins make and delete.
+2. **Offline edits.** Recommended: everything that syncs takes edits offline, and they wait in
+   the log. A conflict found when the computer is online again applies by itself when it is
+   clean, and waits on its item when it is not.
+3. **A backup of the cloud's `/data` volume**, or the move of the tenant databases to Turso.
