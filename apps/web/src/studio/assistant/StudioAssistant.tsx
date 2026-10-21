@@ -561,17 +561,18 @@ function Header({
             </span>
           )}
           {state.dev.offered && state.view.kind === "chat" ? <DevSwitch state={state} /> : null}
+          {/* On the name's line: live, or what Goose sees, shortened where the row ends. */}
+          {live.state !== "off" ? (
+            <span className="flex shrink-0 items-center gap-1.5 text-[0.75rem] text-ember-strong">
+              <span className="size-1.5 animate-pulse-dot rounded-full bg-ember" />
+              {t("assistant.live")} · <Clock since={live.since} />
+            </span>
+          ) : sees ? (
+            <span className="min-w-0 truncate text-[0.75rem] text-ink-4">
+              {t("assistant.sees", { page: sees })}
+            </span>
+          ) : null}
         </div>
-        {live.state !== "off" ? (
-          <div className="flex items-center gap-1.5 text-[0.75rem] text-ember-strong">
-            <span className="size-1.5 animate-pulse-dot rounded-full bg-ember" />
-            {t("assistant.live")} · <Clock since={live.since} />
-          </div>
-        ) : sees ? (
-          <div className="truncate text-[0.75rem] text-ink-4">
-            {t("assistant.sees", { page: sees })}
-          </div>
-        ) : null}
       </div>
       {dev ? <UsageMeter messages={messages} narrow={narrow} /> : null}
       {dev ? (
@@ -1374,6 +1375,8 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     );
   // One card: the open chat or the last turn on top, the bar below, melted together. At the top
   // of the page it is always open and has no handle; the tree stays the same, so does the draft.
+  // The thread shows at the top of the page, in the sidebar, and opened at the bottom.
+  const expanded = open || top || sidebar;
   const drawn =
     card && placed
       ? createPortal(
@@ -1401,26 +1404,28 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
                   onOpen={() => state.setOpen(true)}
                 />
               )}
-              {open || top || sidebar ? (
-                <div className={cn("relative flex min-h-0 flex-col", sidebar && "flex-1")}>
-                  <div
-                    className={cn(
-                      "flex min-h-0 flex-col border-border-soft border-b",
-                      sidebar ? "flex-1" : !top && "animate-rise",
-                    )}
-                    style={top || sidebar ? undefined : { maxHeight: maxThread + 60 }}
-                  >
-                    <Header
-                      state={state}
-                      where={sidebar ? "sidebar" : small ? "avatar" : "bottom"}
-                      wide={where.wide}
-                      phone={where.phone}
-                      compact={where.compact}
-                      grip={grip}
-                    />
+              {/* The header stays, open or folded: the card keeps its head and only its thread
+                  opens and folds below it. */}
+              <div className={cn("relative flex min-h-0 flex-col", sidebar && "flex-1")}>
+                <div
+                  className={cn("flex min-h-0 flex-col", sidebar && "flex-1")}
+                  style={expanded && !(top || sidebar) ? { maxHeight: maxThread + 60 } : undefined}
+                >
+                  <Header
+                    state={state}
+                    where={sidebar ? "sidebar" : small ? "avatar" : "bottom"}
+                    wide={where.wide}
+                    phone={where.phone}
+                    compact={where.compact}
+                    grip={grip}
+                  />
+                  {expanded ? (
                     <div
                       ref={thread}
-                      className={cn("flex min-h-0 flex-col", sidebar && "flex-1")}
+                      className={cn(
+                        "flex min-h-0 flex-col border-border-soft border-b",
+                        sidebar ? "flex-1" : !top && "animate-rise",
+                      )}
                       style={
                         sidebar
                           ? undefined
@@ -1434,11 +1439,11 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
                     >
                       <Thread state={state} composer={composer} top={top} />
                     </div>
-                  </div>
+                  ) : state.chat.messages.length || state.chat.error ? (
+                    <LastTurn state={state} />
+                  ) : null}
                 </div>
-              ) : state.chat.messages.length || state.chat.error ? (
-                <LastTurn state={state} />
-              ) : null}
+              </div>
               <div
                 ref={rest}
                 onFocusCapture={() => setFocused(true)}
