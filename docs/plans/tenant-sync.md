@@ -27,8 +27,8 @@ see "Can a classic merge handle a wizard?" below.
 
 The limits:
 
-- **Conflicts are rare and show up on save.** Load fetches the cloud's latest version and
-  save pushes at once. So a conflict needs someone to change the same item in the cloud's
+- **Conflicts are rare and show up on save.** Each load fetches the cloud's latest version, and
+  each save (the studio's own, unchanged) is pushed right after. So a conflict needs someone to change the same item in the cloud's
   studio between your load and your save, or while you were offline. When it happens, your
   save is the one the cloud refuses, and the choice opens in your studio right there. People
   editing in the cloud's studio never meet a conflict, because their saves go straight into
@@ -221,14 +221,26 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 - **Files after rows.** A push first asks which blob hashes and asset ids the cloud lacks. It
   uploads those, then sends the rows (the order the one-way sync uses today). A pull fetches
   the blobs it lacks on demand, so large documents do not block a pull.
-- **When: on load and on save.** The main case is editing on the install and pushing to the
-  cloud, so the sync follows the studio:
-  - **Load.** Opening a wizard, page, table or the space's details pulls that item's latest
-    version from the cloud first. That is one small call; offline, the local copy opens.
-  - **Save.** Each save pushes the item at once. The studio already saves a draft 600 ms after
-    an edit (`useLiveDraft`, `live.tsx`), so pushes are grouped to one per item every few
-    seconds. The new calls need a limit of their own, because today's 240 sendings an hour per
-    tenant are too few for this.
+- **When: the save and load events that exist.** The main case is editing on the install and
+  pushing to the cloud. The sync hooks into what the studio already does and changes nothing
+  in how or when it saves:
+  - **Save.** The studio keeps saving as it does: a draft 600 ms after an edit
+    (`useLiveDraft`, `live.tsx`), pages, tables and the space's details through their routes.
+    Each save writes the tenant database, and the triggers note it in `sync_change`. The
+    events that exist then start a push of the space: `emitDraftChanged` (draft and
+    workspace, `services/wizards.ts`, `services/files.ts`), `spaceChanged` (the space's
+    details and themes), `spaceFileChanged` (files). Pages, tables and categories have no
+    event today. For them the push starts from the change log after the write, so their
+    services stay as they are.
+  - **Publish.** `publishAndSync()` already hooks the publish. It pushes the draft, then asks
+    the cloud to publish it.
+  - **Load.** The studio's routes that answer a wizard, a page, a table or the space's details
+    pull that item from the cloud before they answer. The wait is a few seconds at most;
+    offline or slow, the local copy answers. The studio's requests stay as they are.
+  - **One push at a time per space.** A push carries everything in the log since the last
+    one. Saves made while it runs go with the next push. So steady typing makes about one push
+    every few seconds, never one per keystroke. The new call gets a limit of its own sized for
+    that, e.g. 1,200 an hour per organization. Today's 240 an hour stays on the one-way calls.
   - **Background.** A pull of the whole space runs on start and on sign-in. The minute loop
     that exists (`retryFailedSends`) sends what failed. Offline, the log grows and goes up
     later.
