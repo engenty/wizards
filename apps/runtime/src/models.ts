@@ -632,6 +632,88 @@ async function ownTextModel(
 }
 
 /**
+ * What answers the studio's chats, Goose and the editor's chat: the text classes as they are set
+ * (`models`), an installed client on its subscription, one provider's own key, or the credits.
+ */
+export const CHAT_WAYS = [
+  "models",
+  "claude",
+  "codex",
+  "cursor",
+  "openai",
+  "anthropic",
+  "google",
+  "gateway",
+  "account",
+] as const;
+export type ChatWay = (typeof CHAT_WAYS)[number];
+
+/** Whether a way can answer now: the client signed in, the key there, the account linked. */
+export async function chatWayReady(way: ChatWay, textModelReady: boolean): Promise<boolean> {
+  if (way === "models") {
+    return textModelReady;
+  }
+  if (managed) {
+    return false;
+  }
+  const client = harness(way);
+  if (client) {
+    const status = await detectHarness(client.id);
+    return Boolean(status?.version) && status?.auth !== "none";
+  }
+  if (way === "account") {
+    return Boolean(await linkedAccount());
+  }
+  return Boolean((await config()).keys[way as ProviderId]);
+}
+
+/**
+ * The model a studio chat runs on. `cls` is the text class it takes where the chat follows the
+ * classes; a client or a provider runs its own model of that class.
+ */
+export async function chatModel(
+  way: ChatWay,
+  cls: "high" | "highest",
+): Promise<ResolvedModel<LanguageModel>> {
+  if (way === "models") {
+    return textModel(cls);
+  }
+  const cfg = await config();
+  const client = harness(way);
+  if (client) {
+    if (!(await detectHarness(client.id))?.version) {
+      throw new ModelUnavailableError(notInstalled(client));
+    }
+    const alias = client.classes[cls];
+    return {
+      model: client.model(alias),
+      ref: `${client.id}/${alias}`,
+      vendor: client.id,
+      gateway: false,
+      metered: false,
+    };
+  }
+  if (way === "account") {
+    const access = await creditAccess(cfg, true);
+    if (!access) {
+      throw new ModelUnavailableError(note("creditsNotSignedIn"));
+    }
+    return viaCredits(
+      { kind: "credits", access, model: null },
+      cls,
+      {},
+      (gateway, id) => gateway(id) as LanguageModel,
+    );
+  }
+  const ref = providerInfo(way)?.text?.[cls];
+  if (!ref) {
+    throw new ModelUnavailableError(note("noModelFor", { makes: note("makesText") }));
+  }
+  const { model, gateway } = await ownLanguageModel(cfg, ref, {});
+  return { model, ref, vendor: vendorOf(ref), gateway, metered: false };
+}
+
+/**
  * Hands the tools an agent will call to a model that runs them itself (an installed AI client).
  * `ignorable`: the step declared no tools and has no uploads — the run's device may answer
  * without the generic ones (engine/device.ts).

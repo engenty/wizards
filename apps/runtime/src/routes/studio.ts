@@ -33,7 +33,12 @@ import { streamSSE } from "hono/streaming";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { type AnswerPart, runStudioAssistant, signalText } from "../agents/studio-assistant.js";
-import { chatEngine, setChatEngine, subscriptionClients } from "../agents/subscription.js";
+import {
+  chatEngine,
+  chatWays,
+  setChatEngine,
+  subscriptionClients,
+} from "../agents/subscription.js";
 import { scanColors, scanFonts, scanImages, scanLogos } from "../agents/website.js";
 import { answerBrowser, awaitBrowser } from "../assistant/browser.js";
 import { endRun, signalRun, startRun, takeSignals } from "../assistant/runs.js";
@@ -88,6 +93,7 @@ import { generateImageMedia, generateSpeechMedia, generateVideoMedia } from "../
 import { transcribeAudio } from "../media/transcribe.js";
 import { errorText, saidOf } from "../model-errors.js";
 import {
+  CHAT_WAYS,
   checkKey,
   classProblem,
   classWays,
@@ -483,8 +489,10 @@ export const studio = new Hono<Vars>()
       setupDone: managed ? true : await setupDone(),
       /** The cloud studio's first visit: the short wizard that names the organization and fills the space (services/onboarding.ts). */
       onboarding: await needsOnboarding(user),
-      /** What answers the studio chat: a model of class `highest`, or the admin's own subscription. */
+      /** What answers the studio's chats (Goose, the editor's chat): the text classes, a subscription, a key or the credits. */
       chatEngine: managed ? "models" : await chatEngine(await hasTextModel()),
+      /** The ways that can answer the studio's chats now. */
+      chatWays: managed ? ["models"] : await chatWays(await hasTextModel()),
       aiReady: (await hasTextModel()) || (!managed && (await subscriptionClients()).length > 0),
       mcpUrl: `${env.appUrl}/api/mcp`,
       /**
@@ -1922,7 +1930,7 @@ export const studio = new Hono<Vars>()
     if (managed) {
       return c.notFound();
     }
-    const { engine } = z.object({ engine: z.enum(["models", "claude"]) }).parse(await c.req.json());
+    const { engine } = z.object({ engine: z.enum(CHAT_WAYS) }).parse(await c.req.json());
     await setChatEngine(engine);
     return c.json({ ok: true });
   })

@@ -29,13 +29,15 @@ import { PRIMER } from "../assistant/primer.js";
 import type { SessionUser } from "../auth/index.js";
 import type { AssistantCardRecord, AssistantToolCallRecord } from "../db/schema.js";
 import { currentFeatures } from "../features.js";
+import { managed } from "../manage.js";
 import {
   agentModel,
   attachTools,
+  chatModel,
   contextWindowOf,
   costOf,
   gatewayTools,
-  textModel,
+  hasTextModel,
   totalUsage,
   usageOf,
 } from "../models.js";
@@ -54,6 +56,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
+import { chatEngine } from "./subscription.js";
 import { readWebsite } from "./website.js";
 
 export interface AssistantInput {
@@ -877,7 +880,9 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   // How often the space or a plugin's data changed: a part of the answer changed something when
   // this grew during it.
   let changes = 0;
-  const resolved = await textModel("high");
+  // The way the settings chose for the studio's chats: on a client, its tools reach it over MCP.
+  const way = managed ? "models" : await chatEngine(await hasTextModel());
+  const resolved = await chatModel(way, "high");
   const wrote = () => {
     changes++;
     input.onChanged?.();

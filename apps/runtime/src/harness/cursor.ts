@@ -73,6 +73,13 @@ class CursorModel extends HarnessModel {
         join(call.dir, ".cursor", "mcp.json"),
         JSON.stringify({ mcpServers: { step: { url: call.bridgeUrl } } }),
       );
+      // The call's tools are all on the bridge: the client runs no commands and writes no files.
+      writeFileSync(
+        join(call.dir, ".cursor", "cli.json"),
+        JSON.stringify({
+          permissions: { allow: ["Mcp(step:*)"], deny: ["Shell(*)", "Write(**)"] },
+        }),
+      );
     }
     const args = ["-p", "--output-format", "json", "--workspace", call.dir, "--approve-mcps"];
     if (this.modelId !== "auto") {
