@@ -108,9 +108,9 @@ a Knowledge search found. Jev is reached through an AI Gateway key, a TypeSafe k
 (`TYPESAFE_API_KEY` in the settings file), the Clef-flash model in Ollama on this computer, or
 your account. Without any of them, the Classifier class decides.
 
-## The studio’s chat
+## Agent chat
 
-Settings → Models has two groups. “In the studio” holds **Chat**: what answers Goose and the
+Settings → Models has two groups. “In the studio” holds **Agent chat**: what answers Goose and the
 editor’s chat that builds your wizards. “In runs” holds what your wizards’ steps use: text,
 images, video, voice and voice notes.
 

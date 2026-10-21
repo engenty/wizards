@@ -1294,7 +1294,7 @@ function chatWayName(way: ChatWay, me: Me, place: Place): string {
     return t("models.chatModels");
   }
   if (way === "account") {
-    return place.cloud ? t("models.creditsTeam") : t("models.creditsName");
+    return place.cloud ? t("models.creditsOrganization") : t("models.creditsName");
   }
   return me.harnesses.find((h) => h.id === way)?.name ?? providerInfo(way)?.name ?? (way as string);
 }

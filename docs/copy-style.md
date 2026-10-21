@@ -67,6 +67,7 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 | tables and pages wizards keep | data | Daten | |
 | build chat in the editor | the assistant; the chat | der Assistent; der Chat | conversation, thread |
 | the help assistant | Goose | Goose (der) | |
+| the setting for what answers Goose and the editor's chat (a subscription, a key, the credits) | Agent chat | der Agent-Chat | Chat alone, AI agent, Studio-KI |
 | a spoken call | conversation | Gespräch | |
 | gone for good | delete | löschen | |
 | taken out, still exists elsewhere | remove | entfernen | |

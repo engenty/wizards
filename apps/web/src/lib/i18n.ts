@@ -127,7 +127,7 @@ const de: Record<Key, Line> = {
   "local.testFailed": "Der Test hat nicht geklappt: {error}",
   "models.groupStudio": "Im Studio",
   "models.groupRuns": "In Läufen",
-  "models.cap.chat": "Chat",
+  "models.cap.chat": "Agent-Chat",
   "models.cap.chat.hint": "Goose und der Chat im Editor, der deine Wizards baut.",
   "models.chatModels": "Wie Text & Denken",
   "models.chatHint":
@@ -2368,7 +2368,7 @@ const en = {
   "local.testFailed": "The test didn’t work: {error}",
   "models.groupStudio": "In the studio",
   "models.groupRuns": "In runs",
-  "models.cap.chat": "Chat",
+  "models.cap.chat": "Agent chat",
   "models.cap.chat.hint": "Goose and the chat in the editor that builds your wizards.",
   "models.chatModels": "Same as Text & reasoning",
   "models.chatHint":
