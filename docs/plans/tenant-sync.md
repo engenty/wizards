@@ -273,7 +273,7 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 | Categories | `space_category`, `space_category_value`, `space_item_category` | matched by name and value, not by id |
 | Files and documents | `project_file` (when `ready`), their assets, `text_hash` blobs | per row; bytes by hash |
 | Connectors | `project_connector` | per (project, id) |
-| Connected systems | `project.mcp_servers` | without `headers` (open decision 1) |
+| Connected systems | `project.mcp_servers` | without `headers` (decided) |
 | Stars | `marketplace_star` | a set |
 
 **Stays on the side where it is (not synced):**
@@ -505,8 +505,9 @@ Behind a switch in `.features` until the last step. The sizes are relative.
 The sync needs no Turso plan. It goes through the cloud runtime's API and works the same on
 tenant databases that are files under `/data` (`TENANT_DB_PROVISIONER=none`, today) or on
 Turso. What it changes: the cloud's copy becomes the one that counts, so the `/data` volume
-needs a backup. Moving the tenant databases to Turso (the provisioner needs the paid plan for
-the Platform API and for more than 100 databases) is one way to get that, not a condition.
+needs a backup (decided 2026-10-21). That is set up on the server (Coolify) before a client's
+data syncs, outside these pull requests. Moving the tenant databases to Turso (the paid plan,
+for the Platform API and for more than 100 databases) stays a later, separate choice.
 
 ## Risks
 
@@ -528,7 +529,7 @@ the Platform API and for more than 100 databases) is one way to get that, not a 
 - **Turso Sync matures.** If it reaches 1.0 with FTS, the change log could move onto it. The
   JSON contract would stay, so the choice is reversible.
 
-## Decisions for Matthias
+## Decisions
 
 Decided on 2026-10-21:
 
@@ -546,12 +547,11 @@ Decided on 2026-10-21:
   organization. The cloud applies a push only with a valid token and under that role
   (`access.ts`), as for every edit in the cloud's studio.
 - The sync needs no Turso plan (see "Steps").
+- Connected systems sync without their `headers`. The headers are entered on each side, like
+  API keys.
+- Offline edits: everything that syncs takes edits offline, and they wait in the log. A
+  conflict found when the computer is online again applies by itself when it is clean, and
+  waits on its item when it is not.
+- The cloud's `/data` volume gets a backup. The tenant databases stay files there for now.
 
-Open:
-
-1. **Connected systems' headers.** Recommended: sync the servers without `headers`, and enter
-   the headers on each side like API keys.
-2. **Offline edits.** Recommended: everything that syncs takes edits offline, and they wait in
-   the log. A conflict found when the computer is online again applies by itself when it is
-   clean, and waits on its item when it is not.
-3. **A backup of the cloud's `/data` volume**, or the move of the tenant databases to Turso.
+Nothing is open.
