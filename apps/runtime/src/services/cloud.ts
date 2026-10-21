@@ -7,6 +7,7 @@ import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";
 import { managed } from "../manage.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
+import { forgetTwoWay, publishInCloud, rotateInCloudSpace, spaceSyncs } from "../sync/client.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { mainLogoId } from "./brand.js";
 import { ServiceError } from "./errors.js";
@@ -301,7 +302,26 @@ export async function syncToCloud(userId: string, wizardId: string): Promise<Clo
     throw new ServiceError("refused", note("publishWizardFirst"));
   }
   const before = await cloudState(w.id);
+  const twoWay = await spaceSyncs(w.projectId);
   try {
+    if (twoWay) {
+      // The space syncs both ways: its draft goes up with the space, then the cloud publishes it.
+      const published = await publishInCloud(w.projectId, w.id);
+      const state: CloudState = {
+        copy: {
+          shareUrl: published.shareUrl,
+          code: published.code,
+          version: version.version,
+          publishedVersion: published.publishedVersion,
+          runnable: true,
+          problems: [],
+          syncedAt: new Date().toISOString(),
+        },
+        error: null,
+      };
+      await writeSetting(key(w.id), state);
+      return state;
+    }
     const files = await Promise.all(
       version.files.map(async (f) => ({
         path: f.path,
@@ -380,6 +400,11 @@ export async function pushSharing(userId: string, wizardId: string): Promise<voi
   if (!(await cloudLinked())) {
     return;
   }
+  // A space that syncs both ways takes the settings along with the wizard.
+  const own = await ownedWizard(userId, wizardId).catch(() => null);
+  if (own && (await spaceSyncs(own.projectId))) {
+    return;
+  }
   const state = await cloudState(wizardId);
   if (!state.copy) {
     return;
@@ -406,16 +431,22 @@ export async function rotateInCloud(userId: string, wizardId: string): Promise<C
     return state;
   }
   const w = await ownedWizard(userId, wizardId);
-  const answer = await call<{ shareUrl: string; code?: string }>(
-    "POST",
-    `/spaces/${w.projectId}/wizards/${w.id}/rotate-link`,
-  );
-  if (!answer.ok || !answer.body.shareUrl) {
-    throw refusal(answer, "The link in the cloud could not be renewed.");
+  let link: { shareUrl: string; code?: string };
+  if (await spaceSyncs(w.projectId)) {
+    link = await rotateInCloudSpace(w.projectId, w.id);
+  } else {
+    const answer = await call<{ shareUrl: string; code?: string }>(
+      "POST",
+      `/spaces/${w.projectId}/wizards/${w.id}/rotate-link`,
+    );
+    if (!answer.ok || !answer.body.shareUrl) {
+      throw refusal(answer, "The link in the cloud could not be renewed.");
+    }
+    link = answer.body;
   }
   const next: CloudState = {
     ...state,
-    copy: { ...state.copy, shareUrl: answer.body.shareUrl, code: answer.body.code },
+    copy: { ...state.copy, shareUrl: link.shareUrl, code: link.code },
   };
   await writeSetting(key(w.id), next);
   return next;
@@ -429,7 +460,8 @@ export async function removeFromCloud(userId: string, wizardId: string): Promise
   }
   const w = await ownedWizard(userId, wizardId).catch(() => null);
   await deleteSetting(key(wizardId));
-  if (!w || !state.copy || !(await cloudLinked())) {
+  // A space that syncs both ways deletes the copy with the next push.
+  if (!w || !state.copy || !(await cloudLinked()) || (await spaceSyncs(w.projectId))) {
     return;
   }
   await call("DELETE", `/spaces/${w.projectId}/wizards/${w.id}`).catch((err) =>
@@ -473,6 +505,7 @@ export async function retryFailedSends(userId: string): Promise<void> {
 export async function forgetCloud(): Promise<void> {
   await controlDb.delete(control.setting).where(like(control.setting.key, "cloud:%"));
   await forgetSentData();
+  await forgetTwoWay();
 }
 
 /** The space's data counts as not sent: the next wizard takes it along again. */

@@ -1030,3 +1030,13 @@ export async function proposeMerge(id: string): Promise<{ record: SyncRecord; is
     issues,
   });
 }
+
+/** The account was unlinked: nothing syncs any more, and what was kept of the cloud goes. */
+export async function forgetTwoWay(): Promise<void> {
+  setTwoWayActive(false);
+  overviewCache = null;
+  await controlDb.delete(control.setting).where(like(control.setting.key, "sync:%"));
+  for (const table of [schema.syncBase, schema.syncConflict, schema.syncMerge, schema.syncChange]) {
+    await db.delete(table);
+  }
+}

@@ -245,6 +245,18 @@ import {
 } from "../services/wizards.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
 import { projectShareTargets, sharePreview } from "../sharing/index.js";
+import {
+  keepCloudForAll,
+  mergesSeen,
+  proposeMerge,
+  type Resolution,
+  resolveConflict,
+  startSpace,
+  stopSpace,
+  syncAll,
+  syncView,
+  undoMerge,
+} from "../sync/client.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
@@ -426,6 +438,21 @@ const terminalSize = z.object({
   cols: z.number().int().min(10).max(500).optional(),
   rows: z.number().int().min(4).max(200).optional(),
 });
+
+/** How the person settled a conflict: one side, a choice per place, or a version of their own. */
+const resolutionSchema = z.union([
+  z.object({ take: z.enum(["local", "remote"]) }),
+  z.object({
+    choices: z.array(
+      z.union([
+        z.object({ take: z.enum(["local", "remote"]) }),
+        z.object({ value: z.unknown() }),
+        z.null(),
+      ]),
+    ),
+  }),
+  z.object({ record: z.record(z.string(), z.unknown()) }),
+]);
 
 export const studio = new Hono<Vars>()
   .get("/me", async (c) => {
@@ -1485,6 +1512,57 @@ export const studio = new Hono<Vars>()
       return c.notFound();
     }
     return c.json(await checkForCloud(c.get("user").id, c.req.param("id")));
+  })
+  // --- the two-way sync of the spaces with the account's organization (sync/client.ts) ---
+  .get("/sync", async (c) => (managed ? c.notFound() : c.json(await syncView())))
+  .post("/sync/now", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    await syncAll();
+    return c.json(await syncView());
+  })
+  .put("/sync/spaces/:id", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const { on } = z.object({ on: z.boolean() }).parse(await c.req.json());
+    await (on ? startSpace(c.req.param("id")) : stopSpace(c.req.param("id")));
+    return c.json(await syncView());
+  })
+  .post("/sync/spaces/:id/keep-cloud", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    await keepCloudForAll(c.req.param("id"));
+    return c.json(await syncView());
+  })
+  .post("/sync/conflicts/:id/resolve", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const body = resolutionSchema.parse(await c.req.json());
+    await resolveConflict(c.req.param("id"), body as Resolution);
+    return c.json(await syncView());
+  })
+  .post("/sync/conflicts/:id/propose", async (c) =>
+    managed ? c.notFound() : c.json(await proposeMerge(c.req.param("id"))),
+  )
+  .post("/sync/merges/:id/undo", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const { take } = z.object({ take: z.enum(["local", "remote"]) }).parse(await c.req.json());
+    await undoMerge(c.req.param("id"), take);
+    return c.json(await syncView());
+  })
+  .post("/sync/merges/seen", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const { ids } = z.object({ ids: z.array(z.string()).max(200) }).parse(await c.req.json());
+    await mergesSeen(ids);
+    return c.json({ ok: true });
   })
   // The projects of local installs the account's cloud holds.
   .get("/cloud/spaces", async (c) => {

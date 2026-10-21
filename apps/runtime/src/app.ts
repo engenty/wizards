@@ -34,6 +34,7 @@ import { runTicketValid } from "./secrets/signing.js";
 import { asRole } from "./services/access.js";
 import { ServiceError } from "./services/errors.js";
 import { servePageRunner } from "./services/runners.js";
+import { afterStudioWrite, beforeStudioLoad } from "./sync/client.js";
 import { tenantOfLink, tenantStatus } from "./tenants/control.js";
 
 const app = new Hono<{ Variables: { user: Principal } }>();
@@ -216,6 +217,10 @@ if (serves.doors) {
   });
 }
 
+/** The studio's requests that open an item: a wizard, a page, a table, a space. */
+const STUDIO_LOADS =
+  /\/api\/studio\/(wizards\/[^/]+|pages\/[^/]+|tables\/[^/]+|projects(\/[^/]+(\/(data|knowledge|files|wizards|page))?)?)$/;
+
 if (serves.studio) {
   /** Studio requests act as the signed-in person, inside that person's tenant. */
   app.use("/api/studio/*", async (c, next) => {
@@ -239,7 +244,21 @@ if (serves.studio) {
       );
     }
     c.set("user", user);
-    return withTenant(user.tenantId, () => asRole(user.role, next));
+    if (managed) {
+      return withTenant(user.tenantId, () => asRole(user.role, next));
+    }
+    // An install that syncs both ways (sync/client.ts): what the studio opens comes down from
+    // the cloud first, what it saved goes up after.
+    return withTenant(user.tenantId, async () => {
+      const loads = c.req.method === "GET" && STUDIO_LOADS.test(c.req.path);
+      if (loads) {
+        await beforeStudioLoad().catch(() => undefined);
+      }
+      await asRole(user.role, next);
+      if (c.req.method !== "GET" && !c.req.path.includes("/api/studio/sync")) {
+        afterStudioWrite((run) => withTenant(user.tenantId, run));
+      }
+    });
   });
 
   const mcp = mcpHandler();
