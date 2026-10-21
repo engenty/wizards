@@ -223,6 +223,10 @@ group in the changelog, a scope (`fix(runner): …`) shows in brackets, `!` mark
 | `chore`, `ci`, `test`, `build`, `style`, merges | left out |
 | anything else | Other |
 
+A release's docs commits show as one entry, `Documentation updates (#12, #15, …)`, in
+`CHANGELOG.md` and in the app, so small docs changes do not crowd out what changed in the product.
+A single docs commit keeps its own line.
+
 ```bash
 pnpm release               # shows the changes, asks patch / minor / major, lets you edit the entry,
                            # then writes the files below, bumps package.json and commits on
