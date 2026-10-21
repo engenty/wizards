@@ -44,10 +44,12 @@ import {
   hasRight,
   setAssistantSlot,
   setDockPrefs,
+  setSidebarMount,
   startDockDrag,
   useAssistantSlot,
   useDockDrag,
   useDockPrefs,
+  useSidebarMount,
 } from "./dock";
 import { canLive } from "./live";
 import { type AssistantSuggestion, usePageAssistant } from "./page";
@@ -1219,7 +1221,10 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const where = useWhereOrNull(state);
   const prefs = useDockPrefs();
   const size = useSize(column);
-  const visible = state && where && where.where !== "sidebar";
+  const visible = state && where;
+  // In the sidebar, a pane of its own beside the page: the card is drawn there.
+  const sidebar = where?.where === "sidebar";
+  const sidebarMount = useSidebarMount();
   const width = dockWidth(size.width);
   // On a phone, and where the column has no room for it, the chat stands in the middle.
   const place =
@@ -1249,7 +1254,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const [focused, setFocused] = useState(false);
   const active =
     focused || open || state?.chat.phase !== "idle" || (state?.live.state ?? "off") !== "off";
-  const reserve = top ? false : small ? !open : docked;
+  const reserve = top || sidebar ? false : small ? !open : docked;
   // A phone's bar floats at the bottom of the window: the chat stands above it.
   const phone = Boolean(where?.phone);
   const card = Boolean(visible) && !(small && !open);
@@ -1262,7 +1267,8 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const [mount, setMount] = useState<HTMLDivElement | null>(null);
   const [placed, setPlaced] = useState(false);
   useLayoutEffect(() => {
-    const target = top ? wanted : mount;
+    const target = sidebar ? sidebarMount : top ? wanted : mount;
+    host.className = cn("flex min-h-0 flex-col", sidebar && "flex-1");
     if (!target || host.parentElement === target) {
       return;
     }
@@ -1276,7 +1282,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
       el.scrollTop = el.scrollHeight;
     }
     setPlaced(true);
-  }, [top, wanted, mount, host]);
+  }, [sidebar, sidebarMount, top, wanted, mount, host]);
   // Scrolled away, the slot keeps the chat's height.
   useLayoutEffect(() => {
     if (!slot) {
@@ -1341,9 +1347,9 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
       <Grip
         state={state}
         column={column}
-        frame={() => frame.current}
+        frame={() => (sidebar ? null : frame.current)}
         wide={where.wide}
-        from="bottom"
+        from={sidebar ? "sidebar" : "bottom"}
       />
     );
   // One card: the open chat or the last turn on top, the bar below, melted together. At the top
@@ -1351,17 +1357,22 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const drawn =
     card && placed
       ? createPortal(
-          <DropZone composer={composer} className="flex min-h-0 flex-col">
+          <DropZone
+            composer={composer}
+            className={cn("flex min-h-0 flex-col", sidebar && "flex-1")}
+          >
             <div
               className={cn(
-                "pointer-events-auto flex min-h-0 flex-col overflow-hidden bg-card ring-1",
-                top
-                  ? "rounded-xl bg-linear-to-br from-ember-tint via-card to-card shadow-soft ring-ember-veil focus-within:ring-ember"
-                  : "rounded-[1.375rem] shadow-overlay ring-border focus-within:ring-focus",
+                "pointer-events-auto flex min-h-0 flex-col overflow-hidden",
+                sidebar
+                  ? "flex-1"
+                  : top
+                    ? "rounded-xl bg-card bg-linear-to-br from-ember-tint via-card to-card shadow-soft ring-1 ring-ember-veil focus-within:ring-ember"
+                    : "rounded-[1.375rem] bg-card shadow-overlay ring-1 ring-border focus-within:ring-focus",
               )}
             >
               {/* The handle stays, open or folded: it sets the height, folds, and opens again. */}
-              {top ? null : (
+              {top || sidebar ? null : (
                 <Flap
                   thread={thread}
                   max={maxThread}
@@ -1370,18 +1381,18 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
                   onOpen={() => state.setOpen(true)}
                 />
               )}
-              {open || top ? (
-                <div className="relative flex min-h-0 flex-col">
+              {open || top || sidebar ? (
+                <div className={cn("relative flex min-h-0 flex-col", sidebar && "flex-1")}>
                   <div
                     className={cn(
                       "flex min-h-0 flex-col border-border-soft border-b",
-                      !top && "animate-rise",
+                      sidebar ? "flex-1" : !top && "animate-rise",
                     )}
-                    style={top ? undefined : { maxHeight: maxThread + 60 }}
+                    style={top || sidebar ? undefined : { maxHeight: maxThread + 60 }}
                   >
                     <Header
                       state={state}
-                      where={small ? "avatar" : "bottom"}
+                      where={sidebar ? "sidebar" : small ? "avatar" : "bottom"}
                       wide={where.wide}
                       phone={where.phone}
                       compact={where.compact}
@@ -1389,13 +1400,15 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
                     />
                     <div
                       ref={thread}
-                      className="flex min-h-0 flex-col"
+                      className={cn("flex min-h-0 flex-col", sidebar && "flex-1")}
                       style={
-                        top
-                          ? { maxHeight: Math.min(480, maxThread) }
-                          : threadHeight === null
-                            ? { maxHeight: maxThread }
-                            : { height: threadHeight }
+                        sidebar
+                          ? undefined
+                          : top
+                            ? { maxHeight: Math.min(480, maxThread) }
+                            : threadHeight === null
+                              ? { maxHeight: maxThread }
+                              : { height: threadHeight }
                       }
                     >
                       <Thread state={state} composer={composer} top={top} />
@@ -1500,7 +1513,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   return (
     <>
       {drawn}
-      {top ? null : small && !open ? (
+      {top || sidebar ? null : small && !open ? (
         bubble
       ) : (
         <DropZone
@@ -1567,35 +1580,27 @@ const STAND_IN = {
   chat: { messages: [] },
 } as unknown as AssistantState;
 
-/** The sidebar, beside the page, on a window wide enough; its grip pulls the chat out to the bottom. */
-export function AssistantSidebar({ column }: { column: RefObject<HTMLDivElement | null> }) {
+/**
+ * The sidebar: a pane of its own beside the page's, on a window wide enough. The chat is drawn
+ * into it by the dock, so it stays the same chat when it snaps in or out; its grip pulls it out.
+ */
+export function AssistantSidebar() {
   const state = useAssistant();
   const lifted = Boolean(useHighlight());
-  const composer = useRef<ComposerHandle>(null);
   const where = useWhereOrNull(state);
   if (!(state && where && where.where === "sidebar")) {
     return null;
   }
   return (
-    <DropZone
-      composer={composer}
+    <aside
+      aria-label={t("assistant.name")}
       className={cn(
-        "flex w-[400px] shrink-0 flex-col border-border-soft border-l bg-card",
+        "flex w-[400px] shrink-0 flex-col overflow-hidden rounded-xl bg-background shadow-elevated dark:ring-1 dark:ring-border-soft",
         lifted && "relative z-[61]",
       )}
     >
-      <Header
-        state={state}
-        where="sidebar"
-        wide={where.wide}
-        phone={where.phone}
-        grip={
-          <Grip state={state} column={column} frame={() => null} wide={where.wide} from="sidebar" />
-        }
-      />
-      <Thread state={state} composer={composer} />
-      <Bottom state={state} composer={composer} />
-    </DropZone>
+      <div ref={setSidebarMount} className="flex min-h-0 flex-1 flex-col" />
+    </aside>
   );
 }
 

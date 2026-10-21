@@ -271,3 +271,26 @@ export function useAssistantSlot(): HTMLElement | null {
     () => slot,
   );
 }
+
+// --- the sidebar --------------------------------------------------------------------------------
+
+let sidebarMount: HTMLElement | null = null;
+const sidebarListeners = new Set<() => void>();
+
+/** The sidebar's pane, beside the page: a ref callback, set while it is drawn. */
+export function setSidebarMount(el: HTMLElement | null) {
+  sidebarMount = el;
+  for (const listener of sidebarListeners) {
+    listener();
+  }
+}
+
+export function useSidebarMount(): HTMLElement | null {
+  return useSyncExternalStore(
+    (listener) => {
+      sidebarListeners.add(listener);
+      return () => sidebarListeners.delete(listener);
+    },
+    () => sidebarMount,
+  );
+}

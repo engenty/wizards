@@ -742,8 +742,9 @@ export function AppFrame({
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
       {phone ? full ? null : <PhoneBar me={me} /> : <AppRail me={me} />}
-      <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", INSET[position])}>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
+      {/* The page's card, and beside it Goose's sidebar as a pane of its own. */}
+      <div className={cn("flex min-h-0 min-w-0 flex-1 md:gap-2", INSET[position])}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
           <UpdateBanner />
           <InstallBanner />
           {full ? (
@@ -753,31 +754,28 @@ export function AppFrame({
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
               <TopBar me={me} />
-              <div className="flex min-h-0 flex-1">
-                <div ref={column} className="relative flex min-w-0 flex-1 flex-col">
-                  {/* `relative`: what a page places out of flow without a positioned parent (a
+              <div ref={column} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+                {/* `relative`: what a page places out of flow without a positioned parent (a
                     hidden file field) stays in the page's own scroll, not in a frame around it,
                     which a jump to a section would scroll as well. The assistant's dock keeps
                     its height free below the last section (`--assistant-dock`). */}
-                  <main
-                    id={SCROLL_ROOT_ID}
-                    className="relative min-h-0 flex-1 overflow-y-auto"
-                    style={{ paddingBottom: `calc(var(--assistant-dock, 0px)${clear})` }}
+                <main
+                  id={SCROLL_ROOT_ID}
+                  className="relative min-h-0 flex-1 overflow-y-auto"
+                  style={{ paddingBottom: `calc(var(--assistant-dock, 0px)${clear})` }}
+                >
+                  <div
+                    className={cn(
+                      "mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
+                      wide ? "max-w-[88rem]" : "max-w-5xl",
+                    )}
                   >
-                    <div
-                      className={cn(
-                        "mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
-                        wide ? "max-w-[88rem]" : "max-w-5xl",
-                      )}
-                    >
-                      {children}
-                    </div>
-                  </main>
-                  {goose && <AssistantDock column={column} />}
-                </div>
+                    {children}
+                  </div>
+                </main>
                 {goose && (
                   <>
-                    <AssistantSidebar column={column} />
+                    <AssistantDock column={column} />
                     <HighlightLayer />
                   </>
                 )}
@@ -785,6 +783,7 @@ export function AppFrame({
             </div>
           )}
         </div>
+        {goose && !full ? <AssistantSidebar /> : null}
       </div>
     </div>
   );
