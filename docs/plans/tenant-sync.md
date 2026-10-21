@@ -27,8 +27,12 @@ see "Can a classic merge handle a wizard?" below.
 
 The limits:
 
-- **Conflicts are settled on the install.** The cloud only takes changes made on top of its
-  latest version. Whoever pushes second resolves, on their computer, with their model.
+- **Conflicts are rare and show up on save.** Load fetches the cloud's latest version and
+  save pushes at once. So a conflict needs someone to change the same item in the cloud's
+  studio between your load and your save, or while you were offline. When it happens, your
+  save is the one the cloud refuses, and the choice opens in your studio right there. People
+  editing in the cloud's studio never meet a conflict, because their saves go straight into
+  the cloud's database.
 - **Publishing goes through the cloud.** Version numbers are made there, so two sides never
   both make version 4. A version published offline is published when the cloud is reached.
 - **Some data stays on the side where it was made.** Encrypted data, per-person data (the
@@ -217,9 +221,17 @@ install (tenant "local")                     cloud runtime (tenant <org>)
 - **Files after rows.** A push first asks which blob hashes and asset ids the cloud lacks. It
   uploads those, then sends the rows (the order the one-way sync uses today). A pull fetches
   the blobs it lacks on demand, so large documents do not block a pull.
-- **When.** Push after each change, debounced, plus the minute loop that exists
-  (`retryFailedSends`). Pull on start, on sign-in, every few minutes while the studio is open,
-  and when the studio shows a space. Offline, the log simply grows and is sent later.
+- **When: on load and on save.** The main case is editing on the install and pushing to the
+  cloud, so the sync follows the studio:
+  - **Load.** Opening a wizard, page, table or the space's details pulls that item's latest
+    version from the cloud first. That is one small call; offline, the local copy opens.
+  - **Save.** Each save pushes the item at once. The studio already saves a draft 600 ms after
+    an edit (`useLiveDraft`, `live.tsx`), so pushes are grouped to one per item every few
+    seconds. The new calls need a limit of their own, because today's 240 sendings an hour per
+    tenant are too few for this.
+  - **Background.** A pull of the whole space runs on start and on sign-in. The minute loop
+    that exists (`retryFailedSends`) sends what failed. Offline, the log grows and goes up
+    later.
 - **State on the install.** The control database's `setting` holds `sync:<projectId>`: the last
   pushed local `seq`, the last pulled cloud `seq`, the schema version and the last error. It
   sits beside the `cloud:*` keys of today.
@@ -297,8 +309,9 @@ table row, the space's details, one translation.
 
 ### The choice
 
-The studio on the install shows the conflict on the item ("Changed here and in the cloud") with
-three choices:
+A conflict opens where the save was made: in the studio on the install, on the item being
+edited ("Changed here and in the cloud"). One that arrives while offline waits on its item and
+in the space's count. There are three choices:
 
 1. **Keep the cloud's version.** This computer's change is set aside, and it can be restored
    from the conflict until the next sync.
@@ -511,7 +524,8 @@ asked).
 3. **Connected systems' headers.** Recommended: sync the servers without `headers`, and enter
    the headers on each side like API keys.
 4. **Offline edits.** Recommended: everything that syncs takes edits offline, and they wait in
-   the log. Conflicts are settled when the computer is online again.
+   the log. A conflict found when the computer is online again waits on its item until the
+   person chooses.
 5. **One organization per install** (a second data folder for a second client) or a tenant
    switch in one install. Recommended: one per install first.
 6. **The Turso paid plan and the `turso` provisioner** before a client's data lives in the
