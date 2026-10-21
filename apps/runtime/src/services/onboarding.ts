@@ -6,6 +6,7 @@ import {
   type ProjectFact,
 } from "@engenty/wizards-shared/projects";
 import { nanoid } from "nanoid";
+import { type CompanyPage, readCompany } from "../agents/company.js";
 import { type CompanyContact, readContact, readWebsite } from "../agents/website.js";
 import { managed, type Role } from "../manage.js";
 import { readSetting, writeSetting } from "../settings.js";
@@ -248,38 +249,55 @@ function moreFacts(found: Found, lang: Lang): [keyof Found, string][] {
   ];
 }
 
+/** A value as it compares: "FN 44903 i" is "FN 44903i". */
+const sameValue = (a: string, b: string) =>
+  a.replace(/\s+/g, "").toLowerCase() === b.replace(/\s+/g, "").toLowerCase();
+
 /**
  * The space's facts with what the site states added: a fact the space has a value for stays as
  * it is, an empty one is filled, a missing one is added, the basics under their usual keys, the
- * others under a key made from their label.
+ * others under a key made from their label. `more`: facts a model read, by label; one whose
+ * value the space already has is left out.
  */
 export function withFacts(
   facts: ProjectFact[],
   found: Found,
   lang: Lang,
+  more: { label: string; value: string }[] = [],
 ): { facts: ProjectFact[]; added: number } {
   const next = [...facts];
   let added = 0;
-  const rows: [string | null, keyof Found, string][] = [
-    ...FACTS.map(([key, field, label]): [string, keyof Found, string] => [
+  const basicKey = (label: string) =>
+    FACTS.find(([, , l]) => factKey(serverText(lang, l)) === factKey(label))?.[0] ?? null;
+  const rows: [string | null, string | undefined, string][] = [
+    ...FACTS.map(([key, field, label]): [string, string | undefined, string] => [
       key,
-      field,
+      found[field],
       serverText(lang, label),
     ]),
-    ...moreFacts(found, lang).map(([field, label]): [null, keyof Found, string] => [
+    ...moreFacts(found, lang).map(([field, label]): [null, string | undefined, string] => [
       null,
-      field,
+      found[field],
       label,
     ]),
+    ...more
+      .filter((m, i) => !more.slice(0, i).some((x) => sameValue(x.value, m.value)))
+      .map((m): [string | null, string | undefined, string] => [
+        basicKey(m.label),
+        m.value,
+        m.label,
+      ]),
   ];
-  for (const [basic, field, name] of rows) {
-    const value = found[field]?.trim();
+  for (const [i, [basic, raw, name]] of rows.entries()) {
+    const value = raw?.trim();
     const key = basic ?? factKey(name);
     const at = next.findIndex(
       (f) => f.key === key || f.label.trim().toLowerCase() === name.toLowerCase(),
     );
     if (
       !value ||
+      // Beyond the basics, a value the space has under another label is not added twice.
+      (i >= FACTS.length && next.some((f) => sameValue(f.value, value))) ||
       (at >= 0 && next[at].value.trim()) ||
       (at < 0 && next.length >= PROJECT_LIMITS.facts)
     ) {
@@ -322,7 +340,9 @@ const ASSETS = 4;
  * of its colours, the facts its imprint and contact page state (its full name with its legal
  * form among them, where the site goes by a shorter one) and, where the space has none yet, its
  * fonts, its logo and the big pictures of its home page as brand material. What the assistant
- * does on request, done once at the start without a model.
+ * does on request, done once at the start: patterns read the pages, one model call checks and
+ * completes name, about, facts and fonts; without a model or credits the patterns' reading
+ * stands.
  */
 export async function applyWebsite(
   userId: string,
@@ -332,21 +352,46 @@ export async function applyWebsite(
 ): Promise<WebsiteOutcome> {
   const signal = AbortSignal.timeout(30_000);
   const reading = await readWebsite(url, signal, { inline: true });
-  const name = companyOf(reading.siteName || reading.title || new URL(reading.url).hostname);
   const colors = brandColors(reading.brand);
-  const contact = await readContact(reading, signal).catch(() => reading.contact);
-  const about = aboutOf(reading.description, reading.text, contact.purpose);
+  const pages: CompanyPage[] = [{ url: reading.url, text: reading.text }];
+  const contact = await readContact(reading, signal, pages).catch(() => reading.contact);
+  const website = new URL(reading.url).origin;
+  // What the patterns read; a model checks and completes it where one may be used.
+  const found = {
+    name: companyOf(reading.siteName || reading.title || new URL(reading.url).hostname),
+    about: aboutOf(reading.description, reading.text, contact.purpose),
+    fonts: brandFonts(reading.brand.fonts, lang),
+  };
+  const read = await readCompany({
+    lang,
+    pages,
+    found: {
+      name: found.name,
+      company: contact.company,
+      about: found.about,
+      facts: withFacts([], { ...contact, website }, lang).facts.map(({ label, value }) => ({
+        label,
+        value,
+      })),
+      fonts: reading.brand.fonts,
+    },
+    signal: AbortSignal.timeout(30_000),
+  });
+  const name = read?.name ?? found.name;
+  const about = read?.about ?? found.about;
+  const company = read?.company ?? contact.company;
   const project = await ownedProject(userId, projectId);
-  const fonts = project.brand.fonts?.length ? [] : brandFonts(reading.brand.fonts, lang);
+  const fonts = project.brand.fonts?.length ? [] : read?.fonts.length ? read.fonts : found.fonts;
   const facts = withFacts(
     project.facts,
     {
       ...contact,
       // The full name only where it says more than the name the space goes by.
-      company: contact.company?.toLowerCase() === name.toLowerCase() ? undefined : contact.company,
-      website: new URL(reading.url).origin,
+      company: company?.toLowerCase() === name.toLowerCase() ? undefined : company,
+      website,
     },
     lang,
+    read?.facts,
   );
   await updateProject(userId, projectId, {
     brand: {

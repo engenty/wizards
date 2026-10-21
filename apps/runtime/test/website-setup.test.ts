@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { MockLanguageModelV3 } from "ai/test";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 // The first visit reads a company's website into its space: its name, what it does, its logo,
@@ -53,6 +54,41 @@ vi.mock("../src/tools/net-guard", () => ({
     return res;
   },
 }));
+
+// The model the setup asks after the patterns: none (the patterns' reading stands) unless a test
+// gives it an answer.
+const llm = vi.hoisted(() => ({ answer: null as unknown, prompts: [] as string[] }));
+vi.mock("../src/models.js", async (original) => {
+  const models = await original<typeof import("../src/models.js")>();
+  return {
+    ...models,
+    textModel: async () => {
+      if (llm.answer === null) {
+        throw new models.ModelUnavailableError("No model in this test.");
+      }
+      return {
+        model: new MockLanguageModelV3({
+          doGenerate: async (options) => {
+            llm.prompts.push(JSON.stringify(options.prompt));
+            return {
+              content: [{ type: "text", text: JSON.stringify(llm.answer) }],
+              finishReason: { unified: "stop", raw: "stop" },
+              usage: {
+                inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+                outputTokens: { total: 1, text: 1, reasoning: undefined },
+              },
+              warnings: [],
+            };
+          },
+        }),
+        ref: "test/scripted",
+        vendor: "test",
+        gateway: false,
+        metered: true,
+      };
+    },
+  };
+});
 
 function serveSite(overrides: Record<string, string> = {}) {
   pages.clear();
@@ -369,7 +405,8 @@ describe("the facts", () => {
 });
 
 describe("reading a website into the space", () => {
-  it("fills name, about, colours, fonts, facts, the logo and the brand material", async () => {
+  it("fills name, about, colours, fonts, facts, the logo and the brand material without a model", async () => {
+    llm.answer = null;
     serveSite();
     const { createCanvas } = await import("@napi-rs/canvas");
     const picture = new Uint8Array(await createCanvas(4, 3).encode("png"));
@@ -450,5 +487,124 @@ describe("reading a website into the space", () => {
       [SHARE, "share image of www.sfg.at"],
       [HERO, "Logo Innovationspreis Steiermark"],
     ]);
+  });
+});
+
+describe("the model after the patterns", () => {
+  const answer = {
+    name: "SFG",
+    company: LEGAL_NAME,
+    about:
+      "Die SFG ist die Wirtschaftsförderung des Landes Steiermark. Sie unterstützt steirische Unternehmen bei Gründung, Forschung und Wachstum.",
+    facts: [
+      // Read by the patterns already, under the same or another label.
+      { label: "Telefon", value: "+43 316 7093-0" },
+      { label: "Firmenbuch", value: "FN 44903i" },
+      { label: "Medieninhaber", value: LEGAL_NAME },
+      // New, and on the imprint.
+      { label: "Eigentümer", value: "Land Steiermark" },
+      // Not on any page: dropped.
+      { label: "Öffnungszeiten", value: "Mo–Fr 8–17 Uhr" },
+    ],
+    fonts: [
+      { family: "geomanist", role: "Überschriften und Fließtext" },
+      { family: "Comic Sans", role: "Zitate" },
+    ],
+  };
+
+  it("completes the space with what the pages state, and nothing else", async () => {
+    serveSite();
+    llm.answer = answer;
+    llm.prompts.length = 0;
+    // A space without facts and fonts yet.
+    await send("PATCH", `/api/studio/projects/${spaceId}`, { facts: [], brand: { fonts: [] } });
+    const res = await send("POST", `/api/studio/projects/${spaceId}/website`, {
+      url: `${SITE}/`,
+      lang: "de",
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ name: "SFG", about: true, fonts: 1, facts: 16 });
+    // The model reads the imprint and what the patterns found.
+    expect(llm.prompts).toHaveLength(1);
+    expect(llm.prompts[0]).toContain("Unternehmensgegenstand");
+    expect(llm.prompts[0]).toContain("FN 44903 i");
+
+    const projects = (await (await send("GET", "/api/studio/projects")).json()) as {
+      id: string;
+      brand: { about: string; fonts: { family: string; role: string; weights: number[] }[] };
+      facts: { key: string; label: string; value: string }[];
+    }[];
+    const space = projects.find((p) => p.id === spaceId);
+    expect(space?.brand.about).toBe(answer.about);
+    expect(space?.brand.fonts).toMatchObject([
+      { family: "Geomanist", role: "Überschriften und Fließtext", weights: [400, 500, 700] },
+    ]);
+    expect(space?.facts.map((f) => f.label)).toEqual([
+      "Adresse",
+      "PLZ",
+      "Ort",
+      "USt-IdNr.",
+      "Telefon",
+      "E-Mail",
+      "Website",
+      "Firmenname",
+      "Firmenbuchnummer",
+      "Firmenbuchgericht",
+      "Geschäftsführung",
+      "LinkedIn",
+      "Facebook",
+      "Instagram",
+      "YouTube",
+      "Eigentümer",
+    ]);
+    expect(space?.facts.at(-1)).toEqual({
+      key: "eigentuemer",
+      label: "Eigentümer",
+      value: "Land Steiermark",
+    });
+    llm.answer = null;
+  });
+
+  it("keeps only names and facts whose words are on the pages", async () => {
+    const { grounded } = await import("../src/agents/company");
+    const pages = [
+      {
+        url: SITE,
+        text: "Impressum\n\nMuster GmbH\n\n[LinkedIn](https://www.linkedin.com/company/muster-gro%C3%9Fhandel)",
+      },
+    ];
+    expect(
+      grounded(
+        {
+          name: "Muster AG",
+          company: "Muster GmbH",
+          about: "Kurz.",
+          facts: [
+            { label: "LinkedIn", value: "https://www.linkedin.com/company/muster-großhandel" },
+            { label: "Geschäftsführung", value: "Max Muster" },
+          ],
+          fonts: [{ family: "Inter", role: "Fließtext" }],
+        },
+        pages,
+        [{ family: "Inter", weights: [400] }],
+      ),
+    ).toEqual({
+      company: "Muster GmbH",
+      facts: [{ label: "LinkedIn", value: "https://www.linkedin.com/company/muster-großhandel" }],
+      fonts: [{ family: "Inter", role: "Fließtext", weights: [400] }],
+    });
+  });
+
+  it("leaves the patterns' reading where the model's answer is unusable", async () => {
+    const { readCompany } = await import("../src/agents/company");
+    llm.answer = "no profile here";
+    expect(
+      await readCompany({
+        lang: "de",
+        pages: [{ url: SITE, text: "Impressum" }],
+        found: { name: "SFG", about: "", facts: [], fonts: [] },
+      }),
+    ).toBeNull();
+    llm.answer = null;
   });
 });

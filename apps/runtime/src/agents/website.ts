@@ -1121,6 +1121,8 @@ const complete = (c: CompanyContact) => CONTACT_KEYS.every((k) => c[k]);
 export async function readContact(
   reading: Pick<WebsiteReading, "url" | "links" | "contact">,
   signal?: AbortSignal,
+  /** Gets the text of each page read, for a model to read after the patterns. */
+  pages?: { url: string; text: string }[],
 ): Promise<CompanyContact> {
   const contact = { ...reading.contact };
   const imprint = reading.links.find((l) => /impressum|imprint|legal-notice/i.test(l.url));
@@ -1131,6 +1133,7 @@ export async function readContact(
     }
     try {
       const { base, html } = await loadPage(link.url, signal);
+      pages?.push({ url: base, text: htmlToMarkdown(html) });
       const found = contactOf(html, base);
       for (const key of ALL_KEYS) {
         contact[key] ??= found[key];
