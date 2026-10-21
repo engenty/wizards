@@ -103,7 +103,7 @@ const GRANT_TTL = 30_000;
 
 /**
  * A signed token lives its hour whatever happens; whether the person still allows the app —
- * and is still in the team — the Manage-App knows. Asked at most every 30 seconds per grant;
+ * and is still in the organization — the Manage-App knows. Asked at most every 30 seconds per grant;
  * when it cannot be asked, the token is refused.
  */
 async function grantStands(userId: string, clientId: string, tenantId: string) {

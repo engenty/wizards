@@ -6,6 +6,8 @@ import {
   setRunnerTable,
 } from "@engenty/wizards-runner/i18n";
 import {
+  britishEnglish,
+  britishSpelling,
   isLang,
   type Lang,
   localLang,
@@ -144,7 +146,7 @@ const de: Record<Key, Line> = {
   "models.cap.listening.hint": "Versteht Gesprochenes und macht aus Sprachnotizen Text.",
   "models.way.local": "Lokales Modell",
   "models.way.credits": "Guthaben",
-  "models.way.creditsTeam": "Guthaben des Teams",
+  "models.way.creditsOrganization": "Guthaben der Organisation",
   "models.way.none": "nicht eingerichtet",
   "models.who": "Wer macht das?",
   "models.optSubscription": "Dein Abo",
@@ -200,7 +202,8 @@ const de: Record<Key, Line> = {
   "models.keyOk": "Der Key funktioniert.",
   "models.keyBad": "Der Key wurde nicht angenommen.",
   "models.keyWhereLocal": "Der Key bleibt auf diesem Computer, nie in der Datenbank.",
-  "models.keyWhereCloud": "Der Key liegt verschlüsselt beim Team. Niemand sieht ihn wieder.",
+  "models.keyWhereCloud":
+    "Der Key liegt verschlüsselt bei der Organisation. Niemand sieht ihn wieder.",
   "models.keyFallback": "Bis der Key da ist, springt das Guthaben ein.",
   "models.uses": "Wofür",
   "models.useFor": "Verwenden",
@@ -220,7 +223,7 @@ const de: Record<Key, Line> = {
   "models.tryHeardNothing": "Nichts gehört – aber das Modell ist erreichbar.",
   "models.tryFailed": "Das hat nicht geklappt: {error}",
   "models.creditsName": "engenty-Guthaben",
-  "models.creditsTeam": "Guthaben des Teams",
+  "models.creditsOrganization": "Guthaben der Organisation",
   "models.creditsLocalLead": "Springt ein, wo kein Abo und kein eigener API-Key eingerichtet ist.",
   "models.creditsCloudHint":
     "Alles ohne eigenen API-Key läuft über das Guthaben. Eigene Keys gehen vor und kosten keine Credits.",
@@ -241,7 +244,7 @@ const de: Record<Key, Line> = {
   "models.clientImages": "{name} erzeugt Bilder mit deinem {sub} – ohne eigenen API-Key.",
   "models.clientNotChosen": "Text läuft gerade nicht über {name}.",
   "models.ollamaHint": "Adresse von Ollama und das Modell, das dort läuft.",
-  "models.readOnly": "Nur Admins des Teams ändern die Modelle.",
+  "models.readOnly": "Nur Admins der Organisation ändern die Modelle.",
   "models.viewAs": "Vorschau als",
   "models.view.auto": "aktuell",
   "models.view.local": "Computer",
@@ -251,10 +254,10 @@ const de: Record<Key, Line> = {
   "setup.sub": "engenty kann deine vorhandenen Konten auf deinem Computer nutzen.",
   "setup.source": "Womit soll engenty denken?",
   "setup.local": "Läuft auf diesem Computer.",
-  "setup.thisComputer": "Dieser Computer: Space {space} von {team}",
+  "setup.thisComputer": "Dieser Computer: Space {space} von {organization}",
   "setup.account": "Dein engenty-Konto",
   "setup.accountText":
-    "Dein Team, sein Space und deine Wizards liegen in deinem Konto. Dieser Computer tritt dem Space bei.",
+    "Deine Organisation, ihr Space und deine Wizards liegen in deinem Konto. Dieser Computer tritt dem Space bei.",
   "setup.accountLinked": "Angemeldet als {name}",
   "setup.accountCredits": "{credits} Credits",
   "setup.creditsChoice": "engenty-Guthaben",
@@ -262,10 +265,10 @@ const de: Record<Key, Line> = {
     "Läuft über das Guthaben deines Kontos, wie in der Cloud. Nichts zu installieren.",
   "onboard.kicker1": "Willkommen, {name}",
   "onboard.kicker1Anon": "Willkommen",
-  "onboard.team": "Wie heißt dein Team?",
-  "onboard.teamSub":
-    "Deine Firma, dein Verein oder einfach dein Name. Das Team ist dein Konto: Dort liegen dein Guthaben und deine Wizards. Umbenennen kannst du es jederzeit.",
-  "onboard.teamPlaceholder": "Berger Fenster & Türen",
+  "onboard.organization": "Wie heißt deine Organisation?",
+  "onboard.organizationSub":
+    "Deine Firma, dein Verein oder einfach dein Name. Die Organisation ist dein Konto: Dort liegen dein Guthaben und deine Wizards. Umbenennen kannst du sie jederzeit.",
+  "onboard.organizationPlaceholder": "Berger Fenster & Türen",
   "onboard.kind": "Wofür nutzt du engenty?",
   "onboard.kindSub": "Damit wir dir die passenden Vorlagen und Tipps zeigen.",
   "onboard.guess": "Aus {domain} geraten: {kind}. Stimmt das nicht, wähl einfach anders.",
@@ -358,7 +361,7 @@ const de: Record<Key, Line> = {
   "onboard.kicker4": "Dein Space",
   "onboard.space": "All das liegt in deinem Space.",
   "onboard.spaceSub":
-    "Der erste Space deines Teams heißt {space}. Hier liegt alles, was deine Wizards gemeinsam nutzen und erzeugen. Jeder KI-Schritt kennt den Space, darum fragt ein Wizard nie nach deinem Namen oder deinen Preisen. Umbenennen kannst du ihn jederzeit, das Haus in der App-Leiste öffnet ihn.",
+    "Der erste Space deiner Organisation heißt {space}. Hier liegt alles, was deine Wizards gemeinsam nutzen und erzeugen. Jeder KI-Schritt kennt den Space, darum fragt ein Wizard nie nach deinem Namen oder deinen Preisen. Umbenennen kannst du ihn jederzeit, das Haus in der App-Leiste öffnet ihn.",
   "onboard.partInfo": "Info & Marke",
   "onboard.partInfoText":
     "Wer du bist und wie du aussiehst: Titel, Über uns, Logo, Farben, Fakten.",
@@ -569,28 +572,28 @@ const de: Record<Key, Line> = {
   "home.newProject": "Neuer Space",
   "home.projectName": "Name des Space",
   "home.projectLimit": { one: "Höchstens {n} Space", other: "Höchstens {n} Spaces" },
-  "team.title": "Team",
-  "team.hint":
-    "Wer im Team ist und auf welchem Paket es läuft. Einladen und verwalten kannst du im Konto.",
-  "team.plan": "Paket",
-  "team.planFree": "Free",
-  "team.seats": "{taken} von {limit} Plätzen",
-  "team.seatsUnlimited": "Plätze ohne Limit",
-  "team.members": "Mitglieder",
-  "team.invited": "eingeladen",
-  "team.you": "du",
-  "team.manage": "Mitglieder verwalten",
-  "team.changePlan": "Paket ansehen",
-  "team.roles":
+  "organization.title": "Organisation",
+  "organization.hint":
+    "Wer in der Organisation ist und auf welchem Paket sie läuft. Einladen und verwalten kannst du im Konto.",
+  "organization.plan": "Paket",
+  "organization.planFree": "Free",
+  "organization.seats": "{taken} von {limit} Plätzen",
+  "organization.seatsUnlimited": "Plätze ohne Limit",
+  "organization.members": "Mitglieder",
+  "organization.invited": "eingeladen",
+  "organization.you": "du",
+  "organization.manage": "Mitglieder verwalten",
+  "organization.changePlan": "Paket ansehen",
+  "organization.roles":
     "Inhaber:innen und Admins legen Wizards und Spaces an und löschen sie. Mitglieder bearbeiten die vorhandenen Wizards.",
-  "team.memberNote":
+  "organization.memberNote":
     "Du bist Mitglied: Du bearbeitest Wizards. Admins legen neue an und löschen sie.",
-  "team.failed": "Das Team ließ sich nicht laden.",
-  "team.role.owner": "Inhaber:in",
-  "team.role.admin": "Admin",
-  "team.role.member": "Mitglied",
+  "organization.failed": "Die Organisation ließ sich nicht laden.",
+  "organization.role.owner": "Inhaber:in",
+  "organization.role.admin": "Admin",
+  "organization.role.member": "Mitglied",
   "models.ownKeysPlan":
-    "Eigene API-Keys gibt es ab dem Pro-Paket. Hier wird mit den Credits des Teams bezahlt.",
+    "Eigene API-Keys gibt es ab dem Pro-Paket. Hier wird mit den Credits der Organisation bezahlt.",
   "home.fromLocal": "Wird auf deinem Computer bearbeitet.",
   "home.syncedAt": "Zuletzt angekommen: {when}.",
   "home.local.title": "Hier laufen die Wizards von deinem Computer",
@@ -1673,7 +1676,7 @@ const de: Record<Key, Line> = {
   "page.inShareHint": "Dort schaltest du jeden Wizard einzeln auf die Seite.",
   "page.sectionWizards": "Wizards auf der Seite",
   "page.intro":
-    "Leute öffnen diese Seite und starten deine Wizards ohne Konto. Läufe gehen auf das Guthaben des Teams.",
+    "Leute öffnen diese Seite und starten deine Wizards ohne Konto. Läufe gehen auf das Guthaben der Organisation.",
   "page.setUp": "Seite einrichten",
   "page.cloudOnly": "Eine öffentliche Seite gibt es für Spaces in der Cloud.",
   "page.sources":
@@ -2120,8 +2123,7 @@ const de: Record<Key, Line> = {
   "assistant.end": "Beenden",
   "assistant.naturalVoice": "Natürliche Stimme (Sprachmodell)",
   "assistant.gotIt": "Verstanden",
-  "assistant.move":
-    "Ziehen, um Goose zu verschieben – nah am unteren oder rechten Rand rastet er ein",
+  "assistant.move": "Ziehen, um Goose zu verschieben – er dockt unten oder am rechten Rand an",
   "assistant.flap": "Verlauf: ziehen für die Höhe, klicken zum Ein- und Ausklappen",
   "assistant.busyComposer":
     "Dazwischen schreiben – Enter: vor dem nächsten Schritt, {keys}: danach",
@@ -2384,7 +2386,7 @@ const en = {
   "models.cap.listening.hint": "Understands speech and turns voice notes into text.",
   "models.way.local": "Local model",
   "models.way.credits": "Credits",
-  "models.way.creditsTeam": "Team credits",
+  "models.way.creditsOrganization": "Organization credits",
   "models.way.none": "not set up",
   "models.who": "Who does it?",
   "models.optSubscription": "Your subscription",
@@ -2440,7 +2442,7 @@ const en = {
   "models.keyOk": "The key works.",
   "models.keyBad": "The key wasn’t accepted. Check it and try again.",
   "models.keyWhereLocal": "The key stays on this computer, never in the database.",
-  "models.keyWhereCloud": "The key is kept encrypted for the team. Nobody sees it again.",
+  "models.keyWhereCloud": "The key is kept encrypted for the organization. Nobody sees it again.",
   "models.keyFallback": "Until you add a key, credits step in.",
   "models.uses": "Used for",
   "models.useFor": "Use",
@@ -2460,7 +2462,7 @@ const en = {
   "models.tryHeardNothing": "Nothing heard – but the connection works.",
   "models.tryFailed": "That didn’t work: {error}",
   "models.creditsName": "engenty credits",
-  "models.creditsTeam": "Team credits",
+  "models.creditsOrganization": "Organization credits",
   "models.creditsLocalLead":
     "Credits step in where you have no subscription or API key of your own.",
   "models.creditsCloudHint":
@@ -2483,7 +2485,7 @@ const en = {
   "models.clientImages": "{name} makes images with your {sub} – no API key of your own.",
   "models.clientNotChosen": "Text doesn’t run on {name} right now.",
   "models.ollamaHint": "Where Ollama runs and the model it serves.",
-  "models.readOnly": "Only the team’s admins can change its models.",
+  "models.readOnly": "Only the organization’s admins can change its models.",
   "models.viewAs": "Preview as",
   "models.view.auto": "as it is",
   "models.view.local": "this computer",
@@ -2493,20 +2495,20 @@ const en = {
   "setup.sub": "engenty wizards can use your existing accounts on your computer.",
   "setup.source": "Choose how the AI runs",
   "setup.local": "Runs on this computer.",
-  "setup.thisComputer": "This computer: space {space} of {team}",
+  "setup.thisComputer": "This computer: space {space} of {organization}",
   "setup.account": "Your engenty account",
   "setup.accountText":
-    "Your team, its space and your wizards belong to the account. This computer joins the space.",
+    "Your organization, its space and your wizards belong to the account. This computer joins the space.",
   "setup.accountLinked": "Signed in as {name}",
   "setup.accountCredits": "{credits} credits",
   "setup.creditsChoice": "engenty credits",
   "setup.creditsDesc": "Runs on your account’s credits, as in the cloud. Nothing to install.",
   "onboard.kicker1": "Welcome, {name}",
   "onboard.kicker1Anon": "Welcome",
-  "onboard.team": "What’s your team called?",
-  "onboard.teamSub":
-    "Your company, your club or just your name. The team is your account: it holds your credits and your wizards. You can rename it any time.",
-  "onboard.teamPlaceholder": "Berger Windows & Doors",
+  "onboard.organization": "What’s your organization called?",
+  "onboard.organizationSub":
+    "Your company, your club or just your name. The organization is your account: it holds your credits and your wizards. You can rename it any time.",
+  "onboard.organizationPlaceholder": "Berger Windows & Doors",
   "onboard.kind": "What will you use engenty for?",
   "onboard.kindSub": "So we can show you the templates and tips that fit.",
   "onboard.guess": "Guessed from {domain}: {kind}. If that’s not right, just pick another.",
@@ -2597,7 +2599,7 @@ const en = {
   "onboard.kicker4": "Your space",
   "onboard.space": "All of that lives in your space.",
   "onboard.spaceSub":
-    "Your team’s first space is called {space}. All your wizards share it and add to it: every AI step knows it, so a wizard never asks for your name or your prices. You can rename it any time – the house icon in the app bar opens it.",
+    "Your organization’s first space is called {space}. All your wizards share it and add to it: every AI step knows it, so a wizard never asks for your name or your prices. You can rename it any time – the house icon in the app bar opens it.",
   "onboard.partInfo": "Info & brand",
   "onboard.partInfoText": "Who you are and how you look: title, about, logo, colours, facts.",
   "onboard.partKnow": "Knowledge",
@@ -2804,27 +2806,28 @@ const en = {
   "home.newProject": "New space",
   "home.projectName": "Space name",
   "home.projectLimit": { one: "At most {n} space", other: "At most {n} spaces" },
-  "team.title": "Team",
-  "team.hint":
-    "Who’s in the team and which plan it’s on. You invite and manage members in the account.",
-  "team.plan": "Plan",
-  "team.planFree": "Free",
-  "team.seats": "{taken} of {limit} seats",
-  "team.seatsUnlimited": "Unlimited seats",
-  "team.members": "Members",
-  "team.invited": "invited",
-  "team.you": "you",
-  "team.manage": "Manage members",
-  "team.changePlan": "See plans",
-  "team.roles":
+  "organization.title": "Organization",
+  "organization.hint":
+    "Who’s in the organization and which plan it’s on. You invite and manage members in the account.",
+  "organization.plan": "Plan",
+  "organization.planFree": "Free",
+  "organization.seats": "{taken} of {limit} seats",
+  "organization.seatsUnlimited": "Unlimited seats",
+  "organization.members": "Members",
+  "organization.invited": "invited",
+  "organization.you": "you",
+  "organization.manage": "Manage members",
+  "organization.changePlan": "See plans",
+  "organization.roles":
     "Owners and admins create and delete wizards and spaces. Members edit existing wizards.",
-  "team.memberNote": "You’re a member: you can edit wizards. Admins create and delete them.",
-  "team.failed": "The team couldn’t be loaded. Try again.",
-  "team.role.owner": "Owner",
-  "team.role.admin": "Admin",
-  "team.role.member": "Member",
+  "organization.memberNote":
+    "You’re a member: you can edit wizards. Admins create and delete them.",
+  "organization.failed": "The organization couldn’t be loaded. Try again.",
+  "organization.role.owner": "Owner",
+  "organization.role.admin": "Admin",
+  "organization.role.member": "Member",
   "models.ownKeysPlan":
-    "Your own API keys come with the Pro plan. Here, runs use the team’s credits.",
+    "Your own API keys come with the Pro plan. Here, runs use the organization’s credits.",
   "home.fromLocal": "Edited on your computer.",
   "home.syncedAt": "Arrived in the cloud: {when}.",
   "home.local.title": "Wizards you publish from your computer run here",
@@ -3884,7 +3887,7 @@ const en = {
   "page.inShareHint": "That is where you put each wizard on the page, one by one.",
   "page.sectionWizards": "Wizards on the page",
   "page.intro":
-    "People open this page and start your wizards without an account. Runs go on the team’s credits.",
+    "People open this page and start your wizards without an account. Runs go on the organization’s credits.",
   "page.setUp": "Set up the page",
   "page.cloudOnly": "A public page is there for spaces in the cloud.",
   "page.sources":
@@ -4325,7 +4328,7 @@ const en = {
   "assistant.end": "End",
   "assistant.naturalVoice": "Natural voice (speech model)",
   "assistant.gotIt": "Got it",
-  "assistant.move": "Drag to move Goose – near the bottom or the right edge it snaps into place",
+  "assistant.move": "Drag to move Goose – it docks at the bottom or at the right edge",
   "assistant.flap": "Chat history: drag to resize, click to fold it in or out",
   "assistant.busyComposer": "Write in between – Enter: before the next step, {keys}: after",
   "assistant.pending": "Waiting for Goose",
@@ -4634,10 +4637,22 @@ export function useLang(): Lang {
   return lang;
 }
 
+/** Whether this browser reads British English (en-GB): the studio's English then spells "organisation". */
+const british =
+  typeof navigator !== "undefined" && britishEnglish(navigator.languages ?? [navigator.language]);
+
+/** The studio's English as this browser's reader spells it. */
+function spelled(text: string): string {
+  return british && lang === "en" ? britishSpelling(text) : text;
+}
+
 /** What a run reports, in the language the person reads: its note where it has one. */
 export function eventText(ev: { message: string; note?: RunNote | null }): string {
   const table = runnerTable();
-  return (ev.note && noteText(ev.note, table?.lang ?? lang, table?.notes)) || ev.message;
+  if (table) {
+    return (ev.note && noteText(ev.note, table.lang, table.notes)) || ev.message;
+  }
+  return spelled((ev.note && noteText(ev.note, lang)) || ev.message);
 }
 
 /** A string in the language in effect: its plural form by `{count}` or `{n}`, its gaps filled. */
@@ -4648,7 +4663,19 @@ export function t(key: Key, vars?: Record<string, string | number>): string {
   if (table && own !== undefined) {
     return lineText(own, table.lang, vars);
   }
-  return textOf(TEXTS, key, lang, vars);
+  if (!(british && lang === "en")) {
+    return textOf(TEXTS, key, lang, vars);
+  }
+  // British spelling for the line's own words, never for what fills its gaps (a name).
+  const held: string[] = [];
+  const marked: Record<string, string | number> = {};
+  for (const [name, value] of Object.entries(vars ?? {})) {
+    marked[name] = typeof value === "number" ? value : `\uE000${held.push(value) - 1}\uE000`;
+  }
+  return britishSpelling(textOf(TEXTS, key, lang, marked)).replace(
+    /\uE000(\d+)\uE000/g,
+    (_, i: string) => held[Number(i)] ?? "",
+  );
 }
 
 if (typeof document !== "undefined") {

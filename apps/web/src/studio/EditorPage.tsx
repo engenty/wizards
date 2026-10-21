@@ -451,7 +451,7 @@ function Editor() {
   const missing = models.data?.missing ?? [];
   // A local install with an account sends what it publishes on to the account's cloud.
   const cloudLinked = me.data?.mode === "local" && Boolean(me.data.account);
-  // The team's public page, where the wizard stands on it: one more place it runs.
+  // The organization's public page, where the wizard stands on it: one more place it runs.
   const pagesHost = me.data?.tenant.pagesHost ?? null;
   const spacePage = projects.data?.find((p) => p.id === wizard.data?.projectId)?.page;
   const onPage =

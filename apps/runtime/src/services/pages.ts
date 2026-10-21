@@ -24,7 +24,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { mainLogoId } from "./brand.js";
 
 /**
- * The team's public page at `<team>.wizards.page` (docs/plans/wizards-page-launch.md in the
+ * The organization's public page at `<organization>.wizards.page` (docs/plans/wizards-page-launch.md in the
  * Manage repository): what Manage draws it from, made here from the space that has its page on
  * and the published definitions of the wizards it lists, and sent whole with the service key
  * (`PUT /v1/pages/:tenantId`, docs/manage-contract.md) after a publish and after every change
@@ -60,11 +60,11 @@ export interface PageSpace {
   wizards: PageWizard[];
 }
 
-export interface PageTeam {
+export interface PageOrganization {
   slug: string;
   name: string;
   lang: PageLang;
-  /** Null: the team has no page; its address shows Manage's "nothing here" page. */
+  /** Null: the organization has no page; its address shows Manage's "nothing here" page. */
   space: PageSpace | null;
 }
 
@@ -181,22 +181,24 @@ function wizardSlug(title: string, taken: Set<string>): string {
   return slug;
 }
 
-/** The team's page data as Manage expects it; null where this runtime is not a team's. */
-export async function pageTeam(): Promise<PageTeam | null> {
+/** The organization's page data as Manage expects it; null where this runtime is not an organization's. */
+export async function pageOrganization(): Promise<PageOrganization | null> {
   if (!managed) {
     return null;
   }
   const tenantId = currentTenant();
-  const team = await tenantInfo(tenantId);
-  // Only one space of a team has its page on (services/projects.ts).
+  const organization = await tenantInfo(tenantId);
+  // Only one space of an organization has its page on (services/projects.ts).
   const spaces = await db.query.project.findMany({
     where: eq(schema.project.tenantId, tenantId),
   });
-  // Behind its switch the team has no page: what Manage holds is sent as none.
-  const space = feature("pages", team.features) ? (spaces.find((p) => p.page?.on) ?? null) : null;
+  // Behind its switch the organization has no page: what Manage holds is sent as none.
+  const space = feature("pages", organization.features)
+    ? (spaces.find((p) => p.page?.on) ?? null)
+    : null;
   const page = space?.page;
   const lang: PageLang = page?.lang ?? "de";
-  const base = { slug: team.slug ?? tenantId, name: team.name, lang };
+  const base = { slug: organization.slug ?? tenantId, name: organization.name, lang };
   if (!(space && page)) {
     return { ...base, space: null };
   }
@@ -292,7 +294,7 @@ export async function pageTeam(): Promise<PageTeam | null> {
 }
 
 /**
- * Where the team's page is opened: `https://<host>`; on a `.localhost` domain in development
+ * Where the organization's page is opened: `https://<host>`; on a `.localhost` domain in development
  * `http://<host>:<Manage's port>`, as Manage serves it there.
  */
 export function pageOrigin(host: string): string {
@@ -303,24 +305,24 @@ export function pageOrigin(host: string): string {
   return `https://${host}`;
 }
 
-/** What the studio's "Public page" part shows beside its fields: the team's address and page data. */
+/** What the studio's "Public page" part shows beside its fields: the organization's address and page data. */
 export async function pagePreview(): Promise<{
   host: string | null;
   origin: string | null;
-  team: PageTeam | null;
+  organization: PageOrganization | null;
 }> {
   if (!managed) {
-    return { host: null, origin: null, team: null };
+    return { host: null, origin: null, organization: null };
   }
-  const team = await tenantInfo(currentTenant());
-  const host = feature("pages", team.features) ? (team.pagesHost ?? null) : null;
-  return { host, origin: host ? pageOrigin(host) : null, team: await pageTeam() };
+  const organization = await tenantInfo(currentTenant());
+  const host = feature("pages", organization.features) ? (organization.pagesHost ?? null) : null;
+  return { host, origin: host ? pageOrigin(host) : null, organization: await pageOrganization() };
 }
 
 let last: Promise<void> = Promise.resolve();
 
 /**
- * Sends the team's page data to Manage, whole; a space switched off or with no listed wizard
+ * Sends the organization's page data to Manage, whole; a space switched off or with no listed wizard
  * published and shared is sent as none. Not waited for by the change that caused it: a failure
  * is logged, and the next change sends everything again. `pagesSettled` waits for the last send.
  */
@@ -329,7 +331,7 @@ export function pushPages(): void {
     return;
   }
   const send = async () => {
-    const data = await pageTeam();
+    const data = await pageOrganization();
     if (data) {
       await putPages(currentTenant(), data);
     }

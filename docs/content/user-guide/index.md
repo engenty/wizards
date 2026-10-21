@@ -15,7 +15,7 @@ briefing, an invoice, a quote, a damage report.
 | **Describe it** | You say in plain words what the wizard should do. The assistant builds it, and you see each page in a preview and the flow as a diagram, and can change any step. |
 | **Let AI steps work** | They research the web, write, draw images, render video, read PDFs, scans and emails, build documents and dashboards, and write into other services. Anything that changes an account asks first. |
 | **Share a link** | Anyone can run the wizard in a browser, on a phone too. Results download as PDF, Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link. |
-| **In the cloud, or on your computer** | You sign up and build in the browser, and links run on your team’s credits. Or you install it on your computer: there it runs on Codex, Claude Code, Antigravity or Cursor Agent with your own subscription, on your own API keys or on a local model, and your files stay with you. |
+| **In the cloud, or on your computer** | You sign up and build in the browser, and links run on your organization’s credits. Or you install it on your computer: there it runs on Codex, Claude Code, Antigravity or Cursor Agent with your own subscription, on your own API keys or on a local model, and your files stay with you. |
 
 ## Where to start
 
@@ -30,8 +30,8 @@ briefing, an invoice, a quote, a damage report.
 | Word | Means |
 |---|---|
 | Account | You, signed in at engenty.ai with Google, GitHub or a link by email |
-| Team | What the sign-up creates: it holds your credits and your spaces |
-| Space | What all your wizards know and produce: name, logo, colours, facts, documents, data, results. A team’s first one in the cloud is “My wizards”; on your computer it is “My computer” (in German: “Meine Wizards”, “Mein Computer”) |
+| Organization | What the sign-up creates: it holds your credits and your spaces |
+| Space | What all your wizards know and produce: name, logo, colours, facts, documents, data, results. An organization’s first one in the cloud is “My wizards”; on your computer it is “My computer” (in German: “Meine Wizards”, “Mein Computer”) |
 | Studio | Where you build wizards: engenty.ai/studio, or `/studio` on your computer |
 | Wizard | A flow of steps a person walks through on a link |
 | Step | One part of the flow: a page, an AI step, a review, the result |
@@ -40,8 +40,8 @@ briefing, an invoice, a quote, a damage report.
 
 ## Two places it runs
 
-Your team, its spaces and your wizards live in your account. engenty.ai is the cloud: you build
-there in the browser, and links run day and night on the team’s credits. Your computer can join:
+Your organization, its spaces and your wizards live in your account. engenty.ai is the cloud: you build
+there in the browser, and links run day and night on the organization’s credits. Your computer can join:
 you [install](./install.md) engenty wizards there and sign in to the same account. It then uses
 the AI clients and keys on that computer, and what you publish there runs in the cloud as well
 ([Test and share](./test-and-share.md#in-the-cloud)). In the cloud studio, that space is marked

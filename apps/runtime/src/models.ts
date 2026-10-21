@@ -169,7 +169,7 @@ export async function loadLocalModels() {
   local.keys = keys;
 }
 
-/** A team on a runtime of a Manage-App: its own keys, sealed, and what each class runs on. */
+/** An organization on a runtime of a Manage-App: its own keys, sealed, and what each class runs on. */
 interface StoredTenantModels {
   bindings: Partial<Record<ModelClass, string>>;
   keys: string | null;
@@ -178,8 +178,8 @@ interface StoredTenantModels {
 const tenantConfigs = new Map<string, ModelConfig>();
 const tenantSetting = (tenant: string) => `models:${tenant}`;
 
-/** A team thinks on its credits unless it brought a key: `own`, with the credits behind it. */
-function teamSettings(bindings: Partial<Record<ModelClass, string>>): LocalModelSettings {
+/** An organization thinks on its credits unless it brought a key: `own`, with the credits behind it. */
+function organizationSettings(bindings: Partial<Record<ModelClass, string>>): LocalModelSettings {
   return { source: "own", bindings, creditFallback: true };
 }
 
@@ -190,7 +190,7 @@ async function tenantConfig(tenant: string): Promise<ModelConfig> {
   }
   const stored = await readSetting<StoredTenantModels>(tenantSetting(tenant));
   const value: ModelConfig = {
-    settings: teamSettings(stored?.bindings ?? {}),
+    settings: organizationSettings(stored?.bindings ?? {}),
     keys: (stored?.keys ? unseal<ModelConfig["keys"]>(stored.keys) : null) ?? {},
   };
   tenantConfigs.set(tenant, value);
@@ -202,7 +202,7 @@ async function config(): Promise<ModelConfig> {
     return local;
   }
   const tenant = currentTenantOrNull();
-  return tenant ? tenantConfig(tenant) : { settings: teamSettings({}), keys: {} };
+  return tenant ? tenantConfig(tenant) : { settings: organizationSettings({}), keys: {} };
 }
 
 function mergeBindings(
@@ -252,7 +252,7 @@ export async function saveLocalModels(input: ModelSettingsInput) {
   await loadLocalModels();
 }
 
-/** A team's keys and bindings on a runtime of a Manage-App. No client and no local model there. */
+/** An organization's keys and bindings on a runtime of a Manage-App. No client and no local model there. */
 async function saveTenantModels(tenant: string, input: ModelSettingsInput) {
   const current = await tenantConfig(tenant);
   const keys = { ...current.keys };

@@ -30,8 +30,15 @@ type Step = 1 | 2 | 3 | 4;
  * The pages, in the address (`?page=site`): the browser's Back and Forward go between them.
  * Step 1 has three pages the dots count as one: what for, the questions that fit, the name.
  */
-type Page = "kind" | "details" | "team" | "site" | "know" | "space";
-const STEP_OF: Record<Page, Step> = { kind: 1, details: 1, team: 1, site: 2, know: 3, space: 4 };
+type Page = "kind" | "details" | "organization" | "site" | "know" | "space";
+const STEP_OF: Record<Page, Step> = {
+  kind: 1,
+  details: 1,
+  organization: 1,
+  site: 2,
+  know: 3,
+  space: 4,
+};
 const isPage = (value: string | null): value is Page =>
   value !== null && Object.hasOwn(STEP_OF, value);
 
@@ -108,7 +115,7 @@ function Dots({ step }: { step: Step }) {
   );
 }
 
-// --- Who the team is: what it uses engenty for, and the questions that fit ----------------
+// --- Who the organization is: what it uses engenty for, and the questions that fit ----------------
 
 type Kind = "personal" | "club" | "small" | "corp";
 
@@ -281,7 +288,7 @@ type UploadState = { name: string; state: "uploading" | "done" | "failed" };
 /**
  * A state of the onboarding kept in the tab's session storage, so a reload or the browser's
  * Back and Forward find the answers as they were typed: without it a page went back empty, and
- * going on from it saved the blanks over what the team had already given. `forget` clears it
+ * going on from it saved the blanks over what the organization had already given. `forget` clears it
  * all once the onboarding is done. Storage that refuses (a private window, a full quota) only
  * means the answers live as long as the page.
  */
@@ -324,8 +331,8 @@ function forgetKept() {
 }
 
 /**
- * The first visit of a team's studio in the cloud, as a wizard of the product's own kind: one
- * question per page, the engenty beside it. Who the team is, where its website is, what the
+ * The first visit of an organization's studio in the cloud, as a wizard of the product's own kind: one
+ * question per page, the engenty beside it. Who the organization is, where its website is, what the
  * wizards should know, and what the space is that holds all of it. Every page but the first
  * can be skipped; everything can be changed later under Space and Settings.
  */
@@ -336,7 +343,7 @@ export function OnboardingPage() {
   const navigate = useNavigate();
   const { project } = useCurrentProject();
   const user = me.data?.user.id ?? "";
-  const [team, setTeam] = useKept(user, "team", "");
+  const [organization, setOrganization] = useKept(user, "organization", "");
   const [site, setSite] = useKept(user, "site", "");
   const [line, setLine] = useKept<string | null>(user, "line", null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -367,10 +374,10 @@ export function OnboardingPage() {
       return query;
     });
   const answer = (patch: Partial<Profile>) => setProfile((p) => ({ ...p, ...patch }));
-  // Kept at the Manage-App with the team; a failure here holds nobody up.
+  // Kept at the Manage-App with the organization; a failure here holds nobody up.
   const keep = useMutation({
     mutationFn: (website: string | undefined) =>
-      api.put("/api/studio/team/profile", {
+      api.put("/api/studio/organization/profile", {
         kind: profile.kind,
         size: profile.size,
         sector: profile.sector.trim() || null,
@@ -381,7 +388,7 @@ export function OnboardingPage() {
         website: website?.trim() || null,
       }),
   });
-  /** Just them, no business or club: the pages ask about the person, not a team or a brand. */
+  /** Just them, no business or club: the pages ask about the person, not an organization or a brand. */
   const personal = profile.kind === "personal";
   /** On to the website, with the address's domain where it is a business's. */
   const toSite = () => {
@@ -392,8 +399,8 @@ export function OnboardingPage() {
   };
 
   const rename = useMutation({
-    mutationFn: (name: string) => api.put("/api/studio/team", { name }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    mutationFn: (name: string) => api.put("/api/studio/organization", { name }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["organization"] }),
   });
   const read = useMutation({
     mutationFn: (url: string) =>
@@ -526,14 +533,14 @@ export function OnboardingPage() {
               onSubmit={(e) => {
                 e.preventDefault();
                 keep.mutate(undefined);
-                if (profile.kind === "corp" && profile.legalName.trim() && !team) {
-                  setTeam(profile.legalName.trim());
+                if (profile.kind === "corp" && profile.legalName.trim() && !organization) {
+                  setOrganization(profile.legalName.trim());
                 }
-                // Just them: no team to name (the account page renames it, should one come).
+                // Just them: no organization to name (the account page renames it, should one come).
                 if (profile.kind === "personal") {
                   toSite();
                 } else {
-                  go("team");
+                  go("organization");
                 }
               }}
             >
@@ -681,12 +688,12 @@ export function OnboardingPage() {
             </form>
           ) : null}
 
-          {page === "team" ? (
+          {page === "organization" ? (
             <form
               className="contents"
               onSubmit={(e) => {
                 e.preventDefault();
-                const name = team.trim();
+                const name = organization.trim();
                 if (name) {
                   rename.mutate(name, { onSuccess: toSite });
                 } else {
@@ -698,17 +705,17 @@ export function OnboardingPage() {
                 {firstName ? t("onboard.kicker1", { name: firstName }) : t("onboard.kicker1Anon")}
               </p>
               <h1 className="font-display font-bold text-[2.5rem] leading-[1.05] tracking-[-0.02em] sm:text-[3.25rem]">
-                {t("onboard.team")}
+                {t("onboard.organization")}
               </h1>
               <p className="text-[1.0625rem] text-white/90 leading-relaxed">
-                {t("onboard.teamSub")}
+                {t("onboard.organizationSub")}
               </p>
               <input
-                value={team}
-                onChange={(e) => setTeam(e.target.value)}
-                placeholder={t("onboard.teamPlaceholder")}
+                value={organization}
+                onChange={(e) => setOrganization(e.target.value)}
+                placeholder={t("onboard.organizationPlaceholder")}
                 maxLength={80}
-                aria-label={t("onboard.team")}
+                aria-label={t("onboard.organization")}
                 className={FIELD}
               />
               <div className="flex flex-wrap items-center gap-5">
@@ -743,7 +750,7 @@ export function OnboardingPage() {
                     if (profile.kind) {
                       keep.mutate(given);
                     }
-                    // A name, not an address: kept with the team, nothing to read.
+                    // A name, not an address: kept with the organization, nothing to read.
                     if (!given.includes(".")) {
                       go("know");
                       return;

@@ -16,6 +16,7 @@ import { Connectors } from "./Connectors";
 import { ProjectSwitcher } from "./HomePage";
 import { Integrate } from "./Integrate";
 import { Models } from "./Models";
+import { Organization } from "./Organization";
 import { projectReadOnlyText, ReadOnlyNote } from "./ReadOnly";
 import {
   BackRow,
@@ -27,7 +28,6 @@ import {
   useStepDirection,
 } from "./settings-menu";
 import { settingsSections } from "./settings-sections";
-import { Team } from "./Team";
 
 const AboutPanel = lazy(() =>
   import("../about/AboutDialog").then((m) => ({ default: m.AboutPanel })),
@@ -353,7 +353,7 @@ export function SettingsPage() {
                   <AboutPanel me={me.data} active initialTab={aboutTab(params.get("tab"))} />
                 </Suspense>
               ) : null}
-              {current.id === "team" && me.data ? <Team me={me.data} /> : null}
+              {current.id === "organization" && me.data ? <Organization me={me.data} /> : null}
               {current.id === "plugins" ? (
                 <div className="flex flex-col gap-6">
                   <PluginsSection />

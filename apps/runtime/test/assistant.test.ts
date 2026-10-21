@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-// The studio's assistant: one chat per person and team that a turn writes into, "new chat" with a
+// The studio's assistant: one chat per person and organization that a turn writes into, "new chat" with a
 // summary written meanwhile, earlier chats to read and search, the guides it reads, the browser's
 // tool results.
 
@@ -137,7 +137,7 @@ describe("one chat per person", () => {
 
     const hits = await client.withTenant("local", () => chats_.searchChats(person, "Modelle"));
     expect(hits.map((h) => h.chatId)).toContain(before.id);
-    // Another person of the team finds nothing of it.
+    // Another person of the organization finds nothing of it.
     const other = { ...person, id: "someone-else" };
     expect(await client.withTenant("local", () => chats_.searchChats(other, "Modelle"))).toEqual([]);
     // The next turn carries the closed chat's summary.

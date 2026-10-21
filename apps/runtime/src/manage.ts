@@ -153,9 +153,9 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export interface TenantInfo {
   id: string;
   name: string;
-  /** The team's address: `organization.slug` at the Manage-App; an older one names none. */
+  /** The organization's address: `organization.slug` at the Manage-App; an older one names none. */
   slug?: string;
-  /** Where the team's public page lives: `acme.wizards.page` (services/pages.ts). */
+  /** Where the organization's public page lives: `acme.wizards.page` (services/pages.ts). */
   pagesHost?: string;
   status: "active" | "suspended" | "deleted";
   balanceCredits: number;
@@ -245,7 +245,7 @@ export function forgetTenant(id: string) {
   tenants.delete(id);
 }
 
-/** Renames the team at the Manage-App; what it answers is the tenant as it stands now. */
+/** Renames the organization at the Manage-App; what it answers is the tenant as it stands now. */
 export async function renameTenant(id: string, name: string): Promise<TenantInfo> {
   const value = await call<TenantInfo>("PATCH", `/v1/tenants/${encodeURIComponent(id)}`, {
     name,
@@ -254,8 +254,8 @@ export async function renameTenant(id: string, name: string): Promise<TenantInfo
   return value;
 }
 
-/** What a team tells the studio's first visit about itself; the Manage-App keeps it (its leads). */
-export interface TeamProfile {
+/** What an organization tells the studio's first visit about itself; the Manage-App keeps it (its leads). */
+export interface OrganizationProfile {
   kind: "personal" | "club" | "small" | "corp";
   size?: string | null;
   sector?: string | null;
@@ -266,11 +266,11 @@ export interface TeamProfile {
   website?: string | null;
 }
 
-export function saveTeamProfile(
+export function saveOrganizationProfile(
   tenantId: string,
   userId: string,
   lang: "de" | "en",
-  profile: TeamProfile,
+  profile: OrganizationProfile,
 ): Promise<{ ok: boolean }> {
   return call("PUT", `/v1/tenants/${encodeURIComponent(tenantId)}/profile`, {
     ...profile,
@@ -279,7 +279,7 @@ export function saveTeamProfile(
   });
 }
 
-/** The Manage-App mails the install command and the first steps to one of the team's people. */
+/** The Manage-App mails the install command and the first steps to one of the organization's people. */
 export function installMail(email: string, lang: Lang): Promise<{ ok: boolean }> {
   return call("POST", "/v1/install-mail", { email, lang });
 }
@@ -336,7 +336,7 @@ export function tenantUsage(tenantId: string, months = 3) {
   );
 }
 
-/** A plan teams can be on, as the Manage-App's public `GET /v1/plans` lists it. */
+/** A plan organizations can be on, as the Manage-App's public `GET /v1/plans` lists it. */
 export interface PublicPlan {
   id: string;
   name: string;
@@ -450,7 +450,7 @@ export function bookChannelUsage(
 }
 
 /**
- * The team's public page data, whole (services/pages.ts): Manage keeps it and serves the page at
+ * The organization's public page data, whole (services/pages.ts): Manage keeps it and serves the page at
  * `<slug>.<PAGES_DOMAIN>`. What it answers names the page's address.
  */
 export function putPages(tenantId: string, data: unknown) {

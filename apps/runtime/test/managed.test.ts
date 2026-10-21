@@ -15,7 +15,7 @@ const SERVICE_KEY = "wzr_test_service_key";
 const balances: Record<string, number> = { "tenant-a": 500, "tenant-b": 0 };
 const reservations: { tenantId: string; runId: string; credits: number }[] = [];
 const numberRequests: { tenantId: string; body: any }[] = [];
-/** What the studio's first visit sent about a team. */
+/** What the studio's first visit sent about an organization. */
 const profiles: { tenantId: string; body: any }[] = [];
 const channelUsage: { tenantId: string; body: any }[] = [];
 // The Manage-App fails on tenant B's plan while this is set.
@@ -105,7 +105,7 @@ const manage: Server = createServer(async (req, res) => {
     }
     if (sub === "/requests") {
       if (id === "tenant-a") {
-        return json({ error: "The team has its number.", code: "has_number" }, 409);
+        return json({ error: "The organization has its number.", code: "has_number" }, 409);
       }
       numberRequests.push({ tenantId: id, body: JSON.parse(raw) });
       return json({ request: { id: "req-1", country: "AT", wish: null, email: "b@test.local", createdAt: "2026-10-14T00:00:00.000Z" } });
@@ -306,7 +306,7 @@ describe("a runtime of a Manage-App", () => {
     expect((await get("/api/studio/me", "")).status).toBe(401);
   });
 
-  it("lets a member edit wizards, not make or delete them; shows the team as the Manage-App keeps it", async () => {
+  it("lets a member edit wizards, not make or delete them; shows the organization as the Manage-App keeps it", async () => {
     const m = await signIn("code-m");
     const me = (await (await get("/api/studio/me", m)).json()) as any;
     expect(me.tenant).toMatchObject({ id: "tenant-a", role: "member" });
@@ -315,7 +315,19 @@ describe("a runtime of a Manage-App", () => {
     // Making: refused for a wizard, a space, a copy; by every door.
     const made = await post("/api/studio/wizards", m, { projectId: project.id });
     expect(made.status).toBe(403);
-    expect(await made.json()).toMatchObject({ code: "forbidden" });
+    expect(await made.json()).toMatchObject({
+      code: "forbidden",
+      error: expect.stringContaining("Only organization admins"),
+    });
+    // A reader whose English is British reads it spelt their way.
+    const british = await app.fetch(
+      new Request(`${RUNTIME}/api/studio/wizards`, {
+        method: "POST",
+        headers: { cookie: m, "content-type": "application/json", "accept-language": "en-GB,en;q=0.8" },
+        body: JSON.stringify({ projectId: project.id }),
+      }),
+    );
+    expect(((await british.json()) as { error: string }).error).toContain("Only organisation admins");
     expect((await post("/api/studio/projects", m, { name: "Neu" })).status).toBe(403);
     // A wizard the owner made: the member edits it, copies and deletes it not.
     const w = (await (await post("/api/studio/wizards", a, { projectId: project.id })).json()) as { id: string };
@@ -335,9 +347,9 @@ describe("a runtime of a Manage-App", () => {
     expect(edited.status).toBe(200);
     // The owner still makes.
     expect((await post("/api/studio/wizards", a, { projectId: project.id })).status).toBe(200);
-    // The team page: people, invitations and places, from the Manage-App.
-    const team = (await (await get("/api/studio/team", m)).json()) as any;
-    expect(team).toMatchObject({
+    // The organization page: people, invitations and places, from the Manage-App.
+    const organization = (await (await get("/api/studio/organization", m)).json()) as any;
+    expect(organization).toMatchObject({
       members: [{ userId: "user-a", role: "owner" }, { userId: "user-m", role: "member" }],
       invitations: [{ email: "x@test.local" }],
       seats: { limit: 5, taken: 3 },
@@ -345,7 +357,7 @@ describe("a runtime of a Manage-App", () => {
       manageUrl: issuer,
       canManage: false,
     });
-    expect(((await (await get("/api/studio/team", a)).json()) as any).canManage).toBe(true);
+    expect(((await (await get("/api/studio/organization", a)).json()) as any).canManage).toBe(true);
   });
 
   it("refuses own API keys where the plan has none, and lists its plugins to the Manage-App", async () => {
@@ -626,11 +638,11 @@ describe("a runtime of a Manage-App", () => {
     ).toBe(600);
   });
 
-  it("hands what a team says about itself to the Manage-App, from its owner only", async () => {
+  it("hands what an organization says about itself to the Manage-App, from its owner only", async () => {
     const owner = await signIn("code-a");
     const put = (cookie: string, body: unknown) =>
       app.fetch(
-        new Request(`${RUNTIME}/api/studio/team/profile`, {
+        new Request(`${RUNTIME}/api/studio/organization/profile`, {
           method: "PUT",
           headers: { cookie, "content-type": "application/json", origin: RUNTIME },
           body: JSON.stringify(body),

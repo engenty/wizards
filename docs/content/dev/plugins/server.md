@@ -109,7 +109,7 @@ never names a tenant:
 
 ## Numbers of the Manage-App
 
-On engenty.ai a team gets its number for texts and calls from engenty: it asks for one, an
+On engenty.ai an organization gets its number for texts and calls from engenty: it asks for one, an
 admin assigns it. `server.channels` reads it for the current tenant and books what it carries;
 the prices are the Manage-App’s ([manage contract](https://github.com/engenty/wizards/blob/main/docs/manage-contract.md#numbers-of-a-tenant)).
 
@@ -126,7 +126,7 @@ await server.channels.book({ kind: "sms", quantity: segments, key: messageSid, r
 
 - `get` is kept for a minute; `request` and `withdraw` forget it.
 - `request` throws `403` / `plan` on a plan without a number and `409` / `has_number` when
-  the team has one. Asking again gives the open request.
+  the organization has one. Asking again gives the open request.
 - `book`: `sms` by segment, sent or received, `call` by started minute, `whatsapp` by
   message sent. The same `key` books once.
 - A runtime without a Manage-App has no numbers: `get` gives `null`, `request` and `withdraw`
