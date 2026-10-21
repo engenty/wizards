@@ -31,7 +31,7 @@ export const FEATURES = {
   },
   twoWaySync: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Two-way sync with the cloud",
     hint: "A local install with an account keeps its spaces in step with the organization in the cloud, both ways: wizards, knowledge, data and files.",
   },

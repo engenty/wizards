@@ -6,7 +6,7 @@
 # the account in a local install: linking, Settings → Account, the sign-in offer (on by default)
 # account=on|off
 #
-# the two-way sync of a local install's spaces with its organization in the cloud (off by default)
+# the two-way sync of a local install's spaces with its organization in the cloud (on by default)
 # twoWaySync=on|off
 #
 # built-in connectors without an OAuth client, shown anyway

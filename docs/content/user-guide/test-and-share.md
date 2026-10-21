@@ -111,20 +111,10 @@ Without an account, the dialog says that the wizard runs only on this computer (
 computer” under “Access”). It greys out the ways others reach it and offers “Sign in” and “Create
 account”.
 
-What goes to the cloud and what stays:
-
-| Goes to the cloud | Stays on your computer |
-|---|---|
-| The published version and its files | Drafts and the chat with the assistant |
-| The space’s name, what it says about itself, its colours, facts and logo | Runs and results on your computer |
-| The pages and tables of Knowledge, with their categories | What the wizards keep: their lists and notes |
-| How the link is shared: on or off, runs a day, page or chat | Connected accounts, keys, the space’s documents and its connected systems |
-
-At engenty.ai/studio you see the space and its runs there. A small laptop icon marks the space,
-and a note says “You edit this space in engenty wizards on your computer.” The studio there
-doesn’t edit it. An account holds one space from one computer. On a new computer, the share
-dialog offers “Replace that space”, which removes the old computer’s wizards and their links from
-the cloud.
+Your spaces, their wizards with their drafts, and their knowledge and files sync both ways with
+your organization at engenty.ai: what you change here arrives there, and what someone changes in
+the studio there arrives here. Runs and results, connected accounts and keys stay on the side
+where they were made. See [Spaces in the cloud](./cloud-sync.md).
 
 When you delete a wizard here, its copy in the cloud is deleted too. When you switch its link
 off here, it is switched off there as well.

@@ -546,14 +546,15 @@ Different from the plan above:
 - An install where the two-way sync runs leaves every plugin job to the cloud, not only those of
   synced spaces: a job works on the tenant, not on one space.
 
+Switched on for everyone on 2026-10-21, with the user guide page
+(`docs/content/user-guide/cloud-sync.md`). The device page of the Manage-App picks the
+organization since engenty/engenty-wizards-manage#74.
+
 Not built yet:
 
 - An open page or table does not show what a pull wrote while it is open; it does after it is
   opened again (an open wizard does, through its draft events). Planned in
   [live-changes.md](live-changes.md).
-- The device code at the Manage-App picks no organization: fixed in
-  engenty/engenty-wizards-manage#74, not merged yet.
-- The user guide: it follows when the switch flips.
 
 ## Risks
 

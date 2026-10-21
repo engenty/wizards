@@ -39,10 +39,10 @@ After an update, engenty wizards brings your data up to date the next time it st
   on your computer.
 - **Steps that use the web** send what they search for, open or call.
 - **Connected services** get what a wizard’s actions send them.
-- **Published wizards**, with an account signed in: when you publish, engenty.ai receives the
-  published version and its files, the space’s name, title, “About”, colours, facts and main logo,
-  and the pages and tables of Knowledge ([Test and share](./test-and-share.md#in-the-cloud)).
-  Documents, drafts, runs and connected accounts stay on your computer.
+- **Your spaces**, with an account signed in: their wizards, drafts included, their knowledge,
+  files and connectors sync with your organization at engenty.ai
+  ([Spaces in the cloud](./cloud-sync.md)). Runs, results, connected accounts and keys stay on
+  your computer.
 - **Templates** come from the marketplace at engenty.ai. `MARKETPLACE_URL=off` in the settings file
   turns that off.
 - **The update check** asks GitHub for the newest release.
