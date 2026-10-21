@@ -82,6 +82,20 @@ function useSectionInView(ids: string[]): string | undefined {
   return current;
 }
 
+/** The height of the page's scroll container: the menu beside the page scrolls within it. */
+function useScrollRootHeight(): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const root = scrollRoot();
+    const measure = () => setHeight(root.clientHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
+  return height;
+}
+
 function scrollToSection(id: string, smooth: boolean) {
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   document
@@ -288,6 +302,15 @@ export function ProjectPage() {
     }
   }, [open, target, project?.id, plugins.spaceSections, partMenu.length]);
 
+  // What is picked in the menu of Knowledge or Data takes the page's place: it starts at its top.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new pick is what scrolls up.
+  useEffect(() => {
+    if (!narrow && (open === "knowledge" || open === "data")) {
+      scrollRoot().scrollTo({ top: 0 });
+    }
+  }, [narrow, open, picked]);
+  const rootHeight = useScrollRootHeight();
+
   if (!open) {
     // The space was one page: `/space#documents` opens the part the section is in now.
     const id = hash.slice(1);
@@ -394,10 +417,12 @@ export function ProjectPage() {
           {group === "results" ? null : (
             <aside
               className={cn(
-                "min-w-0 md:sticky md:top-6 md:self-start",
+                "min-w-0 md:sticky md:top-6 md:self-start md:overflow-y-auto md:overscroll-contain",
                 narrow && phone === 2 && "hidden",
                 narrow && pageStep === "back" && stepClass("back"),
               )}
+              // A menu longer than the page's frame scrolls on its own, beside the page.
+              style={!narrow && rootHeight ? { maxHeight: rootHeight - 48 } : undefined}
             >
               {menuBody}
             </aside>
