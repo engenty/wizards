@@ -334,6 +334,7 @@ const de: Record<Key, Line> = {
   "onboard.readDone": "Gelesen: {name}{details}.",
   "onboard.readAbout": ", was du tust",
   "onboard.readColors": ", {n} Farben",
+  "onboard.readFonts": { one: ", {n} Schrift", other: ", {n} Schriften" },
   "onboard.readLogo": ", das Logo",
   "onboard.readFacts": { one: ", {n} Fakt", other: ", {n} Fakten" },
   "onboard.readAssets": {
@@ -2571,6 +2572,7 @@ const en = {
   "onboard.readDone": "Got it: {name}{details}.",
   "onboard.readAbout": ", what you do",
   "onboard.readColors": ", {n} colours",
+  "onboard.readFonts": { one: ", {n} font", other: ", {n} fonts" },
   "onboard.readLogo": ", the logo",
   "onboard.readFacts": { one: ", {n} fact", other: ", {n} facts" },
   "onboard.readAssets": {

@@ -155,8 +155,12 @@ Open repo, this branch:
 
 - `services/onboarding.ts`: the first visit of a cloud studio (`needsOnboarding`: managed, an
   owner or admin, no mark under `onboarding:<tenant>` in the control database, no wizard yet;
-  `finishOnboarding`; `applyWebsite`: `readWebsite` into the space's name, about, up to three
-  colours and the logo, without a model). Routes `PUT /api/studio/team`, `POST
+  `finishOnboarding`; `applyWebsite`: `readWebsite` into the space's name, about (the imprint's
+  "Unternehmensgegenstand" where the home page has no account), up to three colours, its fonts,
+  the facts of its imprint and contact page and the logo; patterns read the pages, then one model call
+  (`agents/company.ts`, standard class) checks and completes name, about, facts and fonts, keeping
+  only names and facts whose words are on the pages; without a model or credits the patterns'
+  reading stands). Routes `PUT /api/studio/team`, `POST
   /api/studio/onboarding/done`, `POST /api/studio/projects/:id/website`, `POST
   /api/studio/install-mail`; `/me` answers `onboarding` and the account's `team`.
 - Studio: `/start` (`OnboardingPage.tsx`), four pages, reached by the redirect in `App.tsx`;

@@ -5,3 +5,17 @@ a{color:var(--sfg-color-primary-dark)}
 .sfg-downloads__item{border-color:var(--downloads-item-accent-color)}
 .sfg-button{background:var(--sfg-color-primary);color:var(--sfg-color-white)}
 .sfg-button--secondary{background:var(--sfg-color-secondary)}
+@font-face{font-family:icons;font-display:swap;src:url(../../../assets/dist/fonts/icons.woff2?v=24616) format("woff2")}
+@font-face{font-family:Geomanist;src:url(../fonts/Geomanist-Medium.woff2) format("woff2"),url(../fonts/Geomanist-Medium.woff) format("woff");font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:Geomanist-Medium;src:url(../fonts/Geomanist-Medium.woff2) format("woff2"),url(../fonts/Geomanist-Medium.woff) format("woff");font-style:normal;font-display:swap}
+@font-face{font-family:Geomanist;src:url(../fonts/Geomanist.woff2) format("woff2"),url(../fonts/Geomanist.woff) format("woff");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:Geomanist;src:url(../fonts/Geomanist-MediumItalic.woff2) format("woff2"),url(../fonts/Geomanist-MediumItalic.woff) format("woff");font-weight:500;font-style:italic;font-display:swap}
+@font-face{font-family:Geomanist;src:url(../fonts/Geomanist-Bold.woff2) format("woff2"),url(../fonts/Geomanist-Bold.woff) format("woff");font-weight:700;font-style:normal;font-display:swap}
+body{font-family:Geomanist,Helvetica,Arial,sans-serif}
+h1,h2,h3{font-family:Geomanist,Helvetica,Arial,sans-serif;font-weight:700}
+.sfg-button{font-family:Geomanist-Medium,Helvetica,Arial,sans-serif}
+.en-fit-image,.en-fit-parent{width:100%;height:100%;object-fit:cover;font-family:"object-fit: cover;"}
+.en-stage__image-img{object-fit:cover;font-family:"object-fit: cover;";height:100%;width:100%}
+.en-icon{font-family:icons;font-size:1.5rem;font-weight:400}
+a[href^="https://portal.sfg.at/"]:before{content:"\ea68";font-weight:500;font-family:icons}
+blockquote{font-family:Georgia,sans-serif}

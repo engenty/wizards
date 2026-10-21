@@ -1,5 +1,12 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
-import type { BasicFact, ProjectFact } from "@engenty/wizards-shared/projects";
+import {
+  type BasicFact,
+  factKey,
+  PROJECT_LIMITS,
+  type ProjectFact,
+} from "@engenty/wizards-shared/projects";
+import { nanoid } from "nanoid";
+import { type CompanyPage, readCompany } from "../agents/company.js";
 import { type CompanyContact, readContact, readWebsite } from "../agents/website.js";
 import { managed, type Role } from "../manage.js";
 import { readSetting, writeSetting } from "../settings.js";
@@ -97,16 +104,82 @@ export function companyOf(title: string): string {
   return (named.sort((a, b) => a.length - b.length)[0] ?? parts[0]).slice(0, 120);
 }
 
-/** The first paragraph of the page's text that reads like prose, as the about text. */
-export function aboutOf(description: string, text: string): string {
-  if (description.trim().length >= 40) {
-    return description.trim().slice(0, 600);
+/** A paragraph of Markdown as words: links and emphasis as their text, pictures left out. */
+const plain = (p: string) =>
+  p
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[*_`]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** Sentences about the company, not a teaser, a menu or a cookie notice. */
+const prose = (p: string) =>
+  /[.!?…]$|[.!?]\s/.test(p) &&
+  p.split(" ").length >= 8 &&
+  !/cookie|datenschutz|privacy|einwilligung|consent|zustimmung/i.test(p);
+
+/** At most `max` characters, cut after a sentence where it is longer. */
+function cut(text: string, max = 600): string {
+  if (text.length <= max) {
+    return text;
   }
-  const paragraph = text
+  const part = text.slice(0, max);
+  const end = Math.max(part.lastIndexOf(". "), part.lastIndexOf("! "), part.lastIndexOf("? "));
+  return end > max / 2 ? part.slice(0, end + 1) : part;
+}
+
+/**
+ * The about text: a description that says something, else a paragraph of the home page, else
+ * what the imprint gives as the company's purpose (its "Unternehmensgegenstand"); a slogan only
+ * where nothing longer is there.
+ */
+export function aboutOf(description: string, text: string, purpose = ""): string {
+  // A heading, a list or a paragraph that is mostly links (a menu, a footer) is no account.
+  const linked = (p: string) =>
+    [...p.matchAll(/\[([^\]]*)\]\([^)]*\)/g)].reduce((n, m) => n + m[1].length, 0) >
+    plain(p).length / 2;
+  const paragraphs = text
     .split(/\n{2,}/)
-    .map((p) => p.replace(/^[#>*\-\s]+/, "").trim())
-    .find((p) => p.length >= 80 && !p.startsWith("[") && !/^!\[/.test(p));
-  return (paragraph ?? description.trim()).slice(0, 600);
+    .filter((p) => !(/^\s*(#|!?\[|[-*+] |\d+\. )/.test(p) || linked(p)))
+    .map((p) => plain(p.replace(/^>\s*/, "")))
+    .filter(prose);
+  const [desc, does] = [description.trim(), purpose.trim()];
+  return cut(
+    [
+      desc.length >= 120 ? desc : "",
+      paragraphs.find((p) => p.length >= 120),
+      does.length >= 120 ? does : "",
+      desc.length >= 40 ? desc : "",
+      paragraphs.find((p) => p.length >= 80),
+      desc,
+      does,
+    ].find(Boolean) ?? "",
+  );
+}
+
+/**
+ * The brand's fonts out of what the site uses: the families it serves itself (its `@font-face`
+ * rules, its Google Fonts link), at most two, the second only where one of them is clearly the
+ * headings' font.
+ */
+export function brandFonts(
+  fonts: { family: string; weights: number[]; headings?: boolean }[],
+  lang: Lang,
+): { family: string; role: string; weights: number[] }[] {
+  const served = fonts.filter((f) => f.weights.length).slice(0, 2);
+  const [a, b] = served;
+  if (!a) {
+    return [];
+  }
+  if (!b || Boolean(a.headings) === Boolean(b.headings)) {
+    return [{ family: a.family, role: serverText(lang, "fontRoleAll"), weights: a.weights }];
+  }
+  return served.map((f) => ({
+    family: f.family,
+    role: serverText(lang, f.headings ? "fontRoleHeadings" : "fontRoleText"),
+    weights: f.weights,
+  }));
 }
 
 /**
@@ -137,8 +210,10 @@ export function brandColors(brand: {
   return colors;
 }
 
+type Found = CompanyContact & { website?: string };
+
 /** The facts a company's site states, by the keys the Info & brand page offers them under. */
-const FACTS: [BasicFact, keyof CompanyContact | "website", ServerKey][] = [
+const FACTS: [BasicFact, keyof Found, ServerKey][] = [
   ["adresse", "street", "factAddress"],
   ["plz", "postcode", "factPostcode"],
   ["ort", "city", "factCity"],
@@ -148,30 +223,99 @@ const FACTS: [BasicFact, keyof CompanyContact | "website", ServerKey][] = [
   ["website", "website", "factWebsite"],
 ];
 
+/** The profiles on social networks, under their networks' names. */
+const PROFILES: [keyof Found, string][] = [
+  ["linkedin", "LinkedIn"],
+  ["facebook", "Facebook"],
+  ["instagram", "Instagram"],
+  ["youtube", "YouTube"],
+  ["xing", "XING"],
+  ["x", "X"],
+  ["tiktok", "TikTok"],
+];
+
+/**
+ * The facts beyond the basics an imprint states, labelled as the company's country names them:
+ * Austria's Firmenbuch ("FN 44903 i"), Germany's Handelsregister ("HRB 12345").
+ */
+function moreFacts(found: Found, lang: Lang): [keyof Found, string][] {
+  const trade = /^HR[AB]/.test(found.register ?? "");
+  return [
+    ["company", serverText(lang, "factCompany")],
+    ["register", serverText(lang, trade ? "factTradeRegister" : "factRegister")],
+    ["court", serverText(lang, trade ? "factTradeRegisterCourt" : "factRegisterCourt")],
+    ["management", serverText(lang, "factManagement")],
+    ...PROFILES,
+  ];
+}
+
+/** A value as it compares: "FN 44903 i" is "FN 44903i". */
+const sameValue = (a: string, b: string) =>
+  a.replace(/\s+/g, "").toLowerCase() === b.replace(/\s+/g, "").toLowerCase();
+
 /**
  * The space's facts with what the site states added: a fact the space has a value for stays as
- * it is, an empty one is filled, a missing one is added under its usual key and label.
+ * it is, an empty one is filled, a missing one is added, the basics under their usual keys, the
+ * others under a key made from their label. `more`: facts a model read, by label; one whose
+ * value the space already has is left out.
  */
 export function withFacts(
   facts: ProjectFact[],
-  found: CompanyContact & { website?: string },
+  found: Found,
   lang: Lang,
+  more: { label: string; value: string }[] = [],
 ): { facts: ProjectFact[]; added: number } {
   const next = [...facts];
   let added = 0;
-  for (const [key, field, label] of FACTS) {
-    const value = found[field]?.trim();
-    const name = serverText(lang, label);
+  const basicKey = (label: string) =>
+    FACTS.find(([, , l]) => factKey(serverText(lang, l)) === factKey(label))?.[0] ?? null;
+  const rows: [string | null, string | undefined, string][] = [
+    ...FACTS.map(([key, field, label]): [string, string | undefined, string] => [
+      key,
+      found[field],
+      serverText(lang, label),
+    ]),
+    ...moreFacts(found, lang).map(([field, label]): [null, string | undefined, string] => [
+      null,
+      found[field],
+      label,
+    ]),
+    ...more
+      .filter((m, i) => !more.slice(0, i).some((x) => sameValue(x.value, m.value)))
+      .map((m): [string | null, string | undefined, string] => [
+        basicKey(m.label),
+        m.value,
+        m.label,
+      ]),
+  ];
+  for (const [i, [basic, raw, name]] of rows.entries()) {
+    const value = raw?.trim();
+    const key = basic ?? factKey(name);
     const at = next.findIndex(
       (f) => f.key === key || f.label.trim().toLowerCase() === name.toLowerCase(),
     );
-    if (!value || (at >= 0 && next[at].value.trim())) {
+    if (
+      !value ||
+      // Beyond the basics, a value the space has under another label is not added twice.
+      (i >= FACTS.length && next.some((f) => sameValue(f.value, value))) ||
+      (at >= 0 && next[at].value.trim()) ||
+      (at < 0 && next.length >= PROJECT_LIMITS.facts)
+    ) {
       continue;
     }
     if (at >= 0) {
       next[at] = { ...next[at], value };
     } else {
-      next.push({ key, label: name, value });
+      next.push({
+        key:
+          basic ??
+          factKey(
+            name,
+            next.map((f) => f.key),
+          ),
+        label: name,
+        value,
+      });
     }
     added++;
   }
@@ -182,6 +326,7 @@ export interface WebsiteOutcome {
   name: string;
   about: boolean;
   colors: number;
+  fonts: number;
   logo: boolean;
   facts: number;
   assets: number;
@@ -192,9 +337,12 @@ const ASSETS = 4;
 
 /**
  * Reads a website into the space's Info & brand: the company's name, what it does, up to three
- * of its colours, the facts its imprint and contact page state and, where the space has none
- * yet, its logo and the big pictures of its home page as brand material. What the assistant
- * does on request, done once at the start without a model.
+ * of its colours, the facts its imprint and contact page state (its full name with its legal
+ * form among them, where the site goes by a shorter one) and, where the space has none yet, its
+ * fonts, its logo and the big pictures of its home page as brand material. What the assistant
+ * does on request, done once at the start: patterns read the pages, one model call checks and
+ * completes name, about, facts and fonts; without a model or credits the patterns' reading
+ * stands.
  */
 export async function applyWebsite(
   userId: string,
@@ -204,21 +352,53 @@ export async function applyWebsite(
 ): Promise<WebsiteOutcome> {
   const signal = AbortSignal.timeout(30_000);
   const reading = await readWebsite(url, signal, { inline: true });
-  const name = companyOf(reading.title || new URL(reading.url).hostname);
-  const about = aboutOf(reading.description, reading.text);
   const colors = brandColors(reading.brand);
-  const contact = await readContact(reading, signal).catch(() => reading.contact);
+  const pages: CompanyPage[] = [{ url: reading.url, text: reading.text }];
+  const contact = await readContact(reading, signal, pages).catch(() => reading.contact);
+  const website = new URL(reading.url).origin;
+  // What the patterns read; a model checks and completes it where one may be used.
+  const found = {
+    name: companyOf(reading.siteName || reading.title || new URL(reading.url).hostname),
+    about: aboutOf(reading.description, reading.text, contact.purpose),
+    fonts: brandFonts(reading.brand.fonts, lang),
+  };
+  const read = await readCompany({
+    lang,
+    pages,
+    found: {
+      name: found.name,
+      company: contact.company,
+      about: found.about,
+      facts: withFacts([], { ...contact, website }, lang).facts.map(({ label, value }) => ({
+        label,
+        value,
+      })),
+      fonts: reading.brand.fonts,
+    },
+    signal: AbortSignal.timeout(30_000),
+  });
+  const name = read?.name ?? found.name;
+  const about = read?.about ?? found.about;
+  const company = read?.company ?? contact.company;
   const project = await ownedProject(userId, projectId);
+  const fonts = project.brand.fonts?.length ? [] : read?.fonts.length ? read.fonts : found.fonts;
   const facts = withFacts(
     project.facts,
-    { ...contact, website: new URL(reading.url).origin },
+    {
+      ...contact,
+      // The full name only where it says more than the name the space goes by.
+      company: company?.toLowerCase() === name.toLowerCase() ? undefined : company,
+      website,
+    },
     lang,
+    read?.facts,
   );
   await updateProject(userId, projectId, {
     brand: {
       name,
       ...(about ? { about } : {}),
       ...(colors.length ? { colors } : {}),
+      ...(fonts.length ? { fonts: fonts.map((f) => ({ ...f, id: nanoid(10) })) } : {}),
     },
     ...(facts.added ? { facts: facts.facts } : {}),
   });
@@ -252,6 +432,7 @@ export async function applyWebsite(
     name,
     about: Boolean(about),
     colors: colors.length,
+    fonts: fonts.length,
     logo,
     facts: facts.added,
     assets,

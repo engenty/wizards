@@ -172,6 +172,16 @@ const EN = {
   factPhone: "Phone",
   factEmail: "Email",
   factWebsite: "Website",
+  factCompany: "Company",
+  factRegister: "Company register number",
+  factRegisterCourt: "Register court",
+  factTradeRegister: "Commercial register number",
+  factTradeRegisterCourt: "Register court",
+  factManagement: "Management",
+  // What the first visit writes as the purpose of a brand font.
+  fontRoleAll: "Headings and body text",
+  fontRoleHeadings: "Headings",
+  fontRoleText: "Body text",
 } as const satisfies Record<string, Line>;
 export type ServerKey = keyof typeof EN;
 
@@ -345,6 +355,15 @@ const DE: Partial<Record<ServerKey, Line>> = {
   factPhone: "Telefon",
   factEmail: "E-Mail",
   factWebsite: "Website",
+  factCompany: "Firmenname",
+  factRegister: "Firmenbuchnummer",
+  factRegisterCourt: "Firmenbuchgericht",
+  factTradeRegister: "Handelsregisternummer",
+  factTradeRegisterCourt: "Registergericht",
+  factManagement: "Geschäftsführung",
+  fontRoleAll: "Überschriften und Fließtext",
+  fontRoleHeadings: "Überschriften",
+  fontRoleText: "Fließtext",
 };
 
 export const SERVER_TEXTS: Texts<ServerKey> = { en: EN, de: DE };
