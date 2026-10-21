@@ -1208,7 +1208,7 @@ function useSlotAway(slot: HTMLElement | null, height: RefObject<number>): boole
 /**
  * At the bottom of the page and small at its lower right, in the page's column. The height of
  * what stays there, the open thread included, is written to `--assistant-dock` on the column, and
- * the page ends above it – not while the chat stands where it was put. Where the page has a slot
+ * the page keeps it free below its last section – not while the chat stands where it was put. Where the page has a slot
  * at its top and the chat stands at the bottom, the chat stands in that slot until it is scrolled
  * away; in the sidebar, in the sidebar's pane. All are one card in one node that moves, so the
  * draft and the thread stay.
@@ -1309,8 +1309,8 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     },
     [host],
   );
-  // The page ends above what stands at rest – the engenty, or the docked chat as high as it is
-  // now, open or folded – so the chat never lies over a section.
+  // The page keeps room below its last section for what stands at rest – the engenty, or the
+  // docked chat as high as it is now, open or folded – so every section scrolls clear of it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the engenty or the dock's frame, by `small` and `open`, drawn once `placed`
   useLayoutEffect(() => {
     const el = small && !open ? rest.current : frame.current;
