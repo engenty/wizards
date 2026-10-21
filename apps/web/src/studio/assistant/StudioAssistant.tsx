@@ -67,8 +67,8 @@ const MarketplaceCards = lazy(() =>
  * as a sidebar on a window wide enough, or small at the lower right. At the bottom it moves by its
  * grip – let go, it docks in the middle or at the right of the bottom, whichever is nearer, or in
  * the sidebar against the window's right edge; the handle on top sets the thread's height, a click
- * on it folds the chat away. Opened at the bottom, the chat rises above the bar and the page ends
- * above it; empty, it greets with the page's words and three suggestions.
+ * on it folds the chat away. Opened at the bottom, the chat rises above the bar; empty, it greets
+ * with the page's words and three suggestions.
  */
 
 /** The content keeps its 760 px beside a 400 px sidebar. */
@@ -1238,7 +1238,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const away = useSlotAway(wanted, slotHeight);
   const top = Boolean(wanted) && !away;
   // Made small, the chat folds into the engenty at the lower right; opened, it is the same chat
-  // as at the bottom, where it last stood – over the page, which keeps room for the engenty only.
+  // as at the bottom, where it last stood, and the page keeps room for it as for the docked chat.
   const small = where?.where === "avatar";
   const open = Boolean(state?.open);
   const [focused, setFocused] = useState(false);
