@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.9.8",
+    "timestamp": 1792571366,
+    "commits": [
+      {
+        "id": "a06e5aa",
+        "message": "text classes classifier, low, standard, high, with minimums per class (#148)",
+        "group": "Added",
+        "scope": "models",
+        "breaking": true
+      }
+    ]
+  },
+  {
     "version": "v0.9.7",
-    "timestamp": 1792571088,
+    "timestamp": 1792571223,
     "commits": [
       {
         "id": "179542c",
