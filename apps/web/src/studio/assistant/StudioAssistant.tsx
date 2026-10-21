@@ -1,3 +1,4 @@
+import { ASSISTANT_WIDTH } from "@engenty/wizards-shared/assistant";
 import type { MarketplaceEntry } from "@engenty/wizards-shared/marketplace";
 import {
   Activity,
@@ -1594,27 +1595,101 @@ const STAND_IN = {
   chat: { messages: [] },
 } as unknown as AssistantState;
 
+/** The most the sidebar takes of a window this wide: the page beside it keeps its room. */
+const sidebarMax = (room: number) =>
+  Math.max(ASSISTANT_WIDTH.min, Math.min(ASSISTANT_WIDTH.max, room - 1120));
+
 /**
- * The sidebar: a pane of its own beside the page's, on a window wide enough. The chat is drawn
- * into it by the dock, so it stays the same chat when it snaps in or out; its grip pulls it out.
+ * The handle in the gap left of the sidebar, as the editor's panels have: dragged, or with the
+ * arrow keys, it sets the width, kept for the person; a double-click sets the default again.
+ */
+function SidebarHandle({
+  state,
+  width,
+  max,
+}: {
+  state: AssistantState;
+  width: number;
+  max: number;
+}) {
+  const clamp = (w: number) => Math.round(Math.min(Math.max(w, ASSISTANT_WIDTH.min), max));
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a window splitter that moves is a focusable separator (WAI-ARIA)
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={t("editor.resize")}
+      aria-valuenow={width}
+      aria-valuemin={ASSISTANT_WIDTH.min}
+      aria-valuemax={max}
+      tabIndex={0}
+      title={t("editor.resize")}
+      onPointerDown={(e) => {
+        if (e.button !== 0) {
+          return;
+        }
+        e.preventDefault();
+        const startX = e.clientX;
+        let last = width;
+        // Dragged left, the sidebar grows.
+        const move = (ev: PointerEvent) => {
+          last = clamp(width - (ev.clientX - startX));
+          state.setWidth(last, false);
+        };
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          document.body.style.removeProperty("cursor");
+          document.body.style.removeProperty("user-select");
+          state.setWidth(last === ASSISTANT_WIDTH.initial ? null : last);
+        };
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          const step = e.shiftKey ? 64 : 16;
+          state.setWidth(clamp(width + (e.key === "ArrowLeft" ? step : -step)));
+        }
+      }}
+      onDoubleClick={() => state.setWidth(null)}
+      className="group -left-2 absolute inset-y-0 z-10 w-2 cursor-col-resize outline-none"
+    >
+      <span className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-8 w-1 rounded-full bg-ink-4/20 transition group-hover:bg-ember/60 group-focus-visible:bg-ember group-active:h-12 group-active:bg-ember" />
+    </div>
+  );
+}
+
+/**
+ * The sidebar: a pane of its own beside the page's, on a window wide enough, as wide as the
+ * person set it with the handle in the gap. The chat is drawn into it by the dock, so it stays
+ * the same chat when it snaps in or out; its grip pulls it out.
  */
 export function AssistantSidebar() {
   const state = useAssistant();
   const lifted = Boolean(useHighlight());
   const where = useWhereOrNull(state);
+  const max = sidebarMax(useWindowWidth());
   if (!(state && where && where.where === "sidebar")) {
     return null;
   }
+  const width = Math.min(
+    Math.max(state.width ?? ASSISTANT_WIDTH.initial, ASSISTANT_WIDTH.min),
+    max,
+  );
   return (
-    <aside
-      aria-label={t("assistant.name")}
-      className={cn(
-        "flex w-[400px] shrink-0 flex-col overflow-hidden rounded-xl bg-background shadow-elevated dark:ring-1 dark:ring-border-soft",
-        lifted && "relative z-[61]",
-      )}
-    >
-      <div ref={setSidebarMount} className="flex min-h-0 flex-1 flex-col" />
-    </aside>
+    <div className={cn("relative flex shrink-0", lifted && "z-[61]")} style={{ width }}>
+      <SidebarHandle state={state} width={width} max={max} />
+      <aside
+        aria-label={t("assistant.name")}
+        className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-background shadow-elevated dark:ring-1 dark:ring-border-soft"
+      >
+        <div ref={setSidebarMount} className="flex min-h-0 flex-1 flex-col" />
+      </aside>
+    </div>
   );
 }
 

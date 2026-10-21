@@ -1,4 +1,8 @@
-import { ASSISTANT_LAYOUTS, type AssistantLayout } from "@engenty/wizards-shared/assistant";
+import {
+  ASSISTANT_LAYOUTS,
+  ASSISTANT_WIDTH,
+  type AssistantLayout,
+} from "@engenty/wizards-shared/assistant";
 import { note } from "@engenty/wizards-shared/run";
 import { generateText } from "ai";
 import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
@@ -381,4 +385,14 @@ export async function assistantLayout(user: SessionUser): Promise<AssistantLayou
   return (ASSISTANT_LAYOUTS as readonly string[]).includes(stored ?? "")
     ? (stored as AssistantLayout)
     : "bottom";
+}
+
+/** The sidebar's width the person set with its handle; null: the default. */
+export async function assistantWidth(user: SessionUser): Promise<number | null> {
+  const stored = await readSetting<number>(`assistant-width:${user.tenantId}:${user.id}`);
+  return typeof stored === "number" &&
+    stored >= ASSISTANT_WIDTH.min &&
+    stored <= ASSISTANT_WIDTH.max
+    ? stored
+    : null;
 }
