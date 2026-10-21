@@ -36,8 +36,8 @@ The limits:
   rebuilt on each side.
 - **Runs never sync.** A run, its events and its results stay on the side where it ran. In the
   cloud, wizards run from the published version that arrived there, as today.
-- **Both sides must run compatible schema versions.** The sync refuses a schema that is too
-  new.
+- **Both sides must run the same schema version.** Merging across versions is out of scope.
+  The sync pauses until the side behind updates.
 
 No libSQL/Turso sync feature carries this today:
 
@@ -208,8 +208,8 @@ install (tenant "local")                     cloud runtime (tenant <org>)
   pull asks for everything after the last `seq` it saw. Installs never talk to each other.
   Wall clocks never decide, so clock skew does not matter.
 - **A JSON contract, not raw rows.** Changes travel as typed records per table, like
-  `SyncDataInput` today, with the schema version they were written under. Unknown fields are
-  ignored and missing ones take their defaults. So an install one release behind keeps working.
+  `SyncDataInput` today, with the schema version they were written under. Both sides must have
+  the same schema version (see "Migrations and releases").
 - **Applied through the services.** The cloud applies a push in the tenant from the token,
   under `asRole(role)` and `asSync()`. It writes the `link` rows that the rows need (a
   wizard's share link and code, logos, fonts) and rewrites `tenant_id` and user ids (below). The install applies a pull the same way.
@@ -396,13 +396,21 @@ What this shows:
 
 ## Migrations and releases
 
-- Every push and pull carries the runtime version and the tenant schema version (the last
-  drizzle migration's tag, today `0020_project_page`).
-- The cloud accepts changes written under its own schema or an older one within a window it
-  names. It refuses a newer one with `reason: "update_cloud"`, which only happens between a
-  release and its deploy.
-- The install refuses a pull from a newer schema. It tells the person to update
-  (`wizards update`) and keeps pushing nothing that would lose fields.
+Out of scope (decided 2026-10-21): syncing or merging between different schema versions. Both
+sides sync only when their tenant schema is the same.
+
+- Every push and pull carries the tenant schema version: the last drizzle migration's tag
+  (today `0020_project_page`), plus the plugins' SQL files of the synced tables, if any ever
+  sync. The runtime version travels too, for the log only. Releases that change no synced table
+  keep the schema, so they never pause the sync.
+- When the versions differ, the sync pauses and nothing is converted. The side that is behind
+  says so: "Update engenty wizards to sync again" (`wizards update`) on the install, or
+  `reason: "schema_mismatch"` from the cloud between a release and its deploy.
+- Edits go on during the pause. They wait in the log, and the push reads the rows as they
+  stand, so after the install updates its own migration has already brought them to the new
+  schema.
+- A migration that changes a synced table's shape also converts that table's `sync_base`
+  rows. Otherwise a conflict on such an item can only keep one side, not merge.
 - Neither side ever migrates the other's database. Each runs its own drizzle migrations and its
   plugins' SQL files as today.
 - Definitions with step kinds the other side does not know go through the check that exists
