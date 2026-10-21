@@ -39,6 +39,7 @@ import {
 import { Button, cn, Dialog, Input } from "../ui";
 import { AppRail, PhoneBar } from "./AppRail";
 import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/StudioAssistant";
+import { CloudSyncBar } from "./CloudSync";
 import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner, InstallDialog } from "./InstallBanner";
 import { LangSwitch } from "./LangSwitch";
@@ -747,6 +748,7 @@ export function AppFrame({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
           <UpdateBanner />
           <InstallBanner />
+          <CloudSyncBar me={me} />
           {full ? (
             <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
               {children}
