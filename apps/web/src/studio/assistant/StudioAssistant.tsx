@@ -431,6 +431,8 @@ function Thread({
 
 function ChatMenu({ state }: { state: AssistantState }) {
   const [open, setOpen] = useState(false);
+  // "Earlier chats" only where there are some.
+  const earlier = Boolean(useEarlierChats(true).data?.chats.length);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, open, () => setOpen(false));
   const item =
@@ -465,17 +467,19 @@ function ChatMenu({ state }: { state: AssistantState }) {
           >
             <SquarePen className="size-4" /> {t("assistant.newChat")}
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            className={item}
-            onClick={() => {
-              setOpen(false);
-              state.setView({ kind: "earlier" });
-            }}
-          >
-            <History className="size-4" /> {t("assistant.earlier")}
-          </button>
+          {earlier ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                state.setView({ kind: "earlier" });
+              }}
+            >
+              <History className="size-4" /> {t("assistant.earlier")}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -536,7 +540,8 @@ function Header({
     <div
       className={cn(
         "flex items-center border-border-soft border-b py-1",
-        narrow ? "gap-1 px-3" : "gap-1.5 px-3 sm:px-4",
+        // The actions stand close together: one 32 px button beside the next.
+        narrow ? "px-3" : "px-3 sm:px-4",
       )}
     >
       {grip}
@@ -552,7 +557,7 @@ function Header({
         <Mascot kind="round" size={26} helmet interactive={false} />
       )}
       {/* Never narrower than the name and the developer switch. */}
-      <div className="ml-0.5 min-w-[8.5rem] flex-1">
+      <div className="mr-1 ml-1.5 min-w-[8.5rem] flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
           {state.view.kind === "chat" ? (
             <ChatMenu state={state} />
