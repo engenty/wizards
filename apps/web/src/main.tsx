@@ -11,6 +11,25 @@ import "./styles/app.css";
 
 watchErrors();
 
+// A page loaded before a deploy asks for its build's files, which the new build no longer has:
+// it loads anew, once. A second failure within a minute is a real one and stays an error.
+const RELOADED_KEY = "wizards.reloadedForBuild";
+window.addEventListener("vite:preloadError", (event) => {
+  let last = 0;
+  try {
+    last = Number(sessionStorage.getItem(RELOADED_KEY)) || 0;
+    if (Date.now() - last < 60_000) {
+      return;
+    }
+    sessionStorage.setItem(RELOADED_KEY, String(Date.now()));
+  } catch {
+    // Without session storage there is no guard against a loop: leave the error as it is.
+    return;
+  }
+  event.preventDefault();
+  window.location.reload();
+});
+
 // The desktop app's window is marked: there, what can be clicked keeps the arrow, as apps do.
 if ("engentyDesktop" in window) {
   document.documentElement.dataset.desktop = "";

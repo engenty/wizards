@@ -385,7 +385,9 @@ if (existsSync(webDir)) {
     app.all("/w/:token/:runner", (c, next) => pluginRunnerPage(c, next));
   }
   app.get("*", async (c) => {
-    if (!PAGES.test(c.req.path)) {
+    // A build's file that is not there (a page loaded before a deploy asks for the old build's)
+    // is a 404, never the start page: the app then sees the failed import and loads anew.
+    if (!PAGES.test(c.req.path) || c.req.path.startsWith("/studio/assets/")) {
       return c.text("Not found", 404);
     }
     const html = await readFile(join(webDir, "index.html"), "utf8");
