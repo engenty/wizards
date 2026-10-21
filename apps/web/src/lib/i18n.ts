@@ -1928,7 +1928,7 @@ const de: Record<Key, Line> = {
   "know.title": "Wissen",
   "know.hint":
     "Was die Schritte deiner Wizards nachschlagen. Dokumente werden beim Hochladen zu Seiten und Tabellen. Kategorien halten die Einträge auseinander.",
-  "know.empty": "Noch nichts da. Lad Dokumente hoch oder leg eine Seite an.",
+  "know.empty": "Noch nichts da. Lade Dokumente hoch oder leg eine Seite an.",
   "know.drop": "Dokumente hierher ziehen oder",
   "know.pick": "auswählen",
   "know.page": "Seite",
