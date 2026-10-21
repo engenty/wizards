@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.9.6",
+    "timestamp": 1792562658,
+    "commits": [
+      {
+        "id": "e6df56c",
+        "message": "centre the drag handles in their gap and make them slimmer (#133)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.9.5",
-    "timestamp": 1792526597,
+    "timestamp": 1792526724,
     "commits": [
       {
         "id": "acdb6f0",

@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.9.6] - 2026-10-21
+- FIXED **[studio]** Centre the drag handles in their gap and make them slimmer (#133)
+
 ## [0.9.5] - 2026-10-20
 - ADDED **[runtime]** A visitor's run counts against the organization's guest budget (#126)
 

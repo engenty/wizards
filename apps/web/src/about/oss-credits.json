@@ -80,8 +80,8 @@
     },
     {
       "name": "@modelcontextprotocol/client",
-      "version": "2.2.0",
-      "license": "MIT",
+      "version": "2.3.0",
+      "license": "Apache-2.0",
       "homepage": "https://modelcontextprotocol.io"
     },
     {
@@ -237,8 +237,8 @@
         },
         {
           "name": "@modelcontextprotocol/server",
-          "version": "2.2.0",
-          "license": "MIT",
+          "version": "2.3.0",
+          "license": "Apache-2.0",
           "homepage": "https://modelcontextprotocol.io"
         },
         {
