@@ -188,6 +188,14 @@ export interface Me {
   chatEngine: ChatWay;
   /** The ways that can answer the studio's chats now. */
   chatWays: ChatWay[];
+  /** The models of the chats per way (the server's list), and what the person chose. */
+  chatModels: {
+    ways: Record<
+      string,
+      { normal: string; extra: string; models: { id: string; label: string }[] }
+    >;
+    chosen: Record<string, { normal?: string; extra?: string }>;
+  };
   aiReady: boolean;
   /** Where an admin's own MCP client (Claude Code, Cursor, Codex) connects. */
   mcpUrl: string;

@@ -5,7 +5,6 @@ import { chatTurnWay, subscriptionTurn } from "../agents/subscription.js";
 import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { managed } from "../manage.js";
-import { hasTextModel } from "../models.js";
 import { serverText } from "../texts.js";
 import { draftFiles, readFile } from "./files.js";
 import { ownedProject } from "./projects.js";

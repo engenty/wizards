@@ -1,7 +1,7 @@
 ---
 title: Models and account
 description: What runs the AI in your wizards – an AI client on your computer, your own API keys, a local model or credits.
-version: 0.9.6
+version: 0.11.1
 ---
 
 Settings → Models decides what runs the AI in your wizards. On your computer you set it up
@@ -127,11 +127,21 @@ images, video, voice and voice notes.
 |---|---|
 | Your subscription: Claude Code, Codex, Cursor Agent | The program on this computer answers, using your sign-in there. It works only through the tools of engenty wizards: it runs no commands and changes no files of its own |
 | Your own API key: OpenAI, Anthropic, Google Gemini, Vercel AI Gateway | A model of that provider answers, on your key |
-| Same as Text & reasoning | The model set for Text & reasoning answers |
-| engenty credits | The credits pay, through your account |
+| engenty credits | The credits pay, through your account. engenty picks the models |
 
-The list shows each program that is installed and signed in. Without a choice, the chat follows
-Text & reasoning, or Claude Code where it is the source of your models.
+The list shows each program that is installed and signed in. Without a choice, Claude Code answers
+where it is the source of your models, else the first way that is ready. With none ready, the chat
+says what to set up. The chat has its own models, apart from Text & reasoning.
+
+Under the choice, **Model** is what answers everyday questions and **Extra effort** is the more
+capable one. Both default to the newest model of the way, which the runtime asks the server for
+every day, so a new model needs no update. Pick another from the list, or **Another model …** to
+type any name.
+
+In a message box’s **+** menu, **Extra effort** switches the chat to the more capable model for the
+conversation. The editor chat starts with it on, Goose with it off. When Goose sees demanding work,
+it offers a button under its answer. In the cloud, the organization’s credits pay and engenty picks
+the models.
 
 ## Account
 

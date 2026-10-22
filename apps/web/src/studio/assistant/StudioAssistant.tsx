@@ -4,6 +4,7 @@ import {
   Activity,
   ArrowLeft,
   AudioLines,
+  Check,
   ChevronDown,
   GripVertical,
   History,
@@ -184,6 +185,9 @@ function Calls({ calls }: { calls?: ChatToolCall[] }) {
 
 /** A card under an answer: the studio's own templates, or a plugin's for what its tool returned. */
 function AnswerCard({ card, send }: { card: ChatCard; send: (message: string) => void }) {
+  if (!card.plugin && card.tool === "extraEffort") {
+    return <ExtraEffortCard reason={String((card.data as { reason?: string }).reason ?? "")} />;
+  }
   if (!card.plugin && card.tool === "templates") {
     const { entries } = card.data as { entries: MarketplaceEntry[] };
     return (
@@ -193,6 +197,45 @@ function AnswerCard({ card, send }: { card: ChatCard; send: (message: string) =>
     );
   }
   return <PluginCard card={card} send={send} />;
+}
+
+/** The chat saw demanding work: a button turns extra effort on, and the answer goes on meanwhile. */
+function ExtraEffortCard({ reason }: { reason: string }) {
+  const state = useAssistant();
+  const [dismissed, setDismissed] = useState(false);
+  if (!state || dismissed) {
+    return null;
+  }
+  return (
+    <div className="my-2 flex flex-col gap-2 rounded-xl bg-amber/10 p-3 text-[0.8125rem] ring-1 ring-amber/30">
+      <div>
+        <b className="font-medium">{t("assistant.extraTitle")}</b>{" "}
+        <span className="text-ink-2">{reason}</span>
+      </div>
+      {state.extra ? (
+        <span className="inline-flex items-center gap-1.5 text-ink-2">
+          <Check className="size-3.5 text-moss" strokeWidth={3} /> {t("assistant.extraOn")}
+        </span>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => state.setExtra(true)}
+            className="inline-flex h-8 items-center rounded-full bg-primary px-3 font-medium text-primary-foreground text-[0.8125rem]"
+          >
+            {t("assistant.extraOnButton")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="inline-flex h-8 items-center rounded-full px-3 text-ink-2 ring-1 ring-border hover:bg-paper-2"
+          >
+            {t("assistant.extraNo")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** A plugin's card for what its tool returned, drawn by the plugin's studio half. */

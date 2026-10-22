@@ -37,7 +37,6 @@ import {
   contextWindowOf,
   costOf,
   gatewayTools,
-  hasTextModel,
   totalUsage,
   usageOf,
 } from "../models.js";
@@ -912,6 +911,28 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     }),
     ...(space ? spaceTools(input, space, wrote, brandOn) : {}),
   };
+  // On everyday effort the chat can offer extra effort for work that asks for more: a card with
+  // a button, while it goes on answering.
+  if (!input.extra) {
+    tools.suggest_extra_effort = createTool({
+      id: "suggest_extra_effort",
+      description:
+        "Offers the person extra effort (a more capable model) with a button under your answer. Call it once, before you start, when the work is demanding: building or changing a wizard with many steps, writing a widget (code), a long or intricate flow, hard analysis. Never for everyday questions or small changes. Say nothing about the button yourself and go on with your answer.",
+      inputSchema: z.object({
+        reason: z
+          .string()
+          .min(3)
+          .max(160)
+          .describe("Why this work needs more, in the person's language, one short sentence."),
+      }),
+      execute: async ({ reason }) => {
+        const card = { plugin: "", tool: "extraEffort", data: { reason } };
+        cards.push(card);
+        input.onCard?.(card);
+        return { shown: true };
+      },
+    });
+  }
   // What the tenant's plugins let the assistant do besides: a source of knowledge, say.
   if (space) {
     Object.assign(

@@ -1395,12 +1395,12 @@ function ChatPanel({
       />
       <Card className="flex flex-col gap-6 p-3.5 sm:p-5 sm:p-6">
         {place.cloud ? (
-          // The cloud runs the studio's chats on the organization's models: nothing to choose.
+          // The cloud runs the studio's chats on credits, with models engenty picks: nothing to choose.
           <Part title={t("models.who")}>
             <OptionGroup label={t("models.optOther")}>
               <Option
-                title={t("models.chatModels")}
-                note={wayText(state.ways.high, place).text}
+                title={t("models.creditsOrganization")}
+                note={t("models.chatCloudHint")}
                 noteTone="done"
                 selected
                 disabled
@@ -1437,12 +1437,6 @@ function ChatPanel({
               </OptionGroup>
               <OptionGroup label={t("models.optOther")}>
                 {option(
-                  "models",
-                  t("models.chatModels"),
-                  wayText(state.ways.high, place).text,
-                  ready("models"),
-                )}
-                {option(
                   "account",
                   chatWayName("account", me, place),
                   ready("account") ? t("models.noteUsage") : t("models.noteNeedsAccount"),
@@ -1461,7 +1455,115 @@ function ChatPanel({
             <Hint>{t("models.chatHint")}</Hint>
           </Part>
         )}
+        {place.cloud ? null : <ChatModels me={me} way={me.chatEngine} disabled={!place.canEdit} />}
       </Card>
+    </div>
+  );
+}
+
+/** The models of a chat way: the one for everyday work and the one extra effort switches to. */
+function ChatModels({ me, way, disabled }: { me: Me; way: ChatWay; disabled: boolean }) {
+  const qc = useQueryClient();
+  const listed = me.chatModels.ways[way];
+  const chosen = me.chatModels.chosen[way] ?? {};
+  const save = useMutation({
+    mutationFn: (change: { normal?: string | null; extra?: string | null }) =>
+      api.put("/api/studio/local/chat-models", { way, ...change }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
+  });
+  // Credits: engenty picks the models, there is nothing to choose.
+  if (!listed) {
+    return null;
+  }
+  const row = (effort: "normal" | "extra", title: string, hint?: string) => (
+    <ChatModelRow
+      key={`${way}-${effort}-${chosen[effort] ?? ""}`}
+      title={title}
+      hint={hint}
+      listed={listed.models}
+      latest={listed[effort]}
+      value={chosen[effort] ?? ""}
+      disabled={disabled || save.isPending}
+      onPick={(id) => save.mutate({ [effort]: id || null })}
+    />
+  );
+  return (
+    <Part title={t("models.chatModelsTitle")}>
+      <div className="flex flex-col gap-3">
+        {row("normal", t("models.chatModelNormal"), t("models.chatModelNormalHint"))}
+        {row("extra", t("composer.extra"), t("composer.extraHint"))}
+      </div>
+      {save.isError ? (
+        <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+      ) : null}
+    </Part>
+  );
+}
+
+function ChatModelRow({
+  title,
+  hint,
+  listed,
+  latest,
+  value,
+  disabled,
+  onPick,
+}: {
+  title: string;
+  hint?: string;
+  listed: { id: string; label: string }[];
+  latest: string;
+  value: string;
+  disabled: boolean;
+  onPick: (id: string) => void;
+}) {
+  const label = (id: string) =>
+    listed.find((m) => m.id === id)?.label ?? id.replace(/^[a-z]+:/, "");
+  const known = value === "" || listed.some((m) => m.id === value);
+  const [custom, setCustom] = useState(!known);
+  const [draft, setDraft] = useState(known ? "" : value);
+  return (
+    <div className="grid items-start gap-x-4 gap-y-1.5 sm:grid-cols-[10rem_minmax(0,1fr)]">
+      <div className="pt-2">
+        <div className="text-[0.875rem]">{title}</div>
+        {hint ? <div className="text-[0.75rem] text-ink-3">{hint}</div> : null}
+      </div>
+      <div className="flex flex-col gap-2">
+        <Select
+          value={custom ? CUSTOM : value}
+          onChange={(next) => {
+            if (next === CUSTOM) {
+              setCustom(true);
+              return;
+            }
+            setCustom(false);
+            onPick(next);
+          }}
+          options={[
+            { value: "", label: t("models.latest", { model: label(latest) }) },
+            ...listed.map((m) => ({ value: m.id, label: m.label })),
+            { value: CUSTOM, label: t("models.modelCustom") },
+          ]}
+        />
+        {custom ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              className="min-w-0 flex-1 font-mono text-[0.8125rem]"
+              value={draft}
+              disabled={disabled}
+              placeholder={latest}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+            <Button
+              variant="secondary"
+              disabled={!draft.trim() || disabled}
+              onClick={() => onPick(draft.trim())}
+            >
+              {t("settings.save")}
+            </Button>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
