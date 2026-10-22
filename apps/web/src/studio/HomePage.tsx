@@ -277,6 +277,7 @@ function WizardCard({
             <ChannelIcons w={w} runners={runners} />
             {present?.length ? (
               <span
+                role="img"
                 className="inline-flex items-center gap-1"
                 title={present.map(presenceLine).join("\n")}
                 aria-label={present.map(presenceLine).join(", ")}

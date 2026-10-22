@@ -36,6 +36,7 @@ function Editor({
   // Who else is here, and where this tab writes: the heading above the caret.
   const [typing, setTyping] = useState(false);
   const [place, setPlace] = useState<{ id: string; label: string } | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each keystroke starts the 10 s again.
   useEffect(() => {
     if (!typing) {
       return;
