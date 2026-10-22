@@ -1,14 +1,16 @@
 import { Markdown } from "@engenty/wizards-runner";
 import type { SpacePage } from "@engenty/wizards-shared/space-data";
+import { mergeText } from "@engenty/wizards-shared/text-merge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronRight, FileText, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronRight, FileText, GitMerge, Plus, Trash2 } from "lucide-react";
 import { type MouseEvent, useState } from "react";
-import { api } from "../../lib/api";
+import { ApiError, api } from "../../lib/api";
 import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { Button, Card, cn, IconButton, Spinner } from "../../ui";
+import { Button, Card, Chip, cn, IconButton, Spinner } from "../../ui";
 import { SyncNotice } from "../CloudSync";
-import { fileUrl, useAutosave } from "./data";
+import { LiveConflict, type LiveEditor, useLiveEditor } from "../live/editor";
+import { type Autosave, fileUrl, useAutosave } from "./data";
 import { KnowledgeHeader } from "./Knowledge";
 
 /** The page once it is loaded: its title and text, saved a moment after they stop changing. */
@@ -31,13 +33,72 @@ function Editor({
     await qc.invalidateQueries({ queryKey: keys.spaceData(page.projectId) });
     await qc.invalidateQueries({ queryKey: keys.knowledge(page.projectId) });
   };
-  const status = useAutosave({ title: title.trim() || page.title, markdown }, async (patch) => {
-    await api.patch(`/api/studio/pages/${page.id}`, patch);
-    // Opened again later, the page shows what was saved.
-    qc.setQueryData<SpacePage>(keys.page(page.id), (old) => (old ? { ...old, ...patch } : old));
-    if (patch.title !== page.title) {
-      await listed();
-    }
+  type Text = { title: string; markdown: string };
+  const status: Autosave<Text> = useAutosave<Text>(
+    { title: title.trim() || page.title, markdown },
+    (text) => live.save(text),
+  );
+  // Changes from elsewhere: shown at once, or merged into the next save (studio/live/editor.ts).
+  const live: LiveEditor<Text> = useLiveEditor<Text>({
+    kind: "page",
+    id: page.id,
+    initial: { value: { title: page.title, markdown: page.markdown }, at: page.updatedAt },
+    fromView: (view) => {
+      const p = view as SpacePage;
+      return { value: { title: p.title, markdown: p.markdown }, at: p.updatedAt };
+    },
+    merge: (base, mine, theirs) => {
+      const body = mergeText(base.markdown, mine.markdown, theirs.markdown);
+      const title =
+        mine.title === theirs.title || theirs.title === base.title
+          ? mine.title
+          : mine.title === base.title
+            ? theirs.title
+            : null;
+      return {
+        value: { title: title ?? mine.title, markdown: body.text },
+        clean: body.clean && title !== null,
+      };
+    },
+    same: (a, b) => a.title === b.title && a.markdown === b.markdown,
+    surface: {
+      apply: (text) => {
+        setTitle(text.title);
+        setMarkdown(text.markdown);
+        status.markSaved(text);
+        qc.setQueryData<SpacePage>(keys.page(page.id), (old) => (old ? { ...old, ...text } : old));
+      },
+      hasUnsavedEdits: () => status.pending(),
+      saveNow: () => status.saveNow(),
+    },
+    send: async (text, baseAt) => {
+      try {
+        const { updatedAt } = await api.patch<{ updatedAt: string }>(
+          `/api/studio/pages/${page.id}`,
+          { ...text, baseUpdatedAt: baseAt },
+        );
+        // Opened again later, the page shows what was saved.
+        qc.setQueryData<SpacePage>(keys.page(page.id), (old) =>
+          old ? { ...old, ...text, updatedAt } : old,
+        );
+        if (text.title !== page.title) {
+          await listed();
+        }
+        return updatedAt;
+      } catch (err) {
+        const now =
+          err instanceof ApiError && err.status === 409
+            ? (err.body as { page?: SpacePage } | null)?.page
+            : null;
+        if (now) {
+          throw new LiveConflict({
+            value: { title: now.title, markdown: now.markdown },
+            at: now.updatedAt,
+          });
+        }
+        throw err;
+      }
+    },
   });
   const remove = useMutation({
     mutationFn: () => api.del(`/api/studio/pages/${page.id}`),
@@ -118,7 +179,10 @@ function Editor({
           aria-label={t("data.title")}
           className="-ml-1 min-w-0 flex-1 rounded-md bg-transparent px-1 font-display font-semibold text-lg outline-none hover:bg-accent focus:bg-paper focus:ring-1 focus:ring-ring disabled:hover:bg-transparent"
         />
-        {status.state === "saving" ? (
+        {live.notice === "merged" ? (
+          <Chip icon={<GitMerge className="size-3" />}>{t("editor.merged")}</Chip>
+        ) : null}
+        {live.notice === "conflict" ? null : status.state === "saving" ? (
           <Spinner className="size-3.5 text-ink-3" />
         ) : status.state === "saved" ? (
           <Check className="size-4 text-moss" aria-label={t("settings.saved")} />
@@ -135,6 +199,21 @@ function Editor({
           </IconButton>
         )}
       </div>
+      {live.notice === "conflict" ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 rounded-lg bg-paper-2 px-3 py-2 text-[0.8125rem]"
+        >
+          <GitMerge className="size-4 shrink-0 text-ink-3" />
+          <span className="min-w-0 flex-1">{t("data.changedElsewhere")}</span>
+          <Button size="sm" variant="ghost" onClick={live.takeTheirs}>
+            {t("data.takeTheirs")}
+          </Button>
+          <Button size="sm" onClick={live.keepMine}>
+            {t("data.keepMine")}
+          </Button>
+        </div>
+      ) : null}
       {know ? (
         <KnowledgeHeader
           projectId={page.projectId}

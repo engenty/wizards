@@ -464,6 +464,7 @@ const NOTES_EN = {
   workspaceWizardFileLarger: "The workspace in the wizard file is larger than 25 MB.",
   unknownTemplate: "There’s no template “{starterId}”.",
   wizardChangedMeantime: "The wizard was changed in the meantime.",
+  itemChangedMeantime: "This was changed elsewhere in the meantime.",
   valueNotExist: "This value doesn’t exist.",
   nothingFiledUnderValue: "Nothing is filed under this value yet.",
   filmNotRenderedNeeds:
@@ -819,6 +820,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   workspaceWizardFileLarger: "Der Arbeitsbereich in der Wizard-Datei ist größer als 25 MB.",
   unknownTemplate: "Die Vorlage „{starterId}“ gibt es nicht.",
   wizardChangedMeantime: "Der Wizard wurde inzwischen geändert.",
+  itemChangedMeantime: "Das wurde inzwischen anderswo geändert.",
   valueNotExist: "Diesen Wert gibt es nicht.",
   nothingFiledUnderValue: "Unter diesem Wert steht noch nichts.",
   filmNotRenderedNeeds:

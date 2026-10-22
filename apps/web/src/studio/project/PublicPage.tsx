@@ -15,7 +15,7 @@ import { keys } from "../../lib/keys";
 import { type Project, useMe, type WizardSummary } from "../../lib/session";
 import { Button, Card, cn, Input, Label, Select, Switch, Textarea } from "../../ui";
 import { Pills } from "../editor/PreviewPane";
-import { useAutosave } from "./data";
+import { type SaveState, useAutosave } from "./data";
 import { langOfVoice, type PageVoice, pageAddress, pageUrl, voiceOf } from "./page-address";
 import { Anchor, Section } from "./Section";
 
@@ -479,7 +479,7 @@ function WordsFields({
   page: ProjectPage;
   disabled: boolean;
   save: (page: ProjectPage) => Promise<unknown>;
-  onState: (state: ReturnType<typeof useAutosave>) => void;
+  onState: (state: { state: SaveState; error: string | null }) => void;
 }) {
   const latest = useRef(page);
   latest.current = page;
@@ -550,7 +550,7 @@ export function PublicPage({ project }: { project: Project }) {
       return save({ ...current, ...patch });
     },
   });
-  const [wordsState, setWordsState] = useState<ReturnType<typeof useAutosave>>({
+  const [wordsState, setWordsState] = useState<{ state: SaveState; error: string | null }>({
     state: "idle",
     error: null,
   });

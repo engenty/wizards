@@ -387,7 +387,10 @@ export async function addTableRow(
   await db.insert(schema.spaceTableRow).values(row);
   await touchTable(table);
   await rowChanged(table, row.id);
-  return { id: row.id, cells: value };
+  const saved = await db.query.spaceTableRow.findFirst({
+    where: eq(schema.spaceTableRow.id, row.id),
+  });
+  return { id: row.id, cells: value, updatedAt: (saved?.updatedAt ?? new Date()).toISOString() };
 }
 
 /** Changes the cells named in `cells`; the others stay. */
@@ -562,10 +565,17 @@ export async function updatePage(
     parentId?: string | null;
     markdown?: string;
     review?: null;
+    /** The version the edit started from: a page changed after it is refused (409), not overwritten. */
+    baseUpdatedAt?: string;
   },
 ) {
   const page = await pageRow(pageId);
   await requireWritableProject(page.projectId);
+  if (patch.baseUpdatedAt && page.updatedAt.getTime() > Date.parse(patch.baseUpdatedAt)) {
+    throw new ServiceError("revision_conflict", note("itemChangedMeantime"), {
+      page: await getPage(_userId, pageId),
+    });
+  }
   const title = patch.title !== undefined ? patch.title.trim() || page.title : page.title;
   const wizardId =
     patch.wizardId !== undefined ? await ownerOf(page.projectId, patch.wizardId) : page.wizardId;
@@ -577,6 +587,7 @@ export async function updatePage(
         : page.parentId;
   const moved = title !== page.title || wizardId !== page.wizardId || parentId !== page.parentId;
   const edited = moved || (patch.markdown !== undefined && patch.markdown !== page.markdown);
+  const at = new Date();
   await db
     .update(schema.spacePage)
     .set({
@@ -594,7 +605,7 @@ export async function updatePage(
       ...(patch.markdown !== undefined ? { markdown: checkMarkdown(patch.markdown) } : {}),
       ...(patch.review === null ? { review: null } : {}),
       ...(edited && page.origin ? { kept: true } : {}),
-      updatedAt: new Date(),
+      updatedAt: at,
     })
     .where(eq(schema.spacePage.id, page.id));
   if (moved) {
@@ -602,6 +613,7 @@ export async function updatePage(
   } else if (edited) {
     queueIndex(`p:${page.id}`);
   }
+  return { updatedAt: at.toISOString() };
 }
 
 export async function deletePage(_userId: string, pageId: string) {

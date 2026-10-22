@@ -11,7 +11,7 @@ import {
 import { cellValue } from "@engenty/wizards-shared/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, X } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../../lib/api";
 import { type Key, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
@@ -77,7 +77,12 @@ function Cell({
 }) {
   const stored = draftOf(column, value);
   const [draft, setDraft] = useState(stored);
-  useEffect(() => setDraft(stored), [stored]);
+  // A change from elsewhere shows, unless something is typed here: that stays until it is saved.
+  const shown = useRef(stored);
+  useEffect(() => {
+    setDraft((d) => (d === shown.current ? stored : d));
+    shown.current = stored;
+  }, [stored]);
   const commit = (next = draft) => {
     if (next !== stored) {
       onSave(cellValue(column, next));
@@ -536,7 +541,13 @@ export function TableEditor({
     onSuccess: (saved, { row, column }) => {
       setError(null);
       setBad((b) => (b === `${row}:${column}` ? null : b));
-      put((rows) => rows.map((r) => (r.id === saved.id ? { ...r, cells: saved.cells } : r)));
+      put((rows) =>
+        rows.map((r) =>
+          r.id === saved.id
+            ? { ...r, cells: saved.cells, updatedAt: saved.updatedAt ?? r.updatedAt }
+            : r,
+        ),
+      );
     },
     onError: (err, { row, column }) => {
       if (err instanceof ApiError && err.body?.column === column) {

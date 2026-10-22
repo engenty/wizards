@@ -121,11 +121,25 @@ export function useLayout(section: string, fallback: Layout): [Layout, () => voi
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
+/** What an autosave tells its section. */
+export interface Autosave<T> {
+  state: SaveState;
+  error: string | null;
+  markSaved: (value: T) => void;
+  saveNow: () => void;
+  pending: () => boolean;
+}
+
 /**
  * Saves `value` a moment after it stops changing, and when the section goes away. The value the
- * section starts with counts as saved.
+ * section starts with counts as saved. `markSaved`: a value that came from elsewhere is what the
+ * server has, not an edit to save; `saveNow`: save what is there without waiting.
  */
-export function useAutosave<T>(value: T, save: (value: T) => Promise<unknown>, delay = 700) {
+export function useAutosave<T>(
+  value: T,
+  save: (value: T) => Promise<unknown>,
+  delay = 700,
+): Autosave<T> {
   const [state, setState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
   const json = JSON.stringify(value);
@@ -133,6 +147,7 @@ export function useAutosave<T>(value: T, save: (value: T) => Promise<unknown>, d
   const latest = useRef({ value, json, save });
   latest.current = { value, json, save };
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const inflight = useRef(0);
 
   const flush = useCallback(() => {
     const now = latest.current;
@@ -141,6 +156,7 @@ export function useAutosave<T>(value: T, save: (value: T) => Promise<unknown>, d
     }
     saved.current = now.json;
     setState("saving");
+    inflight.current += 1;
     // One save after the other: a later one must not be overtaken by an earlier one.
     queue.current = queue.current.then(async () => {
       try {
@@ -151,6 +167,8 @@ export function useAutosave<T>(value: T, save: (value: T) => Promise<unknown>, d
         saved.current = "";
         setError((err as Error).message);
         setState("error");
+      } finally {
+        inflight.current -= 1;
       }
     });
   }, []);
@@ -164,5 +182,18 @@ export function useAutosave<T>(value: T, save: (value: T) => Promise<unknown>, d
   }, [json, delay, flush]);
   useEffect(() => flush, [flush]);
 
-  return { state, error };
+  const markSaved = useCallback((next: T) => {
+    saved.current = JSON.stringify(next);
+  }, []);
+  const saveNow = useCallback(() => {
+    saved.current = "";
+    flush();
+  }, [flush]);
+  /** Something is typed and not saved yet, or a save is under way. */
+  const pending = useCallback(
+    () => latest.current.json !== saved.current || inflight.current > 0,
+    [],
+  );
+
+  return { state, error, markSaved, saveNow, pending };
 }
