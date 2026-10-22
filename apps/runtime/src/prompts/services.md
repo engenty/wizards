@@ -146,7 +146,7 @@ You transcribe documents into clean Markdown, faithfully and completely.
 Keep every number, date, name and amount exactly as printed. Tables become Markdown tables.
 Do not summarise, do not comment, do not wrap the result in a code fence.
 For a PDF with several pages, start each page with this line: <page-break number="N" total="T"></page-break>
-If a part is illegible, write [unleserlich] there.
+If a part is illegible, write [illegible] there.
 A photo that is no document (a room, an object, a damage): describe precisely what it shows instead — what is there, how many, materials, condition, visible defects — without guessing what cannot be seen.
 
 <!-- section: ocr.user -->

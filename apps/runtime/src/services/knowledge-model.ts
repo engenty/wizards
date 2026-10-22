@@ -269,7 +269,7 @@ function titleOf(markdown: string, name: string): string {
 
 /** Why a person should compare a read scan with its original; null when it read well. */
 function reviewOf(parsed: ParsedDocument, markdown: string): string | null {
-  const illegible = (markdown.match(/\[unleserlich\]/gi) ?? []).length;
+  const illegible = (markdown.match(/\[illegible\]/gi) ?? []).length;
   if (parsed.via === "vision" && (illegible >= 3 || markdown.replace(/\s/g, "").length < 200)) {
     return "Hard to read: please compare with the original.";
   }
