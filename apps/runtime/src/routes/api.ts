@@ -8,6 +8,7 @@ import { balanceCredits } from "../credits/credits.js";
 import { withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { allowed } from "../limits.js";
+import { nudge } from "../live/hub.js";
 import { managed, tenantInfo } from "../manage.js";
 import { authenticate, type Principal, principalOf } from "../mcp/auth.js";
 import type { Scope } from "../mcp/scopes.js";
@@ -62,8 +63,13 @@ const importSchema = z.object({
 });
 
 /** Runs a call in the caller's tenant, as the caller's role. */
-const inTenantAs = <T>(who: Principal, fn: () => T | Promise<T>) =>
-  withTenant(who.tenantId, () => asRole(who.role, fn));
+const inTenantAs = async <T>(who: Principal, fn: () => T | Promise<T>) => {
+  try {
+    return await withTenant(who.tenantId, () => asRole(who.role, fn));
+  } finally {
+    nudge(who.tenantId);
+  }
+};
 
 const HOUR = 60 * 60 * 1000;
 

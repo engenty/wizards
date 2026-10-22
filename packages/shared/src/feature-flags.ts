@@ -35,6 +35,12 @@ export const FEATURES = {
     label: "Two-way sync with the cloud",
     hint: "A local install with an account keeps its spaces in step with the organization in the cloud, both ways: wizards, knowledge, data and files.",
   },
+  liveChanges: {
+    kind: "release",
+    default: false,
+    label: "Live changes in the studio",
+    hint: "An open studio shows what changed elsewhere (another member, a run, the AI, the sync) without a reload.",
+  },
   unsetConnectors: {
     kind: "release",
     default: false,
