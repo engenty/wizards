@@ -1,27 +1,110 @@
 [
   {
+    "version": "v0.11.1",
+    "timestamp": 1792662065,
+    "commits": [
+      {
+        "id": "3dd1172",
+        "message": "runtime, doors and runner reach the browser container (#169)",
+        "group": "Fixed",
+        "scope": "cloud",
+        "breaking": false
+      },
+      {
+        "id": "8a603f9",
+        "message": "the view step's JSON editor on CodeMirror (#166)",
+        "group": "Changed",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "0b5723a",
+        "message": "pages are written in CodeMirror (#165)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.0",
-    "timestamp": 1792652430,
+    "timestamp": 1792652579,
     "commits": [
       {
         "id": "e523b66",
-        "message": "live changes in the studio: what others, the AI, a run or the cloud change shows as it happens, and an open editor merges it with what you type (#163)",
+        "message": "live changes (#163)",
         "group": "Added",
-        "scope": null,
+        "scope": "studio",
         "breaking": false
       },
       {
         "id": "8f47f02",
-        "message": "who else is editing: the people and the AI in a wizard, page or table, shown in the studio and told to MCP clients (#162)",
+        "message": "show who else is editing (#162)",
         "group": "Added",
-        "scope": null,
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "06df93e",
+        "message": "presence of people and AI in wizards, pages and tables (#161)",
+        "group": "Added",
+        "scope": "runtime",
         "breaking": false
       },
       {
         "id": "5aebb63",
-        "message": "a computer that syncs with the cloud gets the cloud's changes in about a second (#160)",
+        "message": "a computer follows the cloud's changes (#160)",
         "group": "Added",
-        "scope": null,
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "9b0d684",
+        "message": "the wizard editor follows the live feed (#159)",
+        "group": "Changed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "0d8c315",
+        "message": "page and table editors take changes from elsewhere while open (#158)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "3c54079",
+        "message": "studio patches what changed elsewhere (#157)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "95d0805",
+        "message": "live changes carry the item's view (#156)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "7e7ae77",
+        "message": "live hub and studio stream (#155)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "0ac6d43",
+        "message": "live change feed in the tenant database (#154)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "8f34730",
+        "message": "live changes patch the screen with the change itself (#153)",
+        "group": "Docs",
+        "scope": "plans",
         "breaking": false
       }
     ]
