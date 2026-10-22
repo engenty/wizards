@@ -12,6 +12,7 @@ import {
   type SpaceData,
   type SpacePage,
   type SpaceTable,
+  type SpaceTableRow,
 } from "@engenty/wizards-shared/space-data";
 import { rowKey } from "@engenty/wizards-shared/store";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
@@ -203,12 +204,21 @@ async function tableKnowledge(table: TableRow): Promise<SpaceTable["knowledge"]>
 }
 
 export async function getTable(userId: string, tableId: string): Promise<SpaceTable> {
-  const table = await tableRow(tableId);
-  const project = await ownedProject(userId, table.projectId);
+  const header = await getTableHeader(userId, tableId);
   const rows = await db.query.spaceTableRow.findMany({
-    where: eq(schema.spaceTableRow.tableId, table.id),
+    where: eq(schema.spaceTableRow.tableId, header.id),
     orderBy: [asc(schema.spaceTableRow.createdAt), asc(schema.spaceTableRow.id)],
   });
+  return { ...header, rows: rows.map(rowView) };
+}
+
+/** A table without its rows: what a change of its title or columns needs (live/views.ts). */
+export async function getTableHeader(
+  userId: string,
+  tableId: string,
+): Promise<Omit<SpaceTable, "rows">> {
+  const table = await tableRow(tableId);
+  const project = await ownedProject(userId, table.projectId);
   return {
     id: table.id,
     projectId: table.projectId,
@@ -217,11 +227,29 @@ export async function getTable(userId: string, tableId: string): Promise<SpaceTa
     title: table.title,
     format: table.format,
     columns: table.columns,
-    rows: rows.map((r) => ({ id: r.id, cells: r.cells, updatedAt: r.updatedAt.toISOString() })),
     readOnly: !(await projectWritable(project)),
     knowledge: await tableKnowledge(table),
   };
 }
+
+/** One row of a table, as the table shows it; null when it is gone. */
+export async function getRow(
+  _userId: string,
+  tableId: string,
+  rowId: string,
+): Promise<SpaceTableRow | null> {
+  await tableRow(tableId);
+  const row = await db.query.spaceTableRow.findFirst({
+    where: and(eq(schema.spaceTableRow.id, rowId), eq(schema.spaceTableRow.tableId, tableId)),
+  });
+  return row ? rowView(row) : null;
+}
+
+const rowView = (r: typeof schema.spaceTableRow.$inferSelect): SpaceTableRow => ({
+  id: r.id,
+  cells: r.cells,
+  updatedAt: r.updatedAt.toISOString(),
+});
 
 /**
  * A new title, owner or columns. Rows keep their cells: a removed column's cells are dropped

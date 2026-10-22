@@ -15,20 +15,18 @@ import {
   MODEL_CLASSES,
   TEXT_CLASSES,
   type WizardDefinition,
-  wizardLang,
 } from "@engenty/wizards-shared/definition";
 import { CATEGORY_TYPES, whereSchema } from "@engenty/wizards-shared/knowledge";
 import { PROJECT_FILE_KINDS } from "@engenty/wizards-shared/projects";
 import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
 import { note } from "@engenty/wizards-shared/run";
-import { wizardTexts } from "@engenty/wizards-shared/translation";
 import {
   PACKAGE_EXTENSION,
   PACKAGE_MAX_BYTES,
   PACKAGE_MIME,
 } from "@engenty/wizards-shared/wizard-package";
 import { generateText } from "ai";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -50,7 +48,6 @@ import { layout } from "../cli/home.js";
 import {
   connectorImportSchema,
   importConnector,
-  listConnectors,
   previewSource,
   refreshConnector,
   registryService,
@@ -80,6 +77,15 @@ import {
   writeTerminal,
 } from "../harness/terminal.js";
 import {
+  connectorsView,
+  filesView,
+  type Reader,
+  spacesView,
+  translationsView,
+  wizardsView,
+  wizardView,
+} from "../live/views.js";
+import {
   installMail,
   managed,
   renameTenant,
@@ -98,7 +104,6 @@ import {
   checkKey,
   classProblem,
   classWays,
-  embeddingModel,
   hasTextModel,
   LOCAL_KEYS,
   localModelSettings,
@@ -174,7 +179,6 @@ import {
   orderProjectFiles,
   projectFile,
   projectFileContent,
-  projectFiles,
   reindexProjectFile,
   removeProjectFile,
   updateProjectFile,
@@ -184,8 +188,6 @@ import {
   createProject,
   deleteProject,
   gradientSchema,
-  listProjects,
-  maskedServers,
   ownedProject,
   projectLimitOrNull,
   projectPatchSchema,
@@ -227,7 +229,6 @@ import {
   editTranslation,
   isLangCode,
   publishedDefinition,
-  translationsOf,
 } from "../services/translations.js";
 import { draftWidgetPreview } from "../services/widgets.js";
 import {
@@ -235,12 +236,9 @@ import {
   deleteWizard,
   draftChanges,
   duplicateWizard,
-  listWizards,
   ownedWizard,
   rotateShareLink,
   updateWizardSettings,
-  wizardMessages,
-  wizardState,
   writableWizard,
   writeDraft,
 } from "../services/wizards.js";
@@ -266,6 +264,9 @@ import { bareMime, byteRange } from "./delivery.js";
 import { notFoundAnswer, requestLang, say } from "./lang.js";
 
 type Vars = { Variables: { user: SessionUser } };
+
+/** Who reads, for the views the live stream sends too (live/views.ts). */
+const reader = (c: Context<Vars>): Reader => ({ userId: c.get("user").id, lang: requestLang(c) });
 
 /** The model sources a test call has worked on: the setup is done for those, not for the others. */
 async function testedSources(): Promise<string[]> {
@@ -795,26 +796,7 @@ export const studio = new Hono<Vars>()
   })
 
   // --- projects --------------------------------------------------------------
-  .get("/projects", async (c) => {
-    const projects = await listProjects(c.get("user").id, requestLang(c));
-    const build = await mayBuild();
-    return c.json(
-      projects.map((p) => ({
-        id: p.id,
-        name: p.name,
-        brand: p.brand,
-        facts: p.facts,
-        /** The space's public page; null until it is set up. */
-        page: p.page ?? null,
-        mcpServers: maskedServers(p),
-        wizardCount: p.wizardCount,
-        /** `local`: synced from a local install, where it is changed. */
-        origin: p.origin,
-        syncedAt: p.syncedAt?.toISOString() ?? null,
-        readOnly: p.origin === "local" || !build,
-      })),
-    );
-  })
+  .get("/projects", async (c) => c.json(await spacesView(reader(c))))
   .post("/projects", async (c) => {
     const body = z.object({ name: z.string().min(1).max(80) }).parse(await c.req.json());
     return c.json(await createProject(c.get("user").id, body.name));
@@ -841,14 +823,7 @@ export const studio = new Hono<Vars>()
     return c.json({ ok: true });
   })
   // --- what a project holds for all its wizards: logos, assets, documents -------
-  .get("/projects/:id/files", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    return c.json({
-      files: (await projectFiles(project.id)).map(fileView),
-      /** Whether documents get vectors, or the index works on keywords alone. */
-      embeddings: Boolean(await embeddingModel().catch(() => null)),
-    });
-  })
+  .get("/projects/:id/files", async (c) => c.json(await filesView(reader(c), c.req.param("id"))))
   .post("/projects/:id/files", async (c) => {
     const project = await ownedProject(c.get("user").id, c.req.param("id"));
     const kind = z.enum(PROJECT_FILE_KINDS).parse(c.req.query("kind"));
@@ -1016,10 +991,9 @@ export const studio = new Hono<Vars>()
       .parse(await c.req.json());
     return c.json(await previewSource(body));
   })
-  .get("/projects/:id/connectors", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    return c.json(await listConnectors(project.id));
-  })
+  .get("/projects/:id/connectors", async (c) =>
+    c.json(await connectorsView(reader(c), c.req.param("id"))),
+  )
   .post("/projects/:id/connectors", async (c) => {
     const user = c.get("user");
     const project = await ownedProject(user.id, c.req.param("id"));
@@ -1272,18 +1246,9 @@ export const studio = new Hono<Vars>()
   })
 
   // --- wizards ---------------------------------------------------------------
-  .get("/projects/:id/wizards", async (c) => {
-    const user = c.get("user");
-    await ownedProject(user.id, c.req.param("id"));
-    const wizards = await listWizards(user.id, c.req.param("id"));
-    // A local install with an account: where each wizard stands in its cloud, for the cards.
-    const linked = await cloudLinked();
-    return c.json(
-      await Promise.all(
-        wizards.map(async (w) => ({ ...w, cloud: linked ? await cloudState(w.id) : null })),
-      ),
-    );
-  })
+  .get("/projects/:id/wizards", async (c) =>
+    c.json(await wizardsView(reader(c), c.req.param("id"))),
+  )
   .post("/wizards", async (c) => {
     const body = z
       .object({
@@ -1350,27 +1315,7 @@ export const studio = new Hono<Vars>()
       ),
     );
   })
-  .get("/wizards/:id", async (c) => {
-    const user = c.get("user");
-    const w = await ownedWizard(user.id, c.req.param("id"));
-    const messages = await wizardMessages(w.id);
-    const project = await ownedProject(user.id, w.projectId);
-    return c.json({
-      ...(await wizardState(w)),
-      /** Shown and run here, changed elsewhere: a local install's wizard, or nothing is built here. */
-      readOnly: !(await projectWritable(project)),
-      blank: messages.length === 0 && !w.starter,
-      messages: messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        changed: m.changed,
-        source: m.source,
-        client: m.client,
-      })),
-      mcpServers: project.mcpServers.map((s) => ({ id: s.id, name: s.name })),
-    });
-  })
+  .get("/wizards/:id", async (c) => c.json(await wizardView(reader(c), c.req.param("id"))))
   .put("/wizards/:id/draft", async (c) => {
     const body = z
       .object({ definition: z.unknown(), baseRevision: z.number().int().min(0) })
@@ -1401,20 +1346,9 @@ export const studio = new Hono<Vars>()
     return c.json({ ok: true });
   })
   // The languages the published wizard is kept in, each original text with its translation.
-  .get("/wizards/:id/translations", async (c) => {
-    const w = await ownedWizard(c.get("user").id, c.req.param("id"));
-    const def = await publishedDefinition(w);
-    const kept = await translationsOf(w.id);
-    return c.json({
-      lang: def ? wizardLang(def) : wizardLang(w.draft),
-      texts: def ? wizardTexts(def) : [],
-      translations: kept.map((t) => ({
-        lang: t.lang,
-        texts: t.texts,
-        updatedAt: t.updatedAt.toISOString(),
-      })),
-    });
-  })
+  .get("/wizards/:id/translations", async (c) =>
+    c.json(await translationsView(reader(c), c.req.param("id"))),
+  )
   // The author's own lines for a language: they replace what a model wrote.
   .put("/wizards/:id/translations/:lang", async (c) => {
     const w = await writableWizard(c.get("user").id, c.req.param("id"));
