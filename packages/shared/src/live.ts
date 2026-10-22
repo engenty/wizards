@@ -20,6 +20,8 @@ export interface LiveItem {
   projectId: string | null;
   /** Where the item shows when its id alone doesn't say: a row's table, a translation's wizard. */
   parent: string | null;
+  /** The feed's number of the item's last change in this batch. */
+  seq?: number;
 }
 
 /**

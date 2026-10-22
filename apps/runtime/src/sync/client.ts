@@ -26,7 +26,14 @@ import { generateText } from "ai";
 import { and, desc, eq, gt, inArray, like } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { accountToken, linkedAccount } from "../auth/account.js";
-import { control, controlDb, db, schema, tenantSchemaVersion } from "../db/client.js";
+import {
+  control,
+  controlDb,
+  db,
+  schema,
+  tenantSchemaVersion,
+  withTenant as withTenantOf,
+} from "../db/client.js";
 import { env } from "../env.js";
 import { feature, remoteFeatures } from "../features.js";
 import { getBlob, hasBlob, putBlob, putBlobOf } from "../files/blobs.js";
@@ -35,7 +42,7 @@ import { managed } from "../manage.js";
 import { textModel } from "../models.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
-import { currentTenantOrNull } from "../tenants/tenant.js";
+import { currentTenantOrNull, LOCAL_TENANT } from "../tenants/tenant.js";
 import { type ApplyItem, applyItems } from "./apply.js";
 import { dropPushed, notePending, seqKey } from "./log.js";
 import { canonical, KIND_ORDER, KINDS } from "./records.js";
@@ -68,6 +75,24 @@ export interface Transport {
   ): Promise<{ shareUrl: string; code?: string; publishedVersion: number | null }>;
   rotate(projectId: string, wizardId: string): Promise<{ shareUrl: string; code?: string }>;
   adopt(projectId: string): Promise<void>;
+  /** Hears what changes in the cloud's spaces until `signal` ends it (`GET /v1/sync/live`). */
+  follow?(since: number | null, hear: (e: CloudLive) => void, signal: AbortSignal): Promise<void>;
+}
+
+/** What the cloud's live call says: the spaces with changes, by the cloud's live numbers. */
+export type CloudLive =
+  | { event: "hello" | "reset"; seq: number }
+  | { event: "changes"; seq: number; spaces: string[] };
+
+/** This install, to the cloud: its live call leaves out what this install pushed itself. */
+async function installId(): Promise<string> {
+  const known = await readSetting<string>("install-id");
+  if (known) {
+    return known;
+  }
+  const id = nanoid();
+  await writeSetting("install-id", id);
+  return id;
 }
 
 async function call(method: string, path: string, body?: unknown): Promise<Response> {
@@ -80,6 +105,7 @@ async function call(method: string, path: string, body?: unknown): Promise<Respo
     method,
     headers: {
       authorization: `Bearer ${token}`,
+      "x-wizards-install": await installId(),
       ...(body === undefined
         ? {}
         : { "content-type": raw ? "application/octet-stream" : "application/json" }),
@@ -137,6 +163,55 @@ const httpTransport: Transport = {
     json(call("POST", `${space(id)}/wizards/${encodeURIComponent(wizardId)}/rotate-link`)),
   adopt: async (id) => {
     await call("POST", `${space(id)}/adopt`);
+  },
+  follow: async (since, hear, signal) => {
+    const token = await accountToken();
+    if (!token) {
+      throw new ServiceError("refused", note("accountSignedOut"), { reason: "signed_out" });
+    }
+    const res = await fetch(`${env.local.cloudUrl}/api/v1/sync/live`, {
+      headers: {
+        authorization: `Bearer ${token}`,
+        accept: "text/event-stream",
+        "x-wizards-install": await installId(),
+        ...(since === null ? {} : { "last-event-id": String(since) }),
+      },
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      throw new ServiceError("refused", `The cloud answered ${res.status}.`, {
+        reason: res.status === 404 ? "no_live" : "refused",
+        status: res.status,
+      });
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        return;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      let cut = buffer.indexOf("\n\n");
+      while (cut >= 0) {
+        const block = buffer.slice(0, cut);
+        buffer = buffer.slice(cut + 2);
+        let event = "";
+        let data = "";
+        for (const line of block.split("\n")) {
+          if (line.startsWith("event:")) {
+            event = line.slice(6).trim();
+          } else if (line.startsWith("data:")) {
+            data += line.slice(5).trim();
+          }
+        }
+        if (event === "changes" || event === "hello" || event === "reset") {
+          hear({ event, ...JSON.parse(data) } as CloudLive);
+        }
+        cut = buffer.indexOf("\n\n");
+      }
+    }
   },
 };
 
@@ -1054,3 +1129,101 @@ export async function forgetTwoWay(): Promise<void> {
     await db.delete(table);
   }
 }
+
+// --- following the cloud as it changes (docs/plans/live-changes.md, 7) -----------------------
+
+const LIVE_SEQ = "sync:live-seq";
+/** A space is pulled at most this often for the live call; more changes wait for the next. */
+const LIVE_PULL_MS = 2000;
+const livePulled = new Map<string, number>();
+const livePending = new Map<string, NodeJS.Timeout>();
+
+function pullSoon(tenant: string, projectId: string) {
+  if (livePending.has(projectId)) {
+    return;
+  }
+  const wait = Math.max(0, LIVE_PULL_MS - (Date.now() - (livePulled.get(projectId) ?? 0)));
+  const timer = setTimeout(() => {
+    livePending.delete(projectId);
+    livePulled.set(projectId, Date.now());
+    void withTenantOf(tenant, () => syncSpace(projectId, "pull")).catch((err) =>
+      console.error(`[sync] live pull of ${projectId}:`, err),
+    );
+  }, wait);
+  timer.unref?.();
+  livePending.set(projectId, timer);
+}
+
+/** What the cloud's live call said: pulls the spaces that sync here and changed there. */
+async function heardFromCloud(tenant: string, e: CloudLive): Promise<void> {
+  const synced = new Set(await syncedSpaceIds());
+  if (e.event === "changes") {
+    for (const id of e.spaces) {
+      if (synced.has(id)) {
+        pullSoon(tenant, id);
+      }
+    }
+  } else if (e.event === "reset") {
+    for (const id of synced) {
+      pullSoon(tenant, id);
+    }
+  }
+  await writeSetting(LIVE_SEQ, e.seq);
+}
+
+/**
+ * Keeps the cloud's live call open while the two-way sync and live changes are on, so a change
+ * made in the cloud reaches this computer in a second or two, not at the next round. The rounds
+ * (every minute, before a page opens) stay for when the call is down.
+ */
+export async function followCloud(signal: AbortSignal): Promise<void> {
+  // The install's own tenant: what is heard is pulled there, whoever calls `hear`.
+  const tenant = currentTenantOrNull() ?? LOCAL_TENANT;
+  let wait = 2000;
+  while (!signal.aborted) {
+    const on =
+      twoWayActive() &&
+      Boolean(transport.follow) &&
+      feature("liveChanges", await remoteFeatures().catch(() => null));
+    if (!on) {
+      await pause(30_000, signal);
+      continue;
+    }
+    const since = (await readSetting<number>(LIVE_SEQ)) ?? null;
+    try {
+      await transport.follow?.(
+        since,
+        (e) =>
+          void withTenantOf(tenant, () => heardFromCloud(tenant, e)).catch((err) =>
+            console.error("[sync] live:", err),
+          ),
+        signal,
+      );
+      wait = 2000;
+    } catch (err) {
+      if (signal.aborted) {
+        return;
+      }
+      // An older cloud has no live call: ask again much later.
+      if (err instanceof ServiceError && err.data.reason === "no_live") {
+        wait = 10 * 60_000;
+      }
+    }
+    await pause(wait, signal);
+    wait = Math.min(wait * 2, 60_000);
+  }
+}
+
+const pause = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((done) => {
+    const timer = setTimeout(done, ms);
+    timer.unref?.();
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        done();
+      },
+      { once: true },
+    );
+  });

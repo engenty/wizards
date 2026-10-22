@@ -15,7 +15,7 @@ process.env.APP_URL = "http://localhost:5181";
 process.env.PLUGINS_DIR = join(dir, "plugins");
 process.env.PLUGINS_WATCH = "0";
 process.env.PLUGIN_JOBS = "0";
-process.env.FEATURES = "twoWaySync=on";
+process.env.FEATURES = "twoWaySync=on,liveChanges=on";
 process.env.LIMIT_PROJECTS = "5";
 process.env.MARKETPLACE_URL = "off";
 process.env.AI_GATEWAY_API_KEY = "";
@@ -59,6 +59,7 @@ let wizards: typeof import("../src/services/wizards");
 let data: typeof import("../src/services/space-data");
 let projects: typeof import("../src/services/projects");
 let categories: typeof import("../src/services/space-categories");
+let origin: typeof import("../src/live/origin");
 
 const USER = "local";
 const local = <T>(fn: () => Promise<T>) => client.withTenant("local", fn);
@@ -71,7 +72,18 @@ const calls: string[] = [];
 const inCloud: Transport = {
   overview: () => cloud(() => hub.syncOverview()),
   pull: (id, since, cursor) => (calls.push("pull"), cloud(() => hub.pullChanges(id, since, cursor))),
-  push: (id, input) => (calls.push("push"), cloud(() => hub.pushChanges(id, input))),
+  push: (id, input) => {
+    calls.push("push");
+    return cloud(async () => {
+      const { newestSeq } = await import("../src/live/feed");
+      const push = origin.notePush("org", "this-install", await newestSeq());
+      try {
+        return await hub.pushChanges(id, input);
+      } finally {
+        push.done(await newestSeq());
+      }
+    });
+  },
   missing: (_id, hashes) => cloud(() => hub.missingBlobs(hashes)),
   putBlob: (_id, hash, bytes) => cloud(() => hub.takeBlob(hash, bytes)),
   getBlob: async (_id, hash) => new Uint8Array(await cloud(() => hub.blobBytes(hash))),
@@ -80,6 +92,18 @@ const inCloud: Transport = {
   adopt: async (id) => {
     await cloud(() => hub.adoptSpace(id));
   },
+  // The cloud's live call, as `GET /v1/sync/live` answers it (live/origin.ts).
+  follow: (since, hear, signal) =>
+    new Promise<void>((done) => {
+      void origin.followFor("org", "this-install", since, hear).then((stop) => {
+        const end = () => (stop(), done());
+        if (signal.aborted) {
+          end();
+        } else {
+          signal.addEventListener("abort", end, { once: true });
+        }
+      });
+    }),
 };
 
 const definition = (title: string, steps: { id: string; title: string }[]) => ({
@@ -136,6 +160,7 @@ beforeAll(async () => {
   data = await import("../src/services/space-data");
   projects = await import("../src/services/projects");
   categories = await import("../src/services/space-categories");
+  origin = await import("../src/live/origin");
   const settings = await import("../src/settings");
   // An account is linked: the sync can run.
   await settings.writeSetting("account", {
@@ -428,4 +453,48 @@ describe("what does not sync", () => {
     const answer = cloud(() => hub.pushChanges(spaceId, { schema: "0000_old", items: [] }));
     await expect(answer).rejects.toMatchObject({ data: { reason: "schema_mismatch", schema: schemaTag } });
   });
+});
+
+describe("following the cloud", () => {
+  const until = async (check: () => Promise<boolean>, ms: number) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (await check()) {
+        return true;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return false;
+  };
+  const markdownIn = (side: typeof local) =>
+    side(async () => (await data.getPage(USER, pageId)).markdown);
+
+  it("brings a change made in the cloud within two seconds, and not the install's own push", async () => {
+    await local(() => sync.syncAll());
+    const stop = new AbortController();
+    void local(() => sync.followCloud(stop.signal));
+    await new Promise((r) => setTimeout(r, 300));
+    const started = Date.now();
+    await cloud(() => data.updatePage(USER, pageId, { markdown: "Changed in the cloud." }));
+    expect(await until(async () => (await markdownIn(local)) === "Changed in the cloud.", 3000)).toBe(true);
+    expect(Date.now() - started).toBeLessThan(3000);
+
+    // This install's own push comes back as nothing to pull.
+    await new Promise((r) => setTimeout(r, 2200));
+    await local(() => data.updatePage(USER, pageId, { markdown: "Changed here." }));
+    await local(() => sync.syncSpace(spaceId, "push"));
+    const pulls = calls.filter((x) => x === "pull").length;
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(calls.filter((x) => x === "pull").length).toBe(pulls);
+    expect(await markdownIn(cloud)).toBe("Changed here.");
+
+    // After a drop it goes on from where it was.
+    stop.abort();
+    await new Promise((r) => setTimeout(r, 100));
+    await cloud(() => data.updatePage(USER, pageId, { markdown: "While this install was away." }));
+    const again = new AbortController();
+    void local(() => sync.followCloud(again.signal));
+    expect(await until(async () => (await markdownIn(local)) === "While this install was away.", 4000)).toBe(true);
+    again.abort();
+  }, 30_000);
 });

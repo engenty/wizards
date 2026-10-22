@@ -3,12 +3,16 @@ import { blobHash, missingBlobsSchema, pushSchema } from "@engenty/wizards-share
 import { PACKAGE_MIME } from "@engenty/wizards-shared/wizard-package";
 import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { balanceCredits } from "../credits/credits.js";
 import { withTenant } from "../db/client.js";
 import { env } from "../env.js";
+import { feature, remoteFeatures } from "../features.js";
 import { allowed } from "../limits.js";
+import { newestSeq } from "../live/feed.js";
 import { nudge } from "../live/hub.js";
+import { followFor, notePush } from "../live/origin.js";
 import { managed, tenantInfo } from "../manage.js";
 import { authenticate, type Principal, principalOf } from "../mcp/auth.js";
 import type { Scope } from "../mcp/scopes.js";
@@ -496,6 +500,58 @@ export const apiRoutes = new Hono()
     }
     return inTenantAs(who, async () => c.json(await syncOverview()));
   })
+  // What changed in the organization's spaces, as it happens: an install pulls those spaces now
+  // instead of at its next round (docs/plans/live-changes.md, 7).
+  .get("/sync/live", async (c) => {
+    const who = await caller(c, ["wizards:read"]);
+    if (who instanceof Response) {
+      return who;
+    }
+    const on = await inTenantAs(who, async () =>
+      feature("liveChanges", await remoteFeatures().catch(() => null)),
+    );
+    if (!on) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    const install = c.req.header("x-wizards-install") ?? "";
+    const raw = c.req.header("last-event-id") ?? c.req.query("since");
+    const since = raw && /^\d+$/.test(raw) ? Number(raw) : null;
+    c.header("cache-control", "no-cache, no-transform");
+    c.header("x-accel-buffering", "no");
+    return streamSSE(c, async (stream) => {
+      let closed = false;
+      let writing = Promise.resolve();
+      const write = (event: string, data: unknown, id?: number) => {
+        writing = writing.then(() =>
+          closed
+            ? undefined
+            : stream.writeSSE({
+                event,
+                data: JSON.stringify(data),
+                ...(id === undefined ? {} : { id: String(id) }),
+              }),
+        );
+      };
+      const stop = await followFor(who.tenantId, install, since, (e) => {
+        const { event, ...data } = e;
+        write(event, data, e.seq);
+      });
+      stream.onAbort(() => {
+        closed = true;
+        stop();
+      });
+      const until = Date.now() + 30 * 60_000;
+      while (!closed && Date.now() < until) {
+        await stream.sleep(Math.min(20_000, until - Date.now()));
+        if (!closed) {
+          await writing;
+          await stream.writeSSE({ event: "ping", data: "" });
+        }
+      }
+      closed = true;
+      stop();
+    });
+  })
   .get("/sync/spaces/:spaceId/changes", async (c) => {
     const who = await caller(c, ["wizards:read"]);
     if (who instanceof Response) {
@@ -521,7 +577,15 @@ export const apiRoutes = new Hono()
       return limited;
     }
     const body = pushSchema.parse(await c.req.json());
-    return inTenantAs(who, async () => c.json(await pushChanges(c.req.param("spaceId"), body)));
+    return inTenantAs(who, async () => {
+      // The feed numbers this push writes: the live call does not send them back to this install.
+      const push = notePush(who.tenantId, c.req.header("x-wizards-install"), await newestSeq());
+      try {
+        return c.json(await pushChanges(c.req.param("spaceId"), body));
+      } finally {
+        push.done(await newestSeq());
+      }
+    });
   })
   .post("/sync/spaces/:spaceId/blobs/missing", async (c) => {
     const who = await caller(c, ["wizards:write"]);
