@@ -11,6 +11,7 @@ import { Link } from "react-router";
 import { Mascot } from "../../brand";
 import { api } from "../../lib/api";
 import { type Key, lang as studioLang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { type Project, useMe, type WizardSummary } from "../../lib/session";
 import { Button, Card, cn, Input, Label, Select, Switch, Textarea } from "../../ui";
 import { Pills } from "../editor/PreviewPane";
@@ -526,7 +527,7 @@ export function PublicPage({ project }: { project: Project }) {
   const page = project.page;
   const on = Boolean(page?.on);
   const wizards = useQuery({
-    queryKey: ["project-wizards", project.id],
+    queryKey: keys.projectWizards(project.id),
     queryFn: () => api.get<WizardSummary[]>(`/api/studio/projects/${project.id}/wizards`),
   });
   // The page is saved whole: every change goes out with the rest as it stands now. Each save
@@ -537,7 +538,7 @@ export function PublicPage({ project }: { project: Project }) {
   latest.current = page;
   const save = async (next: ProjectPage) => {
     await api.patch(`/api/studio/projects/${project.id}`, { page: next });
-    await qc.invalidateQueries({ queryKey: ["projects"] });
+    await qc.invalidateQueries({ queryKey: keys.spaces() });
     setVersion((v) => v + 1);
   };
   const change = useMutation({

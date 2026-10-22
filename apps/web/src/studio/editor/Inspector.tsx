@@ -52,6 +52,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { withBase } from "@/lib/base";
 import { Mascot } from "../../brand";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { useStudioPlugins } from "../../plugins/host";
 import {
   Button,
@@ -717,7 +718,7 @@ function WidgetMissing({
       setError((err as Error).message);
     } finally {
       setBusy(false);
-      await qc.invalidateQueries({ queryKey: ["wizard", wizardId] });
+      await qc.invalidateQueries({ queryKey: keys.wizard(wizardId) });
     }
   };
   return (

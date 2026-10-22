@@ -5,6 +5,7 @@ import { Check, ChevronRight, FileText, Plus, Trash2 } from "lucide-react";
 import { type MouseEvent, useState } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { Button, Card, cn, IconButton, Spinner } from "../../ui";
 import { SyncNotice } from "../CloudSync";
 import { fileUrl, useAutosave } from "./data";
@@ -27,15 +28,13 @@ function Editor({
   const [view, setView] = useState<"write" | "read" | "original">(page.markdown ? "read" : "write");
   const know = page.knowledge;
   const listed = async () => {
-    await qc.invalidateQueries({ queryKey: ["space-data", page.projectId] });
-    await qc.invalidateQueries({ queryKey: ["knowledge", page.projectId] });
+    await qc.invalidateQueries({ queryKey: keys.spaceData(page.projectId) });
+    await qc.invalidateQueries({ queryKey: keys.knowledge(page.projectId) });
   };
   const status = useAutosave({ title: title.trim() || page.title, markdown }, async (patch) => {
     await api.patch(`/api/studio/pages/${page.id}`, patch);
     // Opened again later, the page shows what was saved.
-    qc.setQueryData<SpacePage>(["space-page", page.id], (old) =>
-      old ? { ...old, ...patch } : old,
-    );
+    qc.setQueryData<SpacePage>(keys.page(page.id), (old) => (old ? { ...old, ...patch } : old));
     if (patch.title !== page.title) {
       await listed();
     }
@@ -60,7 +59,7 @@ function Editor({
   });
   const reviewed = useMutation({
     mutationFn: () => api.patch(`/api/studio/pages/${page.id}`, { review: null }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["space-page", page.id] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.page(page.id) }),
   });
   // A link to another page of Knowledge (`pages/…`) opens it here.
   const follow = async (e: MouseEvent) => {
@@ -240,7 +239,7 @@ export function PageEditor({
   onOpen?: (key: string) => void;
 }) {
   const page = useQuery({
-    queryKey: ["space-page", pageId],
+    queryKey: keys.page(pageId),
     queryFn: () => api.get<SpacePage>(`/api/studio/pages/${pageId}`),
     // What the person writes is the truth while the page is open.
     refetchOnWindowFocus: false,

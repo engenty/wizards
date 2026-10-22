@@ -5,6 +5,7 @@ import { useRef } from "react";
 import { useNavigate } from "react-router";
 import { ApiError, api } from "../lib/api";
 import { t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import { useCurrentProject, useMayCreate } from "../lib/session";
 import { Button, Dialog } from "../ui";
 
@@ -25,7 +26,7 @@ export function ImportWizard({
     mutationFn: (file: File) =>
       api.upload<{ id: string }>(`/api/studio/projects/${project!.id}/wizards/import`, file),
     onSuccess: async ({ id }) => {
-      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });
       navigate(`/edit/${id}`);
     },

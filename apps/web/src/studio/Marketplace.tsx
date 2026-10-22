@@ -73,6 +73,7 @@ import { Mascot } from "../brand";
 import { ENGENTY_FILL, ENGENTY_KIND_FILL, type EngentyKind } from "../engenty/colors";
 import { api } from "../lib/api";
 import { lang, t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import { useCurrentProject, useMayCreate } from "../lib/session";
 import { useTheme } from "../lib/theme";
 import { Button, Card, Chip, cn, Dialog, Spinner } from "../ui";
@@ -894,7 +895,7 @@ export function MarketplaceCards({ entries }: { entries: MarketplaceEntry[] }) {
     mutationFn: (starterId: string) =>
       api.post<{ id: string }>("/api/studio/wizards", { projectId: project!.id, starterId, lang }),
     onSuccess: async ({ id }) => {
-      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });
       setPicked(null);
       navigate(`/edit/${id}`);

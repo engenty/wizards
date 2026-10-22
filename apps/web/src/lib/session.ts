@@ -23,6 +23,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { ApiError, api } from "./api";
 import { STUDIO, withBase } from "./base";
 import { type Lang, setLang, storedLang } from "./i18n";
+import { keys } from "./keys";
 
 /** The AI clients whose subscription can answer the studio's chats. */
 export type SubscriptionClient = "claude" | "codex" | "cursor";
@@ -287,7 +288,7 @@ export interface Project {
 
 export function useProjects(enabled = true) {
   return useQuery({
-    queryKey: ["projects"],
+    queryKey: keys.spaces(),
     queryFn: () => api.get<Project[]>("/api/studio/projects"),
     enabled,
   });

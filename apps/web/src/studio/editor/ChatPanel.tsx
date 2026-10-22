@@ -8,6 +8,7 @@ import { Mascot } from "../../brand";
 import { postStream } from "../../lib/api";
 import { withBase } from "../../lib/base";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import type { WizardDetail } from "../../lib/session";
 import { Composer, type ComposerHandle, cn, pastedName, Spinner } from "../../ui";
 
@@ -174,7 +175,7 @@ export function useArchitectChat(
         setError((err as Error).message);
         setPhase("idle");
         setStartedAt(null);
-        await qc.invalidateQueries({ queryKey: ["wizard", wizard.id] });
+        await qc.invalidateQueries({ queryKey: keys.wizard(wizard.id) });
         return false;
       }
       const named = `${t("editor.attached")}: ${files.map((f) => f.name).join(", ")}`;
@@ -242,7 +243,7 @@ export function useArchitectChat(
         m.filter((x) => !(x.id === pendingId && !x.content)).map((x) => ({ ...x, pending: false })),
       );
       setPhase("idle");
-      await qc.invalidateQueries({ queryKey: ["wizard", wizard.id] });
+      await qc.invalidateQueries({ queryKey: keys.wizard(wizard.id) });
       await qc.invalidateQueries({ queryKey: ["me"] });
     }
     return true;

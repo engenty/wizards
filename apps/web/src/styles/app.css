@@ -311,6 +311,31 @@ a,
   }
 }
 
+/* What changed elsewhere, for a moment (studio/live): a soft background that fades. */
+/* Two names, so a second change right after the first starts the fade again. */
+@keyframes live-flash-a {
+  from {
+    background-color: var(--accent);
+  }
+}
+@keyframes live-flash-b {
+  from {
+    background-color: var(--accent);
+  }
+}
+.live-flash-a {
+  animation: live-flash-a 1.5s ease-out;
+}
+.live-flash-b {
+  animation: live-flash-b 1.5s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-flash-a,
+  .live-flash-b {
+    animation: none;
+  }
+}
+
 @keyframes rise {
   from {
     opacity: 0;

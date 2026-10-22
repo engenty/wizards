@@ -10,6 +10,7 @@ import { Mascot } from "../brand";
 import { api } from "../lib/api";
 import { withBase } from "../lib/base";
 import { lang, t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import {
   dropWish,
   pendingWish,
@@ -259,7 +260,7 @@ export function NewWizardPage() {
     mutationFn: (starterId: string) =>
       api.post<{ id: string }>("/api/studio/wizards", { projectId: project!.id, starterId, lang }),
     onSuccess: async ({ id }) => {
-      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });
       navigate(`/edit/${id}`);
     },
@@ -284,7 +285,7 @@ export function NewWizardPage() {
     },
     onSuccess: async (id) => {
       dropWish();
-      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });
       let message = prompt.trim();
       if (!isDefaultChoice(channels)) {

@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api } from "../lib/api";
 import { t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import { type Project, useCurrentProject, useManyProjects, useMe } from "../lib/session";
 import { PluginFrame, useStudioPlugins } from "../plugins/host";
 import { PluginsSection } from "../plugins/PluginsSection";
@@ -79,7 +80,7 @@ function McpServers({ project }: { project: Project }) {
           })),
       }),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
       setSaved(true);
       setTimeout(() => setSaved(false), 1800);
     },

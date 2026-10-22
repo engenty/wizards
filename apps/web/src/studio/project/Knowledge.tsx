@@ -24,6 +24,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import {
   Button,
   Card,
@@ -50,7 +51,7 @@ import { DropArea, SearchField, Section } from "./Section";
 /** Knowledge of a space: its items and categories; asked again while a document is still read. */
 export function useKnowledge(projectId: string | undefined) {
   return useQuery({
-    queryKey: ["knowledge", projectId],
+    queryKey: keys.knowledge(projectId),
     queryFn: () => api.get<Knowledge>(`/api/studio/projects/${projectId}/knowledge`),
     enabled: Boolean(projectId),
     refetchInterval: (query) =>
@@ -564,7 +565,7 @@ function NewItemDialog({
         { title: title.trim(), ...(kind === "table" && faq ? { format: "faq" } : {}) },
       ),
     onSuccess: async ({ id }) => {
-      await qc.invalidateQueries({ queryKey: ["knowledge", projectId] });
+      await qc.invalidateQueries({ queryKey: keys.knowledge(projectId) });
       onMade(`${kind === "table" ? "t" : "p"}:${id}`);
       setTitle("");
       setFaq(false);
@@ -673,7 +674,7 @@ export function KnowledgeOverview({
       keep
         ? api.patch(`/api/studio/categories/${id}`, { proposed: false })
         : api.del(`/api/studio/categories/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["knowledge", projectId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.knowledge(projectId) }),
   });
   return (
     <Section
@@ -787,7 +788,7 @@ export function KnowledgeOverview({
           accept=".pdf,.docx,.doc,.xlsx,.csv,.tsv,.txt,.md,.json,.html,.eml,image/*"
           onFiles={async (picked) => {
             await files.upload("document", picked);
-            await qc.invalidateQueries({ queryKey: ["knowledge", projectId] });
+            await qc.invalidateQueries({ queryKey: keys.knowledge(projectId) });
           }}
           className="h-14 w-full"
         >

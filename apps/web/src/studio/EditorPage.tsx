@@ -20,6 +20,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { eventText, type Key, t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import { useMediaQuery } from "../lib/media";
 import {
   type PublishResult,
@@ -330,7 +331,7 @@ function Editor() {
   const me = useMe();
   const [params, setParams] = useSearchParams();
   const wizard = useQuery({
-    queryKey: ["wizard", id],
+    queryKey: keys.wizard(id),
     queryFn: () => api.get<WizardDetail>(`/api/studio/wizards/${id}`),
     // The live stream keeps it fresh; a refetch on focus would only race unsaved edits.
     refetchOnWindowFocus: false,
@@ -427,7 +428,7 @@ function Editor() {
   const projects = useProjects();
 
   const chat = useArchitectChat(wizard.data, (draft, revision) => {
-    qc.setQueryData<WizardDetail>(["wizard", id], (old) =>
+    qc.setQueryData<WizardDetail>(keys.wizard(id), (old) =>
       old ? { ...old, draft, revision, title: draft.title, blank: false } : old,
     );
   });
@@ -488,7 +489,7 @@ function Editor() {
         qc.setQueryData(["cloud", id], { linked: true, ...cloud });
       }
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ["wizard", id] }),
+        qc.invalidateQueries({ queryKey: keys.wizard(id) }),
         qc.invalidateQueries({ queryKey: ["cloud", id] }),
         qc.invalidateQueries({ queryKey: ["wizards"] }),
       ]);
@@ -617,7 +618,7 @@ function Editor() {
     setAdding(request);
     void chat.send(addStepMessage(def, request)).then(() => {
       setAdding(null);
-      const latest = qc.getQueryData<WizardDetail>(["wizard", id])?.draft;
+      const latest = qc.getQueryData<WizardDetail>(keys.wizard(id))?.draft;
       const added = latest?.steps.find((s) => !before.has(s.id));
       if (added) {
         setSelected(added.id);
