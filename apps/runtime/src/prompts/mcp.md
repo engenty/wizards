@@ -1,8 +1,10 @@
 <!--
 AI apps (Claude, ChatGPT, …) that use and build wizards over MCP. Read by mcp/handler.ts
 (`instructions`, the server's instructions) and mcp/tools.ts (tool descriptions, long parameter
-descriptions, the note on people editing a wizard, the `design_wizard` prompt). Tool titles and
-short parameter descriptions stay in the code.
+descriptions, the note on people editing a wizard, the `design_wizard` prompt) and
+services/runs.ts (the hints in waitingFor). The studio's architect (agents/architect.ts) uses the
+tool.* descriptions of the tools it shares with this server. Tool titles and short parameter
+descriptions stay in the code.
 -->
 
 <!-- Behaviour: product owns the sections below. -->
@@ -21,13 +23,13 @@ Projects are called spaces in the studio. Ids are for the tools only: name wizar
 Read this before writing a wizard: the JSON schema, field kinds, step types and tools, templates, design rules, and the MCP servers of the project.
 
 <!-- section: tool.find_connectors -->
-Search the integrations registry for a service that can be imported as a connector, from its OpenAPI spec or its MCP server.
+Search the integrations registry for a service that can be imported as a connector, from its OpenAPI spec or its MCP server. Returns domains with a short description.
 
 <!-- section: tool.list_connectors -->
 The connectors a project has imported, each with its actions.
 
 <!-- section: tool.import_connector -->
-Import a registry service into a project as a connector. Returns its id, tool prefix, how people connect and its actions. A wizard uses it through a connection { id, connector }.
+Import a registry service into a project as a connector. Returns its id, tool prefix, how people connect (OAuth, API key, none) and its actions with their marks (read / write / destructive). Importing again returns the existing one. A wizard uses it through a connection { id, connector }.
 
 <!-- section: tool.list_starters -->
 Ready-made wizards to start from: first those the space's plugins bring (marked with the plugin), then the marketplace's (tweet with image, video ad, research briefing, dashboard, invoice, offer …), with what each makes and needs. Give a query to search them; without one you get the starters.
@@ -102,7 +104,7 @@ A running step asks before it changes something in a connected account (waitingF
 back: return to the previous page or review. retry: run the failed step again. cancel: stop the run.
 
 <!-- section: tool.list_files -->
-The wizard's workspace: widget HTML/JS/CSS, vendored libraries, reference data. Runs use a snapshot of it.
+The files in the wizard's workspace (path, mime, size): widget HTML/JS/CSS, vendored libraries, reference data. Runs use a snapshot of it.
 
 <!-- section: tool.read_file -->
 A workspace file as text (binary files are described, not returned).
@@ -114,7 +116,7 @@ Create or overwrite a workspace file: `content` for text (HTML, JS, CSS, JSON, C
 Remove a file from the workspace.
 
 <!-- section: tool.check_widget -->
-Load a widget step of the draft in a real browser with its sample data: script errors, the timeline it registered (seconds, for the MP4 export) and a screenshot.
+Load a widget step of the draft in a real browser with its sample data (or the data you pass): script errors, the timeline it registered (seconds, for the MP4 export) and a screenshot.
 
 <!-- section: param.run_wizard.theme -->
 The widget's look: the id of a theme the wizard names (its definition's themes), brand or default. Left out: host, this app's own look. Only when the person asks for the wizard's look.

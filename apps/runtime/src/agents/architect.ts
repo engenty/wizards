@@ -9,17 +9,11 @@ import { Agent } from "@mastra/core/agent";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import {
-  connectorsLine,
   exampleWizard,
   type GuideConnector,
   type GuideServer,
   type GuideTool,
-  mcpServersLine,
-  pluginToolsLine,
-  principles,
-  schemaDoc,
-  surfaceGuide,
-  widgetGuide,
+  projectLines,
 } from "../authoring/guide.js";
 import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
@@ -37,6 +31,7 @@ import { pluginToolsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
 import { contentPolicy } from "../safety.js";
+import { sandboxGuideLine } from "../sandbox/index.js";
 import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import { editWizard, ownedWizard, writeDraft } from "../services/wizards.js";
@@ -94,13 +89,11 @@ function systemPrompt(
 ): string {
   return `${prompt("architect", "system", {
     persona: prompt("architect", "persona"),
-    schema: schemaDoc(),
-    principles: principles(),
-    widgets: widgetGuide(),
-    surfaces: surfaceGuide(),
-    mcp_servers: mcpServersLine(mcp),
-    connectors: connectorsLine(connectors),
-    plugin_tools: pluginToolsLine(pluginTools),
+    schema: prompt("authoring", "schema"),
+    principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
+    widgets: prompt("authoring", "widgets"),
+    surfaces: prompt("authoring", "surfaces"),
+    project_tools: projectLines(mcp, connectors, pluginTools),
     example: exampleWizard(),
     how_you_work: prompt("architect", "how_you_work"),
   })}\n\n${contentPolicy()}`;
@@ -156,14 +149,14 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
   const tools: Record<string, any> = {
     find_connectors: createTool({
       id: "find_connectors",
-      description: prompt("architect", "tool.find_connectors"),
+      description: prompt("mcp", "tool.find_connectors"),
       inputSchema: z.object({ query: z.string().describe("Service name, e.g. Notion") }),
       execute: async ({ query }) =>
         attempt(async () => ({ services: await searchRegistry(query) })),
     }),
     import_connector: createTool({
       id: "import_connector",
-      description: prompt("architect", "tool.import_connector"),
+      description: prompt("mcp", "tool.import_connector"),
       inputSchema: z.object({
         domain: z.string().describe("A domain from find_connectors, e.g. notion.com"),
         kind: z
@@ -180,7 +173,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     list_connectors: createTool({
       id: "list_connectors",
-      description: prompt("architect", "tool.list_connectors"),
+      description: prompt("mcp", "tool.list_connectors"),
       inputSchema: z.object({}),
       execute: async () =>
         attempt(async () => ({ connectors: await listConnectors(await projectId()) })),
@@ -203,24 +196,24 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     edit_wizard: createTool({
       id: "edit_wizard",
-      description: prompt("architect", "tool.edit_wizard"),
+      description: prompt("mcp", "tool.edit_wizard"),
       inputSchema: z.object({ ops: z.array(wizardOpSchema).min(1) }),
       execute: async ({ ops }) =>
         attempt(async () => {
           const w = await ownedWizard(userId, wizardId);
-          const { issues } = await editWizard(
+          const { revision, issues } = await editWizard(
             userId,
             wizardId,
             { ops, baseRevision: w.revision },
             { source: "studio" },
           );
           wrote();
-          return { ok: true, issues };
+          return { ok: true, revision, issues };
         }),
     }),
     list_files: createTool({
       id: "list_files",
-      description: prompt("architect", "tool.list_files"),
+      description: prompt("mcp", "tool.list_files"),
       inputSchema: z.object({}),
       execute: async () =>
         attempt(async () =>
@@ -229,7 +222,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     read_file: createTool({
       id: "read_file",
-      description: prompt("architect", "tool.read_file"),
+      description: prompt("mcp", "tool.read_file"),
       inputSchema: z.object({ path: z.string() }),
       execute: async ({ path }) =>
         attempt(async () => {
@@ -258,7 +251,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     delete_file: createTool({
       id: "delete_file",
-      description: prompt("architect", "tool.delete_file"),
+      description: prompt("mcp", "tool.delete_file"),
       inputSchema: z.object({ path: z.string() }),
       execute: async ({ path }) =>
         attempt(async () => {
@@ -364,7 +357,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     check_widget: createTool({
       id: "check_widget",
-      description: prompt("architect", "tool.check_widget"),
+      description: prompt("mcp", "tool.check_widget"),
       inputSchema: z.object({
         stepId: z.string(),
         data: z.record(z.string(), z.unknown()).optional(),

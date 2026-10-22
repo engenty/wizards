@@ -7,22 +7,6 @@ import { EXAMPLE_WIZARD } from "./example.js";
  * How a wizard is written down and what makes a good one (prompts/authoring.md). The studio's
  * architect and the MCP tools hand the same text to whichever model authors the wizard.
  */
-export function schemaDoc(): string {
-  return `\n${prompt("authoring", "schema")}`;
-}
-
-export function principles(): string {
-  return `\n${prompt("authoring", "principles", { sandbox: sandboxGuideLine() })}`;
-}
-
-export function widgetGuide(): string {
-  return `\n${prompt("authoring", "widgets")}`;
-}
-
-/** What a model needs to compose a surface: the catalog, briefly. */
-export function surfaceGuide(): string {
-  return prompt("authoring", "surfaces");
-}
 
 export interface GuideServer {
   id: string;
@@ -38,7 +22,7 @@ export interface GuideConnector {
   actions: { id: string; group: string }[];
 }
 
-export function connectorsLine(connectors: GuideConnector[]): string {
+function connectorsLine(connectors: GuideConnector[]): string {
   const lines = connectors.map((c) => {
     const actions = c.actions
       .slice(0, 40)
@@ -58,19 +42,30 @@ export interface GuideTool {
 }
 
 /** The tools this app's plugins add; nothing where there are none. */
-export function pluginToolsLine(tools: GuideTool[]): string {
+function pluginToolsLine(tools: GuideTool[]): string {
   if (!tools.length) {
     return "";
   }
   const lines = tools.map((t) => `- ${t.id} — ${t.description}`);
-  return `\n\n${prompt("authoring", "line.plugin_tools", { tools: lines.join("\n") })}`;
+  return prompt("authoring", "line.plugin_tools", { tools: lines.join("\n") });
 }
 
-export function mcpServersLine(mcp: GuideServer[]): string {
+function mcpServersLine(mcp: GuideServer[]): string {
   const servers = mcp.length
     ? mcp.map((m) => `${m.id} (${m.name})`).join(", ")
-    : prompt("authoring", "line.mcp_servers.none");
+    : `none — ${prompt("authoring", "line.mcp_servers.none")}`;
   return prompt("authoring", "line.mcp_servers", { servers });
+}
+
+/** What the project offers agent steps: its MCP servers, connectors and plugin tools. */
+export function projectLines(
+  mcp: GuideServer[],
+  connectors: GuideConnector[],
+  pluginTools: GuideTool[],
+): string {
+  return [mcpServersLine(mcp), connectorsLine(connectors), pluginToolsLine(pluginTools)]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 export function exampleWizard(): string {
@@ -84,13 +79,11 @@ export function authoringGuide(
   pluginTools: GuideTool[] = [],
 ): string {
   return prompt("authoring", "guide", {
-    schema: schemaDoc(),
-    principles: principles(),
-    widgets: widgetGuide(),
-    surfaces: surfaceGuide(),
-    mcp_servers: mcpServersLine(mcp),
-    connectors: connectorsLine(connectors),
-    plugin_tools: pluginToolsLine(pluginTools),
+    schema: prompt("authoring", "schema"),
+    principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
+    widgets: prompt("authoring", "widgets"),
+    surfaces: prompt("authoring", "surfaces"),
+    project_tools: projectLines(mcp, connectors, pluginTools),
     schema_url: WIZARD_SCHEMA_URL,
     example: exampleWizard(),
   });

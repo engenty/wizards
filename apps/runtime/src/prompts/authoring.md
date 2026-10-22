@@ -2,7 +2,8 @@
 The authoring guide: how a wizard is written down and what makes a good one. Read by
 authoring/guide.ts. authoringGuide() (section guide) is what MCP clients get from
 get_authoring_guide and what Goose knows; the architect (agents/architect.ts) builds its own
-system prompt from schema, principles, widgets, surfaces and the line.* sections.
+system prompt from schema, principles, widgets, surfaces and the line.* sections (projectLines()).
+engine/steps.ts reads surfaces too.
 -->
 
 <!-- Behaviour: product owns the sections below. -->
@@ -57,19 +58,19 @@ ${sandbox}
 <!-- Technical: engineering owns everything below. -->
 
 <!-- section: guide -->
-<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; the line.* sections fill mcp_servers, connectors and plugin_tools; example is the example wizard as JSON. -->
+<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; project_tools is projectLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON. -->
 engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author the wizard as JSON; the person who asked you is the ADMIN, the people who later open the link are END USERS.
 
 ${schema}
+
 ${principles}
+
 ${widgets}
 
 Surface catalog (for surface steps and output.surface):
 ${surfaces}
 
-${mcp_servers}
-
-${connectors}${plugin_tools}
+${project_tools}
 
 Models: a step names the KIND of model it needs, never a model. Pick the cheapest class that does the job:
 - "classifier": routing, yes/no, picking from options, pulling a few values out of text.
@@ -486,11 +487,12 @@ Design it like an app, not a report: lead with a headline, the key figure or the
 Keep it small: what the person needs to see first, then the details. Never invent numbers: bind them by path.
 
 <!-- section: line.mcp_servers -->
-<!-- servers: "id (name)" joined with ", ", or line.mcp_servers.none -->
+<!-- servers: "id (name)" joined with ", ", or "none — " and line.mcp_servers.none -->
 Project MCP servers available to agent steps: ${servers}.
 
 <!-- section: line.mcp_servers.none -->
-none — if the admin wants to write into an external system that needs one, build the step with http or browser, and tell them they can connect a server in the project settings
+<!-- After "none — " when the project has no MCP server. -->
+if the admin wants to write into an external system that needs one, build the step with http or browser, and tell them they can connect a server in the project settings
 
 <!-- section: line.connectors -->
 <!-- connectors: one "- id — name, tools prefix_*: actions" line per connector -->

@@ -2,8 +2,8 @@
 The architect: the studio's chat that builds a wizard with tools (agents/architect.ts), and the
 instructions the admin's own AI client gets when it answers that chat instead (agents/subscription.ts).
 Read by agents/architect.ts: systemPrompt() fills section system (persona, how_you_work, and the
-authoring guide's parts from authoring.md), buildTools() the tool.* descriptions, runArchitect()
-turn.context. Read by agents/subscription.ts: persona and subscription.system.
+authoring guide's parts from authoring.md), buildTools() the tool.* descriptions of the tools only
+the architect has (the shared ones are mcp.md's), runArchitect() turn.context. Read by agents/subscription.ts: persona and subscription.system.
 Written in English; the architect answers in the admin's language.
 -->
 
@@ -41,19 +41,19 @@ You work on exactly one wizard: id "${wizard_id}". Read it with get_wizard befor
 Call get_authoring_guide once before your first change. Fix every issue a write reports before you answer.
 
 <!-- section: system -->
-<!-- The system prompt. schema, principles, widgets, surfaces and the lines come from authoring.md (authoring/guide.ts); example is the example wizard as JSON. -->
+<!-- The system prompt. schema, principles, widgets and surfaces are authoring.md's sections, project_tools its line.* sections (projectLines() in authoring/guide.ts); example is the example wizard as JSON. -->
 ${persona}
 
 ${schema}
+
 ${principles}
+
 ${widgets}
 
 Surface catalog (for surface steps and output.surface):
 ${surfaces}
 
-${mcp_servers}
-
-${connectors}${plugin_tools}
+${project_tools}
 
 Example of a complete wizard:
 ```json
@@ -73,32 +73,15 @@ Workspace files: ${files}
 
 ${message}
 
-<!-- section: tool.find_connectors -->
-Search the integrations registry for a service that can be imported as a connector (from its OpenAPI spec or MCP server). Returns domains with a short description.
-
-<!-- section: tool.import_connector -->
-Import a service from the registry into this project as a connector. Returns its id, tool prefix, how people connect (OAuth, API key, none) and its actions with their marks (read / write / destructive). Importing again returns the existing one.
-
-<!-- section: tool.list_connectors -->
-The connectors this project has imported, with every action.
+<!-- The tools the architect shares with the MCP server take their descriptions from mcp.md (tool.*). These differ or exist only here. -->
 
 <!-- section: tool.replace_wizard -->
+<!-- Not mcp.md's: the architect has no create_wizard, so this is also how it writes a new wizard. -->
 Replace the whole wizard. Use for a new wizard or a rewrite. Returns the validator's issues.
 
-<!-- section: tool.edit_wizard -->
-Change the wizard with ops, applied in order: set_meta (title, description, avatar, intro, themes), set_theme {theme} (a theme of the space, worn first), set_lists {lists} and set_connections {connections} (each replaces the whole array), upsert_step (the complete step; replaces the step with that id or inserts it before/after another), remove_step, move_step. Returns the validator's issues.
-
-<!-- section: tool.list_files -->
-The files in the wizard's workspace (path, mime, size).
-
-<!-- section: tool.read_file -->
-Read a workspace file as text.
-
 <!-- section: tool.write_file -->
+<!-- Not mcp.md's: the architect writes text only (no base64). -->
 Create or overwrite a text file in the workspace (HTML, JS, CSS, JSON, CSV, SVG). Max 5 MB.
-
-<!-- section: tool.delete_file -->
-Delete a workspace file.
 
 <!-- section: tool.download_files -->
 Download public URLs straight into the workspace — all at once (libraries from cdnjs/jsdelivr, GeoJSON outlines, CSV, images). The content does not pass through you; you get each file's size and first characters. Requests to the same host are spaced one second apart (fair use of OpenStreetMap and others).
@@ -108,6 +91,3 @@ Run JavaScript over workspace files in a browser without network — to reshape 
 
 <!-- section: tool.web_fetch -->
 Read a public web page or API response (Markdown/text, first 6000 chars).
-
-<!-- section: tool.check_widget -->
-Load a widget step in a real browser with its sample data (or the data you pass): returns script errors, whether it registered a timeline, and a screenshot you can look at.
