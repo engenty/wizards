@@ -16,6 +16,8 @@ export interface Config {
   signedOutUrl: string | null;
   publicUrl: string;
   features: Record<string, boolean>;
+  /** The run page asks how it went and sends bug reports: they reach the Manage-App. */
+  reports?: boolean;
 }
 
 export function useConfig() {

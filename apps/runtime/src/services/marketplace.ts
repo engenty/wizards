@@ -36,7 +36,7 @@ import {
   stepsWithoutModel,
 } from "../engine/requirements.js";
 import { env } from "../env.js";
-import { managed } from "../manage.js";
+import { managed, type TenantInfo, tenantInfo } from "../manage.js";
 import {
   classCatalog,
   type GatewayCatalog,
@@ -305,6 +305,46 @@ export interface MarketplaceResult extends MarketplacePage<MarketplaceEntry> {
   offline: boolean;
   /** The capabilities this runtime has no model for. */
   unavailable: Capability[];
+  /** The team's level, where the Manage-App names one: the catalog shows templates up to it. */
+  level?: TenantInfo["level"] | null;
+}
+
+/** The team's level: the Manage-App's word on a managed runtime; elsewhere every level is open. */
+async function teamLevel(): Promise<TenantInfo["level"] | null> {
+  if (!managed) {
+    return null;
+  }
+  const info = await tenantInfo(currentTenant()).catch(() => null);
+  return info?.level ?? null;
+}
+
+/**
+ * The catalog as the team's level leaves it (docs/plans/wizards-admin.md in the Manage
+ * repository): a template above the level is not shown, the featured ones come first – those of
+ * the team's own level before the rest – and the answer says the level.
+ */
+export async function byLevel(
+  page: MarketplaceResult,
+  opts: { q?: string },
+): Promise<MarketplaceResult> {
+  const level = await teamLevel();
+  const top = level?.level ?? Number.POSITIVE_INFINITY;
+  const shown = page.entries.filter((e) => (e.level ?? 1) <= top);
+  // A search keeps its order: the words found what fits best.
+  const rank = (e: MarketplaceEntry) =>
+    e.featured ? ((e.level ?? 1) === level?.level ? 0 : 1) : 2;
+  const entries = opts.q?.trim()
+    ? shown
+    : shown
+        .map((e, i) => ({ e, i }))
+        .sort((a, b) => rank(a.e) - rank(b.e) || a.i - b.i)
+        .map((x) => x.e);
+  return {
+    ...page,
+    entries,
+    total: Math.max(0, page.total - (page.entries.length - shown.length)),
+    level,
+  };
 }
 
 /**

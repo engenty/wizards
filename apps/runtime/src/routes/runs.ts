@@ -72,6 +72,7 @@ import { loadAsset, saveAsset } from "../files/storage.js";
 import { type CheckedUpload, checkUpload } from "../files/upload-check.js";
 import { reverseGeocode } from "../geocode.js";
 import { allowed, hashIp, verifyTurnstile, wizardUnavailable } from "../limits.js";
+import { managed, postFeedback } from "../manage.js";
 import { mintConversation } from "../media/conversation.js";
 import { transcribeAudio } from "../media/transcribe.js";
 import { errorText, ModelUnavailableError, noteOf } from "../model-errors.js";
@@ -1528,6 +1529,29 @@ export const runRoutes = new Hono()
       return c.json(notFoundAnswer(c), 404);
     }
     await unshareRun(run);
+    return c.json({ ok: true });
+  })
+  // "How did it go?" at the end of a run: the answer goes on to the Manage-App's feedback.
+  .post("/:id/feedback", async (c) => {
+    const run = await accessibleRun(c, c.req.param("id"));
+    if (!run) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    if (run.status !== "done" && run.status !== "failed") {
+      return c.json({ error: "The run is not over yet." }, 409);
+    }
+    const body = z
+      .object({ good: z.boolean(), comment: z.string().trim().max(1000).optional() })
+      .parse(await c.req.json());
+    if (managed) {
+      await postFeedback(run.tenantId, {
+        runId: run.id,
+        wizardId: run.wizardId,
+        good: body.good,
+        comment: body.comment || null,
+        lang: run.lang ?? wizardLang(run.definition),
+      }).catch((err) => console.warn(`[run ${run.id}] feedback not sent:`, (err as Error).message));
+    }
     return c.json({ ok: true });
   })
   // --- sending the result on: by e-mail, into a folder, to a channel, onto a website ---------

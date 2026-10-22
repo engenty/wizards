@@ -91,6 +91,50 @@ export interface SearchPage extends MarketplacePage<MarketplaceEntry> {
   offline: boolean;
   /** The capabilities this install has no model for. */
   unavailable: Capability[];
+  /** The team's level: the catalog shows templates up to it; none where every level is open. */
+  level?: {
+    level: number;
+    name: string;
+    next: { level: number; name: string; runs: number; published: number } | null;
+    progress: { runs: number; published: number };
+  } | null;
+}
+
+/** The team's level as a line under the search: where it is, and what the next one takes. */
+function LevelLine({ level }: { level: NonNullable<SearchPage["level"]> }) {
+  const next = level.next;
+  const runs = next ? Math.max(0, next.runs - level.progress.runs) : 0;
+  const published = next ? Math.max(0, next.published - level.progress.published) : 0;
+  const share = next
+    ? Math.min(
+        1,
+        (Math.min(level.progress.runs / Math.max(1, next.runs), 1) +
+          Math.min(level.progress.published / Math.max(1, next.published || 1), 1)) /
+          2,
+      )
+    : 1;
+  return (
+    <div className="mx-auto mt-3 flex max-w-md items-center gap-3 text-[0.78125rem] text-ink-3">
+      <span className="shrink-0 font-medium text-ink-2">
+        {t("market.level", { level: level.level, name: level.name })}
+      </span>
+      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-paper-3">
+        <span
+          className="block h-full rounded-full bg-primary"
+          style={{ width: `${share * 100}%` }}
+        />
+      </span>
+      <span className="shrink-0">
+        {next
+          ? t(published ? "market.levelNextPublish" : "market.levelNext", {
+              runs,
+              published,
+              name: next.name,
+            })
+          : t("market.levelTop")}
+      </span>
+    </div>
+  );
 }
 
 interface Filters {
@@ -226,6 +270,11 @@ function EntryCard({ entry, onOpen }: { entry: MarketplaceEntry; onOpen: () => v
             />
           ) : null}
         </div>
+        {entry.featured ? (
+          <div className="mt-1">
+            <Chip tone="ember">{t("market.recommended")}</Chip>
+          </div>
+        ) : null}
         <div className="mt-0.5 text-[0.8125rem] text-ink-3 leading-snug">{entry.pitch}</div>
       </div>
       <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[0.75rem] text-ink-3">
@@ -1109,6 +1158,7 @@ export function MarketplaceBrowser({
         {clear}
       </label>
       {offline}
+      {first?.level ? <LevelLine level={first.level} /> : null}
       {/* On a phone the chips are one row to swipe, not four rows to scroll past. */}
       <div className="max-sm:-mx-3 mt-4 flex gap-1 max-sm:overflow-x-auto max-sm:px-3 max-sm:[scrollbar-width:none] sm:flex-wrap sm:justify-center max-sm:[&::-webkit-scrollbar]:hidden">
         {[{ value: "", label: t("market.all") }, ...useCases].map((u) => (

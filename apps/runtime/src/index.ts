@@ -22,6 +22,7 @@ import { loadPlugins } from "./plugins/loader.js";
 import { loadEntitlement, startProChecks } from "./plugins/pro.js";
 import { closeBrowser } from "./render/chromium.js";
 import { clearRunning, writeRunning } from "./running.js";
+import { reportAllWizards } from "./services/manage-reports.js";
 import { syncMarketplace } from "./services/marketplace.js";
 import { purgeExpiredRuns } from "./services/shares.js";
 import { purgeUnusedStores } from "./store/index.js";
@@ -48,6 +49,8 @@ if (managed) {
       console.log(
         `tenant databases: ${migrated} current${failed.length ? `, failed: ${failed}` : ""}`,
       );
+      // The admin app's list of every team's wizards starts from what is here now.
+      return reportAllWizards();
     })
     .catch((err) => console.error("[migrate]", err));
   // Which clients may start runs over the public API, and how often: the Manage-App's list.

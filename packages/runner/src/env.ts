@@ -60,6 +60,11 @@ export interface RunnerEnv {
   Mascot: ComponentType<MascotProps>;
   /** The result's share button; a host without shared results has none. */
   ShareResultButton?: ComponentType<ShareResultProps>;
+  /**
+   * What the host shows at a run's end, under the result or the failure: the question how it
+   * went, a way to report a problem. A host without either has none.
+   */
+  RunEnd?: ComponentType<{ view: RunView; failed?: boolean }>;
   /** Told of every answer of 500 and above, e.g. to send it to the host's log. */
   onServerError?: (line: string) => void;
   /** Extra headers on every request (a WordPress nonce). */

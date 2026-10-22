@@ -1,3 +1,4 @@
+import { keepLine } from "../report/log";
 import { withBase } from "./base";
 
 /**
@@ -11,6 +12,7 @@ const MOST = 20;
 
 export function report(level: "error" | "warn", message: string, stack?: string) {
   const text = String(message || "").slice(0, 2000);
+  keepLine(level, text);
   if (!text || sent >= MOST || seen.has(text)) {
     return;
   }

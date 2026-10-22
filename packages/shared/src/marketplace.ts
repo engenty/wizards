@@ -414,6 +414,13 @@ export interface MarketplaceSummary {
   updatedAt: string;
   /** One of the entries an app keeps for offline use without being asked. */
   starter: boolean;
+  /**
+   * The level from which a team's catalog shows it (Manage's levels, 1 to 5). A marketplace older
+   * than this field leaves it out: read it as 1.
+   */
+  level?: number;
+  /** Shown first, under "Recommended". Left out by an older marketplace: not featured. */
+  featured?: boolean;
   /** The language of `title` and `pitch`; the entry's own where it is not translated. */
   language: MarketplaceLang;
   title: string;
