@@ -1,7 +1,7 @@
 ---
 title: Working together
 description: How the studio shows what others change while you work, merges it with what you type, and shows who else is in a wizard, page or table.
-version: 0.11.0
+version: 0.10.0
 ---
 
 The studio shows changes made elsewhere as they happen. You don’t reload anything. That holds
