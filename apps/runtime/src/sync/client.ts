@@ -30,10 +30,12 @@ import { control, controlDb, db, schema, tenantSchemaVersion } from "../db/clien
 import { env } from "../env.js";
 import { feature, remoteFeatures } from "../features.js";
 import { getBlob, hasBlob, putBlob, putBlobOf } from "../files/blobs.js";
+import { signal } from "../live/hub.js";
 import { managed } from "../manage.js";
 import { textModel } from "../models.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
+import { currentTenantOrNull } from "../tenants/tenant.js";
 import { type ApplyItem, applyItems } from "./apply.js";
 import { dropPushed, notePending, seqKey } from "./log.js";
 import { canonical, KIND_ORDER, KINDS } from "./records.js";
@@ -671,8 +673,12 @@ async function runSync(projectId: string, what: What) {
     if (await readState(projectId)) {
       await writeState(projectId, st);
     }
+    changed();
   }
 }
+
+/** The sync's view changed: an open studio shows it again (live/hub.ts). */
+const changed = () => signal(currentTenantOrNull(), "sync");
 
 /**
  * Every space that syncs; and every space of either side that does not yet, but those the

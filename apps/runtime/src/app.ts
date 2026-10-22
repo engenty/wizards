@@ -15,6 +15,7 @@ import { basePath, env } from "./env.js";
 import { features } from "./features.js";
 import { allowed, hashIp } from "./limits.js";
 import { linkPreview } from "./link-preview.js";
+import { nudge, signal } from "./live/hub.js";
 import { discovery, managed } from "./manage.js";
 import { bridgeRequest } from "./mcp/bridge.js";
 import { mcpHandler } from "./mcp/handler.js";
@@ -24,6 +25,7 @@ import { apiRoutes } from "./routes/api.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
 import { internalRoutes } from "./routes/internal.js";
 import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
+import { liveRoutes } from "./routes/live.js";
 import { marketplaceGuest, marketplaceStudio } from "./routes/marketplace.js";
 import { publicPluginRoutes } from "./routes/plugin-public.js";
 import { pluginRoutes } from "./routes/plugins.js";
@@ -244,8 +246,14 @@ if (serves.studio) {
       );
     }
     c.set("user", user);
+    // A save: open studios hear of it now, not at the next tick (live/hub.ts).
+    const writes = c.req.method !== "GET";
     if (managed) {
-      return withTenant(user.tenantId, () => asRole(user.role, next));
+      await withTenant(user.tenantId, () => asRole(user.role, next));
+      if (writes) {
+        nudge(user.tenantId);
+      }
+      return;
     }
     // An install that syncs both ways (sync/client.ts): what the studio opens comes down from
     // the cloud first, what it saved goes up after.
@@ -255,7 +263,13 @@ if (serves.studio) {
         await beforeStudioLoad().catch(() => undefined);
       }
       await asRole(user.role, next);
-      if (c.req.method !== "GET" && !c.req.path.includes("/api/studio/sync")) {
+      if (writes) {
+        nudge(user.tenantId);
+      }
+      if (writes && c.req.path.includes("/api/studio/sync")) {
+        // A conflict decided, a space turned on or off: every open studio shows it.
+        signal(user.tenantId, "sync");
+      } else if (writes) {
         afterStudioWrite((run) => withTenant(user.tenantId, run));
       }
     });
@@ -289,6 +303,7 @@ app.use("/api/runs/*", (c, next) =>
 
 if (serves.studio) {
   app.route("/api/studio/wizards", wizardStream);
+  app.route("/api/studio/live", liveRoutes);
   app.route("/api/studio/marketplace", marketplaceStudio);
   // The same gallery for someone not signed in: the studio's start page for guests.
   app.route("/api/guest/marketplace", marketplaceGuest);

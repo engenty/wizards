@@ -1,7 +1,9 @@
 import type { SyncKind, SyncRecord } from "@engenty/wizards-shared/sync";
 import { sql } from "drizzle-orm";
 import { db, inTransaction } from "../db/client.js";
+import { nudge } from "../live/hub.js";
 import { asSync } from "../services/access.js";
+import { currentTenantOrNull } from "../tenants/tenant.js";
 import { quietly } from "./log.js";
 import { KIND_ORDER, KINDS, letDanglingGo } from "./records.js";
 
@@ -48,4 +50,6 @@ export async function applyItems(items: ApplyItem[], options: { quiet: boolean }
   for (const after of afters) {
     await Promise.resolve(after()).catch((err) => console.error("[sync] after a write:", err));
   }
+  // A pull here, a push received in the cloud: open studios hear of it now.
+  nudge(currentTenantOrNull());
 }
