@@ -466,10 +466,83 @@ minute.
   down. The pull before loads may later run less often (every 30 s) while the connection is up.
 - **Docs.** `docs/manage-contract.md` gets the call in "Two-way sync of a space".
 
-### 8. Feature switch and rollout
+### 8. Who else is here: presence, for people and for AI
+
+A signal, not a lock. Anyone may edit at the same time, as today; the merges of 6 keep both
+changes. Presence only makes it visible who else is in the same wizard, page or table, and
+where, so nobody is surprised by a change, and an AI can hold back or say so.
+
+**What counts as being there.**
+
+| Who | Present while | Shown as |
+| --- | --- | --- |
+| A person in the studio | An editor of the item is open in a visible tab | "Anna" (viewing), "Anna is editing" (typed in the last 10 s) |
+| The studio assistant | One of its turns is changing the item, from the first change to the end of the turn | "Studio assistant, for Anna, is editing" |
+| An MCP client or API key | 60 s after each read or write of the item | "Claude Code (MCP) edited 5 s ago". The name comes from the `Writer` the write already records (`services/wizards.ts`) or the key's name |
+| A run | Only for a table it writes rows to | "A run of 'Leads' is adding rows" |
+
+**Where in the item** (optional): a wizard's step and field (`steps.contact.fields.email`), a
+page's paragraph (the heading above the caret), a table's row and column. It is a coarse place,
+not a live cursor.
+
+**How it is stored and spread.**
+
+- **One small table, no new channel.** `live_presence (tenant, kind, item, who_id, who_kind,
+  who_name, client, place, state, seen_at)`, with one row per person or agent per item. Its
+  trigger logs into `live_change` as kind `presence`, so it travels on the same stream, through
+  the same hub, to every process and replica, with nothing new to build.
+- **From a browser.** `PUT /api/studio/presence {kind, item, place, state}` from each open
+  editor:
+  - when it opens;
+  - when the state or place changes, debounced by 1 s;
+  - every 20 s while open.
+
+  `DELETE` (or `navigator.sendBeacon`) runs on close. Each tab reports its own editors; the
+  leader tab of 4 only carries the stream.
+- **From AI, on the server.**
+  - Every MCP and API read or write of a wizard, page or table upserts the client's row, in the
+    services, next to where the `Writer` is passed. No client has to do anything for this.
+  - The studio assistant's turn upserts its row and deletes it at the end of the turn.
+- **Gone.** A row unseen for 45 s counts as gone. The hub drops it while streaming, and the
+  purge deletes it. Writes are one upsert per editor per 20 s, at most two per item per second
+  while typing. That is small next to the saves themselves.
+- **Not synced.** Presence stays on the side where it happened, as chats do. Phase 2 can carry
+  it later: the cloud's `sync/live` call could send presence for spaces a computer has open,
+  and the other way round.
+
+**What people see.**
+
+- **Editor header.** Small avatars or initials of who else is there, with a colour each. An AI
+  shows a robot mark and its client name. On hover: what they're doing and since when.
+- **At the place.** A thin bar in that colour next to the field, paragraph or cell someone else
+  is editing, with their name on hover.
+- **When you start typing where someone else types** (same place, within 10 s): a quiet hint
+  above the field, "Anna is editing this too". It blocks nothing.
+- **Lists.** A dot on the wizard card, page or table in the lists when someone is editing it.
+- **Merge chips name the other side.** "Merged with a change from Anna", or "from Claude Code
+  (MCP)". It's the same name as in presence.
+
+**What AI sees.** Presence goes into what agents already read, so they don't need to ask:
+
+- **`present` in the results of MCP tools that read or write a wizard, page or table:** who else
+  is there, where, and how long ago, without the agent itself.
+- **A note in the tool result, when a person is editing the same place an agent writes:** "Anna
+  is editing the step 'Contact' right now. Your change was merged with hers." The write still
+  happens, and the agent can tell its user.
+- **A line in the tool descriptions:** "If `present` lists people editing, tell the user before
+  large changes." The tools decide nothing themselves.
+- **The studio assistant's context** gets the same `present` list for the wizard it works on.
+- **The REST API:** the GET of a wizard, page or table answers with the header
+  `x-wizards-present` (a count) and the list under `?present=1`.
+
+**Rights.** Every member of a tenant sees who is in which item, the same as they see the items.
+Names are the ones the organization already shows. A person can't hide, as in a shared doc.
+
+### 9. Feature switch and rollout
 
 - `liveChanges` in `packages/shared/src/feature-flags.ts`: a release flag, default off. The route
-  answers 404 while the flag is off, and the browser hook then stays quiet.
+  answers 404 while the flag is off, and the browser hook then stays quiet. Presence comes with
+  the same switch.
 - The migration and triggers ship before the flag flips. An unread feed only costs the inserts
   and is pruned hourly.
 - Phase 2 needs `twoWaySync` too.
@@ -485,7 +558,9 @@ minute.
 | 5 | `feat(web): page and table editors take changes from elsewhere while open` | `useLiveEditor`, `registerLiveEditor`, held patches merged at autosave with `mergeText` and `mergeJson`, `baseUpdatedAt` and 409 on page, table and row saves, chips | An own save changes nothing on screen. A change elsewhere with no edits here shows at once, caret kept. With edits here nothing moves while typing; the change is merged into the next autosave. An unclean merge keeps mine and asks. A cell being typed in is never overwritten |
 | 6 | `refactor(studio): the wizard editor follows the live feed` | `useLiveDraft` rebuilt on `useLiveEditor` with `mergeDrafts`, `refresh()` for drafts without a view, the draft stream removed | Existing `live.tsx` tests pass on the feed. A draft written by a second process reaches the open editor |
 | 7 | `feat(runtime): a computer follows the cloud's changes` | `GET /api/v1/sync/live`, the computer's connection and coalesced pulls, origin skip, contract doc | A cloud edit reaches the computer's open page within 2 s (two processes, as in `sync.test.ts`). A computer's own push is not pulled back. After a drop the connection resumes from its cursor |
-| 8 | `feat(studio): live changes` | Flips `liveChanges`, user guide section | Run end to end with `node apps/runtime/scripts/dev-two-way.mjs`: a page edited in the cloud's studio shows up in the computer's open page without a request, and the other way round |
+| 8 | `feat(runtime): presence of people and AI in wizards, pages and tables` | `live_presence` and its trigger into the feed, `PUT`/`DELETE /api/studio/presence`, upserts on MCP and API reads and writes and in the assistant's turn, `present` in MCP results and the note on a shared place, `x-wizards-present`, the 45 s expiry | An MCP write shows up as present within 1.5 s, under its client's name. A tab that closes is gone within 45 s. An agent's write to a field a person edits gets the note; the write still happens. An agent is never listed to itself |
+| 9 | `feat(web): show who else is editing` | Presence reports from each editor, avatars in the editor header, bars at the place, the "editing this too" hint, dots in lists, names in merge chips | Two people in one wizard see each other. An MCP client appears with its name and disappears after 60 s. Nothing blocks typing |
+| 10 | `feat(studio): live changes` | Flips `liveChanges`, user guide section | Run end to end with `node apps/runtime/scripts/dev-two-way.mjs`: a page edited in the cloud's studio shows up in the computer's open page without a request, and the other way round |
 
 PRs 1–4 are useful on their own, without the two-way sync. Several members in the cloud, and runs
 filling shared lists, see each other's changes. PR 2 can ship with the browser invalidating keys,
@@ -523,7 +598,9 @@ item without a view.
 
 ## Not in scope
 
-- **Presence**, such as who else is editing this page, and **live cursors**.
+- **Locks.** Presence (8) shows who is there; it never stops anyone from editing.
+- **Live cursors** and live selections. Presence names the place (a field, a paragraph, a
+  cell), not the caret.
 - **Runs.** Their stream exists and stays as it is.
 - **Chats.** These are per person and don't sync. The studio assistant's own stream covers the
   open chat.
