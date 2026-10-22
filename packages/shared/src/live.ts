@@ -21,3 +21,11 @@ export interface LiveItem {
   /** Where the item shows when its id alone doesn't say: a row's table, a translation's wizard. */
   parent: string | null;
 }
+
+/**
+ * A change as the studio's stream sends it: a `put` carries the item's view when it has one, the
+ * JSON its GET route answers, so the studio can show it without asking again.
+ */
+export interface LiveChange extends LiveItem {
+  view?: unknown;
+}

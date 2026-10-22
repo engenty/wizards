@@ -3,7 +3,9 @@ import { streamSSE } from "hono/streaming";
 import type { SessionUser } from "../auth/index.js";
 import { feature, remoteFeatures } from "../features.js";
 import { type LiveEvent, openStreams, subscribe } from "../live/hub.js";
-import { say } from "./lang.js";
+import { itemView } from "../live/views.js";
+import { asRole } from "../services/access.js";
+import { requestLang, say } from "./lang.js";
 
 type Vars = { Variables: { user: SessionUser } };
 
@@ -58,7 +60,11 @@ export const liveRoutes = new Hono<Vars>().get("/", async (c) => {
         });
       });
     };
-    const unsubscribe = await subscribe(user.tenantId, since, send);
+    const reader = { userId: user.id, lang: requestLang(c) };
+    const unsubscribe = await subscribe(user.tenantId, since, send, {
+      key: `${user.role}|${reader.lang}`,
+      read: (x) => asRole(user.role, () => itemView(reader, x)),
+    });
     const end = () => {
       if (closed) {
         return;

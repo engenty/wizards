@@ -1,4 +1,4 @@
-import type { LiveItem } from "@engenty/wizards-shared/live";
+import type { LiveChange, LiveItem } from "@engenty/wizards-shared/live";
 import { withTenant } from "../db/client.js";
 import { changesAfter, newestSeq, oldestSeq, pruneLive } from "./feed.js";
 
@@ -11,7 +11,7 @@ import { changesAfter, newestSeq, oldestSeq, pruneLive } from "./feed.js";
 
 export type LiveEvent =
   | { event: "hello"; seq: number }
-  | { event: "changes"; seq: number; items: LiveItem[] }
+  | { event: "changes"; seq: number; items: LiveChange[] }
   | { event: "reset"; seq: number }
   | { event: "sync" };
 
@@ -22,10 +22,24 @@ const SLOW_MS = 3000;
 /** Ticks stay fast this long after the last change. */
 const BUSY_MS = 60_000;
 const PRUNE_EVERY_MS = 5 * 60_000;
+/** Views a batch carries at most, in characters of JSON; the items after it go without. */
+export const BATCH_VIEWS_MAX = 512 * 1024;
+/** Above this a view isn't sent: the browser fetches that item. */
+export const VIEW_MAX = 64 * 1024;
+
+/**
+ * How a stream's reader sees items (live/views.ts, with the reader's role). Readers with the
+ * same `key` see the same views, so one read serves them all.
+ */
+export interface Views {
+  key: string;
+  read: (x: LiveItem) => Promise<unknown>;
+}
 
 interface Subscriber {
   since: number;
   send: (e: LiveEvent) => void;
+  views?: Views;
 }
 
 interface TenantFeed {
@@ -48,6 +62,7 @@ export async function subscribe(
   tenantId: string,
   since: number | null,
   send: (e: LiveEvent) => void,
+  views?: Views,
 ): Promise<() => void> {
   const { newest, gap } = await withTenant(tenantId, async () => {
     const newest = await newestSeq();
@@ -60,7 +75,7 @@ export async function subscribe(
     const oldest = await oldestSeq();
     return { newest, gap: oldest === null || oldest > since + 1 };
   });
-  const sub: Subscriber = { since: since === null || gap ? newest : since, send };
+  const sub: Subscriber = { since: since === null || gap ? newest : since, send, views };
   send(gap ? { event: "reset", seq: newest } : { event: "hello", seq: newest });
   let feed = feeds.get(tenantId);
   if (!feed) {
@@ -163,6 +178,7 @@ async function read(feed: TenantFeed) {
       sub.send({ event: "reset", seq });
     }
   } else if (rows.length) {
+    const read = new Map<string, Promise<unknown>>();
     for (const sub of subs) {
       const mine = rows.filter((r) => r.seq > sub.since);
       if (!mine.length) {
@@ -170,13 +186,54 @@ async function read(feed: TenantFeed) {
       }
       const seq = mine[mine.length - 1].seq;
       sub.since = seq;
-      sub.send({ event: "changes", seq, items: dedupe(mine) });
+      sub.send({ event: "changes", seq, items: await withViews(dedupe(mine), sub.views, read) });
     }
   }
   if (Date.now() - feed.prunedAt > PRUNE_EVERY_MS) {
     feed.prunedAt = Date.now();
     await pruneLive();
   }
+}
+
+/**
+ * The views of a batch's `put` items, read once per item and kind of reader. A put whose item
+ * is gone by now goes as a `del`; a view too big, or over the batch's budget, is left out.
+ */
+async function withViews(
+  items: LiveItem[],
+  views: Views | undefined,
+  read: Map<string, Promise<unknown>>,
+): Promise<LiveChange[]> {
+  if (!views) {
+    return items;
+  }
+  let budget = BATCH_VIEWS_MAX;
+  const out: LiveChange[] = [];
+  for (const x of items) {
+    if (x.op === "del") {
+      out.push(x);
+      continue;
+    }
+    const key = `${views.key}|${x.kind}|${x.item}`;
+    let view = read.get(key);
+    if (!view) {
+      view = views.read(x).catch(() => undefined);
+      read.set(key, view);
+    }
+    const v = await view;
+    if (v === null) {
+      out.push({ ...x, op: "del" });
+      continue;
+    }
+    const size = v === undefined ? 0 : JSON.stringify(v).length;
+    if (v === undefined || size > VIEW_MAX || size > budget) {
+      out.push(x);
+      continue;
+    }
+    budget -= size;
+    out.push({ ...x, view: v });
+  }
+  return out;
 }
 
 /** One entry per item, in the order of its last change, with its last op. */

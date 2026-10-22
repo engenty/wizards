@@ -135,7 +135,9 @@ describe("GET /api/studio/live", () => {
     const heard = await s.next(hasItem(id), 900);
     expect(Date.now() - started).toBeLessThan(900);
     expect(heard.id).toBe(String(heard.data.seq));
-    expect(heard.data.items).toContainEqual({ kind: "page", op: "put", item: id, projectId: spaceId, parent: null });
+    expect(heard.data.items).toContainEqual(
+      expect.objectContaining({ kind: "page", op: "put", item: id, projectId: spaceId, parent: null }),
+    );
     await s.close();
   });
 
@@ -217,5 +219,80 @@ describe("GET /api/studio/live", () => {
     const s = await open();
     expect(s.res.status).toBe(404);
     process.env.FEATURES = "liveChanges=on";
+  });
+});
+
+describe("views on the stream", () => {
+  const json = async (path: string) => (await call("GET", path)).json() as Promise<any>;
+  const changeOf = async (s: Awaited<ReturnType<typeof open>>, item: string) =>
+    (await s.next(hasItem(item))).data.items.find((i: { item: string }) => i.item === item);
+
+  it("has an entry, a view or none, for every kind", async () => {
+    const { viewKinds } = await import("../src/live/views");
+    const { LIVE_KINDS } = await import("@engenty/wizards-shared/live");
+    expect([...viewKinds].sort()).toEqual([...LIVE_KINDS].sort());
+  });
+
+  it("sends a page as its GET route answers it", async () => {
+    const s = await open();
+    streams.push(s);
+    await s.next((e) => e.event === "hello");
+    const id = await newPage("With a view");
+    await call("PATCH", `/api/studio/pages/${id}`, { markdown: "Hello there." });
+    const change = (await s.next((e) => e.event === "changes" && e.data.items.some((i: any) => i.item === id && i.view?.markdown === "Hello there."))).data.items.find((i: any) => i.item === id);
+    expect(change.view).toEqual(await json(`/api/studio/pages/${id}`));
+    await s.close();
+  });
+
+  it("sends a row with its table, a table without rows, a wizard with its card and its editor", async () => {
+    const s = await open();
+    streams.push(s);
+    await s.next((e) => e.event === "hello");
+    const tableId = ((await (await call("POST", `/api/studio/projects/${spaceId}/tables`, { title: "Leads" })).json()) as { id: string }).id;
+    const table = await changeOf(s, tableId);
+    const { rows: _rows, ...header } = await json(`/api/studio/tables/${tableId}`);
+    expect(table.view).toEqual(header);
+    const row = ((await (await call("POST", `/api/studio/tables/${tableId}/rows`, { cells: { name: "Acme" } })).json()) as { id: string });
+    const rowChange = await changeOf(s, row.id);
+    const listed = (await json(`/api/studio/tables/${tableId}`)).rows.find((r: { id: string }) => r.id === row.id);
+    expect(rowChange.view).toEqual({ ...listed, tableId });
+    const wizard = ((await (await call("POST", "/api/studio/wizards", { projectId: spaceId })).json()) as { id: string });
+    const wizardChange = await changeOf(s, wizard.id);
+    const card = (await json(`/api/studio/projects/${spaceId}/wizards`)).find((w: { id: string }) => w.id === wizard.id);
+    expect(wizardChange.view.summary).toEqual(card);
+    expect(wizardChange.view.detail).toEqual(await json(`/api/studio/wizards/${wizard.id}`));
+    await s.close();
+  });
+
+  it("sends a space as the list of spaces shows it", async () => {
+    const s = await open();
+    streams.push(s);
+    await s.next((e) => e.event === "hello");
+    await call("PATCH", `/api/studio/projects/${spaceId}`, { name: "Renamed space" });
+    const change = (await s.next((e) => e.event === "changes" && e.data.items.some((i: any) => i.item === spaceId && i.view?.name === "Renamed space"))).data.items.find((i: any) => i.item === spaceId);
+    expect(change.view).toEqual((await json("/api/studio/projects")).find((p: { id: string }) => p.id === spaceId));
+    await s.close();
+  });
+
+  it("sends a delete without a view, and leaves out a view that is too big", async () => {
+    const s = await open();
+    streams.push(s);
+    await s.next((e) => e.event === "hello");
+    const big = await newPage("Long");
+    await call("PATCH", `/api/studio/pages/${big}`, { markdown: "x".repeat(70_000) });
+    const long = await s.next((e) => e.event === "changes" && e.data.items.some((i: any) => i.item === big && i.op === "put" && !i.view));
+    expect(long).toBeTruthy();
+    await call("DELETE", `/api/studio/pages/${big}`);
+    const gone = (await s.next((e) => e.event === "changes" && e.data.items.some((i: any) => i.item === big && i.op === "del"))).data.items.find((i: any) => i.item === big);
+    expect(gone.view).toBeUndefined();
+    await s.close();
+  });
+
+  it("names an item gone by the time its view is read as deleted", async () => {
+    const { itemView } = await import("../src/live/views");
+    const view = await local(() =>
+      itemView({ userId: "local", lang: "en" }, { kind: "page", op: "put", item: "no-such-page", projectId: spaceId, parent: null }),
+    );
+    expect(view).toBeNull();
   });
 });
