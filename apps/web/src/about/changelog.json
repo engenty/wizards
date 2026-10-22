@@ -1,7 +1,34 @@
 [
   {
+    "version": "v0.11.0",
+    "timestamp": 1792652430,
+    "commits": [
+      {
+        "id": "e523b66",
+        "message": "live changes in the studio: what others, the AI, a run or the cloud change shows as it happens, and an open editor merges it with what you type (#163)",
+        "group": "Added",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "8f47f02",
+        "message": "who else is editing: the people and the AI in a wizard, page or table, shown in the studio and told to MCP clients (#162)",
+        "group": "Added",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "5aebb63",
+        "message": "a computer that syncs with the cloud gets the cloud's changes in about a second (#160)",
+        "group": "Added",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.10.0",
-    "timestamp": 1792594005,
+    "timestamp": 1792594654,
     "commits": [
       {
         "id": "abf0c2d",

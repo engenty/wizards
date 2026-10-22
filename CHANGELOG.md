@@ -4,6 +4,11 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.0] - 2026-10-22
+- ADDED Live changes in the studio: what others, the AI, a run or the cloud change shows as it happens, and an open editor merges it with what you type (#154–#159, #163)
+- ADDED Who else is editing: the people and the AI in a wizard, page or table, shown in the studio and told to MCP clients (#161, #162)
+- ADDED A computer that syncs with the cloud gets the cloud's changes in about a second (#160)
+
 ## [0.10.0] - 2026-10-21
 - ADDED Two-way sync of a local install's spaces with its organization in the cloud (#151)
 
