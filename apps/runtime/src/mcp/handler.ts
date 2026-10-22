@@ -6,19 +6,13 @@ import {
 import { withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { nudge } from "../live/hub.js";
+import { prompt } from "../prompts.js";
 import { asRole } from "../services/access.js";
 import { tenantStatus } from "../tenants/control.js";
 import { authenticate, principalOf } from "./auth.js";
 import { registerFlowApp } from "./flow-app.js";
 import { noteRequest } from "./seen.js";
 import { registerPrompts, registerTools } from "./tools.js";
-
-const INSTRUCTIONS = `engenty wizards: page-by-page AI wizards — the person answers pages, AI steps write, research and make images or videos, the person reviews, the result is files.
-Use one: list_wizards, then run_wizard straight away — its widget shows the wizard itself (show_wizard only when the person wants to see a wizard before running it), then follow waitingFor (answer_page, review_step, answer_ask, get_run with waitSeconds). Runs spend credits.
-Build one: get_authoring_guide (schema + design rules), a close starter with get_starter, create_wizard, edit_wizard until "issues" is empty, check with start_test_run + get_test_run. Publish only when the person asks.
-A result on a wizard may list "present": people and other agents in that wizard now. Nobody is locked out; when people are editing, tell your user before larger changes.
-When a run needs the browser, hand over its browserUrl, the wizard's own run page. The studioUrl is for building only: never send someone who uses a wizard to the studio.
-Projects are called spaces in the studio. Ids are for the tools only: name wizards and spaces by their titles and names, and where two spaces share a name, by where each comes from.`;
 
 /** A wizard definition is a few KB; this leaves room and refuses anything far beyond it. */
 const MAX_BODY_BYTES = 300_000;
@@ -34,7 +28,10 @@ export function mcpHandler(): (request: Request) => Promise<Response> {
     (ctx) => {
       const server = new McpServer(
         { name: "engenty-wizards", version: "0.1.0" },
-        { instructions: INSTRUCTIONS, capabilities: { tools: {}, prompts: {}, resources: {} } },
+        {
+          instructions: prompt("mcp", "instructions"),
+          capabilities: { tools: {}, prompts: {}, resources: {} },
+        },
       );
       const who = principalOf(ctx.authInfo!);
       registerTools(server, who);

@@ -9,6 +9,7 @@ import { nanoid } from "nanoid";
 import { env } from "../env.js";
 import { ffmpeg, hasFfmpeg } from "../media/ffmpeg.js";
 import { ModelUnavailableError, NotedError } from "../model-errors.js";
+import { prompt } from "../prompts.js";
 import {
   type HarnessAnswer,
   type HarnessCall,
@@ -88,7 +89,7 @@ export function appleReasonOf(helper: string | undefined): AppleReason {
  * Without instructions the model refuses guided calls as "likely unsafe" (seen on macOS 26.5
  * with a billing complaint); any instruction settles it. A step always brings its own.
  */
-const DEFAULT_INSTRUCTIONS = "Answer what the prompt asks, precisely and briefly.";
+const defaultInstructions = () => prompt("services", "harness.apple_default");
 
 const helperEnv = () => ({
   PATH: process.env.PATH ?? "/usr/bin:/bin",
@@ -199,7 +200,7 @@ class AppleModel extends HarnessModel {
       env: helperEnv(),
       signal: call.signal,
       stdin: JSON.stringify({
-        system: call.system || DEFAULT_INSTRUCTIONS,
+        system: call.system || defaultInstructions(),
         prompt: call.prompt,
         schema: call.schema,
         useCase: this.modelId === "tagging" ? "tagging" : "general",

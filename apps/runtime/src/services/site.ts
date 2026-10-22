@@ -7,6 +7,7 @@ import { runStudioAssistant } from "../agents/studio-assistant.js";
 import type { SessionUser } from "../auth/index.js";
 import { canSpend } from "../credits/credits.js";
 import { errorText } from "../model-errors.js";
+import { prompt } from "../prompts.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
 import { projectWritable, requireWritable } from "./access.js";
@@ -192,16 +193,24 @@ function assistMessage(input: SiteInput): string {
         `## ${p.title}${p.url ? ` (${p.url})` : ""}${p.role ? ` [${p.role}]` : ""}\n\n${p.markdown.slice(0, 6000)}`,
     );
   return [
-    `This is the WordPress website ${input.url}. Fill the space from what it says about itself: a title, a description (about), facts (address, phone, email, VAT ID, company register, opening hours, who runs it) and the colours, if there are none yet. Its pages are already in Knowledge; do not copy them. Write in the website's own language.`,
-    "The details below come straight from WordPress. Read the website with read_website only when something important is missing. Invent nothing.",
-    `Name: ${input.name || "—"}\nTagline: ${input.tagline || "—"}\nLanguage: ${input.language ?? "—"}`,
+    prompt("goose", "site.wordpress", { url: input.url }),
+    prompt("goose", "site.wordpress_details"),
+    prompt("goose", "site.wordpress_meta", {
+      name: input.name || "—",
+      tagline: input.tagline || "—",
+      language: input.language ?? "—",
+    }),
     input.facts.length
-      ? `What the website states:\n${input.facts.map((f) => `- ${f.label}: ${f.value}`).join("\n")}`
+      ? prompt("goose", "site.wordpress_facts", {
+          facts: input.facts.map((f) => `- ${f.label}: ${f.value}`).join("\n"),
+        })
       : "",
     input.colors.length
-      ? `The theme's colours: ${input.colors.map((c) => `${c.name} ${c.value}`).join(", ")}`
+      ? prompt("goose", "site.wordpress_colours", {
+          colours: input.colors.map((c) => `${c.name} ${c.value}`).join(", "),
+        })
       : "",
-    pages.length ? `Pages:\n\n${pages.join("\n\n")}` : "",
+    pages.length ? prompt("goose", "site.wordpress_pages", { pages: pages.join("\n\n") }) : "",
   ]
     .filter(Boolean)
     .join("\n\n")

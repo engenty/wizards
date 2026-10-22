@@ -8,6 +8,7 @@ import { db, schema } from "../db/client.js";
 import { parseDocument, type ScanKind, scanDocument } from "../documents/parse.js";
 import type { StepContext } from "../engine/types.js";
 import { loadAsset } from "../files/storage.js";
+import { prompt } from "../prompts.js";
 import { parseResultRef, resultFile } from "../sharing/files.js";
 import { deleteRows, listRows, readStoreFile, saveRows, storeFiles } from "../store/index.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
@@ -116,13 +117,13 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
     const catalog = lists
       .map(
         (l) =>
-          `- ${l.id} — ${l.title}${l.shared ? " (shared: every run of the wizard reads and writes the same rows — never repeat other people's rows to the person)" : ""}${l.key ? ` (rows are matched on "${l.key}")` : ""}: ${describeColumns(l)}`,
+          `- ${l.id} — ${l.title}${l.shared ? ` ${prompt("step", "note.list_shared")}` : ""}${l.key ? ` (rows are matched on "${l.key}")` : ""}: ${describeColumns(l)}`,
       )
       .join("\n");
 
     tools.list_read = createTool({
       id: "list_read",
-      description: `Read one of the lists this wizard keeps between runs: for the person, or for every run where the list is shared.\n${catalog}`,
+      description: prompt("step", "tool.list_read", { catalog }),
       inputSchema: z.object({ list: listId }),
       execute: ({ list }) =>
         attempt(async () => {
@@ -137,7 +138,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
 
     tools.list_write = createTool({
       id: "list_write",
-      description: `Save rows into one of the wizard's lists, so the next run knows them. A row whose key column matches an existing row updates that row (only the columns you give change); otherwise it is added. Values must fit the column: dates as YYYY-MM-DD, numbers as numbers.\n${catalog}`,
+      description: prompt("step", "tool.list_write", { catalog }),
       inputSchema: z.object({
         list: listId,
         rows: z
@@ -175,8 +176,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
 
   tools.files_list = createTool({
     id: "files_list",
-    description:
-      "List the files this wizard keeps for the person (invoices collected on earlier runs, scans …), optionally only one folder.",
+    description: prompt("step", "tool.files_list"),
     inputSchema: z.object({ folder: z.string().optional() }),
     execute: ({ folder }) =>
       attempt(async () => {
@@ -197,8 +197,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
   if (uploads.length) {
     tools.files_keep = createTool({
       id: "files_keep",
-      description:
-        "Keep files the person gave in the wizard's files, several at once: each is stored under `path`, is there on the next run and belongs to this step's result. Returns the path each file now has.",
+      description: prompt("step", "tool.files_keep"),
       inputSchema: z.object({
         items: z
           .array(
@@ -231,13 +230,15 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
     });
   }
 
-  const fileHint = uploads.length
-    ? ` The person gave: ${uploads.map((u) => `${u.ref} (${u.name})`).join(", ")}.`
+  const given = uploads.length
+    ? ` ${prompt("step", "note.files_given", {
+        uploads: uploads.map((u) => `${u.ref} (${u.name})`).join(", "),
+      })}`
     : "";
 
   tools.read_document = createTool({
     id: "read_document",
-    description: `Read a document as text: PDF, scan or photo (read by a vision model), Word, Excel, CSV, a saved mail. \`file\` is an upload reference or a path in the wizard's files.${fileHint}`,
+    description: prompt("step", "tool.read_document", { given }),
     inputSchema: z.object({
       file: z.string(),
       offset: z.number().int().min(0).optional().describe("Start at this character, to read on."),
@@ -266,7 +267,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
 
   tools.scan_documents = createTool({
     id: "scan_documents",
-    description: `Pull the key fields out of invoices or receipts, several at once: vendor, number, dates, net/tax/total, currency, VAT ID. Cheaper and more exact than reading each document yourself. Amounts come back exactly as printed.${fileHint}`,
+    description: prompt("step", "tool.scan_documents", { given }),
     inputSchema: z.object({
       files: z.array(z.string()).min(1).max(30),
       kind: z.enum(["invoice", "receipt"]),

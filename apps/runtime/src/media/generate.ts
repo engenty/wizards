@@ -12,6 +12,7 @@ import {
   videoCostUsd,
   videoModel,
 } from "../models.js";
+import { prompt } from "../prompts.js";
 import { capVideo, toMp3 } from "./ffmpeg.js";
 import { speechTags } from "./marking.js";
 
@@ -38,14 +39,14 @@ export async function generateImageMedia(input: {
   reference?: MediaReference | null;
   abortSignal?: AbortSignal;
 }): Promise<GeneratedMedia> {
-  const { prompt, reference, abortSignal } = input;
+  const { reference, abortSignal } = input;
   const aspect = (input.aspectRatio ?? "1:1") as Aspect;
   const image = await imageModel(input.call);
   // The gateway books its own calls; a client's images are part of the person's subscription.
   const costUsd = image.metered || isHarnessVendor(image.vendor) ? 0 : imageCostUsd(image.ref);
   if (image.chat) {
     const chat = await textModel("image", input.call);
-    const text = `${prompt}\n\nAspect ratio: ${aspect}. Return exactly one image.`;
+    const text = `${input.prompt}\n\n${prompt("step", "image.aspect", { aspect })}`;
     const result = await generateText({
       model: chat.model,
       abortSignal,
@@ -79,7 +80,7 @@ export async function generateImageMedia(input: {
     model: image.model,
     n: 1,
     abortSignal,
-    prompt: reference ? { images: [reference.bytes], text: prompt } : prompt,
+    prompt: reference ? { images: [reference.bytes], text: input.prompt } : input.prompt,
     aspectRatio: aspect,
   });
   const img = result.image ?? result.images?.[0];

@@ -14,6 +14,7 @@ import { loadAsset, removeAsset, replaceAsset, saveAsset } from "../files/storag
 import { checkUpload } from "../files/upload-check.js";
 import { embeddingModel, textModel } from "../models.js";
 import { spaceFileChanged } from "../plugins/events.js";
+import { prompt } from "../prompts.js";
 import { dropLinks, putLink } from "../tenants/control.js";
 import { safeFetch } from "../tools/net-guard.js";
 import { requireWritableProject } from "./access.js";
@@ -259,10 +260,7 @@ async function describeImage(row: ProjectFileRow, data: Uint8Array): Promise<str
   const result = await generateText({
     model: seer.model,
     maxOutputTokens: 300,
-    system: [
-      "You catalogue the files of a project. Describe the picture in ONE sentence of at most 25 words: what it shows, its style and colours, and what it suits (a logo on dark ground, a header image, a team photo, a product shot).",
-      "Write in the language of the project's description; if unclear, English. No preamble, no quotes.",
-    ].join("\n"),
+    system: prompt("services", "describe.image"),
     messages: [
       {
         role: "user",
@@ -270,7 +268,11 @@ async function describeImage(row: ProjectFileRow, data: Uint8Array): Promise<str
           { type: "file", data, mediaType: row.mime, filename: row.name },
           {
             type: "text",
-            text: `Project: ${await projectLine(row.projectId)}\nFile: ${row.name} (${row.kind})`,
+            text: prompt("services", "describe.image.user", {
+              project: await projectLine(row.projectId),
+              name: row.name,
+              kind: row.kind,
+            }),
           },
         ],
       },
@@ -284,11 +286,11 @@ async function describeDocument(row: ProjectFileRow, text: string): Promise<stri
   const result = await generateText({
     model: reader.model,
     maxOutputTokens: 300,
-    system: [
-      "You catalogue the documents of a project. Say in ONE sentence of at most 30 words what this document is and what can be looked up in it.",
-      "Write in the document's language. No preamble, no quotes.",
-    ].join("\n"),
-    prompt: `File: ${row.name}\n\n${text.slice(0, 6000)}`,
+    system: prompt("services", "describe.document"),
+    prompt: prompt("services", "describe.document.user", {
+      name: row.name,
+      text: text.slice(0, 6000),
+    }),
   });
   return result.text.trim().slice(0, 600);
 }

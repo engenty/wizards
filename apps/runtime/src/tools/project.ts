@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "../db/client.js";
 import type { StepContext } from "../engine/types.js";
+import { prompt } from "../prompts.js";
 import {
   filePaths,
   knowledgeCounts,
@@ -23,11 +24,7 @@ import { attempt, clip } from "./shared.js";
  * put into the index.
  */
 
-const where = whereSchema
-  .optional()
-  .describe(
-    'Filter by categories before searching, by their names: a value ("Baustelle": "Graz Süd"), a list of values, a range of numbers ({ "gte": 20000 }) or of days ({ "after": "2026-03-01", "before": "2026-03-31" }), { "contains": "…" } for a text, true/false. project_list without arguments names the categories and their values.',
-  );
+const where = whereSchema.optional().describe(prompt("step", "tool.project.where"));
 
 export const pageReadInput = {
   path: z.string().describe("The page's path, as project_search or project_list give it: pages/…"),
@@ -60,8 +57,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
   const tools: Record<string, any> = {
     project_search: createTool({
       id: "project_search",
-      description:
-        "Search the space's Knowledge: its pages, tables and files, and what its plugins keep (wiki pages, questions and answers). Gives items with their path, categories and best section, each checked for relevance. Ask in their language, with the words they would use; filter with `where` when the task names a category's value. Then read the items you need whole with page_read or table_read.",
+      description: prompt("step", "tool.project_search"),
       inputSchema: z.object({
         query: z.string().describe("What to look for: a question or keywords"),
         where,
@@ -100,8 +96,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
     }),
     project_list: createTool({
       id: "project_list",
-      description:
-        "List Knowledge by its categories. Without `where`: the categories with their values and how many items each has. With `where`: the items it leaves, with their paths — all of them, where project_search gives the best few.",
+      description: prompt("step", "tool.project_list"),
       inputSchema: z.object({ where }),
       execute: (input) =>
         attempt(async () => {
@@ -114,8 +109,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
   if (counts.pages) {
     tools.page_read = createTool({
       id: "page_read",
-      description:
-        "Read a page of Knowledge whole by its path: front matter (title, categories, its source and original, its parent and sub-pages) and its Markdown. Long pages come in parts: pass `from` to continue. `section` reads one section.",
+      description: prompt("step", "tool.page_read.knowledge"),
       inputSchema: z.object(pageReadInput),
       execute: (input) => readKnowledgePage(ctx, input),
     });
@@ -123,8 +117,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
   if (counts.tables) {
     tools.table_read = createTool({
       id: "table_read",
-      description:
-        "Read a table of Knowledge by its path: its rows as CSV, filtered by its columns (by their names, like `where` of project_search). A few hundred rows at a time: pass `offset` to continue.",
+      description: prompt("step", "tool.table_read"),
       inputSchema: z.object({
         path: z.string().describe("The table's path: tables/…"),
         where: whereSchema.optional().describe("Filter by columns, by their names"),
@@ -143,8 +136,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
   if (counts.files) {
     tools.project_document = createTool({
       id: "project_document",
-      description:
-        "Read a file of Knowledge as text by its path (files/…): a file that is not a page, or the original a page was read from. Long files come in parts: pass `from` to continue.",
+      description: prompt("step", "tool.project_document"),
       inputSchema: z.object({
         path: z
           .string()

@@ -15,6 +15,7 @@ import { detectHarnesses } from "../harness/index.js";
 import { type MonthlyUsage, managed, publicPlans, tenantInfo, tenantUsage } from "../manage.js";
 import { classWays, waysIn } from "../models.js";
 import { pluginToolsOf } from "../plugins/registry.js";
+import { prompt } from "../prompts.js";
 import { earlierChats, readChat, searchChats } from "../services/assistant-chats.js";
 import { asLang, marketplaceDetail, searchMarketplace } from "../services/marketplace.js";
 import { listWizards } from "../services/wizards.js";
@@ -60,8 +61,8 @@ async function usageOf(tenantId: string): Promise<MonthlyUsage | null> {
   return (await res.json()) as MonthlyUsage;
 }
 
-const NOT_LINKED =
-  "This install is not linked to an account. Settings › Account signs one in; then credits, cloud publishing and plans apply. Docs and the gallery work without one.";
+const notLinked = () => prompt("goose", "note.not_linked");
+const signedOut = () => prompt("goose", "note.signed_out");
 
 export function knowsTools(ctx: KnowsContext): Record<string, any> {
   const { user } = ctx;
@@ -70,8 +71,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
   return {
     docs_search: createTool({
       id: "docs_search",
-      description:
-        "Search the engenty wizards user guide and plugin guide of this installed version. Gives the best sections with an excerpt and their engenty.ai/docs link. Use it before you explain how something works.",
+      description: prompt("goose", "tool.docs_search"),
       inputSchema: z.object({ query: z.string().min(2).max(200) }),
       execute: async ({ query }) => {
         ctx.doing(serverText(ctx.lang, "doingReadGuide"));
@@ -80,8 +80,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     docs_read: createTool({
       id: "docs_read",
-      description:
-        "Read one page of the guides by its id from docs_search (user/steps, dev/plugins/tools), from a character on.",
+      description: prompt("goose", "tool.docs_read"),
       inputSchema: z.object({
         page: z.string().min(1).max(200),
         from: z.number().int().min(0).optional(),
@@ -93,8 +92,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     authoring_guide: createTool({
       id: "authoring_guide",
-      description:
-        "The authoring guide the wizard editor and AI apps build with: how a wizard is written (steps, fields, flows, tools, outputs, model classes). Long: read it in parts with `from`.",
+      description: prompt("goose", "tool.authoring_guide"),
       inputSchema: z.object({ from: z.number().int().min(0).optional() }),
       execute: ({ from }) =>
         attempt(async () => {
@@ -113,8 +111,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     gallery_search: createTool({
       id: "gallery_search",
-      description:
-        "Search the gallery of wizard templates (engenty.ai/wizards and the plugins' starters): title, pitch, what it needs that this install has no model for, and its price per run in credits.",
+      description: prompt("goose", "tool.gallery_search"),
       inputSchema: z.object({ query: z.string().max(200).optional() }),
       execute: ({ query }) =>
         attempt(async () => {
@@ -146,7 +143,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     gallery_detail: createTool({
       id: "gallery_detail",
-      description: "One template of the gallery: what it does, its steps, what it makes and needs.",
+      description: prompt("goose", "tool.gallery_detail"),
       inputSchema: z.object({ id: z.string().min(1).max(120) }),
       execute: ({ id }) =>
         attempt(async () => {
@@ -160,8 +157,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     show_templates: createTool({
       id: "show_templates",
-      description:
-        "Show templates of the gallery as cards under your answer, in the order given. A card shows the title, the pitch, the time, the cost and what it makes; the person opens it to see the steps and make a wizard of it.",
+      description: prompt("goose", "tool.show_templates"),
       inputSchema: z.object({ ids: z.array(z.string().min(1).max(120)).min(1).max(6) }),
       execute: ({ ids }) =>
         attempt(async () => {
@@ -192,8 +188,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     plans: createTool({
       id: "plans",
-      description:
-        "The plans organizations can be on (Free, Pro, Team): price a month, monthly credits, limits, and the credit packages to buy on top. Live from the account service.",
+      description: prompt("goose", "tool.plans"),
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
@@ -204,8 +199,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     account: createTool({
       id: "account",
-      description:
-        "The person, their organization, their role, the organization's plan, the credit balance and credits that end on a date.",
+      description: prompt("goose", "tool.account"),
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
@@ -221,14 +215,14 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
             };
           }
           if (!(await linkedAccount())) {
-            return { linked: false, note: NOT_LINKED };
+            return { linked: false, note: notLinked() };
           }
           const overview = await accountOverview();
           if (!overview) {
             return {
               linked: true,
               signedIn: false,
-              note: "The sign-in ran out: Settings › Account signs in again.",
+              note: signedOut(),
             };
           }
           return {
@@ -244,18 +238,17 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     usage: createTool({
       id: "usage",
-      description:
-        "Credits the organization used per month (the last three), and the runs and wizards that cost the most.",
+      description: prompt("goose", "tool.usage"),
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
           ctx.doing(serverText(ctx.lang, "doingUsage"));
           if (!(managed || (await linkedAccount()))) {
-            return { linked: false, note: NOT_LINKED };
+            return { linked: false, note: notLinked() };
           }
           const usage = await usageOf(user.tenantId);
           if (!usage) {
-            return { note: "The sign-in ran out: Settings › Account signs in again." };
+            return { note: signedOut() };
           }
           const runIds = [...new Set(usage.months.flatMap((m) => m.runs.map((r) => r.runId)))];
           const runs = runIds.length
@@ -290,8 +283,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     wizards: createTool({
       id: "wizards",
-      description:
-        "The space's wizards: title, description, published or draft, whether its link is on, steps, last change.",
+      description: prompt("goose", "tool.wizards"),
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
@@ -314,8 +306,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     runs: createTool({
       id: "runs",
-      description:
-        "The space's latest runs, newest first: wizard, test or live, status, the error of a failed one.",
+      description: prompt("goose", "tool.runs"),
       inputSchema: z.object({
         status: z.enum(["failed", "done", "running", "waiting_input", "cancelled"]).optional(),
         limit: z.number().int().min(1).max(40).optional(),
@@ -357,8 +348,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     models: createTool({
       id: "models",
-      description:
-        "What thinks and makes for this install, per model class: an installed AI client, an own key, a local model, credits, or nothing (with the problem). Also which AI clients are installed and signed in.",
+      description: prompt("goose", "tool.models"),
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
@@ -378,8 +368,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     chats_search: createTool({
       id: "chats_search",
-      description:
-        "Search the person's earlier chats with you (their messages and summaries) for words: what was asked, changed or decided before.",
+      description: prompt("goose", "tool.chats_search"),
       inputSchema: z.object({ query: z.string().min(3).max(200) }),
       execute: ({ query }) =>
         attempt(async () => {
@@ -399,7 +388,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
     }),
     chat_read: createTool({
       id: "chat_read",
-      description: "Read one earlier chat by its id (from chats_search): its summary and messages.",
+      description: prompt("goose", "tool.chat_read"),
       inputSchema: z.object({ id: z.string().min(1).max(40) }),
       execute: ({ id }) =>
         attempt(async () => {

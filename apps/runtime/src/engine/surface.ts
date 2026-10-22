@@ -8,6 +8,7 @@ import {
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
 import { type SurfaceComponent, validateSurface } from "@engenty/wizards-shared/surface";
+import { prompt } from "../prompts.js";
 import { decide } from "./decide.js";
 import { answersAsText, resolveRef } from "./template.js";
 import { type StepContext, StepError } from "./types.js";
@@ -61,7 +62,7 @@ async function decidedComponents(step: SurfaceStep, ctx: StepContext): Promise<S
     if (!c.required && !c.group) {
       questions[`p_${c.id}`] = {
         type: "noul",
-        instructions: `Should the view show this: ${c.description}`,
+        instructions: prompt("step", "decide.view", { description: c.description }),
       };
     }
   }
@@ -73,7 +74,7 @@ async function decidedComponents(step: SurfaceStep, ctx: StepContext): Promise<S
         instructions: g.instructions,
         criteria: {
           ...Object.fromEntries(members.map((c) => [c.id, c.description])),
-          ...(g.optional ? { none: "None of these." } : {}),
+          ...(g.optional ? { none: prompt("step", "decide.none") } : {}),
         },
       };
     }

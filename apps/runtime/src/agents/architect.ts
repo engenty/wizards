@@ -4,7 +4,6 @@ import {
   type Lang,
   upgradeDefinition,
 } from "@engenty/wizards-shared/definition";
-import { SURFACE_GUIDE } from "@engenty/wizards-shared/surface";
 import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { Agent } from "@mastra/core/agent";
 import { createTool } from "@mastra/core/tools";
@@ -16,10 +15,11 @@ import {
   type GuideServer,
   type GuideTool,
   mcpServersLine,
-  PRINCIPLES,
   pluginToolsLine,
-  SCHEMA_DOC,
-  WIDGET_GUIDE,
+  principles,
+  schemaDoc,
+  surfaceGuide,
+  widgetGuide,
 } from "../authoring/guide.js";
 import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
@@ -34,6 +34,7 @@ import {
   totalUsage,
 } from "../models.js";
 import { pluginToolsOf } from "../plugins/registry.js";
+import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
 import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
 import { checkDraftWidget } from "../services/widgets.js";
@@ -90,37 +91,18 @@ function systemPrompt(
   connectors: GuideConnector[],
   pluginTools: GuideTool[],
 ): string {
-  return `You design wizards for "engenty wizards": a page-by-page flow an end user walks through, where AI steps research, write, draw images, render video, build documents, dashboards and interactive widgets, or write into other systems.
-
-You talk to the ADMIN who builds the wizard. Answer in the admin's language, briefly and warmly. Never mention JSON, ids, schemas, files or templates to them — talk about pages, questions, steps, the widget and results.
-
-${SCHEMA_DOC}
-${PRINCIPLES}
-${WIDGET_GUIDE}
-
-Surface catalog (for surface steps and output.surface):
-${SURFACE_GUIDE}
-
-${mcpServersLine(mcp)}
-
-${connectorsLine(connectors)}${pluginToolsLine(pluginTools)}
-
-Example of a complete wizard:
-\`\`\`json
-${exampleWizard()}
-\`\`\`
-
-HOW YOU WORK
-- You change the wizard ONLY through tools: edit_wizard (small ops) or replace_wizard (new or mostly rewritten). Every write returns the validator's issues — fix them before you finish.
-- Widgets and their data live in the workspace: list_files, read_file, write_file, delete_file, download_files. Then check_widget, look at the screenshot, fix, check again.
-- Order: 1. write the wizard's steps, 2. fetch only the reference data the widget truly needs (one download_files call for all of it), 3. write the widget and its sample.json, 4. check_widget and fix, 5. answer. You have about 30 tool calls — never spend them on exploring.
-- A message that starts "New step" or "Neuer Schritt" comes from the studio's step panel or diagram: add exactly that one step in the place it names – of the kind in brackets, or the kind that fits best when none is named – and build it completely: a page's fields, an AI step's instructions and output, a view's components and data, a widget with its HTML and sample.json. Read what it needs from the steps before it, and leave the other steps as they are unless the new step needs a change there. With "Only if:" / "Nur wenn:" or "AI decides:" / "KI entscheidet:" the new step is a branch that only some runs take: put it right after the step before it, and give that step a rule to the new step (a "when" condition written from the admin's words against the data known there, or an "ask" statement for AI decides) plus an "otherwise" rule (only "goto") to the step every other run went to before; the new step then goes on to that same step as the next in the list. Keep that step's other rules.
-- Call independent tools in the same step (they run together).
-- Never retype data you downloaded. Reshape it with run_script (output to a file), or let the widget read the raw files with wizard.json() and transform them when it starts.
-- Work in few, purposeful steps: every tool call costs the admin time and credits.
-- Services the wizard should work in for the person: find_connectors, import_connector (it returns the actions), then a connection for it in the wizard. list_connectors shows what the project has.
-- Research what you need to prepare (web_search, web_fetch) — e.g. which lakes, their outlines, a chart library.
-- Finish with one to three sentences to the admin: what you built or changed, and at most one suggestion. If they only asked a question, just answer it.`;
+  return prompt("architect", "system", {
+    persona: prompt("architect", "persona"),
+    schema: schemaDoc(),
+    principles: principles(),
+    widgets: widgetGuide(),
+    surfaces: surfaceGuide(),
+    mcp_servers: mcpServersLine(mcp),
+    connectors: connectorsLine(connectors),
+    plugin_tools: pluginToolsLine(pluginTools),
+    example: exampleWizard(),
+    how_you_work: prompt("architect", "how_you_work"),
+  });
 }
 
 /** Turns a tool call into the line the admin sees while it runs. */
@@ -173,16 +155,14 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
   const tools: Record<string, any> = {
     find_connectors: createTool({
       id: "find_connectors",
-      description:
-        "Search the integrations registry for a service that can be imported as a connector (from its OpenAPI spec or MCP server). Returns domains with a short description.",
+      description: prompt("architect", "tool.find_connectors"),
       inputSchema: z.object({ query: z.string().describe("Service name, e.g. Notion") }),
       execute: async ({ query }) =>
         attempt(async () => ({ services: await searchRegistry(query) })),
     }),
     import_connector: createTool({
       id: "import_connector",
-      description:
-        "Import a service from the registry into this project as a connector. Returns its id, tool prefix, how people connect (OAuth, API key, none) and its actions with their marks (read / write / destructive). Importing again returns the existing one.",
+      description: prompt("architect", "tool.import_connector"),
       inputSchema: z.object({
         domain: z.string().describe("A domain from find_connectors, e.g. notion.com"),
         kind: z
@@ -199,15 +179,14 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     list_connectors: createTool({
       id: "list_connectors",
-      description: "The connectors this project has imported, with every action.",
+      description: prompt("architect", "tool.list_connectors"),
       inputSchema: z.object({}),
       execute: async () =>
         attempt(async () => ({ connectors: await listConnectors(await projectId()) })),
     }),
     replace_wizard: createTool({
       id: "replace_wizard",
-      description:
-        "Replace the whole wizard. Use for a new wizard or a rewrite. Returns the validator's issues.",
+      description: prompt("architect", "tool.replace_wizard"),
       inputSchema: z.object({ wizard: z.record(z.string(), z.unknown()) }),
       execute: async ({ wizard }) =>
         attempt(async () => {
@@ -223,8 +202,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     edit_wizard: createTool({
       id: "edit_wizard",
-      description:
-        "Change the wizard with ops, applied in order: set_meta (title, description, avatar, intro, themes), set_theme {theme} (a theme of the space, worn first), set_lists {lists} and set_connections {connections} (each replaces the whole array), upsert_step (the complete step; replaces the step with that id or inserts it before/after another), remove_step, move_step. Returns the validator's issues.",
+      description: prompt("architect", "tool.edit_wizard"),
       inputSchema: z.object({ ops: z.array(wizardOpSchema).min(1) }),
       execute: async ({ ops }) =>
         attempt(async () => {
@@ -241,7 +219,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     list_files: createTool({
       id: "list_files",
-      description: "The files in the wizard's workspace (path, mime, size).",
+      description: prompt("architect", "tool.list_files"),
       inputSchema: z.object({}),
       execute: async () =>
         attempt(async () =>
@@ -250,7 +228,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     read_file: createTool({
       id: "read_file",
-      description: "Read a workspace file as text.",
+      description: prompt("architect", "tool.read_file"),
       inputSchema: z.object({ path: z.string() }),
       execute: async ({ path }) =>
         attempt(async () => {
@@ -268,8 +246,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     write_file: createTool({
       id: "write_file",
-      description:
-        "Create or overwrite a text file in the workspace (HTML, JS, CSS, JSON, CSV, SVG). Max 5 MB.",
+      description: prompt("architect", "tool.write_file"),
       inputSchema: z.object({ path: z.string(), content: z.string() }),
       execute: async ({ path, content }) =>
         attempt(async () => {
@@ -280,7 +257,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     delete_file: createTool({
       id: "delete_file",
-      description: "Delete a workspace file.",
+      description: prompt("architect", "tool.delete_file"),
       inputSchema: z.object({ path: z.string() }),
       execute: async ({ path }) =>
         attempt(async () => {
@@ -291,8 +268,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     download_files: createTool({
       id: "download_files",
-      description:
-        "Download public URLs straight into the workspace — all at once (libraries from cdnjs/jsdelivr, GeoJSON outlines, CSV, images). The content does not pass through you; you get each file's size and first characters. Requests to the same host are spaced one second apart (fair use of OpenStreetMap and others).",
+      description: prompt("architect", "tool.download_files"),
       inputSchema: z.object({
         files: z
           .array(z.object({ url: z.string(), path: z.string() }))
@@ -341,8 +317,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     run_script: createTool({
       id: "run_script",
-      description:
-        "Run JavaScript over workspace files in a browser without network — to reshape downloaded data (simplify outlines, merge files, compute bounds or SVG paths) instead of retyping it. The body of an async function: `files` maps each input path to its text; return a string or a JSON value. With `output`, the result is saved as that workspace file.",
+      description: prompt("architect", "tool.run_script"),
       inputSchema: z.object({
         script: z.string(),
         inputs: z.array(z.string()).describe("Workspace paths to pass in `files`."),
@@ -371,7 +346,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     web_fetch: createTool({
       id: "web_fetch",
-      description: "Read a public web page or API response (Markdown/text, first 6000 chars).",
+      description: prompt("architect", "tool.web_fetch"),
       inputSchema: z.object({ url: z.string() }),
       execute: async ({ url }) =>
         attempt(async () => {
@@ -388,8 +363,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     check_widget: createTool({
       id: "check_widget",
-      description:
-        "Load a widget step in a real browser with its sample data (or the data you pass): returns script errors, whether it registered a timeline, and a screenshot you can look at.",
+      description: prompt("architect", "tool.check_widget"),
       inputSchema: z.object({
         stepId: z.string(),
         data: z.record(z.string(), z.unknown()).optional(),
@@ -443,11 +417,12 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
     model: agentModel(resolved),
     tools,
   });
-  const context = [
-    `Current wizard (revision ${w.revision}):\n\`\`\`json\n${JSON.stringify(w.draft)}\n\`\`\``,
-    `Workspace files: ${files.length ? files.map((f) => `${f.path} (${f.size} B)`).join(", ") : "none"}`,
-    input.message,
-  ].join("\n\n");
+  const context = prompt("architect", "turn.context", {
+    revision: w.revision,
+    draft: JSON.stringify(w.draft),
+    files: files.length ? files.map((f) => `${f.path} (${f.size} B)`).join(", ") : "none",
+    message: input.message,
+  });
   const stream = await agent.stream(
     [
       ...input.history

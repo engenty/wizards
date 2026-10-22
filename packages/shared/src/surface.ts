@@ -447,33 +447,3 @@ export function worded(raw: unknown, spec: { map?: unknown; format?: unknown }):
   }
   return v;
 }
-
-/** What a model needs to compose a surface: the catalog, briefly. */
-export const SURFACE_GUIDE = `A surface is a flat JSON array of components; the one with id "root" is drawn. Containers list their children by id.
-Components and props (a prop may be a literal or {"path": "/key/..."} into the data):
-- Column { children: [ids] } — vertical stack (use for root); Column and Grid may also repeat one component per entry: children {"path", "componentId"}
-- Text { text, variant?: "h3"|"h4"|"lead"|"body"|"muted" } — "lead": the one opening line in the wizard's voice
-- List { children: {"path": "/rows", "componentId": "<a Row id>"} } — one Row per array entry; inside, paths without "/" read the entry ("name")
-- Row { title, subtitle?, meta?, badge?, image? }
-- DetailGrid { rows: [{ label, value }] } — label/value facts
-- Badge { label, tone?: "default"|"success"|"warning"|"accent" }
-- Grid { children: [ids], columns?: 2|3|4, min?: rem } — tiles side by side; min: the narrowest a tile gets (14 for cards, so a phone shows one)
-- Metric { label, value, caption? } — a key figure
-- Table { rows: {"path": "/rows"}, columns?: [{ key, label }] }
-- Image { src: an asset id or {"path": ...}, alt? }
-- BarChart / LineChart { title?, points: [{ label, value }] or {"path": ...}, labelKey?, valueKey? }
-- DonutChart { title?, slices: [{ label, value }] or {"path": ...}, labelKey?, valueKey? }
-  (labelKey / valueKey: the columns of bound rows that hold the label and the number, e.g. "name", "price")
-- Actions { children: [Button ids] } / Button { label, action: "regenerate"|"open" }
-- Tabs { tabs: [{ label, count?, child: id }] } — two to four views of one result; count may bind a list (shows its length)
-- Card { title, eyebrow?, subtitle?, meta?: [values], image?, children?: [ids] } — one thing: a day, a recipe, an offer
-- Fold { title, open?, children: [ids] } — details that open on a tap
-- Group { children: {"path", "componentId"}, by: "<key>", order?: [values] } — entries under a heading per value of a key
-- Chips { items, labelKey?, flagKey?, flag? } — short things at a glance; flagKey marks some ("bald")
-- Checklist { items, labelKey?, detailKey?, noteKey?, noteFormat?, noteMap?, groupKey?, groupOrder?, share? } — things to get or do; ticks are kept; a yes/no note needs noteMap: {"true": "da", "false": "einkaufen"}
-- Steps { items, textKey?, minutesKey? } — ordered work, numbered, with times
-- Link { title, subtitle?, eyebrow?, meta?, look?: "row"|"card", items: {"path": "/recipes"}, key?: "id", value: {"path": "recipe_id"}, view: id } — opens the entry of items whose key is value in a sheet, drawn by view; title, subtitle and meta read that entry, eyebrow the row the Link sits in
-- Callout { text, title?, tone?: "tip"|"note"|"warning" }
-A path may put its value into words: {"path": "in_fridge", "map": {"true": "da", "false": "einkaufen"}}, {"path": "minutes", "format": "{} Min"}.
-Design it like an app, not a report: lead with a headline, the key figure or the chips; one Card per thing, never a Table of things; ordered work is Steps, things to get are a Checklist, sets are grouped by their key. A Table only for figures people compare across columns.
-Keep it small: what the person needs to see first, then the details. Never invent numbers: bind them by path.`;
