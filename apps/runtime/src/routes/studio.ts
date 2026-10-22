@@ -166,7 +166,13 @@ import { writeSummary } from "../services/knowledge-model.js";
 import { applyWebsite, finishOnboarding, needsOnboarding } from "../services/onboarding.js";
 import { exportWizard, importWizard } from "../services/package.js";
 import { pagePreview } from "../services/pages.js";
-import { asAssistantIn, leave, markPresent, presentIn } from "../services/presence.js";
+import {
+  asAssistantIn,
+  leave,
+  markPresent,
+  presentByItem,
+  presentIn,
+} from "../services/presence.js";
 import {
   profileSchema,
   saveProfile,
@@ -1461,6 +1467,9 @@ export const studio = new Hono<Vars>()
   })
   // --- the two-way sync of the spaces with the account's organization (sync/client.ts) ---
   // --- who is in a wizard, page or table: a signal, never a lock (docs/plans/live-changes.md, 8) ---
+  .get("/presence/:kind", async (c) =>
+    c.json(await presentByItem(z.enum(PRESENCE_KINDS).parse(c.req.param("kind")))),
+  )
   .get("/presence/:kind/:item", async (c) =>
     c.json(await presentIn(z.enum(PRESENCE_KINDS).parse(c.req.param("kind")), c.req.param("item"))),
   )

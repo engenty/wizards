@@ -106,6 +106,25 @@ export async function presentIn(
   }));
 }
 
+/** Who is in each item of a kind now: for the lists (a dot on a card). */
+export async function presentByItem(kind: string, now = Date.now()) {
+  const rows = await db
+    .select({ item: schema.livePresence.item })
+    .from(schema.livePresence)
+    .where(
+      and(
+        eq(schema.livePresence.kind, kind),
+        gt(schema.livePresence.seenAt, sql`${now} - ${keptFor}`),
+      ),
+    )
+    .groupBy(schema.livePresence.item);
+  const out: Record<string, PresenceEntry[]> = {};
+  for (const { item } of rows) {
+    out[item] = await presentIn(kind, item, now);
+  }
+  return out;
+}
+
 /** Deletes who is gone; each delete tells the open studios. */
 export async function expirePresence(now = Date.now()) {
   await db

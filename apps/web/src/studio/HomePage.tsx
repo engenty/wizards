@@ -1,3 +1,4 @@
+import type { PresenceEntry } from "@engenty/wizards-shared/live";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpRight,
@@ -38,6 +39,8 @@ import { LinkStatus, useAccountLink } from "./Account";
 import { ChannelIcons, type Runner, useRunners } from "./channels";
 import { openExternal } from "./LocalRuntime";
 import { useLiveFlash } from "./live/index";
+import { presenceColor, presenceLine } from "./live/PresenceStack";
+import { usePresentItems } from "./live/presence";
 import { MarketplaceHits } from "./Marketplace";
 import { WizardMenu } from "./WizardMenu";
 import { ownLink, sharedLink, WhereChip, whereItRuns } from "./where";
@@ -230,7 +233,18 @@ function LinkTeaser() {
  * or for a local install its copy's in the cloud. A wizard that runs only on this computer has
  * no link to hand out; it opens here.
  */
-function WizardCard({ w, me, runners }: { w: WizardSummary; me: Me; runners: Runner[] }) {
+function WizardCard({
+  w,
+  me,
+  runners,
+  present,
+}: {
+  w: WizardSummary;
+  me: Me;
+  runners: Runner[];
+  /** Who works in it now (studio/live): a dot each. */
+  present?: PresenceEntry[];
+}) {
   const account = useFeature("account");
   const navigate = useNavigate();
   const where = whereItRuns(w, me, w.cloud);
@@ -261,6 +275,22 @@ function WizardCard({ w, me, runners }: { w: WizardSummary; me: Me; runners: Run
             {t("home.steps", { n: w.stepCount })}
             {/* The channels it runs through, the link's first. */}
             <ChannelIcons w={w} runners={runners} />
+            {present?.length ? (
+              <span
+                role="img"
+                className="inline-flex items-center gap-1"
+                title={present.map(presenceLine).join("\n")}
+                aria-label={present.map(presenceLine).join(", ")}
+              >
+                {present.slice(0, 3).map((e) => (
+                  <span
+                    key={`${e.who}|${e.tab}`}
+                    className="size-2 rounded-full"
+                    style={{ background: presenceColor(e.who) }}
+                  />
+                ))}
+              </span>
+            ) : null}
           </span>
           <div className="flex items-center">
             <WizardMenu
@@ -466,6 +496,7 @@ export function HomePage() {
     enabled: Boolean(project),
   });
   const runners = useRunners().data ?? [];
+  const presentItems = usePresentItems("wizard");
   // One status to narrow the cards to, or all of them.
   const [status, setStatus] = useState<Status | null>(null);
   // Past a few rows the title gives way to a search over title and description.
@@ -545,7 +576,17 @@ export function HomePage() {
         <p className="mt-6 text-[0.875rem] text-ink-3">{t("home.noMatch")}</p>
       ) : null}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {me ? shown.map((w) => <WizardCard key={w.id} w={w} me={me} runners={runners} />) : null}
+        {me
+          ? shown.map((w) => (
+              <WizardCard
+                key={w.id}
+                w={w}
+                me={me}
+                runners={runners}
+                present={presentItems?.[w.id]?.filter((e) => e.who !== me.user.id)}
+              />
+            ))
+          : null}
       </div>
       {beyond ? (
         <>
