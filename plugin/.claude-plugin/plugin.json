@@ -1,7 +1,7 @@
 {
   "name": "wizards",
   "displayName": "engenty wizards",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Build page-by-page AI wizards that people open on a shared link — designed, tested and published from Claude Code — run your published ones in the chat, and keep them in a pane beside it.",
   "author": {
     "name": "engenty"
