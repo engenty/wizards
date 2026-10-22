@@ -236,10 +236,10 @@ async function withViews(
   return out;
 }
 
-/** One entry per item, in the order of its last change, with its last op. */
+/** One entry per item, in the order of its last change, with its last op and number. */
 export function dedupe(rows: (LiveItem & { seq?: number })[]): LiveItem[] {
   const last = new Map<string, LiveItem>();
-  for (const { seq: _, ...item } of rows) {
+  for (const item of rows) {
     const key = `${item.kind}|${item.item}`;
     last.delete(key);
     last.set(key, item);

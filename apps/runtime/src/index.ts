@@ -132,6 +132,11 @@ if (!managed) {
     withTenant(LOCAL_TENANT, () => syncAll()).catch((err) => console.error("[sync]", err));
   setTimeout(() => void twoWay(), 5_000).unref();
   setInterval(() => void twoWay(), 60_000).unref();
+  // And between the rounds: what changes in the cloud, as it happens.
+  const { followCloud } = await import("./sync/client.js");
+  void withTenant(LOCAL_TENANT, () => followCloud(new AbortController().signal)).catch((err) =>
+    console.error("[sync] following the cloud:", err),
+  );
 }
 
 async function shutdown(code = 0) {

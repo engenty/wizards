@@ -251,6 +251,7 @@ Calls of the cloud runtime, below `<RUNTIME_URL>/api/v1`, with the account's acc
 | `POST /sync/spaces/:spaceId/wizards/:wizardId/publish` | `wizards:write wizards:publish` | → `{ wizardId, shareUrl, code, shareEnabled, publishedVersion, runnable, problems }` · publishes the cloud's draft, which the install pushed before |
 | `POST /sync/spaces/:spaceId/wizards/:wizardId/rotate-link` | `wizards:publish` | → `{ shareUrl, code }` |
 | `POST /sync/spaces/:spaceId/adopt` | `wizards:write` | → `{ adopted }` · a space synced one way (`origin = "local"`) becomes the cloud's own and syncs both ways |
+| `GET /sync/live` | `wizards:read` | Server-Sent Events while open: `hello { seq }`, `changes { seq, spaces }` (the spaces with a change, not the items), `reset { seq }` (pull every space), `ping` every 20 s · `id:` is the `seq`, `Last-Event-ID` resumes · the changes of the push of the install named in `x-wizards-install` are left out · ends after 30 minutes · `404` while the switch `liveChanges` is off |
 
 - **Kinds and items**: `space` (its id), `wizard`, `translation` (`<wizard>:<lang>`), `message`,
   `page`, `table`, `row`, `category` (with its values), `file`, `connector` (`<space>:<id>`).
@@ -263,7 +264,9 @@ Calls of the cloud runtime, below `<RUNTIME_URL>/api/v1`, with the account's acc
   sync pauses until both match); `404 { reason: "not_found" }` for a space that is not there and
   is not made by the push; per item `reason` `forbidden`, `id_taken`, `space_limit`,
   `blob_missing`, `invalid`, `not_synced`.
-- **Limits**: 1200 pushes and 3600 pulls an hour per tenant (`429`).
+- **Limits**: 1200 pushes and 3600 pulls an hour per tenant (`429`). An install keeps one
+  `GET /sync/live` open and pulls a space it names at most every 2 seconds.
+- **The install**: every call carries `x-wizards-install`, an id the install keeps.
 
 ## Clients of an account: the WordPress plugin
 
