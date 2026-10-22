@@ -835,6 +835,7 @@ function Bottom({
             }
             busy={busy}
             onStop={state.stop}
+            effort={{ on: state.extra, onChange: state.setExtra }}
             onSend={(text, files, later) => state.send(text, files, later ? "queue" : "signal")}
             onTalk={
               canLive

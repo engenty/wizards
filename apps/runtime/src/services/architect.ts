@@ -1,7 +1,7 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { eq } from "drizzle-orm";
 import { type ChatImage, runArchitect } from "../agents/architect.js";
-import { chatEngine, subscriptionTurn } from "../agents/subscription.js";
+import { chatTurnWay, subscriptionTurn } from "../agents/subscription.js";
 import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { managed } from "../manage.js";
@@ -44,6 +44,7 @@ export async function architectTurn(
   message: string,
   /** The language the admin reads: the lines about what it does, and its stock replies. */
   lang: Lang,
+  extra: boolean | undefined,
   io: {
     signal: AbortSignal;
     onText: (delta: string) => void;
@@ -60,7 +61,7 @@ export async function architectTurn(
   const userMessageId = await addMessage(w.id, { role: "user", content: message });
   try {
     // A runtime that runs alone can answer the chat on the admin's own subscription or key.
-    const engine = managed ? "models" : await chatEngine(await hasTextModel());
+    const engine = await chatTurnWay(managed);
     const result =
       engine === "claude" || engine === "codex" || engine === "cursor"
         ? {
@@ -74,6 +75,7 @@ export async function architectTurn(
               onThought: io.onThought,
               onBuilding: io.onBuilding,
               images,
+              extra,
               lang,
             })),
             unfinished: false,
@@ -83,6 +85,7 @@ export async function architectTurn(
             userId,
             wizardId: w.id,
             message,
+            extra,
             history: history.map((m) => ({ role: m.role, content: m.content })),
             connectors: await listConnectors(project.id),
             signal: io.signal,

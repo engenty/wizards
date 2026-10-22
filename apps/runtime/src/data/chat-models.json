@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "updated": "2026-10-22",
+  "ways": {
+    "claude": {
+      "normal": "sonnet",
+      "extra": "opus",
+      "models": [
+        {
+          "id": "sonnet",
+          "label": "Sonnet"
+        },
+        {
+          "id": "opus",
+          "label": "Opus"
+        },
+        {
+          "id": "haiku",
+          "label": "Haiku"
+        }
+      ]
+    },
+    "codex": {
+      "normal": "gpt-6.1-sol",
+      "extra": "gpt-6-astra",
+      "models": [
+        {
+          "id": "gpt-6.1-sol",
+          "label": "GPT-6.1 Sol"
+        },
+        {
+          "id": "gpt-6-astra",
+          "label": "GPT-6 Astra"
+        },
+        {
+          "id": "gpt-6-luna",
+          "label": "GPT-6 Luna"
+        }
+      ]
+    },
+    "cursor": {
+      "normal": "auto",
+      "extra": "auto",
+      "models": [
+        {
+          "id": "auto",
+          "label": "Auto"
+        }
+      ]
+    },
+    "openai": {
+      "normal": "openai:gpt-5.5",
+      "extra": "openai:gpt-5.5",
+      "models": [
+        {
+          "id": "openai:gpt-5.5",
+          "label": "GPT-5.5"
+        },
+        {
+          "id": "openai:gpt-5.4-mini",
+          "label": "GPT-5.4 mini"
+        }
+      ]
+    },
+    "anthropic": {
+      "normal": "anthropic:claude-sonnet-5-5",
+      "extra": "anthropic:claude-opus-5-5",
+      "models": [
+        {
+          "id": "anthropic:claude-sonnet-5-5",
+          "label": "Claude Sonnet 5.5"
+        },
+        {
+          "id": "anthropic:claude-opus-5-5",
+          "label": "Claude Opus 5.5"
+        },
+        {
+          "id": "anthropic:claude-haiku-4-5",
+          "label": "Claude Haiku 4.5"
+        }
+      ]
+    },
+    "google": {
+      "normal": "google:gemini-flash-latest",
+      "extra": "google:gemini-pro-latest",
+      "models": [
+        {
+          "id": "google:gemini-pro-latest",
+          "label": "Gemini Pro"
+        },
+        {
+          "id": "google:gemini-flash-latest",
+          "label": "Gemini Flash"
+        }
+      ]
+    },
+    "gateway": {
+      "normal": "deepseek/deepseek-v4.1-flash",
+      "extra": "moonshotai/kimi-k3",
+      "models": [
+        {
+          "id": "moonshotai/kimi-k3",
+          "label": "Kimi K3"
+        },
+        {
+          "id": "deepseek/deepseek-v4.1-flash",
+          "label": "DeepSeek V4.1 Flash"
+        },
+        {
+          "id": "zai/glm-5.3",
+          "label": "GLM 5.3"
+        }
+      ]
+    }
+  }
+}

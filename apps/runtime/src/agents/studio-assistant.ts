@@ -56,7 +56,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
-import { chatEngine } from "./subscription.js";
+import { chatTurnWay } from "./subscription.js";
 import { readWebsite } from "./website.js";
 
 export interface AssistantInput {
@@ -69,6 +69,8 @@ export interface AssistantInput {
   /** The space may be changed: its tools and the plugins' tools are there. */
   writable: boolean;
   message: string;
+  /** Extra effort: the more capable model of the way. */
+  extra?: boolean;
   /** What the page the person writes from shows. */
   page: AssistantPage | null;
   /** Tools the browser runs (AG-UI's `tools`): the built-in six and what the page adds. */
@@ -881,8 +883,8 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   // this grew during it.
   let changes = 0;
   // The way the settings chose for the studio's chats: on a client, its tools reach it over MCP.
-  const way = managed ? "models" : await chatEngine(await hasTextModel());
-  const resolved = await chatModel(way, "standard");
+  const way = await chatTurnWay(managed);
+  const resolved = await chatModel(way, input.extra ? "high" : "standard");
   const wrote = () => {
     changes++;
     input.onChanged?.();

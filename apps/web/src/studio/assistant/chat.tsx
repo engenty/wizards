@@ -111,6 +111,9 @@ export interface AssistantState {
   takeBack: (id: string) => PendingMessage | undefined;
   /** Stops the running turn; what waits stays unsent. */
   stop: () => void;
+  /** Extra effort for the next messages: the chat works with its more capable model. */
+  extra: boolean;
+  setExtra: (on: boolean) => void;
   layout: AssistantLayout;
   setLayout: (layout: AssistantLayout) => void;
   /** The sidebar's width the person set with its handle; null: the default. */
@@ -195,6 +198,10 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const devOn = devOffered && prefs.dev;
   const devRef = useRef(devOn);
   devRef.current = devOn;
+  // Extra effort starts off: Goose answers everyday questions on the everyday model.
+  const [extra, setExtra] = useState(false);
+  const extraRef = useRef(extra);
+  extraRef.current = extra;
 
   // The stored chat is the truth once, when it arrives; the turns keep the thread from then on.
   useEffect(() => {
@@ -365,6 +372,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             tools: browserTools(),
             lang,
             ...(devRef.current ? { debug: true } : {}),
+            ...(extraRef.current ? { extra: true } : {}),
           },
           (event, raw) => {
             const data = JSON.parse(raw);
@@ -634,6 +642,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       sendNow,
       takeBack,
       stop,
+      extra,
+      setExtra,
       layout: layout ?? savedLayout.data?.layout ?? "bottom",
       setLayout,
       width: width === undefined ? (savedLayout.data?.width ?? null) : width,
@@ -655,6 +665,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       sendNow,
       takeBack,
       stop,
+      extra,
       layout,
       savedLayout.data,
       setLayout,

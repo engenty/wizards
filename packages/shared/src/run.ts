@@ -480,6 +480,8 @@ const NOTES_EN = {
   commandNotStarted: "The command couldn’t start: {detail}",
   providerKeyMissing: "{provider} is chosen for {makes}, but no API key is set.",
   noModelFor: "No model is set up for {makes}.",
+  chatNoWay:
+    "The chat has nothing to run on yet. Pick a subscription, a key or the credits under Settings › Models › Agent chat.",
   noApiKeyFor: "No API key is set for {provider}.",
   freeTier:
     "Your AI Gateway key is on Vercel’s free tier, which doesn’t include {model}. Top up at Vercel ({url}) or choose another model under Settings → Models.",
@@ -835,6 +837,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   commandNotStarted: "Der Befehl konnte nicht starten: {detail}",
   providerKeyMissing: "Für {makes} ist {provider} gewählt, aber kein API-Key hinterlegt.",
   noModelFor: "Für {makes} ist kein Modell eingerichtet.",
+  chatNoWay:
+    "Der Chat hat noch nichts, womit er arbeiten kann. Wähle unter Einstellungen › Modelle › Agent-Chat ein Abo, einen Key oder das Guthaben.",
   noApiKeyFor: "Für {provider} ist kein API-Key hinterlegt.",
   freeTier:
     "Dein AI-Gateway-Key nutzt bei Vercel die kostenlose Stufe, und die schließt {model} aus. Lade bei Vercel Guthaben auf ({url}) oder wähle unter Einstellungen → Modelle ein anderes Modell.",

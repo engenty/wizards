@@ -143,15 +143,26 @@ describe("studio chat on the Claude subscription", () => {
   it("answers on a chosen client only while it is there", async () => {
     const { chatEngine, setChatEngine } = await import("../src/agents/subscription");
     await setChatEngine("codex");
-    expect(await chatEngine(true)).toBe("codex");
+    expect(await chatEngine()).toBe("codex");
+    // A client that is not there, a provider without its key, or credits without an account
+    // cannot answer: the first way that can does.
     await setChatEngine("cursor");
-    expect(await chatEngine(true)).toBe("models");
-    expect(await chatEngine(false)).toBe("claude");
-    // A provider without its key, or credits without an account, cannot answer yet.
+    expect(await chatEngine()).toBe("claude");
     await setChatEngine("openai");
-    expect(await chatEngine(true)).toBe("models");
+    expect(await chatEngine()).toBe("claude");
     await setChatEngine("account");
-    expect(await chatEngine(true)).toBe("models");
+    expect(await chatEngine()).toBe("claude");
+  });
+
+  it("runs the chat on the model of its effort: the catalog's, or the one a person chose", async () => {
+    const { chatModel } = await import("../src/models");
+    const { setChatModelChoice } = await import("../src/services/chat-models");
+    expect((await chatModel("claude", "standard")).ref).toBe("claude/sonnet");
+    expect((await chatModel("claude", "high")).ref).toBe("claude/opus");
+    await setChatModelChoice("claude", { extra: "haiku" });
+    expect((await chatModel("claude", "high")).ref).toBe("claude/haiku");
+    expect((await chatModel("claude", "standard")).ref).toBe("claude/sonnet");
+    await setChatModelChoice("claude", {});
   });
 
   it("gives Goose and the editor a client's own model of the class", async () => {

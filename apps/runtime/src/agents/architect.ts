@@ -24,7 +24,7 @@ import { importFromRegistry, listConnectors, searchRegistry } from "../connector
 import {
   agentModel,
   attachTools,
-  type ChatWay,
+  type ChatTurnWay,
   chatModel,
   costOf,
   gatewayTools,
@@ -45,10 +45,12 @@ import { thoughtLine } from "./thought.js";
 
 export interface ArchitectInput {
   /** What answers: the text classes, a provider's key or the credits (a subscription runs on its own). */
-  way: ChatWay;
+  way: ChatTurnWay;
   userId: string;
   wizardId: string;
   message: string;
+  /** Extra effort: the more capable model of the way; on unless the chat turned it off. */
+  extra?: boolean;
   history: { role: "user" | "assistant"; content: string }[];
   connectors: GuideConnector[];
   signal?: AbortSignal;
@@ -412,8 +414,9 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
   const w = await ownedWizard(input.userId, input.wizardId);
   const files = await listFiles(input.userId, input.wizardId);
   let changed = false;
-  // Building a wizard is the hardest job here: widgets are code.
-  const resolved = await chatModel(input.way, "high");
+  // Building a wizard is the hardest job here: widgets are code, so the editor chat starts on
+  // extra effort.
+  const resolved = await chatModel(input.way, input.extra === false ? "standard" : "high");
   const tools = buildTools(input, resolved, () => {
     changed = true;
   });
