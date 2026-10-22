@@ -911,6 +911,38 @@ export const liveChange = sqliteTable(
   (t) => [index("live_change_at").on(t.at)],
 );
 
+/**
+ * Who is in a wizard, page or table right now (docs/plans/live-changes.md, 8): a person in an
+ * editor, the studio assistant during its turn, an MCP client or API key for a minute after it
+ * read or wrote. A signal, never a lock. A row unseen for 45 seconds is gone.
+ */
+export const livePresence = sqliteTable(
+  "live_presence",
+  {
+    kind: text("kind").notNull(),
+    item: text("item").notNull(),
+    /** The person's id, or the client's for an agent. */
+    who: text("who").notNull(),
+    /** One editor of that person: a tab. */
+    tab: text("tab").notNull().default(""),
+    /** `person`, `agent` (MCP, API), `assistant`, `run`. */
+    whoKind: text("who_kind").notNull(),
+    name: text("name").notNull(),
+    /** The app an agent acts through; for the assistant, whom it acts for. */
+    client: text("client"),
+    /** Where in the item: a step, a section, a row; and how to say it. */
+    place: text("place"),
+    placeLabel: text("place_label"),
+    /** `viewing` or `editing`. */
+    state: text("state").notNull(),
+    seenAt: integer("seen_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [
+    primaryKey({ columns: [t.kind, t.item, t.who, t.tab] }),
+    index("live_presence_seen").on(t.seenAt),
+  ],
+);
+
 /** One row: `applying` is 1 while an install writes what it pulled, so the triggers note none of it. */
 export const syncGuard = sqliteTable("sync_guard", {
   id: integer("id").primaryKey(),

@@ -10,6 +10,7 @@ import { publishAndSync, pushSharing } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
 import { marketplaceWizard, searchMarketplace } from "../services/marketplace.js";
+import { markAgent, presentIn } from "../services/presence.js";
 import { defaultProject, listProjects, ownedProject } from "../services/projects.js";
 import {
   answerRunAsk,
@@ -111,8 +112,59 @@ function annotationsOf(config: { readOnly?: boolean; destructive?: boolean; open
   };
 }
 
+/** What a client tells its person when people edit the wizard it just changed. */
+function presentNote(people: [string, string | null][]): string {
+  const who = people.map(([name, where]) => (where ? `${name} (${where})` : name)).join(", ");
+  return `${who} ${people.length > 1 ? "are" : "is"} editing this wizard in the studio right now. Your change is in; their editor merges it with what they type. Tell your user before larger changes.`;
+}
+
 export function registerTools(server: McpServer, who: Principal) {
   const writer: Writer = { source: "mcp", client: who.client };
+  /** This client, for this person: how the studio shows it among who is in a wizard. */
+  const agent = {
+    id: `mcp:${who.client}:${who.userId}`,
+    name: who.client,
+    client: who.name ?? null,
+  };
+  /**
+   * A tool on a wizard marks this client as present there (docs/plans/live-changes.md, 8), and
+   * its result says who else is: people and other agents, so the client can tell its person.
+   */
+  const withPresence = async (
+    args: unknown,
+    readOnly: boolean,
+    result: unknown,
+  ): Promise<unknown> => {
+    const wizardId = (args as { wizardId?: unknown } | null)?.wizardId;
+    if (typeof wizardId !== "string" || !result || typeof result !== "object") {
+      return result;
+    }
+    try {
+      await markAgent("wizard", wizardId, agent, readOnly ? "viewing" : "editing");
+      const present = (await presentIn("wizard", wizardId)).filter((e) => e.who !== agent.id);
+      if (!present.length) {
+        return result;
+      }
+      const editing = present.filter((e) => e.whoKind === "person" && e.state === "editing");
+      return {
+        ...(result as Record<string, unknown>),
+        present: present.map((e) => ({
+          name: e.name,
+          kind: e.whoKind,
+          state: e.state,
+          ...(e.placeLabel ? { where: e.placeLabel } : {}),
+          ...(e.client ? { via: e.client } : {}),
+          since: e.seenAt,
+        })),
+        ...(editing.length && !readOnly
+          ? { presentNote: presentNote(editing.map((e) => [e.name, e.placeLabel])) }
+          : {}),
+      };
+    } catch (err) {
+      console.error("[mcp] presence:", err);
+      return result;
+    }
+  };
   const tool = <S extends z.ZodObject>(
     name: string,
     scope: Scope,
@@ -133,7 +185,7 @@ export function registerTools(server: McpServer, who: Principal) {
       // The SDK has parsed `args` with `input` before this runs.
       (async (args: z.infer<S>) => {
         try {
-          return ok(await run(args));
+          return ok(await withPresence(args, config.readOnly ?? false, await run(args)));
         } catch (err) {
           return failure(err);
         }
@@ -162,7 +214,11 @@ export function registerTools(server: McpServer, who: Principal) {
       },
       (async (args: z.infer<S>) => {
         try {
-          const { result, view } = await run(args);
+          const { result: plain, view } = await run(args);
+          const result = (await withPresence(args, config.readOnly ?? false, plain)) as Record<
+            string,
+            unknown
+          >;
           return {
             ...ok(result),
             structuredContent: result,

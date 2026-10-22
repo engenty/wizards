@@ -311,3 +311,28 @@ describe("saves over a newer version", () => {
     expect(body.page).toMatchObject({ markdown: "B", updatedAt: second.updatedAt });
   });
 });
+
+describe("presence on the stream", () => {
+  const isPresence = (item: string) => (e: Heard) =>
+    e.event === "changes" && e.data.items.some((i: any) => i.kind === "presence" && i.item === item);
+
+  it("sends who joins, a new state, and who leaves; not a heartbeat", async () => {
+    const pageId = await newPage("Together");
+    const s = await open();
+    streams.push(s);
+    await s.next((e) => e.event === "hello");
+    const here = { kind: "page", item: pageId, tab: "tab-1", state: "viewing" };
+    expect((await call("PUT", "/api/studio/presence", here)).status).toBe(200);
+    const joined = (await s.next(isPresence(`page:${pageId}`))).data.items.find((i: any) => i.kind === "presence");
+    expect(joined).toMatchObject({ parent: "page", view: [expect.objectContaining({ whoKind: "person", tab: "tab-1", state: "viewing" })] });
+    const seen = s.heard.length;
+    await call("PUT", "/api/studio/presence", here);
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(s.heard.slice(seen).filter(isPresence(`page:${pageId}`))).toEqual([]);
+    await call("PUT", "/api/studio/presence", { ...here, state: "editing", place: "intro", placeLabel: "Intro" });
+    await s.next((e) => isPresence(`page:${pageId}`)(e) && e.data.items.some((i: any) => i.view?.[0]?.state === "editing"));
+    await call("POST", "/api/studio/presence/leave", { kind: "page", item: pageId, tab: "tab-1" });
+    await s.next((e) => isPresence(`page:${pageId}`)(e) && e.data.items.some((i: any) => Array.isArray(i.view) && i.view.length === 0));
+    await s.close();
+  });
+});

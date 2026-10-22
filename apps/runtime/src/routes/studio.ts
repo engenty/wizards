@@ -17,6 +17,7 @@ import {
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
 import { CATEGORY_TYPES, whereSchema } from "@engenty/wizards-shared/knowledge";
+import { PRESENCE_KINDS } from "@engenty/wizards-shared/live";
 import { PROJECT_FILE_KINDS } from "@engenty/wizards-shared/projects";
 import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
 import { note } from "@engenty/wizards-shared/run";
@@ -165,6 +166,7 @@ import { writeSummary } from "../services/knowledge-model.js";
 import { applyWebsite, finishOnboarding, needsOnboarding } from "../services/onboarding.js";
 import { exportWizard, importWizard } from "../services/package.js";
 import { pagePreview } from "../services/pages.js";
+import { asAssistantIn, leave, markPresent, presentIn } from "../services/presence.js";
 import {
   profileSchema,
   saveProfile,
@@ -264,6 +266,15 @@ import { bareMime, byteRange } from "./delivery.js";
 import { notFoundAnswer, requestLang, say } from "./lang.js";
 
 type Vars = { Variables: { user: SessionUser } };
+
+const presenceSchema = z.object({
+  kind: z.enum(PRESENCE_KINDS),
+  item: z.string().min(1).max(100),
+  tab: z.string().max(40),
+  state: z.enum(["viewing", "editing"]),
+  place: z.string().max(200).nullish(),
+  placeLabel: z.string().max(120).nullish(),
+});
 
 /** Who reads, for the views the live stream sends too (live/views.ts). */
 const reader = (c: Context<Vars>): Reader => ({ userId: c.get("user").id, lang: requestLang(c) });
@@ -1449,6 +1460,24 @@ export const studio = new Hono<Vars>()
     return c.json(await checkForCloud(c.get("user").id, c.req.param("id")));
   })
   // --- the two-way sync of the spaces with the account's organization (sync/client.ts) ---
+  // --- who is in a wizard, page or table: a signal, never a lock (docs/plans/live-changes.md, 8) ---
+  .get("/presence/:kind/:item", async (c) =>
+    c.json(await presentIn(z.enum(PRESENCE_KINDS).parse(c.req.param("kind")), c.req.param("item"))),
+  )
+  .put("/presence", async (c) => {
+    const user = c.get("user");
+    const body = presenceSchema.parse(await c.req.json());
+    await markPresent({ ...body, who: user.id, whoKind: "person", name: user.name });
+    return c.json({ ok: true });
+  })
+  // `navigator.sendBeacon` posts when a tab closes.
+  .post("/presence/leave", async (c) => {
+    const body = presenceSchema
+      .pick({ kind: true, item: true, tab: true })
+      .parse(JSON.parse(await c.req.text()));
+    await leave(body.kind, body.item, c.get("user").id, body.tab);
+    return c.json({ ok: true });
+  })
   .get("/sync", async (c) => (managed ? c.notFound() : c.json(await syncView())))
   .post("/sync/now", async (c) => {
     if (managed) {
@@ -1527,21 +1556,23 @@ export const studio = new Hono<Vars>()
       const abort = new AbortController();
       stream.onAbort(() => abort.abort());
       try {
-        const result = await architectTurn(user.id, wizardId, message, requestLang(c), {
-          signal: abort.signal,
-          onText: (delta) => {
-            void stream.writeSSE({ event: "text", data: JSON.stringify(delta) });
-          },
-          onActivity: (label) => {
-            void stream.writeSSE({ event: "activity", data: JSON.stringify(label) });
-          },
-          onThought: (line) => {
-            void stream.writeSSE({ event: "thought", data: JSON.stringify(line) });
-          },
-          onBuilding: () => {
-            void stream.writeSSE({ event: "building", data: "1" });
-          },
-        });
+        const result = await asAssistantIn(wizardId, user, () =>
+          architectTurn(user.id, wizardId, message, requestLang(c), {
+            signal: abort.signal,
+            onText: (delta) => {
+              void stream.writeSSE({ event: "text", data: JSON.stringify(delta) });
+            },
+            onActivity: (label) => {
+              void stream.writeSSE({ event: "activity", data: JSON.stringify(label) });
+            },
+            onThought: (line) => {
+              void stream.writeSSE({ event: "thought", data: JSON.stringify(line) });
+            },
+            onBuilding: () => {
+              void stream.writeSSE({ event: "building", data: "1" });
+            },
+          }),
+        );
         await stream.writeSSE({ event: "done", data: JSON.stringify(result) });
       } catch (err) {
         console.error("[architect]", err);

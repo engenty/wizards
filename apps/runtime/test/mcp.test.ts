@@ -327,3 +327,63 @@ describe("MCP endpoint", () => {
     expect(other.status).toBe(401);
   });
 });
+
+describe("who else is in a wizard", () => {
+  it("marks the client as present and tells it who is editing", async () => {
+    const client = await connect();
+    const created = await call(client, "create_wizard", { note: "Für die Anwesenheit." });
+    const { wizardId } = created.body;
+    // Alone: nothing about others.
+    const alone = await call(client, "get_wizard", { wizardId });
+    expect(alone.body.present).toBeUndefined();
+    const { withTenant } = await import("../src/db/client");
+    const presence = await import("../src/services/presence");
+    const inStudio = await withTenant("local", () => presence.presentIn("wizard", wizardId));
+    expect(inStudio).toEqual([
+      expect.objectContaining({ whoKind: "agent", name: "Claude Code", state: "viewing" }),
+    ]);
+    // A person edits the step "Contact" in the studio.
+    await withTenant("local", () =>
+      presence.markPresent({
+        kind: "wizard",
+        item: wizardId,
+        who: "anna",
+        tab: "t1",
+        whoKind: "person",
+        name: "Anna",
+        place: "steps.contact",
+        placeLabel: "Step “Contact”",
+        state: "editing",
+      }),
+    );
+    const read = await call(client, "get_wizard", { wizardId });
+    expect(read.body.present).toEqual([
+      expect.objectContaining({ name: "Anna", kind: "person", state: "editing", where: "Step “Contact”" }),
+    ]);
+    expect(read.body.presentNote).toBeUndefined();
+    const edited = await call(client, "edit_wizard", {
+      wizardId,
+      baseRevision: created.body.revision,
+      ops: [{ op: "set_meta", title: "Neben Anna" }],
+    });
+    expect(edited.isError).toBe(false);
+    expect(edited.body.presentNote).toContain("Anna (Step “Contact”) is editing this wizard");
+    // The write still happened, and the client now counts as editing.
+    expect(edited.body.revision).toBe(created.body.revision + 1);
+    const after = await withTenant("local", () => presence.presentIn("wizard", wizardId));
+    expect(after.find((e) => e.whoKind === "agent")?.state).toBe("editing");
+  });
+
+  it("lets a person go after 45 seconds unseen, an agent after a minute", async () => {
+    const { withTenant } = await import("../src/db/client");
+    const presence = await import("../src/services/presence");
+    await withTenant("local", async () => {
+      const t0 = Date.now();
+      await presence.markPresent({ kind: "page", item: "p1", who: "anna", whoKind: "person", name: "Anna", state: "viewing" }, new Date(t0));
+      await presence.markAgent("page", "p1", { id: "mcp:x", name: "Codex", client: null }, "viewing");
+      expect(await presence.presentIn("page", "p1", t0 + 50_000)).toEqual([expect.objectContaining({ name: "Codex" })]);
+      await presence.expirePresence(t0 + 70_000);
+      expect(await presence.presentIn("page", "p1", t0 + 70_000)).toEqual([]);
+    });
+  });
+});

@@ -1,5 +1,6 @@
 import type { LiveChange, LiveItem } from "@engenty/wizards-shared/live";
 import { withTenant } from "../db/client.js";
+import { expirePresence } from "../services/presence.js";
 import { changesAfter, newestSeq, oldestSeq, pruneLive } from "./feed.js";
 
 /**
@@ -22,6 +23,7 @@ const SLOW_MS = 3000;
 /** Ticks stay fast this long after the last change. */
 const BUSY_MS = 60_000;
 const PRUNE_EVERY_MS = 5 * 60_000;
+const EXPIRE_EVERY_MS = 10_000;
 /** Views a batch carries at most, in characters of JSON; the items after it go without. */
 export const BATCH_VIEWS_MAX = 512 * 1024;
 /** Above this a view isn't sent: the browser fetches that item. */
@@ -50,6 +52,7 @@ interface TenantFeed {
   again: boolean;
   changedAt: number;
   prunedAt: number;
+  expiredAt: number;
 }
 
 const feeds = new Map<string, TenantFeed>();
@@ -87,6 +90,7 @@ export async function subscribe(
       again: false,
       changedAt: 0,
       prunedAt: 0,
+      expiredAt: 0,
     };
     feeds.set(tenantId, feed);
   }
@@ -192,6 +196,11 @@ async function read(feed: TenantFeed) {
   if (Date.now() - feed.prunedAt > PRUNE_EVERY_MS) {
     feed.prunedAt = Date.now();
     await pruneLive();
+  }
+  // Who left without saying so: their entries go, and the open studios hear of it.
+  if (Date.now() - feed.expiredAt > EXPIRE_EVERY_MS) {
+    feed.expiredAt = Date.now();
+    await expirePresence();
   }
 }
 

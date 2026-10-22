@@ -5,7 +5,7 @@ import { SYNC_KINDS } from "./sync.js";
  * in the tenant's `live_change` feed, and an open studio hears of it. The kinds start equal to
  * the two-way sync's; they are their own list so a kind can be live without syncing.
  */
-export const LIVE_KINDS = SYNC_KINDS;
+export const LIVE_KINDS = [...SYNC_KINDS, "presence"] as const;
 export type LiveKind = (typeof LIVE_KINDS)[number];
 
 /** `put`: the item was added or changed. `del`: the item itself was deleted. */
@@ -31,3 +31,23 @@ export interface LiveItem {
 export interface LiveChange extends LiveItem {
   view?: unknown;
 }
+
+/** Who is in a wizard, page or table: a signal for people and AI, never a lock. */
+export interface PresenceEntry {
+  /** The person's id, or the client's for an agent. */
+  who: string;
+  /** One editor of that person: a tab. */
+  tab: string;
+  whoKind: "person" | "agent" | "assistant" | "run";
+  name: string;
+  /** The app an agent acts through; for the assistant, whom it acts for. */
+  client: string | null;
+  place: string | null;
+  placeLabel: string | null;
+  state: "viewing" | "editing";
+  seenAt: string;
+}
+
+/** The kinds of item presence is kept for. */
+export const PRESENCE_KINDS = ["wizard", "page", "table"] as const;
+export type PresenceKind = (typeof PRESENCE_KINDS)[number];

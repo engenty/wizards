@@ -9,6 +9,7 @@ import { embeddingModel } from "../models.js";
 import { mayBuild, projectWritable } from "../services/access.js";
 import { cloudLinked, cloudState } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
+import { presentIn } from "../services/presence.js";
 import { fileView, projectFiles } from "../services/project-files.js";
 import { listProjects, maskedServers, ownedProject } from "../services/projects.js";
 import { getPage, getRow, getTableHeader } from "../services/space-data.js";
@@ -137,6 +138,8 @@ const ITEM_VIEWS: Record<LiveKind, ((r: Reader, x: LiveItem) => Promise<unknown>
     return row ? { ...row, tableId: x.parent } : null;
   },
   category: null,
+  presence: async (_r, x) =>
+    x.parent ? presentIn(x.parent, x.item.slice(x.parent.length + 1)) : [],
   file: async (_r, x) => {
     const row = await db.query.projectFile.findFirst({ where: eq(schema.projectFile.id, x.item) });
     return row ? fileView(row) : null;
