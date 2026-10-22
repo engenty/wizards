@@ -1394,56 +1394,73 @@ function ChatPanel({
         }
       />
       <Card className="flex flex-col gap-6 p-3.5 sm:p-5 sm:p-6">
-        <Part title={t("models.who")}>
-          <div className="flex flex-col gap-3">
-            {clients.length ? (
-              <OptionGroup label={t("models.optSubscription")}>
-                {clients.map((h) =>
+        {place.cloud ? (
+          // The cloud runs the studio's chats on the organization's models: nothing to choose.
+          <Part title={t("models.who")}>
+            <OptionGroup label={t("models.optOther")}>
+              <Option
+                title={t("models.chatModels")}
+                note={wayText(state.ways.high, place).text}
+                noteTone="done"
+                selected
+                disabled
+                onPick={() => undefined}
+              />
+            </OptionGroup>
+            <Hint>{t("models.chatCloudHint")}</Hint>
+          </Part>
+        ) : (
+          <Part title={t("models.who")}>
+            <div className="flex flex-col gap-3">
+              {clients.length ? (
+                <OptionGroup label={t("models.optSubscription")}>
+                  {clients.map((h) =>
+                    option(
+                      h.id as ChatWay,
+                      h.name,
+                      clientNote(h).note,
+                      ready(h.id as ChatWay),
+                      !ready(h.id as ChatWay),
+                    ),
+                  )}
+                </OptionGroup>
+              ) : null}
+              <OptionGroup label={t("models.optKey")}>
+                {CHAT_KEYS.map((id) =>
                   option(
-                    h.id as ChatWay,
-                    h.name,
-                    clientNote(h).note,
-                    ready(h.id as ChatWay),
-                    !ready(h.id as ChatWay),
+                    id,
+                    providerInfo(id)?.name ?? id,
+                    state.keys[id] ? t("models.noteKey") : t("models.noteNoKey"),
+                    Boolean(state.keys[id]),
                   ),
                 )}
               </OptionGroup>
+              <OptionGroup label={t("models.optOther")}>
+                {option(
+                  "models",
+                  t("models.chatModels"),
+                  wayText(state.ways.high, place).text,
+                  ready("models"),
+                )}
+                {option(
+                  "account",
+                  chatWayName("account", me, place),
+                  ready("account") ? t("models.noteUsage") : t("models.noteNeedsAccount"),
+                  ready("account"),
+                )}
+              </OptionGroup>
+            </div>
+            {needsAccount ? (
+              <p className="text-[0.8125rem] text-ink-2">
+                {t("local.sourceNeedsAccount")} <AccountLink />
+              </p>
             ) : null}
-            <OptionGroup label={t("models.optKey")}>
-              {CHAT_KEYS.map((id) =>
-                option(
-                  id,
-                  providerInfo(id)?.name ?? id,
-                  state.keys[id] ? t("models.noteKey") : t("models.noteNoKey"),
-                  Boolean(state.keys[id]),
-                ),
-              )}
-            </OptionGroup>
-            <OptionGroup label={t("models.optOther")}>
-              {option(
-                "models",
-                t("models.chatModels"),
-                wayText(state.ways.high, place).text,
-                ready("models"),
-              )}
-              {option(
-                "account",
-                chatWayName("account", me, place),
-                ready("account") ? t("models.noteUsage") : t("models.noteNeedsAccount"),
-                ready("account"),
-              )}
-            </OptionGroup>
-          </div>
-          {needsAccount ? (
-            <p className="text-[0.8125rem] text-ink-2">
-              {t("local.sourceNeedsAccount")} <AccountLink />
-            </p>
-          ) : null}
-          {chat.isError ? (
-            <p className="text-[0.8125rem] text-rose">{(chat.error as Error).message}</p>
-          ) : null}
-          <Hint>{t("models.chatHint")}</Hint>
-        </Part>
+            {chat.isError ? (
+              <p className="text-[0.8125rem] text-rose">{(chat.error as Error).message}</p>
+            ) : null}
+            <Hint>{t("models.chatHint")}</Hint>
+          </Part>
+        )}
       </Card>
     </div>
   );
@@ -1856,18 +1873,16 @@ export function Models() {
   return (
     <>
       <SubMenu>
-        {place.cloud ? null : (
-          <MenuGroup label={t("models.groupStudio")}>
-            <MenuRow
-              icon={MessageCircle}
-              label={t("models.cap.chat")}
-              tone={me.data.chatWays.includes(me.data.chatEngine) ? "done" : "off"}
-              toneLabel={chatWayName(me.data.chatEngine, me.data, place)}
-              selected={isOpen({ type: "chat" })}
-              onPick={() => open({ type: "chat" })}
-            />
-          </MenuGroup>
-        )}
+        <MenuGroup label={t("models.groupStudio")}>
+          <MenuRow
+            icon={MessageCircle}
+            label={t("models.cap.chat")}
+            tone={me.data.chatWays.includes(me.data.chatEngine) ? "done" : "off"}
+            toneLabel={chatWayName(me.data.chatEngine, me.data, place)}
+            selected={isOpen({ type: "chat" })}
+            onPick={() => open({ type: "chat" })}
+          />
+        </MenuGroup>
         <MenuGroup label={t("models.groupRuns")}>
           {MODEL_CAPABILITIES.map((cap) => {
             const way = state.ways[LEAD_CLASS[cap]];

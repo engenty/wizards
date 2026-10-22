@@ -178,6 +178,8 @@ const de: Record<Key, Line> = {
   "models.cap.chat": "Agent-Chat",
   "models.cap.chat.hint": "Goose und der Chat im Editor, der deine Wizards baut.",
   "models.chatModels": "Wie Text & Denken",
+  "models.chatCloudHint":
+    "In der Cloud arbeiten Goose und der Chat im Editor mit den Modellen der Organisation. Auf deinem Computer kannst du ein Abo oder einen Key wählen.",
   "models.chatHint":
     "Mit einem Abo arbeitet das Programm auf diesem Computer, angemeldet mit deinem Konto dort. Es nutzt dabei nur die Werkzeuge von engenty wizards. Für Läufe gilt, was unter „In Läufen“ eingestellt ist.",
   "models.groupAccess": "Zugänge",
@@ -2823,6 +2825,8 @@ const en = {
   "models.cap.chat": "Agent chat",
   "models.cap.chat.hint": "Goose and the chat in the editor that builds your wizards.",
   "models.chatModels": "Same as Text & reasoning",
+  "models.chatCloudHint":
+    "In the cloud, Goose and the chat in the editor work with the organization’s models. On your computer you can pick a subscription or a key.",
   "models.chatHint":
     "With a subscription, the program works on this computer, using your sign-in there. It uses only the tools of engenty wizards. Runs use what is set under “In runs”.",
   "models.groupAccess": "Access",
