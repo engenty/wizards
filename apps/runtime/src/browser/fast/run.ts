@@ -76,7 +76,7 @@ const STUCK_WINDOW = 3;
 const STALE_RETRIES_PER_STEP = 3;
 
 /** Every note that stops short of DONE ends with the way back. */
-const resume = () => prompt("step", "note.fast_resume");
+const resume = (note: string) => `${note} ${prompt("tools", "note.fast_resume")}`;
 
 /** Why the classifier or a step failed, for a note. */
 const why = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -162,7 +162,7 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
   let staleRetries = 0;
   while (history.length < input.maxSteps) {
     if (input.shouldStop?.()) {
-      return finish("interrupted", prompt("step", "note.fast_interrupted"), false);
+      return finish("interrupted", prompt("tools", "note.fast_interrupted"), false);
     }
     if (!(await driver.fresh(page))) {
       page = await driver.observe();
@@ -181,7 +181,7 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
     } catch (error) {
       return finish(
         "error",
-        prompt("step", "note.fast_no_decision", { error: why(error), resume: resume() }),
+        resume(prompt("tools", "note.fast_no_decision", { error: why(error) })),
         true,
       );
     }
@@ -206,7 +206,7 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
       } catch (error) {
         return finish(
           "error",
-          prompt("step", "note.fast_tiebreak_failed", { error: why(error), resume: resume() }),
+          resume(prompt("tools", "note.fast_tiebreak_failed", { error: why(error) })),
           true,
         );
       }
@@ -215,11 +215,12 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
       if (verdict.winner === null) {
         return finish(
           "uncertain",
-          prompt("step", "note.fast_undecided", {
-            contest,
-            probability: verdict.probability.toFixed(2),
-            resume: resume(),
-          }),
+          resume(
+            prompt("tools", "note.fast_undecided", {
+              contest,
+              probability: verdict.probability.toFixed(2),
+            }),
+          ),
           true,
         );
       }
@@ -246,19 +247,15 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
       return finish(
         done ? "done" : "blocked",
         done
-          ? prompt("step", "note.fast_done")
-          : prompt("step", "note.fast_blocked", { resume: resume() }),
+          ? prompt("tools", "note.fast_done")
+          : `${resume(prompt("tools", "note.fast_blocked"))} ${prompt("tools", "note.fast_blocked_ask")}`,
         !done,
       );
     }
 
     const action = page.actions.find((a) => a.id === decision.choice);
     if (!action) {
-      return finish(
-        "error",
-        prompt("step", "note.fast_unknown_action", { resume: resume() }),
-        true,
-      );
+      return finish("error", resume(prompt("tools", "note.fast_unknown_action")), true);
     }
 
     let text: string | null = null;
@@ -284,7 +281,7 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
         if (text === null) {
           return finish(
             "uncertain",
-            prompt("step", "note.fast_needs_value", { label: action.label }),
+            prompt("tools", "note.fast_needs_value", { label: action.label }),
             true,
           );
         }
@@ -304,7 +301,7 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
       }
       return finish(
         "error",
-        prompt("step", "note.fast_step_failed", { error: why(error), resume: resume() }),
+        resume(prompt("tools", "note.fast_step_failed", { error: why(error) })),
         true,
       );
     }
@@ -355,10 +352,10 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
     ) {
       return finish(
         "blocked",
-        prompt("step", "note.fast_stuck", { count: STUCK_WINDOW, resume: resume() }),
+        resume(prompt("tools", "note.fast_stuck", { count: STUCK_WINDOW })),
         true,
       );
     }
   }
-  return finish("budget", prompt("step", "note.fast_budget", { max: input.maxSteps }), true);
+  return finish("budget", prompt("tools", "note.fast_budget", { max: input.maxSteps }), true);
 }

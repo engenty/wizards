@@ -79,7 +79,7 @@ async function keepContent(
     });
     delete out[key];
     out.saved = kept.path;
-    out.note = prompt("step", "note.connector_kept");
+    out.note = prompt("tools", "note.connector_kept");
   }
   return out;
 }
@@ -98,6 +98,9 @@ async function sendContent(input: unknown, ctx: StepContext): Promise<unknown> {
   }
   return out;
 }
+
+/** A text that ends as a sentence, so the notes after it read as their own. */
+const sentence = (text: string) => (/[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`);
 
 /**
  * Whether the person is asked before an action runs. The wizard's author can settle it per
@@ -138,14 +141,14 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
       const found = await account();
       if (!found) {
         return {
-          error: prompt("step", "note.connector_not_connected", { service }),
+          error: prompt("tools", "note.connector_not_connected", { service }),
         };
       }
       const key = `${connection.id}:${action.id}`;
       if (asks(connection, action) && !ctx.resources.allowed.has(key)) {
         if (inProgram()) {
           return {
-            error: prompt("step", "note.connector_in_program"),
+            error: prompt("tools", "note.connector_in_program"),
           };
         }
         const answer = await ctx.ask({
@@ -161,12 +164,12 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
         });
         if (!answer) {
           return {
-            error: prompt("step", "note.connector_nobody"),
+            error: prompt("tools", "note.connector_nobody"),
           };
         }
         if (answer.type !== "done") {
           return {
-            error: prompt("step", "note.connector_declined"),
+            error: prompt("tools", "note.connector_declined"),
           };
         }
         if (answer.remember) {
@@ -185,7 +188,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
     });
 
   const prefix = connector.toolPrefix;
-  const fileNote = ` ${prompt("step", "connector.file_note")}`;
+  const fileNote = prompt("tools", "connector.file_note");
   const direct =
     usable.length <= DIRECT_TOOLS && usable.every((a) => TOOL_NAME.test(`${prefix}_${a.id}`));
   if (direct) {
@@ -194,9 +197,14 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
         `${prefix}_${action.id}`,
         createTool({
           id: `${prefix}_${action.id}`,
-          description: `${service}: ${action.description || action.summary}${
-            asks(connection, action) ? ` ${prompt("step", "connector.asks")}` : ""
-          }${fileNote}`.slice(0, 1100),
+          description: [
+            sentence(`${service}: ${action.description || action.summary}`),
+            asks(connection, action) ? prompt("tools", "connector.asks") : "",
+            fileNote,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .slice(0, 1100),
           inputSchema: action.inputSchema as z.ZodType<any>,
           execute: (input) => call(action, input),
         }),
@@ -207,7 +215,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
   return {
     [`${prefix}_actions`]: createTool({
       id: `${prefix}_actions`,
-      description: prompt("step", "connector.actions", {
+      description: prompt("tools", "connector.actions", {
         service,
         count: usable.length,
         prefix,
@@ -238,7 +246,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
     }),
     [`${prefix}_call`]: createTool({
       id: `${prefix}_call`,
-      description: prompt("step", "connector.call", { service, prefix }) + fileNote,
+      description: `${prompt("tools", "connector.call", { service, prefix })} ${fileNote}`,
       inputSchema: z.object({
         action: z.string(),
         input: z.record(z.string(), z.unknown()).optional(),

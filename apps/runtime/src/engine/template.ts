@@ -288,7 +288,7 @@ export function resolveRef(ref: string, scope: TemplateScope): unknown {
       return value.seconds;
     }
     // A recording reads as what is said in it.
-    return value.transcript?.trim() || prompt("step", "answers.voice_empty");
+    return value.transcript?.trim() || "(voice note without intelligible speech)";
   }
   if (field?.kind === "signature") {
     // Documents place it as an image: <img src="asset://ID">.

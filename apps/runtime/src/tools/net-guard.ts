@@ -109,7 +109,7 @@ async function publicAddresses(host: string): Promise<LookupAddress[]> {
   const family = isIP(host);
   const addresses = family ? [{ address: host, family }] : await lookup(host, { all: true });
   if (!ALLOW_PRIVATE && (!addresses.length || addresses.some((a) => !isPublicAddress(a.address)))) {
-    throw new Error(prompt("step", "note.net_private"));
+    throw new Error(prompt("tools", "note.net_private"));
   }
   return addresses;
 }
@@ -123,14 +123,14 @@ export async function assertPublicUrl(raw: string): Promise<URL> {
     throw new Error(`Not a valid URL: ${raw}`);
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(prompt("step", "note.net_scheme"));
+    throw new Error(prompt("tools", "note.net_scheme"));
   }
   if (ALLOW_PRIVATE) {
     return url;
   }
   const host = url.hostname.replace(/^\[|\]$/g, "");
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
-    throw new Error(prompt("step", "note.net_private"));
+    throw new Error(prompt("tools", "note.net_private"));
   }
   await publicAddresses(host);
   return url;

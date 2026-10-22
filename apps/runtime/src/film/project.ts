@@ -64,7 +64,7 @@ const safeName = (name: string) =>
 
 /** Where the client starts, by how film/ began. */
 function startRules(start: FilmStart): string {
-  return `${prompt("step", `film.start.${start}`)}\n`;
+  return prompt("step", `film.start.${start}`);
 }
 
 function rules(step: FilmStep, skills: string[], start: FilmStart): string {
@@ -308,18 +308,17 @@ export async function prepareFilmFolder(
   const skills = await placeSkills(step.skills, ctx.files, join(root, ".claude", "skills"));
   const size = FILM_SIZES[step.format];
 
+  const spec = [
+    step.format,
+    `${size.width}×${size.height}`,
+    step.seconds ? `about ${step.seconds} s` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   await put(
     root,
     "BRIEF.md",
-    `${prompt("step", "film.brief", {
-      format: step.format,
-      width: size.width,
-      height: size.height,
-      seconds: step.seconds
-        ? `, ${prompt("step", "film.brief_seconds", { seconds: step.seconds })}`
-        : "",
-      brief,
-    })}\n`,
+    `# Brief\n\nFormat ${spec}. ${prompt("step", "film.brief")}\n\n${brief}\n`,
   );
 
   // The style kit: the showcase to look at, and the base a film starts from when it has one.
@@ -382,7 +381,7 @@ export async function prepareFilmFolder(
   await put(
     join(root, "input"),
     "README.md",
-    `${prompt("step", "film.input", { files: listed.join("\n") || prompt("step", "answers.none") })}\n`,
+    `${prompt("step", "film.input", { files: listed.join("\n") || "(none)" })}\n`,
   );
 
   await cp(await soundCatalog(), join(root, "audio-catalog"), { recursive: true });

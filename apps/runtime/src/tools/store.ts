@@ -117,13 +117,13 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
     const catalog = lists
       .map(
         (l) =>
-          `- ${l.id} — ${l.title}${l.shared ? ` ${prompt("step", "note.list_shared")}` : ""}${l.key ? ` (rows are matched on "${l.key}")` : ""}: ${describeColumns(l)}`,
+          `- ${l.id} — ${l.title}${l.shared ? ` ${prompt("tools", "note.list_shared")}` : ""}${l.key ? ` (rows are matched on "${l.key}")` : ""}: ${describeColumns(l)}`,
       )
       .join("\n");
 
     tools.list_read = createTool({
       id: "list_read",
-      description: prompt("step", "tool.list_read", { catalog }),
+      description: prompt("tools", "tool.list_read", { catalog }),
       inputSchema: z.object({ list: listId }),
       execute: ({ list }) =>
         attempt(async () => {
@@ -138,7 +138,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
 
     tools.list_write = createTool({
       id: "list_write",
-      description: prompt("step", "tool.list_write", { catalog }),
+      description: prompt("tools", "tool.list_write", { catalog }),
       inputSchema: z.object({
         list: listId,
         rows: z
@@ -176,7 +176,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
 
   tools.files_list = createTool({
     id: "files_list",
-    description: prompt("step", "tool.files_list"),
+    description: prompt("tools", "tool.files_list"),
     inputSchema: z.object({ folder: z.string().optional() }),
     execute: ({ folder }) =>
       attempt(async () => {
@@ -197,7 +197,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
   if (uploads.length) {
     tools.files_keep = createTool({
       id: "files_keep",
-      description: prompt("step", "tool.files_keep"),
+      description: prompt("tools", "tool.files_keep"),
       inputSchema: z.object({
         items: z
           .array(
@@ -230,15 +230,17 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
     });
   }
 
-  const given = uploads.length
-    ? ` ${prompt("step", "note.files_given", {
-        uploads: uploads.map((u) => `${u.ref} (${u.name})`).join(", "),
-      })}`
-    : "";
+  /** A document tool's description, with the files the person gave. */
+  const withGiven = (description: string) =>
+    uploads.length
+      ? `${description} ${prompt("tools", "note.files_given", {
+          uploads: uploads.map((u) => `${u.ref} (${u.name})`).join(", "),
+        })}`
+      : description;
 
   tools.read_document = createTool({
     id: "read_document",
-    description: prompt("step", "tool.read_document", { given }),
+    description: withGiven(prompt("tools", "tool.read_document")),
     inputSchema: z.object({
       file: z.string(),
       offset: z.number().int().min(0).optional().describe("Start at this character, to read on."),
@@ -267,7 +269,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
 
   tools.scan_documents = createTool({
     id: "scan_documents",
-    description: prompt("step", "tool.scan_documents", { given }),
+    description: withGiven(prompt("tools", "tool.scan_documents")),
     inputSchema: z.object({
       files: z.array(z.string()).min(1).max(30),
       kind: z.enum(["invoice", "receipt"]),

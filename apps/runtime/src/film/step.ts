@@ -281,14 +281,16 @@ export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<Ste
     const brandNote = !brandChanged
       ? ""
       : start === "init"
-        ? `\n\n${prompt("step", "film.brand_changed.init")}`
-        : `\n\n${prompt("step", "film.brand_changed.base")}`;
+        ? prompt("step", "film.brand_changed.init")
+        : prompt("step", "film.brand_changed.base");
     const size = FILM_SIZES[step.format];
     const request =
       resume && note
-        ? prompt("step", "film.change", { note, brand: brandNote })
+        ? [prompt("step", "film.change", { note }), brandNote, prompt("step", "film.change.then")]
+            .filter(Boolean)
+            .join("\n\n")
         : resume
-          ? prompt("step", "film.resume", { brand: brandNote })
+          ? [prompt("step", "film.resume"), brandNote].filter(Boolean).join("\n\n")
           : start === "from"
             ? prompt("step", "film.from", {
                 format: step.format,

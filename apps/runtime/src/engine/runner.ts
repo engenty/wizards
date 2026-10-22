@@ -655,7 +655,7 @@ async function decidePageFields(
   for (const f of possible.filter((f) => f.ask)) {
     questions[`f_${f.id}`] = {
       type: "noul",
-      instructions: prompt("step", "decide.field", { label: f.label, ask: f.ask ?? "" }),
+      instructions: `Should the page ask "${f.label}"? It is asked when this holds: ${f.ask ?? ""}`,
     };
   }
   for (const g of page.groups ?? []) {
@@ -668,7 +668,7 @@ async function decidePageFields(
           ...Object.fromEntries(
             members.map((f) => [f.id, f.help ? `${f.label} — ${f.help}` : f.label]),
           ),
-          ...(g.optional ? { none: prompt("step", "decide.none") } : {}),
+          ...(g.optional ? { none: "None of these." } : {}),
         },
       };
     }

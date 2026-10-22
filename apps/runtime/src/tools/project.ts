@@ -24,7 +24,7 @@ import { attempt, clip } from "./shared.js";
  * put into the index.
  */
 
-const where = whereSchema.optional().describe(prompt("step", "tool.project.where"));
+const where = whereSchema.optional().describe(prompt("tools", "tool.project.where"));
 
 export const pageReadInput = {
   path: z.string().describe("The page's path, as project_search or project_list give it: pages/…"),
@@ -57,7 +57,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
   const tools: Record<string, any> = {
     project_search: createTool({
       id: "project_search",
-      description: prompt("step", "tool.project_search"),
+      description: prompt("tools", "tool.project_search"),
       inputSchema: z.object({
         query: z.string().describe("What to look for: a question or keywords"),
         where,
@@ -96,7 +96,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
     }),
     project_list: createTool({
       id: "project_list",
-      description: prompt("step", "tool.project_list"),
+      description: prompt("tools", "tool.project_list"),
       inputSchema: z.object({ where }),
       execute: (input) =>
         attempt(async () => {
@@ -109,7 +109,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
   if (counts.pages) {
     tools.page_read = createTool({
       id: "page_read",
-      description: prompt("step", "tool.page_read.knowledge"),
+      description: prompt("tools", "tool.page_read.knowledge"),
       inputSchema: z.object(pageReadInput),
       execute: (input) => readKnowledgePage(ctx, input),
     });
@@ -117,7 +117,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
   if (counts.tables) {
     tools.table_read = createTool({
       id: "table_read",
-      description: prompt("step", "tool.table_read"),
+      description: prompt("tools", "tool.table_read"),
       inputSchema: z.object({
         path: z.string().describe("The table's path: tables/…"),
         where: whereSchema.optional().describe("Filter by columns, by their names"),
@@ -136,7 +136,7 @@ export async function projectTools(ctx: StepContext): Promise<Record<string, any
   if (counts.files) {
     tools.project_document = createTool({
       id: "project_document",
-      description: prompt("step", "tool.project_document"),
+      description: prompt("tools", "tool.project_document"),
       inputSchema: z.object({
         path: z
           .string()

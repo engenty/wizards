@@ -21,6 +21,7 @@ export type PromptFile =
   | "safety"
   | "services"
   | "step"
+  | "tools"
   | "voice";
 
 const here = dirname(fileURLToPath(import.meta.url));

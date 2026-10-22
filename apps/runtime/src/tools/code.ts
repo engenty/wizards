@@ -131,11 +131,11 @@ function guarded(
           calls++;
           step.calls++;
           if (calls > limits.maxCalls) {
-            throw new Error(prompt("step", "note.code_max_calls", { maxCalls: limits.maxCalls }));
+            throw new Error(prompt("tools", "note.code_max_calls", { maxCalls: limits.maxCalls }));
           }
           if (step.calls > limits.stepCalls) {
             throw new Error(
-              prompt("step", "note.code_step_calls", { stepCalls: limits.stepCalls }),
+              prompt("tools", "note.code_step_calls", { stepCalls: limits.stepCalls }),
             );
           }
           if (ctx.signal.aborted) {
@@ -146,7 +146,7 @@ function guarded(
             const size = JSON.stringify(answer ?? null)?.length ?? 0;
             if (size > limits.answerChars) {
               throw new Error(
-                prompt("step", "note.code_answer_too_long", {
+                prompt("tools", "note.code_answer_too_long", {
                   tool: key,
                   size,
                   answerChars: limits.answerChars,
@@ -180,7 +180,7 @@ export function codeTool(
   const { tool: base, instructions } = createCodeMode(config, quickJs());
   const tool = createTool({
     id: CODE_TOOL_ID,
-    description: prompt("step", "tool.execute_typescript"),
+    description: prompt("tools", "tool.execute_typescript"),
     inputSchema: base.inputSchema as z.ZodType<{ code: string }>,
     execute: async (input, options) => {
       await ctx.emit("tool", { code: "runsProgram" });
@@ -206,7 +206,7 @@ export function codeTool(
         return {
           success: false,
           error: {
-            message: prompt("step", "note.code_failed", {
+            message: prompt("tools", "note.code_failed", {
               error: String((err as Error)?.message ?? err).slice(0, 120),
             }),
           },
@@ -230,7 +230,7 @@ export function codeTool(
   });
   return {
     tool,
-    instructions: `${instructions}\n\n${prompt("step", "tool.execute_typescript.limits", {
+    instructions: `${instructions}\n\n${prompt("tools", "tool.execute_typescript.limits", {
       maxCalls: limits.maxCalls,
       maxParallel: limits.maxParallel,
       seconds: limits.timeoutMs / 1000,

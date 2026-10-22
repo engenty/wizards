@@ -73,7 +73,7 @@ export function mailActions(backend: MailBackend, providerScopes: string[]): Con
       id: "search",
       group: "read",
       summary: "Search the mailbox",
-      description: prompt("step", "connector.mail.search"),
+      description: prompt("tools", "connector.mail.search"),
       inputSchema: mailSearchInput,
       providerScopes,
       handler: async (input, ctx) => ({
@@ -84,7 +84,7 @@ export function mailActions(backend: MailBackend, providerScopes: string[]): Con
       id: "read",
       group: "read",
       summary: "Read one mail",
-      description: prompt("step", "connector.mail.read"),
+      description: prompt("tools", "connector.mail.read"),
       inputSchema: mailReadInput,
       providerScopes,
       handler: (input, ctx) => backend.read(mailReadInput.parse(input).id, ctx),
@@ -93,7 +93,7 @@ export function mailActions(backend: MailBackend, providerScopes: string[]): Con
       id: "get_attachment",
       group: "read",
       summary: "Fetch an attachment",
-      description: prompt("step", "connector.mail.get_attachment"),
+      description: prompt("tools", "connector.mail.get_attachment"),
       inputSchema: mailAttachmentInput,
       providerScopes,
       handler: (input, ctx) => {

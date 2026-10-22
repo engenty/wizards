@@ -29,7 +29,7 @@ export function pageTools(ctx: StepContext) {
   return {
     page_read: createTool({
       id: "page_read",
-      description: prompt("step", "tool.page_read"),
+      description: prompt("tools", "tool.page_read"),
       inputSchema: z.object({
         title: z.string().optional().describe("A page this wizard wrote"),
         path: pageReadInput.path.optional(),
@@ -55,7 +55,7 @@ export function pageTools(ctx: StepContext) {
     }),
     page_write: createTool({
       id: "page_write",
-      description: prompt("step", "tool.page_write"),
+      description: prompt("tools", "tool.page_write"),
       inputSchema: z.object({
         title: z.string().min(1).max(200),
         markdown: z.string().max(200_000),

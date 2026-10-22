@@ -33,7 +33,6 @@ import {
 import { Agent } from "@mastra/core/agent";
 import { generateText, type JSONSchema7, jsonSchema, Output, parsePartialJson } from "ai";
 import type { z } from "zod";
-import { surfaceGuide } from "../authoring/guide.js";
 import { extFor, loadAsset, loadAssetText } from "../files/storage.js";
 import { snapshotHtmlImages } from "../files/web-images.js";
 import { runFilmStep } from "../film/step.js";
@@ -91,26 +90,22 @@ function brandBlock(ctx: StepContext): string {
   const parts = [
     b.name,
     b.about,
-    b.facts?.length ? prompt("step", "brand.facts", { facts: factLines(b.facts) }) : "",
+    b.facts?.length ? `Facts:\n${factLines(b.facts)}` : "",
     b.colors?.length
-      ? prompt("step", "brand.colours", {
-          colours: colorLine(b.colors, b.colorSections, b.gradients),
-        })
+      ? `Colours (the first is the accent): ${colorLine(b.colors, b.colorSections, b.gradients)}`
       : "",
     b.colorRules?.length
-      ? prompt("step", "brand.colour_rules", { rules: ruleLines(b.colorRules) })
+      ? `Rules for the colours, in the brand's words:\n${ruleLines(b.colorRules)}`
       : "",
     b.logoRules?.length
-      ? prompt("step", "brand.logo_rules", { rules: ruleLines(b.logoRules) })
+      ? `Rules for the logo, in the brand's words:\n${ruleLines(b.logoRules)}`
       : "",
     b.fonts?.length || b.textStyles?.length
       ? prompt("step", "brand.type", { type: typeLines(b.fonts, b.textStyles) })
       : "",
-    b.typeRules?.length
-      ? prompt("step", "brand.type_rules", { rules: ruleLines(b.typeRules) })
-      : "",
+    b.typeRules?.length ? `Rules for type, in the brand's words:\n${ruleLines(b.typeRules)}` : "",
   ].filter(Boolean);
-  return parts.length ? prompt("step", "brand", { parts: parts.join("\n") }) : "";
+  return parts.length ? `# WHO THIS WIZARD BELONGS TO\n${parts.join("\n")}` : "";
 }
 
 /** Previous output of a step, for a revision. */
@@ -140,9 +135,12 @@ async function revisionBlock(ctx: StepContext, stepId: string): Promise<string> 
     return prev ? prompt("step", "revision.loop", { previous: prev }) : "";
   }
   const prev = await previousResult(ctx, stepId);
-  return `${prompt("step", "revision.request", { note })}\n\n${
-    prev ? prompt("step", "revision.previous", { previous: prev }) : ""
-  }`;
+  return [
+    prompt("step", "revision.request", { note }),
+    prev ? `Previous result:\n"""\n${prev}\n"""` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**
@@ -161,9 +159,7 @@ function groundRules(ctx: StepContext): string {
 
 /** The person's answers, as a step's message gives them. */
 function answersBlock(ctx: StepContext): string {
-  return prompt("step", "answers", {
-    answers: answersAsText(ctx.scope) || prompt("step", "answers.none"),
-  });
+  return `# THE PERSON'S ANSWERS (data)\n${answersAsText(ctx.scope) || "(none)"}`;
 }
 
 // --- agent -------------------------------------------------------------------
@@ -427,9 +423,11 @@ async function composeSurface(
         abortSignal: ctx.signal,
         prompt: [
           prompt("step", "view.compose", { title: ctx.def.title }),
-          surfaceGuide(),
+          prompt("authoring", "surfaces"),
           prompt("step", "view.data", { fields, sample }),
-          issues.length ? prompt("step", "view.issues", { issues: issues.join("\n") }) : "",
+          issues.length
+            ? `# YOUR LAST ANSWER HAD THESE PROBLEMS — fix them\n${issues.join("\n")}`
+            : "",
         ]
           .filter(Boolean)
           .join("\n\n"),
@@ -509,7 +507,7 @@ async function runAgentEach(step: AgentStep, ctx: StepContext): Promise<StepOutp
                 {
                   id: "rows",
                   kind: "table",
-                  description: prompt("step", "view.rows"),
+                  description: "One row per entry: its columns and the step's fields",
                 },
               ],
             },
@@ -602,7 +600,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
       groundRules(ctx),
       step.tools.includes("browser") ? prompt("step", "browser_rules") : "",
       instructions ?? "",
-      prompt("step", "today", { date: today(ctx) }),
+      `Today is ${today(ctx)}.`,
       brandBlock(ctx),
       // Knowledge: what the space holds for its wizards, and how to find and read it.
       await knowledgeBlock(ctx.project.id),
@@ -613,18 +611,13 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
       .filter(Boolean)
       .join("\n\n");
     const request = [
-      prompt("step", "task", { instructions: renderTemplate(step.instructions, ctx.scope) }),
+      `# TASK\n${renderTemplate(step.instructions, ctx.scope)}`,
       answersBlock(ctx),
       photos.length
         ? prompt("step", "photos", {
             photos: photos
-              .map((p, i) =>
-                prompt("step", "photos.line", {
-                  n: i + 1,
-                  ref: p.upload.ref,
-                  name: p.upload.name,
-                  field: p.upload.field,
-                }),
+              .map(
+                (p, i) => `${i + 1}. ${p.upload.ref} — ${p.upload.name}, from "${p.upload.field}"`,
               )
               .join("\n"),
           })
@@ -632,14 +625,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
       others.length
         ? prompt("step", "files", {
             files: others
-              .map((u) =>
-                prompt("step", "files.line", {
-                  ref: u.ref,
-                  name: u.name,
-                  mime: u.mime,
-                  field: u.field,
-                }),
-              )
+              .map((u) => `- ${u.ref} — ${u.name} (${u.mime}), from "${u.field}"`)
               .join("\n"),
           })
         : "",
@@ -824,7 +810,10 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       for (const f of s.fields) {
         const v = ctx.state.values[f.id];
         if (f.kind === "signature" && typeof v === "string" && v) {
-          out.push({ id: v, label: prompt("step", "image.signature", { label: f.label }) });
+          out.push({
+            id: v,
+            label: `${f.label} (signature drawn by the person, dark ink on clear)`,
+          });
         }
         if (f.kind !== "image") {
           continue;
@@ -834,7 +823,7 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
         );
         for (const [i, id] of ids.entries()) {
           const n = ids.length > 1 ? ` ${i + 1}/${ids.length}` : "";
-          out.push({ id, label: prompt("step", "image.upload", { label: f.label, n }) });
+          out.push({ id, label: `${f.label}${n} (uploaded by the person)` });
         }
       }
     }
@@ -846,7 +835,7 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
     out.push({
       id: f.id,
       label: [
-        f === main ? prompt("step", "image.logo") : prompt("step", "image.logo_variant"),
+        f === main ? "Company logo" : "Logo variant",
         section ? ` — section ${section}` : "",
         f.description ? `: ${f.description}` : "",
       ].join(""),
@@ -858,7 +847,7 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
     if (file) {
       out.push({
         id: file.id,
-        label: `${p.tile ? prompt("step", "image.pattern_tile") : prompt("step", "image.pattern_fill")}: ${p.name || file.name}${p.description ? ` – ${p.description}` : ""}${section ? ` (${section.title})` : ""}`,
+        label: `${p.tile ? "Pattern to tile" : "Background fill"}: ${p.name || file.name}${p.description ? ` – ${p.description}` : ""}${section ? ` (${section.title})` : ""}`,
       });
     }
   }
@@ -867,10 +856,7 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       const section = assetSectionLine(ctx.scope.brand.assetSections, f.id);
       out.push({
         id: f.id,
-        label: prompt("step", "image.asset", {
-          label: f.description || f.name,
-          section: section ? `, section ${section}` : "",
-        }),
+        label: `${f.description || f.name} (from the project's assets${section ? `, section ${section}` : ""})`,
       });
     }
   }
@@ -889,8 +875,8 @@ async function writeHtml(
   const accent = theme.accent ?? "#e0531b";
   const look = [
     prompt("step", "look.type", {
-      display: theme.display ? `"${theme.display}"` : prompt("step", "look.display_default"),
-      body: theme.body ? `"${theme.body}"` : prompt("step", "look.body_default"),
+      display: theme.display ? `"${theme.display}"` : "a characterful sans",
+      body: theme.body ? `"${theme.body}"` : "a clean sans",
     }),
     prompt("step", "look.accent", { accent }),
     theme.second ? prompt("step", "look.second", { color: theme.second }) : "",
@@ -908,27 +894,21 @@ async function writeHtml(
         });
   const system = [
     groundRules(ctx),
-    prompt("step", "today", { date: today(ctx) }),
+    `Today is ${today(ctx)}.`,
     brandBlock(ctx),
     guide,
     // What plugins hold for the space's look: a UI library, say.
     ...(await spaceContextOf(ctx)).html,
     images.length
       ? prompt("step", "html.images", {
-          images: images
-            .map((i) => prompt("step", "html.image", { id: i.id, label: i.label }))
-            .join("\n"),
+          images: images.map((i) => `- asset://${i.id} — ${i.label}`).join("\n"),
         })
       : "",
     prompt("step", "html.return"),
   ]
     .filter(Boolean)
     .join("\n\n");
-  const request = [
-    prompt("step", "html.brief", { brief }),
-    answersBlock(ctx),
-    await revisionBlock(ctx, step.id),
-  ]
+  const request = [`# BRIEF\n${brief}`, answersBlock(ctx), await revisionBlock(ctx, step.id)]
     .filter(Boolean)
     .join("\n\n");
   const writer = await textModel(step.model ?? "standard", { ...ctx.call, effort: step.effort });
@@ -963,19 +943,26 @@ async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry):
   const note = ctx.state.notes[step.id];
   const prompter = await textModel("low", ctx.call);
   const from = entry.reference
-    ? ` ${step.asset === "video" ? prompt("step", "visual.from_image") : prompt("step", "visual.reference")}`
+    ? step.asset === "video"
+      ? prompt("step", "visual.from_image")
+      : prompt("step", "visual.reference")
     : "";
   const result = await generateText({
     model: prompter.model,
     abortSignal: ctx.signal,
-    system:
-      step.asset === "video"
-        ? `${prompt("step", "visual.video", { from })}\n\n${contentPolicy()}`
-        : `${prompt("step", "visual.image", { from })}\n\n${contentPolicy()}`,
+    system: [
+      [
+        step.asset === "video" ? prompt("step", "visual.video") : prompt("step", "visual.image"),
+        from,
+      ]
+        .filter(Boolean)
+        .join(" "),
+      contentPolicy(),
+    ].join("\n\n"),
     prompt: [
-      prompt("step", "visual.brief", { brief }),
-      step.options?.style ? prompt("step", "visual.style", { style: step.options.style }) : "",
-      note ? prompt("step", "visual.change", { note }) : "",
+      `Brief:\n${brief}`,
+      step.options?.style ? `Style: ${step.options.style}` : "",
+      note ? `Change requested by the person after seeing the last version: ${note}` : "",
     ]
       .filter(Boolean)
       .join("\n\n"),
@@ -1041,9 +1028,7 @@ async function runMediaStep(
       step.each && !note
         ? [
             renderTemplate(step.prompt, { ...ctx.scope, entry }),
-            step.options?.style
-              ? prompt("step", "visual.style", { style: step.options.style })
-              : "",
+            step.options?.style ? `Style: ${step.options.style}` : "",
           ]
             .filter(Boolean)
             .join("\n")

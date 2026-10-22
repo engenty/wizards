@@ -1,14 +1,17 @@
 # Prompts
 
-Every text a model reads lives here, one file per agent or area. Code only fills in placeholders
-(`prompts.ts`).
+Every instruction a model reads lives here, one file per agent or area (`prompts.ts` reads them).
+What only frames data stays in code: headings and labels around values (`Facts:`, `# TASK`),
+line formats of lists, `(none)`. A sentence that tells the model what to do or how to judge
+belongs here.
 
 | file | who reads it |
 |---|---|
 | `goose.md` | Goose, the studio assistant |
 | `architect.md` | the architect, the wizard editor's chat |
 | `authoring.md` | the authoring guide: the architect, the MCP `get_authoring_guide` tool and Goose |
-| `step.md` | AI steps in a run, and the tools they get |
+| `step.md` | AI steps in a run |
+| `tools.md` | the tools AI steps get, and the notes their results carry |
 | `voice.md` | the voice conversation that fills in a wizard |
 | `safety.md` | the content policy, for every agent and the checker before generation |
 | `services.md` | small jobs: translations, summaries, descriptions, OCR, knowledge |

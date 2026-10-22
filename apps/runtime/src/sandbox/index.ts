@@ -64,17 +64,16 @@ export function createSandbox(runId: string): Sandbox {
 }
 
 export function shellToolDescription(caps: SandboxCapabilities): string {
-  const notes = caps.notes ? ` ${caps.notes}` : "";
-  return prompt("step", "tool.run_command", {
+  const description = prompt("tools", "tool.run_command", {
     commands: caps.commands.join(", "),
     workdir: caps.workdir,
     network: caps.network,
-    notes,
   });
+  return caps.notes ? `${description} ${caps.notes}` : description;
 }
 
 /** The authoring guide's line about the sandbox tool. */
 export function sandboxGuideLine(): string {
   const uses = (sandboxCapabilities() ?? DOCKER_CAPABILITIES).uses;
-  return prompt("step", "tool.run_command.guide_line", { uses });
+  return prompt("tools", "tool.run_command.guide_line", { uses });
 }

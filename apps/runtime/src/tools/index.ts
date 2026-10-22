@@ -95,7 +95,7 @@ export async function buildStepTools(
       // An installed client searches with its own tool; naming it here switches it on.
       tools.web_search = createTool({
         id: "web_search",
-        description: prompt("step", "tool.web_search"),
+        description: prompt("tools", "tool.web_search"),
         inputSchema: z.object({ query: z.string() }),
         execute: async () => ({ error: "The client searches itself." }),
       });
@@ -107,7 +107,7 @@ export async function buildStepTools(
   if (allowed.has("web_fetch") || allowed.has("web_search")) {
     tools.web_fetch = createTool({
       id: "web_fetch",
-      description: prompt("step", "tool.web_fetch"),
+      description: prompt("tools", "tool.web_fetch"),
       inputSchema: z.object({ url: z.string().describe("Absolute http(s) URL") }),
       execute: async ({ url }) => {
         const safe = await assertPublicUrl(url);
@@ -138,8 +138,8 @@ export async function buildStepTools(
             type: type || "unknown",
             bytes: data.length,
             note: type.startsWith("image/")
-              ? prompt("step", "note.web_fetch_image")
-              : prompt("step", "note.web_fetch_binary"),
+              ? prompt("tools", "note.web_fetch_image")
+              : prompt("tools", "note.web_fetch_binary"),
           };
         }
         const text = type.includes("html") ? htmlToMarkdown(body) : body;
@@ -151,7 +151,7 @@ export async function buildStepTools(
   if (allowed.has("http")) {
     tools.http_request = createTool({
       id: "http_request",
-      description: prompt("step", "tool.http_request"),
+      description: prompt("tools", "tool.http_request"),
       inputSchema: z.object({
         method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("GET"),
         url: z.string(),
@@ -225,7 +225,7 @@ export async function buildStepTools(
     });
     tools.export_file = createTool({
       id: "export_file",
-      description: prompt("step", "tool.export_file"),
+      description: prompt("tools", "tool.export_file"),
       inputSchema: z.object({
         path: z.string(),
         mime: z.string().describe("e.g. image/png, text/csv"),
@@ -252,7 +252,7 @@ export async function buildStepTools(
   if (allowed.has("image")) {
     tools.generate_image = createTool({
       id: "generate_image",
-      description: prompt("step", "tool.generate_image"),
+      description: prompt("tools", "tool.generate_image"),
       inputSchema: z.object({
         prompt: z.string(),
         aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:5", "3:2", "2:3"]).optional(),
@@ -283,7 +283,7 @@ export async function buildStepTools(
   if (ctx.files.length) {
     tools.read_workspace_file = createTool({
       id: "read_workspace_file",
-      description: prompt("step", "tool.read_workspace_file", {
+      description: prompt("tools", "tool.read_workspace_file", {
         files: ctx.files
           .slice(0, 60)
           .map((f) => f.path)

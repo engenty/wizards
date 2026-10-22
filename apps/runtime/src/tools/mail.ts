@@ -29,7 +29,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
   const open = async () => {
     const found = await connectionContext(ctx.store, connection, ctx.project.id);
     if (!found) {
-      throw new Error(prompt("step", "note.mail_not_connected"));
+      throw new Error(prompt("tools", "note.mail_not_connected"));
     }
     return found;
   };
@@ -37,7 +37,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
 
   tools.mail_search = createTool({
     id: "mail_search",
-    description: prompt("step", "tool.mail_search"),
+    description: prompt("tools", "tool.mail_search"),
     inputSchema: mailSearchInput,
     execute: (input) =>
       attempt(async () => {
@@ -59,7 +59,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
 
   tools.mail_read = createTool({
     id: "mail_read",
-    description: prompt("step", "tool.mail_read"),
+    description: prompt("tools", "tool.mail_read"),
     inputSchema: z.object({ id: z.string() }),
     execute: ({ id }) =>
       attempt(async () => {
@@ -72,7 +72,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
 
   tools.mail_save = createTool({
     id: "mail_save",
-    description: prompt("step", "tool.mail_save"),
+    description: prompt("tools", "tool.mail_save"),
     inputSchema: z.object({
       items: z
         .array(

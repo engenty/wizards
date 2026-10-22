@@ -73,7 +73,7 @@ function line(item: PageItem): string {
  */
 export function pageForModel(view: PageView) {
   const more = view.omitted
-    ? `\n${prompt("step", "note.browser_more", { count: view.omitted })}`
+    ? `\n${prompt("tools", "note.browser_more", { count: view.omitted })}`
     : "";
   return {
     url: view.url,
@@ -135,13 +135,13 @@ type Target = { x: number; y: number } | { error: string; by?: string };
 function targetError(n: number, target: { error: string; by?: string }): string {
   switch (target.error) {
     case "covered":
-      return prompt("step", "note.browser_covered", { ref: n, by: String(target.by) });
+      return prompt("tools", "note.browser_covered", { ref: n, by: String(target.by) });
     case "disabled":
-      return prompt("step", "note.browser_disabled", { ref: n });
+      return prompt("tools", "note.browser_disabled", { ref: n });
     case "gone":
-      return prompt("step", "note.browser_gone", { ref: n });
+      return prompt("tools", "note.browser_gone", { ref: n });
     default:
-      return prompt("step", "note.browser_hidden", { ref: n });
+      return prompt("tools", "note.browser_hidden", { ref: n });
   }
 }
 
@@ -293,7 +293,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
   const acting = <T>(run: () => Promise<T>) =>
     inTurn(async () => {
       if (await ctx.resources.agentTurn(ctx.signal)) {
-        return { note: prompt("step", "note.browser_took_over"), page: await read(await page()) };
+        return { note: prompt("tools", "note.browser_took_over"), page: await read(await page()) };
       }
       return run();
     });
@@ -304,7 +304,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_open = createTool({
     id: "browser_open",
-    description: prompt("step", "tool.browser_open"),
+    description: prompt("tools", "tool.browser_open"),
     inputSchema: z.object({ url: z.string() }),
     execute: ({ url }) =>
       acting(async () => {
@@ -320,14 +320,14 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_read = createTool({
     id: "browser_read",
-    description: prompt("step", "tool.browser_read"),
+    description: prompt("tools", "tool.browser_read"),
     inputSchema: z.object({}),
     execute: () => acting(async () => read(await page())),
   });
 
   tools.browser_click = createTool({
     id: "browser_click",
-    description: prompt("step", "tool.browser_click"),
+    description: prompt("tools", "tool.browser_click"),
     inputSchema: z.object({ ref: z.number() }),
     execute: ({ ref: n }) =>
       acting(async () => {
@@ -344,7 +344,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_type = createTool({
     id: "browser_type",
-    description: prompt("step", "tool.browser_type"),
+    description: prompt("tools", "tool.browser_type"),
     inputSchema: z.object({ ref: z.number(), text: z.string(), submit: z.boolean().optional() }),
     execute: ({ ref: n, text, submit }) =>
       acting(async () => {
@@ -359,7 +359,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
         }
         if ((await el.evaluate((e) => (e as HTMLInputElement).type)) === "password") {
           return {
-            error: prompt("step", "note.browser_password_field", { ref: n }),
+            error: prompt("tools", "note.browser_password_field", { ref: n }),
           };
         }
         const said = short(text);
@@ -378,7 +378,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_select = createTool({
     id: "browser_select",
-    description: prompt("step", "tool.browser_select"),
+    description: prompt("tools", "tool.browser_select"),
     inputSchema: z.object({ ref: z.number(), option: z.string() }),
     execute: ({ ref: n, option }) =>
       acting(async () => {
@@ -405,7 +405,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_scroll = createTool({
     id: "browser_scroll",
-    description: prompt("step", "tool.browser_scroll"),
+    description: prompt("tools", "tool.browser_scroll"),
     inputSchema: z.object({
       direction: z.enum(["down", "up"]).optional(),
       ref: z.number().optional(),
@@ -431,7 +431,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_press = createTool({
     id: "browser_press",
-    description: prompt("step", "tool.browser_press"),
+    description: prompt("tools", "tool.browser_press"),
     inputSchema: z.object({
       key: z.enum([
         "Enter",
@@ -459,7 +459,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_back = createTool({
     id: "browser_back",
-    description: prompt("step", "tool.browser_back"),
+    description: prompt("tools", "tool.browser_back"),
     inputSchema: z.object({}),
     execute: () =>
       acting(async () => {
@@ -477,7 +477,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_wait = createTool({
     id: "browser_wait",
-    description: prompt("step", "tool.browser_wait"),
+    description: prompt("tools", "tool.browser_wait"),
     inputSchema: z.object({
       text: z.string().optional().describe("Wait until this text is on the page."),
       seconds: z.number().min(1).max(15).optional().describe("How long at most; default 5."),
@@ -506,7 +506,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_screenshot = createTool({
     id: "browser_screenshot",
-    description: prompt("step", "tool.browser_screenshot"),
+    description: prompt("tools", "tool.browser_screenshot"),
     inputSchema: z.object({ save: z.boolean().optional(), name: z.string().optional() }),
     execute: ({ save, name }) =>
       inTurn(async () => {
@@ -537,13 +537,13 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
     const p = await page();
     const origin = originOf(p.url());
     if (!origin) {
-      return { error: "no_site", note: prompt("step", "note.browser_no_site") };
+      return { error: "no_site", note: prompt("tools", "note.browser_no_site") };
     }
     for (const field of input.fields) {
       if (!(await handleOf(p, field.ref))) {
         return {
           error: "fields_not_found",
-          note: prompt("step", "note.browser_fields_gone", { ref: field.ref }),
+          note: prompt("tools", "note.browser_fields_gone", { ref: field.ref }),
         };
       }
     }
@@ -562,20 +562,20 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
       })),
     });
     if (!answer) {
-      return { status: "needs_person", note: prompt("step", "note.browser_nobody") };
+      return { status: "needs_person", note: prompt("tools", "note.browser_nobody") };
     }
     if (answer.type === "skip" || answer.type === "timeout") {
-      return { status: "declined", note: prompt("step", "note.browser_declined") };
+      return { status: "declined", note: prompt("tools", "note.browser_declined") };
     }
     // The person may have gone on in a tab the site opened.
     const current = ctx.resources.openPage() ?? p;
-    let note = prompt("step", "note.browser_signed_in_self");
+    let note = prompt("tools", "note.browser_signed_in_self");
     if (answer.type === "fill") {
       const result = await fillCredentials(current, origin, input.fields, answer.values);
       if ("error" in result) {
         return {
           error: result.error,
-          note: prompt("step", "note.browser_fill_failed"),
+          note: prompt("tools", "note.browser_fill_failed"),
         };
       }
       if (result.filled.length && input.submitRef !== undefined) {
@@ -586,13 +586,13 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
       }
       await settle(current);
       await current.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => undefined);
-      note = prompt("step", "note.browser_entered", {
-        fields: result.filled.join(", "),
-        submitted:
-          input.submitRef !== undefined
-            ? ` ${prompt("step", "note.browser_entered_submitted")}`
-            : "",
-      });
+      note = [
+        prompt("tools", "note.browser_entered", { fields: result.filled.join(", ") }),
+        input.submitRef !== undefined ? prompt("tools", "note.browser_entered_submitted") : "",
+        prompt("tools", "note.browser_entered_unseen"),
+      ]
+        .filter(Boolean)
+        .join(" ");
     }
     if (answer.remember) {
       await ctx.resources.keepSession().catch(() => undefined);
@@ -602,7 +602,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_request_credentials = createTool({
     id: "browser_request_credentials",
-    description: prompt("step", "tool.browser_request_credentials"),
+    description: prompt("tools", "tool.browser_request_credentials"),
     inputSchema: z.object({
       reason: z
         .string()
@@ -621,7 +621,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_request_user = createTool({
     id: "browser_request_user",
-    description: prompt("step", "tool.browser_request_user"),
+    description: prompt("tools", "tool.browser_request_user"),
     inputSchema: z.object({
       reason: z
         .string()
@@ -634,7 +634,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_upload = createTool({
     id: "browser_upload",
-    description: prompt("step", "tool.browser_upload"),
+    description: prompt("tools", "tool.browser_upload"),
     inputSchema: z.object({
       ref: z.number().describe("[number] of the file input or the upload button."),
       file: z.string().describe("upload:<id>, result:<step>.<format>, or a kept file's path."),
@@ -681,7 +681,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_download = createTool({
     id: "browser_download",
-    description: prompt("step", "tool.browser_download"),
+    description: prompt("tools", "tool.browser_download"),
     inputSchema: z.object({
       ref: z.number().optional().describe("[number] of the download link or button."),
       url: z.string().optional().describe("Direct URL of the file, instead of ref."),
@@ -777,7 +777,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
     });
     tools.browser_run_fast = createTool({
       id: "browser_run_fast",
-      description: prompt("step", "tool.browser_run_fast"),
+      description: prompt("tools", "tool.browser_run_fast"),
       inputSchema: z.object({
         goal: z
           .string()
