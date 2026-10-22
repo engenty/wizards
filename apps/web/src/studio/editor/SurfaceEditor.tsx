@@ -10,9 +10,10 @@ import {
 import type { FieldShape, ListShape } from "@engenty/wizards-shared/shape";
 import type { SurfaceComponent } from "@engenty/wizards-shared/surface";
 import { Code2, Eye } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { lang, t } from "../../lib/i18n";
-import { cn, IconButton } from "../../ui";
+import { IconButton } from "../../ui";
+import { CodeEditor } from "../../ui/code-editor";
 
 type SurfaceStep = Extract<Step, { type: "surface" }>;
 
@@ -120,61 +121,9 @@ export function sampleData(
   return Object.fromEntries(Object.entries(step.data).map(([key, ref]) => [key, sampleOf(ref)]));
 }
 
-/** JSON in colors: keys, strings, numbers, literals and punctuation. */
-function highlight(json: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  const token =
-    /("(?:\\.|[^"\\])*")(\s*:)?|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|(\btrue\b|\bfalse\b|\bnull\b)|([{}[\],])/g;
-  let last = 0;
-  for (const m of json.matchAll(token)) {
-    const at = m.index ?? 0;
-    if (at > last) {
-      out.push(json.slice(last, at));
-    }
-    const [all, str, colon, num, lit, punct] = m;
-    if (str !== undefined) {
-      out.push(
-        <span key={at} className={colon ? "text-sky-300" : "text-amber-200"}>
-          {str}
-        </span>,
-      );
-      if (colon) {
-        out.push(
-          <span key={`${at}:`} className="text-slate-400">
-            {colon}
-          </span>,
-        );
-      }
-    } else if (num !== undefined) {
-      out.push(
-        <span key={at} className="text-emerald-300">
-          {num}
-        </span>,
-      );
-    } else if (lit !== undefined) {
-      out.push(
-        <span key={at} className="text-violet-300">
-          {lit}
-        </span>,
-      );
-    } else if (punct !== undefined) {
-      out.push(
-        <span key={at} className="text-slate-400">
-          {punct}
-        </span>,
-      );
-    } else {
-      out.push(all);
-    }
-    last = at + all.length;
-  }
-  out.push(json.slice(last));
-  return out;
-}
-
 /**
- * An editable JSON text with highlighting: the colored text lies under a transparent field of
- * the same font and size, which takes the typing and scrolls both.
+ * The view's JSON, edited as code (ui/code-editor): highlighted, and a line that doesn't parse
+ * is marked where it breaks.
  */
 function JsonEditor({
   value,
@@ -185,38 +134,16 @@ function JsonEditor({
   onChange: (v: string) => void;
   onBlur: () => void;
 }) {
-  const under = useRef<HTMLPreElement>(null);
-  const area = useRef<HTMLTextAreaElement>(null);
-  const sync = () => {
-    if (under.current && area.current) {
-      under.current.scrollTop = area.current.scrollTop;
-      under.current.scrollLeft = area.current.scrollLeft;
-    }
-  };
-  const shared =
-    "m-0 whitespace-pre break-normal px-3 py-2.5 font-mono text-[0.75rem] leading-[1.6] [tab-size:2]";
   return (
-    <div className="relative h-[28rem] overflow-hidden rounded-lg bg-[oklch(20%_0.03_260)] ring-1 ring-border focus-within:ring-focus">
-      <pre
-        ref={under}
-        aria-hidden
-        className={cn(shared, "absolute inset-0 overflow-hidden text-slate-200")}
-      >
-        {highlight(value)}
-        {"\n"}
-      </pre>
-      <textarea
-        ref={area}
-        spellCheck={false}
-        aria-label={t("editor.surfaceJson")}
+    <div className="h-[28rem] overflow-hidden rounded-lg bg-[oklch(20%_0.03_260)] ring-1 ring-border focus-within:ring-focus [&_.cm-editor]:h-full [&_.cm-scroller]:overflow-auto">
+      <CodeEditor
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         onBlur={onBlur}
-        onScroll={sync}
-        className={cn(
-          shared,
-          "absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent text-transparent caret-white outline-none selection:bg-sky-400/30",
-        )}
+        language="json"
+        tone="dark"
+        ariaLabel={t("editor.surfaceJson")}
+        className="h-full"
       />
     </div>
   );
