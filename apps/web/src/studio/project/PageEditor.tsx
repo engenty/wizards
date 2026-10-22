@@ -9,12 +9,19 @@ import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { useMe } from "../../lib/session";
 import { Button, Card, Chip, cn, IconButton, Spinner } from "../../ui";
+import { CodeEditor } from "../../ui/code-editor";
 import { SyncNotice } from "../CloudSync";
 import { LiveConflict, type LiveEditor, useLiveEditor } from "../live/editor";
-import { PresenceStack, useAlsoHere, useEditingOthers } from "../live/PresenceStack";
+import {
+  PresenceStack,
+  presenceColor,
+  presenceLine,
+  useAlsoHere,
+  useEditingOthers,
+} from "../live/PresenceStack";
 import { useReportPresence } from "../live/presence";
 import { type Autosave, fileUrl, useAutosave } from "./data";
-import { KnowledgeHeader } from "./Knowledge";
+import { KnowledgeHeader, useKnowledge } from "./Knowledge";
 
 /** The page once it is loaded: its title and text, saved a moment after they stop changing. */
 function Editor({
@@ -51,8 +58,16 @@ function Editor({
   });
   const alsoHere = useAlsoHere("page", page.id, me, typing ? place?.id : null);
   const editingOthers = useEditingOthers("page", page.id, me);
-  const where = (e: { currentTarget: HTMLTextAreaElement }) => {
-    const head = headingAt(e.currentTarget.value, e.currentTarget.selectionStart);
+  // The section each of them writes in, marked beside its heading.
+  const marks = editingOthers
+    .filter((e) => e.place?.startsWith("h:") && e.placeLabel)
+    .map((e) => ({
+      heading: e.placeLabel ?? "",
+      color: presenceColor(e.who),
+      title: presenceLine(e),
+    }));
+  const where = (text: string, at: number) => {
+    const head = headingAt(text, at);
     setPlace((was) => (was?.id === head?.id ? was : head));
   };
   const listed = async () => {
@@ -149,21 +164,26 @@ function Editor({
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.page(page.id) }),
   });
   // A link to another page of Knowledge (`pages/…`) opens it here.
-  const follow = async (e: MouseEvent) => {
-    const href = (e.target as HTMLElement).closest("a")?.getAttribute("href");
-    if (!(href?.startsWith("pages/") && onOpen)) {
-      return;
-    }
-    e.preventDefault();
-    const found = await api
-      .get<{ kind: string; id: string }>(
-        `/api/studio/projects/${page.projectId}/resolve?path=${encodeURIComponent(href)}`,
-      )
-      .catch(() => null);
-    if (found?.kind === "page") {
-      onOpen(`p:${found.id}`);
+  // A link to a page, table or file of Knowledge (`pages/…`, `tables/…`, `files/…`) opens it
+  // here: clicked in the preview, or Cmd/Ctrl+clicked while writing.
+  const open = async (href: string) => {
+    const key = onOpen ? await knowledgeKeyOf(page.projectId, href) : null;
+    if (key) {
+      onOpen?.(key);
     }
   };
+  const follow = (e: MouseEvent) => {
+    const href = (e.target as HTMLElement).closest("a")?.getAttribute("href");
+    if (href && KNOWLEDGE_PATH.test(href) && onOpen) {
+      e.preventDefault();
+      void open(href);
+    }
+  };
+  // What a link's address may name, offered while writing it.
+  const knowledgeItems = useKnowledge(page.projectId).data?.items;
+  const links = (knowledgeItems ?? [])
+    .filter((i) => i.id !== page.id)
+    .map((i) => ({ title: i.title, path: i.path, kind: t(KIND_WORD[i.kind]) }));
   const readOnly = page.readOnly;
   const original =
     know?.file && (know.file.mime === "application/pdf" || know.file.mime.startsWith("image/"))
@@ -292,17 +312,22 @@ function Editor({
             />
           )
         ) : view === "write" && !readOnly ? (
-          <textarea
+          // A change from elsewhere arrives as `markdown` and is applied as the smallest
+          // change: the caret stays, and undo leaves it alone (ui/code-editor).
+          <CodeEditor
             value={markdown}
-            onChange={(e) => {
-              setMarkdown(e.target.value);
+            onChange={(next) => {
+              setMarkdown(next);
               setTyping(true);
-              where(e);
             }}
-            onSelect={where}
-            aria-label={page.title}
+            onCaret={where}
+            marks={marks}
+            links={links}
+            onLink={(href) => void open(href)}
+            language="markdown"
+            ariaLabel={page.title}
             placeholder={t("data.pageEmpty")}
-            className="field-sizing-content min-h-[50vh] w-full resize-none bg-transparent p-4 font-mono text-[0.8125rem] leading-relaxed outline-none placeholder:text-ink-4 sm:p-5"
+            className="min-h-[50vh] [&_.cm-editor]:min-h-[50vh] sm:[&_.cm-content]:py-5 sm:[&_.cm-line]:px-5"
           />
         ) : (
           <div className="min-h-40 p-4 sm:p-5" onClick={follow}>
@@ -390,4 +415,24 @@ function headingAt(text: string, at: number): { id: string; label: string } | nu
     }
   }
   return null;
+}
+
+const KNOWLEDGE_PATH = /^(pages|tables|files)\//;
+const KIND_WORD = {
+  page: "know.kind.page",
+  table: "know.kind.table",
+  file: "know.kind.file",
+} as const;
+
+/** The item of Knowledge a link names (`pages/…`, `tables/…`, `files/…`): `p:`, `t:` or `f:`. */
+async function knowledgeKeyOf(projectId: string, href: string): Promise<string | null> {
+  if (!KNOWLEDGE_PATH.test(href)) {
+    return null;
+  }
+  const found = await api
+    .get<{ kind: "page" | "table" | "file"; id: string }>(
+      `/api/studio/projects/${projectId}/resolve?path=${encodeURIComponent(href)}`,
+    )
+    .catch(() => null);
+  return found ? `${found.kind[0]}:${found.id}` : null;
 }

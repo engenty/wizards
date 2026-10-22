@@ -90,7 +90,11 @@ wizard. The buttons “Table” and “Page” add one to a wizard.
   marked and not saved. The heading of a column changes its name and type, and the plus beside
   the headings adds a column.
 - **Page**: a title and text in Markdown. “Write” edits it, and “Preview” shows it. It is saved
-  as you type.
+  as you type. While you write, headings show large and bold text bold, and the Markdown marks
+  stay visible in a lighter colour. ⌘/Ctrl+B and ⌘/Ctrl+I make bold and italic text, ⌘/Ctrl+K
+  makes a link, and ⌘/Ctrl+F searches the page. Enter continues a list, and Enter on an empty
+  item ends it. Inside a link’s address, after `](`, the editor offers the space’s pages, tables
+  and files by title. ⌘/Ctrl+click on a link opens what it names.
 
 ### On your computer and in the cloud
 

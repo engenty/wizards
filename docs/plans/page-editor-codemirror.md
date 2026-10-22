@@ -1,6 +1,6 @@
 # Pages in CodeMirror
 
-A technical plan, 2026-10-22. No code changes yet. It follows the live changes
+A technical plan, 2026-10-22. Built the same day, after v0.11.0; see "As built" at the end. It follows the live changes
 ([live-changes.md](live-changes.md)) and comes after its last PR. Editing together in real time
 is not part of it; this plan only makes it possible later.
 
@@ -188,3 +188,20 @@ as before, so nothing needs to be held back. The release that carries PR 1 is a 
 - **WYSIWYG**, hidden marks, slash commands.
 - **Pasting or dropping images and files** into a page.
 - **Wizard text fields** in the inspector. They are short and stay plain inputs.
+
+## As built
+
+- **Two PRs, not four.** The page editor, its links and its live changes and presence went
+  together. They share the component and its one place where a value from outside is applied.
+  The view step's JSON went second.
+- **No separate `TextSurface` for CodeMirror.** The page editor's `apply` sets the text as
+  before. The component applies any new value as the smallest change (`applyText`), annotated
+  as remote and kept out of the undo history, so the caret maps and undo skips it.
+- **Size.** It is measured, not the 60 KB guessed above. The CodeMirror core is about 92 KB
+  gzipped. A page adds 8 KB, plus 72 KB for Markdown, which brings HTML, CSS and JavaScript for
+  code blocks. The view's JSON adds 8 KB plus 7 KB. All of it loads only when an editor opens,
+  and each language loads with its own chunk.
+- **Completion** offers the space's pages, tables and files of the Knowledge list. Sub-pages are
+  not in that list, so they aren't offered yet.
+- **Enter on an empty list item** ends the list with a blank line, so what follows is a
+  paragraph and not part of the last item.
