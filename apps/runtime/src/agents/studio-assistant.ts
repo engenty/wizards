@@ -25,7 +25,6 @@ import { createTool } from "@mastra/core/tools";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { knowsTools } from "../assistant/knows.js";
-import { primer } from "../assistant/primer.js";
 import type { SessionUser } from "../auth/index.js";
 import type { AssistantCardRecord, AssistantToolCallRecord } from "../db/schema.js";
 import { currentFeatures } from "../features.js";
@@ -128,7 +127,7 @@ function system(): string {
   return [
     prompt("goose", "persona"),
     prompt("goose", "voice"),
-    primer(),
+    prompt("goose", "primer"),
     prompt("goose", "knows"),
     prompt("goose", "page"),
     prompt("goose", "space"),
@@ -943,34 +942,35 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
             .join("\n"),
         })
       : "",
-    history.running ? prompt("goose", "turn.running", { summary: history.running }) : "",
+    history.running ? `What this chat said before the messages above:\n${history.running}` : "",
     page
-      ? prompt("goose", "turn.page", { page: JSON.stringify(page) })
+      ? `Current page:\n\`\`\`json\n${JSON.stringify(page)}\n\`\`\``
       : prompt("goose", "turn.no_page"),
     pluginPage
       ? [
-          prompt("goose", "turn.plugin_page", {
-            name: pluginPage.name,
-            about: pluginPage.description ? `: ${pluginPage.description}` : ".",
-            prefix: (page?.plugin ?? "").replace(/-/g, "_"),
-          }),
+          [
+            pluginPage.description
+              ? `The page is the plugin "${pluginPage.name}"'s: ${pluginPage.description}`
+              : `The page is the plugin "${pluginPage.name}"'s.`,
+            prompt("goose", "turn.plugin_page", {
+              prefix: (page?.plugin ?? "").replace(/-/g, "_"),
+            }),
+          ].join(" "),
           ...pluginPage.blocks,
         ].join("\n\n")
       : "",
     space
-      ? prompt("goose", "turn.space", {
-          state: JSON.stringify(await projectState(input.user.id, space.id)),
-        })
+      ? `The space now:\n\`\`\`json\n${JSON.stringify(await projectState(input.user.id, space.id))}\n\`\`\``
       : project
         ? prompt("goose", "turn.space_read_only", { name: project.name })
-        : prompt("goose", "turn.no_space"),
+        : "No space is open.",
     part === "knowledge" ? prompt("goose", "turn.knowledge") : "",
     space && !(brandOn.brandSections && brandOn.brandRules && brandOn.typography)
       ? prompt("goose", "turn.off", {
           missing: [
-            brandOn.brandSections ? "" : prompt("goose", "turn.off.brand_sections"),
-            brandOn.brandRules ? "" : prompt("goose", "turn.off.brand_rules"),
-            brandOn.typography ? "" : prompt("goose", "turn.off.typography"),
+            brandOn.brandSections ? "" : "sections of logos and colours, gradients and patterns",
+            brandOn.brandRules ? "" : "rules for logos, colours and type",
+            brandOn.typography ? "" : "typography (fonts, type scale)",
           ]
             .filter(Boolean)
             .join("; "),

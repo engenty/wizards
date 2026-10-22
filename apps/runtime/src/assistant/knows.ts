@@ -61,9 +61,6 @@ async function usageOf(tenantId: string): Promise<MonthlyUsage | null> {
   return (await res.json()) as MonthlyUsage;
 }
 
-const notLinked = () => prompt("goose", "note.not_linked");
-const signedOut = () => prompt("goose", "note.signed_out");
-
 export function knowsTools(ctx: KnowsContext): Record<string, any> {
   const { user } = ctx;
   // The entries this turn's searches found, so show_templates needs no second request.
@@ -215,14 +212,14 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
             };
           }
           if (!(await linkedAccount())) {
-            return { linked: false, note: notLinked() };
+            return { linked: false, note: prompt("goose", "note.not_linked") };
           }
           const overview = await accountOverview();
           if (!overview) {
             return {
               linked: true,
               signedIn: false,
-              note: signedOut(),
+              note: prompt("goose", "note.signed_out"),
             };
           }
           return {
@@ -244,11 +241,11 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
         attempt(async () => {
           ctx.doing(serverText(ctx.lang, "doingUsage"));
           if (!(managed || (await linkedAccount()))) {
-            return { linked: false, note: notLinked() };
+            return { linked: false, note: prompt("goose", "note.not_linked") };
           }
           const usage = await usageOf(user.tenantId);
           if (!usage) {
-            return { note: signedOut() };
+            return { note: prompt("goose", "note.signed_out") };
           }
           const runIds = [...new Set(usage.months.flatMap((m) => m.runs.map((r) => r.runId)))];
           const runs = runIds.length

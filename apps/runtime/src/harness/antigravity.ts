@@ -1,7 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
-import { prompt } from "../prompts.js";
 import { probeVersion, resolveEnv, run } from "./env.js";
 import {
   failureOf,
@@ -86,9 +85,7 @@ export function antigravityAnswer(stdout: string): AntigravityResult | null {
 
 /** The instructions in front of the prompt: the client takes one message and nothing besides. */
 export function antigravityMessage(system: string, request: string): string {
-  const content = system
-    ? prompt("services", "harness.antigravity_message", { system, prompt: request })
-    : request;
+  const content = system ? `<instructions>\n${system}\n</instructions>\n\n${request}` : request;
   return `${JSON.stringify({ event: "user", message: { content } })}\n`;
 }
 

@@ -113,14 +113,10 @@ export async function describeGradient(
     system: prompt("services", "gradient.system"),
     prompt: [
       brand.length
-        ? prompt("services", "gradient.brand", {
-            colours: brand.map((c) => `- ${c.name || "colour"}: ${c.value}`).join("\n"),
-          })
-        : prompt("services", "gradient.no_brand"),
-      current
-        ? prompt("services", "gradient.current", { name: current.name, css: gradientCss(current) })
-        : "",
-      prompt("services", "gradient.request", { request: text }),
+        ? `Brand colours:\n${brand.map((c) => `- ${c.name || "colour"}: ${c.value}`).join("\n")}`
+        : "The brand has no colours yet.",
+      current ? `Current gradient "${current.name}": ${gradientCss(current)}` : "",
+      `Request: ${text}`,
     ]
       .filter(Boolean)
       .join("\n\n"),

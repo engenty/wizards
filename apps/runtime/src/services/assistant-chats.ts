@@ -174,10 +174,11 @@ async function summarise(
     const result = await generateText({
       model: model.model,
       maxOutputTokens: 900,
-      system: prompt("services", "summary.system", {
-        rules: prompt("services", "summary.rules", { max_chars: SUMMARY_CHARS }),
-      }),
-      prompt: `${before ? `${prompt("services", "summary.before", { before })}\n` : ""}${transcript(messages)}`,
+      system: [
+        prompt("services", "summary.rules", { max_chars: SUMMARY_CHARS }),
+        prompt("services", "summary.format"),
+      ].join("\n"),
+      prompt: `${before ? `Summary of the chat so far:\n${before}\n\nThe messages after it:\n` : ""}${transcript(messages)}`,
     });
     const [title = "", ...rest] = result.text.trim().split("\n");
     const summary = rest.join("\n").trim();

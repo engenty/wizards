@@ -86,13 +86,18 @@ async function translate(
     const result = await generateText({
       model: model.model,
       output: Output.object({ schema }),
-      system: prompt("services", "translate.system", {
-        what: opts.what,
-        from: langNameEn(opts.from),
-        to: langNameEn(opts.to),
-        tone: prompt("services", "translate.tone", { language: langNameEn(opts.to) }),
-        extra: opts.extra ? `\n${opts.extra}` : "",
-      }),
+      system: [
+        prompt("services", "translate.system", {
+          what: opts.what,
+          from: langNameEn(opts.from),
+          to: langNameEn(opts.to),
+          tone: prompt("services", "translate.tone", { language: langNameEn(opts.to) }),
+        }),
+        opts.extra,
+        prompt("services", "translate.return"),
+      ]
+        .filter(Boolean)
+        .join("\n"),
       prompt: JSON.stringify(Object.fromEntries(chunk.map((k, i) => [ids[i], texts[k]])), null, 1),
     });
     return Object.fromEntries(chunk.map((k, i) => [k, result.output[ids[i]]]));

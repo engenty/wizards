@@ -96,10 +96,8 @@ export async function readCompany(input: {
         language: input.lang === "de" ? "German" : "English",
       }),
       prompt: [
-        prompt("goose", "company.found", { found: JSON.stringify(input.found, null, 1) }),
-        ...input.pages.map((p) =>
-          prompt("goose", "company.page", { url: p.url, text: p.text.slice(0, PAGE_CHARS) }),
-        ),
+        `What the patterns found:\n${JSON.stringify(input.found, null, 1)}`,
+        ...input.pages.map((p) => `# PAGE ${p.url}\n${p.text.slice(0, PAGE_CHARS)}`),
       ].join("\n\n"),
     });
     return grounded(output, input.pages, input.found.fonts);

@@ -194,23 +194,14 @@ function assistMessage(input: SiteInput): string {
     );
   return [
     prompt("goose", "site.wordpress", { url: input.url }),
-    prompt("goose", "site.wordpress_details"),
-    prompt("goose", "site.wordpress_meta", {
-      name: input.name || "—",
-      tagline: input.tagline || "—",
-      language: input.language ?? "—",
-    }),
+    `Name: ${input.name || "—"}\nTagline: ${input.tagline || "—"}\nLanguage: ${input.language ?? "—"}`,
     input.facts.length
-      ? prompt("goose", "site.wordpress_facts", {
-          facts: input.facts.map((f) => `- ${f.label}: ${f.value}`).join("\n"),
-        })
+      ? `What the website states:\n${input.facts.map((f) => `- ${f.label}: ${f.value}`).join("\n")}`
       : "",
     input.colors.length
-      ? prompt("goose", "site.wordpress_colours", {
-          colours: input.colors.map((c) => `${c.name} ${c.value}`).join(", "),
-        })
+      ? `The theme's colours: ${input.colors.map((c) => `${c.name} ${c.value}`).join(", ")}`
       : "",
-    pages.length ? prompt("goose", "site.wordpress_pages", { pages: pages.join("\n\n") }) : "",
+    pages.length ? `Pages:\n\n${pages.join("\n\n")}` : "",
   ]
     .filter(Boolean)
     .join("\n\n")

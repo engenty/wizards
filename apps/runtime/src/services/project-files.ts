@@ -268,11 +268,7 @@ async function describeImage(row: ProjectFileRow, data: Uint8Array): Promise<str
           { type: "file", data, mediaType: row.mime, filename: row.name },
           {
             type: "text",
-            text: prompt("services", "describe.image.user", {
-              project: await projectLine(row.projectId),
-              name: row.name,
-              kind: row.kind,
-            }),
+            text: `Project: ${await projectLine(row.projectId)}\nFile: ${row.name} (${row.kind})`,
           },
         ],
       },
@@ -287,10 +283,7 @@ async function describeDocument(row: ProjectFileRow, text: string): Promise<stri
     model: reader.model,
     maxOutputTokens: 300,
     system: prompt("services", "describe.document"),
-    prompt: prompt("services", "describe.document.user", {
-      name: row.name,
-      text: text.slice(0, 6000),
-    }),
+    prompt: `File: ${row.name}\n\n${text.slice(0, 6000)}`,
   });
   return result.text.trim().slice(0, 600);
 }

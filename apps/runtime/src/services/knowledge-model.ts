@@ -508,13 +508,13 @@ export async function fillCategories(
       .filter((v) => v.categoryId === c.id)
       .map((v) => v.value)
       .slice(0, 40);
-    const about = prompt("services", "category.describe", {
-      name: c.name,
-      hint: c.hint ? ` (${c.hint})` : "",
-      known: known.length
-        ? prompt("services", "category.known", { values: known.join(" | ") })
-        : "",
-    });
+    const about = [
+      `${c.name}${c.hint ? ` (${c.hint})` : ""}.`,
+      known.length ? prompt("services", "category.known", { values: known.join(" | ") }) : "",
+      prompt("services", "category.null"),
+    ]
+      .filter(Boolean)
+      .join(" ");
     const base =
       c.type === "number"
         ? z.number()
@@ -533,7 +533,7 @@ export async function fillCategories(
     maxOutputTokens: 800,
     output: Output.object({ schema: z.object(shape) }),
     system: prompt("services", "category.system"),
-    prompt: prompt("services", "category.item", { name, text: text.slice(0, 12_000) }),
+    prompt: `Item: ${name}\n\n${text.slice(0, 12_000)}`,
   });
   const input: CategoryInput = {};
   for (const [key, value] of Object.entries(result.output as Record<string, unknown>)) {
@@ -622,16 +622,13 @@ export async function writeSummary(valueId: string): Promise<string> {
     model: model.model,
     maxOutputTokens: 2000,
     system: prompt("services", "value_page.system"),
-    prompt: prompt("services", "value_page.prompt", {
-      category: category.name,
-      value: value.value,
-      total,
-      shown:
-        total > items.length
-          ? ` ${prompt("services", "value_page.shown", { count: items.length })}`
-          : "",
-      items: items.map((i) => `## ${i.title}\n${i.text}`).join("\n\n"),
-    }),
+    prompt: [
+      `Category: ${category.name}`,
+      `Value: ${value.value}`,
+      `Items: ${total}${total > items.length ? ` (the first ${items.length} below)` : ""}`,
+      "",
+      items.map((i) => `## ${i.title}\n${i.text}`).join("\n\n"),
+    ].join("\n"),
   });
   const summary = result.text.trim().slice(0, 20_000);
   await db

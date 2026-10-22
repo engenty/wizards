@@ -191,9 +191,7 @@ class CodexImageModel extends HarnessImageModel {
     const request = [
       call.prompt,
       call.files.length ? prompt("services", "harness.codex_image.edit") : "",
-      call.aspectRatio
-        ? prompt("services", "harness.codex_image.aspect", { ratio: call.aspectRatio })
-        : "",
+      call.aspectRatio ? `Aspect ratio: ${call.aspectRatio}.` : "",
       prompt("services", "harness.codex_image.once"),
     ]
       .filter(Boolean)

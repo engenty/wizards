@@ -85,12 +85,6 @@ export function appleReasonOf(helper: string | undefined): AppleReason {
   }
 }
 
-/**
- * Without instructions the model refuses guided calls as "likely unsafe" (seen on macOS 26.5
- * with a billing complaint); any instruction settles it. A step always brings its own.
- */
-const defaultInstructions = () => prompt("services", "harness.apple_default");
-
 const helperEnv = () => ({
   PATH: process.env.PATH ?? "/usr/bin:/bin",
   HOME: process.env.HOME ?? "",
@@ -200,7 +194,9 @@ class AppleModel extends HarnessModel {
       env: helperEnv(),
       signal: call.signal,
       stdin: JSON.stringify({
-        system: call.system || defaultInstructions(),
+        // Without instructions the model refuses guided calls as "likely unsafe" (seen on macOS
+        // 26.5 with a billing complaint); any instruction settles it. A step brings its own.
+        system: call.system || prompt("services", "harness.apple_default"),
         prompt: call.prompt,
         schema: call.schema,
         useCase: this.modelId === "tagging" ? "tagging" : "general",

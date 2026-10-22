@@ -279,11 +279,7 @@ export async function scanDocument(
       model: extractor.model,
       abortSignal: opts.signal,
       output: Output.object({ schema: SCHEMAS[kind] as z.ZodType<ScanResult> }),
-      prompt: prompt("services", "scan.prompt", {
-        kind,
-        name: input.name,
-        text: doc.markdown.slice(0, 30_000),
-      }),
+      prompt: `${prompt("services", "scan.prompt", { kind })}\n\nFile: ${input.name}\n\n${doc.markdown.slice(0, 30_000)}`,
     });
     await opts.charge?.(costOf(extractor, result.usage));
     return result.output;
