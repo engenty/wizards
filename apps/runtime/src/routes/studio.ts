@@ -1230,10 +1230,10 @@ export const studio = new Hono<Vars>()
         parentId: z.string().nullish(),
         markdown: z.string().optional(),
         review: z.null().optional(),
+        baseUpdatedAt: z.string().max(40).optional(),
       })
       .parse(await c.req.json());
-    await updatePage(c.get("user").id, c.req.param("id"), body);
-    return c.json({ ok: true });
+    return c.json({ ok: true, ...(await updatePage(c.get("user").id, c.req.param("id"), body)) });
   })
   .put("/pages/:id/order", async (c) => {
     const { ids } = z.object({ ids: z.array(z.string()).max(5000) }).parse(await c.req.json());

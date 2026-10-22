@@ -296,3 +296,18 @@ describe("views on the stream", () => {
     expect(view).toBeNull();
   });
 });
+
+describe("saves over a newer version", () => {
+  it("refuse a page saved from an older version, with the page as it is now", async () => {
+    const id = await newPage("Versions");
+    const first = (await (await call("PATCH", `/api/studio/pages/${id}`, { markdown: "A" })).json()) as { updatedAt: string };
+    await new Promise((r) => setTimeout(r, 5));
+    const second = (await (await call("PATCH", `/api/studio/pages/${id}`, { markdown: "B", baseUpdatedAt: first.updatedAt })).json()) as { updatedAt: string };
+    expect(Date.parse(second.updatedAt)).toBeGreaterThan(Date.parse(first.updatedAt));
+    const stale = await call("PATCH", `/api/studio/pages/${id}`, { markdown: "C", baseUpdatedAt: first.updatedAt });
+    expect(stale.status).toBe(409);
+    const body = (await stale.json()) as { code: string; page: { markdown: string; updatedAt: string } };
+    expect(body.code).toBe("revision_conflict");
+    expect(body.page).toMatchObject({ markdown: "B", updatedAt: second.updatedAt });
+  });
+});
