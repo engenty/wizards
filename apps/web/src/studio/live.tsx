@@ -5,10 +5,12 @@ import { GitMerge, Plug } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { withBase } from "@/lib/base";
 import { ApiError, api } from "../lib/api";
+import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import { readOnlyError, type WizardDetail } from "../lib/session";
 import { Chip } from "../ui";
+import { registerLiveEditor } from "./live/patch";
 
 /** What the server announces when a wizard changed (see apps/runtime/src/services/draft-events.ts). */
 interface DraftChange {
@@ -43,6 +45,9 @@ export function useLiveDraft(wizardId: string | undefined) {
   const pending = useRef<WizardDefinition | null>(null);
   const base = useRef<WizardDefinition | null>(null);
   const inflight = useRef(false);
+  /** A version from elsewhere that came while edits were unsaved: merged in at the next save. */
+  const held = useRef<WizardDetail | null>(null);
+  const live = useFeature("liveChanges");
   const [saving, setSaving] = useState(false);
   const [merged, setMerged] = useState(0);
   const [remote, setRemote] = useState<RemoteChange | null>(null);
@@ -62,10 +67,21 @@ export function useLiveDraft(wizardId: string | undefined) {
 
   const flush = useCallback((): void => {
     queue.current = queue.current.then(async () => {
-      const local = pending.current;
-      const current = qc.getQueryData<WizardDetail>(key);
+      let local = pending.current;
+      let current = qc.getQueryData<WizardDetail>(key);
       if (!local || !current) {
         return;
+      }
+      const theirs = held.current;
+      held.current = null;
+      if (theirs && theirs.revision > current.revision) {
+        // Merged here, before the save, as a 409 would: the version is already at hand.
+        local = mergeDrafts(base.current ?? theirs.draft, local, theirs.draft);
+        base.current = theirs.draft;
+        pending.current = local;
+        current = { ...theirs, draft: local, title: local.title, dirty: true };
+        qc.setQueryData<WizardDetail>(key, current);
+        setMerged(Date.now());
       }
       pending.current = null;
       inflight.current = true;
@@ -139,6 +155,30 @@ export function useLiveDraft(wizardId: string | undefined) {
     [qc, key, wizardId, busy, flush],
   );
 
+  // With live changes the studio's one stream brings the wizard (studio/live): shown at once
+  // when nothing is unsaved, merged into the next save while something is.
+  useEffect(() => {
+    if (!wizardId || !live) {
+      return;
+    }
+    return registerLiveEditor("wizard", wizardId, (change) => {
+      const detail = (change.view as { detail?: WizardDetail } | undefined)?.detail;
+      const current = qc.getQueryData<WizardDetail>(key);
+      if (!detail) {
+        void refresh();
+      } else if (!current || detail.revision > current.revision) {
+        if (busy()) {
+          held.current = detail;
+        } else {
+          qc.setQueryData<WizardDetail>(key, detail);
+        }
+      } else if (current && detail.messages.length !== current.messages.length) {
+        // The build chat grew without a new draft.
+        qc.setQueryData<WizardDetail>(key, { ...current, messages: detail.messages });
+      }
+    });
+  }, [qc, key, wizardId, live, busy, refresh]);
+
   useEffect(() => {
     if (!wizardId) {
       return;
@@ -151,7 +191,10 @@ export function useLiveDraft(wizardId: string | undefined) {
       if (change.kind === "draft" && current && change.revision <= current.revision) {
         return;
       }
-      void refresh();
+      // With live changes the content comes over the studio's stream; this one names the client.
+      if (!live) {
+        void refresh();
+      }
       if (change.kind === "draft" && change.source === "mcp") {
         setRemote({ client: change.client ?? "MCP", steps: change.touched, at: Date.now() });
       }
@@ -160,12 +203,12 @@ export function useLiveDraft(wizardId: string | undefined) {
     source.addEventListener("hello", (e) => {
       const { revision } = JSON.parse((e as MessageEvent).data) as { revision: number };
       const current = qc.getQueryData<WizardDetail>(key);
-      if (current && revision !== current.revision) {
+      if (current && revision !== current.revision && !live) {
         void refresh();
       }
     });
     return () => source.close();
-  }, [qc, key, wizardId, refresh]);
+  }, [qc, key, wizardId, refresh, live]);
 
   useEffect(() => {
     if (!remote) {
