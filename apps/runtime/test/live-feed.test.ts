@@ -161,7 +161,10 @@ describe("the triggers", () => {
   });
 
   it("are the ones the generator writes", async () => {
-    const { liveTriggerSql } = await import("../src/db/live-triggers");
+    const { liveTriggerSql, PRESENCE_TABLE } = await import("../src/db/live-triggers");
     expect(readFileSync(join(migrations, "0023_live_change.sql"), "utf8")).toContain(liveTriggerSql());
+    expect(readFileSync(join(migrations, "0024_live_presence.sql"), "utf8")).toContain(
+      liveTriggerSql([PRESENCE_TABLE]),
+    );
   });
 });

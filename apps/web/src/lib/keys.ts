@@ -21,4 +21,6 @@ export const keys = {
   connectors: (projectId: string) => ["connectors", projectId] as const,
   themes: (projectId: string) => ["themes", projectId] as const,
   cloudSync: () => ["cloud-sync"] as const,
+  /** Who is in a wizard, page or table. */
+  presence: (kind: string, item: string) => ["presence", kind, item] as const,
 };

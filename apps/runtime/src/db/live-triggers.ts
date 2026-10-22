@@ -15,6 +15,8 @@ export interface LiveTable {
   parent: string;
   /** The write deletes the item itself; otherwise a delete here changes its owner (a `put`). */
   owns: boolean;
+  /** Logs an update only when this holds (SQL over `old` and `new`): a heartbeat is no change. */
+  updateWhen?: string;
 }
 
 const ofWizard = "(SELECT project_id FROM wizard WHERE id = $.wizard_id)";
@@ -126,16 +128,33 @@ const OPS = [
   { suffix: "ad", event: "DELETE", row: "old", del: true },
 ] as const;
 
-/** The trigger SQL, in drizzle's statement-breakpoint form. */
-export function liveTriggerSql(): string {
+/**
+ * Who is in an item (`live_presence`, migration 0024): a join, a leave, a new state or place is
+ * a change of the item's presence (`presence`, `<kind>:<item>`); a heartbeat is not.
+ */
+export const PRESENCE_TABLE: LiveTable = {
+  table: "live_presence",
+  project: "NULL",
+  kind: "'presence'",
+  item: "$.kind || ':' || $.item",
+  parent: "$.kind",
+  owns: false,
+  updateWhen:
+    "old.state IS NOT new.state OR old.place IS NOT new.place OR old.name IS NOT new.name",
+};
+
+/** The trigger SQL of `tables`, in drizzle's statement-breakpoint form. */
+export function liveTriggerSql(tables: LiveTable[] = LIVE_TABLES): string {
   const out: string[] = [];
-  for (const t of LIVE_TABLES) {
+  for (const t of tables) {
     for (const op of OPS) {
       const at = (sql: string) => sql.replaceAll("$.", `${op.row}.`);
       const kind = op.del && t.owns ? "'del'" : "'put'";
+      const when = op.event === "UPDATE" && t.updateWhen ? ` WHEN ${t.updateWhen}` : "";
+      const name = t.table.startsWith("live_") ? t.table : `live_${t.table}`;
       out.push(
         [
-          `CREATE TRIGGER \`live_${t.table}_${op.suffix}\` AFTER ${op.event} ON \`${t.table}\` BEGIN`,
+          `CREATE TRIGGER \`${name}_${op.suffix}\` AFTER ${op.event} ON \`${t.table}\`${when} BEGIN`,
           "\tINSERT INTO `live_change` (`project_id`, `kind`, `op`, `item`, `parent`, `at`)",
           `\tSELECT ${at(t.project)}, ${at(t.kind)}, ${kind}, i, ${at(t.parent)}, unixepoch() * 1000 FROM (SELECT ${at(t.item)} AS i) WHERE i IS NOT NULL;`,
           "END;",
