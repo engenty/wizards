@@ -1,7 +1,7 @@
 {
   "name": "@engenty/wizards-runner",
   "version": "0.1.0",
-  "description": "The runner of engenty wizards: the components that draw a wizard's run, given a run source.",
+  "description": "The runner of engenty wizards: the components that draw a wizard's run, given a run source. MIT.",
   "license": "MIT",
   "private": true,
   "type": "module",

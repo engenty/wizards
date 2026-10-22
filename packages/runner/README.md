@@ -1,5 +1,7 @@
 # @engenty/wizards-runner
 
+Licence: MIT ([LICENSE](LICENSE)). Use it in any app, open or closed, and keep the licence text with it.
+
 The components that draw a wizard's run: pages with their fields (camera, signature, location,
 voice, files), the working state, reviews, surfaces, results and downloads. They take a
 `RunSource` — the run's view and the commands a person gives — and know no server: the studio
@@ -20,7 +22,10 @@ configureRunner({ lang: "de", runBase: (id) => `/api/runs/${id}`, withBase: (p) 
 React external, and `runner.css` — the look of a wizard's page, every rule scoped to
 `.engenty-runner`, for a host without Tailwind.
 
-MIT, the modules of `@engenty/wizards-shared` it bundles included: the wizard format
-(definition, fit, numbers, run, runner-texts, shape, store, surface, texts and the data-tables
-columns) is `FSL-1.1-MIT OR MIT`
-(packages/shared/LICENSE-MIT). The rest of engenty wizards is FSL-1.1-MIT.
+## Licence
+
+MIT, the modules of `@engenty/wizards-shared` it bundles included. Those modules are the wizard
+format (definition, fit, numbers, run, runner-texts, shape, store, surface, texts, translation
+and the data-tables columns), which is `FSL-1.1-MIT OR MIT`
+([packages/shared/LICENSE-MIT](../shared/LICENSE-MIT)). The rest of engenty wizards is
+FSL-1.1-MIT.
