@@ -37,7 +37,9 @@ services:
       - runtime-cache:/data
     networks:
       default:
+      # Coolify drops a network that has no settings (`browser:` alone): an address keeps it.
       browser:
+        ipv4_address: 172.30.5.11
     depends_on:
       - browser
 
@@ -62,6 +64,7 @@ services:
     networks:
       default:
       browser:
+        ipv4_address: 172.30.5.12
     depends_on:
       - browser
 
@@ -88,6 +91,7 @@ services:
     networks:
       default:
       browser:
+        ipv4_address: 172.30.5.13
     depends_on:
       - browser
 
