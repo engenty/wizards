@@ -6,8 +6,8 @@ import {
   type WizardDefinition,
   wizardSchema,
 } from "@engenty/wizards-shared/definition";
+import type { Capability } from "@engenty/wizards-shared/fit";
 import {
-  type Capability,
   capabilitiesOf,
   costTierOf,
   effortOf,

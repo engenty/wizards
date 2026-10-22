@@ -1,5 +1,5 @@
 import type { RunTheme } from "@engenty/wizards-shared/run";
-import { fontStack, lookColours } from "@engenty/wizards-shared/theme";
+import { fontStack, lookColours } from "@engenty/wizards-shared/theme-look";
 import { type CSSProperties, useEffect } from "react";
 import { usePinnedTheme, usePreferredLook, useTheme } from "../lib/theme";
 import { loadBrandFace, loadWizardFont } from "./fonts";

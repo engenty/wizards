@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import { z } from "zod";
 import { DEFINITION_VERSION } from "./definition.js";
 import { MAX_WIZARD_THEMES, themeSchema } from "./theme.js";

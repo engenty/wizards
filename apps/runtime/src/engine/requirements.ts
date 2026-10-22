@@ -14,13 +14,14 @@ import {
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
 import {
+  type Capability,
   closedChoicesFor,
   openValue,
   otherwiseIndex,
   unavoidableFrom,
   unavoidableSteps,
 } from "@engenty/wizards-shared/fit";
-import type { Capability } from "@engenty/wizards-shared/marketplace";
+
 import type { ClosedChoice, MissingModel, RunNote, Said } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
 import { classProblem, filmClient } from "../models.js";

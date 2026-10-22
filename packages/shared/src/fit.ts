@@ -16,8 +16,26 @@ import {
   templateRefs,
   type WizardDefinition,
 } from "./definition.js";
-import type { Capability } from "./marketplace.js";
 import type { ClosedChoice } from "./run.js";
+
+/**
+ * What the models and tools behind a wizard must be able to do. `film`: a film the installed
+ * client makes, only on a computer with Claude Code, on its subscription.
+ */
+export const CAPABILITY_IDS = [
+  "text",
+  "web",
+  "browser",
+  "documents",
+  "image",
+  "video",
+  "speech",
+  "listening",
+  "code",
+  "connectors",
+  "film",
+] as const;
+export type Capability = (typeof CAPABILITY_IDS)[number];
 
 /**
  * What a wizard needs beyond a text model, and whether it runs where there is nothing else: a

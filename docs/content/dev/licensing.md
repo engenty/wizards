@@ -1,7 +1,7 @@
 ---
 title: Licensing
 description: Which parts of engenty wizards are MIT, which are FSL-1.1-MIT, and what that means for your tools.
-version: 0.9.5
+version: 0.11.1
 ---
 
 The wizard format and the runner are under the MIT licence. Anyone may read, write and run
@@ -12,7 +12,7 @@ source available under FSL-1.1-MIT.
 
 | What | Licence |
 |---|---|
-| The wizard format: the twelve files of `packages/shared` that define a wizard and read it | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
+| The wizard format: the sixteen files of `packages/shared` that define a wizard, read it and pack it as a `.wizard` file | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT)) |
 | The runner, `@engenty/wizards-runner` in `packages/runner` | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/packages/runner/LICENSE)) |
 | The plugin for the AI apps, `plugin/`, without the engenty figures in it | MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/plugin/LICENSE)) |
 | Everything else: the studio, the runtime, the `wizards` command, `@engenty/wizards` on npm | FSL-1.1-MIT ([LICENSE](https://github.com/engenty/wizards/blob/main/LICENSE)) |
@@ -25,15 +25,20 @@ count.
 
 ## The wizard format
 
-These twelve files in `packages/shared/src` define a wizard and read it:
+These sixteen files in `packages/shared/src` define a wizard, read it and pack it as a
+`.wizard` file:
 
 - `definition.ts`, `fit.ts`, `numbers.ts`, `run.ts`, `runner-texts.ts`, `shape.ts`
-- `store.ts`, `surface.ts`, `texts.ts`, `translation.ts`
-- `engenty/data-tables/columns.ts`, `engenty/data-tables/columns-format.ts`
+- `sharing.ts`, `store.ts`, `surface.ts`, `texts.ts`, `translation.ts`
+- `theme.ts`: a theme’s values, which a `.wizard` file carries
+- `wizard-package.ts`: the `.wizard` file and its `wizard.json`
+- `engenty/data-tables/columns.ts`, `columns-format.ts`, `columns-value.ts`
 
 Each says `SPDX-License-Identifier: FSL-1.1-MIT OR MIT` in its first line. You choose which of
 the two licences you take them under. Take MIT, and you can use the format in any tool: an
-editor, a converter, your own runtime. The rest of `packages/shared` is FSL-1.1-MIT.
+editor, a converter, your own runtime. These files import only each other and zod. The rest of
+`packages/shared` is FSL-1.1-MIT. That includes `theme-look.ts`, which turns a theme into the
+look of a run.
 
 ## The runner
 

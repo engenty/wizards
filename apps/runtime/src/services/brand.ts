@@ -8,7 +8,7 @@ import {
 } from "@engenty/wizards-shared/projects";
 import type { BrandView, RunTheme } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
-import { chosenTheme, lookColours, themedLook } from "@engenty/wizards-shared/theme";
+import { chosenTheme, lookColours, themedLook } from "@engenty/wizards-shared/theme-look";
 import { generateText, Output } from "ai";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";

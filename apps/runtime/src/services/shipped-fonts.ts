@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { SHIPPED_FONTS, shippedFontSlug } from "@engenty/wizards-shared/theme";
+import { SHIPPED_FONTS } from "@engenty/wizards-shared/theme";
+import { shippedFontSlug } from "@engenty/wizards-shared/theme-look";
 
 /**
  * The fonts the runner ships (SHIPPED_FONTS), served for pages that are not the runtime's own: a

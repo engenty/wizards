@@ -6,6 +6,7 @@ import {
   pluginToolOf,
   type WizardDefinition,
 } from "./definition.js";
+import { CAPABILITY_IDS, type Capability } from "./fit.js";
 import { type Gap, type Line, type Texts, textOf } from "./texts.js";
 
 /**
@@ -58,25 +59,6 @@ export const USE_CASE_IDS = [
   "advice",
 ] as const;
 export type UseCase = (typeof USE_CASE_IDS)[number];
-
-/**
- * What the models and tools behind a wizard must be able to do. `film`: a film the installed
- * client makes, only on a computer with Claude Code, on its subscription.
- */
-export const CAPABILITY_IDS = [
-  "text",
-  "web",
-  "browser",
-  "documents",
-  "image",
-  "video",
-  "speech",
-  "listening",
-  "code",
-  "connectors",
-  "film",
-] as const;
-export type Capability = (typeof CAPABILITY_IDS)[number];
 
 export const COST_TIER_IDS = ["low", "medium", "high"] as const;
 export type CostTier = (typeof COST_TIER_IDS)[number];

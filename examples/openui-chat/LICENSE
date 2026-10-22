@@ -22,5 +22,6 @@ SOFTWARE.
 
 The built package (dist/) also contains these modules of @engenty/wizards-shared,
 which are under FSL-1.1-MIT OR MIT (packages/shared/LICENSE-MIT) and are included
-here under the MIT licence above: definition, fit, run, store, surface and
-engenty/data-tables/columns, columns-format.
+here under the MIT licence above: definition, fit, numbers, run, runner-texts, shape,
+sharing, store, surface, texts, theme, wizard-package and engenty/data-tables/columns,
+columns-format.
