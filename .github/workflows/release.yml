@@ -413,9 +413,18 @@ jobs:
             echo "::error::npm doesn't serve $1@$version as latest after 10 minutes"
             return 1
           }
-          npm publish "artifacts/npm-package/engenty-wizards-runtime-$version.tgz" --access public
+          # publish <name> <file>: a version npm has already is left as it is, so a re-run after
+          # npm refused one package (a 503 now and then) goes on with the ones that are missing.
+          publish() {
+            if npm view "$1@$version" version >/dev/null 2>&1; then
+              echo "npm has $1@$version already"
+            else
+              npm publish "artifacts/npm-package/$2" --access public
+            fi
+          }
+          publish @engenty/wizards-runtime "engenty-wizards-runtime-$version.tgz"
           served @engenty/wizards-runtime "wizards-runtime-$version.tgz"
-          npm publish "artifacts/npm-package/wizards-$version.tgz" --access public
+          publish wizards "wizards-$version.tgz"
           served wizards "wizards-$version.tgz"
-          npm publish "artifacts/npm-package/engenty-wizards-$version.tgz" --access public
+          publish @engenty/wizards "engenty-wizards-$version.tgz"
           served @engenty/wizards "wizards-$version.tgz"
