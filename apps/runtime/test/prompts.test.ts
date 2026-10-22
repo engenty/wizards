@@ -54,11 +54,9 @@ describe("prompts", () => {
 
   it("every section is used", () => {
     const used = calls();
-    // safety.ts reads the check criteria by their prefix.
-    const byPrefix = [{ file: "safety", section: "check.criterion.", prefix: true }];
     for (const file of FILES) {
       for (const name of promptSections(file).keys()) {
-        const hit = [...used, ...byPrefix].some(
+        const hit = used.some(
           (c) => c.file === file && (c.prefix ? name.startsWith(c.section) : name === c.section),
         );
         expect(hit, `prompts/${file}.md#${name} is not used`).toBe(true);

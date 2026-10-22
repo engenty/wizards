@@ -1,49 +1,35 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 // A plain function, not vi.fn: vitest reports a rejection a mock records as unhandled.
-let decide: (input: unknown) => Promise<unknown> = async () => answer("allowed");
-const asked: { state?: unknown }[] = [];
+let decide: (input: unknown) => Promise<unknown>;
+const asked: { state?: unknown; questions?: Record<string, { instructions: string }> }[] = [];
 vi.mock("../src/engine/decide.js", () => ({
   decide: (input: unknown) => {
-    asked.push(input as { state?: unknown });
+    asked.push(input as (typeof asked)[number]);
     return decide(input);
   },
 }));
 
-const { checkContent, contentPolicy, contentQuestion, ContentBlockedError } = await import(
-  "../src/safety.js"
-);
+const { checkContent, contentPolicy, ContentBlockedError } = await import("../src/safety.js");
 
-const answer = (choice: string) => ({
-  answers: { rule: { type: "choice", choice } },
+const breaks = (p: number) => async () => ({
+  answers: { breaks: { type: "noul", noul: p } },
   source: "systemone",
 });
 
-beforeEach(() => {
-  asked.length = 0;
-});
-
 describe("content rules", () => {
-  it("ask one choice question with every criterion of safety.md", () => {
-    const q = contentQuestion();
-    expect(q.type).toBe("choice");
-    expect(Object.keys(q.criteria)[0]).toBe("allowed");
-    expect(Object.keys(q.criteria)).toEqual(
-      expect.arrayContaining(["extremism", "hate", "sexual", "minors", "violence", "real_person"]),
-    );
-  });
-
-  it("let an allowed request through", async () => {
-    decide = async () => answer("allowed");
+  it("ask one yes/no question that carries the policy", async () => {
+    decide = breaks(0.02);
     await expect(checkContent({ kind: "image", text: "a lake at dawn" })).resolves.toBeUndefined();
-    expect(asked[0].state).toEqual({ kind: "image", request: "a lake at dawn" });
+    const last = asked.at(-1);
+    expect(last?.state).toEqual({ kind: "image", request: "a lake at dawn" });
+    expect(last?.questions?.breaks.instructions).toContain(contentPolicy());
   });
 
-  it("stop a request that breaks a rule, with a note for the person", async () => {
-    decide = async () => answer("extremism");
+  it("stop a request that breaks them, with a note for the person", async () => {
+    decide = breaks(0.97);
     const err = await checkContent({ kind: "speech", text: "…" }).catch((e) => e);
     expect(err).toBeInstanceOf(ContentBlockedError);
-    expect(err.rule).toBe("extremism");
     expect(err.note).toEqual({ code: "contentBlocked" });
   });
 
@@ -53,9 +39,5 @@ describe("content rules", () => {
     };
     const err = await checkContent({ kind: "video", text: "…" }).catch((e) => e);
     expect(err.note).toEqual({ code: "contentCheckFailed", params: { detail: "no classifier" } });
-  });
-
-  it("are part of the system prompts", () => {
-    expect(contentPolicy()).toMatch(/^CONTENT RULES/);
   });
 });
