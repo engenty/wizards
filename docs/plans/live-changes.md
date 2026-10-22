@@ -26,10 +26,9 @@ computer in about a second instead of up to a minute.
 into its cache is how the wizard editor's draft stream (`studio/live.tsx`) and the table editor's
 row saves (`TableEditor.tsx`) work today. Live changes do the same for every kind.
 
-**What engenty-pro does, and what we take from it.** Supabase Realtime announces row changes, and
-the app reloads the affected data after a short wait. It does not patch the screen with the
-change. Changes made while the connection was down are lost. We go one step further and patch.
-Two things stay safe:
+**engenty-pro has the same client half** (`@engenty/live-cache`); "Compared with engenty-pro"
+below says what we take over as it is and what differs. In short, it announces and reloads; we
+patch. Two things stay safe:
 
 - **Reads keep their checks.** The view is built by the same service function as the GET route,
   with the subscriber's role, so a stream never shows more than a reload would.
@@ -72,6 +71,82 @@ works the same on a file and on Turso.
 - With Turso, or with more studio replicas, more writers could join.
 
 In-process events alone would miss these writes, so the feed has to come from the database.
+
+## Compared with engenty-pro
+
+engenty-pro solved the browser half already, on Supabase.
+
+- **`packages/live-cache`** (about 700 lines without tests) is the main piece.
+  - Each module declares a `ModuleLiveBinding` next to its queries: `id`, `queryRoot`, the tables
+    it reads and the agent tools that write them (for example `modules/team/ui/team-live-binding.ts`).
+  - One app-wide mount, `apps/ui/src/components/live-data-sync.tsx`, subscribes to all of them.
+  - A registry maps each change to query keys.
+  - `createDebouncedInvalidator` invalidates each key once per 150 ms.
+- **`packages/query-client/src/optimistic/begin-optimistic-update.ts`** is the shared mutation
+  lifecycle:
+  1. Cancel the query in flight.
+  2. Take a snapshot.
+  3. Write the optimistic value.
+  4. On an error, roll back only while that value is still the one in the cache; otherwise
+     invalidate.
+
+  `docs/content/dev/optimistic-ui.md` sets the rules around it, for example "don't suppress live
+  invalidations while a local mutation is pending".
+
+| | engenty-pro | Here |
+| --- | --- | --- |
+| Where changes come from | Postgres logical replication, Supabase Realtime over a websocket | Triggers into `live_change`, polled per tenant; SQLite and Turso have no replication feed |
+| What arrives | A signal, with the row as the database has it (not used, for security) | The item's view, built by the GET route's own function with the reader's role |
+| Browser | Invalidate the module's `queryRoot`, debounced | Patch the cache; invalidate where no view came or the list is computed |
+| A dropped connection | Changes in between are lost | Caught up from `Last-Event-ID` |
+| Several tabs | One websocket each; websockets don't count against the 6 connections per site | One stream per browser, a leader tab passes it on |
+| Open editors | No merge; the refetch replaces the cached value | Merge at once (6) |
+| Isolation | One channel per binding, so one broken table can't drop every module's subscription | A patcher that throws falls back to invalidating its keys and never stops the stream |
+| Writes by the AI | `agentToolIds`: invalidate when the tool call ends, before realtime arrives | Not needed: tools write on the server, and the write nudges the hub at once |
+| Debugging | `useLiveCache` always logs why it doesn't subscribe | The same, for 404, 429 and missing Web Locks |
+
+**What we take over.** The two repositories share no code: engenty-pro is private, this one is
+open. So these are ports of the same ideas, under the same names, so the code reads alike in
+both:
+
+- **Bindings next to their queries.** Each area declares a `LiveBinding` beside its query keys:
+  the kinds it shows, its patchers and its fallback keys. One mount, `useLiveFeed()` in
+  `AppFrame`, reads them all, as `LiveDataSync` does. There is no central switch over all kinds
+  that every feature has to edit.
+- **`createDebouncedInvalidator`**, the same function, for the keys that are fetched again.
+- **`beginOptimisticUpdate`**, the same lifecycle, as `apps/web/src/lib/optimistic.ts`. The live
+  patcher uses the same steps (cancel, write, ownership check), so a live patch and a local save
+  can't overwrite each other. The studio's current one-off `setQueryData` calls after saves move
+  onto it as they are touched.
+- **The rule from `optimistic-ui.md`:** a pending local save never holds back a change from
+  elsewhere. Newer-wins decides, not a gate.
+- **Always log why the feed is off.**
+
+**What we don't take over.** Signals without data, and `agentToolIds`. The reasons are in the
+table above.
+
+**Later, both ways.** Once `live-patch.ts` has proven itself here, engenty-pro could patch too.
+Its realtime payload already carries the row. It would still need the role check of a GET, so
+the shape would be the same: the server sends a view, not a row.
+
+## Not repeating ourselves here
+
+- **One function per view.** `live/views.ts` holds a registry `kind → view(id)`. The studio's GET
+  routes for those items call the same entries (`c.json(await views.page(id))`) instead of
+  building the JSON themselves. The stream and the route can't drift apart, and the test of
+  PR 3 shrinks to "every kind has a view".
+- **Query keys from factories.** The studio writes keys inline today (`["space-table", id]` in
+  several files). `apps/web/src/lib/keys.ts` gets one factory per area (`keys.table(id)`,
+  `keys.knowledge(projectId)`), as engenty-pro does with `kbArticleKeys`. `useQuery`, the
+  invalidations after saves and the live bindings all use them, so a renamed key can't miss a
+  place. This moves the keys the feed touches; other keys move when their files are next
+  changed.
+- **One live editor hook.** The page, table and wizard editors share `useLiveEditor({ key,
+  merge, save })`: the base, pending edits, a merge on a patch or a 409, and the chips.
+  `useLiveDraft` becomes this hook with `mergeDrafts`; the page uses `mergeText`, a table header
+  `mergeJson`.
+- **One trigger generator** for `sync_change` and `live_change` (1).
+- **One conflict card**, the two-way sync's, for every unclean merge.
 
 ## Design
 
@@ -271,9 +346,10 @@ waiting.
 
 ### 5. Browser: patch the cache
 
-`apps/web/src/studio/live-patch.ts` holds one patcher per kind. A patcher takes an item and writes
-it into every cached query that holds it, with `setQueryData`. A test fails when a `LiveKind` has
-no patcher.
+Each area's `LiveBinding` (see "Compared with engenty-pro") holds the patchers of its kinds. A
+patcher takes an item and writes it into every cached query that holds it.
+`apps/web/src/studio/live-patch.ts` holds the shared steps: newer-wins, `cancelQueries`, the
+write and the fallback. A test fails when a `LiveKind` has no binding.
 
 | Kind | Patched in place | Fetched again (computed lists) |
 | --- | --- | --- |
@@ -395,10 +471,10 @@ minute.
 | --- | --- | --- | --- |
 | 1 | `feat(runtime): live change feed in the tenant database` | `0023_live_change`, generated triggers, `op`, `parent`, pruning in the purge, `LiveKind` in shared | Triggers log every table and op with the right `parent` and `op`. `quietly()` writes are still logged. Pruning keeps 15 minutes |
 | 2 | `feat(runtime): live hub and studio stream` | `live/hub.ts`, `GET /api/studio/live`, nudges in `app.ts` and `applyItems`, limits, 30 min lifetime, flag. Items without views yet | A write through a second libSQL client on the same file (another process) arrives within 1.5 s. A nudge arrives at once. Catch-up from `Last-Event-ID`. `reset` on a pruned gap, on a foreign cursor and on a burst over 1000 rows. 429 beyond the limit. 404 with the flag off |
-| 3 | `feat(runtime): live changes carry the item's view` | `live/views.ts`, `getRow`, the table header without rows, views per role, size limits, put-to-del when gone | Each view equals the body of its GET route (one test per kind, against the route). A member and an admin get their own `readOnly`. A view over 64 KB goes without. A batch stays under 512 KB |
-| 4 | `feat(web): studio patches what changed elsewhere` | `live-feed.ts` (leader tab, BroadcastChannel, watchdog), `live-patch.ts`, newer-wins, `cancelQueries`, highlight, mount in `AppFrame`, `useSyncAction` and `useCloudSync` changes | Every `LiveKind` has a patcher. A patched list sends no request. An older view never replaces a newer cache entry, also against a GET in flight. 200 rows arrive as one update. One stream for two tabs (Playwright) |
-| 5 | `feat(web): page and table editors merge changes from elsewhere while open` | `registerLiveEditor`, live merge with `mergeText` and `mergeJson`, `baseUpdatedAt` and 409 on page, table and row saves, chips | An own save changes nothing on screen. A change elsewhere with no edits here shows at once, caret kept. With edits here it merges at once; an unclean merge keeps mine and asks. A cell being typed in is never overwritten |
-| 6 | `refactor(studio): the wizard editor follows the live feed` | `useLiveDraft` takes patches, `refresh()` for drafts without a view, the draft stream removed | Existing `live.tsx` tests pass on the feed. A draft written by a second process reaches the open editor |
+| 3 | `feat(runtime): live changes carry the item's view` | `live/views.ts` registry, the GET routes of those items moved onto it, `getRow`, the table header without rows, views per role, size limits, put-to-del when gone | Every `LiveKind` has a view. The routes' existing tests pass unchanged. A member and an admin get their own `readOnly`. A view over 64 KB goes without. A batch stays under 512 KB |
+| 4 | `feat(web): studio patches what changed elsewhere` | `lib/keys.ts` factories for the keys the feed touches, `lib/optimistic.ts` (`beginOptimisticUpdate`), `LiveBinding` per area, `live-feed.ts` (leader tab, BroadcastChannel, watchdog), `live-patch.ts`, `createDebouncedInvalidator`, newer-wins, highlight, mount in `AppFrame`, `useSyncAction` and `useCloudSync` changes | Every `LiveKind` has a binding. A patched list sends no request. An older view never replaces a newer cache entry, also against a GET in flight. A patcher that throws falls back to invalidating. 200 rows arrive as one update. One stream for two tabs (Playwright) |
+| 5 | `feat(web): page and table editors merge changes from elsewhere while open` | `useLiveEditor`, `registerLiveEditor`, live merge with `mergeText` and `mergeJson`, `baseUpdatedAt` and 409 on page, table and row saves, chips | An own save changes nothing on screen. A change elsewhere with no edits here shows at once, caret kept. With edits here it merges at once; an unclean merge keeps mine and asks. A cell being typed in is never overwritten |
+| 6 | `refactor(studio): the wizard editor follows the live feed` | `useLiveDraft` rebuilt on `useLiveEditor` with `mergeDrafts`, `refresh()` for drafts without a view, the draft stream removed | Existing `live.tsx` tests pass on the feed. A draft written by a second process reaches the open editor |
 | 7 | `feat(runtime): a computer follows the cloud's changes` | `GET /api/v1/sync/live`, the computer's connection and coalesced pulls, origin skip, contract doc | A cloud edit reaches the computer's open page within 2 s (two processes, as in `sync.test.ts`). A computer's own push is not pulled back. After a drop the connection resumes from its cursor |
 | 8 | `feat(studio): live changes` | Flips `liveChanges`, user guide section | Run end to end with `node apps/runtime/scripts/dev-two-way.mjs`: a page edited in the cloud's studio shows up in the computer's open page without a request, and the other way round |
 
@@ -425,9 +501,9 @@ item without a view.
   browser. Without them every tab streams, and that works on HTTP/2.
 - **A tenant migration in between.** A runtime update that adds a migration restarts the
   process. Streams reconnect with their cursor; the table is unchanged by later migrations.
-- **A view that drifts from its route.** If a GET route adds a field and its view doesn't, the
-  cache would hold a mix. Views are built by the routes' own functions, and the test of PR 3
-  compares each view with its route's body, so a drift fails CI.
+- **A view that drifts from its route.** If a GET route added a field and its view didn't, the
+  cache would hold a mix. The route and the stream call the same entry of `live/views.ts`, so
+  there is nothing to drift.
 - **Reads per batch.** Building views costs one read per changed item and role, only while
   streams are open, and only for items that changed. A burst over 1000 rows sends `reset`
   instead, without views.
