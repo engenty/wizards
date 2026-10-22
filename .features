@@ -9,6 +9,9 @@
 # the two-way sync of a local install's spaces with its organization in the cloud (on by default)
 # twoWaySync=on|off
 #
+# live changes: an open studio shows what changed elsewhere, and who else is in a wizard, page or table (on by default)
+# liveChanges=on|off
+#
 # built-in connectors without an OAuth client, shown anyway
 # unsetConnectors=on|off
 #

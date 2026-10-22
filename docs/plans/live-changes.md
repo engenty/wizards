@@ -1,6 +1,7 @@
 # Live changes in the studio
 
-A technical plan, 2026-10-21. No code changes yet. It builds on the change log of the two-way sync
+A technical plan, 2026-10-21. Built on 2026-10-22 in ten PRs, engenty/wizards#154 to the PR that
+switches `liveChanges` on; see "As built" at the end for where it differs. It builds on the change log of the two-way sync
 ([tenant-sync.md](tenant-sync.md)).
 
 The goal: an open studio view shows a change soon after it is written. The change is written into
@@ -620,3 +621,19 @@ item without a view.
 - **Runs.** Their stream exists and stays as it is.
 - **Chats.** These are per person and don't sync. The studio assistant's own stream covers the
   open chat.
+
+## As built
+
+- **The wizard's draft stream stays** (`routes/wizard-stream.ts`). With live changes on it only
+  names the MCP client for the editor's "Changed via …" chip; the feed doesn't say who wrote. It can
+  go once the switch is removed and the chip reads the writer from presence.
+- **No REST `x-wizards-present` header.** The API's wizard calls don't edit drafts; agents edit
+  over MCP, whose results carry `present`.
+- **A computer's own pushes** are left out of the cloud's live call by the feed numbers each push
+  wrote, not by item for 10 seconds: a change by someone else to an item just pushed still goes
+  through.
+- **Messages of the build chat** go to an open editor with the wizard's next view; the kind
+  `message` patches nothing by itself.
+- **End to end** with `node apps/runtime/scripts/dev-two-way.mjs`: a page edited in the cloud's
+  studio showed in the computer's open page after 0.2 s, and the other way round after about 1 s
+  (the computer pushes 0.8 s after a save).

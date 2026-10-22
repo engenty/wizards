@@ -37,7 +37,7 @@ export const FEATURES = {
   },
   liveChanges: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Live changes in the studio",
     hint: "An open studio shows what changed elsewhere (another member, a run, the AI, the sync) without a reload.",
   },
