@@ -13,6 +13,7 @@ import {
 } from "./db/client.js";
 import { startRunner, stopRunner } from "./engine/runner.js";
 import { basePath, env } from "./env.js";
+import { pruneLive } from "./live/feed.js";
 import { hookConsole } from "./log.js";
 import { managed } from "./manage.js";
 import { checkModelsAtStart, loadCatalog, loadLocalModels } from "./models.js";
@@ -110,7 +111,7 @@ async function purge() {
   await purgeSessions();
   for (const id of await knownTenants()) {
     await withTenant(id, () =>
-      Promise.all([purgeExpiredRuns(), purgeUnusedStores(), compactLog()]),
+      Promise.all([purgeExpiredRuns(), purgeUnusedStores(), compactLog(), pruneLive()]),
     ).catch((err) => console.error(`[retention ${id}]`, err));
   }
 }

@@ -892,6 +892,25 @@ export const syncChange = sqliteTable(
   ],
 );
 
+/**
+ * Live changes (docs/plans/live-changes.md): triggers (`db/live-triggers.ts`) number every write
+ * to an item a studio shows, pulled ones too, so an open studio hears of it. Kept 15 minutes.
+ */
+export const liveChange = sqliteTable(
+  "live_change",
+  {
+    seq: integer("seq").primaryKey({ autoIncrement: true }),
+    projectId: text("project_id"),
+    kind: text("kind").notNull(),
+    /** `put` or `del`. */
+    op: text("op").notNull(),
+    item: text("item").notNull(),
+    parent: text("parent"),
+    at: integer("at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [index("live_change_at").on(t.at)],
+);
+
 /** One row: `applying` is 1 while an install writes what it pulled, so the triggers note none of it. */
 export const syncGuard = sqliteTable("sync_guard", {
   id: integer("id").primaryKey(),
