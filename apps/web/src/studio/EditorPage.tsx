@@ -53,6 +53,8 @@ import { RunsPanel } from "./editor/RunsPanel";
 import { ShareDialog } from "./editor/ShareDialog";
 import { ResultPageOpener } from "./editor/share";
 import { LiveChip, useLiveDraft } from "./live";
+import { PresenceStack, useAlsoHere } from "./live/PresenceStack";
+import { useReportPresence } from "./live/presence";
 import { pageAddress, pageUrl } from "./project/page-address";
 import { WizardMenu } from "./WizardMenu";
 import { WhereChip, whereItRuns } from "./where";
@@ -424,7 +426,23 @@ function Editor() {
       failed,
     };
   }, [drawerRun, runView]);
-  const { save, saving, remote, merged, refused } = useLiveDraft(id);
+  const { save: saveDraft, saving, remote, merged, refused } = useLiveDraft(id);
+  // Who else is in this wizard, and the step this tab works on (studio/live).
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    if (!typing) {
+      return;
+    }
+    const timer = setTimeout(() => setTyping(false), 10_000);
+    return () => clearTimeout(timer);
+  }, [typing]);
+  const save = useCallback(
+    (draft: Parameters<typeof saveDraft>[0]) => {
+      setTyping(true);
+      saveDraft(draft);
+    },
+    [saveDraft],
+  );
   const projects = useProjects();
 
   const chat = useArchitectChat(wizard.data, (draft, revision) => {
@@ -501,6 +519,18 @@ function Editor() {
     [wizard.data?.issues],
   );
 
+  const here = wizard.data?.draft.steps.find((s) => s.id === selected);
+  useReportPresence("wizard", id, {
+    state: typing ? "editing" : "viewing",
+    place: here ? `step:${here.id}` : null,
+    placeLabel: here ? t("presence.step", { title: here.title }) : null,
+  });
+  const alsoHere = useAlsoHere(
+    "wizard",
+    id,
+    me.data?.user.id,
+    typing && here ? `step:${here.id}` : null,
+  );
   if (wizard.isLoading || !me.data) {
     return (
       <div className="flex flex-1 items-center justify-center text-ink-4">
@@ -959,8 +989,13 @@ function Editor() {
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {/* Where it runs and in which version, beside sharing it. */}
           <span className="hidden shrink-0 xl:inline-flex">
-            <LiveChip remote={remote} merged={merged} />
+            {alsoHere ? (
+              <Chip>{t("presence.alsoHere", { name: alsoHere.name })}</Chip>
+            ) : (
+              <LiveChip remote={remote} merged={merged} />
+            )}
           </span>
+          <PresenceStack kind="wizard" item={id} me={me.data.user.id} />
           <span className="hidden shrink-0 sm:inline-flex">
             {w.published ? (
               <WhereChip

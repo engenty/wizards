@@ -24,16 +24,30 @@ export const presenceLive: LiveBinding[] = [
       if (!c.parent) {
         return;
       }
-      qc.setQueryData(
-        keys.presence(c.parent, c.item.slice(c.parent.length + 1)),
-        (c.view as PresenceEntry[] | undefined) ?? [],
-      );
+      const item = c.item.slice(c.parent.length + 1);
+      const now = (c.view as PresenceEntry[] | undefined) ?? [];
+      qc.setQueryData(keys.presence(c.parent, item), now);
+      qc.setQueryData<Record<string, PresenceEntry[]>>(keys.presentItems(c.parent), (all) => {
+        if (!all) {
+          return all;
+        }
+        const next = { ...all };
+        if (now.length) {
+          next[item] = now;
+        } else {
+          delete next[item];
+        }
+        return next;
+      });
     },
-    fallback: (c) => (c.parent ? [keys.presence(c.parent, c.item.slice(c.parent.length + 1))] : []),
+    fallback: (c) =>
+      c.parent
+        ? [keys.presence(c.parent, c.item.slice(c.parent.length + 1)), keys.presentItems(c.parent)]
+        : [],
   },
 ];
 
-/** Who else is in the item: not this tab. */
+/** Who else is in the item: not this person, in this tab or another one. */
 export function usePresence(kind: PresenceKind, item: string | undefined, me?: string) {
   const live = useFeature("liveChanges");
   const query = useQuery({
@@ -43,7 +57,18 @@ export function usePresence(kind: PresenceKind, item: string | undefined, me?: s
     // The stream keeps it fresh; this is for when it is down.
     refetchInterval: 60_000,
   });
-  return (query.data ?? []).filter((e) => !(e.who === me && e.tab === TAB));
+  return (query.data ?? []).filter((e) => e.who !== me);
+}
+
+/** Who is in each item of a kind: a dot on a card while someone works in it. */
+export function usePresentItems(kind: PresenceKind) {
+  const live = useFeature("liveChanges");
+  return useQuery({
+    queryKey: keys.presentItems(kind),
+    queryFn: () => api.get<Record<string, PresenceEntry[]>>(`/api/studio/presence/${kind}`),
+    enabled: live,
+    refetchInterval: 60_000,
+  }).data;
 }
 
 const HEARTBEAT_MS = 20_000;

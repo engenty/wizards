@@ -3,6 +3,7 @@ import type {
   NumberStyle,
   TableColumn,
 } from "@engenty/wizards-shared/engenty/data-tables";
+import type { PresenceEntry } from "@engenty/wizards-shared/live";
 import {
   columnIdOf,
   type SpaceTable,
@@ -15,6 +16,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../../lib/api";
 import { type Key, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
+import { useMe } from "../../lib/session";
 import {
   Button,
   Card,
@@ -29,6 +31,8 @@ import {
 } from "../../ui";
 import { SyncNotice } from "../CloudSync";
 import { useLiveFlash } from "../live/index";
+import { PresenceStack, presenceColor, presenceLine } from "../live/PresenceStack";
+import { usePresence, useReportPresence } from "../live/presence";
 import { KnowledgeHeader } from "./Knowledge";
 
 const MS: Record<DurationUnit, number> = {
@@ -487,17 +491,35 @@ function ColumnDialog({
 }
 
 /**
+ * A row of the table: it lights up for a moment when it changed elsewhere, and shows an edge in
+ * the colour of whoever else edits it now (studio/live).
+ */
+function LiveRow({
+  id,
+  by,
+  children,
+}: {
+  id: string;
+  by: PresenceEntry | undefined;
+  children: ReactNode;
+}) {
+  const flash = useLiveFlash(id);
+  return (
+    <tr
+      data-row={id}
+      title={by ? presenceLine(by) : undefined}
+      className={cn("group border-border-soft border-b last:border-b-0", flash)}
+      style={by ? { boxShadow: `inset 3px 0 0 ${presenceColor(by.who)}` } : undefined}
+    >
+      {children}
+    </tr>
+  );
+}
+
+/**
  * A table of the space: its columns across the top, a row per line, every cell typed into in
  * place and saved when the person leaves it. The heading of a column opens what it is.
  */
-
-/** A row of the table: it lights up for a moment when it changed elsewhere (studio/live). */
-function LiveRow({ id, children }: { id: string; children: ReactNode }) {
-  const flash = useLiveFlash(id);
-  return (
-    <tr className={cn("group border-border-soft border-b last:border-b-0", flash)}>{children}</tr>
-  );
-}
 
 export function TableEditor({
   tableId,
@@ -518,6 +540,22 @@ export function TableEditor({
   const [bad, setBad] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   useEffect(() => setTitle(table.data?.title ?? ""), [table.data?.title]);
+  // Who else is here, and which row this tab edits: a cell with the focus.
+  const me = useMe().data?.user.id;
+  const [inRow, setInRow] = useState<string | null>(null);
+  useReportPresence("table", tableId, {
+    state: inRow ? "editing" : "viewing",
+    place: inRow ? `row:${inRow}` : null,
+    placeLabel: inRow
+      ? t("data.rowN", { n: (table.data?.rows.findIndex((r) => r.id === inRow) ?? 0) + 1 })
+      : null,
+  });
+  const others = usePresence("table", tableId, me);
+  const rowsEdited = new Map(
+    others
+      .filter((e) => e.state === "editing" && e.place?.startsWith("row:"))
+      .map((e) => [e.place?.slice(4) ?? "", e] as const),
+  );
   const listed = async () => {
     await qc.invalidateQueries({ queryKey: keys.spaceData(table.data?.projectId) });
     await qc.invalidateQueries({ queryKey: keys.knowledge(table.data?.projectId) });
@@ -607,6 +645,7 @@ export function TableEditor({
           aria-label={t("data.title")}
           className="-ml-1 min-w-0 flex-1 rounded-md bg-transparent px-1 font-display font-semibold text-lg outline-none hover:bg-accent focus:bg-paper focus:ring-1 focus:ring-ring disabled:hover:bg-transparent"
         />
+        <PresenceStack kind="table" item={tableId} me={me} />
         {readOnly ? null : (
           <IconButton
             label={t("data.deleteTable")}
@@ -642,7 +681,13 @@ export function TableEditor({
       ) : null}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+          <table
+            className="w-full border-collapse text-left"
+            onFocus={(e) =>
+              setInRow(e.target.closest("tr[data-row]")?.getAttribute("data-row") ?? null)
+            }
+            onBlur={() => setInRow(null)}
+          >
             <thead>
               <tr className="border-border-soft border-b">
                 {columns.map((c) => (
@@ -679,7 +724,7 @@ export function TableEditor({
             </thead>
             <tbody>
               {rows.map((row) => (
-                <LiveRow key={row.id} id={row.id}>
+                <LiveRow key={row.id} id={row.id} by={rowsEdited.get(row.id)}>
                   {columns.map((c) => (
                     <td
                       key={c.id}

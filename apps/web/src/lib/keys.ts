@@ -23,4 +23,6 @@ export const keys = {
   cloudSync: () => ["cloud-sync"] as const,
   /** Who is in a wizard, page or table. */
   presence: (kind: string, item: string) => ["presence", kind, item] as const,
+  /** Who is in each item of a kind, for the lists. */
+  presentItems: (kind: string) => ["presence-all", kind] as const,
 };

@@ -3,13 +3,16 @@ import type { SpacePage } from "@engenty/wizards-shared/space-data";
 import { mergeText } from "@engenty/wizards-shared/text-merge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronRight, FileText, GitMerge, Plus, Trash2 } from "lucide-react";
-import { type MouseEvent, useState } from "react";
+import { type MouseEvent, useEffect, useState } from "react";
 import { ApiError, api } from "../../lib/api";
 import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
+import { useMe } from "../../lib/session";
 import { Button, Card, Chip, cn, IconButton, Spinner } from "../../ui";
 import { SyncNotice } from "../CloudSync";
 import { LiveConflict, type LiveEditor, useLiveEditor } from "../live/editor";
+import { PresenceStack, useAlsoHere, useEditingOthers } from "../live/PresenceStack";
+import { useReportPresence } from "../live/presence";
 import { type Autosave, fileUrl, useAutosave } from "./data";
 import { KnowledgeHeader } from "./Knowledge";
 
@@ -29,6 +32,28 @@ function Editor({
   // An empty page opens to be written; a written one opens to be read.
   const [view, setView] = useState<"write" | "read" | "original">(page.markdown ? "read" : "write");
   const know = page.knowledge;
+  const me = useMe().data?.user.id;
+  // Who else is here, and where this tab writes: the heading above the caret.
+  const [typing, setTyping] = useState(false);
+  const [place, setPlace] = useState<{ id: string; label: string } | null>(null);
+  useEffect(() => {
+    if (!typing) {
+      return;
+    }
+    const timer = setTimeout(() => setTyping(false), 10_000);
+    return () => clearTimeout(timer);
+  }, [typing, markdown, title]);
+  useReportPresence("page", page.id, {
+    state: typing ? "editing" : "viewing",
+    place: place?.id,
+    placeLabel: place?.label,
+  });
+  const alsoHere = useAlsoHere("page", page.id, me, typing ? place?.id : null);
+  const editingOthers = useEditingOthers("page", page.id, me);
+  const where = (e: { currentTarget: HTMLTextAreaElement }) => {
+    const head = headingAt(e.currentTarget.value, e.currentTarget.selectionStart);
+    setPlace((was) => (was?.id === head?.id ? was : head));
+  };
   const listed = async () => {
     await qc.invalidateQueries({ queryKey: keys.spaceData(page.projectId) });
     await qc.invalidateQueries({ queryKey: keys.knowledge(page.projectId) });
@@ -175,13 +200,21 @@ function Editor({
           value={title}
           disabled={readOnly}
           maxLength={200}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            setTyping(true);
+          }}
           aria-label={t("data.title")}
           className="-ml-1 min-w-0 flex-1 rounded-md bg-transparent px-1 font-display font-semibold text-lg outline-none hover:bg-accent focus:bg-paper focus:ring-1 focus:ring-ring disabled:hover:bg-transparent"
         />
         {live.notice === "merged" ? (
-          <Chip icon={<GitMerge className="size-3" />}>{t("editor.merged")}</Chip>
+          <Chip icon={<GitMerge className="size-3" />}>
+            {editingOthers[0]
+              ? t("editor.mergedWith", { name: editingOthers[0].name })
+              : t("editor.merged")}
+          </Chip>
         ) : null}
+        <PresenceStack kind="page" item={page.id} me={me} />
         {live.notice === "conflict" ? null : status.state === "saving" ? (
           <Spinner className="size-3.5 text-ink-3" />
         ) : status.state === "saved" ? (
@@ -199,6 +232,11 @@ function Editor({
           </IconButton>
         )}
       </div>
+      {alsoHere && live.notice !== "conflict" ? (
+        <p className="-mt-1 px-1 text-[0.8125rem] text-ink-3">
+          {t("presence.alsoHere", { name: alsoHere.name })}
+        </p>
+      ) : null}
       {live.notice === "conflict" ? (
         <div
           role="status"
@@ -255,7 +293,12 @@ function Editor({
         ) : view === "write" && !readOnly ? (
           <textarea
             value={markdown}
-            onChange={(e) => setMarkdown(e.target.value)}
+            onChange={(e) => {
+              setMarkdown(e.target.value);
+              setTyping(true);
+              where(e);
+            }}
+            onSelect={where}
             aria-label={page.title}
             placeholder={t("data.pageEmpty")}
             className="field-sizing-content min-h-[50vh] w-full resize-none bg-transparent p-4 font-mono text-[0.8125rem] leading-relaxed outline-none placeholder:text-ink-4 sm:p-5"
@@ -334,4 +377,16 @@ export function PageEditor({
       <Editor key={page.data.id} page={page.data} onGone={onGone} onOpen={onOpen} />
     </>
   );
+}
+
+/** The heading above a place in the text: the section someone writes in. */
+function headingAt(text: string, at: number): { id: string; label: string } | null {
+  const before = text.slice(0, at).split("\n");
+  for (let i = before.length - 1; i >= 0; i--) {
+    const m = /^#{1,6}\s+(.+?)\s*#*$/.exec(before[i] ?? "");
+    if (m?.[1]) {
+      return { id: `h:${m[1].toLowerCase()}`, label: m[1] };
+    }
+  }
+  return null;
 }
