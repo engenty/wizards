@@ -100,7 +100,7 @@ engenty-pro solved the browser half already, on Supabase.
 | Browser | Invalidate the module's `queryRoot`, debounced | Patch the cache; invalidate where no view came or the list is computed |
 | A dropped connection | Changes in between are lost | Caught up from `Last-Event-ID` |
 | Several tabs | One websocket each; websockets don't count against the 6 connections per site | One stream per browser, a leader tab passes it on |
-| Open editors | No merge; the refetch replaces the cached value | Merge at once (6) |
+| Open editors | No merge; the refetch replaces the cached value | Shown at once when nothing is unsaved; otherwise merged into the next autosave (6) |
 | Isolation | One channel per binding, so one broken table can't drop every module's subscription | A patcher that throws falls back to invalidating its keys and never stops the stream |
 | Writes by the AI | `agentToolIds`: invalidate when the tool call ends, before realtime arrives | Not needed: tools write on the server, and the write nudges the hub at once |
 | Debugging | `useLiveCache` always logs why it doesn't subscribe | The same, for 404, 429 and missing Web Locks |
@@ -142,7 +142,7 @@ the shape would be the same: the server sends a view, not a row.
   place. This moves the keys the feed touches; other keys move when their files are next
   changed.
 - **One live editor hook.** The page, table and wizard editors share `useLiveEditor({ key,
-  merge, save })`: the base, pending edits, a merge on a patch or a 409, and the chips.
+  merge, save })`: the base, pending edits, a held patch merged at autosave or on a 409, and the chips.
   `useLiveDraft` becomes this hook with `mergeDrafts`; the page uses `mergeText`, a table header
   `mergeJson`.
 - **One trigger generator** for `sync_change` and `live_change` (1).
@@ -391,24 +391,32 @@ write and the fallback. A test fails when a `LiveKind` has no binding.
 - **Fallback without a stream** (429, 404, an error): reload active queries on window focus,
   which TanStack Query does already with `refetchOnWindowFocus`. Nothing else polls.
 
-### 6. Open editors: merge, don't overwrite what someone is typing
+### 6. Open editors: don't overwrite what someone is typing
 
-A patch must never replace local edits that are not saved yet. Because the patch carries the new
-version, an open editor can merge at once, while the person types, instead of on its next save.
+A patch must never replace local edits that are not saved yet, and text must never move under
+the caret while someone types. The editors keep their autosave rhythm: a save 600 ms (wizard) or
+700 ms (page, table, `useAutosave`) after the last keystroke. A change from elsewhere fits into
+that rhythm.
 
 Every editor registers with the feed (`registerLiveEditor(kind, id, onPatch)`). For a registered
 item the patcher hands the view to the editor instead of writing the cache itself.
 
+- **No unsaved edits** (nothing typed since the last save): the patch is shown at once. The
+  caret stays in its paragraph, and the scroll position is kept.
+- **Unsaved edits:** the patch is held, and nothing on screen changes. When the autosave fires,
+  the editor merges first, `merge(base, mine, theirs)` with the held view as `theirs`, and saves
+  the result. That is the merge a 409 does today, minus the 409 and the extra GET, since the
+  new version is already here. Several patches while typing keep only the newest.
+- **A save that meets a newer version anyway** (a change still on its way) gets a 409, as
+  today, and merges the same way.
+
 - **Page editor** (`PageEditor.tsx`). It keeps the version it loaded or saved last as the base.
-  - No unsaved edits: the new text replaces what is shown. The caret stays in its paragraph, and
-    the scroll position is kept.
-  - Unsaved edits: `mergeText(base, mine, theirs)` (`packages/shared/src/text-merge.ts`) right
-    away. A clean merge shows the merged text with the chip "Merged with a change from
-    elsewhere". When the merge isn't clean, the person's text stays and the chip says "Changed
-    elsewhere", with "Show the new version" and the two-way sync's conflict card.
-  - The next save sends `baseUpdatedAt`. The server answers 409 when the page changed after that,
-    which covers a change that is still on its way. The editor then merges as above and saves
-    again.
+  - It merges with `mergeText` (`packages/shared/src/text-merge.ts`). A clean merge shows the
+    merged text with the chip "Merged with a change from elsewhere".
+  - When the merge isn't clean, the person's text stays and is not saved over the other
+    version. The chip says "Changed elsewhere", with "Show the new version" and the two-way
+    sync's conflict card.
+  - Saves send `baseUpdatedAt`, so the server can answer 409.
 - **Table editor** (`TableEditor.tsx`).
   - Rows patch one by one, so a run filling a table shows each row as it lands.
   - A cell being edited keeps what is typed in it; the other cells of that row update. When the
@@ -418,8 +426,9 @@ item the patcher hands the view to the editor instead of writing the cache itsel
   - Row saves send `baseUpdatedAt` per row, with 409 and a cell-level merge, as for a page.
 - **Wizard editor** (`useLiveDraft` in `live.tsx`). It has a revision and a 3-way merge
   (`mergeDrafts`) already.
-  - With the draft in the view, the patch goes through the same path as a 409: not busy, the draft
-    is replaced; busy, `mergeDrafts(base, pending, theirs)` runs at once.
+  - With the draft in the view, the patch follows the rule above. Not busy: the draft is
+    replaced. Busy (`timer`, `inflight` or `pending`): the view is held, and `flush()` runs
+    `mergeDrafts(base, pending, theirs)` before it saves.
   - A draft too big for the stream arrives without a view; the editor calls `refresh()`, as the
     draft stream does today.
   - The wizard's draft stream (`routes/wizard-stream.ts`) becomes redundant and is removed in the
@@ -473,7 +482,7 @@ minute.
 | 2 | `feat(runtime): live hub and studio stream` | `live/hub.ts`, `GET /api/studio/live`, nudges in `app.ts` and `applyItems`, limits, 30 min lifetime, flag. Items without views yet | A write through a second libSQL client on the same file (another process) arrives within 1.5 s. A nudge arrives at once. Catch-up from `Last-Event-ID`. `reset` on a pruned gap, on a foreign cursor and on a burst over 1000 rows. 429 beyond the limit. 404 with the flag off |
 | 3 | `feat(runtime): live changes carry the item's view` | `live/views.ts` registry, the GET routes of those items moved onto it, `getRow`, the table header without rows, views per role, size limits, put-to-del when gone | Every `LiveKind` has a view. The routes' existing tests pass unchanged. A member and an admin get their own `readOnly`. A view over 64 KB goes without. A batch stays under 512 KB |
 | 4 | `feat(web): studio patches what changed elsewhere` | `lib/keys.ts` factories for the keys the feed touches, `lib/optimistic.ts` (`beginOptimisticUpdate`), `LiveBinding` per area, `live-feed.ts` (leader tab, BroadcastChannel, watchdog), `live-patch.ts`, `createDebouncedInvalidator`, newer-wins, highlight, mount in `AppFrame`, `useSyncAction` and `useCloudSync` changes | Every `LiveKind` has a binding. A patched list sends no request. An older view never replaces a newer cache entry, also against a GET in flight. A patcher that throws falls back to invalidating. 200 rows arrive as one update. One stream for two tabs (Playwright) |
-| 5 | `feat(web): page and table editors merge changes from elsewhere while open` | `useLiveEditor`, `registerLiveEditor`, live merge with `mergeText` and `mergeJson`, `baseUpdatedAt` and 409 on page, table and row saves, chips | An own save changes nothing on screen. A change elsewhere with no edits here shows at once, caret kept. With edits here it merges at once; an unclean merge keeps mine and asks. A cell being typed in is never overwritten |
+| 5 | `feat(web): page and table editors take changes from elsewhere while open` | `useLiveEditor`, `registerLiveEditor`, held patches merged at autosave with `mergeText` and `mergeJson`, `baseUpdatedAt` and 409 on page, table and row saves, chips | An own save changes nothing on screen. A change elsewhere with no edits here shows at once, caret kept. With edits here nothing moves while typing; the change is merged into the next autosave. An unclean merge keeps mine and asks. A cell being typed in is never overwritten |
 | 6 | `refactor(studio): the wizard editor follows the live feed` | `useLiveDraft` rebuilt on `useLiveEditor` with `mergeDrafts`, `refresh()` for drafts without a view, the draft stream removed | Existing `live.tsx` tests pass on the feed. A draft written by a second process reaches the open editor |
 | 7 | `feat(runtime): a computer follows the cloud's changes` | `GET /api/v1/sync/live`, the computer's connection and coalesced pulls, origin skip, contract doc | A cloud edit reaches the computer's open page within 2 s (two processes, as in `sync.test.ts`). A computer's own push is not pulled back. After a drop the connection resumes from its cursor |
 | 8 | `feat(studio): live changes` | Flips `liveChanges`, user guide section | Run end to end with `node apps/runtime/scripts/dev-two-way.mjs`: a page edited in the cloud's studio shows up in the computer's open page without a request, and the other way round |
