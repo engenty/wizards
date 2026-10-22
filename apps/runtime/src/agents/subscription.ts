@@ -83,7 +83,7 @@ function ownCursorServers(): string[] {
 }
 
 const SYSTEM = (wizardId: string) =>
-  `${prompt("architect", "subscription.system", { wizard_id: wizardId })}\n${contentPolicy()}`;
+  `${prompt("architect", "persona")}\n\n${prompt("architect", "subscription.system", { wizard_id: wizardId })}\n\n${contentPolicy()}`;
 
 const BUILDING = /edit_wizard|write_wizard|write_file|delete_file|create_wizard/;
 
