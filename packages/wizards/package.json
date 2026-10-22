@@ -45,7 +45,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "lucide-react": "^1.49.0",
     "marked": "^18.0.14",
     "pdfmake": "0.3.11",
