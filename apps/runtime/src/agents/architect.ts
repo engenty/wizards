@@ -102,7 +102,7 @@ function systemPrompt(
     connectors: connectorsLine(connectors),
     plugin_tools: pluginToolsLine(pluginTools),
     example: exampleWizard(),
-    how_you_work: `${prompt("architect", "how_you_work")}\n${prompt("architect", "hello")}`,
+    how_you_work: prompt("architect", "how_you_work"),
   })}\n\n${contentPolicy()}`;
 }
 
