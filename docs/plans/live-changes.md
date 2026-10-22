@@ -3,8 +3,8 @@
 A technical plan, 2026-10-21. No code changes yet. It builds on the change log of the two-way sync
 ([tenant-sync.md](tenant-sync.md)).
 
-The goal: an open studio view shows a change soon after it is written, without a reload. That
-holds whoever wrote it:
+The goal: an open studio view shows a change soon after it is written. The change is written into
+what is on screen; nothing is fetched again and nothing flickers. That holds whoever wrote it:
 
 - another tab or another member in the cloud;
 - a run in the runner process (shared lists);
@@ -16,15 +16,27 @@ holds whoever wrote it:
 
 **Build it on our own database, with no new service.** Triggers fill a small numbered feed per
 tenant (`live_change`). Each studio process watches the feed of the tenants that have a stream
-open and sends the changed ids to the browser over one SSE stream per browser. The browser then
-reloads the affected react-query keys. Phase 2 lets a computer follow the cloud's feed, so a
-change made in the cloud reaches the computer in about a second instead of up to a minute.
+open. For every changed item it reads the item's current view, the same JSON the studio's GET
+route returns, and sends it to the browser over one SSE stream per browser. The browser writes
+that view straight into the TanStack Query cache (`setQueryData`), so the screen changes in place.
+Phase 2 lets a computer follow the cloud's feed, so a change made in the cloud reaches the
+computer in about a second instead of up to a minute.
+
+**The studio already uses TanStack Query** (`@tanstack/react-query` 5, about 50 files). Writing
+into its cache is how the wizard editor's draft stream (`studio/live.tsx`) and the table editor's
+row saves (`TableEditor.tsx`) work today. Live changes do the same for every kind.
 
 **What engenty-pro does, and what we take from it.** Supabase Realtime announces row changes, and
 the app reloads the affected data after a short wait. It does not patch the screen with the
-change. Changes made while the connection was down are lost. We keep "announce, then reload",
-since it keeps every read going through the normal API and its role checks. Because our changes
-are numbered, a reconnect catches up on what it missed.
+change. Changes made while the connection was down are lost. We go one step further and patch.
+Two things stay safe:
+
+- **Reads keep their checks.** The view is built by the same service function as the GET route,
+  with the subscriber's role, so a stream never shows more than a reload would.
+- **Nothing is lost.** Changes are numbered, so a reconnect catches up on what it missed.
+
+A reload is still the fallback, item by item, where a patch can't be made (see "When the stream
+sends no view").
 
 **libSQL and Turso have no change feed of their own.** Everything here is plain SQLite, so it
 works the same on a file and on Turso.
@@ -34,7 +46,7 @@ works the same on a file and on Turso.
 | Piece | Where | Use for live changes |
 | --- | --- | --- |
 | `sync_change`, triggers on 13 tables | `migrations/tenant/0022_sync.sql`, `sync/log.ts` | The pattern to copy, but not the feed itself (see below) |
-| Draft stream of one wizard | `routes/wizard-stream.ts`, `services/draft-events.ts`, web `studio/live.tsx` | Stays. It is in-process, wizards only, and keyed by wizard and not tenant |
+| Draft stream of one wizard | `routes/wizard-stream.ts`, `services/draft-events.ts`, web `studio/live.tsx` | Replaced by the feed in PR 6. It is in-process, wizards only, and keyed by wizard and not tenant |
 | Run stream with a 1 s DB poll | `engine/events.ts` (`watchRun`) | The pattern for catching writes of other processes |
 | Plugin events (local) | `routes/plugins.ts:164`, web `plugins/host.tsx:482` | Folds into the feed later |
 | Pull before studio loads, push after writes | `app.ts` (`STUDIO_LOADS`), `sync/client.ts` | Stays. Live changes make the 5 s load pull less needed but don't replace it |
@@ -67,19 +79,25 @@ In-process events alone would miss these writes, so the feed has to come from th
  any writer (studio, runner, doors, sync pull/push, MCP)
         │ INSERT/UPDATE/DELETE
         ▼
- tenant db ── triggers ──► live_change (seq, project_id, kind, item, parent, at)
+ tenant db ── triggers ──► live_change (seq, project_id, kind, op, item, parent, at)
                                  ▲
              poll max(seq) 1 s ──┘  (one poller per tenant per process, only while streams are open)
              nudge: right after a write in this process
         │
         ▼
- LiveHub (runtime, per process) ── fan-out ──► GET /api/studio/live  (SSE, id = seq)
-                                                     │
-                                                     ▼
-                                  browser leader tab (Web Locks) ── BroadcastChannel ──► other tabs
-                                                     │
-                                                     ▼
-                                  key map: kind → react-query keys → invalidate (active refetch)
+ LiveHub (runtime, per process)
+   dedupe by item ──► views: read each item's current view, once per role ──► fan-out
+        │
+        ▼
+ GET /api/studio/live  (SSE, id = seq; items carry their view)
+        │
+        ▼
+ browser leader tab (Web Locks) ── BroadcastChannel ──► other tabs
+        │
+        ▼
+ patchers: kind → setQueryData on detail and list keys (upsert, remove)
+           newer-wins by updatedAt / revision; open editors merge
+           no view, or a computed list → invalidate that one key
 ```
 
 ### 1. The feed table: `live_change`
@@ -91,6 +109,7 @@ CREATE TABLE live_change (
   seq        integer PRIMARY KEY AUTOINCREMENT NOT NULL,
   project_id text,               -- null for tenant-wide items (none today)
   kind       text NOT NULL,      -- LiveKind, see below
+  op         text NOT NULL,      -- 'put' (insert or update) or 'del'
   item       text NOT NULL,      -- the changed row's id
   parent     text,               -- table id for a row, wizard id for a translation or message
   at         integer DEFAULT (unixepoch() * 1000) NOT NULL
@@ -110,6 +129,9 @@ CREATE INDEX live_change_at ON live_change (at);
     `SELECT (SELECT project_id FROM space_table WHERE id = new.table_id), 'row', new.id, new.table_id`.
   - **`project` changes log as kind `space`**, with `item` the project id. They cover brand and
     theme, which live on the project.
+  - **`op` is `del`** only when the item itself is deleted. A delete of a wizard's file or a
+    category's value logs a `put` of its wizard or category, since that item still exists and
+    changed.
 - **Kinds.** The kinds and `item` ids are those of 0022: a wizard's files log as `wizard`,
   values and assignments of a category as `category`. `LiveKind` in `packages/shared/src/live.ts`
   starts equal to `SyncKind`. It is its own type so a kind can later be live without syncing.
@@ -127,7 +149,14 @@ There is one hub per process. It keeps a map `tenantId → TenantFeed` that hold
 at least one open stream.
 
 ```ts
-interface LiveItem { kind: LiveKind; item: string; projectId: string | null; parent: string | null }
+interface LiveItem {
+  kind: LiveKind;
+  op: "put" | "del";
+  item: string;
+  projectId: string | null;
+  parent: string | null;
+  view?: LiveView;   // the item's current view, for a put; see "Views" below
+}
 interface LiveBatch { seq: number; items: LiveItem[] }
 
 export function subscribe(tenantId: string, since: number, send: (e: LiveEvent) => void): () => void;
@@ -154,23 +183,56 @@ export function newestSeq(): Promise<number>;      // in the current tenant cont
     reads its own catch-up once, then joins the shared tick.
 - **Bursts.** A tick with more than 1000 rows, or a catch-up with more than 1000, sends `reset`
   instead of the items. The browser then reloads everything that is open. Batches are deduped by
-  `(kind, item)` before they are sent.
+  `(kind, item)` before they are sent; the last `op` wins.
 - **End.** When the last subscriber of a tenant leaves, its loop stops and the feed is dropped.
+
+### 2a. Views: the change itself, `apps/runtime/src/live/views.ts`
+
+After a batch is deduped, the hub reads the current view of every `put` item. A view is exactly
+what the studio's GET route for that item returns, built by the same service function, so the
+browser can put it into the cache unchanged.
+
+| Kind | View | Built by |
+| --- | --- | --- |
+| `space` | `Project` (as in the `projects` list) | the function behind `GET /projects` |
+| `wizard` | `WizardSummary` (lists) and, when it fits, `WizardDetail` | `listWizards` and the `GET /wizards/:id` handler |
+| `translation` | the wizard's translations | the `GET /wizards/:id/translations` handler |
+| `message` | none: the wizard's chat is fetched again when open | — |
+| `page` | `SpacePage` | `getPage` |
+| `table` | `SpaceTable` without `rows` (columns, title, settings) | `getTable`, split so the header reads without rows |
+| `row` | `SpaceTableRow` plus `tableId` | a new `getRow`, the row half of `getTable` |
+| `category` | the category with its values | the knowledge service |
+| `file` | the file's entry (name, size, type, `updatedAt`), never its bytes | the `GET /projects/:id/files` handler |
+| `connector` | `ConnectorView` | the `GET /projects/:id/connectors` handler |
+
+- **The reader's role.** Views differ by role only, for example `readOnly` on a page
+  (`projectWritable`). The hub builds each view once per role among the open streams of the
+  tenant, inside `asRole(role, …)`, so a batch costs at most four reads per item. A test checks
+  that two people with the same role get the same view.
+- **State, not history.** A view is read when the batch is sent, not when the write happened. An
+  item that changed five times sends its newest state once. A catch-up after a reconnect sends
+  the current state of everything that changed in the gap. That is what the screen needs.
+- **Size.** A view over 64 KB of JSON is sent without `view` (a long page, a big wizard
+  draft). A batch carries at most 512 KB of views; the items after that go without. Those items
+  are fetched again by the browser, one key each.
+- **Gone in between.** A `put` whose item was deleted before its view was read becomes a `del`.
+- **Errors.** A view that fails to build is sent without `view` and logged. A stream never fails
+  because of one item.
 
 ### 3. The stream: `GET /api/studio/live`
 
 - **Auth.** This route sits behind the `/api/studio/*` middleware: principal, suspended check,
   `withTenant`, `asRole`. Every member of a tenant may read every space (`services/access.ts` has
   roles, not per-space reads), so there is nothing to filter per person.
-  - The feed carries ids only, never content. The reload goes through the normal routes and their
-    checks.
-  - If per-space access comes later, the hub filters by `projectId` here.
+  - The feed table holds ids only. The content a stream sends is the view of 2a, built with the
+    reader's role by the same functions as the GET routes, so it passes the same checks.
+  - If per-space access comes later, the hub filters by `projectId` here, before views are built.
 - **Cursor.** The cursor is the `Last-Event-ID` header (the browser's EventSource resends it
   after a drop) or `?since=`. With no cursor, the stream starts at the newest `seq` and sends no
   backlog.
 - **Events** (`streamSSE`, `id:` set to the `seq` on `changes`):
   - `hello {seq}`: the newest `seq` at connect.
-  - `changes {seq, items: LiveItem[]}`.
+  - `changes {seq, items: LiveItem[]}`, with `view` on the `put` items that have one.
   - `reset {seq}`. It is sent when:
     - the cursor is older than the oldest row kept and more than 0 rows were pruned in between;
     - the cursor is higher than the newest `seq` (another database);
@@ -207,60 +269,90 @@ waiting.
 - **Mounting.** `useLiveFeed()` is mounted once in `AppFrame`. It is off when the feature is off
   or the stream answered 404 (an older runtime).
 
-### 5. Browser: from ids to reloads
+### 5. Browser: patch the cache
 
-A key map in `apps/web/src/studio/live-keys.ts` lists the query keys per kind. A test fails when
-a `LiveKind` has no entry.
+`apps/web/src/studio/live-patch.ts` holds one patcher per kind. A patcher takes an item and writes
+it into every cached query that holds it, with `setQueryData`. A test fails when a `LiveKind` has
+no patcher.
 
-| Kind | Invalidated keys |
-| --- | --- |
-| `space` | `["projects"]`, `["themes", projectId]`, `["knowledge", projectId]` |
-| `wizard` (also its files, as in 0022) | `["wizards", projectId]`, `["project-wizards", projectId]`, `["wizard", item]` (see 6) |
-| `translation`, `message` | `["wizard-translations", parent]`, `["wizard", parent]` (see 6) |
-| `page` | `["space-page", item]`, `["knowledge", projectId]` |
-| `table` | `["space-table", item]`, `["knowledge", projectId]`, `["space-data", projectId]` |
-| `row` | `["space-table", parent]`, `["space-data", projectId]` |
-| `category` (with values, assignments) | `["knowledge", projectId]` (prefix: category and value views), `["knowledge-value"]` |
-| `file` (`project_file`) | `["project-files", projectId]`, `["project-file-text"]` |
-| `connector` | `["connectors", projectId]` |
-| event `sync` | `["cloud-sync"]` |
-| event `reset` | every active query under `/api/studio` |
+| Kind | Patched in place | Fetched again (computed lists) |
+| --- | --- | --- |
+| `space` | `["projects"]`: replace the space; `del` removes it | `["themes", projectId]` |
+| `wizard` | `["wizards", projectId]`, `["project-wizards", projectId]`: upsert the summary, `del` removes it. `["wizard", item]`: see 6 | — |
+| `translation` | `["wizard-translations", parent]` | — |
+| `message` | — | `["wizard", parent]` while its chat is open |
+| `page` | `["space-page", item]` (see 6) | `["knowledge", projectId]` when the title or place changed |
+| `table` | `["space-table", item]`: replace the header, keep `rows` | `["knowledge", projectId]`, `["space-data", projectId]` when the title changed |
+| `row` | `["space-table", parent]`: upsert the row by id in its place, `del` removes it | `["space-data", projectId]` (row counts) |
+| `category` | the category's own view | `["knowledge", projectId]`, `["knowledge-value"]` |
+| `file` | `["project-files", projectId]`: upsert the entry | `["project-file-text", item]` |
+| `connector` | `["connectors", projectId]`: upsert, `del` removes it | — |
+| event `sync` | — | `["cloud-sync"]` |
+| event `reset` | — | every active query under `/api/studio` |
 
-- **Invalidation.** It runs with `refetchType: "active"`. Only what is on screen reloads now;
-  the rest is marked stale and reloads when it is next shown.
-- **Coalescing.** Items are collected for 250 ms and deduped by key. A run writing 200 rows into
-  one table causes one reload of that table.
+- **Computed lists are fetched again.** The knowledge tree, the space's data overview and the
+  themes are built by the server from many items (counts, order, nesting). Rebuilding them in the
+  browser would copy server logic, so the patcher invalidates them instead, with `refetchType:
+  "active"`. Only what is on screen is fetched; the rest is marked stale. This is one small GET,
+  and the item views themselves are already patched.
+- **Newer wins.** A patch is skipped when the cached item is as new or newer: by `updatedAt` for
+  pages, tables, rows, files, spaces and connectors, by `revision` for a wizard. That turns the
+  echo of one's own save into nothing. A GET that was already running when a patch arrives can't
+  bring an older state back: the patcher calls `cancelQueries` on the detail key first and starts
+  the GET again if it was running.
+- **Order in lists.** Upserts keep an item where it was. A new item goes where the server sorts
+  it, using the same comparator as the route (`packages/shared`), or the list is fetched again
+  when the route's order can't be known in the browser.
+- **No view** (too big, failed, or `message`): the patcher invalidates that item's detail key.
+  Only this item is fetched again.
+- **Coalescing.** Items are collected for 100 ms and the last state per item is applied in one go,
+  inside one React batch. A run writing 200 rows into one table updates the open table once, with
+  no request.
+- **Seeing it.** A row, card or list entry that a patch changed gets a short highlight (a 1.5 s
+  background fade, none with `prefers-reduced-motion`), so a change made elsewhere is noticed.
 - **`useSyncAction`.** Its own invalidation list goes away; the feed does it.
 - **`useCloudSync`.** Its `refetchInterval` goes from 20 s to 120 s, as a fallback only.
 - **Fallback without a stream** (429, 404, an error): reload active queries on window focus,
-  which react-query does already with `refetchOnWindowFocus`. Nothing else polls.
+  which TanStack Query does already with `refetchOnWindowFocus`. Nothing else polls.
 
-### 6. Open editors: don't overwrite what someone is typing
+### 6. Open editors: merge, don't overwrite what someone is typing
 
-A reload must never replace local edits that are not saved yet.
+A patch must never replace local edits that are not saved yet. Because the patch carries the new
+version, an open editor can merge at once, while the person types, instead of on its next save.
 
-- **Wizard editor.** `useLiveDraft` has a revision, a 3-way merge on 409 and its own stream. The
-  feed does not invalidate `["wizard", id]` while an editor has it open. It calls the editor's
-  `refresh()` instead, through a small registry (`registerLiveDraft(id, refresh)` in
-  `live.tsx`). `refresh()` already keeps unsaved edits and does nothing when the revision is the
-  same.
-  - This also covers what the draft stream misses: a draft written by another studio replica.
-  - The draft stream stays for now. Folding it into the feed is a later clean-up.
-- **Page and table editors.** These are last-writer-wins today, with no revision.
-  - When a change for the open item arrives and the editor has no unsaved edits, it reloads
-    silently. When the server's `updated_at` equals the one the editor saved last, the change
-    was its own save, and nothing happens.
-  - With unsaved edits, the editor keeps them and shows the live chip of the wizard editor:
-    "Changed elsewhere", with "Show the new version". The next save then sends
-    `baseUpdatedAt`. A 409 merges:
-    - a page body with `mergeText` (`packages/shared/src/text-merge.ts`);
-    - a table's columns and settings with `mergeJson`;
-    - rows one by one, since each row is its own record.
-    When the merge is not clean, the editor asks, with the two-way sync's conflict card.
-  - This closes the gap the two-way sync plan lists: "an open page or table does not refresh
-    live".
-- **Lists** (spaces, wizards, knowledge, files, connectors). These have no local edits and simply
-  reload.
+Every editor registers with the feed (`registerLiveEditor(kind, id, onPatch)`). For a registered
+item the patcher hands the view to the editor instead of writing the cache itself.
+
+- **Page editor** (`PageEditor.tsx`). It keeps the version it loaded or saved last as the base.
+  - No unsaved edits: the new text replaces what is shown. The caret stays in its paragraph, and
+    the scroll position is kept.
+  - Unsaved edits: `mergeText(base, mine, theirs)` (`packages/shared/src/text-merge.ts`) right
+    away. A clean merge shows the merged text with the chip "Merged with a change from
+    elsewhere". When the merge isn't clean, the person's text stays and the chip says "Changed
+    elsewhere", with "Show the new version" and the two-way sync's conflict card.
+  - The next save sends `baseUpdatedAt`. The server answers 409 when the page changed after that,
+    which covers a change that is still on its way. The editor then merges as above and saves
+    again.
+- **Table editor** (`TableEditor.tsx`).
+  - Rows patch one by one, so a run filling a table shows each row as it lands.
+  - A cell being edited keeps what is typed in it; the other cells of that row update. When the
+    edit is saved, the server's version of the row comes back and wins for the other cells.
+  - Columns and settings merge with `mergeJson` against the editor's base; a clash on the same
+    column asks, as for a page.
+  - Row saves send `baseUpdatedAt` per row, with 409 and a cell-level merge, as for a page.
+- **Wizard editor** (`useLiveDraft` in `live.tsx`). It has a revision and a 3-way merge
+  (`mergeDrafts`) already.
+  - With the draft in the view, the patch goes through the same path as a 409: not busy, the draft
+    is replaced; busy, `mergeDrafts(base, pending, theirs)` runs at once.
+  - A draft too big for the stream arrives without a view; the editor calls `refresh()`, as the
+    draft stream does today.
+  - The wizard's draft stream (`routes/wizard-stream.ts`) becomes redundant and is removed in the
+    same PR. It is in-process only and so misses drafts written by another process; the feed
+    doesn't.
+- This closes the gap the two-way sync plan lists: "an open page or table does not refresh
+  live".
+- **Lists** (spaces, wizards, knowledge, files, connectors). These have no local edits and are
+  patched or fetched again as in 5.
 
 ### 7. Phase 2: a computer follows the cloud
 
@@ -276,7 +368,8 @@ minute.
     `state` (`sync:live-seq`).
   - On `changes` it runs `syncSpace(id, "pull")` for each listed space it syncs, at most once
     per 2 s per space (single-flight, as today).
-  - The pull writes, the computer's own feed logs it, and the open screen reloads.
+  - The pull writes, the computer's own feed logs it, and the open screen is patched like any
+    other change.
 - **The cloud's side.** The call skips changes the install just pushed: the hub tags items
   written by a push with the pushing client. Without that, every push would come back as a pull
   of nothing.
@@ -300,15 +393,19 @@ minute.
 
 | # | PR | Contents | Tests |
 | --- | --- | --- | --- |
-| 1 | `feat(runtime): live change feed in the tenant database` | `0023_live_change`, generated triggers, `parent`, pruning in the purge, `LiveKind` in shared | Triggers log every table and op with the right `parent`. `quietly()` writes are still logged. Pruning keeps 15 minutes |
-| 2 | `feat(runtime): live hub and studio stream` | `live/hub.ts`, `GET /api/studio/live`, nudges in `app.ts` and `applyItems`, limits, 30 min lifetime, flag | A write through a second libSQL client on the same file (another process) arrives within 1.5 s. A nudge arrives at once. Catch-up from `Last-Event-ID`. `reset` on a pruned gap, on a foreign cursor and on a burst over 1000 rows. 429 beyond the limit. 404 with the flag off |
-| 3 | `feat(web): studio reloads what changed elsewhere` | `live-feed.ts` (leader tab, BroadcastChannel, watchdog), `live-keys.ts`, mount in `AppFrame`, `useSyncAction` and `useCloudSync` changes | Every `LiveKind` has keys. Coalescing turns 200 rows into one reload. One stream for two tabs (Playwright) |
-| 4 | `feat(web): page and table editors keep edits when the item changes elsewhere` | `baseUpdatedAt` and 409 on page and table saves, merge with `mergeText` and `mergeJson`, live chip, wizard editor bridge | An own save causes no reload. A change elsewhere with no edits here reloads. With edits here it shows the chip and merges on save. An unclean merge asks |
-| 5 | `feat(runtime): a computer follows the cloud's changes` | `GET /api/v1/sync/live`, the computer's connection and coalesced pulls, origin skip, contract doc | A cloud edit reaches the computer's open page within 2 s (two processes, as in `sync.test.ts`). A computer's own push is not pulled back. After a drop the connection resumes from its cursor |
-| 6 | `feat(studio): live changes` | Flips `liveChanges`, user guide section | Run end to end with `node apps/runtime/scripts/dev-two-way.mjs`: a page edited in the cloud's studio shows up in the computer's open page, and the other way round |
+| 1 | `feat(runtime): live change feed in the tenant database` | `0023_live_change`, generated triggers, `op`, `parent`, pruning in the purge, `LiveKind` in shared | Triggers log every table and op with the right `parent` and `op`. `quietly()` writes are still logged. Pruning keeps 15 minutes |
+| 2 | `feat(runtime): live hub and studio stream` | `live/hub.ts`, `GET /api/studio/live`, nudges in `app.ts` and `applyItems`, limits, 30 min lifetime, flag. Items without views yet | A write through a second libSQL client on the same file (another process) arrives within 1.5 s. A nudge arrives at once. Catch-up from `Last-Event-ID`. `reset` on a pruned gap, on a foreign cursor and on a burst over 1000 rows. 429 beyond the limit. 404 with the flag off |
+| 3 | `feat(runtime): live changes carry the item's view` | `live/views.ts`, `getRow`, the table header without rows, views per role, size limits, put-to-del when gone | Each view equals the body of its GET route (one test per kind, against the route). A member and an admin get their own `readOnly`. A view over 64 KB goes without. A batch stays under 512 KB |
+| 4 | `feat(web): studio patches what changed elsewhere` | `live-feed.ts` (leader tab, BroadcastChannel, watchdog), `live-patch.ts`, newer-wins, `cancelQueries`, highlight, mount in `AppFrame`, `useSyncAction` and `useCloudSync` changes | Every `LiveKind` has a patcher. A patched list sends no request. An older view never replaces a newer cache entry, also against a GET in flight. 200 rows arrive as one update. One stream for two tabs (Playwright) |
+| 5 | `feat(web): page and table editors merge changes from elsewhere while open` | `registerLiveEditor`, live merge with `mergeText` and `mergeJson`, `baseUpdatedAt` and 409 on page, table and row saves, chips | An own save changes nothing on screen. A change elsewhere with no edits here shows at once, caret kept. With edits here it merges at once; an unclean merge keeps mine and asks. A cell being typed in is never overwritten |
+| 6 | `refactor(studio): the wizard editor follows the live feed` | `useLiveDraft` takes patches, `refresh()` for drafts without a view, the draft stream removed | Existing `live.tsx` tests pass on the feed. A draft written by a second process reaches the open editor |
+| 7 | `feat(runtime): a computer follows the cloud's changes` | `GET /api/v1/sync/live`, the computer's connection and coalesced pulls, origin skip, contract doc | A cloud edit reaches the computer's open page within 2 s (two processes, as in `sync.test.ts`). A computer's own push is not pulled back. After a drop the connection resumes from its cursor |
+| 8 | `feat(studio): live changes` | Flips `liveChanges`, user guide section | Run end to end with `node apps/runtime/scripts/dev-two-way.mjs`: a page edited in the cloud's studio shows up in the computer's open page without a request, and the other way round |
 
-PRs 1–3 are useful on their own, without the two-way sync. Several members in the cloud, and runs
-filling shared lists, see each other's changes.
+PRs 1–4 are useful on their own, without the two-way sync. Several members in the cloud, and runs
+filling shared lists, see each other's changes. PR 2 can ship with the browser invalidating keys,
+as a first step, until PR 3 adds the views; the patchers of PR 4 then fall back to that for any
+item without a view.
 
 ## Risks and answers
 
@@ -328,11 +425,19 @@ filling shared lists, see each other's changes.
   browser. Without them every tab streams, and that works on HTTP/2.
 - **A tenant migration in between.** A runtime update that adds a migration restarts the
   process. Streams reconnect with their cursor; the table is unchanged by later migrations.
+- **A view that drifts from its route.** If a GET route adds a field and its view doesn't, the
+  cache would hold a mix. Views are built by the routes' own functions, and the test of PR 3
+  compares each view with its route's body, so a drift fails CI.
+- **Reads per batch.** Building views costs one read per changed item and role, only while
+  streams are open, and only for items that changed. A burst over 1000 rows sends `reset`
+  instead, without views.
+- **Bandwidth.** The 64 KB and 512 KB limits keep a batch small; a big page or draft goes as an
+  id and is fetched once.
+- **Order of a patch and a GET.** Newer-wins and `cancelQueries` keep an older answer from
+  replacing a newer patch (see 5).
 
 ## Not in scope
 
-- **Patching the screen with the change itself** (no reload). The reload is one GET of what is
-  open, and it keeps the checks in one place.
 - **Presence**, such as who else is editing this page, and **live cursors**.
 - **Runs.** Their stream exists and stays as it is.
 - **Chats.** These are per person and don't sync. The studio assistant's own stream covers the
