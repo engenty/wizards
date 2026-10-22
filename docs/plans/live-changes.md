@@ -411,6 +411,9 @@ item the patcher hands the view to the editor instead of writing the cache itsel
   today, and merges the same way.
 
 - **Page editor** (`PageEditor.tsx`). It keeps the version it loaded or saved last as the base.
+  - It works on its text through a small `TextSurface` interface (`get()`, `apply(nextText)`,
+    `hasUnsavedEdits()`), with the textarea as the first version. CodeMirror then adds its own
+    ([page-editor-codemirror.md](page-editor-codemirror.md)), with no change to the live code.
   - It merges with `mergeText` (`packages/shared/src/text-merge.ts`). A clean merge shows the
     merged text with the chip "Merged with a change from elsewhere".
   - When the merge isn't clean, the person's text stays and is not saved over the other
@@ -595,6 +598,15 @@ item without a view.
   id and is fetched once.
 - **Order of a patch and a GET.** Newer-wins and `cancelQueries` keep an older answer from
   replacing a newer patch (see 5).
+
+## Follow-ups
+
+- **Pages in CodeMirror** ([page-editor-codemirror.md](page-editor-codemirror.md)). Changes from
+  elsewhere keep the caret and stay out of undo, and presence shows beside a section.
+- **Editing together in real time.** Once presence shows two or more people in one page, a room
+  (Yjs over a websocket) could take over until they leave. Agents, runs and sync pulls take part
+  through the server: their saves go into the room as edits. This is its own plan, after the
+  two above.
 
 ## Not in scope
 
