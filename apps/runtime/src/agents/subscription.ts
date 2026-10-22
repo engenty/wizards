@@ -11,6 +11,7 @@ import { resolveEnv } from "../harness/env.js";
 import { detectHarness, harness, signedOut } from "../harness/index.js";
 import { CHAT_WAYS, type ChatWay, chatWayReady, localModelSettings } from "../models.js";
 import { prompt } from "../prompts.js";
+import { contentPolicy } from "../safety.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
 import { type ServerKey, serverText } from "../texts.js";
@@ -82,7 +83,7 @@ function ownCursorServers(): string[] {
 }
 
 const SYSTEM = (wizardId: string) =>
-  prompt("architect", "subscription.system", { wizard_id: wizardId });
+  `${prompt("architect", "subscription.system", { wizard_id: wizardId })}\n${contentPolicy()}`;
 
 const BUILDING = /edit_wizard|write_wizard|write_file|delete_file|create_wizard/;
 

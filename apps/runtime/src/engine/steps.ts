@@ -55,6 +55,7 @@ import {
   totalUsage,
 } from "../models.js";
 import { prompt } from "../prompts.js";
+import { contentPolicy } from "../safety.js";
 import { knowledgeBlock } from "../services/knowledge.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
@@ -151,6 +152,7 @@ async function revisionBlock(ctx: StepContext, stepId: string): Promise<string> 
 function groundRules(ctx: StepContext): string {
   return [
     prompt("step", "ground_rules"),
+    contentPolicy(),
     ctx.lang
       ? prompt("step", "language.viewer", { language: langNameEn(ctx.lang) })
       : prompt("step", "language.answers"),
@@ -968,8 +970,8 @@ async function visualPrompt(step: GenerateStep, ctx: StepContext, entry: Entry):
     abortSignal: ctx.signal,
     system:
       step.asset === "video"
-        ? prompt("step", "visual.video", { from })
-        : prompt("step", "visual.image", { from }),
+        ? `${prompt("step", "visual.video", { from })}\n\n${contentPolicy()}`
+        : `${prompt("step", "visual.image", { from })}\n\n${contentPolicy()}`,
     prompt: [
       prompt("step", "visual.brief", { brief }),
       step.options?.style ? prompt("step", "visual.style", { style: step.options.style }) : "",

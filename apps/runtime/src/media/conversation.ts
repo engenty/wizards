@@ -3,6 +3,7 @@ import type { RunView } from "@engenty/wizards-shared/run";
 import { NotedError } from "../model-errors.js";
 import { conversationAccess } from "../models.js";
 import { prompt } from "../prompts.js";
+import { contentPolicy } from "../safety.js";
 
 /**
  * A live conversation with a wizard: the browser talks to a realtime speech model directly
@@ -125,7 +126,7 @@ export function conversationInstructions(view: RunView): string {
     .filter(Boolean)
     .join(" ");
   const rules = prompt("voice", "rules", { lang_name: langNameEn(view.lang), lang: view.lang });
-  return `${about}\n\n${rules}`;
+  return `${about}\n\n${rules}\n\n${contentPolicy()}`;
 }
 
 /** Mints the secret a browser opens a session with; a failure carries a note for the run's language. */

@@ -11,6 +11,7 @@ import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";
 import { extFor, loadAsset } from "../files/storage.js";
 import { prompt } from "../prompts.js";
+import { contentPolicy } from "../safety.js";
 import { projectFileContent } from "../services/project-files.js";
 import { placeSkills } from "./skills.js";
 import { soundCatalog } from "./sounds.js";
@@ -73,7 +74,7 @@ function rules(step: FilmStep, skills: string[], start: FilmStart): string {
     skills: skills.join(", "),
     width: size.width,
     height: size.height,
-  })}\n`;
+  })}\n\n${contentPolicy()}\n`;
 }
 
 const BRAND_STAMP = join(".engenty", "brand");

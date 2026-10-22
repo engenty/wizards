@@ -481,6 +481,8 @@ const NOTES_EN = {
   commandNotStarted: "The command couldn’t start: {detail}",
   providerKeyMissing: "{provider} is chosen for {makes}, but no API key is set.",
   noModelFor: "No model is set up for {makes}.",
+  contentBlocked: "This wasn’t made: the request goes against the content rules.",
+  contentCheckFailed: "Nothing was made, because the content check couldn’t run: {detail}",
   noApiKeyFor: "No API key is set for {provider}.",
   freeTier:
     "Your AI Gateway key is on Vercel’s free tier, which doesn’t include {model}. Top up at Vercel ({url}) or choose another model under Settings → Models.",
@@ -837,6 +839,9 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   commandNotStarted: "Der Befehl konnte nicht starten: {detail}",
   providerKeyMissing: "Für {makes} ist {provider} gewählt, aber kein API-Key hinterlegt.",
   noModelFor: "Für {makes} ist kein Modell eingerichtet.",
+  contentBlocked: "Das wurde nicht erstellt: Die Anfrage verstößt gegen die Inhaltsregeln.",
+  contentCheckFailed:
+    "Es wurde nichts erstellt, weil die Inhaltsprüfung nicht laufen konnte: {detail}",
   noApiKeyFor: "Für {provider} ist kein API-Key hinterlegt.",
   freeTier:
     "Dein AI-Gateway-Key nutzt bei Vercel die kostenlose Stufe, und die schließt {model} aus. Lade bei Vercel Guthaben auf ({url}) oder wähle unter Einstellungen → Modelle ein anderes Modell.",

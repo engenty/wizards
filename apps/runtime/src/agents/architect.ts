@@ -36,6 +36,7 @@ import {
 import { pluginToolsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
+import { contentPolicy } from "../safety.js";
 import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import { editWizard, ownedWizard, writeDraft } from "../services/wizards.js";
@@ -91,7 +92,7 @@ function systemPrompt(
   connectors: GuideConnector[],
   pluginTools: GuideTool[],
 ): string {
-  return prompt("architect", "system", {
+  return `${prompt("architect", "system", {
     persona: prompt("architect", "persona"),
     schema: schemaDoc(),
     principles: principles(),
@@ -102,7 +103,7 @@ function systemPrompt(
     plugin_tools: pluginToolsLine(pluginTools),
     example: exampleWizard(),
     how_you_work: prompt("architect", "how_you_work"),
-  });
+  })}\n\n${contentPolicy()}`;
 }
 
 /** Turns a tool call into the line the admin sees while it runs. */

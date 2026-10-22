@@ -42,6 +42,7 @@ import {
   usageOf,
 } from "../models.js";
 import { prompt } from "../prompts.js";
+import { contentPolicy } from "../safety.js";
 import type { ChatRow, TurnHistory } from "../services/assistant-chats.js";
 import { knowledgeCounts } from "../services/knowledge.js";
 import {
@@ -132,6 +133,7 @@ function system(): string {
     prompt("goose", "page"),
     prompt("goose", "space"),
     prompt("goose", "work"),
+    contentPolicy(),
   ].join("\n\n");
 }
 
