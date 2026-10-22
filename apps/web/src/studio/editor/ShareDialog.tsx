@@ -38,6 +38,7 @@ import { api } from "../../lib/api";
 import { withBase } from "../../lib/base";
 import { useFeature } from "../../lib/features";
 import { type Key, lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import {
   type CloudAnswer,
   type CloudState,
@@ -169,7 +170,7 @@ function PageSection({ wizard }: { wizard: WizardDetail }) {
   const change = useMutation({
     mutationFn: (patch: { wizards?: string[]; examples?: Record<string, string> }) =>
       api.patch(`/api/studio/projects/${project?.id}`, { page: { ...page, ...patch } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.spaces() }),
   });
   if (!(host && project)) {
     return null;
@@ -1148,7 +1149,7 @@ function SettingsView({
   const { shareSections } = useStudioPlugins();
   const refresh = () =>
     Promise.all([
-      qc.invalidateQueries({ queryKey: ["wizard", wizard.id] }),
+      qc.invalidateQueries({ queryKey: keys.wizard(wizard.id) }),
       qc.invalidateQueries({ queryKey: ["wizards"] }),
       qc.invalidateQueries({ queryKey: ["wizard-runners", wizard.id] }),
     ]);
@@ -1317,7 +1318,7 @@ function ChannelsView({
     onSuccess: () =>
       Promise.all([
         qc.invalidateQueries({ queryKey: ["wizard-runners", wizard.id] }),
-        qc.invalidateQueries({ queryKey: ["wizard", wizard.id] }),
+        qc.invalidateQueries({ queryKey: keys.wizard(wizard.id) }),
         qc.invalidateQueries({ queryKey: ["wizards"] }),
       ]),
   });
@@ -1385,7 +1386,7 @@ function SharePanel({
       api.patch(`/api/studio/wizards/${wizard.id}`, { shareEnabled }),
     onSuccess: () =>
       Promise.all([
-        qc.invalidateQueries({ queryKey: ["wizard", wizard.id] }),
+        qc.invalidateQueries({ queryKey: keys.wizard(wizard.id) }),
         qc.invalidateQueries({ queryKey: ["wizards"] }),
       ]),
   });

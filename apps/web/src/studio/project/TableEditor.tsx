@@ -11,9 +11,10 @@ import {
 import { cellValue } from "@engenty/wizards-shared/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { ApiError, api } from "../../lib/api";
 import { type Key, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import {
   Button,
   Card,
@@ -27,6 +28,7 @@ import {
   Textarea,
 } from "../../ui";
 import { SyncNotice } from "../CloudSync";
+import { useLiveFlash } from "../live/index";
 import { KnowledgeHeader } from "./Knowledge";
 
 const MS: Record<DurationUnit, number> = {
@@ -483,6 +485,15 @@ function ColumnDialog({
  * A table of the space: its columns across the top, a row per line, every cell typed into in
  * place and saved when the person leaves it. The heading of a column opens what it is.
  */
+
+/** A row of the table: it lights up for a moment when it changed elsewhere (studio/live). */
+function LiveRow({ id, children }: { id: string; children: ReactNode }) {
+  const flash = useLiveFlash(id);
+  return (
+    <tr className={cn("group border-border-soft border-b last:border-b-0", flash)}>{children}</tr>
+  );
+}
+
 export function TableEditor({
   tableId,
   onGone,
@@ -492,7 +503,7 @@ export function TableEditor({
   onGone: () => void;
 }) {
   const qc = useQueryClient();
-  const key = ["space-table", tableId];
+  const key = keys.table(tableId);
   const table = useQuery({
     queryKey: key,
     queryFn: () => api.get<SpaceTable>(`/api/studio/tables/${tableId}`),
@@ -503,8 +514,8 @@ export function TableEditor({
   const [title, setTitle] = useState("");
   useEffect(() => setTitle(table.data?.title ?? ""), [table.data?.title]);
   const listed = async () => {
-    await qc.invalidateQueries({ queryKey: ["space-data", table.data?.projectId] });
-    await qc.invalidateQueries({ queryKey: ["knowledge", table.data?.projectId] });
+    await qc.invalidateQueries({ queryKey: keys.spaceData(table.data?.projectId) });
+    await qc.invalidateQueries({ queryKey: keys.knowledge(table.data?.projectId) });
   };
   const put = (rows: (rows: SpaceTableRow[]) => SpaceTableRow[]) =>
     qc.setQueryData<SpaceTable>(key, (old) => (old ? { ...old, rows: rows(old.rows) } : old));
@@ -657,7 +668,7 @@ export function TableEditor({
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="group border-border-soft border-b last:border-b-0">
+                <LiveRow key={row.id} id={row.id}>
                   {columns.map((c) => (
                     <td
                       key={c.id}
@@ -683,7 +694,7 @@ export function TableEditor({
                       </IconButton>
                     )}
                   </td>
-                </tr>
+                </LiveRow>
               ))}
             </tbody>
           </table>

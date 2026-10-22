@@ -11,6 +11,7 @@ import { useState } from "react";
 import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import { Button, Card, Chip, cn, IconButton, Input, Spinner } from "../ui";
 
 /** A connector the product ships with: ready, or waiting for the server's OAuth client. */
@@ -77,7 +78,7 @@ function Imported({
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const done = () => qc.invalidateQueries({ queryKey: ["connectors", projectId] });
+  const done = () => qc.invalidateQueries({ queryKey: keys.connectors(projectId) });
   const base = `/api/studio/projects/${projectId}/connectors/${connector.id}`;
   const refresh = useMutation({ mutationFn: () => api.post(`${base}/refresh`), onSuccess: done });
   const remove = useMutation({ mutationFn: () => api.del(base), onSuccess: done });
@@ -199,7 +200,7 @@ function SourceRow({
         } satisfies ImportRequest,
       ),
     onSuccess: async (result) => {
-      await qc.invalidateQueries({ queryKey: ["connectors", projectId] });
+      await qc.invalidateQueries({ queryKey: keys.connectors(projectId) });
       onDone(result.warnings);
     },
   });
@@ -265,7 +266,7 @@ export function Connectors({ projectId, readOnly }: { projectId: string; readOnl
   const [service, setService] = useState<RegistryService | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const list = useQuery({
-    queryKey: ["connectors", projectId],
+    queryKey: keys.connectors(projectId),
     queryFn: () => api.get<ConnectorView[]>(`/api/studio/projects/${projectId}/connectors`),
   });
   const search = useMutation({

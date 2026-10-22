@@ -4,6 +4,7 @@ import { FileText, Plus, Table2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { Button, Card, Dialog, Empty, Input, Label, Select } from "../../ui";
 import { usePrimaryAction } from "../primary-action";
 import { Section } from "./Section";
@@ -11,7 +12,7 @@ import { Section } from "./Section";
 /** The space's tables and pages, and its wizards to name whose they are. */
 export function useSpaceData(projectId: string | undefined) {
   return useQuery({
-    queryKey: ["space-data", projectId],
+    queryKey: keys.spaceData(projectId),
     queryFn: () => api.get<SpaceData>(`/api/studio/projects/${projectId}/data`),
     enabled: Boolean(projectId),
   });
@@ -68,7 +69,7 @@ function NewDialog({
         { title: title.trim(), wizardId: owner || null },
       ),
     onSuccess: async ({ id }) => {
-      await qc.invalidateQueries({ queryKey: ["space-data", projectId] });
+      await qc.invalidateQueries({ queryKey: keys.spaceData(projectId) });
       onMade(`${kind === "table" ? "t" : "p"}:${id}`);
       setTitle("");
       setOwner("");

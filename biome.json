@@ -54,5 +54,11 @@
       "complexity": { "noExcessiveCognitiveComplexity": "off" }
     }
   },
+  "overrides": [
+    {
+      "includes": ["apps/web/src/**", "!apps/web/src/**/*.test.ts"],
+      "linter": { "rules": { "suspicious": { "noFocusedTests": "off" } } }
+    }
+  ],
   "css": { "parser": { "tailwindDirectives": true } }
 }

@@ -18,6 +18,7 @@ import {
 import { useNavigate } from "react-router";
 import { api, postStream } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { useCurrentProject, useMe } from "../../lib/session";
 import { useStudioPlugins } from "../../plugins/host";
 import type { Chat, ChatCard, ChatMessage, ChatToolCall } from "../editor/ChatPanel";
@@ -233,9 +234,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => {
     refreshing.current ??= (async () => {
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ["projects"] }),
-        project ? qc.invalidateQueries({ queryKey: ["project-files", project.id] }) : null,
-        project ? qc.invalidateQueries({ queryKey: ["knowledge", project.id] }) : null,
+        qc.invalidateQueries({ queryKey: keys.spaces() }),
+        project ? qc.invalidateQueries({ queryKey: keys.files(project.id) }) : null,
+        project ? qc.invalidateQueries({ queryKey: keys.knowledge(project.id) }) : null,
       ]);
       pageChanged();
       refreshing.current = null;

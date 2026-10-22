@@ -5,6 +5,7 @@ import { Download, FileCode2, FileJson, FileText, Image, Trash2, Upload } from "
 import { useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { IconButton, Spinner } from "../../ui";
 
 function fileIcon(f: WorkspaceFile) {
@@ -40,7 +41,7 @@ export function FilesPanel({
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const base = `/api/studio/wizards/${wizardId}/files`;
-  const refresh = () => qc.invalidateQueries({ queryKey: ["wizard", wizardId] });
+  const refresh = () => qc.invalidateQueries({ queryKey: keys.wizard(wizardId) });
 
   const upload = async (list: FileList | null) => {
     if (!list?.length) {

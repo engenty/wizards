@@ -5,6 +5,7 @@ import { ChevronLeft, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import type { WizardDetail } from "../../lib/session";
 import { Button, IconButton, Switch, Textarea } from "../../ui";
 
@@ -31,14 +32,14 @@ export function TranslationsSection({
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const kept = useQuery({
-    queryKey: ["wizard-translations", wizard.id],
+    queryKey: keys.translations(wizard.id),
     queryFn: () => api.get<TranslationsAnswer>(`/api/studio/wizards/${wizard.id}/translations`),
     enabled: wizard.published,
   });
   const qc = useQueryClient();
   const remove = useMutation({
     mutationFn: (code: string) => api.del(`/api/studio/wizards/${wizard.id}/translations/${code}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wizard-translations", wizard.id] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.translations(wizard.id) }),
   });
   const open = editing ? kept.data?.translations.find((x) => x.lang === editing) : null;
   if (open && kept.data) {
@@ -124,7 +125,7 @@ function TranslationEditor({
   const save = useMutation({
     mutationFn: () => api.put(`/api/studio/wizards/${wizardId}/translations/${code}`, { lines }),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["wizard-translations", wizardId] });
+      await qc.invalidateQueries({ queryKey: keys.translations(wizardId) });
       onClose();
     },
   });

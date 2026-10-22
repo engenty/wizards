@@ -27,6 +27,7 @@ import { type AppBarPosition, besideBar, useAppBar } from "../lib/appbar";
 import { useFeature } from "../lib/features";
 import { lang, t } from "../lib/i18n";
 import { acceptInstall, standalone, useInstallPrompt } from "../lib/install";
+import { keys } from "../lib/keys";
 import {
   initialsOf,
   type Me,
@@ -43,6 +44,7 @@ import { CloudSyncBar } from "./CloudSync";
 import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner, InstallDialog } from "./InstallBanner";
 import { LangSwitch } from "./LangSwitch";
+import { useLiveFeed } from "./live/index";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
 import { hostOf } from "./where";
@@ -442,7 +444,7 @@ function RenameSpaceDialog({
   const rename = useMutation({
     mutationFn: () => api.patch(`/api/studio/projects/${project.id}`, { name: name.trim() }),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
       onClose();
     },
   });
@@ -740,6 +742,8 @@ export function AppFrame({
   // there the phone's bar steps aside, as a tab bar does on a screen pushed onto it.
   const clear = phone && !full ? "calc(4.75rem + env(safe-area-inset-bottom))" : "0px";
   const goose = useFeature("goose");
+  // What changed elsewhere shows here without a reload (docs/plans/live-changes.md).
+  useLiveFeed(me.tenant.id);
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
       {phone ? full ? null : <PhoneBar me={me} /> : <AppRail me={me} />}

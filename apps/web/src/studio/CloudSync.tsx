@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../lib/api";
 import { type Key, lang, t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import { type Me, useMe } from "../lib/session";
 import { Button, Chip, Spinner, Switch } from "../ui";
 import { Section } from "./project/Section";
@@ -32,7 +33,7 @@ interface SyncView {
   refusals: Record<string, string[]>;
 }
 
-const KEY = ["cloud-sync"];
+const KEY = keys.cloudSync();
 
 /** The sync can run: this computer, an account, the switch. */
 export function cloudSyncOn(me: Me | null | undefined): boolean {
@@ -42,16 +43,19 @@ export function cloudSyncOn(me: Me | null | undefined): boolean {
 export function useCloudSync() {
   const me = useMe();
   const on = cloudSyncOn(me.data);
+  // With live changes the stream says when the sync's state changed; this is the fallback.
+  const live = featureOn(me.data?.features ?? {}, "liveChanges");
   return useQuery({
     queryKey: KEY,
     queryFn: () => api.get<SyncView>("/api/studio/sync"),
     enabled: on,
-    refetchInterval: on ? 20_000 : false,
+    refetchInterval: on ? (live ? 120_000 : 20_000) : false,
   });
 }
 
 function useSyncAction<T>(fn: (input: T) => Promise<SyncView | unknown>) {
   const qc = useQueryClient();
+  const live = featureOn(useMe().data?.features ?? {}, "liveChanges");
   return useMutation({
     mutationFn: fn,
     onSuccess: (view) => {
@@ -60,7 +64,10 @@ function useSyncAction<T>(fn: (input: T) => Promise<SyncView | unknown>) {
       } else {
         void qc.invalidateQueries({ queryKey: KEY });
       }
-      // What the sync wrote is what the open pages show.
+      // What the sync wrote is what the open pages show; with live changes the stream says so.
+      if (live) {
+        return;
+      }
       void qc.invalidateQueries({ queryKey: ["wizard"] });
       void qc.invalidateQueries({ queryKey: ["space-page"] });
       void qc.invalidateQueries({ queryKey: ["space-table"] });

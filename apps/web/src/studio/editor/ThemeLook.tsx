@@ -15,6 +15,7 @@ import { ChevronDown } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { Button, cn, Label, Segmented, Select, Swatch } from "../../ui";
 import { usePopover } from "../../ui/date-picker";
 import { LookPreview } from "./LookPreview";
@@ -52,7 +53,7 @@ export function ThemeLook({
   costume: ReactNode;
 }) {
   const qc = useQueryClient();
-  const key = ["themes", projectId];
+  const key = keys.themes(projectId);
   const answer = useQuery({
     queryKey: key,
     queryFn: () => api.get<ThemesAnswer>(`/api/studio/projects/${projectId}/themes`),

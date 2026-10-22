@@ -6,6 +6,7 @@ import { Mascot } from "../brand";
 import { EngentyLogoMark } from "../engenty/logo";
 import { api } from "../lib/api";
 import { type Key, lang, t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import { pendingWish, useCurrentProject, useMe } from "../lib/session";
 import { useGround } from "../lib/theme";
 import { cn } from "../ui";
@@ -407,13 +408,13 @@ export function OnboardingPage() {
       api.post<Outcome>(`/api/studio/projects/${project?.id}/website`, { url, lang }),
     onSuccess: async (result) => {
       setOutcome(result);
-      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
     },
   });
   const about = useMutation({
     mutationFn: (text: string) =>
       api.patch(`/api/studio/projects/${project?.id}`, { brand: { about: text } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.spaces() }),
   });
   const finish = useMutation({
     mutationFn: () => api.post("/api/studio/onboarding/done"),
@@ -441,7 +442,7 @@ export function OnboardingPage() {
         setUploads((u) => u.map((x) => (x.name === file.name ? { ...x, state: "failed" } : x)));
       }
     }
-    await qc.invalidateQueries({ queryKey: ["projects"] });
+    await qc.invalidateQueries({ queryKey: keys.spaces() });
   };
 
   const details = outcome

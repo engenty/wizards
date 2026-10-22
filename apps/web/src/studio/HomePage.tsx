@@ -24,6 +24,7 @@ import { Mascot } from "../brand";
 import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { type Key, lang, t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import {
   type Me,
   useCurrentProject,
@@ -36,6 +37,7 @@ import { Button, Card, Chip, cn, Dialog, Empty, IconButton, Input, Select } from
 import { LinkStatus, useAccountLink } from "./Account";
 import { ChannelIcons, type Runner, useRunners } from "./channels";
 import { openExternal } from "./LocalRuntime";
+import { useLiveFlash } from "./live/index";
 import { MarketplaceHits } from "./Marketplace";
 import { WizardMenu } from "./WizardMenu";
 import { ownLink, sharedLink, WhereChip, whereItRuns } from "./where";
@@ -61,7 +63,7 @@ export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () =
   const create = useMutation({
     mutationFn: () => api.post<{ id: string }>("/api/studio/projects", { name }),
     onSuccess: async ({ id }) => {
-      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
       select(id);
       setName("");
       onClose();
@@ -234,6 +236,7 @@ function WizardCard({ w, me, runners }: { w: WizardSummary; me: Me; runners: Run
   const where = whereItRuns(w, me, w.cloud);
   const link = sharedLink(where);
   const open = link ?? (w.published ? ownLink(w) : null);
+  const flash = useLiveFlash(w.id);
   return (
     // The engenty sits on the card's top edge, half above it; the chip stays inside the card.
     <div className="group/card relative pt-6">
@@ -242,7 +245,10 @@ function WizardCard({ w, me, runners }: { w: WizardSummary; me: Me; runners: Run
         <Mascot kind={w.avatar} costume={w.costume} size={52} />
       </div>
       <Card
-        className="relative flex h-full cursor-pointer flex-col px-5 pt-10 pb-3 transition hover:shadow-elevated"
+        className={cn(
+          "relative flex h-full cursor-pointer flex-col px-5 pt-10 pb-3 transition hover:shadow-elevated",
+          flash,
+        )}
         onClick={() => navigate(`/edit/${w.id}`)}
       >
         <div className="absolute top-3 right-3">
@@ -477,7 +483,7 @@ export function HomePage() {
     mutationFn: (starterId: string) =>
       api.post<{ id: string }>("/api/studio/wizards", { projectId: project!.id, starterId, lang }),
     onSuccess: async ({ id }) => {
-      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });
       navigate(`/edit/${id}`);
     },

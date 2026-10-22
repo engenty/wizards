@@ -6,6 +6,7 @@ import { ExternalLink, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { Card, cn, IconButton, Spinner } from "../../ui";
 import { fileUrl, useFileActions, useProjectFiles } from "./data";
 import { Description } from "./Files";
@@ -103,7 +104,7 @@ export function FileView({
               label={t("project.reindex")}
               onClick={async () => {
                 await actions.reindex(file.id);
-                await qc.invalidateQueries({ queryKey: ["knowledge", projectId] });
+                await qc.invalidateQueries({ queryKey: keys.knowledge(projectId) });
               }}
             >
               <RefreshCw className="size-4" />
@@ -114,7 +115,7 @@ export function FileView({
               onClick={async () => {
                 if (confirm(t("data.confirmDelete", { title: file.name }))) {
                   await actions.remove(file.id);
-                  await qc.invalidateQueries({ queryKey: ["knowledge", projectId] });
+                  await qc.invalidateQueries({ queryKey: keys.knowledge(projectId) });
                   onGone();
                 }
               }}

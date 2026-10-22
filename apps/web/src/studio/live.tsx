@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { withBase } from "@/lib/base";
 import { ApiError, api } from "../lib/api";
 import { t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import { readOnlyError, type WizardDetail } from "../lib/session";
 import { Chip } from "../ui";
 
@@ -33,7 +34,7 @@ export interface RemoteChange {
  */
 export function useLiveDraft(wizardId: string | undefined) {
   const qc = useQueryClient();
-  const key = useMemo(() => ["wizard", wizardId], [wizardId]);
+  const key = useMemo(() => keys.wizard(wizardId), [wizardId]);
   const path = `/api/studio/wizards/${wizardId}`;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Saves run one after another, so each carries the revision the previous one returned.

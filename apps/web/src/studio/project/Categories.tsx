@@ -22,6 +22,7 @@ import {
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import {
   Button,
   Card,
@@ -47,7 +48,7 @@ export const CATEGORY_ICON: Record<CategoryType, LucideIcon> = {
   boolean: ToggleLeft,
 };
 
-const knowledgeKey = (projectId: string) => ["knowledge", projectId];
+const knowledgeKey = (projectId: string) => keys.knowledge(projectId);
 
 /** "1 Eintrag", "3 Einträge". */
 export function itemCount(n: number): string {

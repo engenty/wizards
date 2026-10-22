@@ -15,6 +15,7 @@ import { type ReactNode, useState } from "react";
 import { api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { type Project, useIsAdmin, useManyProjects } from "../../lib/session";
 import { Button, Dialog, Input, Label, Textarea } from "../../ui";
 import { useAssistantPage } from "../assistant/page";
@@ -103,11 +104,11 @@ export function ProjectSettings({
   const [asking, setAsking] = useState(false);
   const save = async (patch: Patch) => {
     await api.patch(`/api/studio/projects/${project.id}`, patch);
-    await qc.invalidateQueries({ queryKey: ["projects"] });
+    await qc.invalidateQueries({ queryKey: keys.spaces() });
   };
   const remove = useMutation({
     mutationFn: () => api.del(`/api/studio/projects/${project.id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.spaces() }),
   });
   // With one project there is nothing to switch, to name apart or to delete; a member deletes none.
   const many = useManyProjects();

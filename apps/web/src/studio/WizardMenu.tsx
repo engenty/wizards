@@ -5,6 +5,7 @@ import { useNavigate } from "react-router";
 import { api } from "../lib/api";
 import { withBase } from "../lib/base";
 import { t } from "../lib/i18n";
+import { keys } from "../lib/keys";
 import { useIsAdmin } from "../lib/session";
 import { Button, cn, Dialog } from "../ui";
 import { useDismiss } from "./AppFrame";
@@ -42,7 +43,7 @@ export function WizardMenu({
     onSuccess: async () => {
       setAsking(false);
       await qc.invalidateQueries({ queryKey: ["wizards"] });
-      await qc.invalidateQueries({ queryKey: ["projects"] });
+      await qc.invalidateQueries({ queryKey: keys.spaces() });
       onDeleted?.();
     },
   });

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { withBase } from "../../lib/base";
+import { keys } from "../../lib/keys";
 
 export interface ProjectFiles {
   files: ProjectFileView[];
@@ -10,7 +11,7 @@ export interface ProjectFiles {
   embeddings: boolean;
 }
 
-const filesKey = (projectId: string) => ["project-files", projectId];
+const filesKey = (projectId: string) => keys.files(projectId);
 
 /** The project's logos, assets and documents; asked again while one is still being read. */
 export function useProjectFiles(projectId: string) {

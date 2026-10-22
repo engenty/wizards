@@ -4,6 +4,7 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import { cn, Spinner } from "../../ui";
 import { PageEditor } from "../project/PageEditor";
 import { DATA_ICON, useSpaceData } from "../project/SpaceData";
@@ -48,7 +49,7 @@ export function MemoryPanel({
   const usesPages = def.steps.some((s) => s.type === "agent" && s.tools.includes("pages"));
   const sharesLists = (def.lists ?? []).some((l) => l.shared);
   const fmt = new Intl.DateTimeFormat(lang, { dateStyle: "medium" });
-  const refresh = () => qc.invalidateQueries({ queryKey: ["space-data", projectId] });
+  const refresh = () => qc.invalidateQueries({ queryKey: keys.spaceData(projectId) });
 
   if (open) {
     const id = open.slice(2);

@@ -19,6 +19,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Mascot } from "../../brand";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
+import { keys } from "../../lib/keys";
 import type { WizardDetail } from "../../lib/session";
 import { ChatBody } from "../../runner/ChatView";
 import { WizardEffects } from "../../runner/effects";
@@ -218,7 +219,7 @@ export function PreviewPane({
   // The wizard's own language and the ones it is kept in, where its page offers a translation.
   const own = wizardLang(def);
   const kept = useQuery({
-    queryKey: ["wizard-translations", w.id],
+    queryKey: keys.translations(w.id),
     queryFn: () =>
       api.get<{ translations: { lang: string }[] }>(`/api/studio/wizards/${w.id}/translations`),
     enabled: w.published && w.translate,
