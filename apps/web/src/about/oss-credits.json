@@ -381,10 +381,61 @@
       "label": "studio",
       "packages": [
         {
+          "name": "@codemirror/autocomplete",
+          "version": "6.20.3",
+          "license": "MIT"
+        },
+        {
+          "name": "@codemirror/commands",
+          "version": "6.11.1",
+          "license": "MIT"
+        },
+        {
+          "name": "@codemirror/lang-json",
+          "version": "6.0.2",
+          "license": "MIT",
+          "homepage": "https://github.com/codemirror/lang-json#readme"
+        },
+        {
+          "name": "@codemirror/lang-markdown",
+          "version": "6.5.2",
+          "license": "MIT"
+        },
+        {
+          "name": "@codemirror/language",
+          "version": "6.13.1",
+          "license": "MIT"
+        },
+        {
+          "name": "@codemirror/lint",
+          "version": "6.9.7",
+          "license": "MIT"
+        },
+        {
+          "name": "@codemirror/search",
+          "version": "6.7.2",
+          "license": "MIT"
+        },
+        {
+          "name": "@codemirror/state",
+          "version": "6.7.6",
+          "license": "MIT"
+        },
+        {
+          "name": "@codemirror/view",
+          "version": "6.43.14",
+          "license": "MIT"
+        },
+        {
           "name": "@dagrejs/dagre",
           "version": "3.1.1",
           "license": "MIT",
           "homepage": "https://github.com/dagrejs/dagre#readme"
+        },
+        {
+          "name": "@lezer/highlight",
+          "version": "1.2.5",
+          "license": "MIT"
         },
         {
           "name": "@tanstack/react-query",

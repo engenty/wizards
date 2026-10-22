@@ -139,7 +139,17 @@ Declared by two or more of the workspaces below:
 
 | Package | Version | Licence |
 |---|---|---|
+| @codemirror/autocomplete | 6.20.3 | MIT |
+| @codemirror/commands | 6.11.1 | MIT |
+| [@codemirror/lang-json](https://github.com/codemirror/lang-json#readme) | 6.0.2 | MIT |
+| @codemirror/lang-markdown | 6.5.2 | MIT |
+| @codemirror/language | 6.13.1 | MIT |
+| @codemirror/lint | 6.9.7 | MIT |
+| @codemirror/search | 6.7.2 | MIT |
+| @codemirror/state | 6.7.6 | MIT |
+| @codemirror/view | 6.43.14 | MIT |
 | [@dagrejs/dagre](https://github.com/dagrejs/dagre#readme) | 3.1.1 | MIT |
+| @lezer/highlight | 1.2.5 | MIT |
 | [@tanstack/react-query](https://tanstack.com/query) | 5.104.0 | MIT |
 | [@xterm/addon-fit](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.11.0 | MIT |
 | [@xterm/addon-web-links](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.12.0 | MIT |
