@@ -9,7 +9,7 @@ Source License ([LICENSE](LICENSE)); the files of `packages/shared` that define 
 format also under MIT, at your choice (`FSL-1.1-MIT OR MIT`,
 [packages/shared/LICENSE-MIT](packages/shared/LICENSE-MIT)); the runner package under MIT
 ([packages/runner/LICENSE](packages/runner/LICENSE)); the figures as artwork under CC BY 4.0
-([LICENSE-FIGURES](LICENSE-FIGURES)). Outside it: the WordPress plugins under GPL-2.0-or-later,
+([assets/engenty/LICENSE](assets/engenty/LICENSE)). Outside it: the WordPress plugins under GPL-2.0-or-later,
 and the closed parts (engenty.ai, the mobile and desktop apps, the Pro plugins, also when a
 local install receives them) under no public licence. No licence of any part grants trademark
 rights. These rules say how the name and the figures may be used as signs, whichever licence the

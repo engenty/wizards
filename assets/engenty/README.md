@@ -9,7 +9,7 @@ the first frame of their idle motion, without the ground shadow.
 ## Licence
 
 © 2026 Thru The Heart Creative GmbH - Matthias Platzer. The figures are under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) ([LICENSE-FIGURES](../../LICENSE-FIGURES)):
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) ([LICENSE](LICENSE)):
 use, change and share them, commercially too, with credit, for example:
 
     engenty figures © Thru The Heart Creative GmbH - Matthias Platzer, CC BY 4.0, engenty.ai

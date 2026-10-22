@@ -92,12 +92,14 @@ for (const path of [
   "plugin",
   "bin",
   "LICENSE",
-  "LICENSE-FIGURES",
   "TRADEMARKS.md",
   "README.md",
 ]) {
   cpSync(join(root, path), join(stage, path), { recursive: true });
 }
+// The figures' licence lives beside them in the repository and at the package root on npm.
+const FIGURES_LICENSE = join(root, "assets", "engenty", "LICENSE");
+cpSync(FIGURES_LICENSE, join(stage, "LICENSE-FIGURES"));
 // The plugins that ship with the runtime (modules/README.md): their files as they are, with the
 // built studio half and without what only their build needs.
 cpSync(join(root, "modules"), join(stage, "modules"), {
@@ -226,9 +228,10 @@ chmodSync(join(launcherStage, "bin", "wizards.mjs"), 0o755);
 for (const file of ["install.sh", "install.ps1"]) {
   cpSync(join(root, "apps", "web", "public", file), join(launcherStage, file));
 }
-for (const file of ["LICENSE", "LICENSE-FIGURES", "TRADEMARKS.md", "README.md"]) {
+for (const file of ["LICENSE", "TRADEMARKS.md", "README.md"]) {
   cpSync(join(root, file), join(launcherStage, file));
 }
+cpSync(FIGURES_LICENSE, join(launcherStage, "LICENSE-FIGURES"));
 writeFileSync(
   join(launcherStage, "package.json"),
   `${JSON.stringify(

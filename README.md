@@ -10,6 +10,11 @@
   Let AI do the work.
 </p>
 
+<p align="center">
+  <a href="#license"><img src="https://img.shields.io/badge/license-FSL--1.1--MIT-blue" alt="License: FSL-1.1-MIT"></a>
+  <a href="https://fair.io"><img src="https://img.shields.io/badge/Fair_Source-MIT_after_2_years-green" alt="Fair Source, MIT after two years"></a>
+</p>
+
 **For personal use and small businesses**\
 Turn a task you repeat into a wizard, or pick a ready one from the
 [gallery](https://engenty.ai/wizards). Use it yourself or share it with colleagues and clients: the
@@ -220,9 +225,13 @@ and is a site of its own: `pnpm dev:docs`.
 
 ## License
 
-[FSL-1.1-MIT](LICENSE): use it for yourself and your company, run it, change it – just don’t
-offer it to others as a competing product or service. Each release becomes MIT two years
-after it is published. The engenty figures are free artwork under CC BY 4.0
-([LICENSE-FIGURES](LICENSE-FIGURES)); the name and the figures as a brand are trademarks
-([TRADEMARKS.md](TRADEMARKS.md)). [COPYRIGHTS.md](COPYRIGHTS.md) names the owner, the marks, what is not ours and the
+The code is Fair Source under the [Functional Source License, FSL-1.1-MIT](LICENSE):
+
+- **Free to use:** for yourself and your company, run it, read it, change it, share it.
+- **One limit:** don’t offer it to others as a competing product or service.
+- **Then MIT:** each release becomes MIT two years after it is published.
+
+GitHub shows the licence as “Other”, because FSL is not on its list. The engenty figures are
+free artwork under CC BY 4.0 ([assets/engenty/LICENSE](assets/engenty/LICENSE)); the name and
+the figures as a brand are trademarks ([TRADEMARKS.md](TRADEMARKS.md)). [COPYRIGHTS.md](COPYRIGHTS.md) names the owner, the marks, what is not ours and the
 third-party software with its licences.
