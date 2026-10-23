@@ -210,6 +210,44 @@ export function tenantMembers(id: string): Promise<TenantMembers> {
   return call<TenantMembers>("GET", `/v1/tenants/${encodeURIComponent(id)}/members`);
 }
 
+const tenantPath = (id: string) => `/v1/tenants/${encodeURIComponent(id)}`;
+
+/**
+ * Changes to a tenant's people for the person who asks (`actorId`): the Manage-App checks their
+ * role in its own records and refuses with a code (`forbidden`, `PLAN_SEATS`, `PLAN_ROLES`,
+ * `already_member`, `last_owner`).
+ */
+export function inviteMember(
+  tenantId: string,
+  input: { actorId: string; email: string; role: Role; lang: "de" | "en" },
+): Promise<{ invitation: TenantMembers["invitations"][number] }> {
+  return call("POST", `${tenantPath(tenantId)}/invitations`, input);
+}
+
+export function cancelInvitation(tenantId: string, actorId: string, invitationId: string) {
+  return call<{ ok: true }>(
+    "DELETE",
+    `${tenantPath(tenantId)}/invitations/${encodeURIComponent(invitationId)}`,
+    { actorId },
+  );
+}
+
+export function setMemberRole(tenantId: string, actorId: string, userId: string, role: Role) {
+  return call<{ ok: true }>(
+    "PATCH",
+    `${tenantPath(tenantId)}/members/${encodeURIComponent(userId)}`,
+    { actorId, role },
+  );
+}
+
+export function removeMember(tenantId: string, actorId: string, userId: string) {
+  return call<{ ok: true }>(
+    "DELETE",
+    `${tenantPath(tenantId)}/members/${encodeURIComponent(userId)}`,
+    { actorId },
+  );
+}
+
 /** One of a person's organizations, as the studio's switcher lists it. */
 export interface Organization {
   id: string;

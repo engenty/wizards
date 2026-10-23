@@ -19,6 +19,7 @@ import { ProjectSwitcher } from "./HomePage";
 import { Integrate } from "./Integrate";
 import { Models } from "./Models";
 import { Organization } from "./Organization";
+import { OrganizationGeneral, OrganizationMembers } from "./OrganizationSettings";
 import { projectReadOnlyText, ReadOnlyNote } from "./ReadOnly";
 import {
   BackRow,
@@ -357,6 +358,8 @@ export function SettingsPage() {
                 </Suspense>
               ) : null}
               {current.id === "organization" && me.data ? <Organization me={me.data} /> : null}
+              {current.id === "general" && me.data ? <OrganizationGeneral me={me.data} /> : null}
+              {current.id === "members" && me.data ? <OrganizationMembers me={me.data} /> : null}
               {current.id === "plugins" ? (
                 <div className="flex flex-col gap-6">
                   <PluginsSection />
