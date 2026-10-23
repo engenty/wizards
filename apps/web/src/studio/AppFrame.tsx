@@ -1,3 +1,4 @@
+import { featureOn } from "@engenty/wizards-shared/features";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppWindow,
@@ -15,6 +16,7 @@ import {
   Pencil,
   Plus,
   Settings,
+  UserRound,
   WandSparkles,
 } from "lucide-react";
 import {
@@ -823,7 +825,19 @@ export function UserMenu({
               </span>
             </button>
           ) : null}
-          {me.manageUrl ? (
+          {me.mode === "managed" && featureOn(me.features, "organizationSettings") ? (
+            // The person's own settings: behind the avatar, apart from the organization's.
+            <button
+              type="button"
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                navigate("/account");
+              }}
+            >
+              <UserRound className="size-4" /> {t("konto.title")}
+            </button>
+          ) : me.manageUrl ? (
             <a className={item} href={`${me.manageUrl}/account`} target="_blank" rel="noreferrer">
               <CreditCard className="size-4" /> {t("nav.account")}
             </a>

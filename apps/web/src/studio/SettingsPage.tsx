@@ -25,6 +25,7 @@ import {
   OrganizationUsage,
 } from "./OrganizationCredits";
 import { OrganizationGeneral, OrganizationKeys, OrganizationMembers } from "./OrganizationSettings";
+import { PersonApps, PersonOrganizations, PersonProfile } from "./PersonAccount";
 import { projectReadOnlyText, ReadOnlyNote } from "./ReadOnly";
 import {
   BackRow,
@@ -35,7 +36,7 @@ import {
   useNarrow,
   useStepDirection,
 } from "./settings-menu";
-import { settingsSections } from "./settings-sections";
+import { accountSections, settingsSections } from "./settings-sections";
 
 const AboutPanel = lazy(() =>
   import("../about/AboutDialog").then((m) => ({ default: m.AboutPanel })),
@@ -191,7 +192,7 @@ const MENUS = new Set(["models", "integrate"]);
  * back at its top. On a phone the levels and the page take turns: the sections, a section's
  * menu, then the page, each with the way back.
  */
-export function SettingsPage() {
+export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "account" }) {
   const { section } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -207,9 +208,18 @@ export function SettingsPage() {
   // Back up to the sections on a wide page, while the section's page stays; another section
   // opens its own menu again.
   const [upAt, setUpAt] = useState<string | null>(null);
-  const sections = settingsSections(me.data, plugins);
+  // The gear's list, or the person's Konto behind the avatar: the same frame, another list.
+  const sections = scope === "account" ? accountSections() : settingsSections(me.data, plugins);
+  const base = scope === "account" ? "/account" : "/settings";
+  const title = scope === "account" ? t("konto.title") : t("settings.title");
+  const first =
+    scope === "account"
+      ? "profile"
+      : sections.some((s) => s.id === "general")
+        ? "general"
+        : "account";
   const current = sections.find((s) => s.id === section);
-  const entries = sections.map((s) => ({ ...s, to: `/settings/${s.id}` }));
+  const entries = sections.map((s) => ({ ...s, to: `${base}/${s.id}` }));
   const entry = entries.find((e) => e.id === section);
   const hasMenu = current ? MENUS.has(current.id) : false;
   // A phone: 0 the sections, 1 the section's menu, 2 the page.
@@ -255,8 +265,8 @@ export function SettingsPage() {
   );
   // The page's name stands in the top bar: the section's content starts right at the top.
   useCrumbs([
-    { label: t("settings.title"), to: "/settings" },
-    ...(current ? [{ label: current.label, to: `/settings/${current.id}` }] : []),
+    { label: title, to: base },
+    ...(current ? [{ label: current.label, to: `${base}/${current.id}` }] : []),
     ...(current && detail ? [{ label: detail }] : []),
   ]);
   if (!current) {
@@ -271,7 +281,7 @@ export function SettingsPage() {
     // A plugin's section is there once the plugin loaded. A phone starts at the sections.
     if (section !== undefined || !narrow) {
       return plugins.status === "ready" || section === undefined ? (
-        <Navigate to="/settings/account" replace />
+        <Navigate to={`${base}/${first}`} replace />
       ) : null;
     }
   }
@@ -281,9 +291,9 @@ export function SettingsPage() {
   const menuBody = (
     <>
       <LevelHead
-        title={t("settings.title")}
+        title={title}
         open={level === 1 ? (entry ?? null) : null}
-        onBack={() => (narrow ? navigate("/settings") : setUpAt(section ?? null))}
+        onBack={() => (narrow ? navigate(base) : setUpAt(section ?? null))}
       />
       <div key={level} className={cn(stepClass(levelStep))}>
         {level === 0 ? (
@@ -330,8 +340,8 @@ export function SettingsPage() {
               {narrow ? (
                 <div className="mb-3">
                   <BackRow
-                    label={hasMenu ? current.label : t("settings.title")}
-                    onBack={() => navigate(hasMenu ? `/settings/${current.id}` : "/settings")}
+                    label={hasMenu ? current.label : title}
+                    onBack={() => navigate(hasMenu ? `${base}/${current.id}` : base)}
                   />
                 </div>
               ) : null}
@@ -366,6 +376,9 @@ export function SettingsPage() {
               {current.id === "general" && me.data ? <OrganizationGeneral me={me.data} /> : null}
               {current.id === "members" && me.data ? <OrganizationMembers me={me.data} /> : null}
               {current.id === "keys" && me.data ? <OrganizationKeys me={me.data} /> : null}
+              {current.id === "profile" && me.data ? <PersonProfile me={me.data} /> : null}
+              {current.id === "orgs" && me.data ? <PersonOrganizations me={me.data} /> : null}
+              {current.id === "apps" && me.data ? <PersonApps /> : null}
               {current.id === "credits" && me.data ? <OrganizationCredits me={me.data} /> : null}
               {current.id === "usage" && me.data ? <OrganizationUsage me={me.data} /> : null}
               {current.id === "invoices" && me.data ? <OrganizationInvoices me={me.data} /> : null}

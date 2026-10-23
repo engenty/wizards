@@ -92,6 +92,14 @@ const manage: Server = createServer(async (req, res) => {
         : { ok: true },
     );
   }
+  if (/^\/v1\/users\/[^/]+(\/connections|\/computers)?(\/[^/]+)?$/.test(url.pathname) && req.method !== "GET") {
+    memberCalls.push({ method: req.method ?? "", path: url.pathname, body: raw ? JSON.parse(raw) : null });
+    return json(req.method === "PATCH" ? { name: JSON.parse(raw).name } : { ok: true });
+  }
+  if (/^\/v1\/users\/[^/]+\/connections$/.test(url.pathname)) {
+    memberCalls.push({ method: "GET", path: url.pathname, body: null });
+    return json({ apps: [{ id: "consent-1", name: "Claude Code" }], computers: [] });
+  }
   if (/^\/v1\/tenants\/[^/]+\/(billing|invoices)(\/|$)/.test(url.pathname)) {
     memberCalls.push({ method: req.method ?? "", path: url.pathname + url.search, body: null });
     if (url.pathname.endsWith("/pdf")) {
@@ -500,6 +508,29 @@ describe("a runtime of a Manage-App", () => {
     const pdf = await send("GET", "/invoices/in_1/pdf", a);
     expect(pdf.status).toBe(302);
     expect(pdf.headers.get("location")).toBe("https://stripe.test/invoice.pdf");
+    // Konto: the name and the connections are the person's, in every organization.
+    const renamed = await app.fetch(
+      new Request(`${RUNTIME}/api/studio/person/name`, {
+        method: "PUT",
+        headers: { cookie: m, "content-type": "application/json" },
+        body: JSON.stringify({ name: "Mona Member" }),
+      }),
+    );
+    expect(await renamed.json()).toEqual({ name: "Mona Member" });
+    expect(((await (await get("/api/studio/me", m)).json()) as any).user.name).toBe("Mona Member");
+    expect(await (await get("/api/studio/person/connections", m)).json()).toMatchObject({
+      apps: [{ id: "consent-1" }],
+    });
+    const off = await app.fetch(
+      new Request(`${RUNTIME}/api/studio/person/connections/consent-1`, { method: "DELETE", headers: { cookie: m } }),
+    );
+    expect(off.status).toBe(200);
+    expect(memberCalls.slice(-3)).toEqual([
+      { method: "PATCH", path: "/v1/users/user-m", body: { name: "Mona Member" } },
+      { method: "GET", path: "/v1/users/user-m/connections", body: null },
+      { method: "DELETE", path: "/v1/users/user-m/connections/consent-1", body: null },
+    ]);
+    memberCalls.splice(-3);
     expect(memberCalls.map((call) => call.path)).toEqual([
       "/v1/tenants/tenant-a/billing?actorId=user-m",
       "/v1/tenants/tenant-a/billing/activity?actorId=user-m&before=9&limit=20",
