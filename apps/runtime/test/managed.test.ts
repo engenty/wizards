@@ -829,6 +829,34 @@ describe("a runtime of a Manage-App", () => {
     expect(await hint("x".repeat(101))).toBeNull();
   });
 
+  it("starts a sign-in again, once, when its state stayed in another browser", async () => {
+    // The e-mail link opened on the phone: the code comes back without this browser's state.
+    const elsewhere = await app.fetch(
+      new Request(`${RUNTIME}/api/auth/callback?code=code-a&state=from-the-laptop`),
+    );
+    expect(elsewhere.status).toBe(302);
+    const again = new URL(elsewhere.headers.get("location") ?? "", RUNTIME);
+    expect(again.pathname).toBe("/api/auth/login");
+    expect(again.searchParams.get("again")).toBe("1");
+    // The second try carries its mark through the Manage-App …
+    const login = await app.fetch(new Request(`${RUNTIME}${again.pathname}${again.search}`));
+    const state = new URL(login.headers.get("location") ?? "").searchParams.get("state") ?? "";
+    expect(state.startsWith("again.")).toBe(true);
+    // … and goes through like any sign-in.
+    const through = await app.fetch(
+      new Request(`${RUNTIME}/api/auth/callback?code=code-a&state=${state}`, {
+        headers: { cookie: cookieOf(login, "wz_oauth") },
+      }),
+    );
+    expect(through.headers.get("location")).toBe("/studio/");
+    expect(cookieOf(through, "wz_session")).not.toBe("");
+    // Without its state a second time, it ends instead of going round.
+    const twice = await app.fetch(
+      new Request(`${RUNTIME}/api/auth/callback?code=code-a&state=${state}`),
+    );
+    expect(twice.headers.get("location")).toBe("/studio/?signin=failed");
+  });
+
   it("takes a guest's wish along to the account's sign-in page", async () => {
     const login = await app.fetch(
       new Request(`${RUNTIME}/api/auth/login?return=/studio/new&wish=${encodeURIComponent("Ein Quiz")}`),
