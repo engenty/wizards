@@ -141,6 +141,7 @@ import {
   turnHistory,
 } from "../services/assistant-chats.js";
 import { describeGradient, themeLooks } from "../services/brand.js";
+import { chatCatalog, chatModelChoices, setChatModelChoice } from "../services/chat-models.js";
 import {
   checkForCloud,
   cloudLinked,
@@ -251,6 +252,7 @@ import {
   deleteWizard,
   draftChanges,
   duplicateWizard,
+  hasWizards,
   ownedWizard,
   rotateShareLink,
   updateWizardSettings,
@@ -265,6 +267,7 @@ import {
   proposeMerge,
   type Resolution,
   resolveConflict,
+  sendBeforeSwitch,
   startSpace,
   stopSpace,
   syncAll,
@@ -531,6 +534,9 @@ export const studio = new Hono<Vars>()
             email: linked.email,
             /** The organization the account's space belongs to, as the Manage-App names it. */
             organization: overview?.tenant.name ?? null,
+            organizationId: linked.tenantId,
+            /** The person's organizations, to switch to another; one alone means nothing to switch. */
+            organizations: overview?.tenants ?? [],
             credits: overview?.tenant.balanceCredits ?? null,
             /** What of the credits ends on a date, the nearest first. */
             expiring: overview?.tenant.expiring ?? [],
@@ -552,10 +558,17 @@ export const studio = new Hono<Vars>()
       onboarding: await onboardingFor(user, person?.tenants ?? []),
       /** The organization still has the name the Manage-App gave it at sign-up: its first admin names it. */
       startingName: managed ? startingName(info?.name) : false,
+      /** The organization has made a wizard: the studio's offer to install it waits for that. */
+      hasWizards: await hasWizards(),
       /** What answers the studio's chats (Goose, the editor's chat): the text classes, a subscription, a key or the credits. */
-      chatEngine: managed ? "models" : await chatEngine(await hasTextModel()),
+      chatEngine: managed ? "models" : await chatEngine(),
       /** The ways that can answer the studio's chats now. */
-      chatWays: managed ? ["models"] : await chatWays(await hasTextModel()),
+      chatWays: managed ? ["models"] : await chatWays(),
+      /** The models of the chats per way, and what the person chose: everyday work and extra effort. */
+      chatModels: {
+        ways: (await chatCatalog()).ways,
+        chosen: await chatModelChoices(),
+      },
       aiReady: (await hasTextModel()) || (!managed && (await subscriptionClients()).length > 0),
       mcpUrl: `${env.appUrl}/api/mcp`,
       /**
@@ -767,6 +780,7 @@ export const studio = new Hono<Vars>()
             project,
             writable,
             message,
+            extra: body.extra,
             page,
             browserTools: body.tools,
             lang: body.lang,
@@ -1571,8 +1585,8 @@ export const studio = new Hono<Vars>()
   .post("/wizards/:id/chat", async (c) => {
     const user = c.get("user");
     const wizardId = c.req.param("id");
-    const { message } = z
-      .object({ message: z.string().min(1).max(8000) })
+    const { message, extra } = z
+      .object({ message: z.string().min(1).max(8000), extra: z.boolean().optional() })
       .parse(await c.req.json());
     await writableWizard(user.id, wizardId);
     if (!(await canSpend())) {
@@ -1583,7 +1597,7 @@ export const studio = new Hono<Vars>()
       stream.onAbort(() => abort.abort());
       try {
         const result = await asAssistantIn(wizardId, user, () =>
-          architectTurn(user.id, wizardId, message, requestLang(c), {
+          architectTurn(user.id, wizardId, message, requestLang(c), extra, {
             signal: abort.signal,
             onText: (delta) => {
               void stream.writeSSE({ event: "text", data: JSON.stringify(delta) });
@@ -2010,6 +2024,29 @@ export const studio = new Hono<Vars>()
     closeTerminal(c.req.param("id"));
     return c.json({ ok: true });
   })
+  .put("/local/chat-models", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const body = z
+      .object({
+        way: z.enum(CHAT_WAYS),
+        normal: z.string().min(1).max(120).nullable().optional(),
+        extra: z.string().min(1).max(120).nullable().optional(),
+      })
+      .parse(await c.req.json());
+    // Null puts a model back to what the catalog names.
+    const choice = (await chatModelChoices())[body.way] ?? {};
+    for (const effort of ["normal", "extra"] as const) {
+      if (body[effort] === null) {
+        delete choice[effort];
+      } else if (body[effort]) {
+        choice[effort] = body[effort];
+      }
+    }
+    await setChatModelChoice(body.way, choice);
+    return c.json({ ok: true });
+  })
   .put("/local/chat", async (c) => {
     if (managed) {
       return c.notFound();
@@ -2166,6 +2203,25 @@ export const studio = new Hono<Vars>()
       .object({ signup: z.boolean().optional(), code: z.string().max(64).optional() })
       .parse(await c.req.json().catch(() => ({})));
     return c.json({ url: await startLink(input) });
+  })
+  // Another organization of the account: what changed here goes up to the one it belongs to
+  // first, then the sign-in names the other one. What did not arrive stays here (`anyway`).
+  .post("/account/switch", async (c) => {
+    if (managed || !(await linkedAccount())) {
+      return c.notFound();
+    }
+    const { organization, anyway } = z
+      .object({ organization: z.string().trim().min(1).max(200), anyway: z.boolean().optional() })
+      .parse(await c.req.json());
+    const stuck = await sendBeforeSwitch();
+    if (stuck.length && !anyway) {
+      throw new ServiceError(
+        "refused",
+        note("switchChangesWaiting", { spaces: stuck.map((x) => `“${x.name}”`) }),
+        { reason: "changes_waiting" },
+      );
+    }
+    return c.json({ url: await startLink({ organization }) });
   })
   .delete("/account", async (c) => {
     if (managed) {

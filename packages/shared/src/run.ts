@@ -441,6 +441,11 @@ const NOTES_EN = {
     other: "A space can have at most {count} documents.",
   },
   accountSignedOut: "The account is signed out. Sign in again.",
+  spaceOfOtherOrganization:
+    "This space belongs to {organization}. Switch to {organization} to keep it the same as in the cloud again.",
+  syncChangesWaiting: "Changes made here haven’t arrived in the cloud yet.",
+  switchChangesWaiting:
+    "Changes in {spaces} haven’t arrived in the cloud yet. If you switch now, they stay on this computer and arrive when you switch back.",
   cloudNotReachedRight: "The cloud can’t be reached right now.",
   syncUpdateHere:
     "The cloud runs a newer version than this computer. Update engenty wizards, then your changes arrive in the cloud again.",
@@ -481,6 +486,8 @@ const NOTES_EN = {
   commandNotStarted: "The command couldn’t start: {detail}",
   providerKeyMissing: "{provider} is chosen for {makes}, but no API key is set.",
   noModelFor: "No model is set up for {makes}.",
+  chatNoWay:
+    "The chat has nothing to run on yet. Pick a subscription, a key or the credits under Settings › Models › Agent chat.",
   noApiKeyFor: "No API key is set for {provider}.",
   freeTier:
     "Your AI Gateway key is on Vercel’s free tier, which doesn’t include {model}. Top up at Vercel ({url}) or choose another model under Settings → Models.",
@@ -796,6 +803,11 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     other: "Ein Space hat höchstens {count} Dokumente.",
   },
   accountSignedOut: "Das Konto ist abgemeldet. Melde dich neu an.",
+  spaceOfOtherOrganization:
+    "Dieser Space gehört zu {organization}. Wechsle zu {organization}, damit er wieder gleich ist wie in der Cloud.",
+  syncChangesWaiting: "Änderungen von hier sind noch nicht in der Cloud angekommen.",
+  switchChangesWaiting:
+    "Änderungen in {spaces} sind noch nicht in der Cloud angekommen. Wechselst du jetzt, bleiben sie auf diesem Computer und kommen an, wenn du zurückwechselst.",
   cloudNotReachedRight: "Die Cloud ist gerade nicht erreichbar.",
   syncUpdateHere:
     "Die Cloud hat eine neuere Version als dieser Computer. Aktualisiere engenty wizards, dann kommen deine Änderungen wieder in der Cloud an.",
@@ -837,6 +849,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   commandNotStarted: "Der Befehl konnte nicht starten: {detail}",
   providerKeyMissing: "Für {makes} ist {provider} gewählt, aber kein API-Key hinterlegt.",
   noModelFor: "Für {makes} ist kein Modell eingerichtet.",
+  chatNoWay:
+    "Der Chat hat noch nichts, womit er arbeiten kann. Wähle unter Einstellungen › Modelle › Agent-Chat ein Abo, einen Key oder das Guthaben.",
   noApiKeyFor: "Für {provider} ist kein API-Key hinterlegt.",
   freeTier:
     "Dein AI-Gateway-Key nutzt bei Vercel die kostenlose Stufe, und die schließt {model} aus. Lade bei Vercel Guthaben auf ({url}) oder wähle unter Einstellungen → Modelle ein anderes Modell.",

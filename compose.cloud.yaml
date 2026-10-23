@@ -4,7 +4,8 @@
 # Chromium container. The control database lives on Turso, files in an S3 bucket. The tenant
 # databases are files under /data while the Manage-App's TENANT_DB_PROVISIONER is `none`: the
 # three roles share that one volume, or each would see a tenant of its own.
-# Put a TLS proxy (Coolify/Traefik) in front of port 8891 of `runtime` and `doors`; on one host
+# Put a TLS proxy (Coolify/Traefik) in front of port 8891 of `runtime` and `doors` (their label
+# names the proxy's network, PROXY_NETWORK, `coolify` by default); on one host
 # the doors take `/w`, `/s`, `/api/public`, `/api/runs`, `/api/shares`, `/embed.js`, `/sw.js` and
 # the app links under `/.well-known`, the studio the rest (`/studio`, `/api`, `/install.sh`,
 # `/.well-known/oauth-protected-resource`). Both answer under APP_URL; PUBLIC_URL is for doors on
@@ -42,6 +43,18 @@ services:
         ipv4_address: 172.30.5.11
     depends_on:
       - browser
+    labels:
+      # The proxy reaches the container on its own network, never on `browser`: with several
+      # networks Traefik takes any of them, and an address on `browser` it cannot reach answers
+      # nothing (a gateway timeout until the next restart). PROXY_NETWORK: the proxy's network.
+      - traefik.docker.network=${PROXY_NETWORK:-coolify}
+    # Coolify and Traefik see a process that stopped answering, instead of "running".
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8891/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # The wizards' pages and their API, for the customers: no authoring, no sign-in, no MCP.
   doors:
@@ -67,6 +80,18 @@ services:
         ipv4_address: 172.30.5.12
     depends_on:
       - browser
+    labels:
+      # The proxy reaches the container on its own network, never on `browser`: with several
+      # networks Traefik takes any of them, and an address on `browser` it cannot reach answers
+      # nothing (a gateway timeout until the next restart). PROXY_NETWORK: the proxy's network.
+      - traefik.docker.network=${PROXY_NETWORK:-coolify}
+    # Coolify and Traefik see a process that stopped answering, instead of "running".
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8891/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # Executes the runs the web puts in line (docs/plans/runner-process.md). Not reachable from
   # outside; the web asks it for a run's browser screen under RUNNER_URL.

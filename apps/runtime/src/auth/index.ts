@@ -103,6 +103,9 @@ const SESSION_DAYS = 30;
 const SCOPE =
   "openid profile email offline_access wizards:read wizards:write wizards:publish runs:test";
 
+/** Marks the state of a sign-in started again (nanoid never makes a dot). */
+const AGAIN = "again.";
+
 interface LoginState {
   verifier: string;
   nonce: string;
@@ -338,7 +341,8 @@ export const authRoutes = new Hono()
     const ticket = unseal<{ desktop: string; exp: number }>(c.req.query("desktop") ?? "");
     const state: LoginState = {
       verifier,
-      nonce: nanoid(16),
+      // A second try after a sign-in whose state stayed in another browser: marked, so it runs once.
+      nonce: c.req.query("again") === "1" ? `${AGAIN}${nanoid(16)}` : nanoid(16),
       returnTo: safeReturn(c.req.query("return")),
       exp: Date.now() + 15 * 60_000,
       ...(ticket && ticket.exp > Date.now() ? { desktop: ticket.desktop } : {}),
@@ -396,8 +400,18 @@ export const authRoutes = new Hono()
     }
     const state = unseal<LoginState>(getCookie(c, STATE_COOKIE) ?? "");
     deleteCookie(c, STATE_COOKIE, { path: `${basePath}/api/auth` });
-    if (!code || !state || state.exp < Date.now() || state.nonce !== rawState) {
+    if (!code) {
       return c.redirect(`${home}?signin=failed`);
+    }
+    if (!state || state.exp < Date.now() || state.nonce !== rawState) {
+      // The sign-in began in another browser (the e-mail link opened on the phone): its state is
+      // there. The account is signed in here now, so a sign-in started here goes through without
+      // a page. Once: a second miss is a failure.
+      if (rawState.startsWith(AGAIN)) {
+        return c.redirect(`${home}?signin=failed`);
+      }
+      const again = new URLSearchParams({ again: "1", return: home });
+      return c.redirect(`${basePath}/api/auth/login?${again}`);
     }
     try {
       const tokens = await tokenRequest(

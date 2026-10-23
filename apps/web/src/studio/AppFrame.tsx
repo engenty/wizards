@@ -115,7 +115,8 @@ export function useTrail(): Crumb[] {
   );
 }
 
-function Trail() {
+/** `alone`: nothing stands before the trail (the person's Konto), so it starts without a slash. */
+function Trail({ alone = false }: { alone?: boolean }) {
   const trail = useTrail();
   if (!trail.length) {
     return null;
@@ -129,7 +130,9 @@ function Trail() {
         <Fragment key={`${i}:${crumb.label}`}>
           {/* The first follows the space's name as the others follow each other: the bar's gap
               and the name's own padding are taken back, so every slash stands alike. */}
-          <span className={cn("mr-2 text-ink-4", i === 0 ? "-ml-1 sm:-ml-2" : "ml-2")}>/</span>
+          {alone && i === 0 ? null : (
+            <span className={cn("mr-2 text-ink-4", i === 0 ? "-ml-1 sm:-ml-2" : "ml-2")}>/</span>
+          )}
           {crumb.to && i < trail.length - 1 ? (
             <Link to={crumb.to} className="truncate text-ink-3 transition hover:text-ink">
               {crumb.label}
@@ -905,7 +908,7 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
     <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:gap-3 sm:px-4 md:px-5">
       {personal ? null : <SpaceName me={me} />}
       <div className="flex min-w-0 flex-1 items-center">
-        <Trail />
+        <Trail alone={personal} />
         {children}
       </div>
       {personal ? null : <CreditsPill me={me} />}
@@ -979,7 +982,7 @@ export function AppFrame({
       <div className={cn("flex min-h-0 min-w-0 flex-1 md:gap-2", INSET[position])}>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
           <UpdateBanner />
-          <InstallBanner />
+          <InstallBanner me={me} />
           <CloudSyncBar me={me} />
           {full ? (
             <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

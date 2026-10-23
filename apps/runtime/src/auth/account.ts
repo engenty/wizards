@@ -38,9 +38,11 @@ function redirectUri(): string {
 /**
  * The address that links an account. `signup`: the person has none yet — the account's sign-up
  * page takes the invitation code (`code` fills it in) and goes on to the same sign-in.
+ * `organization` (its id or address) names the organization to sign in to: a member gets it
+ * without the picker, a switch.
  */
 export async function startLink(
-  options: { signup?: boolean; code?: string } = {},
+  options: { signup?: boolean; code?: string; organization?: string } = {},
 ): Promise<string> {
   const d = await discovery(env.local.accountUrl);
   const verifier = randomBytes(32).toString("base64url");
@@ -55,6 +57,7 @@ export async function startLink(
     code_challenge: createHash("sha256").update(verifier).digest("base64url"),
     code_challenge_method: "S256",
     state: seal(state),
+    ...(options.organization ? { organization: options.organization } : {}),
   }).toString();
   if (!options.signup) {
     return url.toString();
@@ -69,16 +72,41 @@ export async function startLink(
   return signUp.toString();
 }
 
-let cached: { token: string; expiresAt: number } | null = null;
+let cached: { token: string; expiresAt: number; tenantId: string } | null = null;
+/** The organization last written to the settings, so an unchanged one is not written again. */
+let rememberedOrganization: string | null = null;
 
 /**
  * Keeps what the token endpoint handed out: the refresh token in the vault, the account in the
- * settings. The browser flow (finishLink) and the device flow (device.ts) end here alike.
+ * settings. The browser flow (finishLink) and the device flow (device.ts) end here alike. A
+ * token for another organization than before is a switch: the sync of the one before is
+ * forgotten first, so nothing of it goes up to the new one (sync/client.ts).
  */
 export async function keep(tokens: TokenSet): Promise<LinkedAccount> {
   const claims = unverifiedClaims(tokens.access_token);
   if (!claims) {
     throw new Error("The account's token names no tenant.");
+  }
+  const before = await linkedAccount();
+  const switched = Boolean(before && before.tenantId !== claims.tenantId);
+  const oldRefresh = switched ? await vaultGet(REFRESH) : null;
+  if (switched) {
+    cached = null;
+    // Loaded here: the sync reads the account this module keeps.
+    const [{ forgetCloud }, sync, { withTenant }, { LOCAL_TENANT }] = await Promise.all([
+      import("../services/cloud.js"),
+      import("../sync/client.js"),
+      import("../db/client.js"),
+      import("../tenants/tenant.js"),
+    ]);
+    // The browser's callback and a terminal come here without the install's tenant.
+    await withTenant(LOCAL_TENANT, async () => {
+      await sync.noteSyncedSpaces();
+      await forgetCloud();
+      await sync.keepUnsyncedHere();
+    });
+    rememberedOrganization = null;
+    await deleteSetting(ORGANIZATION);
   }
   if (tokens.refresh_token) {
     await vaultSet(REFRESH, tokens.refresh_token);
@@ -86,6 +114,7 @@ export async function keep(tokens: TokenSet): Promise<LinkedAccount> {
   cached = {
     token: tokens.access_token,
     expiresAt: Date.now() + (tokens.expires_in ?? 600) * 1000,
+    tenantId: claims.tenantId,
   };
   const account: LinkedAccount = {
     userId: claims.userId,
@@ -94,7 +123,23 @@ export async function keep(tokens: TokenSet): Promise<LinkedAccount> {
     email: claims.email,
   };
   await writeSetting("account", account);
+  if (oldRefresh && oldRefresh !== tokens.refresh_token) {
+    await revoke(oldRefresh);
+  }
   return account;
+}
+
+/** Ends a refresh token at the Manage-App; a Manage-App out of reach lets it run out by itself. */
+async function revoke(refresh: string): Promise<void> {
+  const d = await discovery(env.local.accountUrl).catch(() => null);
+  if (d?.revocation_endpoint) {
+    await fetch(d.revocation_endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token: refresh, client_id: CLIENT.id }),
+      signal: AbortSignal.timeout(10_000),
+    }).catch(() => undefined);
+  }
 }
 
 export async function finishLink(code: string, rawState: string): Promise<LinkedAccount> {
@@ -123,7 +168,11 @@ export function linkedAccount(): Promise<LinkedAccount | null> {
 /** A fresh access token of the linked account, or null when none is linked (or it was revoked). */
 export async function accountToken(): Promise<string | null> {
   if (cached && cached.expiresAt - Date.now() > 60_000) {
-    return cached.token;
+    // `wizards account switch` in a terminal changes the account under a runtime that runs.
+    if ((await linkedAccount())?.tenantId === cached.tenantId) {
+      return cached.token;
+    }
+    cached = null;
   }
   // One refresh at a time: a refresh token is used once, a second caller would be refused.
   refreshing ??= refreshAccount().finally(() => {
@@ -155,15 +204,7 @@ async function refreshAccount(): Promise<string | null> {
 export async function unlink(): Promise<void> {
   const refresh = await vaultGet(REFRESH);
   if (refresh) {
-    const d = await discovery(env.local.accountUrl).catch(() => null);
-    if (d?.revocation_endpoint) {
-      await fetch(d.revocation_endpoint, {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ token: refresh, client_id: CLIENT.id }),
-        signal: AbortSignal.timeout(10_000),
-      }).catch(() => undefined);
-    }
+    await revoke(refresh);
   }
   cached = null;
   await vaultDelete(REFRESH);
@@ -183,8 +224,6 @@ export interface KnownOrganization {
 export function knownOrganization(): Promise<KnownOrganization | null> {
   return readSetting<KnownOrganization>(ORGANIZATION);
 }
-
-let rememberedOrganization: string | null = null;
 
 async function rememberOrganization(tenant: { id: string; name: string; balanceCredits: number }) {
   const same = `${tenant.id}\n${tenant.name}\n${tenant.balanceCredits}`;
@@ -213,6 +252,8 @@ export async function accountOverview(): Promise<{
     /** The account's feature switches: its plan's, and what an admin set for it or for everyone. */
     features?: Record<string, boolean>;
   };
+  /** Every organization of the person, for the switch; an older Manage-App lists none. */
+  tenants?: { id: string; name: string; role: string }[];
 } | null> {
   const token = await accountToken();
   if (!token) {

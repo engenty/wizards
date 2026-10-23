@@ -163,6 +163,9 @@ export interface Me {
     email: string;
     /** The organization the account's space belongs to; null while the Manage-App has not answered. */
     organization: string | null;
+    organizationId: string;
+    /** The person's organizations, to switch to another; empty while the Manage-App has not answered. */
+    organizations: Pick<Organization, "id" | "name" | "role">[];
     credits: number | null;
     /** What of the credits ends on a date, the nearest first. */
     expiring: ExpiringCredits[];
@@ -184,10 +187,20 @@ export interface Me {
   onboarding: OnboardingMode | null;
   /** The organization still has the name it got at sign-up: its first admin names it. */
   startingName: boolean;
+  /** The organization has made a wizard: the studio offers itself as an app from then on. */
+  hasWizards: boolean;
   /** What answers the studio's chats. */
   chatEngine: ChatWay;
   /** The ways that can answer the studio's chats now. */
   chatWays: ChatWay[];
+  /** The models of the chats per way (the server's list), and what the person chose. */
+  chatModels: {
+    ways: Record<
+      string,
+      { normal: string; extra: string; models: { id: string; label: string }[] }
+    >;
+    chosen: Record<string, { normal?: string; extra?: string }>;
+  };
   aiReady: boolean;
   /** Where an admin's own MCP client (Claude Code, Cursor, Codex) connects. */
   mcpUrl: string;

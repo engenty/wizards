@@ -57,6 +57,8 @@ vi.mock("../src/models.js", async (original) => ({
   ...(await original<typeof import("../src/models.js")>()),
   textModel: scripted,
   chatModel: scripted,
+  // The chat answers on an OpenAI key, whose model is the script.
+  chatWayReady: async (way: string) => way === "openai",
 }));
 
 type App = { fetch: (req: Request) => Response | Promise<Response> };

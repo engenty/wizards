@@ -162,6 +162,11 @@ export const env = {
    * The marketplace (docs/marketplace-contract.md): searched live, its starters and what people
    * starred kept for offline use. `off` = none.
    */
+  /**
+   * Where the models of the studio's chats come from (services/chat-models.ts): a JSON the server
+   * keeps up to date, asked daily. Empty: only the file in the repository.
+   */
+  chatModelsUrl: str("CHAT_MODELS_URL", "https://engenty.ai/chat-models.json").replace(/^off$/, ""),
   marketplace: {
     url: str("MARKETPLACE_URL", "https://engenty.ai/wizards")
       .replace(/^off$/, "")

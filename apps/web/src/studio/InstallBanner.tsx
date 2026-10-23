@@ -2,9 +2,11 @@ import { AppWindow, X } from "lucide-react";
 import { useState } from "react";
 import { t } from "../lib/i18n";
 import { acceptInstall, installWay, standalone, useInstallPrompt } from "../lib/install";
+import type { Me } from "../lib/session";
 import { Button, Dialog, IconButton } from "../ui";
 
 const DISMISSED_KEY = "wizards.install-banner";
+const FIRST_DAY_KEY = "wizards.first-day";
 
 const touch = () => window.matchMedia("(pointer: coarse)").matches;
 
@@ -51,18 +53,38 @@ function dismissed(): boolean {
   }
 }
 
+/** The day as this device counts it, `2026-10-23`. */
+const today = () => new Date().toLocaleDateString("sv");
+
 /**
- * The studio as an app of its own: in Chrome or Edge one click installs it (its own window, its
- * own icon). In another browser on a computer it says where that works. Gone once installed, in
- * the app's own window, or after the person closes it.
+ * The person came back on another day than their first here. The first day is kept on the
+ * device; where storage refuses (a private window), every visit is a first one.
  */
-export function InstallBanner() {
+function cameBack(): boolean {
+  try {
+    const first = localStorage.getItem(FIRST_DAY_KEY);
+    if (!first) {
+      localStorage.setItem(FIRST_DAY_KEY, today());
+      return false;
+    }
+    return first !== today();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The studio as an app of its own: where Chrome or Edge holds the offer, one click installs it
+ * (its own window, its own icon). Not on the first visit: only once the organization has made a
+ * wizard and the person comes back on another day. Gone once installed, in the app's own
+ * window, or after the person closes it; the menu offers it always.
+ */
+export function InstallBanner({ me }: { me: Me }) {
   const prompt = useInstallPrompt();
   const [closed, setClosed] = useState(dismissed);
-  const way = installWay(prompt);
-  // A phone has the offer in the user menu instead. Chrome without an offer: installed already,
-  // or the page does not qualify.
-  if (closed || standalone() || touch() || way === "chromium") {
+  const [back] = useState(cameBack);
+  // A phone has the offer in the user menu instead.
+  if (!(prompt && me.hasWizards && back) || closed || standalone() || touch()) {
     return null;
   }
   const close = () => {
@@ -76,12 +98,10 @@ export function InstallBanner() {
   return (
     <div className="flex items-center gap-3 border-border-soft border-b bg-paper-2 px-4 py-2 text-[0.8125rem] text-ink-2 sm:px-6">
       <AppWindow className="size-4 shrink-0 text-ink-3" />
-      <p className="min-w-0 flex-1">{prompt ? t("install.app.offer") : t("install.app.browser")}</p>
-      {prompt ? (
-        <Button size="sm" onClick={() => void acceptInstall(prompt)}>
-          {t("install.app.action")}
-        </Button>
-      ) : null}
+      <p className="min-w-0 flex-1">{t("install.app.offer")}</p>
+      <Button size="sm" onClick={() => void acceptInstall(prompt)}>
+        {t("install.app.action")}
+      </Button>
       <IconButton label={t("install.app.close")} onClick={close} className="size-8">
         <X className="size-4" />
       </IconButton>

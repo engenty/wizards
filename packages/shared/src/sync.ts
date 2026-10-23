@@ -108,6 +108,11 @@ export interface SpaceSyncState {
   merges: number;
   /** Why the last try did not arrive; null when it did. */
   error: { message: string; reason?: string; at: string } | null;
+  /**
+   * The organization the space syncs with, when the account is signed in to another one now:
+   * the space stays here and syncs again after a switch back.
+   */
+  organization?: string | null;
 }
 
 /** An item where both sides changed the same thing: what each has, and where they differ. */

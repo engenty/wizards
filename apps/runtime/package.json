@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json && node --input-type=module -e \"import { cpSync } from 'node:fs'; cpSync('src/db/migrations', 'dist/db/migrations', { recursive: true }); cpSync('../../docs/content', 'dist/docs', { recursive: true });\" && node scripts/build-apple.mjs",
+    "build": "tsc -p tsconfig.json && node --input-type=module -e \"import { cpSync } from 'node:fs'; cpSync('src/db/migrations', 'dist/db/migrations', { recursive: true }); cpSync('src/data', 'dist/data', { recursive: true }); cpSync('../../docs/content', 'dist/docs', { recursive: true });\" && node scripts/build-apple.mjs",
     "db:generate": "drizzle-kit generate && DB_SCHEMA=control drizzle-kit generate",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
@@ -62,7 +62,7 @@
     "mammoth": "^1.13.0",
     "marked": "^18.0.14",
     "nanoid": "^5.1.16",
-    "nodemailer": "^10.0.9",
+    "nodemailer": "^10.0.10",
     "pdf-parse": "^2.4.5",
     "playwright-core": "1.63.0",
     "postal-mime": "^4.0.2",

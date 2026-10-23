@@ -178,6 +178,12 @@ const de: Record<Key, Line> = {
   "models.cap.chat": "Agent-Chat",
   "models.cap.chat.hint": "Goose und der Chat im Editor, der deine Wizards baut.",
   "models.chatModels": "Wie Text & Denken",
+  "models.chatCloudHint":
+    "In der Cloud arbeiten Goose und der Chat im Editor mit dem Guthaben der Organisation. engenty wählt die Modelle. Auf deinem Computer kannst du ein Abo oder einen Key wählen.",
+  "models.chatModelsTitle": "Modell",
+  "models.chatModelNormal": "Modell",
+  "models.chatModelNormalHint": "für den Alltag",
+  "models.latest": "Neuestes Modell · {model}",
   "models.chatHint":
     "Mit einem Abo arbeitet das Programm auf diesem Computer, angemeldet mit deinem Konto dort. Es nutzt dabei nur die Werkzeuge von engenty wizards. Für Läufe gilt, was unter „In Läufen“ eingestellt ist.",
   "models.groupAccess": "Zugänge",
@@ -565,6 +571,8 @@ const de: Record<Key, Line> = {
   },
   "cloudSync.state.at": "Zuletzt angekommen {when}",
   "cloudSync.state.hereOnly": "Nur auf diesem Computer",
+  "cloudSync.state.otherOrganization":
+    "Gehört zu {name}: bleibt auf diesem Computer, bis du zu {name} zurückwechselst",
   "cloudSync.state.cloudOnly": "Nur in der Cloud",
   "cloudSync.error.updateHere":
     "Die Cloud hat eine neuere Version. Aktualisiere engenty wizards, dann kommen deine Änderungen wieder an.",
@@ -675,6 +683,10 @@ const de: Record<Key, Line> = {
   "account.kind.monthly": "Monatsguthaben",
   "account.kind.gift": "Geschenkt",
   "account.cloud": "Was du hier veröffentlichst, läuft auch auf {host}.",
+  "account.organization": "Organisation",
+  "account.switchAnyway": "Trotzdem wechseln",
+  "account.switchHint":
+    "Die Anmeldung läuft im Browser noch einmal, für die Organisation, die du wählst. Die Spaces von {name} bleiben auf diesem Computer und kommen erst wieder in der Cloud an, wenn du zurückwechselst. Spaces, die nur hier sind, gehen nicht mit.",
   "account.look": "Darstellung",
   "account.lookHint": "Sprache und Design der App in diesem Browser.",
   "nav.logout": "Abmelden",
@@ -1143,6 +1155,13 @@ const de: Record<Key, Line> = {
   "editor.notPublished": "Noch nicht veröffentlicht",
   "editor.composer": "Beschreibe, was sich ändern soll …",
   "editor.attach": "Dateien anhängen",
+  "composer.more": "Mehr",
+  "composer.extra": "Extra-Aufwand",
+  "composer.extraHint": "Intelligenteres Modell für anspruchsvolle Aufgaben",
+  "assistant.extraTitle": "Das wird aufwendig.",
+  "assistant.extraOn": "Extra-Aufwand ist an. Die nächste Nachricht nutzt ihn.",
+  "assistant.extraOnButton": "Extra-Aufwand einschalten",
+  "assistant.extraNo": "Nein, danke",
   "editor.detach": "Entfernen",
   "editor.attached": "Angehängt",
   "editor.thread": "Verlauf",
@@ -2923,6 +2942,12 @@ const en = {
   "models.cap.chat": "Agent chat",
   "models.cap.chat.hint": "Goose and the chat in the editor that builds your wizards.",
   "models.chatModels": "Same as Text & reasoning",
+  "models.chatCloudHint":
+    "In the cloud, Goose and the chat in the editor work on the organization’s credits. engenty picks the models. On your computer you can pick a subscription or a key.",
+  "models.chatModelsTitle": "Model",
+  "models.chatModelNormal": "Model",
+  "models.chatModelNormalHint": "for everyday work",
+  "models.latest": "Latest model · {model}",
   "models.chatHint":
     "With a subscription, the program works on this computer, using your sign-in there. It uses only the tools of engenty wizards. Runs use what is set under “In runs”.",
   "models.groupAccess": "Access",
@@ -3300,6 +3325,8 @@ const en = {
   },
   "cloudSync.state.at": "Last arrived {when}",
   "cloudSync.state.hereOnly": "Only on this computer",
+  "cloudSync.state.otherOrganization":
+    "Belongs to {name}: stays on this computer until you switch back to {name}",
   "cloudSync.state.cloudOnly": "Only in the cloud",
   "cloudSync.error.updateHere":
     "The cloud runs a newer version. Update engenty wizards, then your changes arrive again.",
@@ -3408,6 +3435,10 @@ const en = {
   "account.kind.monthly": "Monthly credits",
   "account.kind.gift": "Gift",
   "account.cloud": "What you publish here also runs on {host}.",
+  "account.organization": "Organization",
+  "account.switchAnyway": "Switch anyway",
+  "account.switchHint":
+    "The sign-in runs again in your browser, for the organization you pick. The spaces of {name} stay on this computer and arrive in the cloud again when you switch back. Spaces that are only here don’t go along.",
   "account.look": "Appearance",
   "account.lookHint": "Language and theme of the studio in this browser.",
   "nav.logout": "Sign out",
@@ -3867,6 +3898,13 @@ const en = {
   "editor.notPublished": "Not published yet",
   "editor.composer": "Describe what should change…",
   "editor.attach": "Attach files",
+  "composer.more": "More",
+  "composer.extra": "Extra effort",
+  "composer.extraHint": "A smarter model for demanding tasks",
+  "assistant.extraTitle": "This will take some work.",
+  "assistant.extraOn": "Extra effort is on. Your next message uses it.",
+  "assistant.extraOnButton": "Turn on extra effort",
+  "assistant.extraNo": "No, thanks",
   "editor.detach": "Remove",
   "editor.attached": "Attached",
   "editor.thread": "Chat history",
