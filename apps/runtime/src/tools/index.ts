@@ -9,6 +9,7 @@ import type { StepContext } from "../engine/types.js";
 import { generateImageMedia } from "../media/generate.js";
 import { markMedia } from "../media/marking.js";
 import { gatewayTools, isHarnessVendor, type ResolvedModel } from "../models.js";
+import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
 import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../sandbox/index.js";
 import { snapshotFile } from "../services/files.js";
@@ -92,7 +93,7 @@ export async function buildStepTools(
       // An installed client searches with its own tool; naming it here switches it on.
       tools.web_search = createTool({
         id: "web_search",
-        description: "Search the web.",
+        description: prompt("tools", "tool.web_search"),
         inputSchema: z.object({ query: z.string() }),
         execute: async () => ({ error: "The client searches itself." }),
       });
@@ -104,7 +105,7 @@ export async function buildStepTools(
   if (allowed.has("web_fetch") || allowed.has("web_search")) {
     tools.web_fetch = createTool({
       id: "web_fetch",
-      description: "Fetch a public web page or file and return its readable text (Markdown).",
+      description: prompt("tools", "tool.web_fetch"),
       inputSchema: z.object({ url: z.string().describe("Absolute http(s) URL") }),
       execute: async ({ url }) => {
         const safe = await assertPublicUrl(url);
@@ -135,8 +136,8 @@ export async function buildStepTools(
             type: type || "unknown",
             bytes: data.length,
             note: type.startsWith("image/")
-              ? "An image, not a page: the address works. Its bytes are not text and are not shown."
-              : "Not a text page: its bytes are not shown.",
+              ? prompt("tools", "note.web_fetch_image")
+              : prompt("tools", "note.web_fetch_binary"),
           };
         }
         const text = type.includes("html") ? htmlToMarkdown(body) : body;
@@ -148,7 +149,7 @@ export async function buildStepTools(
   if (allowed.has("http")) {
     tools.http_request = createTool({
       id: "http_request",
-      description: "Call a public HTTP API. Use for REST endpoints the instructions name.",
+      description: prompt("tools", "tool.http_request"),
       inputSchema: z.object({
         method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("GET"),
         url: z.string(),
@@ -223,8 +224,7 @@ export async function buildStepTools(
     });
     tools.export_file = createTool({
       id: "export_file",
-      description:
-        "Hand a file from the sandbox to the person as a result (e.g. a chart PNG, a CSV).",
+      description: prompt("tools", "tool.export_file"),
       inputSchema: z.object({
         path: z.string(),
         mime: z.string().describe("e.g. image/png, text/csv"),
@@ -251,7 +251,7 @@ export async function buildStepTools(
   if (allowed.has("image")) {
     tools.generate_image = createTool({
       id: "generate_image",
-      description: "Draw an image from a detailed visual prompt. The image is shown to the person.",
+      description: prompt("tools", "tool.generate_image"),
       inputSchema: z.object({
         prompt: z.string(),
         aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:5", "3:2", "2:3"]).optional(),
@@ -282,10 +282,12 @@ export async function buildStepTools(
   if (ctx.files.length) {
     tools.read_workspace_file = createTool({
       id: "read_workspace_file",
-      description: `Read a file from the wizard's workspace. Files: ${ctx.files
-        .slice(0, 60)
-        .map((f) => f.path)
-        .join(", ")}`,
+      description: prompt("tools", "tool.read_workspace_file", {
+        files: ctx.files
+          .slice(0, 60)
+          .map((f) => f.path)
+          .join(", "),
+      }),
       inputSchema: z.object({ path: z.string() }),
       execute: async ({ path }) => {
         const found = await snapshotFile(ctx.files, path);

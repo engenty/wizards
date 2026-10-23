@@ -2,6 +2,7 @@ import type { LookupAddress, LookupOptions } from "node:dns";
 import { lookup } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
 import { Agent } from "undici";
+import { prompt } from "../prompts.js";
 
 const ALLOW_PRIVATE = process.env.ALLOW_PRIVATE_FETCH === "1";
 
@@ -103,14 +104,12 @@ export function isPublicAddress(ip: string): boolean {
   return !blocked.check(w.map((x) => x.toString(16)).join(":"), "ipv6");
 }
 
-const PRIVATE = "Private addresses are not reachable from a wizard.";
-
 /** The host's addresses, each of them public; throws if any one is not. */
 async function publicAddresses(host: string): Promise<LookupAddress[]> {
   const family = isIP(host);
   const addresses = family ? [{ address: host, family }] : await lookup(host, { all: true });
   if (!ALLOW_PRIVATE && (!addresses.length || addresses.some((a) => !isPublicAddress(a.address)))) {
-    throw new Error(PRIVATE);
+    throw new Error(prompt("tools", "note.net_private"));
   }
   return addresses;
 }
@@ -124,14 +123,14 @@ export async function assertPublicUrl(raw: string): Promise<URL> {
     throw new Error(`Not a valid URL: ${raw}`);
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("Only http and https URLs are allowed.");
+    throw new Error(prompt("tools", "note.net_scheme"));
   }
   if (ALLOW_PRIVATE) {
     return url;
   }
   const host = url.hostname.replace(/^\[|\]$/g, "");
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
-    throw new Error(PRIVATE);
+    throw new Error(prompt("tools", "note.net_private"));
   }
   await publicAddresses(host);
   return url;

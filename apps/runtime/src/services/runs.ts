@@ -30,6 +30,7 @@ import {
   submitPage,
 } from "../engine/runner.js";
 import { ModelUnavailableError, saidOf } from "../model-errors.js";
+import { prompt } from "../prompts.js";
 import { signedUrl } from "../secrets/signing.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { brandView } from "./brand.js";
@@ -245,9 +246,7 @@ function slotHints(run: RunRow, field: Field, options: string[] | undefined) {
   return {
     times: (options ?? []).map((o) => ({ value: o, label: slotText(o, lang) })),
     ...(typeof value === "string" ? { valueText: slotText(value, lang) } : {}),
-    hint: options?.length
-      ? "One appointment time: show the person the labels, answer with the value of the one they pick, exactly as given."
-      : "No times are free right now: tell the person.",
+    hint: options?.length ? prompt("mcp", "hint.slot") : prompt("mcp", "hint.slot_none"),
   };
 }
 
@@ -276,14 +275,14 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
           service: ask.service,
           action: ask.action.summary,
           input: clip(ask.input, 1500),
-          hint: "Ask the person, then answer_ask with allow or skip.",
+          hint: prompt("mcp", "hint.confirm"),
         }
       : {
           ask: ask.id,
           kind: ask.kind,
           reason: ask.reason,
           site: ask.site.host,
-          hint: "A sign-in: the person types it on the run page (browserUrl).",
+          hint: prompt("mcp", "hint.sign_in"),
         };
   }
   if (run.status !== "waiting_input" || !current) {
@@ -327,7 +326,7 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
         // page holds or not as the person answers. `shown` says so for what is known now.
         ...(f.when ? { when: f.when, shown: shown.has(f.id) } : {}),
       })),
-      hint: "Ask the fields in order; skip a field whose `when` does not hold on the answers so far (a hidden one is not required and not kept).",
+      hint: prompt("mcp", "hint.page"),
     };
   }
   if (current.type === "review") {
@@ -336,7 +335,7 @@ async function waitingFor(run: RunRow, current: Step | null, draft?: Record<stri
       title: current.title,
       show: current.show,
       editable: Boolean(current.edit),
-      hint: "Show the person the outputs, then review_step: accept, or regenerate one with a note.",
+      hint: prompt("mcp", "hint.review"),
     };
   }
   return undefined;

@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Effort, TextClass } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
+import { prompt } from "../prompts.js";
 import { probeVersion, resolveEnv, run } from "./env.js";
 import {
   failureOf,
@@ -187,13 +188,11 @@ class CodexImageModel extends HarnessImageModel {
   readonly provider = "codex";
 
   protected async invoke(call: HarnessImageCall): Promise<Uint8Array> {
-    const prompt = [
+    const request = [
       call.prompt,
-      call.files.length
-        ? "Work from the attached image(s): edit them as described, keeping what is not to change."
-        : "",
+      call.files.length ? prompt("services", "harness.codex_image.edit") : "",
       call.aspectRatio ? `Aspect ratio: ${call.aspectRatio}.` : "",
-      "Make exactly one image with your image generation tool. Write no files yourself and run no commands. Reply only with: done",
+      prompt("services", "harness.codex_image.once"),
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -223,7 +222,7 @@ class CodexImageModel extends HarnessImageModel {
       cwd: call.dir,
       env,
       signal: call.signal,
-      stdin: prompt,
+      stdin: request,
     });
     const { answer, failure } = codexAnswer(stdout);
     if (failure || !answer?.sessionId) {

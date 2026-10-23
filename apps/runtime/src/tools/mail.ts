@@ -10,12 +10,10 @@ import {
   mailSearchInput,
 } from "../connectors/mail.js";
 import type { StepContext } from "../engine/types.js";
+import { prompt } from "../prompts.js";
 import { escapeHtml, htmlToPdf } from "../render/convert.js";
 import { guardHtml } from "../render/guard.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
-
-const NOT_CONNECTED =
-  "The person has not connected a mailbox. Go on without mail and say in your result that the mailbox is not connected.";
 
 /**
  * Read-only mail for a step that names a mail connection. The tools are the same whichever
@@ -31,7 +29,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
   const open = async () => {
     const found = await connectionContext(ctx.store, connection, ctx.project.id);
     if (!found) {
-      throw new Error(NOT_CONNECTED);
+      throw new Error(prompt("tools", "note.mail_not_connected"));
     }
     return found;
   };
@@ -39,8 +37,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
 
   tools.mail_search = createTool({
     id: "mail_search",
-    description:
-      "Search the person's mailbox (read-only), newest first. Returns id, date, sender, subject, snippet and attachments (id, name, size) of each mail. Search broadly with several terms at once rather than one call per word.",
+    description: prompt("tools", "tool.mail_search"),
     inputSchema: mailSearchInput,
     execute: (input) =>
       attempt(async () => {
@@ -62,7 +59,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
 
   tools.mail_read = createTool({
     id: "mail_read",
-    description: "Read one mail in full: sender, recipients, text, attachments.",
+    description: prompt("tools", "tool.mail_read"),
     inputSchema: z.object({ id: z.string() }),
     execute: ({ id }) =>
       attempt(async () => {
@@ -75,8 +72,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
 
   tools.mail_save = createTool({
     id: "mail_save",
-    description:
-      "Keep mail attachments (invoice PDFs) as files, several at once: each is stored under `path` in the wizard's files and added to this step's result. Leave attachment_id out to keep the mail itself as a PDF — for receipts that only exist as mail text. Then read them with scan_documents or read_document.",
+    description: prompt("tools", "tool.mail_save"),
     inputSchema: z.object({
       items: z
         .array(

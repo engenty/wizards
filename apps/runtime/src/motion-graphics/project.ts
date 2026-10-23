@@ -10,6 +10,8 @@ import type { StepContext } from "../engine/types.js";
 import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";
 import { extFor, loadAsset } from "../files/storage.js";
+import { prompt } from "../prompts.js";
+import { contentPolicy } from "../safety.js";
 import { projectFileContent } from "../services/project-files.js";
 import { placeSkills } from "./skills.js";
 import { soundCatalog } from "./sounds.js";
@@ -62,60 +64,17 @@ const safeName = (name: string) =>
 
 /** Where the client starts, by how video/ began. */
 function startRules(start: MotionStart): string {
-  if (start === "base") {
-    return `- **What to make:** BRIEF.md. **Start here:** video/ is already the wizard's base project in this
-  format — read video/PARTS.md first: its scene templates carry the look. Compose the video from them in
-  the one file PARTS.md names, timed to the voice; write a new scene only where no template fits, then
-  in the style of showcase/ (SHOWCASE.md says how each technique is made).
-- **The brand:** video/brand/ holds brand.json and the logos. If video/brand/theme.json is missing, make
-  it first as video/BRAND.md says — it is kept for the next videos of this space, so get it right.
-  Colours, logo and fonts come from there only.
-`;
-  }
-  if (start === "from") {
-    return `- **What to make:** BRIEF.md. **Start here:** video/ holds a finished video of this run in another
-  format. Lay it out for this one: scenes, timing, words and sound stay; only the layout changes
-  (video/PARTS.md says how when it exists). The look is showcase/'s.
-- **The brand:** video/brand/ when it is there, else brand/brand.json and brand/logos/ — colours, logo
-  and fonts come from there only.
-`;
-  }
-  return `- **What to make:** BRIEF.md. **The bar:** showcase/ (read showcase/SHOWCASE.md and showcase/frame.md
-  first when it exists, look at its stills, reuse its helpers from showcase/assets/). **The brand:**
-  brand/brand.json and brand/logos/ — colours, logo and fonts come from there only.
-`;
+  return prompt("step", `motion.start.${start}`);
 }
 
 function rules(step: MotionGraphicsStep, skills: string[], start: MotionStart): string {
   const size = MOTION_SIZES[step.format];
-  return `# The video folder
-
-You make one video here, autonomously, to the end. Nobody answers questions: where a skill asks the
-person, decide yourself and note it in PROGRESS.md.
-
-${startRules(start)}- **Material:** input/ (see input/README.md). Use nothing from the web; you have no network.
-- **Skills:** ${skills.join(", ")} in .claude/skills/<name>/SKILL.md. Start with \`hyperframes\` and
-  read the skill files directly; do not update or install skills.
-- **The HyperFrames project is video/** (${size.width}×${size.height}). Keep every file of the video
-  inside video/.
-- **Running HyperFrames:** only through the \`hyperframes\` tool (MCP server \`video\`), e.g.
-  \`["lint","video"]\`, \`["check","video"]\`, \`["snapshot","video","--at","1,4,8"]\`,
-  \`["render","video","-q","draft"]\`, \`["transcribe","input/voice/l01.wav","--json","-d","input/voice"]\`.
-  \`npx\`, \`npm\` and network do not work in the shell.
-- **Look at your work:** snapshot the frames and read the PNGs, fix what is wrong. Before you finish,
-  render a draft and look at a frame every second of the whole video: empty areas, cut-off text,
-  overlaps, jumps.
-- **Finish** only when \`["check","video"]\` passes and \`["render","video","-q","draft"]\` succeeds, with \`video/index.html\` complete. The runtime renders the final MP4 itself.
-  End with a short summary: what the video shows, what you decided.
-
-## Sound (hard rules)
-
-- Sounds come only from audio-catalog/ (catalog.json lists each file with tags, keywords, licence).
-  Copy the picked files into video/assets/ and list them in video/AUDIO.md (file, source, licence, use).
-- Never generate, synthesize or download audio: no ffmpeg tone or noise, no TTS, no music models. Voice
-  lines come only from input/. Mixing is HyperFrames' job (\`<audio>\` with start, duration, volume).
-- Install nothing (no pip, brew, npm).
-`;
+  return `${prompt("step", "motion.rules", {
+    start: startRules(start),
+    skills: skills.join(", "),
+    width: size.width,
+    height: size.height,
+  })}\n\n${contentPolicy()}\n`;
 }
 
 const BRAND_STAMP = join(".engenty", "brand");
@@ -172,7 +131,7 @@ async function writeBrand(
   }
   const json = JSON.stringify(
     {
-      note: "The space's brand. Colours are named by what they are for; the first is the accent. A logo's section, a gradient's or a pattern's description says when to use it; colorRules, logoRules and typeRules, where there are any, say how colours, logos and type may be used; text is set in the fonts — a font with `uses` that leave out video is not used in a video: its text gets a system font.",
+      note: prompt("step", "motion.brand_note"),
       name: b.name ?? "",
       about: b.about ?? "",
       colors: (b.colors ?? []).map((c) => {
@@ -349,12 +308,17 @@ export async function prepareMotionFolder(
   const skills = await placeSkills(step.skills, ctx.files, join(root, ".claude", "skills"));
   const size = MOTION_SIZES[step.format];
 
+  const spec = [
+    step.format,
+    `${size.width}×${size.height}`,
+    step.seconds ? `about ${step.seconds} s` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   await put(
     root,
     "BRIEF.md",
-    `# Brief\n\nFormat ${step.format}, ${size.width}×${size.height}${
-      step.seconds ? `, about ${step.seconds} s` : ""
-    }. Language of all text on screen: the brief's language.\n\n${brief}\n`,
+    `# Brief\n\nFormat ${spec}. ${prompt("step", "motion.brief")}\n\n${brief}\n`,
   );
 
   // The style kit: the showcase to look at, and the base a video starts from when it has one.
@@ -417,7 +381,7 @@ export async function prepareMotionFolder(
   await put(
     join(root, "input"),
     "README.md",
-    `# Material for this video\n\n${listed.join("\n") || "(none)"}\n\nVoice lines play one after another in their order; their lengths decide the timing.\n`,
+    `${prompt("step", "motion.input", { files: listed.join("\n") || "(none)" })}\n`,
   );
 
   await cp(await soundCatalog(), join(root, "audio-catalog"), { recursive: true });

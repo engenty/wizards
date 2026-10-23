@@ -6,6 +6,7 @@ import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
 import { RunConflict } from "../engine/runner.js";
 import { pluginToolsOf } from "../plugins/registry.js";
+import { prompt } from "../prompts.js";
 import { publishAndSync, pushSharing } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
@@ -115,7 +116,7 @@ function annotationsOf(config: { readOnly?: boolean; destructive?: boolean; open
 /** What a client tells its person when people edit the wizard it just changed. */
 function presentNote(people: [string, string | null][]): string {
   const who = people.map(([name, where]) => (where ? `${name} (${where})` : name)).join(", ");
-  return `${who} ${people.length > 1 ? "are" : "is"} editing this wizard in the studio right now. Your change is in; their editor merges it with what they type. Tell your user before larger changes.`;
+  return prompt("mcp", "note.present", { who, verb: people.length > 1 ? "are" : "is" });
 }
 
 export function registerTools(server: McpServer, who: Principal) {
@@ -237,8 +238,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "Authoring guide",
-      description:
-        "Read this before writing a wizard: the JSON schema, field kinds, step types and tools, templates, design rules, and the MCP servers of the project.",
+      description: prompt("mcp", "tool.get_authoring_guide"),
       input: z.object({
         projectId: z.string().optional().describe("Defaults to the person's first project."),
       }),
@@ -258,8 +258,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "Find connectors",
-      description:
-        "Search the integrations registry for a service that can be imported as a connector, from its OpenAPI spec or its MCP server.",
+      description: prompt("mcp", "tool.find_connectors"),
       input: z.object({ query: z.string().min(1).max(200) }),
       readOnly: true,
     },
@@ -271,7 +270,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "List connectors",
-      description: "The connectors a project has imported, each with its actions.",
+      description: prompt("mcp", "tool.list_connectors"),
       input: z.object({ projectId: z.string().optional() }),
       readOnly: true,
     },
@@ -288,8 +287,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:write",
     {
       title: "Import connector",
-      description:
-        "Import a registry service into a project as a connector. Returns its id, tool prefix, how people connect and its actions. A wizard uses it through a connection { id, connector }.",
+      description: prompt("mcp", "tool.import_connector"),
       input: z.object({
         projectId: z.string().optional(),
         domain: z.string().describe("A domain from find_connectors, e.g. notion.com"),
@@ -309,8 +307,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "List starters",
-      description:
-        "Ready-made wizards to start from: first those the space's plugins bring (marked with the plugin), then the marketplace's (tweet with image, video ad, research briefing, dashboard, invoice, offer …), with what each makes and needs. Give a query to search them; without one you get the starters.",
+      description: prompt("mcp", "tool.list_starters"),
       input: z.object({ query: z.string().max(200).optional() }),
       readOnly: true,
     },
@@ -335,7 +332,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "Get starter",
-      description: "A starter's complete wizard JSON — the best example to copy from.",
+      description: prompt("mcp", "tool.get_starter"),
       input: z.object({ starterId: z.string() }),
       readOnly: true,
     },
@@ -353,8 +350,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "List projects",
-      description:
-        "The person's projects, called spaces in the studio. Each holds wizards, a brand and MCP servers. Name a space by its name; where two share one, add where it comes from (`from`). Ids are for the tools: never show them to the person.",
+      description: prompt("mcp", "tool.list_projects"),
       input: z.object({}),
       readOnly: true,
     },
@@ -372,8 +368,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "List wizards",
-      description:
-        "The person's wizards, newest first, each with its space's name and where that space comes from. Ids are for the tools: never show them to the person.",
+      description: prompt("mcp", "tool.list_wizards"),
       input: z.object({ projectId: z.string().optional() }),
       readOnly: true,
     },
@@ -401,8 +396,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "Get wizard",
-      description:
-        "A wizard's draft with its revision and validator issues, whether it differs from the published version, and its links.",
+      description: prompt("mcp", "tool.get_wizard"),
       input: z.object({ wizardId: z.string() }),
       readOnly: true,
     },
@@ -429,7 +423,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:read",
     {
       title: "Validate wizard",
-      description: "Check a wizard JSON without saving it. Returns ok and the issues.",
+      description: prompt("mcp", "tool.validate_wizard"),
       input: z.object({ definition }),
       readOnly: true,
     },
@@ -452,8 +446,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:write",
     {
       title: "Create wizard",
-      description:
-        "Create a wizard from your JSON, or copy a starter. The draft may still have issues; fix them with edit_wizard.",
+      description: prompt("mcp", "tool.create_wizard"),
       input: z.object({
         projectId: z.string().optional().describe("Defaults to the person's first project."),
         definition: definition.optional(),
@@ -481,14 +474,7 @@ export function registerTools(server: McpServer, who: Principal) {
     "wizards:write",
     {
       title: "Edit wizard",
-      description: `Apply ops to the draft atomically, in order:
-- set_meta {title?, description?, avatar?, costume? (null takes it off), intro? (null removes), themes? (theme ids in order; null removes)}
-- set_theme {theme}: a theme of the space (see "type Theme"), made or replaced, worn first by this wizard
-- set_lists {lists} / set_connections {connections}: replace the wizard's lists or connections as a whole
-- upsert_step {step (complete), before?|after?}: replaces the step with that id, else inserts it (default: before the final result step)
-- remove_step {stepId}
-- move_step {stepId, before|after}
-Returns the new revision and the issues.`,
+      description: prompt("mcp", "tool.edit_wizard"),
       input: z.object({
         wizardId: z.string(),
         baseRevision,
@@ -508,7 +494,7 @@ Returns the new revision and the issues.`,
     "wizards:write",
     {
       title: "Replace wizard",
-      description: "Replace the whole draft. Use edit_wizard for smaller changes.",
+      description: prompt("mcp", "tool.replace_wizard"),
       input: z.object({ wizardId: z.string(), baseRevision, definition, note }),
       destructive: true,
     },
@@ -529,8 +515,7 @@ Returns the new revision and the issues.`,
     "wizards:publish",
     {
       title: "Publish wizard",
-      description:
-        "Publish the draft as a new version behind the share link. Refused while the draft has issues. Only when the person asked for it.",
+      description: prompt("mcp", "tool.publish_wizard"),
       input: z.object({ wizardId: z.string() }),
       destructive: true,
       openWorld: true,
@@ -543,7 +528,7 @@ Returns the new revision and the issues.`,
     "wizards:publish",
     {
       title: "Set sharing",
-      description: "Turn the share link on or off, or change how many runs it allows per day.",
+      description: prompt("mcp", "tool.set_sharing"),
       input: z.object({
         wizardId: z.string(),
         enabled: z.boolean().optional(),
@@ -572,8 +557,7 @@ Returns the new revision and the issues.`,
     "runs:test",
     {
       title: "Start test run",
-      description:
-        "Run the draft once with your answers. Spends the person's credits (short copy + image about 15, research about 150, video about 250). Pages are filled from `answers`, reviews accepted when acceptReviews is true. Follow it with get_test_run. Shows the flow with the run on it.",
+      description: prompt("mcp", "tool.start_test_run"),
       input: z.object({
         wizardId: z.string(),
         answers: z
@@ -601,8 +585,7 @@ Returns the new revision and the issues.`,
     "runs:test",
     {
       title: "Get test run",
-      description:
-        "Status, recent events, outputs (text clipped) with signed download links valid one hour, credits spent, and what the run waits for.",
+      description: prompt("mcp", "tool.get_test_run"),
       input: z.object({
         runId: z.string(),
         waitSeconds: z
@@ -624,8 +607,7 @@ Returns the new revision and the issues.`,
     "wizards:read",
     {
       title: "Show wizard",
-      description:
-        "Show a wizard as its flow diagram: its pages, AI steps, reviews and branches. The published version when there is one, else the draft. Also returns the steps as text.",
+      description: prompt("mcp", "tool.show_wizard"),
       input: z.object({
         wizardId: z.string(),
         version: z.enum(["published", "draft"]).optional().describe("Default: published, if any."),
@@ -659,22 +641,11 @@ Returns the new revision and the issues.`,
     "runs:test",
     {
       title: "Run wizard",
-      description: `Start a run of a published wizard for the person, here in the chat. Spends credits like any run.
-Start it right away — no show_wizard first: the widget shows the wizard's pages and the person can answer there. What the person already said goes to the first page with answer_page, using the field ids in waitingFor. Then follow waitingFor:
-- page: ask the person for the fields with inChat=true, in order, answer_page; fields with inChat=false (files, recordings, signatures) need the run page at browserUrl. A field with a when is asked only while its condition holds on the answers so far (shown says so for what is known now); fields the wizard decided against are not listed
-- review: show the outputs, then review_step
-- ask: answer_ask (allow/skip a change in a connected account) or the run page for a sign-in
-While status is running, get_run with waitSeconds. Hosts with MCP Apps also show the run as a widget the person can answer in.`,
+      description: prompt("mcp", "tool.run_wizard"),
       input: z.object({
         wizardId: z.string(),
         answers: z.record(z.string(), z.unknown()).default({}),
-        theme: z
-          .string()
-          .max(80)
-          .optional()
-          .describe(
-            "The widget's look: the id of a theme the wizard names (its definition's themes), brand or default. Left out: host, this app's own look. Only when the person asks for the wizard's look.",
-          ),
+        theme: z.string().max(80).optional().describe(prompt("mcp", "param.run_wizard.theme")),
       }),
       openWorld: true,
     },
@@ -701,8 +672,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     "runs:test",
     {
       title: "Get run",
-      description:
-        "A run's status, what it waits for, its outputs (text clipped) with signed download links valid one hour, and the credits it spent.",
+      description: prompt("mcp", "tool.get_run"),
       input: z.object({ runId: z.string(), waitSeconds }),
       readOnly: true,
     },
@@ -714,8 +684,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     "runs:test",
     {
       title: "Answer page",
-      description:
-        "Fill the page a run waits for: field id → value (items: an array of row objects; toggle: true/false; multiselect: an array; slot: one of the offered times, as given). Returns the run, after waitSeconds.",
+      description: prompt("mcp", "tool.answer_page"),
       input: z.object({
         runId: z.string(),
         stepId: z.string().describe("waitingFor.page"),
@@ -735,8 +704,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     "runs:test",
     {
       title: "Review step",
-      description:
-        "Answer the review a run waits for: accept (optionally with edited texts, step id → text, when the review is editable) or regenerate one step it shows, with a note what to change.",
+      description: prompt("mcp", "tool.review_step"),
       input: z.object({
         runId: z.string(),
         stepId: z.string().describe("waitingFor.review"),
@@ -766,8 +734,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     "runs:test",
     {
       title: "Answer confirmation",
-      description:
-        "A running step asks before it changes something in a connected account (waitingFor.ask, kind confirm): allow it once, or skip it. Ask the person first.",
+      description: prompt("mcp", "tool.answer_ask"),
       input: z.object({
         runId: z.string(),
         askId: z.string(),
@@ -788,8 +755,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     "runs:test",
     {
       title: "Control run",
-      description:
-        "back: return to the previous page or review. retry: run the failed step again. cancel: stop the run.",
+      description: prompt("mcp", "tool.control_run"),
       input: z.object({ runId: z.string(), action: z.enum(["back", "retry", "cancel"]) }),
       destructive: true,
       openWorld: true,
@@ -806,8 +772,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     "wizards:read",
     {
       title: "List workspace files",
-      description:
-        "The wizard's workspace: widget HTML/JS/CSS, vendored libraries, reference data. Runs use a snapshot of it.",
+      description: prompt("mcp", "tool.list_files"),
       input: z.object({ wizardId: z.string() }),
       readOnly: true,
     },
@@ -820,7 +785,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     "wizards:read",
     {
       title: "Read workspace file",
-      description: "A workspace file as text (binary files are described, not returned).",
+      description: prompt("mcp", "tool.read_file"),
       input: z.object({ wizardId: z.string(), path: z.string() }),
       readOnly: true,
     },
@@ -832,8 +797,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     "wizards:write",
     {
       title: "Write workspace file",
-      description:
-        "Create or overwrite a workspace file: `content` for text (HTML, JS, CSS, JSON, CSV, SVG) or `base64` for binary (images, fonts). Max 5 MB per file, 25 MB per workspace. A widget may only use files from here — no network when it runs.",
+      description: prompt("mcp", "tool.write_file"),
       input: z.object({
         wizardId: z.string(),
         path: z.string().describe('Relative path, e.g. "weather/index.html" or "lib/d3.min.js".'),
@@ -862,7 +826,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
     "wizards:write",
     {
       title: "Delete workspace file",
-      description: "Remove a file from the workspace.",
+      description: prompt("mcp", "tool.delete_file"),
       input: z.object({ wizardId: z.string(), path: z.string() }),
       destructive: true,
     },
@@ -885,8 +849,7 @@ While status is running, get_run with waitSeconds. Hosts with MCP Apps also show
       "check_widget",
       {
         title: "Check widget",
-        description:
-          "Load a widget step of the draft in a real browser with its sample data: script errors, the timeline it registered (seconds, for the MP4 export) and a screenshot.",
+        description: prompt("mcp", "tool.check_widget"),
         inputSchema: input,
         annotations: annotationsOf({ readOnly: true }),
       },
@@ -929,13 +892,7 @@ export function registerPrompts(server: McpServer) {
           role: "user",
           content: {
             type: "text",
-            text: `Build an engenty wizard: ${description}
-
-1. Call get_authoring_guide and follow its rules.
-2. Pick the closest starter (list_starters, get_starter) as an example.
-3. create_wizard with a short note; fix every issue with edit_wizard.
-4. start_test_run with realistic answers, then get_test_run with waitSeconds until it is done; fix what looks wrong.
-5. Give me the studioUrl and a short summary. Publish only if I ask.`,
+            text: prompt("mcp", "prompt.design_wizard", { description }),
           },
         },
       ],

@@ -1,4 +1,5 @@
 import { env } from "../env.js";
+import { prompt } from "../prompts.js";
 import { agentOsEngine } from "./agentos.js";
 import { DOCKER_CAPABILITIES, dockerEngine } from "./docker.js";
 import type { Sandbox, SandboxCapabilities, SandboxEngine } from "./types.js";
@@ -63,12 +64,16 @@ export function createSandbox(runId: string): Sandbox {
 }
 
 export function shellToolDescription(caps: SandboxCapabilities): string {
-  const notes = caps.notes ? ` ${caps.notes}` : "";
-  return `Run a shell command in a private Linux sandbox (${caps.commands.join(", ")}). Working directory ${caps.workdir}. Network: ${caps.network}.${notes}`;
+  const description = prompt("tools", "tool.run_command", {
+    commands: caps.commands.join(", "),
+    workdir: caps.workdir,
+    network: caps.network,
+  });
+  return caps.notes ? `${description} ${caps.notes}` : description;
 }
 
 /** The authoring guide's line about the sandbox tool. */
 export function sandboxGuideLine(): string {
   const uses = (sandboxCapabilities() ?? DOCKER_CAPABILITIES).uses;
-  return `- The sandbox runs code (python/node) for ${uses}; export_file hands files to the person.`;
+  return prompt("tools", "tool.run_command.guide_line", { uses });
 }

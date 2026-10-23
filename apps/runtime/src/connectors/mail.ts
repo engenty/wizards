@@ -4,6 +4,7 @@ import type {
   ConnectorActionContext,
   ConnectorDefinition,
 } from "../engenty/connections-sdk/types.js";
+import { prompt } from "../prompts.js";
 
 /**
  * Mail as wizards use it: read-only, and the same three actions whichever provider the person
@@ -72,8 +73,7 @@ export function mailActions(backend: MailBackend, providerScopes: string[]): Con
       id: "search",
       group: "read",
       summary: "Search the mailbox",
-      description:
-        "Search the mailbox, newest first. Returns id, date, sender, subject, a snippet and the attachments of each mail.",
+      description: prompt("tools", "connector.mail.search"),
       inputSchema: mailSearchInput,
       providerScopes,
       handler: async (input, ctx) => ({
@@ -84,7 +84,7 @@ export function mailActions(backend: MailBackend, providerScopes: string[]): Con
       id: "read",
       group: "read",
       summary: "Read one mail",
-      description: "Read one mail in full: sender, recipients, text and attachments.",
+      description: prompt("tools", "connector.mail.read"),
       inputSchema: mailReadInput,
       providerScopes,
       handler: (input, ctx) => backend.read(mailReadInput.parse(input).id, ctx),
@@ -93,7 +93,7 @@ export function mailActions(backend: MailBackend, providerScopes: string[]): Con
       id: "get_attachment",
       group: "read",
       summary: "Fetch an attachment",
-      description: "Fetch one attachment's bytes (base64).",
+      description: prompt("tools", "connector.mail.get_attachment"),
       inputSchema: mailAttachmentInput,
       providerScopes,
       handler: (input, ctx) => {

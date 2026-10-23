@@ -1,6 +1,7 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import type { StepContext } from "../engine/types.js";
+import { prompt } from "../prompts.js";
 import { runPages, writeRunPage } from "../services/space-data.js";
 import { pageReadInput, readKnowledgePage } from "./project.js";
 import { attempt, clip } from "./shared.js";
@@ -28,8 +29,7 @@ export function pageTools(ctx: StepContext) {
   return {
     page_read: createTool({
       id: "page_read",
-      description:
-        "Read a page: one this wizard wrote, by its title, or a page of Knowledge, by its path (pages/…). Without either it lists the wizard's pages.",
+      description: prompt("tools", "tool.page_read"),
       inputSchema: z.object({
         title: z.string().optional().describe("A page this wizard wrote"),
         path: pageReadInput.path.optional(),
@@ -55,8 +55,7 @@ export function pageTools(ctx: StepContext) {
     }),
     page_write: createTool({
       id: "page_write",
-      description:
-        "Write a page of this wizard in Markdown, kept for every later run and shown to the admin in the studio. A page with the same title is replaced — or added to with append: true (a log, a list that grows). Pages of Knowledge are read-only.",
+      description: prompt("tools", "tool.page_write"),
       inputSchema: z.object({
         title: z.string().min(1).max(200),
         markdown: z.string().max(200_000),

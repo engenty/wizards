@@ -19,6 +19,7 @@ import {
 import type { StepContext } from "../engine/types.js";
 import { env } from "../env.js";
 import { costOf, textModel } from "../models.js";
+import { prompt } from "../prompts.js";
 import { assertPublicUrl } from "./net-guard.js";
 import { attempt, type FileKeeper, imageOutput } from "./shared.js";
 import { resolveFile } from "./store.js";
@@ -72,7 +73,7 @@ function line(item: PageItem): string {
  */
 export function pageForModel(view: PageView) {
   const more = view.omitted
-    ? `\n… ${view.omitted} more not listed: close what is open, scroll, or read the page again.`
+    ? `\n${prompt("tools", "note.browser_more", { count: view.omitted })}`
     : "";
   return {
     url: view.url,
@@ -134,13 +135,13 @@ type Target = { x: number; y: number } | { error: string; by?: string };
 function targetError(n: number, target: { error: string; by?: string }): string {
   switch (target.error) {
     case "covered":
-      return `[${n}] is covered by "${target.by}". Deal with that first — a cookie or consent banner: click its least consent (only necessary / reject all).`;
+      return prompt("tools", "note.browser_covered", { ref: n, by: String(target.by) });
     case "disabled":
-      return `[${n}] is disabled right now.`;
+      return prompt("tools", "note.browser_disabled", { ref: n });
     case "gone":
-      return `[${n}] is not on the page any more. Use the numbers of the page below.`;
+      return prompt("tools", "note.browser_gone", { ref: n });
     default:
-      return `[${n}] cannot be seen on the page.`;
+      return prompt("tools", "note.browser_hidden", { ref: n });
   }
 }
 
@@ -241,16 +242,6 @@ async function fillCredentials(
   return { filled };
 }
 
-const NOBODY =
-  "Nobody is at the keyboard for this run, so a sign-in cannot be asked for. Go on without it and report what the person has to do.";
-const DECLINED =
-  "The person did not sign in. Do not ask again for this site; go on without it and say in your result what is missing and what the person can do.";
-const TOOK_OVER =
-  "The person took the browser over and has handed it back; nothing you asked for was done. The page may have changed — here it is as it stands now. Go on from here.";
-
-const RUN_FAST_DESCRIPTION =
-  "Hand a small, concrete browser sub-goal to the fast executor: on the CURRENT page it reads the visible controls, picks one element per step with a classifier (no language model), types field values taken from your goal, and repeats until the goal is visibly satisfied or it is unsure. Use it for mechanical sequences — click a cookie banner away, fill and submit a form, pick a date in a calendar, choose an autocomplete suggestion, set filters and dropdowns, open a matching result. Give one page's worth of work per call with every value spelled out (dates, names, filters); it never invents data. Returns status `done`, or `uncertain`/`blocked`/`budget`/`error` with the page and a note naming the step it could not decide. Then do THAT ONE step with the other browser_* tools and call browser_run_fast again with the same goal — do not finish the rest by hand. Open the page with browser_open first; it does not open URLs.";
-
 /** One line of at most 60 characters, for the run's log. */
 function short(text: string): string {
   const one = text.trim().replace(/\s+/g, " ");
@@ -302,7 +293,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
   const acting = <T>(run: () => Promise<T>) =>
     inTurn(async () => {
       if (await ctx.resources.agentTurn(ctx.signal)) {
-        return { note: TOOK_OVER, page: await read(await page()) };
+        return { note: prompt("tools", "note.browser_took_over"), page: await read(await page()) };
       }
       return run();
     });
@@ -313,8 +304,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_open = createTool({
     id: "browser_open",
-    description:
-      "Open a URL in the browser and return the page: its controls, each with a [number], and its text. A cookie banner in the way: click its least consent (only necessary / reject all) first. Sites the person signed in to on an earlier run may still be signed in.",
+    description: prompt("tools", "tool.browser_open"),
     inputSchema: z.object({ url: z.string() }),
     execute: ({ url }) =>
       acting(async () => {
@@ -330,16 +320,14 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_read = createTool({
     id: "browser_read",
-    description:
-      "Read the current page again: its controls with their [numbers] and its text. A number stays with its element as long as the element is on the page.",
+    description: prompt("tools", "tool.browser_read"),
     inputSchema: z.object({}),
     execute: () => acting(async () => read(await page())),
   });
 
   tools.browser_click = createTool({
     id: "browser_click",
-    description:
-      "Click an element by its [number]. It is scrolled into view first; a click on something covered by a banner or dialog is refused and names what covers it.",
+    description: prompt("tools", "tool.browser_click"),
     inputSchema: z.object({ ref: z.number() }),
     execute: ({ ref: n }) =>
       acting(async () => {
@@ -356,8 +344,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_type = createTool({
     id: "browser_type",
-    description:
-      "Type text into a field by its [number], replacing what is in it; set submit to press Enter afterwards. Never for passwords or codes — those the person enters through browser_request_credentials.",
+    description: prompt("tools", "tool.browser_type"),
     inputSchema: z.object({ ref: z.number(), text: z.string(), submit: z.boolean().optional() }),
     execute: ({ ref: n, text, submit }) =>
       acting(async () => {
@@ -372,7 +359,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
         }
         if ((await el.evaluate((e) => (e as HTMLInputElement).type)) === "password") {
           return {
-            error: `[${n}] is a password field: the person fills it through browser_request_credentials.`,
+            error: prompt("tools", "note.browser_password_field", { ref: n }),
           };
         }
         const said = short(text);
@@ -391,8 +378,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_select = createTool({
     id: "browser_select",
-    description:
-      "Choose an option in a dropdown (a select element) by its [number] and the option's name as the page lists it. For a dropdown the page draws itself (no options listed), click it open and click the option instead.",
+    description: prompt("tools", "tool.browser_select"),
     inputSchema: z.object({ ref: z.number(), option: z.string() }),
     execute: ({ ref: n, option }) =>
       acting(async () => {
@@ -419,8 +405,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_scroll = createTool({
     id: "browser_scroll",
-    description:
-      "Scroll the page down or up by most of a screen, or bring the element with this [number] into view. For results further down, lists that load as you scroll, and footers.",
+    description: prompt("tools", "tool.browser_scroll"),
     inputSchema: z.object({
       direction: z.enum(["down", "up"]).optional(),
       ref: z.number().optional(),
@@ -446,8 +431,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_press = createTool({
     id: "browser_press",
-    description:
-      "Press a key on the page: Enter to send, Escape to close a popup, Tab to move on, the arrows to move through a list of suggestions.",
+    description: prompt("tools", "tool.browser_press"),
     inputSchema: z.object({
       key: z.enum([
         "Enter",
@@ -475,7 +459,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_back = createTool({
     id: "browser_back",
-    description: "Go back to the previous page, like the browser's back button.",
+    description: prompt("tools", "tool.browser_back"),
     inputSchema: z.object({}),
     execute: () =>
       acting(async () => {
@@ -493,8 +477,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_wait = createTool({
     id: "browser_wait",
-    description:
-      "Wait for the page: until a text appears on it (results that load, a confirmation), or for a few seconds. Then returns the page.",
+    description: prompt("tools", "tool.browser_wait"),
     inputSchema: z.object({
       text: z.string().optional().describe("Wait until this text is on the page."),
       seconds: z.number().min(1).max(15).optional().describe("How long at most; default 5."),
@@ -523,8 +506,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_screenshot = createTool({
     id: "browser_screenshot",
-    description:
-      "Look at the current page: returns a picture of it to you. Use it when the text is not enough (charts, a layout you cannot make sense of, a captcha or cookie wall). Set save to also hand the picture to the person as part of the result.",
+    description: prompt("tools", "tool.browser_screenshot"),
     inputSchema: z.object({ save: z.boolean().optional(), name: z.string().optional() }),
     execute: ({ save, name }) =>
       inTurn(async () => {
@@ -555,13 +537,13 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
     const p = await page();
     const origin = originOf(p.url());
     if (!origin) {
-      return { error: "no_site", note: "Open the site's sign-in page first." };
+      return { error: "no_site", note: prompt("tools", "note.browser_no_site") };
     }
     for (const field of input.fields) {
       if (!(await handleOf(p, field.ref))) {
         return {
           error: "fields_not_found",
-          note: `[${field.ref}] is not on the page any more. Read the page again and ask with its numbers.`,
+          note: prompt("tools", "note.browser_fields_gone", { ref: field.ref }),
         };
       }
     }
@@ -580,20 +562,20 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
       })),
     });
     if (!answer) {
-      return { status: "needs_person", note: NOBODY };
+      return { status: "needs_person", note: prompt("tools", "note.browser_nobody") };
     }
     if (answer.type === "skip" || answer.type === "timeout") {
-      return { status: "declined", note: DECLINED };
+      return { status: "declined", note: prompt("tools", "note.browser_declined") };
     }
     // The person may have gone on in a tab the site opened.
     const current = ctx.resources.openPage() ?? p;
-    let note = "The person signed in on the page themselves.";
+    let note = prompt("tools", "note.browser_signed_in_self");
     if (answer.type === "fill") {
       const result = await fillCredentials(current, origin, input.fields, answer.values);
       if ("error" in result) {
         return {
           error: result.error,
-          note: "Nothing you can read was entered. Read the page again and ask with its current numbers.",
+          note: prompt("tools", "note.browser_fill_failed"),
         };
       }
       if (result.filled.length && input.submitRef !== undefined) {
@@ -604,7 +586,13 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
       }
       await settle(current);
       await current.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => undefined);
-      note = `The person entered ${result.filled.join(", ")} straight into the page${input.submitRef !== undefined ? " and it was submitted" : ""}. You do not see what they typed and must not try to read it back.`;
+      note = [
+        prompt("tools", "note.browser_entered", { fields: result.filled.join(", ") }),
+        input.submitRef !== undefined ? prompt("tools", "note.browser_entered_submitted") : "",
+        prompt("tools", "note.browser_entered_unseen"),
+      ]
+        .filter(Boolean)
+        .join(" ");
     }
     if (answer.remember) {
       await ctx.resources.keepSession().catch(() => undefined);
@@ -614,8 +602,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_request_credentials = createTool({
     id: "browser_request_credentials",
-    description:
-      "THE way to get a login into a page: ask the person to enter a username, e-mail, password or one-time code into fields on your current page, WITHOUT you seeing it. The person sees the page live, the site's address and a form; what they type goes straight into the page, never to you. Give each field's [number] from your latest page, and submit_ref to press the sign-in or next button afterwards. A login spread over several pages (e-mail, then password, then code) is one call per page. WAITS for the person. Never ask for a password any other way.",
+    description: prompt("tools", "tool.browser_request_credentials"),
     inputSchema: z.object({
       reason: z
         .string()
@@ -634,8 +621,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_request_user = createTool({
     id: "browser_request_user",
-    description:
-      "Hand the page to the person for something no form can do: a captcha, 'continue with Google', a passkey, a cookie wall you cannot get past. They click and type in the live page and say when they are done. For a plain login form use browser_request_credentials instead. WAITS for the person.",
+    description: prompt("tools", "tool.browser_request_user"),
     inputSchema: z.object({
       reason: z
         .string()
@@ -648,8 +634,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_upload = createTool({
     id: "browser_upload",
-    description:
-      'Attach a file to the page: give the [number] of the file input, or of the button that opens the file picker ("Add photo", "Upload"). The file is one the person gave (`upload:<id>`), a result of this run (`result:<step>.<format>`) or a kept file\'s path.',
+    description: prompt("tools", "tool.browser_upload"),
     inputSchema: z.object({
       ref: z.number().describe("[number] of the file input or the upload button."),
       file: z.string().describe("upload:<id>, result:<step>.<format>, or a kept file's path."),
@@ -696,8 +681,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
 
   tools.browser_download = createTool({
     id: "browser_download",
-    description:
-      "Download a file (an invoice PDF, an export) with the browser's sign-in and keep it: click the element with this [number], or fetch this URL. The file is stored under `path` in the wizard's files and added to this step's result.",
+    description: prompt("tools", "tool.browser_download"),
     inputSchema: z.object({
       ref: z.number().optional().describe("[number] of the download link or button."),
       url: z.string().optional().describe("Direct URL of the file, instead of ref."),
@@ -793,7 +777,7 @@ export async function browserTools(ctx: StepContext, assets: AssetRef[], files: 
     });
     tools.browser_run_fast = createTool({
       id: "browser_run_fast",
-      description: RUN_FAST_DESCRIPTION,
+      description: prompt("tools", "tool.browser_run_fast"),
       inputSchema: z.object({
         goal: z
           .string()

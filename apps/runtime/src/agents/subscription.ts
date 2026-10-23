@@ -18,6 +18,8 @@ import {
   chatWayReady,
   localModelSettings,
 } from "../models.js";
+import { prompt } from "../prompts.js";
+import { contentPolicy } from "../safety.js";
 import { chatModelId } from "../services/chat-models.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
@@ -90,12 +92,7 @@ function ownCursorServers(): string[] {
 }
 
 const SYSTEM = (wizardId: string) =>
-  [
-    "You are the architect in the engenty wizards studio. The admin talks to you in the studio's chat panel, next to a diagram of the wizard.",
-    `You work on exactly one wizard: id "${wizardId}". Read it with get_wizard before you change it; change it with edit_wizard and the file tools; never create another wizard and never publish unless the admin asks.`,
-    "Call get_authoring_guide once before your first change. Fix every issue a write reports before you answer.",
-    "Answer in the admin's language, in two or three plain sentences: what you changed and what to try next. No JSON, no tool names.",
-  ].join("\n");
+  `${prompt("architect", "persona")}\n\n${prompt("architect", "subscription.system", { wizard_id: wizardId })}\n\n${contentPolicy()}`;
 
 const BUILDING = /edit_wizard|write_wizard|write_file|delete_file|create_wizard/;
 

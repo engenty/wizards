@@ -12,6 +12,8 @@ import {
   videoCostUsd,
   videoModel,
 } from "../models.js";
+import { prompt } from "../prompts.js";
+import { checkContent } from "../safety.js";
 import { capVideo, toMp3 } from "./ffmpeg.js";
 import { speechTags } from "./marking.js";
 
@@ -38,14 +40,15 @@ export async function generateImageMedia(input: {
   reference?: MediaReference | null;
   abortSignal?: AbortSignal;
 }): Promise<GeneratedMedia> {
-  const { prompt, reference, abortSignal } = input;
+  const { reference, abortSignal } = input;
   const aspect = (input.aspectRatio ?? "1:1") as Aspect;
   const image = await imageModel(input.call);
+  await checkContent({ kind: "image", text: input.prompt, call: input.call, signal: abortSignal });
   // The gateway books its own calls; a client's images are part of the person's subscription.
   const costUsd = image.metered || isHarnessVendor(image.vendor) ? 0 : imageCostUsd(image.ref);
   if (image.chat) {
     const chat = await textModel("image", input.call);
-    const text = `${prompt}\n\nAspect ratio: ${aspect}. Return exactly one image.`;
+    const text = `${input.prompt}\n\n${prompt("step", "image.aspect", { aspect })}`;
     const result = await generateText({
       model: chat.model,
       abortSignal,
@@ -79,7 +82,7 @@ export async function generateImageMedia(input: {
     model: image.model,
     n: 1,
     abortSignal,
-    prompt: reference ? { images: [reference.bytes], text: prompt } : prompt,
+    prompt: reference ? { images: [reference.bytes], text: input.prompt } : input.prompt,
     aspectRatio: aspect,
   });
   const img = result.image ?? result.images?.[0];
@@ -122,6 +125,12 @@ export async function generateVideoMedia(input: {
   const aspect = (input.aspectRatio === "1:1" ? "16:9" : (input.aspectRatio ?? "16:9")) as Aspect;
   const resolution = input.resolution ?? "720p";
   const videoClass = await videoModel(input.call);
+  await checkContent({
+    kind: "video",
+    text: input.prompt,
+    call: input.call,
+    signal: input.abortSignal,
+  });
   const result = await experimental_generateVideo({
     model: videoClass.model,
     prompt: input.reference ? { image: input.reference.bytes, text: input.prompt } : input.prompt,
@@ -151,6 +160,12 @@ export async function generateSpeechMedia(input: {
   abortSignal?: AbortSignal;
 }): Promise<GeneratedMedia> {
   const speech = await speechModel(input.call);
+  await checkContent({
+    kind: "speech",
+    text: input.style ? `${input.text}\n\nStyle: ${input.style}` : input.text,
+    call: input.call,
+    signal: input.abortSignal,
+  });
   const result = await generateSpeech({
     model: speech.model,
     text: input.text,

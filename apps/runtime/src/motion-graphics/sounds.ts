@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { env } from "../env.js";
+import { prompt } from "../prompts.js";
 import { platformSkills } from "./skills.js";
 
 /**
@@ -144,7 +145,7 @@ async function build(): Promise<string> {
     join(tmp, "catalog.json"),
     JSON.stringify(
       {
-        note: "The only sounds this video may use. Never generate, synthesize or download audio.",
+        note: prompt("step", "motion.sounds_note"),
         music: [],
         sounds,
       },

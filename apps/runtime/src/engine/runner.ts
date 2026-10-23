@@ -66,6 +66,7 @@ import {
   noteFreeTierRefusal,
 } from "../models.js";
 import { runEnded } from "../plugins/events.js";
+import { prompt } from "../prompts.js";
 import { reportRun } from "../services/manage-reports.js";
 import { projectFiles } from "../services/project-files.js";
 import { projectProfile } from "../services/projects.js";
@@ -599,14 +600,14 @@ async function decideBranch(
   for (const i of rules) {
     criteria[`r${i}`] = step.next?.[i]?.ask ?? "";
   }
-  criteria.none = "None of these clearly holds: go on with the next step.";
+  criteria.none = prompt("step", "decide.branch_none");
   await emitEvent(run.id, step.id, "info", { code: "deciding" });
   const decision = await decide({
     state: runSummary(run, state),
     questions: {
       next: {
         type: "choice",
-        instructions: "Which statement is true of this run? Answer none unless one clearly holds.",
+        instructions: prompt("step", "decide.branch"),
         criteria,
       } satisfies DecisionQuestion,
     },
@@ -661,7 +662,7 @@ async function decidePageFields(
   for (const f of possible.filter((f) => f.ask)) {
     questions[`f_${f.id}`] = {
       type: "noul",
-      instructions: `Should the page ask "${f.label}"? It is asked when this holds: ${f.ask}`,
+      instructions: `Should the page ask "${f.label}"? It is asked when this holds: ${f.ask ?? ""}`,
     };
   }
   for (const g of page.groups ?? []) {

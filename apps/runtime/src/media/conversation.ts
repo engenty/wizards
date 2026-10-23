@@ -2,6 +2,8 @@ import { langNameEn } from "@engenty/wizards-shared/definition";
 import type { RunView } from "@engenty/wizards-shared/run";
 import { NotedError } from "../model-errors.js";
 import { conversationAccess } from "../models.js";
+import { prompt } from "../prompts.js";
+import { contentPolicy } from "../safety.js";
 
 /**
  * A live conversation with a wizard: the browser talks to a realtime speech model directly
@@ -32,15 +34,13 @@ export const CONVERSATION_TOOLS = [
   {
     type: "function",
     name: "get_state",
-    description:
-      "What the run waits for right now: the page with its fields (which are answered, which are still open, which need the screen), the review, or what the wizard is working on. Call it when unsure, and after the state changed.",
+    description: prompt("voice", "tool.get_state"),
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
   {
     type: "function",
     name: "set_field",
-    description:
-      "Keeps the person's answer to one field of the current page. Call it once per field as soon as the person answered; for a choice give one of the options exactly.",
+    description: prompt("voice", "tool.set_field"),
     parameters: {
       type: "object",
       properties: {
@@ -57,20 +57,19 @@ export const CONVERSATION_TOOLS = [
   {
     type: "function",
     name: "submit_page",
-    description:
-      "Sends the current page once every required field that can be answered by voice has a value. Fields that need the screen are filled there by the person; say so and wait.",
+    description: prompt("voice", "tool.submit_page"),
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
   {
     type: "function",
     name: "accept_review",
-    description: "Accepts what the wizard made, when the person is happy with it.",
+    description: prompt("voice", "tool.accept_review"),
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
   {
     type: "function",
     name: "regenerate",
-    description: "Asks the wizard to make one of the shown outputs again, with what should change.",
+    description: prompt("voice", "tool.regenerate"),
     parameters: {
       type: "object",
       properties: {
@@ -84,8 +83,7 @@ export const CONVERSATION_TOOLS = [
   {
     type: "function",
     name: "answer_ask",
-    description:
-      "Answers the question a running step asks before it changes something in a connected account: allow it, or skip it.",
+    description: prompt("voice", "tool.answer_ask"),
     parameters: {
       type: "object",
       properties: { allow: { type: "boolean" } },
@@ -96,15 +94,13 @@ export const CONVERSATION_TOOLS = [
   {
     type: "function",
     name: "look",
-    description:
-      "Takes a look through the person's camera right now: a picture of what they are showing arrives as the next message. Only while the camera is on; otherwise ask them to switch it on.",
+    description: prompt("voice", "tool.look"),
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
   {
     type: "function",
     name: "take_photo",
-    description:
-      "Takes a photo with the person's camera and puts it into a photo field of the current page. Say 'hold it still' first. Only while the camera is on.",
+    description: prompt("voice", "tool.take_photo"),
     parameters: {
       type: "object",
       properties: { field: { type: "string", description: "The id of the image field." } },
@@ -115,29 +111,22 @@ export const CONVERSATION_TOOLS = [
   {
     type: "function",
     name: "go_back",
-    description: "Goes back to the page before, when the person wants to change an earlier answer.",
+    description: prompt("voice", "tool.go_back"),
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
 ] as const;
 
 /** The rules the model speaks by: written in English, it speaks the wizard's language. */
 export function conversationInstructions(view: RunView): string {
-  const about = [`You are ${view.wizard.title}.`, view.wizard.description, view.wizard.intro]
+  const about = [
+    prompt("voice", "persona", { title: view.wizard.title }),
+    view.wizard.description,
+    view.wizard.intro,
+  ]
     .filter(Boolean)
     .join(" ");
-  const rules = [
-    "You hold a conversation that fills in a wizard step by step. The person also sees the wizard on the screen.",
-    `Speak ${langNameEn(view.lang)} (${view.lang}), short and friendly, as on the phone. One sentence, then the next question.`,
-    "Ask one field at a time, in the order of the state. After each answer call set_field. When every field you can fill by voice is answered, call submit_page.",
-    "For a choice, name the options (at most four at a time) and pass exactly one of them on.",
-    "Read e-mail addresses, links and numbers back before passing them on.",
-    "A field that needs the screen (a photo, a file, a signature, a connection) is filled there by the person: say so in one sentence and wait for the next state.",
-    "While the wizard works, say in one sentence what it is doing and wait. Never make anything up.",
-    "At a review, sum the text up in a few words and ask whether it fits. Then accept_review, or regenerate with what the person wants changed.",
-    "At the end, say what was made and that it is on the screen.",
-    "With the camera on you can see what the person shows with look, and put a photo into a photo field with take_photo; ask for a photo field like this: 'Hold it to the camera, I will take the picture.' With the camera off, ask the person to switch it on, or leave the field to the screen.",
-  ];
-  return `${about}\n\n${rules.join("\n")}`;
+  const rules = prompt("voice", "rules", { lang_name: langNameEn(view.lang), lang: view.lang });
+  return `${about}\n\n${rules}\n\n${contentPolicy()}`;
 }
 
 /** Mints the secret a browser opens a session with; a failure carries a note for the run's language. */

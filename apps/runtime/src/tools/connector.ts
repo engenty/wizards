@@ -6,12 +6,10 @@ import { refreshConnector, resolveConnector } from "../connectors/external.js";
 import { connectionContext } from "../connectors/index.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
 import type { StepContext } from "../engine/types.js";
+import { prompt } from "../prompts.js";
 import { inProgram } from "./code.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
 import { resolveFile } from "./store.js";
-
-const FILE_NOTE =
-  " File content never passes through you: returned content is kept as a file and you get its path; to send a file, give `file:<path>` of a kept file or `file:result:<step>.<format>` of a result where an input asks for `*_base64`.";
 
 /** Above this many actions a connector is offered as "find an action, then call it". */
 const DIRECT_TOOLS = 24;
@@ -81,7 +79,7 @@ async function keepContent(
     });
     delete out[key];
     out.saved = kept.path;
-    out.note = "The content is kept as a file; read it with read_document.";
+    out.note = prompt("tools", "note.connector_kept");
   }
   return out;
 }
@@ -100,6 +98,9 @@ async function sendContent(input: unknown, ctx: StepContext): Promise<unknown> {
   }
   return out;
 }
+
+/** A text that ends as a sentence, so the notes after it read as their own. */
+const sentence = (text: string) => (/[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`);
 
 /**
  * Whether the person is asked before an action runs. The wizard's author can settle it per
@@ -140,15 +141,14 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
       const found = await account();
       if (!found) {
         return {
-          error: `The person has not connected ${service}. Go on without it and say so in your result.`,
+          error: prompt("tools", "note.connector_not_connected", { service }),
         };
       }
       const key = `${connection.id}:${action.id}`;
       if (asks(connection, action) && !ctx.resources.allowed.has(key)) {
         if (inProgram()) {
           return {
-            error:
-              "This change waits for the person's yes, which a program cannot ask for. Call the tool directly, outside the program.",
+            error: prompt("tools", "note.connector_in_program"),
           };
         }
         const answer = await ctx.ask({
@@ -164,14 +164,12 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
         });
         if (!answer) {
           return {
-            error:
-              "Nobody is there to allow this change, so it was not made. Report it as open in your result.",
+            error: prompt("tools", "note.connector_nobody"),
           };
         }
         if (answer.type !== "done") {
           return {
-            error:
-              "The person did not allow this change. Do not try it again; say in your result that it was not made.",
+            error: prompt("tools", "note.connector_declined"),
           };
         }
         if (answer.remember) {
@@ -190,6 +188,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
     });
 
   const prefix = connector.toolPrefix;
+  const fileNote = prompt("tools", "connector.file_note");
   const direct =
     usable.length <= DIRECT_TOOLS && usable.every((a) => TOOL_NAME.test(`${prefix}_${a.id}`));
   if (direct) {
@@ -198,9 +197,14 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
         `${prefix}_${action.id}`,
         createTool({
           id: `${prefix}_${action.id}`,
-          description: `${service}: ${action.description || action.summary}${
-            asks(connection, action) ? " — the person is asked before this runs." : ""
-          }${FILE_NOTE}`.slice(0, 1100),
+          description: [
+            sentence(`${service}: ${action.description || action.summary}`),
+            asks(connection, action) ? prompt("tools", "connector.asks") : "",
+            fileNote,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .slice(0, 1100),
           inputSchema: action.inputSchema as z.ZodType<any>,
           execute: (input) => call(action, input),
         }),
@@ -211,7 +215,11 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
   return {
     [`${prefix}_actions`]: createTool({
       id: `${prefix}_actions`,
-      description: `${service} offers ${usable.length} actions. Find the ones you need by words from their name or purpose; you get each action's id, what it does and its input. Then call ${prefix}_call.`,
+      description: prompt("tools", "connector.actions", {
+        service,
+        count: usable.length,
+        prefix,
+      }),
       inputSchema: z.object({
         query: z.string().describe("Words to look for, e.g. 'search pages' or 'invoice list'."),
       }),
@@ -238,7 +246,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
     }),
     [`${prefix}_call`]: createTool({
       id: `${prefix}_call`,
-      description: `Run one ${service} action found with ${prefix}_actions. Some wait for the person's yes first.${FILE_NOTE}`,
+      description: `${prompt("tools", "connector.call", { service, prefix })} ${fileNote}`,
       inputSchema: z.object({
         action: z.string(),
         input: z.record(z.string(), z.unknown()).optional(),

@@ -27,6 +27,7 @@ import {
 } from "@engenty/wizards-shared/projects";
 import type { RunState } from "@engenty/wizards-shared/run";
 import { type ListDef, type ListRow, listAsMarkdown } from "@engenty/wizards-shared/store";
+import { prompt } from "../prompts.js";
 
 export interface TemplateScope {
   def: WizardDefinition;
@@ -136,9 +137,7 @@ export function typeLines(fonts: BrandFont[] = [], styles: TextStyle[] = []): st
   const scale = styles.map((s) => `- ${s.name}: ${textStyleLine(s, fonts)}`);
   return [
     families.length ? `Fonts:\n${families.join("\n")}` : "",
-    fonts.some((f) => f.uses?.length)
-      ? "A font's licence is binding: use a font only for what it may be used for, and set anything else in a system font."
-      : "",
+    fonts.some((f) => f.uses?.length) ? prompt("step", "brand.font_licence") : "",
     scale.length ? `Text styles:\n${scale.join("\n")}` : "",
   ]
     .filter(Boolean)

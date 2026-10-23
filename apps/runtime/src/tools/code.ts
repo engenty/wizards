@@ -3,6 +3,7 @@ import { createCodeMode, createTool, noopObserve, type ToolObserve } from "@mast
 import { QuickJsCodeModeTransport } from "@mastra/quickjs";
 import type { z } from "zod";
 import type { StepContext } from "../engine/types.js";
+import { prompt } from "../prompts.js";
 import { clip } from "./shared.js";
 
 export interface CodeLimits {
@@ -130,13 +131,11 @@ function guarded(
           calls++;
           step.calls++;
           if (calls > limits.maxCalls) {
-            throw new Error(
-              `A program makes at most ${limits.maxCalls} tool calls. Split the work.`,
-            );
+            throw new Error(prompt("tools", "note.code_max_calls", { maxCalls: limits.maxCalls }));
           }
           if (step.calls > limits.stepCalls) {
             throw new Error(
-              `The programs of this step have made ${limits.stepCalls} tool calls, all a step may make. Finish with what you have.`,
+              prompt("tools", "note.code_step_calls", { stepCalls: limits.stepCalls }),
             );
           }
           if (ctx.signal.aborted) {
@@ -147,7 +146,11 @@ function guarded(
             const size = JSON.stringify(answer ?? null)?.length ?? 0;
             if (size > limits.answerChars) {
               throw new Error(
-                `${key} answered ${size} characters; a program takes at most ${limits.answerChars} from one call. Ask for less, or call ${key} directly.`,
+                prompt("tools", "note.code_answer_too_long", {
+                  tool: key,
+                  size,
+                  answerChars: limits.answerChars,
+                }),
               );
             }
             return answer;
@@ -177,8 +180,7 @@ export function codeTool(
   const { tool: base, instructions } = createCodeMode(config, quickJs());
   const tool = createTool({
     id: CODE_TOOL_ID,
-    description:
-      "Run a TypeScript program that calls your tools as external_* functions: loops, Promise.all, filtering, sums. Only what it returns comes back to you. Use it when a task needs many tool calls or arithmetic over their results.",
+    description: prompt("tools", "tool.execute_typescript"),
     inputSchema: base.inputSchema as z.ZodType<{ code: string }>,
     execute: async (input, options) => {
       await ctx.emit("tool", { code: "runsProgram" });
@@ -204,7 +206,9 @@ export function codeTool(
         return {
           success: false,
           error: {
-            message: `The program could not finish (${String((err as Error)?.message ?? err).slice(0, 120)}). Work on smaller pieces: return less from each step, or call the tool directly.`,
+            message: prompt("tools", "note.code_failed", {
+              error: String((err as Error)?.message ?? err).slice(0, 120),
+            }),
           },
         };
       }
@@ -226,6 +230,13 @@ export function codeTool(
   });
   return {
     tool,
-    instructions: `${instructions}\n\nA program makes at most ${limits.maxCalls} tool calls, ${limits.maxParallel} at a time, and stops after ${limits.timeoutMs / 1000} seconds; all programs of this step together make at most ${limits.stepCalls}. Return only what you need: a long answer is cut at ${limits.resultChars} characters. A tool that asks the person first cannot run from a program, and tools that cost credits on every call (${[...PAID_TOOLS].join(", ")}) are not offered there: call them directly.`,
+    instructions: `${instructions}\n\n${prompt("tools", "tool.execute_typescript.limits", {
+      maxCalls: limits.maxCalls,
+      maxParallel: limits.maxParallel,
+      seconds: limits.timeoutMs / 1000,
+      stepCalls: limits.stepCalls,
+      resultChars: limits.resultChars,
+      paidTools: [...PAID_TOOLS].join(", "),
+    })}`,
   };
 }
