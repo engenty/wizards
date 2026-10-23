@@ -334,6 +334,10 @@ export interface OrganizationProfile {
   legalName?: string | null;
   phone?: string | null;
   website?: string | null;
+  /** The addresses the person ticked or added: website, blog, profiles. */
+  links?: string[];
+  /** “Wünsche oder Fragen”: the Manage-App mails a question to the team. */
+  questions?: string | null;
 }
 
 export function saveOrganizationProfile(

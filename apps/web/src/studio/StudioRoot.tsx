@@ -48,7 +48,12 @@ export function StudioRoot({ children }: { children: ReactNode }) {
     root = next;
   }
   setStudioRoot(root);
-  return <BrowserRouter basename={root}>{children}</BrowserRouter>;
+  // A new root is a new router: one that kept its location would match nothing under the new address.
+  return (
+    <BrowserRouter key={root} basename={root}>
+      {children}
+    </BrowserRouter>
+  );
 }
 
 /** An address that is none of the person's organizations: it names no one, so a typo reads the same. */
