@@ -5,6 +5,7 @@ import {
   addressUrl,
   FREE_MAIL,
 } from "@engenty/wizards-shared/addresses";
+import { matchSectors, SECTORS, sectorOf } from "@engenty/wizards-shared/sectors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, FileText, Upload } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
@@ -271,6 +272,8 @@ function Chips<T extends string>({
 }
 
 interface Outcome {
+  /** The catalog sectors the site points to, the best first. */
+  sectors?: string[];
   name: string;
   about: boolean;
   colors: number;
@@ -465,6 +468,11 @@ function Questions() {
     mutationFn: (urls: string[]) =>
       api.post<Outcome | null>(`/api/studio/projects/${project?.id}/website`, { urls, lang }),
     onSuccess: async (result) => {
+      // The sector the site points to stands chosen; the person changes it on the next page.
+      const sector = result?.sectors?.[0];
+      if (sector) {
+        setProfile((p) => (p.sector ? p : { ...p, sector }));
+      }
       setOutcome(
         result ?? { name: "", about: false, colors: 0, fonts: 0, logo: false, facts: 0, assets: 0 },
       );
@@ -525,6 +533,13 @@ function Questions() {
         outcome.assets ? t("onboard.readAssets", { n: outcome.assets }) : "",
       ].join("")
     : "";
+  // What the site points to first, then what the name and the answers do.
+  const suggestedSectors = [
+    ...new Set([
+      ...(outcome?.sectors ?? []),
+      ...matchSectors(`${title ?? ""} ${line ?? ""} ${profile.questions ?? ""}`, 4),
+    ]),
+  ].slice(0, 4);
   const studioAddress = (value: string) => `${window.location.host}/studio/${slugOf(value)}`;
 
   return (
@@ -860,16 +875,11 @@ function Questions() {
                     text={sizeLabel}
                     onChange={(id) => answer({ size: id })}
                   />
-                  <label className="flex flex-col gap-2 text-[0.9375rem] text-white/85">
-                    {t("onboard.sector")}
-                    <input
-                      value={profile.sector}
-                      onChange={(e) => answer({ sector: e.target.value })}
-                      placeholder={t("onboard.sectorPlaceholder")}
-                      maxLength={120}
-                      className={SMALL_FIELD}
-                    />
-                  </label>
+                  <SectorPick
+                    value={profile.sector}
+                    onChange={(sector) => answer({ sector })}
+                    suggested={suggestedSectors}
+                  />
                 </>
               ) : null}
               {profile.kind === "corp" ? (
@@ -880,6 +890,11 @@ function Questions() {
                     value={profile.size}
                     text={sizeLabel}
                     onChange={(id) => answer({ size: id })}
+                  />
+                  <SectorPick
+                    value={profile.sector}
+                    onChange={(sector) => answer({ sector })}
+                    suggested={suggestedSectors}
                   />
                   <Chips
                     label={t("onboard.yourRole")}
@@ -1301,5 +1316,80 @@ function Welcome() {
         </div>
       </main>
     </div>
+  );
+}
+
+/**
+ * The organization's sector, as the catalogs know it: the ones its site and answers point to as
+ * chips, any other from the list; the templates are picked by it.
+ */
+function SectorPick({
+  value,
+  onChange,
+  suggested,
+}: {
+  value: string;
+  onChange: (sector: string) => void;
+  suggested: string[];
+}) {
+  const [other, setOther] = useState(false);
+  const picked = sectorOf(value);
+  const options = [...new Set([...(picked ? [picked.id] : []), ...suggested])].slice(0, 4);
+  const name = (id: string) => sectorOf(id)?.name[lang === "de" ? "de" : "en"] ?? id;
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-2 text-[0.9375rem] text-white/85">{t("onboard.sector")}</legend>
+      <div className="flex flex-wrap gap-2">
+        {options.map((id) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={value === id}
+            onClick={() => onChange(id)}
+            className={cn(
+              "cursor-pointer rounded-full border px-4 py-2 text-[0.9375rem] transition",
+              value === id ? "border-white bg-white" : "border-white/30 hover:bg-white/15",
+            )}
+            style={value === id ? { color: GROUND_INK } : undefined}
+          >
+            {name(id)}
+          </button>
+        ))}
+        <button
+          type="button"
+          aria-pressed={other}
+          onClick={() => setOther((o) => !o)}
+          className="cursor-pointer rounded-full border border-white/40 border-dashed px-4 py-2 text-[0.9375rem] hover:bg-white/15"
+        >
+          {t("onboard.sectorOther")}
+        </button>
+      </div>
+      {other ? (
+        <select
+          value={picked ? value : ""}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setOther(false);
+          }}
+          aria-label={t("onboard.sector")}
+          className={cn(SMALL_FIELD, "[&>option]:text-black")}
+        >
+          <option value="">{t("onboard.sectorPick")}</option>
+          {[...SECTORS]
+            .sort((a, b) => name(a.id).localeCompare(name(b.id), lang))
+            .map((sector) => (
+              <option key={sector.id} value={sector.id}>
+                {name(sector.id)}
+              </option>
+            ))}
+        </select>
+      ) : null}
+      {picked ? (
+        <span className="text-[0.8125rem] text-white/75">
+          {t("onboard.sectorHint")}{" "}
+          <b style={{ color: CREAM }}>{t("onboard.catalog", { sector: name(picked.id) })}</b>
+        </span>
+      ) : null}
+    </fieldset>
   );
 }

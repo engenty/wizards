@@ -16,6 +16,7 @@ import {
   pendingWish,
   useCurrentProject,
   useMayCreate,
+  useMe,
   type WizardSummary,
 } from "../lib/session";
 import { useDictation, useDictationSettings } from "../lib/speech";
@@ -33,8 +34,10 @@ import { ImportWizard } from "./ImportWizard";
 import {
   EntryDialog,
   MarketplaceBrowser,
+  MarketplaceFit,
   ProChip,
   type SearchPage,
+  useFit,
   useSettled,
 } from "./Marketplace";
 import {
@@ -218,6 +221,10 @@ export function NewWizardPage() {
   const qc = useQueryClient();
   const { project } = useCurrentProject();
   const build = useMayCreate();
+  const me = useMe();
+  // The templates that fit the organization first, the full browser a click away.
+  const fit = useFit();
+  const [all, setAll] = useState(false);
   // A link from the gallery names the template to open; one from the home's search brings the wish.
   const [params] = useSearchParams();
   // A wish a guest typed before signing in (GuestStartPage) is here too, and is built at once.
@@ -460,7 +467,21 @@ export function NewWizardPage() {
         ) : null}
       </div>
 
-      <section ref={gallery} className="mx-auto max-w-5xl scroll-mt-6">
+      {fit && !all ? (
+        <div className="mx-auto max-w-5xl">
+          <MarketplaceFit
+            page={fit}
+            organization={me.data?.tenant.name ?? ""}
+            busy={fromStarter.isPending}
+            onUse={(entry) => project && !fromStarter.isPending && fromStarter.mutate(entry.id)}
+            onAll={() => setAll(true)}
+          />
+        </div>
+      ) : null}
+      <section
+        ref={gallery}
+        className={cn("mx-auto max-w-5xl scroll-mt-6", fit && !all && !gallerySearch && "hidden")}
+      >
         <h2 className="mt-16 mb-5 text-center font-medium text-[0.8125rem] text-ink-3 uppercase tracking-[0.08em]">
           {t("new.orStarter")}
         </h2>

@@ -234,6 +234,11 @@ const NOT_COPY = [
   ["apps/runtime/src/services/knowledge.ts", "Graz Süd", "AI tool hint: an example value"],
   ["apps/runtime/src/tools/project.ts", "Graz Süd", "AI tool description: an example value"],
   ["apps/runtime/src/services/project-index.ts", "der die das", "stop words for search"],
+  [
+    "packages/shared/src/sectors.ts",
+    null,
+    "each sector's names in both languages, and the words in both that point to it",
+  ],
   ["apps/runtime/src/browser/fast/span-picker.ts", "Jän|Mär", "month names a page may show"],
   [
     "apps/runtime/src/connectors/index.ts",

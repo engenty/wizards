@@ -426,6 +426,7 @@ describe("reading a website into the space", () => {
       logo: true,
       facts: 15,
       assets: 2,
+      sectors: expect.any(Array),
     });
 
     const projects = (await (await send("GET", "/api/studio/projects")).json()) as {
