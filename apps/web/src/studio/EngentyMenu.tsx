@@ -32,10 +32,13 @@ export function EngentyMenu({
   me,
   position,
   horizontal,
+  labels,
 }: {
   me: Me;
   position: AppBarPosition;
   horizontal: boolean;
+  /** In a bar that names its places, the name stands beside the engenty. */
+  labels?: boolean;
 }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -87,7 +90,7 @@ export function EngentyMenu({
           }
         : null;
   return (
-    <div ref={ref} className="relative shrink-0">
+    <div ref={ref} className={cn("relative shrink-0", labels && "w-full")}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -96,12 +99,20 @@ export function EngentyMenu({
         title={t("about.title")}
         aria-label={t("about.title")}
         className={cn(
-          "grid shrink-0 place-items-center rounded-lg transition hover:bg-ink/10",
+          "shrink-0 rounded-lg transition hover:bg-ink/10",
           open && "bg-ink/10",
-          horizontal ? "size-11" : "h-12 w-11",
+          labels
+            ? "flex h-12 w-full items-center gap-2 px-1.5"
+            : cn("grid place-items-center", horizontal ? "size-11" : "h-12 w-11"),
         )}
       >
         <EngentyLogoMark size={32} />
+        {labels ? (
+          <span className="truncate font-display font-semibold text-[1rem] tracking-tight">
+            engenty<span className="text-ember">.</span>
+            <span className="ml-1 font-normal text-ink-3">wizards</span>
+          </span>
+        ) : null}
       </button>
       {open ? (
         <div

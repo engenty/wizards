@@ -28,7 +28,7 @@ import {
 } from "react";
 import { Link, useNavigate } from "react-router";
 import { api } from "../lib/api";
-import { type AppBarPosition, besideBar, useAppBar } from "../lib/appbar";
+import { type AppBarPosition, besideBar, useAppBar, useAppBarLabels } from "../lib/appbar";
 import { useFeature } from "../lib/features";
 import { lang, t } from "../lib/i18n";
 import { acceptInstall, standalone, useInstallPrompt } from "../lib/install";
@@ -45,7 +45,12 @@ import {
 import { openReport } from "../report/ReportDialog";
 import { Button, cn, Dialog, Input } from "../ui";
 import { AppRail, PhoneBar } from "./AppRail";
-import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/StudioAssistant";
+import {
+  AssistantDock,
+  AssistantSidebar,
+  HighlightLayer,
+  useAssistantInSidebar,
+} from "./assistant/StudioAssistant";
 import { CloudSyncBar } from "./CloudSync";
 import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner, InstallDialog } from "./InstallBanner";
@@ -682,8 +687,19 @@ function SpaceName({ me }: { me: Me }) {
   );
 }
 
-/** `placement`: where the menu opens — below the avatar in a top bar, away from the app bar. */
-export function UserMenu({ me, placement = "below" }: { me: Me; placement?: MenuPlacement }) {
+/**
+ * `placement`: where the menu opens — below the avatar in a top bar, away from the app bar.
+ * `named`: in a bar that names its places, the person's name stands beside the avatar.
+ */
+export function UserMenu({
+  me,
+  placement = "below",
+  named,
+}: {
+  me: Me;
+  placement?: MenuPlacement;
+  named?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -698,36 +714,52 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
   const item =
     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[0.875rem] text-ink-2 hover:bg-accent hover:text-ink";
   return (
-    <div className="relative" ref={ref}>
+    <div className={cn("relative", named && "w-full")} ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "relative flex shrink-0 items-center justify-center rounded-full bg-ember-tint font-semibold text-[0.8125rem] text-ember-strong ring-1 ring-border-soft",
-          // In the app bar the avatar is as large as the tiles above it.
-          placement === "below" ? "size-9" : "size-10",
-        )}
+        className={
+          named
+            ? cn(
+                "flex w-full items-center gap-3 rounded-lg p-0.5 pr-2 text-left transition hover:bg-ink/10",
+                open && "bg-ink/10",
+              )
+            : "block shrink-0 rounded-full"
+        }
         aria-label={me.user.name || "Menu"}
       >
-        {me.user.image ? (
-          <img src={me.user.image} alt="" className="size-full rounded-full object-cover" />
-        ) : (
-          initials
-        )}
-        {state === "linked" || state === "expired" ? (
-          <span
-            title={
-              state === "linked"
-                ? t("nav.connected", { host: hostOf(me.account?.cloudUrl ?? "") })
-                : t("nav.expired")
-            }
-            className="-right-1 -bottom-1 absolute flex size-4 items-center justify-center rounded-full bg-card ring-1 ring-border-soft"
-          >
-            {state === "linked" ? (
-              <Cloud className="size-2.5 text-moss" />
-            ) : (
-              <CloudOff className="size-2.5 text-amber" />
-            )}
+        <span
+          className={cn(
+            "relative flex shrink-0 items-center justify-center rounded-full bg-ember-tint font-semibold text-[0.8125rem] text-ember-strong ring-1 ring-border-soft",
+            // In the app bar the avatar is as large as the tiles above it.
+            placement === "below" ? "size-9" : "size-10",
+          )}
+        >
+          {me.user.image ? (
+            <img src={me.user.image} alt="" className="size-full rounded-full object-cover" />
+          ) : (
+            initials
+          )}
+          {state === "linked" || state === "expired" ? (
+            <span
+              title={
+                state === "linked"
+                  ? t("nav.connected", { host: hostOf(me.account?.cloudUrl ?? "") })
+                  : t("nav.expired")
+              }
+              className="-right-1 -bottom-1 absolute flex size-4 items-center justify-center rounded-full bg-card ring-1 ring-border-soft"
+            >
+              {state === "linked" ? (
+                <Cloud className="size-2.5 text-moss" />
+              ) : (
+                <CloudOff className="size-2.5 text-amber" />
+              )}
+            </span>
+          ) : null}
+        </span>
+        {named ? (
+          <span className="min-w-0 flex-1 truncate font-medium text-[0.875rem] text-ink-2">
+            {me.user.name}
           </span>
         ) : null}
       </button>
@@ -913,11 +945,20 @@ export function AppFrame({
   // there the phone's bar steps aside, as a tab bar does on a screen pushed onto it.
   const clear = phone && !full ? "calc(4.75rem + env(safe-area-inset-bottom))" : "0px";
   const goose = useFeature("goose");
+  // The bar folds to its glyphs beside another sidebar: the editor's panels, the assistant's.
+  const assistantBeside = useAssistantInSidebar() && goose && !full;
+  const labels = useAppBarLabels(Boolean(full) || assistantBeside);
   // What changed elsewhere shows here without a reload (docs/plans/live-changes.md).
   useLiveFeed(me.tenant.id);
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
-      {phone ? full ? null : <PhoneBar me={me} /> : <AppRail me={me} />}
+      {phone ? (
+        full ? null : (
+          <PhoneBar me={me} />
+        )
+      ) : (
+        <AppRail me={me} labels={labels.shown} room={labels.room} />
+      )}
       {/* The page's card, and beside it Goose's sidebar as a pane of its own. */}
       <div className={cn("flex min-h-0 min-w-0 flex-1 md:gap-2", INSET[position])}>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
