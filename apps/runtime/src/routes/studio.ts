@@ -492,6 +492,8 @@ export const studio = new Hono<Vars>()
       tenant: {
         id: user.tenantId,
         role: user.role,
+        /** The organization's name as the Manage-App keeps it; alone, the linked account's, else null. */
+        name: (managed ? info?.name : overview?.tenant.name) ?? null,
         /** The plan the organization is on; null alone, or where the Manage-App names none. */
         plan: info?.plan ?? null,
         /** The organization's address for its public page (`acme.wizards.page`); null alone, or behind its switch. */

@@ -401,7 +401,11 @@ export function OnboardingPage() {
 
   const rename = useMutation({
     mutationFn: (name: string) => api.put("/api/studio/organization", { name }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["organization"] }),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ["organization"] }),
+        qc.invalidateQueries({ queryKey: ["me"] }),
+      ]),
   });
   const read = useMutation({
     mutationFn: (url: string) =>

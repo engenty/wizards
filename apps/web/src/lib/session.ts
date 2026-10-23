@@ -114,6 +114,8 @@ export interface Me {
   tenant: {
     id: string;
     role: "owner" | "admin" | "member";
+    /** The organization's name; null for a local install without an account. */
+    name: string | null;
     /** The plan the organization is on (Free, Pro, Team, …); null alone. */
     plan: { id: string; name: string } | null;
     /** The organization's address for its public page (`acme.wizards.page`); null alone. */
