@@ -1,6 +1,6 @@
 ---
 title: Licensing
-description: Which parts of engenty wizards are MIT, which are FSL-1.1-MIT, and what that means for your tools.
+description: How we handle sharing the source and enable your usage.
 version: 0.11.2
 ---
 
