@@ -248,6 +248,74 @@ export function removeMember(tenantId: string, actorId: string, userId: string) 
   );
 }
 
+export interface AddressState {
+  slug: string;
+  host: string;
+  canChange: boolean;
+  changeUntil: string | null;
+  changedAt: string | null;
+  creator: boolean;
+  domains: {
+    id: string;
+    domain: string;
+    verified: boolean;
+    record: { name: string; value: string };
+  }[];
+}
+
+export interface ApiKeyRow {
+  id: string;
+  name: string | null;
+  start: string | null;
+  createdAt: string;
+  lastRequest: string | null;
+}
+
+/** The organization's address and own domains, read and changed for the person who asks. */
+export const tenantAddress = (tenantId: string, actorId: string) =>
+  call<AddressState>(
+    "GET",
+    `${tenantPath(tenantId)}/address?actorId=${encodeURIComponent(actorId)}`,
+  );
+export const checkTenantAddress = (tenantId: string, slug: string) =>
+  call<{ ok: boolean; code?: string }>(
+    "GET",
+    `${tenantPath(tenantId)}/address/check?slug=${encodeURIComponent(slug)}`,
+  );
+export const changeTenantAddress = (tenantId: string, actorId: string, slug: string) =>
+  call<AddressState>("PUT", `${tenantPath(tenantId)}/address`, { actorId, slug });
+export const addTenantDomain = (tenantId: string, actorId: string, domain: string) =>
+  call<{ id: string; domain: string }>("POST", `${tenantPath(tenantId)}/domains`, {
+    actorId,
+    domain,
+  });
+export const verifyTenantDomain = (tenantId: string, actorId: string, id: string) =>
+  call<{ verified: boolean }>(
+    "POST",
+    `${tenantPath(tenantId)}/domains/${encodeURIComponent(id)}/verify`,
+    { actorId },
+  );
+export const removeTenantDomain = (tenantId: string, actorId: string, id: string) =>
+  call<{ ok: true }>("DELETE", `${tenantPath(tenantId)}/domains/${encodeURIComponent(id)}`, {
+    actorId,
+  });
+
+/** The person's API keys in the organization; a new key's secret comes once, with its creation. */
+export const tenantKeys = (tenantId: string, actorId: string) =>
+  call<{ keys: ApiKeyRow[] }>(
+    "GET",
+    `${tenantPath(tenantId)}/keys?actorId=${encodeURIComponent(actorId)}`,
+  );
+export const createTenantKey = (tenantId: string, actorId: string, name: string) =>
+  call<{ id: string; name: string; key: string }>("POST", `${tenantPath(tenantId)}/keys`, {
+    actorId,
+    name,
+  });
+export const deleteTenantKey = (tenantId: string, actorId: string, id: string) =>
+  call<{ ok: true }>("DELETE", `${tenantPath(tenantId)}/keys/${encodeURIComponent(id)}`, {
+    actorId,
+  });
+
 /** One of a person's organizations, as the studio's switcher lists it. */
 export interface Organization {
   id: string;

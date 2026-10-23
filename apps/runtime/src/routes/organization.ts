@@ -2,12 +2,21 @@ import { type Context, Hono } from "hono";
 import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
 import {
+  addTenantDomain,
   cancelInvitation,
+  changeTenantAddress,
+  checkTenantAddress,
+  createTenantKey,
+  deleteTenantKey,
   inviteMember,
   ManageError,
   managed,
   removeMember,
+  removeTenantDomain,
   setMemberRole,
+  tenantAddress,
+  tenantKeys,
+  verifyTenantDomain,
 } from "../manage.js";
 import { requestLang, say } from "./lang.js";
 
@@ -59,4 +68,42 @@ export const organizationRoutes = new Hono<Vars>()
   .delete("/members/:userId", async (c) => {
     const user = c.get("user");
     return answer(c, removeMember(user.tenantId, user.id, c.req.param("userId")));
+  })
+  .get("/address", async (c) => {
+    const user = c.get("user");
+    return answer(c, tenantAddress(user.tenantId, user.id));
+  })
+  .get("/address/check", async (c) =>
+    answer(c, checkTenantAddress(c.get("user").tenantId, c.req.query("slug") ?? "")),
+  )
+  .put("/address", async (c) => {
+    const user = c.get("user");
+    const { slug } = z.object({ slug: z.string().trim().max(64) }).parse(await c.req.json());
+    return answer(c, changeTenantAddress(user.tenantId, user.id, slug));
+  })
+  .post("/domains", async (c) => {
+    const user = c.get("user");
+    const { domain } = z.object({ domain: z.string().max(260) }).parse(await c.req.json());
+    return answer(c, addTenantDomain(user.tenantId, user.id, domain));
+  })
+  .post("/domains/:id/verify", async (c) => {
+    const user = c.get("user");
+    return answer(c, verifyTenantDomain(user.tenantId, user.id, c.req.param("id")));
+  })
+  .delete("/domains/:id", async (c) => {
+    const user = c.get("user");
+    return answer(c, removeTenantDomain(user.tenantId, user.id, c.req.param("id")));
+  })
+  .get("/keys", async (c) => {
+    const user = c.get("user");
+    return answer(c, tenantKeys(user.tenantId, user.id));
+  })
+  .post("/keys", async (c) => {
+    const user = c.get("user");
+    const { name } = z.object({ name: z.string().trim().min(1).max(32) }).parse(await c.req.json());
+    return answer(c, createTenantKey(user.tenantId, user.id, name));
+  })
+  .delete("/keys/:id", async (c) => {
+    const user = c.get("user");
+    return answer(c, deleteTenantKey(user.tenantId, user.id, c.req.param("id")));
   });

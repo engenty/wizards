@@ -53,6 +53,15 @@ Errors: `{ "error": string, "code": string }`.
 | `DELETE /v1/tenants/:id/invitations/:invitationId` | `{ actorId }` → `{ ok: true }` · withdraws an open invitation; owners and admins, an owner's invitation only an owner |
 | `PATCH /v1/tenants/:id/members/:userId` | `{ actorId, role }` → `{ ok: true }` · gives a member another role; owners and admins, the owner role only an owner · `409` `last_owner` when the last owner would go |
 | `DELETE /v1/tenants/:id/members/:userId` | `{ actorId }` → `{ ok: true }` · removes a member, or lets `actorId` leave when it names them; an admin removes no owner · `409` `last_owner` |
+| `GET /v1/tenants/:id/address?actorId=` | → `{ slug, host, canChange, changeUntil, changedAt, creator, domains: [{ id, domain, verified, record: { name, value } }] }` · the organization's address and own domains, for a member · `canChange`: the person made the organization and it is in its first 14 days, with no change yet |
+| `GET /v1/tenants/:id/address/check?slug=` | → `{ ok: true }` or `{ ok: false, code }` · `code`: `length`, `chars`, `hyphen`, `reserved`, `profanity`, `brand`, `taken` |
+| `PUT /v1/tenants/:id/address` | `{ actorId, slug }` → the same answer as `GET …/address` · the creator's one change; `403 address_closed` otherwise, `400` with a check's code |
+| `POST /v1/tenants/:id/domains` | `{ actorId, domain }` → `{ id, domain }` · owners and admins; `400 domain` for something that is no domain |
+| `POST /v1/tenants/:id/domains/:domainId/verify` | `{ actorId }` → `{ verified }` · looks for the TXT record |
+| `DELETE /v1/tenants/:id/domains/:domainId` | `{ actorId }` → `{ ok: true }` |
+| `GET /v1/tenants/:id/keys?actorId=` | → `{ keys: [{ id, name, start, createdAt, lastRequest }] }` · the person's API keys for this organization, the newest first |
+| `POST /v1/tenants/:id/keys` | `{ actorId, name }` → `{ id, name, key }` · a key that acts as the person in this organization; `key` comes only here |
+| `DELETE /v1/tenants/:id/keys/:keyId` | `{ actorId }` → `{ ok: true }` · only the person's own key; `404` otherwise |
 | `POST /v1/keys/verify` | `{ key }` → `{ valid: false }` or `{ valid: true, keyId, name, userId, userName, tenantId, role }` |
 | `POST /v1/grants/check` | `{ userId, clientId, tenantId }` → `{ active }` · whether the grant behind an access token still stands: the person is a member of the tenant and not locked out, and — for a client that shows a consent page — the consent is still there (“Trennen” on the account page removes it) · the runtime asks before it takes a token at `/api/mcp` and the API, and keeps the answer 30 s; no answer refuses the token |
 | `POST /v1/reservations` | `{ tenantId, runId, credits }` → `{ id }` · `402` with code `no_credits` when the free balance is below `credits` · the same `runId` again replaces the earlier reservation |

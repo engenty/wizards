@@ -6,6 +6,7 @@ import {
   CloudCog,
   Cpu,
   Info,
+  KeyRound,
   type LucideIcon,
   Plug,
   UserRound,
@@ -60,6 +61,13 @@ export function settingsSections(
             label: t("orgSettings.members"),
             icon: Users,
             menu: true,
+            group: organization,
+          },
+          {
+            id: "keys",
+            label: t("orgSettings.keys"),
+            icon: KeyRound,
+            menu: false,
             group: organization,
           },
         ]
