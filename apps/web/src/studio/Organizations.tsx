@@ -20,7 +20,7 @@ export function switchable(me: Me): boolean {
  * Opens the studio in another organization: its address, where the studio signs in naming it
  * (StudioRoot), which the Manage-App answers with that organization's token and no page.
  */
-function switchTo(org: Organization) {
+export function switchTo(org: Organization) {
   if (org.slug) {
     window.location.href = `${STUDIO}/${org.slug}/`;
     return;

@@ -192,6 +192,14 @@ export function StudioApp() {
             }
           />
           <Route
+            path="/account/:section?"
+            element={
+              <Studio wide>
+                <SettingsPage scope="account" />
+              </Studio>
+            }
+          />
+          <Route
             path="/setup"
             element={
               <Studio bare>

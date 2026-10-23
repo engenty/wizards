@@ -228,6 +228,16 @@ async function sessionPrincipal(id: string): Promise<Principal | null> {
   };
 }
 
+/** A new name for the person in every session of theirs here: the menu shows it at the next read. */
+export async function renameSessions(userId: string, name: string): Promise<void> {
+  await controlDb.update(control.session).set({ name }).where(eq(control.session.userId, userId));
+  for (const [id, hit] of sessions) {
+    if (hit.row.userId === userId) {
+      sessions.delete(id);
+    }
+  }
+}
+
 /** Sessions that ran out go once an hour, with the retention job. */
 export async function purgeSessions() {
   await controlDb.delete(control.session).where(lt(control.session.expiresAt, new Date()));

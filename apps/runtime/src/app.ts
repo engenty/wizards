@@ -28,6 +28,7 @@ import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
 import { liveRoutes } from "./routes/live.js";
 import { marketplaceGuest, marketplaceStudio } from "./routes/marketplace.js";
 import { organizationRoutes } from "./routes/organization.js";
+import { personRoutes } from "./routes/person.js";
 import { publicPluginRoutes } from "./routes/plugin-public.js";
 import { pluginRoutes } from "./routes/plugins.js";
 import { reportRoutes } from "./routes/reports.js";
@@ -316,6 +317,7 @@ if (serves.studio) {
   app.route("/api/guest/marketplace", marketplaceGuest);
   app.route("/api/studio/plugins", pluginRoutes);
   app.route("/api/studio/organization", organizationRoutes);
+  app.route("/api/studio/person", personRoutes);
   app.route("/api/studio", studio);
   app.route("/api/v1", apiRoutes);
   app.route("/api/local/debug", localDebugRoutes);

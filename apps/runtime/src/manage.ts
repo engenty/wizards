@@ -341,6 +341,33 @@ export const tenantInvoicePdf = (tenantId: string, actorId: string, invoiceId: s
     `${tenantPath(tenantId)}/invoices/${encodeURIComponent(invoiceId)}/pdf?actorId=${encodeURIComponent(actorId)}`,
   );
 
+export interface PersonConnections {
+  apps: {
+    id: string;
+    clientId: string;
+    name: string | null;
+    uri: string | null;
+    scopes: string[];
+    tenantName: string | null;
+    connectedAt: string;
+    lastUsed: string;
+  }[];
+  computers: { id: string; tenantName: string | null; lastUsed: string }[];
+}
+
+const userPath = (id: string) => `/v1/users/${encodeURIComponent(id)}`;
+
+/** The person's name, kept at the Manage-App for every organization and app. */
+export const renamePerson = (userId: string, name: string) =>
+  call<{ name: string }>("PATCH", userPath(userId), { name });
+/** What holds a sign-in of the person: apps by their consent, computers by their live token. */
+export const personConnections = (userId: string) =>
+  call<PersonConnections>("GET", `${userPath(userId)}/connections`);
+export const disconnectPersonApp = (userId: string, consentId: string) =>
+  call<{ ok: true }>("DELETE", `${userPath(userId)}/connections/${encodeURIComponent(consentId)}`);
+export const signOutPersonComputer = (userId: string, tokenId: string) =>
+  call<{ ok: true }>("DELETE", `${userPath(userId)}/computers/${encodeURIComponent(tokenId)}`);
+
 /** One of a person's organizations, as the studio's switcher lists it. */
 export interface Organization {
   id: string;

@@ -49,7 +49,10 @@ export function settingsSections(
   const inStudio = (section: SettingsSection): SettingsSection =>
     studio ? { ...section, group: studio } : section;
   return [
-    { id: "account", label: t("account.title"), icon: UserRound, menu: true },
+    // With the organization's settings here, the person's own are behind the avatar (accountSections).
+    ...(ownSettings
+      ? []
+      : [{ id: "account", label: t("account.title"), icon: UserRound, menu: true }]),
     ...(ownSettings
       ? [
           {
@@ -123,5 +126,14 @@ export function settingsSections(
       : []),
     // Which release this is, its updates, what is new, the credits.
     { id: "about", label: t("about.nav"), icon: Info, menu: false },
+  ];
+}
+
+/** The person's Konto behind the avatar: theirs in every organization, so it names none. */
+export function accountSections(): SettingsSection[] {
+  return [
+    { id: "profile", label: t("konto.profile"), icon: UserRound, menu: true },
+    { id: "orgs", label: t("konto.organizations"), icon: Building2, menu: false },
+    { id: "apps", label: t("konto.apps"), icon: Plug, menu: false },
   ];
 }
