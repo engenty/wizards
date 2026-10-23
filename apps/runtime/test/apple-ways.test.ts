@@ -127,8 +127,8 @@ describe("Apple Intelligence beside the way Standard and High had", () => {
       standard: { kind: "client", by: "claude", ref: "claude/opus" },
       high: { kind: "client", by: "claude", ref: "claude/opus" },
     });
-    // A film of a Standard step still runs on the client, on its model of the class.
-    expect(await models.filmClient("low")).toMatchObject({ alias: "sonnet" });
+    // A motion-graphics step of class Standard still runs on the client, on its model of the class.
+    expect(await models.motionClient("low")).toMatchObject({ alias: "sonnet" });
   });
 
   it("gives the client all text again once it is picked after Apple", async () => {

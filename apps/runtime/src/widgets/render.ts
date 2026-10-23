@@ -64,7 +64,7 @@ async function timelineOf(page: Page): Promise<{ duration: number; poster: numbe
 
 async function seek(page: Page, seconds: number) {
   await page.evaluate(async (t) => {
-    // A film's seek waits for its clips to reach the frame; a drawn animation returns at once.
+    // A video's seek waits for its clips to reach the frame; a drawn animation returns at once.
     await (window as any).wizard.__timeline().seek(t);
     await new Promise((r) => requestAnimationFrame(() => r(null)));
   }, seconds);
@@ -192,19 +192,19 @@ export async function widgetMp4(html: string, size: WidgetSize): Promise<Uint8Ar
   });
 }
 
-// --- films: a timeline of clips and stills, with sound ---------------------------------
+// --- videos: a timeline of clips and stills, with sound ---------------------------------
 
-/** Where a film's page finds this run's clips, images and voice-over while it is rendered. */
-export const FILM_MEDIA_ORIGIN = "http://wizard.media";
+/** Where a video's page finds this run's clips, images and voice-over while it is rendered. */
+export const MOTION_MEDIA_ORIGIN = "http://wizard.media";
 
-export interface FilmMedia {
+export interface MotionMedia {
   bytes: Uint8Array;
   mime: string;
 }
 
 interface AudioTrack {
   src: string;
-  /** Second of the film the track starts at. */
+  /** Second of the video the track starts at. */
   start: number;
   /** Seconds of the track that play; default: all of it. */
   duration?: number;
@@ -213,10 +213,10 @@ interface AudioTrack {
   volume?: number;
 }
 
-/** A film names at most this many sound tracks: voice-over, music, and every cut of a recording. */
+/** A video names at most this many sound tracks: voice-over, music, and every cut of a recording. */
 const MAX_TRACKS = 48;
 
-export interface Film {
+export interface MotionVideo {
   mp4: Uint8Array;
   png: Uint8Array;
   duration: number;
@@ -224,23 +224,23 @@ export interface Film {
 }
 
 /**
- * Renders a film widget: its page draws every frame from this run's clips and images, and names
+ * Renders a video widget: its page draws every frame from this run's clips and images, and names
  * the sound that belongs to it (voice-over, the clips' own sound). Clips are re-encoded with a
  * key frame every few frames first, so the page reaches any frame quickly and exactly.
  */
-export async function renderFilm(
+export async function renderMotion(
   html: string,
   size: WidgetSize,
-  media: Map<string, FilmMedia>,
+  media: Map<string, MotionMedia>,
   onProgress?: (done: number) => void,
-): Promise<Film | null> {
+): Promise<MotionVideo | null> {
   if (!(await hasFfmpeg())) {
     return null;
   }
   const even = { width: size.width - (size.width % 2), height: size.height - (size.height % 2) };
   return withTempDir(async (dir) => {
     // url → the file as it came (for its sound) and what the page is served.
-    const files = new Map<string, { path: string; served: FilmMedia }>();
+    const files = new Map<string, { path: string; served: MotionMedia }>();
     let n = 0;
     for (const [url, file] of media) {
       const path = join(dir, `media-${n++}.${extFor(file.mime)}`);
@@ -304,7 +304,7 @@ export async function renderFilm(
       const page = await context.newPage();
       page.on("pageerror", (err) => errors.push(err.message));
       await page.setContent(forExport(html), { waitUntil: "load", timeout: 30_000 });
-      // A film is ready once its clips are loaded; that takes longer than a drawn widget.
+      // A video is ready once its clips are loaded; that takes longer than a drawn widget.
       await page.evaluate(() =>
         Promise.race([(window as any).wizard?.__ready, new Promise((r) => setTimeout(r, 45_000))]),
       );
@@ -346,7 +346,7 @@ export async function renderFilm(
       }
       let out = silent;
       if (tracks.length) {
-        const mixed = join(dir, "film.mp4");
+        const mixed = join(dir, "video.mp4");
         const chains = tracks.map((track, i) => {
           const length = Math.min(track.duration ?? seconds, seconds - track.start);
           const volume = Math.max(0, Math.min(2, track.volume ?? 1));

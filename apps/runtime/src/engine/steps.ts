@@ -36,7 +36,6 @@ import { generateText, type JSONSchema7, jsonSchema, Output, parsePartialJson } 
 import type { z } from "zod";
 import { extFor, loadAsset, loadAssetText } from "../files/storage.js";
 import { snapshotHtmlImages } from "../files/web-images.js";
-import { runFilmStep } from "../film/step.js";
 import {
   type GeneratedMedia,
   generateImageMedia,
@@ -54,6 +53,7 @@ import {
   textModel,
   totalUsage,
 } from "../models.js";
+import { runMotionGraphicsStep } from "../motion-graphics/step.js";
 import { knowledgeBlock } from "../services/knowledge.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
@@ -1176,8 +1176,8 @@ export async function runAutomaticStep(step: Step, ctx: StepContext): Promise<St
   if (step.type === "widget") {
     return runWidgetStep(step, ctx);
   }
-  if (step.type === "film") {
-    return runFilmStep(step, ctx);
+  if (step.type === "motion-graphics") {
+    return runMotionGraphicsStep(step, ctx);
   }
   if (step.type === "surface") {
     return runSurfaceStep(step, ctx);

@@ -257,7 +257,7 @@ describe("delivery", () => {
     expect(bareMime("image/svg+xml; charset=utf-8")).toBe("image/svg+xml");
   });
 
-  it("shows photos, sound, film and PDFs in place, never an SVG", () => {
+  it("shows photos, sound, video and PDFs in place, never an SVG", () => {
     for (const mime of ["image/png", "image/jpeg", "audio/webm", "video/mp4", "application/pdf"]) {
       expect(inlineSafe(mime), mime).toBe(true);
     }

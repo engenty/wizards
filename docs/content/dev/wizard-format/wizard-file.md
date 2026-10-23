@@ -1,7 +1,7 @@
 ---
 title: The .wizard file
 description: The zip a wizard travels in, its folders and manifest, how to make one by hand, and what the import does with it.
-version: 0.7.10
+version: 0.11.1
 ---
 
 A `.wizard` file is a zip with the wizard’s definition and its workspace. The studio exports
@@ -22,8 +22,8 @@ create-an-invoice.wizard
     ├── lib/
     │   └── chart.min.js        libraries the widgets load
     ├── prices.csv              reference data AI steps read
-    ├── kits/explainer.zip      a film step's style kit
-    ├── skills/brand/SKILL.md   a skill package a film step reads
+    ├── kits/explainer.zip      a motion-graphics step's style kit
+    ├── skills/brand/SKILL.md   a skill package a motion-graphics step reads
     └── knowledge/              only in a website package
         └── services/pricing.md
 ```
@@ -40,7 +40,7 @@ or none.
 ## The workspace
 
 The paths under `files/` are the paths the definition uses. A widget step with
-`"entry": "invoice/index.html"` reads `files/invoice/index.html`, and a film step with
+`"entry": "invoice/index.html"` reads `files/invoice/index.html`, and a motion-graphics step with
 `"kit": "kits/explainer.zip"` reads `files/kits/explainer.zip`. Apart from `knowledge/`, no
 folder has a fixed meaning. The ones above are what the studio and its assistant write.
 

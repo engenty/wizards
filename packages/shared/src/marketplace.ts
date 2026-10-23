@@ -120,7 +120,7 @@ const MARKET_EN = {
   "capability.listening": "Understands voice notes",
   "capability.code": "Runs code",
   "capability.connectors": "Connected accounts & systems",
-  "capability.film": "Films with Claude Code (on your subscription)",
+  "capability.motion-graphics": "Motion graphics with Claude Code (on your subscription)",
   "cost.low": "low cost",
   "cost.medium": "medium cost",
   "cost.high": "high cost",
@@ -174,7 +174,7 @@ const MARKET_DE: Partial<Record<MarketKey, Line>> = {
   "capability.listening": "Sprachnotizen verstehen",
   "capability.code": "Code ausführen",
   "capability.connectors": "Verbundene Konten & Systeme",
-  "capability.film": "Filme mit Claude Code (auf deinem Abo)",
+  "capability.motion-graphics": "Motion-Grafik mit Claude Code (auf deinem Abo)",
   "cost.low": "günstig",
   "cost.medium": "mittel",
   "cost.high": "teuer",
@@ -287,8 +287,8 @@ export function capabilitiesOf(def: WizardDefinition): Capability[] {
       } else {
         found.add("text");
       }
-    } else if (step.type === "film") {
-      found.add("film");
+    } else if (step.type === "motion-graphics") {
+      found.add("motion-graphics");
     }
   }
   if (def.connections?.length) {
@@ -365,8 +365,8 @@ export function effortOf(def: WizardDefinition): Effort {
               : WORK_SECONDS.agent);
     } else if (step.type === "widget" && step.video) {
       seconds += 60;
-    } else if (step.type === "film") {
-      // A client writing a film from a style kit: ten minutes to half an hour (2026-10 tests).
+    } else if (step.type === "motion-graphics") {
+      // A client writing a video from a style kit: ten minutes to half an hour (2026-10 tests).
       seconds += 25 * 60;
     }
   }

@@ -13,7 +13,7 @@ import {
  */
 
 /** What a step hands on, by the shape a runner has to carry: a text, a picture, a file, a view. */
-export type OutputKind = AssetKind | "text" | "data" | "widget" | "film" | "surface";
+export type OutputKind = AssetKind | "text" | "data" | "widget" | "motion-graphics" | "surface";
 
 export const OUTPUT_KINDS: OutputKind[] = [
   "text",
@@ -24,7 +24,7 @@ export const OUTPUT_KINDS: OutputKind[] = [
   "document",
   "dashboard",
   "widget",
-  "film",
+  "motion-graphics",
   "surface",
 ];
 
@@ -160,9 +160,9 @@ export function outputKindOf(step: Step): OutputKind | null {
     case "generate":
       return step.asset;
     case "widget":
-      return step.video ? "film" : "widget";
-    case "film":
-      return "film";
+      return step.video ? "motion-graphics" : "widget";
+    case "motion-graphics":
+      return "motion-graphics";
     case "surface":
       return "surface";
     default:
@@ -172,7 +172,7 @@ export function outputKindOf(step: Step): OutputKind | null {
 
 /** Steps that take minutes: a door that cannot wait must come back for them. */
 function takesMinutes(step: Step): boolean {
-  return step.type === "agent" || step.type === "generate" || step.type === "film";
+  return step.type === "agent" || step.type === "generate" || step.type === "motion-graphics";
 }
 
 /**

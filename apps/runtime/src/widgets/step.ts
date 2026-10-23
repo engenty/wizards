@@ -16,7 +16,7 @@ import { type AiOrigin, markMedia } from "../media/marking.js";
 import { mainLogoId } from "../services/brand.js";
 import { snapshotFile } from "../services/files.js";
 import { bundleWidget, type WidgetBrand } from "./bundle.js";
-import { FILM_MEDIA_ORIGIN, type FilmMedia, probeWidget, renderFilm } from "./render.js";
+import { MOTION_MEDIA_ORIGIN, type MotionMedia, probeWidget, renderMotion } from "./render.js";
 
 export async function widgetBrand(project: ProjectRow): Promise<WidgetBrand> {
   const logoId = await mainLogoId(project.id);
@@ -34,19 +34,19 @@ export async function widgetBrand(project: ProjectRow): Promise<WidgetBrand> {
   };
 }
 
-/** A widget inlines media up to this size; a film gets its media from the renderer instead. */
+/** A widget inlines media up to this size; a video gets its media from the renderer instead. */
 const INLINE_LIMIT = 5_000_000;
 
 const MEDIA_KINDS = { image: "image", video: "video", voice: "audio" } as const;
 
 /**
  * The step's data map resolved against the run: raw values; uploads and the images, clips and
- * voice-over earlier steps made as URLs the page can show — data URLs, or for a film addresses
+ * voice-over earlier steps made as URLs the page can show — data URLs, or for a video addresses
  * its renderer answers (kept in `media`).
  */
 async function widgetData(step: WidgetStep, ctx: StepContext) {
   const out: Record<string, unknown> = {};
-  const media = new Map<string, FilmMedia>();
+  const media = new Map<string, MotionMedia>();
   const fields = allFields(ctx.def);
   // Which of the run's media a model made or changed: what the widget shows of it makes the
   // widget's own result AI media too.
@@ -64,7 +64,7 @@ async function widgetData(step: WidgetStep, ctx: StepContext) {
     }
     seen[made.get(found.row.id) ?? "own"]++;
     if (step.video) {
-      const url = `${FILM_MEDIA_ORIGIN}/${found.row.id}.${extFor(found.row.mime)}`;
+      const url = `${MOTION_MEDIA_ORIGIN}/${found.row.id}.${extFor(found.row.mime)}`;
       media.set(url, { bytes: new Uint8Array(found.data), mime: found.row.mime });
       return url;
     }
@@ -108,37 +108,37 @@ async function widgetData(step: WidgetStep, ctx: StepContext) {
     }
     out[key] = resolveRef(ref, ctx.scope) ?? null;
   }
-  // Only generated media: a model made the film's pictures. Edited pictures, or AI media among
+  // Only generated media: a model made the video's pictures. Edited pictures, or AI media among
   // the person's own: the result is edited material.
   const origin: AiOrigin | undefined =
     seen.generated || seen.edited ? (seen.edited || seen.own ? "edited" : "generated") : undefined;
   return { data: out, media, origin };
 }
 
-/** A film: the widget's timeline rendered to an MP4 with sound — that video is the result. */
-async function runFilmStep(
+/** A video: the widget's timeline rendered to an MP4 with sound — that video is the result. */
+async function runMotionWidget(
   step: WidgetStep,
   ctx: StepContext,
   html: string,
   data: Record<string, unknown>,
-  media: Map<string, FilmMedia>,
+  media: Map<string, MotionMedia>,
   origin: AiOrigin | undefined,
 ): Promise<StepOutput> {
-  await ctx.emit("info", { code: "filmCutting" });
+  await ctx.emit("info", { code: "motionCutting" });
   let told = 0;
-  const film = await renderFilm(html, widgetSize(step), media, (done) => {
+  const rendered = await renderMotion(html, widgetSize(step), media, (done) => {
     if (done - told >= 0.25) {
       told = done;
-      void ctx.emit("info", { code: "filmProgress", params: { pct: Math.round(done * 100) } });
+      void ctx.emit("info", { code: "motionProgress", params: { pct: Math.round(done * 100) } });
     }
   });
-  if (!film) {
-    throw new StepError(note("filmNotRenderedNeeds"));
+  if (!rendered) {
+    throw new StepError(note("motionNotRenderedNeeds"));
   }
-  if (film.errors.length) {
+  if (rendered.errors.length) {
     await ctx.emit("info", {
-      code: "filmError",
-      params: { detail: film.errors[0].slice(0, 200) },
+      code: "motionError",
+      params: { detail: rendered.errors[0].slice(0, 200) },
     });
   }
   const assets = [
@@ -148,7 +148,7 @@ async function runFilmStep(
       mime: "video/mp4",
       name: `${step.id}.mp4`,
       // Cutting re-encodes every frame, which drops what the clips and stills carried.
-      data: origin ? markMedia(film.mp4, "video/mp4", { origin }) : film.mp4,
+      data: origin ? markMedia(rendered.mp4, "video/mp4", { origin }) : rendered.mp4,
       ai: origin,
     }),
     await ctx.saveAsset({
@@ -156,14 +156,14 @@ async function runFilmStep(
       kind: "poster",
       mime: "image/png",
       name: `${step.id}.png`,
-      data: origin ? markMedia(film.png, "image/png", { origin }) : film.png,
+      data: origin ? markMedia(rendered.png, "image/png", { origin }) : rendered.png,
       ai: origin,
     }),
   ];
   return {
     json: data,
     assets,
-    widget: { duration: film.duration, errors: film.errors },
+    widget: { duration: rendered.duration, errors: rendered.errors },
     at: new Date().toISOString(),
   };
 }
@@ -179,13 +179,13 @@ export async function runWidgetStep(step: WidgetStep, ctx: StepContext): Promise
     files: ctx.files,
     data,
     brand: await widgetBrand(ctx.project),
-    media: step.video ? FILM_MEDIA_ORIGIN : undefined,
+    media: step.video ? MOTION_MEDIA_ORIGIN : undefined,
     ai: origin,
   });
   // What is shown and rendered carries those pictures inline; the kept page keeps the asset refs.
   const shown = await inlineAssetRefs(html);
   if (step.video) {
-    return runFilmStep(step, ctx, shown, data, media, origin);
+    return runMotionWidget(step, ctx, shown, data, media, origin);
   }
   let probe: Awaited<ReturnType<typeof probeWidget>> | null = null;
   try {

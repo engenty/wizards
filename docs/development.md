@@ -81,7 +81,7 @@ https://wizards.localhost. "Dev-Login" lets you in (local only); without `DEV_LO
 prints a one-time link at start.
 
 Local Chrome renders PDFs/PNGs (`CHROME_PATH`), ffmpeg encodes widget animations to MP4
-(`FFMPEG_PATH`) and cuts films: a widget step with `video: true` draws clips and stills frame by
+(`FFMPEG_PATH`) and renders videos: a widget step with `video: true` draws clips and stills frame by
 frame and gets voice-over and clip sound mixed in. The shell/code tool runs in a sandbox per run, chosen with `SANDBOX`:
 `docker` needs Docker and the `engenty-sandbox` image; `agentos` runs an
 [agentOS](https://rivet.dev/agentos/) VM per run in a helper process (macOS and glibc Linux, no
@@ -179,9 +179,9 @@ Media a model made or changed says so in two ways (Art. 50): in the file and on 
 - **In the file** (`apps/runtime/src/media/marking.ts`): the IPTC Digital Source Type in the XMP
   of PNG, JPEG and MP4 files, ID3 tags on a voice-over. A file that arrives marked — image models
   sign their output with C2PA Content Credentials — is kept byte for byte, since changing it would
-  break the signature. A film is re-encoded when it is cut, so it gets its own marking.
+  break the signature. A video is re-encoded when it is rendered, so it gets its own marking.
 - **On the page**: the asset's reference carries `ai: "generated" | "edited"`, and every view shows
-  a label over such media. Nothing is drawn into an image. A film shows one line in the picture,
+  a label over such media. Nothing is drawn into an image. A video shows one line in the picture,
   because it is published as a file, away from these pages.
 
 Not done here: signing our own Content Credentials (needs a certificate), and the EU's common icon.

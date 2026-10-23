@@ -50,7 +50,7 @@ export async function bundleWidget(input: {
   files: WorkspaceFile[];
   data: unknown;
   brand: WidgetBrand;
-  /** An origin the page may load images, video and audio from (films). */
+  /** An origin the page may load images, video and audio from (videos). */
   media?: string;
   /** What the widget shows of the run is media a model made ("generated") or changed ("edited"). */
   ai?: "generated" | "edited";

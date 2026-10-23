@@ -10,7 +10,7 @@ export const HTML_CSP =
 export const HTML_RESPONSE_CSP = `sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox; ${HTML_CSP}`;
 
 /**
- * `media`: one more origin images, video and audio may come from — a film's page gets this
+ * `media`: one more origin images, video and audio may come from — a video's page gets this
  * run's clips from the renderer that way; they are too large to inline.
  */
 export function guardHtml(html: string, media?: string): string {

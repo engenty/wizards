@@ -331,19 +331,19 @@ export function OutputView({
       />
     );
   }
-  if (step.type === "widget" || step.type === "film") {
-    const film = output.assets?.find((a) => a.kind === "video");
-    if (film) {
+  if (step.type === "widget" || step.type === "motion-graphics") {
+    const mp4 = output.assets?.find((a) => a.kind === "video");
+    if (mp4) {
       const poster = output.assets?.find((a) => a.kind === "poster");
       const tall =
-        step.type === "film"
+        step.type === "motion-graphics"
           ? step.format === "9:16"
           : (step.size?.height ?? 0) > (step.size?.width ?? 1);
       const video = (
         <div className={cn("relative mx-auto", tall ? "w-fit" : "w-full")}>
-          {/* biome-ignore lint/a11y/useMediaCaption: the film's captions are part of the picture */}
+          {/* biome-ignore lint/a11y/useMediaCaption: the video's captions are part of the picture */}
           <video
-            src={assetUrl(film.id)}
+            src={assetUrl(mp4.id)}
             poster={poster ? assetUrl(poster.id) : undefined}
             controls
             playsInline
@@ -352,11 +352,11 @@ export function OutputView({
               tall ? "max-h-[76vh]" : "w-full",
             )}
           />
-          <AiBadge ai={film.ai} className="top-2 right-2" />
+          <AiBadge ai={mp4.ai} className="top-2 right-2" />
         </div>
       );
-      // A film step's text is the client's own word on what it made or changed — or why not.
-      return step.type === "film" && output.text ? (
+      // A motion-graphics step's text is the client's own word on what it made or changed — or why not.
+      return step.type === "motion-graphics" && output.text ? (
         <div className="flex flex-col gap-4">
           {video}
           <Markdown text={output.text} className="text-[0.875rem] text-ink-2" />
@@ -365,7 +365,7 @@ export function OutputView({
         video
       );
     }
-    if (step.type === "film") {
+    if (step.type === "motion-graphics") {
       return null;
     }
     const html = output.assets?.find((a) => a.mime === "text/html");

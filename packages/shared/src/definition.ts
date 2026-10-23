@@ -758,32 +758,32 @@ export const widgetStepSchema = z.object({
     })
     .optional(),
   /**
-   * The result is a film: the timeline is rendered to an MP4 with sound when the step runs,
+   * The result is a video: the timeline is rendered to an MP4 with sound when the step runs,
    * and that video is what the person sees and downloads.
    */
   video: z.boolean().optional(),
   working: z.string().optional(),
 });
 
-/** Formats a film step makes; the composition is drawn for this frame. */
-export const FILM_FORMATS = ["16:9", "9:16", "1:1"] as const;
-export type FilmFormat = (typeof FILM_FORMATS)[number];
+/** Formats a motion-graphics step makes; the composition is drawn for this frame. */
+export const MOTION_FORMATS = ["16:9", "9:16", "1:1"] as const;
+export type MotionFormat = (typeof MOTION_FORMATS)[number];
 
-export const FILM_SIZES: Record<FilmFormat, { width: number; height: number }> = {
+export const MOTION_SIZES: Record<MotionFormat, { width: number; height: number }> = {
   "16:9": { width: 1920, height: 1080 },
   "9:16": { width: 1080, height: 1920 },
   "1:1": { width: 1080, height: 1080 },
 };
 
 /**
- * A film the AI client installed on this machine makes in a folder of its own: it writes the
+ * A video the AI client installed on this machine makes in a folder of its own: it writes the
  * composition as code (HTML, CSS, JS) with the skills it is given, looks at its frames and fixes
  * them; the runtime renders the MP4. It runs on the person's subscription, never on credits.
  */
-export const filmStepSchema = z.object({
+export const motionGraphicsStepSchema = z.object({
   ...stepBase,
-  type: z.literal("film"),
-  /** What the film is: story, look, what to use. A template. */
+  type: z.literal("motion-graphics"),
+  /** What the video is: story, look, what to use. A template. */
   brief: z.string().min(1),
   /**
    * Skill packages the client reads: platform packages ("hyperframes") or a folder of the
@@ -792,22 +792,22 @@ export const filmStepSchema = z.object({
   skills: z.array(z.string().min(1)).max(12).default(["hyperframes"]),
   /**
    * A style kit in the workspace — a showreel made once with its rules, helpers and stills, as
-   * a .zip — unpacked as `showcase/`: the bar every film of this wizard is made to.
+   * a .zip — unpacked as `showcase/`: the bar every video of this wizard is made to.
    */
   kit: z.string().optional(),
   /**
-   * What the film is made from: name → a field id or "steps.<id>". Files (uploads, voice lines,
+   * What the video is made from: name → a field id or "steps.<id>". Files (uploads, voice lines,
    * pictures) are copied into `input/<name>/`, text is written to `input/<name>.md`.
    */
   inputs: z.record(z.string(), z.string()).default({}),
-  format: z.enum(FILM_FORMATS).default("16:9"),
+  format: z.enum(MOTION_FORMATS).default("16:9"),
   /**
-   * "steps.<id>" of an earlier film step: this film starts from that one's finished code and
+   * "steps.<id>" of an earlier motion-graphics step: this video starts from that one's finished code and
    * lays it out for its own format — scenes, timing and sound stay. Made from scratch when that
    * step did not run.
    */
   from: z.string().optional(),
-  /** About how long the film runs, in seconds. */
+  /** About how long the video runs, in seconds. */
   seconds: z.number().int().min(3).max(600).optional(),
   /** The model class; default `low` — the kit carries the craft. */
   model: z.enum(TEXT_CLASSES).optional(),
@@ -907,7 +907,7 @@ export const stepSchema = z.discriminatedUnion("type", [
   generateStepSchema,
   widgetStepSchema,
   surfaceStepSchema,
-  filmStepSchema,
+  motionGraphicsStepSchema,
   reviewStepSchema,
   resultStepSchema,
 ]);
@@ -964,7 +964,7 @@ export function outputKeys(step: AgentStep): string[] {
 }
 export type GenerateStep = z.infer<typeof generateStepSchema>;
 export type WidgetStep = z.infer<typeof widgetStepSchema>;
-export type FilmStep = z.infer<typeof filmStepSchema>;
+export type MotionGraphicsStep = z.infer<typeof motionGraphicsStepSchema>;
 export type ReviewStep = z.infer<typeof reviewStepSchema>;
 export type ResultStep = z.infer<typeof resultStepSchema>;
 export type StepType = Step["type"];
@@ -1102,7 +1102,7 @@ export function formatsFor(step: Step): Format[] {
         return ["html", "pdf", "png"];
     }
   }
-  if (step.type === "film") {
+  if (step.type === "motion-graphics") {
     return ["mp4"];
   }
   if (step.type === "widget") {
@@ -1681,13 +1681,13 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         }
         break;
       }
-      case "film":
+      case "motion-graphics":
         checkTemplate(step, step.brief);
         for (const [name, ref] of Object.entries(step.inputs)) {
           if (!/^[a-z][a-z0-9-]{0,40}$/.test(name)) {
             issues.push({
               stepId: step.id,
-              message: `Film input "${name}" is not a folder name (lowercase letters, digits, -).`,
+              message: `Motion-graphics input "${name}" is not a folder name (lowercase letters, digits, -).`,
             });
           }
           const r = dataRef(ref);
@@ -1696,25 +1696,28 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
           } else if (!seenFields.has(r)) {
             issues.push({
               stepId: step.id,
-              message: `Film input "${name}": "${ref}" is not an earlier field or "steps.<id>".`,
+              message: `Motion-graphics input "${name}": "${ref}" is not an earlier field or "steps.<id>".`,
             });
           }
         }
         if (step.from) {
           const id = dataRef(step.from).replace(/^steps\./, "");
-          if (!seenSteps.has(id) || def.steps.find((s) => s.id === id)?.type !== "film") {
+          if (
+            !seenSteps.has(id) ||
+            def.steps.find((s) => s.id === id)?.type !== "motion-graphics"
+          ) {
             issues.push({
               stepId: step.id,
-              message: `Film from "${step.from}" is not an earlier film step ("steps.<id>").`,
+              message: `Motion-graphics "from" "${step.from}" is not an earlier motion-graphics step ("steps.<id>").`,
             });
           }
         }
         if (step.kit && !step.kit.endsWith(".zip")) {
-          issues.push({ stepId: step.id, message: `Film kit "${step.kit}" is a .zip.` });
+          issues.push({ stepId: step.id, message: `Motion-graphics kit "${step.kit}" is a .zip.` });
         } else if (files && step.kit && !files.includes(step.kit)) {
           issues.push({
             stepId: step.id,
-            message: `Film kit "${step.kit}" is not in the workspace.`,
+            message: `Motion-graphics kit "${step.kit}" is not in the workspace.`,
           });
         }
         for (const skill of step.skills) {
