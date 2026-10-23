@@ -1,7 +1,7 @@
 ---
 title: Licensing
 description: Which parts of engenty wizards are MIT, which are FSL-1.1-MIT, and what that means for your tools.
-version: 0.11.1
+version: 0.11.2
 ---
 
 The wizard format and the runner are under the MIT licence. Anyone may read, write and run
@@ -34,11 +34,13 @@ These sixteen files in `packages/shared/src` define a wizard, read it and pack i
 - `wizard-package.ts`: the `.wizard` file and its `wizard.json`
 - `engenty/data-tables/columns.ts`, `columns-format.ts`, `columns-value.ts`
 
-Each says `SPDX-License-Identifier: FSL-1.1-MIT OR MIT` in its first line. You choose which of
-the two licences you take them under. Take MIT, and you can use the format in any tool: an
-editor, a converter, your own runtime. These files import only each other and zod. The rest of
-`packages/shared` is FSL-1.1-MIT. That includes `theme-look.ts`, which turns a theme into the
-look of a run.
+Each says `SPDX-License-Identifier: FSL-1.1-MIT OR MIT` in its first line, and you choose which
+of the two licences you take them under. Take MIT, and you can use the format in any tool: an
+editor, a converter, your own runtime. The files import only each other and zod, so they work
+without the rest of engenty wizards.
+
+The rest of `packages/shared` is FSL-1.1-MIT. That includes `theme-look.ts`, which turns a theme
+into the look of a run.
 
 ## The runner
 

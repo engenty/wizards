@@ -1,7 +1,7 @@
 ---
 title: Steps
 description: What a wizard is made of – pages, AI steps, generated media, widgets, reviews and the result.
-version: 0.11.1
+version: 0.11.2
 ---
 
 A wizard runs its steps from top to bottom. The last step is always the result.
@@ -13,7 +13,7 @@ A wizard runs its steps from top to bottom. The last step is always the result.
 | Generate | Makes one thing: an image, a video, a voice-over, a document or a dashboard |
 | Widget | Shows an interactive view built once for this wizard: a map, a timeline, a calculator, a video |
 | View | Shows the results in the wizard’s own look: key figures, facts, a list, a chart |
-| Motion graphics | Has the AI client on your computer write a video as code, rendered to an MP4 |
+| Motion graphics | Makes an animated video as code, rendered to an MP4: an explainer, a product spot |
 | Review | Shows what earlier steps made. The person accepts it, edits it or asks for a new version |
 | Result | The last page: what the person can download or share |
 
@@ -148,12 +148,13 @@ video: its timeline is then rendered to an MP4 with sound. Ask the assistant for
 
 ## Motion graphics
 
-A motion-graphics step hands a brief, the run’s material (voice-overs, pictures, uploads, texts) and the
-space’s brand to the AI client installed on your computer (Claude Code). The client writes the
-video as code, looks at its frames and fixes them. engenty wizards then renders the MP4: 16:9,
-9:16 or square. A motion-graphics step runs only where Claude Code is set up with your subscription, never
-on credits or in the cloud, and it takes 5 to 40 minutes. The voice comes from a generate step
-before it.
+A motion-graphics step makes an animated video: an explainer, a product spot, a short. It hands
+a brief, the run’s material (voice-overs, pictures, uploads, texts) and the space’s brand to the
+AI client on your computer (Claude Code). The client writes the video as code, looks at its
+frames and fixes them. engenty wizards then renders the MP4: 16:9, 9:16 or square.
+
+The step runs only where Claude Code is set up with your subscription, never on credits or in
+the cloud. A video takes 5 to 40 minutes. The voice comes from a generate step before it.
 
 ## Reviews
 
