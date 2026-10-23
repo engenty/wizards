@@ -4,6 +4,7 @@ import {
   Building2,
   Check,
   ChevronRight,
+  ChevronsUpDown,
   Cloud,
   CloudOff,
   CreditCard,
@@ -13,6 +14,7 @@ import {
   LogOut,
   Pencil,
   Plus,
+  Settings,
   WandSparkles,
 } from "lucide-react";
 import {
@@ -52,9 +54,11 @@ import { useLiveFeed } from "./live/index";
 import {
   currentOrganization,
   OrganizationFace,
+  OrganizationList,
   OrganizationMenu,
   OrganizationSheet,
   switchable,
+  useManageOrganization,
 } from "./Organizations";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
@@ -226,13 +230,16 @@ const onFill = (color: string) =>
 /** A space as a tile: its first brand colour behind its initials; without one, quiet paper. */
 export function SpaceFace({
   project,
+  name,
   size = "md",
 }: {
   project: Project | null;
+  /** The initials' name where the tile stands for the organization (useOneSpace). */
+  name?: string;
   size?: "xs" | "sm" | "md";
 }) {
   const color = project?.brand.colors?.[0]?.value;
-  const initials = initialsOf(project?.name ?? "");
+  const initials = initialsOf(name ?? project?.name ?? "");
   const face = (
     <span
       className={cn(
@@ -264,6 +271,20 @@ export function SpaceFace({
 }
 
 /**
+ * An organization whose plan holds one space: the space is the organization, so the studio
+ * names the organization only and its menu has no spaces to list.
+ */
+export function useOneSpace(me: Me): boolean {
+  const { projects } = useCurrentProject();
+  return (
+    me.mode === "managed" &&
+    Boolean(me.tenant.name) &&
+    me.limits.projects === 1 &&
+    projects.length <= 1
+  );
+}
+
+/**
  * The spaces, listed as Slack lists its workspaces: the one shown first (its row opens its
  * wizards), the others to switch to, its wizards and a new one, a row that renames it and one
  * that adds a space — not there at the plan's limit. The
@@ -284,8 +305,10 @@ export function SpaceMenu({
   children: ReactNode;
 }) {
   const navigate = useNavigate();
-  const { position } = useAppBar();
+  const { position, phone } = useAppBar();
   const { project, projects, select } = useCurrentProject();
+  const one = useOneSpace(me);
+  const manage = useManageOrganization(me);
   const mayCreate = useMayCreate();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -315,7 +338,7 @@ export function SpaceMenu({
           aria-expanded={open}
           aria-haspopup="menu"
           aria-label={label}
-          title={t("nav.switchSpace")}
+          title={one ? undefined : t("nav.switchSpace")}
           className={typeof className === "function" ? className(open) : className}
         >
           {children}
@@ -332,8 +355,19 @@ export function SpaceMenu({
                 : cn("absolute", placementClass(placement, position, "top-10 left-0")),
             )}
           >
+            {/* One space: the organizations to switch between stand in the menu itself (a
+                phone opens them as a sheet); there are no spaces to list. */}
+            {one && switchable(me) && !phone ? (
+              <>
+                <div className="px-2 pt-1.5 pb-1 text-[0.75rem] text-ink-3">
+                  {t("organizations.mine")}
+                </div>
+                <OrganizationList me={me} onDone={() => setOpen(false)} />
+                <div className="mx-2 my-1.5 h-px bg-border-soft" />
+              </>
+            ) : null}
             {/* The organization heads its spaces; someone who can switch switches here. */}
-            {organization && switchable(me) ? (
+            {one && !(switchable(me) && phone) ? null : organization && switchable(me) ? (
               <>
                 <button
                   type="button"
@@ -367,7 +401,7 @@ export function SpaceMenu({
                 {me.tenant.name}
               </div>
             ) : null}
-            {projects.map((p) => {
+            {(one ? [] : projects).map((p) => {
               const current = p.id === project?.id;
               return (
                 <button
@@ -402,9 +436,14 @@ export function SpaceMenu({
                 </button>
               );
             })}
-            <div className="mx-2 my-1.5 h-px bg-border-soft" />
+            {one ? null : <div className="mx-2 my-1.5 h-px bg-border-soft" />}
             {[
-              { to: "/", icon: WandSparkles, label: t("nav.wizardsInSpace"), show: true },
+              {
+                to: "/",
+                icon: WandSparkles,
+                label: one ? t("nav.allWizards") : t("nav.wizardsInSpace"),
+                show: true,
+              },
               { to: "/new", icon: Plus, label: t("nav.addWizard"), show: mayCreate },
             ]
               .filter((entry) => entry.show)
@@ -423,7 +462,25 @@ export function SpaceMenu({
                   <span className="truncate">{entry.label}</span>
                 </button>
               ))}
-            {project && !project.readOnly ? (
+            {/* One space, one organization: its settings, where the list would offer them. */}
+            {one && !switchable(me) ? (
+              <>
+                <div className="mx-2 my-1.5 h-px bg-border-soft" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={action}
+                  onClick={() => {
+                    setOpen(false);
+                    manage();
+                  }}
+                >
+                  <Settings className="size-4 shrink-0 text-ink-3" />
+                  <span className="truncate">{t("organizations.manage")}</span>
+                </button>
+              </>
+            ) : null}
+            {project && !project.readOnly && !one ? (
               <>
                 <div className="mx-2 my-1.5 h-px bg-border-soft" />
                 <button
@@ -545,8 +602,35 @@ function SpaceName({ me }: { me: Me }) {
   const { project } = useCurrentProject();
   // A phone's bar holds no space: its tile stands here, in the top left corner, before its name.
   const { phone } = useAppBar();
+  const one = useOneSpace(me);
   if (!project) {
     return null;
+  }
+  // One space: the organization's name opens the menu, the space's name would only repeat it.
+  if (one && me.tenant.name) {
+    return (
+      <span className="flex min-w-0 items-center gap-1">
+        <SpaceMenu
+          me={me}
+          placement="below"
+          label={me.tenant.name}
+          className={(open) =>
+            cn(
+              phone
+                ? "-ml-1 flex max-w-[16rem] items-center gap-2.5 rounded-xl py-1 pr-2 pl-1"
+                : "-mx-1 flex max-w-[16rem] items-center gap-1 rounded-md px-2 py-0.5",
+              "text-left font-medium text-[0.9375rem] text-ink transition hover:bg-accent",
+              open && "bg-accent",
+            )
+          }
+        >
+          {phone ? <SpaceFace project={project} name={me.tenant.name} size="sm" /> : null}
+          <span className="truncate">{me.tenant.name}</span>
+          <ChevronsUpDown className="size-3.5 shrink-0 text-ink-4" />
+        </SpaceMenu>
+        <SpacePlace me={me} project={project} />
+      </span>
+    );
   }
   return (
     <span className="flex min-w-0 items-center gap-1">
