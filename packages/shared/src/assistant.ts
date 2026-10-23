@@ -60,6 +60,8 @@ export const assistantTurnSchema = z.object({
   tools: z.array(browserToolSchema).max(40).default([]),
   /** Developer mode: the turn also sends its prompt and each step (`prompt`, `step`). */
   debug: z.boolean().optional(),
+  /** Extra effort: the chat works with its more capable model. Off where the field is left out. */
+  extra: z.boolean().optional(),
 });
 export type AssistantTurn = z.input<typeof assistantTurnSchema>;
 

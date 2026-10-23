@@ -141,6 +141,7 @@ import {
   turnHistory,
 } from "../services/assistant-chats.js";
 import { describeGradient, themeLooks } from "../services/brand.js";
+import { chatCatalog, chatModelChoices, setChatModelChoice } from "../services/chat-models.js";
 import {
   checkForCloud,
   cloudLinked,
@@ -556,9 +557,14 @@ export const studio = new Hono<Vars>()
       /** The organization has made a wizard: the studio's offer to install it waits for that. */
       hasWizards: await hasWizards(),
       /** What answers the studio's chats (Goose, the editor's chat): the text classes, a subscription, a key or the credits. */
-      chatEngine: managed ? "models" : await chatEngine(await hasTextModel()),
+      chatEngine: managed ? "models" : await chatEngine(),
       /** The ways that can answer the studio's chats now. */
-      chatWays: managed ? ["models"] : await chatWays(await hasTextModel()),
+      chatWays: managed ? ["models"] : await chatWays(),
+      /** The models of the chats per way, and what the person chose: everyday work and extra effort. */
+      chatModels: {
+        ways: (await chatCatalog()).ways,
+        chosen: await chatModelChoices(),
+      },
       aiReady: (await hasTextModel()) || (!managed && (await subscriptionClients()).length > 0),
       mcpUrl: `${env.appUrl}/api/mcp`,
       /**
@@ -770,6 +776,7 @@ export const studio = new Hono<Vars>()
             project,
             writable,
             message,
+            extra: body.extra,
             page,
             browserTools: body.tools,
             lang: body.lang,
@@ -1574,8 +1581,8 @@ export const studio = new Hono<Vars>()
   .post("/wizards/:id/chat", async (c) => {
     const user = c.get("user");
     const wizardId = c.req.param("id");
-    const { message } = z
-      .object({ message: z.string().min(1).max(8000) })
+    const { message, extra } = z
+      .object({ message: z.string().min(1).max(8000), extra: z.boolean().optional() })
       .parse(await c.req.json());
     await writableWizard(user.id, wizardId);
     if (!(await canSpend())) {
@@ -1586,7 +1593,7 @@ export const studio = new Hono<Vars>()
       stream.onAbort(() => abort.abort());
       try {
         const result = await asAssistantIn(wizardId, user, () =>
-          architectTurn(user.id, wizardId, message, requestLang(c), {
+          architectTurn(user.id, wizardId, message, requestLang(c), extra, {
             signal: abort.signal,
             onText: (delta) => {
               void stream.writeSSE({ event: "text", data: JSON.stringify(delta) });
@@ -2011,6 +2018,29 @@ export const studio = new Hono<Vars>()
       return c.notFound();
     }
     closeTerminal(c.req.param("id"));
+    return c.json({ ok: true });
+  })
+  .put("/local/chat-models", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const body = z
+      .object({
+        way: z.enum(CHAT_WAYS),
+        normal: z.string().min(1).max(120).nullable().optional(),
+        extra: z.string().min(1).max(120).nullable().optional(),
+      })
+      .parse(await c.req.json());
+    // Null puts a model back to what the catalog names.
+    const choice = (await chatModelChoices())[body.way] ?? {};
+    for (const effort of ["normal", "extra"] as const) {
+      if (body[effort] === null) {
+        delete choice[effort];
+      } else if (body[effort]) {
+        choice[effort] = body[effort];
+      }
+    }
+    await setChatModelChoice(body.way, choice);
     return c.json({ ok: true });
   })
   .put("/local/chat", async (c) => {
