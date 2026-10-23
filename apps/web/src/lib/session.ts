@@ -184,6 +184,8 @@ export interface Me {
   onboarding: OnboardingMode | null;
   /** The organization still has the name it got at sign-up: its first admin names it. */
   startingName: boolean;
+  /** The organization has made a wizard: the studio offers itself as an app from then on. */
+  hasWizards: boolean;
   /** What answers the studio's chats. */
   chatEngine: ChatWay;
   /** The ways that can answer the studio's chats now. */
