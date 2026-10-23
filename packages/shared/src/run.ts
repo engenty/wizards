@@ -440,6 +440,11 @@ const NOTES_EN = {
     other: "A space can have at most {count} documents.",
   },
   accountSignedOut: "The account is signed out. Sign in again.",
+  spaceOfOtherOrganization:
+    "This space belongs to {organization}. Switch to {organization} to keep it the same as in the cloud again.",
+  syncChangesWaiting: "Changes made here haven’t arrived in the cloud yet.",
+  switchChangesWaiting:
+    "Changes in {spaces} haven’t arrived in the cloud yet. If you switch now, they stay on this computer and arrive when you switch back.",
   cloudNotReachedRight: "The cloud can’t be reached right now.",
   syncUpdateHere:
     "The cloud runs a newer version than this computer. Update engenty wizards, then your changes arrive in the cloud again.",
@@ -796,6 +801,11 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     other: "Ein Space hat höchstens {count} Dokumente.",
   },
   accountSignedOut: "Das Konto ist abgemeldet. Melde dich neu an.",
+  spaceOfOtherOrganization:
+    "Dieser Space gehört zu {organization}. Wechsle zu {organization}, damit er wieder gleich ist wie in der Cloud.",
+  syncChangesWaiting: "Änderungen von hier sind noch nicht in der Cloud angekommen.",
+  switchChangesWaiting:
+    "Änderungen in {spaces} sind noch nicht in der Cloud angekommen. Wechselst du jetzt, bleiben sie auf diesem Computer und kommen an, wenn du zurückwechselst.",
   cloudNotReachedRight: "Die Cloud ist gerade nicht erreichbar.",
   syncUpdateHere:
     "Die Cloud hat eine neuere Version als dieser Computer. Aktualisiere engenty wizards, dann kommen deine Änderungen wieder in der Cloud an.",

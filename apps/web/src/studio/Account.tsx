@@ -1,14 +1,21 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Cloud, Coins, ExternalLink, HardDrive, LogOut } from "lucide-react";
+import { ArrowLeftRight, Cloud, Coins, ExternalLink, HardDrive, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { UpdateLine } from "../about/UpdateCheck";
-import { api } from "../lib/api";
+import { ApiError, api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { type Key, lang, t } from "../lib/i18n";
-import { type ExpiringCredits, initialsOf, type Me, type UserProfile } from "../lib/session";
+import {
+  type ExpiringCredits,
+  initialsOf,
+  type Me,
+  type Organization,
+  type UserProfile,
+} from "../lib/session";
 import { Button, Chip, Input, Label, Spinner, Textarea } from "../ui";
 import { LangPick } from "./LangSwitch";
 import { openExternal } from "./LocalRuntime";
+import { OrganizationFace } from "./Organizations";
 import { useAutosave } from "./project/data";
 import { Section } from "./project/Section";
 import { ThemeSwitch } from "./ThemeSwitch";
@@ -153,6 +160,134 @@ function Unlinked({ me }: { me: Me }) {
   );
 }
 
+type LinkedAccount = NonNullable<Me["account"]>;
+
+/** An organization of the account as the switcher's face draws it: the Manage-App names no more. */
+const face = (org: LinkedAccount["organizations"][number]): Organization => ({
+  ...org,
+  slug: null,
+  personal: false,
+  plan: null,
+});
+
+/**
+ * The organization this computer is signed in to, and for someone in several the way to another:
+ * the sign-in runs again in the browser naming it. What changed here goes up to the organization
+ * it belongs to first; its spaces stay on this computer and sync again after a switch back.
+ */
+function OrganizationRow({ account }: { account: LinkedAccount }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const others = account.organizations.filter((o) => o.id !== account.organizationId);
+  const current = account.organizations.find((o) => o.id === account.organizationId);
+  const name = account.organization ?? current?.name ?? null;
+  const go = useMutation({
+    mutationFn: (input: { organization: string; anyway?: boolean }) =>
+      api.post<{ url: string }>("/api/studio/account/switch", input),
+    onSuccess: ({ url }) => {
+      openExternal(url);
+      setWaiting(true);
+    },
+  });
+  // The studio notices the switch by asking again, as with the first sign-in.
+  useEffect(() => {
+    if (!waiting) {
+      return;
+    }
+    const timer = setInterval(() => void qc.invalidateQueries({ queryKey: ["me"] }), 2000);
+    const stop = setTimeout(() => setWaiting(false), 5 * 60_000);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(stop);
+    };
+  }, [waiting, qc]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new organization ends the wait
+  useEffect(() => {
+    setWaiting(false);
+    setOpen(false);
+  }, [account.organizationId]);
+  if (!name) {
+    return null;
+  }
+  return (
+    <div className="py-5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <OrganizationFace
+            org={face({ id: account.organizationId, name, role: current?.role ?? "member" })}
+          />
+          <div className="min-w-0">
+            <div className="text-[0.8125rem] text-ink-3">{t("account.organization")}</div>
+            <div className="truncate font-medium text-[0.9375rem]">{name}</div>
+          </div>
+        </div>
+        {others.length ? (
+          <Button variant="secondary" onClick={() => setOpen((x) => !x)} aria-expanded={open}>
+            <ArrowLeftRight className="size-4" /> {t("organizations.switch")}
+          </Button>
+        ) : null}
+      </div>
+      {open && others.length ? (
+        <div className="mt-4 flex flex-col gap-3">
+          <p className="text-[0.8125rem] text-ink-3 leading-relaxed">
+            {t("account.switchHint", { name })}
+          </p>
+          <div className="flex flex-col rounded-xl ring-1 ring-border-soft">
+            {others.map((org) => (
+              <button
+                key={org.id}
+                type="button"
+                disabled={go.isPending || waiting}
+                className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition first:rounded-t-xl last:rounded-b-xl hover:bg-accent disabled:cursor-default disabled:opacity-70"
+                onClick={() => go.mutate({ organization: org.id })}
+              >
+                <OrganizationFace org={face(org)} />
+                <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <span className="truncate font-medium text-[0.875rem] text-ink-2">
+                    {org.name}
+                  </span>
+                  <span className="truncate text-[0.75rem] text-ink-4">
+                    {go.isPending && go.variables?.organization === org.id
+                      ? t("organizations.switching", { name: org.name })
+                      : t(`organization.role.${org.role}`)}
+                  </span>
+                </span>
+                {go.isPending && go.variables?.organization === org.id ? (
+                  <Spinner className="size-4" />
+                ) : null}
+              </button>
+            ))}
+          </div>
+          {go.isError ? (
+            <div className="flex flex-col items-start gap-2">
+              <p className="text-[0.8125rem] text-rose">
+                {go.error instanceof ApiError ? go.error.message : t("local.accountFailed")}
+              </p>
+              {/* What did not arrive stays here: the person may switch all the same. */}
+              {go.error instanceof ApiError &&
+              go.error.body?.reason === "changes_waiting" &&
+              go.variables ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => go.mutate({ ...go.variables, anyway: true })}
+                >
+                  {t("account.switchAnyway")}
+                </Button>
+              ) : null}
+            </div>
+          ) : waiting ? (
+            <p className="flex items-center gap-2 text-[0.8125rem] text-ink-3">
+              <Spinner className="size-3.5" /> {t("local.accountWaiting")}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const CREDIT_KIND: Record<ExpiringCredits["kind"], Key> = {
   start: "account.kind.start",
   monthly: "account.kind.monthly",
@@ -163,7 +298,7 @@ const CREDIT_KIND: Record<ExpiringCredits["kind"], Key> = {
  * The account a local install is linked to: whose it is, its credits and when parts of them end,
  * and the cloud that also runs what is published here.
  */
-function Linked({ account, me }: { account: NonNullable<Me["account"]>; me: Me }) {
+function Linked({ account, me }: { account: LinkedAccount; me: Me }) {
   const qc = useQueryClient();
   const linking = useAccountLink(account.signedIn);
   const unlink = useMutation({
@@ -195,6 +330,7 @@ function Linked({ account, me }: { account: NonNullable<Me["account"]>; me: Me }
           </Button>
         </div>
       </div>
+      {account.signedIn ? <OrganizationRow account={account} /> : null}
       {account.signedIn ? null : (
         // The link is still there, its sign-in is not: the same sign-in again brings it back.
         <div className="flex flex-col gap-3 py-5">

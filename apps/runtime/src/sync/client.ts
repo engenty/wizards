@@ -25,7 +25,7 @@ import { mergeText } from "@engenty/wizards-shared/text-merge";
 import { generateText } from "ai";
 import { and, desc, eq, gt, inArray, like } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { accountToken, linkedAccount } from "../auth/account.js";
+import { accountToken, knownOrganization, linkedAccount } from "../auth/account.js";
 import {
   control,
   controlDb,
@@ -239,6 +239,67 @@ interface SpaceState {
 
 const stateKey = (id: string) => `sync:space:${id}`;
 const EXCLUDED = "sync:excluded";
+/**
+ * The organization each space synced with, by space. Outside `sync:`: a sign-out or a switch
+ * forgets the sync but not whose a space is, so it never goes up to another organization.
+ */
+const ORGANIZATIONS = "space-organizations";
+
+export interface SpaceOrganization {
+  id: string;
+  name: string | null;
+}
+
+export async function spaceOrganizations(): Promise<Record<string, SpaceOrganization>> {
+  return (await readSetting<Record<string, SpaceOrganization>>(ORGANIZATIONS)) ?? {};
+}
+
+/**
+ * Notes the organization the account is signed in to as the one of these spaces. A space
+ * noted for another organization keeps it: it never moves between organizations.
+ */
+async function belongHere(ids: string[]): Promise<void> {
+  const account = await linkedAccount();
+  if (!(account && ids.length)) {
+    return;
+  }
+  const known = await spaceOrganizations();
+  const organization = await knownOrganization();
+  const name = organization?.tenantId === account.tenantId ? organization.name : null;
+  let changed = false;
+  for (const id of ids) {
+    const before = known[id];
+    if (before && before.id !== account.tenantId) {
+      continue;
+    }
+    if (!before || (name && before.name !== name)) {
+      known[id] = { id: account.tenantId, name: name ?? before?.name ?? null };
+      changed = true;
+    }
+  }
+  if (changed) {
+    await writeSetting(ORGANIZATIONS, known);
+  }
+}
+
+/** The organization a space synced with, when it is not the one the account is signed in to now. */
+async function otherOrganization(projectId: string): Promise<SpaceOrganization | null> {
+  const account = await linkedAccount();
+  const owner = (await spaceOrganizations())[projectId];
+  return owner && account && owner.id !== account.tenantId ? owner : null;
+}
+
+/** A space of another organization stays here and never goes up to this one. */
+export async function refuseOtherOrganization(projectId: string): Promise<void> {
+  const owner = await otherOrganization(projectId);
+  if (owner) {
+    throw new ServiceError(
+      "refused",
+      note("spaceOfOtherOrganization", { organization: owner.name ?? owner.id }),
+      { reason: "other_organization" },
+    );
+  }
+}
 
 const readState = (id: string) => readSetting<SpaceState>(stateKey(id));
 const writeState = (id: string, s: SpaceState) => writeSetting(stateKey(id), s);
@@ -770,7 +831,12 @@ export async function syncAll(): Promise<void> {
   const local = await db.query.project.findMany({ columns: { id: true } });
   const ov = await overview(true).catch(() => null);
   const ids = [...new Set([...local.map((p) => p.id), ...(ov?.spaces ?? []).map((s) => s.id)])];
+  // Spaces that synced before their organization was noted.
+  await belongHere([...known]);
   for (const id of ids) {
+    if (await otherOrganization(id)) {
+      continue;
+    }
     if (known.has(id)) {
       await syncSpace(id);
     } else if (!excluded.has(id) && ov) {
@@ -786,6 +852,7 @@ export async function startTwoWay(): Promise<void> {
 
 /** A space starts to sync both ways: one this install synced one way becomes the cloud's own. */
 export async function startSpace(projectId: string): Promise<void> {
+  await refuseOtherOrganization(projectId);
   const excluded = ((await readSetting<string[]>(EXCLUDED)) ?? []).filter((x) => x !== projectId);
   await writeSetting(EXCLUDED, excluded);
   if (!(await readState(projectId))) {
@@ -798,6 +865,7 @@ export async function startSpace(projectId: string): Promise<void> {
     }
     await writeState(projectId, { pushed: 0, pulled: 0, full: false, at: null, error: null });
   }
+  await belongHere([projectId]);
   await syncSpace(projectId);
 }
 
@@ -927,6 +995,8 @@ export async function syncView(): Promise<SyncView> {
   }
   const local = await db.query.project.findMany({ columns: { id: true, name: true } });
   const cloud = await overview().catch(() => null);
+  const account = await linkedAccount();
+  const owners = await spaceOrganizations();
   const ids = [...new Set([...local.map((p) => p.id), ...(cloud?.spaces ?? []).map((s) => s.id)])];
   const conflicts = await db.query.syncConflict.findMany({
     orderBy: [desc(schema.syncConflict.createdAt)],
@@ -954,6 +1024,10 @@ export async function syncView(): Promise<SyncView> {
         conflicts: conflicts.filter((c) => c.projectId === id).length,
         merges: merges.filter((m) => m.projectId === id).length,
         error: sayError(st?.error ?? null),
+        organization:
+          owners[id] && owners[id].id !== account?.tenantId
+            ? (owners[id].name ?? owners[id].id)
+            : null,
       };
     }),
   );
@@ -1118,6 +1192,72 @@ export async function proposeMerge(id: string): Promise<{ record: SyncRecord; is
     reason: "check",
     issues,
   });
+}
+
+/**
+ * Before the account switches to another organization: every change made here goes up to the
+ * organization it belongs to. The spaces that did not get there, with why; empty when all did.
+ */
+export async function sendBeforeSwitch(): Promise<{ name: string; message: string }[]> {
+  if (!(await twoWayAvailable().catch(() => false))) {
+    return [];
+  }
+  const ids = await syncedSpaceIds();
+  await belongHere(ids);
+  const stuck: { name: string; message: string }[] = [];
+  for (const id of ids) {
+    await syncSpace(id, "push");
+    const st = await readState(id);
+    const waiting = st ? (await pending(id, st)).filter((x) => x.seq > 0 || !st.full).length : 0;
+    if (st?.error || waiting) {
+      const here = await db.query.project.findFirst({
+        where: eq(schema.project.id, id),
+        columns: { name: true },
+      });
+      stuck.push({
+        name: here?.name ?? id,
+        message: st?.error?.message ?? noteText(note("syncChangesWaiting"), "en"),
+      });
+    }
+  }
+  return stuck;
+}
+
+/**
+ * A switch to another organization, before its sync is forgotten as at a sign-out: the spaces
+ * that sync are noted as the organization's own. They stay here and sync again after a switch back.
+ */
+export async function noteSyncedSpaces(): Promise<void> {
+  // Without the two-way sync, the spaces of wizards published to the cloud one way.
+  const sent = await controlDb
+    .select({ key: control.setting.key })
+    .from(control.setting)
+    .where(like(control.setting.key, "cloud:%"));
+  const wizards = sent.length
+    ? await db
+        .select({ projectId: schema.wizard.projectId })
+        .from(schema.wizard)
+        .where(
+          inArray(
+            schema.wizard.id,
+            sent.map((r) => r.key.slice("cloud:".length)),
+          ),
+        )
+    : [];
+  await belongHere([...new Set([...(await syncedSpaceIds()), ...wizards.map((w) => w.projectId)])]);
+}
+
+/**
+ * After a switch: spaces that never synced with any organization stay on this computer only,
+ * until the person turns them on for the new one.
+ */
+export async function keepUnsyncedHere(): Promise<void> {
+  const owners = await spaceOrganizations();
+  const local = await db.query.project.findMany({ columns: { id: true } });
+  await writeSetting(
+    EXCLUDED,
+    local.map((p) => p.id).filter((id) => !owners[id]),
+  );
 }
 
 /** The account was unlinked: nothing syncs any more, and what was kept of the cloud goes. */

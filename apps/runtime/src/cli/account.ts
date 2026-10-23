@@ -8,9 +8,10 @@ import {
   unlink,
 } from "../auth/account.js";
 import { DeviceSignInError, requestDeviceCode, waitForDeviceSignIn } from "../auth/device.js";
-import { migrateControlDb } from "../db/client.js";
+import { migrateControlDb, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { featuresFile, fileFeatures, writeFeature } from "../features.js";
+import { LOCAL_TENANT } from "../tenants/tenant.js";
 import { type Layout, readInstallNote, writeInstallNote } from "./home.js";
 import type { SetupOptions } from "./setup.js";
 import { openBrowser, runningRuntime, settings } from "./start.js";
@@ -194,7 +195,11 @@ function onKeys(keys: { enter: () => void; escape: () => void }) {
  * terminal, Enter opens the page again and Esc goes on without an account: someone without an
  * invitation code yet is not stuck in the wait. Null when it ended without an account.
  */
-async function deviceSignIn(interactive: boolean): Promise<LinkedAccount | null> {
+async function deviceSignIn(
+  interactive: boolean,
+  /** The organization to pick on the page, for a switch: the page shows the person's list. */
+  organization?: { id: string; name: string },
+): Promise<LinkedAccount | null> {
   let code: Awaited<ReturnType<typeof requestDeviceCode>>;
   try {
     code = await requestDeviceCode();
@@ -204,12 +209,19 @@ async function deviceSignIn(interactive: boolean): Promise<LinkedAccount | null>
   }
   const shown = groupedCode(code.userCode);
   // The complete link carries the code: the page only asks to check it.
-  const link = code.verificationUriComplete ?? code.verificationUri;
+  const page = new URL(code.verificationUriComplete ?? code.verificationUri);
+  if (organization) {
+    page.searchParams.set("organization", organization.id);
+  }
+  const link = page.toString();
   p.log.message(
     code.verificationUriComplete
       ? `Open ${cyan(link)}\nThe page shows the code ${bold(shown)}: check that it matches.`
       : `Open ${cyan(link)} and enter the code ${bold(shown)}.`,
   );
+  if (organization) {
+    p.log.message(`On that page, pick ${bold(organization.name)}.`);
+  }
   const opened = openBrowser(link);
   const newHere = (await signupByCode())
     ? "New here? Create your account on that page with your invitation code, or join the waitlist there."
@@ -287,7 +299,7 @@ async function signIn(paths: Layout, interactive: boolean): Promise<number> {
   if (linked) {
     p.log.info(
       `Already signed in as ${described(linked, await knownOrganization(), false)}. ${dim(
-        `To switch accounts, run ${cmd("account sign-out")} first.`,
+        `Another organization: ${cmd("account switch")}. Another account: ${cmd("account sign-out")} first.`,
       )}`,
     );
     return 0;
@@ -301,6 +313,118 @@ async function signIn(paths: Layout, interactive: boolean): Promise<number> {
   p.log.message(dim("What you publish here runs in the cloud too."));
   await pickUp(paths, interactive, SIGNED_IN);
   return 0;
+}
+
+/** A name at the end of a sentence: "engrd." takes no second full stop. */
+const ended = (name: string) => (name.endsWith(".") ? name : `${name}.`);
+
+/** The organization a name, address or id on the command line means, of the person's. */
+export function organizationNamed<T extends { id: string; name: string }>(
+  organizations: T[],
+  wanted: string,
+): T | null {
+  const plain = wanted.trim().toLowerCase();
+  return (
+    organizations.find((o) => o.id === wanted.trim()) ??
+    organizations.find((o) => o.name.toLowerCase() === plain) ??
+    organizations.find((o) => o.name.toLowerCase().startsWith(plain)) ??
+    null
+  );
+}
+
+/**
+ * `wizards account switch [organization]`: the same account, signed in to another of its
+ * organizations. What changed here goes up to the organization it belongs to first; its
+ * spaces stay on this computer and sync again after a switch back (sync/client.ts).
+ */
+async function switchOrganization(
+  paths: Layout,
+  interactive: boolean,
+  wanted: string,
+): Promise<number> {
+  await ready();
+  const linked = await linkedAccount();
+  if (!linked) {
+    console.log(`Not signed in. ${dim(`To sign in: ${cmd("account sign-in")}`)}`);
+    return 1;
+  }
+  const overview = await accountOverview();
+  if (!overview) {
+    p.log.error(`${host()} didn’t respond, so your organizations aren’t known. Try again later.`);
+    return 1;
+  }
+  const organizations = overview.tenants ?? [];
+  const others = organizations.filter((o) => o.id !== linked.tenantId);
+  if (!others.length) {
+    p.log.info(
+      `${overview.tenant.name} is your only organization, so there’s nothing to switch to.`,
+    );
+    return 0;
+  }
+  let target = wanted ? organizationNamed(organizations, wanted) : null;
+  if (wanted && !target) {
+    p.log.error(
+      `You aren’t in an organization called “${wanted}”. Yours: ${organizations.map((o) => o.name).join(", ")}.`,
+    );
+    return 1;
+  }
+  if (!target) {
+    if (!interactive) {
+      console.error(`Usage: ${cmd("account switch <organization>")}`);
+      return 2;
+    }
+    const picked = await p.select({
+      message: `Signed in to ${overview.tenant.name}. Switch to:`,
+      options: others.map((o) => ({ value: o.id, label: o.name, hint: o.role })),
+    });
+    if (p.isCancel(picked)) {
+      return 1;
+    }
+    target = others.find((o) => o.id === picked) ?? null;
+  }
+  if (!target || target.id === linked.tenantId) {
+    p.log.info(`Already signed in to ${ended(overview.tenant.name)}`);
+    return 0;
+  }
+  const chosen = target;
+  return withTenant(LOCAL_TENANT, async () => {
+    const { sendBeforeSwitch } = await import("../sync/client.js");
+    const spinner = busy(`Sending what changed here to ${overview.tenant.name}…`);
+    const stuck = await sendBeforeSwitch();
+    if (stuck.length) {
+      spinner.fail(`Not everything arrived in ${ended(overview.tenant.name)}`);
+      for (const space of stuck) {
+        p.log.message(`${space.name}: ${space.message}`);
+      }
+      const anyway =
+        interactive &&
+        (await p.confirm({
+          message:
+            "Switch anyway? What didn’t arrive stays on this computer and arrives when you switch back.",
+          initialValue: false,
+        }));
+      if (p.isCancel(anyway) || !anyway) {
+        p.log.info(dim(`Still signed in to ${ended(overview.tenant.name)}`));
+        return 1;
+      }
+    } else {
+      spinner.stop(`Everything here arrived in ${ended(overview.tenant.name)}`);
+    }
+    const account = await deviceSignIn(interactive, chosen);
+    if (!account) {
+      p.log.info(dim(`Still signed in to ${ended(overview.tenant.name)}`));
+      return 1;
+    }
+    if (account.tenantId !== linked.tenantId) {
+      p.log.message(
+        dim(
+          `The spaces of ${overview.tenant.name} stay on this computer and arrive in the cloud again when you switch back.`,
+        ),
+      );
+    }
+    await pickUp(paths, interactive, "it works in the new organization");
+    return 0;
+  });
 }
 
 /**
@@ -317,7 +441,7 @@ async function disconnect(): Promise<void> {
     import("../plugins/pro.js"),
     import("../models.js"),
   ]);
-  await forgetCloud();
+  await withTenant(LOCAL_TENANT, forgetCloud);
   await refreshPro();
   await models.loadLocalModels();
   if (models.localModelSettings().source === "account") {
@@ -344,11 +468,11 @@ async function signOut(paths: Layout, interactive: boolean): Promise<number> {
   return 0;
 }
 
-/** `wizards account [sign-in|sign-out]`. */
+/** `wizards account [sign-in|sign-out|switch [organization]]`. */
 export async function accountCommand(
   paths: Layout,
   value: string,
-  options: { yes: boolean },
+  options: { yes: boolean; organization?: string },
 ): Promise<number> {
   const interactive = !options.yes && Boolean(process.stdin.isTTY && process.stdout.isTTY);
   switch (value) {
@@ -362,8 +486,10 @@ export async function accountCommand(
     case "signout":
     case "logout":
       return signOut(paths, interactive);
+    case "switch":
+      return switchOrganization(paths, interactive, options.organization ?? "");
     default:
-      console.error(`Usage: ${cmd("account [sign-in|sign-out]")}`);
+      console.error(`Usage: ${cmd("account [sign-in|sign-out|switch]")}`);
       return 2;
   }
 }
@@ -372,12 +498,23 @@ export async function accountCommand(
 export async function accountMenu(paths: Layout): Promise<void> {
   await status();
   const state = await accountState();
-  const action = await p.select<"sign-in" | "sign-out" | "back">({
+  const action = await p.select<"sign-in" | "sign-out" | "switch" | "back">({
     message: "Account",
     options: [
-      state.kind === "linked"
-        ? { value: "sign-out", label: "Sign out", hint: "your wizards and results stay here" }
-        : { value: "sign-in", label: "Sign in", hint: "with a code, in your browser" },
+      ...(state.kind === "linked"
+        ? [
+            {
+              value: "switch" as const,
+              label: "Switch organization",
+              hint: "for someone in several",
+            },
+            {
+              value: "sign-out" as const,
+              label: "Sign out",
+              hint: "your wizards and results stay here",
+            },
+          ]
+        : [{ value: "sign-in" as const, label: "Sign in", hint: "with a code, in your browser" }]),
       { value: "back", label: "Back" },
     ],
   });
@@ -386,6 +523,8 @@ export async function accountMenu(paths: Layout): Promise<void> {
   }
   if (action === "sign-in") {
     await signIn(paths, true);
+  } else if (action === "switch") {
+    await switchOrganization(paths, true, "");
   } else {
     await signOut(paths, true);
   }

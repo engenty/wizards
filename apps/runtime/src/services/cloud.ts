@@ -7,7 +7,14 @@ import { env } from "../env.js";
 import { getBlob } from "../files/blobs.js";
 import { managed } from "../manage.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
-import { forgetTwoWay, publishInCloud, rotateInCloudSpace, spaceSyncs } from "../sync/client.js";
+import {
+  forgetTwoWay,
+  publishInCloud,
+  refuseOtherOrganization,
+  rotateInCloudSpace,
+  spaceOrganizations,
+  spaceSyncs,
+} from "../sync/client.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { mainLogoId } from "./brand.js";
 import { ServiceError } from "./errors.js";
@@ -304,6 +311,8 @@ export async function syncToCloud(userId: string, wizardId: string): Promise<Clo
   const before = await cloudState(w.id);
   const twoWay = await spaceSyncs(w.projectId);
   try {
+    // A space of the organization the account was signed in to before stays out of this one.
+    await refuseOtherOrganization(w.projectId);
     if (twoWay) {
       // The space syncs both ways: its draft goes up with the space, then the cloud publishes it.
       const published = await publishInCloud(w.projectId, w.id);
@@ -517,12 +526,16 @@ async function forgetSentData() {
 export async function syncAllToCloud(userId: string): Promise<{ sent: number; failed: number }> {
   // A cloud that was linked anew, or whose spaces were replaced, has none of it.
   await forgetSentData();
-  const wizards = await db
-    .select({ id: schema.wizard.id })
-    .from(schema.wizard)
-    .where(
-      and(eq(schema.wizard.tenantId, currentTenant()), isNotNull(schema.wizard.publishedVersion)),
-    );
+  const owners = await spaceOrganizations();
+  const account = await linkedAccount();
+  const wizards = (
+    await db
+      .select({ id: schema.wizard.id, projectId: schema.wizard.projectId })
+      .from(schema.wizard)
+      .where(
+        and(eq(schema.wizard.tenantId, currentTenant()), isNotNull(schema.wizard.publishedVersion)),
+      )
+  ).filter((w) => !owners[w.projectId] || owners[w.projectId].id === account?.tenantId);
   let sent = 0;
   let failed = 0;
   for (const [i, { id }] of wizards.entries()) {

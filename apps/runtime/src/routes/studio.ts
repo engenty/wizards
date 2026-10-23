@@ -267,6 +267,7 @@ import {
   proposeMerge,
   type Resolution,
   resolveConflict,
+  sendBeforeSwitch,
   startSpace,
   stopSpace,
   syncAll,
@@ -533,6 +534,9 @@ export const studio = new Hono<Vars>()
             email: linked.email,
             /** The organization the account's space belongs to, as the Manage-App names it. */
             organization: overview?.tenant.name ?? null,
+            organizationId: linked.tenantId,
+            /** The person's organizations, to switch to another; one alone means nothing to switch. */
+            organizations: overview?.tenants ?? [],
             credits: overview?.tenant.balanceCredits ?? null,
             /** What of the credits ends on a date, the nearest first. */
             expiring: overview?.tenant.expiring ?? [],
@@ -2199,6 +2203,25 @@ export const studio = new Hono<Vars>()
       .object({ signup: z.boolean().optional(), code: z.string().max(64).optional() })
       .parse(await c.req.json().catch(() => ({})));
     return c.json({ url: await startLink(input) });
+  })
+  // Another organization of the account: what changed here goes up to the one it belongs to
+  // first, then the sign-in names the other one. What did not arrive stays here (`anyway`).
+  .post("/account/switch", async (c) => {
+    if (managed || !(await linkedAccount())) {
+      return c.notFound();
+    }
+    const { organization, anyway } = z
+      .object({ organization: z.string().trim().min(1).max(200), anyway: z.boolean().optional() })
+      .parse(await c.req.json());
+    const stuck = await sendBeforeSwitch();
+    if (stuck.length && !anyway) {
+      throw new ServiceError(
+        "refused",
+        note("switchChangesWaiting", { spaces: stuck.map((x) => `“${x.name}”`) }),
+        { reason: "changes_waiting" },
+      );
+    }
+    return c.json({ url: await startLink({ organization }) });
   })
   .delete("/account", async (c) => {
     if (managed) {

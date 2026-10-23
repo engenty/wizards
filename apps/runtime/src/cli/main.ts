@@ -35,6 +35,7 @@ ${line(`${command()} start`, "start it in this terminal and open the studio (Ctr
 ${line(`${command()} studio`, "open the studio, starting it in the background if needed")}
 ${line(`${command()} setup`, "set up your engenty account, an AI client, ffmpeg, a decision model and start at login")}
 ${line(`${command()} account`, "show your engenty account; add sign-in or sign-out to change it")}
+${line(`${command()} account switch`, "sign in to another of your organizations")}
 ${line(`${command()} open`, "sign this browser in to the running studio (--print: only print the link)")}
 ${line(`${command()} status`, "show what’s installed and running")}
 ${line(`${command()} doctor`, "show the status and check for problems")}
@@ -81,7 +82,7 @@ interface Args {
   command: string;
   /** What follows the command: \`autostart on\`, \`account sign-in\`. */
   value: string;
-  /** What follows \`sandbox add\` and \`sandbox remove\`: the engine. */
+  /** What follows \`sandbox add\` and \`sandbox remove\`: the engine; \`account switch\`: the organization. */
   engine: string;
   /** What follows \`connect\`, \`disconnect\` and \`features\`. */
   apps: string[];
@@ -142,7 +143,10 @@ function parse(argv: string[]): Args | string {
       !args.value
     ) {
       args.value = arg;
-    } else if (args.command === "sandbox" && !args.engine) {
+    } else if (
+      (args.command === "sandbox" || (args.command === "account" && args.value === "switch")) &&
+      !args.engine
+    ) {
       args.engine = arg;
     } else if (["connect", "disconnect", "features"].includes(args.command)) {
       args.apps.push(arg);
@@ -222,7 +226,7 @@ async function main(argv: string[]): Promise<number> {
     case "autoupdate":
       return autoUpdateCommand(paths, args.value);
     case "account":
-      return accountCommand(paths, args.value, { yes: args.yes });
+      return accountCommand(paths, args.value, { yes: args.yes, organization: args.engine });
     case "sandbox":
       return sandboxCommand(paths, args.value, args.engine);
     case "connect":

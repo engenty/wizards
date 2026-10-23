@@ -213,12 +213,15 @@ export function CloudSyncSection() {
                 <p className="font-medium text-[0.9375rem]">{s.name}</p>
                 <SpaceLine space={s} refusals={view.refusals[s.spaceId]} />
               </div>
-              <Switch
-                checked={s.on}
-                label={t("cloudSync.spaceOn")}
-                disabled={toggle.isPending}
-                onChange={(on) => toggle.mutate({ id: s.spaceId, on })}
-              />
+              {/* A space of another organization comes back after a switch, never into this one. */}
+              {s.organization ? null : (
+                <Switch
+                  checked={s.on}
+                  label={t("cloudSync.spaceOn")}
+                  disabled={toggle.isPending}
+                  onChange={(on) => toggle.mutate({ id: s.spaceId, on })}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -237,6 +240,11 @@ function SpaceLine({
   refusals?: string[];
 }) {
   const line = "mt-0.5 text-[0.8125rem] text-ink-3";
+  if (space.organization) {
+    return (
+      <p className={line}>{t("cloudSync.state.otherOrganization", { name: space.organization })}</p>
+    );
+  }
   if (!space.on) {
     return (
       <p className={line}>
