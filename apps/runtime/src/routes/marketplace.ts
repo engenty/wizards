@@ -1,5 +1,5 @@
+import { CAPABILITY_IDS } from "@engenty/wizards-shared/fit";
 import {
-  CAPABILITY_IDS,
   INDUSTRY_IDS,
   ITEM_FORMAT_IDS,
   MARKETPLACE_PLAN_IDS,

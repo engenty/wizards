@@ -1,7 +1,6 @@
 import type { Lang, StepType } from "@engenty/wizards-shared/definition";
+import { CAPABILITY_IDS, type Capability } from "@engenty/wizards-shared/fit";
 import {
-  CAPABILITY_IDS,
-  type Capability,
   INDUSTRY_IDS,
   type Industry,
   ITEM_FORMAT_IDS,

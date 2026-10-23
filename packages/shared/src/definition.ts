@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import { z } from "zod";
-import { tableColumnsSchema } from "./engenty/data-tables/index.js";
+import { tableColumnsSchema } from "./engenty/data-tables/columns.js";
 import { readNumber } from "./numbers.js";
 import { type ObjectShape, outputShapeSchema, shapeOfFields } from "./shape.js";
 import { isShareTargetId } from "./sharing.js";

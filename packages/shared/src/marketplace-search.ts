@@ -3,8 +3,8 @@ import {
   scoreCatalogEntry,
   tokenizeCatalogText,
 } from "./engenty/search-index/catalog-lexical.js";
+import type { Capability } from "./fit.js";
 import {
-  type Capability,
   type Industry,
   type ItemFormat,
   type MarketGroup,

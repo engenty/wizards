@@ -1,17 +1,7 @@
 import { assembleSurface, parseWizard, type SurfaceStep } from "@engenty/wizards-shared/definition";
 import { fontFace, runTheme } from "@engenty/wizards-shared/projects";
-import {
-  chosenTheme,
-  freeThemeId,
-  lookColours,
-  type Theme,
-  themeContentKey,
-  themedLook,
-  themeIdFrom,
-  themeIdProblem,
-  themeOffered,
-  themeSchema,
-} from "@engenty/wizards-shared/theme";
+import { freeThemeId, type Theme, themeContentKey, themeIdFrom, themeIdProblem, themeOffered, themeSchema } from "@engenty/wizards-shared/theme";
+import { chosenTheme, lookColours, themedLook } from "@engenty/wizards-shared/theme-look";
 import { bound, pointer, validateSurface, worded } from "@engenty/wizards-shared/surface";
 import { describe, expect, it, vi } from "vitest";
 

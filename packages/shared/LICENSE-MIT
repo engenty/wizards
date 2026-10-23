@@ -29,11 +29,15 @@ package that carry the line "SPDX-License-Identifier: FSL-1.1-MIT OR MIT":
   src/run.ts
   src/runner-texts.ts
   src/shape.ts
+  src/sharing.ts
   src/store.ts
   src/surface.ts
   src/texts.ts
+  src/theme.ts
   src/translation.ts
+  src/wizard-package.ts
   src/engenty/data-tables/columns.ts
   src/engenty/data-tables/columns-format.ts
+  src/engenty/data-tables/columns-value.ts
 
 The other files of this package are under FSL-1.1-MIT only (../../LICENSE).

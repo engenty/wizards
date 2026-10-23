@@ -25,7 +25,7 @@ React external, and `runner.css` — the look of a wizard's page, every rule sco
 ## Licence
 
 MIT, the modules of `@engenty/wizards-shared` it bundles included. Those modules are the wizard
-format (definition, fit, numbers, run, runner-texts, shape, store, surface, texts, translation
-and the data-tables columns), which is `FSL-1.1-MIT OR MIT`
+format (definition, fit, numbers, run, runner-texts, shape, sharing, store, surface, texts,
+theme, wizard-package and the data-tables columns), which is `FSL-1.1-MIT OR MIT`
 ([packages/shared/LICENSE-MIT](../shared/LICENSE-MIT)). The rest of engenty wizards is
 FSL-1.1-MIT.
