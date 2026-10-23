@@ -68,12 +68,12 @@ const de: Record<Key, Line> = {
     "Kein Passwort, keine Registrierung – du meldest dich mit einem bestehenden Konto an.",
   "auth.signIn": "Anmelden oder Konto erstellen",
   "auth.failed": "Die Anmeldung hat nicht geklappt. Versuch es noch einmal.",
-  "auth.localTitle": "Dieser Browser ist nicht angemeldet",
+  "auth.localTitle": "Das Studio öffnest du im Terminal",
   "auth.localWhy":
-    "Das Studio läuft auf deinem Computer und lässt nur Browser herein, die seinen Link geöffnet haben. Hier fehlt die Anmeldung – vielleicht wurden die Cookies gelöscht.",
-  "auth.localLink": "Starte eine neue Sitzung:",
+    "engenty wizards läuft auf deinem Computer. Dieser Befehl öffnet das Studio in deinem Browser:",
   "auth.localStartLink":
-    "Oder gib nur den Link aus, ohne einen Browser zu öffnen. Er gilt einmal, eine Minute lang:",
+    "Für einen anderen Browser gibt dieser Befehl nur den Link aus. Er gilt einmal, eine Minute lang:",
+  "auth.localNoAccount": "Ein engenty-Konto brauchst du dafür nicht.",
   "auth.wrongHost": "Das Studio läuft unter einer anderen Adresse",
   "auth.wrongHostWhy":
     "Die App auf diesem Computer antwortet nur unter ihrer eigenen Adresse – das schützt sie vor fremden Webseiten. Öffne das Studio dort:",
@@ -300,7 +300,17 @@ const de: Record<Key, Line> = {
   "models.view.linked": "Computer + Konto",
   "models.view.cloud": "Cloud",
   "setup.title": "Setup",
-  "setup.sub": "engenty kann deine vorhandenen Konten auf deinem Computer nutzen.",
+  "setup.sub": "Melde dich an oder nutze ein Abo, das du schon hast.",
+  "setup.localDivider": "Lokale Modelle verwenden",
+  "setup.localNote":
+    "Diese laufen nur auf diesem Computer. Veröffentlichte Wizards brauchen dein Konto.",
+  "setup.connected": "{name} verbunden",
+  "setup.accountAsk": "Mit deinem Konto weiter?",
+  "setup.accountAskText":
+    "Mit deinem Konto veröffentlichst du Wizards und arbeitest im Space deiner Organisation.",
+  "setup.localContinue": "Nur auf diesem Computer weiter",
+  "setup.localContinueNote":
+    "Das Studio öffnet sich nur in diesem Browser. Für einen anderen Browser führst du „wizards open“ im Terminal aus.",
   "setup.source": "Womit soll engenty denken?",
   "setup.local": "Läuft auf diesem Computer.",
   "setup.thisComputer": "Dieser Computer: Space {space} von {organization}",
@@ -310,8 +320,7 @@ const de: Record<Key, Line> = {
   "setup.accountLinked": "Angemeldet als {name}",
   "setup.accountCredits": "{credits} Credits",
   "setup.creditsChoice": "engenty-Guthaben",
-  "setup.creditsDesc":
-    "Läuft über das Guthaben deines Kontos, wie in der Cloud. Nichts zu installieren.",
+  "setup.creditsDesc": "Läuft über dein Guthaben, wie in der Cloud. Nichts zu installieren.",
   "onboard.kicker1": "Willkommen, {name}",
   "onboard.kicker1Anon": "Willkommen",
   "onboard.organization": "Wie heißt deine Organisation?",
@@ -2480,12 +2489,12 @@ const en = {
   "auth.legal": "No password, no sign-up form – you sign in with an account you already have.",
   "auth.signIn": "Sign in or create an account",
   "auth.failed": "Sign-in didn’t work. Try again.",
-  "auth.localTitle": "This browser isn’t signed in",
+  "auth.localTitle": "Open the studio from a terminal",
   "auth.localWhy":
-    "The studio runs on your computer and only lets in browsers that opened its link. This browser isn’t signed in – maybe the cookies were cleared.",
-  "auth.localLink": "Run this in a terminal – it opens the studio and signs this browser in:",
+    "engenty wizards runs on your computer. This command opens the studio in your browser:",
   "auth.localStartLink":
-    "Or print just the link, without opening a browser. It works once, for a minute:",
+    "For another browser, this one only prints the link. It works once, for a minute:",
+  "auth.localNoAccount": "You don’t need an engenty account for this.",
   "auth.wrongHost": "The studio runs at another address",
   "auth.wrongHostWhy":
     "engenty wizards only answers at its own address on this computer – that keeps other web pages out. Open the studio there:",
@@ -2709,7 +2718,16 @@ const en = {
   "models.view.linked": "this computer + account",
   "models.view.cloud": "the cloud",
   "setup.title": "Setup",
-  "setup.sub": "engenty wizards can use your existing accounts on your computer.",
+  "setup.sub": "Sign in, or use a subscription you already have.",
+  "setup.localDivider": "Use local models",
+  "setup.localNote": "These run on this computer only. Published wizards need your account.",
+  "setup.connected": "{name} connected",
+  "setup.accountAsk": "Continue with your account?",
+  "setup.accountAskText":
+    "With your account you publish wizards and work in your organization’s space.",
+  "setup.localContinue": "Continue on this computer only",
+  "setup.localContinueNote":
+    "The studio opens in this browser only. For another browser, run “wizards open” in a terminal.",
   "setup.source": "Choose how the AI runs",
   "setup.local": "Runs on this computer.",
   "setup.thisComputer": "This computer: space {space} of {organization}",
@@ -2719,7 +2737,7 @@ const en = {
   "setup.accountLinked": "Signed in as {name}",
   "setup.accountCredits": "{credits} credits",
   "setup.creditsChoice": "engenty credits",
-  "setup.creditsDesc": "Runs on your account’s credits, as in the cloud. Nothing to install.",
+  "setup.creditsDesc": "Runs on your credits, as in the cloud. Nothing to install.",
   "onboard.kicker1": "Welcome, {name}",
   "onboard.kicker1Anon": "Welcome",
   "onboard.organization": "What’s your organization called?",
