@@ -28,7 +28,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { api } from "../lib/api";
 import { type AppBarPosition, besideBar, useAppBar, useAppBarLabels } from "../lib/appbar";
 import { useFeature } from "../lib/features";
@@ -899,14 +899,16 @@ export function UserMenu({
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
   const { phone } = useAppBar();
+  // The person's Konto is theirs in every organization: no space, no organization's credits.
+  const personal = useLocation().pathname.startsWith("/account");
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:gap-3 sm:px-4 md:px-5">
-      <SpaceName me={me} />
+      {personal ? null : <SpaceName me={me} />}
       <div className="flex min-w-0 flex-1 items-center">
         <Trail />
         {children}
       </div>
-      <CreditsPill me={me} />
+      {personal ? null : <CreditsPill me={me} />}
       {/* A phone's bar keeps the places: the person stands up here. */}
       {phone ? <UserMenu me={me} /> : null}
     </header>
