@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.11.4",
+    "timestamp": 1792764110,
+    "commits": [
+      {
+        "id": "93ce4d2",
+        "message": "Konto shows no organization, one place reads “1 Platz”, a deleted API key's secret goes (#203)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.3",
-    "timestamp": 1792762375,
+    "timestamp": 1792762583,
     "commits": [
       {
         "id": "cbcd5f7",
