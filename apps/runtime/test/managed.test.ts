@@ -17,6 +17,8 @@ const reservations: { tenantId: string; runId: string; credits: number }[] = [];
 const numberRequests: { tenantId: string; body: any }[] = [];
 /** What the studio's first visit sent about an organization. */
 const profiles: { tenantId: string; body: any }[] = [];
+/** What the studio asked the Manage-App to change about a tenant's people. */
+const memberCalls: { method: string; path: string; body: any }[] = [];
 const channelUsage: { tenantId: string; body: any }[] = [];
 // The Manage-App fails on tenant B's plan while this is set.
 let tenantBDown = false;
@@ -77,6 +79,18 @@ const manage: Server = createServer(async (req, res) => {
   }
   if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) {
     return json({ error: "unauthorized", code: "unauthorized" }, 401);
+  }
+  if (/^\/v1\/tenants\/[^/]+\/(invitations|members)(\/[^/]+)?$/.test(url.pathname) && req.method !== "GET") {
+    const body = raw ? JSON.parse(raw) : {};
+    memberCalls.push({ method: req.method ?? "", path: url.pathname, body });
+    if (body.actorId === "user-m") {
+      return json({ error: "Not allowed.", code: "forbidden" }, 403);
+    }
+    return json(
+      url.pathname.endsWith("/invitations")
+        ? { invitation: { id: "inv-2", email: body.email, role: body.role, expiresAt: "2026-10-30T00:00:00.000Z" } }
+        : { ok: true },
+    );
   }
   const members = url.pathname.match(/^\/v1\/tenants\/([^/]+)\/members$/)?.[1];
   if (members) {
@@ -387,6 +401,32 @@ describe("a runtime of a Manage-App", () => {
       canManage: false,
     });
     expect(((await (await get("/api/studio/organization", a)).json()) as any).canManage).toBe(true);
+
+    // People are invited, given roles and removed for the person signed in: the Manage-App
+    // decides with their id, and its refusal comes back with its code.
+    const send = (method: string, path: string, cookie: string, body?: unknown) =>
+      app.fetch(
+        new Request(`${RUNTIME}/api/studio/organization${path}`, {
+          method,
+          headers: { cookie, "content-type": "application/json", "accept-language": "en" },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        }),
+      );
+    const invited = await send("POST", "/invitations", a, { email: "new@test.local", role: "admin" });
+    expect(await invited.json()).toMatchObject({ invitation: { email: "new@test.local", role: "admin" } });
+    expect((await send("PATCH", "/members/user-m", a, { role: "admin" })).status).toBe(200);
+    expect((await send("DELETE", "/invitations/inv-1", a)).status).toBe(200);
+    expect((await send("DELETE", "/members/user-m", a)).status).toBe(200);
+    const refused = await send("POST", "/invitations", m, { email: "y@test.local" });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: "forbidden" });
+    expect(memberCalls).toEqual([
+      { method: "POST", path: "/v1/tenants/tenant-a/invitations", body: { actorId: "user-a", email: "new@test.local", role: "admin", lang: "en" } },
+      { method: "PATCH", path: "/v1/tenants/tenant-a/members/user-m", body: { actorId: "user-a", role: "admin" } },
+      { method: "DELETE", path: "/v1/tenants/tenant-a/invitations/inv-1", body: { actorId: "user-a" } },
+      { method: "DELETE", path: "/v1/tenants/tenant-a/members/user-m", body: { actorId: "user-a" } },
+      { method: "POST", path: "/v1/tenants/tenant-a/invitations", body: { actorId: "user-m", email: "y@test.local", role: "member", lang: "en" } },
+    ]);
   });
 
   it("refuses own API keys where the plan has none, and lists its plugins to the Manage-App", async () => {

@@ -59,6 +59,12 @@ export const FEATURES = {
     label: "Organization plans",
     hint: "The organization page in the cloud studio, and plans that carry this switch on the account pages.",
   },
+  organizationSettings: {
+    kind: "release",
+    default: false,
+    label: "Organization settings in the studio",
+    hint: "Settings › Organisation in the cloud studio: the organization's name, its members and invitations, changed there instead of on the account pages.",
+  },
   brandSections: {
     kind: "release",
     default: false,
