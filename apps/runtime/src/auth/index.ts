@@ -15,6 +15,7 @@ import {
   verifyToken,
 } from "../manage.js";
 import { refreshPro } from "../plugins/pro.js";
+import { requestLang, say } from "../routes/lang.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { LOCAL_TENANT } from "../tenants/tenant.js";
 import { finishLink } from "./account.js";
@@ -243,8 +244,9 @@ export async function principalOf(c: Context): Promise<Principal | null> {
   return id ? sessionPrincipal(id) : null;
 }
 
-const closePage = (message: string) =>
-  `<!doctype html><meta charset="utf-8"><title>engenty wizards</title>
+/** One line on a page of its own, in the language the browser asks for. */
+const closePage = (c: Context, message: string) =>
+  `<!doctype html><html lang="${requestLang(c)}"><meta charset="utf-8"><title>engenty wizards</title>
 <body style="font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#333">
 <p>${message}</p>`;
 
@@ -267,7 +269,7 @@ export const authRoutes = new Hono()
     if (expires) {
       usedTickets.set(ticket, expires);
     } else if (managed || !accessKey || !sameValue(given, accessKey)) {
-      return c.text("This link is no longer valid. Run wizards open to get a new one.", 403);
+      return c.html(closePage(c, say(c, "localLinkUsed")), 403);
     } else {
       accessKey = null;
     }
@@ -362,7 +364,7 @@ export const authRoutes = new Hono()
     if (!managed) {
       // The linked account of a runtime that runs alone: the system browser lands here.
       if (!code) {
-        return c.html(closePage("Sign-in cancelled. You can close this window."), 400);
+        return c.html(closePage(c, say(c, "accountSignInCancelled")), 400);
       }
       try {
         await finishLink(code, rawState);
@@ -370,10 +372,10 @@ export const authRoutes = new Hono()
         void firstSync();
         // The Pro modules the account's plan includes.
         void refreshPro();
-        return c.html(closePage("Signed in. You can close this window."));
+        return c.html(closePage(c, say(c, "accountSignedIn")));
       } catch (err) {
         console.error("[account]", err);
-        return c.html(closePage("The sign-in didn’t work. Try again."), 400);
+        return c.html(closePage(c, say(c, "accountSignInFailed")), 400);
       }
     }
     const state = unseal<LoginState>(getCookie(c, STATE_COOKIE) ?? "");
@@ -414,7 +416,7 @@ export const authRoutes = new Hono()
         } satisfies Handoff);
         const link = `engenty-wizards://signin?code=${encodeURIComponent(code)}`;
         return c.html(
-          `${closePage("Signed in. Go back to engenty wizards now.")}
+          `${closePage(c, say(c, "desktopSignedIn"))}
 <script>location.href = ${JSON.stringify(link)};</script>`,
         );
       }
