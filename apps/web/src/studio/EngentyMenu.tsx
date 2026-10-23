@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { APP_VERSION } from "../about/AboutLinks";
@@ -10,6 +11,13 @@ import { useUpdate } from "../lib/update";
 import { cn } from "../ui";
 import { useDismiss } from "./AppFrame";
 import { InstallDialog } from "./InstallBanner";
+import {
+  currentOrganization,
+  OrganizationFace,
+  OrganizationList,
+  switchable,
+  useManageOrganization,
+} from "./Organizations";
 
 /** ⌘ on a Mac, Ctrl elsewhere: the key the settings' shortcut is pressed with. */
 const MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -32,9 +40,20 @@ export function EngentyMenu({
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
+  const [flyout, setFlyout] = useState(false);
+  // The cloud studio's organization; a local install names none here (it has one, no switch).
+  const organization = me.mode === "managed" ? currentOrganization(me) : null;
+  const canSwitch = switchable(me);
+  const manage = useManageOrganization(me);
   const installPrompt = useInstallPrompt();
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, open, () => setOpen(false));
+  // The flyout closes with the menu.
+  useEffect(() => {
+    if (!open) {
+      setFlyout(false);
+    }
+  }, [open]);
   // Only a runtime that runs alone has updates of its own; in the cloud they come by themselves.
   const local = me.mode === "local";
   const { data, check } = useUpdate(local);
@@ -99,6 +118,58 @@ export function EngentyMenu({
             </span>
             <span className={cn(aside, "tabular-nums")}>{APP_VERSION}</span>
           </div>
+          {organization ? (
+            <>
+              {/* The organization the studio is in, and its plan. Someone who can switch gets
+                  the organizations beside the menu; everyone else its settings. */}
+              <button
+                type="button"
+                role="menuitem"
+                aria-haspopup={canSwitch ? "menu" : undefined}
+                aria-expanded={canSwitch ? flyout : undefined}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg px-2.5 py-1.5 text-left transition hover:bg-accent",
+                  flyout && "bg-accent",
+                )}
+                onClick={() => {
+                  if (canSwitch) {
+                    setFlyout((f) => !f);
+                  } else {
+                    setOpen(false);
+                    manage();
+                  }
+                }}
+              >
+                <OrganizationFace org={organization} size="xs" />
+                <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <span className="truncate font-medium text-[0.875rem] text-ink">
+                    {organization.name}
+                  </span>
+                  <span className="truncate text-[0.75rem] text-ink-4">
+                    {organization.plan
+                      ? `${t("organization.title")} · ${organization.plan.name}`
+                      : t("organization.title")}
+                  </span>
+                </span>
+                {canSwitch ? <ChevronRight className="size-4 shrink-0 text-ink-4" /> : null}
+              </button>
+              {flyout ? (
+                <div
+                  role="menu"
+                  className={cn(
+                    "absolute top-12 z-50 w-80 animate-rise rounded-xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft",
+                    position === "right" ? "right-full mr-1.5" : "left-full ml-1.5",
+                  )}
+                >
+                  <div className="px-2 pt-1.5 pb-1 text-[0.75rem] text-ink-3">
+                    {t("organizations.switch")}
+                  </div>
+                  <OrganizationList me={me} onDone={() => setOpen(false)} />
+                </div>
+              ) : null}
+              {rule}
+            </>
+          ) : null}
           <button
             type="button"
             role="menuitem"

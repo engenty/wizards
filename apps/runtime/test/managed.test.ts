@@ -120,6 +120,22 @@ const manage: Server = createServer(async (req, res) => {
       allowed: id === "tenant-a",
     });
   }
+  // User A is in two organizations: their own and tenant A.
+  const person = url.pathname.match(/^\/v1\/users\/([^/]+)$/)?.[1];
+  if (person) {
+    return json({
+      id: person,
+      features: {},
+      admin: false,
+      tenants:
+        person === "user-a"
+          ? [
+              { id: "tenant-own", name: "User A", slug: "user-a", role: "owner", personal: true, plan: { id: "free", name: "Free" } },
+              { id: "tenant-a", name: "tenant-a", slug: "tenant-a", role: "owner", personal: false, plan: { id: "team", name: "Team" } },
+            ]
+          : [],
+    });
+  }
   const tenant = url.pathname.match(/^\/v1\/tenants\/([^/]+)$/)?.[1];
   if (tenant) {
     if (tenantBDown && tenant === "tenant-b") {
@@ -310,6 +326,11 @@ describe("a runtime of a Manage-App", () => {
       mode: "managed",
       credits: 500,
       manageUrl: issuer,
+      organizations: [
+        { id: "tenant-own", slug: "user-a", personal: true },
+        { id: "tenant-a", slug: "tenant-a", role: "owner", plan: { id: "team", name: "Team" } },
+      ],
+      mayCreateOrganization: false,
     });
     expect((await get("/api/studio/me", "")).status).toBe(401);
   });
@@ -643,6 +664,20 @@ describe("a runtime of a Manage-App", () => {
     for (const outside of ["/", "/new", "/studio-x", "//evil.example", "/\\evil.example"]) {
       expect(await back(outside)).toBe("/studio/");
     }
+  });
+
+  it("names the organization a switch asks for, and nothing that is not an address", async () => {
+    const hint = async (organization: string) =>
+      new URL(
+        (
+          await app.fetch(
+            new Request(`${RUNTIME}/api/auth/login?return=/studio/&organization=${encodeURIComponent(organization)}`),
+          )
+        ).headers.get("location") ?? "",
+      ).searchParams.get("organization");
+    expect(await hint("tenant-a")).toBe("tenant-a");
+    expect(await hint("a b")).toBeNull();
+    expect(await hint("x".repeat(101))).toBeNull();
   });
 
   it("takes a guest's wish along to the account's sign-in page", async () => {

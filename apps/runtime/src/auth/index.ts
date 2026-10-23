@@ -351,6 +351,12 @@ export const authRoutes = new Hono()
       code_challenge_method: "S256",
       state: state.nonce,
     }).toString();
+    // The organization the sign-in is for (the studio's switcher): a member gets its token
+    // without the picker. Its id or address, nothing else.
+    const organization = c.req.query("organization") ?? "";
+    if (/^[A-Za-z0-9_-]{1,100}$/.test(organization)) {
+      url.searchParams.set("organization", organization);
+    }
     // What the person wants built (the studio's start page): the account's sign-in page shows it.
     const wish = (c.req.query("wish") ?? "").trim().slice(0, WISH_MAX);
     if (wish) {
