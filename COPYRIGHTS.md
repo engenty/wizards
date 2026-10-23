@@ -71,7 +71,7 @@ Declared by two or more of the workspaces below:
 | [@fontsource/young-serif](https://fontsource.org/fonts/young-serif) | 5.3.0 | OFL-1.1 |
 | [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
 | [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.3 | MIT |
-| [dompurify](https://github.com/cure53/DOMPurify) | 3.4.16 | (MPL-2.0 OR Apache-2.0) |
+| [dompurify](https://github.com/cure53/DOMPurify) | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
 | [fflate](https://101arrowz.github.io/fflate) | 0.8.3 | MIT |
 | [lucide-react](https://lucide.dev) | 1.49.0 | ISC |
 | [marked](https://marked.js.org) | 18.0.14 | MIT |
@@ -89,7 +89,7 @@ Declared by two or more of the workspaces below:
 | [fumadocs-mdx](https://fumadocs.dev) | 15.4.1 | MIT |
 | [fumadocs-ui](https://fumadocs.dev) | 16.15.11 | MIT |
 | [mermaid](https://github.com/mermaid-js/mermaid#readme) | 11.17.2 | MIT |
-| [next](https://nextjs.org) | 16.3.8 | MIT |
+| [next](https://nextjs.org) | 16.4.1 | MIT |
 | [next-themes](https://github.com/pacocoursey/next-themes#readme) | 0.4.6 | MIT |
 
 ### runtime (apps/runtime)
@@ -127,7 +127,7 @@ Declared by two or more of the workspaces below:
 | [jose](https://github.com/panva/jose) | 6.2.12 | MIT |
 | [mammoth](https://github.com/mwilliamson/mammoth.js#readme) | 1.13.0 | BSD-2-Clause |
 | [nanoid](https://github.com/ai/nanoid#readme) | 5.1.16 | MIT |
-| [nodemailer](https://nodemailer.com/) | 10.0.9 | MIT-0 |
+| [nodemailer](https://nodemailer.com/) | 10.0.10 | MIT-0 |
 | [pdf-parse](https://mehmet-kozan.github.io/pdf-parse/) | 2.4.5 | Apache-2.0 |
 | [playwright-core](https://playwright.dev) | 1.63.0 | Apache-2.0 |
 | [postal-mime](https://postal-mime.postalsys.com) | 4.0.2 | MIT-0 |
