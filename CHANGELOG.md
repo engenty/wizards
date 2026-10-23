@@ -4,6 +4,11 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.7] - 2026-10-23
+- ADDED **[prompts]** Prompts folder, content safety check, architect hello nudge (#171)
+- ADDED **[runtime,web]** Switch the organization on a computer (#212)
+- FIXED **[deploy]** The cloud's proxy reaches the studio and the doors on their own network (#213)
+
 ## [0.11.6] - 2026-10-23
 - ADDED **[runtime,web]** Extra effort for the agent chat, with its own models per way (#176)
 - FIXED **[auth]** An e-mail link opened in another browser signs in there (#210)

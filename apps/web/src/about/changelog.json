@@ -1,7 +1,34 @@
 [
   {
+    "version": "v0.11.7",
+    "timestamp": 1792773138,
+    "commits": [
+      {
+        "id": "a82a1cc",
+        "message": "prompts folder, content safety check, architect hello nudge (#171)",
+        "group": "Added",
+        "scope": "prompts",
+        "breaking": false
+      },
+      {
+        "id": "9a6fabf",
+        "message": "the cloud's proxy reaches the studio and the doors on their own network (#213)",
+        "group": "Fixed",
+        "scope": "deploy",
+        "breaking": false
+      },
+      {
+        "id": "fa9ef0f",
+        "message": "switch the organization on a computer (#212)",
+        "group": "Added",
+        "scope": "runtime,web",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.6",
-    "timestamp": 1792770209,
+    "timestamp": 1792770462,
     "commits": [
       {
         "id": "baf03d5",
