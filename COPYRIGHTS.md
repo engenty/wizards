@@ -156,6 +156,7 @@ Declared by two or more of the workspaces below:
 | [@xterm/addon-web-links](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.12.0 | MIT |
 | [@xterm/xterm](https://github.com/xtermjs/xterm.js#readme) | 6.0.0 | MIT |
 | [@xyflow/react](https://reactflow.dev) | 12.12.0 | MIT |
+| [modern-screenshot](https://github.com/qq15725/modern-screenshot) | 4.7.0 | MIT |
 | [react-router](https://github.com/remix-run/react-router#readme) | 7.18.4 | MIT |
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT |
 

@@ -1,7 +1,41 @@
 [
   {
+    "version": "v0.11.2",
+    "timestamp": 1792738634,
+    "commits": [
+      {
+        "id": "d7ac62b",
+        "message": "the film step and capability are called motion-graphics (#179)",
+        "group": "Changed",
+        "scope": "format",
+        "breaking": true
+      },
+      {
+        "id": "4c42a31",
+        "message": "sharing, theme values, the .wizard file and row checks join the MIT wizard format (#178)",
+        "group": "Changed",
+        "scope": "format",
+        "breaking": false
+      },
+      {
+        "id": "705bf53",
+        "message": "the wizard format and the runner are MIT, the rest FSL-1.1-MIT (#175)",
+        "group": "Docs",
+        "scope": "license",
+        "breaking": false
+      },
+      {
+        "id": "d654ecc",
+        "message": "report wizards and runs to Manage, honour holds and levels, and ask for feedback and bug reports on the run page (#172)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.1",
-    "timestamp": 1792662065,
+    "timestamp": 1792662215,
     "commits": [
       {
         "id": "3dd1172",
