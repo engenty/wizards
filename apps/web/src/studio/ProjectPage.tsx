@@ -190,7 +190,7 @@ export function ProjectPage() {
   const levelStep = useStepDirection(level);
   const pageStep = useStepDirection(phone);
   const menu = useMemo(() => ({ slot, narrow, setDetail }), [slot, narrow]);
-  const title = project ? project.brand.name?.trim() || project.name : t("nav.project");
+  const title = project ? project.brand.name?.trim() || project.name : t("nav.space");
 
   // Typography waits behind its switch.
   const off = useFeature("typography") ? [] : ["typography"];
@@ -246,7 +246,7 @@ export function ProjectPage() {
         : undefined;
 
   useCrumbs([
-    ...(group === "results" ? [] : [{ label: t("nav.project"), to: "/space" }]),
+    ...(group === "results" ? [] : [{ label: t("nav.library"), to: "/space" }]),
     ...(entry ? [{ label: entry.label, to: `/space/${entry.id}` }] : []),
     ...(entry && (detail ?? wizardTitle ?? pickedTitle)
       ? [{ label: (detail ?? wizardTitle ?? pickedTitle) as string }]
@@ -386,7 +386,7 @@ export function ProjectPage() {
         // The page's own name in the bar, and the way back to the wizards.
         root={{
           icon: Layers,
-          label: t("nav.project"),
+          label: t("nav.library"),
           backLabel: t("nav.wizards"),
           onBack: () => navigate("/"),
         }}
