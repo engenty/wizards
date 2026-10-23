@@ -51,11 +51,13 @@ import {
 } from "../services/project-files.js";
 import { documentText } from "../services/project-index.js";
 import { ownedProject, type ProjectRow, updateProject } from "../services/projects.js";
+import { activeSkills, skillList } from "../services/skills.js";
 import { categoryRows } from "../services/space-categories.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
+import { skillToolsOf } from "../tools/skills.js";
 import { chatEngine } from "./subscription.js";
 import { readWebsite } from "./website.js";
 
@@ -854,7 +856,7 @@ function traced(
 
 /** The part of the space page a route stands on. */
 function partOf(route: string): string | null {
-  const m = route.match(/^\/space\/(info|brand|knowledge|data|results)/);
+  const m = route.match(/^\/space\/(info|brand|knowledge|data|results|skills)/);
   return m ? m[1] : route === "/space" ? "info" : null;
 }
 
@@ -928,6 +930,17 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
       }),
     );
   }
+  // The space's skills (docs/plans/skills.md): Goose reads them as a step does.
+  const skills = project && switches.skills === true ? await activeSkills(project.id) : null;
+  const allSkills = project && switches.skills === true ? await skillList(project.id) : [];
+  if (skills) {
+    Object.assign(
+      tools,
+      skillToolsOf(skills, (name) =>
+        input.onActivity?.(serverText(input.lang, "doingReadSkill", { name })),
+      ),
+    );
+  }
   for (const spec of input.browserTools) {
     if (tools[spec.name]) {
       continue;
@@ -989,6 +1002,14 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     part === "knowledge"
       ? "The person talks to you from Knowledge: they want the wizards to know something."
       : "",
+    allSkills.length
+      ? [
+          "Skills of the space (Sources → Skills): instructions its wizards follow, always (in every AI step) or on demand (a step reads one when it fits). You read them with skill_load; the person writes, adds and switches them on the Skills page, you have no tools to change them.",
+          ...allSkills.map((k) => `- ${k.name} (${k.mode}): ${k.description}`),
+        ].join("\n")
+      : part === "skills"
+        ? "The person talks to you from Skills, which is empty: skills are instructions the wizards follow. They are written, uploaded or added from skills.sh on that page."
+        : "",
     space && !(brandOn.brandSections && brandOn.brandRules && brandOn.typography)
       ? `Not in this studio (no tools for it; never offer it): ${[
           brandOn.brandSections ? "" : "sections of logos and colours, gradients and patterns",

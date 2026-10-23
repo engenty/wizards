@@ -22,6 +22,7 @@ import { pageTools } from "./pages.js";
 import { pluginTools, spaceContextOf } from "./plugin.js";
 import { projectTools } from "./project.js";
 import { clip, FileKeeper } from "./shared.js";
+import { skillTools } from "./skills.js";
 import { storeTools, type UploadRef } from "./store.js";
 
 export interface StepTools {
@@ -189,6 +190,7 @@ export async function buildStepTools(
     Object.assign(tools, storeTools(ctx, uploads, files));
   }
   Object.assign(tools, await projectTools(ctx));
+  Object.assign(tools, await skillTools(ctx));
   Object.assign(tools, mailTools(step, ctx, files));
   Object.assign(tools, await connectorTools(step, ctx, files));
   Object.assign(tools, await pluginTools(step, ctx));

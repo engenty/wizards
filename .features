@@ -45,6 +45,9 @@
 # Goose, the studio's assistant
 # goose=on|off
 #
+# skills in a space's sources: always on, or read by a wizard when it needs one (off by default)
+# skills=on|off
+#
 # own API keys in the cloud studio (a plan's switch; on alone)
 # ownKeys=on|off
 #

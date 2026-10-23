@@ -107,6 +107,12 @@ export const FEATURES = {
     label: "WordPress plugin",
     hint: "The plugin for WordPress sites, and a wizard as a package for one: offered in the share dialog and under Settings → Integrate.",
   },
+  skills: {
+    kind: "release",
+    default: false,
+    label: "Skills",
+    hint: "Skills in a space's sources: from skills.sh, uploaded or written; always on in every AI step, or read by a wizard when it needs one.",
+  },
   goose: {
     kind: "release",
     default: false,

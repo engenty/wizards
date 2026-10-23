@@ -744,6 +744,11 @@ export function attachTools(
   }
 }
 
+/** Whether the model can call tools: an installed client that runs none cannot. */
+export function takesTools(resolved: ResolvedModel<unknown>): boolean {
+  return !(resolved.model instanceof HarnessModel) || resolved.model.takesTools;
+}
+
 /** Gemini image models of the gateway are chat models answering with image files. */
 export function isChatImageModel(ref: string): boolean {
   return ref.includes("gemini") && ref.includes("image");

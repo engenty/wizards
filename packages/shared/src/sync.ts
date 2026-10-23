@@ -11,7 +11,7 @@ import type { MergeConflict } from "./sync-merge.js";
 /**
  * What syncs, one row each: the space's details, a wizard (its draft and workspace together),
  * a translation, a message of a wizard's build chat, a page, a table, a row, a category (with
- * its values), a file, an imported connector. Runs, chats, the store and the index do not.
+ * its values), a file, an imported connector, a skill. Runs, chats, the store and the index do not.
  */
 export const SYNC_KINDS = [
   "space",
@@ -24,6 +24,7 @@ export const SYNC_KINDS = [
   "category",
   "file",
   "connector",
+  "skill",
 ] as const;
 export type SyncKind = (typeof SYNC_KINDS)[number];
 
