@@ -12,6 +12,7 @@ import {
   type LucideIcon,
   Palette,
   Shapes,
+  SwatchBook,
   Type,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -35,6 +36,7 @@ export interface SpaceGroup {
 export function spaceGroups(): SpaceGroup[] {
   return [
     { id: "info", label: t("space.info"), icon: Fingerprint },
+    { id: "brand", label: t("space.brand"), icon: SwatchBook },
     { id: "knowledge", label: t("space.knowledge"), icon: BookOpen },
     { id: "data", label: t("space.data"), icon: Database },
     { id: "page", label: t("space.page"), icon: Globe },
@@ -64,7 +66,14 @@ export function withParts(own: SpaceGroup[], plugins: StudioPlugins): SpacePartE
 }
 
 export function isSpaceGroup(id: string | undefined): id is SpaceGroupId {
-  return id === "info" || id === "knowledge" || id === "data" || id === "page" || id === "results";
+  return (
+    id === "info" ||
+    id === "brand" ||
+    id === "knowledge" ||
+    id === "data" ||
+    id === "page" ||
+    id === "results"
+  );
 }
 
 export interface ProjectSection {
@@ -86,10 +95,10 @@ export interface ProjectSectionGroup {
 const OWN: { id: string; group: SpaceGroupId; label: Key; icon: LucideIcon }[] = [
   { id: "base", group: "info", label: "project.base", icon: Type },
   { id: "facts", group: "info", label: "project.facts", icon: ListChecks },
-  { id: "logos", group: "info", label: "project.logos", icon: Shapes },
-  { id: "colors", group: "info", label: "project.colors", icon: Palette },
-  { id: "typography", group: "info", label: "project.typography", icon: ALargeSmall },
-  { id: "assets", group: "info", label: "project.assets", icon: Images },
+  { id: "logos", group: "brand", label: "project.logos", icon: Shapes },
+  { id: "colors", group: "brand", label: "project.colors", icon: Palette },
+  { id: "typography", group: "brand", label: "project.typography", icon: ALargeSmall },
+  { id: "assets", group: "brand", label: "project.assets", icon: Images },
   { id: "documents", group: "knowledge", label: "project.documents", icon: FileText },
   { id: "page", group: "page", label: "page.sectionPage", icon: Globe },
   { id: "page-words", group: "page", label: "page.sectionWords", icon: Type },

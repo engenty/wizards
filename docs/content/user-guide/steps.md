@@ -77,7 +77,7 @@ An AI step has instructions and the tools you allow it:
 
 Every AI step can also read and write the wizard’s lists, list its files and read documents:
 PDFs, scans and photos, Word, Excel, CSV and saved mails. Where the space has Knowledge, the step
-searches it too. Every AI step also knows the space’s Info & brand: its title, what it says
+searches it too. Every AI step also knows the space’s Info and Brand: its title, what it says
 about itself, its facts and colours.
 
 Further tools come from three places:

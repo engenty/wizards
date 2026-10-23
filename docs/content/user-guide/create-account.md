@@ -27,7 +27,7 @@ changed later.
 | Page | Asks | Goes to |
 |---|---|---|
 | Welcome | “Build wizards for…” (myself, a club, a small business, a company), a few details, then “What’s your organization called?” (not asked for myself) | Your organization at account.engenty.ai |
-| About you | “Where can the wizards read about you?”: your website. engenty reads your name, what you do, your logo, colours and fonts from it, and the facts your imprint states (address, VAT ID, company register, management, your profiles), or you write a line about yourself | [Space → Info & brand](./space.md#info--brand) |
+| About you | “Where can the wizards read about you?”: your website. engenty reads your name, what you do, your logo, colours and fonts from it, and the facts your imprint states (address, VAT ID, company register, management, your profiles), or you write a line about yourself | [Sources → Info](./space.md#info) and [Brand](./space.md#brand) |
 | Knowledge | “What should the wizards know?”: documents the wizards may look things up in, such as price lists, your terms or an FAQ | [Space → Knowledge](./space.md#knowledge) |
 | Your space | Nothing. It explains the space that holds all of this, “My wizards” (“Meine Wizards” in German) | – |
 

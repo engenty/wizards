@@ -178,7 +178,7 @@ const EN = {
   shareInterrupted: "Sending was interrupted. Try again.",
   shareNotInResult: "“{name}” ({format}) is not part of this result.",
   shareCannotRender: "“{name}” couldn’t be made as {format}. Choose another format.",
-  // The labels of the facts the first visit reads from a website, as the Info & brand page has them.
+  // The labels of the facts the first visit reads from a website, as the Info page has them.
   factAddress: "Address",
   factPostcode: "Postcode",
   factCity: "City",

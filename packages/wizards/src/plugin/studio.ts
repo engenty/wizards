@@ -42,11 +42,11 @@ export interface StudioSettingsSection {
 }
 
 /**
- * The parts of the space page: `info` (who the space is, its logos, colours, assets and facts),
- * `knowledge` (its documents and what its steps search), `data` (what its wizards keep), `page`
+ * The parts of the space page: `info` (who the space is: its title, what it does, its facts),
+ * `brand` (how it looks: its logos, colours, type and assets), `knowledge` (its documents and what its steps search), `data` (what its wizards keep), `page`
  * (its public page at `<organization>.wizards.page/<slug>`) and `results` (what its runs produced).
  */
-export type StudioSpaceGroup = "info" | "knowledge" | "data" | "page" | "results";
+export type StudioSpaceGroup = "info" | "brand" | "knowledge" | "data" | "page" | "results";
 
 /**
  * A section of the space page, in one of its parts, below the part's own sections. The studio
@@ -65,7 +65,7 @@ export interface StudioSpaceSection {
 }
 
 /**
- * A part of the space page of the plugin's own, beside Info & brand, Knowledge, Data and
+ * A part of the space page of the plugin's own, beside Info, Brand, Knowledge, Data and
  * Results: an entry in the parts' menu and a page at `/space/<id>`. The component draws the
  * whole part; `useSpaceMenu` fills the part's menu with what it draws.
  */
@@ -162,7 +162,7 @@ export interface StudioAssistantCard {
   component: ComponentType<StudioAssistantCardProps<any>>;
 }
 
-/** A space's brand as Info & brand has it: what a plugin draws in its look. */
+/** A space's brand as Info and Brand have it: what a plugin draws in its look. */
 export interface StudioBrand {
   /** The title end users see. */
   name: string;

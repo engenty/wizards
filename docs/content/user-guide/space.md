@@ -10,14 +10,14 @@ wizard never has to ask for your company’s name or address.
 The app bar holds its places, below the space’s tile in its corner:
 
 - The house opens the space’s wizards: the list and “New wizard”.
-- The layers below it open the space’s page.
+- The layers below it open the space’s sources (“Sources”): what your wizards know.
 - The tray below them opens the space’s results.
 
 On a phone the bar floats along the bottom with the house, the layers and “More” (⋯), which
 holds the results, the settings and the rest. The space’s tile and name sit at the top left, your
 picture at the top right.
 
-On the space’s page, the menu on the left shows its three parts. A part opens its own sections,
+On Sources, the menu on the left shows its four parts. A part opens its own sections,
 and the arrow at the top leads back. On a phone, the parts, a part’s sections and the page take
 turns.
 
@@ -25,18 +25,26 @@ Results have no menu: the list above them picks one wizard or all of them.
 
 | Part | Sections | Used for |
 |---|---|---|
-| Info & brand | Basics, Facts, Logos, Colours, Brand assets | Who you are and how you look |
+| Info | Basics, Facts | Who you are |
+| Brand | Logos, Colours, Brand assets | How you look |
 | Knowledge | All, then each category, then the sections plugins add | What every AI step looks things up in |
 | Data | All data, then each wizard | Tables and pages the wizards keep |
 
-## Info & brand
-
-Logos, Colours and Brand assets each have an “Add” menu in their head.
+## Info
 
 | Section | Holds | Used for |
 |---|---|---|
 | Basics | “Title” and “About”: what you do, for whom, and the tone you write in | Texts sound like you. People who run a wizard see the title too |
 | Facts | Labelled values: address, VAT ID, opening hours | Steps use them as written |
+
+Beside the title stands your main logo. You change it in Brand: a click on it leads there.
+
+## Brand
+
+Logos, Colours and Brand assets each have an “Add” menu in their head.
+
+| Section | Holds | Used for |
+|---|---|---|
 | Logos | One or several, each with a description of what it is for. Upload one, or take it from a web address (“Logo from URL”) | People see the main logo. The description tells a step what a variant is for |
 | Colours | Named colours, each with a note on its use. Add one, or read them off a web page (“Colours from URL”) | The first colour is the accent of documents, dashboards and public pages |
 | Brand assets | Images, videos, audio, PDFs, fonts, Lottie and 3D files, in tabs you can search | AI steps place pictures in documents and choose them by their description |
@@ -116,7 +124,7 @@ with its files.
 engenty wizards on your computer has one space, called “My computer” at first (“Mein Computer” in
 German). On engenty.ai the organization’s plan says how many spaces it may have. The space’s tile in the
 app bar opens a menu: it switches between spaces, “Rename space” renames this one, and “Add space”
-adds one while the plan has room. Each space has its own wizards, Info & brand, Knowledge, Data,
+adds one while the plan has room. Each space has its own wizards, Info, Brand, Knowledge, Data,
 connectors and results. The account, the models and the plugins are the same for every space.
 
 When you publish wizards from your computer with an account signed in, their space shows up in
