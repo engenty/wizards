@@ -660,7 +660,7 @@ export function OrganizationKeys({ me }: { me: Me }) {
   });
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
-  const [fresh, setFresh] = useState<{ name: string; key: string } | null>(null);
+  const [fresh, setFresh] = useState<{ id: string; name: string; key: string } | null>(null);
   const reload = () => qc.invalidateQueries({ queryKey: ["organization-keys", me.tenant.id] });
   const create = useMutation({
     mutationFn: () =>
@@ -668,7 +668,7 @@ export function OrganizationKeys({ me }: { me: Me }) {
         name: name.trim(),
       }),
     onSuccess: async (made) => {
-      setFresh({ name: made.name, key: made.key });
+      setFresh({ id: made.id, name: made.name, key: made.key });
       setName("");
       setNaming(false);
       await reload();
@@ -676,7 +676,11 @@ export function OrganizationKeys({ me }: { me: Me }) {
   });
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/studio/organization/keys/${encodeURIComponent(id)}`),
-    onSuccess: reload,
+    // A deleted key's secret no longer stands on the page.
+    onSuccess: async (_, id) => {
+      setFresh((now) => (now?.id === id ? null : now));
+      await reload();
+    },
   });
   const list = keys.data?.keys ?? [];
   return (
