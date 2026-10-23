@@ -123,11 +123,12 @@ studio.registerSettingsSection({
 ## The space
 
 A space holds what all its wizards share: a title, logos, colours, facts and Knowledge. The
-space page, behind the house icon (Space) in the app bar, shows them in four parts:
+space page, behind the layers icon (Sources) in the app bar, shows them in five parts:
 
 | Part | `group` | Holds |
 |---|---|---|
-| Info & brand | `info` | Basics, Facts, Logos, Colours, Brand assets |
+| Info | `info` | Basics, Facts |
+| Brand | `brand` | Logos, Colours, Typography, Brand assets |
 | Knowledge | `knowledge` | Documents, pages, tables and files with their categories: what every AI step looks things up in |
 | Data | `data` | What the wizards keep |
 | Results | `results` | The runs that reached their result |
@@ -166,8 +167,8 @@ studio.registerSpaceSection({
 - `studio.useSpace()` is a hook: `{ id, name, readOnly, brand }`, or `null` while there is none.
   A component that calls it draws again when the person picks another space, or changes its
   brand. `readOnly`: the space is edited in engenty wizards on a computer and only shown here,
-  or nothing is built on this runtime. Show it, but change nothing. `brand` is what Info & brand
-  holds of the look: `name`, `colors` (`{ name, value }`, the first is the accent) and `fonts`
+  or nothing is built on this runtime. Show it, but change nothing. `brand` is what Info and Brand
+  hold of the look: `name`, `colors` (`{ name, value }`, the first is the accent) and `fonts`
   (`{ family, role, weights }`).
 - Every wizard belongs to a space: a [run event](./events.md) names it as
   `wizard.projectId`. Keep it with what the plugin stores to show a space’s part of it.

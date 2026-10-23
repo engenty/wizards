@@ -53,7 +53,7 @@ const AboutDialog = lazy(() =>
 /**
  * The app bar at an edge of the window: the engenty in the corner (its menu holds what belongs to
  * the app itself), the space (it switches between spaces), its home (the wizards), its sources
- * (Info & brand, Knowledge, Data), its results, the apps the plugins added, and at its end the
+ * (Info, Brand, Knowledge, Data), its results, the apps the plugins added, and at its end the
  * settings and the person. A place is a filled tile, a tool a line glyph; the one that is open is
  * cut from the page's own paper. On a wide window a bar at a side names its places beside
  * their glyphs, unless another sidebar stands beside the page. A right click on the bar, or a
@@ -351,7 +351,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
         <Home className="size-5 shrink-0" />
         {labels ? <Label>{t("nav.home")}</Label> : null}
       </Link>
-      {/* The space's sources: Info & brand, Knowledge and Data. */}
+      {/* The space's sources: Info, Brand, Knowledge and Data. */}
       <Link
         to="/space"
         title={t("nav.sources")}

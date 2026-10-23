@@ -66,8 +66,8 @@ function Sources() {
     <p className={hint}>
       {parts.map((part, i) =>
         part === "{brand}" ? (
-          <Link key={i} to="/space/info" className="text-ink underline-offset-2 hover:underline">
-            {t("space.info")}
+          <Link key={i} to="/space/brand" className="text-ink underline-offset-2 hover:underline">
+            {t("space.brand")}
           </Link>
         ) : part === "{facts}" ? (
           <Link
