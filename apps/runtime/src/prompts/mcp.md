@@ -63,7 +63,8 @@ Apply ops to the draft atomically, in order:
 Returns the new revision and the issues.
 
 <!-- section: tool.replace_wizard -->
-Replace the whole draft. Use edit_wizard for smaller changes.
+<!-- Also the studio architect's: its wizard exists before the chat opens, so it writes a new one with this. -->
+Replace the whole draft: for a new wizard, a rewrite, or anything edit_wizard can't do in a few ops. Returns the new revision and the validator's issues.
 
 <!-- section: tool.publish_wizard -->
 Publish the draft as a new version behind the share link. Refused while the draft has issues. Only when the person asked for it.

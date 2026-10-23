@@ -75,10 +75,6 @@ ${message}
 
 <!-- The tools the architect shares with the MCP server take their descriptions from mcp.md (tool.*). These differ or exist only here. -->
 
-<!-- section: tool.replace_wizard -->
-<!-- Not mcp.md's: the architect has no create_wizard, so this is also how it writes a new wizard. -->
-Replace the whole wizard. Use for a new wizard or a rewrite. Returns the validator's issues.
-
 <!-- section: tool.write_file -->
 <!-- Not mcp.md's: the architect writes text only (no base64). -->
 Create or overwrite a text file in the workspace (HTML, JS, CSS, JSON, CSV, SVG). Max 5 MB.

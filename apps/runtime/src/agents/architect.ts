@@ -180,18 +180,18 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
     }),
     replace_wizard: createTool({
       id: "replace_wizard",
-      description: prompt("architect", "tool.replace_wizard"),
+      description: prompt("mcp", "tool.replace_wizard"),
       inputSchema: z.object({ wizard: z.record(z.string(), z.unknown()) }),
       execute: async ({ wizard }) =>
         attempt(async () => {
           const w = await ownedWizard(userId, wizardId);
-          const { issues } = await writeDraft(userId, wizardId, {
+          const { revision, issues } = await writeDraft(userId, wizardId, {
             // Written from today's authoring guide: today's version, said or not.
             definition: upgradeDefinition(wizard, DEFINITION_VERSION),
             baseRevision: w.revision,
           });
           wrote();
-          return { ok: true, issues };
+          return { ok: true, revision, issues };
         }),
     }),
     edit_wizard: createTool({
