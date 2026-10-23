@@ -4,6 +4,12 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.2] - 2026-10-23
+- ADDED **[runtime]** Report wizards and runs to Manage, honour holds and levels, and ask for feedback and bug reports on the run page (#172)
+- CHANGED **[format]** The film step and capability are called motion-graphics (#179) **[breaking]**
+- CHANGED **[format]** Sharing, theme values, the .wizard file and row checks join the MIT wizard format (#178)
+- DOCS **[license]** The wizard format and the runner are MIT, the rest FSL-1.1-MIT (#175)
+
 ## [0.11.1] - 2026-10-22
 - ADDED **[web]** Pages are written in CodeMirror (#165)
 - CHANGED **[web]** The view step's JSON editor on CodeMirror (#166)

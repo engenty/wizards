@@ -468,6 +468,12 @@
           "homepage": "https://reactflow.dev"
         },
         {
+          "name": "modern-screenshot",
+          "version": "4.7.0",
+          "license": "MIT",
+          "homepage": "https://github.com/qq15725/modern-screenshot"
+        },
+        {
           "name": "react",
           "version": "19.3.0",
           "license": "MIT",
