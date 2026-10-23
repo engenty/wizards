@@ -468,6 +468,11 @@ function Questions() {
     mutationFn: (urls: string[]) =>
       api.post<Outcome | null>(`/api/studio/projects/${project?.id}/website`, { urls, lang }),
     onSuccess: async (result) => {
+      // The sector the site points to stands chosen; the person changes it on the next page.
+      const sector = result?.sectors?.[0];
+      if (sector) {
+        setProfile((p) => (p.sector ? p : { ...p, sector }));
+      }
       setOutcome(
         result ?? { name: "", about: false, colors: 0, fonts: 0, logo: false, facts: 0, assets: 0 },
       );
