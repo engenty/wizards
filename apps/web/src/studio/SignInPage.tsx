@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, Copy } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { APP_VERSION } from "../about/AboutLinks";
 import { Mascot } from "../brand";
@@ -46,6 +47,36 @@ function Note({
     >
       <div className="mb-1.5 font-medium text-ink">{title}</div>
       {children}
+    </div>
+  );
+}
+
+/** A command as a terminal shows it: dark in both themes, with a button that copies it. */
+function Command({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="mt-2 flex items-center gap-3 rounded-xl bg-[oklch(22%_0.02_262)] py-2.5 pr-2.5 pl-4 font-mono text-[0.9375rem] text-white shadow-soft">
+      <span aria-hidden="true" className="select-none text-white/40">
+        $
+      </span>
+      <code className="min-w-0 flex-1 select-all break-all">{text}</code>
+      <button
+        type="button"
+        aria-label={copied ? t("settings.copied") : t("settings.copy")}
+        title={copied ? t("settings.copied") : t("settings.copy")}
+        className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-white/60"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          } catch {
+            // the command stays selectable
+          }
+        }}
+      >
+        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+      </button>
     </div>
   );
 }
@@ -118,6 +149,8 @@ export function SignInPage() {
   const refusal =
     config.error instanceof ApiError && config.error.body?.code === "host" ? config.error : null;
   const ownAddress = refusal ? String(refusal.body.appUrl ?? "") : null;
+  // A browser on this computer without the studio's cookie: the page says how to get in.
+  const door = local && !refusal && !config.isError;
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center px-6 py-16">
       <DoorBar className="absolute inset-x-6 top-6 sm:inset-x-10 sm:top-8" />
@@ -129,11 +162,13 @@ export function SignInPage() {
           <span className="font-normal">wizards</span>
         </span>
         <h1 className="mt-3 text-balance font-display font-semibold text-[2.125rem] leading-[1.1] tracking-tight">
-          <Sentences text={t("brand.tagline")} />
+          {door ? t("auth.localTitle") : <Sentences text={t("brand.tagline")} />}
         </h1>
-        <p className="mt-4 text-balance text-[1rem] text-ink-2 leading-relaxed">
-          <Sentences text={t("brand.sub")} />
-        </p>
+        {door ? null : (
+          <p className="mt-4 text-balance text-[1rem] text-ink-2 leading-relaxed">
+            <Sentences text={t("brand.sub")} />
+          </p>
+        )}
         {ownAddress ? (
           <Note title={t("auth.wrongHost")}>
             <p>{t("auth.wrongHostWhy")}</p>
@@ -191,18 +226,16 @@ export function SignInPage() {
               {t("auth.dev")}
             </Button>
           ) : null}
-          {local ? (
-            <Note title={t("auth.localTitle")} className="-mt-2">
+          {door ? (
+            <div className="-mt-6 text-left text-[0.9375rem] text-ink-2 leading-relaxed">
               <p>{t("auth.localWhy")}</p>
-              <p className="mt-3">{t("auth.localLink")}</p>
-              <code className="mt-1.5 block select-all rounded-lg bg-paper-2 px-3 py-2 font-mono text-[0.8125rem] text-ink">
-                wizards open
-              </code>
-              <p className="mt-3 text-ink-3">{t("auth.localStartLink")}</p>
-              <code className="mt-1.5 block select-all rounded-lg bg-paper-2 px-3 py-2 font-mono text-[0.8125rem] text-ink">
-                wizards open --print
-              </code>
-            </Note>
+              <Command text="wizards open" />
+              <p className="mt-6 text-[0.875rem] text-ink-3">{t("auth.localStartLink")}</p>
+              <Command text="wizards open --print" />
+              <p className="mt-6 text-center text-[0.875rem] text-ink-3">
+                {t("auth.localNoAccount")}
+              </p>
+            </div>
           ) : null}
         </div>
         {config.data?.mode === "managed" ? (

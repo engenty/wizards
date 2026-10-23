@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Cloud, RefreshCw } from "lucide-react";
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Mascot } from "../brand";
 import { EngentyLogoMark } from "../engenty/logo";
@@ -308,6 +308,91 @@ function FooterLink({ href, children }: { href: string; children: string }) {
 }
 
 /**
+ * Between the setup and the studio, for someone without an account: sign in or create one, or go
+ * on with this computer alone. A sign-in that comes back opens the studio by itself.
+ */
+function AccountAsk({
+  source,
+  signedIn,
+  onLocal,
+}: {
+  source: string;
+  signedIn: boolean;
+  onLocal: () => void;
+}) {
+  const linking = useAccountLink(signedIn);
+  const { link } = linking;
+  useEffect(() => {
+    if (signedIn) {
+      onLocal();
+    }
+  }, [signedIn, onLocal]);
+  return (
+    <section className="mx-auto flex w-full max-w-[32rem] animate-rise flex-col items-center text-center">
+      <Mascot kind="drop" size={132} fluffy coat="fur" />
+      <span
+        className="mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-medium text-[0.75rem]"
+        style={{
+          color: STEP_DONE,
+          background: "color-mix(in oklab, var(--step-done) 20%, transparent)",
+        }}
+      >
+        <Check className="size-3.5" strokeWidth={3} />
+        {t("setup.connected", { name: source })}
+      </span>
+      <h1 className="mt-3 font-display font-semibold text-[1.75rem] leading-[1.08] tracking-[-0.02em]">
+        {t("setup.accountAsk")}
+      </h1>
+      <p className="mt-2.5 text-balance text-(color:--on)/75 text-[0.9375rem] leading-relaxed">
+        {t("setup.accountAskText")}
+      </p>
+      <div className="mt-7 flex w-full flex-col gap-4 rounded-2xl bg-(color:--panel) p-5 text-left ring-(color:--panel-ring) ring-1">
+        <div className="flex items-center gap-3.5">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-(color:--pick) text-(color:--pick-ink)">
+            <Cloud className="size-4.5" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-medium text-[0.9375rem]">{t("setup.account")}</p>
+            <p className="text-(color:--on)/75 text-[0.8125rem] leading-snug">
+              {t("setup.accountText")}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2.5">
+          <Button
+            // White on the ground, like a picked choice; the theme's accent would clash with the blue.
+            style={{ background: "var(--pick)", color: "var(--pick-ink)" }}
+            busy={link.isPending && !link.variables?.signup}
+            onClick={() => link.mutate({})}
+          >
+            {t("account.signIn")}
+          </Button>
+          <Button
+            variant="secondary"
+            busy={link.isPending && Boolean(link.variables?.signup)}
+            onClick={() => link.mutate({ signup: true })}
+          >
+            {t("account.create")}
+          </Button>
+        </div>
+        <LinkStatus {...linking} />
+      </div>
+      <button
+        type="button"
+        onClick={onLocal}
+        className="group mt-7 inline-flex items-center gap-1.5 font-medium text-[0.9375rem] underline decoration-(color:--on)/40 underline-offset-4 transition hover:decoration-(color:--on)"
+      >
+        {t("setup.localContinue")}
+        <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+      </button>
+      <p className="mt-2 max-w-[44ch] text-balance text-(color:--on)/65 text-[0.8125rem] leading-snug">
+        {t("setup.localContinueNote")}
+      </p>
+    </section>
+  );
+}
+
+/**
  * Setup of a runtime that runs alone, as a wizard of its own: first only the question what the
  * app thinks with, in the middle of the page. A choice steps the list aside and opens what that
  * choice needs — the sign-in, the keys, the test call — its rows level with the list's. It stays
@@ -329,6 +414,8 @@ export function SetupPage() {
   const [picked, setPicked] = useState(ownPicked);
   // A narrow page shows the opened choice alone; the person goes back to the choices from there.
   const [listOpen, setListOpen] = useState(false);
+  // Without an account, the way to the studio asks once whether to sign in first.
+  const [asking, setAsking] = useState(false);
   const choose = useMutation({
     // Apple Intelligence is the short classes bound on this Mac; the source stays and keeps Standard
     // and High. Another choice after it unbinds them.
@@ -409,6 +496,15 @@ export function SetupPage() {
   const panelOnly = selected !== null && !listOpen;
   /** The row that is lit: the one just clicked, at once; else the one in effect. */
   const marked = choose.isPending ? (choose.variables ?? selected) : selected;
+  const signedIn = Boolean(me.data.account?.signedIn);
+  const sourceName =
+    client?.name ??
+    (selected === "apple"
+      ? t("models.optApple")
+      : selected === "account"
+        ? t("setup.creditsChoice")
+        : t("local.sourceOwn"));
+  const toStudio = () => navigate("/", { replace: true });
   return (
     <div
       className="flex min-h-dvh flex-col px-6 text-(color:--on) sm:px-10"
@@ -422,6 +518,8 @@ export function SetupPage() {
         </span>
       </header>
       <main className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col pt-6 pb-10 lg:pt-[6vh]">
+        {/* While it asks about the account, the choices step out; the start's host is already gone. */}
+        {asking ? <AccountAsk source={sourceName} signedIn={signedIn} onLocal={toStudio} /> : null}
         {/* The host of the start takes no row of its own on a wide page: it stands large beside
             the choices. On a narrow page there is no room beside anything, so it stands small
             above them. A choice brings a host of its own, and this one steps out. */}
@@ -450,7 +548,12 @@ export function SetupPage() {
             panelOnly ? "max-lg:h-0" : "max-lg:h-[148px]",
           )}
         />
-        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-14">
+        <div
+          className={cn(
+            "flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-14",
+            asking ? "hidden" : "",
+          )}
+        >
           <section
             className={cn(
               "flex w-full shrink-0 animate-rise flex-col lg:w-[32rem] lg:transition-[margin] lg:duration-700 motion-reduce:transition-none",
@@ -542,8 +645,8 @@ export function SetupPage() {
                 )}
               </div>
             ) : null}
-            <div className="mt-5 flex flex-col gap-2.5">
-              {me.data.account?.signedIn ? (
+            {me.data.account?.signedIn ? (
+              <div className="mt-2.5">
                 <Choice
                   selected={marked === "account"}
                   title={t("setup.creditsChoice")}
@@ -557,7 +660,24 @@ export function SetupPage() {
                   }
                   onPick={() => choose.mutate("account")}
                 />
-              ) : null}
+              </div>
+            ) : null}
+            {/* The account works in the cloud too; what follows works on this computer only. */}
+            {accountOn ? (
+              <div className="mt-7">
+                <div className="flex items-center gap-3">
+                  <span className="h-px flex-1 bg-(color:--on)/25" />
+                  <span className="font-medium text-(color:--on)/80 text-[0.75rem] uppercase tracking-[0.14em]">
+                    {t("setup.localDivider")}
+                  </span>
+                  <span className="h-px flex-1 bg-(color:--on)/25" />
+                </div>
+                <p className="mt-2 text-center text-(color:--on)/65 text-[0.8125rem] leading-snug">
+                  {t("setup.localNote")}
+                </p>
+              </div>
+            ) : null}
+            <div className="mt-5 flex flex-col gap-2.5">
               {clients.map((h, i) => (
                 <Choice
                   key={h.id}
@@ -626,18 +746,7 @@ export function SetupPage() {
                   <Mascot kind={HOSTS[selected]} size={120} fluffy coat="fur" />
                 </div>
                 <div className="min-h-[6.5rem]">
-                  <Stages
-                    name={
-                      client?.name ??
-                      (selected === "apple"
-                        ? t("models.optApple")
-                        : selected === "account"
-                          ? t("setup.creditsChoice")
-                          : t("local.sourceOwn"))
-                    }
-                    at={stage}
-                    done={works}
-                  />
+                  <Stages name={sourceName} at={stage} done={works} />
                   <h2
                     key={heading}
                     className="mt-2 animate-rise pr-32 font-display font-semibold text-[clamp(28px,3vw,40px)] leading-[1.06] tracking-[-0.03em]"
@@ -681,7 +790,14 @@ export function SetupPage() {
                     <button
                       type="button"
                       disabled={!works}
-                      onClick={() => navigate("/", { replace: true })}
+                      onClick={() => {
+                        if (accountOn && !signedIn) {
+                          setAsking(true);
+                          window.scrollTo({ top: 0 });
+                        } else {
+                          toStudio();
+                        }
+                      }}
                       className={cn(
                         "group inline-flex h-12 items-center gap-2.5 rounded-full px-6 font-semibold text-[1rem] transition-[background-color,color,box-shadow,filter] duration-300",
                         works
