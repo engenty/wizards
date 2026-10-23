@@ -1,7 +1,7 @@
 ---
 title: Create an account
 description: Your organization, its space and your wizards live in your account at engenty.ai. Sign up with an invitation code, answer four questions, build.
-version: 0.9.3
+version: 0.11.2
 ---
 
 engenty wizards is in a closed beta, so a new account needs an invitation code. “Get started” on
@@ -26,13 +26,19 @@ changed later.
 
 | Page | Asks | Goes to |
 |---|---|---|
-| Welcome | “What will you use engenty for?” (Just me, Club, Small business, Company), a few details, then “What’s your organization called?” (not asked for Just me) | Your organization at account.engenty.ai |
+| Welcome | “Build wizards for…” (myself, a club, a small business, a company), a few details, then “What’s your organization called?” (not asked for myself) | Your organization at account.engenty.ai |
 | About you | “Where can the wizards read about you?”: your website. engenty reads your name, what you do, your logo, colours and fonts from it, and the facts your imprint states (address, VAT ID, company register, management, your profiles), or you write a line about yourself | [Sources → Info](./space.md#info) and [Brand](./space.md#brand) |
 | Knowledge | “What should the wizards know?”: documents the wizards may look things up in, such as price lists, your terms or an FAQ | [Space → Knowledge](./space.md#knowledge) |
 | Your space | Nothing. It explains the space that holds all of this, “My wizards” (“Meine Wizards” in German) | – |
 
 Then “Build your first wizard” opens the page for a new wizard: you describe a task in a
 sentence, or start from a template. See [Build a wizard](./build-a-wizard.md).
+
+The questions about your organization are asked once, of the first admin who opens its studio.
+In a second organization you are not greeted again and the space is not explained again: the
+studio asks about that organization by its name and ends with its knowledge. Someone you invite,
+and anyone who opens an organization that is set up already, sees one page instead: where they
+are, who invited them, the spaces with their wizards and what their role may do.
 
 ## What the cloud does
 

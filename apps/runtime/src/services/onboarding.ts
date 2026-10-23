@@ -16,30 +16,78 @@ import { addProjectFileFromUrl, projectFiles } from "./project-files.js";
 import { listProjects, ownedProject, updateProject } from "./projects.js";
 
 /**
- * The first visit of an organization's studio in the cloud: a short wizard asks who the organization is, reads
- * its website into the space, takes first documents and explains the space. It shows once, to
- * the people who may change the organization, and never to an organization that already has wizards; the mark
- * that it is done sits in the control database under the tenant.
+ * The first visit of a studio in the cloud. What the organization is (its kind, name, website,
+ * first documents) is asked once per organization, of the first admin who opens it while it has no
+ * wizards; what concerns the person (the greeting, what a space is) once per person; everyone
+ * else gets one page that says where they are. The marks sit in the control database: the
+ * organization's under the tenant, the person's under the user, and a visit under both.
  */
-const key = (tenantId: string) => `onboarding:${tenantId}`;
+export type OnboardingMode =
+  /** A person new to the studio, in an organization nobody has set up: everything. */
+  | "full"
+  /** Someone the studio knows, in an organization nobody has set up: its questions only. */
+  | "organization"
+  /** An organization set up already, or a member: one page that says where they are. */
+  | "welcome";
 
-export async function needsOnboarding(user: {
-  id: string;
-  tenantId: string;
-  role: Role;
-}): Promise<boolean> {
-  if (!managed || !isAdminRole(user.role)) {
-    return false;
-  }
-  if (await readSetting(key(user.tenantId))) {
-    return false;
+const organizationKey = (tenantId: string) => `onboarding:${tenantId}`;
+const personKey = (userId: string) => `onboarding:person:${userId}`;
+const visitKey = (tenantId: string, userId: string) => `onboarding:visit:${tenantId}:${userId}`;
+
+/** The organization was set up: its first visit was done, or it has wizards. */
+async function setUp(user: { id: string; tenantId: string }): Promise<boolean> {
+  if (await readSetting(organizationKey(user.tenantId))) {
+    return true;
   }
   const projects = await listProjects(user.id);
-  return projects.every((p) => p.wizardCount === 0);
+  return projects.some((p) => p.wizardCount > 0);
 }
 
-export async function finishOnboarding(tenantId: string): Promise<void> {
-  await writeSetting(key(tenantId), { doneAt: new Date().toISOString() });
+/**
+ * The person went through the studio's first visit before: their own mark, or, from before
+ * the marks were per person, an organization of theirs they manage that has its mark.
+ */
+async function known(userId: string, organizations: { id: string; role: Role }[]) {
+  if (await readSetting(personKey(userId))) {
+    return true;
+  }
+  for (const o of organizations) {
+    if (isAdminRole(o.role) && (await readSetting(organizationKey(o.id)))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function onboardingFor(
+  user: { id: string; tenantId: string; role: Role },
+  organizations: { id: string; role: Role }[] = [],
+): Promise<OnboardingMode | null> {
+  if (!managed || (await readSetting(visitKey(user.tenantId, user.id)))) {
+    return null;
+  }
+  if (isAdminRole(user.role) && !(await setUp(user))) {
+    return (await known(user.id, organizations)) ? "organization" : "full";
+  }
+  return "welcome";
+}
+
+/** The first visit is done: the organization's questions where they were asked, the person, the visit. */
+export async function finishOnboarding(
+  user: { id: string; tenantId: string },
+  mode: OnboardingMode,
+): Promise<void> {
+  const doneAt = new Date().toISOString();
+  if (mode !== "welcome") {
+    await writeSetting(organizationKey(user.tenantId), { doneAt, by: user.id });
+  }
+  await writeSetting(personKey(user.id), { doneAt });
+  await writeSetting(visitKey(user.tenantId, user.id), { doneAt });
+}
+
+/** A starting name the Manage-App gives a new team: its first admin names it. */
+export function startingName(name: string | null | undefined): boolean {
+  return !name || /^(neues team|new team)$/i.test(name.trim()) || /^team \S+$/i.test(name.trim());
 }
 
 /** A hex colour as `#rrggbb`, or null when the value is no plain colour. */

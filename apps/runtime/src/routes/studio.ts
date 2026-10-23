@@ -163,7 +163,12 @@ import {
   valueContents,
 } from "../services/knowledge.js";
 import { writeSummary } from "../services/knowledge-model.js";
-import { applyWebsite, finishOnboarding, needsOnboarding } from "../services/onboarding.js";
+import {
+  applyWebsite,
+  finishOnboarding,
+  onboardingFor,
+  startingName,
+} from "../services/onboarding.js";
 import { exportWizard, importWizard } from "../services/package.js";
 import { pagePreview } from "../services/pages.js";
 import {
@@ -541,8 +546,10 @@ export const studio = new Hono<Vars>()
       subscriptions: managed ? [] : await subscriptionClients(),
       /** A runtime that runs alone keeps its setup in front until a test call has worked on the chosen source and the way is still open. */
       setupDone: managed ? true : await setupDone(),
-      /** The cloud studio's first visit: the short wizard that names the organization and fills the space (services/onboarding.ts). */
-      onboarding: await needsOnboarding(user),
+      /** The cloud studio's first visit, by what the studio knows of the person and the organization (services/onboarding.ts); null when done. */
+      onboarding: await onboardingFor(user, person?.tenants ?? []),
+      /** The organization still has the name the Manage-App gave it at sign-up: its first admin names it. */
+      startingName: managed ? startingName(info?.name) : false,
       /** What answers the studio's chats (Goose, the editor's chat): the text classes, a subscription, a key or the credits. */
       chatEngine: managed ? "models" : await chatEngine(await hasTextModel()),
       /** The ways that can answer the studio's chats now. */
@@ -2071,7 +2078,12 @@ export const studio = new Hono<Vars>()
         404,
       );
     }
-    await finishOnboarding(c.get("user").tenantId);
+    const user = c.get("user");
+    const person = await userInfo(user.id);
+    const mode = await onboardingFor(user, person?.tenants ?? []);
+    if (mode) {
+      await finishOnboarding(user, mode);
+    }
     return c.json({ ok: true });
   })
   .post("/projects/:id/website", async (c) => {

@@ -314,6 +314,29 @@ describe("a runtime of a Manage-App", () => {
   let b = "";
   let wizardOfA = "";
 
+  it("asks the organization once, the person once, and greets everyone else", async () => {
+    const { writeSetting, deleteSetting } = await import("../src/settings");
+    const mode = async (cookie: string) =>
+      ((await (await get("/api/studio/me", cookie)).json()) as { onboarding: string | null }).onboarding;
+    // Tenant B's owner is new to the studio, and nobody has set tenant B up.
+    const b = await signIn("code-b");
+    expect(await mode(b)).toBe("full");
+    // Known from another organization: only tenant B's questions.
+    await writeSetting("onboarding:person:user-b", { doneAt: "2026-10-01" });
+    expect(await mode(b)).toBe("organization");
+    expect((await post("/api/studio/onboarding/done", b, {})).status).toBe(200);
+    expect(await mode(b)).toBeNull();
+    // A member of tenant A gets the one page that says where they are, once.
+    const m = await signIn("code-m");
+    expect(await mode(m)).toBe("welcome");
+    await post("/api/studio/onboarding/done", m, {});
+    expect(await mode(m)).toBeNull();
+    // The member's visit set no mark for the organization: its owner is still asked.
+    const { readSetting } = await import("../src/settings");
+    expect(await readSetting("onboarding:tenant-a")).toBeNull();
+    await deleteSetting("onboarding:person:user-b");
+  });
+
   it("signs people in there and takes user, tenant and role from the token", async () => {
     a = await signIn("code-a");
     b = await signIn("code-b");

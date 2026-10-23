@@ -220,6 +220,8 @@ export interface Organization {
   /** The person's own, made at sign-up. */
   personal: boolean;
   plan: { id: string; name: string } | null;
+  /** Who invited the person into it; null for their own, or where the Manage-App names nobody. */
+  invitedBy?: { name: string } | null;
 }
 
 export interface UserInfo {

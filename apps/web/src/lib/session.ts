@@ -116,7 +116,15 @@ export interface Organization {
   /** The person's own, made at sign-up. */
   personal: boolean;
   plan: { id: string; name: string } | null;
+  /** Who invited the person into it; null for their own, or where the Manage-App names nobody. */
+  invitedBy?: { name: string } | null;
 }
+
+/**
+ * The cloud studio's first visit: `full` for someone new to the studio in an organization nobody
+ * set up, `organization` for its questions alone, `welcome` for one page that says where they are.
+ */
+export type OnboardingMode = "full" | "organization" | "welcome";
 
 export interface Me {
   user: { id: string; name: string; email: string; image?: string | null };
@@ -172,8 +180,10 @@ export interface Me {
   subscriptions: SubscriptionClient[];
   /** A runtime that runs alone walks the person through its setup on first start. */
   setupDone: boolean;
-  /** The cloud studio's first visit: the short wizard that names the organization and fills the space. */
-  onboarding: boolean;
+  /** The cloud studio's first visit, by what the studio knows of the person and the organization; null when done. */
+  onboarding: OnboardingMode | null;
+  /** The organization still has the name it got at sign-up: its first admin names it. */
+  startingName: boolean;
   /** What answers the studio's chats. */
   chatEngine: ChatWay;
   /** The ways that can answer the studio's chats now. */
