@@ -22,7 +22,7 @@ webs, flying bats and embers.
 |---|---|
 | `dein-monster-ich` | A selfie as a monster portrait and the poster of their own horror film |
 | `halloween-mit-den-engenties` | A spooky story with their names, illustrated, read aloud, as a book |
-| `spukhaus-expose` | Their home as a haunted house: photos, an estate agent's listing, a short film |
+| `spukhaus-expose` | Their home as a haunted house: photos, an estate agent's listing, a short video |
 | `spukorte` | The real legends and haunted places nearby, with sources |
 | `halloween-post` | A Halloween post with a picture that fits their company, from its website |
 | `dein-fluch` | A curse or prophecy about what annoys them, spoken by a witch |

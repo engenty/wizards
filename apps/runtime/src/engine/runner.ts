@@ -1026,7 +1026,7 @@ export async function availableFormats(step: Step, run: RunRow, wanted?: Format[
   let formats = wanted ? wanted.filter((f) => possible.includes(f)) : possible;
   const output = run.state.outputs[step.id];
   if (step.type === "widget" && formats.includes("mp4")) {
-    // A film is rendered when its step runs; any other widget on demand.
+    // A video is rendered when its step runs; any other widget on demand.
     const has = step.video
       ? output?.assets?.some((a) => a.kind === "video")
       : output?.widget?.duration && (await hasFfmpeg());

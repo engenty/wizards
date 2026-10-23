@@ -1207,21 +1207,21 @@ export async function classProblem(cls: ModelClass): Promise<Said | null> {
   }
 }
 
-/** Clients that can make a film: they work in a folder of their own with a shell and skills. */
-const FILM_CLIENTS = new Set<string>(["claude"]);
+/** Clients that can make a video: they work in a folder of their own with a shell and skills. */
+const MOTION_CLIENTS = new Set<string>(["claude"]);
 
 /**
- * The installed client a film step of this class runs on, and the model it names; or why a
- * film cannot be made here. Films never run on credits or keys: one takes a client many minutes.
+ * The installed client a motion-graphics step of this class runs on, and the model it names; or why a
+ * video cannot be made here. Videos never run on credits or keys: one takes a client many minutes.
  */
-export async function filmClient(
+export async function motionClient(
   cls: TextClass,
 ): Promise<{ client: Harness; alias: string } | { problem: Said }> {
   const cfg = await config();
   const client = managed ? null : harness(cfg.settings.source);
-  if (!client || !FILM_CLIENTS.has(client.id)) {
+  if (!client || !MOTION_CLIENTS.has(client.id)) {
     return {
-      problem: note("claudeCodeMakesFilms"),
+      problem: note("claudeCodeMakesMotion"),
     };
   }
   const status = await detectHarness(client.id);
@@ -1231,7 +1231,7 @@ export async function filmClient(
   if (status.auth === "none") {
     return { problem: signedOut(client) };
   }
-  // A class that thinks on Apple Intelligence makes its films on the client's model of the class.
+  // A class that thinks on Apple Intelligence makes its videos on the client's model of the class.
   const ref = ownRef(cfg, cls);
   return {
     client,

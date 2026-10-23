@@ -1,7 +1,7 @@
 ---
 title: Runners
 description: A door a wizard runs through, beside the page and the chat (a call, a messenger, a kiosk), and the run API that drives runs from it.
-version: 0.5.0
+version: 0.11.1
 ---
 
 A runner is a way to run a wizard. The runtime has four: the stepped page at `/w/<token>`, the
@@ -55,7 +55,7 @@ not know throws when the runner is registered.
 | Field | Says |
 |---|---|
 | `input` | The field kinds the runner asks itself. Any other field hands off to the run page |
-| `output.shows` | What it shows as it is: `text`, `data`, `image`, `video`, `voice`, `document`, `dashboard`, `widget`, `film`, `surface` |
+| `output.shows` | What it shows as it is: `text`, `data`, `image`, `video`, `voice`, `document`, `dashboard`, `widget`, `motion-graphics`, `surface` |
 | `output.pictures` | What it shows as a picture with a link to the real thing. Anything else is a link |
 | `asks` | `confirm` for a running step that asks before it changes something; `login` only where a browser types the sign-in |
 | `review` | `accept`, `regenerate`, `edit` |

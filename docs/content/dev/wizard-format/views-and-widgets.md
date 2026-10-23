@@ -1,7 +1,7 @@
 ---
 title: Views and widgets
 description: Surfaces built from the catalog, a view of an agent step's result, nested output, and HTML widgets.
-version: 0.7.10
+version: 0.11.1
 ---
 
 A result can show as a view instead of a plain table. There are three ways:
@@ -96,7 +96,7 @@ only brings new data.
 | `sample` | Example data in the same shape, for previews before any run |
 | `layout` | `fixed` (the default): drawn at `size` and scaled to the page. `page`: part of the page, as tall as its content |
 | `size` | The design size, 200 to 3840 px. The default is 1280 × 720. PNG, PDF and MP4 render at it |
-| `video` | The result is a film: the timeline is rendered to an MP4 with sound |
+| `video` | The result is a video: the timeline is rendered to an MP4 with sound |
 
 The page loads nothing from the network when it runs. Libraries and reference data are files in
 the workspace. It talks to the runner through `window.wizard`: `data`, `brand`, `ready()`,

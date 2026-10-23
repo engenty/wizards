@@ -98,8 +98,8 @@ export async function renderDownload(
   const name = slug(baseName);
   const file = (ext: string) => `${name}.${ext}`;
 
-  if ((step.type === "widget" && step.video) || step.type === "film") {
-    // A film was rendered when its step ran: the video and its poster are the files.
+  if ((step.type === "widget" && step.video) || step.type === "motion-graphics") {
+    // A video was rendered when its step ran: the video and its poster are the files.
     const asset = output.assets?.find((a) => a.kind === (format === "mp4" ? "video" : "poster"));
     const found = asset ? await loadAsset(asset.id) : null;
     return found

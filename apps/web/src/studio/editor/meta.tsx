@@ -33,7 +33,7 @@ export function stepIcon(step: Step) {
       return AppWindow;
     case "surface":
       return LayoutTemplate;
-    case "film":
+    case "motion-graphics":
       return Clapperboard;
     case "review":
       return Eye;
@@ -49,7 +49,7 @@ export const TYPE_TONE: Record<Step["type"], string> = {
   generate: "bg-amber-tint text-ink-2",
   widget: "bg-ember-veil text-ember-strong",
   surface: "bg-ember-veil text-ember-strong",
-  film: "bg-amber-tint text-ink-2",
+  "motion-graphics": "bg-amber-tint text-ink-2",
   review: "bg-moss-tint text-moss",
   result: "bg-paper-2 text-ink-2",
 };
@@ -96,7 +96,7 @@ export function stepSummary(step: Step): string {
       return step.candidates
         ? step.candidates.map((c) => c.id).join(" · ")
         : Object.keys(step.data).join(", ");
-    case "film":
+    case "motion-graphics":
       return [step.format, step.seconds ? `${step.seconds}s` : null, step.skills.join(", ")]
         .filter(Boolean)
         .join(" · ");
