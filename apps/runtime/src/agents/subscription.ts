@@ -5,13 +5,22 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import type { Lang } from "@engenty/wizards-shared/definition";
+import { note } from "@engenty/wizards-shared/run";
 import { internalKey } from "../auth/keys.js";
 import { env } from "../env.js";
 import { resolveEnv } from "../harness/env.js";
 import { detectHarness, harness, signedOut } from "../harness/index.js";
-import { CHAT_WAYS, type ChatWay, chatWayReady, localModelSettings } from "../models.js";
+import { ModelUnavailableError } from "../model-errors.js";
+import {
+  CHAT_WAYS,
+  type ChatTurnWay,
+  type ChatWay,
+  chatWayReady,
+  localModelSettings,
+} from "../models.js";
 import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
+import { chatModelId } from "../services/chat-models.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
 import { type ServerKey, serverText } from "../texts.js";
@@ -109,6 +118,8 @@ export interface SubscriptionTurn {
   onThought?: (line: string) => void;
   onBuilding: () => void;
   images?: ChatImage[];
+  /** Extra effort: the client runs its more capable model. */
+  extra?: boolean;
   /** The language the admin reads the lines about its work in. */
   lang?: Lang;
 }
@@ -173,6 +184,8 @@ export async function subscriptionTurn(
     mcpUrl: mcpUrl(),
     dir,
     mcpConfigFile: input.client === "claude" ? mcpConfig() : undefined,
+    model:
+      (await chatModelId(input.client, input.extra === false ? "normal" : "extra")) ?? undefined,
     images,
   };
   const h = harness(input.client);
@@ -257,27 +270,37 @@ export async function subscriptionTurn(
 }
 
 /** The ways that can answer the studio's chats now, in the order the settings offer them. */
-export async function chatWays(textModelReady: boolean): Promise<ChatWay[]> {
-  const ready = await Promise.all(CHAT_WAYS.map((w) => chatWayReady(w, textModelReady)));
+export async function chatWays(): Promise<ChatWay[]> {
+  const ready = await Promise.all(CHAT_WAYS.map((w) => chatWayReady(w)));
   return CHAT_WAYS.filter((_, i) => ready[i]);
 }
 
 /**
  * What answers the studio's chats, Goose and the editor's chat, on a runtime that runs alone: the
- * way chosen while it can answer, else the text classes, or Claude Code where it is the source.
+ * way chosen while it can answer, else Claude Code where it is the source of models, else the
+ * first way that is ready. Null where none is: the chat then says what to set up.
  */
-export async function chatEngine(textModelReady: boolean): Promise<ChatWay> {
+export async function chatEngine(): Promise<ChatWay | null> {
   const chosen = await readSetting<ChatWay>("chat-engine");
-  if (chosen && CHAT_WAYS.includes(chosen) && (await chatWayReady(chosen, textModelReady))) {
+  if (chosen && CHAT_WAYS.includes(chosen) && (await chatWayReady(chosen))) {
     return chosen;
   }
-  const claude = await chatWayReady("claude", textModelReady);
-  // Nothing chosen: where Claude Code is the source of models, it answers the chat too.
-  if (claude && localModelSettings().source === "claude") {
+  if (localModelSettings().source === "claude" && (await chatWayReady("claude"))) {
     return "claude";
   }
-  // Else a configured model answers; without one, the Claude subscription does.
-  return textModelReady || !claude ? "models" : "claude";
+  return (await chatWays())[0] ?? null;
+}
+
+/** The way a turn runs on: a cloud runtime's own classes, else `chatEngine`, or a refusal naming what to set up. */
+export async function chatTurnWay(managed: boolean): Promise<ChatTurnWay> {
+  if (managed) {
+    return "models";
+  }
+  const way = await chatEngine();
+  if (!way) {
+    throw new ModelUnavailableError(note("chatNoWay"));
+  }
+  return way;
 }
 
 export function setChatEngine(way: ChatWay) {

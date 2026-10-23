@@ -184,12 +184,10 @@ const NOTES_EN = {
   found: "{label}: {name}",
   listen: "Listening to “{label}”…",
   listenFailed: "“{label}” couldn’t be transcribed.",
-  filmCutting: "Cutting the film – this takes about a minute.",
-  filmProgress: "{pct} % cut",
-  filmError: "The film reports: {detail}",
+  motionCutting: "Rendering the video – this takes about a minute.",
+  motionProgress: "{pct} % rendered",
+  motionError: "The video reports: {detail}",
   widgetError: "The widget reports an error: {detail}",
-  mcpConnected: "Connected to {names}",
-  mcpUnreachable: "MCP server unreachable: {detail}",
   reads: "Reading {name}",
   readsMany: { one: "Reading {count} document", other: "Reading {count} documents" },
   opens: "Opening {name}",
@@ -224,12 +222,12 @@ const NOTES_EN = {
   },
   remembers: "Remembering {title}",
   files: { one: "Filing {count} file", other: "Filing {count} files" },
-  filmSetup: "Setting up the folder for the film",
-  filmClient: "{client} is working on the film – this usually takes 10–40 minutes.",
-  filmTask: "On the film: {task}",
-  filmLooks: "Looking at frames of the film",
-  filmFix: "The film didn’t render – Claude Code is fixing it",
-  filmResume: "Picking the film up where it stopped",
+  motionSetup: "Setting up the folder for the video",
+  motionClient: "{client} is working on the video – this usually takes 10–40 minutes.",
+  motionTask: "On the video: {task}",
+  motionLooks: "Looking at frames of the video",
+  motionFix: "The video didn’t render – Claude Code is fixing it",
+  motionResume: "Picking the video up where it stopped",
   wizardUnavailable: "This wizard isn’t available right now.",
   translationFailed: "This wizard can’t be translated right now. It’s shown as it was written.",
   translationOff: "This wizard is only offered as it was written.",
@@ -324,8 +322,8 @@ const NOTES_EN = {
   noOpenaiApiKey: "No OpenAI API key is set for voice conversations (Settings → Models).",
   modelNotAvailableAccount: "This model isn’t available with your account.",
   accountNoModelSet: "Your account has no model set up for this.",
-  claudeCodeMakesFilms:
-    "Claude Code makes films on this computer, using your subscription. Set it up as an AI subscription under Settings → Models.",
+  claudeCodeMakesMotion:
+    "Claude Code makes motion graphics on this computer, using your subscription. Set it up as an AI subscription under Settings → Models.",
   macNeedsFfmpegTranscribe:
     "This Mac needs ffmpeg to transcribe recordings from Chrome or Firefox (WebM, Ogg). Safari and the app don’t. Install ffmpeg, e.g. with “brew install ffmpeg”.",
   fieldRequired: "Required",
@@ -442,6 +440,11 @@ const NOTES_EN = {
     other: "A space can have at most {count} documents.",
   },
   accountSignedOut: "The account is signed out. Sign in again.",
+  spaceOfOtherOrganization:
+    "This space belongs to {organization}. Switch to {organization} to keep it the same as in the cloud again.",
+  syncChangesWaiting: "Changes made here haven’t arrived in the cloud yet.",
+  switchChangesWaiting:
+    "Changes in {spaces} haven’t arrived in the cloud yet. If you switch now, they stay on this computer and arrive when you switch back.",
   cloudNotReachedRight: "The cloud can’t be reached right now.",
   syncUpdateHere:
     "The cloud runs a newer version than this computer. Update engenty wizards, then your changes arrive in the cloud again.",
@@ -468,22 +471,24 @@ const NOTES_EN = {
   itemChangedMeantime: "This was changed elsewhere in the meantime.",
   valueNotExist: "This value doesn’t exist.",
   nothingFiledUnderValue: "Nothing is filed under this value yet.",
-  filmNotRenderedNeeds:
-    "The film couldn’t be rendered. It needs ffmpeg and a timeline in the widget.",
+  motionNotRenderedNeeds:
+    "The video couldn’t be rendered. It needs ffmpeg and a timeline in the widget.",
   signInRefused:
     "The sign-in was refused{host}. Are the address and (app) password right? Gmail and Google Workspace need an app password and IMAP turned on.{answer}",
   serverSaid: " The server said: {answer}",
   viaAccountFailed: "Connecting through your engenty account didn’t work ({code}).",
   pluginInvalidInput: "“{id}” got invalid input: {path} – {problem}",
-  filmClientStopped:
-    "{name} stopped working on the film: {detail}. The work is saved. A new try carries on from there.",
-  filmWorkSaved: "{problem} The work is saved. A new try carries on from there.",
-  filmRenderFailed: "The film couldn’t be rendered: {detail}",
+  motionClientStopped:
+    "{name} stopped working on the video: {detail}. The work is saved. A new try carries on from there.",
+  motionWorkSaved: "{problem} The work is saved. A new try carries on from there.",
+  motionRenderFailed: "The video couldn’t be rendered: {detail}",
   commandNotStarted: "The command couldn’t start: {detail}",
   providerKeyMissing: "{provider} is chosen for {makes}, but no API key is set.",
   noModelFor: "No model is set up for {makes}.",
   contentBlocked: "This wasn’t made: the request goes against the content rules.",
   contentCheckFailed: "Nothing was made, because the content check couldn’t run: {detail}",
+  chatNoWay:
+    "The chat has nothing to run on yet. Pick a subscription, a key or the credits under Settings › Models › Agent chat.",
   noApiKeyFor: "No API key is set for {provider}.",
   freeTier:
     "Your AI Gateway key is on Vercel’s free tier, which doesn’t include {model}. Top up at Vercel ({url}) or choose another model under Settings → Models.",
@@ -533,12 +538,10 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   found: "{label}: {name}",
   listen: "Hört „{label}“ an …",
   listenFailed: "„{label}“ konnte nicht verschriftlicht werden.",
-  filmCutting: "Der Film wird geschnitten – das dauert etwa eine Minute.",
-  filmProgress: "{pct} % geschnitten",
-  filmError: "Der Film meldet: {detail}",
+  motionCutting: "Das Video wird gerendert – das dauert etwa eine Minute.",
+  motionProgress: "{pct} % gerendert",
+  motionError: "Das Video meldet: {detail}",
   widgetError: "Das Widget meldet einen Fehler: {detail}",
-  mcpConnected: "Verbunden mit {names}",
-  mcpUnreachable: "MCP-Server nicht erreichbar: {detail}",
   reads: "Liest {name}",
   readsMany: { one: "Liest {count} Dokument", other: "Liest {count} Dokumente" },
   opens: "Öffnet {name}",
@@ -573,12 +576,12 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   },
   remembers: "Merkt sich {title}",
   files: { one: "Legt {count} Datei ab", other: "Legt {count} Dateien ab" },
-  filmSetup: "Richtet den Arbeitsordner für den Film ein",
-  filmClient: "{client} arbeitet am Film – das dauert meist 10–40 Minuten.",
-  filmTask: "Am Film: {task}",
-  filmLooks: "Sieht sich Bilder des Films an",
-  filmFix: "Der Film ließ sich nicht rendern – Claude Code bessert nach",
-  filmResume: "Macht dort weiter, wo der Film stehen geblieben ist",
+  motionSetup: "Richtet den Arbeitsordner für das Video ein",
+  motionClient: "{client} arbeitet am Video – das dauert meist 10–40 Minuten.",
+  motionTask: "Am Video: {task}",
+  motionLooks: "Sieht sich Bilder des Videos an",
+  motionFix: "Das Video ließ sich nicht rendern – Claude Code bessert nach",
+  motionResume: "Macht dort weiter, wo das Video stehen geblieben ist",
   wizardUnavailable: "Dieser Wizard ist gerade nicht verfügbar.",
   translationFailed:
     "Dieser Wizard lässt sich gerade nicht übersetzen. Du siehst ihn so, wie er geschrieben wurde.",
@@ -680,8 +683,8 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     "Für Sprachgespräche ist kein OpenAI-API-Key hinterlegt (Einstellungen → Modelle).",
   modelNotAvailableAccount: "Dieses Modell gibt es mit deinem Konto nicht.",
   accountNoModelSet: "Dafür ist bei deinem Konto kein Modell eingerichtet.",
-  claudeCodeMakesFilms:
-    "Filme macht Claude Code auf diesem Computer mit deinem Abo. Richte es unter Einstellungen → Modelle als KI-Abo ein.",
+  claudeCodeMakesMotion:
+    "Motion-Grafik macht Claude Code auf diesem Computer mit deinem Abo. Richte es unter Einstellungen → Modelle als KI-Abo ein.",
   macNeedsFfmpegTranscribe:
     "Aufnahmen aus Chrome oder Firefox (WebM, Ogg) schreibt dieser Mac erst mit ffmpeg auf. Safari und die App brauchen es nicht. Installiere ffmpeg, z. B. mit „brew install ffmpeg“.",
   fieldRequired: "Pflichtfeld",
@@ -800,6 +803,11 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
     other: "Ein Space hat höchstens {count} Dokumente.",
   },
   accountSignedOut: "Das Konto ist abgemeldet. Melde dich neu an.",
+  spaceOfOtherOrganization:
+    "Dieser Space gehört zu {organization}. Wechsle zu {organization}, damit er wieder gleich ist wie in der Cloud.",
+  syncChangesWaiting: "Änderungen von hier sind noch nicht in der Cloud angekommen.",
+  switchChangesWaiting:
+    "Änderungen in {spaces} sind noch nicht in der Cloud angekommen. Wechselst du jetzt, bleiben sie auf diesem Computer und kommen an, wenn du zurückwechselst.",
   cloudNotReachedRight: "Die Cloud ist gerade nicht erreichbar.",
   syncUpdateHere:
     "Die Cloud hat eine neuere Version als dieser Computer. Aktualisiere engenty wizards, dann kommen deine Änderungen wieder in der Cloud an.",
@@ -827,23 +835,25 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   itemChangedMeantime: "Das wurde inzwischen anderswo geändert.",
   valueNotExist: "Diesen Wert gibt es nicht.",
   nothingFiledUnderValue: "Unter diesem Wert steht noch nichts.",
-  filmNotRenderedNeeds:
-    "Der Film ließ sich nicht rendern. Dafür braucht es ffmpeg und eine Zeitleiste im Widget.",
+  motionNotRenderedNeeds:
+    "Das Video ließ sich nicht rendern. Dafür braucht es ffmpeg und eine Zeitleiste im Widget.",
   signInRefused:
     "Anmeldung abgelehnt{host}. Stimmen Adresse und (App-)Passwort? Gmail und Google Workspace brauchen ein App-Passwort und eingeschaltetes IMAP.{answer}",
   serverSaid: " Antwort des Servers: {answer}",
   viaAccountFailed: "Verbinden über dein engenty-Konto hat nicht geklappt ({code}).",
   pluginInvalidInput: "„{id}“ bekam ungültige Angaben: {path} – {problem}",
-  filmClientStopped:
-    "{name} hat beim Film aufgehört: {detail}. Die Arbeit ist gespeichert. Ein neuer Versuch macht dort weiter.",
-  filmWorkSaved: "{problem} Die Arbeit ist gespeichert. Ein neuer Versuch macht dort weiter.",
-  filmRenderFailed: "Der Film ließ sich nicht rendern: {detail}",
+  motionClientStopped:
+    "{name} hat beim Video aufgehört: {detail}. Die Arbeit ist gespeichert. Ein neuer Versuch macht dort weiter.",
+  motionWorkSaved: "{problem} Die Arbeit ist gespeichert. Ein neuer Versuch macht dort weiter.",
+  motionRenderFailed: "Das Video ließ sich nicht rendern: {detail}",
   commandNotStarted: "Der Befehl konnte nicht starten: {detail}",
   providerKeyMissing: "Für {makes} ist {provider} gewählt, aber kein API-Key hinterlegt.",
   noModelFor: "Für {makes} ist kein Modell eingerichtet.",
   contentBlocked: "Das wurde nicht erstellt: Die Anfrage verstößt gegen die Inhaltsregeln.",
   contentCheckFailed:
     "Es wurde nichts erstellt, weil die Inhaltsprüfung nicht laufen konnte: {detail}",
+  chatNoWay:
+    "Der Chat hat noch nichts, womit er arbeiten kann. Wähle unter Einstellungen › Modelle › Agent-Chat ein Abo, einen Key oder das Guthaben.",
   noApiKeyFor: "Für {provider} ist kein API-Key hinterlegt.",
   freeTier:
     "Dein AI-Gateway-Key nutzt bei Vercel die kostenlose Stufe, und die schließt {model} aus. Lade bei Vercel Guthaben auf ({url}) oder wähle unter Einstellungen → Modelle ein anderes Modell.",

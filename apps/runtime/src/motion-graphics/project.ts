@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
-import { dataRef, FILM_SIZES, type FilmStep } from "@engenty/wizards-shared/definition";
+import { dataRef, MOTION_SIZES, type MotionGraphicsStep } from "@engenty/wizards-shared/definition";
 import { gradientCss, ruleLines, textStyleLine } from "@engenty/wizards-shared/projects";
 import { unzipSync } from "fflate";
 import { logoSectionLine, renderTemplate, resolveRef } from "../engine/template.js";
@@ -18,7 +18,7 @@ import { soundCatalog } from "./sounds.js";
 import { runHyperframes } from "./tools.js";
 
 /**
- * The folder a film is made in: one per run and step, kept after the run so a later change edits
+ * The folder a video is made in: one per run and step, kept after the run so a later change edits
  * the code instead of starting over. Laid out for the client:
  *
  *   BRIEF.md            what to make (the step's brief, the format, the length)
@@ -27,11 +27,11 @@ import { runHyperframes } from "./tools.js";
  *   showcase/           the wizard's style kit, the bar to reach
  *   brand/              the space's brand: brand.json, logos
  *   input/              what this run made before: voice lines, pictures, texts, uploads
- *   audio-catalog/      the only sounds the film may use
- *   film/               the HyperFrames project; renders/film.mp4 is the result
+ *   audio-catalog/      the only sounds the video may use
+ *   video/               the HyperFrames project; renders/video.mp4 is the result
  */
-export function filmRoot(runId: string, stepId: string): string {
-  return join(env.dataDir, "films", runId, stepId);
+export function motionRoot(runId: string, stepId: string): string {
+  return join(env.dataDir, "motion-graphics", runId, stepId);
 }
 
 const SESSION = join(".engenty", "session");
@@ -62,14 +62,14 @@ async function put(root: string, rel: string, data: Uint8Array | string) {
 const safeName = (name: string) =>
   name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "file";
 
-/** Where the client starts, by how film/ began. */
-function startRules(start: FilmStart): string {
-  return prompt("step", `film.start.${start}`);
+/** Where the client starts, by how video/ began. */
+function startRules(start: MotionStart): string {
+  return prompt("step", `motion.start.${start}`);
 }
 
-function rules(step: FilmStep, skills: string[], start: FilmStart): string {
-  const size = FILM_SIZES[step.format];
-  return `${prompt("step", "film.rules", {
+function rules(step: MotionGraphicsStep, skills: string[], start: MotionStart): string {
+  const size = MOTION_SIZES[step.format];
+  return `${prompt("step", "motion.rules", {
     start: startRules(start),
     skills: skills.join(", "),
     width: size.width,
@@ -81,7 +81,7 @@ const BRAND_STAMP = join(".engenty", "brand");
 
 /**
  * Writes the space's brand into brand/ as it is now (brand.json, logos). True when it differs
- * from what the folder had before — the film's code then still carries the old one.
+ * from what the folder had before — the video's code then still carries the old one.
  */
 async function writeBrand(
   root: string,
@@ -131,7 +131,7 @@ async function writeBrand(
   }
   const json = JSON.stringify(
     {
-      note: prompt("step", "film.brand_note"),
+      note: prompt("step", "motion.brand_note"),
       name: b.name ?? "",
       about: b.about ?? "",
       colors: (b.colors ?? []).map((c) => {
@@ -195,14 +195,14 @@ async function writeBrand(
   return { changed, stamp };
 }
 
-/** How the film/ project began: from the kit's base, from an earlier film step, or empty. */
-export type FilmStart = "base" | "from" | "init";
+/** How the video/ project began: from the kit's base, from an earlier motion-graphics step, or empty. */
+export type MotionStart = "base" | "from" | "init";
 
 const START = join(".engenty", "start");
 const BASE = join(".engenty", "base");
 
 /**
- * The brand base: what a film made once from the space's brand for the kit's base (the base's
+ * The brand base: what a video made once from the space's brand for the kit's base (the base's
  * BRAND.md says what — theme.json at least), kept per space for the kit and the brand as they are.
  * A changed brand or kit is another key, so it is made again.
  */
@@ -211,21 +211,21 @@ function brandBaseDir(ctx: StepContext, kitHash: string, brandStamp: string): st
   return join(env.dataDir, "brand-bases", ctx.project.id, key);
 }
 
-/** What in film/brand/ is the brand base: everything but the brand itself. */
+/** What in video/brand/ is the brand base: everything but the brand itself. */
 const isBrandItself = (name: string) =>
   name === "brand.json" || name === "logos" || name === "patterns";
 
 /**
  * Brings the brand into a project that started from a base: brand.json and the logos as they are
  * now, and the brand base kept for them when there is one. A base that no longer fits the brand
- * is removed — the film makes it again, as BRAND.md says.
+ * is removed — the video makes it again, as BRAND.md says.
  */
-async function brandIntoFilm(root: string, brandChanged: boolean) {
+async function brandIntoMotion(root: string, brandChanged: boolean) {
   const base = await readFile(join(root, BASE), "utf8").catch(() => "");
   if (!base) {
     return;
   }
-  const target = join(root, "film", "brand");
+  const target = join(root, "video", "brand");
   await mkdir(target, { recursive: true });
   for (const name of await readdir(target)) {
     if (isBrandItself(name) || (brandChanged && !existsSync(base))) {
@@ -239,7 +239,7 @@ async function brandIntoFilm(root: string, brandChanged: boolean) {
 }
 
 /** A new brand is another brand base: the marker points at the one for the brand as it is now. */
-async function refreshBrandBase(root: string, ctx: StepContext, step: FilmStep) {
+async function refreshBrandBase(root: string, ctx: StepContext, step: MotionGraphicsStep) {
   if (!existsSync(join(root, BASE))) {
     return;
   }
@@ -248,10 +248,10 @@ async function refreshBrandBase(root: string, ctx: StepContext, step: FilmStep) 
   await put(root, BASE, brandBaseDir(ctx, kitHash, stamp));
 }
 
-/** After a film: keeps what it made from the brand for the next films in this space. */
+/** After a video: keeps what it made from the brand for the next videos in this space. */
 export async function keepBrandBase(root: string) {
   const base = await readFile(join(root, BASE), "utf8").catch(() => "");
-  const source = join(root, "film", "brand");
+  const source = join(root, "video", "brand");
   if (!base || !existsSync(join(source, "theme.json"))) {
     return;
   }
@@ -265,17 +265,17 @@ export async function keepBrandBase(root: string) {
 }
 
 /** Sets up the folder for a first attempt; a later attempt finds it as it was left. */
-export async function prepareFilmFolder(
-  step: FilmStep,
+export async function prepareMotionFolder(
+  step: MotionGraphicsStep,
   ctx: StepContext,
-): Promise<{ root: string; brief: string; brandChanged: boolean; start: FilmStart }> {
-  const root = filmRoot(ctx.runId, step.id);
+): Promise<{ root: string; brief: string; brandChanged: boolean; start: MotionStart }> {
+  const root = motionRoot(ctx.runId, step.id);
   const brief = renderTemplate(step.brief, ctx.scope).trim();
-  // An earlier film to start from, when it ran.
+  // An earlier video to start from, when it ran.
   const fromId = step.from ? dataRef(step.from).replace(/^steps\./, "") : null;
-  const fromDir = fromId ? join(filmRoot(ctx.runId, fromId), "film") : null;
+  const fromDir = fromId ? join(motionRoot(ctx.runId, fromId), "video") : null;
   const from = fromId && fromDir && existsSync(join(fromDir, "index.html")) ? fromId : null;
-  // The same brief and material as last time: the film is there to go on with or to change.
+  // The same brief and material as last time: the video is there to go on with or to change.
   const stamp = createHash("sha256")
     .update(
       JSON.stringify([
@@ -291,22 +291,22 @@ export async function prepareFilmFolder(
     .digest("hex");
   const stampFile = join(root, ".engenty", "inputs");
   const same = existsSync(stampFile) && (await readFile(stampFile, "utf8")) === stamp;
-  if (same && existsSync(join(root, "film", "index.html")) && (await savedSession(root))) {
+  if (same && existsSync(join(root, "video", "index.html")) && (await savedSession(root))) {
     // The brand is the space's as it is now, also for a change: colours or a logo may be new.
     const { changed } = await writeBrand(root, ctx);
     const start = ((await readFile(join(root, START), "utf8").catch(() => "")) ||
-      "init") as FilmStart;
+      "init") as MotionStart;
     if (changed) {
       await refreshBrandBase(root, ctx, step);
     }
-    await brandIntoFilm(root, changed);
+    await brandIntoMotion(root, changed);
     return { root, brief, brandChanged: changed, start };
   }
   await rm(root, { recursive: true, force: true });
   await mkdir(root, { recursive: true });
 
   const skills = await placeSkills(step.skills, ctx.files, join(root, ".claude", "skills"));
-  const size = FILM_SIZES[step.format];
+  const size = MOTION_SIZES[step.format];
 
   const spec = [
     step.format,
@@ -318,10 +318,10 @@ export async function prepareFilmFolder(
   await put(
     root,
     "BRIEF.md",
-    `# Brief\n\nFormat ${spec}. ${prompt("step", "film.brief")}\n\n${brief}\n`,
+    `# Brief\n\nFormat ${spec}. ${prompt("step", "motion.brief")}\n\n${brief}\n`,
   );
 
-  // The style kit: the showcase to look at, and the base a film starts from when it has one.
+  // The style kit: the showcase to look at, and the base a video starts from when it has one.
   const kitFile = step.kit ? ctx.files.find((f) => f.path === step.kit) : undefined;
   const base: Record<string, Uint8Array> = {};
   if (kitFile) {
@@ -381,21 +381,23 @@ export async function prepareFilmFolder(
   await put(
     join(root, "input"),
     "README.md",
-    `${prompt("step", "film.input", { files: listed.join("\n") || "(none)" })}\n`,
+    `${prompt("step", "motion.input", { files: listed.join("\n") || "(none)" })}\n`,
   );
 
   await cp(await soundCatalog(), join(root, "audio-catalog"), { recursive: true });
 
-  // The HyperFrames project: the earlier film, the kit's base in this format, or a new one.
+  // The HyperFrames project: the earlier video, the kit's base in this format, or a new one.
   const index = `index.${step.format.replace(":", "x")}.html`;
-  let start: FilmStart;
+  let start: MotionStart;
   if (from && fromDir) {
     start = "from";
-    await cp(fromDir, join(root, "film"), {
+    await cp(fromDir, join(root, "video"), {
       recursive: true,
       filter: (path) => !/\/(renders|snapshots)(\/|$)/.test(path.slice(fromDir.length)),
     });
-    const fromBase = await readFile(join(filmRoot(ctx.runId, from), BASE), "utf8").catch(() => "");
+    const fromBase = await readFile(join(motionRoot(ctx.runId, from), BASE), "utf8").catch(
+      () => "",
+    );
     if (fromBase) {
       await put(root, BASE, fromBase);
     }
@@ -403,23 +405,23 @@ export async function prepareFilmFolder(
     start = "base";
     for (const [name, data] of Object.entries(base)) {
       if (!/^index\.\d+x\d+\.html$/.test(name)) {
-        await put(join(root, "film"), name, data);
+        await put(join(root, "video"), name, data);
       }
     }
-    await put(join(root, "film"), "index.html", base[index]);
+    await put(join(root, "video"), "index.html", base[index]);
     await put(root, BASE, brandBaseDir(ctx, kitFile?.hash ?? "", brandStamp));
   } else {
     start = "init";
     const preset = { "16:9": "landscape", "9:16": "portrait", "1:1": "square" }[step.format];
     const init = await runHyperframes(
-      ["init", "film", "--non-interactive", "--skip-transcribe", `--resolution=${preset}`],
+      ["init", "video", "--non-interactive", "--skip-transcribe", `--resolution=${preset}`],
       { cwd: root, signal: ctx.signal, timeoutMs: 5 * 60_000 },
     );
-    if (init.code !== 0 || !existsSync(join(root, "film"))) {
-      throw new Error(`The film project could not be set up: ${init.out.slice(-300)}`);
+    if (init.code !== 0 || !existsSync(join(root, "video"))) {
+      throw new Error(`The video project could not be set up: ${init.out.slice(-300)}`);
     }
   }
-  await brandIntoFilm(root, false);
+  await brandIntoMotion(root, false);
   const text = rules(step, skills, start);
   await put(root, "CLAUDE.md", text);
   await put(root, "AGENTS.md", text);

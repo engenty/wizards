@@ -1,6 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { Mascot } from "../brand";
+import { STUDIO } from "../lib/base";
 import { t, useLang } from "../lib/i18n";
 import { keepWish, pendingWish, signIn } from "../lib/session";
 import { useDictation } from "../lib/speech";
@@ -37,7 +38,7 @@ export function GuestStartPage({ failed }: { failed: boolean }) {
     }
     setBusy(true);
     keepWish(wish);
-    signIn("/new", wish);
+    signIn(`${STUDIO}/new`, wish);
   };
 
   return (
@@ -45,7 +46,7 @@ export function GuestStartPage({ failed }: { failed: boolean }) {
       <DoorBar
         className="pt-6 sm:pt-8"
         end={
-          <Button variant="secondary" size="sm" onClick={() => signIn("/")}>
+          <Button variant="secondary" size="sm" onClick={() => signIn(`${STUDIO}/`)}>
             {t("guest.signIn")}
           </Button>
         }
@@ -99,7 +100,7 @@ export function GuestStartPage({ failed }: { failed: boolean }) {
           {t("new.orStarter")}
         </h2>
         <MarketplaceBrowser
-          onGuestOpen={(entry) => signIn(`/new?starter=${encodeURIComponent(entry.id)}`)}
+          onGuestOpen={(entry) => signIn(`${STUDIO}/new?starter=${encodeURIComponent(entry.id)}`)}
         />
       </section>
       {/* As on the landing page: the name and the legal pages, nothing more. */}

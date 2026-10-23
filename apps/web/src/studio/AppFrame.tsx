@@ -1,7 +1,11 @@
+import { featureOn } from "@engenty/wizards-shared/features";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppWindow,
+  Building2,
   Check,
+  ChevronRight,
+  ChevronsUpDown,
   Cloud,
   CloudOff,
   CreditCard,
@@ -11,6 +15,8 @@ import {
   LogOut,
   Pencil,
   Plus,
+  Settings,
+  UserRound,
   WandSparkles,
 } from "lucide-react";
 import {
@@ -22,9 +28,9 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { api } from "../lib/api";
-import { type AppBarPosition, besideBar, useAppBar } from "../lib/appbar";
+import { type AppBarPosition, besideBar, useAppBar, useAppBarLabels } from "../lib/appbar";
 import { useFeature } from "../lib/features";
 import { lang, t } from "../lib/i18n";
 import { acceptInstall, standalone, useInstallPrompt } from "../lib/install";
@@ -41,12 +47,26 @@ import {
 import { openReport } from "../report/ReportDialog";
 import { Button, cn, Dialog, Input } from "../ui";
 import { AppRail, PhoneBar } from "./AppRail";
-import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/StudioAssistant";
+import {
+  AssistantDock,
+  AssistantSidebar,
+  HighlightLayer,
+  useAssistantInSidebar,
+} from "./assistant/StudioAssistant";
 import { CloudSyncBar } from "./CloudSync";
 import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner, InstallDialog } from "./InstallBanner";
 import { LangSwitch } from "./LangSwitch";
 import { useLiveFeed } from "./live/index";
+import {
+  currentOrganization,
+  OrganizationFace,
+  OrganizationList,
+  OrganizationMenu,
+  OrganizationSheet,
+  switchable,
+  useManageOrganization,
+} from "./Organizations";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
 import { hostOf } from "./where";
@@ -95,7 +115,8 @@ export function useTrail(): Crumb[] {
   );
 }
 
-function Trail() {
+/** `alone`: nothing stands before the trail (the person's Konto), so it starts without a slash. */
+function Trail({ alone = false }: { alone?: boolean }) {
   const trail = useTrail();
   if (!trail.length) {
     return null;
@@ -109,7 +130,9 @@ function Trail() {
         <Fragment key={`${i}:${crumb.label}`}>
           {/* The first follows the space's name as the others follow each other: the bar's gap
               and the name's own padding are taken back, so every slash stands alike. */}
-          <span className={cn("mr-2 text-ink-4", i === 0 ? "-ml-1 sm:-ml-2" : "ml-2")}>/</span>
+          {alone && i === 0 ? null : (
+            <span className={cn("mr-2 text-ink-4", i === 0 ? "-ml-1 sm:-ml-2" : "ml-2")}>/</span>
+          )}
           {crumb.to && i < trail.length - 1 ? (
             <Link to={crumb.to} className="truncate text-ink-3 transition hover:text-ink">
               {crumb.label}
@@ -217,13 +240,16 @@ const onFill = (color: string) =>
 /** A space as a tile: its first brand colour behind its initials; without one, quiet paper. */
 export function SpaceFace({
   project,
+  name,
   size = "md",
 }: {
   project: Project | null;
+  /** The initials' name where the tile stands for the organization (useOneSpace). */
+  name?: string;
   size?: "xs" | "sm" | "md";
 }) {
   const color = project?.brand.colors?.[0]?.value;
-  const initials = initialsOf(project?.name ?? "");
+  const initials = initialsOf(name ?? project?.name ?? "");
   const face = (
     <span
       className={cn(
@@ -255,6 +281,20 @@ export function SpaceFace({
 }
 
 /**
+ * An organization whose plan holds one space: the space is the organization, so the studio
+ * names the organization only and its menu has no spaces to list.
+ */
+export function useOneSpace(me: Me): boolean {
+  const { projects } = useCurrentProject();
+  return (
+    me.mode === "managed" &&
+    Boolean(me.tenant.name) &&
+    me.limits.projects === 1 &&
+    projects.length <= 1
+  );
+}
+
+/**
  * The spaces, listed as Slack lists its workspaces: the one shown first (its row opens its
  * wizards), the others to switch to, its wizards and a new one, a row that renames it and one
  * that adds a space — not there at the plan's limit. The
@@ -275,12 +315,16 @@ export function SpaceMenu({
   children: ReactNode;
 }) {
   const navigate = useNavigate();
-  const { position } = useAppBar();
+  const { position, phone } = useAppBar();
   const { project, projects, select } = useCurrentProject();
+  const one = useOneSpace(me);
+  const manage = useManageOrganization(me);
   const mayCreate = useMayCreate();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const organization = currentOrganization(me);
   const [at, setAt] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, open, () => setOpen(false));
@@ -304,7 +348,7 @@ export function SpaceMenu({
           aria-expanded={open}
           aria-haspopup="menu"
           aria-label={label}
-          title={t("nav.switchSpace")}
+          title={one ? undefined : t("nav.switchSpace")}
           className={typeof className === "function" ? className(open) : className}
         >
           {children}
@@ -321,7 +365,53 @@ export function SpaceMenu({
                 : cn("absolute", placementClass(placement, position, "top-10 left-0")),
             )}
           >
-            {projects.map((p) => {
+            {/* One space: the organizations to switch between stand in the menu itself (a
+                phone opens them as a sheet); there are no spaces to list. */}
+            {one && switchable(me) && !phone ? (
+              <>
+                <div className="px-2 pt-1.5 pb-1 text-[0.75rem] text-ink-3">
+                  {t("organizations.mine")}
+                </div>
+                <OrganizationList me={me} onDone={() => setOpen(false)} />
+                <div className="mx-2 my-1.5 h-px bg-border-soft" />
+              </>
+            ) : null}
+            {/* The organization heads its spaces; someone who can switch switches here. */}
+            {one && !(switchable(me) && phone) ? null : organization && switchable(me) ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition hover:bg-accent"
+                  onClick={() => {
+                    setOpen(false);
+                    setSwitching(true);
+                  }}
+                >
+                  <OrganizationFace org={organization} size="xs" />
+                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span className="truncate font-semibold text-[0.875rem] text-ink">
+                      {organization.name}
+                    </span>
+                    {organization.plan ? (
+                      <span className="truncate text-[0.75rem] text-ink-4">
+                        {organization.plan.name}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 text-[0.8125rem] text-ink-3">
+                    {t("organizations.switchShort")}
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-ink-4" />
+                </button>
+                <div className="mx-2 my-1.5 h-px bg-border-soft" />
+              </>
+            ) : me.tenant.name ? (
+              <div className="truncate px-2 pt-1.5 pb-1 text-[0.75rem] text-ink-3">
+                {me.tenant.name}
+              </div>
+            ) : null}
+            {(one ? [] : projects).map((p) => {
               const current = p.id === project?.id;
               return (
                 <button
@@ -356,9 +446,14 @@ export function SpaceMenu({
                 </button>
               );
             })}
-            <div className="mx-2 my-1.5 h-px bg-border-soft" />
+            {one ? null : <div className="mx-2 my-1.5 h-px bg-border-soft" />}
             {[
-              { to: "/", icon: WandSparkles, label: t("nav.wizardsInSpace"), show: true },
+              {
+                to: "/",
+                icon: WandSparkles,
+                label: one ? t("nav.allWizards") : t("nav.wizardsInSpace"),
+                show: true,
+              },
               { to: "/new", icon: Plus, label: t("nav.addWizard"), show: mayCreate },
             ]
               .filter((entry) => entry.show)
@@ -377,7 +472,25 @@ export function SpaceMenu({
                   <span className="truncate">{entry.label}</span>
                 </button>
               ))}
-            {project && !project.readOnly ? (
+            {/* One space, one organization: its settings, where the list would offer them. */}
+            {one && !switchable(me) ? (
+              <>
+                <div className="mx-2 my-1.5 h-px bg-border-soft" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={action}
+                  onClick={() => {
+                    setOpen(false);
+                    manage();
+                  }}
+                >
+                  <Settings className="size-4 shrink-0 text-ink-3" />
+                  <span className="truncate">{t("organizations.manage")}</span>
+                </button>
+              </>
+            ) : null}
+            {project && !project.readOnly && !one ? (
               <>
                 <div className="mx-2 my-1.5 h-px bg-border-soft" />
                 <button
@@ -417,6 +530,9 @@ export function SpaceMenu({
           </div>
         ) : null}
         <NewSpaceDialog open={creating} onClose={() => setCreating(false)} />
+        {switchable(me) ? (
+          <OrganizationSheet me={me} open={switching} onClose={() => setSwitching(false)} />
+        ) : null}
         {project ? (
           <RenameSpaceDialog project={project} open={renaming} onClose={() => setRenaming(false)} />
         ) : null}
@@ -496,11 +612,48 @@ function SpaceName({ me }: { me: Me }) {
   const { project } = useCurrentProject();
   // A phone's bar holds no space: its tile stands here, in the top left corner, before its name.
   const { phone } = useAppBar();
+  const one = useOneSpace(me);
   if (!project) {
     return null;
   }
+  // One space: the organization's name opens the menu, the space's name would only repeat it.
+  if (one && me.tenant.name) {
+    return (
+      <span className="flex min-w-0 items-center gap-1">
+        <SpaceMenu
+          me={me}
+          placement="below"
+          label={me.tenant.name}
+          className={(open) =>
+            cn(
+              phone
+                ? "-ml-1 flex max-w-[16rem] items-center gap-2.5 rounded-xl py-1 pr-2 pl-1"
+                : "-mx-1 flex max-w-[16rem] items-center gap-1 rounded-md px-2 py-0.5",
+              "text-left font-medium text-[0.9375rem] text-ink transition hover:bg-accent",
+              open && "bg-accent",
+            )
+          }
+        >
+          {phone ? <SpaceFace project={project} name={me.tenant.name} size="sm" /> : null}
+          <span className="truncate">{me.tenant.name}</span>
+          <ChevronsUpDown className="size-3.5 shrink-0 text-ink-4" />
+        </SpaceMenu>
+        <SpacePlace me={me} project={project} />
+      </span>
+    );
+  }
   return (
     <span className="flex min-w-0 items-center gap-1">
+      {/* The organization the space belongs to, before it, where the bar has room: a menu for
+          someone who can switch, its name for everyone else. */}
+      {me.tenant.name && !phone ? (
+        <>
+          <OrganizationMenu me={me} className="max-lg:hidden" />
+          <span className="text-ink-4 max-lg:hidden" aria-hidden="true">
+            /
+          </span>
+        </>
+      ) : null}
       <SpaceMenu
         me={me}
         placement="below"
@@ -520,7 +673,15 @@ function SpaceName({ me }: { me: Me }) {
         {phone ? (
           <>
             <SpaceFace project={project} size="sm" />
-            <span className="truncate">{project.name}</span>
+            {/* The organization as a small line above the space: a phone's bar has no room beside it. */}
+            <span className="flex min-w-0 flex-col leading-tight">
+              {me.tenant.name ? (
+                <span className="truncate font-normal text-[0.75rem] text-ink-3">
+                  {me.tenant.name}
+                </span>
+              ) : null}
+              <span className="truncate">{project.name}</span>
+            </span>
           </>
         ) : (
           project.name
@@ -531,8 +692,19 @@ function SpaceName({ me }: { me: Me }) {
   );
 }
 
-/** `placement`: where the menu opens — below the avatar in a top bar, away from the app bar. */
-export function UserMenu({ me, placement = "below" }: { me: Me; placement?: MenuPlacement }) {
+/**
+ * `placement`: where the menu opens — below the avatar in a top bar, away from the app bar.
+ * `named`: in a bar that names its places, the person's name stands beside the avatar.
+ */
+export function UserMenu({
+  me,
+  placement = "below",
+  named,
+}: {
+  me: Me;
+  placement?: MenuPlacement;
+  named?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -547,36 +719,52 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
   const item =
     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[0.875rem] text-ink-2 hover:bg-accent hover:text-ink";
   return (
-    <div className="relative" ref={ref}>
+    <div className={cn("relative", named && "w-full")} ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "relative flex shrink-0 items-center justify-center rounded-full bg-ember-tint font-semibold text-[0.8125rem] text-ember-strong ring-1 ring-border-soft",
-          // In the app bar the avatar is as large as the tiles above it.
-          placement === "below" ? "size-9" : "size-10",
-        )}
+        className={
+          named
+            ? cn(
+                "flex w-full items-center gap-3 rounded-lg p-0.5 pr-2 text-left transition hover:bg-ink/10",
+                open && "bg-ink/10",
+              )
+            : "block shrink-0 rounded-full"
+        }
         aria-label={me.user.name || "Menu"}
       >
-        {me.user.image ? (
-          <img src={me.user.image} alt="" className="size-full rounded-full object-cover" />
-        ) : (
-          initials
-        )}
-        {state === "linked" || state === "expired" ? (
-          <span
-            title={
-              state === "linked"
-                ? t("nav.connected", { host: hostOf(me.account?.cloudUrl ?? "") })
-                : t("nav.expired")
-            }
-            className="-right-1 -bottom-1 absolute flex size-4 items-center justify-center rounded-full bg-card ring-1 ring-border-soft"
-          >
-            {state === "linked" ? (
-              <Cloud className="size-2.5 text-moss" />
-            ) : (
-              <CloudOff className="size-2.5 text-amber" />
-            )}
+        <span
+          className={cn(
+            "relative flex shrink-0 items-center justify-center rounded-full bg-ember-tint font-semibold text-[0.8125rem] text-ember-strong ring-1 ring-border-soft",
+            // In the app bar the avatar is as large as the tiles above it.
+            placement === "below" ? "size-9" : "size-10",
+          )}
+        >
+          {me.user.image ? (
+            <img src={me.user.image} alt="" className="size-full rounded-full object-cover" />
+          ) : (
+            initials
+          )}
+          {state === "linked" || state === "expired" ? (
+            <span
+              title={
+                state === "linked"
+                  ? t("nav.connected", { host: hostOf(me.account?.cloudUrl ?? "") })
+                  : t("nav.expired")
+              }
+              className="-right-1 -bottom-1 absolute flex size-4 items-center justify-center rounded-full bg-card ring-1 ring-border-soft"
+            >
+              {state === "linked" ? (
+                <Cloud className="size-2.5 text-moss" />
+              ) : (
+                <CloudOff className="size-2.5 text-amber" />
+              )}
+            </span>
+          ) : null}
+        </span>
+        {named ? (
+          <span className="min-w-0 flex-1 truncate font-medium text-[0.875rem] text-ink-2">
+            {me.user.name}
           </span>
         ) : null}
       </button>
@@ -596,6 +784,12 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
               ) : null}
             </div>
             <div className="truncate text-[0.75rem] text-ink-3">{me.user.email}</div>
+            {me.tenant.name ? (
+              <div className="mt-1.5 flex items-center gap-1.5 text-[0.75rem] text-ink-2">
+                <Building2 className="size-3.5 shrink-0 text-ink-4" aria-hidden="true" />
+                <span className="truncate">{me.tenant.name}</span>
+              </div>
+            ) : null}
           </div>
           {state ? (
             // Whether what is published here runs for others: where it runs, and what to do.
@@ -634,7 +828,19 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
               </span>
             </button>
           ) : null}
-          {me.manageUrl ? (
+          {me.mode === "managed" && featureOn(me.features, "organizationSettings") ? (
+            // The person's own settings: behind the avatar, apart from the organization's.
+            <button
+              type="button"
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                navigate("/account");
+              }}
+            >
+              <UserRound className="size-4" /> {t("konto.title")}
+            </button>
+          ) : me.manageUrl ? (
             <a className={item} href={`${me.manageUrl}/account`} target="_blank" rel="noreferrer">
               <CreditCard className="size-4" /> {t("nav.account")}
             </a>
@@ -696,14 +902,16 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
   const { phone } = useAppBar();
+  // The person's Konto is theirs in every organization: no space, no organization's credits.
+  const personal = useLocation().pathname.startsWith("/account");
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 px-3 coarse:h-14 sm:gap-3 sm:px-4 md:px-5">
-      <SpaceName me={me} />
+      {personal ? null : <SpaceName me={me} />}
       <div className="flex min-w-0 flex-1 items-center">
-        <Trail />
+        <Trail alone={personal} />
         {children}
       </div>
-      <CreditsPill me={me} />
+      {personal ? null : <CreditsPill me={me} />}
       {/* A phone's bar keeps the places: the person stands up here. */}
       {phone ? <UserMenu me={me} /> : null}
     </header>
@@ -756,16 +964,25 @@ export function AppFrame({
   // there the phone's bar steps aside, as a tab bar does on a screen pushed onto it.
   const clear = phone && !full ? "calc(4.75rem + env(safe-area-inset-bottom))" : "0px";
   const goose = useFeature("goose");
+  // The bar folds to its glyphs beside another sidebar: the editor's panels, the assistant's.
+  const assistantBeside = useAssistantInSidebar() && goose && !full;
+  const labels = useAppBarLabels(Boolean(full) || assistantBeside);
   // What changed elsewhere shows here without a reload (docs/plans/live-changes.md).
   useLiveFeed(me.tenant.id);
   return (
     <div className={cn("flex h-dvh overflow-hidden bg-sidebar", DIRECTION[position])}>
-      {phone ? full ? null : <PhoneBar me={me} /> : <AppRail me={me} />}
+      {phone ? (
+        full ? null : (
+          <PhoneBar me={me} />
+        )
+      ) : (
+        <AppRail me={me} labels={labels.shown} room={labels.room} />
+      )}
       {/* The page's card, and beside it Goose's sidebar as a pane of its own. */}
       <div className={cn("flex min-h-0 min-w-0 flex-1 md:gap-2", INSET[position])}>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
           <UpdateBanner />
-          <InstallBanner />
+          <InstallBanner me={me} />
           <CloudSyncBar me={me} />
           {full ? (
             <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

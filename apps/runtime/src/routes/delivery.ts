@@ -50,7 +50,7 @@ export function uploadMime(declared: string): string {
     : "application/octet-stream";
 }
 
-/** What a browser shows in place without running anything of the file's: photos, sound, film, PDFs. */
+/** What a browser shows in place without running anything of the file's: photos, sound, video, PDFs. */
 export function inlineSafe(mime: string): boolean {
   return (
     (/^(image|audio|video)\//.test(mime) && !mime.startsWith("image/svg")) ||

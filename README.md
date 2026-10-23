@@ -231,7 +231,7 @@ The wizard format and the runner are MIT. The rest of the code is FSL-1.1-MIT.
 
 | What | Licence |
 |---|---|
-| The wizard format: the twelve files of `packages/shared` that define a wizard and read it | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](packages/shared/LICENSE-MIT)) |
+| The wizard format: the sixteen files of `packages/shared` that define a wizard, read it and pack it as a `.wizard` file | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](packages/shared/LICENSE-MIT)) |
 | The runner, `packages/runner` | MIT ([LICENSE](packages/runner/LICENSE)) |
 | The plugin for the AI apps, `plugin/`, without the engenty figures in it | MIT ([LICENSE](plugin/LICENSE)) |
 | Everything else: the studio, the runtime, the `wizards` command, `@engenty/wizards` on npm | FSL-1.1-MIT ([LICENSE](LICENSE)) |

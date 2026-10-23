@@ -108,14 +108,13 @@ describe("what a step needs beyond a text model", () => {
           title: "Think",
           instructions: "{{memory}} {{lists.rows}}",
           tools: ["web_search", "pages", "http", "crm.find"],
-          mcp: ["notion"],
           connections: ["mail"],
           each: "steps.other.rows",
           output: { format: "json" },
         },
         { id: "draw", type: "generate", title: "Draw", asset: "image", prompt: "x" },
         { id: "write", type: "generate", title: "Write", asset: "document", prompt: "x" },
-        { id: "cut", type: "film", title: "Cut", brief: "x", skills: [], inputs: {} },
+        { id: "cut", type: "motion-graphics", title: "Cut", brief: "x", skills: [], inputs: {} },
         { id: "clip", type: "widget", title: "Clip", entry: "a.html", data: {}, video: true },
         {
           id: "done",
@@ -144,14 +143,13 @@ describe("what a step needs beyond a text model", () => {
       "tool:web_search",
       "tool:pages?",
       "plugin:crm",
-      "mcp",
       "connections",
       "each?",
     ]);
     expect(by("draw")).toEqual(["asset:image"]);
     // A document is HTML a text model writes: no need; its PDF is the browser's print.
     expect(by("write")).toEqual([]);
-    expect(by("cut")).toEqual(["film"]);
+    expect(by("cut")).toEqual(["motion-graphics"]);
     expect(by("clip")).toEqual(["widget:video"]);
     expect(by("done")).toEqual(["format:docx", "format:pdf?", "lists"]);
   });

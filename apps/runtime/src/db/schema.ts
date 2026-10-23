@@ -41,13 +41,6 @@ const updatedAt = () => integer("updated_at", { mode: "timestamp_ms" }).notNull(
 // One database per tenant holds these tables; `tenant_id` stays in every row so a tenant's
 // rows can be moved or merged. Users and tenants themselves live outside (Manage-App).
 
-export interface McpServerConfig {
-  id: string;
-  name: string;
-  url: string;
-  headers?: Record<string, string>;
-}
-
 export interface BrandConfig {
   /** The title end users see: a company, a brand, an undertaking. */
   name?: string;
@@ -89,10 +82,6 @@ export const project = sqliteTable(
     themes: text("themes", { mode: "json" }).$type<Theme[]>().notNull().default([]),
     /** The space's public page at `<organization>.wizards.page/<slug>`; null until it is set up. */
     page: text("page", { mode: "json" }).$type<ProjectPage>(),
-    mcpServers: text("mcp_servers", { mode: "json" })
-      .$type<McpServerConfig[]>()
-      .notNull()
-      .default([]),
     /**
      * `local`: the project of a local install, synced here when that install publishes. It keeps
      * the ids it has there and is changed only by the next sync. Null: made on this runtime.

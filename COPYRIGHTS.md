@@ -8,10 +8,11 @@ company, run it, change it — just don't offer it to others as a competing prod
 Each release becomes MIT two years after it is published. Every package of the workspace names
 its licence in its `package.json`.
 
-The wizard format is open to everyone now: the twelve files that define a wizard and read it
-(`packages/shared/src/definition.ts`, `fit.ts`, `numbers.ts`, `run.ts`, `runner-texts.ts`,
-`shape.ts`, `store.ts`, `surface.ts`, `texts.ts`, `translation.ts` and
-`engenty/data-tables/columns.ts`, `columns-format.ts`) are also under the MIT licence, at the
+The wizard format is open to everyone now: the sixteen files that define a wizard, read it and
+pack it as a `.wizard` file (`packages/shared/src/definition.ts`, `fit.ts`, `numbers.ts`,
+`run.ts`, `runner-texts.ts`, `shape.ts`, `sharing.ts`, `store.ts`, `surface.ts`, `texts.ts`,
+`theme.ts`, `translation.ts`, `wizard-package.ts` and `engenty/data-tables/columns.ts`,
+`columns-format.ts`, `columns-value.ts`) are also under the MIT licence, at the
 choice of whoever uses them (`FSL-1.1-MIT OR MIT`, [packages/shared/LICENSE-MIT](packages/shared/LICENSE-MIT)).
 Each says so in its first line. The runner package (`packages/runner`, MIT) bundles them under MIT.
 `@engenty/wizards` on npm is `FSL-1.1-MIT`; its `/openui` bundles the runner, whose MIT licence
@@ -109,7 +110,6 @@ Declared by two or more of the workspaces below:
 | [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
 | [@mastra/core](https://mastra.ai) | 1.77.0 | Apache-2.0 |
 | [@mastra/docker](https://mastra.ai) | 0.8.0 | Apache-2.0 |
-| [@mastra/mcp](https://mastra.ai) | 2.4.0 | Apache-2.0 |
 | [@mastra/quickjs](https://mastra.ai) | 0.1.3 | Apache-2.0 |
 | [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 0.1.80 | MIT |
@@ -155,6 +155,7 @@ Declared by two or more of the workspaces below:
 | [@xterm/addon-web-links](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.12.0 | MIT |
 | [@xterm/xterm](https://github.com/xtermjs/xterm.js#readme) | 6.0.0 | MIT |
 | [@xyflow/react](https://reactflow.dev) | 12.12.0 | MIT |
+| [modern-screenshot](https://github.com/qq15725/modern-screenshot) | 4.7.0 | MIT |
 | [react-router](https://github.com/remix-run/react-router#readme) | 7.18.4 | MIT |
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT |
 

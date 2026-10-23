@@ -1,6 +1,6 @@
 <!--
 The content rules. Product owns this file.
-policy: added to the system prompts of AI steps, the image and video prompt writer, film, Goose,
+policy: added to the system prompts of AI steps, the image and video prompt writer, motion graphics, Goose,
 the architect and the voice conversation.
 check: the yes/no question safety.ts asks the decision model before every image, video and
 speech generation; yes stops it.

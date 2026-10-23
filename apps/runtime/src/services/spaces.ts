@@ -104,7 +104,7 @@ export const checkSchema = z.object({
  * finish, so the version is kept but not published. The words are the studio's to choose.
  */
 export interface ServerProblem {
-  code: "invalid" | "model" | "sandbox" | "mcp" | "connector";
+  code: "invalid" | "model" | "sandbox" | "connector";
   blocking: boolean;
   steps: { id: string; title: string }[];
   /** The validator's sentence, the class and why it is missing, or the name of what is missing. */
@@ -133,12 +133,11 @@ const stepsWith = (
 /**
  * What of a wizard does not work on this runtime: what its validator says here (a connector
  * the project lacks, a plugin's tool), model classes nothing is bound to, the sandbox where
- * there is none, MCP servers the project does not know.
+ * there is none.
  */
 export async function serverProblems(
   def: WizardDefinition,
   issues: { stepId?: string; message: string }[],
-  mcpServers: string[],
 ): Promise<ServerProblem[]> {
   const problems: ServerProblem[] = issues.map((issue) => ({
     code: /connector/i.test(issue.message) ? "connector" : "invalid",
@@ -160,24 +159,6 @@ export async function serverProblems(
       problems.push({ code: "sandbox", blocking: false, steps, detail: "" });
     }
   }
-  const unknown = new Set<string>();
-  const steps = stepsWith(def, (s) => {
-    const lacking =
-      s.type === "agent" ? (s.mcp ?? []).filter((id) => !mcpServers.includes(id)) : [];
-    for (const id of lacking) {
-      unknown.add(id);
-    }
-    return lacking.length > 0;
-  });
-  if (steps.length) {
-    const unavoidable = unavoidableSteps(def);
-    problems.push({
-      code: "mcp",
-      blocking: steps.some((s) => unavoidable.has(s.id)),
-      steps,
-      detail: [...unknown].join(", "),
-    });
-  }
   return problems;
 }
 
@@ -190,7 +171,7 @@ export async function checkOnServer(input: z.infer<typeof checkSchema>): Promise
     .map((c) => ({
       message: `Connection "${c.id}" uses connector "${c.connector}", which this project has not imported.`,
     }));
-  return serverProblems(draft, [...issues, ...connectors], []);
+  return serverProblems(draft, [...issues, ...connectors]);
 }
 
 async function syncedProject(spaceId: string): Promise<ProjectRow | null> {
@@ -302,7 +283,6 @@ async function syncSpace(spaceId: string, space: SpaceInput): Promise<ProjectRow
       id: spaceId,
       tenantId: currentTenant(),
       origin: "local",
-      mcpServers: [],
       ...values,
     });
   }
@@ -379,11 +359,7 @@ export async function syncWizard(
       if (!row) {
         throw notFound();
       }
-      const problems = await serverProblems(
-        draft,
-        await draftIssues(row),
-        project.mcpServers.map((s) => s.id),
-      );
+      const problems = await serverProblems(draft, await draftIssues(row));
       const runnable = !problems.some((p) => p.blocking);
       let publishedVersion = row.publishedVersion;
       if (runnable) {

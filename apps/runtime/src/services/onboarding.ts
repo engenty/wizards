@@ -1,3 +1,4 @@
+import { ADDRESS_NAMES, addressKind, addressUrl } from "@engenty/wizards-shared/addresses";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import {
   type BasicFact,
@@ -5,6 +6,7 @@ import {
   PROJECT_LIMITS,
   type ProjectFact,
 } from "@engenty/wizards-shared/projects";
+import { matchSectors } from "@engenty/wizards-shared/sectors";
 import { nanoid } from "nanoid";
 import { type CompanyPage, readCompany } from "../agents/company.js";
 import { type CompanyContact, readContact, readWebsite } from "../agents/website.js";
@@ -16,30 +18,78 @@ import { addProjectFileFromUrl, projectFiles } from "./project-files.js";
 import { listProjects, ownedProject, updateProject } from "./projects.js";
 
 /**
- * The first visit of an organization's studio in the cloud: a short wizard asks who the organization is, reads
- * its website into the space, takes first documents and explains the space. It shows once, to
- * the people who may change the organization, and never to an organization that already has wizards; the mark
- * that it is done sits in the control database under the tenant.
+ * The first visit of a studio in the cloud. What the organization is (its kind, name, website,
+ * first documents) is asked once per organization, of the first admin who opens it while it has no
+ * wizards; what concerns the person (the greeting, what a space is) once per person; everyone
+ * else gets one page that says where they are. The marks sit in the control database: the
+ * organization's under the tenant, the person's under the user, and a visit under both.
  */
-const key = (tenantId: string) => `onboarding:${tenantId}`;
+export type OnboardingMode =
+  /** A person new to the studio, in an organization nobody has set up: everything. */
+  | "full"
+  /** Someone the studio knows, in an organization nobody has set up: its questions only. */
+  | "organization"
+  /** An organization set up already, or a member: one page that says where they are. */
+  | "welcome";
 
-export async function needsOnboarding(user: {
-  id: string;
-  tenantId: string;
-  role: Role;
-}): Promise<boolean> {
-  if (!managed || !isAdminRole(user.role)) {
-    return false;
-  }
-  if (await readSetting(key(user.tenantId))) {
-    return false;
+const organizationKey = (tenantId: string) => `onboarding:${tenantId}`;
+const personKey = (userId: string) => `onboarding:person:${userId}`;
+const visitKey = (tenantId: string, userId: string) => `onboarding:visit:${tenantId}:${userId}`;
+
+/** The organization was set up: its first visit was done, or it has wizards. */
+async function setUp(user: { id: string; tenantId: string }): Promise<boolean> {
+  if (await readSetting(organizationKey(user.tenantId))) {
+    return true;
   }
   const projects = await listProjects(user.id);
-  return projects.every((p) => p.wizardCount === 0);
+  return projects.some((p) => p.wizardCount > 0);
 }
 
-export async function finishOnboarding(tenantId: string): Promise<void> {
-  await writeSetting(key(tenantId), { doneAt: new Date().toISOString() });
+/**
+ * The person went through the studio's first visit before: their own mark, or, from before
+ * the marks were per person, an organization of theirs they manage that has its mark.
+ */
+async function known(userId: string, organizations: { id: string; role: Role }[]) {
+  if (await readSetting(personKey(userId))) {
+    return true;
+  }
+  for (const o of organizations) {
+    if (isAdminRole(o.role) && (await readSetting(organizationKey(o.id)))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function onboardingFor(
+  user: { id: string; tenantId: string; role: Role },
+  organizations: { id: string; role: Role }[] = [],
+): Promise<OnboardingMode | null> {
+  if (!managed || (await readSetting(visitKey(user.tenantId, user.id)))) {
+    return null;
+  }
+  if (isAdminRole(user.role) && !(await setUp(user))) {
+    return (await known(user.id, organizations)) ? "organization" : "full";
+  }
+  return "welcome";
+}
+
+/** The first visit is done: the organization's questions where they were asked, the person, the visit. */
+export async function finishOnboarding(
+  user: { id: string; tenantId: string },
+  mode: OnboardingMode,
+): Promise<void> {
+  const doneAt = new Date().toISOString();
+  if (mode !== "welcome") {
+    await writeSetting(organizationKey(user.tenantId), { doneAt, by: user.id });
+  }
+  await writeSetting(personKey(user.id), { doneAt });
+  await writeSetting(visitKey(user.tenantId, user.id), { doneAt });
+}
+
+/** A starting name the Manage-App gives a new team: its first admin names it. */
+export function startingName(name: string | null | undefined): boolean {
+  return !name || /^(neues team|new team)$/i.test(name.trim()) || /^team \S+$/i.test(name.trim());
 }
 
 /** A hex colour as `#rrggbb`, or null when the value is no plain colour. */
@@ -212,7 +262,7 @@ export function brandColors(brand: {
 
 type Found = CompanyContact & { website?: string };
 
-/** The facts a company's site states, by the keys the Info & brand page offers them under. */
+/** The facts a company's site states, by the keys the Info page offers them under. */
 const FACTS: [BasicFact, keyof Found, ServerKey][] = [
   ["adresse", "street", "factAddress"],
   ["plz", "postcode", "factPostcode"],
@@ -330,13 +380,15 @@ export interface WebsiteOutcome {
   logo: boolean;
   facts: number;
   assets: number;
+  /** The catalog sectors the site points to, the best first (sectors.ts). */
+  sectors: string[];
 }
 
 /** At most this many pictures of the home page become brand material. */
 const ASSETS = 4;
 
 /**
- * Reads a website into the space's Info & brand: the company's name, what it does, up to three
+ * Reads a website into the space's Info and Brand: the company's name, what it does, up to three
  * of its colours, the facts its imprint and contact page state (its full name with its legal
  * form among them, where the site goes by a shorter one) and, where the space has none yet, its
  * fonts, its logo and the big pictures of its home page as brand material. What the assistant
@@ -429,6 +481,9 @@ export async function applyWebsite(
     })(),
   ]);
   return {
+    sectors: matchSectors(
+      [name, about, company, reading.title, reading.description].filter(Boolean).join(" "),
+    ),
     name,
     about: Boolean(about),
     colors: colors.length,
@@ -437,6 +492,42 @@ export async function applyWebsite(
     facts: facts.added,
     assets,
   };
+}
+
+/**
+ * Reads the addresses the person ticked or added into the space: the first website as
+ * `applyWebsite` does, every other address (profiles, a blog, a second site) as a fact under its
+ * name. Null where none of them is a website.
+ */
+export async function applyAddresses(
+  userId: string,
+  projectId: string,
+  raw: string[],
+  lang: Lang,
+): Promise<WebsiteOutcome | null> {
+  const urls = [...new Set(raw.flatMap((r) => addressUrl(r) ?? []))].slice(0, 10);
+  const site = urls.find((u) => addressKind(u) === "website");
+  const outcome = site ? await applyWebsite(userId, projectId, site, lang) : null;
+  const rest = urls.filter((u) => u !== site);
+  if (rest.length) {
+    const project = await ownedProject(userId, projectId);
+    const named = rest.map((url) => {
+      const kind = addressKind(url);
+      const count = rest.filter((u) => addressKind(u) === kind).indexOf(url);
+      return {
+        label: count ? `${ADDRESS_NAMES[kind]} ${count + 1}` : ADDRESS_NAMES[kind],
+        value: url,
+      };
+    });
+    const facts = withFacts(project.facts, {}, lang, named);
+    if (facts.added) {
+      await updateProject(userId, projectId, { facts: facts.facts });
+    }
+    if (outcome) {
+      outcome.facts += facts.added;
+    }
+  }
+  return outcome;
 }
 
 /** A picture of the site kept in the space; one that cannot be fetched is no loss. */

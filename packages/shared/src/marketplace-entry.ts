@@ -18,7 +18,7 @@ export interface OutlineStep {
   title: string;
   /** What a generate step makes. */
   asset?: string;
-  /** A widget step that cuts a film. */
+  /** A widget step that renders a video. */
   video?: boolean;
   /** Where the flow goes on instead of the next step, and when. `to` is a step's id or `end`. */
   branches?: { to: string; when: string }[];
@@ -116,7 +116,7 @@ function resultKind(definition: WizardDefinition, from: string): ItemFormat {
   if (step?.type === "widget") {
     return step.video ? "video" : "dashboard";
   }
-  if (step?.type === "film") {
+  if (step?.type === "motion-graphics") {
     return "video";
   }
   return step?.type === "agent" && step.output.format === "json" ? "table" : "text";

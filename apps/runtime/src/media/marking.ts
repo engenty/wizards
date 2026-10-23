@@ -4,7 +4,7 @@ import { crc32 } from "node:zlib";
  * Marking media a model made or changed, so that software can tell (EU AI Act, Art. 50(2)):
  * the IPTC "Digital Source Type" in the file's XMP metadata — what platforms read to put their
  * own "AI" label next to a picture. Nothing is drawn into the picture; the label people see is
- * the interface's (and, in a film, a line of the film itself).
+ * the interface's (and, in a video, a line of the video itself).
  *
  * A file that already carries a marking is left as it is, byte for byte: image models sign their
  * output (C2PA Content Credentials), and a signed file that is changed no longer verifies.

@@ -99,7 +99,7 @@ server.registerSpaceContext({
 
 ## The space’s brand
 
-`server.spaces.brand(space)` reads what Info & brand holds of the space’s look, for a block, a
+`server.spaces.brand(space)` reads what Info and Brand hold of the space’s look, for a block, a
 page or a model call in it:
 
 ```ts

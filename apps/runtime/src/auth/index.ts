@@ -15,6 +15,7 @@ import {
   verifyToken,
 } from "../manage.js";
 import { refreshPro } from "../plugins/pro.js";
+import { requestLang, say } from "../routes/lang.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { LOCAL_TENANT } from "../tenants/tenant.js";
 import { finishLink } from "./account.js";
@@ -102,6 +103,9 @@ const SESSION_DAYS = 30;
 const SCOPE =
   "openid profile email offline_access wizards:read wizards:write wizards:publish runs:test";
 
+/** Marks the state of a sign-in started again (nanoid never makes a dot). */
+const AGAIN = "again.";
+
 interface LoginState {
   verifier: string;
   nonce: string;
@@ -136,8 +140,19 @@ const home = `${basePath}/studio/`;
 
 const callbackUrl = () => `${env.appUrl}/api/auth/callback`;
 
+/** A sign-in returns into the studio or to a public wizard; any other address goes to the studio. */
+const RETURN_INTO = [`${basePath}/studio`, `${basePath}/w/`, `${basePath}/s/`];
+
 function safeReturn(path: string | undefined): string {
-  return path?.startsWith("/") && !path.startsWith("//") ? path : home;
+  if (!path || path.startsWith("//") || path.includes("\\")) {
+    return home;
+  }
+  const into = RETURN_INTO.some((start) =>
+    start.endsWith("/")
+      ? path.startsWith(start)
+      : path === start || path.startsWith(`${start}/`) || path.startsWith(`${start}?`),
+  );
+  return into ? path : home;
 }
 
 function setSessionCookie(c: Context, id: string) {
@@ -216,6 +231,16 @@ async function sessionPrincipal(id: string): Promise<Principal | null> {
   };
 }
 
+/** A new name for the person in every session of theirs here: the menu shows it at the next read. */
+export async function renameSessions(userId: string, name: string): Promise<void> {
+  await controlDb.update(control.session).set({ name }).where(eq(control.session.userId, userId));
+  for (const [id, hit] of sessions) {
+    if (hit.row.userId === userId) {
+      sessions.delete(id);
+    }
+  }
+}
+
 /** Sessions that ran out go once an hour, with the retention job. */
 export async function purgeSessions() {
   await controlDb.delete(control.session).where(lt(control.session.expiresAt, new Date()));
@@ -232,8 +257,9 @@ export async function principalOf(c: Context): Promise<Principal | null> {
   return id ? sessionPrincipal(id) : null;
 }
 
-const closePage = (message: string) =>
-  `<!doctype html><meta charset="utf-8"><title>engenty wizards</title>
+/** One line on a page of its own, in the language the browser asks for. */
+const closePage = (c: Context, message: string) =>
+  `<!doctype html><html lang="${requestLang(c)}"><meta charset="utf-8"><title>engenty wizards</title>
 <body style="font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#333">
 <p>${message}</p>`;
 
@@ -256,7 +282,7 @@ export const authRoutes = new Hono()
     if (expires) {
       usedTickets.set(ticket, expires);
     } else if (managed || !accessKey || !sameValue(given, accessKey)) {
-      return c.text("This link is no longer valid. Run wizards open to get a new one.", 403);
+      return c.html(closePage(c, say(c, "localLinkUsed")), 403);
     } else {
       accessKey = null;
     }
@@ -315,7 +341,8 @@ export const authRoutes = new Hono()
     const ticket = unseal<{ desktop: string; exp: number }>(c.req.query("desktop") ?? "");
     const state: LoginState = {
       verifier,
-      nonce: nanoid(16),
+      // A second try after a sign-in whose state stayed in another browser: marked, so it runs once.
+      nonce: c.req.query("again") === "1" ? `${AGAIN}${nanoid(16)}` : nanoid(16),
       returnTo: safeReturn(c.req.query("return")),
       exp: Date.now() + 15 * 60_000,
       ...(ticket && ticket.exp > Date.now() ? { desktop: ticket.desktop } : {}),
@@ -338,6 +365,12 @@ export const authRoutes = new Hono()
       code_challenge_method: "S256",
       state: state.nonce,
     }).toString();
+    // The organization the sign-in is for (the studio's switcher): a member gets its token
+    // without the picker. Its id or address, nothing else.
+    const organization = c.req.query("organization") ?? "";
+    if (/^[A-Za-z0-9_-]{1,100}$/.test(organization)) {
+      url.searchParams.set("organization", organization);
+    }
     // What the person wants built (the studio's start page): the account's sign-in page shows it.
     const wish = (c.req.query("wish") ?? "").trim().slice(0, WISH_MAX);
     if (wish) {
@@ -351,7 +384,7 @@ export const authRoutes = new Hono()
     if (!managed) {
       // The linked account of a runtime that runs alone: the system browser lands here.
       if (!code) {
-        return c.html(closePage("Sign-in cancelled. You can close this window."), 400);
+        return c.html(closePage(c, say(c, "accountSignInCancelled")), 400);
       }
       try {
         await finishLink(code, rawState);
@@ -359,16 +392,26 @@ export const authRoutes = new Hono()
         void firstSync();
         // The Pro modules the account's plan includes.
         void refreshPro();
-        return c.html(closePage("Signed in. You can close this window."));
+        return c.html(closePage(c, say(c, "accountSignedIn")));
       } catch (err) {
         console.error("[account]", err);
-        return c.html(closePage("The sign-in didn’t work. Try again."), 400);
+        return c.html(closePage(c, say(c, "accountSignInFailed")), 400);
       }
     }
     const state = unseal<LoginState>(getCookie(c, STATE_COOKIE) ?? "");
     deleteCookie(c, STATE_COOKIE, { path: `${basePath}/api/auth` });
-    if (!code || !state || state.exp < Date.now() || state.nonce !== rawState) {
+    if (!code) {
       return c.redirect(`${home}?signin=failed`);
+    }
+    if (!state || state.exp < Date.now() || state.nonce !== rawState) {
+      // The sign-in began in another browser (the e-mail link opened on the phone): its state is
+      // there. The account is signed in here now, so a sign-in started here goes through without
+      // a page. Once: a second miss is a failure.
+      if (rawState.startsWith(AGAIN)) {
+        return c.redirect(`${home}?signin=failed`);
+      }
+      const again = new URLSearchParams({ again: "1", return: home });
+      return c.redirect(`${basePath}/api/auth/login?${again}`);
     }
     try {
       const tokens = await tokenRequest(
@@ -403,7 +446,7 @@ export const authRoutes = new Hono()
         } satisfies Handoff);
         const link = `engenty-wizards://signin?code=${encodeURIComponent(code)}`;
         return c.html(
-          `${closePage("Signed in. Go back to engenty wizards now.")}
+          `${closePage(c, say(c, "desktopSignedIn"))}
 <script>location.href = ${JSON.stringify(link)};</script>`,
         );
       }

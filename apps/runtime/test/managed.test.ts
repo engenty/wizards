@@ -17,6 +17,8 @@ const reservations: { tenantId: string; runId: string; credits: number }[] = [];
 const numberRequests: { tenantId: string; body: any }[] = [];
 /** What the studio's first visit sent about an organization. */
 const profiles: { tenantId: string; body: any }[] = [];
+/** What the studio asked the Manage-App to change about a tenant's people. */
+const memberCalls: { method: string; path: string; body: any }[] = [];
 const channelUsage: { tenantId: string; body: any }[] = [];
 // The Manage-App fails on tenant B's plan while this is set.
 let tenantBDown = false;
@@ -78,6 +80,49 @@ const manage: Server = createServer(async (req, res) => {
   if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) {
     return json({ error: "unauthorized", code: "unauthorized" }, 401);
   }
+  if (/^\/v1\/tenants\/[^/]+\/(invitations|members)(\/[^/]+)?$/.test(url.pathname) && req.method !== "GET") {
+    const body = raw ? JSON.parse(raw) : {};
+    memberCalls.push({ method: req.method ?? "", path: url.pathname, body });
+    if (body.actorId === "user-m") {
+      return json({ error: "Not allowed.", code: "forbidden" }, 403);
+    }
+    return json(
+      url.pathname.endsWith("/invitations")
+        ? { invitation: { id: "inv-2", email: body.email, role: body.role, expiresAt: "2026-10-30T00:00:00.000Z" } }
+        : { ok: true },
+    );
+  }
+  if (/^\/v1\/users\/[^/]+(\/connections|\/computers)?(\/[^/]+)?$/.test(url.pathname) && req.method !== "GET") {
+    memberCalls.push({ method: req.method ?? "", path: url.pathname, body: raw ? JSON.parse(raw) : null });
+    return json(req.method === "PATCH" ? { name: JSON.parse(raw).name } : { ok: true });
+  }
+  if (/^\/v1\/users\/[^/]+\/connections$/.test(url.pathname)) {
+    memberCalls.push({ method: "GET", path: url.pathname, body: null });
+    return json({ apps: [{ id: "consent-1", name: "Claude Code" }], computers: [] });
+  }
+  if (/^\/v1\/tenants\/[^/]+\/(billing|invoices)(\/|$)/.test(url.pathname)) {
+    memberCalls.push({ method: req.method ?? "", path: url.pathname + url.search, body: null });
+    if (url.pathname.endsWith("/pdf")) {
+      return json({ url: "https://stripe.test/invoice.pdf" });
+    }
+    if (url.pathname.endsWith("/activity")) {
+      return json({ entries: [{ id: 7, kind: "start", credits: 500 }] });
+    }
+    return json({ balanceCredits: 500, canBuy: true, invoices: [] });
+  }
+  if (/^\/v1\/tenants\/[^/]+\/(address|domains|keys)(\/|$)/.test(url.pathname)) {
+    memberCalls.push({ method: req.method ?? "", path: url.pathname + url.search, body: raw ? JSON.parse(raw) : null });
+    if (url.pathname.endsWith("/keys") && req.method === "POST") {
+      return json({ id: "key-1", name: "Export", key: "wz_secret" });
+    }
+    if (url.pathname.endsWith("/keys")) {
+      return json({ keys: [{ id: "key-1", name: "Export", start: "wz_s", createdAt: "2026-10-01T00:00:00.000Z", lastRequest: null }] });
+    }
+    if (url.pathname.endsWith("/address/check")) {
+      return json({ ok: false, code: "taken" });
+    }
+    return json({ ok: true });
+  }
   const members = url.pathname.match(/^\/v1\/tenants\/([^/]+)\/members$/)?.[1];
   if (members) {
     return json({
@@ -118,6 +163,22 @@ const manage: Server = createServer(async (req, res) => {
       request: null,
       shared: [{ number: "+436600000000", country: "AT", kinds: ["whatsapp"] }],
       allowed: id === "tenant-a",
+    });
+  }
+  // User A is in two organizations: their own and tenant A.
+  const person = url.pathname.match(/^\/v1\/users\/([^/]+)$/)?.[1];
+  if (person) {
+    return json({
+      id: person,
+      features: {},
+      admin: false,
+      tenants:
+        person === "user-a"
+          ? [
+              { id: "tenant-own", name: "User A", slug: "user-a", role: "owner", personal: true, plan: { id: "free", name: "Free" } },
+              { id: "tenant-a", name: "tenant-a", slug: "tenant-a", role: "owner", personal: false, plan: { id: "team", name: "Team" } },
+            ]
+          : [],
     });
   }
   const tenant = url.pathname.match(/^\/v1\/tenants\/([^/]+)$/)?.[1];
@@ -248,7 +309,16 @@ const cookieOf = (res: Response, name: string) =>
 
 /** Walks the sign-in a browser would: /login → (Manage-App) → /callback → session cookie. */
 async function signIn(code: string): Promise<string> {
-  const login = await app.fetch(new Request(`${RUNTIME}/api/auth/login?return=/settings`));
+  const callback = await walkSignIn(code, "/studio/settings");
+  expect(callback.headers.get("location")).toBe("/studio/settings");
+  return cookieOf(callback, "wz_session");
+}
+
+/** The callback's answer to a sign-in that asked to come back to `back`. */
+async function walkSignIn(code: string, back: string): Promise<Response> {
+  const login = await app.fetch(
+    new Request(`${RUNTIME}/api/auth/login?return=${encodeURIComponent(back)}`),
+  );
   expect(login.status).toBe(302);
   const authorize = new URL(login.headers.get("location") ?? "");
   expect(authorize.origin).toBe(issuer);
@@ -261,8 +331,7 @@ async function signIn(code: string): Promise<string> {
     ),
   );
   expect(callback.status).toBe(302);
-  expect(callback.headers.get("location")).toBe("/settings");
-  return cookieOf(callback, "wz_session");
+  return callback;
 }
 
 const get = (path: string, cookie: string) =>
@@ -290,18 +359,46 @@ describe("a runtime of a Manage-App", () => {
   let b = "";
   let wizardOfA = "";
 
+  it("asks the organization once, the person once, and greets everyone else", async () => {
+    const { writeSetting, deleteSetting } = await import("../src/settings");
+    const mode = async (cookie: string) =>
+      ((await (await get("/api/studio/me", cookie)).json()) as { onboarding: string | null }).onboarding;
+    // Tenant B's owner is new to the studio, and nobody has set tenant B up.
+    const b = await signIn("code-b");
+    expect(await mode(b)).toBe("full");
+    // Known from another organization: only tenant B's questions.
+    await writeSetting("onboarding:person:user-b", { doneAt: "2026-10-01" });
+    expect(await mode(b)).toBe("organization");
+    expect((await post("/api/studio/onboarding/done", b, {})).status).toBe(200);
+    expect(await mode(b)).toBeNull();
+    // A member of tenant A gets the one page that says where they are, once.
+    const m = await signIn("code-m");
+    expect(await mode(m)).toBe("welcome");
+    await post("/api/studio/onboarding/done", m, {});
+    expect(await mode(m)).toBeNull();
+    // The member's visit set no mark for the organization: its owner is still asked.
+    const { readSetting } = await import("../src/settings");
+    expect(await readSetting("onboarding:tenant-a")).toBeNull();
+    await deleteSetting("onboarding:person:user-b");
+  });
+
   it("signs people in there and takes user, tenant and role from the token", async () => {
     a = await signIn("code-a");
     b = await signIn("code-b");
     const me = (await (await get("/api/studio/me", a)).json()) as any;
     expect(me).toMatchObject({
       user: { id: "user-a", name: "User A" },
-      tenant: { id: "tenant-a", role: "owner", plan: { id: "team", name: "Team" } },
+      tenant: { id: "tenant-a", role: "owner", name: "tenant-a", plan: { id: "team", name: "Team" } },
       features: { ownKeys: false },
       limits: { projects: null, build: true, create: true, members: 5 },
       mode: "managed",
       credits: 500,
       manageUrl: issuer,
+      organizations: [
+        { id: "tenant-own", slug: "user-a", personal: true },
+        { id: "tenant-a", slug: "tenant-a", role: "owner", plan: { id: "team", name: "Team" } },
+      ],
+      mayCreateOrganization: false,
     });
     expect((await get("/api/studio/me", "")).status).toBe(401);
   });
@@ -358,6 +455,87 @@ describe("a runtime of a Manage-App", () => {
       canManage: false,
     });
     expect(((await (await get("/api/studio/organization", a)).json()) as any).canManage).toBe(true);
+
+    // People are invited, given roles and removed for the person signed in: the Manage-App
+    // decides with their id, and its refusal comes back with its code.
+    const send = (method: string, path: string, cookie: string, body?: unknown) =>
+      app.fetch(
+        new Request(`${RUNTIME}/api/studio/organization${path}`, {
+          method,
+          headers: { cookie, "content-type": "application/json", "accept-language": "en" },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        }),
+      );
+    const invited = await send("POST", "/invitations", a, { email: "new@test.local", role: "admin" });
+    expect(await invited.json()).toMatchObject({ invitation: { email: "new@test.local", role: "admin" } });
+    expect((await send("PATCH", "/members/user-m", a, { role: "admin" })).status).toBe(200);
+    expect((await send("DELETE", "/invitations/inv-1", a)).status).toBe(200);
+    expect((await send("DELETE", "/members/user-m", a)).status).toBe(200);
+    const refused = await send("POST", "/invitations", m, { email: "y@test.local" });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: "forbidden" });
+    expect(memberCalls).toEqual([
+      { method: "POST", path: "/v1/tenants/tenant-a/invitations", body: { actorId: "user-a", email: "new@test.local", role: "admin", lang: "en" } },
+      { method: "PATCH", path: "/v1/tenants/tenant-a/members/user-m", body: { actorId: "user-a", role: "admin" } },
+      { method: "DELETE", path: "/v1/tenants/tenant-a/invitations/inv-1", body: { actorId: "user-a" } },
+      { method: "DELETE", path: "/v1/tenants/tenant-a/members/user-m", body: { actorId: "user-a" } },
+      { method: "POST", path: "/v1/tenants/tenant-a/invitations", body: { actorId: "user-m", email: "y@test.local", role: "member", lang: "en" } },
+    ]);
+
+    // The address, own domains and API keys go the same way, for the person signed in.
+    memberCalls.length = 0;
+    expect(await (await send("GET", "/keys", m)).json()).toMatchObject({ keys: [{ id: "key-1" }] });
+    expect(await (await send("POST", "/keys", m, { name: "Export" })).json()).toEqual({ id: "key-1", name: "Export", key: "wz_secret" });
+    expect((await send("DELETE", "/keys/key-1", m)).status).toBe(200);
+    expect(await (await send("GET", "/address/check?slug=acme", a)).json()).toEqual({ ok: false, code: "taken" });
+    expect((await send("PUT", "/address", a, { slug: "acme" })).status).toBe(200);
+    expect((await send("POST", "/domains", a, { domain: "acme.de" })).status).toBe(200);
+    expect(memberCalls).toEqual([
+      { method: "GET", path: "/v1/tenants/tenant-a/keys?actorId=user-m", body: null },
+      { method: "POST", path: "/v1/tenants/tenant-a/keys", body: { actorId: "user-m", name: "Export" } },
+      { method: "DELETE", path: "/v1/tenants/tenant-a/keys/key-1", body: { actorId: "user-m" } },
+      { method: "GET", path: "/v1/tenants/tenant-a/address/check?slug=acme", body: null },
+      { method: "PUT", path: "/v1/tenants/tenant-a/address", body: { actorId: "user-a", slug: "acme" } },
+      { method: "POST", path: "/v1/tenants/tenant-a/domains", body: { actorId: "user-a", domain: "acme.de" } },
+    ]);
+
+    // Guthaben, Verbrauch and Rechnungen read the billing view; an invoice's PDF lies at Stripe.
+    memberCalls.length = 0;
+    expect(await (await send("GET", "/billing", m)).json()).toMatchObject({ balanceCredits: 500 });
+    expect(await (await send("GET", "/billing/activity?limit=20&before=9", m)).json()).toEqual({
+      entries: [{ id: 7, kind: "start", credits: 500 }],
+    });
+    const pdf = await send("GET", "/invoices/in_1/pdf", a);
+    expect(pdf.status).toBe(302);
+    expect(pdf.headers.get("location")).toBe("https://stripe.test/invoice.pdf");
+    // Konto: the name and the connections are the person's, in every organization.
+    const renamed = await app.fetch(
+      new Request(`${RUNTIME}/api/studio/person/name`, {
+        method: "PUT",
+        headers: { cookie: m, "content-type": "application/json" },
+        body: JSON.stringify({ name: "Mona Member" }),
+      }),
+    );
+    expect(await renamed.json()).toEqual({ name: "Mona Member" });
+    expect(((await (await get("/api/studio/me", m)).json()) as any).user.name).toBe("Mona Member");
+    expect(await (await get("/api/studio/person/connections", m)).json()).toMatchObject({
+      apps: [{ id: "consent-1" }],
+    });
+    const off = await app.fetch(
+      new Request(`${RUNTIME}/api/studio/person/connections/consent-1`, { method: "DELETE", headers: { cookie: m } }),
+    );
+    expect(off.status).toBe(200);
+    expect(memberCalls.slice(-3)).toEqual([
+      { method: "PATCH", path: "/v1/users/user-m", body: { name: "Mona Member" } },
+      { method: "GET", path: "/v1/users/user-m/connections", body: null },
+      { method: "DELETE", path: "/v1/users/user-m/connections/consent-1", body: null },
+    ]);
+    memberCalls.splice(-3);
+    expect(memberCalls.map((call) => call.path)).toEqual([
+      "/v1/tenants/tenant-a/billing?actorId=user-m",
+      "/v1/tenants/tenant-a/billing/activity?actorId=user-m&before=9&limit=20",
+      "/v1/tenants/tenant-a/invoices/in_1/pdf?actorId=user-a",
+    ]);
   });
 
   it("refuses own API keys where the plan has none, and lists its plugins to the Manage-App", async () => {
@@ -625,17 +803,95 @@ describe("a runtime of a Manage-App", () => {
     expect(cookieOf(await handoff(windowCookie), "wz_session")).toBe("");
   });
 
+  it("returns from a sign-in into the studio or a public wizard, never elsewhere", async () => {
+    const back = async (path: string) =>
+      (await walkSignIn("code-a", path)).headers.get("location");
+    expect(await back("/studio/new?starter=quiz")).toBe("/studio/new?starter=quiz");
+    expect(await back("/studio")).toBe("/studio");
+    expect(await back("/w/abc")).toBe("/w/abc");
+    expect(await back("/s/abc")).toBe("/s/abc");
+    for (const outside of ["/", "/new", "/studio-x", "//evil.example", "/\\evil.example"]) {
+      expect(await back(outside)).toBe("/studio/");
+    }
+  });
+
+  it("names the organization a switch asks for, and nothing that is not an address", async () => {
+    const hint = async (organization: string) =>
+      new URL(
+        (
+          await app.fetch(
+            new Request(`${RUNTIME}/api/auth/login?return=/studio/&organization=${encodeURIComponent(organization)}`),
+          )
+        ).headers.get("location") ?? "",
+      ).searchParams.get("organization");
+    expect(await hint("tenant-a")).toBe("tenant-a");
+    expect(await hint("a b")).toBeNull();
+    expect(await hint("x".repeat(101))).toBeNull();
+  });
+
+  it("starts a sign-in again, once, when its state stayed in another browser", async () => {
+    // The e-mail link opened on the phone: the code comes back without this browser's state.
+    const elsewhere = await app.fetch(
+      new Request(`${RUNTIME}/api/auth/callback?code=code-a&state=from-the-laptop`),
+    );
+    expect(elsewhere.status).toBe(302);
+    const again = new URL(elsewhere.headers.get("location") ?? "", RUNTIME);
+    expect(again.pathname).toBe("/api/auth/login");
+    expect(again.searchParams.get("again")).toBe("1");
+    // The second try carries its mark through the Manage-App …
+    const login = await app.fetch(new Request(`${RUNTIME}${again.pathname}${again.search}`));
+    const state = new URL(login.headers.get("location") ?? "").searchParams.get("state") ?? "";
+    expect(state.startsWith("again.")).toBe(true);
+    // … and goes through like any sign-in.
+    const through = await app.fetch(
+      new Request(`${RUNTIME}/api/auth/callback?code=code-a&state=${state}`, {
+        headers: { cookie: cookieOf(login, "wz_oauth") },
+      }),
+    );
+    expect(through.headers.get("location")).toBe("/studio/");
+    expect(cookieOf(through, "wz_session")).not.toBe("");
+    // Without its state a second time, it ends instead of going round.
+    const twice = await app.fetch(
+      new Request(`${RUNTIME}/api/auth/callback?code=code-a&state=${state}`),
+    );
+    expect(twice.headers.get("location")).toBe("/studio/?signin=failed");
+  });
+
   it("takes a guest's wish along to the account's sign-in page", async () => {
     const login = await app.fetch(
-      new Request(`${RUNTIME}/api/auth/login?return=/new&wish=${encodeURIComponent("Ein Quiz")}`),
+      new Request(`${RUNTIME}/api/auth/login?return=/studio/new&wish=${encodeURIComponent("Ein Quiz")}`),
     );
     expect(new URL(login.headers.get("location") ?? "").searchParams.get("wish")).toBe("Ein Quiz");
     const long = await app.fetch(
-      new Request(`${RUNTIME}/api/auth/login?return=/new&wish=${"x".repeat(2000)}`),
+      new Request(`${RUNTIME}/api/auth/login?return=/studio/new&wish=${"x".repeat(2000)}`),
     );
     expect(
       new URL(long.headers.get("location") ?? "").searchParams.get("wish")?.length,
     ).toBe(600);
+  });
+
+  it("offers an organization's addresses to its admins, and keeps profiles as facts", async () => {
+    const owner = await signIn("code-a");
+    const member = await signIn("code-m");
+    // No model can search in the test, and test.local has no site: nothing is found.
+    const found = await post("/api/studio/onboarding/find", owner, { name: "tenant-a" });
+    expect(await found.json()).toEqual({ addresses: [] });
+    expect((await post("/api/studio/onboarding/find", member, { name: "x" })).status).toBe(403);
+    const [space] = (await (await get("/api/studio/projects", owner)).json()) as { id: string }[];
+    const read = await post(`/api/studio/projects/${space.id}/website`, owner, {
+      urls: ["instagram.com/baeckerei.huber", "https://www.linkedin.com/company/huber"],
+    });
+    expect(await read.json()).toBeNull();
+    const after = (await (await get("/api/studio/projects", owner)).json()) as {
+      id: string;
+      facts: { label: string; value: string }[];
+    }[];
+    expect(after.find((p) => p.id === space.id)?.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Instagram", value: "https://instagram.com/baeckerei.huber" }),
+        expect.objectContaining({ label: "LinkedIn" }),
+      ]),
+    );
   });
 
   it("hands what an organization says about itself to the Manage-App, from its owner only", async () => {

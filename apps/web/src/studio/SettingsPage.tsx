@@ -1,15 +1,11 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
-import { api } from "../lib/api";
 import { t } from "../lib/i18n";
-import { keys } from "../lib/keys";
-import { type Project, useCurrentProject, useManyProjects, useMe } from "../lib/session";
+import { useCurrentProject, useManyProjects, useMe } from "../lib/session";
 import { PluginFrame, useStudioPlugins } from "../plugins/host";
 import { PluginsSection } from "../plugins/PluginsSection";
 import { ProModulesSection } from "../plugins/ProModulesSection";
-import { Button, Card, cn, Empty, IconButton, Input } from "../ui";
+import { cn, Empty } from "../ui";
 import { Account } from "./Account";
 import { useCrumbs } from "./AppFrame";
 import { useAssistantPage } from "./assistant/page";
@@ -19,6 +15,13 @@ import { ProjectSwitcher } from "./HomePage";
 import { Integrate } from "./Integrate";
 import { Models } from "./Models";
 import { Organization } from "./Organization";
+import {
+  OrganizationCredits,
+  OrganizationInvoices,
+  OrganizationUsage,
+} from "./OrganizationCredits";
+import { OrganizationGeneral, OrganizationKeys, OrganizationMembers } from "./OrganizationSettings";
+import { PersonApps, PersonOrganizations, PersonProfile } from "./PersonAccount";
 import { projectReadOnlyText, ReadOnlyNote } from "./ReadOnly";
 import {
   BackRow,
@@ -29,7 +32,7 @@ import {
   useNarrow,
   useStepDirection,
 } from "./settings-menu";
-import { settingsSections } from "./settings-sections";
+import { accountSections, settingsSections } from "./settings-sections";
 
 const AboutPanel = lazy(() =>
   import("../about/AboutDialog").then((m) => ({ default: m.AboutPanel })),
@@ -38,143 +41,6 @@ const AboutPanel = lazy(() =>
 /** The About section's tab named in the address (`?tab=credits`), else its first. */
 const aboutTab = (tab: string | null): "new" | "earlier" | "credits" =>
   tab === "earlier" || tab === "credits" ? tab : "new";
-
-type Server = Project["mcpServers"][number] & { auth?: string };
-
-function slugId(name: string, taken: string[]): string {
-  const base =
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .replace(/^[^a-z]+/, "")
-      .slice(0, 24) || "system";
-  let id = base;
-  let i = 2;
-  while (taken.includes(id)) {
-    id = `${base}_${i++}`;
-  }
-  return id;
-}
-
-/** The project's MCP servers, called with the admin's credentials; saved on their own. */
-function McpServers({ project }: { project: Project }) {
-  const qc = useQueryClient();
-  const [servers, setServers] = useState<Server[]>(
-    project.mcpServers.map((s) => ({
-      ...s,
-      auth: s.headers?.Authorization ?? s.headers?.authorization ?? "",
-    })),
-  );
-  const [saved, setSaved] = useState(false);
-  /** The project is not changed here: the systems are listed, none is added, edited or removed. */
-  const readOnly = project.readOnly;
-  const save = useMutation({
-    mutationFn: () =>
-      api.patch(`/api/studio/projects/${project.id}`, {
-        mcpServers: servers
-          .filter((s) => s.name && s.url)
-          .map(({ auth, headers, ...s }) => ({
-            ...s,
-            headers: auth ? { ...headers, Authorization: auth } : undefined,
-          })),
-      }),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: keys.spaces() });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1800);
-    },
-  });
-  return (
-    <Card className="p-4 sm:p-6">
-      <h2 className="font-display font-semibold text-lg">{t("settings.mcp")}</h2>
-      <p className="mt-1 mb-5 text-[0.875rem] text-ink-3">{t("settings.mcpHint")}</p>
-      <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-3">
-        {servers.map((s, i) => (
-          <div
-            key={i}
-            className="grid gap-2 rounded-lg bg-paper p-3 ring-1 ring-border-soft sm:grid-cols-[1fr_2fr_auto]"
-          >
-            <Input
-              placeholder={t("settings.serverName")}
-              value={s.name}
-              onChange={(e) =>
-                setServers((all) =>
-                  all.map((x, j) =>
-                    j === i
-                      ? {
-                          ...x,
-                          name: e.target.value,
-                          id:
-                            x.id ||
-                            slugId(
-                              e.target.value,
-                              all.map((y) => y.id),
-                            ),
-                        }
-                      : x,
-                  ),
-                )
-              }
-            />
-            <Input
-              placeholder={`${t("settings.serverUrl")} (https://…/mcp)`}
-              value={s.url}
-              onChange={(e) =>
-                setServers((all) =>
-                  all.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)),
-                )
-              }
-            />
-            {readOnly ? (
-              <span />
-            ) : (
-              <IconButton
-                label={t("common.remove")}
-                onClick={() => setServers((all) => all.filter((_, j) => j !== i))}
-                className="hover:text-rose"
-              >
-                <Trash2 className="size-4" />
-              </IconButton>
-            )}
-            <Input
-              className="sm:col-span-2"
-              placeholder={t("settings.serverHeader")}
-              value={s.auth ?? ""}
-              onChange={(e) =>
-                setServers((all) =>
-                  all.map((x, j) => (j === i ? { ...x, auth: e.target.value } : x)),
-                )
-              }
-            />
-            {s.id ? (
-              <span className="self-center font-mono text-[0.6875rem] text-ink-4">{s.id}</span>
-            ) : null}
-          </div>
-        ))}
-        {readOnly ? null : (
-          <Button
-            variant="secondary"
-            className="self-start"
-            onClick={() => setServers((all) => [...all, { id: "", name: "", url: "", auth: "" }])}
-          >
-            <Plus className="size-4" /> {t("settings.addServer")}
-          </Button>
-        )}
-      </fieldset>
-      {readOnly ? null : (
-        <div className="mt-5 flex items-center justify-end gap-3">
-          {save.error ? (
-            <p className="text-[0.875rem] text-rose">{(save.error as Error).message}</p>
-          ) : null}
-          <Button busy={save.isPending} onClick={() => save.mutate()}>
-            {saved ? t("settings.saved") : t("settings.save")}
-          </Button>
-        </div>
-      )}
-    </Card>
-  );
-}
 
 /** The sections whose menu goes one level down in the left container. */
 const MENUS = new Set(["models", "integrate"]);
@@ -185,7 +51,7 @@ const MENUS = new Set(["models", "integrate"]);
  * back at its top. On a phone the levels and the page take turns: the sections, a section's
  * menu, then the page, each with the way back.
  */
-export function SettingsPage() {
+export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "account" }) {
   const { section } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -201,9 +67,18 @@ export function SettingsPage() {
   // Back up to the sections on a wide page, while the section's page stays; another section
   // opens its own menu again.
   const [upAt, setUpAt] = useState<string | null>(null);
-  const sections = settingsSections(me.data, plugins);
+  // The gear's list, or the person's Konto behind the avatar: the same frame, another list.
+  const sections = scope === "account" ? accountSections() : settingsSections(me.data, plugins);
+  const base = scope === "account" ? "/account" : "/settings";
+  const title = scope === "account" ? t("konto.title") : t("settings.title");
+  const first =
+    scope === "account"
+      ? "profile"
+      : sections.some((s) => s.id === "general")
+        ? "general"
+        : "account";
   const current = sections.find((s) => s.id === section);
-  const entries = sections.map((s) => ({ ...s, to: `/settings/${s.id}` }));
+  const entries = sections.map((s) => ({ ...s, to: `${base}/${s.id}` }));
   const entry = entries.find((e) => e.id === section);
   const hasMenu = current ? MENUS.has(current.id) : false;
   // A phone: 0 the sections, 1 the section's menu, 2 the page.
@@ -249,8 +124,8 @@ export function SettingsPage() {
   );
   // The page's name stands in the top bar: the section's content starts right at the top.
   useCrumbs([
-    { label: t("settings.title"), to: "/settings" },
-    ...(current ? [{ label: current.label, to: `/settings/${current.id}` }] : []),
+    { label: title, to: base },
+    ...(current ? [{ label: current.label, to: `${base}/${current.id}` }] : []),
     ...(current && detail ? [{ label: detail }] : []),
   ]);
   if (!current) {
@@ -265,7 +140,7 @@ export function SettingsPage() {
     // A plugin's section is there once the plugin loaded. A phone starts at the sections.
     if (section !== undefined || !narrow) {
       return plugins.status === "ready" || section === undefined ? (
-        <Navigate to="/settings/account" replace />
+        <Navigate to={`${base}/${first}`} replace />
       ) : null;
     }
   }
@@ -275,9 +150,9 @@ export function SettingsPage() {
   const menuBody = (
     <>
       <LevelHead
-        title={t("settings.title")}
+        title={title}
         open={level === 1 ? (entry ?? null) : null}
-        onBack={() => (narrow ? navigate("/settings") : setUpAt(section ?? null))}
+        onBack={() => (narrow ? navigate(base) : setUpAt(section ?? null))}
       />
       <div key={level} className={cn(stepClass(levelStep))}>
         {level === 0 ? (
@@ -324,8 +199,8 @@ export function SettingsPage() {
               {narrow ? (
                 <div className="mb-3">
                   <BackRow
-                    label={hasMenu ? current.label : t("settings.title")}
-                    onBack={() => navigate(hasMenu ? `/settings/${current.id}` : "/settings")}
+                    label={hasMenu ? current.label : title}
+                    onBack={() => navigate(hasMenu ? `${base}/${current.id}` : base)}
                   />
                 </div>
               ) : null}
@@ -340,7 +215,6 @@ export function SettingsPage() {
                     <ReadOnlyNote>{projectReadOnlyText(project)}</ReadOnlyNote>
                   ) : null}
                   <Connectors key={key} projectId={project.id} readOnly={project.readOnly} />
-                  <McpServers key={key} project={project} />
                 </div>
               ) : null}
               {/* No project yet: nothing is built here, and no local install has sent one. */}
@@ -357,6 +231,15 @@ export function SettingsPage() {
                 </Suspense>
               ) : null}
               {current.id === "organization" && me.data ? <Organization me={me.data} /> : null}
+              {current.id === "general" && me.data ? <OrganizationGeneral me={me.data} /> : null}
+              {current.id === "members" && me.data ? <OrganizationMembers me={me.data} /> : null}
+              {current.id === "keys" && me.data ? <OrganizationKeys me={me.data} /> : null}
+              {current.id === "profile" && me.data ? <PersonProfile me={me.data} /> : null}
+              {current.id === "orgs" && me.data ? <PersonOrganizations me={me.data} /> : null}
+              {current.id === "apps" && me.data ? <PersonApps /> : null}
+              {current.id === "credits" && me.data ? <OrganizationCredits me={me.data} /> : null}
+              {current.id === "usage" && me.data ? <OrganizationUsage me={me.data} /> : null}
+              {current.id === "invoices" && me.data ? <OrganizationInvoices me={me.data} /> : null}
               {current.id === "plugins" ? (
                 <div className="flex flex-col gap-6">
                   <PluginsSection />

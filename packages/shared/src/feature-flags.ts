@@ -59,22 +59,28 @@ export const FEATURES = {
     label: "Organization plans",
     hint: "The organization page in the cloud studio, and plans that carry this switch on the account pages.",
   },
+  organizationSettings: {
+    kind: "release",
+    default: false,
+    label: "Organization settings in the studio",
+    hint: "Settings › Organisation in the cloud studio: the organization's name, its members and invitations, changed there instead of on the account pages.",
+  },
   brandSections: {
     kind: "release",
     default: false,
-    label: "Sections in Info & brand",
+    label: "Sections in Brand",
     hint: "Sections of logos and of colours, gradients and patterns among them.",
   },
   brandRules: {
     kind: "release",
     default: false,
-    label: "Rules in Info & brand",
+    label: "Rules in Brand",
     hint: "Rules for how the logos, the colours and the type may be used.",
   },
   typography: {
     kind: "release",
     default: false,
-    label: "Typography in Info & brand",
+    label: "Typography in Brand",
     hint: "The brand's fonts, their licences and a type scale.",
   },
   channelVoice: {

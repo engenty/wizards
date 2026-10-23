@@ -191,7 +191,7 @@ export interface PluginSpaceContext {
   steps?: ("agent" | "html")[];
 }
 
-/** A space's brand as the studio's Info & brand has it: what a plugin draws or writes in its look. */
+/** A space's brand as the studio's Info and Brand have it: what a plugin draws or writes in its look. */
 export interface PluginBrand {
   /** The title end users see. */
   name: string;
@@ -687,7 +687,7 @@ export interface PluginRunnerCapabilities {
   /** The field kinds the runner asks itself (`text`, `select`, `image`, …); the rest hand off. */
   input: string[];
   output: {
-    /** What it shows as it is: `text`, `data`, `image`, `video`, `voice`, `document`, `dashboard`, `widget`, `film`, `surface`. */
+    /** What it shows as it is: `text`, `data`, `image`, `video`, `voice`, `document`, `dashboard`, `widget`, `motion-graphics`, `surface`. */
     shows: string[];
     /** What it shows as a picture with a link to the real thing. Anything else is a link. */
     pictures: string[];

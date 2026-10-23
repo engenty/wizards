@@ -210,11 +210,185 @@ export function tenantMembers(id: string): Promise<TenantMembers> {
   return call<TenantMembers>("GET", `/v1/tenants/${encodeURIComponent(id)}/members`);
 }
 
+const tenantPath = (id: string) => `/v1/tenants/${encodeURIComponent(id)}`;
+
+/**
+ * Changes to a tenant's people for the person who asks (`actorId`): the Manage-App checks their
+ * role in its own records and refuses with a code (`forbidden`, `PLAN_SEATS`, `PLAN_ROLES`,
+ * `already_member`, `last_owner`).
+ */
+export function inviteMember(
+  tenantId: string,
+  input: { actorId: string; email: string; role: Role; lang: "de" | "en" },
+): Promise<{ invitation: TenantMembers["invitations"][number] }> {
+  return call("POST", `${tenantPath(tenantId)}/invitations`, input);
+}
+
+export function cancelInvitation(tenantId: string, actorId: string, invitationId: string) {
+  return call<{ ok: true }>(
+    "DELETE",
+    `${tenantPath(tenantId)}/invitations/${encodeURIComponent(invitationId)}`,
+    { actorId },
+  );
+}
+
+export function setMemberRole(tenantId: string, actorId: string, userId: string, role: Role) {
+  return call<{ ok: true }>(
+    "PATCH",
+    `${tenantPath(tenantId)}/members/${encodeURIComponent(userId)}`,
+    { actorId, role },
+  );
+}
+
+export function removeMember(tenantId: string, actorId: string, userId: string) {
+  return call<{ ok: true }>(
+    "DELETE",
+    `${tenantPath(tenantId)}/members/${encodeURIComponent(userId)}`,
+    { actorId },
+  );
+}
+
+export interface AddressState {
+  slug: string;
+  host: string;
+  canChange: boolean;
+  changeUntil: string | null;
+  changedAt: string | null;
+  creator: boolean;
+  domains: {
+    id: string;
+    domain: string;
+    verified: boolean;
+    record: { name: string; value: string };
+  }[];
+}
+
+export interface ApiKeyRow {
+  id: string;
+  name: string | null;
+  start: string | null;
+  createdAt: string;
+  lastRequest: string | null;
+}
+
+/** The organization's address and own domains, read and changed for the person who asks. */
+export const tenantAddress = (tenantId: string, actorId: string) =>
+  call<AddressState>(
+    "GET",
+    `${tenantPath(tenantId)}/address?actorId=${encodeURIComponent(actorId)}`,
+  );
+export const checkTenantAddress = (tenantId: string, slug: string) =>
+  call<{ ok: boolean; code?: string }>(
+    "GET",
+    `${tenantPath(tenantId)}/address/check?slug=${encodeURIComponent(slug)}`,
+  );
+export const changeTenantAddress = (tenantId: string, actorId: string, slug: string) =>
+  call<AddressState>("PUT", `${tenantPath(tenantId)}/address`, { actorId, slug });
+export const addTenantDomain = (tenantId: string, actorId: string, domain: string) =>
+  call<{ id: string; domain: string }>("POST", `${tenantPath(tenantId)}/domains`, {
+    actorId,
+    domain,
+  });
+export const verifyTenantDomain = (tenantId: string, actorId: string, id: string) =>
+  call<{ verified: boolean }>(
+    "POST",
+    `${tenantPath(tenantId)}/domains/${encodeURIComponent(id)}/verify`,
+    { actorId },
+  );
+export const removeTenantDomain = (tenantId: string, actorId: string, id: string) =>
+  call<{ ok: true }>("DELETE", `${tenantPath(tenantId)}/domains/${encodeURIComponent(id)}`, {
+    actorId,
+  });
+
+/** The person's API keys in the organization; a new key's secret comes once, with its creation. */
+export const tenantKeys = (tenantId: string, actorId: string) =>
+  call<{ keys: ApiKeyRow[] }>(
+    "GET",
+    `${tenantPath(tenantId)}/keys?actorId=${encodeURIComponent(actorId)}`,
+  );
+export const createTenantKey = (tenantId: string, actorId: string, name: string) =>
+  call<{ id: string; name: string; key: string }>("POST", `${tenantPath(tenantId)}/keys`, {
+    actorId,
+    name,
+  });
+export const deleteTenantKey = (tenantId: string, actorId: string, id: string) =>
+  call<{ ok: true }>("DELETE", `${tenantPath(tenantId)}/keys/${encodeURIComponent(id)}`, {
+    actorId,
+  });
+
+/** What the billing pages show (the Manage-App's billing view), read for the person who asks. */
+export const tenantBilling = (tenantId: string, actorId: string) =>
+  call<Record<string, unknown>>(
+    "GET",
+    `${tenantPath(tenantId)}/billing?actorId=${encodeURIComponent(actorId)}`,
+  );
+export const tenantBillingActivity = (
+  tenantId: string,
+  actorId: string,
+  page: { before?: number; limit?: number },
+) =>
+  call<{ entries: unknown[] }>(
+    "GET",
+    `${tenantPath(tenantId)}/billing/activity?${new URLSearchParams({
+      actorId,
+      ...(page.before ? { before: String(page.before) } : {}),
+      limit: String(page.limit ?? 30),
+    })}`,
+  );
+export const tenantInvoicePdf = (tenantId: string, actorId: string, invoiceId: string) =>
+  call<{ url: string }>(
+    "GET",
+    `${tenantPath(tenantId)}/invoices/${encodeURIComponent(invoiceId)}/pdf?actorId=${encodeURIComponent(actorId)}`,
+  );
+
+export interface PersonConnections {
+  apps: {
+    id: string;
+    clientId: string;
+    name: string | null;
+    uri: string | null;
+    scopes: string[];
+    tenantName: string | null;
+    connectedAt: string;
+    lastUsed: string;
+  }[];
+  computers: { id: string; tenantName: string | null; lastUsed: string }[];
+}
+
+const userPath = (id: string) => `/v1/users/${encodeURIComponent(id)}`;
+
+/** The person's name, kept at the Manage-App for every organization and app. */
+export const renamePerson = (userId: string, name: string) =>
+  call<{ name: string }>("PATCH", userPath(userId), { name });
+/** What holds a sign-in of the person: apps by their consent, computers by their live token. */
+export const personConnections = (userId: string) =>
+  call<PersonConnections>("GET", `${userPath(userId)}/connections`);
+export const disconnectPersonApp = (userId: string, consentId: string) =>
+  call<{ ok: true }>("DELETE", `${userPath(userId)}/connections/${encodeURIComponent(consentId)}`);
+export const signOutPersonComputer = (userId: string, tokenId: string) =>
+  call<{ ok: true }>("DELETE", `${userPath(userId)}/computers/${encodeURIComponent(tokenId)}`);
+
+/** One of a person's organizations, as the studio's switcher lists it. */
+export interface Organization {
+  id: string;
+  name: string;
+  /** Its address (`organization.slug`); an older Manage-App names none. */
+  slug: string | null;
+  role: Role;
+  /** The person's own, made at sign-up. */
+  personal: boolean;
+  plan: { id: string; name: string } | null;
+  /** Who invited the person into it; null for their own, or where the Manage-App names nobody. */
+  invitedBy?: { name: string } | null;
+}
+
 export interface UserInfo {
   /** The person's own feature switches, as an admin set them at the Manage-App. */
   features: Record<string, boolean>;
-  /** The person runs the platform (an admin of the Manage-App). */
+  /** The person runs the platform (an admin of the Manage-App); they also make organizations. */
   admin: boolean;
+  /** The person's organizations, their own first; an older Manage-App lists none. */
+  tenants: Organization[];
 }
 
 const users = new Map<string, { at: number; value: UserInfo }>();
@@ -226,8 +400,12 @@ export async function userInfo(userId: string): Promise<UserInfo> {
     return hit.value;
   }
   const value = await call<Partial<UserInfo>>("GET", `/v1/users/${encodeURIComponent(userId)}`)
-    .then((u) => ({ features: u.features ?? {}, admin: u.admin === true }))
-    .catch(() => hit?.value ?? { features: {}, admin: false });
+    .then((u) => ({
+      features: u.features ?? {},
+      admin: u.admin === true,
+      tenants: u.tenants ?? [],
+    }))
+    .catch(() => hit?.value ?? { features: {}, admin: false, tenants: [] });
   users.set(userId, { at: Date.now(), value });
   return value;
 }
@@ -276,6 +454,10 @@ export interface OrganizationProfile {
   legalName?: string | null;
   phone?: string | null;
   website?: string | null;
+  /** The addresses the person ticked or added: website, blog, profiles. */
+  links?: string[];
+  /** “Wünsche oder Fragen”: the Manage-App mails a question to the team. */
+  questions?: string | null;
 }
 
 export function saveOrganizationProfile(

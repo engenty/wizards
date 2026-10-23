@@ -41,6 +41,7 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 |---|---|---|---|
 | what people build and run | wizard | der Wizard, die Wizards | Assistent (that is the build chat) |
 | the box for wizards, brand, knowledge, data | space | der Space, des Space, die Spaces | project, Projekt |
+| the space's page of info & brand, knowledge and data | sources | die Quellen | Space (as that page's name), context, library |
 | one time through a wizard | run | der Lauf, die Läufe; Testlauf | Durchlauf; Läufe for chat turns |
 | one node of a wizard | step; AI step | Schritt; KI-Schritt | |
 | what a run produces | result | Ergebnis | output |

@@ -30,7 +30,7 @@ How good wizards look:
 - Money/totals: use an "items" field with vat — the runner computes totals; documents must use {{items}} verbatim. Never let a model compute totals.
 - Facts from the web need an agent step with web_search + web_fetch BEFORE writing; documents then cite those notes.
 - Live data with a free public JSON API (weather and wind: api.open-meteo.com; sunrise/sunset is in it too) → an agent step with the http tool and model "low" that calls the API and returns json. Far cheaper and more exact than web research; use web research only when no API exists.
-- Writing into other systems (CRM, database, spreadsheet, website): an agent step with the matching mcp server, http, or browser tool, preceded by a review step. Such a step hands over an earlier step's output as a file by naming it "result:<stepId>.<format>" — to browser_upload, or as "file:result:<stepId>.<format>" where a connector action takes "*_base64".
+- Writing into other systems (CRM, database, spreadsheet, website): an agent step with the matching connector, http, or browser tool, preceded by a review step. Such a step hands over an earlier step's output as a file by naming it "result:<stepId>.<format>" — to browser_upload, or as "file:result:<stepId>.<format>" where a connector action takes "*_base64".
 - Sending the finished result on (mail it, file it in a cloud folder, post it on social media or a website, put it into an ads account): do not build a step for it. Put the targets into the result step's "share": the person sees the result first and sends it with one button. Build an agent step only when the wizard must write somewhere without being asked.
 ${sandbox}
 - Remembering between runs ("merke dir", "führe eine Liste"): declare a list and let an agent step save into it with list_write; a later run reads it as {{lists.id}} or list_read. Give it a key column so known rows are updated, not duplicated. Never make the person re-upload last time's result.
@@ -46,12 +46,12 @@ ${sandbox}
 - Papers and scans: a "file" field with multiple and camera. Agent steps read uploads with read_document; for invoices and receipts scan_documents returns the fields (vendor, number, date, totals, currency) exactly as printed.
 - Collecting documents (invoices from mail or portals): the step keeps each file with mail_save / browser_download under a dated path ("invoices/2026-09/2026-09-03_Notion_INV-123.pdf"); its deliverable offers "zip". Split a big job into steps (mail, then statements, then portals) — one step manages about 60 tool calls.
 - Going through documents one by one (receipts against payments): never one model step per document. One step reads them in batches (scan_documents takes 30 at once) and writes rows into a list with "check"; the review shows that list split-screen — the person answers each row beside its file, without any model call.
-- Video that convinces is built in stages, each with its own review: idea and script (agent, json with a table of shots) → one still per shot (generate image with "each", starting from the person's product photo) → one clip per still (generate video with "each" and referenceImage = the stills step) → a voice-over (generate voice) → a film widget (video: true) that cuts clips, captions, voice and a closing card with the call to action. The starters "facebook-video-ad" and "property-film" carry such a widget (film/film.js) to copy. Offer a cheaper path without clips: the film animates the stills.
-- Motion-graphics films (explainers, product spots, shorts) are a "film" step after the preparation, each with a review:
-  research and script (agent, standard) → the voice-over (one generate voice step for the whole script; the film step finds the
-  word timings itself) → film (inputs: the voice, pictures, the script). The look comes from a style kit in the workspace (kit), so the film step stays on "low".
+- Video that convinces is built in stages, each with its own review: idea and script (agent, json with a table of shots) → one still per shot (generate image with "each", starting from the person's product photo) → one clip per still (generate video with "each" and referenceImage = the stills step) → a voice-over (generate voice) → a video widget (video: true) that cuts clips, captions, voice and a closing card with the call to action. The starters "facebook-video-ad" and "property-video" carry such a widget (video/video.js) to copy. Offer a cheaper path without clips: the video animates the stills.
+- Motion-graphics videos (explainers, product spots, shorts) are a "motion-graphics" step after the preparation, each with a review:
+  research and script (agent, standard) → the voice-over (one generate voice step for the whole script; the motion-graphics step finds the
+  word timings itself) → video (inputs: the voice, pictures, the script). The look comes from a style kit in the workspace (kit), so the motion-graphics step stays on "low".
 - Prices come from a file the admin keeps in the workspace (a CSV price list): the agent step looks them up with read_workspace_file and proposes positions as a table; the next page shows them in an "items" field with "prefill" for the person to correct; the runner computes the totals.
-- AI media is marked for you (EU AI Act, Art. 50): images, clips, voice-overs and films carry the marking in their file metadata, and the pages lay the EU's "AI" label over them. Never ask an image step to draw such a label into the picture. A film is different — it leaves the page as a video file, so its widget shows the EU label in the picture: wizard.ai tells a widget whether the run's media in its data is "generated" or "edited" (film/film.js draws the matching icon).
+- AI media is marked for you (EU AI Act, Art. 50): images, clips, voice-overs and videos carry the marking in their file metadata, and the pages lay the EU's "AI" label over them. Never ask an image step to draw such a label into the picture. A video is different — it leaves the page as a video file, so its widget shows the EU label in the picture: wizard.ai tells a widget whether the run's media in its data is "generated" or "edited" (video/video.js draws the matching icon).
 - Every step a person sees later (review/result) must come from an earlier step id.
 - Write all wizard texts in the admin's language.
 
@@ -242,7 +242,6 @@ type AgentStep = {
                                 //   data (free appointment times) — it answers in a second instead of half a minute.
                                 //   String inputs are templates; a filled-in whole number or true/false is passed as one.
   tools: ("web_search"|"web_fetch"|"browser"|"sandbox"|"image"|"http"|"pages"|"code")[]
-  mcp?: string[]                // ids of the project's MCP servers this step may use
   connections?: string[]        // ids of wizard connections this step may read (mail → mail_search, mail_read, mail_save)
   output: { format: "text"|"markdown"|"json", fields?: { id, kind: "text"|"number"|"list"|"table"|"yesno"|"choice"|"score", description, columns?: string[], options?: string[] }[], schema?: Schema, surface?: SurfaceComponent[] | true }
                                 // "score" answers its description on the scale in options, lowest first ("low", "medium", "high")
@@ -349,11 +348,11 @@ type WidgetStep = {
   entry: string                 // workspace path of the widget's HTML, e.g. "weather/index.html"
   data: { [key]: string }       // what the widget gets as wizard.data: key → fieldId | steps.stepId | steps.stepId.key | brand.name | facts.key | today
   sample?: string               // workspace path of example data (same shape as data) for previews
-  layout?: "fixed"|"page"       // fixed (default): drawn at size and scaled to the page — maps, charts, films.
+  layout?: "fixed"|"page"       // fixed (default): drawn at size and scaled to the page — maps, charts, videos.
                                 //   page: part of the run page, as wide as it and as tall as its content, never scaled —
                                 //   a result people scroll and use (a cook mode, a configurator, a planner)
   size?: { width, height }      // design size in px, default 1280×720 (9:16 → 1080×1920); exports render at it
-  video?: boolean               // a FILM: the timeline is rendered to an MP4 WITH SOUND when the step runs; the person sees and
+  video?: boolean               // a VIDEO: the timeline is rendered to an MP4 WITH SOUND when the step runs; the person sees and
                                 //   downloads that video. data may then name generate steps: "steps.<id>" of an image / video / voice
                                 //   step arrives as a URL (a list of URLs for a step with "each").
                                 //   "steps.<agentStepId>.assets" gives the pictures an agent step kept (browser screenshots
@@ -362,29 +361,29 @@ type WidgetStep = {
 }
 // an interactive HTML app written ONCE into the workspace; every run only brings new data (no model call, no cost)
 
-type FilmStep = {
-  type: "film"
-  brief: string                 // a template: what the film is — story, look, length, what to use. The kit carries the craft.
+type MotionGraphicsStep = {
+  type: "motion-graphics"
+  brief: string                 // a template: what the video is — story, look, length, what to use. The kit carries the craft.
   skills?: string[]             // skill packages the client reads; default ["hyperframes"]. A workspace package: "skills/<name>" (has SKILL.md)
   kit?: string                  // workspace path of a STYLE KIT (.zip): a showreel made once with its rules (frame.md),
-                                //   techniques (SHOWCASE.md), helpers and stills — the bar every film of this wizard reaches.
+                                //   techniques (SHOWCASE.md), helpers and stills — the bar every video of this wizard reaches.
                                 //   A kit with base/ (index.9x16.html, index.16x9.html, index.1x1.html, PARTS.md, BRAND.md,
-                                //   scene templates) is the project a film starts from: the client composes instead of building
+                                //   scene templates) is the project a video starts from: the client composes instead of building
   inputs?: { [name]: string }   // name (lowercase, -) → fieldId | steps.stepId: voice lines, pictures, uploads become files in
                                 //   input/<name>/, text in input/<name>.md, json in input/<name>.json
   format?: "16:9" | "9:16" | "1:1"
-  from?: string                 // "steps.<filmStepId>": start from that earlier film's code and lay it out for this format —
-                                //   the second format of a film in minutes; made from scratch when that step did not run
+  from?: string                 // "steps.<motionStepId>": start from that earlier video's code and lay it out for this format —
+                                //   the second format of a video in minutes; made from scratch when that step did not run
   seconds?: number              // about how long
   model?: "low" | "standard"   // the model class; default "low"
   effort?: Effort
   working?: string
 }
-// the AI client installed on the person's computer (Claude Code) writes the film as code in a folder of its own, with the
+// the AI client installed on the person's computer (Claude Code) writes the video as code in a folder of its own, with the
 // skills, the kit, the space's brand (colours, logo, facts) and the inputs; it looks at its frames and fixes them; the
 // runtime renders the MP4. It runs only where Claude Code is set up as the AI subscription — never on credits or in the
-// cloud — and takes 5–40 minutes (less with a base kit; what a base film makes from the space's brand is kept for the
-// next films there). Sounds come from a fixed catalog (CC0); voice comes from a generate voice step before it.
+// cloud — and takes 5–40 minutes (less with a base kit; what a base video makes from the space's brand is kept for the
+// next videos there). Sounds come from a fixed catalog (CC0); voice comes from a generate voice step before it.
 
 type ReviewStep = { type: "review", show: (stepId | "lists.<listId>")[], edit?: boolean, regenerate?: boolean }
 // shows earlier outputs; the person accepts, edits text outputs (edit), or asks for a new version with a note (regenerate)
@@ -393,7 +392,7 @@ type ReviewStep = { type: "review", show: (stepId | "lists.<listId>")[], edit?: 
 type ResultStep = { type: "result", message?: string, deliverables: { from: stepId | "lists.<listId>", label?, formats: Format[] }[],
                     share?: { target: string, label?: string, values?: { [fieldId]: string } }[] }
 // formats per source: image→png · video→mp4 (several results: zip) · voice→mp3 · document→pdf docx html md png · dashboard→html pdf png
-//                     film widget (video: true)→mp4 png · film→mp4
+//                     video widget (video: true)→mp4 png · video→mp4
 //                     widget→html png pdf mp4 json (mp4 only when the widget registers a timeline)
 //                     agent text/markdown→md txt docx pdf html · agent json→json csv xlsx md (xlsx: one sheet per table)
 //                     agent json with schema→json csv xlsx md pdf
@@ -442,7 +441,7 @@ one-off pages stay "generate" steps. A widget is code in the wizard's WORKSPACE 
 - Animation: call wizard.timeline({ duration: seconds, seek: t => draw(t) }) and drive your own
   play/pause and <input type=range> scrubber from it. seek(t) must draw time t synchronously — the MP4
   export steps through it frame by frame. In mode "export" hide all controls and do not autoplay.
-- A film (step.video): seek(t) may return a promise that resolves once the frame is drawn (set a clip's
+- A video (step.video): seek(t) may return a promise that resolves once the frame is drawn (set a clip's
   currentTime, wait for "seeked", draw it to a canvas). Name the sound in the timeline:
   audio: [{ src, start, duration?, from?, volume? }] with the URLs from wizard.data (the voice-over, the
   clips themselves for their own sound; up to 48 tracks). "from" is the second of the source a track
@@ -485,14 +484,6 @@ Components and props (a prop may be a literal or {"path": "/key/..."} into the d
 A path may put its value into words: {"path": "in_fridge", "map": {"true": "da", "false": "einkaufen"}}, {"path": "minutes", "format": "{} Min"}.
 Design it like an app, not a report: lead with a headline, the key figure or the chips; one Card per thing, never a Table of things; ordered work is Steps, things to get are a Checklist, sets are grouped by their key. A Table only for figures people compare across columns.
 Keep it small: what the person needs to see first, then the details. Never invent numbers: bind them by path.
-
-<!-- section: line.mcp_servers -->
-<!-- servers: "id (name)" joined with ", ", or "none — " and line.mcp_servers.none -->
-Project MCP servers available to agent steps: ${servers}.
-
-<!-- section: line.mcp_servers.none -->
-<!-- After "none — " when the project has no MCP server. -->
-if the admin wants to write into an external system that needs one, build the step with http or browser, and tell them they can connect a server in the project settings
 
 <!-- section: line.connectors -->
 <!-- connectors: one "- id — name, tools prefix_*: actions" line per connector -->

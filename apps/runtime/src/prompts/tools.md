@@ -1,7 +1,7 @@
 <!--
 The tools AI steps get, and the notes their results and errors carry: the web, the sandbox, programs
 over the tools, the wizard's lists, files and pages, Knowledge, mail, connectors and the browser.
-Read by tools/*.ts, sandbox/index.ts, connectors/mail.ts and browser/fast/run.ts. The film client's
+Read by tools/*.ts, sandbox/index.ts, connectors/mail.ts and browser/fast/run.ts. The motion-graphics client's
 own tool is in step.md. A description is all a model knows of a tool: say what it does, what it
 returns and when to use it.
 -->

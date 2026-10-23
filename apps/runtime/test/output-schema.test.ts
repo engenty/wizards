@@ -45,7 +45,7 @@ vi.mock("../src/models.js", () => ({
     (await out.totalUsage) ?? (await out.usage),
 }));
 vi.mock("../src/tools/index.js", () => ({
-  buildStepTools: async () => ({ tools: {}, assets: [], close: async () => {} }),
+  buildStepTools: async () => ({ tools: {}, assets: [] }),
 }));
 vi.mock("../src/tools/store.js", () => ({ personUploads: async () => [] }));
 vi.mock("../src/tools/plugin.js", () => ({

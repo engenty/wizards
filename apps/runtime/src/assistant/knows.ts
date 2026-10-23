@@ -31,7 +31,7 @@ import { readDoc, searchDocs } from "./docs.js";
 
 export interface KnowsContext {
   user: SessionUser;
-  project: { id: string; name: string; mcpServers: { id: string; name: string }[] } | null;
+  project: { id: string; name: string } | null;
   lang: Lang;
   /** The chat that is open: `chats_search` leaves it out where asked. */
   chatId: string;
@@ -95,7 +95,6 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
         attempt(async () => {
           ctx.doing(serverText(ctx.lang, "doingAuthoringGuide"));
           const guide = authoringGuide(
-            ctx.project?.mcpServers ?? [],
             ctx.project ? await listConnectors(ctx.project.id) : [],
             await pluginToolsOf(user.tenantId),
           );

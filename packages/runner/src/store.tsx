@@ -1,5 +1,6 @@
 import type { Format } from "@engenty/wizards-shared/definition";
-import { formatTableCell, type TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
+import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables/columns";
+import { formatTableCell } from "@engenty/wizards-shared/engenty/data-tables/columns-format";
 import { formatBytes } from "@engenty/wizards-shared/numbers";
 import type { ShownList } from "@engenty/wizards-shared/run";
 import {

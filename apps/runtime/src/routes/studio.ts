@@ -141,6 +141,7 @@ import {
   turnHistory,
 } from "../services/assistant-chats.js";
 import { describeGradient, themeLooks } from "../services/brand.js";
+import { chatCatalog, chatModelChoices, setChatModelChoice } from "../services/chat-models.js";
 import {
   checkForCloud,
   cloudLinked,
@@ -163,7 +164,14 @@ import {
   valueContents,
 } from "../services/knowledge.js";
 import { writeSummary } from "../services/knowledge-model.js";
-import { applyWebsite, finishOnboarding, needsOnboarding } from "../services/onboarding.js";
+import {
+  applyAddresses,
+  finishOnboarding,
+  onboardingFor,
+  startingName,
+} from "../services/onboarding.js";
+import { findAddresses, siteOfEmail } from "../services/onboarding-find.js";
+import { setOrganizationContext } from "../services/organization-context.js";
 import { exportWizard, importWizard } from "../services/package.js";
 import { pagePreview } from "../services/pages.js";
 import {
@@ -244,6 +252,7 @@ import {
   deleteWizard,
   draftChanges,
   duplicateWizard,
+  hasWizards,
   ownedWizard,
   rotateShareLink,
   updateWizardSettings,
@@ -258,6 +267,7 @@ import {
   proposeMerge,
   type Resolution,
   resolveConflict,
+  sendBeforeSwitch,
   startSpace,
   stopSpace,
   syncAll,
@@ -492,6 +502,10 @@ export const studio = new Hono<Vars>()
       tenant: {
         id: user.tenantId,
         role: user.role,
+        /** The organization's name as the Manage-App keeps it; alone, the linked account's, else null. */
+        name: (managed ? info?.name : overview?.tenant.name) ?? null,
+        /** The organization's address, `acme` in `/studio/acme/`; null alone, where the studio has none. */
+        slug: managed ? (info?.slug ?? null) : null,
         /** The plan the organization is on; null alone, or where the Manage-App names none. */
         plan: info?.plan ?? null,
         /** The organization's address for its public page (`acme.wizards.page`); null alone, or behind its switch. */
@@ -505,6 +519,10 @@ export const studio = new Hono<Vars>()
       ),
       /** The studio assistant's developer mode may be switched on: ASSISTANT_DEV here, the platform's admins when managed. */
       assistantDev: await assistantDevFor(user),
+      /** The person's organizations, their own first: the switcher lists them. Empty alone. */
+      organizations: person?.tenants ?? [],
+      /** The person may make further organizations (the platform's admins), on the account page. */
+      mayCreateOrganization: person?.admin ?? false,
       mode: managed ? "managed" : "local",
       /** The tenant's balance; null where the runtime resolves models itself. */
       credits: managed ? await balanceCredits() : null,
@@ -516,6 +534,9 @@ export const studio = new Hono<Vars>()
             email: linked.email,
             /** The organization the account's space belongs to, as the Manage-App names it. */
             organization: overview?.tenant.name ?? null,
+            organizationId: linked.tenantId,
+            /** The person's organizations, to switch to another; one alone means nothing to switch. */
+            organizations: overview?.tenants ?? [],
             credits: overview?.tenant.balanceCredits ?? null,
             /** What of the credits ends on a date, the nearest first. */
             expiring: overview?.tenant.expiring ?? [],
@@ -533,12 +554,21 @@ export const studio = new Hono<Vars>()
       subscriptions: managed ? [] : await subscriptionClients(),
       /** A runtime that runs alone keeps its setup in front until a test call has worked on the chosen source and the way is still open. */
       setupDone: managed ? true : await setupDone(),
-      /** The cloud studio's first visit: the short wizard that names the organization and fills the space (services/onboarding.ts). */
-      onboarding: await needsOnboarding(user),
+      /** The cloud studio's first visit, by what the studio knows of the person and the organization (services/onboarding.ts); null when done. */
+      onboarding: await onboardingFor(user, person?.tenants ?? []),
+      /** The organization still has the name the Manage-App gave it at sign-up: its first admin names it. */
+      startingName: managed ? startingName(info?.name) : false,
+      /** The organization has made a wizard: the studio's offer to install it waits for that. */
+      hasWizards: await hasWizards(),
       /** What answers the studio's chats (Goose, the editor's chat): the text classes, a subscription, a key or the credits. */
-      chatEngine: managed ? "models" : await chatEngine(await hasTextModel()),
+      chatEngine: managed ? "models" : await chatEngine(),
       /** The ways that can answer the studio's chats now. */
-      chatWays: managed ? ["models"] : await chatWays(await hasTextModel()),
+      chatWays: managed ? ["models"] : await chatWays(),
+      /** The models of the chats per way, and what the person chose: everyday work and extra effort. */
+      chatModels: {
+        ways: (await chatCatalog()).ways,
+        chosen: await chatModelChoices(),
+      },
       aiReady: (await hasTextModel()) || (!managed && (await subscriptionClients()).length > 0),
       mcpUrl: `${env.appUrl}/api/mcp`,
       /**
@@ -750,6 +780,7 @@ export const studio = new Hono<Vars>()
             project,
             writable,
             message,
+            extra: body.extra,
             page,
             browserTools: body.tools,
             lang: body.lang,
@@ -1554,8 +1585,8 @@ export const studio = new Hono<Vars>()
   .post("/wizards/:id/chat", async (c) => {
     const user = c.get("user");
     const wizardId = c.req.param("id");
-    const { message } = z
-      .object({ message: z.string().min(1).max(8000) })
+    const { message, extra } = z
+      .object({ message: z.string().min(1).max(8000), extra: z.boolean().optional() })
       .parse(await c.req.json());
     await writableWizard(user.id, wizardId);
     if (!(await canSpend())) {
@@ -1566,7 +1597,7 @@ export const studio = new Hono<Vars>()
       stream.onAbort(() => abort.abort());
       try {
         const result = await asAssistantIn(wizardId, user, () =>
-          architectTurn(user.id, wizardId, message, requestLang(c), {
+          architectTurn(user.id, wizardId, message, requestLang(c), extra, {
             signal: abort.signal,
             onText: (delta) => {
               void stream.writeSSE({ event: "text", data: JSON.stringify(delta) });
@@ -1993,6 +2024,29 @@ export const studio = new Hono<Vars>()
     closeTerminal(c.req.param("id"));
     return c.json({ ok: true });
   })
+  .put("/local/chat-models", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    const body = z
+      .object({
+        way: z.enum(CHAT_WAYS),
+        normal: z.string().min(1).max(120).nullable().optional(),
+        extra: z.string().min(1).max(120).nullable().optional(),
+      })
+      .parse(await c.req.json());
+    // Null puts a model back to what the catalog names.
+    const choice = (await chatModelChoices())[body.way] ?? {};
+    for (const effort of ["normal", "extra"] as const) {
+      if (body[effort] === null) {
+        delete choice[effort];
+      } else if (body[effort]) {
+        choice[effort] = body[effort];
+      }
+    }
+    await setChatModelChoice(body.way, choice);
+    return c.json({ ok: true });
+  })
   .put("/local/chat", async (c) => {
     if (managed) {
       return c.notFound();
@@ -2042,6 +2096,10 @@ export const studio = new Hono<Vars>()
         legalName: field(200),
         phone: field(40),
         website: field(400),
+        /** The addresses the person ticked or added. */
+        links: z.array(z.string().trim().max(400)).max(10).optional(),
+        /** “Wünsche oder Fragen”: a question reaches the team by mail. */
+        questions: field(4000),
       })
       .parse(await c.req.json());
     const user = c.get("user");
@@ -2051,7 +2109,36 @@ export const studio = new Hono<Vars>()
       requestLang(c) === "de" ? "de" : "en",
       profile,
     );
+    // The new-wizard page puts the templates that fit it first.
+    await setOrganizationContext(user.tenantId, {
+      sector: profile.sector ?? null,
+      kind: profile.kind,
+      size: profile.size ?? null,
+      words: [profile.need, profile.questions].filter(Boolean).join(" "),
+    });
     return c.json({ ok: true });
+  })
+  // The first visit: the name and site of the person's e-mail domain, where it is an organization's.
+  .get("/onboarding/suggest", async (c) => {
+    if (!managed) {
+      return c.json({ error: say(c, "onlyAvailableCloud"), code: "not_managed" }, 404);
+    }
+    await requireAdmin();
+    return c.json({ site: await siteOfEmail(c.get("user").email) });
+  })
+  // The organization's addresses to tick: its e-mail domain's site, then a web search for its name.
+  .post("/onboarding/find", async (c) => {
+    if (!managed) {
+      return c.json({ error: say(c, "onlyAvailableCloud"), code: "not_managed" }, 404);
+    }
+    await requireAdmin();
+    const { name, lang } = z
+      .object({ name: z.string().trim().max(120), lang: z.enum(LANGS).optional() })
+      .parse(await c.req.json());
+    const user = c.get("user");
+    return c.json({
+      addresses: await findAddresses({ name, email: user.email, lang: lang ?? requestLang(c) }),
+    });
   })
   .post("/onboarding/done", async (c) => {
     if (!managed) {
@@ -2063,16 +2150,32 @@ export const studio = new Hono<Vars>()
         404,
       );
     }
-    await finishOnboarding(c.get("user").tenantId);
+    const user = c.get("user");
+    const person = await userInfo(user.id);
+    const mode = await onboardingFor(user, person?.tenants ?? []);
+    if (mode) {
+      await finishOnboarding(user, mode);
+    }
     return c.json({ ok: true });
   })
   .post("/projects/:id/website", async (c) => {
     const user = c.get("user");
     const project = await ownedProject(user.id, c.req.param("id"));
-    const { url, lang } = z
-      .object({ url: z.string().trim().min(3).max(400), lang: z.enum(LANGS).optional() })
+    // One address (as before) or several: the first website is read, the others kept as facts.
+    const { url, urls, lang } = z
+      .object({
+        url: z.string().trim().min(3).max(400).optional(),
+        urls: z.array(z.string().trim().min(3).max(400)).max(10).optional(),
+        lang: z.enum(LANGS).optional(),
+      })
       .parse(await c.req.json());
-    return c.json(await applyWebsite(user.id, project.id, url, lang ?? requestLang(c)));
+    const outcome = await applyAddresses(
+      user.id,
+      project.id,
+      urls ?? (url ? [url] : []),
+      lang ?? requestLang(c),
+    );
+    return c.json(outcome);
   })
   // The install command and the first steps, mailed to the signed-in person by the Manage-App.
   .post("/install-mail", async (c) => {
@@ -2100,6 +2203,25 @@ export const studio = new Hono<Vars>()
       .object({ signup: z.boolean().optional(), code: z.string().max(64).optional() })
       .parse(await c.req.json().catch(() => ({})));
     return c.json({ url: await startLink(input) });
+  })
+  // Another organization of the account: what changed here goes up to the one it belongs to
+  // first, then the sign-in names the other one. What did not arrive stays here (`anyway`).
+  .post("/account/switch", async (c) => {
+    if (managed || !(await linkedAccount())) {
+      return c.notFound();
+    }
+    const { organization, anyway } = z
+      .object({ organization: z.string().trim().min(1).max(200), anyway: z.boolean().optional() })
+      .parse(await c.req.json());
+    const stuck = await sendBeforeSwitch();
+    if (stuck.length && !anyway) {
+      throw new ServiceError(
+        "refused",
+        note("switchChangesWaiting", { spaces: stuck.map((x) => `“${x.name}”`) }),
+        { reason: "changes_waiting" },
+      );
+    }
+    return c.json({ url: await startLink({ organization }) });
   })
   .delete("/account", async (c) => {
     if (managed) {

@@ -10,7 +10,7 @@ import { getBlob } from "../files/blobs.js";
 const exec = promisify(execFile);
 
 /**
- * Skill packages a film step hands its client: folders of SKILL.md files with their references,
+ * Skill packages a motion-graphics step hands its client: folders of SKILL.md files with their references,
  * read the same way by every client. A platform package is fetched once from its source at a
  * pinned version and kept in the data folder; a wizard can also bring its own in the workspace
  * (`skills/<name>/SKILL.md`).

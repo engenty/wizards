@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@engenty/wizards-shared": "workspace:*",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "fflate": "0.8.3",
     "lucide-react": "^1.49.0",
     "marked": "^18.0.14",

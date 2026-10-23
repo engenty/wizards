@@ -1,7 +1,7 @@
 ---
 title: Steps
 description: What a wizard is made of – pages, AI steps, generated media, widgets, reviews and the result.
-version: 0.9.6
+version: 0.11.3
 ---
 
 A wizard runs its steps from top to bottom. The last step is always the result.
@@ -11,9 +11,9 @@ A wizard runs its steps from top to bottom. The last step is always the result.
 | Page | Asks the person: one field or more, five at most on a good page |
 | AI step | Does a task with tools: research, read documents, call an API, work in a connected service |
 | Generate | Makes one thing: an image, a video, a voice-over, a document or a dashboard |
-| Widget | Shows an interactive view built once for this wizard: a map, a timeline, a calculator, a film |
+| Widget | Shows an interactive view built once for this wizard: a map, a timeline, a calculator, a video |
 | View | Shows the results in the wizard’s own look: key figures, facts, a list, a chart |
-| Film | Has the AI client on your computer make a film as code, rendered to an MP4 |
+| Motion graphics | Makes an animated video as code, rendered to an MP4: an explainer, a product spot |
 | Review | Shows what earlier steps made. The person accepts it, edits it or asks for a new version |
 | Result | The last page: what the person can download or share |
 
@@ -77,15 +77,14 @@ An AI step has instructions and the tools you allow it:
 
 Every AI step can also read and write the wizard’s lists, list its files and read documents:
 PDFs, scans and photos, Word, Excel, CSV and saved mails. Where the space has Knowledge, the step
-searches it too. Every AI step also knows the space’s Info & brand: its title, what it says
+searches it too. Every AI step also knows the space’s Info and Brand: its title, what it says
 about itself, its facts and colours.
 
-Further tools come from three places:
+Further tools come from two places:
 
 - **The person’s accounts**: connectors the wizard uses, where the person connects their own
   account during the run. The step gets the service’s actions as tools. Reading is free; before
   anything changes in the person’s account, they are asked. See [Connectors](./connectors.md).
-- **Connected systems** (MCP servers) of the space, where you allow them on the step.
 - **Plugins** installed in engenty wizards. See [Plugins](./plugins.md).
 
 ### Model class
@@ -144,16 +143,17 @@ For anything the parts cannot show, such as a map or an animation, use a widget.
 
 A widget is an interactive HTML view written once into the wizard’s files. Every run only brings
 new data, so it costs nothing to show and looks the same every time. A widget can also be a
-film: its timeline is then rendered to an MP4 with sound. Ask the assistant for one in the chat.
+video: its timeline is then rendered to an MP4 with sound. Ask the assistant for one in the chat.
 
-## Films
+## Motion graphics
 
-A film step hands a brief, the run’s material (voice-overs, pictures, uploads, texts) and the
-space’s brand to the AI client installed on your computer (Claude Code). The client writes the
-film as code, looks at its frames and fixes them. engenty wizards then renders the MP4: 16:9,
-9:16 or square. A film step runs only where Claude Code is set up with your subscription, never
-on credits or in the cloud, and it takes 5 to 40 minutes. The voice comes from a generate step
-before it.
+A motion-graphics step makes an animated video: an explainer, a product spot, a short. It hands
+a brief, the run’s material (voice-overs, pictures, uploads, texts) and the space’s brand to the
+AI client on your computer (Claude Code). The client writes the video as code, looks at its
+frames and fixes them. engenty wizards then renders the MP4: 16:9, 9:16 or square.
+
+The step runs only where Claude Code is set up with your subscription, never on credits or in
+the cloud. A video takes 5 to 40 minutes. The voice comes from a generate step before it.
 
 ## Reviews
 
@@ -173,9 +173,9 @@ Each entry of the result page names a step and the formats the person can downlo
 | Voice | MP3 |
 | Document | PDF, Word, HTML, Markdown, PNG |
 | Dashboard | HTML, PDF, PNG |
-| Widget | HTML, PNG, PDF, JSON; MP4 when it animates. As a film: MP4, PNG |
+| Widget | HTML, PNG, PDF, JSON; MP4 when it animates. As a video: MP4, PNG |
 | View | JSON |
-| Film | MP4 |
+| Motion graphics | MP4 |
 | AI step, text | Markdown, text, Word, PDF, HTML |
 | AI step, data | JSON, CSV, Excel, Markdown; nested data also PDF |
 | AI step, collected files | ZIP |
@@ -227,7 +227,7 @@ The person sees and deletes all of it under “What this wizard remembers”. Se
 
 ## AI media
 
-Images, clips, voice-overs and films a model made or changed carry a marking in their file, and
+Images, clips, voice-overs and videos a model made or changed carry a marking in their file, and
 every page lays an “AI-generated” or “AI-modified” label over them (EU AI Act, Art. 50). Nothing
-is drawn into an image. A film shows the label in the picture, since it leaves the page as a
+is drawn into an image. A video shows the label in the picture, since it leaves the page as a
 video file.

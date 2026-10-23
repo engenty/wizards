@@ -109,7 +109,7 @@ headings.
 
 A space’s own font, for example the one its website uses, belongs to its brand, not to a theme:
 uploaded as a file, or loaded from the website’s address after you confirm the licence (see
-[Space](../../user-guide/space.md#info--brand)). A theme only names it, with `brand`. A theme that goes
+[Space](../../user-guide/space.md#brand)). A theme only names it, with `brand`. A theme that goes
 to another space shows that space’s brand font, or a shipped font of the same kind.
 
 ### Effects

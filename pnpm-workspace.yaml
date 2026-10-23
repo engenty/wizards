@@ -16,8 +16,3 @@ overrides:
   # proxy-agent's get-uri still asks for basic-ftp 5, whose directory-listing parser can be made to
   # burn CPU (GHSA-c475-qrg2-pj4r). 6.x has the same API; its breaking change is a stricter PASV check.
   get-uri>basic-ftp: ^6.2.1
-  # @mastra/mcp pins the MCP SDK at 2.2.0: its server accepted bearer tokens issued for another
-  # service, its client re-sent headers and bodies across cross-origin redirects. 2.3.0 fixes both.
-  "@mastra/mcp>@modelcontextprotocol/client": 2.3.0
-  "@mastra/mcp>@modelcontextprotocol/core": 2.3.0
-  "@mastra/mcp>@modelcontextprotocol/server": 2.3.0

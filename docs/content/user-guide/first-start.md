@@ -1,7 +1,7 @@
 ---
 title: First start
 description: Choose how the AI runs on your computer. The studio opens once a test call works.
-version: 0.9.3
+version: 0.11.2
 ---
 
 The first page of the studio on your computer is the setup, “Choose how the AI runs”. It asks
@@ -14,11 +14,14 @@ shows your name, your organization and your credits. If you aren’t signed in y
 has a “Sign in” button that opens your browser for it. If you set engenty wizards up
 [only for this computer](./local-only.md), the page shows nothing here.
 
+Below the account, “Use local models” marks the rest of the list. These choices run on this
+computer only. Wizards you publish run in the cloud and need your account.
+
 ## Choose how the AI runs
 
 | Choice | Runs on | Needs |
 |---|---|---|
-| engenty credits | Your account’s credits, as in the cloud | An account signed in. Shown only then |
+| engenty credits | Your account’s credits, as in the cloud | An account signed in. Shown only then, under your account |
 | Claude Code | Your Claude subscription | The client installed and signed in |
 | Codex | Your ChatGPT subscription | The client installed and signed in |
 | Antigravity | Your Google AI subscription | The client (`agy`) installed and signed in |
@@ -41,6 +44,11 @@ has a “Sign in” button that opens your browser for it. If you set engenty wi
 
 After you connect, one short call checks that the model can be reached. The setup stays until
 that call works. Then “Open the studio” takes you in.
+
+If you aren’t signed in to your account, “Open the studio” asks “Continue with your account?”
+first. “Sign in” and “Create account” open your browser, and the studio opens once you are signed
+in. “Continue on this computer only” opens the studio without an account. You can sign in later
+under Settings → Account.
 
 With your own keys, each key has its own Test. It checks the key with the provider, stores it on
 this computer (on a Mac in the Keychain, elsewhere encrypted in your data folder) and sets that

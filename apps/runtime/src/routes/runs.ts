@@ -1718,7 +1718,7 @@ async function serveAsset(c: Context, run: RunRow, assetId: string) {
     // A PDF is left to the browser's own viewer, which a sandbox would keep from starting.
     ...(mime === "application/pdf" ? {} : { "content-security-policy": "sandbox" }),
   };
-  // Foreign files are downloads, never pages of ours: only photos, sound, film and PDFs show in place.
+  // Foreign files are downloads, never pages of ours: only photos, sound, video and PDFs show in place.
   if (foreign && !inlineSafe(mime)) {
     headers["content-disposition"] =
       `attachment; filename="${found.row.name.replace(/["\\\r\n]/g, "")}"`;

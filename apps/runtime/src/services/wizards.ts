@@ -121,6 +121,15 @@ export async function listWizards(_userId: string, projectId?: string) {
   return rows.map(wizardSummary);
 }
 
+/** The organization has made a wizard: the studio offers itself as an app from then on. */
+export async function hasWizards(): Promise<boolean> {
+  const row = await db.query.wizard.findFirst({
+    columns: { id: true },
+    where: eq(schema.wizard.tenantId, currentTenant()),
+  });
+  return Boolean(row);
+}
+
 export async function publishedVersion(w: WizardRow) {
   if (w.publishedVersion === null) {
     return null;

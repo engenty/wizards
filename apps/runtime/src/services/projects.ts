@@ -44,15 +44,6 @@ import { removeProjectFiles } from "./project-files.js";
 
 export type ProjectRow = typeof schema.project.$inferSelect;
 
-const MASK = "••••";
-
-export const mcpServerSchema = z.object({
-  id: z.string().regex(/^[a-z][a-z0-9_]{0,30}$/),
-  name: z.string().min(1).max(60),
-  url: z.string().url(),
-  headers: z.record(z.string(), z.string()).optional(),
-});
-
 const sectionId = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/);
 
 export const brandColorSchema = z.object({
@@ -190,7 +181,6 @@ export const projectPatchSchema = z.object({
     })
     .optional(),
   facts: z.array(projectFactSchema).max(PROJECT_LIMITS.facts).optional(),
-  mcpServers: z.array(mcpServerSchema).max(10).optional(),
 });
 
 /**
@@ -312,16 +302,6 @@ export async function listProjects(_userId: string, lang?: Lang) {
   }));
 }
 
-/** MCP server headers carry the admin's credentials: shown masked, kept when sent back masked. */
-export function maskedServers(p: ProjectRow) {
-  return p.mcpServers.map((s) => ({
-    ...s,
-    headers: s.headers
-      ? Object.fromEntries(Object.keys(s.headers).map((k) => [k, MASK]))
-      : undefined,
-  }));
-}
-
 export async function createProject(_userId: string, name: string): Promise<{ id: string }> {
   await requireBuild();
   await requireAdmin();
@@ -337,9 +317,7 @@ export async function createProject(_userId: string, name: string): Promise<{ id
     );
   }
   const id = nanoid(12);
-  await db
-    .insert(schema.project)
-    .values({ id, tenantId: currentTenant(), name, brand: {}, mcpServers: [] });
+  await db.insert(schema.project).values({ id, tenantId: currentTenant(), name, brand: {} });
   spaceChanged("space.created", id);
   return { id };
 }
@@ -352,18 +330,6 @@ export async function updateProject(
   const p = await ownedProject(userId, projectId);
   await requireWritable(p);
   await requireAdmin();
-  const mcpServers = patch.mcpServers?.map((s) => {
-    const before = p.mcpServers.find((x) => x.id === s.id);
-    const headers = s.headers
-      ? Object.fromEntries(
-          Object.entries(s.headers).map(([k, v]) => [
-            k,
-            v === MASK ? (before?.headers?.[k] ?? "") : v,
-          ]),
-        )
-      : undefined;
-    return { ...s, headers };
-  });
   if (patch.facts && new Set(patch.facts.map((f) => f.key)).size !== patch.facts.length) {
     throw new ServiceError("invalid", note("twoEntriesSameKey"));
   }
@@ -377,7 +343,6 @@ export async function updateProject(
       ...(patch.name ? { name: patch.name } : {}),
       ...(patch.brand ? { brand: brandAfter(p.brand, patch.brand) } : {}),
       ...(patch.facts ? { facts: patch.facts } : {}),
-      ...(mcpServers ? { mcpServers } : {}),
       ...(page ? { page } : {}),
       updatedAt: new Date(),
     })

@@ -6,6 +6,7 @@ import {
   pluginToolOf,
   type WizardDefinition,
 } from "./definition.js";
+import { CAPABILITY_IDS, type Capability } from "./fit.js";
 import { type Gap, type Line, type Texts, textOf } from "./texts.js";
 
 /**
@@ -58,25 +59,6 @@ export const USE_CASE_IDS = [
   "advice",
 ] as const;
 export type UseCase = (typeof USE_CASE_IDS)[number];
-
-/**
- * What the models and tools behind a wizard must be able to do. `film`: a film the installed
- * client makes, only on a computer with Claude Code, on its subscription.
- */
-export const CAPABILITY_IDS = [
-  "text",
-  "web",
-  "browser",
-  "documents",
-  "image",
-  "video",
-  "speech",
-  "listening",
-  "code",
-  "connectors",
-  "film",
-] as const;
-export type Capability = (typeof CAPABILITY_IDS)[number];
 
 export const COST_TIER_IDS = ["low", "medium", "high"] as const;
 export type CostTier = (typeof COST_TIER_IDS)[number];
@@ -138,7 +120,7 @@ const MARKET_EN = {
   "capability.listening": "Understands voice notes",
   "capability.code": "Runs code",
   "capability.connectors": "Connected accounts & systems",
-  "capability.film": "Films with Claude Code (on your subscription)",
+  "capability.motion-graphics": "Motion graphics with Claude Code (on your subscription)",
   "cost.low": "low cost",
   "cost.medium": "medium cost",
   "cost.high": "high cost",
@@ -192,7 +174,7 @@ const MARKET_DE: Partial<Record<MarketKey, Line>> = {
   "capability.listening": "Sprachnotizen verstehen",
   "capability.code": "Code ausführen",
   "capability.connectors": "Verbundene Konten & Systeme",
-  "capability.film": "Filme mit Claude Code (auf deinem Abo)",
+  "capability.motion-graphics": "Motion-Grafik mit Claude Code (auf deinem Abo)",
   "cost.low": "günstig",
   "cost.medium": "mittel",
   "cost.high": "teuer",
@@ -292,7 +274,7 @@ export function capabilitiesOf(def: WizardDefinition): Capability[] {
           found.add("connectors");
         }
       }
-      if (step.mcp?.length || step.connections?.length) {
+      if (step.connections?.length) {
         found.add("connectors");
       }
     } else if (step.type === "generate") {
@@ -305,8 +287,8 @@ export function capabilitiesOf(def: WizardDefinition): Capability[] {
       } else {
         found.add("text");
       }
-    } else if (step.type === "film") {
-      found.add("film");
+    } else if (step.type === "motion-graphics") {
+      found.add("motion-graphics");
     }
   }
   if (def.connections?.length) {
@@ -366,7 +348,7 @@ export function effortOf(def: WizardDefinition): Effort {
     } else if (step.type === "agent") {
       seconds += step.tools.includes("browser")
         ? WORK_SECONDS.browser
-        : step.tools.length || step.mcp?.length || step.connections?.length
+        : step.tools.length || step.connections?.length
           ? WORK_SECONDS.tools
           : WORK_SECONDS.agent;
     } else if (step.type === "generate") {
@@ -383,8 +365,8 @@ export function effortOf(def: WizardDefinition): Effort {
               : WORK_SECONDS.agent);
     } else if (step.type === "widget" && step.video) {
       seconds += 60;
-    } else if (step.type === "film") {
-      // A client writing a film from a style kit: ten minutes to half an hour (2026-10 tests).
+    } else if (step.type === "motion-graphics") {
+      // A client writing a video from a style kit: ten minutes to half an hour (2026-10 tests).
       seconds += 25 * 60;
     }
   }
@@ -431,6 +413,8 @@ export interface MarketplaceSummary {
   costume?: EngentyCostume;
   formats: ItemFormat[];
   industries: Industry[];
+  /** The catalog sectors it is made for (`bakeries`, `lawFirms`, sectors.ts); left out: none in particular. */
+  sectors?: string[];
   useCases: UseCase[];
   capabilities: Capability[];
   effort: Effort;
@@ -526,4 +510,9 @@ export interface MarketplaceEntry extends MarketplaceSummary {
   plugin?: { id: string; name: string };
   /** The plugins it needs that this app does not have: a wizard made from it would not run. */
   needs?: string[];
+  /**
+   * Why it stands where it does in the list for an organization (the new-wizard page): its
+   * sector, the industry of its sector, words of its wishes, or its kind.
+   */
+  fit?: "sector" | "industry" | "wish" | "kind";
 }

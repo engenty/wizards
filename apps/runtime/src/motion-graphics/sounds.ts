@@ -6,7 +6,7 @@ import { prompt } from "../prompts.js";
 import { platformSkills } from "./skills.js";
 
 /**
- * The sounds a film may use: nothing is generated, synthesized or downloaded by the client.
+ * The sounds a video may use: nothing is generated, synthesized or downloaded by the client.
  * soundcn (soundcn.xyz, MIT; the sounds by Kenney, CC0) for clicks, pops, impacts, jingles,
  * switches, pages and paper; the effects HyperFrames ships with (whooshes, typing, risers).
  * Fetched once into the data folder; `catalog.json` lists every file with tags and licence.
@@ -138,14 +138,14 @@ async function build(): Promise<string> {
     }
   }
   if (!sounds.length) {
-    throw new Error("The sounds for films could not be loaded.");
+    throw new Error("The sounds for videos could not be loaded.");
   }
   sounds.sort((a, b) => a.file.localeCompare(b.file));
   await writeFile(
     join(tmp, "catalog.json"),
     JSON.stringify(
       {
-        note: prompt("step", "film.sounds_note"),
+        note: prompt("step", "motion.sounds_note"),
         music: [],
         sounds,
       },

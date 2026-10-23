@@ -53,6 +53,12 @@ export function Organization({ me }: { me: Me }) {
       <Section title={t("organization.title")} hint={t("organization.hint")}>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           <div className="min-w-0 flex-1">
+            {me.tenant.name ? (
+              <div className="mb-3">
+                <div className="text-[0.8125rem] text-ink-3">{t("organization.name")}</div>
+                <div className="mt-0.5 truncate font-medium text-[0.9375rem]">{me.tenant.name}</div>
+              </div>
+            ) : null}
             <div className="text-[0.8125rem] text-ink-3">{t("organization.plan")}</div>
             <div className="mt-0.5 flex items-center gap-2">
               <span className="font-medium text-[0.9375rem]">

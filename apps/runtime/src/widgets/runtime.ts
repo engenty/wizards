@@ -10,7 +10,7 @@
  *   wizard.save(state)     keeps `state` with the run (small JSON); the next visit reads it
  *   wizard.share(text)     hands text to the device's share sheet (or copies it)
  *   wizard.ai              "generated" | "edited" when the run's media in `data` was made or
- *                          changed by a model, else null — a film labels itself with it
+ *                          changed by a model, else null — a video labels itself with it
  *   wizard.mode            "view" in the browser, "export" while a PNG/PDF/MP4 is rendered
  *   wizard.file(path)      text of a workspace file (JSON, CSV, SVG, …)
  *   wizard.json(path)      a workspace JSON file, parsed
@@ -19,8 +19,8 @@
  *   wizard.timeline({ duration, seek, poster?, audio? })
  *                          an animation of `duration` seconds; seek(t) must draw time t —
  *                          synchronously, or as a promise that resolves once it is drawn (a
- *                          film waits for its clips). Enables the MP4 export; `poster` is the
- *                          second the PNG/PDF show (default 0). A film names its sound in
+ *                          video waits for its clips). Enables the MP4 export; `poster` is the
+ *                          second the PNG/PDF show (default 0). A video names its sound in
  *                          `audio`: [{ src, start, duration?, from?, volume? }] — `from` is the
  *                          second of the source a cut plays from.
  */

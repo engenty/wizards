@@ -1,7 +1,240 @@
 [
   {
+    "version": "v0.11.6",
+    "timestamp": 1792770209,
+    "commits": [
+      {
+        "id": "baf03d5",
+        "message": "an e-mail link opened in another browser signs in there (#210)",
+        "group": "Fixed",
+        "scope": "auth",
+        "breaking": false
+      },
+      {
+        "id": "44b127d",
+        "message": "extra effort for the agent chat, with its own models per way (#176)",
+        "group": "Added",
+        "scope": "runtime,web",
+        "breaking": false
+      },
+      {
+        "id": "225cf67",
+        "message": "offer the install banner only after a wizard and a return day (#209)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.11.5",
+    "timestamp": 1792767707,
+    "commits": [
+      {
+        "id": "dfc6a6c",
+        "message": "Konto's trail starts without a slash (#207)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "61bd95c",
+        "message": "remove connected systems (a space's MCP servers) (#206)",
+        "group": "Added",
+        "scope": null,
+        "breaking": true
+      }
+    ]
+  },
+  {
+    "version": "v0.11.4",
+    "timestamp": 1792764239,
+    "commits": [
+      {
+        "id": "93ce4d2",
+        "message": "Konto shows no organization, one place reads “1 Platz”, a deleted API key's secret goes (#203)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.11.3",
+    "timestamp": 1792762583,
+    "commits": [
+      {
+        "id": "cbcd5f7",
+        "message": "the person's Konto behind the avatar: profile, organizations and connected apps (#201)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "d735bcd",
+        "message": "the organization's sector is one of the catalogs', and the new-wizard page shows the templates that fit it first (#197)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "a94c38a",
+        "message": "the organization's credits, usage and invoices in Settings (#200)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "d194d64",
+        "message": "the organization's address, own domains and API keys in Settings (#199)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "22971bc",
+        "message": "the first visit asks for the name first, then the organization's addresses, found and its own (#194)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "52cdb02",
+        "message": "the organization's name and members in Settings, behind organizationSettings (#195)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "4b9a3ac",
+        "message": "the first visit asks the organization once and the person once, and greets everyone else (#192)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "3217a47",
+        "message": "Info and Brand are two parts of Sources (#198)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "28499ae",
+        "message": "the space's page is called Sources (#196)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "99b9a24",
+        "message": "app bar names its places on a wide window (#193)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "0a6b714",
+        "message": "the studio follows its organization's new address (#191)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "369318b",
+        "message": "the cloud studio's address names its organization (#190)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "8df699c",
+        "message": "a plan with one space names the organization only (#189)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "d7837da",
+        "message": "switch the organization from the studio, shown only to who can switch (#188)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "cffc459",
+        "message": "the link and sign-in pages speak the browser's language (#187)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "235a557",
+        "message": "setup sets local models apart and asks about the account (#186)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "275d326",
+        "message": "the studio names the organization it is in (#185)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "b28e2bc",
+        "message": "a sign-in returns into the studio (#184)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "5539007",
+        "message": "documentation updates (#181, #182, #183)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.11.2",
+    "timestamp": 1792738780,
+    "commits": [
+      {
+        "id": "d7ac62b",
+        "message": "the film step and capability are called motion-graphics (#179)",
+        "group": "Changed",
+        "scope": "format",
+        "breaking": true
+      },
+      {
+        "id": "4c42a31",
+        "message": "sharing, theme values, the .wizard file and row checks join the MIT wizard format (#178)",
+        "group": "Changed",
+        "scope": "format",
+        "breaking": false
+      },
+      {
+        "id": "705bf53",
+        "message": "the wizard format and the runner are MIT, the rest FSL-1.1-MIT (#175)",
+        "group": "Docs",
+        "scope": "license",
+        "breaking": false
+      },
+      {
+        "id": "d654ecc",
+        "message": "report wizards and runs to Manage, honour holds and levels, and ask for feedback and bug reports on the run page (#172)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.1",
-    "timestamp": 1792662065,
+    "timestamp": 1792662215,
     "commits": [
       {
         "id": "3dd1172",

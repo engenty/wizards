@@ -7,7 +7,7 @@ import { env } from "../env.js";
 /**
  * The HyperFrames CLI (github.com/heygen-com/hyperframes, Apache 2.0): renders a composition of
  * HTML, CSS and JS to MP4 frame by frame in headless Chrome. Installed once into the data folder
- * on the first film, pinned to a version; Chrome comes with it on its first render.
+ * on the first video, pinned to a version; Chrome comes with it on its first render.
  */
 export const HYPERFRAMES_VERSION = "0.8.137";
 

@@ -110,6 +110,12 @@ const EN = {
   noApiKeySet: "No API key is set.",
   onlyOrganizationAdminsTest: "Only organization admins can test its models.",
   notFound: "This doesn’t exist or was deleted.",
+  // The pages of the one-time link and of the sign-in that a browser shows on its own.
+  localLinkUsed: "This link is no longer valid. Run “wizards open” in a terminal to get a new one.",
+  accountSignedIn: "Signed in. You can close this window.",
+  accountSignInCancelled: "Sign-in cancelled. You can close this window.",
+  accountSignInFailed: "The sign-in didn’t work. Try again.",
+  desktopSignedIn: "Signed in. Go back to engenty wizards now.",
   ownKeysNotInPlan: "Your own API keys aren’t part of the {plan} plan.",
   ownKeysNotInOrganizationPlan: "Your own API keys aren’t part of the organization’s plan.",
   planUnavailable: "The organization’s plan can’t be checked right now. Try again later.",
@@ -172,7 +178,7 @@ const EN = {
   shareInterrupted: "Sending was interrupted. Try again.",
   shareNotInResult: "“{name}” ({format}) is not part of this result.",
   shareCannotRender: "“{name}” couldn’t be made as {format}. Choose another format.",
-  // The labels of the facts the first visit reads from a website, as the Info & brand page has them.
+  // The labels of the facts the first visit reads from a website, as the Info page has them.
   factAddress: "Address",
   factPostcode: "Postcode",
   factCity: "City",
@@ -299,6 +305,12 @@ const DE: Partial<Record<ServerKey, Line>> = {
   noApiKeySet: "Kein API-Key hinterlegt.",
   onlyOrganizationAdminsTest: "Nur Admins der Organisation testen ihre Modelle.",
   notFound: "Das gibt es nicht oder nicht mehr.",
+  localLinkUsed:
+    "Dieser Link gilt nicht mehr. Führ „wizards open“ im Terminal aus, dann bekommst du einen neuen.",
+  accountSignedIn: "Angemeldet. Du kannst dieses Fenster schließen.",
+  accountSignInCancelled: "Anmeldung abgebrochen. Du kannst dieses Fenster schließen.",
+  accountSignInFailed: "Die Anmeldung hat nicht geklappt. Versuch es noch einmal.",
+  desktopSignedIn: "Angemeldet. Geh jetzt zurück zu engenty wizards.",
   ownKeysNotInPlan: "Eigene API-Keys gibt es nicht im Paket {plan}.",
   ownKeysNotInOrganizationPlan: "Eigene API-Keys gibt es nicht im Paket der Organisation.",
   planUnavailable:

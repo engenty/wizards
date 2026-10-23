@@ -22,6 +22,8 @@ export interface ChatCall {
   mcpUrl: string;
   /** The folder the client runs in: Claude's MCP config, Cursor's workspace. */
   dir: string;
+  /** The model the client runs, by its own name: left out, the client picks. */
+  model?: string;
   /** Claude: the MCP config file. */
   mcpConfigFile?: string;
   /** The pictures pasted with the message: base64 for Claude, files for Codex. */
@@ -91,6 +93,7 @@ const claude: ChatClient = {
     "",
     "--append-system-prompt",
     call.system,
+    ...(call.model ? ["--model", call.model] : []),
     ...(call.session ? ["--resume", call.session] : []),
   ],
   stdin: (call) =>
@@ -186,6 +189,7 @@ const codex: ChatClient = {
     const options = [
       "--json",
       "--skip-git-repo-check",
+      ...(call.model ? ["-m", call.model] : []),
       // Only this server's tools: none of the person's own MCP servers start.
       "--ignore-user-config",
       "-c",
@@ -274,6 +278,7 @@ const cursor: ChatClient = {
     "--workspace",
     call.dir,
     "--approve-mcps",
+    ...(call.model && call.model !== "auto" ? ["--model", call.model] : []),
     ...(call.session ? ["--resume", call.session] : []),
   ],
   stdin: (call) => call.message,

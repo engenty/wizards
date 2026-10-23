@@ -1,7 +1,7 @@
 ---
 title: Review and result
 description: A review step shows earlier results to check, the result step ends the run with its downloads.
-version: 0.7.10
+version: 0.11.1
 ---
 
 ## Review
@@ -57,7 +57,7 @@ Each deliverable names a step id or `lists.<id>` in `from`, an optional `label` 
 | `generate` dashboard | `html`, `pdf`, `png` |
 | `widget` | `html`, `png`, `pdf`, `json`, and `mp4` when the widget has a timeline |
 | `widget` with `video` | `mp4`, `png` |
-| `film` | `mp4` |
+| `motion-graphics` | `mp4` |
 | `agent` with `text` or `markdown` | `md`, `txt`, `docx`, `pdf`, `html` |
 | `agent` with `json` | `json`, `csv`, `xlsx` (a sheet per table), `md`, and `pdf` with a `schema` |
 | `agent`, any format | `zip`: the files the step kept |

@@ -1,6 +1,6 @@
 import type { AssistantPage } from "@engenty/wizards-shared/assistant";
 import { useEffect, useId, useRef, useSyncExternalStore } from "react";
-import { STUDIO } from "../../lib/base";
+import { STUDIO_ROOT } from "../../lib/base";
 import { currentCrumbs, SCROLL_ROOT_ID } from "../AppFrame";
 
 /**
@@ -120,7 +120,7 @@ export function pageSnapshot(): AssistantPage {
   } = merged;
   const trail = currentCrumbs().map((c) => c.label);
   const path = window.location.pathname;
-  const route = path.startsWith(STUDIO) ? path.slice(STUDIO.length) || "/" : path;
+  const route = path.startsWith(STUDIO_ROOT) ? path.slice(STUDIO_ROOT.length) || "/" : path;
   const view = sectionInView();
   // Cut to what the runtime takes: a page that says too much still gets its answer.
   const cut = (text: string | undefined, max: number) =>

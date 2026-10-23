@@ -1,9 +1,9 @@
 <!--
-AI steps in a wizard run: agent steps, documents and dashboards, images and videos, films, and the
+AI steps in a wizard run: agent steps, documents and dashboards, images and videos, motion graphics, and the
 decisions a run takes (branches). Read by engine/steps.ts (the step agent's system prompt and
 message, the structurer, the view composer, the HTML writer, the visual prompt writer),
 engine/decide.ts, engine/runner.ts, engine/template.ts, services/knowledge.ts (knowledgeBlock),
-media/generate.ts and film/*.ts (the film folder's CLAUDE.md/AGENTS.md, BRIEF.md, input/README.md,
+media/generate.ts and motion-graphics/*.ts (the video folder's CLAUDE.md/AGENTS.md, BRIEF.md, input/README.md,
 the client's turns and its hyperframes tool). The tools a step gets are in tools.md.
 Written in English; a step writes in the person's language (see `language.*`).
 -->
@@ -199,136 +199,136 @@ Which statement is true of this run? Answer none unless one clearly holds.
 <!-- section: decide.branch_none -->
 None of these clearly holds: go on with the next step.
 
-<!-- section: film.rules -->
-<!-- The film folder's CLAUDE.md and AGENTS.md (film/project.ts). `start` is a film.start.* section. -->
-# The film folder
+<!-- section: motion.rules -->
+<!-- The video folder's CLAUDE.md and AGENTS.md (motion-graphics/project.ts). `start` is a motion.start.* section. -->
+# The video folder
 
-You make one film here, autonomously, to the end. Nobody answers questions: where a skill asks the
+You make one video here, autonomously, to the end. Nobody answers questions: where a skill asks the
 person, decide yourself and note it in PROGRESS.md.
 
 ${start}
 - **Material:** input/ (see input/README.md). Use nothing from the web; you have no network.
 - **Skills:** ${skills} in .claude/skills/<name>/SKILL.md. Start with `hyperframes` and
   read the skill files directly; do not update or install skills.
-- **The HyperFrames project is film/** (${width}×${height}). Keep every file of the film
-  inside film/.
-- **Running HyperFrames:** only through the `hyperframes` tool (MCP server `film`), e.g.
-  `["lint","film"]`, `["check","film"]`, `["snapshot","film","--at","1,4,8"]`,
-  `["render","film","-q","draft"]`, `["transcribe","input/voice/l01.wav","--json","-d","input/voice"]`.
+- **The HyperFrames project is video/** (${width}×${height}). Keep every file of the video
+  inside video/.
+- **Running HyperFrames:** only through the `hyperframes` tool (MCP server `video`), e.g.
+  `["lint","video"]`, `["check","video"]`, `["snapshot","video","--at","1,4,8"]`,
+  `["render","video","-q","draft"]`, `["transcribe","input/voice/l01.wav","--json","-d","input/voice"]`.
   `npx`, `npm` and network do not work in the shell.
 - **Look at your work:** snapshot the frames and read the PNGs, fix what is wrong. Before you finish,
-  render a draft and look at a frame every second of the whole film: empty areas, cut-off text,
+  render a draft and look at a frame every second of the whole video: empty areas, cut-off text,
   overlaps, jumps.
-- **Finish** only when `["check","film"]` passes and `["render","film","-q","draft"]` succeeds, with `film/index.html` complete. The runtime renders the final MP4 itself.
-  End with a short summary: what the film shows, what you decided.
+- **Finish** only when `["check","video"]` passes and `["render","video","-q","draft"]` succeeds, with `video/index.html` complete. The runtime renders the final MP4 itself.
+  End with a short summary: what the video shows, what you decided.
 
 ## Sound (hard rules)
 
 - Sounds come only from audio-catalog/ (catalog.json lists each file with tags, keywords, licence).
-  Copy the picked files into film/assets/ and list them in film/AUDIO.md (file, source, licence, use).
+  Copy the picked files into video/assets/ and list them in video/AUDIO.md (file, source, licence, use).
 - Never generate, synthesize or download audio: no ffmpeg tone or noise, no TTS, no music models. Voice
   lines come only from input/. Mixing is HyperFrames' job (`<audio>` with start, duration, volume).
 - Install nothing (no pip, brew, npm).
 
-<!-- section: film.start.base -->
-<!-- Where the client starts when film/ is the kit's base project. -->
-- **What to make:** BRIEF.md. **Start here:** film/ is already the wizard's base project in this
-  format — read film/PARTS.md first: its scene templates carry the look. Compose the film from them in
+<!-- section: motion.start.base -->
+<!-- Where the client starts when video/ is the kit's base project. -->
+- **What to make:** BRIEF.md. **Start here:** video/ is already the wizard's base project in this
+  format — read video/PARTS.md first: its scene templates carry the look. Compose the video from them in
   the one file PARTS.md names, timed to the voice; write a new scene only where no template fits, then
   in the style of showcase/ (SHOWCASE.md says how each technique is made).
-- **The brand:** film/brand/ holds brand.json and the logos. If film/brand/theme.json is missing, make
-  it first as film/BRAND.md says — it is kept for the next films of this space, so get it right.
+- **The brand:** video/brand/ holds brand.json and the logos. If video/brand/theme.json is missing, make
+  it first as video/BRAND.md says — it is kept for the next videos of this space, so get it right.
   Colours, logo and fonts come from there only.
 
-<!-- section: film.start.from -->
-<!-- When film/ is an earlier film of this run in another format. -->
-- **What to make:** BRIEF.md. **Start here:** film/ holds a finished film of this run in another
+<!-- section: motion.start.from -->
+<!-- When video/ is an earlier video of this run in another format. -->
+- **What to make:** BRIEF.md. **Start here:** video/ holds a finished video of this run in another
   format. Lay it out for this one: scenes, timing, words and sound stay; only the layout changes
-  (film/PARTS.md says how when it exists). The look is showcase/'s.
-- **The brand:** film/brand/ when it is there, else brand/brand.json and brand/logos/ — colours, logo
+  (video/PARTS.md says how when it exists). The look is showcase/'s.
+- **The brand:** video/brand/ when it is there, else brand/brand.json and brand/logos/ — colours, logo
   and fonts come from there only.
 
-<!-- section: film.start.init -->
-<!-- When film/ is a new, empty project. -->
+<!-- section: motion.start.init -->
+<!-- When video/ is a new, empty project. -->
 - **What to make:** BRIEF.md. **The bar:** showcase/ (read showcase/SHOWCASE.md and showcase/frame.md
   first when it exists, look at its stills, reuse its helpers from showcase/assets/). **The brand:**
   brand/brand.json and brand/logos/ — colours, logo and fonts come from there only.
 
-<!-- section: film.brief -->
+<!-- section: motion.brief -->
 <!-- In the folder's BRIEF.md, after the format line. -->
 Language of all text on screen: the brief's language.
 
-<!-- section: film.input -->
+<!-- section: motion.input -->
 <!-- The folder's input/README.md; `files` lists the files. -->
-# Material for this film
+# Material for this video
 
 ${files}
 
 Voice lines play one after another in their order; their lengths decide the timing.
 
-<!-- section: film.brand_note -->
+<!-- section: motion.brand_note -->
 <!-- The "note" at the top of brand/brand.json. -->
-The space's brand. Colours are named by what they are for; the first is the accent. A logo's section, a gradient's or a pattern's description says when to use it; colorRules, logoRules and typeRules, where there are any, say how colours, logos and type may be used; text is set in the fonts — a font with `uses` that leave out video is not used in a film: its text gets a system font.
+The space's brand. Colours are named by what they are for; the first is the accent. A logo's section, a gradient's or a pattern's description says when to use it; colorRules, logoRules and typeRules, where there are any, say how colours, logos and type may be used; text is set in the fonts — a font with `uses` that leave out video is not used in a video: its text gets a system font.
 
-<!-- section: film.sounds_note -->
+<!-- section: motion.sounds_note -->
 <!-- The "note" at the top of audio-catalog/catalog.json. -->
-The only sounds this film may use. Never generate, synthesize or download audio.
+The only sounds this video may use. Never generate, synthesize or download audio.
 
-<!-- section: film.make -->
-<!-- The client's first turn on a new film. -->
-Make the film BRIEF.md asks for, following CLAUDE.md.
+<!-- section: motion.make -->
+<!-- The client's first turn on a new video. -->
+Make the video BRIEF.md asks for, following CLAUDE.md.
 
 ${brief}
 
-<!-- section: film.from -->
-<!-- The first turn when film/ is this run's film in another format. -->
-film/ holds this run's film in another format. Lay it out for ${format} (${width}×${height}), following CLAUDE.md: set the size of film/index.html, then make every scene fit — scenes, timing, words and sound stay. Check the frames, render a draft, and end with a short summary of what you changed.
+<!-- section: motion.from -->
+<!-- The first turn when video/ is this run's video in another format. -->
+video/ holds this run's video in another format. Lay it out for ${format} (${width}×${height}), following CLAUDE.md: set the size of video/index.html, then make every scene fit — scenes, timing, words and sound stay. Check the frames, render a draft, and end with a short summary of what you changed.
 
 The brief, for reference:
 
 ${brief}
 
-<!-- section: film.change -->
-<!-- After a review: the person's change, then a film.brand_changed.* section when the brand changed, then film.change.then. -->
-The person watched the film and asks for this change:
+<!-- section: motion.change -->
+<!-- After a review: the person's change, then a motion.brand_changed.* section when the brand changed, then motion.change.then. -->
+The person watched the video and asks for this change:
 
 ${note}
 
-<!-- section: film.change.then -->
-Change the film in film/ accordingly — keep what they did not mention — check the frames again, and end with a short summary of what you changed.
+<!-- section: motion.change.then -->
+Change the video in video/ accordingly — keep what they did not mention — check the frames again, and end with a short summary of what you changed.
 
-<!-- section: film.resume -->
-<!-- A film that stopped before it was done; a film.brand_changed.* section follows when the brand changed. -->
-Carry on with the film where you stopped. Read PROGRESS.md and the folder to see where that was, then finish it.
+<!-- section: motion.resume -->
+<!-- A video that stopped before it was done; a motion.brand_changed.* section follows when the brand changed. -->
+Carry on with the video where you stopped. Read PROGRESS.md and the folder to see where that was, then finish it.
 
-<!-- section: film.brand_changed.init -->
-<!-- When the space's brand changed since the film was made (film/ new or empty at the start). -->
-The space's brand has changed since the film was made: brand/brand.json and brand/logos/ are new. Carry them into the film wherever it uses the brand (its own copies included), so every colour, logo and name is the new one, and check the frames for contrast.
+<!-- section: motion.brand_changed.init -->
+<!-- When the space's brand changed since the video was made (video/ new or empty at the start). -->
+The space's brand has changed since the video was made: brand/brand.json and brand/logos/ are new. Carry them into the video wherever it uses the brand (its own copies included), so every colour, logo and name is the new one, and check the frames for contrast.
 
-<!-- section: film.brand_changed.base -->
-<!-- The same for a film that started from the kit's base or an earlier film. -->
-The space's brand has changed since the film was made: film/brand/brand.json and the logos are new. If film/brand/theme.json is missing, make it again as film/BRAND.md says. Make sure every colour, logo and name in the film is the new one, and check the frames for contrast.
+<!-- section: motion.brand_changed.base -->
+<!-- The same for a video that started from the kit's base or an earlier video. -->
+The space's brand has changed since the video was made: video/brand/brand.json and the logos are new. If video/brand/theme.json is missing, make it again as video/BRAND.md says. Make sure every colour, logo and name in the video is the new one, and check the frames for contrast.
 
-<!-- section: film.fix -->
+<!-- section: motion.fix -->
 <!-- When the runtime's final render fails: back to the client. -->
-The final render of film/ failed:
+The final render of video/ failed:
 
 ${problem}
 
 Find the cause in the composition's code, fix it, run `check` and a draft render through the hyperframes tool until both pass, and end with one line on what you fixed.
 
-<!-- section: film.tool -->
-<!-- The film client's hyperframes tool (MCP server `film`). -->
-Runs the HyperFrames CLI in the film folder: lint, check, snapshot, render, inspect, timeline, transcribe, keyframes, compare, docs and the like. Paths are relative to the folder. Returns what it printed.
+<!-- section: motion.tool -->
+<!-- The video client's hyperframes tool (MCP server `video`). -->
+Runs the HyperFrames CLI in the video folder: lint, check, snapshot, render, inspect, timeline, transcribe, keyframes, compare, docs and the like. Paths are relative to the folder. Returns what it printed.
 
-<!-- section: film.tool.args -->
-The arguments, e.g. ["snapshot", "film", "--at", "1,4,8"].
+<!-- section: motion.tool.args -->
+The arguments, e.g. ["snapshot", "video", "--at", "1,4,8"].
 
-<!-- section: film.tool.no_args -->
+<!-- section: motion.tool.no_args -->
 args: a list of strings, the subcommand first.
 
-<!-- section: film.tool.not_allowed -->
+<!-- section: motion.tool.not_allowed -->
 "${command}" is not available here. Available: ${allowed}.
 
-<!-- section: film.tool.outside -->
-"${arg}" leaves the film folder.
+<!-- section: motion.tool.outside -->
+"${arg}" leaves the video folder.

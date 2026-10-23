@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, normalize } from "node:path";
-import { FILM_SIZES, type FilmStep } from "@engenty/wizards-shared/definition";
+import { MOTION_SIZES, type MotionGraphicsStep } from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import { type StepContext, StepError } from "../engine/types.js";
@@ -10,14 +10,14 @@ import { CLAUDE_BIN, claudeEnv } from "../harness/claude.js";
 import { failureOf } from "../harness/model.js";
 import { type BridgeTool, openBridge } from "../mcp/bridge.js";
 import { saidOf } from "../model-errors.js";
-import { filmClient } from "../models.js";
+import { motionClient } from "../models.js";
 import { prompt } from "../prompts.js";
-import { keepBrandBase, prepareFilmFolder, savedSession, saveSession } from "./project.js";
+import { keepBrandBase, prepareMotionFolder, savedSession, saveSession } from "./project.js";
 import { runHyperframes } from "./tools.js";
 
 /**
- * A film step: the installed client (Claude Code) works in the film's folder with the skills,
- * the style kit, the brand and the run's material, and writes the film as code. Its shell runs
+ * A motion-graphics step: the installed client (Claude Code) works in the video's folder with the skills,
+ * the style kit, the brand and the run's material, and writes the video as code. Its shell runs
  * in the client's sandbox — writes only inside the folder, no network; HyperFrames (render,
  * snapshots, checks) runs outside it, through the `hyperframes` tool of this step, limited to
  * the folder. The final render is the runtime's, not the client's. A run that stops (a limit,
@@ -45,20 +45,20 @@ const ALLOWED = new Set([
   "docs",
 ]);
 
-/** The longest a film may take the client before the step gives up. */
+/** The longest a video may take the client before the step gives up. */
 const LIMIT_MS = 3 * 60 * 60_000;
 
 function hyperframesTool(root: string, signal: AbortSignal): BridgeTool {
   return {
     name: "hyperframes",
-    description: prompt("step", "film.tool"),
+    description: prompt("step", "motion.tool"),
     inputSchema: {
       type: "object",
       properties: {
         args: {
           type: "array",
           items: { type: "string" },
-          description: prompt("step", "film.tool.args"),
+          description: prompt("step", "motion.tool.args"),
         },
       },
       required: ["args"],
@@ -66,11 +66,11 @@ function hyperframesTool(root: string, signal: AbortSignal): BridgeTool {
     async execute(input) {
       const args = ((input as { args?: unknown }).args ?? []) as unknown[];
       if (!args.length || !args.every((a) => typeof a === "string")) {
-        return prompt("step", "film.tool.no_args");
+        return prompt("step", "motion.tool.no_args");
       }
       const [cmd] = args as string[];
       if (!ALLOWED.has(cmd)) {
-        return prompt("step", "film.tool.not_allowed", {
+        return prompt("step", "motion.tool.not_allowed", {
           command: cmd,
           allowed: [...ALLOWED].join(", "),
         });
@@ -79,7 +79,7 @@ function hyperframesTool(root: string, signal: AbortSignal): BridgeTool {
       for (const a of args as string[]) {
         const value = a.includes("=") && a.startsWith("-") ? a.slice(a.indexOf("=") + 1) : a;
         if (isAbsolute(value) || normalize(value).startsWith("..")) {
-          return prompt("step", "film.tool.outside", { arg: a });
+          return prompt("step", "motion.tool.outside", { arg: a });
         }
       }
       const extra = cmd === "transcribe" ? ["--no-runtime-install"] : [];
@@ -116,19 +116,22 @@ function renderProblem(out: string): string {
 /** How many times a failed final render goes back to the client to be fixed. */
 const RENDER_FIXES = 2;
 
-export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<StepOutput> {
-  const found = await filmClient(step.model ?? "low");
+export async function runMotionGraphicsStep(
+  step: MotionGraphicsStep,
+  ctx: StepContext,
+): Promise<StepOutput> {
+  const found = await motionClient(step.model ?? "low");
   if ("problem" in found) {
     throw new StepError(found.problem);
   }
   const { client, alias } = found;
 
-  await ctx.emit("info", { code: "filmSetup" });
-  const { root, brief, brandChanged, start } = await prepareFilmFolder(step, ctx);
+  await ctx.emit("info", { code: "motionSetup" });
+  const { root, brief, brandChanged, start } = await prepareMotionFolder(step, ctx);
   const resume = await savedSession(root);
   await ctx.emit(
     "info",
-    resume ? { code: "filmResume" } : { code: "filmClient", params: { client: client.name } },
+    resume ? { code: "motionResume" } : { code: "motionClient", params: { client: client.name } },
   );
 
   const limit = AbortSignal.any([ctx.signal, AbortSignal.timeout(LIMIT_MS)]);
@@ -147,7 +150,7 @@ export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<Ste
       "project",
       "--strict-mcp-config",
       "--mcp-config",
-      JSON.stringify({ mcpServers: { film: { type: "http", url: bridge.url } } }),
+      JSON.stringify({ mcpServers: { video: { type: "http", url: bridge.url } } }),
       // The shell writes only inside the folder and has no network.
       "--settings",
       JSON.stringify({
@@ -168,7 +171,7 @@ export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<Ste
         "TaskList",
         "TaskGet",
         "Skill",
-        "mcp__film",
+        "mcp__video",
       ].join(","),
       "--disallowedTools",
       "WebFetch,WebSearch",
@@ -196,7 +199,7 @@ export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<Ste
         const task = async (now: string | undefined) => {
           if (now && now !== lastTask) {
             lastTask = now;
-            await ctx.emit("tool", { code: "filmTask", params: { task: now.slice(0, 90) } });
+            await ctx.emit("tool", { code: "motionTask", params: { task: now.slice(0, 90) } });
           }
         };
         const onEvent = async (event: StreamEvent) => {
@@ -223,12 +226,12 @@ export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<Ste
                 typeof input.subject === "string" ? input.subject : subjects[id - 1] || undefined,
               );
             } else if (
-              part.name === "mcp__film__hyperframes" &&
+              part.name === "mcp__video__hyperframes" &&
               (input.args as string[] | undefined)?.[0] === "snapshot" &&
               Date.now() - lastLook > 60_000
             ) {
               lastLook = Date.now();
-              await ctx.emit("tool", { code: "filmLooks" });
+              await ctx.emit("tool", { code: "motionLooks" });
             }
           }
         };
@@ -260,58 +263,62 @@ export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<Ste
         throw err;
       }
       throw new StepError(
-        runNote("filmClientStopped", { name: client.name, detail: (err as Error).message }),
+        runNote("motionClientStopped", { name: client.name, detail: (err as Error).message }),
       );
     });
     const result = last as StreamEvent | null;
     if (!result || result.is_error) {
       const detail = String(result?.result ?? (stderr.trim() || "no result")).slice(0, 400);
       const failure = failureOf(client, detail);
-      throw new StepError(runNote("filmWorkSaved", { problem: saidOf(failure) }));
+      throw new StepError(runNote("motionWorkSaved", { problem: saidOf(failure) }));
     }
     return result;
   };
 
-  const out = join(root, "film", "renders", "film.mp4");
+  const out = join(root, "video", "renders", "video.mp4");
   let summary = "";
   try {
-    // A review's note asks for a change: the film's code is there, so it is edited, not redone.
+    // A review's note asks for a change: the video's code is there, so it is edited, not redone.
     const note = ctx.state.notes[step.id]?.trim();
-    // A brand changed in the space since the film was made: the film's code carries the old one.
+    // A brand changed in the space since the video was made: the video's code carries the old one.
     const brandNote = !brandChanged
       ? ""
       : start === "init"
-        ? prompt("step", "film.brand_changed.init")
-        : prompt("step", "film.brand_changed.base");
-    const size = FILM_SIZES[step.format];
+        ? prompt("step", "motion.brand_changed.init")
+        : prompt("step", "motion.brand_changed.base");
+    const size = MOTION_SIZES[step.format];
     const request =
       resume && note
-        ? [prompt("step", "film.change", { note }), brandNote, prompt("step", "film.change.then")]
+        ? [
+            prompt("step", "motion.change", { note }),
+            brandNote,
+            prompt("step", "motion.change.then"),
+          ]
             .filter(Boolean)
             .join("\n\n")
         : resume
-          ? [prompt("step", "film.resume"), brandNote].filter(Boolean).join("\n\n")
+          ? [prompt("step", "motion.resume"), brandNote].filter(Boolean).join("\n\n")
           : start === "from"
-            ? prompt("step", "film.from", {
+            ? prompt("step", "motion.from", {
                 format: step.format,
                 width: size.width,
                 height: size.height,
                 brief,
               })
-            : prompt("step", "film.make", { brief });
+            : prompt("step", "motion.make", { brief });
     const first = await turn(request, resume);
     summary = typeof first.result === "string" ? first.result.trim() : "";
 
     // The final render is ours: it does not depend on the client still running. What fails
     // goes back to the client, which fixes its code.
     for (let attempt = 0; ; attempt++) {
-      if (!existsSync(join(root, "film", "index.html"))) {
-        throw new StepError(`${client.name} hat keinen Film hinterlassen.`);
+      if (!existsSync(join(root, "video", "index.html"))) {
+        throw new StepError(`${client.name} hat kein Video hinterlassen.`);
       }
       await ctx.emit("info", { code: "videoRendering" });
       await rm(out, { force: true });
       const render = await runHyperframes(
-        ["render", "film", "-o", "film/renders/film.mp4", "--crf", "23", "--quiet"],
+        ["render", "video", "-o", "video/renders/video.mp4", "--crf", "23", "--quiet"],
         { cwd: root, signal: ctx.signal, timeoutMs: 30 * 60_000 },
       );
       if (render.code === 0 && existsSync(out) && (await stat(out)).size > 0) {
@@ -319,10 +326,10 @@ export async function runFilmStep(step: FilmStep, ctx: StepContext): Promise<Ste
       }
       const problem = renderProblem(render.out);
       if (attempt >= RENDER_FIXES) {
-        throw new StepError(runNote("filmRenderFailed", { detail: problem.slice(0, 400) }));
+        throw new StepError(runNote("motionRenderFailed", { detail: problem.slice(0, 400) }));
       }
-      await ctx.emit("tool", { code: "filmFix" });
-      const fixed = await turn(prompt("step", "film.fix", { problem }), await savedSession(root));
+      await ctx.emit("tool", { code: "motionFix" });
+      const fixed = await turn(prompt("step", "motion.fix", { problem }), await savedSession(root));
       if (typeof fixed.result === "string" && fixed.result.trim()) {
         summary = `${summary}\n\n${fixed.result.trim()}`.trim();
       }

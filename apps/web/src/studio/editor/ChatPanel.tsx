@@ -123,6 +123,8 @@ export function useArchitectChat(
   const [activity, setActivity] = useState<string | null>(null);
   const [thought, setThought] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  // Extra effort: the editor chat builds wizards and their widgets, which is code, so it starts on.
+  const [extra, setExtra] = useState(true);
   const loadedFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -193,7 +195,7 @@ export function useArchitectChat(
     try {
       await postStream(
         `/api/studio/wizards/${wizard.id}/chat`,
-        { message: text },
+        { message: text, extra },
         (event, data) => {
           if (event === "text") {
             const delta = JSON.parse(data) as string;
@@ -252,7 +254,7 @@ export function useArchitectChat(
   const fileUrl = (name: string) =>
     withBase(`/api/studio/wizards/${wizard?.id}/files/${encodeURIComponent(name)}`);
 
-  return { messages, phase, activity, thought, startedAt, error, send, fileUrl };
+  return { messages, phase, activity, thought, startedAt, error, send, fileUrl, extra, setExtra };
 }
 
 /** What the panel shows and sends; the architect's chat and the project assistant both are one. */
@@ -263,6 +265,9 @@ export type Chat = Pick<
   thought?: string | null;
   /** Where a file the thread names can be loaded from, once the message is the server's. */
   fileUrl?: (name: string) => string;
+  /** Extra effort: the box in the composer's plus menu; left out, the chat has none. */
+  extra?: boolean;
+  setExtra?: (on: boolean) => void;
 };
 
 /** Seconds since `since`, counting up once a second; null while nothing runs. */
@@ -684,6 +689,7 @@ export function ChatPanel({
           placeholder={placeholder}
           disabled={chat.phase !== "idle"}
           onSend={(text, files) => chat.send(text, files)}
+          effort={chat.setExtra ? { on: Boolean(chat.extra), onChange: chat.setExtra } : undefined}
         />
       )}
     </div>

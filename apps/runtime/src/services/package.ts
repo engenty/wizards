@@ -66,9 +66,6 @@ export async function exportWizard(
   const definition = live ? live.definition : w.draft;
   const project = await ownedProject(userId, w.projectId);
   const named = new Set((definition.connections ?? []).map((c) => c.connector));
-  const servers = new Set(
-    definition.steps.flatMap((s) => (s.type === "agent" ? (s.mcp ?? []) : [])),
-  );
   const manifest: Manifest = {
     $schema: PACKAGE_SCHEMA_URL,
     format: PACKAGE_FORMAT,
@@ -83,9 +80,6 @@ export async function exportWizard(
         domain: c.domain,
         sourceKind: c.sourceKind as "openapi" | "mcp",
       })),
-    mcpServers: project.mcpServers
-      .filter((s) => servers.has(s.id))
-      .map((s) => ({ id: s.id, name: s.name })),
     themes: themesOf(definition.themes, project.themes),
   };
   const entries: Record<string, Uint8Array> = {};
@@ -155,9 +149,6 @@ async function missing(
   const project = await ownedProject(userId, projectId);
   const connectors = await listConnectors(project.id);
   const wanted = [...new Set((draft.connections ?? []).flatMap((c) => c.connector ?? []))];
-  const servers = [
-    ...new Set(draft.steps.flatMap((s) => (s.type === "agent" ? (s.mcp ?? []) : []))),
-  ];
   return [
     ...wanted
       .filter((id) => !connectors.some((c) => c.id === id))
@@ -165,9 +156,6 @@ async function missing(
         const told = manifest.connectors.find((c) => c.id === id);
         return `Connector „${told?.name ?? id}“${told?.domain ? ` (${told.domain})` : ""}`;
       }),
-    ...servers
-      .filter((id) => !project.mcpServers.some((s) => s.id === id))
-      .map((id) => `MCP-Server „${manifest.mcpServers.find((s) => s.id === id)?.name ?? id}“`),
   ];
 }
 

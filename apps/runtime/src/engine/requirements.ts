@@ -14,16 +14,17 @@ import {
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
 import {
+  type Capability,
   closedChoicesFor,
   openValue,
   otherwiseIndex,
   unavoidableFrom,
   unavoidableSteps,
 } from "@engenty/wizards-shared/fit";
-import type { Capability } from "@engenty/wizards-shared/marketplace";
+
 import type { ClosedChoice, MissingModel, RunNote, Said } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
-import { classProblem, filmClient } from "../models.js";
+import { classProblem, motionClient } from "../models.js";
 
 // The steps every run passes through, and the choices that lead around a missing model, are
 // pure and shared (packages/shared/src/fit.ts): the standalone check uses the same.
@@ -79,7 +80,7 @@ function ownClasses(step: Step): ModelClass[] {
         default:
           return [step.model ?? "standard"];
       }
-    case "film":
+    case "motion-graphics":
       return [step.model ?? "low"];
     case "page":
       // A voice note the page asks for is listened to before the next step reads it.
@@ -293,13 +294,13 @@ export async function missingModelsSaid(def: WizardDefinition): Promise<MissingM
     }
   }
   const missing: MissingModelSaid[] = [];
-  // A film runs on an installed client only, whatever serves its class otherwise.
+  // A video runs on an installed client only, whatever serves its class otherwise.
   for (const step of def.steps) {
-    if (step.type !== "film") {
+    if (step.type !== "motion-graphics") {
       continue;
     }
     const cls = step.model ?? "low";
-    const found = await filmClient(cls);
+    const found = await motionClient(cls);
     if ("problem" in found) {
       missing.push({
         cls,
@@ -372,8 +373,8 @@ export async function missingCapabilities(): Promise<Set<Capability>> {
       missing.add(capability as Capability);
     }
   }
-  if ("problem" in (await filmClient("low"))) {
-    missing.add("film");
+  if ("problem" in (await motionClient("low"))) {
+    missing.add("motion-graphics");
   }
   return missing;
 }

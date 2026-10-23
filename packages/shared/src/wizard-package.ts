@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: FSL-1.1-MIT OR MIT
 import { z } from "zod";
 import { DEFINITION_VERSION } from "./definition.js";
 import { MAX_WIZARD_THEMES, themeSchema } from "./theme.js";
@@ -47,11 +48,6 @@ export const manifestSchema = z.object({
       }),
     )
     .max(50)
-    .default([]),
-  /** Project MCP servers the wizard's steps name — by name only, their address and headers are credentials. */
-  mcpServers: z
-    .array(z.object({ id: z.string().max(31), name: z.string().max(60) }))
-    .max(10)
     .default([]),
   /** The space's themes the wizard names: a wizard file ships its looks with it. */
   themes: z.array(themeSchema).max(MAX_WIZARD_THEMES).default([]),

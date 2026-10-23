@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent-Chat: Modelle</title>
+<style>
+  :root {
+    --bg: #0f2f80; --panel: #1f4290; --card: #24488f; --line: rgba(255,255,255,.14);
+    --ink: #fff; --ink2: #c4d0ee; --ink3: #8ea3d6; --ember: #ff6a3d; --ember-tint: #2f0b02;
+    --moss: #5fd38a; --amber: #ffb43c; --page: #0a1d52;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 13px/1.4 "Geist", "Inter", system-ui, sans-serif; padding: 24px 16px 48px; }
+  h1 { font-size: 18px; margin: 0 0 4px; } .sub { color: var(--ink2); margin: 0 0 18px; font-size: 12.5px; max-width: 70ch; }
+  .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); max-width: 1240px; margin: 0 auto; }
+  .tag { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); margin: 0 0 8px; }
+  .frame { background: var(--bg); border-radius: 14px; padding: 14px; border: 1px solid var(--line); }
+  .crumbs { color: var(--ink2); font-size: 11px; margin-bottom: 10px; display: flex; gap: 6px; align-items: center; }
+  .crumbs b { color: var(--ink); font-weight: 500; }
+  .head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .ico { width: 34px; height: 34px; border-radius: 10px; background: #2a0a02; display: grid; place-items: center; color: var(--ember); font-size: 17px; }
+  .head h2 { margin: 0; font-size: 15px; } .head p { margin: 1px 0 0; color: var(--ink2); font-size: 11.5px; }
+  .card { background: var(--card); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+  .part h3 { margin: 0 0 8px; font-size: 12.5px; font-weight: 600; }
+  .row { display: grid; grid-template-columns: 6rem 1fr; gap: 4px 12px; align-items: start; margin-top: 6px; }
+  .row > span { color: var(--ink3); font-size: 11px; padding-top: 6px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { height: 28px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; border: 1px dashed rgba(255,255,255,.22); color: var(--ink3); }
+  .pill.on { border: 1px solid var(--ember); background: var(--ember-tint); color: var(--ink); font-weight: 500; }
+  .pill.ok { border: 1px solid rgba(255,255,255,.3); color: var(--ink); }
+  .pill .ck { color: var(--moss); font-weight: 700; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 0; width: 100%; }
+  .model { display: grid; grid-template-columns: 8rem 1fr; gap: 4px 12px; align-items: center; margin-top: 8px; }
+  .model .lab { font-size: 12.5px; } .model .lab small { display: block; color: var(--ink3); font-size: 10.5px; }
+  .sel { height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.04); padding: 0 11px; display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; }
+  .sel i { color: var(--ink3); font-style: normal; } .sel .auto { color: var(--moss); font-size: 11px; margin-left: 8px; }
+  .fixed { height: 34px; display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink); }
+  .fixed small { color: var(--ink3); }
+  .hint { color: var(--ink2); font-size: 11.5px; margin: 6px 0 0; } .hint a { color: var(--ember); }
+  .key { height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,.28); padding: 0 11px; display: flex; align-items: center; color: var(--ink3); font-family: ui-monospace, monospace; font-size: 12px; }
+  .menu { margin-top: 6px; border-radius: 12px; border: 1px solid rgba(255,255,255,.28); background: #1a3a80; padding: 4px; font-size: 12.5px; }
+  .menu div { padding: 6px 9px; border-radius: 8px; display: flex; justify-content: space-between; }
+  .menu div.sel2 { background: rgba(255,255,255,.08); } .menu small { color: var(--ink3); }
+  .menu .own { border-top: 1px solid var(--line); border-radius: 0; margin-top: 4px; padding-top: 10px; color: var(--ember); }
+  .chatbar { display: flex; align-items: center; gap: 4px; height: 44px; padding: 4px; border-radius: 999px; background: #2a4fa0; max-width: 420px; }
+  .chatbar .c { width: 36px; height: 36px; display: grid; place-items: center; color: var(--ink2); font-size: 17px; border-radius: 999px; }
+  .chatbar .in { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink3); font-size: 13px; padding: 0 4px; }
+  .chatbar .send { background: #3a63b8; color: var(--ink2); }
+  .seg { display: inline-flex; background: rgba(0,0,0,.22); border-radius: 999px; padding: 2px; }
+  .seg span { padding: 4px 10px; border-radius: 999px; font-size: 11.5px; color: var(--ink2); } .seg .a { background: var(--ember); color: #1b0600; font-weight: 600; }
+  .note { max-width: 1240px; margin: 24px auto 0; display: grid; gap: 10px; }
+  .note div { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .note h4 { margin: 0 0 4px; font-size: 12.5px; } .note p, .note li { margin: 0; color: var(--ink2); font-size: 12px; } .note ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+  .msg { background: rgba(255,255,255,.06); border-radius: 12px; padding: 9px 11px; font-size: 12px; color: var(--ink2); max-width: 340px; }
+  .suggest { margin: 8px 0 10px; max-width: 340px; background: rgba(255,180,60,.10); border: 1px solid rgba(255,180,60,.35); border-radius: 12px; padding: 10px 11px; font-size: 12px; display: grid; gap: 8px; }
+  .suggest span { color: var(--ink2); } .suggest .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .suggest .b { height: 26px; padding: 0 10px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 11.5px; border: 1px solid rgba(255,255,255,.28); color: var(--ink2); }
+  .suggest .b.main { background: var(--ember); border-color: var(--ember); color: #1b0600; font-weight: 600; }
+  .plus-menu { width: 270px; margin-bottom: 6px; background: #1a3a80; border: 1px solid rgba(255,255,255,.22); border-radius: 12px; padding: 5px; font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  .plus-menu .mi { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px; }
+  .plus-menu .mi small { color: var(--ink3); font-size: 10.5px; margin-left: auto; } .plus-menu .mi b { color: var(--moss); margin-left: 6px; }
+  .plus-menu .mi:has(b) { background: rgba(255,255,255,.08); } .plus-menu .mi:has(b) small { margin-left: 0; }
+  .plus-menu .sep { border-top: 1px solid var(--line); margin: 4px 0; } .plus-menu .mh { color: var(--ink3); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; padding: 4px 9px 2px; }
+  .plus-menu .box { width: 15px; height: 15px; border-radius: 4px; background: var(--ember); color: #1b0600; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  .plus-menu .chk:has(.box) { background: none; }
+  .plus-menu .chk { align-items: flex-start; } .plus-menu .chk .box { margin-top: 2px; flex: none; }
+  .plus-menu .chk .tx small { display: block; margin: 1px 0 0; }
+</style>
+</head>
+<body>
+<h1>Agent-Chat: Modelle</h1>
+<p class="sub">Einstellungen › Modelle › Agent-Chat. Der Chat hat ein eigenes Modell und ein zweites für <b>Extra-Aufwand</b>, unabhängig von „Text &amp; Denken“. Die Modelllisten kommen vom Server, die Datei im Repo ist nur der Rückfall.</p>
+
+<div class="grid">
+
+  <!-- 1 Cloud, Guthaben -->
+  <div>
+    <p class="tag">1 · Cloud, Standard</p>
+    <div class="frame">
+      <div class="crumbs">Meine Wizards <span>/</span> Einstellungen <span>/</span> Modelle <span>/</span> <b>Agent-Chat</b></div>
+      <div class="head"><div class="ico">◔</div><div><h2>Agent-Chat</h2><p>Goose und der Chat im Editor, der deine Wizards baut.</p></div></div>
+      <div class="card">
+        <div class="part">
+          <h3>Wer macht das?</h3>
+          <div class="pills">
+            <span class="pill on"><span class="ck">✓</span> engenty-Guthaben</span>
+            <span class="pill">Eigener API-Key</span>
+          </div>
+          <p class="hint">engenty wählt jeweils ein passendes, aktuelles Modell. Es wird mit deinem Guthaben bezahlt.</p>
+        </div>
+        <hr>
+        <div class="part">
+          <h3>Modell</h3>
+          <div class="model"><div class="lab">Modell<small>für den Alltag</small></div><div class="fixed">Von engenty gewählt <small>· GPT-5.5 mini</small></div></div>
+          <div class="model"><div class="lab">Extra-Aufwand<small>Intelligenteres Modell für anspruchsvolle Aufgaben</small></div><div class="fixed">Von engenty gewählt <small>· GPT-5.5</small></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 Cloud, BYOK -->
+  <div>
+    <p class="tag">2 · Cloud, eigener Key</p>
+    <div class="frame">
+      <div class="crumbs">Meine Wizards <span>/</span> Einstellungen <span>/</span> Modelle <span>/</span> <b>Agent-Chat</b></div>
+      <div class="head"><div class="ico">◔</div><div><h2>Agent-Chat</h2><p>Goose und der Chat im Editor, der deine Wizards baut.</p></div></div>
+      <div class="card">
+        <div class="part">
+          <h3>Wer macht das?</h3>
+          <div class="pills">
+            <span class="pill">engenty-Guthaben</span>
+            <span class="pill on">Eigener API-Key</span>
+          </div>
+          <div class="row"><span>Anbieter</span>
+            <div class="pills"><span class="pill on"><span class="ck">✓</span> OpenAI</span><span class="pill">Anthropic</span><span class="pill">Google Gemini</span><span class="pill">Vercel AI Gateway</span></div></div>
+          <div class="row"><span>API-Key</span><div class="key">sk-…</div></div>
+        </div>
+        <hr>
+        <div class="part">
+          <h3>Modell</h3>
+          <div class="model"><div class="lab">Modell<small>für den Alltag</small></div><div class="sel"><span>Neuestes Modell <span class="auto">automatisch · GPT-5.5 mini</span></span><i>⌄</i></div></div>
+          <div class="model"><div class="lab">Extra-Aufwand<small>Intelligenteres Modell für anspruchsvolle Aufgaben</small></div><div class="sel"><span>Neuestes Modell <span class="auto">automatisch · GPT-5.5</span></span><i>⌄</i></div></div>
+          <div class="menu" style="margin-left: calc(8rem + 12px)">
+            <div class="sel2"><span>Neuestes Modell <small>automatisch</small></span><span>✓</span></div>
+            <div><span>GPT-5.5</span><small>stark</small></div>
+            <div><span>GPT-5.5 mini</span><small>schnell</small></div>
+            <div><span>GPT-5.4</span><small>vorherige</small></div>
+            <div class="own"><span>Eigenes Modell …</span><small>Name eintragen</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 Lokal, Abo -->
+  <div>
+    <p class="tag">3 · Lokal, Abo</p>
+    <div class="frame">
+      <div class="crumbs">Meine Wizards <span>/</span> Einstellungen <span>/</span> Modelle <span>/</span> <b>Agent-Chat</b></div>
+      <div class="head"><div class="ico">◔</div><div><h2>Agent-Chat</h2><p>Goose und der Chat im Editor, der deine Wizards baut.</p></div></div>
+      <div class="card">
+        <div class="part">
+          <h3>Wer macht das?</h3>
+          <div class="row"><span>Abo</span><div class="pills"><span class="pill on"><span class="ck">✓</span> Claude Code</span><span class="pill ok"><span class="ck">✓</span> Codex</span><span class="pill">Gemini</span></div></div>
+          <div class="row"><span>Eigener API-Key</span><div class="pills"><span class="pill">OpenAI</span><span class="pill">Anthropic</span><span class="pill">Google Gemini</span><span class="pill">Vercel AI Gateway</span></div></div>
+          <div class="row"><span>Andere</span><div class="pills"><span class="pill">Lokales Modell</span><span class="pill">engenty-Guthaben</span></div></div>
+          <p class="hint">Mit einem Abo arbeitet das Programm auf diesem Computer und nutzt nur die Werkzeuge von engenty wizards.</p>
+        </div>
+        <hr>
+        <div class="part">
+          <h3>Modell</h3>
+          <div class="model"><div class="lab">Modell<small>für den Alltag</small></div><div class="sel"><span>Sonnet <span class="auto">neueste Version · 4.8</span></span><i>⌄</i></div></div>
+          <div class="model"><div class="lab">Extra-Aufwand<small>Intelligenteres Modell für anspruchsvolle Aufgaben</small></div><div class="sel"><span>Opus <span class="auto">neueste Version · 4.8</span></span><i>⌄</i></div></div>
+          <p class="hint">Die Liste kommt aus deinem Abo. Neue Modelle erscheinen, sobald dein Programm sie kennt.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 Lokal, Key / Gateway -->
+  <div>
+    <p class="tag">4 · Lokal, Gateway mit eigenem Modell</p>
+    <div class="frame">
+      <div class="crumbs">Meine Wizards <span>/</span> Einstellungen <span>/</span> Modelle <span>/</span> <b>Agent-Chat</b></div>
+      <div class="head"><div class="ico">◔</div><div><h2>Agent-Chat</h2><p>Goose und der Chat im Editor, der deine Wizards baut.</p></div></div>
+      <div class="card">
+        <div class="part">
+          <h3>Wer macht das?</h3>
+          <div class="row"><span>Abo</span><div class="pills"><span class="pill ok"><span class="ck">✓</span> Claude Code</span><span class="pill ok"><span class="ck">✓</span> Codex</span></div></div>
+          <div class="row"><span>Eigener API-Key</span><div class="pills"><span class="pill">OpenAI</span><span class="pill">Anthropic</span><span class="pill">Google Gemini</span><span class="pill on"><span class="ck">✓</span> Vercel AI Gateway</span></div></div>
+          <div class="row"><span>Andere</span><div class="pills"><span class="pill">Lokales Modell</span><span class="pill">engenty-Guthaben</span></div></div>
+        </div>
+        <hr>
+        <div class="part">
+          <h3>Modell</h3>
+          <div class="model"><div class="lab">Modell<small>für den Alltag</small></div><div class="sel"><span>anthropic/claude-sonnet</span><i>⌄</i></div></div>
+          <div class="model"><div class="lab">Extra-Aufwand<small>Intelligenteres Modell für anspruchsvolle Aufgaben</small></div><div class="sel"><span>openai/gpt-5.5 <span class="auto">eigenes Modell</span></span><i>⌄</i></div></div>
+          <p class="hint">Hier zeigt die Liste nur Modelle, die den Chat tragen: Werkzeuge, JSON, genug Kontext. Mit „Eigenes Modell …“ trägst du jeden Namen ein.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 chat -->
+  <div>
+    <p class="tag">5 · Im Editor-Chat: Extra-Aufwand im Plus-Menü, Hinweis im Gespräch</p>
+    <div class="frame">
+      <div class="msg">Ich lege die Seiten und das Formular an. Für die Auswertung brauche ich ein Widget mit Diagramm.</div>
+      <div class="suggest">
+        <div><b>Das wird aufwendig.</b><br><span>Ein Widget mit Diagramm ist Code. Mit Extra-Aufwand arbeitet der Chat hier gründlicher.</span></div>
+        <div class="btns"><span class="b main">Extra-Aufwand einschalten</span><span class="b">Nein, danke</span></div>
+      </div>
+      <div class="plus-menu">
+        <div class="mi"><span>📎</span> Dateien anhängen</div>
+        <div class="mi"><span>🎙</span> Aufnahme</div>
+        <div class="sep"></div>
+        <div class="mi chk"><span class="box">✓</span><span class="tx">Extra-Aufwand<small>Intelligenteres Modell für anspruchsvolle Aufgaben</small></span></div>
+      </div>
+      <div class="chatbar">
+        <span class="c" style="color:var(--ink)">+</span><span class="in">Beschreibe, was sich ändern soll …</span>
+        <span class="c">🎙</span><span class="c send">↑</span>
+      </div>
+      <p class="hint">Ein Haken im Plus-Menü: „Extra-Aufwand“. Goose startet ohne, der Editor-Chat mit Haken. Er gilt für das Gespräch. Wenn der Chat Arbeit erkennt, die mehr braucht, erscheint die Karte im Gespräch. Sie blockiert nichts. Unteragenten, die Widgets schreiben, laufen immer mit Extra-Aufwand.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="note">
+  <div><h4>Wo die Modelle herkommen</h4>
+    <ul>
+      <li>Eine Liste je Anbieter und je Abo-Programm: Name, Stärke (Alltag / Extra-Aufwand), Fähigkeiten, Kontext, „neuestes“.</li>
+      <li>Der Server liefert sie (Manage, mit Zeitstempel). Die Runtime lädt sie beim Start und danach täglich, hält sie im Speicher und auf der Platte.</li>
+      <li>Eine JSON-Datei im Repo ist der Rückfall, wenn der Server nicht antwortet, und bleibt dieselbe Form.</li>
+      <li>„Neuestes Modell“ ist die Voreinstellung. Dann ändert sich nichts bei dir, wenn ein neues Modell kommt, außer dass es genutzt wird.</li>
+    </ul></div>
+  <div><h4>Cloud gegen lokal</h4>
+    <ul>
+      <li><b>Cloud:</b> Standard ist engenty-Guthaben, ohne Modellwahl. „Eigener API-Key“ öffnet die Anbieter-Zeile und die Modellwahl mit „Neuestes Modell“ als Voreinstellung.</li>
+      <li><b>Lokal:</b> Abo, Key, Gateway, lokales Modell und Guthaben nebeneinander. Das ist die Experten-Ansicht.</li>
+    </ul></div>
+</div>
+</body>
+</html>

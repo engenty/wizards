@@ -111,6 +111,7 @@ export function Composer({
   autoFocus,
   className,
   onTalk,
+  effort,
   ref,
 }: {
   placeholder?: string;
@@ -133,6 +134,8 @@ export function Composer({
   className?: string;
   /** Starts a live chat: its button stands where Send does while the field is empty. */
   onTalk?: () => void;
+  /** Extra effort: a box in the plus menu; on, the chat works with its more capable model. */
+  effort?: { on: boolean; onChange: (on: boolean) => void };
   ref?: Ref<ComposerHandle>;
 }) {
   const [text, setText] = useState("");
@@ -271,9 +274,13 @@ export function Composer({
         <div className="flex items-end gap-0.5">
           {attach ? (
             <>
-              <IconButton label={t("editor.attach")} onClick={() => picker.current?.click()}>
-                <Plus className="size-4" />
-              </IconButton>
+              {effort ? (
+                <PlusMenu effort={effort} onAttach={() => picker.current?.click()} />
+              ) : (
+                <IconButton label={t("editor.attach")} onClick={() => picker.current?.click()}>
+                  <Plus className="size-4" />
+                </IconButton>
+              )}
               <input
                 ref={picker}
                 type="file"
@@ -360,6 +367,114 @@ export function Composer({
 }
 
 export type Speech = ReturnType<typeof useDictation>;
+
+/**
+ * The plus button with its menu: attach files, and the box for extra effort. The menu stands
+ * fixed to the window above the button, so a card around the composer does not cut it.
+ */
+function PlusMenu({
+  effort,
+  onAttach,
+}: {
+  effort: { on: boolean; onChange: (on: boolean) => void };
+  onAttach: () => void;
+}) {
+  const [at, setAt] = useState<{ bottom: number; left: number } | null>(null);
+  const opener = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!at) {
+      return;
+    }
+    const away = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (!(panel.current?.contains(target) || opener.current?.contains(target))) {
+        setAt(null);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setAt(null);
+        opener.current?.focus();
+      }
+    };
+    const close = () => setAt(null);
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", close);
+    };
+  }, [at]);
+  const toggle = () => {
+    const rect = opener.current?.getBoundingClientRect();
+    if (at || !rect) {
+      setAt(null);
+      return;
+    }
+    setAt({ bottom: window.innerHeight - rect.top + 8, left: rect.left });
+  };
+  return (
+    <>
+      <button
+        ref={opener}
+        type="button"
+        aria-label={t("composer.more")}
+        title={t("composer.more")}
+        aria-haspopup="menu"
+        aria-expanded={Boolean(at)}
+        onClick={toggle}
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-ink-3 transition hover:bg-accent hover:text-ink coarse:size-11"
+      >
+        <Plus className="size-4" />
+      </button>
+      {at ? (
+        <div
+          ref={panel}
+          role="menu"
+          style={{ bottom: at.bottom, left: at.left }}
+          className="fixed z-50 w-72 rounded-xl bg-card p-1 shadow-overlay ring-1 ring-border"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setAt(null);
+              onAttach();
+            }}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[0.875rem] hover:bg-paper-2"
+          >
+            <Paperclip className="size-4 text-ink-3" />
+            {t("editor.attach")}
+          </button>
+          <div className="mx-2 my-1 border-border-soft border-t" />
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={effort.on}
+            onClick={() => effort.onChange(!effort.on)}
+            className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-paper-2"
+          >
+            <span
+              className={cn(
+                "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border",
+                effort.on ? "border-primary bg-primary text-primary-foreground" : "border-input",
+              )}
+            >
+              {effort.on ? <Check className="size-3" strokeWidth={3} /> : null}
+            </span>
+            <span className="flex flex-col">
+              <span className="text-[0.875rem]">{t("composer.extra")}</span>
+              <span className="text-[0.75rem] text-ink-3">{t("composer.extraHint")}</span>
+            </span>
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 /**
  * The mic button and, beside it, its menu: which microphone, and whether the button records while

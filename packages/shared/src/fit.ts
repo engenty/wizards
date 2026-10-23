@@ -16,8 +16,26 @@ import {
   templateRefs,
   type WizardDefinition,
 } from "./definition.js";
-import type { Capability } from "./marketplace.js";
 import type { ClosedChoice } from "./run.js";
+
+/**
+ * What the models and tools behind a wizard must be able to do. `motion-graphics`: an AI client
+ * writes a video as code and the runtime renders it (a motion-graphics step).
+ */
+export const CAPABILITY_IDS = [
+  "text",
+  "web",
+  "browser",
+  "documents",
+  "image",
+  "video",
+  "speech",
+  "listening",
+  "code",
+  "connectors",
+  "motion-graphics",
+] as const;
+export type Capability = (typeof CAPABILITY_IDS)[number];
 
 /**
  * What a wizard needs beyond a text model, and whether it runs where there is nothing else: a
@@ -29,11 +47,10 @@ import type { ClosedChoice } from "./run.js";
 /** Something a step wants beyond a text model, as a stable id every app can word. */
 export type Need =
   | `tool:${ToolId}`
-  | "mcp"
   | "connections"
   | `plugin:${string}`
   | `asset:${AssetKind}`
-  | "film"
+  | "motion-graphics"
   /** A widget runs in the runtime's widget host; the standalone runner has none yet. */
   | "widget"
   | "widget:video"
@@ -79,7 +96,7 @@ function templatesOf(step: Step): string[] {
       return [step.instructions, step.call ? JSON.stringify(step.call.input) : ""];
     case "generate":
       return [step.prompt, step.options?.style ?? ""];
-    case "film":
+    case "motion-graphics":
       return [step.brief];
     case "widget":
     case "surface":
@@ -93,7 +110,10 @@ function templatesOf(step: Step): string[] {
 function readsFilesLater(def: WizardDefinition, index: number): boolean {
   return def.steps
     .slice(index + 1)
-    .some((s) => (s.type === "agent" && !s.call) || s.type === "generate" || s.type === "film");
+    .some(
+      (s) =>
+        (s.type === "agent" && !s.call) || s.type === "generate" || s.type === "motion-graphics",
+    );
 }
 
 /** What one step wants beyond a text model. */
@@ -170,9 +190,6 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
           add(`tool:${tool as ToolId}`, false);
         }
       }
-      if (step.mcp?.length) {
-        add("mcp", true);
-      }
       if (step.connections?.length) {
         add("connections", true);
       }
@@ -192,8 +209,8 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
         add(`asset:${step.asset}`, true);
       }
       break;
-    case "film":
-      add("film", true);
+    case "motion-graphics":
+      add("motion-graphics", true);
       break;
     case "widget":
       add(step.video ? "widget:video" : "widget", true);
@@ -215,7 +232,7 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
           continue;
         }
         const from = def.steps.find((s) => s.id === d.from);
-        // What a media step, a widget or a film makes is the step's own need.
+        // What a media step, a widget or a video makes is the step's own need.
         const written =
           from?.type === "agent" ||
           (from?.type === "generate" && (from.asset === "document" || from.asset === "dashboard"));
@@ -274,7 +291,7 @@ export function capabilityOf(need: Need): Capability | null {
     case "asset:image":
       return "image";
     case "asset:video":
-    case "film":
+    case "motion-graphics":
     case "widget:video":
       return "video";
     case "asset:voice":
@@ -282,7 +299,6 @@ export function capabilityOf(need: Need): Capability | null {
     case "field:audio":
       return "listening";
     case "tool:http":
-    case "mcp":
     case "connections":
     case "field:connection":
       return "connectors";

@@ -11,7 +11,6 @@ import { z } from "zod";
 import {
   exampleWizard,
   type GuideConnector,
-  type GuideServer,
   type GuideTool,
   projectLines,
 } from "../authoring/guide.js";
@@ -20,7 +19,7 @@ import { importFromRegistry, listConnectors, searchRegistry } from "../connector
 import {
   agentModel,
   attachTools,
-  type ChatWay,
+  type ChatTurnWay,
   chatModel,
   costOf,
   gatewayTools,
@@ -44,12 +43,13 @@ import { thoughtLine } from "./thought.js";
 
 export interface ArchitectInput {
   /** What answers: the text classes, a provider's key or the credits (a subscription runs on its own). */
-  way: ChatWay;
+  way: ChatTurnWay;
   userId: string;
   wizardId: string;
   message: string;
+  /** Extra effort: the more capable model of the way; on unless the chat turned it off. */
+  extra?: boolean;
   history: { role: "user" | "assistant"; content: string }[];
-  mcpServers: GuideServer[];
   connectors: GuideConnector[];
   signal?: AbortSignal;
   onText?: (delta: string) => void;
@@ -82,18 +82,14 @@ export interface ArchitectResult {
   costUsd: number;
 }
 
-function systemPrompt(
-  mcp: GuideServer[],
-  connectors: GuideConnector[],
-  pluginTools: GuideTool[],
-): string {
+function systemPrompt(connectors: GuideConnector[], pluginTools: GuideTool[]): string {
   return `${prompt("architect", "system", {
     persona: prompt("architect", "persona"),
     schema: prompt("authoring", "schema"),
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
-    project_tools: projectLines(mcp, connectors, pluginTools),
+    project_tools: projectLines(connectors, pluginTools),
     example: exampleWizard(),
     how_you_work: prompt("architect", "how_you_work"),
   })}\n\n${contentPolicy()}`;
@@ -389,8 +385,9 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
   const w = await ownedWizard(input.userId, input.wizardId);
   const files = await listFiles(input.userId, input.wizardId);
   let changed = false;
-  // Building a wizard is the hardest job here: widgets are code.
-  const resolved = await chatModel(input.way, "high");
+  // Building a wizard is the hardest job here: widgets are code, so the editor chat starts on
+  // extra effort.
+  const resolved = await chatModel(input.way, input.extra === false ? "standard" : "high");
   const tools = buildTools(input, resolved, () => {
     changed = true;
   });
@@ -401,11 +398,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
     // The system prompt is long and identical on every turn: cache it.
     instructions: {
       role: "system",
-      content: systemPrompt(
-        input.mcpServers,
-        input.connectors,
-        await pluginToolsOf(currentTenant()),
-      ),
+      content: systemPrompt(input.connectors, await pluginToolsOf(currentTenant())),
       providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
     },
     model: agentModel(resolved),

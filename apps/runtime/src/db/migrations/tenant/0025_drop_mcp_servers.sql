@@ -1,0 +1,1 @@
+ALTER TABLE `project` DROP COLUMN `mcp_servers`;

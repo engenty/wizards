@@ -21,7 +21,7 @@ import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
 import { ApiError, api } from "./api";
-import { STUDIO, withBase } from "./base";
+import { STUDIO, STUDIO_ROOT, withBase } from "./base";
 import { type Lang, setLang, storedLang } from "./i18n";
 import { keys } from "./keys";
 
@@ -106,6 +106,26 @@ export function initialsOf(name: string): string {
     .toUpperCase();
 }
 
+/** One of the person's organizations, as the switcher lists it. */
+export interface Organization {
+  id: string;
+  name: string;
+  /** Its address (`acme` in `/studio/acme/`); null where the Manage-App names none. */
+  slug: string | null;
+  role: "owner" | "admin" | "member";
+  /** The person's own, made at sign-up. */
+  personal: boolean;
+  plan: { id: string; name: string } | null;
+  /** Who invited the person into it; null for their own, or where the Manage-App names nobody. */
+  invitedBy?: { name: string } | null;
+}
+
+/**
+ * The cloud studio's first visit: `full` for someone new to the studio in an organization nobody
+ * set up, `organization` for its questions alone, `welcome` for one page that says where they are.
+ */
+export type OnboardingMode = "full" | "organization" | "welcome";
+
 export interface Me {
   user: { id: string; name: string; email: string; image?: string | null };
   profile: UserProfile;
@@ -114,6 +134,10 @@ export interface Me {
   tenant: {
     id: string;
     role: "owner" | "admin" | "member";
+    /** The organization's name; null for a local install without an account. */
+    name: string | null;
+    /** Its address, `acme` in `/studio/acme/`; null on a local install. */
+    slug: string | null;
     /** The plan the organization is on (Free, Pro, Team, …); null alone. */
     plan: { id: string; name: string } | null;
     /** The organization's address for its public page (`acme.wizards.page`); null alone. */
@@ -123,6 +147,10 @@ export interface Me {
   features: Record<string, boolean>;
   /** The studio assistant's developer mode may be switched on (ASSISTANT_DEV; platform admins when managed). */
   assistantDev?: boolean;
+  /** The person's organizations, their own first; empty alone. */
+  organizations: Organization[];
+  /** The person may make further organizations (the platform's admins), on the account page. */
+  mayCreateOrganization: boolean;
   /** `managed`: signed in at the Manage-App. `local`: this runtime runs alone (desktop app, own machine). */
   mode: "managed" | "local";
   /** The tenant's balance; null where no credits are involved. */
@@ -135,6 +163,9 @@ export interface Me {
     email: string;
     /** The organization the account's space belongs to; null while the Manage-App has not answered. */
     organization: string | null;
+    organizationId: string;
+    /** The person's organizations, to switch to another; empty while the Manage-App has not answered. */
+    organizations: Pick<Organization, "id" | "name" | "role">[];
     credits: number | null;
     /** What of the credits ends on a date, the nearest first. */
     expiring: ExpiringCredits[];
@@ -152,12 +183,24 @@ export interface Me {
   subscriptions: SubscriptionClient[];
   /** A runtime that runs alone walks the person through its setup on first start. */
   setupDone: boolean;
-  /** The cloud studio's first visit: the short wizard that names the organization and fills the space. */
-  onboarding: boolean;
+  /** The cloud studio's first visit, by what the studio knows of the person and the organization; null when done. */
+  onboarding: OnboardingMode | null;
+  /** The organization still has the name it got at sign-up: its first admin names it. */
+  startingName: boolean;
+  /** The organization has made a wizard: the studio offers itself as an app from then on. */
+  hasWizards: boolean;
   /** What answers the studio's chats. */
   chatEngine: ChatWay;
   /** The ways that can answer the studio's chats now. */
   chatWays: ChatWay[];
+  /** The models of the chats per way (the server's list), and what the person chose. */
+  chatModels: {
+    ways: Record<
+      string,
+      { normal: string; extra: string; models: { id: string; label: string }[] }
+    >;
+    chosen: Record<string, { normal?: string; extra?: string }>;
+  };
   aiReady: boolean;
   /** Where an admin's own MCP client (Claude Code, Cursor, Codex) connects. */
   mcpUrl: string;
@@ -277,7 +320,6 @@ export interface Project {
   facts: ProjectFact[];
   /** The space's public page; null until it is set up. */
   page: ProjectPage | null;
-  mcpServers: { id: string; name: string; url: string; headers?: Record<string, string> }[];
   wizardCount: number;
   /** `local`: sent here by a local install, where it is changed. */
   origin: "local" | null;
@@ -378,7 +420,6 @@ export interface WizardDetail extends WizardSummary {
     source: "studio" | "mcp";
     client: string | null;
   }[];
-  mcpServers: { id: string; name: string }[];
   shareUrl: string;
   studioUrl: string;
 }
@@ -389,7 +430,7 @@ export interface WizardDetail extends WizardSummary {
  * it is missing, or the names of what is missing.
  */
 export interface ServerProblem {
-  code: "invalid" | "model" | "sandbox" | "mcp" | "connector";
+  code: "invalid" | "model" | "sandbox" | "connector";
   blocking: boolean;
   steps: { id: string; title: string }[];
   detail: string;
@@ -480,12 +521,24 @@ export async function signOut() {
  * Sign-in happens at the Manage-App; it sends the person back to `returnTo`. A `wish` (the
  * guest start page's) goes along, so the sign-in page shows what is about to be built.
  */
-export function signIn(returnTo = window.location.pathname, wish?: string) {
+export function signIn(returnTo = here(), wish?: string) {
   const query = new URLSearchParams({ return: returnTo });
+  // An address with an organization (`/studio/acme/…`): the sign-in is for that one.
+  if (STUDIO_ROOT !== STUDIO) {
+    query.set("organization", STUDIO_ROOT.slice(STUDIO.length + 1));
+  }
   if (wish?.trim()) {
     query.set("wish", wish.trim());
   }
   window.location.href = withBase(`/api/auth/login?${query}`);
+}
+
+/** This page with its query, without the mark of a failed sign-in. */
+function here() {
+  const query = new URLSearchParams(window.location.search);
+  query.delete("signin");
+  const rest = query.toString();
+  return `${window.location.pathname}${rest ? `?${rest}` : ""}`;
 }
 
 // What a guest asked to be built on the start page, kept in this browser across the sign-in

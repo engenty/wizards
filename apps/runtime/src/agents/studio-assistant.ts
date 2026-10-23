@@ -36,7 +36,6 @@ import {
   contextWindowOf,
   costOf,
   gatewayTools,
-  hasTextModel,
   totalUsage,
   usageOf,
 } from "../models.js";
@@ -57,7 +56,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
-import { chatEngine } from "./subscription.js";
+import { chatTurnWay } from "./subscription.js";
 import { readWebsite } from "./website.js";
 
 export interface AssistantInput {
@@ -70,6 +69,8 @@ export interface AssistantInput {
   /** The space may be changed: its tools and the plugins' tools are there. */
   writable: boolean;
   message: string;
+  /** Extra effort: the more capable model of the way. */
+  extra?: boolean;
   /** What the page the person writes from shows. */
   page: AssistantPage | null;
   /** Tools the browser runs (AG-UI's `tools`): the built-in six and what the page adds. */
@@ -820,7 +821,7 @@ function traced(
 
 /** The part of the space page a route stands on. */
 function partOf(route: string): string | null {
-  const m = route.match(/^\/space\/(info|knowledge|data|results)/);
+  const m = route.match(/^\/space\/(info|brand|knowledge|data|results)/);
   return m ? m[1] : route === "/space" ? "info" : null;
 }
 
@@ -847,8 +848,8 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   // this grew during it.
   let changes = 0;
   // The way the settings chose for the studio's chats: on a client, its tools reach it over MCP.
-  const way = managed ? "models" : await chatEngine(await hasTextModel());
-  const resolved = await chatModel(way, "standard");
+  const way = await chatTurnWay(managed);
+  const resolved = await chatModel(way, input.extra ? "high" : "standard");
   const wrote = () => {
     changes++;
     input.onChanged?.();
@@ -865,9 +866,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   const tools: Record<string, any> = {
     ...knowsTools({
       user: input.user,
-      project: project
-        ? { id: project.id, name: project.name, mcpServers: project.mcpServers }
-        : null,
+      project: project ? { id: project.id, name: project.name } : null,
       lang: input.lang,
       chatId: input.chat.id,
       doing: (label) => input.onActivity?.(label),
@@ -878,6 +877,28 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     }),
     ...(space ? spaceTools(input, space, wrote, brandOn) : {}),
   };
+  // On everyday effort the chat can offer extra effort for work that asks for more: a card with
+  // a button, while it goes on answering.
+  if (!input.extra) {
+    tools.suggest_extra_effort = createTool({
+      id: "suggest_extra_effort",
+      description:
+        "Offers the person extra effort (a more capable model) with a button under your answer. Call it once, before you start, when the work is demanding: building or changing a wizard with many steps, writing a widget (code), a long or intricate flow, hard analysis. Never for everyday questions or small changes. Say nothing about the button yourself and go on with your answer.",
+      inputSchema: z.object({
+        reason: z
+          .string()
+          .min(3)
+          .max(160)
+          .describe("Why this work needs more, in the person's language, one short sentence."),
+      }),
+      execute: async ({ reason }) => {
+        const card = { plugin: "", tool: "extraEffort", data: { reason } };
+        cards.push(card);
+        input.onCard?.(card);
+        return { shown: true };
+      },
+    });
+  }
   // What the tenant's plugins let the assistant do besides: a source of knowledge, say.
   if (space) {
     Object.assign(

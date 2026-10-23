@@ -1,7 +1,7 @@
 ---
 title: Troubleshooting
 description: What to do when a link no longer works, a client shows as not signed in, or an export fails.
-version: 0.9.3
+version: 0.11.2
 ---
 
 `wizards doctor` checks engenty wizards on your computer and says what is wrong. Start there.
@@ -10,10 +10,10 @@ version: 0.9.3
 
 | What you see | What to do |
 |---|---|
-| “This link is no longer valid. Run wizards open to get a new one.” | The link works once. `wizards open` gives this browser a new one |
+| “This link is no longer valid. Run “wizards open” in a terminal to get a new one.” | The link works once. `wizards open` gives this browser a new one |
 | “engenty wizards isn’t answering” | It has stopped or is restarting. `wizards status` says whether it is running; `wizards start` starts it |
 | `wizards`: command not found | Open a new terminal, or run `~/.local/bin/wizards` |
-| “This browser isn’t signed in” | The browser has no sign-in for engenty wizards on this computer, for example after you cleared cookies. Run `wizards open` |
+| “Open the studio from a terminal” | This browser hasn’t opened the studio’s link yet, for example after you cleared cookies or in another browser. Run `wizards open`, or `wizards open --print` and open the link in this browser. You don’t need an account for this |
 | “The studio runs at another address” | Open the address the page names, or set `APP_URL` in `~/.engenty/wizards/.env` to the address you open |
 | Port 24368 is taken | engenty wizards uses the next free port. To fix the port, set `API_PORT` in `~/.engenty/wizards/.env` |
 

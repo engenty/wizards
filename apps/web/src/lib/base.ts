@@ -13,6 +13,28 @@ export const BASE = String(import.meta.env.VITE_APP_BASE ?? "").replace(/\/+$/, 
  */
 export const STUDIO = `${BASE}/studio`;
 
+/** The studio's own pages: the first part of a path after `/studio/` that is no organization's address. */
+export const STUDIO_PAGES = new Set([
+  "",
+  "new",
+  "edit",
+  "settings",
+  "space",
+  "setup",
+  "start",
+  "sign-in",
+]);
+
+/**
+ * Where the studio's pages start: `/studio/<address>` in an organization of the cloud, `/studio`
+ * on a local install. Set once when the studio starts (studio/StudioRoot.tsx).
+ */
+export let STUDIO_ROOT = STUDIO;
+
+export function setStudioRoot(root: string) {
+  STUDIO_ROOT = root;
+}
+
 /**
  * The widget an AI app shows runs on the host's origin: its requests go to the runtime at `base`,
  * each with the run's ticket.

@@ -21,6 +21,9 @@
 # the Team plan: the team page in the cloud studio, the plan on the account pages
 # teamPlans=on|off
 #
+# the organization's settings in the cloud studio: name, members and invitations (instead of the account pages)
+# organizationSettings=on|off
+#
 # sections of logos and colours (gradients, patterns) in info & brand
 # brandSections=on|off
 #

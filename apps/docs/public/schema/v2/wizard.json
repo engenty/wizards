@@ -1229,12 +1229,6 @@
                   ]
                 }
               },
-              "mcp": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
               "connections": {
                 "type": "array",
                 "items": {
@@ -3596,7 +3590,7 @@
               },
               "type": {
                 "type": "string",
-                "const": "film"
+                "const": "motion-graphics"
               },
               "brief": {
                 "type": "string",

@@ -1,6 +1,7 @@
 import { loadBrandFace as loadRunnerBrandFace } from "@engenty/wizards-runner";
 import type { RunFontFace } from "@engenty/wizards-shared/run";
-import { type ShippedFont, shippedLike } from "@engenty/wizards-shared/theme";
+import type { ShippedFont } from "@engenty/wizards-shared/theme";
+import { shippedLike } from "@engenty/wizards-shared/theme-look";
 import { withBase } from "../lib/base";
 
 // The fonts a theme can name (SHIPPED_FONTS), shipped with the runner: each loads only when

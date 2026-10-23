@@ -1,5 +1,5 @@
 import type { RunTheme } from "@engenty/wizards-shared/run";
-import { fontStack, lookColours } from "@engenty/wizards-shared/theme";
+import { fontStack, lookColours } from "@engenty/wizards-shared/theme-look";
 
 /**
  * A wizard's theme in a host's own page (OpenUI, an own UI): values on the element with

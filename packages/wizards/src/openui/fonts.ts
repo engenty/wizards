@@ -1,6 +1,6 @@
 import { loadBrandFace } from "@engenty/wizards-runner";
 import type { RunTheme } from "@engenty/wizards-shared/run";
-import { shippedFontStylesheet, shippedLike } from "@engenty/wizards-shared/theme";
+import { shippedFontStylesheet, shippedLike } from "@engenty/wizards-shared/theme-look";
 
 const sheets = new Set<string>();
 

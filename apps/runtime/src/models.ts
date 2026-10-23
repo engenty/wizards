@@ -70,6 +70,7 @@ import { hasFfmpeg } from "./media/ffmpeg.js";
 import { ModelUnavailableError, saidOf } from "./model-errors.js";
 import { seal, unseal } from "./secrets/crypto.js";
 import { vaultDelete, vaultGet, vaultSet } from "./secrets/vault.js";
+import { chatModelId } from "./services/chat-models.js";
 import { readSetting, writeSetting } from "./settings.js";
 import { currentTenant, currentTenantOrNull } from "./tenants/tenant.js";
 import { serverText } from "./texts.js";
@@ -646,11 +647,11 @@ async function ownTextModel(
 }
 
 /**
- * What answers the studio's chats, Goose and the editor's chat: the text classes as they are set
- * (`models`), an installed client on its subscription, one provider's own key, or the credits.
+ * What answers the studio's chats, Goose and the editor's chat: an installed client on its
+ * subscription, one provider's own key, or the credits. The chat has its own models, apart from
+ * the classes the wizards' steps run on (services/chat-models.ts).
  */
 export const CHAT_WAYS = [
-  "models",
   "claude",
   "codex",
   "cursor",
@@ -661,12 +662,11 @@ export const CHAT_WAYS = [
   "account",
 ] as const;
 export type ChatWay = (typeof CHAT_WAYS)[number];
+/** A chat turn's way: a cloud runtime answers on the organization's own classes (`models`). */
+export type ChatTurnWay = ChatWay | "models";
 
 /** Whether a way can answer now: the client signed in, the key there, the account linked. */
-export async function chatWayReady(way: ChatWay, textModelReady: boolean): Promise<boolean> {
-  if (way === "models") {
-    return textModelReady;
-  }
+export async function chatWayReady(way: ChatWay): Promise<boolean> {
   if (managed) {
     return false;
   }
@@ -686,19 +686,20 @@ export async function chatWayReady(way: ChatWay, textModelReady: boolean): Promi
  * classes; a client or a provider runs its own model of that class.
  */
 export async function chatModel(
-  way: ChatWay,
+  way: ChatTurnWay,
   cls: "standard" | "high",
 ): Promise<ResolvedModel<LanguageModel>> {
   if (way === "models") {
     return textModel(cls);
   }
+  const effort = cls === "high" ? "extra" : "normal";
   const cfg = await config();
   const client = harness(way);
   if (client) {
     if (!(await detectHarness(client.id))?.version) {
       throw new ModelUnavailableError(notInstalled(client));
     }
-    const alias = client.classes[cls];
+    const alias = (await chatModelId(way, effort)) ?? client.classes[cls];
     return {
       model: client.model(alias),
       ref: `${client.id}/${alias}`,
@@ -719,7 +720,7 @@ export async function chatModel(
       (gateway, id) => gateway(id) as LanguageModel,
     );
   }
-  const ref = providerInfo(way)?.text?.[cls];
+  const ref = (await chatModelId(way, effort)) ?? providerInfo(way)?.text?.[cls];
   if (!ref) {
     throw new ModelUnavailableError(note("noModelFor", { makes: note("makesText") }));
   }
@@ -1207,21 +1208,21 @@ export async function classProblem(cls: ModelClass): Promise<Said | null> {
   }
 }
 
-/** Clients that can make a film: they work in a folder of their own with a shell and skills. */
-const FILM_CLIENTS = new Set<string>(["claude"]);
+/** Clients that can make a video: they work in a folder of their own with a shell and skills. */
+const MOTION_CLIENTS = new Set<string>(["claude"]);
 
 /**
- * The installed client a film step of this class runs on, and the model it names; or why a
- * film cannot be made here. Films never run on credits or keys: one takes a client many minutes.
+ * The installed client a motion-graphics step of this class runs on, and the model it names; or why a
+ * video cannot be made here. Videos never run on credits or keys: one takes a client many minutes.
  */
-export async function filmClient(
+export async function motionClient(
   cls: TextClass,
 ): Promise<{ client: Harness; alias: string } | { problem: Said }> {
   const cfg = await config();
   const client = managed ? null : harness(cfg.settings.source);
-  if (!client || !FILM_CLIENTS.has(client.id)) {
+  if (!client || !MOTION_CLIENTS.has(client.id)) {
     return {
-      problem: note("claudeCodeMakesFilms"),
+      problem: note("claudeCodeMakesMotion"),
     };
   }
   const status = await detectHarness(client.id);
@@ -1231,7 +1232,7 @@ export async function filmClient(
   if (status.auth === "none") {
     return { problem: signedOut(client) };
   }
-  // A class that thinks on Apple Intelligence makes its films on the client's model of the class.
+  // A class that thinks on Apple Intelligence makes its videos on the client's model of the class.
   const ref = ownRef(cfg, cls);
   return {
     client,

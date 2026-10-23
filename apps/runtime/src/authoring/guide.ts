@@ -8,11 +8,6 @@ import { EXAMPLE_WIZARD } from "./example.js";
  * architect and the MCP tools hand the same text to whichever model authors the wizard.
  */
 
-export interface GuideServer {
-  id: string;
-  name: string;
-}
-
 export interface GuideConnector {
   id: string;
   name: string;
@@ -50,22 +45,9 @@ function pluginToolsLine(tools: GuideTool[]): string {
   return prompt("authoring", "line.plugin_tools", { tools: lines.join("\n") });
 }
 
-function mcpServersLine(mcp: GuideServer[]): string {
-  const servers = mcp.length
-    ? mcp.map((m) => `${m.id} (${m.name})`).join(", ")
-    : `none — ${prompt("authoring", "line.mcp_servers.none")}`;
-  return prompt("authoring", "line.mcp_servers", { servers });
-}
-
-/** What the project offers agent steps: its MCP servers, connectors and plugin tools. */
-export function projectLines(
-  mcp: GuideServer[],
-  connectors: GuideConnector[],
-  pluginTools: GuideTool[],
-): string {
-  return [mcpServersLine(mcp), connectorsLine(connectors), pluginToolsLine(pluginTools)]
-    .filter(Boolean)
-    .join("\n\n");
+/** What the project offers agent steps: its connectors and plugin tools. */
+export function projectLines(connectors: GuideConnector[], pluginTools: GuideTool[]): string {
+  return [connectorsLine(connectors), pluginToolsLine(pluginTools)].filter(Boolean).join("\n\n");
 }
 
 export function exampleWizard(): string {
@@ -74,7 +56,6 @@ export function exampleWizard(): string {
 
 /** The guide an MCP client reads before it writes a wizard. */
 export function authoringGuide(
-  mcp: GuideServer[],
   connectors: GuideConnector[] = [],
   pluginTools: GuideTool[] = [],
 ): string {
@@ -83,7 +64,7 @@ export function authoringGuide(
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
-    project_tools: projectLines(mcp, connectors, pluginTools),
+    project_tools: projectLines(connectors, pluginTools),
     schema_url: WIZARD_SCHEMA_URL,
     example: exampleWizard(),
   });

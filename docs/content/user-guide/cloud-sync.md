@@ -1,7 +1,7 @@
 ---
 title: Spaces in the cloud
 description: How engenty wizards on your computer keeps its spaces the same as your organization’s spaces at engenty.ai, both ways, and what happens when both sides change the same thing.
-version: 0.9.8
+version: 0.11.3
 ---
 
 With an account signed in, engenty wizards on your computer keeps its spaces the same as your
@@ -21,7 +21,7 @@ work in another one, sign in again and pick it (Settings → Account, or
 | Wizards: the draft, its files, translations and the chat you built it with | Chats with the studio’s assistant |
 | Knowledge: pages, tables and their rows, categories | What wizards keep for people: their lists, files and sign-ins |
 | The space’s files | Connected accounts and keys |
-| Connectors | The model settings, and the headers of connected systems |
+| Connectors | The model settings |
 
 Publishing on your computer publishes the wizard here, then in the cloud, as its next version
 there. Its address at engenty.ai stays the same. If the cloud can’t be reached, the studio

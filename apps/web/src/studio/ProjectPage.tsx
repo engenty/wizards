@@ -136,7 +136,7 @@ function SectionRows({
 }
 
 /**
- * The space at /space/<part>: what all its wizards share, in five parts — Info & brand, Knowledge,
+ * The space at /space/<part>: what all its wizards share, in six parts — Info, Brand, Knowledge,
  * Data, Public page and Results. The left container shows one level at a time, as the settings do: the
  * parts, or the menu of the part that is open, which jumps to its sections and marks the one in
  * view (Results: picks a wizard). On a phone the parts, a part's menu and the page take
@@ -190,7 +190,7 @@ export function ProjectPage() {
   const levelStep = useStepDirection(level);
   const pageStep = useStepDirection(phone);
   const menu = useMemo(() => ({ slot, narrow, setDetail }), [slot, narrow]);
-  const title = project ? project.brand.name?.trim() || project.name : t("nav.project");
+  const title = project ? project.brand.name?.trim() || project.name : t("nav.space");
 
   // Typography waits behind its switch.
   const off = useFeature("typography") ? [] : ["typography"];
@@ -246,7 +246,7 @@ export function ProjectPage() {
         : undefined;
 
   useCrumbs([
-    ...(group === "results" ? [] : [{ label: t("nav.project"), to: "/space" }]),
+    ...(group === "results" ? [] : [{ label: t("nav.sources"), to: "/space" }]),
     ...(entry ? [{ label: entry.label, to: `/space/${entry.id}` }] : []),
     ...(entry && (detail ?? wizardTitle ?? pickedTitle)
       ? [{ label: (detail ?? wizardTitle ?? pickedTitle) as string }]
@@ -337,6 +337,17 @@ export function ProjectPage() {
     }
   }
 
+  // Logos, colours, type and assets were in Info before they had a part of their own.
+  const moved = group === "info" ? (show ?? hash.slice(1)) : "";
+  if (moved && groupOfSection(moved, plugins) === "brand") {
+    return (
+      <Navigate
+        to={narrow ? `/space/brand?show=${moved}` : { pathname: "/space/brand", hash: moved }}
+        replace
+      />
+    );
+  }
+
   if (group === "knowledge" && !show && plugins.spaceSections.some((x) => x.id === hash.slice(1))) {
     return <Navigate to={`/space/knowledge?show=s:${hash.slice(1)}`} replace />;
   }
@@ -386,7 +397,7 @@ export function ProjectPage() {
         // The page's own name in the bar, and the way back to the wizards.
         root={{
           icon: Layers,
-          label: t("nav.project"),
+          label: t("nav.sources"),
           backLabel: t("nav.wizards"),
           onBack: () => navigate("/"),
         }}
@@ -518,7 +529,7 @@ export function ProjectPage() {
                 </SubMenu>
               )}
 
-              {project && (group === "info" || group === "knowledge") ? (
+              {project && (group === "info" || group === "brand" || group === "knowledge") ? (
                 <ProjectSettings
                   key={project.id}
                   project={project}
@@ -616,7 +627,7 @@ export function ProjectPage() {
                       />
                     </Anchor>
                   )}
-                  {group === "info" ? pluginSections(added) : null}
+                  {group === "info" || group === "brand" ? pluginSections(added) : null}
                 </ProjectSettings>
               ) : null}
               {project && group === "page" && pagesOn ? (
