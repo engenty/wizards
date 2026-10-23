@@ -136,8 +136,19 @@ const home = `${basePath}/studio/`;
 
 const callbackUrl = () => `${env.appUrl}/api/auth/callback`;
 
+/** A sign-in returns into the studio or to a public wizard; any other address goes to the studio. */
+const RETURN_INTO = [`${basePath}/studio`, `${basePath}/w/`, `${basePath}/s/`];
+
 function safeReturn(path: string | undefined): string {
-  return path?.startsWith("/") && !path.startsWith("//") ? path : home;
+  if (!path || path.startsWith("//") || path.includes("\\")) {
+    return home;
+  }
+  const into = RETURN_INTO.some((start) =>
+    start.endsWith("/")
+      ? path.startsWith(start)
+      : path === start || path.startsWith(`${start}/`) || path.startsWith(`${start}?`),
+  );
+  return into ? path : home;
 }
 
 function setSessionCookie(c: Context, id: string) {
