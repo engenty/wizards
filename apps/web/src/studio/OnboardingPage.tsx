@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, FileText, Upload } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -7,7 +7,7 @@ import { EngentyLogoMark } from "../engenty/logo";
 import { api } from "../lib/api";
 import { type Key, lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
-import { pendingWish, useCurrentProject, useMe } from "../lib/session";
+import { initialsOf, pendingWish, useCurrentProject, useMe, useProjects } from "../lib/session";
 import { useGround } from "../lib/theme";
 import { cn } from "../ui";
 import { LangSwitch } from "./LangSwitch";
@@ -98,15 +98,15 @@ function Quiet({ children, onClick }: { children: ReactNode; onClick: () => void
   );
 }
 
-/** Four dots: where the person stands in the wizard. */
-function Dots({ step }: { step: Step }) {
+/** The dots: where the person stands in the wizard, out of `total` steps. */
+function Dots({ step, total = 4 }: { step: Step; total?: number }) {
   return (
     <span
       className="ml-auto inline-flex gap-1.5"
       role="img"
-      aria-label={t("onboard.step", { n: step })}
+      aria-label={t("onboard.step", { n: step, total })}
     >
-      {[1, 2, 3, 4].map((n) => (
+      {Array.from({ length: total }, (_, i) => i + 1).map((n) => (
         <span
           key={n}
           className={cn("size-2 rounded-full", n === step ? "bg-white" : "bg-white/40")}
@@ -332,18 +332,33 @@ function forgetKept() {
 }
 
 /**
- * The first visit of an organization's studio in the cloud, as a wizard of the product's own kind: one
- * question per page, the engenty beside it. Who the organization is, where its website is, what the
- * wizards should know, and what the space is that holds all of it. Every page but the first
- * can be skipped; everything can be changed later under Space and Settings.
+ * The first visit of a studio in the cloud. Someone new to the studio in an organization nobody
+ * has set up goes through all of it; someone the studio knows gets the organization's questions
+ * alone, in its name; everyone else one page that says where they are.
  */
 export function OnboardingPage() {
   useGround(GROUND);
+  const me = useMe();
+  return me.data?.onboarding === "welcome" ? <Welcome /> : <Questions />;
+}
+
+/**
+ * The organization's questions, as a wizard of the product's own kind: one question per page, the
+ * engenty beside it. What it is, where its website is, what the wizards should know and, for
+ * someone new to the studio, what the space is that holds all of it. Every page but the first
+ * can be skipped; everything can be changed later under Space and Settings.
+ */
+function Questions() {
   const me = useMe();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { project } = useCurrentProject();
   const user = me.data?.user.id ?? "";
+  /** Known to the studio: the organization's questions alone, no greeting and no space page. */
+  const known = me.data?.onboarding === "organization";
+  const steps = known ? 3 : 4;
+  /** The organization's name, once it has one of its own (not the one it got at sign-up). */
+  const named = me.data?.startingName ? null : (me.data?.tenant.name ?? null);
   const [organization, setOrganization] = useKept(user, "organization", "");
   const [site, setSite] = useKept(user, "site", "");
   const [line, setLine] = useKept<string | null>(user, "line", null);
@@ -352,7 +367,10 @@ export function OnboardingPage() {
   const fileInput = useRef<HTMLInputElement>(null);
   // A wish typed before signing in (GuestStartPage): in sight here, built on "new" right after.
   const [wish] = useState(pendingWish);
-  const [guess] = useState(() => guessKind(me.data?.user.email ?? ""));
+  // The person's address says something about their own organization, not one they joined.
+  const [guess] = useState(() =>
+    known ? { kind: null, domain: "" } : guessKind(me.data?.user.email ?? ""),
+  );
   const [profile, setProfile] = useKept<Profile>(user, "profile", {
     kind: guess.kind,
     size: null,
@@ -365,7 +383,10 @@ export function OnboardingPage() {
   const [params, setParams] = useSearchParams();
   const asked = params.get("page");
   // The questions that fit need the answer before them (a reload starts that page anew).
-  const page: Page = isPage(asked) && !(asked === "details" && !profile.kind) ? asked : "kind";
+  const page: Page =
+    isPage(asked) && !(asked === "details" && !profile.kind) && !(known && asked === "space")
+      ? asked
+      : "kind";
   const step = STEP_OF[page];
   /** On to another page, as a step in the browser's history. */
   const go = (next: Page) =>
@@ -433,6 +454,13 @@ export function OnboardingPage() {
   const name = me.data?.user.name ?? "";
   const firstName = name.includes("@") ? "" : name.split(" ")[0];
 
+  const kicker1 =
+    known && named
+      ? t("onboard.kickerNew", { organization: named })
+      : firstName
+        ? t("onboard.kicker1", { name: firstName })
+        : t("onboard.kicker1Anon");
+
   const addFiles = async (files: FileList | null) => {
     if (!files || !project) {
       return;
@@ -496,13 +524,15 @@ export function OnboardingPage() {
               }}
             >
               <p className="font-medium text-[0.75rem] text-white/85 uppercase tracking-[0.14em]">
-                {firstName ? t("onboard.kicker1", { name: firstName }) : t("onboard.kicker1Anon")}
+                {kicker1}
               </p>
               <h1 className="font-display font-bold text-[2.5rem] leading-[1.05] tracking-[-0.02em] sm:text-[3.25rem]">
                 {t("onboard.kind")}
               </h1>
               <p className="text-[1.0625rem] text-white/90 leading-relaxed">
-                {t("onboard.kindSub")}
+                {known && named
+                  ? t("onboard.kindSubOrganization", { organization: named })
+                  : t("onboard.kindSub")}
               </p>
               {guess.kind ? (
                 <p className="text-[0.9375rem] text-white/80">
@@ -527,7 +557,7 @@ export function OnboardingPage() {
               </div>
               <div className="flex flex-wrap items-center gap-5">
                 <Next type="submit">{t("onboard.continue")}</Next>
-                <Dots step={1} />
+                <Dots step={1} total={steps} />
               </div>
             </form>
           ) : null}
@@ -541,8 +571,8 @@ export function OnboardingPage() {
                 if (profile.kind === "corp" && profile.legalName.trim() && !organization) {
                   setOrganization(profile.legalName.trim());
                 }
-                // Just them: no organization to name (the account page renames it, should one come).
-                if (profile.kind === "personal") {
+                // Just them, or a name of its own already: nothing to name (the account page renames it).
+                if (profile.kind === "personal" || named) {
                   toSite();
                 } else {
                   go("organization");
@@ -550,16 +580,14 @@ export function OnboardingPage() {
               }}
             >
               <p className="font-medium text-[0.75rem] text-white/85 uppercase tracking-[0.14em]">
-                {firstName ? t("onboard.kicker1", { name: firstName }) : t("onboard.kicker1Anon")}
+                {kicker1}
               </p>
               <h1 className="font-display font-bold text-[2.25rem] leading-[1.05] tracking-[-0.02em] sm:text-[2.75rem]">
-                {t(
-                  profile.kind === "personal"
-                    ? "onboard.personalTitle"
-                    : profile.kind === "club"
-                      ? "onboard.clubTitle"
-                      : "onboard.businessTitle",
-                )}
+                {profile.kind === "personal"
+                  ? t("onboard.personalTitle")
+                  : named
+                    ? t("onboard.aboutOrganization", { organization: named })
+                    : t(profile.kind === "club" ? "onboard.clubTitle" : "onboard.businessTitle")}
               </h1>
               {profile.kind === "personal" ? (
                 <textarea
@@ -688,7 +716,7 @@ export function OnboardingPage() {
                 >
                   {t("onboard.back")}
                 </Quiet>
-                <Dots step={1} />
+                <Dots step={1} total={steps} />
               </div>
             </form>
           ) : null}
@@ -707,7 +735,7 @@ export function OnboardingPage() {
               }}
             >
               <p className="font-medium text-[0.75rem] text-white/85 uppercase tracking-[0.14em]">
-                {firstName ? t("onboard.kicker1", { name: firstName }) : t("onboard.kicker1Anon")}
+                {kicker1}
               </p>
               <h1 className="font-display font-bold text-[2.5rem] leading-[1.05] tracking-[-0.02em] sm:text-[3.25rem]">
                 {t("onboard.organization")}
@@ -727,7 +755,7 @@ export function OnboardingPage() {
                 <Next type="submit" busy={rename.isPending}>
                   {t("onboard.continue")}
                 </Next>
-                <Dots step={1} />
+                <Dots step={1} total={steps} />
               </div>
             </form>
           ) : null}
@@ -735,13 +763,23 @@ export function OnboardingPage() {
           {step === 2 ? (
             <>
               <p className="font-medium text-[0.75rem] text-white/85 uppercase tracking-[0.14em]">
-                {t(personal ? "onboard.kicker2Personal" : "onboard.kicker2")}
+                {personal
+                  ? t("onboard.kicker2Personal")
+                  : named
+                    ? t("onboard.kicker2Named", { organization: named })
+                    : t("onboard.kicker2")}
               </p>
               <h1 className="font-display font-bold text-[2.5rem] leading-[1.05] tracking-[-0.02em] sm:text-[3.25rem]">
-                {t("onboard.site")}
+                {named && !personal
+                  ? t("onboard.siteNamed", { organization: named })
+                  : t("onboard.site")}
               </h1>
               <p className="text-[1.0625rem] text-white/90 leading-relaxed">
-                {t(personal ? "onboard.siteSubPersonal" : "onboard.siteSub")}
+                {personal
+                  ? t("onboard.siteSubPersonal")
+                  : named
+                    ? t("onboard.siteSubNamed", { organization: named })
+                    : t("onboard.siteSub")}
               </p>
               {line === null ? (
                 <form
@@ -799,7 +837,7 @@ export function OnboardingPage() {
                     )}
                     <Quiet onClick={() => setLine("")}>{t("onboard.line")}</Quiet>
                     <Quiet onClick={() => go("know")}>{t("onboard.skip")}</Quiet>
-                    <Dots step={2} />
+                    <Dots step={2} total={steps} />
                   </div>
                 </form>
               ) : (
@@ -832,7 +870,7 @@ export function OnboardingPage() {
                     </Next>
                     <Quiet onClick={() => setLine(null)}>{t("onboard.site")}</Quiet>
                     <Quiet onClick={() => go("know")}>{t("onboard.skip")}</Quiet>
-                    <Dots step={2} />
+                    <Dots step={2} total={steps} />
                   </div>
                 </form>
               )}
@@ -842,7 +880,9 @@ export function OnboardingPage() {
           {step === 3 ? (
             <>
               <p className="font-medium text-[0.75rem] text-white/85 uppercase tracking-[0.14em]">
-                {t("onboard.kicker3")}
+                {named && !personal
+                  ? t("onboard.kicker3Named", { organization: named })
+                  : t("onboard.kicker3")}
               </p>
               <h1 className="font-display font-bold text-[2.5rem] leading-[1.05] tracking-[-0.02em] sm:text-[3.25rem]">
                 {t("onboard.know")}
@@ -900,27 +940,32 @@ export function OnboardingPage() {
                 </ul>
               ) : null}
               <div className="flex flex-wrap items-center gap-5">
+                {/* Someone who knows the studio has seen what a space is: the knowledge ends it. */}
                 <Next
-                  busy={uploads.some((u) => u.state === "uploading")}
-                  onClick={() => go("space")}
+                  busy={uploads.some((u) => u.state === "uploading") || finish.isPending}
+                  onClick={() => (known ? finish.mutate() : go("space"))}
                 >
-                  {t("onboard.continue")}
+                  {known ? t("onboard.buildFirst") : t("onboard.continue")}
                 </Next>
-                {uploads.length ? null : (
+                {uploads.length || known ? null : (
                   <Quiet onClick={() => go("space")}>{t("onboard.skip")}</Quiet>
                 )}
-                <Dots step={3} />
+                <Dots step={3} total={steps} />
               </div>
             </>
           ) : null}
 
-          {step === 4 ? (
+          {step === 4 && !known ? (
             <>
               <p className="font-medium text-[0.75rem] text-white/85 uppercase tracking-[0.14em]">
-                {t("onboard.kicker4")}
+                {named && !personal
+                  ? t("onboard.kicker4Named", { organization: named })
+                  : t("onboard.kicker4")}
               </p>
               <h1 className="font-display font-bold text-[2.5rem] leading-[1.05] tracking-[-0.02em] sm:text-[3.25rem]">
-                {t("onboard.space")}
+                {named && !personal
+                  ? t("onboard.spaceNamed", { organization: named })
+                  : t("onboard.space")}
               </h1>
               <p className="text-[1.0625rem] text-white/90 leading-relaxed">
                 {t("onboard.spaceSub", { space: project?.name ?? "" })}
@@ -962,6 +1007,123 @@ export function OnboardingPage() {
         <span>engenty.wizards</span>
         <span aria-hidden="true" className="size-[3px] bg-(color:--dot)" />
       </footer>
+    </div>
+  );
+}
+
+interface Members {
+  members: { userId: string; name: string; role: "owner" | "admin" | "member" }[];
+}
+
+/**
+ * The first visit of an organization set up already, or of a member: one page that says where
+ * they are, who brought them, the spaces with their wizards and what their role may do.
+ */
+function Welcome() {
+  const me = useMe();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const projects = useProjects();
+  const tenant = me.data?.tenant;
+  const members = useQuery({
+    queryKey: ["organization", tenant?.id],
+    queryFn: () => api.get<Members>("/api/studio/organization"),
+    enabled: Boolean(tenant),
+  });
+  const done = useMutation({
+    mutationFn: () => api.post("/api/studio/onboarding/done"),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["me"] });
+      navigate("/", { replace: true });
+    },
+  });
+  if (!(me.data && tenant)) {
+    return null;
+  }
+  const organization = tenant.name ?? "";
+  const name = me.data.user.name;
+  const firstName = name.includes("@") ? "" : name.split(" ")[0];
+  const invitedBy = me.data.organizations.find((o) => o.id === tenant.id)?.invitedBy?.name;
+  const owner = members.data?.members.find(
+    (m) => m.role === "owner" && m.userId !== me.data?.user.id,
+  )?.name;
+  const builds = tenant.role !== "member";
+  const address = tenant.slug ? `${window.location.host}/studio/${tenant.slug}` : null;
+  return (
+    <div
+      className="flex min-h-dvh flex-col px-6 text-white sm:px-10"
+      style={{ ...ON_GROUND, background: GROUND }}
+    >
+      <header className="flex items-center justify-between pt-6 sm:pt-8">
+        <Wordmark />
+        <LangSwitch tone="ground" ink={GROUND_INK} />
+      </header>
+      <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-10 py-10 lg:grid-cols-[5fr_7fr] lg:gap-12">
+        <div className="flex flex-col items-center gap-8 max-lg:order-first">
+          <Mascot kind="drop" size={240} fluffy coat="fur" />
+        </div>
+        <div className="flex min-w-0 max-w-2xl animate-rise flex-col gap-5">
+          <p className="font-medium text-[0.75rem] text-white/85 uppercase tracking-[0.14em]">
+            {firstName ? t("onboard.kicker1", { name: firstName }) : t("onboard.kicker1Anon")}
+          </p>
+          <h1 className="font-display font-bold text-[2.5rem] leading-[1.05] tracking-[-0.02em] sm:text-[3.25rem]">
+            {t("welcome.title", { organization })}
+          </h1>
+          <p className="text-[1.0625rem] text-white/90 leading-relaxed">
+            {invitedBy
+              ? t("welcome.invited", { name: invitedBy })
+              : owner
+                ? t("welcome.setUp", { name: owner, organization })
+                : t("welcome.plain")}
+          </p>
+          <div className="overflow-hidden rounded-[18px] bg-white/12 ring-1 ring-white/20">
+            <div className="flex items-center gap-3.5 px-4.5 py-3.5">
+              <span
+                className="flex size-11 shrink-0 items-center justify-center rounded-xl font-bold font-display"
+                style={{ background: CREAM, color: GROUND_INK }}
+              >
+                {initialsOf(organization)}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate font-semibold text-[1.0625rem]">{organization}</span>
+                {address ? (
+                  <span className="truncate font-mono text-[0.8125rem] text-white/75">
+                    {address}
+                  </span>
+                ) : null}
+              </span>
+              <span className="rounded-full bg-white/20 px-2.5 py-1 font-semibold text-[0.75rem]">
+                {t(`organization.role.${tenant.role}` as Key)}
+              </span>
+            </div>
+            {projects.data?.some((p) => p.wizardCount > 0) ? (
+              projects.data.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex justify-between gap-3 border-white/15 border-t px-4.5 py-2.5 text-[0.9375rem]"
+                >
+                  <span className="truncate">{p.name}</span>
+                  <span className="shrink-0 text-white/75">
+                    {t("welcome.wizards", { n: p.wizardCount })}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="border-white/15 border-t px-4.5 py-3 text-[0.9375rem] text-white/80">
+                {t("welcome.noWizards")}
+              </p>
+            )}
+          </div>
+          <p className="text-[0.9375rem] text-white/80">
+            {t(builds ? "welcome.canBuild" : "welcome.canMember")}
+          </p>
+          <div className="flex flex-wrap items-center gap-5">
+            <Next busy={done.isPending} onClick={() => done.mutate()}>
+              {t("welcome.go")}
+            </Next>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

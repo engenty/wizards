@@ -52,18 +52,30 @@ describe("what a website says about a company", () => {
   });
 });
 
-describe("the mark that the first visit is done", () => {
-  it("is kept per tenant in the control database", async () => {
+describe("the marks of the first visit", () => {
+  it("keeps the organization's, the person's and the visit in the control database", async () => {
     expect(await settings.readSetting("onboarding:tenant-o")).toBeNull();
-    await onboarding.finishOnboarding("tenant-o");
-    expect(await settings.readSetting<{ doneAt: string }>("onboarding:tenant-o")).toMatchObject({
-      doneAt: expect.any(String),
-    });
+    await onboarding.finishOnboarding({ id: "u", tenantId: "tenant-o" }, "full");
+    expect(await settings.readSetting("onboarding:tenant-o")).toMatchObject({ by: "u" });
+    expect(await settings.readSetting("onboarding:person:u")).not.toBeNull();
+    expect(await settings.readSetting("onboarding:visit:tenant-o:u")).not.toBeNull();
+  });
+
+  it("leaves the organization's mark to its questions", async () => {
+    await onboarding.finishOnboarding({ id: "w", tenantId: "tenant-w" }, "welcome");
+    expect(await settings.readSetting("onboarding:tenant-w")).toBeNull();
+    expect(await settings.readSetting("onboarding:visit:tenant-w:w")).not.toBeNull();
   });
 
   it("is never asked of a runtime that runs alone", async () => {
     expect(
-      await onboarding.needsOnboarding({ id: "u", tenantId: "tenant-o", role: "owner" }),
-    ).toBe(false);
+      await onboarding.onboardingFor({ id: "u2", tenantId: "tenant-x", role: "owner" }),
+    ).toBeNull();
+  });
+
+  it("knows a starting name", () => {
+    expect(onboarding.startingName("Neues Team")).toBe(true);
+    expect(onboarding.startingName("Team Anna")).toBe(true);
+    expect(onboarding.startingName("Bäckerei Huber")).toBe(false);
   });
 });
