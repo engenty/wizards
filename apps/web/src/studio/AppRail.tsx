@@ -52,7 +52,7 @@ const AboutDialog = lazy(() =>
 
 /**
  * The app bar at an edge of the window: the engenty in the corner (its menu holds what belongs to
- * the app itself), the space (it switches between spaces), its home (the wizards), its page
+ * the app itself), the space (it switches between spaces), its home (the wizards), its sources
  * (Info & brand, Knowledge, Data), its results, the apps the plugins added, and at its end the
  * settings and the person. A place is a filled tile, a tool a line glyph; the one that is open is
  * cut from the page's own paper. On a wide window a bar at a side names its places beside
@@ -90,7 +90,7 @@ export function SpaceTile({ me, labels }: { me: Me; labels?: boolean }) {
     <SpaceMenu
       me={me}
       placement="bar-start"
-      label={project?.name ?? t("nav.project")}
+      label={project?.name ?? t("nav.space")}
       className={(open) =>
         labels
           ? cn(
@@ -108,7 +108,7 @@ export function SpaceTile({ me, labels }: { me: Me; labels?: boolean }) {
       {labels ? (
         <>
           <span className="min-w-0 flex-1 truncate font-semibold text-[0.875rem] text-ink">
-            {name ?? project?.name ?? t("nav.project")}
+            {name ?? project?.name ?? t("nav.space")}
           </span>
           {one ? null : <ChevronsUpDown className="size-4 shrink-0 text-ink-4" />}
         </>
@@ -231,7 +231,7 @@ function BarMenu({
   );
 }
 
-/** The place in the bar a page belongs to: Home (the wizards), the space's page, its results. */
+/** The place in the bar a page belongs to: Home (the wizards), the space's sources, its results. */
 function usePlace(): "home" | "new" | "space" | "results" | "settings" | null {
   const { pathname } = useLocation();
   if (pathname === "/new") {
@@ -351,16 +351,16 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
         <Home className="size-5 shrink-0" />
         {labels ? <Label>{t("nav.home")}</Label> : null}
       </Link>
-      {/* The space's page: Info & brand, Knowledge and Data. */}
+      {/* The space's sources: Info & brand, Knowledge and Data. */}
       <Link
         to="/space"
-        title={t("nav.project")}
-        aria-label={t("nav.project")}
+        title={t("nav.sources")}
+        aria-label={t("nav.sources")}
         aria-current={place === "space" ? "page" : undefined}
         className={cn(glyph(place === "space", labels), horizontal ? "ml-1.5" : "mt-2")}
       >
         <Layers className="size-5 shrink-0" />
-        {labels ? <Label>{t("nav.project")}</Label> : null}
+        {labels ? <Label>{t("nav.sources")}</Label> : null}
       </Link>
       {/* What the space's wizards made. */}
       <Link
@@ -428,7 +428,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
 
 /**
  * A phone's bar: always along the bottom, floating over the page as glass. It holds the space and
- * its two places to go every day, Home and the space's page; "⋯" holds the rest (results, the
+ * its two places to go every day, Home and the space's sources; "⋯" holds the rest (results, the
  * plugins' apps, then what the engenty's menu holds, the settings among it). The person sits at the top.
  */
 /**
@@ -491,7 +491,7 @@ function Capsule({ index }: { index: number | null }) {
 
 /**
  * A phone's bar: always along the bottom, a capsule of glass floating over the page. Three tabs:
- * the space's two places to go every day, Home and its page, and "More" with the rest in a menu:
+ * the space's two places to go every day, Home and its sources, and "More" with the rest in a menu:
  * Results, the settings, the plugins' apps, then About (in a dialog). Beside it, on glass of its
  * own, the page's main action (`usePrimaryAction`), else a new wizard. The space and the person
  * sit in the top bar.
@@ -556,7 +556,7 @@ export function PhoneBar({ me }: { me: Me }) {
         </Link>
         <Link
           to="/space"
-          aria-label={t("nav.project")}
+          aria-label={t("nav.sources")}
           aria-current={place === "space" ? "page" : undefined}
           onClick={() => setOpen(false)}
           className={tab(lit("space"))}
