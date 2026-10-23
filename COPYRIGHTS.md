@@ -110,7 +110,6 @@ Declared by two or more of the workspaces below:
 | [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
 | [@mastra/core](https://mastra.ai) | 1.77.0 | Apache-2.0 |
 | [@mastra/docker](https://mastra.ai) | 0.8.0 | Apache-2.0 |
-| [@mastra/mcp](https://mastra.ai) | 2.4.0 | Apache-2.0 |
 | [@mastra/quickjs](https://mastra.ai) | 0.1.3 | Apache-2.0 |
 | [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 0.1.80 | MIT |
