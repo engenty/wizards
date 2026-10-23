@@ -3,6 +3,7 @@ import {
   AppWindow,
   Building2,
   Check,
+  ChevronRight,
   Cloud,
   CloudOff,
   CreditCard,
@@ -48,6 +49,13 @@ import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner, InstallDialog } from "./InstallBanner";
 import { LangSwitch } from "./LangSwitch";
 import { useLiveFeed } from "./live/index";
+import {
+  currentOrganization,
+  OrganizationFace,
+  OrganizationMenu,
+  OrganizationSheet,
+  switchable,
+} from "./Organizations";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
 import { hostOf } from "./where";
@@ -282,6 +290,8 @@ export function SpaceMenu({
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const organization = currentOrganization(me);
   const [at, setAt] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, open, () => setOpen(false));
@@ -322,7 +332,37 @@ export function SpaceMenu({
                 : cn("absolute", placementClass(placement, position, "top-10 left-0")),
             )}
           >
-            {me.tenant.name ? (
+            {/* The organization heads its spaces; someone who can switch switches here. */}
+            {organization && switchable(me) ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition hover:bg-accent"
+                  onClick={() => {
+                    setOpen(false);
+                    setSwitching(true);
+                  }}
+                >
+                  <OrganizationFace org={organization} size="xs" />
+                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span className="truncate font-semibold text-[0.875rem] text-ink">
+                      {organization.name}
+                    </span>
+                    {organization.plan ? (
+                      <span className="truncate text-[0.75rem] text-ink-4">
+                        {organization.plan.name}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 text-[0.8125rem] text-ink-3">
+                    {t("organizations.switchShort")}
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-ink-4" />
+                </button>
+                <div className="mx-2 my-1.5 h-px bg-border-soft" />
+              </>
+            ) : me.tenant.name ? (
               <div className="truncate px-2 pt-1.5 pb-1 text-[0.75rem] text-ink-3">
                 {me.tenant.name}
               </div>
@@ -423,6 +463,9 @@ export function SpaceMenu({
           </div>
         ) : null}
         <NewSpaceDialog open={creating} onClose={() => setCreating(false)} />
+        {switchable(me) ? (
+          <OrganizationSheet me={me} open={switching} onClose={() => setSwitching(false)} />
+        ) : null}
         {project ? (
           <RenameSpaceDialog project={project} open={renaming} onClose={() => setRenaming(false)} />
         ) : null}
@@ -507,16 +550,12 @@ function SpaceName({ me }: { me: Me }) {
   }
   return (
     <span className="flex min-w-0 items-center gap-1">
-      {/* The organization the space belongs to, before it: someone in several can tell them apart. */}
+      {/* The organization the space belongs to, before it, where the bar has room: a menu for
+          someone who can switch, its name for everyone else. */}
       {me.tenant.name && !phone ? (
         <>
-          <span
-            className="max-w-[12rem] truncate text-[0.9375rem] text-ink-3"
-            title={me.tenant.name}
-          >
-            {me.tenant.name}
-          </span>
-          <span className="text-ink-4" aria-hidden="true">
+          <OrganizationMenu me={me} className="max-lg:hidden" />
+          <span className="text-ink-4 max-lg:hidden" aria-hidden="true">
             /
           </span>
         </>
@@ -540,7 +579,15 @@ function SpaceName({ me }: { me: Me }) {
         {phone ? (
           <>
             <SpaceFace project={project} size="sm" />
-            <span className="truncate">{project.name}</span>
+            {/* The organization as a small line above the space: a phone's bar has no room beside it. */}
+            <span className="flex min-w-0 flex-col leading-tight">
+              {me.tenant.name ? (
+                <span className="truncate font-normal text-[0.75rem] text-ink-3">
+                  {me.tenant.name}
+                </span>
+              ) : null}
+              <span className="truncate">{project.name}</span>
+            </span>
           </>
         ) : (
           project.name

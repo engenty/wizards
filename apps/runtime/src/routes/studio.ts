@@ -507,6 +507,10 @@ export const studio = new Hono<Vars>()
       ),
       /** The studio assistant's developer mode may be switched on: ASSISTANT_DEV here, the platform's admins when managed. */
       assistantDev: await assistantDevFor(user),
+      /** The person's organizations, their own first: the switcher lists them. Empty alone. */
+      organizations: person?.tenants ?? [],
+      /** The person may make further organizations (the platform's admins), on the account page. */
+      mayCreateOrganization: person?.admin ?? false,
       mode: managed ? "managed" : "local",
       /** The tenant's balance; null where the runtime resolves models itself. */
       credits: managed ? await balanceCredits() : null,

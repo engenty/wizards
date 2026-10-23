@@ -106,6 +106,18 @@ export function initialsOf(name: string): string {
     .toUpperCase();
 }
 
+/** One of the person's organizations, as the switcher lists it. */
+export interface Organization {
+  id: string;
+  name: string;
+  /** Its address (`acme` in `/studio/acme/`); null where the Manage-App names none. */
+  slug: string | null;
+  role: "owner" | "admin" | "member";
+  /** The person's own, made at sign-up. */
+  personal: boolean;
+  plan: { id: string; name: string } | null;
+}
+
 export interface Me {
   user: { id: string; name: string; email: string; image?: string | null };
   profile: UserProfile;
@@ -125,6 +137,10 @@ export interface Me {
   features: Record<string, boolean>;
   /** The studio assistant's developer mode may be switched on (ASSISTANT_DEV; platform admins when managed). */
   assistantDev?: boolean;
+  /** The person's organizations, their own first; empty alone. */
+  organizations: Organization[];
+  /** The person may make further organizations (the platform's admins), on the account page. */
+  mayCreateOrganization: boolean;
   /** `managed`: signed in at the Manage-App. `local`: this runtime runs alone (desktop app, own machine). */
   mode: "managed" | "local";
   /** The tenant's balance; null where no credits are involved. */

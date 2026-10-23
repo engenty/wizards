@@ -210,11 +210,25 @@ export function tenantMembers(id: string): Promise<TenantMembers> {
   return call<TenantMembers>("GET", `/v1/tenants/${encodeURIComponent(id)}/members`);
 }
 
+/** One of a person's organizations, as the studio's switcher lists it. */
+export interface Organization {
+  id: string;
+  name: string;
+  /** Its address (`organization.slug`); an older Manage-App names none. */
+  slug: string | null;
+  role: Role;
+  /** The person's own, made at sign-up. */
+  personal: boolean;
+  plan: { id: string; name: string } | null;
+}
+
 export interface UserInfo {
   /** The person's own feature switches, as an admin set them at the Manage-App. */
   features: Record<string, boolean>;
-  /** The person runs the platform (an admin of the Manage-App). */
+  /** The person runs the platform (an admin of the Manage-App); they also make organizations. */
   admin: boolean;
+  /** The person's organizations, their own first; an older Manage-App lists none. */
+  tenants: Organization[];
 }
 
 const users = new Map<string, { at: number; value: UserInfo }>();
@@ -226,8 +240,12 @@ export async function userInfo(userId: string): Promise<UserInfo> {
     return hit.value;
   }
   const value = await call<Partial<UserInfo>>("GET", `/v1/users/${encodeURIComponent(userId)}`)
-    .then((u) => ({ features: u.features ?? {}, admin: u.admin === true }))
-    .catch(() => hit?.value ?? { features: {}, admin: false });
+    .then((u) => ({
+      features: u.features ?? {},
+      admin: u.admin === true,
+      tenants: u.tenants ?? [],
+    }))
+    .catch(() => hit?.value ?? { features: {}, admin: false, tenants: [] });
   users.set(userId, { at: Date.now(), value });
   return value;
 }
