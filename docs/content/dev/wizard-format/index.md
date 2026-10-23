@@ -1,16 +1,16 @@
 ---
 title: The wizard format
 description: A wizard as one JSON document, what its keys mean, and where each part is described.
-version: 0.11.1
+version: 0.11.2
 ---
 
 A wizard is one JSON document, its **definition**. The studio exports it as a `.wizard` file
 and imports one back. You can write either by hand or with a tool, check it in your editor
 against its [JSON Schema](#json-schema), and check it completely with `wizards validate`.
 
-The wizard format is open: the code that defines it and checks it is under the
-[MIT licence](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT), so any
-tool may read, write and run wizards. [Licensing](../licensing.md) says which files that covers.
+The wizard format is open. The code that defines a wizard, checks it and packs it as a `.wizard`
+file is under the [MIT licence](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT),
+so any tool may read, write and run wizards. [Licensing](../licensing.md) lists the files.
 
 ## The definition
 
@@ -145,7 +145,7 @@ always a `result` step.
 | `generate` | Makes an image, a video, a voice-over, a document or a dashboard | [Images, video and documents](./generate-steps.md) |
 | `surface` | Shows a view built from the surface catalog | [Views and widgets](./views-and-widgets.md) |
 | `widget` | Shows an HTML app from the wizard’s workspace | [Views and widgets](./views-and-widgets.md) |
-| `motion-graphics` | Has the AI client on your computer make a motion-graphics video | [Motion graphics](./motion-graphics-steps.md) |
+| `motion-graphics` | Makes an animated video as code: an explainer, a product spot, a short | [Motion graphics](./motion-graphics-steps.md) |
 | `review` | Shows earlier results to check, change or make again | [Review and result](./review-and-result.md) |
 | `result` | The last page: the message and the downloads | [Review and result](./review-and-result.md) |
 
