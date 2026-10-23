@@ -10,7 +10,7 @@ version: 0.11.2
 
 | What you see | What to do |
 |---|---|
-| “This link is no longer valid. Run wizards open to get a new one.” | The link works once. `wizards open` gives this browser a new one |
+| “This link is no longer valid. Run “wizards open” in a terminal to get a new one.” | The link works once. `wizards open` gives this browser a new one |
 | “engenty wizards isn’t answering” | It has stopped or is restarting. `wizards status` says whether it is running; `wizards start` starts it |
 | `wizards`: command not found | Open a new terminal, or run `~/.local/bin/wizards` |
 | “Open the studio from a terminal” | This browser hasn’t opened the studio’s link yet, for example after you cleared cookies or in another browser. Run `wizards open`, or `wizards open --print` and open the link in this browser. You don’t need an account for this |
