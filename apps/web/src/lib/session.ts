@@ -307,7 +307,6 @@ export interface Project {
   facts: ProjectFact[];
   /** The space's public page; null until it is set up. */
   page: ProjectPage | null;
-  mcpServers: { id: string; name: string; url: string; headers?: Record<string, string> }[];
   wizardCount: number;
   /** `local`: sent here by a local install, where it is changed. */
   origin: "local" | null;
@@ -408,7 +407,6 @@ export interface WizardDetail extends WizardSummary {
     source: "studio" | "mcp";
     client: string | null;
   }[];
-  mcpServers: { id: string; name: string }[];
   shareUrl: string;
   studioUrl: string;
 }
@@ -419,7 +417,7 @@ export interface WizardDetail extends WizardSummary {
  * it is missing, or the names of what is missing.
  */
 export interface ServerProblem {
-  code: "invalid" | "model" | "sandbox" | "mcp" | "connector";
+  code: "invalid" | "model" | "sandbox" | "connector";
   blocking: boolean;
   steps: { id: string; title: string }[];
   detail: string;

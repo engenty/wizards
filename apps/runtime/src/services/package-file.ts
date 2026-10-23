@@ -34,7 +34,6 @@ export function readManifest(raw: unknown): Manifest {
       version: 1,
       definition: raw,
       connectors: [],
-      mcpServers: [],
       themes: [],
     };
   }

@@ -62,7 +62,7 @@ function stepFormula(step: Step, catalog: GatewayCatalog): number {
     }
     const shape = step.tools.includes("browser")
       ? TOKENS.browser
-      : step.tools.length || step.mcp?.length || step.connections?.length
+      : step.tools.length || step.connections?.length
         ? TOKENS.tools
         : TOKENS.plain;
     // A step with `each` runs once per entry; until it has run, three stand in.

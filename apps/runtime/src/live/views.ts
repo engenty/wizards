@@ -11,7 +11,7 @@ import { cloudLinked, cloudState } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
 import { presentIn } from "../services/presence.js";
 import { fileView, projectFiles } from "../services/project-files.js";
-import { listProjects, maskedServers, ownedProject } from "../services/projects.js";
+import { listProjects, ownedProject } from "../services/projects.js";
 import { getPage, getRow, getTableHeader } from "../services/space-data.js";
 import { publishedDefinition, translationsOf } from "../services/translations.js";
 import { listWizards, ownedWizard, wizardMessages, wizardState } from "../services/wizards.js";
@@ -39,7 +39,6 @@ export async function spacesView(r: Reader) {
     facts: p.facts,
     /** The space's public page; null until it is set up. */
     page: p.page ?? null,
-    mcpServers: maskedServers(p),
     wizardCount: p.wizardCount,
     /** `local`: synced from a local install, where it is changed. */
     origin: p.origin,
@@ -77,7 +76,6 @@ export async function wizardView(r: Reader, id: string) {
       source: m.source,
       client: m.client,
     })),
-    mcpServers: project.mcpServers.map((s) => ({ id: s.id, name: s.name })),
   };
 }
 

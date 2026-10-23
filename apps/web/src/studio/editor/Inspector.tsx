@@ -763,14 +763,12 @@ function StepBody({
   def,
   step,
   set,
-  mcpServers,
   files,
   wizardId,
 }: {
   def: WizardDefinition;
   step: Step;
   set: (s: Step) => void;
-  mcpServers: { id: string; name: string }[];
   files: WorkspaceFile[];
   wizardId: string;
 }) {
@@ -895,17 +893,6 @@ function StepBody({
                   onChange={(v: string[]) =>
                     set({ ...step, connections: v.length ? v : undefined })
                   }
-                />
-              </>
-            ) : null}
-            {mcpServers.length ? (
-              <>
-                <Label hint={t("inspector.systemsHint")}>{t("inspector.systems")}</Label>
-                <Segmented
-                  multi
-                  value={step.mcp ?? []}
-                  options={mcpServers.map((m) => m.id)}
-                  onChange={(v: string[]) => set({ ...step, mcp: v.length ? v : undefined })}
                 />
               </>
             ) : null}
@@ -1230,7 +1217,6 @@ interface InspectorProps {
   update: Update;
   onSelect: (id: string | null) => void;
   issues: { stepId?: string; message: string }[];
-  mcpServers: { id: string; name: string }[];
   files: WorkspaceFile[];
   wizardId: string;
   /** The wizard's space: its themes are the looks the wizard can wear. */
@@ -1467,7 +1453,6 @@ function StepInspector({
   update,
   onSelect,
   issues,
-  mcpServers,
   files,
   wizardId,
   decisions,
@@ -1573,14 +1558,7 @@ function StepInspector({
         ) : null}
         <StepCost estimate={estimate.data} stepId={step.id} />
       </Section>
-      <StepBody
-        def={def}
-        step={step}
-        set={set}
-        mcpServers={mcpServers}
-        files={files}
-        wizardId={wizardId}
-      />
+      <StepBody def={def} step={step} set={set} files={files} wizardId={wizardId} />
       {step.type !== "result" ? (
         <NextSection
           def={def}

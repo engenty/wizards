@@ -248,11 +248,7 @@ export function registerTools(server: McpServer, who: Principal) {
       const project = projectId
         ? await ownedProject(who.userId, projectId)
         : await defaultProject(who.userId);
-      return authoringGuide(
-        project.mcpServers.map((s) => ({ id: s.id, name: s.name })),
-        await listConnectors(project.id),
-        await pluginToolsOf(who.tenantId),
-      );
+      return authoringGuide(await listConnectors(project.id), await pluginToolsOf(who.tenantId));
     },
   );
 

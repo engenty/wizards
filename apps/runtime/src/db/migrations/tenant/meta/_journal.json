@@ -176,6 +176,13 @@
       "when": 1792649943526,
       "tag": "0024_live_presence",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1792763954052,
+      "tag": "0025_drop_mcp_servers",
+      "breakpoints": true
     }
   ]
 }

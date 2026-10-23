@@ -108,7 +108,6 @@ describe("what a step needs beyond a text model", () => {
           title: "Think",
           instructions: "{{memory}} {{lists.rows}}",
           tools: ["web_search", "pages", "http", "crm.find"],
-          mcp: ["notion"],
           connections: ["mail"],
           each: "steps.other.rows",
           output: { format: "json" },
@@ -144,7 +143,6 @@ describe("what a step needs beyond a text model", () => {
       "tool:web_search",
       "tool:pages?",
       "plugin:crm",
-      "mcp",
       "connections",
       "each?",
     ]);

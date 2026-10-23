@@ -696,7 +696,6 @@ function Editor() {
             update={save}
             onSelect={select}
             issues={w.issues}
-            mcpServers={w.mcpServers}
             files={w.files}
             wizardId={w.id}
             projectId={w.projectId}

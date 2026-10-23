@@ -47,7 +47,6 @@ export type Capability = (typeof CAPABILITY_IDS)[number];
 /** Something a step wants beyond a text model, as a stable id every app can word. */
 export type Need =
   | `tool:${ToolId}`
-  | "mcp"
   | "connections"
   | `plugin:${string}`
   | `asset:${AssetKind}`
@@ -191,9 +190,6 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
           add(`tool:${tool as ToolId}`, false);
         }
       }
-      if (step.mcp?.length) {
-        add("mcp", true);
-      }
       if (step.connections?.length) {
         add("connections", true);
       }
@@ -303,7 +299,6 @@ export function capabilityOf(need: Need): Capability | null {
     case "field:audio":
       return "listening";
     case "tool:http":
-    case "mcp":
     case "connections":
     case "field:connection":
       return "connectors";

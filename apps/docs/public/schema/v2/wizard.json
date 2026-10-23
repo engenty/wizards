@@ -1229,12 +1229,6 @@
                   ]
                 }
               },
-              "mcp": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
               "connections": {
                 "type": "array",
                 "items": {

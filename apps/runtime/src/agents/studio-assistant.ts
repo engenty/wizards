@@ -899,9 +899,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   const tools: Record<string, any> = {
     ...knowsTools({
       user: input.user,
-      project: project
-        ? { id: project.id, name: project.name, mcpServers: project.mcpServers }
-        : null,
+      project: project ? { id: project.id, name: project.name } : null,
       lang: input.lang,
       chatId: input.chat.id,
       doing: (label) => input.onActivity?.(label),

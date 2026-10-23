@@ -74,7 +74,7 @@ describe("wizard packages", () => {
     ]);
     expect(entries["files/img/pin.png"]).toEqual(PNG);
     const told = JSON.parse(strFromU8(entries["wizard.json"]));
-    expect(told).toMatchObject({ format: "engenty-wizard", version: 1, connectors: [], mcpServers: [] });
+    expect(told).toMatchObject({ format: "engenty-wizard", version: 1, connectors: [] });
     expect(told.definition.title).toBe("Wetter für Köche");
   });
 
@@ -173,7 +173,6 @@ describe("wizard packages", () => {
             title: "Schreiben",
             instructions: "Schreibe {{lake}} auf.",
             tools: [],
-            mcp: ["crm"],
             connections: ["notes"],
             output: { format: "markdown" },
           },
@@ -183,14 +182,12 @@ describe("wizard packages", () => {
       const zip = zipSync({
         "wizard.json": manifest(def, {
           connectors: [{ id: "notion", name: "Notion", domain: "notion.com", sourceKind: "mcp" }],
-          mcpServers: [{ id: "crm", name: "Unser CRM" }],
         }),
       });
       const { id, issues } = await pkg.importWizard(USER, otherProject, zip);
       expect(issues.map((i) => i.message).join()).toContain('connector "notion"');
       const [note] = await wizards.wizardMessages(id);
       expect(note.content).toContain("Connector „Notion“ (notion.com)");
-      expect(note.content).toContain("MCP-Server „Unser CRM“");
     });
   });
 
