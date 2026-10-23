@@ -1,5 +1,6 @@
 import {
   Check,
+  ChevronsUpDown,
   Ellipsis,
   Home,
   Inbox,
@@ -10,6 +11,7 @@ import {
   Moon,
   PanelBottom,
   PanelLeft,
+  PanelLeftOpen,
   PanelRight,
   PanelTop,
   Plus,
@@ -50,40 +52,67 @@ const AboutDialog = lazy(() =>
 
 /**
  * The app bar at an edge of the window: the engenty in the corner (its menu holds what belongs to
- * the app itself), the space (it switches between spaces), its home (the wizards), its page
- * (Info & brand, Knowledge, Data), its results, the apps the plugins added, and at its end the
+ * the app itself), the space (it switches between spaces), its home (the wizards), its sources
+ * (Info, Brand, Knowledge, Data), its results, the apps the plugins added, and at its end the
  * settings and the person. A place is a filled tile, a tool a line glyph; the one that is open is
- * cut from the page's own paper. A right click on the bar, or a long press on a touch screen,
- * picks its edge and the colour scheme. A phone has a bar of its own (`PhoneBar`).
+ * cut from the page's own paper. On a wide window a bar at a side names its places beside
+ * their glyphs, unless another sidebar stands beside the page. A right click on the bar, or a
+ * long press on a touch screen, picks its edge, the names and the colour scheme. A phone has a
+ * bar of its own (`PhoneBar`).
  */
 
-function glyph(active: boolean): string {
+function glyph(active: boolean, labels = false): string {
   return cn(
-    "grid size-10 shrink-0 place-items-center rounded-lg transition",
+    "shrink-0 rounded-lg transition",
+    labels
+      ? "flex h-10 w-full items-center gap-3 px-2.5 font-medium text-[0.875rem]"
+      : "grid size-10 place-items-center",
     active
       ? "bg-paper text-ink shadow-soft dark:ring-1 dark:ring-border-soft"
       : "text-ink-3 hover:bg-ink/10 hover:text-ink",
   );
 }
 
-/** The space's tile: it opens the spaces to switch between; the ring says the menu is open. */
-export function SpaceTile({ me }: { me: Me }) {
+/** A place's name beside its glyph, in a bar that names its places. */
+function Label({ children }: { children: string }) {
+  return <span className="min-w-0 flex-1 truncate">{children}</span>;
+}
+
+/**
+ * The space's tile: it opens the spaces to switch between; the ring says the menu is open. In a
+ * bar that names its places, the space's name stands beside it.
+ */
+export function SpaceTile({ me, labels }: { me: Me; labels?: boolean }) {
   const { project } = useCurrentProject();
   const one = useOneSpace(me);
+  const name = one ? (me.tenant.name ?? undefined) : undefined;
   return (
     <SpaceMenu
       me={me}
       placement="bar-start"
-      label={project?.name ?? t("nav.project")}
+      label={project?.name ?? t("nav.space")}
       className={(open) =>
-        cn(
-          "block rounded-lg transition",
-          open ? "ring-2 ring-ink/80 ring-offset-2 ring-offset-sidebar" : "hover:shadow-soft",
-        )
+        labels
+          ? cn(
+              "flex w-full items-center gap-3 rounded-lg p-0.5 pr-2 text-left transition hover:bg-ink/10",
+              open && "bg-ink/10",
+            )
+          : cn(
+              "block rounded-lg transition",
+              open ? "ring-2 ring-ink/80 ring-offset-2 ring-offset-sidebar" : "hover:shadow-soft",
+            )
       }
     >
       {/* One space: the tile stands for the organization. */}
-      <SpaceFace project={project} name={one ? (me.tenant.name ?? undefined) : undefined} />
+      <SpaceFace project={project} name={name} />
+      {labels ? (
+        <>
+          <span className="min-w-0 flex-1 truncate font-semibold text-[0.875rem] text-ink">
+            {name ?? project?.name ?? t("nav.space")}
+          </span>
+          {one ? null : <ChevronsUpDown className="size-4 shrink-0 text-ink-4" />}
+        </>
+      ) : null}
     </SpaceMenu>
   );
 }
@@ -102,9 +131,20 @@ const SCHEMES: readonly { pick: Theme | null; icon: LucideIcon; label: Key }[] =
   { pick: null, icon: Monitor, label: "appbar.system" },
 ];
 
-/** The bar's own menu, at the pointer: its edge, and the colour scheme. */
-function BarMenu({ at, onClose }: { at: { x: number; y: number }; onClose: () => void }) {
-  const { position } = useAppBar();
+/**
+ * The bar's own menu, at the pointer: its edge, whether it names its places, and the colour
+ * scheme. The names can only be asked for where they have room (`room`), but always turned off.
+ */
+function BarMenu({
+  at,
+  room,
+  onClose,
+}: {
+  at: { x: number; y: number };
+  room: boolean;
+  onClose: () => void;
+}) {
+  const { position, labels } = useAppBar();
   const picked = useThemePick();
   const edges: readonly AppBarPosition[] = APP_BAR_POSITIONS;
   const ref = useRef<HTMLDivElement>(null);
@@ -122,7 +162,7 @@ function BarMenu({ at, onClose }: { at: { x: number; y: number }; onClose: () =>
     }
   }, []);
   const item =
-    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[0.875rem] text-ink-2 hover:bg-accent hover:text-ink";
+    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[0.875rem] text-ink-2 hover:bg-accent hover:text-ink disabled:pointer-events-none disabled:opacity-50";
   const head = "px-3 pt-2 pb-1 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.07em]";
   return (
     <div
@@ -153,6 +193,21 @@ function BarMenu({ at, onClose }: { at: { x: number; y: number }; onClose: () =>
           </button>
         );
       })}
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={labels}
+        disabled={!(labels || room)}
+        className={cn(item, labels && "text-ink")}
+        onClick={() => {
+          setAppBar({ labels: !labels });
+          onClose();
+        }}
+      >
+        <PanelLeftOpen className="size-4" />
+        <span className="flex-1">{t("appbar.labels")}</span>
+        {labels ? <Check className="size-4 text-ember-strong" /> : null}
+      </button>
       <div className="mx-2 my-1.5 h-px bg-border-soft" />
       <div className={head}>{t("appbar.theme")}</div>
       {SCHEMES.map(({ pick, icon: Icon, label }) => (
@@ -176,7 +231,7 @@ function BarMenu({ at, onClose }: { at: { x: number; y: number }; onClose: () =>
   );
 }
 
-/** The place in the bar a page belongs to: Home (the wizards), the space's page, its results. */
+/** The place in the bar a page belongs to: Home (the wizards), the space's sources, its results. */
 function usePlace(): "home" | "new" | "space" | "results" | "settings" | null {
   const { pathname } = useLocation();
   if (pathname === "/new") {
@@ -194,7 +249,11 @@ function usePlace(): "home" | "new" | "space" | "results" | "settings" | null {
   return pathname === "/space" || pathname.startsWith("/space/") ? "space" : null;
 }
 
-export function AppRail({ me }: { me: Me }) {
+/**
+ * `labels`: the bar names its places now (`useAppBarLabels`); `room`: it could, so the menu
+ * offers it.
+ */
+export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: boolean }) {
   const plugins = useStudioPlugins();
   const { position } = useAppBar();
   const horizontal = isHorizontal(position);
@@ -260,8 +319,13 @@ export function AppRail({ me }: { me: Me }) {
       onClickCapture={onClickCapture}
       className={cn(
         // No text selection and no link callout while a finger rests on the bar.
-        "flex shrink-0 select-none items-center bg-sidebar [-webkit-touch-callout:none]",
-        horizontal ? "w-full flex-row gap-1.5 px-2" : "h-full w-16 flex-col pt-2 pb-3",
+        "flex shrink-0 select-none bg-sidebar [-webkit-touch-callout:none]",
+        horizontal
+          ? "w-full flex-row items-center gap-1.5 px-2"
+          : cn(
+              "h-full flex-col pt-2 pb-3 transition-[width] duration-200 ease-out",
+              labels ? "w-56 items-stretch px-2.5" : "w-16 items-center",
+            ),
         // Along a phone's edge, clear of the notch and the home indicator: the safe area
         // comes on top of the bar's own padding, so the items keep their place in it.
         position === "bottom" && "pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))]",
@@ -270,28 +334,33 @@ export function AppRail({ me }: { me: Me }) {
     >
       {/* Beside the page, the engenty's row is as tall as the page's top bar, so the two sit on
           one line. */}
-      <EngentyMenu me={me} position={position} horizontal={horizontal} />
+      <EngentyMenu me={me} position={position} horizontal={horizontal} labels={labels} />
       <div className={horizontal ? "ml-1" : "mt-2"}>
-        <SpaceTile me={me} />
+        <SpaceTile me={me} labels={labels} />
       </div>
       <Link
         to="/"
         title={t("nav.home")}
         aria-label={t("nav.home")}
         aria-current={place === "home" || place === "new" ? "page" : undefined}
-        className={cn(glyph(place === "home" || place === "new"), horizontal ? "ml-1.5" : "mt-2")}
+        className={cn(
+          glyph(place === "home" || place === "new", labels),
+          horizontal ? "ml-1.5" : "mt-2",
+        )}
       >
-        <Home className="size-5" />
+        <Home className="size-5 shrink-0" />
+        {labels ? <Label>{t("nav.home")}</Label> : null}
       </Link>
-      {/* The space's page: Info & brand, Knowledge and Data. */}
+      {/* The space's sources: Info, Brand, Knowledge and Data. */}
       <Link
         to="/space"
-        title={t("nav.project")}
-        aria-label={t("nav.project")}
+        title={t("nav.sources")}
+        aria-label={t("nav.sources")}
         aria-current={place === "space" ? "page" : undefined}
-        className={cn(glyph(place === "space"), horizontal ? "ml-1.5" : "mt-2")}
+        className={cn(glyph(place === "space", labels), horizontal ? "ml-1.5" : "mt-2")}
       >
-        <Layers className="size-5" />
+        <Layers className="size-5 shrink-0" />
+        {labels ? <Label>{t("nav.sources")}</Label> : null}
       </Link>
       {/* What the space's wizards made. */}
       <Link
@@ -299,17 +368,24 @@ export function AppRail({ me }: { me: Me }) {
         title={t("space.results")}
         aria-label={t("space.results")}
         aria-current={place === "results" ? "page" : undefined}
-        className={cn(glyph(place === "results"), horizontal ? "ml-1.5" : "mt-2")}
+        className={cn(glyph(place === "results", labels), horizontal ? "ml-1.5" : "mt-2")}
       >
-        <Inbox className="size-5" />
+        <Inbox className="size-5 shrink-0" />
+        {labels ? <Label>{t("space.results")}</Label> : null}
       </Link>
       {/* The pages plugins added, each behind its icon, after a divider. */}
       {plugins.nav.length ? (
-        <div className={cn("shrink-0 bg-border", horizontal ? "mx-2 h-7 w-px" : "my-3 h-px w-7")} />
+        <div
+          className={cn(
+            "shrink-0 bg-border",
+            horizontal ? "mx-2 h-7 w-px" : cn("my-3 h-px", labels ? "mx-2.5" : "w-7"),
+          )}
+        />
       ) : null}
       <nav
         className={cn(
-          "flex min-h-0 min-w-0 flex-1 items-center gap-1.5",
+          "flex min-h-0 min-w-0 flex-1 gap-1.5",
+          labels ? "items-stretch" : "items-center",
           horizontal ? "flex-row overflow-x-auto" : "flex-col overflow-y-auto",
         )}
       >
@@ -319,37 +395,40 @@ export function AppRail({ me }: { me: Me }) {
               to={entry.to}
               title={entry.label()}
               aria-label={entry.label()}
-              className={({ isActive }) => glyph(isActive)}
+              className={({ isActive }) => glyph(isActive, labels)}
             >
-              <entry.icon className="size-5" />
+              <entry.icon className="size-5 shrink-0" />
+              {labels ? <Label>{entry.label()}</Label> : null}
             </NavLink>
           </PluginFrame>
         ))}
       </nav>
       <div
         className={cn(
-          "flex shrink-0 items-center gap-2",
+          "flex shrink-0 gap-2",
           horizontal ? "flex-row pl-3" : "flex-col pt-3",
+          labels ? "items-stretch" : "items-center",
         )}
       >
         <NavLink
           to="/settings"
           title={t("nav.settings")}
           aria-label={t("nav.settings")}
-          className={({ isActive }) => glyph(isActive)}
+          className={({ isActive }) => glyph(isActive, labels)}
         >
-          <Settings className="size-5" />
+          <Settings className="size-5 shrink-0" />
+          {labels ? <Label>{t("nav.settings")}</Label> : null}
         </NavLink>
-        <UserMenu me={me} placement="bar-end" />
+        <UserMenu me={me} placement="bar-end" named={labels} />
       </div>
-      {menu ? <BarMenu at={menu} onClose={() => setMenu(null)} /> : null}
+      {menu ? <BarMenu at={menu} room={room} onClose={() => setMenu(null)} /> : null}
     </aside>
   );
 }
 
 /**
  * A phone's bar: always along the bottom, floating over the page as glass. It holds the space and
- * its two places to go every day, Home and the space's page; "⋯" holds the rest (results, the
+ * its two places to go every day, Home and the space's sources; "⋯" holds the rest (results, the
  * plugins' apps, then what the engenty's menu holds, the settings among it). The person sits at the top.
  */
 /**
@@ -412,7 +491,7 @@ function Capsule({ index }: { index: number | null }) {
 
 /**
  * A phone's bar: always along the bottom, a capsule of glass floating over the page. Three tabs:
- * the space's two places to go every day, Home and its page, and "More" with the rest in a menu:
+ * the space's two places to go every day, Home and its sources, and "More" with the rest in a menu:
  * Results, the settings, the plugins' apps, then About (in a dialog). Beside it, on glass of its
  * own, the page's main action (`usePrimaryAction`), else a new wizard. The space and the person
  * sit in the top bar.
@@ -477,7 +556,7 @@ export function PhoneBar({ me }: { me: Me }) {
         </Link>
         <Link
           to="/space"
-          aria-label={t("nav.project")}
+          aria-label={t("nav.sources")}
           aria-current={place === "space" ? "page" : undefined}
           onClick={() => setOpen(false)}
           className={tab(lit("space"))}

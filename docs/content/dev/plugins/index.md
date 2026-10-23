@@ -28,7 +28,7 @@ loads them from their files and loads a plugin again when its files change.
 | A page of the studio | Behind an icon in the app bar, or at its address | [The studio half](./studio.md) |
 | A section of the settings | In the settings’ list | [The studio half](./studio.md) |
 | A section of the space page | In one of its parts, below the part’s own sections | [The studio half](./studio.md#the-space) |
-| A part of the space page | In the space’s menu, beside Info & brand, Knowledge, Data and Results | [The studio half](./studio.md#a-part-of-the-plugins-own) |
+| A part of the space page | In the space’s menu, beside Info, Brand, Knowledge, Data and Results | [The studio half](./studio.md#a-part-of-the-plugins-own) |
 
 ## Two halves
 

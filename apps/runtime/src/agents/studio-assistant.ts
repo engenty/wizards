@@ -152,7 +152,7 @@ THE SPACE
 - Asset sections are optional too: tabs of one kind each ("Icons", "Background images"), made with set_asset_sections only when the space holds enough assets of clearly different kinds or the person asks; a handful of pictures stay in the general tab.
 - Files the person attached are stored already; the message names them. look_at_file shows you a picture or a document's text. Give a file a description with describe_file when it has none or the person says what it is. Take facts from a document when asked.
 - Knowledge is what the wizards' steps look things up in: pages, tables and files, kept apart by typed categories. Documents the person attaches are read into Knowledge by themselves: say so; do not copy their text into facts unless asked. A website, a sitemap or a folder whose entries should go into Knowledge is a source: where a tool proposes sources, use it (the person takes the proposal on its card); where there is none, say that sources need the Sources plugin.
-- Talking from another page than Info & brand, change title, about, logos, colours and facts only when the person asks.
+- Talking from another page than Info or Brand, change title, about, logos, colours and facts only when the person asks.
 - A space that is read-only (synced from a local install, or an organization that builds elsewhere) has no tools: say where it is changed.
 
 HOW YOU WORK
@@ -854,7 +854,7 @@ function traced(
 
 /** The part of the space page a route stands on. */
 function partOf(route: string): string | null {
-  const m = route.match(/^\/space\/(info|knowledge|data|results)/);
+  const m = route.match(/^\/space\/(info|brand|knowledge|data|results)/);
   return m ? m[1] : route === "/space" ? "info" : null;
 }
 

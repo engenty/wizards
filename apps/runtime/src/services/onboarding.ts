@@ -262,7 +262,7 @@ export function brandColors(brand: {
 
 type Found = CompanyContact & { website?: string };
 
-/** The facts a company's site states, by the keys the Info & brand page offers them under. */
+/** The facts a company's site states, by the keys the Info page offers them under. */
 const FACTS: [BasicFact, keyof Found, ServerKey][] = [
   ["adresse", "street", "factAddress"],
   ["plz", "postcode", "factPostcode"],
@@ -388,7 +388,7 @@ export interface WebsiteOutcome {
 const ASSETS = 4;
 
 /**
- * Reads a website into the space's Info & brand: the company's name, what it does, up to three
+ * Reads a website into the space's Info and Brand: the company's name, what it does, up to three
  * of its colours, the facts its imprint and contact page state (its full name with its legal
  * form among them, where the site goes by a shorter one) and, where the space has none yet, its
  * fonts, its logo and the big pictures of its home page as brand material. What the assistant
