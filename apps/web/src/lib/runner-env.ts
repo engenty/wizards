@@ -1,5 +1,6 @@
 import { configureRunner } from "@engenty/wizards-runner";
 import { Mascot } from "../brand";
+import { RunEnd } from "../report/RunEnd";
 import { ShareResultButton } from "../share/ShareSheet";
 import { appCall, appCan, appDownload, appTell } from "./app";
 import { asset, BASE, withBase } from "./base";
@@ -19,5 +20,6 @@ configureRunner({
   app: { can: appCan, call: appCall, tell: appTell, download: appDownload },
   Mascot,
   ShareResultButton,
+  RunEnd,
   onServerError: (line) => report("error", line),
 });

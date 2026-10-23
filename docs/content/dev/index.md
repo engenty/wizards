@@ -18,6 +18,7 @@ its own page, on a website, in a chat or in your own app.
 | [Your own UI](./integration/own-ui.md) | Your app draws the run with `@engenty/wizards-runner` |
 | [Plugins](./plugins/index.md) | Tools for AI steps, routes with their own tables, pages in the studio |
 | [The API](./api.md) | What a program may rely on, what is private, and how a client names itself |
+| [Licensing](./licensing.md) | The wizard format and the runner are MIT, the rest is FSL-1.1-MIT |
 
 ## Wizards as files
 

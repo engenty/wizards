@@ -5,6 +5,7 @@ import {
   Cloud,
   CloudOff,
   CreditCard,
+  Flag,
   Folder,
   Laptop,
   LogOut,
@@ -37,6 +38,7 @@ import {
   useCurrentProject,
   useMayCreate,
 } from "../lib/session";
+import { openReport } from "../report/ReportDialog";
 import { Button, cn, Dialog, Input } from "../ui";
 import { AppRail, PhoneBar } from "./AppRail";
 import { AssistantDock, AssistantSidebar, HighlightLayer } from "./assistant/StudioAssistant";
@@ -662,6 +664,18 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
             {t("nav.language")}
             <LangSwitch tone="surface" />
           </div>
+          {me.mode === "managed" ? (
+            <button
+              type="button"
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                openReport({ where: "studio" });
+              }}
+            >
+              <Flag className="size-4" /> {t("report.open")}
+            </button>
+          ) : null}
           {me.mode === "managed" ? (
             <button type="button" className={item} onClick={() => void signOut()}>
               <LogOut className="size-4" /> {t("nav.logout")}

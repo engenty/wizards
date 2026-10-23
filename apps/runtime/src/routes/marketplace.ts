@@ -10,6 +10,7 @@ import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
 import {
   asLang,
+  byLevel,
   marketplaceDetail,
   searchMarketplace,
   searchMarketplaceAsGuest,
@@ -37,7 +38,9 @@ const searchSchema = z.object({
 export const marketplaceStudio = new Hono<{ Variables: { user: SessionUser } }>()
   .get("/", async (c) => {
     const { lang, ...search } = searchSchema.parse(c.req.query());
-    return c.json(await searchMarketplace({ ...search, lang: asLang(lang) }));
+    return c.json(
+      await byLevel(await searchMarketplace({ ...search, lang: asLang(lang) }), search),
+    );
   })
   .get("/:id", async (c) => {
     const detail = await marketplaceDetail(c.req.param("id"), asLang(c.req.query("lang")));

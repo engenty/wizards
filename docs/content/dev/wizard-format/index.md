@@ -8,9 +8,9 @@ A wizard is one JSON document, its **definition**. The studio exports it as a `.
 and imports one back. You can write either by hand or with a tool, check it in your editor
 against its [JSON Schema](#json-schema), and check it completely with `wizards validate`.
 
-The code that defines the format and checks it is also under the
+The wizard format is open: the code that defines it and checks it is under the
 [MIT licence](https://github.com/engenty/wizards/blob/main/packages/shared/LICENSE-MIT), so any
-tool may read and write wizards.
+tool may read, write and run wizards. [Licensing](../licensing.md) says which files that covers.
 
 ## The definition
 

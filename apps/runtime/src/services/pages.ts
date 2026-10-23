@@ -76,7 +76,7 @@ const UPLOAD_KINDS = new Set(["file", "image", "audio"]);
 const NAME_KEYS = ["name", "firma", "unternehmen", "company", "firmenname", "kanzlei"];
 
 /** A wizard's language where the page knows it, else the page's. */
-function pageLangOf(def: WizardDefinition, fallback: PageLang): PageLang {
+export function pageLangOf(def: WizardDefinition, fallback: PageLang): PageLang {
   const lang = langOf(wizardLang(def));
   return lang === "de" || lang === "en" ? lang : fallback;
 }

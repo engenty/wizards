@@ -29,6 +29,7 @@ import { liveRoutes } from "./routes/live.js";
 import { marketplaceGuest, marketplaceStudio } from "./routes/marketplace.js";
 import { publicPluginRoutes } from "./routes/plugin-public.js";
 import { pluginRoutes } from "./routes/plugins.js";
+import { reportRoutes } from "./routes/reports.js";
 import { clientIp, connectCallback, publicRoutes, runRoutes, shareRoutes } from "./routes/runs.js";
 import { studio } from "./routes/studio.js";
 import { wizardStream } from "./routes/wizard-stream.js";
@@ -147,6 +148,9 @@ app.post("/api/log", bodyLimit({ maxSize: 8 * 1024 }), async (c) => {
   return c.json({ ok: true });
 });
 
+// "Report a problem" from the run page and the studio (routes/reports.ts).
+app.route("/api", reportRoutes);
+
 if (serves.studio) {
   app.route("/api", authRoutes);
 }
@@ -161,6 +165,8 @@ app.get("/api/config", (c) =>
     publicUrl: env.publicUrl,
     /** The feature switches before anyone is signed in: the code's, the environment's, the file's. */
     features: features(),
+    /** The run page asks for feedback at the end and sends bug reports: they reach the Manage-App. */
+    reports: managed,
   }),
 );
 

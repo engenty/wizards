@@ -39,6 +39,13 @@ waiting for developers. Host it in the cloud or inside your own walls, with any 
   <tr><td><strong>Integrate &amp; Share</strong></td><td>Share a wizard as a link or an embed code, and send its results by email, to Drive or Slack, or through any connector.</td></tr>
 </table>
 
+## Open format
+
+A wizard is one JSON document. Anyone may read, write and run wizards in their own tools. The
+wizard format and the runner that shows a wizard to people are under the MIT licence. The studio,
+the runtime and the rest are source available under FSL-1.1-MIT. Each release of them becomes
+MIT two years after it is published. [License](#license) says which file is under which.
+
 ## How it looks
 
 The studio: the conversation that changes a wizard, the preview of each page as people see it, and its steps as a flow with its branches.
@@ -220,9 +227,21 @@ and is a site of its own: `pnpm dev:docs`.
 
 ## License
 
-[FSL-1.1-MIT](LICENSE): use it for yourself and your company, run it, change it – just don’t
-offer it to others as a competing product or service. Each release becomes MIT two years
-after it is published. The engenty figures are free artwork under CC BY 4.0
-([LICENSE-FIGURES](LICENSE-FIGURES)); the name and the figures as a brand are trademarks
-([TRADEMARKS.md](TRADEMARKS.md)). [COPYRIGHTS.md](COPYRIGHTS.md) names the owner, the marks, what is not ours and the
-third-party software with its licences.
+The wizard format and the runner are MIT. The rest of the code is FSL-1.1-MIT.
+
+| What | Licence |
+|---|---|
+| The wizard format: the twelve files of `packages/shared` that define a wizard and read it | MIT or FSL-1.1-MIT, your choice ([LICENSE-MIT](packages/shared/LICENSE-MIT)) |
+| The runner, `packages/runner` | MIT ([LICENSE](packages/runner/LICENSE)) |
+| The plugin for the AI apps, `plugin/`, without the engenty figures in it | MIT ([LICENSE](plugin/LICENSE)) |
+| Everything else: the studio, the runtime, the `wizards` command, `@engenty/wizards` on npm | FSL-1.1-MIT ([LICENSE](LICENSE)) |
+| The engenty figures as artwork | CC BY 4.0 ([LICENSE-FIGURES](LICENSE-FIGURES)) |
+| The name and the figures as a brand | Trademarks ([TRADEMARKS.md](TRADEMARKS.md)) |
+
+FSL-1.1-MIT is source available: use it for yourself and your company, run it, change it – just
+don’t offer it to others as a competing product or service. Each release becomes MIT two years
+after it is published. No licence grants rights to the name or the figures as a brand.
+
+[COPYRIGHTS.md](COPYRIGHTS.md) lists the exact files under each licence. It also names the
+owner, the marks, what is not ours and the third-party software with its licences. In the docs:
+[Licensing](docs/content/dev/licensing.md).

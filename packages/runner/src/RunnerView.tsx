@@ -662,7 +662,7 @@ function Result({
   studio?: boolean;
 }) {
   const made = view.shown.filter((x) => x.output);
-  const { Mascot, ShareResultButton } = runnerEnv();
+  const { Mascot, ShareResultButton, RunEnd } = runnerEnv();
   return (
     <div className="animate-rise">
       <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-5">
@@ -740,6 +740,7 @@ function Result({
           </Card>
         ))}
       </div>
+      {RunEnd && !studio ? <RunEnd view={view} /> : null}
       <Footer view={view} run={run}>
         {onRestart ? (
           <Button variant="secondary" onClick={onRestart}>
@@ -754,7 +755,7 @@ function Result({
 }
 
 function Failed({ view, run }: { view: RunView; run: Run }) {
-  const { Mascot } = runnerEnv();
+  const { Mascot, RunEnd } = runnerEnv();
   return (
     <div className="flex animate-rise flex-col items-center pt-8 text-center">
       <Mascot kind={view.wizard.avatar} costume={view.wizard.costume} size={90} />
@@ -774,6 +775,7 @@ function Failed({ view, run }: { view: RunView; run: Run }) {
           <RotateCcw className="size-4" /> {t("run.retry")}
         </Button>
       </div>
+      {RunEnd ? <RunEnd view={view} failed /> : null}
     </div>
   );
 }

@@ -177,6 +177,18 @@ export interface TenantInfo {
   /** The plan's feature switches; a feature that is not named is off. `ownKeys`: own API keys here. */
   features?: Record<string, boolean>;
   db: { url: string } | null;
+  /**
+   * The level the team's use earned (Manage's levels): the catalog shows the templates up to it.
+   * An older Manage-App names none: read it as level 1.
+   */
+  level?: {
+    level: number;
+    name: string;
+    next: { level: number; name: string; runs: number; published: number } | null;
+    progress: { runs: number; published: number };
+  };
+  /** What an admin held: a held wizard starts no new run, a held page shows none. */
+  holds?: { page: { reason: string } | null; wizards: { id: string; reason: string }[] };
 }
 
 export interface TenantMembers {
@@ -459,6 +471,29 @@ export function putPages(tenantId: string, data: unknown) {
     `/v1/pages/${encodeURIComponent(tenantId)}`,
     data,
   );
+}
+
+/**
+ * The team's wizards, whole (services/manage-reports.ts): the admin app lists them, with the
+ * template each was made from, and checks them.
+ */
+export function putWizards(tenantId: string, data: unknown) {
+  return call<{ ok: boolean }>("PUT", `/v1/wizards/${encodeURIComponent(tenantId)}`, data);
+}
+
+/** A run's turn – started, waiting, finished, failed, cancelled – for the admin app. */
+export function postRunReport(tenantId: string, data: unknown) {
+  return call<{ ok: boolean }>("POST", `/v1/runs/${encodeURIComponent(tenantId)}`, data);
+}
+
+/** What a person said at the end of a run. */
+export function postFeedback(tenantId: string, data: unknown) {
+  return call<{ ok: boolean }>("POST", `/v1/feedback/${encodeURIComponent(tenantId)}`, data);
+}
+
+/** "Report a problem", as the person sent it. */
+export function postBugReport(data: unknown) {
+  return call<{ id: string }>("POST", "/v1/bug-reports", data);
 }
 
 /** A push to the mobile app on one device; the Manage-App holds the APNs and FCM keys. */
