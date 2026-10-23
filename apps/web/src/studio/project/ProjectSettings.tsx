@@ -1,23 +1,27 @@
-import type {
-  AssetSection,
-  BrandColor,
-  BrandFont,
-  BrandGradient,
-  BrandPattern,
-  BrandRule,
-  ColorSection,
-  LogoSection,
-  ProjectFact,
-  TextStyle,
+import {
+  type AssetSection,
+  type BrandColor,
+  type BrandFont,
+  type BrandGradient,
+  type BrandPattern,
+  type BrandRule,
+  type ColorSection,
+  type LogoSection,
+  mainLogo,
+  type ProjectFact,
+  type ProjectFileView,
+  type TextStyle,
 } from "@engenty/wizards-shared/projects";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ImagePlus } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { Link } from "react-router";
 import { api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { type Project, useIsAdmin, useManyProjects } from "../../lib/session";
-import { Button, Dialog, Input, Label, Textarea } from "../../ui";
+import { Button, cn, Dialog, Input, Label, Textarea } from "../../ui";
 import { useAssistantPage } from "../assistant/page";
 import { AssistantSlot } from "../assistant/StudioAssistant";
 import { projectReadOnlyText, ReadOnlyNote } from "../ReadOnly";
@@ -25,6 +29,7 @@ import { Assets } from "./Assets";
 import { Colors } from "./Colors";
 import { useAutosave, useProjectFiles } from "./data";
 import { Facts } from "./Facts";
+import { Preview } from "./Files";
 import { Logos } from "./Logos";
 import { Anchor, Section } from "./Section";
 import { Typography } from "./Typography";
@@ -49,7 +54,45 @@ type Patch = {
   facts?: ProjectFact[];
 };
 
-function Base({ project, save }: { project: Project; save: (patch: Patch) => Promise<unknown> }) {
+/**
+ * The main logo beside the title, to see who the space is: it is changed in Brand, where a click
+ * on it leads. Without one, the way there to add it.
+ */
+function LogoPeek({ projectId, logo }: { projectId: string; logo: ProjectFileView | undefined }) {
+  const label = logo ? t("project.logoPeek") : t("project.logoPeekAdd");
+  return (
+    <div className="shrink-0">
+      <Label>{t("project.logo")}</Label>
+      <Link
+        to={{ pathname: "/space/brand", hash: "logos" }}
+        title={label}
+        aria-label={label}
+        className={cn(
+          "grid size-[4.5rem] place-items-center overflow-hidden rounded-xl transition",
+          logo
+            ? "bg-card ring-1 ring-border-soft hover:ring-border"
+            : "text-ink-4 ring-1 ring-border ring-dashed hover:text-ink-2",
+        )}
+      >
+        {logo ? (
+          <Preview projectId={projectId} file={logo} small />
+        ) : (
+          <ImagePlus className="size-5" />
+        )}
+      </Link>
+    </div>
+  );
+}
+
+function Base({
+  project,
+  logo,
+  save,
+}: {
+  project: Project;
+  logo: ProjectFileView | undefined;
+  save: (patch: Patch) => Promise<unknown>;
+}) {
   const [title, setTitle] = useState(project.brand.name ?? "");
   const [about, setAbout] = useState(project.brand.about ?? "");
   const status = useAutosave({ name: title.trim(), about: about.trim() }, (brand) =>
@@ -63,10 +106,13 @@ function Base({ project, save }: { project: Project; save: (patch: Patch) => Pro
       locked={project.readOnly}
     >
       <div className="flex flex-col gap-5">
-        <div>
-          <Label>{t("project.title")}</Label>
-          <Input value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} />
-          <p className="mt-1.5 text-[0.8125rem] text-ink-3">{t("project.titleHint")}</p>
+        <div className="flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <Label>{t("project.title")}</Label>
+            <Input value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} />
+            <p className="mt-1.5 text-[0.8125rem] text-ink-3">{t("project.titleHint")}</p>
+          </div>
+          <LogoPeek projectId={project.id} logo={logo} />
         </div>
         <div>
           <Label>{t("project.about")}</Label>
@@ -79,9 +125,9 @@ function Base({ project, save }: { project: Project; save: (patch: Patch) => Pro
 }
 
 /**
- * What a project gives all its wizards, in two parts of the space page: `info` — who it is, its
- * logos and colours, assets and facts — and `knowledge` — Knowledge, drawn by the caller as
- * `children`. Every section saves by itself; the studio's assistant fills them in from a
+ * What a project gives all its wizards, in three parts of the space page: `info` — who it is and
+ * its facts, with its main logo to see —, `brand` — its logos, colours, type and assets — and
+ * `knowledge` — Knowledge, drawn by the caller as `children`. Every section saves by itself; the studio's assistant fills them in from a
  * description, a website or files, and this tells it what to say here. A read-only project (a
  * local install's, or on a server where nothing is built) shows the same sections with a note.
  * `children`: the sections plugins add to the part, after its own.
@@ -93,7 +139,7 @@ export function ProjectSettings({
   children,
 }: {
   project: Project;
-  group: "info" | "knowledge";
+  group: "info" | "brand" | "knowledge";
   /** Goose's chat stands at the top of the part: not on an item of Knowledge, opened on its own. */
   top?: boolean;
   children?: ReactNode;
@@ -140,7 +186,7 @@ export function ProjectSettings({
             : [
                 { label: t("assistant.suggest.readSite"), fill: true },
                 { label: t("assistant.suggest.missing") },
-                { label: t("assistant.suggest.facts") },
+                ...(group === "info" ? [{ label: t("assistant.suggest.facts") }] : []),
               ],
           summary: knowledge
             ? undefined
@@ -164,7 +210,15 @@ export function ProjectSettings({
       {group === "info" ? (
         <>
           <Anchor id="base">
-            <Base key={`base:${key}`} project={project} save={save} />
+            <Base
+              key={`base:${key}`}
+              project={project}
+              logo={mainLogo(
+                data.files.filter((f) => f.kind === "logo"),
+                project.brand.logoSections,
+              )}
+              save={save}
+            />
           </Anchor>
           <Anchor id="facts">
             <Facts
@@ -174,6 +228,10 @@ export function ProjectSettings({
               readOnly={readOnly}
             />
           </Anchor>
+        </>
+      ) : null}
+      {group === "brand" ? (
+        <>
           <Anchor id="logos">
             <Logos
               key={`logos:${key}`}

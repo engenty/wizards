@@ -36,7 +36,7 @@ server.on("run.done", async ({ run, wizard, values }) => {
 | Event | A space | Gets |
 |---|---|---|
 | `space.created` | was made here, or arrived from engenty wizards on someone’s computer | `{ space: { id } }` |
-| `space.updated` | changed its name, its brand (Info & brand), its facts or its connected systems, or arrived again from a computer | `{ space: { id } }` |
+| `space.updated` | changed its name, its brand (Info and Brand), its facts or its connected systems, or arrived again from a computer | `{ space: { id } }` |
 | `space.deleted` | was deleted | `{ space: { id } }` |
 | `space.file.ready` | has a file that was read: a document is in the index now | `{ space: { id }, file: { id, name, kind, mime } }` |
 | `space.file.removed` | lost a file | `{ space: { id }, file: { id, name, kind, mime } }` |

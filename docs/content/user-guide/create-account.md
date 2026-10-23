@@ -27,7 +27,7 @@ changed later.
 | Page | Asks | Goes to |
 |---|---|---|
 | Welcome | “Build wizards for…” (myself, a club, a small business, a company), then “What’s your organization called?” (not asked for myself). With an email address of your organization’s own domain, the name its website gives is filled in | Your organization at account.engenty.ai |
-| Brand | “Where can the wizards read about …?”: the website of your email address and what a web search finds for the name (website, profiles), to tick, and addresses of your own. engenty reads your name, what you do, your logo, colours and fonts, and the facts your imprint states; profiles are kept as facts. Nothing found: a few sentences about what you do, typed or spoken | [Space → Info & brand](./space.md#info--brand) |
+| Brand | “Where can the wizards read about …?”: the website of your email address and what a web search finds for the name (website, profiles), to tick, and addresses of your own. engenty reads your name, what you do, your logo, colours and fonts, and the facts your imprint states; profiles are kept as facts. Nothing found: a few sentences about what you do, typed or spoken | [Sources → Info](./space.md#info) and [Brand](./space.md#brand) |
 | Details | A few details that fit (size, sector, your role; a phone number for a company, optional) and “Wishes or questions”, typed or spoken: someone at engenty answers a question by email | Your organization at account.engenty.ai |
 | Knowledge | “What should the wizards know?”: documents the wizards may look things up in, such as price lists, your terms or an FAQ | [Space → Knowledge](./space.md#knowledge) |
 | Your space | Nothing. It explains the space that holds all of this, “My wizards” (“Meine Wizards” in German) | – |

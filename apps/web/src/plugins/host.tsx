@@ -150,7 +150,7 @@ export function useStudioPlugins(): StudioPlugins {
 /** The sections of the studio's own settings. */
 const OWN_SECTIONS = new Set(["account", "project", "connectors", "models", "build", "plugins"]);
 /** The space page's own parts. */
-const OWN_PARTS = new Set(["info", "knowledge", "data", "page", "results"]);
+const OWN_PARTS = new Set(["info", "brand", "knowledge", "data", "page", "results"]);
 
 interface Mounted {
   /** The built files this was loaded from; other files mean: load again. */

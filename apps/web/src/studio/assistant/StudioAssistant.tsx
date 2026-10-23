@@ -1661,6 +1661,12 @@ function SidebarHandle({
  * person set it with the handle in the gap. The chat is drawn into it by the dock, so it stays
  * the same chat when it snaps in or out; its grip pulls it out.
  */
+/** Whether the assistant stands as a sidebar beside the page now. */
+export function useAssistantInSidebar(): boolean {
+  const state = useAssistant();
+  return useWhereOrNull(state)?.where === "sidebar";
+}
+
 export function AssistantSidebar() {
   const state = useAssistant();
   const lifted = Boolean(useHighlight());
