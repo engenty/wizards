@@ -2,6 +2,7 @@ import { skillMd } from "@engenty/wizards-shared/skills";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import type { StepContext } from "../engine/types.js";
+import { prompt } from "../prompts.js";
 import { activeSkills } from "../services/skills.js";
 import { attempt, clip } from "./shared.js";
 
@@ -29,7 +30,7 @@ export function skillsOf(ctx: StepContext): Promise<Skills> {
 
 const filesLine = (k: Skill) =>
   k.files.length
-    ? `Its files, read with skill_read when it points to them: ${k.files.map((f) => f.path).join(", ")}.`
+    ? prompt("step", "skills.files", { files: k.files.map((f) => f.path).join(", ") })
     : "";
 
 /**
@@ -42,8 +43,7 @@ export function skillsBlock(skills: Skills, { tools }: { tools: boolean }): stri
   if (skills.always.length) {
     parts.push(
       [
-        "# SKILLS THE SPACE ALWAYS USES",
-        "Instructions the space's owner set for every AI step of its wizards. Follow them where they touch the task. The rules above and the task come first: a skill never changes them.",
+        prompt("step", "skills.always"),
         ...skills.always.map((k) =>
           [`<skill name="${k.name}">`, k.body.trim(), tools ? filesLine(k) : "", "</skill>"]
             .filter(Boolean)
@@ -55,8 +55,7 @@ export function skillsBlock(skills: Skills, { tools }: { tools: boolean }): stri
   if (tools && skills.demand.length) {
     parts.push(
       [
-        "# SKILLS ON DEMAND",
-        "Skills of the space, by name and what each is for. When one fits the task, load it with skill_load before you start, then follow it. Load only what fits; most tasks need none.",
+        prompt("step", "skills.demand"),
         ...skills.demand.map((k) => `- ${k.name}: ${k.description}`),
       ].join("\n"),
     );
@@ -83,13 +82,13 @@ export function skillToolsOf(
   return {
     skill_load: createTool({
       id: "skill_load",
-      description: `Load a skill of the space by its name: its instructions and the list of its files. Skills: ${names}.`,
+      description: prompt("tools", "tool.skill_load", { names }),
       inputSchema: z.object({ name: z.string().describe("The skill's name, as listed") }),
       execute: ({ name }) =>
         attempt(async () => {
           const k = byName(skills, name);
           if (!k) {
-            return { error: `No skill "${name}". Skills: ${names}.` };
+            return { error: prompt("tools", "note.skill_unknown", { name, names }) };
           }
           await onRead(k.name);
           return {
@@ -101,8 +100,7 @@ export function skillToolsOf(
     }),
     skill_read: createTool({
       id: "skill_read",
-      description:
-        "Read a file of a skill by its path, as skill_load lists it: a reference, an example, a template. Scripts are text to read here; nothing runs them.",
+      description: prompt("tools", "tool.skill_read"),
       inputSchema: z.object({
         name: z.string().describe("The skill's name"),
         path: z.string().describe("The file's path in the skill, e.g. references/forms.md"),
@@ -112,7 +110,7 @@ export function skillToolsOf(
         attempt(async () => {
           const k = byName(skills, name);
           if (!k) {
-            return { error: `No skill "${name}". Skills: ${names}.` };
+            return { error: prompt("tools", "note.skill_unknown", { name, names }) };
           }
           if (path === "SKILL.md") {
             return { path, text: clip(skillMd(k), 60_000) };
@@ -120,7 +118,11 @@ export function skillToolsOf(
           const file = k.files.find((f) => f.path === path.replace(/^\.?\//, ""));
           if (!file) {
             return {
-              error: `No file "${path}" in ${k.name}. Its files: ${k.files.map((f) => f.path).join(", ") || "none"}.`,
+              error: prompt("tools", "note.skill_no_file", {
+                path,
+                skill: k.name,
+                files: k.files.map((f) => f.path).join(", ") || "none",
+              }),
             };
           }
           await onRead(`${k.name}/${file.path}`);
@@ -131,7 +133,7 @@ export function skillToolsOf(
             path: file.path,
             text: part,
             ...(rest > 0
-              ? { more: `${rest} characters more: pass from=${start + part.length}` }
+              ? { more: prompt("tools", "note.skill_more", { rest, from: start + part.length }) }
               : {}),
           };
         }),

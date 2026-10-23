@@ -131,6 +131,24 @@ Read a table of Knowledge by its path: its rows as CSV, filtered by its columns 
 <!-- section: tool.project_document -->
 Read a file of Knowledge as text by its path (files/…): a file that is not a page, or the original a page was read from. Long files come in parts: pass `from` to continue.
 
+<!-- Skills of the space (tools/skills.ts); Goose gets the same tools. `names` joined with ", ". -->
+
+<!-- section: tool.skill_load -->
+Load a skill of the space by its name: its instructions and the list of its files. Skills: ${names}.
+
+<!-- section: tool.skill_read -->
+Read a file of a skill by its path, as skill_load lists it: a reference, an example, a template. Scripts are text to read here; nothing runs them.
+
+<!-- section: note.skill_unknown -->
+No skill "${name}". Skills: ${names}.
+
+<!-- `files` joined with ", ", or "none". -->
+<!-- section: note.skill_no_file -->
+No file "${path}" in ${skill}. Its files: ${files}.
+
+<!-- section: note.skill_more -->
+${rest} characters more: pass from=${from}
+
 <!-- Mail (tools/mail.ts) -->
 
 <!-- section: note.mail_not_connected -->
