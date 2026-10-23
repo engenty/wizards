@@ -19,8 +19,8 @@ import {
 import type { ClosedChoice } from "./run.js";
 
 /**
- * What the models and tools behind a wizard must be able to do. `film`: a film the installed
- * client makes, only on a computer with Claude Code, on its subscription.
+ * What the models and tools behind a wizard must be able to do. `film`: an AI client writes a
+ * film as code and the runtime renders it (a film step).
  */
 export const CAPABILITY_IDS = [
   "text",
