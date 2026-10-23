@@ -4,6 +4,10 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.5] - 2026-10-23
+- ADDED Remove connected systems (a space's MCP servers) (#206) **[breaking]**
+- FIXED **[studio]** Konto's trail starts without a slash (#207)
+
 ## [0.11.4] - 2026-10-23
 - FIXED **[studio]** Konto shows no organization, one place reads “1 Platz”, a deleted API key's secret goes (#203)
 
