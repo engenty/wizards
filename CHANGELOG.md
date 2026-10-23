@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.4] - 2026-10-23
+- FIXED **[studio]** Konto shows no organization, one place reads “1 Platz”, a deleted API key's secret goes (#203)
+
 ## [0.11.3] - 2026-10-23
 - ADDED **[studio]** The person's Konto behind the avatar: profile, organizations and connected apps (#201)
 - ADDED **[studio]** The organization's sector is one of the catalogs', and the new-wizard page shows the templates that fit it first (#197)
