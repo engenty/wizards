@@ -11,6 +11,7 @@ import { failureOf } from "../harness/model.js";
 import { type BridgeTool, openBridge } from "../mcp/bridge.js";
 import { saidOf } from "../model-errors.js";
 import { motionClient } from "../models.js";
+import { prompt } from "../prompts.js";
 import { keepBrandBase, prepareMotionFolder, savedSession, saveSession } from "./project.js";
 import { runHyperframes } from "./tools.js";
 
@@ -50,15 +51,14 @@ const LIMIT_MS = 3 * 60 * 60_000;
 function hyperframesTool(root: string, signal: AbortSignal): BridgeTool {
   return {
     name: "hyperframes",
-    description:
-      "Runs the HyperFrames CLI in the video folder: lint, check, snapshot, render, inspect, timeline, transcribe, keyframes, compare, docs and the like. Paths are relative to the folder. Returns what it printed.",
+    description: prompt("step", "motion.tool"),
     inputSchema: {
       type: "object",
       properties: {
         args: {
           type: "array",
           items: { type: "string" },
-          description: 'The arguments, e.g. ["snapshot", "video", "--at", "1,4,8"].',
+          description: prompt("step", "motion.tool.args"),
         },
       },
       required: ["args"],
@@ -66,17 +66,20 @@ function hyperframesTool(root: string, signal: AbortSignal): BridgeTool {
     async execute(input) {
       const args = ((input as { args?: unknown }).args ?? []) as unknown[];
       if (!args.length || !args.every((a) => typeof a === "string")) {
-        return "args: a list of strings, the subcommand first.";
+        return prompt("step", "motion.tool.no_args");
       }
       const [cmd] = args as string[];
       if (!ALLOWED.has(cmd)) {
-        return `"${cmd}" is not available here. Available: ${[...ALLOWED].join(", ")}.`;
+        return prompt("step", "motion.tool.not_allowed", {
+          command: cmd,
+          allowed: [...ALLOWED].join(", "),
+        });
       }
       // Every path stays inside the folder.
       for (const a of args as string[]) {
         const value = a.includes("=") && a.startsWith("-") ? a.slice(a.indexOf("=") + 1) : a;
         if (isAbsolute(value) || normalize(value).startsWith("..")) {
-          return `"${a}" leaves the video folder.`;
+          return prompt("step", "motion.tool.outside", { arg: a });
         }
       }
       const extra = cmd === "transcribe" ? ["--no-runtime-install"] : [];
@@ -135,7 +138,7 @@ export async function runMotionGraphicsStep(
   const bridge = openBridge([hyperframesTool(root, limit)]);
 
   /** One turn of the client in the folder; returns its final event. */
-  const turn = async (prompt: string, session: string | null): Promise<StreamEvent> => {
+  const turn = async (message: string, session: string | null): Promise<StreamEvent> => {
     const args = [
       "-p",
       "--output-format",
@@ -253,7 +256,7 @@ export async function runMotionGraphicsStep(
         });
         child.on("error", reject);
         child.on("close", () => resolve());
-        child.stdin.end(prompt);
+        child.stdin.end(message);
       })().catch(reject);
     }).catch((err) => {
       if (ctx.signal.aborted) {
@@ -281,18 +284,29 @@ export async function runMotionGraphicsStep(
     const brandNote = !brandChanged
       ? ""
       : start === "init"
-        ? "\n\nThe space's brand has changed since the video was made: brand/brand.json and brand/logos/ are new. Carry them into the video wherever it uses the brand (its own copies included), so every colour, logo and name is the new one, and check the frames for contrast."
-        : "\n\nThe space's brand has changed since the video was made: video/brand/brand.json and the logos are new. If video/brand/theme.json is missing, make it again as video/BRAND.md says. Make sure every colour, logo and name in the video is the new one, and check the frames for contrast.";
+        ? prompt("step", "motion.brand_changed.init")
+        : prompt("step", "motion.brand_changed.base");
     const size = MOTION_SIZES[step.format];
-    const prompt =
+    const request =
       resume && note
-        ? `The person watched the video and asks for this change:\n\n${note}${brandNote}\n\nChange the video in video/ accordingly — keep what they did not mention — check the frames again, and end with a short summary of what you changed.`
+        ? [
+            prompt("step", "motion.change", { note }),
+            brandNote,
+            prompt("step", "motion.change.then"),
+          ]
+            .filter(Boolean)
+            .join("\n\n")
         : resume
-          ? `Carry on with the video where you stopped. Read PROGRESS.md and the folder to see where that was, then finish it.${brandNote}`
+          ? [prompt("step", "motion.resume"), brandNote].filter(Boolean).join("\n\n")
           : start === "from"
-            ? `video/ holds this run's video in another format. Lay it out for ${step.format} (${size.width}×${size.height}), following CLAUDE.md: set the size of video/index.html, then make every scene fit — scenes, timing, words and sound stay. Check the frames, render a draft, and end with a short summary of what you changed.\n\nThe brief, for reference:\n\n${brief}`
-            : `Make the video BRIEF.md asks for, following CLAUDE.md.\n\n${brief}`;
-    const first = await turn(prompt, resume);
+            ? prompt("step", "motion.from", {
+                format: step.format,
+                width: size.width,
+                height: size.height,
+                brief,
+              })
+            : prompt("step", "motion.make", { brief });
+    const first = await turn(request, resume);
     summary = typeof first.result === "string" ? first.result.trim() : "";
 
     // The final render is ours: it does not depend on the client still running. What fails
@@ -315,10 +329,7 @@ export async function runMotionGraphicsStep(
         throw new StepError(runNote("motionRenderFailed", { detail: problem.slice(0, 400) }));
       }
       await ctx.emit("tool", { code: "motionFix" });
-      const fixed = await turn(
-        `The final render of video/ failed:\n\n${problem}\n\nFind the cause in the composition's code, fix it, run \`check\` and a draft render through the hyperframes tool until both pass, and end with one line on what you fixed.`,
-        await savedSession(root),
-      );
+      const fixed = await turn(prompt("step", "motion.fix", { problem }), await savedSession(root));
       if (typeof fixed.result === "string" && fixed.result.trim()) {
         summary = `${summary}\n\n${fixed.result.trim()}`.trim();
       }

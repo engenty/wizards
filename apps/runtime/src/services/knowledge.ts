@@ -11,6 +11,7 @@ import {
 import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { embeddingModel, systemOneAccess } from "../models.js";
+import { prompt } from "../prompts.js";
 import { notFound, ServiceError } from "./errors.js";
 import { ownedProject } from "./projects.js";
 import {
@@ -860,14 +861,9 @@ export async function knowledgeBlock(projectId: string): Promise<string> {
     return `- ${c.name} (${type})${values}`;
   });
   return [
-    "# KNOWLEDGE — WHAT THE SPACE KNOWS",
-    `Ground truth the space's owner keeps for all wizards: ${what}. Use it when the task touches what it covers, and prefer it to what you remember.`,
-    ...(lines.length
-      ? [
-          "Categories, to filter with `where` in project_search and project_list before searching:",
-          ...lines,
-        ]
-      : []),
-    "Find with project_search (a question; `where` on categories). List with project_list. Read whole with page_read and table_read by path. A page marks the pages of its original as <!-- S. n -->: quote them when the source matters.",
+    prompt("step", "knowledge", { what }),
+    ...(lines.length ? [prompt("step", "knowledge.categories"), ...lines] : []),
+    // The marker is an HTML comment, which a prompt file cannot hold.
+    prompt("step", "knowledge.find", { page_marker: "<!-- S. n -->" }),
   ].join("\n");
 }

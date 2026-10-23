@@ -84,8 +84,8 @@ export function antigravityAnswer(stdout: string): AntigravityResult | null {
 }
 
 /** The instructions in front of the prompt: the client takes one message and nothing besides. */
-export function antigravityMessage(system: string, prompt: string): string {
-  const content = system ? `<instructions>\n${system}\n</instructions>\n\n${prompt}` : prompt;
+export function antigravityMessage(system: string, request: string): string {
+  const content = system ? `<instructions>\n${system}\n</instructions>\n\n${request}` : request;
   return `${JSON.stringify({ event: "user", message: { content } })}\n`;
 }
 

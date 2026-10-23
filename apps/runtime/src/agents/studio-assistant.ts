@@ -25,7 +25,6 @@ import { createTool } from "@mastra/core/tools";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { knowsTools } from "../assistant/knows.js";
-import { PRIMER } from "../assistant/primer.js";
 import type { SessionUser } from "../auth/index.js";
 import type { AssistantCardRecord, AssistantToolCallRecord } from "../db/schema.js";
 import { currentFeatures } from "../features.js";
@@ -40,6 +39,8 @@ import {
   totalUsage,
   usageOf,
 } from "../models.js";
+import { prompt } from "../prompts.js";
+import { contentPolicy } from "../safety.js";
 import type { ChatRow, TurnHistory } from "../services/assistant-chats.js";
 import { knowledgeCounts } from "../services/knowledge.js";
 import {
@@ -117,48 +118,24 @@ export interface AssistantResult extends AnswerPart {
 
 /** How a message written meanwhile reaches the model. */
 export function signalText(taken: AssistantSignal[]): string {
-  return `The person wrote this while you were working. What they asked before still stands unless this changes it:\n\n${taken.map((s) => s.message).join("\n\n")}`;
+  return prompt("goose", "signal", { messages: taken.map((s) => s.message).join("\n\n") });
 }
 
 const MAX_STEPS = 24;
 
-const SYSTEM = `You are Goose, the assistant of the engenty wizards studio. You stand on every page of the studio except the wizard editor, which has a chat of its own: the space's pages, the settings, the plugins' pages. You help the person who works here understand the app, set it up and find their way.
-
-You talk to the person. Answer in their language, briefly and warmly: a few sentences, a short list where it helps. Never mention JSON, ids, keys or tool names. Call it a space, never a project: the tools say project, the app says space. Name the studio's parts and pages as the studio shows them in the person's language.
-
-${PRIMER}
-
-WHAT YOU KNOW
-- How the app works: from the guides of this installed version. Before you explain how something works, docs_search (and docs_read a page); link the page you used (engenty.ai/docs/…). How wizards are written: authoring_guide. Never guess at a menu, a button or a feature.
-- Live data only from tools, never from memory: gallery_search / gallery_detail for templates, plans for plans and prices, account for the person, organization, plan and credits, usage for what was spent, wizards and runs for the space, models for what thinks and makes here.
-- Templates you recommend or talk about: show_templates them, in your order, with your answer. The cards show title, pitch, time, cost and formats: your text says in a line why each fits, never repeats what the card shows.
-- You never buy, upgrade, top up or change a plan or a setting that costs money. Explain it, then open the page where the person does it (navigate, or give the billing page's link).
-- Earlier chats: their summaries come with every message. chats_search and chat_read find more when the person refers to something said before.
-
-THE PAGE
-- Every message comes with the page the person writes from: its address, title, the section in view, an open item, what is selected, a line on what it holds and its fields. Answer about what they see; "this" and "here" mean that page.
-- In the browser you may: navigate (open a studio page), highlight (dim the page except one element, or ring it, with a short card), look_at_page (what is visible: headings, buttons, fields with their values), read_section (one area in full), fill_field (put a value into a field, not saved), scroll_to. A page may add tools of its own (filter its list, show a week): use them to show what you talk about. A page you open during an answer brings its tools too: navigate and look_at_page list them, page_tool runs them. Targets are what look_at_page lists.
-- Show rather than describe: open the page and highlight the place when the person asks where or how. look_at_page first when you are not sure what is there.
-- fill_field never saves: say that the person checks and saves. You never press buttons for the person.
-
-THE SPACE
-- Where a space's tools are there, you also fill the space in: what every wizard of the space draws on — who they are (title, about), the brand (logos, colours), assets (images, graphics, videos), documents, and facts (label → value: address, VAT ID, phone, opening hours — anything). The space as it is now comes with every message then; you change it ONLY through tools.
-- A website: read_website it first. You get the page's text, colours from its stylesheet, logo candidates and the links to imprint / contact / about. Read those pages too (at most four more) for address, VAT ID, register number, phone, email, bank details, who runs it.
-- Facts: one fact per thing, a short label in the person's language ("Adresse", "USt-IdNr.", "Telefon"), the value on one line where it fits. Only what a source or the person states — never guess, never invent. Keep the facts that are there; a fact with a known label is updated.
-- About: two to five sentences — what they do, for whom, what sets them apart, the tone they write in. Rewrite it only when you learned something new or the person asks.
-- Colours: two to six, the main one first, each with a name that says what it is for ("Primär", "Hintergrund", "Text"). Take them from the stylesheet's variables or its most used colours, never from photos. set_colors replaces the list: pass all colours that should remain. Colours in no section are the standard ones; the first of them is the accent. Colour sections are optional like logo sections: only for a further palette a brand guide or the person names for its own use ("Illustration – drawings and charts"), never for the standard colours. A brand's gradients (set_gradients, as CSS) only where a brand guide or the site's stylesheet has them; patterns and background fills are pictures the person uploads.
-- Logos: save the best candidate (an SVG or a large PNG rather than a favicon); a second one only if it truly differs (for dark ground, a signet). A few images that show the business (header, team, products) may be saved as assets — a handful, never everything.
-- Logo sections and rules are optional, and most spaces need neither. Logos in no section are the standard ones; the first of them is the main logo. Add a section (set_logo_sections) only for further variants that a brand guide, a brand or press page or the person says are used elsewhere: the title names the variant ("Logomark", "Wordmark"), the description says when to use it ("Small spaces: app icons, favicons"). The standard logos never go into a section; one logo, or a light and a dark one whose descriptions already tell them apart, get no sections. Rules (set_rules, for the logos, the colours or the type) are short rows, one rule each, with a sign: do ("Keep clear space of the mark's height on all sides"), dont ("Place it on photos"), important, question (something to check with the person), number (steps in order), or none for a plain note (minimum size, file formats). Only what such a source or the person states; never invent rules and never write general advice a brand guide did not say.
-- Typography: the brand's fonts (set_typography), each with what it is for ("Headings", "Body text") and the weights it uses — from the website's stylesheet (read_website lists its fonts) or a brand guide; system and generic faces are no brand fonts. A font's licence and what it may be used for (web, documents, print, images, video) only where a brand guide, the font's own page or the person says so; the wizards keep to it. A type scale (text styles: name, size, weight, line height, letter spacing) only when a brand guide gives one.
-- Asset sections are optional too: tabs of one kind each ("Icons", "Background images"), made with set_asset_sections only when the space holds enough assets of clearly different kinds or the person asks; a handful of pictures stay in the general tab.
-- Files the person attached are stored already; the message names them. look_at_file shows you a picture or a document's text. Give a file a description with describe_file when it has none or the person says what it is. Take facts from a document when asked.
-- Knowledge is what the wizards' steps look things up in: pages, tables and files, kept apart by typed categories. Documents the person attaches are read into Knowledge by themselves: say so; do not copy their text into facts unless asked. A website, a sitemap or a folder whose entries should go into Knowledge is a source: where a tool proposes sources, use it (the person takes the proposal on its card); where there is none, say that sources need the Sources plugin.
-- Talking from another page than Info or Brand, change title, about, logos, colours and facts only when the person asks.
-- A space that is read-only (synced from a local install, or an organization that builds elsewhere) has no tools: say where it is changed.
-
-HOW YOU WORK
-- Call independent tools together. Work in few steps.
-- Finish with one to three sentences: what you did or found, what is still open, and at most one question.`;
+/** The system prompt: these sections of prompts/goose.md, in this order. */
+function system(): string {
+  return [
+    prompt("goose", "persona"),
+    prompt("goose", "voice"),
+    prompt("goose", "primer"),
+    prompt("goose", "knows"),
+    prompt("goose", "page"),
+    prompt("goose", "space"),
+    prompt("goose", "work"),
+    contentPolicy(),
+  ].join("\n\n");
+}
 
 const LABELS: Record<string, ServerKey> = {
   save_logo: "doingSaveLogo",
@@ -327,8 +304,7 @@ function spaceTools(
   const tools: Record<string, any> = {
     read_website: createTool({
       id: "read_website",
-      description:
-        "Read a public web page: its text as Markdown, the colours of its stylesheet (named variables and the most used ones), logo candidates and images with their addresses, and the links to imprint, contact and about pages.",
+      description: prompt("goose", "tool.read_website"),
       inputSchema: z.object({ url: z.string().describe("The page's address") }),
       execute: ({ url }) => {
         doing("read_website", { url });
@@ -337,8 +313,7 @@ function spaceTools(
     }),
     set_profile: createTool({
       id: "set_profile",
-      description:
-        "Set the project's title (the company, brand or undertaking) and/or its about text.",
+      description: prompt("goose", "tool.set_profile"),
       inputSchema: z.object({
         title: z.string().max(120).optional(),
         about: z.string().max(8000).optional(),
@@ -360,8 +335,7 @@ function spaceTools(
     }),
     set_facts: createTool({
       id: "set_facts",
-      description:
-        "Add facts to the project, or update the ones whose label is already there. A fact is a label and a value.",
+      description: prompt("goose", "tool.set_facts"),
       inputSchema: z.object({
         facts: z
           .array(
@@ -408,7 +382,7 @@ function spaceTools(
     }),
     remove_facts: createTool({
       id: "remove_facts",
-      description: "Remove facts by their labels. Only when the admin asks or a fact is wrong.",
+      description: prompt("goose", "tool.remove_facts"),
       inputSchema: z.object({ labels: z.array(z.string()).min(1) }),
       execute: ({ labels }) =>
         attempt(() =>
@@ -425,8 +399,7 @@ function spaceTools(
     }),
     set_colors: createTool({
       id: "set_colors",
-      description:
-        "Set the brand's colours — the whole list, the main colour first. Values as #rrggbb. Optional: `sections` for a further palette of its own use (its title), and on a colour the `section` title it belongs to; colours without one are the standard ones. Without `sections` the space keeps its sections.",
+      description: prompt("goose", "tool.set_colors"),
       inputSchema: z.object({
         colors: z
           .array(
@@ -482,8 +455,7 @@ function spaceTools(
     }),
     set_logo_sections: createTool({
       id: "set_logo_sections",
-      description:
-        "Optional. Put further logo variants into sections, each with a title and when to use it (Logomark, Wordmark, Monochrome). Logos in no section are the standard ones and come first — never put those into a section. Use it only when a brand guide, a brand page or the person says a variant is used elsewhere — one logo or two plain variants need none. Replaces all sections: pass every section that should remain, an empty list removes them.",
+      description: prompt("goose", "tool.set_logo_sections"),
       inputSchema: z.object({
         sections: z
           .array(
@@ -522,8 +494,7 @@ function spaceTools(
     }),
     set_asset_sections: createTool({
       id: "set_asset_sections",
-      description:
-        "Optional. Sort the space's assets into sections, each shown as a tab named by its title (Icons, Background images, Team photos). Assets in no section stay in the general tab. Use it only when there are enough assets of clearly different kinds, or the person asks. Replaces all sections: pass every section that should remain, an empty list removes them.",
+      description: prompt("goose", "tool.set_asset_sections"),
       inputSchema: z.object({
         sections: z
           .array(
@@ -558,8 +529,7 @@ function spaceTools(
     }),
     set_typography: createTool({
       id: "set_typography",
-      description:
-        "Set the brand's fonts — the whole list, the main one first — each with what it is for, its weights and, where a source says so, its licence and what it may be used for. Optional: `textStyles`, the type scale a brand guide gives (name, font family, size px, weight, line height %, letter spacing %); without it the space keeps its text styles.",
+      description: prompt("goose", "tool.set_typography"),
       inputSchema: z.object({
         fonts: z
           .array(
@@ -624,8 +594,7 @@ function spaceTools(
     }),
     set_gradients: createTool({
       id: "set_gradients",
-      description:
-        "Optional. Set the brand's gradients, as a brand guide or the site's stylesheet gives them: each with a name, when to use it where the source says so, and its CSS (linear-, radial- or conic-gradient with hex stops). They go into a gradients section, made when there is none with that title. Replaces the gradients of that section.",
+      description: prompt("goose", "tool.set_gradients"),
       inputSchema: z.object({
         section: z.string().min(1).max(80).describe("The gradients section's title"),
         gradients: z
@@ -675,8 +644,7 @@ function spaceTools(
     }),
     set_rules: createTool({
       id: "set_rules",
-      description:
-        "Optional. Set how the logos, the colours or the type may be used: one short rule per row, with its sign (do, dont, important, question, number; none for a plain note). Only rules a brand guide, the website or the person states — never invented ones, never general advice. Replaces that list; an empty list removes it.",
+      description: prompt("goose", "tool.set_rules"),
       inputSchema: z.object({
         of: z.enum(["logos", "colors", "type"]),
         rules: z
@@ -710,8 +678,7 @@ function spaceTools(
     }),
     save_file: createTool({
       id: "save_file",
-      description:
-        "Fetch a file from a public address into the project: a logo, an asset (image, graphic, video) or a document (PDF, Word, Excel, CSV, text). Documents are read and indexed afterwards.",
+      description: prompt("goose", "tool.save_file"),
       inputSchema: z.object({
         url: z.string(),
         kind: z.enum(PROJECT_FILE_KINDS),
@@ -731,7 +698,7 @@ function spaceTools(
     }),
     describe_file: createTool({
       id: "describe_file",
-      description: "Set the description of one of the project's files.",
+      description: prompt("goose", "tool.describe_file"),
       inputSchema: z.object({ id: z.string(), description: z.string().max(600) }),
       execute: ({ id, description }) =>
         attempt(async () => {
@@ -743,8 +710,7 @@ function spaceTools(
     }),
     look_at_file: createTool({
       id: "look_at_file",
-      description:
-        "Look at one of the project's files: a picture is shown to you, a document comes as text.",
+      description: prompt("goose", "tool.look_at_file"),
       inputSchema: z.object({
         id: z.string(),
         from: z.number().int().min(0).optional().describe("Documents: character to start at"),
@@ -968,12 +934,13 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
   }
   attachTools(resolved, tools);
+  const instructions = system();
   const agent = new Agent({
     id: "studio-assistant",
     name: "Studio assistant",
     instructions: {
       role: "system",
-      content: SYSTEM,
+      content: instructions,
       providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
     },
     model: agentModel(resolved),
@@ -988,38 +955,47 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   const { history } = input;
   const context = [
     history.earlier.length
-      ? `Earlier chats with this person, newest first (chats_search finds more):\n${history.earlier
-          .map(
-            (c) => `- ${c.closedAt.slice(0, 10)} "${c.title}": ${c.summary.replace(/\n+/g, " ")}`,
-          )
-          .join("\n")}`
+      ? prompt("goose", "turn.earlier", {
+          chats: history.earlier
+            .map(
+              (c) => `- ${c.closedAt.slice(0, 10)} "${c.title}": ${c.summary.replace(/\n+/g, " ")}`,
+            )
+            .join("\n"),
+        })
       : "",
     history.running ? `What this chat said before the messages above:\n${history.running}` : "",
     page
       ? `Current page:\n\`\`\`json\n${JSON.stringify(page)}\n\`\`\``
-      : "The person writes from a page that tells nothing about itself.",
+      : prompt("goose", "turn.no_page"),
     pluginPage
       ? [
-          `The page is the plugin "${pluginPage.name}"'s${pluginPage.description ? `: ${pluginPage.description}` : "."} They most likely mean what that page holds: use its tools first (their names begin with "${page?.plugin?.replace(/-/g, "_")}_"). Space settings stay possible when they ask for them.`,
+          [
+            pluginPage.description
+              ? `The page is the plugin "${pluginPage.name}"'s: ${pluginPage.description}`
+              : `The page is the plugin "${pluginPage.name}"'s.`,
+            prompt("goose", "turn.plugin_page", {
+              prefix: (page?.plugin ?? "").replace(/-/g, "_"),
+            }),
+          ].join(" "),
           ...pluginPage.blocks,
         ].join("\n\n")
       : "",
     space
       ? `The space now:\n\`\`\`json\n${JSON.stringify(await projectState(input.user.id, space.id))}\n\`\`\``
       : project
-        ? `The space "${project.name}" is read-only here: nothing of it can be changed in this studio.`
+        ? prompt("goose", "turn.space_read_only", { name: project.name })
         : "No space is open.",
-    part === "knowledge"
-      ? "The person talks to you from Knowledge: they want the wizards to know something."
-      : "",
+    part === "knowledge" ? prompt("goose", "turn.knowledge") : "",
     space && !(brandOn.brandSections && brandOn.brandRules && brandOn.typography)
-      ? `Not in this studio (no tools for it; never offer it): ${[
-          brandOn.brandSections ? "" : "sections of logos and colours, gradients and patterns",
-          brandOn.brandRules ? "" : "rules for logos, colours and type",
-          brandOn.typography ? "" : "typography (fonts, type scale)",
-        ]
-          .filter(Boolean)
-          .join("; ")}.`
+      ? prompt("goose", "turn.off", {
+          missing: [
+            brandOn.brandSections ? "" : "sections of logos and colours, gradients and patterns",
+            brandOn.brandRules ? "" : "rules for logos, colours and type",
+            brandOn.typography ? "" : "typography (fonts, type scale)",
+          ]
+            .filter(Boolean)
+            .join("; "),
+        })
       : "",
     input.message,
   ]
@@ -1027,7 +1003,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     .join("\n\n");
   input.onPrompt?.({
     model: resolved.ref,
-    system: SYSTEM,
+    system: instructions,
     context,
     history: history.messages.map((m) => ({ role: m.role, chars: m.content.length })),
     tools: toolSizes(tools),

@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LanguageModel } from "ai";
+import { prompt } from "../prompts.js";
 
 type V3 = Extract<LanguageModel, { specificationVersion: "v3" }>;
 type CallOptions = Parameters<V3["doGenerate"]>[0];
@@ -59,7 +60,7 @@ export function renderPrompt(
       typeof part.data === "string" ? Buffer.from(part.data, "base64") : (part.data as Uint8Array);
     writeFileSync(path, bytes);
     files.push(path);
-    return `[Attached file — open it to read it: ${path}]`;
+    return prompt("services", "harness.attached_file", { path });
   };
   for (const m of messages) {
     if (m.role === "system") {
@@ -97,7 +98,7 @@ export function renderPrompt(
       .join("\n");
     turns.push({ role: m.role, text });
   }
-  const prompt =
+  const request =
     turns.length === 1 && turns[0].role === "user"
       ? turns[0].text
       : turns
@@ -107,19 +108,16 @@ export function renderPrompt(
           )
           .join("\n\n");
   if (turns.length > 1) {
-    system.push(
-      "The prompt holds the conversation so far, each message headed by its speaker. Answer the last message as the assistant — the answer only, no speaker label.",
-    );
+    system.push(prompt("services", "harness.conversation_note"));
   }
-  return { system: system.join("\n\n"), prompt, files, warnings };
+  return { system: system.join("\n\n"), prompt: request, files, warnings };
 }
 
 /** What a client without a schema option is told so its answer parses. */
 export function jsonInstruction(schema: unknown): string {
-  return [
-    "Answer with one JSON value only — no prose, no code fence — that matches this JSON Schema:",
-    JSON.stringify(schema ?? { type: "object" }),
-  ].join("\n");
+  return prompt("services", "harness.json_instruction", {
+    schema: JSON.stringify(schema ?? { type: "object" }),
+  });
 }
 
 /** A client's answer as JSON: the fences and prose some wrap around it are taken off. */

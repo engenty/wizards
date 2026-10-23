@@ -3,6 +3,7 @@
 // the seat is gone. Ported from engenty-pro, which took it from jev-ultrafast
 // `agent.py` `Agent.command`.
 
+import { prompt } from "../../prompts.js";
 import type { PageSnapshot, SnapshotAction } from "../snapshot.js";
 
 import { buildActionSpace, type ElementSummary } from "./action-space.js";
@@ -75,8 +76,10 @@ const STUCK_WINDOW = 3;
 const STALE_RETRIES_PER_STEP = 3;
 
 /** Every note that stops short of DONE ends with the way back. */
-const RESUME =
-  "Do that one step with the browser_* tools, then call browser_run_fast again with the same goal.";
+const resume = (note: string) => `${note} ${prompt("tools", "note.fast_resume")}`;
+
+/** Why the classifier or a step failed, for a note. */
+const why = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 function describe(step: { operation: string; target: string | null; label: string }): string {
   return step.target === null
@@ -159,11 +162,7 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
   let staleRetries = 0;
   while (history.length < input.maxSteps) {
     if (input.shouldStop?.()) {
-      return finish(
-        "interrupted",
-        "The seat was taken or the run stopped; no further step ran.",
-        false,
-      );
+      return finish("interrupted", prompt("tools", "note.fast_interrupted"), false);
     }
     if (!(await driver.fresh(page))) {
       page = await driver.observe();
@@ -182,7 +181,7 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
     } catch (error) {
       return finish(
         "error",
-        `The classifier gave no usable decision: ${error instanceof Error ? error.message : String(error)}. ${RESUME}`,
+        resume(prompt("tools", "note.fast_no_decision", { error: why(error) })),
         true,
       );
     }
@@ -207,7 +206,7 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
       } catch (error) {
         return finish(
           "error",
-          `The tiebreak gave no usable answer: ${error instanceof Error ? error.message : String(error)}. ${RESUME}`,
+          resume(prompt("tools", "note.fast_tiebreak_failed", { error: why(error) })),
           true,
         );
       }
@@ -216,7 +215,12 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
       if (verdict.winner === null) {
         return finish(
           "uncertain",
-          `The classifier could not choose between ${contest}; a tiebreak did not settle it either (${verdict.probability.toFixed(2)}). ${RESUME}`,
+          resume(
+            prompt("tools", "note.fast_undecided", {
+              contest,
+              probability: verdict.probability.toFixed(2),
+            }),
+          ),
           true,
         );
       }
@@ -243,15 +247,15 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
       return finish(
         done ? "done" : "blocked",
         done
-          ? "The classifier saw every requirement of the goal visibly satisfied."
-          : `The classifier found no supported operation that makes progress. ${RESUME} If the page itself is the obstacle, ask the person.`,
+          ? prompt("tools", "note.fast_done")
+          : `${resume(prompt("tools", "note.fast_blocked"))} ${prompt("tools", "note.fast_blocked_ask")}`,
         !done,
       );
     }
 
     const action = page.actions.find((a) => a.id === decision.choice);
     if (!action) {
-      return finish("error", `Decision named an action the page did not offer. ${RESUME}`, true);
+      return finish("error", resume(prompt("tools", "note.fast_unknown_action")), true);
     }
 
     let text: string | null = null;
@@ -277,7 +281,7 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
         if (text === null) {
           return finish(
             "uncertain",
-            `The field "${action.label}" needs a value the goal does not contain. Supply it in the goal and call browser_run_fast again, or ask the person.`,
+            prompt("tools", "note.fast_needs_value", { label: action.label }),
             true,
           );
         }
@@ -297,7 +301,7 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
       }
       return finish(
         "error",
-        `Step failed: ${error instanceof Error ? error.message : String(error)}. ${RESUME}`,
+        resume(prompt("tools", "note.fast_step_failed", { error: why(error) })),
         true,
       );
     }
@@ -348,14 +352,10 @@ export async function runFastLoop(input: RunFastLoopInput): Promise<FastLoopResu
     ) {
       return finish(
         "blocked",
-        `The last ${STUCK_WINDOW} steps changed nothing on the page. ${RESUME}`,
+        resume(prompt("tools", "note.fast_stuck", { count: STUCK_WINDOW })),
         true,
       );
     }
   }
-  return finish(
-    "budget",
-    `Stopped at the ${input.maxSteps}-step budget for one call. Check the page, then call browser_run_fast again with the remaining goal.`,
-    true,
-  );
+  return finish("budget", prompt("tools", "note.fast_budget", { max: input.maxSteps }), true);
 }

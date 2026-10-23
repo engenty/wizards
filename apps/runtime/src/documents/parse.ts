@@ -19,6 +19,7 @@ import { invoiceSchema, receiptSchema } from "../engenty/document-scanner/schema
 import { env } from "../env.js";
 import { NotedError } from "../model-errors.js";
 import { type CallMeta, costOf, textModel } from "../models.js";
+import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
 
 /** A document as text a model can read. */
@@ -117,20 +118,13 @@ class VisionProvider implements DocConverterProvider {
       model: reader.model,
       abortSignal: this.signal,
       maxOutputTokens: 16_000,
-      system: [
-        "You transcribe documents into clean Markdown, faithfully and completely.",
-        "Keep every number, date, name and amount exactly as printed. Tables become Markdown tables.",
-        "Do not summarise, do not comment, do not wrap the result in a code fence.",
-        'For a PDF with several pages, start each page with this line: <page-break number="N" total="T"></page-break>',
-        "If a part is illegible, write [unleserlich] there.",
-        "A photo that is no document (a room, an object, a damage): describe precisely what it shows instead — what is there, how many, materials, condition, visible defects — without guessing what cannot be seen.",
-      ].join("\n"),
+      system: prompt("services", "ocr.system"),
       messages: [
         {
           role: "user",
           content: [
             { type: "file", data, mediaType: mimeType, filename: filename || "document" },
-            { type: "text", text: "Transcribe this document." },
+            { type: "text", text: prompt("services", "ocr.user") },
           ],
         },
       ],
@@ -261,10 +255,7 @@ async function read(
 // --- structured extraction -----------------------------------------------------
 
 /** The scanner's schemas say nothing about the currency; SaaS invoices come in several. */
-const currency = z
-  .string()
-  .nullable()
-  .describe("ISO 4217 code of the currency the amounts are printed in (EUR, USD, …)");
+const currency = z.string().nullable().describe(prompt("services", "scan.currency"));
 const SCHEMAS = {
   invoice: invoiceSchema.extend({ currency }),
   receipt: receiptSchema.extend({ currency }),
@@ -288,7 +279,7 @@ export async function scanDocument(
       model: extractor.model,
       abortSignal: opts.signal,
       output: Output.object({ schema: SCHEMAS[kind] as z.ZodType<ScanResult> }),
-      prompt: `Extract the ${kind} from this document. Amounts are numbers in the document's own currency, exactly as printed; never convert or compute them.\n\nFile: ${input.name}\n\n${doc.markdown.slice(0, 30_000)}`,
+      prompt: `${prompt("services", "scan.prompt", { kind })}\n\nFile: ${input.name}\n\n${doc.markdown.slice(0, 30_000)}`,
     });
     await opts.charge?.(costOf(extractor, result.usage));
     return result.output;

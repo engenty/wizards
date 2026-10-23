@@ -485,6 +485,8 @@ const NOTES_EN = {
   commandNotStarted: "The command couldn’t start: {detail}",
   providerKeyMissing: "{provider} is chosen for {makes}, but no API key is set.",
   noModelFor: "No model is set up for {makes}.",
+  contentBlocked: "This wasn’t made: the request goes against the content rules.",
+  contentCheckFailed: "Nothing was made, because the content check couldn’t run: {detail}",
   chatNoWay:
     "The chat has nothing to run on yet. Pick a subscription, a key or the credits under Settings › Models › Agent chat.",
   noApiKeyFor: "No API key is set for {provider}.",
@@ -847,6 +849,9 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   commandNotStarted: "Der Befehl konnte nicht starten: {detail}",
   providerKeyMissing: "Für {makes} ist {provider} gewählt, aber kein API-Key hinterlegt.",
   noModelFor: "Für {makes} ist kein Modell eingerichtet.",
+  contentBlocked: "Das wurde nicht erstellt: Die Anfrage verstößt gegen die Inhaltsregeln.",
+  contentCheckFailed:
+    "Es wurde nichts erstellt, weil die Inhaltsprüfung nicht laufen konnte: {detail}",
   chatNoWay:
     "Der Chat hat noch nichts, womit er arbeiten kann. Wähle unter Einstellungen › Modelle › Agent-Chat ein Abo, einen Key oder das Guthaben.",
   noApiKeyFor: "Für {provider} ist kein API-Key hinterlegt.",
