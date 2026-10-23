@@ -40,7 +40,7 @@ import { type Me, useCurrentProject, useMayCreate } from "../lib/session";
 import { setTheme, type Theme, useThemePick } from "../lib/theme";
 import { PluginFrame, useStudioPlugins } from "../plugins/host";
 import { cn } from "../ui";
-import { SpaceFace, SpaceMenu, UserMenu, useDismiss } from "./AppFrame";
+import { SpaceFace, SpaceMenu, UserMenu, useDismiss, useOneSpace } from "./AppFrame";
 import { EngentyMenu } from "./EngentyMenu";
 import { type PrimaryAction, useCurrentPrimaryAction } from "./primary-action";
 
@@ -69,6 +69,7 @@ function glyph(active: boolean): string {
 /** The space's tile: it opens the spaces to switch between; the ring says the menu is open. */
 export function SpaceTile({ me }: { me: Me }) {
   const { project } = useCurrentProject();
+  const one = useOneSpace(me);
   return (
     <SpaceMenu
       me={me}
@@ -81,7 +82,8 @@ export function SpaceTile({ me }: { me: Me }) {
         )
       }
     >
-      <SpaceFace project={project} />
+      {/* One space: the tile stands for the organization. */}
+      <SpaceFace project={project} name={one ? (me.tenant.name ?? undefined) : undefined} />
     </SpaceMenu>
   );
 }
