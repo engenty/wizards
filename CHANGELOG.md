@@ -4,6 +4,11 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.6] - 2026-10-23
+- ADDED **[runtime,web]** Extra effort for the agent chat, with its own models per way (#176)
+- FIXED **[auth]** An e-mail link opened in another browser signs in there (#210)
+- FIXED **[studio]** Offer the install banner only after a wizard and a return day (#209)
+
 ## [0.11.5] - 2026-10-23
 - ADDED Remove connected systems (a space's MCP servers) (#206) **[breaking]**
 - FIXED **[studio]** Konto's trail starts without a slash (#207)

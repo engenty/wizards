@@ -1,7 +1,34 @@
 [
   {
+    "version": "v0.11.6",
+    "timestamp": 1792770209,
+    "commits": [
+      {
+        "id": "baf03d5",
+        "message": "an e-mail link opened in another browser signs in there (#210)",
+        "group": "Fixed",
+        "scope": "auth",
+        "breaking": false
+      },
+      {
+        "id": "44b127d",
+        "message": "extra effort for the agent chat, with its own models per way (#176)",
+        "group": "Added",
+        "scope": "runtime,web",
+        "breaking": false
+      },
+      {
+        "id": "225cf67",
+        "message": "offer the install banner only after a wizard and a return day (#209)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.5",
-    "timestamp": 1792767512,
+    "timestamp": 1792767707,
     "commits": [
       {
         "id": "dfc6a6c",
