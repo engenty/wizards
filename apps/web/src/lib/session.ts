@@ -163,6 +163,9 @@ export interface Me {
     email: string;
     /** The organization the account's space belongs to; null while the Manage-App has not answered. */
     organization: string | null;
+    organizationId: string;
+    /** The person's organizations, to switch to another; empty while the Manage-App has not answered. */
+    organizations: Pick<Organization, "id" | "name" | "role">[];
     credits: number | null;
     /** What of the credits ends on a date, the nearest first. */
     expiring: ExpiringCredits[];

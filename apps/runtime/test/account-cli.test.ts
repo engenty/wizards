@@ -85,3 +85,20 @@ describe("the account line", () => {
     process.env.LC_ALL = "en_US.UTF-8";
   });
 });
+
+describe("the organization `account switch` names", () => {
+  const mine = [
+    { id: "t1", name: "Fuchs Tischlerei" },
+    { id: "t2", name: "engrd." },
+  ];
+
+  it("takes an id, a whole name in any case, or the start of a name", () => {
+    expect(cli.organizationNamed(mine, "t2")?.name).toBe("engrd.");
+    expect(cli.organizationNamed(mine, "fuchs tischlerei")?.id).toBe("t1");
+    expect(cli.organizationNamed(mine, "Fuchs")?.id).toBe("t1");
+  });
+
+  it("names none the person is not in", () => {
+    expect(cli.organizationNamed(mine, "Bäckerei Huber")).toBeNull();
+  });
+});

@@ -571,6 +571,8 @@ const de: Record<Key, Line> = {
   },
   "cloudSync.state.at": "Zuletzt angekommen {when}",
   "cloudSync.state.hereOnly": "Nur auf diesem Computer",
+  "cloudSync.state.otherOrganization":
+    "Gehört zu {name}: bleibt auf diesem Computer, bis du zu {name} zurückwechselst",
   "cloudSync.state.cloudOnly": "Nur in der Cloud",
   "cloudSync.error.updateHere":
     "Die Cloud hat eine neuere Version. Aktualisiere engenty wizards, dann kommen deine Änderungen wieder an.",
@@ -681,6 +683,10 @@ const de: Record<Key, Line> = {
   "account.kind.monthly": "Monatsguthaben",
   "account.kind.gift": "Geschenkt",
   "account.cloud": "Was du hier veröffentlichst, läuft auch auf {host}.",
+  "account.organization": "Organisation",
+  "account.switchAnyway": "Trotzdem wechseln",
+  "account.switchHint":
+    "Die Anmeldung läuft im Browser noch einmal, für die Organisation, die du wählst. Die Spaces von {name} bleiben auf diesem Computer und kommen erst wieder in der Cloud an, wenn du zurückwechselst. Spaces, die nur hier sind, gehen nicht mit.",
   "account.look": "Darstellung",
   "account.lookHint": "Sprache und Design der App in diesem Browser.",
   "nav.logout": "Abmelden",
@@ -3219,6 +3225,8 @@ const en = {
   },
   "cloudSync.state.at": "Last arrived {when}",
   "cloudSync.state.hereOnly": "Only on this computer",
+  "cloudSync.state.otherOrganization":
+    "Belongs to {name}: stays on this computer until you switch back to {name}",
   "cloudSync.state.cloudOnly": "Only in the cloud",
   "cloudSync.error.updateHere":
     "The cloud runs a newer version. Update engenty wizards, then your changes arrive again.",
@@ -3327,6 +3335,10 @@ const en = {
   "account.kind.monthly": "Monthly credits",
   "account.kind.gift": "Gift",
   "account.cloud": "What you publish here also runs on {host}.",
+  "account.organization": "Organization",
+  "account.switchAnyway": "Switch anyway",
+  "account.switchHint":
+    "The sign-in runs again in your browser, for the organization you pick. The spaces of {name} stay on this computer and arrive in the cloud again when you switch back. Spaces that are only here don’t go along.",
   "account.look": "Appearance",
   "account.lookHint": "Language and theme of the studio in this browser.",
   "nav.logout": "Sign out",
