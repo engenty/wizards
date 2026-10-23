@@ -1,12 +1,17 @@
 import { featureOn } from "@engenty/wizards-shared/features";
 import {
   Blocks,
+  Building2,
   Cable,
+  ChartColumn,
   CloudCog,
+  Coins,
   Cpu,
   Info,
+  KeyRound,
   type LucideIcon,
   Plug,
+  Receipt,
   UserRound,
   Users,
 } from "lucide-react";
@@ -22,6 +27,8 @@ export interface SettingsSection {
   icon: LucideIcon | ComponentType<{ className?: string }>;
   /** The user menu links to it directly. */
   menu: boolean;
+  /** The heading it stands under in the list; none for the rows above the first heading. */
+  group?: string;
   /** A section a plugin added: what it draws, and whose it is. */
   plugin?: StudioPlugins["sections"][number];
 }
@@ -34,31 +41,85 @@ export function settingsSections(
   me: Me | null | undefined,
   plugins: StudioPlugins,
 ): SettingsSection[] {
+  // In the cloud with organizationSettings on, the organization's settings come first, under their
+  // heading, and the studio's own under theirs.
+  const ownSettings = me?.mode === "managed" && featureOn(me.features, "organizationSettings");
+  const organization = t("settings.groupOrganization");
+  const studio = ownSettings ? t("settings.groupStudio") : undefined;
+  const inStudio = (section: SettingsSection): SettingsSection =>
+    studio ? { ...section, group: studio } : section;
   return [
     { id: "account", label: t("account.title"), icon: UserRound, menu: true },
-    // In the cloud the studio is an organization's: who is in it, and its plan — once teamPlans is on.
-    ...(me?.mode === "managed" && featureOn(me.features, "teamPlans")
-      ? [{ id: "organization", label: t("organization.title"), icon: Users, menu: true }]
-      : []),
+    ...(ownSettings
+      ? [
+          {
+            id: "general",
+            label: t("orgSettings.general"),
+            icon: Building2,
+            menu: false,
+            group: organization,
+          },
+          {
+            id: "members",
+            label: t("orgSettings.members"),
+            icon: Users,
+            menu: true,
+            group: organization,
+          },
+          {
+            id: "credits",
+            label: t("credits.title"),
+            icon: Coins,
+            menu: false,
+            group: organization,
+          },
+          {
+            id: "usage",
+            label: t("credits.usage"),
+            icon: ChartColumn,
+            menu: false,
+            group: organization,
+          },
+          {
+            id: "invoices",
+            label: t("credits.invoices"),
+            icon: Receipt,
+            menu: false,
+            group: organization,
+          },
+          {
+            id: "keys",
+            label: t("orgSettings.keys"),
+            icon: KeyRound,
+            menu: false,
+            group: organization,
+          },
+        ]
+      : // In the cloud the studio is an organization's: who is in it, and its plan — once teamPlans is on.
+        me?.mode === "managed" && featureOn(me.features, "teamPlans")
+        ? [{ id: "organization", label: t("organization.title"), icon: Users, menu: true }]
+        : []),
     // This computer's spaces kept the same as the organization's in the cloud, both ways.
     ...(cloudSyncOn(me)
-      ? [{ id: "cloud", label: t("cloudSync.title"), icon: CloudCog, menu: false }]
+      ? [inStudio({ id: "cloud", label: t("cloudSync.title"), icon: CloudCog, menu: false })]
       : []),
-    { id: "connectors", label: t("connectors.title"), icon: Plug, menu: true },
+    inStudio({ id: "connectors", label: t("connectors.title"), icon: Plug, menu: true }),
     // Alone for this machine; in the cloud for the organization, on its credits unless it brings keys.
-    { id: "models", label: t("local.title"), icon: Cpu, menu: true },
-    { id: "integrate", label: t("integrate.nav"), icon: Cable, menu: true },
-    ...plugins.sections.map((section) => ({
-      id: section.id,
-      label: section.label(),
-      icon: section.icon,
-      menu: section.menu ?? false,
-      plugin: section,
-    })),
+    inStudio({ id: "models", label: t("local.title"), icon: Cpu, menu: true }),
+    inStudio({ id: "integrate", label: t("integrate.nav"), icon: Cable, menu: true }),
+    ...plugins.sections.map((section) =>
+      inStudio({
+        id: section.id,
+        label: section.label(),
+        icon: section.icon,
+        menu: section.menu ?? false,
+        plugin: section,
+      }),
+    ),
     // Nothing to show where the runtime has no plugins, unless a linked account may bring its
     // plan's Pro modules (ProModulesSection).
     ...(plugins.plugins.length || plugins.problems.length || (plugins.canReload && me?.account)
-      ? [{ id: "plugins", label: t("plugins.title"), icon: Blocks, menu: false }]
+      ? [inStudio({ id: "plugins", label: t("plugins.title"), icon: Blocks, menu: false })]
       : []),
     // Which release this is, its updates, what is new, the credits.
     { id: "about", label: t("about.nav"), icon: Info, menu: false },

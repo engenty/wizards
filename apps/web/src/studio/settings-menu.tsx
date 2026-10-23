@@ -73,6 +73,8 @@ export interface LevelEntry {
   label: string;
   icon: Icon;
   to: string;
+  /** The small heading it stands under; a row without one after a group stands apart. */
+  group?: string;
 }
 
 /**
@@ -138,8 +140,17 @@ export function LevelList({
 }) {
   return (
     <ul className="flex flex-col gap-0.5">
-      {entries.map((e) => (
+      {entries.map((e, i) => (
         <li key={e.id}>
+          {e.group !== entries[i - 1]?.group ? (
+            e.group ? (
+              <div className="px-2 pt-4 pb-1 font-medium text-[0.75rem] text-ink-3 first:pt-1">
+                {e.group}
+              </div>
+            ) : (
+              <div className="h-3" aria-hidden />
+            )
+          ) : null}
           <Link
             to={e.to}
             onClick={(event) => {
