@@ -511,6 +511,7 @@ const de: Record<Key, Line> = {
   "appbar.light": "Hell",
   "appbar.dark": "Dunkel",
   "appbar.system": "Systemstandard",
+  "appbar.labels": "Beschriftung zeigen",
   "account.title": "Konto",
   "cloudSync.title": "Spaces in der Cloud",
   "cloudSync.hint":
@@ -2935,6 +2936,7 @@ const en = {
   "appbar.light": "Light",
   "appbar.dark": "Dark",
   "appbar.system": "Match system",
+  "appbar.labels": "Show labels",
   "account.title": "Account",
   "cloudSync.title": "Spaces in the cloud",
   "cloudSync.hint": "What you change here arrives in the cloud, and what changes there comes here.",
