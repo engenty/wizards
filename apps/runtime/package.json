@@ -41,7 +41,6 @@
     "@lydell/node-pty": "1.1.0",
     "@mastra/core": "1.77.0",
     "@mastra/docker": "0.8.0",
-    "@mastra/mcp": "^2.4.0",
     "@mastra/quickjs": "0.1.3",
     "@modelcontextprotocol/client": "2.3.0",
     "@modelcontextprotocol/ext-apps": "2.0.3",

@@ -70,9 +70,7 @@ export function stepSummary(step: Step): string {
     case "page":
       return step.fields.map((f) => f.label).join(" · ");
     case "agent": {
-      const tools = step.tools.map(toolLabel);
-      const mcp = step.mcp?.length ? [`MCP: ${step.mcp.join(", ")}`] : [];
-      return [...tools, ...mcp].join(" · ") || step.instructions.slice(0, 90);
+      return step.tools.map(toolLabel).join(" · ") || step.instructions.slice(0, 90);
     }
     case "generate": {
       const parts: string[] = [step.asset];

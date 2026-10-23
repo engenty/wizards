@@ -13,9 +13,7 @@ import {
   connectorsLine,
   exampleWizard,
   type GuideConnector,
-  type GuideServer,
   type GuideTool,
-  mcpServersLine,
   PRINCIPLES,
   pluginToolsLine,
   SCHEMA_DOC,
@@ -52,7 +50,6 @@ export interface ArchitectInput {
   wizardId: string;
   message: string;
   history: { role: "user" | "assistant"; content: string }[];
-  mcpServers: GuideServer[];
   connectors: GuideConnector[];
   signal?: AbortSignal;
   onText?: (delta: string) => void;
@@ -85,11 +82,7 @@ export interface ArchitectResult {
   costUsd: number;
 }
 
-function systemPrompt(
-  mcp: GuideServer[],
-  connectors: GuideConnector[],
-  pluginTools: GuideTool[],
-): string {
+function systemPrompt(connectors: GuideConnector[], pluginTools: GuideTool[]): string {
   return `You design wizards for "engenty wizards": a page-by-page flow an end user walks through, where AI steps research, write, draw images, render video, build documents, dashboards and interactive widgets, or write into other systems.
 
 You talk to the ADMIN who builds the wizard. Answer in the admin's language, briefly and warmly. Never mention JSON, ids, schemas, files or templates to them — talk about pages, questions, steps, the widget and results.
@@ -100,8 +93,6 @@ ${WIDGET_GUIDE}
 
 Surface catalog (for surface steps and output.surface):
 ${SURFACE_GUIDE}
-
-${mcpServersLine(mcp)}
 
 ${connectorsLine(connectors)}${pluginToolsLine(pluginTools)}
 
@@ -433,11 +424,7 @@ export async function runArchitect(input: ArchitectInput): Promise<ArchitectResu
     // The system prompt is long and identical on every turn: cache it.
     instructions: {
       role: "system",
-      content: systemPrompt(
-        input.mcpServers,
-        input.connectors,
-        await pluginToolsOf(currentTenant()),
-      ),
+      content: systemPrompt(input.connectors, await pluginToolsOf(currentTenant())),
       providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
     },
     model: agentModel(resolved),

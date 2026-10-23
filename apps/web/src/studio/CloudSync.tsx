@@ -130,7 +130,6 @@ const WORDS: Record<string, Key> = {
   categories: "cloudSync.word.categories",
   values: "cloudSync.word.values",
   texts: "cloudSync.word.texts",
-  mcpServers: "cloudSync.word.mcpServers",
   page: "cloudSync.word.page",
 };
 

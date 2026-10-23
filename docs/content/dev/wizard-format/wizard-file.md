@@ -1,7 +1,7 @@
 ---
 title: The .wizard file
 description: The zip a wizard travels in, its folders and manifest, how to make one by hand, and what the import does with it.
-version: 0.11.1
+version: 0.11.3
 ---
 
 A `.wizard` file is a zip with the wizard’s definition and its workspace. The studio exports
@@ -67,7 +67,6 @@ A path starts with a letter, a digit, `_` or `-`. So hidden files such as `.env`
   "connectors": [
     { "id": "billomat", "name": "Billomat", "domain": "billomat.com", "sourceKind": "openapi" }
   ],
-  "mcpServers": [{ "id": "notion", "name": "Notion" }],
   "themes": [{ "id": "invoice-calm", "name": "Invoice, calm", "colors": [ … ] }],
   "knowledge": { "pages": 12, "truncated": false }
 }
@@ -81,12 +80,11 @@ A path starts with a letter, a digit, `_` or `-`. So hidden files such as `.env`
 | `exportedAt` | When the file was made |
 | `definition` | The wizard. See [The wizard format](./index.md) |
 | `connectors` | Imported connectors the wizard’s connections name: `id`, `name`, `domain` and `sourceKind` (`openapi` or `mcp`), at most 50 |
-| `mcpServers` | The space’s connected systems its agent steps name: `id` and `name`, at most 10 |
 | `themes` | The space’s themes the definition names, in full, at most 8. See [Themes](./themes.md#in-a-wizard-file) |
 | `knowledge` | Only with Knowledge: how many pages, and whether the cap left some out |
 
-`connectors` and `mcpServers` hold names, never addresses, headers or credentials. They let the
-import tell you what the space you import into still needs.
+`connectors` holds names, never addresses, headers or credentials. It lets the import tell you
+what the space you import into still needs.
 
 ## Knowledge
 
@@ -113,7 +111,7 @@ A `.wizard` file holds the wizard, not what it collected or what the space owns:
 - runs, results and uploads
 - the rows of its lists and the accounts people connected
 - the space’s brand, facts and Knowledge, unless Knowledge was asked for
-- the addresses and credentials of connectors and connected systems
+- the addresses and credentials of connectors
 - translations and the wizard’s published versions
 
 The studio’s export holds the draft. The website package and the export over the API hold the
@@ -142,8 +140,8 @@ file without `"format": "engenty-wizard"` is read as a definition.
 1. It checks the zip against the limits before it unpacks anything.
 2. It checks the definition and that every path it names is in the workspace.
 3. It makes a new wizard in the space: a draft, not published, with the workspace’s files.
-4. It tells you which connectors and connected systems the space still lacks.
+4. It tells you which connectors the space still lacks.
 
 What belongs to the space is checked only here, because only the space has it: its connectors
-and their actions, its connected systems and its plugins’ tools. A manifest of a newer version
+and their actions and its plugins’ tools. A manifest of a newer version
 is refused, with a note that the file comes from a newer version of engenty wizards.

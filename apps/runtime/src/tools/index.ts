@@ -3,7 +3,6 @@ import type { AgentStep } from "@engenty/wizards-shared/definition";
 import type { AssetRef } from "@engenty/wizards-shared/run";
 import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { createTool } from "@mastra/core/tools";
-import { MCPClient } from "@mastra/mcp";
 import { z } from "zod";
 import { documentMime, parseDocument } from "../documents/parse.js";
 import type { StepContext } from "../engine/types.js";
@@ -31,7 +30,6 @@ export interface StepTools {
   assets: AssetRef[];
   /** How to write a program over the tools, with the `code` tool. */
   instructions?: string;
-  close(): Promise<void>;
 }
 
 /**
@@ -84,7 +82,6 @@ export async function buildStepTools(
   const tools: Record<string, any> = {};
   const assets: AssetRef[] = [];
   const allowed = new Set(step.tools);
-  let mcp: MCPClient | null = null;
 
   if (allowed.has("web_search")) {
     // Anthropic models search natively; other models search through the AI Gateway's tool.
@@ -300,31 +297,6 @@ export async function buildStepTools(
     });
   }
 
-  const servers = ctx.project.mcpServers.filter((s) => step.mcp?.includes(s.id));
-  if (servers.length) {
-    mcp = new MCPClient({
-      id: `run-${ctx.runId}-${step.id}`,
-      servers: Object.fromEntries(
-        servers.map((s) => [
-          s.id,
-          { url: new URL(s.url), requestInit: { headers: s.headers ?? {} }, timeout: 60_000 },
-        ]),
-      ),
-    });
-    try {
-      Object.assign(tools, await mcp.listTools());
-      await ctx.emit("tool", {
-        code: "mcpConnected",
-        params: { names: servers.map((s) => s.name).join(", ") },
-      });
-    } catch (err) {
-      await ctx.emit("info", {
-        code: "mcpUnreachable",
-        params: { detail: (err as Error).message },
-      });
-    }
-  }
-
   // An installed client writes and runs code of its own.
   let instructions: string | undefined;
   if (allowed.has("code") && !isHarnessVendor(resolved.vendor)) {
@@ -342,8 +314,5 @@ export async function buildStepTools(
     tools,
     assets,
     instructions,
-    close: async () => {
-      await mcp?.disconnect().catch(() => undefined);
-    },
   };
 }

@@ -1,7 +1,7 @@
 ---
 title: Steps
 description: What a wizard is made of – pages, AI steps, generated media, widgets, reviews and the result.
-version: 0.11.2
+version: 0.11.3
 ---
 
 A wizard runs its steps from top to bottom. The last step is always the result.
@@ -80,12 +80,11 @@ PDFs, scans and photos, Word, Excel, CSV and saved mails. Where the space has Kn
 searches it too. Every AI step also knows the space’s Info and Brand: its title, what it says
 about itself, its facts and colours.
 
-Further tools come from three places:
+Further tools come from two places:
 
 - **The person’s accounts**: connectors the wizard uses, where the person connects their own
   account during the run. The step gets the service’s actions as tools. Reading is free; before
   anything changes in the person’s account, they are asked. See [Connectors](./connectors.md).
-- **Connected systems** (MCP servers) of the space, where you allow them on the step.
 - **Plugins** installed in engenty wizards. See [Plugins](./plugins.md).
 
 ### Model class

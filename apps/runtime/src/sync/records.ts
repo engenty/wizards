@@ -148,26 +148,17 @@ const space: KindDef = {
         facts: p.facts,
         themes: p.themes,
         page: p.page ?? null,
-        // A server's headers hold keys: they are entered on each side, like API keys.
-        mcpServers: p.mcpServers.map(({ headers: _, ...s }) => s),
       },
     };
   },
   async write(id, _item, r) {
     const before = await db.query.project.findFirst({ where: eq(schema.project.id, id) });
-    const mcpServers = arr<Record<string, unknown>>(r.mcpServers).map((s) => ({
-      id: String(s.id),
-      name: String(s.name ?? ""),
-      url: String(s.url ?? ""),
-      headers: before?.mcpServers.find((x) => x.id === s.id)?.headers,
-    }));
     const values = {
       name: str(r.name) ?? before?.name ?? "Space",
       brand: obj(r.brand),
       facts: arr(r.facts) as never,
       themes: arr(r.themes) as never,
       page: (r.page ?? null) as never,
-      mcpServers,
     };
     if (before) {
       await db

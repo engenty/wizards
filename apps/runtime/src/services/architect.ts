@@ -84,7 +84,6 @@ export async function architectTurn(
             wizardId: w.id,
             message,
             history: history.map((m) => ({ role: m.role, content: m.content })),
-            mcpServers: project.mcpServers.map((s) => ({ id: s.id, name: s.name })),
             connectors: await listConnectors(project.id),
             signal: io.signal,
             onText: io.onText,

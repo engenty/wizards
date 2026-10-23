@@ -1,7 +1,7 @@
 ---
 title: Agent steps
 description: An AI step's instructions, tools, output, model class, decisions, and one run per entry.
-version: 0.9.6
+version: 0.11.3
 ---
 
 An `agent` step is an AI step. It reads its `instructions`, may call tools, and returns its
@@ -26,7 +26,6 @@ output.
 | Key | What the step may use |
 |---|---|
 | `tools` | Built-in tools: `web_search`, `web_fetch`, `browser`, `sandbox`, `image`, `http`, `pages`, `code`. A plugin’s tool by its full id, `<plugin>.<tool>` |
-| `mcp` | Ids of the space’s connected systems (MCP servers) |
 | `connections` | Ids of the wizard’s connections. See [Lists and connections](./lists-and-connections.md) |
 
 A wizard that names a plugin’s tool runs only where that plugin is installed. See

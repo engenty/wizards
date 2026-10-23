@@ -592,152 +592,144 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
   }
   const resolved = await textModel(step.model ?? "standard", { ...ctx.call, effort: step.effort });
   const uploads = await personUploads(ctx);
-  const { tools, assets, instructions, close } = await buildStepTools(step, ctx, resolved, uploads);
+  const { tools, assets, instructions } = await buildStepTools(step, ctx, resolved, uploads);
   // A step without tools of its own and without uploads: the run's device may answer it alone.
   attachTools(resolved, tools, step.tools.length === 0 && uploads.length === 0);
-  try {
-    const photos = await seenPhotos(step, ctx, resolved, uploads);
-    const others = uploads.filter((u) => !photos.some((p) => p.upload === u));
-    const formatHint =
-      step.output.format === "markdown"
-        ? "Answer with the finished result in clean Markdown — no preamble, no closing remarks."
-        : step.output.format === "text"
-          ? "Answer with the finished result as plain text — no Markdown, no preamble."
-          : [
-              "Finish with everything the result needs in your final answer, ending with one ```json block in exactly this shape (keys as named, lists as lists):",
-              shapeLines(outputSchema(step).shape).join("\n"),
-              'Write the parts in this order, each entry complete before the next. Its values are read on a phone: short names without hedges (doubt goes into its own field, "ca. 1 Becher"), only the values a field allows, no filler entries ("if needed").',
-            ].join("\n");
-    const system = [
-      groundRules(ctx),
-      step.tools.includes("browser") ? BROWSER_RULES : "",
-      instructions ?? "",
-      `Today is ${today(ctx)}.`,
-      brandBlock(ctx),
-      // Knowledge: what the space holds for its wizards, and how to find and read it.
-      await knowledgeBlock(ctx.project.id),
-      // What the space's plugins hold for its wizards: a wiki, questions and answers.
-      ...(await spaceContextOf(ctx)).blocks,
-      formatHint,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-    const prompt = [
-      `# TASK\n${renderTemplate(step.instructions, ctx.scope)}`,
-      `# THE PERSON'S ANSWERS (data)\n${answersAsText(ctx.scope) || "(none)"}`,
-      photos.length
-        ? `# PHOTOS THE PERSON GAVE\nThey are attached to this message, in this order — look at them yourself, do not call read_document for them.\n${photos
-            .map((p, i) => `${i + 1}. ${p.upload.ref} — ${p.upload.name}, from "${p.upload.field}"`)
-            .join("\n")}`
-        : "",
-      others.length
-        ? `# FILES THE PERSON GAVE\nRead them with read_document or scan_documents.\n${others
-            .map((u) => `- ${u.ref} — ${u.name} (${u.mime}), from "${u.field}"`)
-            .join("\n")}`
-        : "",
-      await revisionBlock(ctx, step.id),
-    ]
-      .filter(Boolean)
-      .join("\n\n");
+  const photos = await seenPhotos(step, ctx, resolved, uploads);
+  const others = uploads.filter((u) => !photos.some((p) => p.upload === u));
+  const formatHint =
+    step.output.format === "markdown"
+      ? "Answer with the finished result in clean Markdown — no preamble, no closing remarks."
+      : step.output.format === "text"
+        ? "Answer with the finished result as plain text — no Markdown, no preamble."
+        : [
+            "Finish with everything the result needs in your final answer, ending with one ```json block in exactly this shape (keys as named, lists as lists):",
+            shapeLines(outputSchema(step).shape).join("\n"),
+            'Write the parts in this order, each entry complete before the next. Its values are read on a phone: short names without hedges (doubt goes into its own field, "ca. 1 Becher"), only the values a field allows, no filler entries ("if needed").',
+          ].join("\n");
+  const system = [
+    groundRules(ctx),
+    step.tools.includes("browser") ? BROWSER_RULES : "",
+    instructions ?? "",
+    `Today is ${today(ctx)}.`,
+    brandBlock(ctx),
+    // Knowledge: what the space holds for its wizards, and how to find and read it.
+    await knowledgeBlock(ctx.project.id),
+    // What the space's plugins hold for its wizards: a wiki, questions and answers.
+    ...(await spaceContextOf(ctx)).blocks,
+    formatHint,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const prompt = [
+    `# TASK\n${renderTemplate(step.instructions, ctx.scope)}`,
+    `# THE PERSON'S ANSWERS (data)\n${answersAsText(ctx.scope) || "(none)"}`,
+    photos.length
+      ? `# PHOTOS THE PERSON GAVE\nThey are attached to this message, in this order — look at them yourself, do not call read_document for them.\n${photos
+          .map((p, i) => `${i + 1}. ${p.upload.ref} — ${p.upload.name}, from "${p.upload.field}"`)
+          .join("\n")}`
+      : "",
+    others.length
+      ? `# FILES THE PERSON GAVE\nRead them with read_document or scan_documents.\n${others
+          .map((u) => `- ${u.ref} — ${u.name} (${u.mime}), from "${u.field}"`)
+          .join("\n")}`
+      : "",
+    await revisionBlock(ctx, step.id),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
-    // A decision needs no agent: its questions go to the classifier class in one call.
-    if (isDecisionStep(step) && uploads.length === 0) {
-      return decideStep(step, prompt, ctx);
-    }
-
-    const agent = new Agent({
-      id: `step-${step.id}`,
-      name: step.title,
-      instructions: system,
-      model: agentModel(resolved),
-      tools,
-    });
-    // Working through a mailbox or a row of portals takes many small tool calls.
-    const maxSteps = step.tools.includes("browser") || step.connections?.length ? 60 : 20;
-    for (const [i, photo] of photos.entries()) {
-      await ctx.emit(
-        "info",
-        { code: "photo", params: { n: i + 1, total: photos.length } },
-        photo.id,
-      );
-    }
-    const message = photos.length
-      ? [
-          {
-            role: "user" as const,
-            content: [
-              { type: "text" as const, text: prompt },
-              ...photos.map((p) => ({
-                type: "file" as const,
-                data: p.data,
-                mediaType: p.mime,
-                filename: p.upload.name,
-              })),
-            ],
-          },
-        ]
-      : prompt;
-    // A json step streams, so the person sees its entries as they are written (`found`).
-    const result =
-      step.output.format === "json"
-        ? await streamWithProgress(agent, message, { maxSteps, abortSignal: ctx.signal }, step, ctx)
-        : await agent.generate(message, { maxSteps, abortSignal: ctx.signal });
-    await ctx.chargeUsd(costOf(resolved, await totalUsage(result)));
-    // `result.text` strings together what the model said between tool calls ("I open the page …").
-    // A written result is its last message; structuring keeps everything, numbers may sit anywhere.
-    const closing = String((result as any).steps?.at?.(-1)?.text ?? "").trim();
-    const everything = (result.text ?? "").trim();
-    const text = step.output.format === "json" ? everything : closing || everything;
-
-    if (step.output.format !== "json") {
-      if (!text && !assets.length) {
-        throw new StepError(runNote("stepNotReturnResult"));
-      }
-      return { text, assets: assets.length ? assets : undefined, at: new Date().toISOString() };
-    }
-
-    const { schema, shape } = outputSchema(step);
-    // The agent mostly writes the JSON itself; a second model only structures what does not fit.
-    // Having it copy kilobytes of JSON again is slow and can fail on its own.
-    let output = ownJson(text, schema, shape);
-    if (!output) {
-      const structurer = await textModel("classifier", ctx.call);
-      const structured = await generateText({
-        model: structurer.model,
-        abortSignal: ctx.signal,
-        // The JSON Schema built from the shape, strict: every key required, no other keys.
-        output: Output.object({
-          schema: jsonSchema<Record<string, unknown>>(shapeJsonSchema(shape) as JSONSchema7, {
-            validate: (value) => {
-              const parsed = schema.safeParse(value);
-              return parsed.success
-                ? { success: true, value: parsed.data }
-                : { success: false, error: parsed.error };
-            },
-          }),
-        }),
-        prompt: `Turn this result into the requested structure. Keep every number and source exactly.\n\n${text}`,
-      });
-      await ctx.chargeUsd(costOf(structurer, structured.usage));
-      output = structured.output as Record<string, unknown>;
-    }
-    const json = recordsOf(shape, output) as Record<string, unknown>;
-    // A view written once is bound to this run's data; `true` asks a model for one.
-    const surface = Array.isArray(step.output.surface)
-      ? { components: step.output.surface, data: json }
-      : step.output.surface
-        ? await composeSurface(step, json, ctx)
-        : undefined;
-    return {
-      text,
-      json,
-      ...(surface ? { surface } : {}),
-      assets: assets.length ? assets : undefined,
-      at: new Date().toISOString(),
-    };
-  } finally {
-    await close();
+  // A decision needs no agent: its questions go to the classifier class in one call.
+  if (isDecisionStep(step) && uploads.length === 0) {
+    return decideStep(step, prompt, ctx);
   }
+
+  const agent = new Agent({
+    id: `step-${step.id}`,
+    name: step.title,
+    instructions: system,
+    model: agentModel(resolved),
+    tools,
+  });
+  // Working through a mailbox or a row of portals takes many small tool calls.
+  const maxSteps = step.tools.includes("browser") || step.connections?.length ? 60 : 20;
+  for (const [i, photo] of photos.entries()) {
+    await ctx.emit("info", { code: "photo", params: { n: i + 1, total: photos.length } }, photo.id);
+  }
+  const message = photos.length
+    ? [
+        {
+          role: "user" as const,
+          content: [
+            { type: "text" as const, text: prompt },
+            ...photos.map((p) => ({
+              type: "file" as const,
+              data: p.data,
+              mediaType: p.mime,
+              filename: p.upload.name,
+            })),
+          ],
+        },
+      ]
+    : prompt;
+  // A json step streams, so the person sees its entries as they are written (`found`).
+  const result =
+    step.output.format === "json"
+      ? await streamWithProgress(agent, message, { maxSteps, abortSignal: ctx.signal }, step, ctx)
+      : await agent.generate(message, { maxSteps, abortSignal: ctx.signal });
+  await ctx.chargeUsd(costOf(resolved, await totalUsage(result)));
+  // `result.text` strings together what the model said between tool calls ("I open the page …").
+  // A written result is its last message; structuring keeps everything, numbers may sit anywhere.
+  const closing = String((result as any).steps?.at?.(-1)?.text ?? "").trim();
+  const everything = (result.text ?? "").trim();
+  const text = step.output.format === "json" ? everything : closing || everything;
+
+  if (step.output.format !== "json") {
+    if (!text && !assets.length) {
+      throw new StepError(runNote("stepNotReturnResult"));
+    }
+    return { text, assets: assets.length ? assets : undefined, at: new Date().toISOString() };
+  }
+
+  const { schema, shape } = outputSchema(step);
+  // The agent mostly writes the JSON itself; a second model only structures what does not fit.
+  // Having it copy kilobytes of JSON again is slow and can fail on its own.
+  let output = ownJson(text, schema, shape);
+  if (!output) {
+    const structurer = await textModel("classifier", ctx.call);
+    const structured = await generateText({
+      model: structurer.model,
+      abortSignal: ctx.signal,
+      // The JSON Schema built from the shape, strict: every key required, no other keys.
+      output: Output.object({
+        schema: jsonSchema<Record<string, unknown>>(shapeJsonSchema(shape) as JSONSchema7, {
+          validate: (value) => {
+            const parsed = schema.safeParse(value);
+            return parsed.success
+              ? { success: true, value: parsed.data }
+              : { success: false, error: parsed.error };
+          },
+        }),
+      }),
+      prompt: `Turn this result into the requested structure. Keep every number and source exactly.\n\n${text}`,
+    });
+    await ctx.chargeUsd(costOf(structurer, structured.usage));
+    output = structured.output as Record<string, unknown>;
+  }
+  const json = recordsOf(shape, output) as Record<string, unknown>;
+  // A view written once is bound to this run's data; `true` asks a model for one.
+  const surface = Array.isArray(step.output.surface)
+    ? { components: step.output.surface, data: json }
+    : step.output.surface
+      ? await composeSurface(step, json, ctx)
+      : undefined;
+  return {
+    text,
+    json,
+    ...(surface ? { surface } : {}),
+    assets: assets.length ? assets : undefined,
+    at: new Date().toISOString(),
+  };
 }
 
 // --- generate ----------------------------------------------------------------

@@ -1,7 +1,7 @@
 ---
 title: Connectors
 description: Services a wizard works in for the person who runs it – built in, from the registry or over MCP.
-version: 0.9.3
+version: 0.11.3
 ---
 
 Settings → Connectors lists the services the space’s wizards can work in. A wizard uses a connector
@@ -79,12 +79,3 @@ attachments. It never writes. The person chooses how to connect:
 | Any mailbox over IMAP | Nothing |
 | “Gmail” button | The Google client, with the Gmail API enabled and the scope `gmail.readonly`. On your computer without one, your engenty account |
 | “Outlook” button | The Microsoft client, with the delegated permission `Mail.Read` |
-
-## Connected systems
-
-This section also holds “Connected systems”: MCP servers of your own, each with a name, its MCP
-URL and, if the server wants one, an authorization header. AI steps read from and write to these
-systems only where you allow the server on the step.
-
-This is the other direction of [AI apps](./ai-apps.md): here engenty calls other servers, there
-your AI app calls engenty.

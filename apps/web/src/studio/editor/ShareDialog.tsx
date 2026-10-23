@@ -385,7 +385,6 @@ function Banner({
 
 const PROBLEM_TEXT: Record<ServerProblem["code"], Key> = {
   sandbox: "cloud.problem.sandbox",
-  mcp: "cloud.problem.mcp",
   model: "cloud.problem.model",
   connector: "cloud.problem.connector",
   invalid: "cloud.problem.invalid",
@@ -406,8 +405,8 @@ function Problems({ problems }: { problems: ServerProblem[] }) {
             </span>
           ) : null}
           {t(PROBLEM_TEXT[problem.code] ?? "cloud.problem.invalid", { detail: problem.detail })}
-          {/* The MCP sentence names the servers itself; a missing sandbox has nothing to add. */}
-          {problem.detail && problem.code !== "mcp" && problem.code !== "sandbox" ? (
+          {/* A missing sandbox has nothing to add. */}
+          {problem.detail && problem.code !== "sandbox" ? (
             <details className="mt-0.5">
               <summary className="cursor-pointer text-[0.75rem] text-ink-4 hover:text-ink-3">
                 {t("share.details")}

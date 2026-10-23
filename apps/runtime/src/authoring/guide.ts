@@ -154,7 +154,6 @@ type AgentStep = {
                                 //   data (free appointment times) — it answers in a second instead of half a minute.
                                 //   String inputs are templates; a filled-in whole number or true/false is passed as one.
   tools: ("web_search"|"web_fetch"|"browser"|"sandbox"|"image"|"http"|"pages"|"code")[]
-  mcp?: string[]                // ids of the project's MCP servers this step may use
   connections?: string[]        // ids of wizard connections this step may read (mail → mail_search, mail_read, mail_save)
   output: { format: "text"|"markdown"|"json", fields?: { id, kind: "text"|"number"|"list"|"table"|"yesno"|"choice"|"score", description, columns?: string[], options?: string[] }[], schema?: Schema, surface?: SurfaceComponent[] | true }
                                 // "score" answers its description on the scale in options, lowest first ("low", "medium", "high")
@@ -352,7 +351,7 @@ How good wizards look:
 - Money/totals: use an "items" field with vat — the runner computes totals; documents must use {{items}} verbatim. Never let a model compute totals.
 - Facts from the web need an agent step with web_search + web_fetch BEFORE writing; documents then cite those notes.
 - Live data with a free public JSON API (weather and wind: api.open-meteo.com; sunrise/sunset is in it too) → an agent step with the http tool and model "low" that calls the API and returns json. Far cheaper and more exact than web research; use web research only when no API exists.
-- Writing into other systems (CRM, database, spreadsheet, website): an agent step with the matching mcp server, http, or browser tool, preceded by a review step. Such a step hands over an earlier step's output as a file by naming it "result:<stepId>.<format>" — to browser_upload, or as "file:result:<stepId>.<format>" where a connector action takes "*_base64".
+- Writing into other systems (CRM, database, spreadsheet, website): an agent step with the matching connector, http, or browser tool, preceded by a review step. Such a step hands over an earlier step's output as a file by naming it "result:<stepId>.<format>" — to browser_upload, or as "file:result:<stepId>.<format>" where a connector action takes "*_base64".
 - Sending the finished result on (mail it, file it in a cloud folder, post it on social media or a website, put it into an ads account): do not build a step for it. Put the targets into the result step's "share": the person sees the result first and sends it with one button. Build an agent step only when the wizard must write somewhere without being asked.
 ${sandboxGuideLine()}
 - Remembering between runs ("merke dir", "führe eine Liste"): declare a list and let an agent step save into it with list_write; a later run reads it as {{lists.id}} or list_read. Give it a key column so known rows are updated, not duplicated. Never make the person re-upload last time's result.
@@ -413,11 +412,6 @@ one-off pages stay "generate" steps. A widget is code in the wizard's WORKSPACE 
   ground. Cards for things, generous spacing, legible labels; no table of things.
 - After writing, ALWAYS run check_widget, read its errors and look at the screenshot; fix until clean.`;
 
-export interface GuideServer {
-  id: string;
-  name: string;
-}
-
 export interface GuideConnector {
   id: string;
   name: string;
@@ -457,17 +451,12 @@ export function pluginToolsLine(tools: GuideTool[]): string {
   return `\n\nTools of this app's plugins. An agent step lists one in "tools" by its full id, next to the built-in ones; a wizard that uses one runs only where that plugin is installed:\n${lines.join("\n")}`;
 }
 
-export function mcpServersLine(mcp: GuideServer[]): string {
-  return `Project MCP servers available to agent steps: ${mcp.length ? mcp.map((m) => `${m.id} (${m.name})`).join(", ") : "none — if the admin wants to write into an external system that needs one, build the step with http or browser, and tell them they can connect a server in the project settings"}.`;
-}
-
 export function exampleWizard(): string {
   return JSON.stringify(EXAMPLE_WIZARD, null, 2);
 }
 
 /** The guide an MCP client reads before it writes a wizard. */
 export function authoringGuide(
-  mcp: GuideServer[],
   connectors: GuideConnector[] = [],
   pluginTools: GuideTool[] = [],
 ): string {
@@ -479,8 +468,6 @@ ${WIDGET_GUIDE}
 
 Surface catalog (for surface steps and output.surface):
 ${SURFACE_GUIDE}
-
-${mcpServersLine(mcp)}
 
 ${connectorsLine(connectors)}${pluginToolsLine(pluginTools)}
 

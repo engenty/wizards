@@ -144,7 +144,7 @@ describe("the cloud's sync calls", () => {
     const res = await v1("POST", `/sync/spaces/${SPACE}/changes`, owner, {
       schema: schemaTag,
       items: [
-        { kind: "space", item: SPACE, base: 0, record: { name: "From the install", brand: {}, facts: [], themes: [], page: null, mcpServers: [] } },
+        { kind: "space", item: SPACE, base: 0, record: { name: "From the install", brand: {}, facts: [], themes: [], page: null } },
         {
           kind: "wizard",
           item: WIZARD,

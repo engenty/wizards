@@ -663,8 +663,6 @@ export const agentStepSchema = z.object({
     })
     .optional(),
   tools: z.array(z.union([z.enum(TOOL_IDS), pluginToolIdSchema])).default([]),
-  /** Ids of project MCP servers this step may use. */
-  mcp: z.array(z.string()).optional(),
   /** Ids of wizard connections (the person's accounts) this step may use. */
   connections: z.array(z.string()).optional(),
   output: z
@@ -932,7 +930,6 @@ export function isDecisionStep(step: AgentStep): boolean {
     fields.every((f) => f.kind === "yesno" || f.kind === "choice" || f.kind === "score") &&
     !step.each &&
     step.tools.length === 0 &&
-    !step.mcp?.length &&
     !step.connections?.length
   );
 }

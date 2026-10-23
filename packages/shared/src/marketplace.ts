@@ -274,7 +274,7 @@ export function capabilitiesOf(def: WizardDefinition): Capability[] {
           found.add("connectors");
         }
       }
-      if (step.mcp?.length || step.connections?.length) {
+      if (step.connections?.length) {
         found.add("connectors");
       }
     } else if (step.type === "generate") {
@@ -348,7 +348,7 @@ export function effortOf(def: WizardDefinition): Effort {
     } else if (step.type === "agent") {
       seconds += step.tools.includes("browser")
         ? WORK_SECONDS.browser
-        : step.tools.length || step.mcp?.length || step.connections?.length
+        : step.tools.length || step.connections?.length
           ? WORK_SECONDS.tools
           : WORK_SECONDS.agent;
     } else if (step.type === "generate") {
