@@ -15,6 +15,9 @@ import {
   removeTenantDomain,
   setMemberRole,
   tenantAddress,
+  tenantBilling,
+  tenantBillingActivity,
+  tenantInvoicePdf,
   tenantKeys,
   verifyTenantDomain,
 } from "../manage.js";
@@ -106,4 +109,31 @@ export const organizationRoutes = new Hono<Vars>()
   .delete("/keys/:id", async (c) => {
     const user = c.get("user");
     return answer(c, deleteTenantKey(user.tenantId, user.id, c.req.param("id")));
+  })
+  .get("/billing", async (c) => {
+    const user = c.get("user");
+    return answer(c, tenantBilling(user.tenantId, user.id));
+  })
+  .get("/billing/activity", async (c) => {
+    const user = c.get("user");
+    const q = z
+      .object({
+        before: z.coerce.number().int().positive().optional(),
+        limit: z.coerce.number().int().min(1).max(100).optional(),
+      })
+      .parse(c.req.query());
+    return answer(c, tenantBillingActivity(user.tenantId, user.id, q));
+  })
+  // The invoice's PDF lies at Stripe: the studio's link goes there by way of this address.
+  .get("/invoices/:id/pdf", async (c) => {
+    const user = c.get("user");
+    try {
+      const { url } = await tenantInvoicePdf(user.tenantId, user.id, c.req.param("id"));
+      return c.redirect(url);
+    } catch (err) {
+      if (err instanceof ManageError) {
+        return c.json({ error: err.message, code: err.code }, err.status as 400);
+      }
+      throw err;
+    }
   });
