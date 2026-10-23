@@ -164,11 +164,12 @@ import {
 } from "../services/knowledge.js";
 import { writeSummary } from "../services/knowledge-model.js";
 import {
-  applyWebsite,
+  applyAddresses,
   finishOnboarding,
   onboardingFor,
   startingName,
 } from "../services/onboarding.js";
+import { findAddresses, siteOfEmail } from "../services/onboarding-find.js";
 import { exportWizard, importWizard } from "../services/package.js";
 import { pagePreview } from "../services/pages.js";
 import {
@@ -2057,6 +2058,10 @@ export const studio = new Hono<Vars>()
         legalName: field(200),
         phone: field(40),
         website: field(400),
+        /** The addresses the person ticked or added. */
+        links: z.array(z.string().trim().max(400)).max(10).optional(),
+        /** “Wünsche oder Fragen”: a question reaches the team by mail. */
+        questions: field(4000),
       })
       .parse(await c.req.json());
     const user = c.get("user");
@@ -2067,6 +2072,28 @@ export const studio = new Hono<Vars>()
       profile,
     );
     return c.json({ ok: true });
+  })
+  // The first visit: the name and site of the person's e-mail domain, where it is an organization's.
+  .get("/onboarding/suggest", async (c) => {
+    if (!managed) {
+      return c.json({ error: say(c, "onlyAvailableCloud"), code: "not_managed" }, 404);
+    }
+    await requireAdmin();
+    return c.json({ site: await siteOfEmail(c.get("user").email) });
+  })
+  // The organization's addresses to tick: its e-mail domain's site, then a web search for its name.
+  .post("/onboarding/find", async (c) => {
+    if (!managed) {
+      return c.json({ error: say(c, "onlyAvailableCloud"), code: "not_managed" }, 404);
+    }
+    await requireAdmin();
+    const { name, lang } = z
+      .object({ name: z.string().trim().max(120), lang: z.enum(LANGS).optional() })
+      .parse(await c.req.json());
+    const user = c.get("user");
+    return c.json({
+      addresses: await findAddresses({ name, email: user.email, lang: lang ?? requestLang(c) }),
+    });
   })
   .post("/onboarding/done", async (c) => {
     if (!managed) {
@@ -2089,10 +2116,21 @@ export const studio = new Hono<Vars>()
   .post("/projects/:id/website", async (c) => {
     const user = c.get("user");
     const project = await ownedProject(user.id, c.req.param("id"));
-    const { url, lang } = z
-      .object({ url: z.string().trim().min(3).max(400), lang: z.enum(LANGS).optional() })
+    // One address (as before) or several: the first website is read, the others kept as facts.
+    const { url, urls, lang } = z
+      .object({
+        url: z.string().trim().min(3).max(400).optional(),
+        urls: z.array(z.string().trim().min(3).max(400)).max(10).optional(),
+        lang: z.enum(LANGS).optional(),
+      })
       .parse(await c.req.json());
-    return c.json(await applyWebsite(user.id, project.id, url, lang ?? requestLang(c)));
+    const outcome = await applyAddresses(
+      user.id,
+      project.id,
+      urls ?? (url ? [url] : []),
+      lang ?? requestLang(c),
+    );
+    return c.json(outcome);
   })
   // The install command and the first steps, mailed to the signed-in person by the Manage-App.
   .post("/install-mail", async (c) => {

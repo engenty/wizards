@@ -716,6 +716,30 @@ describe("a runtime of a Manage-App", () => {
     ).toBe(600);
   });
 
+  it("offers an organization's addresses to its admins, and keeps profiles as facts", async () => {
+    const owner = await signIn("code-a");
+    const member = await signIn("code-m");
+    // No model can search in the test, and test.local has no site: nothing is found.
+    const found = await post("/api/studio/onboarding/find", owner, { name: "tenant-a" });
+    expect(await found.json()).toEqual({ addresses: [] });
+    expect((await post("/api/studio/onboarding/find", member, { name: "x" })).status).toBe(403);
+    const [space] = (await (await get("/api/studio/projects", owner)).json()) as { id: string }[];
+    const read = await post(`/api/studio/projects/${space.id}/website`, owner, {
+      urls: ["instagram.com/baeckerei.huber", "https://www.linkedin.com/company/huber"],
+    });
+    expect(await read.json()).toBeNull();
+    const after = (await (await get("/api/studio/projects", owner)).json()) as {
+      id: string;
+      facts: { label: string; value: string }[];
+    }[];
+    expect(after.find((p) => p.id === space.id)?.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Instagram", value: "https://instagram.com/baeckerei.huber" }),
+        expect.objectContaining({ label: "LinkedIn" }),
+      ]),
+    );
+  });
+
   it("hands what an organization says about itself to the Manage-App, from its owner only", async () => {
     const owner = await signIn("code-a");
     const put = (cookie: string, body: unknown) =>

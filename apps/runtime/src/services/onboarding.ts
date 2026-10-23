@@ -1,3 +1,4 @@
+import { ADDRESS_NAMES, addressKind, addressUrl } from "@engenty/wizards-shared/addresses";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import {
   type BasicFact,
@@ -485,6 +486,42 @@ export async function applyWebsite(
     facts: facts.added,
     assets,
   };
+}
+
+/**
+ * Reads the addresses the person ticked or added into the space: the first website as
+ * `applyWebsite` does, every other address (profiles, a blog, a second site) as a fact under its
+ * name. Null where none of them is a website.
+ */
+export async function applyAddresses(
+  userId: string,
+  projectId: string,
+  raw: string[],
+  lang: Lang,
+): Promise<WebsiteOutcome | null> {
+  const urls = [...new Set(raw.flatMap((r) => addressUrl(r) ?? []))].slice(0, 10);
+  const site = urls.find((u) => addressKind(u) === "website");
+  const outcome = site ? await applyWebsite(userId, projectId, site, lang) : null;
+  const rest = urls.filter((u) => u !== site);
+  if (rest.length) {
+    const project = await ownedProject(userId, projectId);
+    const named = rest.map((url) => {
+      const kind = addressKind(url);
+      const count = rest.filter((u) => addressKind(u) === kind).indexOf(url);
+      return {
+        label: count ? `${ADDRESS_NAMES[kind]} ${count + 1}` : ADDRESS_NAMES[kind],
+        value: url,
+      };
+    });
+    const facts = withFacts(project.facts, {}, lang, named);
+    if (facts.added) {
+      await updateProject(userId, projectId, { facts: facts.facts });
+    }
+    if (outcome) {
+      outcome.facts += facts.added;
+    }
+  }
+  return outcome;
 }
 
 /** A picture of the site kept in the space; one that cannot be fetched is no loss. */
