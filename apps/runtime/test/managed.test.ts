@@ -248,7 +248,16 @@ const cookieOf = (res: Response, name: string) =>
 
 /** Walks the sign-in a browser would: /login → (Manage-App) → /callback → session cookie. */
 async function signIn(code: string): Promise<string> {
-  const login = await app.fetch(new Request(`${RUNTIME}/api/auth/login?return=/settings`));
+  const callback = await walkSignIn(code, "/studio/settings");
+  expect(callback.headers.get("location")).toBe("/studio/settings");
+  return cookieOf(callback, "wz_session");
+}
+
+/** The callback's answer to a sign-in that asked to come back to `back`. */
+async function walkSignIn(code: string, back: string): Promise<Response> {
+  const login = await app.fetch(
+    new Request(`${RUNTIME}/api/auth/login?return=${encodeURIComponent(back)}`),
+  );
   expect(login.status).toBe(302);
   const authorize = new URL(login.headers.get("location") ?? "");
   expect(authorize.origin).toBe(issuer);
@@ -261,8 +270,7 @@ async function signIn(code: string): Promise<string> {
     ),
   );
   expect(callback.status).toBe(302);
-  expect(callback.headers.get("location")).toBe("/settings");
-  return cookieOf(callback, "wz_session");
+  return callback;
 }
 
 const get = (path: string, cookie: string) =>
@@ -625,13 +633,25 @@ describe("a runtime of a Manage-App", () => {
     expect(cookieOf(await handoff(windowCookie), "wz_session")).toBe("");
   });
 
+  it("returns from a sign-in into the studio or a public wizard, never elsewhere", async () => {
+    const back = async (path: string) =>
+      (await walkSignIn("code-a", path)).headers.get("location");
+    expect(await back("/studio/new?starter=quiz")).toBe("/studio/new?starter=quiz");
+    expect(await back("/studio")).toBe("/studio");
+    expect(await back("/w/abc")).toBe("/w/abc");
+    expect(await back("/s/abc")).toBe("/s/abc");
+    for (const outside of ["/", "/new", "/studio-x", "//evil.example", "/\\evil.example"]) {
+      expect(await back(outside)).toBe("/studio/");
+    }
+  });
+
   it("takes a guest's wish along to the account's sign-in page", async () => {
     const login = await app.fetch(
-      new Request(`${RUNTIME}/api/auth/login?return=/new&wish=${encodeURIComponent("Ein Quiz")}`),
+      new Request(`${RUNTIME}/api/auth/login?return=/studio/new&wish=${encodeURIComponent("Ein Quiz")}`),
     );
     expect(new URL(login.headers.get("location") ?? "").searchParams.get("wish")).toBe("Ein Quiz");
     const long = await app.fetch(
-      new Request(`${RUNTIME}/api/auth/login?return=/new&wish=${"x".repeat(2000)}`),
+      new Request(`${RUNTIME}/api/auth/login?return=/studio/new&wish=${"x".repeat(2000)}`),
     );
     expect(
       new URL(long.headers.get("location") ?? "").searchParams.get("wish")?.length,

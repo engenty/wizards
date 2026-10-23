@@ -480,12 +480,20 @@ export async function signOut() {
  * Sign-in happens at the Manage-App; it sends the person back to `returnTo`. A `wish` (the
  * guest start page's) goes along, so the sign-in page shows what is about to be built.
  */
-export function signIn(returnTo = window.location.pathname, wish?: string) {
+export function signIn(returnTo = here(), wish?: string) {
   const query = new URLSearchParams({ return: returnTo });
   if (wish?.trim()) {
     query.set("wish", wish.trim());
   }
   window.location.href = withBase(`/api/auth/login?${query}`);
+}
+
+/** This page with its query, without the mark of a failed sign-in. */
+function here() {
+  const query = new URLSearchParams(window.location.search);
+  query.delete("signin");
+  const rest = query.toString();
+  return `${window.location.pathname}${rest ? `?${rest}` : ""}`;
 }
 
 // What a guest asked to be built on the start page, kept in this browser across the sign-in
