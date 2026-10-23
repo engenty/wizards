@@ -37,7 +37,7 @@ import {
   useSearchParams,
 } from "react-router";
 import { api } from "../lib/api";
-import { withBase } from "../lib/base";
+import { STUDIO_PAGES, withBase } from "../lib/base";
 import { lang, t } from "../lib/i18n";
 import { type Me, useCurrentProject } from "../lib/session";
 import { useCrumbs } from "../studio/AppFrame";
@@ -147,8 +147,7 @@ export function useStudioPlugins(): StudioPlugins {
   );
 }
 
-/** Addresses the studio keeps for itself, and the sections of its own settings. */
-const OWN_PAGES = new Set(["", "new", "edit", "settings", "space", "setup", "sign-in"]);
+/** The sections of the studio's own settings. */
 const OWN_SECTIONS = new Set(["account", "project", "connectors", "models", "build", "plugins"]);
 /** The space page's own parts. */
 const OWN_PARTS = new Set(["info", "knowledge", "data", "page", "results"]);
@@ -239,7 +238,7 @@ function contextFor(plugin: PluginInfo, draft: Draft): StudioPluginContext {
     plugin: { id, name: plugin.name, version: plugin.version },
     registerPage(page) {
       const first = page.path.split("/")[1] ?? "";
-      if (!page.path.startsWith("/") || OWN_PAGES.has(first)) {
+      if (!page.path.startsWith("/") || STUDIO_PAGES.has(first)) {
         throw new Error(`"${page.path}" is an address of the studio itself.`);
       }
       if ([...others(state.pages), ...draft.pages].some((p) => p.path === page.path)) {

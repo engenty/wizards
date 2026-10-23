@@ -36,7 +36,7 @@ const ViewLab = import.meta.env.DEV
   ? lazy(() => import("./dev/ViewLab").then((m) => ({ default: m.ViewLab })))
   : null;
 
-function Splash() {
+export function Splash() {
   return (
     <div className="flex min-h-dvh items-center justify-center">
       <Mascot kind="round" size={56} />

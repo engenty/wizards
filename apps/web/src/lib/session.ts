@@ -21,7 +21,7 @@ import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
 import { ApiError, api } from "./api";
-import { STUDIO, withBase } from "./base";
+import { STUDIO, STUDIO_ROOT, withBase } from "./base";
 import { type Lang, setLang, storedLang } from "./i18n";
 import { keys } from "./keys";
 
@@ -128,6 +128,8 @@ export interface Me {
     role: "owner" | "admin" | "member";
     /** The organization's name; null for a local install without an account. */
     name: string | null;
+    /** Its address, `acme` in `/studio/acme/`; null on a local install. */
+    slug: string | null;
     /** The plan the organization is on (Free, Pro, Team, …); null alone. */
     plan: { id: string; name: string } | null;
     /** The organization's address for its public page (`acme.wizards.page`); null alone. */
@@ -500,6 +502,10 @@ export async function signOut() {
  */
 export function signIn(returnTo = here(), wish?: string) {
   const query = new URLSearchParams({ return: returnTo });
+  // An address with an organization (`/studio/acme/…`): the sign-in is for that one.
+  if (STUDIO_ROOT !== STUDIO) {
+    query.set("organization", STUDIO_ROOT.slice(STUDIO.length + 1));
+  }
   if (wish?.trim()) {
     query.set("wish", wish.trim());
   }

@@ -764,6 +764,11 @@ const de: Record<Key, Line> = {
   "new.orStarter": "Oder beginne mit einer Vorlage",
   "new.import": "Wizard-Datei importieren",
   "new.hint": "Du kannst danach alles im Chat ändern.",
+  "address.foreign.title": "Diese Adresse gehört zu keiner deiner Organisationen",
+  "address.foreign.text":
+    "Du bist als {email} angemeldet. Vielleicht ist die Adresse vertippt, oder die Organisation gehört zu einem anderen Konto.",
+  "address.foreign.continue": "Weiter zu {name}",
+  "address.foreign.switchAccount": "Konto wechseln",
   "guest.signIn": "Anmelden",
   "guest.hint": "Danach meldest du dich an. Dein Wunsch bleibt dabei stehen.",
   "onboard.wish": "Dein Wunsch",
@@ -3181,6 +3186,11 @@ const en = {
   "new.orStarter": "Or start from a template",
   "new.import": "Import a wizard file",
   "new.hint": "You can change everything afterwards in the chat.",
+  "address.foreign.title": "This address isn’t one of your organizations",
+  "address.foreign.text":
+    "You’re signed in as {email}. The address may be mistyped, or the organization belongs to another account.",
+  "address.foreign.continue": "Continue to {name}",
+  "address.foreign.switchAccount": "Switch account",
   "guest.signIn": "Sign in",
   "guest.hint": "Next you sign in. Your wish stays with you.",
   "onboard.wish": "Your wish",

@@ -8,6 +8,7 @@ import { watchErrors } from "./lib/report";
 import { Crashed } from "./report/Crashed";
 import { keepConsole } from "./report/log";
 import { ReportHost } from "./report/ReportDialog";
+import { StudioRoot } from "./studio/StudioRoot";
 import "./lib/runner-env";
 import "./lib/theme";
 import "./styles/app.css";
@@ -39,8 +40,8 @@ if ("engentyDesktop" in window) {
   document.documentElement.dataset.desktop = "";
 }
 
-// The studio has its own router below `/studio`; the public pages (`/w`, `/s`) have theirs at the
-// root. A page never moves from one to the other without loading.
+// The studio has its own router below `/studio` (in the cloud below its organization's address,
+// studio/StudioRoot.tsx); the public pages (`/w`, `/s`) have theirs at the root. A page never moves from one to the other without loading.
 const path = window.location.pathname;
 const studio = path === STUDIO || path.startsWith(`${STUDIO}/`);
 
@@ -57,12 +58,21 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename={studio ? STUDIO : BASE}>
-        <Crashed where={studio ? "studio" : "run"}>
-          {studio ? <StudioApp /> : <PublicApp />}
-          <ReportHost />
-        </Crashed>
-      </BrowserRouter>
+      {studio ? (
+        <StudioRoot>
+          <Crashed where="studio">
+            <StudioApp />
+            <ReportHost />
+          </Crashed>
+        </StudioRoot>
+      ) : (
+        <BrowserRouter basename={BASE}>
+          <Crashed where="run">
+            <PublicApp />
+            <ReportHost />
+          </Crashed>
+        </BrowserRouter>
+      )}
     </QueryClientProvider>
   </StrictMode>,
 );

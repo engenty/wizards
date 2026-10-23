@@ -17,11 +17,15 @@ export function switchable(me: Me): boolean {
 }
 
 /**
- * Opens the studio in another organization: a sign-in that names it, which the Manage-App
- * answers with that organization's token and no page in between.
+ * Opens the studio in another organization: its address, where the studio signs in naming it
+ * (StudioRoot), which the Manage-App answers with that organization's token and no page.
  */
 function switchTo(org: Organization) {
-  const query = new URLSearchParams({ organization: org.slug ?? org.id, return: `${STUDIO}/` });
+  if (org.slug) {
+    window.location.href = `${STUDIO}/${org.slug}/`;
+    return;
+  }
+  const query = new URLSearchParams({ organization: org.id, return: `${STUDIO}/` });
   window.location.href = withBase(`/api/auth/login?${query}`);
 }
 
