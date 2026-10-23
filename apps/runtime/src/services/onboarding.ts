@@ -6,6 +6,7 @@ import {
   PROJECT_LIMITS,
   type ProjectFact,
 } from "@engenty/wizards-shared/projects";
+import { matchSectors } from "@engenty/wizards-shared/sectors";
 import { nanoid } from "nanoid";
 import { type CompanyPage, readCompany } from "../agents/company.js";
 import { type CompanyContact, readContact, readWebsite } from "../agents/website.js";
@@ -379,6 +380,8 @@ export interface WebsiteOutcome {
   logo: boolean;
   facts: number;
   assets: number;
+  /** The catalog sectors the site points to, the best first (sectors.ts). */
+  sectors: string[];
 }
 
 /** At most this many pictures of the home page become brand material. */
@@ -478,6 +481,9 @@ export async function applyWebsite(
     })(),
   ]);
   return {
+    sectors: matchSectors(
+      [name, about, company, reading.title, reading.description].filter(Boolean).join(" "),
+    ),
     name,
     about: Boolean(about),
     colors: colors.length,

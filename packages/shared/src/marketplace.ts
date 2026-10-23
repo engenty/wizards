@@ -413,6 +413,8 @@ export interface MarketplaceSummary {
   costume?: EngentyCostume;
   formats: ItemFormat[];
   industries: Industry[];
+  /** The catalog sectors it is made for (`bakeries`, `lawFirms`, sectors.ts); left out: none in particular. */
+  sectors?: string[];
   useCases: UseCase[];
   capabilities: Capability[];
   effort: Effort;
@@ -508,4 +510,9 @@ export interface MarketplaceEntry extends MarketplaceSummary {
   plugin?: { id: string; name: string };
   /** The plugins it needs that this app does not have: a wizard made from it would not run. */
   needs?: string[];
+  /**
+   * Why it stands where it does in the list for an organization (the new-wizard page): its
+   * sector, the industry of its sector, words of its wishes, or its kind.
+   */
+  fit?: "sector" | "industry" | "wish" | "kind";
 }

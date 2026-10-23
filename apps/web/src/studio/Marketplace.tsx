@@ -87,6 +87,8 @@ type EntryDetail = MarketplaceEntry & WizardOutline;
 
 /** What a search answers: a page of entries, and whether the marketplace answered. */
 export interface SearchPage extends MarketplacePage<MarketplaceEntry> {
+  /** What the list was ordered by, with `fit`: the organization's sector; null without a first visit. */
+  context?: { sector: string | null; sectorName: string | null } | null;
   offline: boolean;
   /** The capabilities this install has no model for. */
   unavailable: Capability[];
@@ -232,7 +234,16 @@ function PluginChip({ plugin }: { plugin: { name: string } }) {
   );
 }
 
-function EntryCard({ entry, onOpen }: { entry: MarketplaceEntry; onOpen: () => void }) {
+function EntryCard({
+  entry,
+  onOpen,
+  why,
+}: {
+  entry: MarketplaceEntry;
+  onOpen: () => void;
+  /** Why it stands where it does for the organization: its sector, its wishes. */
+  why?: string | null;
+}) {
   return (
     <Card
       role="button"
@@ -277,6 +288,7 @@ function EntryCard({ entry, onOpen }: { entry: MarketplaceEntry; onOpen: () => v
         <div className="mt-0.5 text-[0.8125rem] text-ink-3 leading-snug">{entry.pitch}</div>
       </div>
       <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[0.75rem] text-ink-3">
+        {why ? <Chip>{why}</Chip> : null}
         {entry.plugin ? <PluginChip plugin={entry.plugin} /> : null}
         {entry.needs?.length ? (
           <Chip tone="warn">{t("market.needsPro", { list: entry.needs.join(", ") })}</Chip>
@@ -917,6 +929,83 @@ export function MarketplaceHits({
         {entries.map((e) => (
           <EntryCard key={e.id} entry={e} onOpen={() => setPicked(e.id)} />
         ))}
+      </div>
+      <EntryDialog
+        id={picked}
+        fallback={entries.find((e) => e.id === picked) ?? null}
+        onClose={() => setPicked(null)}
+        onUse={onUse}
+        busy={busy}
+      />
+    </section>
+  );
+}
+
+/**
+ * The templates that fit the organization, as its first visit learned it: four rows, its sector's
+ * first, each saying why it is there. Null without a first visit: the full browser stands alone.
+ */
+export function useFit() {
+  const fit = useQuery({
+    queryKey: ["marketplace", lang, "fit"],
+    queryFn: () =>
+      api.get<SearchPage>(
+        `/api/studio/marketplace?${new URLSearchParams({ lang, limit: "12", offset: "0", fit: "1" })}`,
+      ),
+  });
+  // Only where something fits: an order nothing explains would only hide the rest.
+  return fit.data?.context && fit.data.entries.some((e) => e.fit) ? fit.data : null;
+}
+
+export function MarketplaceFit({
+  page,
+  organization,
+  onUse,
+  busy,
+  onAll,
+}: {
+  /** What `useFit` answered. */
+  page: SearchPage;
+  organization: string;
+  onUse?: (entry: MarketplaceEntry) => void;
+  busy?: boolean;
+  /** Opens the full browser below. */
+  onAll: () => void;
+}) {
+  const [picked, setPicked] = useState<string | null>(null);
+  const context = page.context ?? { sector: null, sectorName: null };
+  const entries = page.entries;
+  const why = (e: MarketplaceEntry) =>
+    e.fit === "sector" || e.fit === "industry"
+      ? context.sectorName
+      : e.fit === "wish"
+        ? t("market.fitWish")
+        : null;
+  return (
+    <section>
+      <h2 className="mt-16 text-center font-medium text-[0.8125rem] text-ink-3 uppercase tracking-[0.08em]">
+        {t("market.fitTitle", { organization })}
+      </h2>
+      <p className="mt-2 mb-5 text-center text-[0.875rem] text-ink-3">
+        {context.sectorName
+          ? t("market.fitLine", { sector: context.sectorName })
+          : t("market.fitLinePlain")}
+      </p>
+      {/* At most four rows: twelve at three columns, four on a phone. */}
+      <div className="flex flex-col gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3">
+        {entries.map((e, i) => (
+          <div
+            key={e.id}
+            className={cn("contents", i >= 4 && "max-sm:hidden", i >= 8 && "sm:max-lg:hidden")}
+          >
+            <EntryCard entry={e} why={why(e)} onOpen={() => setPicked(e.id)} />
+          </div>
+        ))}
+      </div>
+      <div className="mt-6 flex justify-center">
+        <Button variant="secondary" onClick={onAll}>
+          {t("market.fitAll", { n: page.all || page.total })}
+        </Button>
       </div>
       <EntryDialog
         id={picked}

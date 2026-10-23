@@ -170,6 +170,7 @@ import {
   startingName,
 } from "../services/onboarding.js";
 import { findAddresses, siteOfEmail } from "../services/onboarding-find.js";
+import { setOrganizationContext } from "../services/organization-context.js";
 import { exportWizard, importWizard } from "../services/package.js";
 import { pagePreview } from "../services/pages.js";
 import {
@@ -2071,6 +2072,13 @@ export const studio = new Hono<Vars>()
       requestLang(c) === "de" ? "de" : "en",
       profile,
     );
+    // The new-wizard page puts the templates that fit it first.
+    await setOrganizationContext(user.tenantId, {
+      sector: profile.sector ?? null,
+      kind: profile.kind,
+      size: profile.size ?? null,
+      words: [profile.need, profile.questions].filter(Boolean).join(" "),
+    });
     return c.json({ ok: true });
   })
   // The first visit: the name and site of the person's e-mail domain, where it is an organization's.
