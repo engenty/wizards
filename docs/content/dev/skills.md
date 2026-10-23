@@ -1,7 +1,7 @@
 ---
 title: Skills
 description: The skills of a space – the SKILL.md engenty wizards reads, its limits, the studio’s routes and the two tools a step reads skills with.
-version: 0.11.3
+version: 0.11.4
 ---
 
 A space’s skills are instructions in the Agent Skills format that its AI steps follow. They sit

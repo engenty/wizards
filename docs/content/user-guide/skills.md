@@ -1,7 +1,7 @@
 ---
 title: Skills
 description: Instructions your wizards work by – always, or when a wizard needs one. Add them from skills.sh, upload them or write your own.
-version: 0.11.3
+version: 0.11.4
 ---
 
 A skill is a set of instructions your wizards work by: how you write, what a quote must hold, how
