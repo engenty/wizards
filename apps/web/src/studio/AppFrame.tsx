@@ -982,7 +982,7 @@ export function AppFrame({
       <div className={cn("flex min-h-0 min-w-0 flex-1 md:gap-2", INSET[position])}>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
           <UpdateBanner />
-          <InstallBanner />
+          <InstallBanner me={me} />
           <CloudSyncBar me={me} />
           {full ? (
             <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

@@ -251,6 +251,7 @@ import {
   deleteWizard,
   draftChanges,
   duplicateWizard,
+  hasWizards,
   ownedWizard,
   rotateShareLink,
   updateWizardSettings,
@@ -552,6 +553,8 @@ export const studio = new Hono<Vars>()
       onboarding: await onboardingFor(user, person?.tenants ?? []),
       /** The organization still has the name the Manage-App gave it at sign-up: its first admin names it. */
       startingName: managed ? startingName(info?.name) : false,
+      /** The organization has made a wizard: the studio's offer to install it waits for that. */
+      hasWizards: await hasWizards(),
       /** What answers the studio's chats (Goose, the editor's chat): the text classes, a subscription, a key or the credits. */
       chatEngine: managed ? "models" : await chatEngine(await hasTextModel()),
       /** The ways that can answer the studio's chats now. */
