@@ -92,6 +92,16 @@ const manage: Server = createServer(async (req, res) => {
         : { ok: true },
     );
   }
+  if (/^\/v1\/tenants\/[^/]+\/(billing|invoices)(\/|$)/.test(url.pathname)) {
+    memberCalls.push({ method: req.method ?? "", path: url.pathname + url.search, body: null });
+    if (url.pathname.endsWith("/pdf")) {
+      return json({ url: "https://stripe.test/invoice.pdf" });
+    }
+    if (url.pathname.endsWith("/activity")) {
+      return json({ entries: [{ id: 7, kind: "start", credits: 500 }] });
+    }
+    return json({ balanceCredits: 500, canBuy: true, invoices: [] });
+  }
   if (/^\/v1\/tenants\/[^/]+\/(address|domains|keys)(\/|$)/.test(url.pathname)) {
     memberCalls.push({ method: req.method ?? "", path: url.pathname + url.search, body: raw ? JSON.parse(raw) : null });
     if (url.pathname.endsWith("/keys") && req.method === "POST") {
@@ -479,6 +489,21 @@ describe("a runtime of a Manage-App", () => {
       { method: "GET", path: "/v1/tenants/tenant-a/address/check?slug=acme", body: null },
       { method: "PUT", path: "/v1/tenants/tenant-a/address", body: { actorId: "user-a", slug: "acme" } },
       { method: "POST", path: "/v1/tenants/tenant-a/domains", body: { actorId: "user-a", domain: "acme.de" } },
+    ]);
+
+    // Guthaben, Verbrauch and Rechnungen read the billing view; an invoice's PDF lies at Stripe.
+    memberCalls.length = 0;
+    expect(await (await send("GET", "/billing", m)).json()).toMatchObject({ balanceCredits: 500 });
+    expect(await (await send("GET", "/billing/activity?limit=20&before=9", m)).json()).toEqual({
+      entries: [{ id: 7, kind: "start", credits: 500 }],
+    });
+    const pdf = await send("GET", "/invoices/in_1/pdf", a);
+    expect(pdf.status).toBe(302);
+    expect(pdf.headers.get("location")).toBe("https://stripe.test/invoice.pdf");
+    expect(memberCalls.map((call) => call.path)).toEqual([
+      "/v1/tenants/tenant-a/billing?actorId=user-m",
+      "/v1/tenants/tenant-a/billing/activity?actorId=user-m&before=9&limit=20",
+      "/v1/tenants/tenant-a/invoices/in_1/pdf?actorId=user-a",
     ]);
   });
 

@@ -316,6 +316,31 @@ export const deleteTenantKey = (tenantId: string, actorId: string, id: string) =
     actorId,
   });
 
+/** What the billing pages show (the Manage-App's billing view), read for the person who asks. */
+export const tenantBilling = (tenantId: string, actorId: string) =>
+  call<Record<string, unknown>>(
+    "GET",
+    `${tenantPath(tenantId)}/billing?actorId=${encodeURIComponent(actorId)}`,
+  );
+export const tenantBillingActivity = (
+  tenantId: string,
+  actorId: string,
+  page: { before?: number; limit?: number },
+) =>
+  call<{ entries: unknown[] }>(
+    "GET",
+    `${tenantPath(tenantId)}/billing/activity?${new URLSearchParams({
+      actorId,
+      ...(page.before ? { before: String(page.before) } : {}),
+      limit: String(page.limit ?? 30),
+    })}`,
+  );
+export const tenantInvoicePdf = (tenantId: string, actorId: string, invoiceId: string) =>
+  call<{ url: string }>(
+    "GET",
+    `${tenantPath(tenantId)}/invoices/${encodeURIComponent(invoiceId)}/pdf?actorId=${encodeURIComponent(actorId)}`,
+  );
+
 /** One of a person's organizations, as the studio's switcher lists it. */
 export interface Organization {
   id: string;
