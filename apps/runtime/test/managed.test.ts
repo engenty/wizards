@@ -304,7 +304,7 @@ describe("a runtime of a Manage-App", () => {
     const me = (await (await get("/api/studio/me", a)).json()) as any;
     expect(me).toMatchObject({
       user: { id: "user-a", name: "User A" },
-      tenant: { id: "tenant-a", role: "owner", plan: { id: "team", name: "Team" } },
+      tenant: { id: "tenant-a", role: "owner", name: "tenant-a", plan: { id: "team", name: "Team" } },
       features: { ownKeys: false },
       limits: { projects: null, build: true, create: true, members: 5 },
       mode: "managed",

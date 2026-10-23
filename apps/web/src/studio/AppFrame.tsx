@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AppWindow,
+  Building2,
   Check,
   Cloud,
   CloudOff,
@@ -321,6 +322,11 @@ export function SpaceMenu({
                 : cn("absolute", placementClass(placement, position, "top-10 left-0")),
             )}
           >
+            {me.tenant.name ? (
+              <div className="truncate px-2 pt-1.5 pb-1 text-[0.75rem] text-ink-3">
+                {me.tenant.name}
+              </div>
+            ) : null}
             {projects.map((p) => {
               const current = p.id === project?.id;
               return (
@@ -501,6 +507,20 @@ function SpaceName({ me }: { me: Me }) {
   }
   return (
     <span className="flex min-w-0 items-center gap-1">
+      {/* The organization the space belongs to, before it: someone in several can tell them apart. */}
+      {me.tenant.name && !phone ? (
+        <>
+          <span
+            className="max-w-[12rem] truncate text-[0.9375rem] text-ink-3"
+            title={me.tenant.name}
+          >
+            {me.tenant.name}
+          </span>
+          <span className="text-ink-4" aria-hidden="true">
+            /
+          </span>
+        </>
+      ) : null}
       <SpaceMenu
         me={me}
         placement="below"
@@ -596,6 +616,12 @@ export function UserMenu({ me, placement = "below" }: { me: Me; placement?: Menu
               ) : null}
             </div>
             <div className="truncate text-[0.75rem] text-ink-3">{me.user.email}</div>
+            {me.tenant.name ? (
+              <div className="mt-1.5 flex items-center gap-1.5 text-[0.75rem] text-ink-2">
+                <Building2 className="size-3.5 shrink-0 text-ink-4" aria-hidden="true" />
+                <span className="truncate">{me.tenant.name}</span>
+              </div>
+            ) : null}
           </div>
           {state ? (
             // Whether what is published here runs for others: where it runs, and what to do.

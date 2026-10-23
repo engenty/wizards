@@ -712,6 +712,7 @@ const de: Record<Key, Line> = {
   "organization.title": "Organisation",
   "organization.hint":
     "Wer in der Organisation ist und auf welchem Paket sie läuft. Einladen und verwalten kannst du im Konto.",
+  "organization.name": "Name",
   "organization.plan": "Paket",
   "organization.planFree": "Free",
   "organization.seats": "{taken} von {limit} Plätzen",
@@ -3111,6 +3112,7 @@ const en = {
   "organization.title": "Organization",
   "organization.hint":
     "Who’s in the organization and which plan it’s on. You invite and manage members in the account.",
+  "organization.name": "Name",
   "organization.plan": "Plan",
   "organization.planFree": "Free",
   "organization.seats": "{taken} of {limit} seats",
