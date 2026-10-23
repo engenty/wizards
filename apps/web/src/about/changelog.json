@@ -1,7 +1,146 @@
 [
   {
+    "version": "v0.11.3",
+    "timestamp": 1792762375,
+    "commits": [
+      {
+        "id": "cbcd5f7",
+        "message": "the person's Konto behind the avatar: profile, organizations and connected apps (#201)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "d735bcd",
+        "message": "the organization's sector is one of the catalogs', and the new-wizard page shows the templates that fit it first (#197)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "a94c38a",
+        "message": "the organization's credits, usage and invoices in Settings (#200)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "d194d64",
+        "message": "the organization's address, own domains and API keys in Settings (#199)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "22971bc",
+        "message": "the first visit asks for the name first, then the organization's addresses, found and its own (#194)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "52cdb02",
+        "message": "the organization's name and members in Settings, behind organizationSettings (#195)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "4b9a3ac",
+        "message": "the first visit asks the organization once and the person once, and greets everyone else (#192)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "3217a47",
+        "message": "Info and Brand are two parts of Sources (#198)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "28499ae",
+        "message": "the space's page is called Sources (#196)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "99b9a24",
+        "message": "app bar names its places on a wide window (#193)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "0a6b714",
+        "message": "the studio follows its organization's new address (#191)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "369318b",
+        "message": "the cloud studio's address names its organization (#190)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "8df699c",
+        "message": "a plan with one space names the organization only (#189)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "d7837da",
+        "message": "switch the organization from the studio, shown only to who can switch (#188)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "cffc459",
+        "message": "the link and sign-in pages speak the browser's language (#187)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "235a557",
+        "message": "setup sets local models apart and asks about the account (#186)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "275d326",
+        "message": "the studio names the organization it is in (#185)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "b28e2bc",
+        "message": "a sign-in returns into the studio (#184)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "5539007",
+        "message": "documentation updates (#181, #182, #183)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.2",
-    "timestamp": 1792738634,
+    "timestamp": 1792738780,
     "commits": [
       {
         "id": "d7ac62b",

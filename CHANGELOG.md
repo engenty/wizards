@@ -4,6 +4,27 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.3] - 2026-10-23
+- ADDED **[studio]** The person's Konto behind the avatar: profile, organizations and connected apps (#201)
+- ADDED **[studio]** The organization's sector is one of the catalogs', and the new-wizard page shows the templates that fit it first (#197)
+- ADDED **[studio]** The organization's credits, usage and invoices in Settings (#200)
+- ADDED **[studio]** The organization's address, own domains and API keys in Settings (#199)
+- ADDED **[studio]** The first visit asks for the name first, then the organization's addresses, found and its own (#194)
+- ADDED **[studio]** The organization's name and members in Settings, behind organizationSettings (#195)
+- ADDED **[studio]** The first visit asks the organization once and the person once, and greets everyone else (#192)
+- ADDED **[studio]** Info and Brand are two parts of Sources (#198)
+- ADDED **[studio]** The space's page is called Sources (#196)
+- ADDED **[studio]** App bar names its places on a wide window (#193)
+- ADDED **[studio]** The studio follows its organization's new address (#191)
+- ADDED **[studio]** The cloud studio's address names its organization (#190)
+- ADDED **[studio]** A plan with one space names the organization only (#189)
+- ADDED **[studio]** Switch the organization from the studio, shown only to who can switch (#188)
+- ADDED **[studio]** Setup sets local models apart and asks about the account (#186)
+- ADDED **[studio]** The studio names the organization it is in (#185)
+- DOCS Documentation updates (#181, #182, #183)
+- FIXED **[runtime]** The link and sign-in pages speak the browser's language (#187)
+- FIXED **[studio]** A sign-in returns into the studio (#184)
+
 ## [0.11.2] - 2026-10-23
 - ADDED **[runtime]** Report wizards and runs to Manage, honour holds and levels, and ask for feedback and bug reports on the run page (#172)
 - CHANGED **[format]** The film step and capability are called motion-graphics (#179) **[breaking]**
