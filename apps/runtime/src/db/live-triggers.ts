@@ -1,9 +1,10 @@
 /**
  * The triggers that fill `live_change` (docs/plans/live-changes.md, 1). One entry per table
  * names the item a write changes; `pnpm --filter @engenty/wizards-runtime exec tsx
- * scripts/live-triggers.ts` prints the SQL that migration 0023 carries. Unlike the two-way sync's
- * triggers (0022) they have no guard, since a pulled write is a change on this side's screen too,
- * and they count wizard-owned pages and tables, which the studio shows as shared lists.
+ * scripts/live-triggers.ts` prints the SQL that migration 0023 carries, or with a table's name
+ * that table's alone (0026). Unlike the two-way sync's triggers (0022) they have no guard, since
+ * a pulled write is a change on this side's screen too, and they count wizard-owned pages and
+ * tables, which the studio shows as shared lists.
  */
 
 export interface LiveTable {
@@ -117,6 +118,15 @@ export const LIVE_TABLES: LiveTable[] = [
     project: "$.project_id",
     kind: "'connector'",
     item: "$.project_id || ':' || $.id",
+    parent: "NULL",
+    owns: true,
+  },
+  // Migration 0026.
+  {
+    table: "space_skill",
+    project: "$.project_id",
+    kind: "'skill'",
+    item: "$.id",
     parent: "NULL",
     owns: true,
   },

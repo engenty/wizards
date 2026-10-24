@@ -49,6 +49,7 @@ const EN = {
   doingSetFacts: "Entering facts…",
   doingSetColors: "Entering the colours…",
   doingLookAtFile: "Looking at a file…",
+  doingReadSkill: "Reading the skill {name}…",
   doingDescribeFile: "Describing a file…",
   doingWebSearch: "Searching the web…",
   doingReadSite: "Reading {host}…",
@@ -196,6 +197,29 @@ const EN = {
   fontRoleAll: "Headings and body text",
   fontRoleHeadings: "Headings",
   fontRoleText: "Body text",
+  // Skills of a space (services/skills.ts).
+  skillName: "A skill’s name has lower-case letters, digits and hyphens, at most 64.",
+  skillNameTaken: "The space has a skill named “{name}” already.",
+  skillDescription: "A skill needs a description of at most 1024 characters.",
+  skillTooLarge:
+    "The skill is too large. Its SKILL.md may have 100 KB, each file 256 KB, all of it 1 MB and 100 files.",
+  skillFilePath: "“{path}” is not a path a skill can hold.",
+  skillFileText: "“{path}” is not a text file. A skill holds text files only.",
+  skillsTooMany: "A space holds at most 100 skills.",
+  skillsAlwaysCount: "At most 5 skills can be always on. Switch one to on demand first.",
+  skillsAlwaysChars:
+    "Skills that are always on may have 20,000 characters together. With this one it would be {n}. Switch one to on demand or shorten it.",
+  skillMdFrontmatter:
+    "The SKILL.md has no front matter. It starts with a line ---, then name and description, then --- again.",
+  skillMdName: "The SKILL.md names no skill: its front matter has no name.",
+  skillMdDescription: "The SKILL.md has no description in its front matter.",
+  skillNoSkillMd: "The upload holds no SKILL.md.",
+  skillUploadKind: "Upload a SKILL.md, a .zip or a .skill file.",
+  skillReadOnly: "A skill from skills.sh stays as it is. Copy it as your own skill to change it.",
+  skillsRegistryDown: "skills.sh did not answer. Try again in a moment.",
+  skillsRegistryMissing: "skills.sh has no skill at {ref}.",
+  skillUpdateChanged:
+    "skills.sh changed the skill again since you looked. Look at the changes once more.",
 } as const satisfies Record<string, Line>;
 export type ServerKey = keyof typeof EN;
 
@@ -243,6 +267,7 @@ const DE: Partial<Record<ServerKey, Line>> = {
   doingSetFacts: "Trägt Fakten ein …",
   doingSetColors: "Trägt die Farben ein …",
   doingLookAtFile: "Sieht sich eine Datei an …",
+  doingReadSkill: "Liest den Skill {name} …",
   doingDescribeFile: "Beschreibt eine Datei …",
   doingWebSearch: "Sucht im Web …",
   doingReadSite: "Liest {host} …",
@@ -392,6 +417,29 @@ const DE: Partial<Record<ServerKey, Line>> = {
   fontRoleAll: "Überschriften und Fließtext",
   fontRoleHeadings: "Überschriften",
   fontRoleText: "Fließtext",
+  skillName: "Der Name eines Skills hat Kleinbuchstaben, Ziffern und Bindestriche, höchstens 64.",
+  skillNameTaken: "Im Space gibt es schon einen Skill „{name}“.",
+  skillDescription: "Ein Skill braucht eine Beschreibung mit höchstens 1024 Zeichen.",
+  skillTooLarge:
+    "Der Skill ist zu groß. SKILL.md darf 100 KB haben, jede Datei 256 KB, alles zusammen 1 MB und 100 Dateien.",
+  skillFilePath: "„{path}“ ist kein Pfad, den ein Skill haben kann.",
+  skillFileText: "„{path}“ ist keine Textdatei. Ein Skill hält nur Textdateien.",
+  skillsTooMany: "Ein Space hält höchstens 100 Skills.",
+  skillsAlwaysCount: "Höchstens 5 Skills können immer an sein. Stell zuerst einen auf Bei Bedarf.",
+  skillsAlwaysChars:
+    "Skills, die immer an sind, dürfen zusammen 20.000 Zeichen haben. Mit diesem wären es {n}. Stell einen auf Bei Bedarf oder kürze ihn.",
+  skillMdFrontmatter:
+    "Der SKILL.md fehlt der Kopf. Sie beginnt mit einer Zeile ---, dann name und description, dann wieder ---.",
+  skillMdName: "Die SKILL.md nennt keinen Namen: In ihrem Kopf fehlt name.",
+  skillMdDescription: "In ihrem Kopf fehlt der SKILL.md die description.",
+  skillNoSkillMd: "Im Upload ist keine SKILL.md.",
+  skillUploadKind: "Lade eine SKILL.md, eine .zip- oder eine .skill-Datei hoch.",
+  skillReadOnly:
+    "Ein Skill von skills.sh bleibt, wie er ist. Kopier ihn als eigenen Skill, um ihn zu ändern.",
+  skillsRegistryDown: "skills.sh antwortet nicht. Versuch es gleich noch einmal.",
+  skillsRegistryMissing: "Auf skills.sh gibt es keinen Skill unter {ref}.",
+  skillUpdateChanged:
+    "skills.sh hat den Skill seitdem wieder geändert. Sieh dir die Änderungen noch einmal an.",
 };
 
 export const SERVER_TEXTS: Texts<ServerKey> = { en: EN, de: DE };

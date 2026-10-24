@@ -66,6 +66,7 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 | how a wizard's pages look: colours, fonts, effects | theme | das Theme, die Themes | Thema, Design, Stil, Look (except the studio's section “Look” / „Aussehen“) |
 | documents the AI looks things up in | knowledge | Wissen | |
 | tables and pages wizards keep | data | Daten | |
+| instructions in the Agent Skills format the wizards follow | skill; always on, on demand, off | der Skill, die Skills; immer an, bei Bedarf, aus | Fähigkeit, Fertigkeit |
 | build chat in the editor | the assistant; the chat | der Assistent; der Chat | conversation, thread |
 | the help assistant | Goose | Goose (der) | |
 | the setting for what answers Goose and the editor's chat (a subscription, a key, the credits) | Agent chat | der Agent-Chat | Chat alone, AI agent, Studio-KI |

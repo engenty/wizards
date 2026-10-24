@@ -11,6 +11,7 @@ import {
   ListChecks,
   type LucideIcon,
   Palette,
+  ScrollText,
   Shapes,
   SwatchBook,
   Type,
@@ -30,8 +31,9 @@ export interface SpaceGroup {
 
 /**
  * The space page's own parts, in the order of the menu; plugins add theirs (`withParts`). Results
- * are a group of the page too, but stand behind their own place in the app bar. The public page
- * is the last of the parts: what the space shows the world (`project/PublicPage.tsx`).
+ * are a group of the page too, but stand behind their own place in the app bar. Skills wait behind
+ * their switch. The public page is the last of the parts: what the space shows the world
+ * (`project/PublicPage.tsx`).
  */
 export function spaceGroups(): SpaceGroup[] {
   return [
@@ -39,6 +41,7 @@ export function spaceGroups(): SpaceGroup[] {
     { id: "brand", label: t("space.brand"), icon: SwatchBook },
     { id: "knowledge", label: t("space.knowledge"), icon: BookOpen },
     { id: "data", label: t("space.data"), icon: Database },
+    { id: "skills", label: t("space.skills"), icon: ScrollText },
     { id: "page", label: t("space.page"), icon: Globe },
   ];
 }
@@ -72,7 +75,8 @@ export function isSpaceGroup(id: string | undefined): id is SpaceGroupId {
     id === "knowledge" ||
     id === "data" ||
     id === "page" ||
-    id === "results"
+    id === "results" ||
+    id === "skills"
   );
 }
 

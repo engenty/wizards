@@ -51,11 +51,13 @@ import {
 } from "../services/project-files.js";
 import { documentText } from "../services/project-index.js";
 import { ownedProject, type ProjectRow, updateProject } from "../services/projects.js";
+import { activeSkills, skillList } from "../services/skills.js";
 import { categoryRows } from "../services/space-categories.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
+import { skillToolsOf } from "../tools/skills.js";
 import { chatTurnWay } from "./subscription.js";
 import { readWebsite } from "./website.js";
 
@@ -821,7 +823,7 @@ function traced(
 
 /** The part of the space page a route stands on. */
 function partOf(route: string): string | null {
-  const m = route.match(/^\/space\/(info|brand|knowledge|data|results)/);
+  const m = route.match(/^\/space\/(info|brand|knowledge|data|results|skills)/);
   return m ? m[1] : route === "/space" ? "info" : null;
 }
 
@@ -917,6 +919,17 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
       }),
     );
   }
+  // The space's skills (docs/plans/skills.md): Goose reads them as a step does.
+  const skills = project && switches.skills === true ? await activeSkills(project.id) : null;
+  const allSkills = project && switches.skills === true ? await skillList(project.id) : [];
+  if (skills) {
+    Object.assign(
+      tools,
+      skillToolsOf(skills, (name) =>
+        input.onActivity?.(serverText(input.lang, "doingReadSkill", { name })),
+      ),
+    );
+  }
   for (const spec of input.browserTools) {
     if (tools[spec.name]) {
       continue;
@@ -986,6 +999,14 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
         ? prompt("goose", "turn.space_read_only", { name: project.name })
         : "No space is open.",
     part === "knowledge" ? prompt("goose", "turn.knowledge") : "",
+    allSkills.length
+      ? [
+          prompt("goose", "turn.skills"),
+          ...allSkills.map((k) => `- ${k.name} (${k.mode}): ${k.description}`),
+        ].join("\n")
+      : part === "skills"
+        ? prompt("goose", "turn.skills_empty")
+        : "",
     space && !(brandOn.brandSections && brandOn.brandRules && brandOn.typography)
       ? prompt("goose", "turn.off", {
           missing: [

@@ -161,10 +161,19 @@ describe("the triggers", () => {
   });
 
   it("are the ones the generator writes", async () => {
-    const { liveTriggerSql, PRESENCE_TABLE } = await import("../src/db/live-triggers");
-    expect(readFileSync(join(migrations, "0023_live_change.sql"), "utf8")).toContain(liveTriggerSql());
+    const { LIVE_TABLES, liveTriggerSql, PRESENCE_TABLE } = await import("../src/db/live-triggers");
+    // Tables that came later carry their triggers in their own migration.
+    const later: Record<string, string> = { space_skill: "0026_space_skill.sql" };
+    expect(readFileSync(join(migrations, "0023_live_change.sql"), "utf8")).toContain(
+      liveTriggerSql(LIVE_TABLES.filter((t) => !later[t.table])),
+    );
     expect(readFileSync(join(migrations, "0024_live_presence.sql"), "utf8")).toContain(
       liveTriggerSql([PRESENCE_TABLE]),
     );
+    for (const [table, file] of Object.entries(later)) {
+      expect(readFileSync(join(migrations, file), "utf8")).toContain(
+        liveTriggerSql(LIVE_TABLES.filter((t) => t.table === table)),
+      );
+    }
   });
 });

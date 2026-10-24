@@ -16,6 +16,7 @@ import type {
 import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
+import { SKILL_MODES, SKILL_SOURCES, type SkillFile } from "@engenty/wizards-shared/skills";
 import type { Theme } from "@engenty/wizards-shared/theme";
 import type { TranslationMemory } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
@@ -682,6 +683,38 @@ export const spaceItemCategory = sqliteTable(
     index("space_item_category_table").on(t.tableId),
     index("space_item_category_file").on(t.fileId),
   ],
+);
+
+// --- Skills -------------------------------------------------------------------------
+// Instructions in the Agent Skills format the space's wizards follow (docs/plans/skills.md):
+// always, or when a step reads one. Text only, the folder's files kept beside the instructions.
+
+export const spaceSkill = sqliteTable(
+  "space_skill",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    /** Its name in the format: lower case and hyphens, unique in the space. */
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    /** The Markdown after the front matter of its `SKILL.md`. */
+    body: text("body").notNull().default(""),
+    /** The rest of the front matter, kept as it came (`license`, `metadata` …). */
+    meta: text("meta", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
+    /** The other files of its folder, by their path in it. */
+    files: text("files", { mode: "json" }).$type<SkillFile[]>().notNull().default([]),
+    mode: text("mode", { enum: SKILL_MODES }).notNull().default("demand"),
+    source: text("source", { enum: SKILL_SOURCES }).notNull().default("own"),
+    /** skills.sh: `owner/repo/skill`, and the hash of what it had when added. */
+    origin: text("origin"),
+    originHash: text("origin_hash"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("space_skill_name").on(t.projectId, t.name)],
 );
 
 // --- The studio's assistant ---------------------------------------------------
