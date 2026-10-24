@@ -4,6 +4,10 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.8] - 2026-10-24
+- FIXED **[studio]** The sign-in page names the data folder of a runtime that isn't the install (#217)
+- FIXED **[runner]** A run link from someone else opens the wizard's start (#215)
+
 ## [0.11.7] - 2026-10-23
 - ADDED **[prompts]** Prompts folder, content safety check, architect hello nudge (#171)
 - ADDED **[runtime,web]** Switch the organization on a computer (#212)
