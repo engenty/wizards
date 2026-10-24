@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.11.12",
+    "timestamp": 1792836341,
+    "commits": [
+      {
+        "id": "bb003ae",
+        "message": "an admin signed in as someone keeps the admin on the session, until the sign-in ends, with a banner and the person's account unchanged (#229)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.11",
-    "timestamp": 1792832922,
+    "timestamp": 1792833102,
     "commits": [
       {
         "id": "305120f",
