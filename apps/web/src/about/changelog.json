@@ -1,13 +1,47 @@
 [
   {
+    "version": "v0.11.9",
+    "timestamp": 1792826771,
+    "commits": [
+      {
+        "id": "880e553",
+        "message": "watchdog ends a process that hangs; healthchecks for every cloud container (#221)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "3350a5d",
+        "message": "health checks, status page and alerts for the cloud (#220)",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      },
+      {
+        "id": "5598c8e",
+        "message": "readiness checks that never hang (#219)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.8",
-    "timestamp": 1792823268,
+    "timestamp": 1792823418,
     "commits": [
       {
         "id": "9c4826f",
         "message": "the sign-in page names the data folder of a runtime that isn't the install (#217)",
         "group": "Fixed",
         "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "d975c93",
+        "message": "a run link from someone else opens the wizard's start (#216)",
+        "group": "Fixed",
+        "scope": "runner",
         "breaking": false
       },
       {
