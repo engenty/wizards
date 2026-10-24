@@ -3,6 +3,33 @@
 Concept, 2026-10-24. The runtime's checks, the watchdog and the compose healthchecks are built
 (#219 and the PR after it); the rest follows the order of work below.
 
+## As built (2026-10-24)
+
+- **The cause of the hangs.** `compose.cloud.yaml` labelled `runtime` and `doors` with
+  `traefik.docker.network=${PROXY_NETWORK:-coolify}`. Coolify escapes `$` in labels, so Traefik
+  got that text as the network's name, knew no such network, and took one of the container's
+  three addresses per route. A route that drew the `browser` network's address hung. Every
+  Traefik reload (a deploy of any app on the server) drew again: on 2026-10-24 first
+  `/api/runs`, later `/w/`, `/embed.js`, `/studio/`. Fixed in v0.11.10 (#223): the label says
+  `coolify`. The health checks in the containers could not see it: the hang was in front of them.
+- **Runtime:** #219 (checks, `/api/health/ready`, `/api/public/health`, `line_at`), #221
+  (watchdog, healthchecks of all four containers), #224 (the browser's check in HTTP/1.1),
+  released as v0.11.9 and v0.11.10. Coolify shows the app `running:healthy`.
+- **Gateway:** `/health/ready` per provider, engenty-wizards-manage#94.
+- **Monitor and status page:** not a hosted service yet. Matthias decided to run it on the same
+  server for now and move it later, so it can't tell when the whole server is down. It is
+  [Gatus](https://github.com/TwiN/gatus) (no account to create, config in git):
+  `monitoring/gatus/` in engenty-wizards-manage (#96), Coolify app `status`, at
+  https://status.147.93.120.81.sslip.io until `status.engenty.ai` has a DNS record (the domain is
+  at Namecheap). 13 endpoints every minute (the providers every 2), grouped as on the mockup:
+  Using wizards, Building wizards, AI providers.
+- **Alerts:** after two failures in a row and on recovery, a push through ntfy.sh (topic in the
+  app's `NTFY_TOPIC`) and a mail to matthias@engrd.at through the Manage-App's new
+  `POST /api/alerts` (`ALERT_TOKEN`, `ALERT_EMAIL`, `STATUS_URL`). ntfy.sh sends no mail without an
+  account, hence the Manage-App.
+- **Runner heartbeat:** `HEARTBEAT_URL` stays empty. Gatus takes pushes only as authenticated
+  POSTs; the monitor's "Runs" endpoint reads the runners from the studio's `checks.line` instead.
+
 ## The occasion
 
 On 2026-10-24 every `/api/runs/*` request on engenty.ai hung without an answer, even for a run id
