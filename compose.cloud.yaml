@@ -148,9 +148,9 @@ services:
     networks:
       browser:
         ipv4_address: 172.30.5.10
-    # No curl in the image: bash asks Chromium's DevTools port itself.
+    # No curl in the image: bash asks Chromium's DevTools port itself (HTTP/1.1: it answers no 1.0).
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9222 && printf 'GET /json/version HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\n\\r\\n' >&3 && grep -q Browser <&3"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9222 && printf 'GET /json/version HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q Browser <&3"]
       interval: 30s
       timeout: 5s
       retries: 3
