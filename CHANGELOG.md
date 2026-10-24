@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.13] - 2026-10-24
+- FIXED **[runtime]** An admin's sign-in as someone ends in the studio within a minute of ending elsewhere (#231)
+
 ## [0.11.12] - 2026-10-24
 - ADDED **[runtime]** An admin signed in as someone keeps the admin on the session, until the sign-in ends, with a banner and the person's account unchanged (#229)
 

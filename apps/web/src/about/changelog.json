@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.11.13",
+    "timestamp": 1792838731,
+    "commits": [
+      {
+        "id": "4febc93",
+        "message": "an admin's sign-in as someone ends in the studio within a minute of ending elsewhere (#231)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.12",
-    "timestamp": 1792836341,
+    "timestamp": 1792836518,
     "commits": [
       {
         "id": "bb003ae",
