@@ -1,8 +1,8 @@
 import type { BrandView, PublicWizard } from "@engenty/wizards-shared/run";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Bookmark, Smartphone, SquarePlus, X } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { BASE, withBase } from "@/lib/base";
 import { BRAND, Mascot, ThemeToggle } from "../brand";
 import { api, isOffline } from "../lib/api";
@@ -245,6 +245,13 @@ function OpenInApp({ token }: { token: string }) {
 
 const lastRunKey = (token: string) => `wz.run.${token}`;
 
+/**
+ * A run link from someone else (or one deleted since) opens the wizard's start instead, with a
+ * line saying so. The server answers both the same way, so the line fits both.
+ */
+type StartState = { elsewhere?: boolean } | null;
+const useElsewhere = () => (useLocation().state as StartState)?.elsewhere === true;
+
 /** The app opens `/w/<token>?app=1&start=1` from its own start button: the run starts at once. */
 const AUTOSTART = IN_APP && new URLSearchParams(window.location.search).get("start") === "1";
 
@@ -301,6 +308,7 @@ function StartScreen({ wizard, page }: { wizard: PublicWizard; page: PageLanguag
     `/w/${wizard.token}`,
     page?.translated ? page.shown : null,
   );
+  const elsewhere = useElsewhere();
   const auto = AUTOSTART && wizard.available && !wizard.turnstileSiteKey;
   const started = useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: once, on the app's start button
@@ -319,6 +327,11 @@ function StartScreen({ wizard, page }: { wizard: PublicWizard; page: PageLanguag
   }
   return (
     <div className="mx-auto flex max-w-lg animate-rise flex-col items-center px-6 pt-6 pb-12 text-center sm:pt-16 sm:pb-16">
+      {elsewhere ? (
+        <p className="mb-6 rounded-xl bg-paper-2 px-5 py-3 text-[0.875rem] text-ink-2">
+          {t("run.elsewhere")}
+        </p>
+      ) : null}
       <Mascot kind={wizard.avatar} costume={wizard.costume} size={190} fluffy />
       <h1 className="wizard-title mt-2 text-balance font-display font-semibold text-[1.875rem] leading-[1.1] tracking-tight sm:text-[2.125rem]">
         {wizard.title}
@@ -444,7 +457,12 @@ function ChatStart({
     `/w/${wizard.token}/${door}`,
     page?.translated ? page.shown : null,
   );
-  const lines: Line[] = [{ key: "hello", who: "bot", node: wizard.description || wizard.title }];
+  const elsewhere = useElsewhere();
+  const lines: Line[] = [];
+  if (elsewhere) {
+    lines.push({ key: "elsewhere", who: "bot", node: t("run.elsewhere") });
+  }
+  lines.push({ key: "hello", who: "bot", node: wizard.description || wizard.title });
   if (door !== "chat") {
     lines.push({
       key: door,
@@ -560,6 +578,20 @@ export function PublicRunner({
       document.title = title;
     }
   }, [title]);
+  // A run this browser may not see: the wizard starts afresh at the same door.
+  const elsewhere = useCallback(
+    (home: string) => {
+      try {
+        if (token && localStorage.getItem(lastRunKey(token)) === runId) {
+          localStorage.removeItem(lastRunKey(token));
+        }
+      } catch {
+        // resuming is a convenience
+      }
+      navigate(home, { replace: true, state: { elsewhere: true } satisfies StartState });
+    },
+    [navigate, token, runId],
+  );
   // The app keeps every run it saw in its results, also one started or resumed in here.
   useEffect(() => {
     if (token && runId) {
@@ -623,6 +655,7 @@ export function PublicRunner({
               talk={talking}
               call={calling ? "video" : talking ? "audio" : false}
               onRestart={() => navigate(`/w/${token}/${door}`)}
+              onNotFound={() => elsewhere(`/w/${token}/${door}`)}
               // A call's stage names the wizard itself.
               header={calling || talking ? undefined : header}
               footer={footer}
@@ -658,7 +691,11 @@ export function PublicRunner({
       <div className="flex-1">
         {translating ??
           (runId ? (
-            <RunnerBody runId={runId} onRestart={() => navigate(`/w/${token}`)} />
+            <RunnerBody
+              runId={runId}
+              onRestart={() => navigate(`/w/${token}`)}
+              onNotFound={() => elsewhere(`/w/${token}`)}
+            />
           ) : (
             <StartScreen wizard={shown} page={page} />
           ))}
