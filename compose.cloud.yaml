@@ -5,7 +5,7 @@
 # databases are files under /data while the Manage-App's TENANT_DB_PROVISIONER is `none`: the
 # three roles share that one volume, or each would see a tenant of its own.
 # Put a TLS proxy (Coolify/Traefik) in front of port 8891 of `runtime` and `doors` (their label
-# names the proxy's network, PROXY_NETWORK, `coolify` by default); on one host
+# names the proxy's network, `coolify`, Coolify's); on one host
 # the doors take `/w`, `/s`, `/api/public`, `/api/runs`, `/api/shares`, `/embed.js`, `/sw.js` and
 # the app links under `/.well-known`, the studio the rest (`/studio`, `/api`, `/install.sh`,
 # `/.well-known/oauth-protected-resource`). Both answer under APP_URL; PUBLIC_URL is for doors on
@@ -46,9 +46,10 @@ services:
       - browser
     labels:
       # The proxy reaches the container on its own network, never on `browser`: with several
-      # networks Traefik takes any of them, and an address on `browser` it cannot reach answers
-      # nothing (a gateway timeout until the next restart). PROXY_NETWORK: the proxy's network.
-      - traefik.docker.network=${PROXY_NETWORK:-coolify}
+      # networks Traefik takes any of them, per route, and an address on `browser` it cannot
+      # reach answers nothing. Written out: Coolify escapes `$` in labels, so a variable here
+      # reaches Traefik as its own name, a network that doesn't exist.
+      - traefik.docker.network=coolify
     # Coolify and Traefik see a process that stopped answering, instead of "running".
     healthcheck:
       # Unhealthy only when this process hangs (its `process` check, apps/runtime/src/health.ts):
@@ -86,9 +87,10 @@ services:
       - browser
     labels:
       # The proxy reaches the container on its own network, never on `browser`: with several
-      # networks Traefik takes any of them, and an address on `browser` it cannot reach answers
-      # nothing (a gateway timeout until the next restart). PROXY_NETWORK: the proxy's network.
-      - traefik.docker.network=${PROXY_NETWORK:-coolify}
+      # networks Traefik takes any of them, per route, and an address on `browser` it cannot
+      # reach answers nothing. Written out: Coolify escapes `$` in labels, so a variable here
+      # reaches Traefik as its own name, a network that doesn't exist.
+      - traefik.docker.network=coolify
     # Coolify and Traefik see a process that stopped answering, instead of "running".
     healthcheck:
       # Unhealthy only when this process hangs (its `process` check, apps/runtime/src/health.ts):
