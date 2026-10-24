@@ -63,7 +63,7 @@ One module, `apps/runtime/src/health.ts`, holds the checks. Each role runs the o
 | `control` | `SELECT 1` through `controlDb`, the client every request uses. When it fails, the same through a new client opened for the check and closed afterwards | 2 s each | all | shared client fails, new one works: the process's client is stuck → `process` turns `down` too. Both fail: Turso is unreachable → `control` is `down`, `process` stays `ok` |
 | `tenants` | writes and removes a small file in `/data/tenants`; `BEGIN IMMEDIATE` and `ROLLBACK` on `/data/health.db` (WAL, `busy_timeout` 1000) | 2 s | all | volume full or read-only, or another process holds the write lock of the shared volume |
 | `objects` | `HEAD` of `health/probe` in the bucket; any answer below 500 counts (a 404 is fine) | 2 s | all, when `S3_BUCKET` is set | `down` |
-| `gateway` | `GET <GATEWAY_URL>/health` | 2 s | runtime, runner | `degraded`: pages and the studio still work, AI steps don't |
+| `gateway` | `GET <GATEWAY_URL>/health/ready` (see *The gateway's providers*) | 2 s | runtime, runner | `degraded`: pages and the studio still work, AI steps don't |
 | `manage` | `GET <MANAGE_URL>/api/health` | 2 s | runtime | `degraded`: open studios keep working, nobody new can sign in |
 | `browser` | `GET <BROWSER_CDP_URL>/json/version` | 2 s | runner | `degraded`: only steps that use the browser fail |
 | `line` | from the control database: runners whose `seen` is under 30 s old (`RUNNER_STALE_MS`) and whose `line_at` (new, below) is too; the oldest run that is `active` and unowned | 2 s | all | no live runner, or a run has waited more than 2 min → `down` |
@@ -155,6 +155,7 @@ Components, each fed by the probes in section 3:
 | Wizard pages | Wizard-Seiten | the doors' probes (2–5) | `doors` |
 | Runs | Läufe | the runner's heartbeat, `line` in the doors' answer | `runner`, `browser` |
 | AI steps | KI-Schritte | the gateway | `manage` (gateway) |
+| AI providers, one row each | KI-Anbieter, je eine Zeile | the gateway's check per provider | the services the gateway calls |
 | Studio | Studio | the studio's probes | `runtime` |
 | Sign-in | Anmeldung | the Manage-App | `manage` |
 | Docs | Doku | `https://engenty.ai/docs` | `docs` |
@@ -194,6 +195,7 @@ answer fails, which is what a hang looks like.
 | 8 | `GET https://account.engenty.ai/api/health` | 200 | Sign-in |
 | 9 | `GET https://gateway.engenty.ai/health` | 200 | AI steps |
 | 10 | `GET https://engenty.ai/docs` | 200 | Docs |
+| 11–19 | `GET https://gateway.engenty.ai/health/ready?provider=<id>`, one per provider | 200 | AI providers |
 
 Heartbeat (the service waits for a ping and alerts when none comes):
 
@@ -209,6 +211,36 @@ and every probe asks the control database.
 A probe that starts a real run (a page answered, the run moves to its end) would also test the
 runner. It is left for later: a visitor may start 6 runs an hour (`LIMIT_VISITOR_RUNS_PER_HOUR`),
 so it needs an API client of its own.
+
+### The gateway's providers
+
+AI steps reach their models through the gateway of engenty-wizards-manage
+(`apps/server/src/gateway/`), and the gateway calls services of other companies (`upstream` in
+`apps/server/src/env.ts`):
+
+| Provider | For |
+|---|---|
+| Vercel AI Gateway, OpenRouter, Opper, OpenAI, Anthropic, Mistral, xAI | language models |
+| fal | pictures and videos |
+| ElevenLabs | voice |
+| TypeSafe | the classifier that checks what a search found (not on the status page) |
+
+When one of them fails, the runtime sees only failed AI steps. The gateway gets a readiness
+check of its own, `GET /health/ready`:
+
+- One check per provider whose key is set: a call that costs nothing (the model list, or the
+  account endpoint where there is no list), 3 s timeout, kept for 60 s.
+- The gateway also counts, per provider, the calls it forwarded in the last 5 minutes and how
+  many failed (`ProviderError` in `gateway/provider.ts`). More than half failed, with at least
+  5 calls: `down`; answers slower than usual: `slow`. A model list that answers says little about
+  whether the models do.
+- The answer names each provider and its status, nothing else. `?provider=<id>` answers 503 when
+  that one is down, so one monitor watches one provider.
+- A provider without a key is left out. Which ones the cloud uses is decided by the keys in the
+  manage app's env on Coolify, not here.
+
+Alerts for providers go out like the others, but a provider that is down is not ours to fix:
+the incident text says which provider and that AI steps using it fail until it is back.
 
 TLS: the service warns 14 days before a certificate of engenty.ai, account.engenty.ai or
 gateway.engenty.ai expires.
@@ -301,7 +333,9 @@ The free plan's limits are from third-party comparisons; check them on Better St
 page before signing up.
 
 **Recommendation: C.** It is the only option that is outside the server from day one, with no
-second server to keep alive. The 10 probes and the runner's heartbeat above fit the free plan.
+second server to keep alive. The 10 probes and the runner's heartbeat above fit the free plan;
+the 9 provider monitors (11–19) don't, so they need the paid plan, or the free plan watches
+only `/health/ready` without `?provider` and the page shows one row for all providers.
 3 minutes and two failures make about 6 minutes to an alert, against "a colleague noticed" on
 2026-10-24. If 6 minutes turns out to be too slow, the paid plan's 30 s checks are the next step;
 B is the fallback if a vendor is not wanted.
@@ -329,14 +363,16 @@ Each line is one pull request, small enough to review in one go.
    alerts to matthias@engrd.at and push; the 10 probes and the heartbeat, `HEARTBEAT_URL` in the
    runtime app's env on Coolify; the status page with the components above; the DNS record
    `status.engenty.ai` → the status page; Coolify's email notifications.
-7. **engenty-wizards-manage** `feat(admin): runtime health on the System page` — the admin app
+7. **engenty-wizards-manage** `feat(gateway): readiness per provider` — `/health/ready` with
+   the free check and the failure count per provider, `?provider=<id>`.
+8. **engenty-wizards-manage** `feat(admin): runtime health on the System page` — the admin app
    shows `/api/internal/debug/health` instead of the plain `/api/health` reachability of
    `routes/admin/system.ts`; `feat(www): link the status page in the footer`.
-8. **engenty-wizards** `feat(web): the run page points to the status page when the API fails`
+9. **engenty-wizards** `feat(web): the run page points to the status page when the API fails`
    — the words above, English and German.
 
 1–4 can land in any order behind `HEALTH_WATCHDOG` staying off; 5 needs 1–4. 6 can start right
-after 1 is deployed: probes 1, 3–5 and 7–10 work today, without any of the code.
+after 1 is deployed: probes 1, 3–5 and 7–10 work today, without any of the code. 11–19 need 7.
 
 ## Open
 
