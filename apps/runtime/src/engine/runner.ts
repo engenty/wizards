@@ -318,14 +318,15 @@ export async function createRun(input: {
 }
 
 /**
- * Puts the run to work: in line in the control database, and — when this process is a runner —
- * taken at once if the tenant has a slot. The web alone leaves it for a runner's next look.
+ * Puts the run to work: in line in the control database, and — when this process is a runner
+ * (`runner`, `all`) — taken at once if the tenant has a slot. The studio and the doors leave it
+ * for a runner's next look.
  */
 export function kick(runId: string) {
   const tenant = currentTenant();
   void wakeRun(runId)
     .then(() => {
-      if (env.role !== "web") {
+      if (env.serves.runner) {
         return take(runId, tenant);
       }
     })
