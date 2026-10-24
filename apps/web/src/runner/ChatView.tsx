@@ -1575,6 +1575,7 @@ function ResultTurn({
 export function ChatBody({
   runId,
   onRestart,
+  onNotFound,
   onView,
   header,
   footer,
@@ -1583,6 +1584,8 @@ export function ChatBody({
 }: {
   runId: string;
   onRestart?: () => void;
+  /** The run isn't there for this browser: the page takes over instead of saying so. */
+  onNotFound?: () => void;
   onView?: (view: RunView | null) => void;
   header?: ReactNode;
   footer?: ReactNode;
@@ -1598,6 +1601,11 @@ export function ChatBody({
   useEffect(() => {
     onView?.(view);
   }, [view, onView]);
+  useEffect(() => {
+    if (run.notFound) {
+      onNotFound?.();
+    }
+  }, [run.notFound, onNotFound]);
   const [readAloud, setReadAloud] = useReadAloud();
   const speech = useMemo(
     () => ({
@@ -1626,7 +1634,9 @@ export function ChatBody({
 
   let body: ReactNode;
   if (run.notFound) {
-    body = <div className="py-24 text-center text-ink-3">{t("run.notFound")}</div>;
+    body = onNotFound ? null : (
+      <div className="py-24 text-center text-ink-3">{t("run.notFound")}</div>
+    );
   } else if (!view) {
     body = (
       <div className="flex justify-center py-24 text-ink-4">

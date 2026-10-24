@@ -213,6 +213,7 @@ const de: Record<RunnerKey, Line> = {
   "run.start": "Los geht’s",
   "run.unavailable": "Dieser Wizard ist gerade nicht verfügbar.",
   "run.resume": "Letzten Lauf fortsetzen",
+  "run.elsewhere": "Dieser Lauf ist hier nicht verfügbar. Du fängst neu an.",
   "output.preview": "Vorschau",
   "package.newer":
     "Diese Wizard-Datei stammt aus einer neueren Version oder ist beschädigt. Aktualisiere engenty wizards oder exportiere den Wizard neu.",
@@ -489,6 +490,7 @@ const en = {
   "run.start": "Let’s go",
   "run.unavailable": "This wizard isn’t available right now.",
   "run.resume": "Continue your last run",
+  "run.elsewhere": "That run isn’t available here. You’re starting fresh.",
   "output.preview": "Preview",
   "package.newer":
     "This wizard file comes from a newer version, or it’s damaged. Update engenty wizards or export the wizard again.",
