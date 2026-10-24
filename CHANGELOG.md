@@ -4,6 +4,11 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.9] - 2026-10-24
+- ADDED **[runtime]** Watchdog ends a process that hangs; healthchecks for every cloud container (#221)
+- ADDED **[runtime]** Readiness checks that never hang (#219)
+- DOCS **[plans]** Health checks, status page and alerts for the cloud (#220)
+
 ## [0.11.8] - 2026-10-24
 - FIXED **[studio]** The sign-in page names the data folder of a runtime that isn't the install (#217)
 - FIXED **[runner]** A run link from someone else opens the wizard's start (#215)
