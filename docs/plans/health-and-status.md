@@ -15,20 +15,47 @@ Concept, 2026-10-24. The runtime's checks, the watchdog and the compose healthch
 - **Runtime:** #219 (checks, `/api/health/ready`, `/api/public/health`, `line_at`), #221
   (watchdog, healthchecks of all four containers), #224 (the browser's check in HTTP/1.1),
   released as v0.11.9 and v0.11.10. Coolify shows the app `running:healthy`.
-- **Gateway:** `/health/ready` per provider, engenty-wizards-manage#94.
+- **Gateway:** `/health/ready` per provider, engenty-wizards-manage#94. A provider is `low` while
+  its prepaid credit is below `GATEWAY_LOW_BALANCE_USD` (10 $) and `down` at nothing (#98): the
+  Vercel AI Gateway's and OpenRouter's balance, ElevenLabs' characters, fal's only with an admin
+  key in `FAL_ADMIN_KEY` (#101; fal's model key may not read it). Refusals that are ours
+  (401, 402, 403, 429) count as the provider's failures.
 - **Monitor and status page:** not a hosted service yet. Matthias decided to run it on the same
   server for now and move it later, so it can't tell when the whole server is down. It is
   [Gatus](https://github.com/TwiN/gatus) (no account to create, config in git):
   `monitoring/gatus/` in engenty-wizards-manage (#96), Coolify app `status`, at
-  https://status.147.93.120.81.sslip.io until `status.engenty.ai` has a DNS record (the domain is
-  at Namecheap). 13 endpoints every minute (the providers every 2), grouped as on the mockup:
-  Using wizards, Building wizards, AI providers.
+  https://status.engenty.ai (an A record at Namecheap). 13 endpoints every minute (the providers
+  every 2, failing on `low` too), in one list with failures first, each row named by its group:
+  Gatus starts its groups collapsed and has no setting for that. It looks like engenty.ai
+  through `ui.custom-css` only (#97, #103: Gatus's `:root.dark` needs `html:root.dark` to lose).
 - **Alerts:** after two failures in a row and on recovery, a push through ntfy.sh (topic in the
   app's `NTFY_TOPIC`) and a mail to matthias@engrd.at through the Manage-App's new
   `POST /api/alerts` (`ALERT_TOKEN`, `ALERT_EMAIL`, `STATUS_URL`). ntfy.sh sends no mail without an
   account, hence the Manage-App.
 - **Runner heartbeat:** `HEARTBEAT_URL` stays empty. Gatus takes pushes only as authenticated
   POSTs; the monitor's "Runs" endpoint reads the runners from the studio's `checks.line` instead.
+- **Deploys without a gap.** Coolify recreates the services of a Docker Compose app, so every
+  deploy answered 503 or 404 for 15 to 20 s. It replaces a single-container app with a rolling
+  update instead: the new container starts, Coolify waits until it is healthy, then stops the
+  old one. Both apps are single-container apps now, built from a Dockerfile:
+  - The Manage-App: manage and the gateway as two processes of one container (`both.ts`,
+    engenty-wizards-manage#104); a stopping process lets running requests finish for `DRAIN_MS`.
+  - The runtime: studio (:8891), doors (:8892) and runner (:8893) as three processes of one
+    container (`runtime/roles.mjs` with `RUNTIME_ROLE=cloud`, #107); a role that ends is started
+    again on its own, so the watchdog still restarts only what hangs. `deploy/runtime` holds a
+    Dockerfile of a few lines on the release's cloud image, written by `cloud-runtime.yml`.
+    `compose.cloud.yaml` stays for installs of their own.
+  - The browser is its own Coolify service, `runtime-browser`, on a network of its own. Its
+    DevTools port is published on the coolify bridge only (`BROWSER_CDP_URL=http://10.0.1.1:9222`),
+    so a page in the browser reaches no other app.
+  - The Traefik labels are the apps' own (studio paths to :8891, doors paths to :8892 at a higher
+    priority), each route with a retry, so a request that meets the stopping container goes to
+    the new one.
+  - **Gotcha:** Coolify waits for the new container only if the Dockerfile it builds names a
+    `HEALTHCHECK`; one inherited from the base image doesn't count (#109). Without it the old
+    container stops at once.
+  - Measured from the server during a deploy: the Manage-App 0 failures in 1,413 requests, the
+    runtime 2 in 2,622 (single requests at the moment the old container stopped).
 
 ## The occasion
 
