@@ -10,6 +10,7 @@ import {
   discovery,
   managed,
   type Role,
+  type TokenClaims,
   type TokenSet,
   tokenRequest,
   verifyToken,
@@ -176,6 +177,20 @@ async function claimsOf(tokens: TokenSet) {
   return claims;
 }
 
+/**
+ * An admin's sign-in as someone asks the Manage-App again every minute: ended there (on the
+ * account pages, in the admin app, at the hour), it ends here within a minute, not when the
+ * access token runs out.
+ */
+const IMPERSONATION_RECHECK_MS = 60_000;
+
+/** When the session's claims must be renewed: when the token runs out, sooner for an admin's sign-in as someone. */
+function renewBy(claims: TokenClaims): number {
+  return claims.impersonatedBy
+    ? Math.min(claims.expiresAt, Date.now() + IMPERSONATION_RECHECK_MS)
+    : claims.expiresAt;
+}
+
 /** Renews tenant and role from the Manage-App once the access token they came from has run out. */
 async function renew(row: SessionRow): Promise<SessionRow | null> {
   const refresh = row.refreshToken ? unseal<string>(row.refreshToken) : null;
@@ -199,7 +214,7 @@ async function renew(row: SessionRow): Promise<SessionRow | null> {
       name: claims.name || row.name,
       email: claims.email || row.email,
       refreshToken: tokens.refresh_token ? seal(tokens.refresh_token) : row.refreshToken,
-      claimsExpireAt: new Date(claims.expiresAt),
+      claimsExpireAt: new Date(renewBy(claims)),
     };
     await controlDb.update(control.session).set(next).where(eq(control.session.id, row.id));
     return next;
@@ -454,7 +469,7 @@ export const authRoutes = new Hono()
         name: claims.name || claims.email,
         email: claims.email,
         refreshToken: tokens.refresh_token ? seal(tokens.refresh_token) : null,
-        claimsExpireAt: new Date(claims.expiresAt),
+        claimsExpireAt: new Date(renewBy(claims)),
         expiresAt: new Date(expiresAt),
         impersonatedBy: admin?.id ?? null,
         impersonatorEmail: admin?.email ?? null,

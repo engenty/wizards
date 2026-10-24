@@ -233,6 +233,22 @@ describe("an admin signed in as someone", () => {
     expect(((await own.json()) as { account: string }).account).toBe(`${issuer}/api/sign-out`);
   });
 
+  it("asks the Manage-App again within a minute, whatever the token's lifetime", async () => {
+    const { controlDb, control } = await import("../src/db/client");
+    const before = Date.now();
+    await signIn("code-imp");
+    await signIn("code-v");
+    const rows = await controlDb.select().from(control.session);
+    const newest = (userId: string, admin: boolean) =>
+      rows
+        .filter((r) => r.userId === userId && Boolean(r.impersonatedBy) === admin && r.createdAt.getTime() >= before - 1000)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    // The token is good for 10 minutes; the admin's sign-in as Vera renews after one.
+    expect(newest("user-v", true)?.claimsExpireAt.getTime()).toBeLessThanOrEqual(Date.now() + 60_000);
+    // Vera's own session renews when her token runs out.
+    expect(newest("user-v", false)?.claimsExpireAt.getTime()).toBeGreaterThan(Date.now() + 5 * 60_000);
+  });
+
   it("ends when the Manage-App refuses the renewal, or renews without the admin", async () => {
     const ended = await signIn("code-imp-short-ended");
     const plain = await signIn("code-imp-short-plain");
