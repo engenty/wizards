@@ -1,7 +1,27 @@
 [
   {
+    "version": "v0.11.10",
+    "timestamp": 1792828054,
+    "commits": [
+      {
+        "id": "9691f50",
+        "message": "the browser's healthcheck asks in HTTP/1.1 (#224)",
+        "group": "Fixed",
+        "scope": "deploy",
+        "breaking": false
+      },
+      {
+        "id": "fd6d1d6",
+        "message": "the proxy's network is written out in the label (#223)",
+        "group": "Fixed",
+        "scope": "deploy",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.9",
-    "timestamp": 1792826771,
+    "timestamp": 1792826959,
     "commits": [
       {
         "id": "880e553",

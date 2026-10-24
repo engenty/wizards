@@ -4,6 +4,10 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.11.10] - 2026-10-24
+- FIXED **[deploy]** The browser's healthcheck asks in HTTP/1.1 (#224)
+- FIXED **[deploy]** The proxy's network is written out in the label (#223)
+
 ## [0.11.9] - 2026-10-24
 - ADDED **[runtime]** Watchdog ends a process that hangs; healthchecks for every cloud container (#221)
 - ADDED **[runtime]** Readiness checks that never hang (#219)
