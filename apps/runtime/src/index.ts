@@ -153,6 +153,26 @@ async function shutdown(code = 0) {
   await closeBrowser();
   process.exit(code);
 }
+// A process that hangs (docs/plans/health-and-status.md) ends, after saying what hangs; the
+// container's restart policy starts it again. A dependency that is down never ends it.
+if (env.healthWatchdog) {
+  const { health } = await import("./health.js");
+  let downs = 0;
+  setInterval(async () => {
+    const h = await health();
+    const own = h.checks.process;
+    downs = own.status === "down" ? downs + 1 : 0;
+    if (downs < 3) {
+      return;
+    }
+    console.error(`[watchdog] this process hangs, ending it: ${own.error}`);
+    console.error(`[watchdog] ${JSON.stringify(own.detail)}`);
+    // The shutdown waits on the control database, which may be what hangs.
+    setTimeout(() => process.exit(1), 10_000).unref();
+    await shutdown(1);
+  }, 30_000).unref();
+}
+
 process.on("SIGINT", () => shutdown());
 process.on("SIGTERM", () => shutdown());
 onRestart((code) => void shutdown(code));

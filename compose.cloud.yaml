@@ -29,6 +29,7 @@ services:
       GATEWAY_URL: ${GATEWAY_URL:?the model-gateway}
       API_HOST: 0.0.0.0
       RUNTIME_ROLE: studio
+      HEALTH_WATCHDOG: "1"
       # No shell/code tool in the cloud: runs get a browser context, never a sandbox.
       SANDBOX: "off"
       # Chromium answers DevTools requests only under an IP address or localhost.
@@ -50,11 +51,13 @@ services:
       - traefik.docker.network=${PROXY_NETWORK:-coolify}
     # Coolify and Traefik see a process that stopped answering, instead of "running".
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8891/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      # Unhealthy only when this process hangs (its `process` check, apps/runtime/src/health.ts):
+      # a dependency that is down leaves it healthy, a restart wouldn't bring that back.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8891/api/health/ready',{signal:AbortSignal.timeout(4000)}).then((r) => r.json()).then((b) => process.exit(b.checks.process === 'down' ? 1 : 0), () => process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
   # The wizards' pages and their API, for the customers: no authoring, no sign-in, no MCP.
   doors:
@@ -70,6 +73,7 @@ services:
       GATEWAY_URL: ${GATEWAY_URL:?the model-gateway}
       API_HOST: 0.0.0.0
       RUNTIME_ROLE: doors
+      HEALTH_WATCHDOG: "1"
       SANDBOX: "off"
       BROWSER_CDP_URL: http://172.30.5.10:9222
     volumes:
@@ -87,11 +91,13 @@ services:
       - traefik.docker.network=${PROXY_NETWORK:-coolify}
     # Coolify and Traefik see a process that stopped answering, instead of "running".
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8891/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      # Unhealthy only when this process hangs (its `process` check, apps/runtime/src/health.ts):
+      # a dependency that is down leaves it healthy, a restart wouldn't bring that back.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8891/api/health/ready',{signal:AbortSignal.timeout(4000)}).then((r) => r.json()).then((b) => process.exit(b.checks.process === 'down' ? 1 : 0), () => process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
   # Executes the runs the web puts in line (docs/plans/runner-process.md). Not reachable from
   # outside; the web asks it for a run's browser screen under RUNNER_URL.
@@ -109,6 +115,9 @@ services:
       API_HOST: 0.0.0.0
       RUNTIME_ROLE: runner
       RUNNER_URL: http://runner:8891
+      HEALTH_WATCHDOG: "1"
+      # An outside monitor's heartbeat address: it alerts when the runner stops pinging.
+      HEARTBEAT_URL: ${HEARTBEAT_URL:-}
       SANDBOX: "off"
       BROWSER_CDP_URL: http://172.30.5.10:9222
     volumes:
@@ -119,6 +128,12 @@ services:
         ipv4_address: 172.30.5.13
     depends_on:
       - browser
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8891/api/health/ready',{signal:AbortSignal.timeout(4000)}).then((r) => r.json()).then((b) => process.exit(b.checks.process === 'down' ? 1 : 0), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   browser:
     image: ghcr.io/engenty/engenty-wizards-browser:${IMAGE_TAG:-latest}
@@ -131,6 +146,13 @@ services:
     networks:
       browser:
         ipv4_address: 172.30.5.10
+    # No curl in the image: bash asks Chromium's DevTools port itself.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9222 && printf 'GET /json/version HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\n\\r\\n' >&3 && grep -q Browser <&3"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 networks:
   browser:
