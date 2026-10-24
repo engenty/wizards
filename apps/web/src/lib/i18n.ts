@@ -74,6 +74,8 @@ const de: Record<Key, Line> = {
   "auth.localStartLink":
     "Für einen anderen Browser gibt dieser Befehl nur den Link aus. Er gilt einmal, eine Minute lang:",
   "auth.localNoAccount": "Ein engenty-Konto brauchst du dafür nicht.",
+  "auth.localFromStart":
+    "engenty wizards läuft auf deinem Computer. Den Link zum Studio findest du im Terminal, in dem es gestartet wurde.",
   "auth.wrongHost": "Das Studio läuft unter einer anderen Adresse",
   "auth.wrongHostWhy":
     "Die App auf diesem Computer antwortet nur unter ihrer eigenen Adresse – das schützt sie vor fremden Webseiten. Öffne das Studio dort:",
@@ -2741,6 +2743,8 @@ const en = {
   "auth.localStartLink":
     "For another browser, this one only prints the link. It works once, for a minute:",
   "auth.localNoAccount": "You don’t need an engenty account for this.",
+  "auth.localFromStart":
+    "engenty wizards runs on your computer. The link to the studio is in the terminal where it started.",
   "auth.wrongHost": "The studio runs at another address",
   "auth.wrongHostWhy":
     "engenty wizards only answers at its own address on this computer – that keeps other web pages out. Open the studio there:",
