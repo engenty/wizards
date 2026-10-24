@@ -43,6 +43,7 @@ import { machineTranslated, translateDefinition } from "@engenty/wizards-shared/
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { currentImpersonator } from "../auth/impersonation.js";
 import { connectionViews } from "../connectors/index.js";
 import {
   addLocalCost,
@@ -295,6 +296,7 @@ export async function createRun(input: {
     runner: input.runner ?? null,
     visitorId: input.visitorId ?? null,
     userId: input.userId ?? null,
+    impersonatedBy: currentImpersonator()?.adminId ?? null,
     ipHash: input.ipHash ?? null,
     origin: input.origin ?? null,
     lang: input.lang ?? null,

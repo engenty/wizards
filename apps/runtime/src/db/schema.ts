@@ -220,6 +220,8 @@ export const run = sqliteTable(
     lang: text("lang"),
     visitorId: text("visitor_id"),
     userId: text("user_id"),
+    /** The platform admin who started it while signed in as someone; null otherwise. */
+    impersonatedBy: text("impersonated_by"),
     ipHash: text("ip_hash"),
     /**
      * Where a visitor started the run: the address of the website page that embeds the wizard

@@ -9,6 +9,7 @@ import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { ZodError } from "zod";
+import { asImpersonator } from "./auth/impersonation.js";
 import { authRoutes, type Principal, principalOf } from "./auth/index.js";
 import { db, schema, withTenant } from "./db/client.js";
 import { basePath, env } from "./env.js";
@@ -278,7 +279,9 @@ if (serves.studio) {
     // A save: open studios hear of it now, not at the next tick (live/hub.ts).
     const writes = c.req.method !== "GET";
     if (managed) {
-      await withTenant(user.tenantId, () => asRole(user.role, next));
+      await withTenant(user.tenantId, () =>
+        asImpersonator(user.impersonatedBy?.id, requestLang(c), () => asRole(user.role, next)),
+      );
       if (writes) {
         nudge(user.tenantId);
       }

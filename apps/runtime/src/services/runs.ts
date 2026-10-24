@@ -593,6 +593,7 @@ export async function draftStepView(
       runner: null,
       visitorId: null,
       userId,
+      impersonatedBy: null,
       ipHash: null,
       origin: null,
       client: null,

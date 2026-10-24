@@ -524,6 +524,10 @@ export const studio = new Hono<Vars>()
       /** The person may make further organizations (the platform's admins), on the account page. */
       mayCreateOrganization: person?.admin ?? false,
       mode: managed ? "managed" : "local",
+      /** A platform admin is signed in as this person, until when (ms); null for their own sign-in. */
+      impersonation: user.impersonatedBy
+        ? { adminEmail: user.impersonatedBy.email, until: user.impersonatedBy.until }
+        : null,
       /** The tenant's balance; null where the runtime resolves models itself. */
       credits: managed ? await balanceCredits() : null,
       /** Where the account, members, API keys and credits are managed. */

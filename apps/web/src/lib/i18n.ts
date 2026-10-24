@@ -1980,6 +1980,8 @@ const de: Record<Key, Line> = {
     "Dein Gerät konnte den Standort gerade nicht bestimmen. Versuch es im Freien noch einmal oder tipp die Adresse ein.",
   "location.timeout":
     "Das hat zu lange gedauert. Versuch es noch einmal oder tipp die Adresse ein.",
+  "impersonation.banner": "Du bist bis {time} als {name} angemeldet.",
+  "impersonation.back": "Zurück zu meinem Konto",
   "install.app.offer":
     "Installiere das Studio als App: eigenes Fenster, eigenes Symbol im Dock oder in der Taskleiste.",
   "install.app.browser":
@@ -4607,6 +4609,8 @@ const en = {
   "location.unavailable":
     "Your device couldn’t find its location right now. Try again outdoors or type the address.",
   "location.timeout": "That took too long. Try again or type the address.",
+  "impersonation.banner": "You’re signed in as {name} until {time}.",
+  "impersonation.back": "Back to my account",
   "install.app.offer":
     "Install the studio as an app: its own window, its own icon in the Dock or taskbar.",
   "install.app.browser":

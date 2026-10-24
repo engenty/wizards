@@ -28,6 +28,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { asImpersonator } from "../auth/impersonation.js";
 import { principalOf } from "../auth/index.js";
 import { MARK_FOCUSED_PERSONAL } from "../browser/snapshot.js";
 import { clientOf, clientRefused } from "../clients.js";
@@ -384,6 +385,13 @@ async function publicBody(
 }
 
 export const publicRoutes = new Hono()
+  // Whether a platform admin is signed in as someone in this browser: the wizard page's banner.
+  .get("/impersonation", async (c) => {
+    const viewer = await principalOf(c);
+    const admin = viewer?.impersonatedBy;
+    c.header("cache-control", "no-store");
+    return c.json(admin ? { name: viewer.name || viewer.email, until: admin.until } : null);
+  })
   // A wizard's ID, typed into the mobile app: answers its share token.
   .get("/codes/:code", async (c) => {
     const ip = clientIp(c);
@@ -511,24 +519,29 @@ export const publicRoutes = new Hono()
         eq(schema.wizardVersion.version, w.publishedVersion),
       ),
     });
+    // An admin signed in as someone (auth/impersonation.ts): the run names the admin.
+    const viewer = await principalOf(c);
+    const translated =
+      body.lang &&
+      wantsTranslation(w, version!.definition, body.lang) &&
+      (await storedTranslation(w.id, body.lang))
+        ? body.lang
+        : null;
     try {
-      const runId = await createRun({
-        wizardId: w.id,
-        definition: version!.definition,
-        files: version!.files,
-        version: w.publishedVersion,
-        mode: "live",
-        visitorId: vid,
-        ipHash,
-        origin: body.embedded ? webAddress(body.origin) : null,
-        lang:
-          body.lang &&
-          wantsTranslation(w, version!.definition, body.lang) &&
-          (await storedTranslation(w.id, body.lang))
-            ? body.lang
-            : null,
-        client,
-      });
+      const runId = await asImpersonator(viewer?.impersonatedBy?.id, requestLang(c), () =>
+        createRun({
+          wizardId: w.id,
+          definition: version!.definition,
+          files: version!.files,
+          version: w.publishedVersion,
+          mode: "live",
+          visitorId: vid,
+          ipHash,
+          origin: body.embedded ? webAddress(body.origin) : null,
+          lang: translated,
+          client,
+        }),
+      );
       return c.json({ runId });
     } catch (err) {
       if (err instanceof GuestBudgetError) {

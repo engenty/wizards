@@ -153,6 +153,8 @@ export interface Me {
   mayCreateOrganization: boolean;
   /** `managed`: signed in at the Manage-App. `local`: this runtime runs alone (desktop app, own machine). */
   mode: "managed" | "local";
+  /** A platform admin is signed in as this person, until when (ms); null for their own sign-in. */
+  impersonation?: { adminEmail: string; until: number } | null;
   /** The tenant's balance; null where no credits are involved. */
   credits: number | null;
   /** Where account, members, API keys and credits are managed. */

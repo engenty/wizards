@@ -29,6 +29,8 @@ export interface Principal {
   name: string;
   email: string;
   image?: string | null;
+  /** A platform admin signed in as this person, until when; null or absent for their own sign-in. */
+  impersonatedBy?: { id: string; email: string; until: number } | null;
 }
 export type SessionUser = Principal;
 
@@ -155,13 +157,14 @@ function safeReturn(path: string | undefined): string {
   return into ? path : home;
 }
 
-function setSessionCookie(c: Context, id: string) {
+/** The session's cookie; one that ends at `until` (an admin's sign-in as someone) ends then. */
+function setSessionCookie(c: Context, id: string, until?: number) {
   setCookie(c, SESSION_COOKIE, id, {
     httpOnly: true,
     sameSite: "Lax",
     secure,
     path: cookiePath,
-    maxAge: SESSION_DAYS * 24 * 3600,
+    maxAge: until ? Math.max(0, Math.floor((until - Date.now()) / 1000)) : SESSION_DAYS * 24 * 3600,
   });
 }
 
@@ -185,6 +188,10 @@ async function renew(row: SessionRow): Promise<SessionRow | null> {
       client(),
     );
     const claims = await claimsOf(tokens);
+    // An admin's sign-in as this person renews as that or not at all.
+    if ((claims.impersonatedBy?.id ?? null) !== row.impersonatedBy) {
+      return null;
+    }
     const next: SessionRow = {
       ...row,
       tenantId: claims.tenantId,
@@ -228,6 +235,13 @@ async function sessionPrincipal(id: string): Promise<Principal | null> {
     name: row.name,
     email: row.email,
     image: row.image,
+    impersonatedBy: row.impersonatedBy
+      ? {
+          id: row.impersonatedBy,
+          email: row.impersonatorEmail ?? "",
+          until: row.expiresAt.getTime(),
+        }
+      : null,
   };
 }
 
@@ -425,7 +439,13 @@ export const authRoutes = new Hono()
         client(),
       );
       const claims = await claimsOf(tokens);
+      const admin = claims.impersonatedBy;
+      // An admin's sign-in as someone stays in this browser: no desktop window takes it.
+      if (admin && state.desktop) {
+        return c.redirect(`${home}?signin=failed`);
+      }
       const id = randomBytes(32).toString("base64url");
+      const expiresAt = admin ? admin.until : Date.now() + SESSION_DAYS * 24 * 3600_000;
       await controlDb.insert(control.session).values({
         id,
         userId: claims.userId,
@@ -435,7 +455,9 @@ export const authRoutes = new Hono()
         email: claims.email,
         refreshToken: tokens.refresh_token ? seal(tokens.refresh_token) : null,
         claimsExpireAt: new Date(claims.expiresAt),
-        expiresAt: new Date(Date.now() + SESSION_DAYS * 24 * 3600_000),
+        expiresAt: new Date(expiresAt),
+        impersonatedBy: admin?.id ?? null,
+        impersonatorEmail: admin?.email ?? null,
       });
       if (state.desktop) {
         // The session belongs to the app's window, not to this browser.
@@ -450,7 +472,7 @@ export const authRoutes = new Hono()
 <script>location.href = ${JSON.stringify(link)};</script>`,
         );
       }
-      setSessionCookie(c, id);
+      setSessionCookie(c, id, admin ? admin.until : undefined);
       return c.redirect(state.returnTo);
     } catch (err) {
       console.error("[sign-in]", err);
@@ -459,6 +481,9 @@ export const authRoutes = new Hono()
   })
   .post("/auth/sign-out", async (c) => {
     const id = getCookie(c, SESSION_COOKIE);
+    const row = id
+      ? await controlDb.query.session.findFirst({ where: eq(control.session.id, id) })
+      : undefined;
     if (id) {
       await controlDb.delete(control.session).where(eq(control.session.id, id));
       sessions.delete(id);
@@ -470,6 +495,8 @@ export const authRoutes = new Hono()
     }
     // The person signs out of the account too (the Manage-App's `/api/sign-out`, a form the page
     // sends there): still signed in there, the sign-in page would sign them in again at once.
+    // An admin signed in as someone goes back to their own account there instead.
     const d = await discovery().catch(() => null);
-    return c.json({ ok: true, account: d ? new URL("/api/sign-out", d.issuer).toString() : null });
+    const there = row?.impersonatedBy ? "/api/impersonate/stop" : "/api/sign-out";
+    return c.json({ ok: true, account: d ? new URL(there, d.issuer).toString() : null });
   });
