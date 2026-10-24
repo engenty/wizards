@@ -44,6 +44,7 @@ function useRunLang(runId: string | undefined, page: PageLanguage | null) {
   }, [runId, lang]);
 }
 
+import { WizardPageImpersonation } from "../impersonation";
 import { WizardEffects } from "./effects";
 import { useRunTheme } from "./theme";
 
@@ -648,6 +649,7 @@ export function PublicRunner({
     return (
       <div className="wizard-page flex h-dvh flex-col">
         <WizardEffects effects={wizard.data.brand.theme.effects} />
+        {EMBED || IN_APP ? null : <WizardPageImpersonation />}
         {translating ??
           (runId ? (
             <ChatBody
@@ -669,6 +671,7 @@ export function PublicRunner({
   return (
     <div className={cn("wizard-page flex flex-col", PAGE)}>
       <WizardEffects effects={wizard.data.brand.theme.effects} />
+      {EMBED || IN_APP ? null : <WizardPageImpersonation />}
       {/* The website around an inline wizard carries the brand; in the window its close button takes the corner. */}
       {/* In the app its own top bar names the wizard. */}
       {EMBED === "inline" || IN_APP ? null : (

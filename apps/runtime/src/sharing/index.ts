@@ -282,6 +282,7 @@ function standIn(wizard: WizardRow, userId: string): RunRow {
     lang: null,
     visitorId: null,
     userId,
+    impersonatedBy: null,
     ipHash: null,
     origin: null,
     client: null,

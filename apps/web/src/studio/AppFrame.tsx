@@ -29,6 +29,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import { ImpersonationBanner } from "../impersonation";
 import { api } from "../lib/api";
 import { type AppBarPosition, besideBar, useAppBar, useAppBarLabels } from "../lib/appbar";
 import { useFeature } from "../lib/features";
@@ -981,6 +982,12 @@ export function AppFrame({
       {/* The page's card, and beside it Goose's sidebar as a pane of its own. */}
       <div className={cn("flex min-h-0 min-w-0 flex-1 md:gap-2", INSET[position])}>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:shadow-elevated md:dark:ring-1 md:dark:ring-border-soft">
+          {me.impersonation ? (
+            <ImpersonationBanner
+              name={me.user.name || me.user.email}
+              until={me.impersonation.until}
+            />
+          ) : null}
           <UpdateBanner />
           <InstallBanner me={me} />
           <CloudSyncBar me={me} />

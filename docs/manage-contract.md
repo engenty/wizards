@@ -16,7 +16,7 @@ The Manage-App is an OAuth 2.1 / OIDC authorization server.
 | Discovery | `<MANAGE_URL>/.well-known/openid-configuration`, `<MANAGE_URL>/.well-known/oauth-authorization-server` |
 | JWKS | the `jwks_uri` from discovery |
 | Access token | a JWT signed with a key from the JWKS, `iss` = the issuer from discovery — when the request names a `resource`; without one the token is opaque and only the Manage-App itself takes it |
-| Claims | `sub` user id · `tenant` tenant id · `role` `owner` \| `admin` \| `member` · `name` · `email` · `scope` · `azp` client id · `aud` the requested `resource` (a list that also holds the userinfo endpoint when `openid` is in scope) |
+| Claims | `sub` user id · `tenant` tenant id · `role` `owner` \| `admin` \| `member` · `name` · `email` · `scope` · `azp` client id · `aud` the requested `resource` (a list that also holds the userinfo endpoint when `openid` is in scope) · `act` `{ sub, email, until }` when a platform admin signed in as the person: the runtime's session ends at `until`, runs started under it name the admin, and the person's account and organization stay unchanged |
 | Scopes | `openid profile email offline_access wizards:read wizards:write wizards:publish runs:test` (`runs:test` also covers runs of published wizards a client starts: both spend credits) |
 
 - A token names exactly one tenant. A person in several tenants picks one while signing in.

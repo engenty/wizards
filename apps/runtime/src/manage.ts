@@ -1,6 +1,8 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from "jose";
+import { currentImpersonator, refusedWhileImpersonating } from "./auth/impersonation.js";
 import { env } from "./env.js";
+import { serverText } from "./texts.js";
 
 /**
  * The Manage-App as this runtime sees it (docs/manage-contract.md): it issues the tokens,
@@ -19,6 +21,23 @@ export interface TokenClaims {
   clientId: string;
   scopes: string[];
   expiresAt: number;
+  /** A platform admin signed in as this person (`act`), until when (ms); null for their own sign-in. */
+  impersonatedBy: Impersonator | null;
+}
+
+/** The platform admin acting as a person, from the token's `act` claim. */
+export interface Impersonator {
+  id: string;
+  email: string;
+  until: number;
+}
+
+function impersonatorOf(act: unknown): Impersonator | null {
+  const a = act as { sub?: unknown; email?: unknown; until?: unknown } | null | undefined;
+  if (!a || typeof a.sub !== "string" || typeof a.until !== "number") {
+    return null;
+  }
+  return { id: a.sub, email: typeof a.email === "string" ? a.email : "", until: a.until * 1000 };
 }
 
 interface Discovery {
@@ -68,6 +87,7 @@ function toClaims(payload: JWTPayload): TokenClaims | null {
       .split(" ")
       .filter(Boolean),
     expiresAt: (p.exp ?? 0) * 1000,
+    impersonatedBy: impersonatorOf(p.act),
   };
 }
 
@@ -130,6 +150,14 @@ export class ManageError extends Error {
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const impersonating = currentImpersonator();
+  if (impersonating && refusedWhileImpersonating(method, path)) {
+    throw new ManageError(
+      403,
+      "impersonating",
+      serverText(impersonating.lang, "signedInAsSomeone"),
+    );
+  }
   const res = await fetch(`${env.manage.url}${path}`, {
     method,
     headers: {

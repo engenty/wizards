@@ -1,6 +1,7 @@
 import { lazy, type ReactNode, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router";
 import { Mascot } from "./brand";
+import { ImpersonationBanner } from "./impersonation";
 import { STUDIO } from "./lib/base";
 import { useLang } from "./lib/i18n";
 import { useAccountLang, useMe } from "./lib/session";
@@ -80,7 +81,15 @@ function Studio({
     return <Navigate to="/start" replace />;
   }
   return bare ? (
-    children
+    <>
+      {me.data.impersonation ? (
+        <ImpersonationBanner
+          name={me.data.user.name || me.data.user.email}
+          until={me.data.impersonation.until}
+        />
+      ) : null}
+      {children}
+    </>
   ) : (
     <AppFrame me={me.data} wide={wide} full={full}>
       {children}

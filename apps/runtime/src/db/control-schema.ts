@@ -107,6 +107,9 @@ export const session = sqliteTable(
     /** When the access token's claims (tenant, role) must be renewed. */
     claimsExpireAt: integer("claims_expire_at", { mode: "timestamp_ms" }).notNull(),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    /** The platform admin signed in as this person (the token's `act`); null for their own sign-in. */
+    impersonatedBy: text("impersonated_by"),
+    impersonatorEmail: text("impersonator_email"),
     createdAt: createdAt(),
   },
   (t) => [index("session_expires").on(t.expiresAt)],

@@ -1,0 +1,1 @@
+ALTER TABLE `run` ADD `impersonated_by` text;
