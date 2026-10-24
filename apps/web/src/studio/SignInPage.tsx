@@ -84,7 +84,10 @@ function Command({ text }: { text: string }) {
 export function SignInPage() {
   const config = useQuery({
     queryKey: ["config"],
-    queryFn: () => api.get<{ mode: "managed" | "local"; devLogin: boolean }>("/api/config"),
+    queryFn: () =>
+      api.get<{ mode: "managed" | "local"; devLogin: boolean; openCommand?: string | null }>(
+        "/api/config",
+      ),
     // A runtime that restarts answers again in a moment: the page asks until it does.
     refetchInterval: (query) =>
       query.state.status === "error" &&
@@ -151,6 +154,9 @@ export function SignInPage() {
   const ownAddress = refusal ? String(refusal.body.appUrl ?? "") : null;
   // A browser on this computer without the studio's cookie: the page says how to get in.
   const door = local && !refusal && !config.isError;
+  // The runtime names its data folder when it isn't the install's; null: only its start had the link.
+  const openCommand =
+    config.data?.openCommand === undefined ? "wizards open" : config.data.openCommand;
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center px-6 py-16">
       <DoorBar className="absolute inset-x-6 top-6 sm:inset-x-10 sm:top-8" />
@@ -228,10 +234,16 @@ export function SignInPage() {
           ) : null}
           {door ? (
             <div className="-mt-6 text-left text-[0.9375rem] text-ink-2 leading-relaxed">
-              <p>{t("auth.localWhy")}</p>
-              <Command text="wizards open" />
-              <p className="mt-6 text-[0.875rem] text-ink-3">{t("auth.localStartLink")}</p>
-              <Command text="wizards open --print" />
+              {openCommand ? (
+                <>
+                  <p>{t("auth.localWhy")}</p>
+                  <Command text={openCommand} />
+                  <p className="mt-6 text-[0.875rem] text-ink-3">{t("auth.localStartLink")}</p>
+                  <Command text={`${openCommand} --print`} />
+                </>
+              ) : (
+                <p>{t("auth.localFromStart")}</p>
+              )}
               <p className="mt-6 text-center text-[0.875rem] text-ink-3">
                 {t("auth.localNoAccount")}
               </p>

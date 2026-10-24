@@ -20,6 +20,7 @@ import { discovery, managed } from "./manage.js";
 import { bridgeRequest } from "./mcp/bridge.js";
 import { mcpHandler } from "./mcp/handler.js";
 import { MCP_RESOURCE, SCOPES } from "./mcp/scopes.js";
+import { openCommand } from "./open-command.js";
 import { PLUGIN_NAME, pluginArchive, pluginMarketplace } from "./plugin.js";
 import { apiRoutes } from "./routes/api.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
@@ -163,6 +164,8 @@ app.get("/api/config", (c) =>
     devLogin: !managed && env.devLogin,
     /** The product's own site, for a runtime that runs alone. */
     site: managed ? null : env.local.cloudUrl,
+    /** What to type to open the studio of a runtime that runs alone; null: its start printed the link. */
+    openCommand: managed ? null : openCommand(),
     /** Where the wizards' pages are: the studio makes their links with it. */
     publicUrl: env.publicUrl,
     /** The feature switches before anyone is signed in: the code's, the environment's, the file's. */
