@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { constants, existsSync } from "node:fs";
+import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { AwsClient } from "aws4fetch";
 import { env } from "../env.js";
@@ -17,6 +17,8 @@ interface ObjectStore {
   has(key: string): Promise<boolean>;
   remove(key: string): Promise<void>;
   removePrefix(prefix: string): Promise<void>;
+  /** Throws when the store can't be reached (health.ts). */
+  probe(): Promise<void>;
 }
 
 function fileStore(root: string): ObjectStore {
@@ -34,6 +36,10 @@ function fileStore(root: string): ObjectStore {
     has: async (key) => existsSync(at(key)),
     remove: (key) => rm(at(key), { force: true }),
     removePrefix: (prefix) => rm(at(prefix), { recursive: true, force: true }),
+    async probe() {
+      await mkdir(root, { recursive: true });
+      await access(root, constants.W_OK);
+    },
   };
 }
 
@@ -85,6 +91,13 @@ function s3Store(): ObjectStore {
         token = xml.match(/<NextContinuationToken>([^<]+)</)?.[1] ?? null;
       }
     },
+    async probe() {
+      // A key nobody writes: any answer below 500 (a 404 too) says the bucket is there.
+      const res = await aws.fetch(url("health/probe"), { method: "HEAD" });
+      if (res.status >= 500) {
+        throw new Error(`Object store answered ${res.status}`);
+      }
+    },
   };
 }
 
@@ -99,6 +112,9 @@ export const objects = {
   has: (key: string) => store.has(tenantKey(key)),
   remove: (key: string) => store.remove(tenantKey(key)),
 };
+
+/** Whether the store answers (health.ts). */
+export const probeObjects = () => store.probe();
 
 /** Deletes every file of a tenant. */
 export function removeTenantObjects(tenantId: string) {

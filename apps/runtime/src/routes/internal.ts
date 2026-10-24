@@ -8,6 +8,7 @@ import { logs, runDetail, status, tenantModels } from "../debug.js";
 import { env } from "../env.js";
 import { declaredFeatures } from "../features.js";
 import { removeTenantObjects } from "../files/objects.js";
+import { health } from "../health.js";
 import { tailQuery } from "../log.js";
 import { forgetTenant, managed } from "../manage.js";
 import { loadedPlugins } from "../plugins/registry.js";
@@ -38,6 +39,7 @@ export const internalRoutes = new Hono()
   })
   // --- a look from afar (docs/plans/remote-debug.md): read-only, never a key -------------
   .get("/debug/status", async (c) => c.json(await status()))
+  .get("/debug/health", async (c) => c.json(await health()))
   .get("/debug/logs", (c) => c.json(logs(tailQuery((key) => c.req.query(key)))))
   .get("/debug/runs/:id", async (c) => {
     const found = await runDetail(c.req.param("id"));

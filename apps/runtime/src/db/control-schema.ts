@@ -88,6 +88,8 @@ export const runner = sqliteTable("runner", {
   id: text("id").primaryKey(),
   url: text("url"),
   seen: integer("seen", { mode: "timestamp_ms" }).notNull(),
+  /** When the runner last finished a look at the line: `seen` says it lives, this that the line moves. */
+  lineAt: integer("line_at", { mode: "timestamp_ms" }),
 });
 
 /** A studio session of someone signed in at the Manage-App. The refresh token is encrypted. */

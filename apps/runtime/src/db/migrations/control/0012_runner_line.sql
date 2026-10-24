@@ -1,0 +1,1 @@
+ALTER TABLE `runner` ADD `line_at` integer;

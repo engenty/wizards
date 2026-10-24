@@ -13,6 +13,7 @@ import { authRoutes, type Principal, principalOf } from "./auth/index.js";
 import { db, schema, withTenant } from "./db/client.js";
 import { basePath, env } from "./env.js";
 import { features } from "./features.js";
+import { health, httpStatus, publicHealth, requestStarted } from "./health.js";
 import { allowed, hashIp } from "./limits.js";
 import { linkPreview } from "./link-preview.js";
 import { nudge, signal } from "./live/hub.js";
@@ -48,6 +49,17 @@ const app = new Hono<{ Variables: { user: Principal } }>();
 // Which halves this process serves (RUNTIME_ROLE): the studio's routes, the doors' routes, or
 // both. What both need — health, config, the runs' API, the connect callback — is always there.
 const { serves } = env;
+
+// Every request is open until its handler returned: one that never returns shows in the health
+// checks and in the log (health.ts).
+app.use("*", async (c, next) => {
+  const done = requestStarted(c.req.method, c.req.path);
+  try {
+    await next();
+  } finally {
+    done();
+  }
+});
 
 app.onError((err, c) => {
   if (err instanceof ServiceError) {
@@ -123,6 +135,12 @@ app.use("*", async (c, next) => {
 });
 
 app.get("/api/health", (c) => c.json({ ok: true }));
+
+/** Whether this process and what it depends on work: 503 when it can't serve (health.ts). */
+app.get("/api/health/ready", async (c) => {
+  const h = await health();
+  return c.json(publicHealth(h), httpStatus(h));
+});
 
 /**
  * A page in a browser (the studio, a wizard's own page) tells of an error it met: the line
@@ -329,6 +347,11 @@ app.route("/api/internal", internalRoutes);
 if (serves.doors) {
   app.use("/api/public/*", answers);
   app.use("/api/shares/*", answers);
+  // The proxy sends `/api/public` to the doors: their readiness under their own prefix.
+  app.get("/api/public/health", async (c) => {
+    const h = await health();
+    return c.json(publicHealth(h), httpStatus(h));
+  });
   app.route("/api/public/plugins", publicPluginRoutes);
   app.route("/api/public", publicRoutes);
   app.route("/api/shares", shareRoutes);

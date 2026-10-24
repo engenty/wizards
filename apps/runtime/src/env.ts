@@ -104,6 +104,11 @@ export const env = {
     id: `${hostname()}-${randomBytes(3).toString("hex")}`,
     /** Where the web reaches this runner (the browser's screen of a run it holds). */
     url: str("RUNNER_URL").replace(/\/$/, ""),
+    /**
+     * Pinged after a look at the line, at most once a minute: an outside monitor that hears
+     * nothing knows the runner stopped taking runs. Empty = no ping.
+     */
+    heartbeatUrl: str("HEARTBEAT_URL"),
   },
   appUrl,
   /**
