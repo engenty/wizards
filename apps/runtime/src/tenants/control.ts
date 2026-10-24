@@ -240,6 +240,37 @@ export async function registerRunner() {
     .where(lt(control.runner.seen, new Date(now.getTime() - 86_400_000)));
 }
 
+/** This runner finished a look at the line. */
+export async function markLine() {
+  await controlDb
+    .update(control.runner)
+    .set({ lineAt: new Date() })
+    .where(eq(control.runner.id, env.runner.id));
+}
+
+/** The runners and the line as a health check sees them (health.ts). */
+export async function lineState() {
+  const runners = await controlDb
+    .select({ id: control.runner.id, seen: control.runner.seen, lineAt: control.runner.lineAt })
+    .from(control.runner);
+  const [oldest] = await controlDb
+    .select({ createdAt: control.runIndex.createdAt })
+    .from(control.runIndex)
+    .where(
+      and(
+        eq(control.runIndex.active, true),
+        or(
+          isNull(control.runIndex.owner),
+          isNull(control.runIndex.seen),
+          lt(control.runIndex.seen, new Date(Date.now() - RUNNER_STALE_MS)),
+        ),
+      ),
+    )
+    .orderBy(control.runIndex.createdAt)
+    .limit(1);
+  return { runners, oldestWaiting: oldest?.createdAt ?? null };
+}
+
 export async function forgetRunner() {
   await controlDb.delete(control.runner).where(eq(control.runner.id, env.runner.id));
 }

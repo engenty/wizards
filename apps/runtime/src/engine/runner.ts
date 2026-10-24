@@ -79,6 +79,7 @@ import {
   disownRuns,
   heartbeatRuns,
   indexRun,
+  markLine,
   restRun,
   waitingRuns,
   wakeRun,
@@ -385,6 +386,35 @@ async function take(runId: string, tenant: string): Promise<void> {
 
 let stopping = false;
 let looking = false;
+let markedLine = 0;
+let pinged = 0;
+/** Since when this runner waits for the line's query; null while it doesn't. */
+let asking: number | null = null;
+
+/**
+ * The runner still looks at the line: `runner.line_at` at most every 10 s, the outside
+ * monitor's heartbeat at most once a minute. Driving a run takes as long as its steps, so only
+ * a query of the line that never returns stops both (health.ts).
+ */
+function lineMoved() {
+  const now = Date.now();
+  if (asking !== null && now - asking > 30_000) {
+    return;
+  }
+  if (now - markedLine >= 10_000) {
+    markedLine = now;
+    void markLine().catch((err) => console.warn("[line] marking:", (err as Error).message));
+  }
+  if (env.runner.heartbeatUrl && now - pinged >= 60_000) {
+    pinged = now;
+    void fetch(env.runner.heartbeatUrl, { signal: AbortSignal.timeout(5000) })
+      .then((res) => res.body?.cancel())
+      .catch((err) => console.warn("[line] heartbeat:", (err as Error).message));
+  }
+}
+
+/** Since when the line's query hangs, when it does: this runner takes no run then (health.ts). */
+export const lineAskedSince = () => asking;
 
 /** Takes what waits in line, run by run; each claim counts the tenant's limit by itself. */
 async function lookAtLine() {
@@ -393,13 +423,17 @@ async function lookAtLine() {
   }
   looking = true;
   try {
-    for (const r of await waitingRuns()) {
+    asking = Date.now();
+    const waiting = await waitingRuns();
+    asking = null;
+    for (const r of waiting) {
       if (stopping) {
         return;
       }
       await take(r.runId, r.tenantId).catch((err) => console.error(`[line ${r.runId}]`, err));
     }
   } catch (err) {
+    asking = null;
     console.error("[line]", err);
   } finally {
     looking = false;
@@ -408,7 +442,10 @@ async function lookAtLine() {
 
 /** A runner: looks at the line every POLL_MS, from now on. Runs a stopped process left behind are in it. */
 export function startRunner() {
-  const timer = setInterval(() => void lookAtLine(), POLL_MS);
+  const timer = setInterval(() => {
+    lineMoved();
+    void lookAtLine();
+  }, POLL_MS);
   timer.unref();
   void lookAtLine();
 }

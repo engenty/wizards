@@ -54,6 +54,24 @@ const controlClient = open(controlUrl, env.databaseAuthToken);
 export const controlDb = drizzle(controlClient, { schema: control });
 export { control };
 
+/**
+ * `SELECT 1` on the control database: through the client every request uses, or through a new
+ * one opened for this call alone. When the first fails and the second works, this process's
+ * client is stuck, not the database (health.ts).
+ */
+export async function probeControl(fresh = false): Promise<void> {
+  if (!fresh) {
+    await controlClient.execute("SELECT 1");
+    return;
+  }
+  const client = open(controlUrl, env.databaseAuthToken);
+  try {
+    await client.execute("SELECT 1");
+  } finally {
+    client.close();
+  }
+}
+
 export async function migrateControlDb() {
   await prepare(controlClient, controlUrl);
   await migrate(controlDb, { migrationsFolder: migrationsFolder("control") });
@@ -103,7 +121,23 @@ async function whileBusy<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Tenant databases still opening, and since when: one that takes minutes is stuck (health.ts). */
+const opening = new Map<string, number>();
+
+export function openingTenants(): { id: string; since: number }[] {
+  return [...opening].map(([id, since]) => ({ id, since }));
+}
+
 async function openTenant(id: string): Promise<Db> {
+  opening.set(id, Date.now());
+  try {
+    return await openTenantNow(id);
+  } finally {
+    opening.delete(id);
+  }
+}
+
+async function openTenantNow(id: string): Promise<Db> {
   let row = await controlDb.query.tenant.findFirst({ where: eq(control.tenant.id, id) });
   if (!row) {
     await controlDb.insert(control.tenant).values({ id }).onConflictDoNothing();

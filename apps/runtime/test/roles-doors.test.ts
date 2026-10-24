@@ -41,6 +41,18 @@ describe("RUNTIME_ROLE=doors", () => {
     expect(await (await get("/api/runs/nope")).json()).toEqual({ error: "This doesn’t exist or was deleted.", code: "not_found" });
   });
 
+  it("answers its readiness under the doors' prefix", async () => {
+    const res = await get("/api/public/health");
+    // No runner here: the doors still serve their pages, so they answer, degraded.
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.role).toBe("doors");
+    expect(body.checks.process).toBe("ok");
+    expect(body.checks.control).toBe("ok");
+    expect(body.checks.line).toBe("down");
+    expect(body.status).toBe("degraded");
+  });
+
   it("serves the app's files, not the studio's pages", async () => {
     // Built: the files a wizard's page loads sit below /studio; the studio itself is not here.
     if (!existsSync(join(import.meta.dirname, "../../web/dist/index.html"))) {
