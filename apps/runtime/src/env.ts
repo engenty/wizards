@@ -112,6 +112,11 @@ export const env = {
   },
   appUrl,
   /**
+   * `1`: a process whose own health check (`process`, health.ts) is down three times in a row,
+   * 30 s apart, writes what hangs into its log and ends; compose starts it again.
+   */
+  healthWatchdog: str("HEALTH_WATCHDOG") === "1",
+  /**
    * Where the wizards' pages live (`/w/<token>`, `/s/<token>`, the embed script): the doors'
    * origin, when they are served apart from the studio. Links to a wizard, a result or a public
    * file carry it. Default: APP_URL, the same origin.
