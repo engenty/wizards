@@ -1,7 +1,27 @@
 [
   {
+    "version": "v0.11.8",
+    "timestamp": 1792823268,
+    "commits": [
+      {
+        "id": "9c4826f",
+        "message": "the sign-in page names the data folder of a runtime that isn't the install (#217)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "cbc965e",
+        "message": "a run link from someone else opens the wizard's start (#215)",
+        "group": "Fixed",
+        "scope": "runner",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.7",
-    "timestamp": 1792773138,
+    "timestamp": 1792773314,
     "commits": [
       {
         "id": "a82a1cc",
