@@ -1,6 +1,7 @@
 # Health checks, a status page and alerts for the cloud
 
-Concept, 2026-10-24. Nothing here is built yet.
+Concept, 2026-10-24. The runtime's checks, the watchdog and the compose healthchecks are built
+(#219 and the PR after it); the rest follows the order of work below.
 
 ## The occasion
 
@@ -63,15 +64,17 @@ One module, `apps/runtime/src/health.ts`, holds the checks. Each role runs the o
 | `control` | `SELECT 1` through `controlDb`, the client every request uses. When it fails, the same through a new client opened for the check and closed afterwards | 2 s each | all | shared client fails, new one works: the process's client is stuck → `process` turns `down` too. Both fail: Turso is unreachable → `control` is `down`, `process` stays `ok` |
 | `tenants` | writes and removes a small file in `/data/tenants`; `BEGIN IMMEDIATE` and `ROLLBACK` on `/data/health.db` (WAL, `busy_timeout` 1000) | 2 s | all | volume full or read-only, or another process holds the write lock of the shared volume |
 | `objects` | `HEAD` of `health/probe` in the bucket; any answer below 500 counts (a 404 is fine) | 2 s | all, when `S3_BUCKET` is set | `down` |
-| `gateway` | `GET <GATEWAY_URL>/health/ready` (see *The gateway's providers*) | 2 s | runtime, runner | `degraded`: pages and the studio still work, AI steps don't |
+| `gateway` | `GET <GATEWAY_URL>/health`: reachable, nothing about its providers (those are on the gateway's own `/health/ready`, see *The gateway's providers*) | 2 s | runtime, runner | `degraded`: pages and the studio still work, AI steps don't |
 | `manage` | `GET <MANAGE_URL>/api/health` | 2 s | runtime | `degraded`: open studios keep working, nobody new can sign in |
 | `browser` | `GET <BROWSER_CDP_URL>/json/version` | 2 s | runner | `degraded`: only steps that use the browser fail |
-| `line` | from the control database: runners whose `seen` is under 30 s old (`RUNNER_STALE_MS`) and whose `line_at` (new, below) is too; the oldest run that is `active` and unowned | 2 s | all | no live runner, or a run has waited more than 2 min → `down` |
+| `line` | from the control database: runners whose `seen` is under 30 s old (`RUNNER_STALE_MS`) and whose `line_at` (new, below) is too; the oldest run that is `active` and unowned | 2 s | all | no live runner → `down` (required only on the runner); a run waiting more than 10 min → `degraded` |
 
-`line_at` is a new column of the control table `runner`: the runner writes it after every
-completed `lookAtLine()`, at most every 10 s. `seen` keeps meaning "the process is alive";
-`line_at` means "the line moves". A runner whose `line_at` is older than 30 s is reported, and
-its own `process` check turns `down`, so the watchdog restarts it.
+`line_at` is a new column of the control table `runner`: the runner's poll writes it at most
+every 10 s, unless the line's query (`waitingRuns()`) has been open for more than 30 s. `seen`
+keeps meaning "the process is alive"; `line_at` means "the runner can still ask the line". A
+query open for more than a minute turns the runner's own `process` check `down`, so the
+watchdog restarts it. Driving a run happens inside the look at the line and takes as long as
+its steps, so a long look alone is no sign of a hang.
 
 ### Never hang
 
@@ -375,6 +378,10 @@ Each line is one pull request, small enough to review in one go.
 after 1 is deployed: probes 1, 3–5 and 7–10 work today, without any of the code. 11–19 need 7.
 
 ## Open
+
+- `kick()` (`engine/runner.ts`) takes a run at once in every role but `web`. The cloud's roles are
+  `studio` and `doors`, so those processes drive runs too, not only `runner`. Worth a look: it
+  was written before the web was cut in two (docs/plans/runner-process.md).
 
 - The cause of the hang on 2026-10-24. Probe 3 notices the next one within minutes, and the
   `[slow]` lines say which request waited on what.
