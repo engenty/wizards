@@ -1,7 +1,27 @@
 [
   {
+    "version": "v0.11.11",
+    "timestamp": 1792832922,
+    "commits": [
+      {
+        "id": "305120f",
+        "message": "only a runner takes runs, the studio and the doors leave them in line (#227)",
+        "group": "Fixed",
+        "scope": "runner",
+        "breaking": false
+      },
+      {
+        "id": "99cd883",
+        "message": "health and status as built, and the cause of the hangs (#226)",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.10",
-    "timestamp": 1792828054,
+    "timestamp": 1792828170,
     "commits": [
       {
         "id": "9691f50",
