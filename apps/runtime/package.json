@@ -45,7 +45,7 @@
     "@modelcontextprotocol/client": "2.3.0",
     "@modelcontextprotocol/ext-apps": "2.0.3",
     "@modelcontextprotocol/server": "2.3.0",
-    "@napi-rs/canvas": "0.1.80",
+    "@napi-rs/canvas": "1.0.13",
     "@turbodocx/html-to-docx": "^1.23.1",
     "ai": "7.0.102",
     "aws4fetch": "^1.0.20",
