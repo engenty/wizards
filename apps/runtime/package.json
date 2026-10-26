@@ -61,7 +61,7 @@
     "jose": "6.2.12",
     "mammoth": "^1.13.0",
     "marked": "^18.0.14",
-    "nanoid": "^5.1.16",
+    "nanoid": "^6.0.2",
     "nodemailer": "^10.0.10",
     "pdf-parse": "^2.4.5",
     "playwright-core": "1.63.0",
