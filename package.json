@@ -36,7 +36,7 @@
     "sandbox:add": "tsx apps/runtime/src/sandbox/install.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.0",
+    "@biomejs/biome": "2.6.2",
     "@engenty/wizards-shared": "workspace:*",
     "concurrently": "^10.0.6",
     "fflate": "0.8.3",

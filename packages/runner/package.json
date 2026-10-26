@@ -43,9 +43,9 @@
     "@engenty/wizards-shared": "workspace:*",
     "dompurify": "^3.4.17",
     "fflate": "0.8.3",
-    "lucide-react": "^1.49.0",
-    "marked": "^18.0.14",
-    "pdfmake": "0.3.11",
+    "lucide-react": "^1.61.0",
+    "marked": "^18.1.1",
+    "pdfmake": "0.3.12",
     "qr-scanner": "1.4.2"
   },
   "peerDependencies": {
@@ -57,13 +57,13 @@
     "@types/pdfmake": "0.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.1",
-    "postcss": "^8.5.6",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "postcss": "^8.5.31",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.3",
-    "vite": "^8.3.3",
+    "vite": "^8.3.5",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.1.11"
   }
