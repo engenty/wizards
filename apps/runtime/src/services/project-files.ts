@@ -20,7 +20,7 @@ import { safeFetch } from "../tools/net-guard.js";
 import { requireWritableProject } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
 import { convertDocument, fillCategories } from "./knowledge-model.js";
-import { dropIndex, keepText, queueIndex } from "./project-index.js";
+import { dropIndex, indexedFile, keepText, queueIndex } from "./project-index.js";
 import { type ItemRef, setItemCategories } from "./space-categories.js";
 
 export type ProjectFileRow = typeof schema.projectFile.$inferSelect;
@@ -174,6 +174,8 @@ export async function addProjectFile(
   }
   if (work) {
     void prepare(row);
+  } else if (indexedFile(row)) {
+    queueIndex(`f:${row.id}`);
   }
   return row;
 }
@@ -331,6 +333,9 @@ async function prepare(row: ProjectFileRow) {
       if (row.kind !== "document") {
         const description = await describeImage(row, data).catch(() => "");
         await set({ status: "ready", ...(description ? { description } : {}) });
+        if (indexedFile(row)) {
+          queueIndex(`f:${row.id}`);
+        }
         spaceFileChanged("space.file.ready", row);
         return;
       }
@@ -390,6 +395,10 @@ export async function updateProjectFile(
     })
     .where(eq(schema.projectFile.id, row.id))
     .returning();
+  // Its name and description are what the index finds an asset by.
+  if (indexedFile(updated) && (patch.name !== undefined || patch.description !== undefined)) {
+    queueIndex(`f:${row.id}`);
+  }
   return updated;
 }
 

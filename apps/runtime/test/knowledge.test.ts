@@ -255,6 +255,40 @@ describe("the search", () => {
   });
 });
 
+describe("assets", () => {
+  it("are found by their name and description; a new description is found again", async () => {
+    const { addProjectFile, updateProjectFile } = await import("../src/services/project-files");
+    const { searchKnowledge } = await import("../src/services/project-index");
+    const png = Uint8Array.from(
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+    );
+    const row = await local(() =>
+      addProjectFile(spaceId, {
+        kind: "asset",
+        name: "karton.png",
+        mime: "image/png",
+        data: png,
+        description: "Eingedrückter Versandkarton auf der Rampe im Lager",
+      }),
+    );
+    await flush();
+    const found = await local(() => searchKnowledge(spaceId, "Versandkarton", { check: false }));
+    expect(found.hits[0]).toMatchObject({ kind: "file", open: `f:${row.id}`, title: "karton.png" });
+    expect(found.hits[0]?.text).toContain("image asset");
+    await local(() =>
+      updateProjectFile(spaceId, row.id, { description: "Palette mit Schrumpffolie" }),
+    );
+    await flush();
+    const again = await local(() => searchKnowledge(spaceId, "Schrumpffolie", { check: false }));
+    expect(again.hits[0]?.open).toBe(`f:${row.id}`);
+    const old = await local(() => searchKnowledge(spaceId, "Versandkarton", { check: false }));
+    expect(old.hits.some((h) => h.open === `f:${row.id}`)).toBe(false);
+  });
+});
+
 describe("what a plugin writes", () => {
   it("writes pages, tables and categories under its keys; the same key rewrites", async () => {
     const { originData } = await import("../src/services/space-origin");
