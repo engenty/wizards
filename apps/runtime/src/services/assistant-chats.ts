@@ -22,7 +22,11 @@ import { trigramQuery } from "./project-index.js";
  * next one carries the summaries of the last chats, and older ones are found with `searchChats`.
  */
 
-/** Messages of the open chat a turn sends as they are; older ones live in its running summary. */
+/**
+ * Messages of the open chat kept as they are when it is folded; older ones live in its running
+ * summary. A turn sends every message not folded yet (at most FOLD_AFTER and the new one), so
+ * each turn's prompt starts with the one before until the next fold, and the cache holds.
+ */
 export const TURN_MESSAGES = 12;
 /** Unfolded messages beyond this are folded into the running summary after a turn. */
 const FOLD_AFTER = 24;
@@ -115,7 +119,7 @@ export async function addMessage(
 }
 
 export interface TurnHistory {
-  /** The last messages of the open chat, oldest first. */
+  /** The open chat's messages not folded yet, oldest first. */
   messages: { role: "user" | "assistant"; content: string }[];
   /** What the open chat's older messages said. */
   running: string | null;
@@ -138,7 +142,6 @@ export async function turnHistory(user: SessionUser, chat: ChatRow): Promise<Tur
     messages: all
       .slice(chat.folded)
       .filter((m) => m.content.trim())
-      .slice(-TURN_MESSAGES)
       .map(({ role, content }) => ({ role, content })),
     running: chat.summary,
     earlier: earlier
