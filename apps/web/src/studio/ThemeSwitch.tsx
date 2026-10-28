@@ -34,7 +34,7 @@ export function ThemeSwitch({ tone = "surface" }: { tone?: "ground" | "surface" 
           "absolute top-0.5 bottom-0.5 left-0.5 w-9 rounded-full shadow-sm motion-reduce:transition-none",
           ground ? "bg-white" : "bg-card",
         )}
-        style={{ transform: `translateX(${index * 36}px)`, transition: `transform 300ms ${EASE}` }}
+        style={{ transform: `translateX(${index * 100}%)`, transition: `transform 300ms ${EASE}` }}
       />
       {THEMES.map(({ theme: option, icon: Icon, label }) => (
         <button
