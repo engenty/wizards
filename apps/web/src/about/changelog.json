@@ -1,7 +1,139 @@
 [
   {
+    "version": "v0.12.0",
+    "timestamp": 1793209935,
+    "commits": [
+      {
+        "id": "5c345a5",
+        "message": "Ollama under Access in Settings › Models: whether it runs, every model with its jobs, downloads and its address (#262)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "f0773a1",
+        "message": "local models per job in Settings › Models: what Ollama holds, suggestions from the Manage-App, any other name (#261)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "265a24c",
+        "message": "more room between a section heading's buttons and its card (#259)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "2dc5e6e",
+        "message": "an optional Ollama service beside a server's runtime, for models downloaded from the studio (#258)",
+        "group": "Added",
+        "scope": "deploy",
+        "breaking": false
+      },
+      {
+        "id": "6a1dfda",
+        "message": "sign in to the engenty account from Settings › Plugins, for the plan's Pro plugins (#260)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "572e42b",
+        "message": "install, switch off and remove plugins in Settings › Plugins, in one list with the Pro plugins (#257)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "9176b98",
+        "message": "plugins' settings one level down in Settings › Plugins, and a `plugins` switch that shows it before any is installed (#256)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "33a883c",
+        "message": "EmbeddingGemma 2 is the local embedding model, and the search page downloads it (#255)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "7cd6715",
+        "message": "image, video and sound assets in the Knowledge index, found by their name and description (#254)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "7ca30be",
+        "message": "Features one level down under Settings › Setup (#253)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "8f12897",
+        "message": "a search section in the model settings: the embedding model, local EmbeddingGemma, words only without one (#252)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "655fdc0",
+        "message": "Setup and Feature switches in the settings, for this computer or the platform's admins (#251)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "e0ada64",
+        "message": "a decisions section in the model settings, with the Classifier language model as fallback (#249)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "901efd5",
+        "message": "the theme switch's thumb sits under the picked mode at every root font size (#248)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "8650cb2",
+        "message": "the person menu opens the person's own settings (#247)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "76f0890",
+        "message": "three theme modes: light, branded and dark (#245)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "ace0fad",
+        "message": "the installed app's scope takes in the studio's home page, so Chrome shows no address strip there (#246)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "5bd98f1",
+        "message": "deploys without a gap, the providers' credit, the status page as built (#236)",
+        "group": "Docs",
+        "scope": "plans",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.11.13",
-    "timestamp": 1792838731,
+    "timestamp": 1792838883,
     "commits": [
       {
         "id": "4febc93",
