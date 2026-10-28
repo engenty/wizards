@@ -67,7 +67,7 @@ export function WorkPage() {
   return known ? <EmptyPlace place={known.place as keyof typeof EMPTY} /> : <ChatsPage />;
 }
 
-/** Chats: the sidebar with a new chat, the search, the folders and the chats; no chat open. */
+/** Chats: the sidebar with a new chat, the search, the sections and the chats; no chat open. */
 function ChatsPage() {
   return (
     <div className="flex min-h-0 flex-1">
@@ -88,7 +88,7 @@ function ChatsPage() {
             className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-4"
           />
         </label>
-        <Group title={t("work.folders")} empty={t("work.noFolders")} />
+        <Group title={t("work.sections")} empty={t("work.noSections")} />
         <Group title={t("work.chats")} empty={t("work.noChats")} />
       </aside>
       <div className="grid min-w-0 flex-1 place-items-center p-6">

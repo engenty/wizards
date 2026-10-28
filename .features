@@ -56,3 +56,4 @@
 #
 # a plugin's switches carry its id; `wizards features` lists the ones installed here
 # contacts.leadScoring=on|off
+workMode=on
