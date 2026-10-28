@@ -4,6 +4,26 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.12.0] - 2026-10-28
+- ADDED **[studio]** Ollama under Access in Settings › Models: whether it runs, every model with its jobs, downloads and its address (#262)
+- ADDED **[studio]** Local models per job in Settings › Models: what Ollama holds, suggestions from the Manage-App, any other name (#261)
+- ADDED **[deploy]** An optional Ollama service beside a server's runtime, for models downloaded from the studio (#258)
+- ADDED **[studio]** Sign in to the engenty account from Settings › Plugins, for the plan's Pro plugins (#260)
+- ADDED **[studio]** Install, switch off and remove plugins in Settings › Plugins, in one list with the Pro plugins (#257)
+- ADDED **[studio]** Plugins' settings one level down in Settings › Plugins, and a `plugins` switch that shows it before any is installed (#256)
+- ADDED **[studio]** EmbeddingGemma 2 is the local embedding model, and the search page downloads it (#255)
+- ADDED **[runtime]** Image, video and sound assets in the Knowledge index, found by their name and description (#254)
+- ADDED **[studio]** Features one level down under Settings › Setup (#253)
+- ADDED **[studio]** A search section in the model settings: the embedding model, local EmbeddingGemma, words only without one (#252)
+- ADDED **[studio]** Setup and Feature switches in the settings, for this computer or the platform's admins (#251)
+- ADDED **[studio]** A decisions section in the model settings, with the Classifier language model as fallback (#249)
+- ADDED **[studio]** The person menu opens the person's own settings (#247)
+- ADDED **[studio]** Three theme modes: light, branded and dark (#245)
+- DOCS **[plans]** Deploys without a gap, the providers' credit, the status page as built (#236)
+- FIXED **[studio]** More room between a section heading's buttons and its card (#259)
+- FIXED **[studio]** The theme switch's thumb sits under the picked mode at every root font size (#248)
+- FIXED **[studio]** The installed app's scope takes in the studio's home page, so Chrome shows no address strip there (#246)
+
 ## [0.11.13] - 2026-10-24
 - FIXED **[runtime]** An admin's sign-in as someone ends in the studio within a minute of ending elsewhere (#231)
 
