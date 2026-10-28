@@ -125,6 +125,8 @@ export const env = {
   /** More host names this server answers under, besides APP_URL's and the loopback names. */
   allowedHosts: list("ALLOWED_HOSTS"),
   dataDir,
+  /** The `.features` file to read instead of the install's or the checkout's (features.ts); the tests' own. */
+  featuresFile: str("FEATURES_FILE"),
   /** The control database; empty = a libSQL file in the data folder. */
   databaseUrl: str("DATABASE_URL", ""),
   databaseAuthToken: str("DATABASE_AUTH_TOKEN"),
