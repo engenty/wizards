@@ -1,8 +1,8 @@
 # Plan: local models through MLX
 
-Status: investigation only, written on 2026-10-28 against main at #256 (v0.11.13). Nothing built,
-nothing downloaded. Follows [Apple's local models](local-models-apple.md), which left MLX on a
-Mac to Ollama.
+Status: investigation only, written on 2026-10-28 against main at #256 (v0.11.13), with the
+measurements of the same day on a base M4 with 32 GB and Ollama 0.40.12. Nothing built. Follows
+[Apple's local models](local-models-apple.md), which left MLX on a Mac to Ollama.
 
 Scope: whether the runtime on a Mac can run open-weight models through Apple's MLX — first the
 embedding model of the Knowledge search (EmbeddingGemma 2, text, images and sound in one
@@ -10,41 +10,61 @@ embedding model of the Knowledge search (EmbeddingGemma 2, text, images and soun
 
 ## Recommendation
 
-Stay on Ollama, and ask it for the MLX build of EmbeddingGemma 2. Build a Swift helper on
-MLX Swift only if Ollama's MLX runner does not embed images and sound.
+Stay on Ollama. It already runs our default embedding model on MLX, with images and sound, so
+there is no change of model and no new engine for it. Build media search (`mediaSearch`) on
+`/api/embed`. A direct MLX route would only spare a person the Ollama app; keep that as a later
+option, as a Swift helper, never as a Python worker.
 
-1. **Ollama is MLX now.** Since Ollama 0.40 (October 2026) a model whose files are safetensors
-   runs on MLX on Apple silicon; a GGUF model still runs on llama.cpp. This Mac runs 0.40.12.
-   The 0.40.0 notes name `embeddinggemma-2` as the first embedding model on MLX; Clef-flash
-   (`clef-flash:latest` is safetensors here) and the MLX tags of the text models already run
-   there.
-2. **Our default is the llama.cpp build.** `LOCAL_EMBEDDING_MODEL = "embeddinggemma-2:740m"`
-   is a GGUF text model (304 MB) plus a projector (981 MB). `embeddinggemma-2:740m-mxfp8`
-   (1.4 GB) is the MLX build: safetensors with the language model, the vision tower and the
-   audio tower. Changing the tag is a one-line change; the setup already installs Ollama and the
-   search page already downloads the model (#255).
-3. **The media call is the same either way.** `/api/embed` takes `{text?, image?, audio?}`
-   objects with base64 bytes (video: not accepted). The open spike is whether the MLX runner
-   honours them for `740m-mxfp8`: 0.40.4 added multimodal embeddings "through llama-server",
-   i.e. the GGUF path, and the library page lists the MLX tag as "Text, Image" with no tag for
-   audio. One `curl` per modality answers it (Measurements).
-4. **A second engine costs more than it gives.** Every direct route ships a binary or a Python
-   tree in the install, keeps a second copy of the weights outside `~/.ollama`, and needs a
-   long-lived process of our own to keep 1.4 GB loaded. The speed it could win over Ollama's MLX
-   runner is the HTTP hop, small next to the model's own time.
-5. **If Ollama falls short on media, Swift beats Python.** `mlx-swift-lm` has a full
-   EmbeddingGemma 2 (text, image, audio, video, interleaved) since 2026-10-12 (#684), with the
-   reference's image resize. It builds beside `wizards-apple` in the `macos-26` release job and
-   adds no runtime dependency. The Python route (`mlx-vlm` 0.7.10) works today but brings a
-   Python, a venv of several hundred MB and pins on fast-moving packages into
-   `~/.engenty/wizards`.
+1. **Ollama is MLX already.** Since Ollama 0.40 a model whose files are safetensors runs on MLX
+   on Apple silicon. On the M4, `ollama pull embeddinggemma-2:740m` (`LOCAL_EMBEDDING_MODEL`,
+   unchanged) gave `runner: mlx`, `format: safetensors`, `quantization: nvfp4`,
+   `capabilities: [embedding, vision, audio]`, 1.27 GB loaded, 8k context. Ollama picks the MLX
+   build of the tag for the machine: a plain registry read of the same tag returns the GGUF build
+   (304 MB model + 981 MB projector), which other machines run on llama.cpp.
+2. **Images and sound work there.** `/api/embed` takes them as list entries (shapes below); the
+   vectors share the text's space well enough for search (Quality).
+3. **MLX without Ollama gains no speed worth a second engine.** The model's time is MLX's
+   either way; going direct saves only the HTTP hop. What it would save is the Ollama app, which
+   the setup installs today anyway (`apps/runtime/src/cli/ollama.ts`), and which the text
+   classes and Clef-flash need regardless.
+4. **If the Ollama app is to go, Swift beats Python.** `mlx-swift-lm` has a full
+   EmbeddingGemma 2 (text, image, audio, video, interleaved) since 2026-10-12 (#684). It builds
+   beside `wizards-apple` in the `macos-26` release job and adds no runtime dependency. The
+   Python route (`mlx-vlm` 0.7.10) works too but brings a Python, a venv of several hundred MB
+   and pins on fast-moving packages into `~/.engenty/wizards`.
+
+## Measured on the M4 (Ollama 0.40.12, `embeddinggemma-2:740m`, MLX nvfp4)
+
+Request shapes on `POST /api/embed`:
+
+| Input | Shape | Tokens |
+|---|---|---|
+| Text | `input: "…"` or a list of strings | – |
+| Image | `input: [{"image": "<base64 JPEG>"}]` | about 277 |
+| Sound | `input: [{"audio": "<base64 WAV, 16 kHz mono>"}]` | about 25 per second |
+
+The top-level `images` field is ignored; `video` is not accepted.
+
+| Speed | |
+|---|---|
+| Text, in a batch | about 14 ms per text |
+| Image, 512 px | about 590 ms |
+| Spoken clip, 5–8 s | about 170 ms |
+
+| Quality | Top-1 | Top-3 / MRR |
+|---|---|---|
+| 43 images, German and English text queries | 11/12 | 12/12 |
+| 6 spoken German notes | 4/6 | 6/6 |
+| 15 German passages, 18 paraphrased queries: EmbeddingGemma 2 | 17/18 | MRR 0.97 |
+| the same: `text-embedding-3-small` | 18/18 | |
+| the same: `nomic-embed-text` | 11/18 | |
 
 ## EmbeddingGemma on MLX
 
 | Port | Text | Image | Audio | Video | State |
 |---|---|---|---|---|---|
-| Ollama `embeddinggemma-2:740m-mxfp8` / `-nvfp4` (MLX runner) | yes | listed | towers in the files, not listed | no (`/api/embed`) | released, 0.40+ |
-| Ollama `embeddinggemma-2:740m` / `-q8_0` / `-bf16` (llama.cpp) | yes | yes | not listed | no | released, our default |
+| Ollama `embeddinggemma-2:740m` on Apple silicon (MLX runner, nvfp4) | yes | yes | yes | no (`/api/embed`) | released, 0.40+; our default, measured |
+| Ollama `embeddinggemma-2:740m` elsewhere (llama.cpp, GGUF + projector) | yes | yes (0.40.4: multimodal embeddings through llama-server) | not measured | no | released |
 | `mlx-vlm` `models/embedding_gemma2` (Python) | yes | yes | yes | yes | in v0.7.10 (2026-10-21); own processor, Transformers ≥ 5.14 |
 | `mlx-community/embeddinggemma-2-{bf16,8bit,mxfp8,5bit,4bit,mxfp4}` | yes | yes | yes | yes | weights, 1.49 GB at bf16; cards report cosine to FP32 (image 0.99995 bf16, 0.9995 mxfp8; audio 0.97–0.99 at 4 bit) |
 | `mlx-swift-lm` `MLXEmbedders/Models/EmbeddingGemma2.swift` + `MLXVLM/EmbeddingGemma2.swift` | yes | yes | yes | yes | on main since 2026-10-12, not in a release (newest 3.32.3, 2026-09-30) |
@@ -55,15 +75,15 @@ The model card's prompts stay as they are: `task: search result | query: …` fo
 
 ## How the runtime would call it
 
-| | Ollama, MLX tag | Python worker, JSON lines (DigUp) | MLX HTTP server (`mlx_lm.server`, `embedding-gemma-exp`) | Swift helper on `mlx-swift-lm` |
+| | Ollama (today) | Python worker, JSON lines (DigUp) | MLX HTTP server (`mlx_lm.server`, `embedding-gemma-exp`) | Swift helper on `mlx-swift-lm` |
 |---|---|---|---|---|
 | What ships in `~/.engenty/wizards` | nothing new: the setup installs Ollama | a Python (uv-managed), a venv with `mlx`, `mlx-vlm`, `transformers`, `numpy`, `pillow`, `opencv`; the worker script | the same venv plus a server; `mlx_lm.server` has no `/v1/embeddings`, so a server of our own | one binary + `mlx.metallib` in `dist/mlx/`, built on the `macos-26` job like `wizards-apple` |
 | Python | none | yes, ours to keep current | yes | none |
-| Weights | `~/.ollama/models`, pulled as now | `~/.cache/huggingface` or our folder: a second copy | same | our folder: a second copy |
-| Process | Ollama's, kept warm by `keep_alive` | ours, long-lived, started by the runtime | ours, long-lived, on a port | ours, long-lived; one process per call (as `wizards-apple`) reloads 1.4 GB every call |
+| Weights | `~/.ollama/models`, pulled by the search page (#255) | `~/.cache/huggingface` or our folder: a second copy | same | our folder: a second copy |
+| Process | Ollama's, kept warm by `keep_alive` | ours, long-lived, started by the runtime | ours, long-lived, on a port | ours, long-lived; one process per call (as `wizards-apple`) reloads the weights every call |
 | Startup | Ollama loads the model on the first call | Python imports + load; DigUp warms up with two passes | same | native start + load |
-| Memory | the model (≈1.4 GB), shared with every other client of Ollama | the model + the Python process | same | the model |
-| Media | `/api/embed` with base64 image/audio, if the MLX runner takes it (spike) | all four, today | `embedding-gemma-exp`: content parts with `url` | all four, in Swift |
+| Memory | 1.27 GB measured, shared with every other client of Ollama | the model + the Python process | same | the model |
+| Media | image + audio, measured | all four | `embedding-gemma-exp`: content parts with `url` | all four, in Swift |
 | Linux / Intel / Windows | the same call on llama.cpp | none | none | none |
 | Risk | Ollama's MLX runner is weeks old | pins on a git commit of `mlx-vlm` and a dev Transformers for some media; a Python tree in every install | as Python, plus a port | `mlx-swift-lm` pinned to a commit until a release; SwiftPM cannot build Metal shaders, so the build needs `xcodebuild` |
 
@@ -75,104 +95,54 @@ one error per item, all MLX work on one thread.
 
 ## Other model classes
 
-- **Text (Low, Classifier, Standard):** Ollama runs the MLX tags of Gemma 4, Qwen 3.5–3.8 on
-  MLX already (`qwen3.8:27b-mlx` here). A direct route would have to reimplement chat, tools
-  and structured output that the AI SDK gets from Ollama's OpenAI endpoint. Not worth it.
-- **Decision model:** Clef-flash runs on MLX in Ollama since 0.40.0, and the runtime calls
-  Ollama's `/v1/systemone`; `mlx-lm` has no such endpoint. Stays on Ollama.
-- So a direct MLX engine would serve embeddings only, which argues for Ollama: one engine, one
-  model store, one download page.
+- **Text (Low, Classifier, Standard):** Ollama runs the MLX builds of Gemma 4 and Qwen 3.5–3.8
+  on MLX already (`qwen3.8:27b-mlx` on the M4). A direct route would have to reimplement chat,
+  tools and structured output that the AI SDK gets from Ollama's OpenAI endpoint. Not worth it.
+- **Decision model:** Clef-flash runs on MLX in Ollama since 0.40.0 (safetensors on the M4),
+  and the runtime calls Ollama's `/v1/systemone`; `mlx-lm` has no such endpoint. Stays on
+  Ollama.
+- So a direct MLX engine would serve embeddings only, while a Mac that thinks locally still
+  needs Ollama. Dropping Ollama only pays for a person who wants local search and nothing else
+  local.
 
-## Speed
+## Speed elsewhere
 
 No published benchmark measures EmbeddingGemma (v1 or v2) on MLX against llama.cpp or Ollama.
-What exists:
-
-- Generation, not embeddings: Ollama's own MLX preview figures, Qwen3.5-35B-A3B decode
-  58 → 112 tok/s; tuned llama.cpp against MLX on M4 Max 1.4–1.8× in MLX's favour for decode,
-  and a Gemma 3 4B case where llama.cpp was ahead (123 vs 105 tok/s).
-- Embeddings: one blog post (Contra Collective, M5 Max) reports MLX about 50 % faster than
-  llama.cpp for nomic-embed-text-v2, bge-m3 and Qwen3-Embedding; its versions do not add up, so
-  it is a hint, not a number.
-
-An index run embeds a few hundred passages at a time, and media one item at a time; the model
-time dominates either way. Measure before deciding (below).
-
-## Measurements for the person to run
-
-Each pull downloads about 1.3–1.5 GB; nothing here was run.
-
-```bash
-ollama pull embeddinggemma-2:740m-mxfp8
-```
-
-```bash
-ollama pull embeddinggemma-2:740m
-```
-
-Text speed, 256 passages, each tag (repeat once; the first call loads the model):
-
-```bash
-python3 -c 'import json,urllib.request,time; b=json.dumps({"model":"embeddinggemma-2:740m-mxfp8","input":["title: none | text: passage %d about invoices and appointments" % i for i in range(256)]}).encode(); t=time.time(); r=json.load(urllib.request.urlopen(urllib.request.Request("http://localhost:11434/api/embed",b,{"Content-Type":"application/json"}))); print(len(r["embeddings"]), len(r["embeddings"][0]), round(time.time()-t,2), "s")'
-```
-
-Image and sound on the MLX tag (the spike):
-
-```bash
-curl -s localhost:11434/api/embed -d "{\"model\":\"embeddinggemma-2:740m-mxfp8\",\"input\":{\"image\":\"$(base64 -i photo.jpg)\"}}" | head -c 200
-```
-
-```bash
-curl -s localhost:11434/api/embed -d "{\"model\":\"embeddinggemma-2:740m-mxfp8\",\"input\":{\"audio\":\"$(base64 -i note.wav)\"}}" | head -c 200
-```
-
-Which runner holds it, and its memory:
-
-```bash
-ollama ps
-```
-
-For a number against MLX without Ollama (installs `mlx-vlm` 0.7.10 into a throwaway uv
-environment and downloads the bf16 weights, 1.49 GB):
-
-```bash
-uvx --from "mlx-vlm==0.7.10" --with "transformers>=5.14" python -c 'import time,mlx.core as mx; from mlx_vlm import load; m,p=load("mlx-community/embeddinggemma-2-bf16"); x=p.tokenizer(["title: none | text: passage %d about invoices and appointments" % i for i in range(256)],padding=True,return_tensors="np"); t=time.time(); e=m(**{k:mx.array(v) for k,v in x.items()}).text_embeds; mx.eval(e); print(e.shape, round(time.time()-t,2), "s")'
-```
+Generation figures (Ollama's MLX preview: Qwen3.5-35B-A3B decode 58 → 112 tok/s; tuned
+llama.cpp against MLX on M4 Max 1.4–1.8× for MLX, a Gemma 3 4B case the other way) and one
+embeddings blog post (MLX about 50 % ahead of llama.cpp on M5 Max, versions inconsistent) say
+nothing firm. The M4 measurements above are what counts: 14 ms per text indexes a space of a
+few thousand passages in under a minute.
 
 ## Open questions
 
-1. Does the MLX runner of Ollama 0.40.12 embed `image` and `audio` for `740m-mxfp8`, and are the
-   vectors in the same space as its text (a photo next to its caption scores well above
-   unrelated text)? If only images: is sound worth a helper of our own now?
-2. Is the MLX tag faster or slower than the GGUF tag on the person's Mac, and by how much on an
-   8 GB or 16 GB machine, where Ollama may keep the GGUF build for memory?
-3. Does Ollama pick the MLX runner for the tag on a Mac with less memory, or fall back? The
-   0.19 preview needed more than 32 GB; 0.40 does not say.
-4. The default tag differs by machine (MLX on Apple silicon, GGUF elsewhere), so `model` in
-   `project_chunk` differs too. A space synced between a Mac and the cloud embeds twice anyway
-   (the cloud uses credits); is that acceptable as it is today?
-5. If a Swift helper becomes necessary: one helper for Apple Intelligence and MLX
-   (`wizards-apple` grows a long-lived `serve` mode), or a second binary? Two keeps the
-   per-call helper simple; one keeps one build and one signature.
+1. A Mac with 8 or 16 GB: does Ollama still choose the MLX build of `740m`, and how fast is it
+   there?
+2. Linux and Windows run the GGUF build on llama.cpp: does `audio` work there, and are its
+   vectors close enough to the MLX build's that one `model` value (`ollama:embeddinggemma-2:740m`)
+   can stand for both? A space synced between machines would mix them.
+3. Is local search without the Ollama app worth a Swift helper (open question for the product,
+   not the code)? Only then does the table's last column matter.
+4. If it is: one helper for Apple Intelligence and MLX (`wizards-apple` grows a long-lived
+   `serve` mode), or a second binary? Two keeps the per-call helper simple; one keeps one build
+   and one signature.
 
 ## PR steps
 
-1. **`feat(runtime): EmbeddingGemma 2 on MLX on a Mac with Apple silicon`.** `LOCAL_EMBEDDING_MODEL`
-   becomes `embeddinggemma-2:740m-mxfp8` on a Mac with Apple silicon (`darwin` and `arm64`, as
-   `appleMachine()` checks), `embeddinggemma-2:740m` elsewhere; the search page downloads that tag. Existing
-   vectors carry `ollama:embeddinggemma-2:740m` and are embedded again by the reindex that a
-   change of model already runs. Gated on open question 2 (no slower than the GGUF tag).
-2. **The spike.** The `curl`s above on the MLX tag and the GGUF tag; result into
-   `docs/plans/` beside the multimodal search concept. Decides step 3 or 4.
-3. **`feat(runtime): image and sound into the Knowledge index through Ollama`** (behind
-   `mediaSearch`). Our own `/api/embed` call beside `embedMany` for media (the AI SDK takes
-   text only): base64 bytes of an image asset or a PDF page image, a sound window; the vector
-   lands in `project_chunk.embedding` with the same `model` as the text, so one cosine query
-   finds both.
-4. **Only if Ollama's MLX runner refuses media: `feat(runtime): a Swift MLX helper for
-   embeddings`.** `apps/runtime/mlx/` as a SwiftPM package pinned to the `mlx-swift-lm` commit
-   with #684 (a release once there is one), built with `xcodebuild` on the `macos-26` release
-   job into `dist/mlx/` and taken into the package like `wizards-apple`
-   (`scripts/npm-package.mjs`); a long-lived child speaking JSON lines; weights downloaded by
-   the search page into `~/.engenty/wizards/models`; a new `EmbeddingWay` (`mlx`) before
-   `local` on Apple silicon. No Python route in any case.
+1. **`feat(runtime): images and sound in the Knowledge index`** (behind `mediaSearch`). Our own
+   `/api/embed` call beside `embedMany` for media (the AI SDK takes text only), only on the
+   `local` way: an image asset or a PDF page as a base64 JPEG (about 277 tokens), a sound window
+   as base64 16 kHz mono WAV (ffmpeg, `apps/runtime/src/media/ffmpeg.ts`); video as frames and
+   its sound track. The vector lands in `project_chunk.embedding` with the same `model` as the
+   text, so one cosine query finds both. Ways without media (`gateway`, `openai`, `credits`)
+   keep indexing media by name and description (#254).
+2. **`feat(runtime): the search page says whether the local model reads images and sound`.**
+   From `/api/show` `capabilities`, so a GGUF build without `audio` or an older Ollama shows
+   what it lacks instead of failing in the index run.
+3. **Only if open question 3 says yes: `feat(runtime): a Swift MLX helper for embeddings`.**
+   `apps/runtime/mlx/` as a SwiftPM package pinned to the `mlx-swift-lm` commit with #684 (a
+   release once there is one), built with `xcodebuild` on the `macos-26` release job into
+   `dist/mlx/` and taken into the package like `wizards-apple` (`scripts/npm-package.mjs`); a
+   long-lived child speaking JSON lines; weights downloaded by the search page into
+   `~/.engenty/wizards/models`; a new `EmbeddingWay` (`mlx`) tried before `local` on Apple
+   silicon. No Python route in any case.
