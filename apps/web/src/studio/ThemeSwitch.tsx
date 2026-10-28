@@ -1,20 +1,21 @@
-import { Moon, Sun } from "lucide-react";
+import { Moon, Palette, Sun } from "lucide-react";
 import { t } from "../lib/i18n";
-import { setTheme, type Theme, usePreferredTheme, useTheme } from "../lib/theme";
+import { setTheme, type ThemeMode, usePreferredTheme, useThemeMode } from "../lib/theme";
 import { cn } from "../ui";
 
 const THEMES = [
   { theme: "light", icon: Sun, label: "theme.light" },
+  { theme: "branded", icon: Palette, label: "theme.branded" },
   { theme: "dark", icon: Moon, label: "theme.dark" },
-] as const satisfies readonly { theme: Theme; icon: typeof Sun; label: string }[];
+] as const satisfies readonly { theme: ThemeMode; icon: typeof Sun; label: string }[];
 const EASE = "cubic-bezier(0.3, 0.7, 0.2, 1)";
 
 /**
- * Light · dark in the look of the language switch: a thumb slides to the pick. `surface`: on a
+ * Light · branded · dark in the look of the language switch: a thumb slides to the pick. `surface`: on a
  * card or menu; `ground`: on a vivid page, which shows dark whatever the pick — so it lights the pick.
  */
 export function ThemeSwitch({ tone = "surface" }: { tone?: "ground" | "surface" }) {
-  const shown = useTheme();
+  const shown = useThemeMode();
   const preferred = usePreferredTheme();
   const ground = tone === "ground";
   const theme = ground ? preferred : shown;

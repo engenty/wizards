@@ -9,6 +9,7 @@ import {
   type LucideIcon,
   Monitor,
   Moon,
+  Palette,
   PanelBottom,
   PanelLeft,
   PanelLeftOpen,
@@ -39,7 +40,7 @@ import {
 } from "../lib/appbar";
 import { type Key, t } from "../lib/i18n";
 import { type Me, useCurrentProject, useMayCreate } from "../lib/session";
-import { setTheme, type Theme, useThemePick } from "../lib/theme";
+import { setTheme, type ThemeMode, useThemePick } from "../lib/theme";
 import { PluginFrame, useStudioPlugins } from "../plugins/host";
 import { cn } from "../ui";
 import { SpaceFace, SpaceMenu, UserMenu, useDismiss, useOneSpace } from "./AppFrame";
@@ -124,9 +125,10 @@ const POSITION_ICON: Record<AppBarPosition, LucideIcon> = {
   bottom: PanelBottom,
 };
 
-/** The colour schemes to pick from: light, dark, or the OS's own. */
-const SCHEMES: readonly { pick: Theme | null; icon: LucideIcon; label: Key }[] = [
+/** The colour schemes to pick from: light, branded, dark, or the OS's own. */
+const SCHEMES: readonly { pick: ThemeMode | null; icon: LucideIcon; label: Key }[] = [
   { pick: "light", icon: Sun, label: "appbar.light" },
+  { pick: "branded", icon: Palette, label: "appbar.branded" },
   { pick: "dark", icon: Moon, label: "appbar.dark" },
   { pick: null, icon: Monitor, label: "appbar.system" },
 ];

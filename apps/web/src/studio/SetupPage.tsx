@@ -401,7 +401,7 @@ function AccountAsk({
 export function SetupPage() {
   const siteOn = useFeature("site");
   // Dark stands on the vivid ground, light on the theme's paper.
-  const onGround = usePreferredTheme() === "dark";
+  const onGround = usePreferredTheme() !== "light";
   useGround(onGround ? GROUND : null);
   const me = useMe();
   const qc = useQueryClient();

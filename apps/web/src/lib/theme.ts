@@ -3,13 +3,18 @@ import { ENGENTY_FILL, ENGENTY_KIND_FILL, type EngentyKind } from "../engenty/co
 
 export type Theme = "light" | "dark";
 
+/** What the visitor picks: light, branded (dark on the engenty's blue) or dark (near-black). */
+export type ThemeMode = "light" | "branded" | "dark";
+
+const MODES: readonly string[] = ["light", "branded", "dark"];
+
 const KEY = "wizards.theme";
 const listeners = new Set<() => void>();
 const system = window.matchMedia("(prefers-color-scheme: dark)");
 
 /**
  * The pick shared with engenty's other pages (the account pages): a readable cookie on the site's
- * parent domain holding "light", "dark" or "system", like the language's
+ * parent domain holding "light", "branded", "dark" or "system", like the language's
  * (engenty-wizards-manage, apps/web/src/lib/theme.ts).
  */
 const SHARED_COOKIE = "engenty_theme";
@@ -20,10 +25,10 @@ function sharedPick(): string | null {
     .map((part) => part.trim())
     .find((part) => part.startsWith(`${SHARED_COOKIE}=`))
     ?.slice(SHARED_COOKIE.length + 1);
-  return raw === "light" || raw === "dark" || raw === "system" ? raw : null;
+  return raw && (MODES.includes(raw) || raw === "system") ? raw : null;
 }
 
-function sharePick(value: "light" | "dark" | "system") {
+function sharePick(value: ThemeMode | "system") {
   const host = window.location.hostname;
   const labels = host.split(".");
   // app.engenty.ai → engenty.ai, engenty.ai stays itself; localhost and plain addresses keep the host.
@@ -34,17 +39,25 @@ function sharePick(value: "light" | "dark" | "system") {
   document.cookie = `${SHARED_COOKIE}=${value}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax${parent ? `; Domain=${parent}` : ""}${secure}`;
 }
 
-/** The visitor's pick: `null` is "follow the OS", chosen on purpose; with no pick at all it is dark. */
-function stored(): Theme | null {
+/**
+ * The visitor's pick: `null` is "follow the OS", chosen on purpose; with no pick at all it is
+ * branded.
+ */
+function stored(): ThemeMode | null {
   try {
     const value = sharedPick() ?? localStorage.getItem(KEY);
     if (value === "system") {
       return null;
     }
-    return value === "light" ? "light" : "dark";
+    return value && MODES.includes(value) ? (value as ThemeMode) : "branded";
   } catch {
-    return "dark";
+    return "branded";
   }
+}
+
+/** The pick, with the OS setting in for "follow the OS": its dark is the branded one. */
+function chosen(): ThemeMode {
+  return stored() ?? (system.matches ? "branded" : "light");
 }
 
 /** Pages shown right now that stand on a vivid ground of their own, whatever the theme. */
@@ -69,7 +82,7 @@ function picked(): boolean {
 }
 
 /**
- * The visitor's pick (dark until there is one, or the OS setting if asked); a page on its own
+ * The visitor's pick (branded until there is one, or the OS setting if asked); a page on its own
  * ground is always dark, a wizard that sets dark or light shows that, and an app the page is
  * shown in decides before the visitor's pick.
  */
@@ -86,7 +99,15 @@ function current(): Theme {
   if (preferred && !picked()) {
     return preferred;
   }
-  return stored() ?? (system.matches ? "dark" : "light");
+  return chosen() === "light" ? "light" : "dark";
+}
+
+/**
+ * Dark pages stand on the engenty's blue unless the visitor picked plain dark; a page on its own
+ * vivid ground always does.
+ */
+function branded(): boolean {
+  return grounded > 0 || chosen() !== "dark";
 }
 
 /**
@@ -111,6 +132,7 @@ export function syncThemeColor() {
 function apply() {
   const dark = current() === "dark";
   document.documentElement.classList.toggle("dark", dark);
+  document.documentElement.classList.toggle("branded", branded());
   syncThemeColor();
   for (const listener of listeners) {
     listener();
@@ -125,13 +147,15 @@ if (!sharedPick()) {
 apply();
 
 /** The visitor's pick; `null` leaves it to the OS setting. */
-export function setTheme(theme: Theme | null) {
-  sharePick(theme ?? "system");
+export function setTheme(mode: ThemeMode | null) {
+  sharePick(mode ?? "system");
   try {
-    localStorage.setItem(KEY, theme ?? "system");
+    localStorage.setItem(KEY, mode ?? "system");
   } catch {
     // the pick only lasts this page then
-    document.documentElement.classList.toggle("dark", (theme ?? current()) === "dark");
+    const root = document.documentElement;
+    root.classList.toggle("dark", mode ? mode !== "light" : current() === "dark");
+    root.classList.toggle("branded", mode !== "dark");
     return;
   }
   apply();
@@ -146,23 +170,20 @@ export function setHostTheme(theme: Theme | null) {
   apply();
 }
 
-/** What the visitor picked, dark until then: `null` follows the OS. */
-export function useThemePick(): Theme | null {
+/** What the visitor picked, branded until then: `null` follows the OS. */
+export function useThemePick(): ThemeMode | null {
   return useSyncExternalStore((listener) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
   }, stored);
 }
 
-/** The visitor's pick, dark until there is one — also while a page on its own ground shows dark. */
-export function usePreferredTheme(): Theme {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    () => stored() ?? (system.matches ? "dark" : "light"),
-  );
+/** The visitor's pick, branded until there is one — also while a page on its own ground shows dark. */
+export function usePreferredTheme(): ThemeMode {
+  return useSyncExternalStore((listener) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }, chosen);
 }
 
 export function useTheme(): Theme {
@@ -172,6 +193,20 @@ export function useTheme(): Theme {
       return () => listeners.delete(listener);
     },
     () => (document.documentElement.classList.contains("dark") ? "dark" : "light"),
+  );
+}
+
+/** The mode shown right now: light, or dark on the engenty's blue or near-black. */
+export function useThemeMode(): ThemeMode {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => {
+      const root = document.documentElement.classList;
+      return root.contains("dark") ? (root.contains("branded") ? "branded" : "dark") : "light";
+    },
   );
 }
 
