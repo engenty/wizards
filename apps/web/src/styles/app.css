@@ -19,9 +19,9 @@
    dark stands on a near-black with a trace of the engenty blue. Either way every surface and ink
    step derives from the stage, so a wizard's page, cards and text all carry its hue. */
 :root {
-  --dark-ground: oklch(21% 0.02 264);
+  --dark-ground: oklch(21% 0.035 264);
   /* How much colour the inks take from the stage. */
-  --dark-tint: 0.3;
+  --dark-tint: 0.45;
 }
 
 :root.branded {
