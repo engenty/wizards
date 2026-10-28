@@ -43,11 +43,11 @@ Nothing of it is released.
 | Goal | Mastra | Our layer |
 |---|---|---|
 | The agent | An `Agent` whose `model`, `memory`, `workspace`, `skills`, `browser` and `agents` are resolved per request (`DynamicArgument`, from a `RequestContext` with tenant, space, chat, person) | `chatModel(chatTurnWay())` as the model; the space's tools |
-| Threads and messages | `Memory` threads: thread id = chat id, resource id = the space; messages stored by Mastra (libSQL store) in the tenant's database | `chat` as the sidebar keeps it: title, section, parent, private, members, pins, unread, archive. The last message's author, text and time copied onto `chat` for the sidebar |
+| Threads and messages | `Memory` threads: thread id = chat id, resource id = the space; messages stored by Mastra (libSQL store) in the tenant's database; a message the AI isn't asked about through `sendMessage` with `ifIdle: persist` (stored, no run). `Memory` and a `Mastra` instance cached per tenant | `chat` as the sidebar keeps it: title, section, parent, private, members, pins, unread, archive. The last message's author, text and time copied onto `chat` for the sidebar |
 | Several people | Mastra's "multi-user threads": one resource for all, the speaker tagged in each message (`<turn author_id author_name>`) when the prompt is built | An input processor that adds the tags from the author stored on the message |
 | Messages during a turn | Signals: `sendMessage` (into the running loop, interrupting a request that has only reasoned yet), `queueMessage` (after the turn), `abortThreadStream` (Stop, `clearPendingSignals`) | The composer (⌘↩ for after the answer); "the request before it still stands" on a message taken in (engenty-pro, 8e7b970d1) |
 | Compaction | Observational memory (observer and reflector); its threshold set high so the prompt's prefix is rewritten rarely (engenty-pro: 80k tokens), `activateAfterIdle` for when the cache has expired anyway; a token limit processor as hard backstop | The thresholds per model window; the marker "Earlier messages summarised" in the chat |
-| Approvals | Tools with `requireApproval`; the turn suspends, its snapshot in Mastra's storage; `approveToolCall` / `declineToolCall`, `listSuspendedRuns` after a restart | Who may approve (the person who asked, owners and admins, never the AI); the card (shadcn/ui Confirmation); the shell-command classifier |
+| Approvals | Not Mastra's suspend: with a client as the model it is skipped (spike, #268). The gate sits on the tool (below) | The gate on the tool, who may approve (the person who asked, owners and admins, never the AI), the card (shadcn/ui Confirmation), the shell-command classifier |
 | Streaming to the browser | `toAISdkStream` (`@mastra/ai-sdk`, `version: 'v7'`) into `useChat`; `toAISdkMessages` for the stored messages | The route, the shadcn/ui chat parts of step 2 |
 | The space's computer | `Workspace` with our sandbox engines (`sandbox/`: Docker, agentOS, already `WorkspaceSandbox`), a filesystem with the space's files, workspace search (BM25, vector), skills (`SKILL.md`) | One computer per space that stays (sleep, wake), the egress proxy, the tool relay into the container, limits and usage |
 | The browser | Mastra's browser, only once the CDP process-group kill of engenty-pro is shown fixed; else our `tools/browser.ts` as tools | A profile per space, a window per chat, the sign-in card, consent to browse unattended |
@@ -163,9 +163,26 @@ the previous turn's until observational memory rewrites it:
 - The "send after the answer" queue is tied to the chat, cleared on Stop, held while an approval
   is open (ff749bdfa, 2b4682968).
 
+## Approvals: the gate on the tool
+
+The spike (#268, `docs/plans/work-chats-spike.md`) showed that with Claude Code as the model the
+client runs our tools itself over the bridge, and Mastra's `requireApproval` never sees the call:
+a mail went out without asking. So there is one path for every model:
+
+- A tool that acts outside the space doesn't act when it is called. It stores the call (tool,
+  arguments, chat, who asked) as a pending approval and answers "waiting for approval".
+- Approve runs the stored call once, with the stored arguments, and sends the result into the
+  chat as a signal (`sendSignal`, reactive); the AI goes on from there. Deny sends that.
+- The card is the shadcn/ui Confirmation; the bell counts pending approvals per person.
+- This gate on the tool is where the agent broker will stand later.
+
+A client's tool steps don't reach Mastra's stream either: the bridge writes each call and its
+result as tool parts of the AI's message, so the Trace shows them as on an API model.
+
 ## Pieces, one PR each
 
-0. **Spike: prove the integration points.** A test runtime with:
+0. **Spike: prove the integration points.** Done: #268, results in
+   `docs/plans/work-chats-spike.md`. What it was to prove: A test runtime with:
    - Mastra's libSQL store in a tenant's database (beside our tables, `mastra_` prefix, its own
      migrations), a `Memory` made per request, a thread per chat with the space as resource.
    - Where suspended snapshots go: Mastra keeps them in the `Mastra` instance's storage, one
@@ -186,8 +203,8 @@ the previous turn's until observational memory rewrites it:
 3. **The turn and the web.** The route (`toAISdkStream`), `useChat`, Stop, retry, signals
    (taken in now, after the answer), asking the AI in a group chat (`@` + the space's name or an
    Ask button), observational memory and its marker, timeouts, usage per step.
-4. **Approvals.** `requireApproval` on the tools that act outside, the classifier for commands,
-   the Confirmation card, who may approve, the bell's count.
+4. **Approvals.** The gate on the tool (above), the classifier for commands, the Confirmation
+   card, who may approve, the bell's count; the bridge's tool parts for clients.
 5. **The space's computer.** A sandbox per space that stays, the `Workspace` with the space's
    files, search and skills, the `wizards` command and its relay, the egress proxy, limits,
    usage.
@@ -210,9 +227,9 @@ the previous turn's until observational memory rewrites it:
 - **Mastra storage in the tenant database.** Its tables and migrations beside ours, sync between
   a local install and the cloud (tenant-sync.md), the live feed's triggers on its tables. The
   spike decides.
-- **Clients as models.** On Claude Code or Codex the tools reach the client over MCP and the
-  client runs them; tool calls may come as provider-executed parts with fewer states, and
-  Mastra's suspend may not apply. Tested in the spike.
+- **Clients as models.** On Claude Code or Codex the client runs the tools over the bridge:
+  Mastra's suspend doesn't apply and its stream carries text only (spike). Hence the gate on the
+  tool and the bridge's tool parts.
 - **Several processes per tenant.** Signals and suspend need a shared pub/sub (Redis) across
   instances; until then a tenant's chats run on one process.
 - **Mastra betas.** Durable agents and parts of signals are marked beta; we take what is stable
