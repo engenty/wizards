@@ -5,7 +5,7 @@ its plan includes them. Not on the public docs site: it is about the closed side
 
 Some of engenty's plugins are not part of the open product: they come with the Pro and Team
 plans. On engenty.ai they are in the cloud runtime's image. A local install gets them from the
-linked account, in Settings → Plugins → Pro modules.
+linked account, in Settings › Plugins (the Pro plugins in its list).
 
 ## How a module gets there
 
