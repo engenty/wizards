@@ -58,13 +58,106 @@ must outlive a process, which is the point to decide on a store per tenant.
 | Live | The chat tables join `live_change` (kinds `chat`, `chatMessage`); the browser patches its cache, polling goes | One feed for the whole studio (live-changes.md); presence shows that the AI is answering |
 | History a turn sends | The chat's last messages as they are, older ones as a running summary, like the assistant's `turnHistory` | Same limits, same costs as the studio assistant |
 
+## The space's computer and browser
+
+The AI in a chat (and every engenty later) works with the space's computer and browser, not only
+with tools that read and write data.
+
+- **Today** a wizard step gets a sandbox per run (`sandbox/`: Docker or agentOS, `run_command`
+  in `tools/index.ts`, through Mastra's `WorkspaceSandbox`), thrown away when the run ends, and a
+  server-side browser (`tools/browser.ts`, `browser/fast/`) with the person's sign-ins. The studio
+  assistant's "browser tools" are something else: the person's own studio page (AG-UI).
+- **The space's computer** is one sandbox per space that stays: its disk keeps files, installed
+  packages and checkouts between turns and chats. Started on the first turn that needs it, put to
+  sleep when idle, woken by the next. In Mastra terms a `Workspace` with that sandbox and a
+  filesystem: the space's files mounted in it, so what the AI makes there lands in Files.
+  Each chat works in a folder of its own on that disk; the disk is shared, as in an office.
+- **The space's browser** is a server-side browser with a profile per space: sites the team signs
+  in to stay signed in for every chat of the space. The chat shows what it does (a live view
+  beside the message, screenshots in the Trace), and a person can take it over to sign in or
+  solve a check, then hand it back.
+- **Full access, one rule.** The AI uses both without asking: commands, installs, files, reading
+  and clicking through sites. It asks (an approval, as above) only before an effect outside the
+  space: sending, buying, publishing, deleting on a connected service, a form that submits on a
+  site.
+- **Where it runs.** In the cloud on the runtime's sandbox engine and browser; on a local install
+  on the computer's Docker or agentOS and its Chrome. Without a sandbox engine the chat says so
+  and offers `wizards sandbox add`.
+
+## Messages during a turn, compaction, prompt caching
+
+### Messages during a turn (Mastra calls them signals)
+
+Mastra's signals (`sendMessage` into a running loop, `queueMessage` for after it, a waiting or
+only-thinking model request cut and redone with the new input) are bound to Mastra memory
+threads and its pub/sub, which needs Redis once more than one process serves a tenant. Our chats
+are not Mastra threads. Step 3 gives the same behaviour on our tables:
+
+- **Taken in now.** A message written while the AI answers goes into the running turn before its
+  next step (`prepareStep`, as the studio assistant's signals do) and shows "taken in" on it.
+- **Cut a waiting request.** When the step under way has produced nothing but reasoning yet (or
+  no first token), it is aborted and redone with the new message, as Mastra does. A step that
+  already streams text or runs a tool finishes first.
+- **After the turn.** "Send after the answer" (⌘↩, as in the studio's composer) queues it for a
+  new turn.
+- **Stop** ends the turn and drops what is queued.
+- **Two people.** Both write into the same queue; each message keeps its author.
+
+Mastra's own signals come in when chats move onto Mastra storage (if ever): the behaviour stays.
+
+### Compaction
+
+- **Per chat, not per window.** `chat` gets `summary` and `folded_until` (the last message the
+  summary covers). A turn sends: summary, then every message after `folded_until` as it is.
+  No sliding window: the list only grows until the next compaction.
+- **When.** By tokens, not by count: after a turn whose last step used more than 60 % of the
+  model's window (`contextWindowOf`), the chat is compacted in the background. A turn that would
+  overflow compacts before its next step.
+- **How.** First the cheap part: tool outputs of older turns become a stub ("searchFiles: 3
+  files, kept in the chat"). Then the cheap model class folds everything up to the last ~20 % of
+  the window into the summary, written for a group: who asked what, what was decided, what is
+  open, which files and results were made. The newest messages stay as they are.
+- **Visible.** A marker in the chat: "Earlier messages summarised", the summary on click. The
+  messages themselves stay in the chat; only what the model gets is shorter.
+- **Sub-threads keep it small.** Long side work happens in a sub-thread; its parent only gets the
+  report.
+
+### Prompt caching
+
+The prompt is built so that each turn's prompt starts with the previous turn's, byte for byte,
+until the next compaction:
+
+1. **Tools**: the same set, in a fixed order, for the whole chat (no tool switched per turn).
+2. **System**: the space's instructions, without time, person or page in it.
+3. **Space context**: what changes rarely (the space's name, facts, brand), with its version.
+4. **Summary**: changes only at compaction.
+5. **Messages** since `folded_until`, append-only, each with its author tag
+   (`<turn author_name=…>`); stored parts are replayed exactly as stored.
+6. **This turn**: the new message, and what changes each time (now, who asks, the attachments).
+
+- **Anthropic.** Cache breakpoints on 2 (tools + system), 4 (summary) and the last message of
+  the previous turn; within a turn, on the newest tool result before each step. 5-minute TTL;
+  1 hour for 1–2 once a chat is busy.
+- **OpenAI, Google.** Their automatic prefix caching takes the same order; `prompt_cache_key` is
+  the chat id.
+- **Clients (Claude Code, Codex).** They cache themselves; the stable order serves them as well.
+- **What breaks the cache, on purpose and rarely:** a compaction, a change of the space's
+  instructions or tools, a model change.
+- **Checked, not hoped.** `cachedInputTokens` is already booked per step; the usage of a chat shows
+  the share read from cache, and a test builds turn N and N+1 and checks that one is the prefix
+  of the other.
+- **The studio assistant today** marks only its system prompt and sends its last 12 messages as a
+  sliding window, so everything after the system prompt misses the cache from turn to turn. The
+  shared agent of PR 1 takes the same order, and Goose gains from it too.
+
 ## Pieces, one PR each
 
 1. **The agent, shared.** Take the agent's making out of `runStudioAssistant`
    (`agents/studio-assistant.ts`) into one function that takes the person, the space and which
    tools: Goose with its page snapshot as today, the Work turn with the chat. No change a person
    sees.
-2. **The turn.** `POST /api/studio/work/chats/:id/turn` (message, whether the AI is asked) answers with
+2. **The turn.** The prompt in the order of "Prompt caching", compaction, messages during a
+   turn. `POST /api/studio/work/chats/:id/turn` (message, whether the AI is asked) answers with
    the UI message stream. Writes the person's message, the AI's row, its parts while it
    streams, usage and credits like the assistant (`onStep`), errors as a part the chat shows (no
    credits, model not set up, client signed out). `@mastra/ai-sdk` joins the runtime.
@@ -75,7 +168,10 @@ must outlive a process, which is the point to decide on a store per tenant.
 4. **Approvals.** Tools marked `needsApproval`; the Confirmation pattern (Approve / Deny with what
    the tool will do); `PUT /chats/:id/messages/:mid/approval`; the continuation turn. The bell
    counts approvals waiting for the person.
-5. **Live.** Triggers for `chat`, `chat_member`, `chat_message`, `chat_state` into
+5. **The space's computer and browser.** A sandbox per space that stays (engine API: keep, sleep,
+   wake, a disk per space, the space's files mounted), a browser profile per space, both as tools
+   of the agent; the live view and takeover in the chat. May split into two PRs.
+6. **Live.** Triggers for `chat`, `chat_member`, `chat_message`, `chat_state` into
    `live_change` (scripts/triggers.mjs), their views (a private chat only to its members), the
    cache patch in the web, presence for a turn under way. Polling goes.
 
