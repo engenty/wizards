@@ -717,6 +717,8 @@ export function UserMenu({
   const initials = initialsOf(me.user.name);
   const account = useFeature("account");
   const state = accountState(me, account);
+  // The person's own settings are behind the avatar where the organization has its own.
+  const ownSettings = me.mode === "managed" && featureOn(me.features, "organizationSettings");
   const item =
     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[0.875rem] text-ink-2 hover:bg-accent hover:text-ink";
   return (
@@ -829,19 +831,19 @@ export function UserMenu({
               </span>
             </button>
           ) : null}
-          {me.mode === "managed" && featureOn(me.features, "organizationSettings") ? (
-            // The person's own settings: behind the avatar, apart from the organization's.
-            <button
-              type="button"
-              className={item}
-              onClick={() => {
-                setOpen(false);
-                navigate("/account");
-              }}
-            >
-              <UserRound className="size-4" /> {t("konto.title")}
-            </button>
-          ) : me.manageUrl ? (
+          {/* The person's own settings: behind the avatar, apart from the organization's where
+              there are both, else Settings › Account. */}
+          <button
+            type="button"
+            className={item}
+            onClick={() => {
+              setOpen(false);
+              navigate(ownSettings ? "/account" : "/settings/account");
+            }}
+          >
+            <UserRound className="size-4" /> {t("konto.title")}
+          </button>
+          {!ownSettings && me.manageUrl ? (
             <a className={item} href={`${me.manageUrl}/account`} target="_blank" rel="noreferrer">
               <CreditCard className="size-4" /> {t("nav.account")}
             </a>
