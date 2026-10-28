@@ -23,7 +23,7 @@ import {
 import { OrganizationGeneral, OrganizationKeys, OrganizationMembers } from "./OrganizationSettings";
 import { PersonApps, PersonOrganizations, PersonProfile } from "./PersonAccount";
 import { projectReadOnlyText, ReadOnlyNote } from "./ReadOnly";
-import { FeatureSwitches, RuntimeSetup } from "./RuntimeSettings";
+import { RuntimeSetup } from "./RuntimeSettings";
 import {
   BackRow,
   LevelHead,
@@ -44,11 +44,11 @@ const aboutTab = (tab: string | null): "new" | "earlier" | "credits" =>
   tab === "earlier" || tab === "credits" ? tab : "new";
 
 /** The sections whose menu goes one level down in the left container. */
-const MENUS = new Set(["models", "integrate"]);
+const MENUS = new Set(["models", "integrate", "setup"]);
 
 /**
  * Settings at /settings/<section>. One container on the left shows one level at a time: the
- * sections, or — for Models and Integrate — the section's own menu one level down, with the way
+ * sections, or — for Models, Integrate and Setup — the section's own menu one level down, with the way
  * back at its top. On a phone the levels and the page take turns: the sections, a section's
  * menu, then the page, each with the way back.
  */
@@ -227,7 +227,6 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
               {current.id === "account" && me.data ? <Account me={me.data} /> : null}
               {current.id === "cloud" ? <CloudSyncSection /> : null}
               {current.id === "setup" && me.data ? <RuntimeSetup me={me.data} /> : null}
-              {current.id === "features" && me.data ? <FeatureSwitches me={me.data} /> : null}
               {current.id === "about" ? (
                 <Suspense fallback={null}>
                   <AboutPanel me={me.data} active initialTab={aboutTab(params.get("tab"))} />

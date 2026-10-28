@@ -745,7 +745,8 @@ const de: Record<Key, Line> = {
   "about.title": "Über engenty wizards",
   "about.nav": "Über",
   "runtime.setupNav": "Setup",
-  "runtime.featuresNav": "Feature-Schalter",
+  "runtime.featuresNav": "Features",
+  "runtime.general": "Übersicht",
   "runtime.models": "Womit engenty arbeitet",
   "runtime.modelsHint":
     "Das gilt für alle Spaces auf diesem Computer. Ändern kannst du es unter Modelle.",
@@ -776,7 +777,7 @@ const de: Record<Key, Line> = {
   "runtime.restart": "Neu starten",
   "runtime.restarting": "Startet neu …",
   "runtime.restartFailed": "Der Neustart hat nicht geklappt. Starte engenty wizards selbst neu.",
-  "runtime.featuresTitle": "Feature-Schalter",
+  "runtime.featuresTitle": "Features",
   "runtime.featuresHint":
     "Ein Schalter gilt für alle Spaces auf diesem Computer. Was du änderst, steht in {file} und gilt sofort.",
   "runtime.featuresHintCloud":
@@ -3497,7 +3498,8 @@ const en = {
   "about.title": "About engenty wizards",
   "about.nav": "About",
   "runtime.setupNav": "Setup",
-  "runtime.featuresNav": "Feature switches",
+  "runtime.featuresNav": "Features",
+  "runtime.general": "Overview",
   "runtime.models": "What engenty works with",
   "runtime.modelsHint": "This holds for every space on this computer. You change it under Models.",
   "runtime.source": "Source",
@@ -3527,7 +3529,7 @@ const en = {
   "runtime.restart": "Restart",
   "runtime.restarting": "Restarting…",
   "runtime.restartFailed": "The restart didn’t work. Restart engenty wizards yourself.",
-  "runtime.featuresTitle": "Feature switches",
+  "runtime.featuresTitle": "Features",
   "runtime.featuresHint":
     "A switch holds for every space on this computer. What you change goes into {file} and holds at once.",
   "runtime.featuresHintCloud":

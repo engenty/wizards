@@ -12,7 +12,6 @@ import {
   type LucideIcon,
   Plug,
   Receipt,
-  ToggleRight,
   UserRound,
   Users,
   Wrench,
@@ -129,15 +128,7 @@ export function settingsSections(
       : []),
     // What holds for the whole runtime: on this computer, or for the platform's admins.
     ...(runtimeSettingsOn(me)
-      ? [
-          inStudio({ id: "setup", label: t("runtime.setupNav"), icon: Wrench, menu: false }),
-          inStudio({
-            id: "features",
-            label: t("runtime.featuresNav"),
-            icon: ToggleRight,
-            menu: false,
-          }),
-        ]
+      ? [inStudio({ id: "setup", label: t("runtime.setupNav"), icon: Wrench, menu: false })]
       : []),
     // Which release this is, its updates, what is new, the credits.
     { id: "about", label: t("about.nav"), icon: Info, menu: false },
