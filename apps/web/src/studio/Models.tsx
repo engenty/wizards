@@ -114,7 +114,20 @@ interface EmbeddingState {
   ref: string | null;
   /** The model asked for in Ollama on this computer. */
   local: string;
+  /** Its download into Ollama, where one ran since the start. */
+  download: EmbeddingDownload | null;
 }
+
+interface EmbeddingDownload {
+  done: number;
+  total: number;
+  /** `ollama`: Ollama does not run on this computer; else what Ollama said. */
+  error: string | null;
+  finished: boolean;
+}
+
+/** Megabytes, for a download's progress. */
+const mb = (bytes: number) => Math.round(bytes / 1e6).toLocaleString(lang);
 
 /** The ways to a decision model, in the order `auto` tries them. */
 const DECISION_WAYS = ["gateway", "typesafe", "local", "credits"] as const;
@@ -2104,9 +2117,21 @@ function SearchPanel({
   onOpen: (target: Target) => void;
 }) {
   const save = useSave();
+  const qc = useQueryClient();
   const [needsAccount, setNeedsAccount] = useState(false);
   const [local, setLocal] = useState(state.embedding.local);
-  const { choice, ready } = state.embedding;
+  const { choice, ready, download } = state.embedding;
+  const downloading = Boolean(download && !download.finished);
+  // While the download runs, the page asks how far it got.
+  useQuery({
+    queryKey: ["models"],
+    queryFn: () => api.get<ModelsState>("/api/studio/models"),
+    refetchInterval: downloading ? 1500 : false,
+  });
+  const pull = useMutation({
+    mutationFn: () => api.post<ModelsState>("/api/studio/models/embedding/download", {}),
+    onSuccess: (next) => qc.setQueryData(["models"], next),
+  });
   const status = embeddingText(state, place);
   const pick = (next: EmbeddingChoice) => {
     setNeedsAccount(false);
@@ -2204,6 +2229,9 @@ function SearchPanel({
               {ready.local
                 ? t("models.searchLocalReady", { model: state.embedding.local })
                 : t("models.searchLocalHint", { model: state.embedding.local })}
+              {!ready.local && state.embedding.local.startsWith("embeddinggemma-2")
+                ? ` ${t("models.searchLocalGemma")}`
+                : null}
             </Hint>
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
               <Input
@@ -2221,6 +2249,37 @@ function SearchPanel({
                 {t("settings.save")}
               </Button>
             </div>
+            {ready.local ? null : (
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  busy={pull.isPending || downloading}
+                  disabled={!place.canEdit || downloading}
+                  onClick={() => pull.mutate()}
+                >
+                  {t("models.searchLocalDownload", { model: state.embedding.local })}
+                </Button>
+                {downloading && download ? (
+                  <span className="text-[0.8125rem] text-ink-2 tabular-nums">
+                    {download.total
+                      ? t("models.searchLocalProgress", {
+                          done: mb(download.done),
+                          total: mb(download.total),
+                        })
+                      : t("models.searchLocalStarting")}
+                  </span>
+                ) : null}
+              </div>
+            )}
+            {download?.error ? (
+              <p className="text-[0.8125rem] text-rose">
+                {download.error === "ollama"
+                  ? t("models.searchLocalNoOllama")
+                  : t("models.searchLocalFailed", { error: download.error })}
+              </p>
+            ) : null}
+            {pull.isError ? (
+              <p className="text-[0.8125rem] text-rose">{(pull.error as Error).message}</p>
+            ) : null}
           </Part>
         )}
         <Part

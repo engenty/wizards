@@ -106,6 +106,7 @@ import {
   classProblem,
   classWays,
   DECISION_CHOICES,
+  downloadLocalEmbedding,
   EMBEDDING_CHOICES,
   embeddingModel,
   hasTextModel,
@@ -1852,6 +1853,19 @@ export const studio = new Hono<Vars>()
     if (((await embeddingModel().catch(() => null))?.ref ?? null) !== embeddedBy) {
       void reindexAll().catch((err) => console.error("[models] reindex failed", err));
     }
+    return c.json(await modelSettings(requestLang(c)));
+  })
+  // The embedding model on this computer, pulled into Ollama; the spaces are indexed with it after.
+  .post("/models/embedding/download", async (c) => {
+    if (managed || !mayChangeModels(c.get("user"))) {
+      return c.notFound();
+    }
+    const embeddedBy = (await embeddingModel().catch(() => null))?.ref ?? null;
+    await downloadLocalEmbedding(async () => {
+      if (((await embeddingModel().catch(() => null))?.ref ?? null) !== embeddedBy) {
+        await reindexAll();
+      }
+    });
     return c.json(await modelSettings(requestLang(c)));
   })
   // Whether a provider takes a key — the one typed, or the one stored. Nothing is generated.
