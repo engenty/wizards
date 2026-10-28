@@ -247,10 +247,21 @@ result as tool parts of the AI's message, so the Trace shows them as on an API m
   the studio reads the sidebar, the chat and the bell again.
 - **A private chat's changes reach its members only**: the live stream checks each `chat` change
   against the person before it sends it (views are cached per role, not per person).
-- **Following a running turn**: `chat.answering_since` is set while the AI answers; others in the
-  chat hear of it and follow the turn from its start (`GET /chats/:id/follow`, `useChat`'s
-  resume). The process that runs the turn keeps its chunks while it runs; a second process per
-  tenant would need them shared (not yet).
+- **One path for every run**: a watcher per chat subscribes to its thread (with the runs'
+  status) and handles every run alike, however it started: a message waking the AI, an
+  approval's outcome, a message queued for after the answer. Per run it marks the chat
+  answering (`chat.answering_since`), lets the chat follow it, keeps a client's tool steps, and
+  at the run's end (Mastra's run status, not its `finish` chunk) writes the last message.
+- **Following a running turn**: whoever asks, or reads the chat while the AI answers, follows
+  the run from its start (`GET /chats/:id/follow`, `useChat`'s resume).
+- **A stuck turn isn't shown**: a turn doesn't outlive its process; when a process first serves
+  a tenant's chats it clears every `answering_since`, and one older than a turn may run counts as
+  not answering.
+- **Taken out of a private chat**: its changes reach that person as gone (the id alone), so it
+  leaves their sidebar.
+- **One process**: the watchers and the runs others follow live in the memory of the process that
+  runs them, like Mastra's signals; a second process per tenant needs both shared (see "Several
+  processes per tenant" under Risks).
 - **Polling only without the live feed** (`liveChanges` off).
 
 ## After step 3

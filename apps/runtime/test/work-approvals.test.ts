@@ -241,10 +241,9 @@ describe("approvals in a Work chat", () => {
     const results = prompt.flatMap((m) =>
       m.role === "tool" ? m.content.filter((c) => c.type === "tool-result").map((c) => c.toolCallId) : [],
     );
-    // Mastra (1.80) leaves a stopped step out of the thread: its call isn't sent again without a
-    // result; the person's message stays.
+    // A stopped step is either left out of the thread or kept with its result (Mastra 1.80):
+    // never a call without a result. The person's message stays.
     expect(calls.filter((c) => !results.includes(c))).toEqual([]);
-    expect(prompts.at(-1)).not.toContain("mailer_slow");
     expect(prompts.at(-1)).toContain("Dauert.");
   });
 });

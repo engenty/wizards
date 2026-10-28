@@ -123,7 +123,13 @@ describe("work chats live", () => {
       { kind: "wizard", op: "put", item: "w1", projectId: spaceId, parent: null },
     ];
     const forBen = await client.withTenant("local", () => chatChangesFor(other, items));
-    expect(forBen.map((i) => i.item)).toEqual([open.id, "sec1", "w1"]);
+    // A chat Ben doesn't see reaches him as gone, its id alone: it leaves his sidebar if it was there.
+    expect(forBen).toEqual([
+      items[0],
+      { kind: "chat", op: "del", item: closed.id, projectId: null, parent: null },
+      items[2],
+      items[3],
+    ]);
     const forMe = await client.withTenant("local", () => chatChangesFor(me, items));
     expect(forMe.map((i) => i.item)).toEqual([open.id, closed.id, "sec1", "w1"]);
   });
@@ -144,6 +150,40 @@ describe("work chats live", () => {
     const text = (cs: any[]) => cs.filter((c) => c.type === "text-delta").map((c) => c.delta).join("");
     expect(text(followed)).toBe("Hier ist die Antwort.");
     expect(followed.map((c) => c.type)).toEqual(asker.map((c) => c.type));
+    expect((await json(send("GET", `/chats/${chat.id}`))).chat.answeringSince).toBe(null);
+    expect((await send("GET", `/chats/${chat.id}/follow`)).status).toBe(204);
+  });
+
+  it("keeps the books of a turn that was queued for after the answer", async () => {
+    const chat = await json(send("POST", "/chats", { spaceId }));
+    const step = gate();
+    script.push({ wait: step.wait, chunks: say("Erste Antwort.") }, { chunks: say("Zweite Antwort.") });
+    const before = calls;
+    const turn = send("POST", `/chats/${chat.id}/messages`, { text: "Erste Frage?", ask: true });
+    await vi.waitFor(() => expect(calls).toBe(before + 1));
+    expect(
+      await json(send("POST", `/chats/${chat.id}/messages`, { text: "Zweite Frage?", ask: true, later: true })),
+    ).toEqual({ sent: "queued" });
+    step.open();
+    await chunks(await turn);
+    await vi.waitFor(() => expect(calls).toBe(before + 2));
+    await vi.waitFor(async () => {
+      const side = await json(send("GET", `/chats?space=${spaceId}`));
+      expect(side.chats.find((c: any) => c.id === chat.id).last.text).toBe("Zweite Antwort.");
+    });
+    expect((await json(send("GET", `/chats/${chat.id}`))).chat.answeringSince).toBe(null);
+  });
+
+  it("don't show a chat as answering once its turn is older than a turn may run", async () => {
+    const client = await import("../src/db/client");
+    const { eq } = await import("drizzle-orm");
+    const chat = await json(send("POST", "/chats", { spaceId }));
+    await client.withTenant("local", () =>
+      client.db
+        .update(client.schema.chat)
+        .set({ answeringSince: new Date(Date.now() - 21 * 60_000) })
+        .where(eq(client.schema.chat.id, chat.id)),
+    );
     expect((await json(send("GET", `/chats/${chat.id}`))).chat.answeringSince).toBe(null);
     expect((await send("GET", `/chats/${chat.id}/follow`)).status).toBe(204);
   });
