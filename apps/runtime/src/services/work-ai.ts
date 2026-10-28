@@ -3,10 +3,12 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { sortedTools } from "../agents/space-agent.js";
 import { chatTurnWay } from "../agents/subscription.js";
+import { HarnessModel } from "../harness/index.js";
 import { managed } from "../manage.js";
 import { attachTools, chatModel, gatewayTools, type ResolvedModel } from "../models.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { assistantToolsOf } from "../tools/plugin.js";
+import { ClientSteps } from "./client-steps.js";
 import { searchKnowledge } from "./project-index.js";
 
 /**
@@ -69,40 +71,45 @@ async function toolsFor(
   } else if (resolved.gateway) {
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
   }
-  const sorted = sortedTools(tools);
-  attachTools(resolved, sorted);
-  return sorted;
+  return sortedTools(tools);
 }
 
-/** Everything a turn of the space's AI needs, made for the person who asked. */
+/**
+ * Everything a turn of the space's AI needs, made for the person who asked. On a client the
+ * tools are recorded as they run (client-steps.ts): the client runs them itself.
+ */
 export async function workTurn(
   space: { id: string; name: string },
   userId: string,
   signal: AbortSignal,
+  steps: ClientSteps,
 ): Promise<WorkTurn> {
   const resolved = await chatModel(await chatTurnWay(managed), "standard");
-  return {
-    resolved,
-    tools: await toolsFor(resolved, space, userId, signal),
-    instructions: instructionsFor(space.name),
-  };
+  const made = await toolsFor(resolved, space, userId, signal);
+  const tools = resolved.model instanceof HarnessModel ? steps.wrap(made) : made;
+  attachTools(resolved, tools);
+  return { resolved, tools, instructions: instructionsFor(space.name) };
 }
 
 /** A turn made on its first use, and the signal that ends it TURN_MS after that. */
 export interface LazyTurn {
   get(): Promise<WorkTurn>;
   signal: AbortSignal;
+  /** The tool steps of a client as the model; empty on an API model, whose stream has them. */
+  steps: ClientSteps;
 }
 
 export function lazyTurn(space: { id: string; name: string }, userId: string): LazyTurn {
   const controller = new AbortController();
+  const steps = new ClientSteps();
   let made: Promise<WorkTurn> | null = null;
   return {
     signal: controller.signal,
+    steps,
     get() {
       if (!made) {
         setTimeout(() => controller.abort(new Error("The turn took too long.")), TURN_MS).unref();
-        made = workTurn(space, userId, controller.signal);
+        made = workTurn(space, userId, controller.signal, steps);
       }
       return made;
     },

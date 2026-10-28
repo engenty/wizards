@@ -8,6 +8,7 @@ import type { SessionUser } from "../auth/index.js";
 import { canSpend } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { managed, tenantMembers } from "../manage.js";
+import { type ClientStep, type ClientSteps, stepChunk, stepParts } from "./client-steps.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
 import { lazyTurn, MAX_STEPS, TURN_KEY } from "./work-ai.js";
@@ -432,16 +433,18 @@ export async function sendMessage(
     subscription.unsubscribe();
     return { kind: "taken" };
   }
-  return { kind: "turn", stream: turnStream(chat, subscription) };
+  return { kind: "turn", stream: turnStream(chat, subscription, turn.steps) };
 }
 
 /**
  * The AI's turn as the browser reads it: Mastra's chunks of the thread until the turn finishes,
- * in the AI SDK's UI message stream. Its text becomes the chat's last message when it ends.
+ * in the AI SDK's UI message stream, with a client's tool steps among them. When it ends, its
+ * text becomes the chat's last message and a client's steps are stored before its answer.
  */
 function turnStream(
   chat: ChatRow,
   subscription: { stream: AsyncIterable<unknown>; unsubscribe(): void },
+  steps: ClientSteps,
 ): ReadableStream {
   let reply = "";
   const chunks = new ReadableStream({
@@ -460,21 +463,66 @@ function turnStream(
       } finally {
         subscription.unsubscribe();
         controller.close();
-        if (reply.trim()) {
-          await noteLast(chat, { id: AI_AUTHOR, name: "" }, reply).catch((err) =>
-            console.error("[work-chats] last message:", err),
-          );
-        }
       }
     },
   });
-  return toAISdkStream(
+  const ui = toAISdkStream(
     { fullStream: chunks } as never,
     {
       from: "agent",
       version: "v7",
     } as never,
   ) as unknown as ReadableStream;
+  return new ReadableStream({
+    async start(controller) {
+      const off = steps.on((step) => controller.enqueue(stepChunk(step)));
+      try {
+        for await (const chunk of ui as unknown as AsyncIterable<{ type: string }>) {
+          // A client's steps go before the turn's last chunk, inside its message.
+          if (chunk.type === "finish") {
+            off();
+          }
+          controller.enqueue(chunk);
+        }
+      } finally {
+        off();
+        controller.close();
+        await afterTurn(chat, reply, steps.list).catch((err) =>
+          console.error("[work-chats] after the turn:", err),
+        );
+      }
+    },
+  });
+}
+
+/** What a finished turn leaves: its text as the chat's last message, a client's steps stored. */
+async function afterTurn(chat: ChatRow, reply: string, steps: ClientStep[]) {
+  if (steps.length) {
+    const { memory } = await workMastra();
+    const { messages } = await memory.recall({
+      threadId: chat.id,
+      resourceId: chat.projectId,
+      perPage: false,
+    });
+    const answer = [...messages].reverse().find((m) => m.role === "assistant");
+    // Just before the answer they led to.
+    const at = answer ? new Date(new Date(answer.createdAt).getTime() - 1) : new Date();
+    await memory.saveMessages({
+      messages: [
+        {
+          id: nanoid(14),
+          role: "assistant",
+          threadId: chat.id,
+          resourceId: chat.projectId,
+          createdAt: at,
+          content: { format: 2, parts: stepParts(steps) },
+        } as never,
+      ],
+    });
+  }
+  if (reply.trim()) {
+    await noteLast(chat, { id: AI_AUTHOR, name: "" }, reply);
+  }
 }
 
 /** Stop: the AI's turn in the chat ends, and what was queued behind it is dropped. */
