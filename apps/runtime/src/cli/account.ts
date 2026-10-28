@@ -284,7 +284,7 @@ async function pickUp(paths: Layout, interactive: boolean, why: string): Promise
   await restart(paths);
 }
 
-const SIGNED_IN = "your plan’s Pro modules load and your published wizards arrive in the cloud";
+const SIGNED_IN = "your plan’s Pro plugins load and your published wizards arrive in the cloud";
 
 async function signIn(paths: Layout, interactive: boolean): Promise<number> {
   await ready();

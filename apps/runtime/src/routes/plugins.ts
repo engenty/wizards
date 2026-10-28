@@ -1,11 +1,30 @@
 import { readFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import type { PluginRequest } from "@engenty/wizards/plugin";
 import { type Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
+import { z } from "zod";
 import type { Principal } from "../auth/index.js";
 import { switchOn } from "../features.js";
 import { managed } from "../manage.js";
-import { pluginProblems, reloadPlugin, rescanPlugins } from "../plugins/loader.js";
+import type { PluginSource } from "../plugins/discovery.js";
+import {
+  installedHere,
+  installPluginFolder,
+  installPluginZip,
+  MAX_PLUGIN,
+  removeInstalledPlugin,
+} from "../plugins/install.js";
+import {
+  foundPlugins,
+  installedPluginsDir,
+  pluginDirs,
+  pluginOff,
+  pluginProblems,
+  reloadPlugin,
+  rescanPlugins,
+  setPluginOn,
+} from "../plugins/loader.js";
 import { installPro, proState, refreshPro, removePro } from "../plugins/pro.js";
 import {
   type LoadedPlugin,
@@ -255,5 +274,106 @@ export const pluginRoutes = new Hono<{ Variables: { user: Principal } }>()
     return c.json(await proState());
   })
 
+  // Every plugin this computer has, switched off ones too: Settings › Plugins › Overview.
+  .get("/-/all", (c) => {
+    if (!canReload(c.get("user"))) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    return c.json({ plugins: allPlugins(), dir: installedPluginsDir() });
+  })
+
+  .put("/-/all/:id", async (c) => {
+    if (!canReload(c.get("user"))) {
+      return c.json({ error: "This isn’t allowed here.", code: "forbidden" }, 403);
+    }
+    const id = c.req.param("id");
+    const { on } = z.object({ on: z.boolean() }).parse(await c.req.json());
+    if (!foundPlugins().some((s) => s.id === id)) {
+      return c.json(notFoundAnswer(c), 404);
+    }
+    await setPluginOn(id, on);
+    return c.json({ plugins: allPlugins() });
+  })
+
+  // A zip as the form's `file`, or `{ path }` of a folder on this computer. Nobody checked it: the studio
+  // says so before it sends one.
+  .post("/-/install", async (c) => {
+    if (!canReload(c.get("user"))) {
+      return c.json({ error: "This isn’t allowed here.", code: "forbidden" }, 403);
+    }
+    try {
+      if (c.req.header("content-type")?.startsWith("application/json")) {
+        const { path } = z
+          .object({ path: z.string().trim().min(1).max(1000) })
+          .parse(await c.req.json());
+        await installPluginFolder(path);
+      } else {
+        if (Number(c.req.header("content-length") ?? 0) > MAX_PLUGIN) {
+          return c.json({ error: "The package is too large.", code: "too_large" }, 413);
+        }
+        const file = (await c.req.parseBody()).file;
+        if (!(file instanceof File)) {
+          return c.json({ error: "Choose a zip file.", code: "no_file" }, 400);
+        }
+        await installPluginZip(new Uint8Array(await file.arrayBuffer()));
+      }
+    } catch (err) {
+      const answer = answerOf(err);
+      if (answer) {
+        return c.json(answer.body, answer.status as 400);
+      }
+      throw err;
+    }
+    switchOn("plugins");
+    return c.json({ plugins: allPlugins() });
+  })
+
+  .delete("/-/all/:id", async (c) => {
+    if (!canReload(c.get("user"))) {
+      return c.json({ error: "This isn’t allowed here.", code: "forbidden" }, 403);
+    }
+    try {
+      await removeInstalledPlugin(c.req.param("id"));
+    } catch (err) {
+      const answer = answerOf(err);
+      if (answer) {
+        return c.json(answer.body, answer.status as 400);
+      }
+      throw err;
+    }
+    return c.json({ plugins: allPlugins() });
+  })
+
   .all("/:id", dispatch)
   .all("/:id/*", dispatch);
+
+/**
+ * Where a plugin came from: shipped with the runtime (`modules/`), a Pro plugin of the plan
+ * (signed by engenty), installed in Settings › Plugins, or a folder of `PLUGINS_DIR`.
+ */
+function originOf(source: PluginSource): "builtin" | "pro" | "installed" | "folder" {
+  if (source.pro) {
+    return "pro";
+  }
+  if (installedHere(source.id)) {
+    return "installed";
+  }
+  return dirname(source.root) === pluginDirs()[0] ? "builtin" : "folder";
+}
+
+function allPlugins() {
+  return foundPlugins().map((source) => {
+    const plugin = loadedPlugin(source.id);
+    return {
+      id: source.id,
+      name: source.manifest.name,
+      version: source.manifest.version,
+      description: source.manifest.description ?? "",
+      origin: originOf(source),
+      on: !pluginOff(source.id),
+      root: source.root,
+      error: plugin?.error ?? null,
+      tools: plugin ? [...plugin.tools.values()].map((t) => `${source.id}.${t.name}`) : [],
+    };
+  });
+}

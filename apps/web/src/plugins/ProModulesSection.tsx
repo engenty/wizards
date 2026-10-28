@@ -1,16 +1,21 @@
 import { LOCALES } from "@engenty/wizards-shared/definition";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router";
 import { api } from "../lib/api";
+import { useFeature } from "../lib/features";
 import { type Key, lang, t } from "../lib/i18n";
+import { useMe } from "../lib/session";
+import { LinkStatus, useAccountLink } from "../studio/Account";
 import { openExternal } from "../studio/LocalRuntime";
 import { Section } from "../studio/project/Section";
-import { Button, Chip, Spinner } from "../ui";
-import { useStudioPlugins } from "./host";
+import { Button, Spinner } from "../ui";
 
-type HeldBack = "managed" | "not_installed" | "release" | "unconfirmed" | "plan";
+export type HeldBack = "managed" | "not_installed" | "release" | "unconfirmed" | "plan";
 
-interface ProModule {
+/** A Pro plugin of the linked account's plan, as `/-/pro` says it (runtime plugins/pro.ts). */
+export interface ProModule {
   id: string;
   name: string;
   version: string;
@@ -23,7 +28,7 @@ interface ProModule {
   update: boolean;
 }
 
-interface ProState {
+export interface ProState {
   linked: boolean;
   accountUrl: string;
   runtime: string;
@@ -37,7 +42,7 @@ interface ProState {
 const KEY = ["pro-modules"];
 const BASE = "/api/studio/plugins/-/pro";
 
-const HELD: Record<HeldBack, Key> = {
+export const HELD: Record<HeldBack, Key> = {
   managed: "pro.held.plan",
   not_installed: "pro.held.release",
   release: "pro.held.release",
@@ -52,19 +57,20 @@ const day = (iso: string) =>
   });
 
 /**
- * The closed modules the linked account's plan includes, for this install: installed from the
+ * The Pro plugins the linked account's plan includes, for this install: installed from the
  * account, checked against engenty's signature, and on only while the plan has them.
  */
-export function ProModulesSection() {
+export function usePro(enabled: boolean) {
   const qc = useQueryClient();
-  // Only where the runtime runs alone, for an admin: a runtime of many tenants has its own.
-  const { canReload } = useStudioPlugins();
   const state = useQuery({
     queryKey: KEY,
     queryFn: () => api.get<ProState>(BASE),
-    enabled: canReload,
+    enabled,
   });
-  const done = (next: ProState) => qc.setQueryData(KEY, next);
+  const done = (next: ProState) => {
+    qc.setQueryData(KEY, next);
+    return qc.invalidateQueries({ queryKey: ["plugins-all"] });
+  };
   const refresh = useMutation({
     mutationFn: () => api.post<ProState>(`${BASE}/refresh`),
     onSuccess: done,
@@ -77,13 +83,49 @@ export function ProModulesSection() {
     mutationFn: (id: string) => api.del<ProState>(`${BASE}/${id}`),
     onSuccess: done,
   });
-  const data = state.data;
-  const busy = install.isPending || remove.isPending;
-  const failure = (install.error ?? remove.error ?? refresh.error) as Error | null;
-  if (!canReload) {
-    return null;
-  }
+  return { state, refresh, install, remove };
+}
 
+/**
+ * No account linked: what it brings here, the sign-in in the browser, and the way to a new one in
+ * Settings › Account (it takes an invitation code). The list asks the account again once linked.
+ */
+function SignIn() {
+  const navigate = useNavigate();
+  const me = useMe();
+  const qc = useQueryClient();
+  const offered = useFeature("account");
+  const signedIn = Boolean(me.data?.account?.signedIn);
+  const linking = useAccountLink(signedIn);
+  useEffect(() => {
+    if (signedIn) {
+      void qc.invalidateQueries({ queryKey: KEY });
+    }
+  }, [signedIn, qc]);
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[0.875rem] text-ink-3">{t("pro.notLinked")}</p>
+      {offered ? (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <Button busy={linking.link.isPending} onClick={() => linking.link.mutate({})}>
+              {t("account.signIn")}
+            </Button>
+            <Button variant="ghost" onClick={() => navigate("/settings/account")}>
+              {t("pro.newAccount")}
+            </Button>
+          </div>
+          <LinkStatus {...linking} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** The plan behind the Pro plugins: which it is, until when it is confirmed, checking it again. */
+export function ProPlanSection({ pro }: { pro: ReturnType<typeof usePro> }) {
+  const { state, refresh } = pro;
+  const data = state.data;
   return (
     <Section
       title={t("pro.title")}
@@ -108,9 +150,9 @@ export function ProModulesSection() {
       ) : !data ? (
         <Spinner />
       ) : !data.linked ? (
-        <p className="text-[0.875rem] text-ink-3">{t("pro.notLinked")}</p>
+        <SignIn />
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3 text-[0.8125rem] text-ink-3">
             <span>
               {data.plan ? t("pro.plan", { plan: data.plan.name }) : null}
@@ -122,54 +164,12 @@ export function ProModulesSection() {
             </Button>
           </div>
           {data.error ? <p className="text-[0.8125rem] text-rose">{data.error}</p> : null}
-          {data.modules.length ? (
-            <ul className="divide-y divide-border-soft">
-              {data.modules.map((m) => (
-                <li key={m.id} className="flex items-start gap-4 py-4 first:pt-0 last:pb-0">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                      <span className="font-medium text-[0.9375rem]">{m.name}</span>
-                      <span className="font-mono text-[0.75rem] text-ink-4">
-                        {m.id} · {m.installed?.version ?? m.version}
-                      </span>
-                      {m.loaded ? <Chip tone="live">{t("pro.on")}</Chip> : null}
-                      {!m.included ? <Chip>{t("pro.notInPlan")}</Chip> : null}
-                      {m.installed && m.heldBack && m.included ? (
-                        <Chip tone="warn">{t(HELD[m.heldBack])}</Chip>
-                      ) : null}
-                    </div>
-                    {m.description ? (
-                      <p className="mt-0.5 text-[0.875rem] text-ink-3">{m.description}</p>
-                    ) : null}
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    {m.included && (!m.installed || m.update) ? (
-                      <Button
-                        busy={install.isPending && install.variables === m.id}
-                        disabled={busy}
-                        onClick={() => install.mutate(m.id)}
-                      >
-                        {m.installed ? t("pro.update") : t("pro.install")}
-                      </Button>
-                    ) : null}
-                    {m.installed ? (
-                      <Button
-                        variant="secondary"
-                        busy={remove.isPending && remove.variables === m.id}
-                        disabled={busy}
-                        onClick={() => remove.mutate(m.id)}
-                      >
-                        {t("pro.remove")}
-                      </Button>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
+          {data.modules.length ? null : (
             <p className="text-[0.875rem] text-ink-3">{t("pro.none", { runtime: data.runtime })}</p>
           )}
-          {failure ? <p className="text-[0.8125rem] text-rose">{failure.message}</p> : null}
+          {refresh.error ? (
+            <p className="text-[0.8125rem] text-rose">{(refresh.error as Error).message}</p>
+          ) : null}
         </div>
       )}
     </Section>

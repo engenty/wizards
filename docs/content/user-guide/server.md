@@ -1,7 +1,7 @@
 ---
 title: Run it on a server
 description: One Docker container behind an https proxy, so others can open your wizards' links.
-version: 0.9.3
+version: 0.11.13
 ---
 
 engenty wizards on your computer answers on `localhost` only. On a server with a public address,
@@ -33,10 +33,23 @@ The logs show a link (“Open the studio: …”). Open it once: it signs your b
 |---|---|
 | Port | Point the proxy at port 8891 |
 | Data | Databases and files are on the `/data` volume. Back that volume up |
-| Models | Your own API keys or Ollama. The subscriptions of AI clients live on your own computer, not on a server |
+| Models | Your own API keys or Ollama (see below). The subscriptions of AI clients live on your own computer, not on a server |
 | PDF, PNG, browser steps, MP4 | Chromium and ffmpeg are in the image |
 | Code & shell | The sandbox is off in this image, so steps can’t use that tool. `compose.yaml` shows how to switch it on: with Docker, or with agentOS built into the image |
 | Plugins | Put them in a folder that you mount into the container and name in `PLUGINS_DIR` |
+
+## Models on the server
+
+`compose.yaml` holds an Ollama service that is off by default. It comes without models. To use it,
+add a line to `.env`:
+
+```bash
+COMPOSE_PROFILES=ollama
+```
+
+Then run `docker compose up -d --build` again. In the studio, Settings › Models › Search offers to
+download EmbeddingGemma 2 (about 1.3 GB). The model goes to the `ollama-models` volume, so it stays
+when you update. Only engenty wizards reaches this Ollama; it has no port of its own.
 
 ## Update
 
