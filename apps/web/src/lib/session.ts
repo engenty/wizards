@@ -151,6 +151,8 @@ export interface Me {
   organizations: Organization[];
   /** The person may make further organizations (the platform's admins), on the account page. */
   mayCreateOrganization: boolean;
+  /** The person may change what holds for the whole runtime: alone always, in the cloud the platform's admins. */
+  runtimeSettings: boolean;
   /** `managed`: signed in at the Manage-App. `local`: this runtime runs alone (desktop app, own machine). */
   mode: "managed" | "local";
   /** A platform admin is signed in as this person, until when (ms); null for their own sign-in. */

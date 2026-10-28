@@ -36,6 +36,7 @@ import { publicPluginRoutes } from "./routes/plugin-public.js";
 import { pluginRoutes } from "./routes/plugins.js";
 import { reportRoutes } from "./routes/reports.js";
 import { clientIp, connectCallback, publicRoutes, runRoutes, shareRoutes } from "./routes/runs.js";
+import { runtimeSettingsRoutes } from "./routes/runtime-settings.js";
 import { studio } from "./routes/studio.js";
 import { wizardStream } from "./routes/wizard-stream.js";
 import { runTicketValid } from "./secrets/signing.js";
@@ -342,6 +343,7 @@ if (serves.studio) {
   app.route("/api/studio/plugins", pluginRoutes);
   app.route("/api/studio/organization", organizationRoutes);
   app.route("/api/studio/person", personRoutes);
+  app.route("/api/studio/runtime", runtimeSettingsRoutes);
   app.route("/api/studio", studio);
   app.route("/api/v1", apiRoutes);
   app.route("/api/local/debug", localDebugRoutes);

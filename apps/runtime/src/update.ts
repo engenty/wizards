@@ -62,8 +62,17 @@ export function onRestart(shutdown: (code: number) => void) {
   restart = shutdown;
 }
 
-function restarts(): boolean {
+export function restarts(): boolean {
   return process.env[RESTARTS] === "1" && restart !== null;
+}
+
+/** Starts the runtime again, where the command that started it does that; false where it can't. */
+export function restartRuntime(): boolean {
+  if (!restarts()) {
+    return false;
+  }
+  setTimeout(() => restart?.(RESTART_EXIT), 500);
+  return true;
 }
 
 const enabled = () => !process.env.ENGENTY_WIZARDS_NO_UPDATE_CHECK;
@@ -98,7 +107,7 @@ async function newestRelease(
   return found;
 }
 
-function installKind(): InstallKind {
+export function installKind(): InstallKind {
   return installedByScript() ? "script" : isCheckout() ? "checkout" : "npm";
 }
 

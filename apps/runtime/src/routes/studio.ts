@@ -281,6 +281,7 @@ import { serverText } from "../texts.js";
 import { applyUpdate, updateStatus } from "../update.js";
 import { bareMime, byteRange } from "./delivery.js";
 import { notFoundAnswer, requestLang, say } from "./lang.js";
+import { mayChangeRuntime } from "./runtime-settings.js";
 
 type Vars = { Variables: { user: SessionUser } };
 
@@ -523,6 +524,8 @@ export const studio = new Hono<Vars>()
       assistantDev: await assistantDevFor(user),
       /** The person's organizations, their own first: the switcher lists them. Empty alone. */
       organizations: person?.tenants ?? [],
+      /** The person may change what holds for the whole runtime: Settings › Setup and Feature switches. */
+      runtimeSettings: await mayChangeRuntime(user),
       /** The person may make further organizations (the platform's admins), on the account page. */
       mayCreateOrganization: person?.admin ?? false,
       mode: managed ? "managed" : "local",
