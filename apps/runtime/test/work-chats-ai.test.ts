@@ -43,15 +43,14 @@ const model = new MockLanguageModelV3({
     return { stream: convertArrayToReadableStream(next.chunks as never[]) };
   },
 });
+/** How often a turn was made: once per turn that starts, never for a message taken in. */
+const made = { turns: 0 };
 vi.mock("../src/models.js", async (original) => ({
   ...(await original<typeof import("../src/models.js")>()),
-  chatModel: async () => ({
-    model,
-    ref: "test/scripted",
-    vendor: "test",
-    gateway: false,
-    metered: true,
-  }),
+  chatModel: async () => {
+    made.turns++;
+    return { model, ref: "test/scripted", vendor: "test", gateway: false, metered: true };
+  },
 }));
 vi.mock("../src/agents/subscription.js", async (original) => ({
   ...(await original<typeof import("../src/agents/subscription.js")>()),
@@ -163,6 +162,51 @@ describe("the space's AI in a chat", () => {
     step.open();
     await chunks(await turn);
     expect(prompts.at(-1)).toContain("Und für Lang?");
+  });
+
+  it("keeps a message that doesn't ask it out of the running turn, and builds no turn for one taken in", async () => {
+    const id = await newChat();
+    const step = gate();
+    script.push({ wait: step.wait, chunks: callTool("search_space", { query: "Frist" }) });
+    script.push({ chunks: say("Erledigt.") });
+    const before = prompts.length;
+    const turnsBefore = made.turns;
+    const turn = send("POST", `/chats/${id}/messages`, { text: "Welche Frist hat Maier?", ask: true });
+    await vi.waitFor(() => expect(prompts.length).toBe(before + 1));
+    expect(
+      await json(send("POST", `/chats/${id}/messages`, { text: "Ben, kannst du morgen?" })),
+    ).toEqual({ sent: "kept" });
+    expect(
+      await json(send("POST", `/chats/${id}/messages`, { text: "Und für Lang?", ask: true })),
+    ).toEqual({ sent: "taken" });
+    step.open();
+    await chunks(await turn);
+    expect(prompts.at(-1)).not.toContain("Ben, kannst du morgen?");
+    expect(prompts.at(-1)).toContain("Und für Lang?");
+    expect(made.turns - turnsBefore).toBe(1);
+    const read = await json(send("GET", `/chats/${id}`));
+    expect(JSON.stringify(read.messages)).toContain("Ben, kannst du morgen?");
+  });
+
+  it("answers a message for after the answer at once when nothing runs, and queues it while a turn runs", async () => {
+    const id = await newChat();
+    script.push({ chunks: say("Sofort.") });
+    const now = await chunks(
+      await send("POST", `/chats/${id}/messages`, { text: "Danach bitte.", ask: true, later: true }),
+    );
+    expect(now.some((c) => c.type === "text-delta" && c.delta === "Sofort.")).toBe(true);
+    const step = gate();
+    script.push({ wait: step.wait, chunks: say("Erst das.") }, { chunks: say("Dann das.") });
+    const before = prompts.length;
+    const turn = send("POST", `/chats/${id}/messages`, { text: "Erst das.", ask: true });
+    await vi.waitFor(() => expect(prompts.length).toBe(before + 1));
+    expect(
+      await json(send("POST", `/chats/${id}/messages`, { text: "Dann das.", ask: true, later: true })),
+    ).toEqual({ sent: "queued" });
+    step.open();
+    await chunks(await turn);
+    await vi.waitFor(() => expect(prompts.length).toBe(before + 2));
+    expect(prompts.at(-1)).toContain("Dann das.");
   });
 
   it("starts nothing for a message that doesn't ask it", async () => {

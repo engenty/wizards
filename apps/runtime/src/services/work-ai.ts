@@ -87,3 +87,24 @@ export async function workTurn(
     instructions: instructionsFor(space.name),
   };
 }
+
+/** A turn made on its first use, and the signal that ends it TURN_MS after that. */
+export interface LazyTurn {
+  get(): Promise<WorkTurn>;
+  signal: AbortSignal;
+}
+
+export function lazyTurn(space: { id: string; name: string }, userId: string): LazyTurn {
+  const controller = new AbortController();
+  let made: Promise<WorkTurn> | null = null;
+  return {
+    signal: controller.signal,
+    get() {
+      if (!made) {
+        setTimeout(() => controller.abort(new Error("The turn took too long.")), TURN_MS).unref();
+        made = workTurn(space, userId, controller.signal);
+      }
+      return made;
+    },
+  };
+}

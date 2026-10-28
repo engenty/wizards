@@ -10,7 +10,7 @@ import { db, schema } from "../db/client.js";
 import { managed, tenantMembers } from "../manage.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
-import { MAX_STEPS, TURN_KEY, TURN_MS, workTurn } from "./work-ai.js";
+import { lazyTurn, MAX_STEPS, TURN_KEY } from "./work-ai.js";
 import { workMastra } from "./work-mastra.js";
 
 /**
@@ -395,7 +395,13 @@ export async function sendMessage(
   const message = { contents: text, attributes: { name }, metadata: { authorId: user.id } };
   const target = { resourceId: chat.projectId, threadId: chat.id };
   if (!options.ask) {
-    await agent.sendMessage(message, { ...target, ifIdle: { behavior: "persist" } }).accepted;
+    // Stored, never delivered: a remark to a colleague must not steer the AI's running turn
+    // (Mastra delivers to an active turn by default).
+    await agent.sendMessage(message, {
+      ...target,
+      ifActive: { behavior: "persist" },
+      ifIdle: { behavior: "persist" },
+    }).accepted;
     await noteLast(chat, { id: user.id, name }, text);
     return { kind: "kept" };
   }
@@ -403,15 +409,15 @@ export async function sendMessage(
     throw new ServiceError("no_credits", note("creditsUsedUp"));
   }
   const space = await db.query.project.findFirst({ where: eq(schema.project.id, chat.projectId) });
-  const signal = AbortSignal.timeout(TURN_MS);
+  // Made when a turn really starts (Mastra resolves the agent's model then): a message taken
+  // into a running turn builds nothing, and a queued one's 20 minutes start with its turn.
+  const turn = lazyTurn({ id: chat.projectId, name: space?.name ?? "" }, user.id);
   const requestContext = new RequestContext();
-  requestContext.set(
-    TURN_KEY,
-    await workTurn({ id: chat.projectId, name: space?.name ?? "" }, user.id, signal),
-  );
-  const streamOptions = { requestContext, maxSteps: MAX_STEPS, abortSignal: signal };
+  requestContext.set(TURN_KEY, turn);
+  const streamOptions = { requestContext, maxSteps: MAX_STEPS, abortSignal: turn.signal };
   await noteLast(chat, { id: user.id, name }, text);
-  if (options.later) {
+  // For after the answer: queued while a turn runs; with none running it is a turn of its own.
+  if (options.later && agent.getActiveThreadRunId(target)) {
     await agent.queueMessage(message, { ...target, ifIdle: { behavior: "wake", streamOptions } })
       .accepted;
     return { kind: "queued" };
