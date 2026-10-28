@@ -193,6 +193,30 @@ const de: Record<Key, Line> = {
   "models.cap.text": "Text & Denken",
   "models.cap.text.hint":
     "Schreibt, fasst zusammen, recherchiert und entscheidet – in fast jedem Schritt.",
+  "models.cap.decision": "Entscheidungen",
+  "models.cap.decision.hint":
+    "Beantwortet Fragen mit Ja oder Nein, einer Auswahl oder einer Stufe: welcher Weg im Wizard, ob ein Treffer passt.",
+  "models.decisionModelGroup": "Entscheidungsmodell",
+  "models.decisionAuto": "Automatisch",
+  "models.decisionAutoNote": "das erste, das bereitsteht",
+  "models.decisionLlm": "Nur Sprachmodell",
+  "models.decisionLlmNote": "ohne Entscheidungsmodell",
+  "models.decisionNoTypesafeKey": "TYPESAFE_API_KEY fehlt in der Shell",
+  "models.decisionLocalMissing": "nicht geladen",
+  "models.decisionLocalReady": "in Ollama auf diesem Computer",
+  "models.decisionHint":
+    "Ein Entscheidungsmodell antwortet in Sekundenbruchteilen und sagt, wie sicher es ist. Automatisch nimmt es Jev über deinen API-Key, sonst Clef-flash auf diesem Computer, sonst Jev über das Guthaben.",
+  "models.decisionCloudHint": "In der Cloud entscheidet Jev mit dem Guthaben der Organisation.",
+  "models.decisionLocalHint":
+    "Clef-flash fehlt in Ollama. Du holst es mit „wizards setup“ oder „ollama pull clef-flash“.",
+  "models.decisionFallback": "Ohne Entscheidungsmodell",
+  "models.decisionFallbackHint":
+    "Steht keins bereit oder antwortet es nicht, entscheidet das Sprachmodell der Klasse Classifier aus Text & Denken. Das dauert länger und kostet mehr. Die Antworten haben dieselbe Form, nur ohne Wahrscheinlichkeiten.",
+  "models.decisionFallbackNone":
+    "Für Classifier ist kein Sprachmodell eingerichtet. Ohne Entscheidungsmodell scheitern Entscheidungen dann.",
+  "models.decisionFallbackWay": "Classifier: {way}",
+  "models.decisionOpenText": "Text & Denken öffnen",
+  "models.decisionByLlm": "Sprachmodell",
   "models.cap.image": "Bilder",
   "models.cap.image.hint": "Erzeugt Bilder: Logos, Produktfotos, Illustrationen.",
   "models.cap.video": "Videos",
@@ -2862,6 +2886,30 @@ const en = {
   "models.groupMore": "More providers",
   "models.cap.text": "Text & reasoning",
   "models.cap.text.hint": "Writes, summarises, researches and decides – in almost every step.",
+  "models.cap.decision": "Decisions",
+  "models.cap.decision.hint":
+    "Answers questions with yes or no, a choice or a level: which way a wizard goes, whether a hit fits.",
+  "models.decisionModelGroup": "Decision model",
+  "models.decisionAuto": "Automatic",
+  "models.decisionAutoNote": "the first one at hand",
+  "models.decisionLlm": "Language model only",
+  "models.decisionLlmNote": "no decision model",
+  "models.decisionNoTypesafeKey": "TYPESAFE_API_KEY is not set in the shell",
+  "models.decisionLocalMissing": "not downloaded",
+  "models.decisionLocalReady": "in Ollama on this computer",
+  "models.decisionHint":
+    "A decision model answers in a fraction of a second and says how sure it is. Automatic takes Jev through your API key, else Clef-flash on this computer, else Jev on the credits.",
+  "models.decisionCloudHint": "In the cloud, Jev decides on the organization’s credits.",
+  "models.decisionLocalHint":
+    "Ollama doesn’t have Clef-flash. You get it with “wizards setup” or “ollama pull clef-flash”.",
+  "models.decisionFallback": "Without a decision model",
+  "models.decisionFallbackHint":
+    "When none is at hand or it doesn’t answer, the Classifier language model from Text & reasoning decides. That takes longer and costs more. The answers have the same shape, only without probabilities.",
+  "models.decisionFallbackNone":
+    "No language model is set up for Classifier. Without a decision model, decisions then fail.",
+  "models.decisionFallbackWay": "Classifier: {way}",
+  "models.decisionOpenText": "Open Text & reasoning",
+  "models.decisionByLlm": "language model",
   "models.cap.image": "Images",
   "models.cap.image.hint": "Makes images: logos, product shots, illustrations.",
   "models.cap.video": "Videos",

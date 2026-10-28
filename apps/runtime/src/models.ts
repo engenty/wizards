@@ -128,7 +128,20 @@ export interface LocalModelSettings {
   ollamaUrl?: string;
   /** The credits of the linked account step in for a class without a way of its own. Default: on. */
   creditFallback?: boolean;
+  /** Which decision model answers decisions (`DecisionChoice`). Default: `auto`. */
+  decision?: DecisionChoice;
 }
+
+/** The ways to a decision model, in the order `auto` tries them. */
+export const DECISION_WAYS = ["gateway", "typesafe", "local", "credits"] as const;
+export type DecisionWay = (typeof DECISION_WAYS)[number];
+
+/**
+ * Who answers a decision: the first decision model at hand (`auto`), the one of one way, or none
+ * (`llm`). Where the chosen way has none, the classifier class's language model answers.
+ */
+export const DECISION_CHOICES = ["auto", ...DECISION_WAYS, "llm"] as const;
+export type DecisionChoice = (typeof DECISION_CHOICES)[number];
 
 /** What decides where a class runs: the settings and the keys, of this machine or of a tenant. */
 interface ModelConfig {
@@ -141,6 +154,7 @@ export interface ModelSettingsInput {
   bindings?: Partial<Record<ModelClass, string>>;
   ollamaUrl?: string;
   creditFallback?: boolean;
+  decision?: DecisionChoice;
   /** A key to store; an empty string removes it. */
   keys?: Partial<Record<LocalKey, string>>;
 }
@@ -248,6 +262,7 @@ export async function saveLocalModels(input: ModelSettingsInput) {
     bindings: mergeBindings(local.settings.bindings, input.bindings),
     ollamaUrl: input.ollamaUrl?.trim() || local.settings.ollamaUrl,
     creditFallback: input.creditFallback ?? local.settings.creditFallback,
+    decision: input.decision ?? local.settings.decision,
   } satisfies LocalModelSettings);
   for (const [name, value] of Object.entries(input.keys ?? {})) {
     if (value?.trim()) {
@@ -1010,15 +1025,8 @@ function localModelRefused(url: string, status: number, body: string) {
   localDecision = { url, model: null, at: Date.now() + 10 * 60_000 };
 }
 
-/**
- * The way to a decision model, one that answers typed questions with probabilities and writes
- * no text: the credits on a Manage-App's runtime; alone, TypeSafe's Jev through an AI Gateway
- * key or a TypeSafe key, then Clef-flash in Ollama on this machine, then Jev on the linked
- * account's credits. Null when there is none.
- */
-export async function systemOneAccess(): Promise<SystemOneAccess | null> {
-  const cfg = await config();
-  const viaCredits = (access: GatewayAccess): SystemOneAccess => ({
+function decisionViaCredits(access: GatewayAccess): SystemOneAccess {
+  return {
     url: `${access.baseUrl}/v4/ai/systemone`,
     headers: {
       authorization: `Bearer ${access.token}`,
@@ -1028,39 +1036,104 @@ export async function systemOneAccess(): Promise<SystemOneAccess | null> {
       ...(access.tenant ? { "x-wizards-tenant": access.tenant } : {}),
     },
     model: null,
-  });
+  };
+}
+
+/** The decision model one way reaches; null where that way has none. */
+async function decisionBy(
+  cfg: ModelConfig,
+  way: DecisionWay,
+  chosen: boolean,
+): Promise<SystemOneAccess | null> {
+  switch (way) {
+    case "gateway":
+      return cfg.keys.gateway
+        ? {
+            url: "https://ai-gateway.vercel.sh/typesafe/v1/systemone",
+            headers: { authorization: `Bearer ${cfg.keys.gateway}` },
+            model: "typesafe-ai/jev",
+          }
+        : null;
+    case "typesafe":
+      return env.typesafeKey
+        ? {
+            url: "https://api.typesafe.ai/v1/systemone",
+            headers: { authorization: `Bearer ${env.typesafeKey}` },
+            model: "jev-latest",
+          }
+        : null;
+    case "local": {
+      const ollama = cfg.settings.ollamaUrl ?? env.ollamaUrl;
+      const model = await localDecisionModel(ollama);
+      return model
+        ? {
+            url: `${ollamaRoot(ollama)}/v1/systemone`,
+            headers: {},
+            model,
+            local: true,
+            refused: (status, body) => localModelRefused(ollama, status, body),
+          }
+        : null;
+    }
+    default: {
+      const access = await creditAccess(cfg, chosen).catch(() => null);
+      return access ? decisionViaCredits(access) : null;
+    }
+  }
+}
+
+/**
+ * The way to a decision model, one that answers typed questions with probabilities and writes
+ * no text: the credits on a Manage-App's runtime; alone, what the settings choose — by default
+ * TypeSafe's Jev through an AI Gateway key or a TypeSafe key, then Clef-flash in Ollama on this
+ * machine (free, and nothing leaves it), then Jev on the linked account's credits. Null when
+ * there is none: the classifier class's language model answers then.
+ */
+export async function systemOneAccess(): Promise<SystemOneAccess | null> {
+  return (await decisionAccess(await config()))?.access ?? null;
+}
+
+async function decisionAccess(
+  cfg: ModelConfig,
+): Promise<{ way: DecisionWay; access: SystemOneAccess } | null> {
   if (managed) {
-    const access = await creditAccess(cfg, true).catch(() => null);
-    return access ? viaCredits(access) : null;
+    const access = await decisionBy(cfg, "credits", true);
+    return access ? { way: "credits", access } : null;
   }
-  if (cfg.keys.gateway) {
-    return {
-      url: "https://ai-gateway.vercel.sh/typesafe/v1/systemone",
-      headers: { authorization: `Bearer ${cfg.keys.gateway}` },
-      model: "typesafe-ai/jev",
-    };
+  const choice = cfg.settings.decision ?? "auto";
+  if (choice === "llm") {
+    return null;
   }
-  if (env.typesafeKey) {
-    return {
-      url: "https://api.typesafe.ai/v1/systemone",
-      headers: { authorization: `Bearer ${env.typesafeKey}` },
-      model: "jev-latest",
-    };
+  for (const way of choice === "auto" ? DECISION_WAYS : [choice]) {
+    const access = await decisionBy(cfg, way, choice !== "auto");
+    if (access) {
+      return { way, access };
+    }
   }
-  // Free, and nothing leaves the machine: before the credits.
-  const ollama = cfg.settings.ollamaUrl ?? env.ollamaUrl;
-  const local = await localDecisionModel(ollama);
-  if (local) {
-    return {
-      url: `${ollamaRoot(ollama)}/v1/systemone`,
-      headers: {},
-      model: local,
-      local: true,
-      refused: (status, body) => localModelRefused(ollama, status, body),
-    };
-  }
-  const access = await creditAccess(cfg, false).catch(() => null);
-  return access ? viaCredits(access) : null;
+  return null;
+}
+
+/**
+ * Decisions, for the settings page: the choice, which ways have a decision model, and which one
+ * answers now (null: the classifier class's language model).
+ */
+async function decisionSettings(cfg: ModelConfig) {
+  const ready = Object.fromEntries(
+    await Promise.all(
+      DECISION_WAYS.map(async (way) => [
+        way,
+        managed ? way === "credits" : Boolean(await decisionBy(cfg, way, false)),
+      ]),
+    ),
+  ) as Record<DecisionWay, boolean>;
+  const now = await decisionAccess(cfg);
+  return {
+    choice: managed ? ("credits" as const) : (cfg.settings.decision ?? "auto"),
+    ready,
+    way: now?.way ?? null,
+    /** The model it names; null: the credits pick it. */
+    model: now?.access.model ?? null,
+  };
 }
 
 /** Search tools an AI Gateway runs itself; they travel in the request, so any gateway client names them. */
@@ -1358,6 +1431,8 @@ export async function modelSettings(lang: Lang = "en") {
       boolean
     >,
     ways: waysIn(ways, lang),
+    /** Who answers decisions; where no decision model does, the classifier class's way. */
+    decision: await decisionSettings(cfg),
     /** Per text class, what of its minimums its model lacks (`CLASS_NEEDS`); null: not checked. */
     fit: classFit(ways),
     /** Apple Intelligence on this Mac: shown where the machine can run it, picked once it answers. */
