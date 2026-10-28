@@ -1,4 +1,12 @@
-import { ChevronRight } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  type LucideIcon,
+  MessageSquare,
+  PenLine,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { APP_VERSION } from "../about/AboutLinks";
@@ -6,6 +14,7 @@ import { EngentyLogoMark } from "../engenty/logo";
 import { type AppBarPosition, besideBar } from "../lib/appbar";
 import { t } from "../lib/i18n";
 import { acceptInstall, standalone, useInstallPrompt } from "../lib/install";
+import { allowedModes, MODE_HOME, type Mode, setMode, useMode } from "../lib/mode";
 import type { Me } from "../lib/session";
 import { useUpdate } from "../lib/update";
 import { cn } from "../ui";
@@ -21,6 +30,76 @@ import {
 
 /** ⌘ on a Mac, Ctrl elsewhere: the key the settings' shortcut is pressed with. */
 const MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+
+/** Each mode's sign on the engenty while the menu is closed. */
+const MODE_BADGE: Record<Mode, { icon: LucideIcon; tone: string }> = {
+  studio: { icon: PenLine, tone: "bg-cobalt" },
+  work: { icon: MessageSquare, tone: "bg-ember" },
+  client: { icon: Eye, tone: "bg-moss" },
+};
+
+/**
+ * The switch between the modes, under the wordmark. Client adds whose view it is: in this step
+ * the person's own, the clients come with their data.
+ */
+function ModeSwitch({ me, onPick }: { me: Me; onPick: (mode: Mode) => void }) {
+  const mode = useMode(me);
+  const modes = allowedModes(me);
+  const [views, setViews] = useState(false);
+  return (
+    <div className="px-1.5 pb-1.5">
+      <fieldset
+        aria-label={t("mode.switch")}
+        className="grid gap-0.5 rounded-lg bg-ink/5 p-0.5"
+        style={{ gridTemplateColumns: `repeat(${modes.length}, minmax(0, 1fr))` }}
+      >
+        {modes.map((m) => (
+          <button
+            key={m}
+            type="button"
+            aria-pressed={m === mode}
+            onClick={() => onPick(m)}
+            className={cn(
+              "rounded-md py-1.5 font-medium text-[0.8125rem] transition",
+              m === mode ? "bg-card text-ink shadow-soft" : "text-ink-3 hover:text-ink",
+            )}
+          >
+            {t(`mode.${m}`)}
+          </button>
+        ))}
+      </fieldset>
+      {mode === "client" ? (
+        <div className="mt-1 rounded-lg bg-ink/5">
+          <button
+            type="button"
+            aria-expanded={views}
+            onClick={() => setViews((v) => !v)}
+            className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[0.8125rem]"
+          >
+            <span className="text-ink-4">{t("mode.viewAs")}</span>
+            <span className="min-w-0 flex-1 truncate font-medium text-ink">
+              {t("mode.ownView")}
+            </span>
+            <ChevronDown className="size-4 shrink-0 text-ink-4" />
+          </button>
+          {views ? (
+            <div className="px-1 pb-1">
+              <button
+                type="button"
+                aria-pressed
+                onClick={() => setViews(false)}
+                className="flex w-full items-center gap-2 rounded-md bg-card px-2 py-1.5 text-left text-[0.8125rem] text-ink"
+              >
+                <span className="min-w-0 flex-1 truncate">{t("mode.ownView")}</span>
+                <Check className="size-4 shrink-0 text-moss" />
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /**
  * The engenty in the corner of the app bar, and its menu, as the Apple menu is the computer's:
@@ -60,6 +139,11 @@ export function EngentyMenu({
   // Only a runtime that runs alone has updates of its own; in the cloud they come by themselves.
   const local = me.mode === "local";
   const { data, check } = useUpdate(local);
+  // The modes: switched in the menu, shown on the engenty while it is closed. Someone with one
+  // mode gets neither.
+  const mode = useMode(me);
+  const modal = allowedModes(me).length > 1;
+  const badge = MODE_BADGE[mode];
   // The settings from anywhere, as an app opens its own.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -106,7 +190,21 @@ export function EngentyMenu({
             : cn("grid place-items-center", horizontal ? "size-11" : "h-12 w-11"),
         )}
       >
-        <EngentyLogoMark size={32} />
+        <span className="relative shrink-0">
+          <EngentyLogoMark size={32} />
+          {modal && !open ? (
+            <span
+              role="img"
+              aria-label={t("mode.badge", { mode: t(`mode.${mode}`) })}
+              className={cn(
+                "-top-0.5 -right-1 absolute grid size-[17px] place-items-center rounded-full text-white ring-2 ring-sidebar",
+                badge.tone,
+              )}
+            >
+              <badge.icon className="size-[9px]" strokeWidth={2.8} />
+            </span>
+          ) : null}
+        </span>
         {labels ? (
           <span className="truncate font-display font-semibold text-[1rem] tracking-tight">
             engenty<span className="text-ember">.</span>
@@ -129,6 +227,24 @@ export function EngentyMenu({
             </span>
             <span className={cn(aside, "tabular-nums")}>{APP_VERSION}</span>
           </div>
+          {modal ? (
+            <>
+              <ModeSwitch
+                me={me}
+                onPick={(m) => {
+                  // Client stays open: whose view it is comes next.
+                  if (m !== "client") {
+                    setOpen(false);
+                  }
+                  if (m !== mode) {
+                    setMode(me, m);
+                    navigate(MODE_HOME[m]);
+                  }
+                }}
+              />
+              {rule}
+            </>
+          ) : null}
           {organization ? (
             <>
               {/* The organization the studio is in, and its plan. Someone who can switch gets
