@@ -115,6 +115,19 @@ space leaks. So:
   Docker or agentOS and its Chrome. Without a sandbox engine the chat says so and offers
   `wizards sandbox add`.
 
+## Agent broker (later)
+
+An agent broker will stand between the AI and the space's data and tools later: one gateway that
+checks every access (who asks, for which chat, which connection, which tool) and logs it. Not
+built now; nothing here may get around it or build part of it ahead:
+
+- The AI reaches data and tools only through tools resolved per request, and the computer only
+  through the relay; nothing reads a database, a connection's token or a file store directly.
+- No tokens or credentials in the container, the prompt or the browser profile's reach beyond
+  the space.
+- Permission checks stay where they are today (the services); no new policy layer of our own
+  that the broker would have to replace.
+
 ## Prompt caching
 
 Mastra builds the prompt; we keep what goes into it stable, so each turn's prompt starts with
