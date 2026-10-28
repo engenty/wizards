@@ -4,7 +4,7 @@
   "short_name": "wizards",
   "description": "Make a wish, describe it once, and let the wizards run it on your own AI or in the cloud",
   "start_url": "./",
-  "scope": "./",
+  "scope": "../studio",
   "display": "standalone",
   "background_color": "#faf8f5",
   "theme_color": "#faf8f5",
