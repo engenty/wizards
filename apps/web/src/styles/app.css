@@ -16,12 +16,12 @@
 /* Dark comes two ways, picked by the visitor. Branded (`.branded` on the root) is not the
    near-black of the base palette: the page takes the deep colour of an engenty
    (`--engenty-stage`, set per wizard by `useStage`), the ground the jelly coat is made for. Plain
-   dark stands on a near-black with only a trace of that hue. Either way every surface and ink
+   dark stands on a near-black with a trace of the engenty blue. Either way every surface and ink
    step derives from the stage, so a wizard's page, cards and text all carry its hue. */
 :root {
-  --dark-ground: oklch(21% 0.006 264);
+  --dark-ground: oklch(21% 0.02 264);
   /* How much colour the inks take from the stage. */
-  --dark-tint: 0.15;
+  --dark-tint: 0.3;
 }
 
 :root.branded {
