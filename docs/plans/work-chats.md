@@ -1,4 +1,4 @@
-# Plan: Work chats, step 3 — the space's engenties answer
+# Plan: Work chats, step 3 — the space's AI answers
 
 Status: plan, written on 2026-10-28 against v0.11.13 with steps 1 (#265) and 2 (#266) open.
 Concept: engenty-dev `concepts/` (Studio / Work / Client, Work deep dive). Behind `workMode`.
@@ -12,63 +12,77 @@ drawn already, from parts nothing writes yet.
 
 ## Who is who
 
-- **An engenty** belongs to the space, not to a person: a name, a figure, instructions, the tools
-  and data it may use. It is built in Studio and talked to in Work, by everyone of the team who
-  sees the chat. It is a member of a chat like a person, and answers there under its own name.
+- **In step 3 a chat talks to the space's AI**: no persona, no record of its own. It is the
+  space's chat engine (`chatTurnWay()`: the cloud's model classes, or locally a client such as
+  Claude Code or Codex, keys or the account) with the space's data, sources, connections and
+  skills. In the chat it shows as the space's name and the engenty figure.
+- **Engenties** (personas: a name, a figure, instructions, their own tools and starts) come
+  later. They belong to the space, are built in Studio and join chats as members.
 - **Goose** is each person's own copilot, bound to them: their chats with it are private
-  (`assistant_chat`), it acts with their access, on whatever page they are. In Work it stays
-  that: docked beside the chat, it can read the open chat to help its person (summarise, draft a
-  reply into their composer, find a file), but it is never a member of a chat and never writes in
-  one. Its storage does not move.
+  (`assistant_chat`), it acts with their access. It is never a member of a Work chat and never
+  writes in one; later it may dock beside a chat for its person (summarise, draft into their
+  composer).
+
+## Mastra: which concept for what
+
+| Ours | Mastra (`@mastra/core` 1.77) | In step 3 |
+|---|---|---|
+| The space's AI in a chat | An `Agent` made per turn, instructions and tools from the request (tenant, space, person) | Yes |
+| A chat | A memory thread with a shared `resourceId` per space and the speaker tagged in each message (Mastra's "multi-user threads") | Our `chat` / `chat_message` hold it; the turn hands the agent the history, as the studio assistant does. Mastra Memory would keep a second copy of every message, and its storage is one store, not our database per tenant |
+| A sub-thread | A subagent of a supervisor agent (`agents` on the `Agent`): its own context and tools, reports back to the lead | Later: a sub-thread is a chat with a parent; the lead agent opens one with a brief, the subagent works in it and answers in the parent as one card |
+| Data, sources | Tools (the space's tools and plugin tools the studio assistant has), workspace search (BM25 / vector) | Tools as today |
+| Connections | Tools of the plugins; MCP for outside servers (`MCPClient`) | Tools as today |
+| Skills | Workspace skills: `SKILL.md` folders (Agent Skills spec) | Later, with the skills plan |
+| Approvals | `requireApproval` with suspended runs (needs Mastra storage) or AgentController permission policies | Our own, in the message's parts (see Decisions) |
+| Long runs, runs that outlive a request | Durable agents, background tasks, signals (messages into a running thread) | No: the row grows while the turn runs; messages meanwhile go in through `prepareStep`, as the assistant's signals do |
+| Starts | Schedules, signal providers | Later (docs/plans/starts.md) |
+
+`AgentController` (Mastra's "harness" before 1.7x, the host of Mastra Code) is not the frame for
+team chats: it gives each person (`resourceId` + scope) a Session with its own live state, modes
+and a thread owner, built for one person working with an agent. Several people in one thread is
+what our chat model already does. Its parts we want (approvals, subagents, signals, durable runs)
+exist at the `Agent` level or as harness features of their own; each needs Mastra storage when it
+must outlive a process, which is the point to decide on a store per tenant.
 
 ## Decisions
 
 | | Decision | Why |
 |---|---|---|
-| Agent | A Mastra `Agent` (`@mastra/core`), as the studio assistant, made from the engenty's record | Same model choice, `chatModel(chatTurnWay())`: the cloud's model classes, or locally a client (Claude Code, Codex …), keys or account. No second agent stack |
-| What an engenty is | A tenant row `engenty`: space, name, figure, instructions, tools (a list of the space's tools and plugins it may use), model class, who made it | The least that makes it answer as itself; starts, pins and sub-threads it opens come later |
-| Where it is made | Studio › Engenties (list + one page per engenty); Work › Engenties lists them and starts a chat with one | Builders build, the team talks, as the concept says |
-| When it answers | In a chat with one engenty and one person: every message. Otherwise when named (`@Name`) | A group chat must not get an answer to every line |
-| With whose access it acts | The narrower of the engenty's tools and the access of the person whose message started the turn | A member who can't see a private table can't reach it through an engenty |
+| Agent | A Mastra `Agent`, as the studio assistant, with the space's tools | Same model choice, `chatModel(chatTurnWay())`. No second agent stack |
+| When it answers | In a chat with one person: every message. With more people: when asked (`@` + the space's name, or the "Ask" button on the composer) | A group chat must not get an answer to every line |
+| With whose access it acts | The access of the person whose message started the turn | A member who can't see a private table can't reach it through the chat |
 | Stream format | The AI SDK's UI message stream (SSE), from Mastra's `fullStream` through `@mastra/ai-sdk`'s `toAISdkStream` | The shadcn/ui parts and `chat_message.parts` are that format already; the web takes it with `useChat` (`@ai-sdk/react`) |
-| Where the answer is kept | One `chat_message` row (author `engenty:<id>`), written when the turn starts and updated with its parts while it streams (throttled), finished at the end | A reload, another person or the sidebar sees the turn as it grows, without a second store; nothing lost when the browser closes |
+| Where the answer is kept | One `chat_message` row (a new author kind `ai` beside `person` and `engenty`), written when the turn starts and updated with its parts while it streams (throttled), finished at the end | A reload, another person or the sidebar sees the turn as it grows, without a second store; nothing lost when the browser closes |
 | Tool approvals | Our own: a tool that changes things outside (mail, publish, delete, a connected service's write) ends the turn with its part in `approval-requested`; Approve or Deny writes `approval-responded` and starts the next turn, which runs or skips the tool and goes on | Mastra's approvals resume a suspended run from its snapshot store; the runtime has no Mastra storage, and an approval may come hours later from another person or process |
 | Who may approve | The person whose message started the turn; owners and admins too | The tool acts with their access |
-| Live | The chat tables join `live_change` (kinds `chat`, `chatMessage`); the browser patches its cache, polling goes | One feed for the whole studio (live-changes.md); presence shows "<Name> schreibt …" |
+| Live | The chat tables join `live_change` (kinds `chat`, `chatMessage`); the browser patches its cache, polling goes | One feed for the whole studio (live-changes.md); presence shows that the AI is answering |
 | History a turn sends | The chat's last messages as they are, older ones as a running summary, like the assistant's `turnHistory` | Same limits, same costs as the studio assistant |
-
-## Open
-
-- **A space's first engenty.** Either every space starts with one ready engenty (a plain
-  "Assistent" of the space, reading its knowledge and data, writing nothing), so a chat answers
-  on day one; or none until someone builds one in Studio, and Work's empty state points there.
 
 ## Pieces, one PR each
 
-1. **Engenties exist.** Migration for `engenty`; service and API (`/api/studio/engenties`);
-   Studio › Engenties (list, page: name, figure from the engenty builder, instructions, tools,
-   model class); Work › Engenties lists them. Behind `workMode`.
-2. **The agent, shared.** Take the agent's making out of `runStudioAssistant`
-   (`agents/studio-assistant.ts`) into one function that takes who acts and which tools: Goose
-   gets the person and all their tools as today, an engenty its record and the narrower access.
-   No change a person sees.
-3. **The turn.** `POST /api/studio/work/chats/:id/turn` (message, engenties named) answers with
-   the UI message stream. Writes the person's message, the engenty's row, its parts while it
+1. **The agent, shared.** Take the agent's making out of `runStudioAssistant`
+   (`agents/studio-assistant.ts`) into one function that takes the person, the space and which
+   tools: Goose with its page snapshot as today, the Work turn with the chat. No change a person
+   sees.
+2. **The turn.** `POST /api/studio/work/chats/:id/turn` (message, whether the AI is asked) answers with
+   the UI message stream. Writes the person's message, the AI's row, its parts while it
    streams, usage and credits like the assistant (`onStep`), errors as a part the chat shows (no
    credits, model not set up, client signed out). `@mastra/ai-sdk` joins the runtime.
-4. **The web.** `ai` and `@ai-sdk/react` join the web. The chat page sends through `useChat`
+3. **The web.** `ai` and `@ai-sdk/react` join the web. The chat page sends through `useChat`
    with a transport to that route, seeded with the stored messages; Stop, retry of a failed
-   turn. Adding an engenty to a chat (header and new chat), `@Name` in the composer (a mention
-   menu), its figure as avatar. Text while it streams (shimmer), Sources for web results.
-5. **Approvals.** Tools marked `needsApproval`; the Confirmation pattern (Approve / Deny with what
+   turn. Asking the AI in a group chat (`@` menu, Ask button), the engenty figure as its avatar.
+   Text while it streams (shimmer), Sources for web results.
+4. **Approvals.** Tools marked `needsApproval`; the Confirmation pattern (Approve / Deny with what
    the tool will do); `PUT /chats/:id/messages/:mid/approval`; the continuation turn. The bell
    counts approvals waiting for the person.
-6. **Live.** Triggers for `chat`, `chat_member`, `chat_message`, `chat_state` into
+5. **Live.** Triggers for `chat`, `chat_member`, `chat_message`, `chat_state` into
    `live_change` (scripts/triggers.mjs), their views (a private chat only to its members), the
    cache patch in the web, presence for a turn under way. Polling goes.
 
 ## After step 3
 
+- **Engenties.** The `engenty` record (name, figure, instructions, tools, model class), built
+  in Studio, a member of chats, answering when named.
 - **Goose in Work.** The dock in Work: Goose reads the open chat for its person, drafts into the
   composer, never posts.
 - **Engenties that act on their own.** Starts (docs/plans/starts.md), pins, sub-threads an
@@ -81,8 +95,8 @@ drawn already, from parts nothing writes yet.
   client runs them itself. Its stream may carry tool calls as provider-executed parts with other
   ids and fewer states. The Trace must take those (no approval there: the client's own
   permissions apply), and a test turn on each client checks the parts. On a local install the
-  client is the owner's: an engenty there answers on the owner's subscription.
-- **Two people, one turn.** A second message while an engenty answers is queued for the next
+  client is the owner's: the chat answers on the owner's subscription.
+- **Two people, one turn.** A second message while the AI answers is queued for the next
   step, as the assistant's signals (`prepareStep`) do, not a second parallel turn.
 - **Long turns.** A turn outlives a closed tab (the row keeps growing); the stream route must not
   tie the turn to the request. A turn runs on the process that took it; another process sees it
