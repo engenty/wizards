@@ -1691,7 +1691,8 @@ const de: Record<Key, Line> = {
     "Diese Plugins gehören zu deinem Paket (Pro, Team) und laufen auf deinem Computer. Sie kommen von deinem engenty-Konto und sind von engenty signiert. Sie bleiben aktiv, solange dein Paket sie enthält – ohne Internet bis zu einer Woche.",
   "pro.check": "Paket prüfen",
   "pro.notLinked":
-    "Verbinde dein engenty-Konto (Einstellungen → Konto), um die Plugins deines Pakets hier zu nutzen.",
+    "Melde dich mit deinem engenty-Konto an. Dann kannst du die Plugins deines Pakets hier installieren.",
+  "pro.newAccount": "Konto erstellen",
   "pro.plan": "Paket: {plan}",
   "pro.confirmedUntil": "bestätigt bis {date}",
   "pro.plans": "Pakete",
@@ -4450,7 +4451,8 @@ const en = {
     "Your plan (Pro, Team) includes these plugins on your computer. They come from your engenty account and are signed by engenty. They stay on while your plan includes them, for up to a week offline.",
   "pro.check": "Check plan",
   "pro.notLinked":
-    "Connect your engenty account (Settings → Account) to use your plan’s plugins here.",
+    "Sign in with your engenty account. Then you can install your plan’s plugins here.",
+  "pro.newAccount": "Create an account",
   "pro.plan": "Plan: {plan}",
   "pro.confirmedUntil": "confirmed until {date}",
   "pro.plans": "Plans",
