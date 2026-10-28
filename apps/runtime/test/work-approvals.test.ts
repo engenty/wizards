@@ -30,6 +30,8 @@ put(
 import { z } from "zod";
 
 const sent = ((globalThis as any).__mails ??= []);
+const seen = ((globalThis as any).__ctx ??= []);
+const slow = ((globalThis as any).__slow ??= { open: null });
 
 export default definePlugin(({ server }) => {
   server.registerAssistantTool({
@@ -37,8 +39,9 @@ export default definePlugin(({ server }) => {
     description: "Sends a mail.",
     risk: "outside",
     inputSchema: z.object({ to: z.string(), text: z.string() }),
-    execute: async ({ to, text }) => {
+    execute: async ({ to, text }, ctx) => {
       sent.push({ to, text });
+      seen.push({ tenantId: ctx.tenantId, space: ctx.space.id, userId: ctx.userId, aborted: ctx.signal.aborted });
       return { sent: to };
     },
   });
@@ -50,6 +53,13 @@ export default definePlugin(({ server }) => {
     execute: async ({ text }) => ({ noted: text }),
   });
   server.registerAssistantTool({
+    name: "slow",
+    description: "Takes its time.",
+    risk: "read",
+    inputSchema: z.object({}),
+    execute: () => new Promise((resolve) => { slow.open = () => resolve({ late: true }); }),
+  });
+  server.registerAssistantTool({
     name: "unmarked",
     description: "Says nothing of what it does.",
     inputSchema: z.object({}),
@@ -59,6 +69,7 @@ export default definePlugin(({ server }) => {
 `,
 );
 const mails = () => ((globalThis as any).__mails ?? []) as { to: string }[];
+const contexts = () => ((globalThis as any).__ctx ?? []) as Record<string, unknown>[];
 
 const usage = { inputTokens: { total: 120, noCache: 120 }, outputTokens: { total: 8, text: 8 } };
 const say = (text: string) => [
@@ -162,6 +173,8 @@ describe("approvals in a Work chat", () => {
     );
     expect(goesOn.some((c) => c.type === "text-delta" && c.delta === "Die Mail ist raus.")).toBe(true);
     expect(mails()).toEqual([{ to: "huber@example.com", text: "Termin" }]);
+    // It ran as the plugin's own tool: with its tenant, space and the person the turn was for.
+    expect(contexts().at(-1)).toEqual({ tenantId: "local", space: spaceId, userId: "local", aborted: false });
     expect(prompts.at(-1)).toContain("approved mailer_send_mail");
 
     // Twice is once: the second click finds it decided.
@@ -190,5 +203,48 @@ describe("approvals in a Work chat", () => {
     expect(seen.find((c) => c.type === "tool-output-available")?.output).toEqual({ noted: "Rückruf" });
     const output = await held(id, "mailer_unmarked", {});
     expect(output.status).toBe("waiting");
+  });
+
+  it("doesn't run held arguments that no longer fit the tool", async () => {
+    const id = await newChat();
+    const client = await import("../src/db/client");
+    const { holdCall } = await import("../src/services/work-approvals");
+    const held = await client.withTenant("local", () =>
+      holdCall({ chatId: id, userId: "local" }, "mailer_send_mail", { to: 42 }),
+    );
+    const before = mails().length;
+    script.push(say("Das ging schief."));
+    await chunks(await send("POST", `/chats/${id}/approvals/${held}`, { approve: true }));
+    expect(mails()).toHaveLength(before);
+    const read = await json(send("GET", `/chats/${id}`));
+    expect(read.approvals.find((a: any) => a.id === held)).toMatchObject({ state: "failed" });
+    expect(prompts.at(-1)).toContain("but it failed");
+  });
+
+  it("leaves no tool call without a result after Stop, for the next turn", async () => {
+    const id = await newChat();
+    script.push(callTool("mailer_slow", {}));
+    const before = prompts.length;
+    const turn = send("POST", `/chats/${id}/messages`, { text: "Dauert.", ask: true });
+    await vi.waitFor(() => expect((globalThis as any).__slow.open).toBeTypeOf("function"));
+    await json(send("POST", `/chats/${id}/stop`));
+    (globalThis as any).__slow.open();
+    (globalThis as any).__slow.open = null;
+    await (await turn).text();
+    script.push(say("Weiter."));
+    await chunks(await send("POST", `/chats/${id}/messages`, { text: "Und jetzt?", ask: true }));
+    expect(prompts.length).toBe(before + 2);
+    const prompt = JSON.parse(prompts.at(-1) ?? "[]") as { role: string; content: any[] }[];
+    const calls = prompt.flatMap((m) =>
+      m.role === "assistant" ? m.content.filter((c) => c.type === "tool-call").map((c) => c.toolCallId) : [],
+    );
+    const results = prompt.flatMap((m) =>
+      m.role === "tool" ? m.content.filter((c) => c.type === "tool-result").map((c) => c.toolCallId) : [],
+    );
+    // Mastra (1.80) leaves a stopped step out of the thread: its call isn't sent again without a
+    // result; the person's message stays.
+    expect(calls.filter((c) => !results.includes(c))).toEqual([]);
+    expect(prompts.at(-1)).not.toContain("mailer_slow");
+    expect(prompts.at(-1)).toContain("Dauert.");
   });
 });

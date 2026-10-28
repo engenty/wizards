@@ -397,30 +397,49 @@ export async function sendMessage(
   const { agent } = await workMastra();
   const message = { contents: text, attributes: { name }, metadata: { authorId: user.id } };
   const target = { resourceId: chat.projectId, threadId: chat.id };
-  if (!options.ask) {
-    // Stored, never delivered: a remark to a colleague must not steer the AI's running turn
-    // (Mastra delivers to an active turn by default).
-    await agent.sendMessage(message, {
-      ...target,
-      ifActive: { behavior: "persist" },
-      ifIdle: { behavior: "persist" },
-    }).accepted;
-    await noteLast(chat, { id: user.id, name }, text);
-    return { kind: "kept" };
-  }
-  if (!(await canSpend())) {
+  if (options.ask && !(await canSpend())) {
     throw new ServiceError("no_credits", note("creditsUsedUp"));
   }
-  const { turn, streamOptions } = await turnFor(chat, user.id);
+  // Every message is stored the moment it is sent, before any turn, and never delivered as
+  // itself: a remark to a colleague doesn't steer the AI's running turn, and a stopped or failed
+  // turn can't take a person's words with it (Mastra stores a turn's input when it ends, and
+  // throws a stopped turn away).
+  await agent.sendMessage(message, {
+    ...target,
+    ifActive: { behavior: "persist" },
+    ifIdle: { behavior: "persist" },
+  }).accepted;
   await noteLast(chat, { id: user.id, name }, text);
+  if (!options.ask) {
+    return { kind: "kept" };
+  }
+  // Asking the AI is a signal that isn't stored: the stored message is what it answers.
+  const { turn, streamOptions } = await turnFor(chat, user.id);
+  const asked = {
+    type: "reactive" as const,
+    tagName: "asked",
+    contents: `${name} asked you in the message above; answer it.`,
+    transient: true,
+  };
+  const running = Boolean(agent.getActiveThreadRunId(target));
   // For after the answer: queued while a turn runs; with none running it is a turn of its own.
-  if (options.later && agent.getActiveThreadRunId(target)) {
-    await agent.queueMessage(message, { ...target, ifIdle: { behavior: "wake", streamOptions } })
+  if (options.later && running) {
+    await agent.queueSignal(asked, { ...target, ifIdle: { behavior: "wake", streamOptions } })
       .accepted;
     return { kind: "queued" };
   }
+  // Into a running turn the message goes as it is (the turn doesn't read the thread again), with
+  // the reminder that the request before it still stands (engenty-pro, 8e7b970d1).
+  const signal = running
+    ? {
+        type: "user" as const,
+        attributes: { name },
+        contents: `${text}\n\n(The request before this one still stands.)`,
+        transient: true,
+      }
+    : asked;
   return deliverOrWake(chat, turn, streamOptions, (ifIdle) =>
-    agent.sendMessage(message, { ...target, ifActive: { behavior: "deliver" }, ifIdle }),
+    agent.sendSignal(signal, { ...target, ifActive: { behavior: "deliver" }, ifIdle }),
   );
 }
 
@@ -580,7 +599,21 @@ export async function decideApproval(
       if (!tool?.execute) {
         throw new Error(`The tool ${taken.toolName} is not there any more.`);
       }
-      const output = await tool.execute(taken.input);
+      // Checked again: a client's call reaches the gate without Mastra's check, and the tool
+      // may have changed since the call was held.
+      const checked = tool.inputSchema?.safeParse?.(taken.input);
+      if (checked && !checked.success) {
+        throw new Error(
+          `The held arguments don't fit ${taken.toolName}: ${checked.error?.message ?? ""}`,
+        );
+      }
+      const output = await tool.execute(checked?.success ? checked.data : taken.input);
+      // Mastra answers a failed check of its own with a value, not an error.
+      if (output && typeof output === "object" && (output as { error?: unknown }).error === true) {
+        throw new Error(
+          String((output as { message?: unknown }).message ?? "The tool refused the call."),
+        );
+      }
       await noteOutcome(taken.id, { output });
       told = `${name} approved ${taken.toolName} (approval ${taken.id}); it ran once. Result: ${JSON.stringify(output ?? null).slice(0, 4000)}`;
     } catch (err) {

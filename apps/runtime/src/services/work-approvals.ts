@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { SessionUser } from "../auth/index.js";
 import { db, schema } from "../db/client.js";
@@ -118,7 +118,7 @@ export async function waitingFor(user: SessionUser, visibleChatIds: string[]) {
     where: and(
       eq(schema.chatApproval.state, "pending"),
       inArray(schema.chatApproval.chatId, visibleChatIds),
-      user.role === "member" ? eq(schema.chatApproval.askedBy, user.id) : or(),
+      user.role === "member" ? eq(schema.chatApproval.askedBy, user.id) : undefined,
     ),
     orderBy: [desc(schema.chatApproval.createdAt)],
   });

@@ -131,9 +131,21 @@ export async function toolToRun(
   userId: string,
   name: string,
   signal: AbortSignal,
-): Promise<{ execute?: (input: unknown) => Promise<unknown> } | null> {
+): Promise<ToolToRun | null> {
   const tools = await toolsFor(null, space, userId, signal);
-  return (tools[name] as { execute?: (input: unknown) => Promise<unknown> }) ?? null;
+  return (tools[name] as ToolToRun) ?? null;
+}
+
+/** A tool as an approved call runs it: its schema checks the held arguments first. */
+export interface ToolToRun {
+  inputSchema?: {
+    safeParse?: (input: unknown) => {
+      success: boolean;
+      data?: unknown;
+      error?: { message: string };
+    };
+  };
+  execute?: (input: unknown) => Promise<unknown>;
 }
 
 /**

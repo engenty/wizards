@@ -188,6 +188,19 @@ Which tools ask (decided by Matthias, "risk per tool"): every tool declares `ris
 outside` (`registerAssistantTool`); `outside` asks, and so does a tool without a mark. Only for
 the space's AI; Goose works as before. The manage plugins' marks: engenty-wizards-manage#112.
 
+- **The queue doesn't wait for an open approval.** engenty-pro held its "send after the
+  answer" queue while an approval was open, because its turn was suspended mid-run. Here the gate
+  holds the call and the turn goes on to its end; a queued message runs as the next turn, the
+  approval stays open beside it, and its decision reaches the AI later as a signal.
+- **Stop keeps people's words.** Mastra stores a turn's input when the turn ends and throws a
+  stopped or failed turn away with it. So every message is stored the moment it is sent, before
+  any turn, and never delivered as itself; asking the AI is a signal that isn't stored (pointing
+  at the stored message, or carrying the text into a turn already running). A message is in the
+  chat once, whatever the turn does. Stop drops the queued run, not the queued message.
+- **No call without a result after Stop.** Mastra (1.80) leaves the stopped step out of the
+  thread, so the next turn never sends a tool call without its result (test in
+  `work-approvals.test.ts`).
+
 A client's tool steps don't reach Mastra's stream either: the bridge writes each call and its
 result as tool parts of the AI's message, so the Trace shows them as on an API model.
 
