@@ -6,7 +6,15 @@ import { lang, t } from "../lib/i18n";
 import { Button, cn, Input } from "../ui";
 
 /** What a model does in the studio: a text class, the search of a space's knowledge, decisions. */
-export type LocalJob = "text" | "search" | "decision";
+const LOCAL_JOBS = ["text", "search", "decision"] as const;
+export type LocalJob = (typeof LOCAL_JOBS)[number];
+
+/** A job, by the name of its page. */
+const JOB_LABEL = {
+  text: "models.cap.text",
+  search: "models.cap.search",
+  decision: "models.cap.decision",
+} as const satisfies Record<LocalJob, string>;
 
 interface InstalledModel {
   name: string;
@@ -116,35 +124,43 @@ function DownloadState({ download }: { download: LocalDownload }) {
   );
 }
 
-/**
- * The models in Ollama on this computer for one job: the ones there (to use or remove), the
- * ones the Manage-App offers (to download and use), and any other name from Ollama. Where
- * Ollama does not run, a way to start it — or to install it, on a Mac.
- */
-export function LocalModels({
-  job,
-  chosen,
-  disabled,
-  onChoose,
-}: {
-  job: LocalJob;
-  /** The model the job asks for now. */
-  chosen: string;
-  disabled?: boolean;
-  onChoose: (model: string) => void;
-}) {
-  const qc = useQueryClient();
-  const [other, setOther] = useState("");
-  const [removeError, setRemoveError] = useState<string | null>(null);
-  const { data: state } = useQuery({
+/** Ollama on this computer, as `GET /api/studio/models/local` tells it; off where `enabled` is false. */
+export function useLocalModels(enabled = true) {
+  return useQuery({
     queryKey: ["models", "local"],
     queryFn: () => api.get<LocalModelsState>("/api/studio/models/local"),
+    enabled,
     // While a download runs or Ollama starts, the page asks how far it got.
     refetchInterval: (q) =>
       q.state.data?.downloads.some((d) => !d.finished) || q.state.data?.ollama.start?.running
         ? 1500
         : false,
   });
+}
+
+/**
+ * The models in Ollama on this computer. For one job: the ones there (to use or remove), the
+ * ones the Manage-App offers (to download and use), and any other name from Ollama. Without a
+ * job, all of them with the jobs each serves, to download or remove. Where Ollama does not
+ * run, a way to start it — or to install it, on a Mac.
+ */
+export function LocalModels({
+  job,
+  inUse,
+  disabled,
+  onChoose,
+}: {
+  /** Absent: every job, and nothing to choose. */
+  job?: LocalJob;
+  /** The models the studio asks for now; they are not removed. */
+  inUse: string[];
+  disabled?: boolean;
+  onChoose?: (model: string) => void;
+}) {
+  const qc = useQueryClient();
+  const [other, setOther] = useState("");
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const { data: state } = useLocalModels();
   const set = (next: LocalModelsState) => qc.setQueryData(["models", "local"], next);
   const pull = useMutation({
     mutationFn: (model: string) =>
@@ -214,11 +230,15 @@ export function LocalModels({
     if (!state.installed.some((m) => sameModel(m.name, model))) {
       pull.mutate(model);
     }
-    onChoose(model);
+    onChoose?.(model);
   };
-  const here = state.installed.filter((m) => m.jobs.includes(job));
-  const offered = state.offered?.filter((m) => m.job === job && !m.installed) ?? null;
-  const suggested = offered?.find((m) => m.fits)?.name;
+  const here = job ? state.installed.filter((m) => m.jobs.includes(job)) : state.installed;
+  const offered =
+    state.offered?.filter((m) => (job ? m.job === job : true) && !m.installed) ?? null;
+  // Per job, the first one that fits this computer.
+  const suggested = new Set(
+    LOCAL_JOBS.map((j) => offered?.find((m) => m.job === j && m.fits)?.name),
+  );
   // Downloads of names from the free field, which no list shows.
   const others = state.downloads.filter(
     (d) =>
@@ -230,15 +250,15 @@ export function LocalModels({
       <Group title={t("models.local.here", { version: ollama.version })}>
         {here.length ? (
           here.map((m) => {
-            const inUse = sameModel(m.name, chosen);
+            const used = inUse.some((name) => sameModel(m.name, name));
             return (
               <Row
                 key={m.name}
                 actions={
                   <>
-                    {inUse ? (
+                    {used ? (
                       <Chip tone="done">{t("models.local.inUse")}</Chip>
-                    ) : (
+                    ) : !onChoose ? null : (
                       <Button
                         variant="secondary"
                         size="sm"
@@ -253,7 +273,7 @@ export function LocalModels({
                       className="grid size-8 place-items-center rounded-lg text-ink-3 hover:bg-paper-2 hover:text-rose disabled:opacity-50"
                       title={t("models.local.remove")}
                       aria-label={t("models.local.remove")}
-                      disabled={disabled || inUse || remove.isPending}
+                      disabled={disabled || used || remove.isPending}
                       onClick={() =>
                         confirm(
                           t("models.local.removeConfirm", { name: m.name, size: gb(m.size) }),
@@ -267,6 +287,7 @@ export function LocalModels({
               >
                 <span className="truncate font-mono text-[0.8125rem]">{m.name}</span>
                 <span className="flex flex-wrap gap-1">
+                  {job ? null : m.jobs.map((j) => <Chip key={j}>{t(JOB_LABEL[j])}</Chip>)}
                   <Chip>{t("models.local.size", { size: gb(m.size) })}</Chip>
                   {m.runner === "mlx" ? <Chip>MLX</Chip> : null}
                   {CAP_CHIPS.filter((c) => m.capabilities.includes(c)).map((c) => (
@@ -298,19 +319,19 @@ export function LocalModels({
                     <DownloadState download={download} />
                   ) : (
                     <Button
-                      variant={m.name === suggested ? "primary" : "secondary"}
+                      variant={suggested.has(m.name) ? "primary" : "secondary"}
                       size="sm"
                       disabled={disabled}
                       onClick={() => use(m.name)}
                     >
-                      {t("models.local.download")}
+                      {onChoose ? t("models.local.download") : t("models.local.downloadOnly")}
                     </Button>
                   )
                 }
               >
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="truncate font-mono text-[0.8125rem]">{m.name}</span>
-                  {m.name === suggested ? (
+                  {suggested.has(m.name) ? (
                     <Chip tone="done">{t("models.local.suggested")}</Chip>
                   ) : null}
                 </span>
@@ -318,6 +339,7 @@ export function LocalModels({
                   {m.note[lang === "de" ? "de" : "en"]}
                 </span>
                 <span className="flex flex-wrap gap-1">
+                  {job ? null : <Chip>{t(JOB_LABEL[m.job])}</Chip>}
                   <Chip>{t("models.local.size", { size: gb(m.size) })}</Chip>
                   {m.fits ? null : (
                     <Chip>{t("models.local.tooBig", { memory: gb(m.memory) })}</Chip>
@@ -348,7 +370,7 @@ export function LocalModels({
             onChange={(e) => setOther(e.target.value)}
           />
           <Button type="submit" variant="secondary" disabled={disabled || !other.trim()}>
-            {t("models.local.use")}
+            {onChoose ? t("models.local.use") : t("models.local.downloadOnly")}
           </Button>
         </form>
         {others.map((d) => (

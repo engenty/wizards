@@ -230,6 +230,18 @@ const de: Record<Key, Line> = {
   "models.searchLocalHint": "{model} fehlt in Ollama.",
   "models.searchLocalReady": "{model} läuft in Ollama auf diesem Computer. Nichts verlässt ihn.",
   "models.ollamaAddress": "Adresse von Ollama",
+  "models.ollamaOpen": "Ollama öffnen",
+  "models.ollamaLead":
+    "Modelle auf diesem Computer für Text, Suche und Entscheidungen: kostenlos, und nichts verlässt ihn.",
+  "models.ollamaRuns": "Ollama {version}",
+  "models.ollamaStoppedShort": "läuft nicht",
+  "models.ollamaMissingShort": "nicht installiert",
+  "models.ollamaModels": "Modelle",
+  "models.ollamaModelsHint":
+    "Welches Modell eine Aufgabe nimmt, wählst du auf ihrer Seite: Text & Denken, Suche, Entscheidungen.",
+  "models.ollamaAddressHint":
+    "Wo Ollama antwortet. Auf diesem Computer ist das http://127.0.0.1:11434/v1.",
+  "models.local.downloadOnly": "Laden",
   "models.local.noOllama": "Ollama ist nicht auf diesem Computer. Lokale Modelle laufen darüber.",
   "models.local.ollamaStopped": "Ollama ist installiert, läuft aber nicht.",
   "models.local.installOllama": "Ollama installieren",
@@ -3043,6 +3055,18 @@ const en = {
   "models.searchLocalHint": "Ollama doesn’t have {model}.",
   "models.searchLocalReady": "{model} runs in Ollama on this computer. Nothing leaves it.",
   "models.ollamaAddress": "Ollama’s address",
+  "models.ollamaOpen": "Open Ollama",
+  "models.ollamaLead":
+    "Models on this computer for text, search and decisions: free, and nothing leaves it.",
+  "models.ollamaRuns": "Ollama {version}",
+  "models.ollamaStoppedShort": "not running",
+  "models.ollamaMissingShort": "not installed",
+  "models.ollamaModels": "Models",
+  "models.ollamaModelsHint":
+    "Which model a job takes, you choose on its page: Text & reasoning, Search, Decisions.",
+  "models.ollamaAddressHint":
+    "Where Ollama answers. On this computer that is http://127.0.0.1:11434/v1.",
+  "models.local.downloadOnly": "Download",
   "models.local.noOllama": "Ollama isn’t on this computer. Local models run through it.",
   "models.local.ollamaStopped": "Ollama is installed but isn’t running.",
   "models.local.installOllama": "Install Ollama",
