@@ -160,13 +160,14 @@ export function ThemeToggle() {
   const theme = useTheme();
   // A wizard that sets dark or light pages keeps them so.
   const pinned = useThemePinned();
-  const next = theme === "dark" ? "light" : "dark";
+  // Back to dark goes to the branded one, the default.
+  const next = theme === "dark" ? "light" : "branded";
   if (pinned) {
     return null;
   }
   return (
     <IconButton
-      label={t(next === "dark" ? "theme.dark" : "theme.light")}
+      label={t(next === "branded" ? "theme.branded" : "theme.light")}
       onClick={() => setTheme(next)}
     >
       {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}

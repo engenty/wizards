@@ -13,13 +13,25 @@
   --raw-sidebar: var(--paper-2);
 }
 
-/* Dark is not the near-black of the base palette: the page takes the deep
-   colour of an engenty (`--engenty-stage`, set per wizard by `useStage`), the ground
-   the jelly coat is made for. Every surface and ink step derives from it, so
-   a wizard's page, cards and text all carry its hue. */
+/* Dark comes two ways, picked by the visitor. Branded (`.branded` on the root) is not the
+   near-black of the base palette: the page takes the deep colour of an engenty
+   (`--engenty-stage`, set per wizard by `useStage`), the ground the jelly coat is made for. Plain
+   dark stands on a near-black with a trace of the engenty blue. Either way every surface and ink
+   step derives from the stage, so a wizard's page, cards and text all carry its hue. */
+:root {
+  --dark-ground: oklch(21% 0.035 264);
+  /* How much colour the inks take from the stage. */
+  --dark-tint: 0.45;
+}
+
+:root.branded {
+  --dark-ground: var(--engenty-stage, oklch(34% 0.14 264));
+  --dark-tint: 1;
+}
+
 .dark {
-  /* A brand's own ground first, then the wizard's engenty, then the cobalt one. */
-  --stage: var(--brand-stage, var(--engenty-stage, oklch(34% 0.14 264)));
+  /* A brand's own ground first, then the mode's: the wizard's engenty or near-black. */
+  --stage: var(--brand-stage, var(--dark-ground));
   --raw-background: var(--stage);
   --raw-sidebar: oklch(from var(--stage) calc(l - 0.04) c h);
   --paper: oklch(from var(--stage) l c h);
@@ -28,10 +40,10 @@
   --card: oklch(from var(--stage) calc(l + 0.06) calc(c * 0.95) h);
   --paper-2: oklch(from var(--stage) calc(l + 0.1) calc(c * 0.92) h);
   --paper-3: oklch(from var(--stage) calc(l + 0.14) calc(c * 0.88) h);
-  --ink: oklch(from var(--stage) 0.97 0.015 h);
-  --ink-2: oklch(from var(--stage) 0.9 0.03 h);
-  --ink-3: oklch(from var(--stage) 0.8 0.05 h);
-  --ink-4: oklch(from var(--stage) 0.68 0.06 h);
+  --ink: oklch(from var(--stage) 0.97 calc(0.015 * var(--dark-tint)) h);
+  --ink-2: oklch(from var(--stage) 0.9 calc(0.03 * var(--dark-tint)) h);
+  --ink-3: oklch(from var(--stage) 0.8 calc(0.05 * var(--dark-tint)) h);
+  --ink-4: oklch(from var(--stage) 0.68 calc(0.06 * var(--dark-tint)) h);
   /* Lines and the hover wash sit on cards as often as on the page, so they
      are mixed from the card up: a field's edge, a button's outline and a
      hovered icon button stay visible on both. */
