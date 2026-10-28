@@ -227,8 +227,14 @@ const de: Record<Key, Line> = {
   "models.searchHint":
     "Ein Embedding-Modell macht aus jedem Abschnitt einen Vektor. So findet die Suche auch, was dasselbe mit anderen Wörtern sagt. Automatisch nimmt es deinen API-Key, sonst das Modell auf diesem Computer, sonst das Guthaben.",
   "models.searchCloudHint": "In der Cloud rechnet das Guthaben der Organisation die Vektoren.",
-  "models.searchLocalHint":
-    "{model} fehlt in Ollama. Du holst es mit „ollama pull {model}“. EmbeddingGemma von Google ist frei und braucht etwa 600 MB.",
+  "models.searchLocalHint": "{model} fehlt in Ollama.",
+  "models.searchLocalGemma": "EmbeddingGemma 2 von Google ist frei und braucht etwa 1,3 GB.",
+  "models.searchLocalDownload": "{model} laden",
+  "models.searchLocalStarting": "Lädt …",
+  "models.searchLocalProgress": "{done} von {total} MB",
+  "models.searchLocalNoOllama":
+    "Ollama läuft nicht auf diesem Computer. Starte es oder richte es mit „wizards setup“ ein.",
+  "models.searchLocalFailed": "Das Laden hat nicht geklappt: {error}",
   "models.searchLocalReady": "{model} läuft in Ollama auf diesem Computer. Nichts verlässt ihn.",
   "models.searchFallback": "Ohne Embedding-Modell",
   "models.searchFallbackHint":
@@ -2990,8 +2996,14 @@ const en = {
   "models.searchHint":
     "An embedding model turns each passage into a vector. The search then also finds what says the same in other words. Automatic takes your API key, else the model on this computer, else the credits.",
   "models.searchCloudHint": "In the cloud, the organization’s credits pay for the vectors.",
-  "models.searchLocalHint":
-    "Ollama doesn’t have {model}. You get it with “ollama pull {model}”. Google’s EmbeddingGemma is free and takes about 600 MB.",
+  "models.searchLocalHint": "Ollama doesn’t have {model}.",
+  "models.searchLocalGemma": "Google’s EmbeddingGemma 2 is free and takes about 1.3 GB.",
+  "models.searchLocalDownload": "Download {model}",
+  "models.searchLocalStarting": "Loading…",
+  "models.searchLocalProgress": "{done} of {total} MB",
+  "models.searchLocalNoOllama":
+    "Ollama isn’t running on this computer. Start it, or set it up with “wizards setup”.",
+  "models.searchLocalFailed": "The download didn’t work: {error}",
   "models.searchLocalReady": "{model} runs in Ollama on this computer. Nothing leaves it.",
   "models.searchFallback": "Without an embedding model",
   "models.searchFallbackHint":

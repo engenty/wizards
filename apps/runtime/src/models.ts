@@ -147,8 +147,11 @@ export type EmbeddingWay = (typeof EMBEDDING_WAYS)[number];
 export const EMBEDDING_CHOICES = ["auto", ...EMBEDDING_WAYS, "off"] as const;
 export type EmbeddingChoice = (typeof EMBEDDING_CHOICES)[number];
 
-/** Google's EmbeddingGemma: open weights, about 600 MB, in Ollama's library. */
-export const LOCAL_EMBEDDING_MODEL = "embeddinggemma";
+/**
+ * Google's EmbeddingGemma 2: open weights, about 1.3 GB in Ollama's library. Text, images and
+ * sound share one space; the index uses its text so far.
+ */
+export const LOCAL_EMBEDDING_MODEL = "embeddinggemma-2:740m";
 
 /** The ways to a decision model, in the order `auto` tries them. */
 export const DECISION_WAYS = ["gateway", "typesafe", "local", "credits"] as const;
@@ -1085,6 +1088,57 @@ export async function embeddingModel(): Promise<ResolvedEmbedding | null> {
   return found ? { model: found.model, ref: found.ref } : null;
 }
 
+/** A download of the local embedding model into Ollama: while it runs, and how it ended. */
+interface EmbeddingDownload {
+  model: string;
+  done: number;
+  total: number;
+  /** `ollama`: Ollama does not run on this computer; else what Ollama said. */
+  error: string | null;
+  finished: boolean;
+}
+
+let embeddingDownload: EmbeddingDownload | null = null;
+
+/**
+ * Pulls the local embedding model into Ollama in the background; `then` runs once it ended
+ * well. A download that runs already is left to finish.
+ */
+export async function downloadLocalEmbedding(then: () => Promise<void>) {
+  if (managed || (embeddingDownload && !embeddingDownload.finished)) {
+    return;
+  }
+  const cfg = await config();
+  const url = cfg.settings.ollamaUrl ?? env.ollamaUrl;
+  const state: EmbeddingDownload = {
+    model: localEmbeddingName(cfg),
+    done: 0,
+    total: 0,
+    error: null,
+    finished: false,
+  };
+  embeddingDownload = state;
+  const { pullModel } = await import("./cli/ollama.js");
+  void pullModel(
+    state.model,
+    (done, total) => {
+      state.done = done;
+      state.total = total;
+    },
+    { OLLAMA_URL: url },
+  )
+    .then(async () => {
+      localEmbedding = null;
+      state.finished = true;
+      await then();
+    })
+    .catch((err: Error) => {
+      const unreachable = /fetch failed|ECONNREFUSED/i.test(`${err.message} ${err.cause ?? ""}`);
+      state.error = unreachable ? "ollama" : err.message;
+      state.finished = true;
+    });
+}
+
 /**
  * The search, for the settings page: the choice, which ways have an embedding model, and which
  * one embeds now (null: the search finds words only).
@@ -1106,6 +1160,8 @@ async function embeddingSettings(cfg: ModelConfig) {
     /** The model the vectors come from, as the index records it. */
     ref: now?.ref ?? null,
     local: localEmbeddingName(cfg),
+    /** The download of the local model, where one ran since the start. */
+    download: embeddingDownload?.model === localEmbeddingName(cfg) ? embeddingDownload : null,
   };
 }
 
