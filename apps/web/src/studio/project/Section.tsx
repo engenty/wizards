@@ -53,7 +53,7 @@ export function Section({
     // Buttons beside the heading need more room above the card than the heading's text alone.
     <section
       data-assist-section={title}
-      className={cn("flex flex-col", action ? "gap-4" : "gap-2.5")}
+      className={cn("flex flex-col", action ? "gap-6" : "gap-2.5")}
     >
       <div className="group/head flex items-end justify-between gap-4 px-1">
         <div className="min-w-0">
