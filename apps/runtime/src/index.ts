@@ -119,6 +119,16 @@ async function purge() {
   }
 }
 void purge().catch((err) => console.error("[retention]", err));
+
+// Assets came into the index later than documents: what is not there yet goes in once.
+if (env.serves.studio) {
+  const { indexMissingAssets } = await import("./services/project-index.js");
+  for (const id of await knownTenants()) {
+    void withTenant(id, () => indexMissingAssets()).catch((err) =>
+      console.error(`[project-index ${id}]`, err),
+    );
+  }
+}
 setInterval(() => void purge().catch((err) => console.error("[retention]", err)), 3600_000).unref();
 
 // A runtime that runs alone sends again what did not arrive in its account's cloud.

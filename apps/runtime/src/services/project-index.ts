@@ -279,10 +279,42 @@ async function indexRows(tableId: string, rowIds?: string[]) {
   await writeUnits(scope, units);
 }
 
+/** An image, video or sound among a space's assets: found by its name and description. */
+const MEDIA_ASSET = /^(image|video|audio)\//;
+
+/** Whether the index holds a file: a document, or an image, video or sound asset. */
+export function indexedFile(file: { kind: string; mime: string }): boolean {
+  return file.kind === "document" || (file.kind === "asset" && MEDIA_ASSET.test(file.mime));
+}
+
+/** An asset stands in the index as one unit: its name, its kind, its categories, its description. */
+async function indexAsset(file: typeof schema.projectFile.$inferSelect) {
+  const categories = await categoryRows(file.projectId);
+  const lines = categoryLines(
+    categories,
+    (await itemCategoriesOf([{ fileId: file.id }])).get(`f:${file.id}`),
+  );
+  const kind = file.mime.split("/")[0];
+  await writeUnits(eq(schema.projectChunk.fileId, file.id), [
+    {
+      projectId: file.projectId,
+      fileId: file.id,
+      heading: file.name,
+      idx: 0,
+      text: [head([file.name], [`${kind} asset`, ...lines]), file.description]
+        .filter(Boolean)
+        .join("\n\n"),
+    },
+  ]);
+}
+
 async function indexFile(fileId: string) {
   const file = await db.query.projectFile.findFirst({ where: eq(schema.projectFile.id, fileId) });
-  if (file?.kind !== "document" || file.status !== "ready") {
+  if (!(file && indexedFile(file) && file.status === "ready")) {
     return;
+  }
+  if (file.kind === "asset") {
+    return indexAsset(file);
   }
   const converted =
     (await db.query.spacePage.findFirst({
@@ -850,9 +882,9 @@ export async function reindexSpace(projectId: string) {
     db.query.projectFile.findMany({
       where: and(
         eq(schema.projectFile.projectId, projectId),
-        eq(schema.projectFile.kind, "document"),
+        inArray(schema.projectFile.kind, ["document", "asset"]),
       ),
-      columns: { id: true },
+      columns: { id: true, kind: true, mime: true },
     }),
     db
       .select({ id: schema.spaceCategoryValue.id })
@@ -874,7 +906,7 @@ export async function reindexSpace(projectId: string) {
   for (const t of tables) {
     queueIndex(`t:${t.id}`);
   }
-  for (const f of files) {
+  for (const f of files.filter(indexedFile)) {
     queueIndex(`f:${f.id}`);
   }
   for (const v of values) {
@@ -887,5 +919,16 @@ export async function reindexAll() {
   const projects = await db.query.project.findMany({ columns: { id: true } });
   for (const p of projects) {
     await reindexSpace(p.id);
+  }
+}
+
+/** The image, video and sound assets the index does not hold yet: added at start, once each. */
+export async function indexMissingAssets() {
+  const rows = await db.all<{ id: string; kind: string; mime: string }>(sql`
+    SELECT f.id, f.kind, f.mime FROM project_file f
+    WHERE f.kind = 'asset' AND f.status = 'ready'
+      AND NOT EXISTS (SELECT 1 FROM project_chunk c WHERE c.file_id = f.id)`);
+  for (const row of rows.filter(indexedFile)) {
+    queueIndex(`f:${row.id}`);
   }
 }

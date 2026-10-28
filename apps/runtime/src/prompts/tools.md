@@ -112,7 +112,7 @@ Write a page of this wizard in Markdown, kept for every later run and shown to t
 <!-- Knowledge (tools/project.ts) -->
 
 <!-- section: tool.project_search -->
-Search the space's Knowledge: its pages, tables and files, and what its plugins keep (wiki pages, questions and answers). Gives items with their path, categories and best section, each checked for relevance. Ask in their language, with the words they would use; filter with `where` when the task names a category's value. Then read the items you need whole with page_read or table_read.
+Search the space's Knowledge: its pages, tables and files, its images, videos and sounds by their description, and what its plugins keep (wiki pages, questions and answers). Gives items with their path, categories and best section, each checked for relevance. Ask in their language, with the words they would use; filter with `where` when the task names a category's value. Then read the items you need whole with page_read or table_read.
 
 <!-- The `where` input of project_search and project_list. -->
 <!-- section: tool.project.where -->
