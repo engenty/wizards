@@ -32,11 +32,7 @@ import {
 const MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 /** Each mode's sign on the engenty while the menu is closed. */
-const MODE_BADGE: Record<Mode, { icon: LucideIcon; tone: string }> = {
-  studio: { icon: PenLine, tone: "bg-cobalt" },
-  work: { icon: MessageSquare, tone: "bg-ember" },
-  client: { icon: Eye, tone: "bg-moss" },
-};
+const MODE_BADGE: Record<Mode, LucideIcon> = { studio: PenLine, work: MessageSquare, client: Eye };
 
 /**
  * The switch between the modes, under the wordmark. Client adds whose view it is: in this step
@@ -143,7 +139,7 @@ export function EngentyMenu({
   // mode gets neither.
   const mode = useMode(me);
   const modal = allowedModes(me).length > 1;
-  const badge = MODE_BADGE[mode];
+  const Badge = MODE_BADGE[mode];
   // The settings from anywhere, as an app opens its own.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -196,12 +192,9 @@ export function EngentyMenu({
             <span
               role="img"
               aria-label={t("mode.badge", { mode: t(`mode.${mode}`) })}
-              className={cn(
-                "-top-0.5 -right-1 absolute grid size-[17px] place-items-center rounded-full text-white ring-2 ring-sidebar",
-                badge.tone,
-              )}
+              className="-top-1 -right-1.5 absolute text-white drop-shadow-[0_0_1.5px_rgb(0_0_0/0.6)]"
             >
-              <badge.icon className="size-[9px]" strokeWidth={2.8} />
+              <Badge className="size-3.5" strokeWidth={2.4} />
             </span>
           ) : null}
         </span>
