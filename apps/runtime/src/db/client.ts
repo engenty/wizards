@@ -194,6 +194,16 @@ export function tenantDb(id: string): Promise<Db> {
 
 const ready = new Map<string, Db>();
 
+/** The open client of a tenant's database, for a store of its own beside ours (Mastra's). */
+export async function tenantClient(id: string): Promise<Client> {
+  await tenantDb(id);
+  const client = clients.get(id);
+  if (!client) {
+    throw new Error(`The database of tenant ${id} is not open.`);
+  }
+  return client;
+}
+
 /** Closes and forgets an open tenant database (the tenant was deleted or moved). */
 export function closeTenantDb(id: string) {
   opened.delete(id);

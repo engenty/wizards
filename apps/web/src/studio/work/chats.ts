@@ -10,10 +10,12 @@ const BASE = "/api/studio/work";
 /** How often an open chat and the sidebar ask for what others wrote, until the live feed carries it. */
 const POLL_MS = 4000;
 
+/** Members of a chat: people, and later engenties. The space's AI is no member. */
 export type MemberKind = "person" | "engenty";
 
 export interface ChatItem {
   id: string;
+  spaceId: string;
   title: string;
   sectionId: string | null;
   parentId: string | null;
@@ -54,9 +56,10 @@ export type ChatPart =
     }
   | { type: string; [key: string]: unknown };
 
+/** A message: the AI SDK's parts, and who wrote it (a person, or the space's AI). */
 export interface ChatMessage {
   id: string;
-  author: { kind: MemberKind; id: string };
+  author: { kind: "person" | "ai"; id: string; name: string };
   parts: ChatPart[];
   createdAt: string;
 }
@@ -77,13 +80,17 @@ export interface OpenChat {
 
 const SIDEBAR = ["work-chats"] as const;
 
-export function useSidebar(query: string) {
+/** The sidebar of a space. */
+export function useSidebar(spaceId: string | undefined, query: string) {
   return useQuery({
-    queryKey: [...SIDEBAR, query],
+    queryKey: [...SIDEBAR, spaceId, query],
     queryFn: () =>
       api.get<{ sections: Section[]; chats: SidebarChat[] }>(
-        `${BASE}/chats${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+        `${BASE}/chats?space=${encodeURIComponent(spaceId ?? "")}${
+          query ? `&q=${encodeURIComponent(query)}` : ""
+        }`,
       ),
+    enabled: Boolean(spaceId),
     refetchInterval: POLL_MS,
     placeholderData: (previous) => previous,
   });
@@ -111,8 +118,13 @@ function useChange<A, R>(run: (args: A) => Promise<R>) {
 }
 
 export const useCreateChat = () =>
-  useChange((body: { title?: string; sectionId?: string | null; parentId?: string | null }) =>
-    api.post<ChatItem>(`${BASE}/chats`, body),
+  useChange(
+    (body: {
+      spaceId?: string;
+      title?: string;
+      sectionId?: string | null;
+      parentId?: string | null;
+    }) => api.post<ChatItem>(`${BASE}/chats`, body),
   );
 
 export const useUpdateChat = () =>
@@ -142,7 +154,9 @@ export const usePostMessage = () =>
   );
 
 export const useCreateSection = () =>
-  useChange((name: string) => api.post<Section>(`${BASE}/sections`, { name }));
+  useChange((body: { spaceId: string; name: string }) =>
+    api.post<Section>(`${BASE}/sections`, body),
+  );
 
 export const useRenameSection = () =>
   useChange(({ id, name }: { id: string; name: string }) =>

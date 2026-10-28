@@ -56,6 +56,7 @@ import {
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { t } from "../../lib/i18n";
+import { useCurrentProject } from "../../lib/session";
 import { cn } from "../../ui";
 import {
   type Section,
@@ -110,7 +111,8 @@ export function ChatSidebar() {
   const [query, setQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const { data } = useSidebar(query);
+  const { project } = useCurrentProject();
+  const { data } = useSidebar(project?.id, query);
   const [foldedSections, toggleSection] = useFolded("wizards.work.folded-sections");
   const [foldedThreads, toggleThreads] = useFolded("wizards.work.folded-threads");
   const [addingSection, setAddingSection] = useState(false);
@@ -133,7 +135,7 @@ export function ChatSidebar() {
   const archived = top.filter((c) => c.archived);
 
   const newChat = async (sectionId: string | null = null, parentId: string | null = null) => {
-    const chat = await createChat.mutateAsync({ sectionId, parentId });
+    const chat = await createChat.mutateAsync({ spaceId: project?.id, sectionId, parentId });
     navigate(`/work/c/${chat.id}`);
   };
 
@@ -196,8 +198,8 @@ export function ChatSidebar() {
             placeholder={t("work.sectionName")}
             onDone={async (name) => {
               setAddingSection(false);
-              if (name) {
-                await createSection.mutateAsync(name);
+              if (name && project) {
+                await createSection.mutateAsync({ spaceId: project.id, name });
               }
             }}
           />

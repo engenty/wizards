@@ -29,8 +29,9 @@ import {
   TraceLine,
   TraceTitle,
 } from "@/components/ui/trace";
+import { EngentyLogoMark } from "../../engenty/logo";
 import { lang, t } from "../../lib/i18n";
-import { useMe } from "../../lib/session";
+import { useCurrentProject, useMe } from "../../lib/session";
 import { Composer } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
 import {
@@ -45,14 +46,16 @@ import {
 
 /**
  * One chat of Work: its title, members and sub-threads, the messages in the shadcn/ui chat
- * parts, and the field to write in. A message's parts are the AI SDK's: people write text; an
- * engenty's turn adds its reasoning and tool calls as Trace lines (shadcn/ui AI Elements, Tool).
+ * parts, and the field to write in. A message's parts are the AI SDK's: people write text; a
+ * turn of the space's AI adds its reasoning and tool calls as Trace lines (shadcn/ui AI
+ * Elements, Tool).
  */
 
 export function ChatView({ id }: { id: string }) {
   const { data, isError } = useChat(id);
   const me = useMe().data?.user.id;
   const post = usePostMessage();
+  const { project } = useCurrentProject();
   const client = useQueryClient();
   const opened = data?.chat.id;
   // Opening a chat marks it read: the sidebar loses its dot at once.
@@ -70,6 +73,15 @@ export function ChatView({ id }: { id: string }) {
     return <div className="flex-1" />;
   }
   const names = new Map(data.members.map((m) => [`${m.kind}:${m.id}`, m]));
+  const authorOf = (m: ChatMessage): ChatMember | null =>
+    m.author.kind === "ai"
+      ? null
+      : (names.get(`person:${m.author.id}`) ?? {
+          kind: "person",
+          id: m.author.id,
+          name: m.author.name,
+          image: null,
+        });
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -83,7 +95,7 @@ export function ChatView({ id }: { id: string }) {
                   {groups(data.messages).map((group, at, all) => {
                     const first = group[0];
                     const mine = first.author.kind === "person" && first.author.id === me;
-                    const author = names.get(`${first.author.kind}:${first.author.id}`);
+                    const author = authorOf(first);
                     const day = dayOf(first.createdAt);
                     const newDay = at === 0 || dayOf(all[at - 1][0].createdAt) !== day;
                     return (
@@ -94,7 +106,12 @@ export function ChatView({ id }: { id: string }) {
                           </Marker>
                         ) : null}
                         <MessageScrollerItem messageId={first.id} scrollAnchor={mine}>
-                          <Turn group={group} mine={mine} author={author} />
+                          <Turn
+                            group={group}
+                            mine={mine}
+                            author={author}
+                            spaceName={project?.name ?? ""}
+                          />
                         </MessageScrollerItem>
                       </Fragment>
                     );
@@ -241,32 +258,35 @@ function dayLabel(iso: string) {
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
 
+/** One author's turn. The space's AI shows as the space's name with the engenty figure. */
 function Turn({
   group,
   mine,
   author,
+  spaceName,
 }: {
   group: ChatMessage[];
   mine: boolean;
-  author: ChatMember | undefined;
+  author: ChatMember | null;
+  spaceName: string;
 }) {
-  const engenty = group[0].author.kind === "engenty";
+  const ai = group[0].author.kind === "ai";
   return (
     <Message align={mine ? "end" : "start"}>
       {mine ? null : (
         <MessageAvatar className="min-w-0 self-start bg-transparent">
-          <Avatar member={author} />
+          {ai ? <EngentyLogoMark size={28} /> : <Avatar member={author ?? undefined} />}
         </MessageAvatar>
       )}
       <MessageContent>
         <MessageHeader className={mine ? "justify-end" : undefined}>
-          {mine ? t("work.you") : (author?.name ?? "")}
+          {mine ? t("work.you") : ai ? spaceName : (author?.name ?? "")}
           <span className="ml-2 font-normal text-ink-4">{timeOf(group[0].createdAt)}</span>
         </MessageHeader>
         <MessageGroup>
           {group.map((m) =>
-            engenty ? (
-              <EngentyParts key={m.id} parts={m.parts} />
+            ai ? (
+              <AiParts key={m.id} parts={m.parts} />
             ) : (
               <Bubble
                 key={m.id}
@@ -295,8 +315,8 @@ type ToolPart = Extract<ChatPart, { toolCallId: string }>;
 
 const isTool = (p: ChatPart): p is ToolPart => p.type.startsWith("tool-") && "toolCallId" in p;
 
-/** An engenty's turn: its steps (reasoning, tool calls) as Trace lines, then its text. */
-function EngentyParts({ parts }: { parts: ChatPart[] }) {
+/** A turn of the space's AI: its steps (reasoning, tool calls) as Trace lines, then its text. */
+function AiParts({ parts }: { parts: ChatPart[] }) {
   const steps = parts.filter((p) => p.type === "reasoning" || isTool(p));
   const text = textOf(parts);
   return (
