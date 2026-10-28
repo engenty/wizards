@@ -2,7 +2,7 @@ import { note } from "@engenty/wizards-shared/run";
 import { toAISdkStream } from "@mastra/ai-sdk";
 import { toAISdkMessages } from "@mastra/ai-sdk/ui";
 import { RequestContext } from "@mastra/core/request-context";
-import { and, asc, desc, eq, exists, like, max, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, like, max, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { SessionUser } from "../auth/index.js";
 import { canSpend } from "../credits/credits.js";
@@ -40,6 +40,8 @@ export interface ChatListItem {
   parentId: string | null;
   private: boolean;
   updatedAt: string;
+  /** Since when the space's AI answers here; null while it doesn't. */
+  answeringSince: string | null;
 }
 
 /** A chat as the sidebar shows it: with what the person did with it and its last message. */
@@ -73,6 +75,7 @@ const listItem = (c: ChatRow): ChatListItem => ({
   parentId: c.parentId,
   private: c.private,
   updatedAt: c.updatedAt.toISOString(),
+  answeringSince: c.answeringSince?.toISOString() ?? null,
 });
 
 const isMember = (user: SessionUser) =>
@@ -180,6 +183,34 @@ export async function sidebar(user: SessionUser, spaceId: string, query?: string
       };
     }),
   };
+}
+
+/**
+ * The live feed's changes the person may hear of: a chat's only when they see the chat (a
+ * private one: as a member); a section's always (sections are the space's).
+ */
+export async function chatChangesFor<
+  T extends { kind: string; item: string; parent: string | null },
+>(user: SessionUser, items: T[]): Promise<T[]> {
+  const ids = items.filter((i) => i.kind === "chat" && i.parent !== "section").map((i) => i.item);
+  if (!ids.length) {
+    return items;
+  }
+  const seen = await db.query.chat.findMany({
+    where: and(inArray(schema.chat.id, ids), visible(user)),
+    columns: { id: true },
+  });
+  const ok = new Set(seen.map((c) => c.id));
+  // A chat that is gone was deleted: everyone who had it in the sidebar drops it.
+  const gone = new Set(
+    ids.filter(
+      (id) =>
+        !ok.has(id) && items.some((i) => i.item === id && (i as { op?: string }).op === "del"),
+    ),
+  );
+  return items.filter(
+    (i) => i.kind !== "chat" || i.parent === "section" || ok.has(i.item) || gone.has(i.item),
+  );
 }
 
 /** What the person does with a chat for themselves: pin, archive, mark read or unread. */
@@ -477,7 +508,76 @@ async function deliverOrWake(
     subscription.unsubscribe();
     return { kind: "taken" };
   }
+  // Others in the chat hear of it (the live feed) and follow the turn (`followTurn`).
+  await db
+    .update(schema.chat)
+    .set({ answeringSince: new Date() })
+    .where(eq(schema.chat.id, chat.id));
   return { kind: "turn", stream: turnStream(chat, subscription, turn.steps) };
+}
+
+/**
+ * A running turn's chunks as the AI SDK's UI stream carries them, for others in the chat who
+ * follow it: what streamed so far, then the rest. Kept by the process that runs the turn.
+ */
+const following = new Map<
+  string,
+  { chunks: unknown[]; listeners: Set<(c: unknown) => void>; done: boolean }
+>();
+
+/** The running turn of a chat as a stream to follow, from its start; null when none runs. */
+export async function followTurn(user: SessionUser, id: string): Promise<ReadableStream | null> {
+  const chat = await visibleChat(user, id);
+  const turn = following.get(chat.id);
+  if (!turn || turn.done) {
+    return null;
+  }
+  let listener: ((c: unknown) => void) | null = null;
+  return new ReadableStream({
+    start(controller) {
+      for (const chunk of turn.chunks) {
+        controller.enqueue(chunk);
+      }
+      listener = (chunk) => {
+        if (chunk === END) {
+          turn.listeners.delete(listener as (c: unknown) => void);
+          controller.close();
+        } else {
+          controller.enqueue(chunk);
+        }
+      };
+      turn.listeners.add(listener);
+    },
+    cancel() {
+      if (listener) {
+        turn.listeners.delete(listener);
+      }
+    },
+  });
+}
+
+const END = Symbol("end");
+
+function broadcast(chatId: string) {
+  const turn = { chunks: [] as unknown[], listeners: new Set<(c: unknown) => void>(), done: false };
+  following.set(chatId, turn);
+  return {
+    send(chunk: unknown) {
+      turn.chunks.push(chunk);
+      for (const listener of turn.listeners) {
+        listener(chunk);
+      }
+    },
+    end() {
+      turn.done = true;
+      for (const listener of [...turn.listeners]) {
+        listener(END);
+      }
+      if (following.get(chatId) === turn) {
+        following.delete(chatId);
+      }
+    },
+  };
 }
 
 /**
@@ -517,20 +617,34 @@ function turnStream(
       version: "v7",
     } as never,
   ) as unknown as ReadableStream;
+  const others = broadcast(chat.id);
   return new ReadableStream({
     async start(controller) {
-      const off = steps.on((step) => controller.enqueue(stepChunk(step)));
+      const out = (chunk: unknown) => {
+        others.send(chunk);
+        try {
+          controller.enqueue(chunk);
+        } catch {
+          // The asker left; the turn goes on for the others.
+        }
+      };
+      const off = steps.on((step) => out(stepChunk(step)));
       try {
         for await (const chunk of ui as unknown as AsyncIterable<{ type: string }>) {
           // A client's steps go before the turn's last chunk, inside its message.
           if (chunk.type === "finish") {
             off();
           }
-          controller.enqueue(chunk);
+          out(chunk);
         }
       } finally {
         off();
-        controller.close();
+        others.end();
+        try {
+          controller.close();
+        } catch {
+          // closed by the asker leaving
+        }
         await afterTurn(chat, reply, steps.list).catch((err) =>
           console.error("[work-chats] after the turn:", err),
         );
@@ -541,6 +655,7 @@ function turnStream(
 
 /** What a finished turn leaves: its text as the chat's last message, a client's steps stored. */
 async function afterTurn(chat: ChatRow, reply: string, steps: ClientStep[]) {
+  await db.update(schema.chat).set({ answeringSince: null }).where(eq(schema.chat.id, chat.id));
   if (steps.length) {
     const { memory } = await workMastra();
     const { messages } = await memory.recall({

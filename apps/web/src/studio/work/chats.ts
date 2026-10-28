@@ -4,6 +4,7 @@ import { createUIMessageStreamResponse, DefaultChatTransport } from "ai";
 import { useMemo } from "react";
 import { api, CLIENT } from "../../lib/api";
 import { withBase } from "../../lib/base";
+import { useFeature } from "../../lib/features";
 import { lang } from "../../lib/i18n";
 
 /**
@@ -12,8 +13,12 @@ import { lang } from "../../lib/i18n";
  */
 
 const BASE = "/api/studio/work";
-/** How often an open chat and the sidebar ask for what others wrote, until the live feed carries it. */
+/**
+ * How often an open chat, the sidebar and the bell ask for what others wrote when the live feed
+ * is off (`liveChanges`); with it on, they are read again when it tells of a change.
+ */
 const POLL_MS = 4000;
+const usePoll = () => (useFeature("liveChanges") ? false : POLL_MS);
 
 /** Members of a chat: people, and later engenties. The space's AI is no member. */
 export type MemberKind = "person" | "engenty";
@@ -21,6 +26,8 @@ export type MemberKind = "person" | "engenty";
 export interface ChatItem {
   id: string;
   spaceId: string;
+  /** Since when the space's AI answers here; null while it doesn't. */
+  answeringSince: string | null;
   title: string;
   sectionId: string | null;
   parentId: string | null;
@@ -101,6 +108,7 @@ const SIDEBAR = ["work-chats"] as const;
 
 /** The sidebar of a space. */
 export function useSidebar(spaceId: string | undefined, query: string) {
+  const poll = usePoll();
   return useQuery({
     queryKey: [...SIDEBAR, spaceId, query],
     queryFn: () =>
@@ -110,18 +118,19 @@ export function useSidebar(spaceId: string | undefined, query: string) {
         }`,
       ),
     enabled: Boolean(spaceId),
-    refetchInterval: POLL_MS,
+    refetchInterval: poll,
     placeholderData: (previous) => previous,
   });
 }
 
 /** One chat with its messages; not asked again while the AI's answer streams in here. */
 export function useOpenChat(id: string | undefined, streaming = false) {
+  const poll = usePoll();
   return useQuery({
     queryKey: ["work-chat", id],
     queryFn: () => api.get<OpenChat>(`${BASE}/chats/${id}`),
     enabled: Boolean(id),
-    refetchInterval: streaming ? false : POLL_MS,
+    refetchInterval: streaming ? false : poll,
   });
 }
 
@@ -155,6 +164,12 @@ export function useAiTurn(id: string) {
           const text = (last?.parts ?? []).map((p) => (p.type === "text" ? p.text : "")).join("");
           return { body: { text, ask: true, ...body } };
         },
+        // Following a turn someone else started: what streamed so far, then the rest (204: none).
+        prepareReconnectToStreamRequest: () => ({
+          api: withBase(`${BASE}/chats/${id}/follow`),
+          credentials: "include",
+          headers: { ...CLIENT, "accept-language": lang },
+        }),
         fetch: async (input, init) => {
           const res = await fetch(input, init);
           return res.ok && res.headers.get("content-type")?.includes("application/json")
@@ -249,10 +264,11 @@ export const useDeleteSection = () => useChange((id: string) => api.del(`${BASE}
 
 /** The approvals waiting for the person: the bell's count and list. */
 export function useWaiting() {
+  const poll = usePoll();
   return useQuery({
     queryKey: ["work-approvals"],
     queryFn: () => api.get<{ approvals: Approval[] }>(`${BASE}/approvals`),
-    refetchInterval: POLL_MS,
+    refetchInterval: poll,
   });
 }
 
