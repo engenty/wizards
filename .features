@@ -42,6 +42,9 @@
 # the WordPress plugin and a wizard as a package for it, in the share dialog and Integrate (off by default)
 # wordpress=on|off
 #
+# Settings › Plugins before any plugin is installed (installing one turns it on)
+# plugins=on|off
+#
 # Goose, the studio's assistant
 # goose=on|off
 #

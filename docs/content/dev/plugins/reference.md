@@ -250,7 +250,7 @@ The default export is a `StudioPlugin`: `(studio: StudioPluginContext) => void`.
 | `studio.plugin` | `{ id, name, version }` |
 | `studio.registerPage({ path, component, wide? })` | A page at `/studio<path>` |
 | `studio.registerNav({ to, label, icon })` | An icon in the app bar. `label: () => string` |
-| `studio.registerSettingsSection({ id, label, icon, component, menu? })` | A section at `/studio/settings/<id>` |
+| `studio.registerSettingsSection({ id, label, icon, component, menu? })` | A section one level down in Settings › Plugins, at `/studio/settings/plugins?show=<id>` |
 | `studio.registerShareSection({ runner, component })` | [Runners](./runners.md#the-runners-part-of-the-share-dialog). The runner’s own settings for a wizard (a keyword), under the share dialog’s gear once it is switched on and set up. `component` gets `{ wizard: { id, title } }` |
 | `studio.registerShareSetup({ runner, title, component, notice? })` | [Runners](./runners.md#setting-up-inside-the-dialog). What “Set up” in the runner’s row opens inside the share dialog. `component` gets `{ wizard, Actions, done(banner?) }`, `notice` `{ wizard, open }` |
 | `studio.registerAssistantCard({ tool, component })` | Draws a tool’s result in the space assistant’s chat. `component` gets `{ data, send }` |
@@ -311,8 +311,8 @@ And public, nobody signed in:
 | `ALL /api/public/plugins/<id>/shared/…` | A plugin’s shared routes, one address for every tenant. `server.sharedUrl` gives the full address |
 | `/w/<token>/<runner>` | A plugin’s page runner for a wizard that switched it on (built; from source `/api/public/wizards/<token>/runners/<runner>`) |
 
-The studio’s addresses of a plugin: `/studio<path>` for its pages, `/studio/settings/<id>` for a
-settings section, `/studio/space/<group>#<id>` for a section of the space page and
+The studio’s addresses of a plugin: `/studio<path>` for its pages, `/studio/settings/plugins?show=<id>`
+for a settings section, `/studio/space/<group>#<id>` for a section of the space page and
 `/studio/space/<id>` for a part of it.
 
 ## Settings

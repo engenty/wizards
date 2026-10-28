@@ -1669,7 +1669,9 @@ const de: Record<Key, Line> = {
   "plugins.studioFailed": "Der Studio-Teil ließ sich nicht laden: {error}",
   "plugins.problems": "Fehlerhafte Plugins",
   "plugins.crashed": "Dieser Teil eines Plugins ist abgestürzt.",
-  "plugins.none": "Keine eigenen Plugins installiert.",
+  "plugins.none":
+    "Noch keine Plugins installiert. Ein Plugin bringt neue Seiten, Einstellungen und Werkzeuge für Schritte. Pro-Module kommen mit deinem Paket über dein Konto.",
+  "plugins.overview": "Übersicht",
   "pro.title": "Pro-Module",
   "pro.hint":
     "Diese Module gehören zu deinem Paket (Pro, Team) und laufen auf deinem Computer. Sie kommen von deinem engenty-Konto und sind von engenty signiert. Sie bleiben aktiv, solange dein Paket sie enthält – ohne Internet bis zu einer Woche.",
@@ -4412,7 +4414,9 @@ const en = {
   "plugins.studioFailed": "The studio part didn’t load. Check the plugin and reload: {error}",
   "plugins.problems": "Not a plugin",
   "plugins.crashed": "This part of a plugin crashed.",
-  "plugins.none": "No plugins of your own yet.",
+  "plugins.none":
+    "No plugins installed yet. A plugin brings new pages, settings and tools for steps. Pro modules come with your plan through your account.",
+  "plugins.overview": "Overview",
   "pro.title": "Pro modules",
   "pro.hint":
     "Your plan (Pro, Team) includes these modules on your computer. They come from your engenty account and are signed by engenty. They stay on while your plan includes them, for up to a week offline.",

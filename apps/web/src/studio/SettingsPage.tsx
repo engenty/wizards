@@ -2,9 +2,8 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { t } from "../lib/i18n";
 import { useCurrentProject, useManyProjects, useMe } from "../lib/session";
-import { PluginFrame, useStudioPlugins } from "../plugins/host";
-import { PluginsSection } from "../plugins/PluginsSection";
-import { ProModulesSection } from "../plugins/ProModulesSection";
+import { useStudioPlugins } from "../plugins/host";
+import { PluginsSettings } from "../plugins/PluginsSettings";
 import { cn, Empty } from "../ui";
 import { Account } from "./Account";
 import { useCrumbs } from "./AppFrame";
@@ -44,11 +43,11 @@ const aboutTab = (tab: string | null): "new" | "earlier" | "credits" =>
   tab === "earlier" || tab === "credits" ? tab : "new";
 
 /** The sections whose menu goes one level down in the left container. */
-const MENUS = new Set(["models", "integrate", "setup"]);
+const MENUS = new Set(["models", "integrate", "plugins", "setup"]);
 
 /**
  * Settings at /settings/<section>. One container on the left shows one level at a time: the
- * sections, or — for Models, Integrate and Setup — the section's own menu one level down, with the way
+ * sections, or — for Models, Integrate, Plugins and Setup — the section's own menu one level down, with the way
  * back at its top. On a phone the levels and the page take turns: the sections, a section's
  * menu, then the page, each with the way back.
  */
@@ -137,6 +136,10 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
     // The space was the settings section "project" before it got a page of its own.
     if (section === "project") {
       return <Navigate to="/space" replace />;
+    }
+    // A plugin's settings stand one level down in Plugins.
+    if (plugins.sections.some((s) => s.id === section)) {
+      return <Navigate to={`${base}/plugins?show=${section}`} replace />;
     }
     // A plugin's section is there once the plugin loaded. A phone starts at the sections.
     if (section !== undefined || !narrow) {
@@ -242,17 +245,7 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
               {current.id === "credits" && me.data ? <OrganizationCredits me={me.data} /> : null}
               {current.id === "usage" && me.data ? <OrganizationUsage me={me.data} /> : null}
               {current.id === "invoices" && me.data ? <OrganizationInvoices me={me.data} /> : null}
-              {current.id === "plugins" ? (
-                <div className="flex flex-col gap-6">
-                  <PluginsSection />
-                  <ProModulesSection />
-                </div>
-              ) : null}
-              {current.plugin ? (
-                <PluginFrame of={current.plugin}>
-                  <current.plugin.component />
-                </PluginFrame>
-              ) : null}
+              {current.id === "plugins" ? <PluginsSettings /> : null}
             </div>
           ) : null}
         </div>

@@ -32,7 +32,7 @@ export interface StudioNavEntry {
 }
 
 export interface StudioSettingsSection {
-  /** Its address is `/settings/<id>`. */
+  /** It stands one level down in Settings › Plugins: `/settings/plugins?show=<id>`. */
   id: string;
   label: () => string;
   icon: Icon;

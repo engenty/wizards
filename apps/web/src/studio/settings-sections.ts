@@ -31,13 +31,11 @@ export interface SettingsSection {
   menu: boolean;
   /** The heading it stands under in the list; none for the rows above the first heading. */
   group?: string;
-  /** A section a plugin added: what it draws, and whose it is. */
-  plugin?: StudioPlugins["sections"][number];
 }
 
 /**
- * The sections of the settings, in the order of their list: the studio's own, then what the
- * plugins added, then the plugins themselves, then About.
+ * The sections of the settings, in the order of their list: the studio's own, then the plugins
+ * (with the sections they add one level down), then Setup and About.
  */
 export function settingsSections(
   me: Me | null | undefined,
@@ -112,18 +110,12 @@ export function settingsSections(
     // Alone for this machine; in the cloud for the organization, on its credits unless it brings keys.
     inStudio({ id: "models", label: t("local.title"), icon: Cpu, menu: true }),
     inStudio({ id: "integrate", label: t("integrate.nav"), icon: Cable, menu: true }),
-    ...plugins.sections.map((section) =>
-      inStudio({
-        id: section.id,
-        label: section.label(),
-        icon: section.icon,
-        menu: section.menu ?? false,
-        plugin: section,
-      }),
-    ),
-    // Nothing to show where the runtime has no plugins, unless a linked account may bring its
-    // plan's Pro modules (ProModulesSection).
-    ...(plugins.plugins.length || plugins.problems.length || (plugins.canReload && me?.account)
+    // The plugins, with the settings each brings one level down. Behind its switch until a
+    // plugin is installed, or an account may bring its plan's Pro modules (ProModulesSection).
+    ...(featureOn(me?.features, "plugins") ||
+    plugins.plugins.length ||
+    plugins.problems.length ||
+    (plugins.canReload && me?.account)
       ? [inStudio({ id: "plugins", label: t("plugins.title"), icon: Blocks, menu: false })]
       : []),
     // What holds for the whole runtime: on this computer, or for the platform's admins.

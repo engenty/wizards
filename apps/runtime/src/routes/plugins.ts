@@ -3,6 +3,7 @@ import type { PluginRequest } from "@engenty/wizards/plugin";
 import { type Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { Principal } from "../auth/index.js";
+import { switchOn } from "../features.js";
 import { managed } from "../manage.js";
 import { pluginProblems, reloadPlugin, rescanPlugins } from "../plugins/loader.js";
 import { installPro, proState, refreshPro, removePro } from "../plugins/pro.js";
@@ -189,7 +190,12 @@ export const pluginRoutes = new Hono<{ Variables: { user: Principal } }>()
       return c.json({ error: "This isn’t allowed here.", code: "forbidden" }, 403);
     }
     await rescanPlugins();
-    return c.json({ plugins: (await pluginsOf(c.get("user").tenantId)).map(view) });
+    const found = await pluginsOf(c.get("user").tenantId);
+    // A plugin put into a folder counts as installed: Settings › Plugins stays from now on.
+    if (found.length) {
+      switchOn("plugins");
+    }
+    return c.json({ plugins: found.map(view) });
   })
 
   .post("/-/reload/:id", async (c) => {
@@ -222,6 +228,7 @@ export const pluginRoutes = new Hono<{ Variables: { user: Principal } }>()
     }
     try {
       await installPro(c.req.param("id"));
+      switchOn("plugins");
     } catch (err) {
       const answer = answerOf(err);
       if (answer) {
