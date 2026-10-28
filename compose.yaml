@@ -14,6 +14,8 @@ services:
     environment:
       APP_URL: ${APP_URL:?set APP_URL to the public https origin}
       API_HOST: 0.0.0.0
+      # The `ollama` service below, when its profile is on; Settings › Models can name another.
+      OLLAMA_URL: http://ollama:11434/v1
     ports:
       - "8891:8891"
     volumes:
@@ -26,5 +28,16 @@ services:
     # SANDBOX=agentos needs no socket: build the image with agentOS in it
     # (`docker compose build --build-arg SANDBOX_ENGINES=agentos`), then
     #   environment: { SANDBOX_ENABLED: "1", SANDBOX: "agentos" }
+  # Ollama for models on this server, such as the search's EmbeddingGemma 2: off unless
+  # COMPOSE_PROFILES=ollama is in .env. No model comes with it; Settings › Models › Search
+  # downloads one into the `ollama-models` volume, where it stays across updates. Only the
+  # wizards container reaches it: no port is published.
+  ollama:
+    image: ollama/ollama:0.40.12
+    profiles: [ollama]
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
 volumes:
   wizards-data:
+  ollama-models:
