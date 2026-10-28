@@ -77,8 +77,8 @@ async function toolsFor(
 
 /**
  * Whether a call of the tool waits for a person's approval: a plugin's tool marked `outside`
- * does. UNMARKED_ASKS decides for a plugin's tool without a mark (see the plan: pending a
- * decision; asking is the safe side). The space's own tools only read.
+ * does, and so does one without a mark (decided: "risk per tool", the safe side). The space's
+ * own tools only read.
  */
 const UNMARKED_ASKS = true;
 

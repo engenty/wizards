@@ -184,6 +184,10 @@ a mail went out without asking. So there is one path for every model:
 - The card is the shadcn/ui Confirmation; the bell counts pending approvals per person.
 - This gate on the tool is where the agent broker will stand later.
 
+Which tools ask (decided by Matthias, "risk per tool"): every tool declares `risk: read | space |
+outside` (`registerAssistantTool`); `outside` asks, and so does a tool without a mark. Only for
+the space's AI; Goose works as before. The manage plugins' marks: engenty-wizards-manage#112.
+
 A client's tool steps don't reach Mastra's stream either: the bridge writes each call and its
 result as tool parts of the AI's message, so the Trace shows them as on an API model.
 
