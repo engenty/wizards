@@ -206,6 +206,16 @@ export function StudioApp() {
             }
           />
           <Route
+            path="/work/c/:chatId"
+            element={
+              <Studio full>
+                <InMode mode="work">
+                  <WorkPage />
+                </InMode>
+              </Studio>
+            }
+          />
+          <Route
             path="/work/:place"
             element={
               <Studio wide>

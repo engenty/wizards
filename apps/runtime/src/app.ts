@@ -39,6 +39,7 @@ import { clientIp, connectCallback, publicRoutes, runRoutes, shareRoutes } from 
 import { runtimeSettingsRoutes } from "./routes/runtime-settings.js";
 import { studio } from "./routes/studio.js";
 import { wizardStream } from "./routes/wizard-stream.js";
+import { workRoutes } from "./routes/work.js";
 import { runTicketValid } from "./secrets/signing.js";
 import { asRole } from "./services/access.js";
 import { ServiceError } from "./services/errors.js";
@@ -344,6 +345,7 @@ if (serves.studio) {
   app.route("/api/studio/organization", organizationRoutes);
   app.route("/api/studio/person", personRoutes);
   app.route("/api/studio/runtime", runtimeSettingsRoutes);
+  app.route("/api/studio/work", workRoutes);
   app.route("/api/studio", studio);
   app.route("/api/v1", apiRoutes);
   app.route("/api/local/debug", localDebugRoutes);

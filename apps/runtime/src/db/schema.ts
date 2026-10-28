@@ -747,6 +747,95 @@ export const assistantMessage = sqliteTable(
   (t) => [index("assistant_message_chat").on(t.chatId, t.createdAt)],
 );
 
+// --- Work's chats (behind `workMode`) --------------------------------------------
+// A chat has members, people and engenties, and lives in a section of the sidebar or in none. A
+// sub-thread is a chat with a parent. A private chat is seen by its members only; any other
+// chat by everyone of the tenant. Messages keep the AI SDK's parts (text, reasoning, tools), so
+// people, engenties and their tool calls share one shape.
+
+/** One part of a message, as the AI SDK's `UIMessage` holds it. */
+export type ChatPartRecord = { type: string } & Record<string, unknown>;
+
+export const chatSection = sqliteTable(
+  "chat_section",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    name: text("name").notNull(),
+    position: integer("position").notNull().default(0),
+    createdBy: text("created_by").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("chat_section_tenant").on(t.tenantId, t.position)],
+);
+
+export const chat = sqliteTable(
+  "chat",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    title: text("title").notNull(),
+    sectionId: text("section_id").references(() => chatSection.id, { onDelete: "set null" }),
+    parentId: text("parent_id").references((): AnySQLiteColumn => chat.id, {
+      onDelete: "cascade",
+    }),
+    private: integer("private", { mode: "boolean" }).notNull().default(false),
+    createdBy: text("created_by").notNull(),
+    createdAt: createdAt(),
+    /** The last message's time, else when it was made: the sidebar's order. */
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("chat_tenant").on(t.tenantId, t.updatedAt), index("chat_parent").on(t.parentId)],
+);
+
+export const chatMember = sqliteTable(
+  "chat_member",
+  {
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chat.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["person", "engenty"] }).notNull(),
+    /** A person's user id, an engenty's id. */
+    memberId: text("member_id").notNull(),
+    joinedAt: integer("joined_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [
+    primaryKey({ columns: [t.chatId, t.kind, t.memberId] }),
+    index("chat_member_member").on(t.kind, t.memberId),
+  ],
+);
+
+/** What one person did with a chat: pinned it, archived it for themselves, read it up to when. */
+export const chatState = sqliteTable(
+  "chat_state",
+  {
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chat.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    pinnedAt: integer("pinned_at", { mode: "timestamp_ms" }),
+    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+    /** Null: never opened, or marked unread. */
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [primaryKey({ columns: [t.chatId, t.userId] })],
+);
+
+export const chatMessage = sqliteTable(
+  "chat_message",
+  {
+    id: text("id").primaryKey(),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chat.id, { onDelete: "cascade" }),
+    authorKind: text("author_kind", { enum: ["person", "engenty"] }).notNull(),
+    authorId: text("author_id").notNull(),
+    parts: text("parts", { mode: "json" }).$type<ChatPartRecord[]>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("chat_message_chat").on(t.chatId, t.createdAt)],
+);
+
 // --- The wizard's store ------------------------------------------------------
 // What a wizard keeps between runs for one person. `holder` is that person: "u:<userId>" for a
 // signed-in admin, "v:<visitorId>" for an end user on a shared link.
