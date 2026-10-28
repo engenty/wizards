@@ -1,11 +1,13 @@
+import { ShieldQuestion } from "lucide-react";
 import type { ReactNode, SVGProps } from "react";
-import { Navigate, useParams } from "react-router";
+import { Navigate, NavLink, useParams } from "react-router";
 import { type Key, t } from "../../lib/i18n";
 import { MODE_HOME, type Mode, useMode } from "../../lib/mode";
 import { useMe } from "../../lib/session";
 import { useCrumbs } from "../AppFrame";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatView } from "./ChatView";
+import { useWaiting } from "./chats";
 
 /**
  * Work mode's places (behind `workMode`), empty in this step: Chats with its sidebar, the
@@ -67,6 +69,9 @@ export function WorkPage() {
   if (place && !known) {
     return <Navigate to="/work" replace />;
   }
+  if (known?.place === "waiting") {
+    return <WaitingPlace />;
+  }
   return known ? <EmptyPlace place={known.place as keyof typeof EMPTY} /> : <ChatsPage />;
 }
 
@@ -94,6 +99,30 @@ function EmptyPlace({ place }: { place: keyof typeof EMPTY }) {
   const label = WORK_PLACES.find((p) => p.place === place)?.label ?? "work.chats";
   useCrumbs([{ label: t(label) }]);
   return <Empty>{t(EMPTY[place])}</Empty>;
+}
+
+/** The bell: the calls held for the person's approval, each leading to its chat. */
+function WaitingPlace() {
+  useCrumbs([{ label: t("work.waiting") }]);
+  const approvals = useWaiting().data?.approvals ?? [];
+  if (!approvals.length) {
+    return <Empty>{t("work.waitingEmpty")}</Empty>;
+  }
+  return (
+    <ul className="mx-auto grid w-full max-w-2xl gap-2 py-8">
+      {approvals.map((a) => (
+        <li key={a.id}>
+          <NavLink
+            to={`/work/c/${a.chatId}`}
+            className="flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-[0.9375rem] text-ink hover:bg-ink/5"
+          >
+            <ShieldQuestion className="size-4 shrink-0 text-ember" />
+            {t("work.approval.waiting", { name: a.toolName })}
+          </NavLink>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /** Client mode: one placeholder until the client's view is built. */

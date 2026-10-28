@@ -175,6 +175,14 @@ server.registerAssistantTool({
 - The assistant doesn’t keep a tool’s result from one message to the next. Keep what a later
   message needs in the plugin’s tables.
 
+### What a tool does
+
+`risk` says what a call does: `read` only reads, `space` changes the space’s own data,
+`outside` reaches past the space (sends, books, cancels with someone, publishes, deletes on a
+connected service). In a Work chat, a call of an `outside` tool, or of a tool without `risk`,
+doesn’t run when the AI makes it: a person approves or denies it first, and an approved call runs
+once.
+
 ### A card in the chat
 
 With `card: true` the result also goes to the chat. The studio half draws it:

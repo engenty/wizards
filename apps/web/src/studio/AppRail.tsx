@@ -51,6 +51,7 @@ import { cn } from "../ui";
 import { SpaceFace, SpaceMenu, UserMenu, useDismiss, useOneSpace } from "./AppFrame";
 import { EngentyMenu } from "./EngentyMenu";
 import { type PrimaryAction, useCurrentPrimaryAction } from "./primary-action";
+import { useWaiting } from "./work/chats";
 import { EngentyGlyph, WORK_PLACES, type WorkPlace } from "./work/WorkPages";
 
 const AboutDialog = lazy(() =>
@@ -268,10 +269,10 @@ const WORK_ICON: Record<WorkPlace, LucideIcon | typeof EngentyGlyph> = {
 
 /**
  * Work's places in the bar: Chats, Engenties, Files, Data, Results, then the bell with what waits
- * for the person (nothing yet: its count shows from one on).
+ * for the person (the calls held for their approval; its count shows from one on).
  */
 function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean }) {
-  const waiting = 0;
+  const waiting = useWaiting().data?.approvals.length ?? 0;
   return (
     <nav
       className={cn(

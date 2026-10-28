@@ -76,11 +76,25 @@ export interface ChatMember {
   image: string | null;
 }
 
+/** A call of the AI held for a person's approval. */
+export interface Approval {
+  id: string;
+  chatId: string;
+  toolName: string;
+  input: unknown;
+  askedBy: string;
+  state: "pending" | "approved" | "denied" | "failed";
+  output: unknown;
+  decidedBy: string | null;
+  createdAt: string;
+}
+
 export interface OpenChat {
   chat: ChatItem;
   members: ChatMember[];
   messages: ChatMessage[];
   threads: ChatItem[];
+  approvals: Approval[];
 }
 
 const SIDEBAR = ["work-chats"] as const;
@@ -232,3 +246,44 @@ export const useMoveSection = () =>
   );
 
 export const useDeleteSection = () => useChange((id: string) => api.del(`${BASE}/sections/${id}`));
+
+/** The approvals waiting for the person: the bell's count and list. */
+export function useWaiting() {
+  return useQuery({
+    queryKey: ["work-approvals"],
+    queryFn: () => api.get<{ approvals: Approval[] }>(`${BASE}/approvals`),
+    refetchInterval: POLL_MS,
+  });
+}
+
+/**
+ * Approve or deny a held call. The AI goes on with the outcome; its answer streams back, read to
+ * the end here, and the chat is read again then.
+ */
+export function useDecide(chatId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, approve }: { id: string; approve: boolean }) => {
+      const res = await fetch(withBase(`${BASE}/chats/${chatId}/approvals/${id}`), {
+        method: "POST",
+        credentials: "include",
+        headers: { ...CLIENT, "content-type": "application/json", "accept-language": lang },
+        body: JSON.stringify({ approve }),
+      });
+      if (!res.ok) {
+        throw new Error(
+          ((await res.json().catch(() => null)) as { error?: string } | null)?.error ??
+            res.statusText,
+        );
+      }
+      void client.invalidateQueries({ queryKey: ["work-chat", chatId] });
+      void client.invalidateQueries({ queryKey: ["work-approvals"] });
+      await res.text();
+    },
+    onSettled: () => {
+      client.invalidateQueries({ queryKey: ["work-chat", chatId] });
+      client.invalidateQueries({ queryKey: ["work-approvals"] });
+      client.invalidateQueries({ queryKey: SIDEBAR });
+    },
+  });
+}

@@ -11,7 +11,8 @@ import { managed, tenantMembers } from "../manage.js";
 import { type ClientStep, type ClientSteps, stepChunk, stepParts } from "./client-steps.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
-import { lazyTurn, MAX_STEPS, TURN_KEY } from "./work-ai.js";
+import { type LazyTurn, lazyTurn, MAX_STEPS, TURN_KEY, toolToRun } from "./work-ai.js";
+import { approvalsOf, noteOutcome, takeDecision, waitingFor } from "./work-approvals.js";
 import { workMastra } from "./work-mastra.js";
 
 /**
@@ -350,6 +351,7 @@ export async function readChat(user: SessionUser, id: string) {
     ),
     messages: (recalled.messages as unknown as StoredMessage[]).map(messageView),
     threads: threads.map(listItem),
+    approvals: await approvalsOf(chat.id),
   };
 }
 
@@ -409,13 +411,7 @@ export async function sendMessage(
   if (!(await canSpend())) {
     throw new ServiceError("no_credits", note("creditsUsedUp"));
   }
-  const space = await db.query.project.findFirst({ where: eq(schema.project.id, chat.projectId) });
-  // Made when a turn really starts (Mastra resolves the agent's model then): a message taken
-  // into a running turn builds nothing, and a queued one's 20 minutes start with its turn.
-  const turn = lazyTurn({ id: chat.projectId, name: space?.name ?? "" }, user.id);
-  const requestContext = new RequestContext();
-  requestContext.set(TURN_KEY, turn);
-  const streamOptions = { requestContext, maxSteps: MAX_STEPS, abortSignal: turn.signal };
+  const { turn, streamOptions } = await turnFor(chat, user.id);
   await noteLast(chat, { id: user.id, name }, text);
   // For after the answer: queued while a turn runs; with none running it is a turn of its own.
   if (options.later && agent.getActiveThreadRunId(target)) {
@@ -423,12 +419,41 @@ export async function sendMessage(
       .accepted;
     return { kind: "queued" };
   }
+  return deliverOrWake(chat, turn, streamOptions, (ifIdle) =>
+    agent.sendMessage(message, { ...target, ifActive: { behavior: "deliver" }, ifIdle }),
+  );
+}
+
+/**
+ * A turn for the person, made when it really starts (Mastra resolves the agent's model then):
+ * input taken into a running turn builds nothing, and a queued one's 20 minutes start with it.
+ */
+async function turnFor(chat: ChatRow, userId: string) {
+  const space = await db.query.project.findFirst({ where: eq(schema.project.id, chat.projectId) });
+  const turn = lazyTurn({
+    space: { id: chat.projectId, name: space?.name ?? "" },
+    chatId: chat.id,
+    userId,
+  });
+  const requestContext = new RequestContext();
+  requestContext.set(TURN_KEY, turn);
+  return { turn, streamOptions: { requestContext, maxSteps: MAX_STEPS, abortSignal: turn.signal } };
+}
+
+type StreamOptions = Awaited<ReturnType<typeof turnFor>>["streamOptions"];
+type IfIdle = { behavior: "wake"; streamOptions: StreamOptions };
+
+/** Sends input to the chat's thread: into a running turn, or waking one whose stream comes back. */
+async function deliverOrWake(
+  chat: ChatRow,
+  turn: LazyTurn,
+  streamOptions: StreamOptions,
+  send: (ifIdle: IfIdle) => { accepted: Promise<{ action?: string } | undefined> },
+): Promise<Sent> {
+  const { agent } = await workMastra();
+  const target = { resourceId: chat.projectId, threadId: chat.id };
   const subscription = await agent.subscribeToThread(target);
-  const accepted = await agent.sendMessage(message, {
-    ...target,
-    ifActive: { behavior: "deliver" },
-    ifIdle: { behavior: "wake", streamOptions },
-  }).accepted;
+  const accepted = await send({ behavior: "wake", streamOptions }).accepted;
   if (accepted?.action !== "wake") {
     subscription.unsubscribe();
     return { kind: "taken" };
@@ -523,6 +548,66 @@ async function afterTurn(chat: ChatRow, reply: string, steps: ClientStep[]) {
   if (reply.trim()) {
     await noteLast(chat, { id: AI_AUTHOR, name: "" }, reply);
   }
+}
+
+/**
+ * A person decides on a held call. Approved, the stored call runs once, with the stored arguments
+ * and the access of the person the turn was for; the AI hears the outcome in the chat (a signal)
+ * and goes on, waking for a turn of its own when none runs. Denied, it hears that.
+ */
+export async function decideApproval(
+  user: SessionUser,
+  chatId: string,
+  approvalId: string,
+  approve: boolean,
+): Promise<Sent> {
+  const chat = await visibleChat(user, chatId);
+  const taken = await takeDecision(user, chat.id, approvalId, approve);
+  const name = (await userProfile(user)).name;
+  const { turn, streamOptions } = await turnFor(chat, taken.askedBy);
+  let told: string;
+  if (approve) {
+    const space = await db.query.project.findFirst({
+      where: eq(schema.project.id, chat.projectId),
+    });
+    const tool = await toolToRun(
+      { id: chat.projectId, name: space?.name ?? "" },
+      taken.askedBy,
+      taken.toolName,
+      turn.signal,
+    );
+    try {
+      if (!tool?.execute) {
+        throw new Error(`The tool ${taken.toolName} is not there any more.`);
+      }
+      const output = await tool.execute(taken.input);
+      await noteOutcome(taken.id, { output });
+      told = `${name} approved ${taken.toolName} (approval ${taken.id}); it ran once. Result: ${JSON.stringify(output ?? null).slice(0, 4000)}`;
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      await noteOutcome(taken.id, { error });
+      told = `${name} approved ${taken.toolName} (approval ${taken.id}), but it failed: ${error}`;
+    }
+  } else {
+    told = `${name} denied ${taken.toolName} (approval ${taken.id}); it did not run.`;
+  }
+  const { agent } = await workMastra();
+  const target = { resourceId: chat.projectId, threadId: chat.id };
+  return deliverOrWake(chat, turn, streamOptions, (ifIdle) =>
+    agent.sendSignal(
+      { type: "reactive", tagName: "approval", contents: told },
+      { ...target, ifActive: { behavior: "deliver" }, ifIdle },
+    ),
+  );
+}
+
+/** The approvals waiting for the person, in the chats they see: the bell's count. */
+export async function waitingApprovals(user: SessionUser) {
+  const chats = await db.query.chat.findMany({ where: visible(user), columns: { id: true } });
+  return waitingFor(
+    user,
+    chats.map((c) => c.id),
+  );
 }
 
 /** Stop: the AI's turn in the chat ends, and what was queued behind it is dropped. */

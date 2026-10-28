@@ -184,6 +184,7 @@ interface PluginAssistantTool<S extends z.ZodType = z.ZodType> {
   description: string;    // for the model
   inputSchema: S;
   card?: boolean;         // the result also goes to the chat, for the studio half's card
+  risk?: "read" | "space" | "outside"; // "outside" waits for a person's approval in Work chats
   execute(input: z.infer<S>, turn: PluginAssistantContext): unknown | Promise<unknown>;
 }
 
