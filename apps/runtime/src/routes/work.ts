@@ -1,3 +1,4 @@
+import { createUIMessageStreamResponse } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
@@ -9,12 +10,13 @@ import {
   deleteChat,
   deleteSection,
   moveSection,
-  postMessage,
   readChat,
   removeMember,
   renameSection,
+  sendMessage,
   setChatState,
   sidebar,
+  stopTurn,
   updateChat,
 } from "../services/work-chats.js";
 import { say } from "./lang.js";
@@ -77,12 +79,23 @@ export const workRoutes = new Hono<Vars>()
     await setChatState(c.get("user"), c.req.param("id"), patch);
     return c.json({ ok: true });
   })
+  // A person writes; asked, the space's AI answers with a UI message stream (`useChat`).
   .post("/chats/:id/messages", async (c) => {
-    const { text } = z
-      .object({ text: z.string().trim().min(1).max(8000) })
+    const body = z
+      .object({
+        text: z.string().trim().min(1).max(8000),
+        ask: z.boolean().optional(),
+        later: z.boolean().optional(),
+      })
       .parse(await c.req.json());
-    return c.json(await postMessage(c.get("user"), c.req.param("id"), text));
+    const sent = await sendMessage(c.get("user"), c.req.param("id"), body.text, body);
+    return sent.kind === "turn"
+      ? createUIMessageStreamResponse({ stream: sent.stream as never })
+      : c.json({ sent: sent.kind });
   })
+  .post("/chats/:id/stop", async (c) =>
+    c.json({ stopped: await stopTurn(c.get("user"), c.req.param("id")) }),
+  )
   .post("/chats/:id/members", async (c) => {
     const { kind, id } = member.parse(await c.req.json());
     await addMember(c.get("user"), c.req.param("id"), kind, id);

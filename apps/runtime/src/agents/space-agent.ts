@@ -44,10 +44,18 @@ export function cacheMarks<M extends PromptMessage>(prompt: M[]): M[] {
   });
 }
 
-const cacheMarksProcessor = {
+/** The input processor that sets those marks on each request. */
+export const cacheMarksProcessor = {
   id: "cache-marks",
   processLLMRequest: ({ prompt }: { prompt: PromptMessage[] }) => ({ prompt: cacheMarks(prompt) }),
 };
+
+/** Instructions as a system message with Anthropic's cache mark. */
+export const markedInstructions = (content: string) => ({
+  role: "system" as const,
+  content,
+  providerOptions: EPHEMERAL,
+});
 
 /** The agent for a request: its model, instructions and tools. */
 export function spaceAgent(options: {
@@ -62,7 +70,7 @@ export function spaceAgent(options: {
   return new Agent({
     id: options.id,
     name: options.name,
-    instructions: { role: "system", content: options.instructions, providerOptions: EPHEMERAL },
+    instructions: markedInstructions(options.instructions),
     model: agentModel(options.resolved),
     tools: tools as never,
     inputProcessors: [cacheMarksProcessor as never],
