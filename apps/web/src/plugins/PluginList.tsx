@@ -82,11 +82,11 @@ export function PluginList() {
         title={t("plugins.title")}
         hint={t("plugins.hint")}
         action={
-          <div className="flex gap-2">
-            <Button variant="secondary" busy={busy === "*"} onClick={() => void reload()}>
+          <div className="flex gap-2 pb-1.5">
+            <Button variant="secondary" size="sm" busy={busy === "*"} onClick={() => void reload()}>
               {t("plugins.rescan")}
             </Button>
-            <Button onClick={() => setAdding(true)}>
+            <Button size="sm" onClick={() => setAdding(true)}>
               <Plus className="size-4" /> {t("plugins.add")}
             </Button>
           </div>
