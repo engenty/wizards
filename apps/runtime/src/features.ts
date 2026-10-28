@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   declaredByPlugin,
   defaultFeatures,
@@ -28,14 +28,18 @@ import { currentTenantOrNull } from "./tenants/tenant.js";
  *   3. what the Manage-App says — for the organization of a cloud runtime, for the linked account of a
  *      local one; a plan's switches and what an admin set for the organization or for everyone
  *   4. the `.features` file of this install (`~/.engenty/wizards/.features`; a checkout reads
- *      the repo root's, a cloud runtime its data folder's) — this machine's word is the last
+ *      the repo root's, a cloud runtime its data folder's; FEATURES_FILE names another, as the
+ *      tests do) — this machine's word is the last
  *
  * The file is read on every call, so a change counts at once. Nothing here is documented
  * outside the code.
  */
 
-/** The `.features` file this runtime reads: the install's, the checkout's root, or the data folder's. */
+/** The `.features` file this runtime reads: FEATURES_FILE, the install's, the checkout's root, or the data folder's. */
 export function featuresFile(): string {
+  if (env.featuresFile) {
+    return resolve(env.featuresFile);
+  }
   if (managed) {
     return join(env.dataDir, ".features");
   }
