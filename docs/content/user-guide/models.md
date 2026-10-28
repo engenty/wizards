@@ -1,7 +1,7 @@
 ---
 title: Models and account
 description: What runs the AI in your wizards – an AI client on your computer, your own API keys, a local model or credits.
-version: 0.11.1
+version: 0.11.13
 ---
 
 Settings → Models decides what runs the AI in your wizards. On your computer you set it up
@@ -27,7 +27,7 @@ A capability’s page asks “Who does it?”:
 | Your subscription | Claude Code, Codex, Antigravity or Cursor Agent on this computer, using your sign-in there (text; Codex also makes images; Antigravity runs steps without their tools) | Your subscription |
 | Your own API key | OpenAI, Anthropic, Google Gemini, fal.ai, ElevenLabs, Replicate or Vercel AI Gateway | The provider bills your key |
 | Apple Intelligence | The model on this Mac: short texts and decisions (Classifier, Standard) and voice notes. See [Apple Intelligence](#apple-intelligence) | Nothing |
-| Local model | [Ollama](https://ollama.com) on this computer (text) | Nothing |
+| Local model | [Ollama](https://ollama.com) on this computer: text, search and decisions. See [Local models](#local-models) | Nothing |
 | engenty credits | Your account’s credits. engenty chooses the model, or you choose one it offers (FLUX on fal, ElevenLabs voices, Veo …) | Credits |
 
 Below that you choose the provider’s model, and “Try it” makes one real call: a short answer, a
@@ -36,6 +36,22 @@ test image, a voice to hear, a 4-second clip or a transcript. A try costs the sa
 With an account, credits step in where you have nothing of your own set up – for example,
 videos without your own API key. The switch “Credits step in” on the page “engenty credits” turns
 that off. A capability with nothing of its own set up then doesn’t run.
+
+## Local models
+
+Text & reasoning, Search and Decisions each have a part “Local model”. It lists:
+
+- **On this computer:** the models Ollama holds that can do this job, with their size and what
+  else they read (images, sound) or can do (tools). “Use” picks one; the bin removes it from
+  Ollama.
+- **To download:** the models engenty suggests for the job, with their size. The first one that
+  fits your computer’s memory is marked “suggested”. “Download and use” loads it into Ollama
+  and picks it.
+- **Another model from Ollama:** any name from [Ollama’s library](https://ollama.com/library),
+  such as `llama3.2:3b`. It is downloaded if Ollama doesn’t have it yet.
+
+On a Mac with Apple silicon, Ollama 0.40 and later runs the models that come as MLX on Apple’s
+MLX. Where Ollama isn’t running, the part offers to start it, and on a Mac to install it.
 
 ## Apple Intelligence
 

@@ -55,6 +55,7 @@ import {
 import { Button, Card, cn, Input, LinkedText, Select, Spinner, Switch } from "../ui";
 import { billingUrl } from "./AppFrame";
 import { HarnessPanel } from "./Harness";
+import { LocalModels } from "./LocalModels";
 import { openExternal } from "./LocalRuntime";
 import {
   MenuGroup,
@@ -114,20 +115,7 @@ interface EmbeddingState {
   ref: string | null;
   /** The model asked for in Ollama on this computer. */
   local: string;
-  /** Its download into Ollama, where one ran since the start. */
-  download: EmbeddingDownload | null;
 }
-
-interface EmbeddingDownload {
-  done: number;
-  total: number;
-  /** `ollama`: Ollama does not run on this computer; else what Ollama said. */
-  error: string | null;
-  finished: boolean;
-}
-
-/** Megabytes, for a download's progress. */
-const mb = (bytes: number) => Math.round(bytes / 1e6).toLocaleString(lang);
 
 /** The ways to a decision model, in the order `auto` tries them. */
 const DECISION_WAYS = ["gateway", "typesafe", "local", "credits"] as const;
@@ -141,6 +129,8 @@ interface DecisionState {
   /** Null: no decision model answers, the Classifier language model does. */
   way: DecisionWay | null;
   model: string | null;
+  /** The decision model asked for in Ollama on this computer. */
+  local: string | null;
 }
 
 interface AppleStatus {
@@ -158,6 +148,7 @@ interface ModelsInput {
   ollamaUrl?: string;
   creditFallback?: boolean;
   decision?: DecisionChoice;
+  decisionLocal?: string;
   embedding?: EmbeddingChoice;
   embeddingLocal?: string;
   keys?: Partial<Record<ProviderId, string>>;
@@ -1330,39 +1321,47 @@ function ApplePart({
 
 function OllamaPart({ state, disabled }: { state: ModelsState; disabled?: boolean }) {
   const save = useSave();
+  const qc = useQueryClient();
   const [url, setUrl] = useState(state.ollamaUrl);
-  const [model, setModel] = useState(
-    (state.bindings.low ?? "ollama:qwen3").replace(/^ollama:/, ""),
-  );
   return (
     <Part title={t("models.optLocal")}>
       <Hint>{t("models.ollamaHint")}</Hint>
-      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_12rem_auto]">
-        <Input
-          className="font-mono text-[0.8125rem]"
-          value={url}
-          disabled={disabled}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-        <Input
-          className="font-mono text-[0.8125rem]"
-          value={model}
-          disabled={disabled}
-          onChange={(e) => setModel(e.target.value)}
-        />
-        <Button
-          variant="secondary"
-          busy={save.isPending}
-          disabled={disabled || !model.trim()}
-          onClick={() =>
-            save.mutate({
-              ollamaUrl: url,
-              bindings: Object.fromEntries(TEXT_CLASSES.map((c) => [c, `ollama:${model.trim()}`])),
-            })
-          }
-        >
-          {t("settings.save")}
-        </Button>
+      <LocalModels
+        job="text"
+        chosen={(state.bindings.low ?? "").replace(/^ollama:/, "")}
+        disabled={disabled}
+        onChoose={(model) =>
+          save.mutate({
+            bindings: Object.fromEntries(TEXT_CLASSES.map((c) => [c, `ollama:${model}`])),
+          })
+        }
+      />
+      {save.isError ? (
+        <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+      ) : null}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[0.75rem] text-ink-3">{t("models.ollamaAddress")}</span>
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <Input
+            className="font-mono text-[0.8125rem]"
+            value={url}
+            disabled={disabled}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <Button
+            variant="secondary"
+            busy={save.isPending}
+            disabled={disabled || !url.trim() || url.trim() === state.ollamaUrl}
+            onClick={() =>
+              save.mutate(
+                { ollamaUrl: url },
+                { onSuccess: () => qc.invalidateQueries({ queryKey: ["models", "local"] }) },
+              )
+            }
+          >
+            {t("settings.save")}
+          </Button>
+        </div>
       </div>
     </Part>
   );
@@ -2048,9 +2047,6 @@ function DecisionPanel({
                   {t("local.sourceNeedsAccount")} <AccountLink />
                 </p>
               ) : null}
-              {choice === "local" && !ready.local ? (
-                <p className="text-[0.8125rem] text-ink-2">{t("models.decisionLocalHint")}</p>
-              ) : null}
               {save.isError ? (
                 <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
               ) : null}
@@ -2058,6 +2054,17 @@ function DecisionPanel({
             </>
           )}
         </Part>
+        {place.cloud ? null : (
+          <Part title={t("models.optLocal")}>
+            <Hint>{t("models.decisionLocalHint")}</Hint>
+            <LocalModels
+              job="decision"
+              chosen={state.decision.local ?? ""}
+              disabled={!place.canEdit}
+              onChoose={(model) => save.mutate({ decisionLocal: model })}
+            />
+          </Part>
+        )}
         <Part title={t("models.decisionFallback")} aside={<Status {...wayText(fallback, place)} />}>
           <Hint>{t("models.decisionFallbackHint")}</Hint>
           {fallback.kind === "none" ? (
@@ -2117,21 +2124,8 @@ function SearchPanel({
   onOpen: (target: Target) => void;
 }) {
   const save = useSave();
-  const qc = useQueryClient();
   const [needsAccount, setNeedsAccount] = useState(false);
-  const [local, setLocal] = useState(state.embedding.local);
-  const { choice, ready, download } = state.embedding;
-  const downloading = Boolean(download && !download.finished);
-  // While the download runs, the page asks how far it got.
-  useQuery({
-    queryKey: ["models"],
-    queryFn: () => api.get<ModelsState>("/api/studio/models"),
-    refetchInterval: downloading ? 1500 : false,
-  });
-  const pull = useMutation({
-    mutationFn: () => api.post<ModelsState>("/api/studio/models/embedding/download", {}),
-    onSuccess: (next) => qc.setQueryData(["models"], next),
-  });
+  const { choice, ready } = state.embedding;
   const status = embeddingText(state, place);
   const pick = (next: EmbeddingChoice) => {
     setNeedsAccount(false);
@@ -2229,57 +2223,13 @@ function SearchPanel({
               {ready.local
                 ? t("models.searchLocalReady", { model: state.embedding.local })
                 : t("models.searchLocalHint", { model: state.embedding.local })}
-              {!ready.local && state.embedding.local.startsWith("embeddinggemma-2")
-                ? ` ${t("models.searchLocalGemma")}`
-                : null}
             </Hint>
-            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <Input
-                className="font-mono text-[0.8125rem]"
-                value={local}
-                disabled={!place.canEdit}
-                onChange={(e) => setLocal(e.target.value)}
-              />
-              <Button
-                variant="secondary"
-                busy={save.isPending}
-                disabled={!place.canEdit || !local.trim() || local.trim() === state.embedding.local}
-                onClick={() => save.mutate({ embeddingLocal: local.trim() })}
-              >
-                {t("settings.save")}
-              </Button>
-            </div>
-            {ready.local ? null : (
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  busy={pull.isPending || downloading}
-                  disabled={!place.canEdit || downloading}
-                  onClick={() => pull.mutate()}
-                >
-                  {t("models.searchLocalDownload", { model: state.embedding.local })}
-                </Button>
-                {downloading && download ? (
-                  <span className="text-[0.8125rem] text-ink-2 tabular-nums">
-                    {download.total
-                      ? t("models.searchLocalProgress", {
-                          done: mb(download.done),
-                          total: mb(download.total),
-                        })
-                      : t("models.searchLocalStarting")}
-                  </span>
-                ) : null}
-              </div>
-            )}
-            {download?.error ? (
-              <p className="text-[0.8125rem] text-rose">
-                {download.error === "ollama"
-                  ? t("models.searchLocalNoOllama")
-                  : t("models.searchLocalFailed", { error: download.error })}
-              </p>
-            ) : null}
-            {pull.isError ? (
-              <p className="text-[0.8125rem] text-rose">{(pull.error as Error).message}</p>
-            ) : null}
+            <LocalModels
+              job="search"
+              chosen={state.embedding.local}
+              disabled={!place.canEdit}
+              onChoose={(model) => save.mutate({ embeddingLocal: model })}
+            />
           </Part>
         )}
         <Part
