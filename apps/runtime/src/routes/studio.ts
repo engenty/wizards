@@ -106,6 +106,8 @@ import {
   classProblem,
   classWays,
   DECISION_CHOICES,
+  EMBEDDING_CHOICES,
+  embeddingModel,
   hasTextModel,
   LOCAL_KEYS,
   localModelSettings,
@@ -200,7 +202,12 @@ import {
   removeProjectFile,
   updateProjectFile,
 } from "../services/project-files.js";
-import { documentText, queueIndex, searchKnowledge } from "../services/project-index.js";
+import {
+  documentText,
+  queueIndex,
+  reindexAll,
+  searchKnowledge,
+} from "../services/project-index.js";
 import {
   createProject,
   deleteProject,
@@ -334,6 +341,8 @@ const modelsInput = z.object({
   ollamaUrl: z.string().max(200).optional(),
   creditFallback: z.boolean().optional(),
   decision: z.enum(DECISION_CHOICES).optional(),
+  embedding: z.enum(EMBEDDING_CHOICES).optional(),
+  embeddingLocal: z.string().max(120).optional(),
   keys: z.partialRecord(z.enum(LOCAL_KEYS), z.string().max(400)).optional(),
 });
 
@@ -1837,7 +1846,12 @@ export const studio = new Hono<Vars>()
         400,
       );
     }
+    const embeddedBy = (await embeddingModel().catch(() => null))?.ref ?? null;
     await saveModels(input);
+    // Vectors of another model don't compare: every space goes into the index again.
+    if (((await embeddingModel().catch(() => null))?.ref ?? null) !== embeddedBy) {
+      void reindexAll().catch((err) => console.error("[models] reindex failed", err));
+    }
     return c.json(await modelSettings(requestLang(c)));
   })
   // Whether a provider takes a key — the one typed, or the one stored. Nothing is generated.

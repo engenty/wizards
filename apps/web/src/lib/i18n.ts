@@ -217,6 +217,24 @@ const de: Record<Key, Line> = {
   "models.decisionFallbackWay": "Classifier: {way}",
   "models.decisionOpenText": "Text & Denken öffnen",
   "models.decisionByLlm": "Sprachmodell",
+  "models.cap.search": "Suche",
+  "models.cap.search.hint":
+    "Findet im Wissen eines Space, was ein Schritt braucht, auch wenn dort andere Wörter stehen.",
+  "models.searchModelGroup": "Embedding-Modell",
+  "models.searchOff": "Nur Wörter",
+  "models.searchOffNote": "ohne Embedding-Modell",
+  "models.searchWordsOnly": "nur Wörter",
+  "models.searchHint":
+    "Ein Embedding-Modell macht aus jedem Abschnitt einen Vektor. So findet die Suche auch, was dasselbe mit anderen Wörtern sagt. Automatisch nimmt es deinen API-Key, sonst das Modell auf diesem Computer, sonst das Guthaben.",
+  "models.searchCloudHint": "In der Cloud rechnet das Guthaben der Organisation die Vektoren.",
+  "models.searchLocalHint":
+    "{model} fehlt in Ollama. Du holst es mit „ollama pull {model}“. EmbeddingGemma von Google ist frei und braucht etwa 600 MB.",
+  "models.searchLocalReady": "{model} läuft in Ollama auf diesem Computer. Nichts verlässt ihn.",
+  "models.searchFallback": "Ohne Embedding-Modell",
+  "models.searchFallbackHint":
+    "Steht keins bereit oder antwortet es nicht, sucht die Suche nur nach Wörtern. Sie findet dann „Rechnung“, aber nicht „Beleg“.",
+  "models.searchReindexHint":
+    "Wechselst du das Modell, kommt jeder Space neu in den Index. Über das Guthaben kostet das Credits.",
   "models.cap.image": "Bilder",
   "models.cap.image.hint": "Erzeugt Bilder: Logos, Produktfotos, Illustrationen.",
   "models.cap.video": "Videos",
@@ -2962,6 +2980,24 @@ const en = {
   "models.decisionFallbackWay": "Classifier: {way}",
   "models.decisionOpenText": "Open Text & reasoning",
   "models.decisionByLlm": "language model",
+  "models.cap.search": "Search",
+  "models.cap.search.hint":
+    "Finds what a step needs in a space’s knowledge, even where other words are used.",
+  "models.searchModelGroup": "Embedding model",
+  "models.searchOff": "Words only",
+  "models.searchOffNote": "no embedding model",
+  "models.searchWordsOnly": "words only",
+  "models.searchHint":
+    "An embedding model turns each passage into a vector. The search then also finds what says the same in other words. Automatic takes your API key, else the model on this computer, else the credits.",
+  "models.searchCloudHint": "In the cloud, the organization’s credits pay for the vectors.",
+  "models.searchLocalHint":
+    "Ollama doesn’t have {model}. You get it with “ollama pull {model}”. Google’s EmbeddingGemma is free and takes about 600 MB.",
+  "models.searchLocalReady": "{model} runs in Ollama on this computer. Nothing leaves it.",
+  "models.searchFallback": "Without an embedding model",
+  "models.searchFallbackHint":
+    "When none is at hand or it doesn’t answer, the search looks for words only. It then finds “invoice” but not “receipt”.",
+  "models.searchReindexHint":
+    "When you change the model, every space goes into the index again. On the credits that costs credits.",
   "models.cap.image": "Images",
   "models.cap.image.hint": "Makes images: logos, product shots, illustrations.",
   "models.cap.video": "Videos",
