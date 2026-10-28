@@ -3,8 +3,8 @@ import { useSearchParams } from "react-router";
 import { t } from "../lib/i18n";
 import { MenuRow, SubMenu, useDetail, useSettingsMenu } from "../studio/settings-menu";
 import { PluginFrame, useStudioPlugins } from "./host";
+import { PluginList } from "./PluginList";
 import { PluginsSection } from "./PluginsSection";
-import { ProModulesSection } from "./ProModulesSection";
 
 /**
  * Settings › Plugins. Its menu one level down: the overview of what is installed, then the
@@ -44,11 +44,11 @@ export function PluginsSettings() {
         <PluginFrame key={section.id} of={section}>
           <section.component />
         </PluginFrame>
+      ) : // On this computer every plugin can be switched, added and removed; in the cloud the plan says.
+      plugins.canReload ? (
+        <PluginList />
       ) : (
-        <div className="flex flex-col gap-6">
-          <PluginsSection />
-          <ProModulesSection />
-        </div>
+        <PluginsSection />
       )}
     </>
   );

@@ -222,13 +222,13 @@ async function updateInstalled() {
   }
 }
 
-/** The files of a zip, refusing any that would land outside the module's folder. */
-function filesOf(zip: Uint8Array): Record<string, Uint8Array> {
+/** The files of a zip, refusing any that would land outside the plugin's folder. */
+export function filesOf(zip: Uint8Array, status: 400 | 502 = 502): Record<string, Uint8Array> {
   let files: Record<string, Uint8Array>;
   try {
     files = unzipSync(zip);
   } catch {
-    throw new ProModuleError("The package is damaged.", 502);
+    throw new ProModuleError("The package is damaged.", status);
   }
   const out: Record<string, Uint8Array> = {};
   for (const [name, data] of Object.entries(files)) {
@@ -239,7 +239,7 @@ function filesOf(zip: Uint8Array): Record<string, Uint8Array> {
     const safe = parts.every((p) => p && p !== "." && p !== ".." && !p.includes("\\"));
     const allowed = name === MANIFEST_FILE || PARTS.some((part) => name.startsWith(part));
     if (!(safe && allowed)) {
-      throw new ProModuleError(`The package holds a file it may not: ${name}`, 502);
+      throw new ProModuleError(`The package holds a file it may not: ${name}`, status);
     }
     out[name] = data;
   }
@@ -261,17 +261,17 @@ export async function installPro(id: string): Promise<void> {
   const entry = listing?.modules.find((m) => m.id === id);
   if (!entry) {
     throw new ProModuleError(
-      `There is no build of this module for ${runtimeTag()}.`,
+      `There is no build of this plugin for ${runtimeTag()}.`,
       404,
       "not_found",
     );
   }
   if (!entry.included) {
-    throw new ProModuleError("This module is not part of your plan.", 403, "plan");
+    throw new ProModuleError("This plugin is not part of your plan.", 403, "plan");
   }
   const res = await call(`/${encodeURIComponent(id)}/package`, token);
   if (!res.ok) {
-    throw new ProModuleError(`The module could not be fetched (${res.status}).`, 502);
+    throw new ProModuleError(`The plugin could not be fetched (${res.status}).`, 502);
   }
   if (Number(res.headers.get("content-length") ?? 0) > MAX_PACKAGE) {
     throw new ProModuleError("The package is too large.", 502);
@@ -293,7 +293,7 @@ export async function installPro(id: string): Promise<void> {
   const files = filesOf(zip);
   const manifest = JSON.parse(new TextDecoder().decode(files[MANIFEST_FILE] ?? new Uint8Array()));
   if (manifest?.id !== id) {
-    throw new ProModuleError("The package does not belong to this module.", 502);
+    throw new ProModuleError("The package does not belong to this plugin.", 502);
   }
 
   const dir = proModulesDir();
@@ -328,7 +328,7 @@ export async function installPro(id: string): Promise<void> {
 /** Removes an installed module; its tables and what is in them stay. */
 export async function removePro(id: string): Promise<void> {
   if (managed || !(await installedIds()).includes(id)) {
-    throw new ProModuleError("This module is not installed.", 404, "not_found");
+    throw new ProModuleError("This plugin is not installed.", 404, "not_found");
   }
   await rm(join(proModulesDir(), id), { recursive: true, force: true });
   await findNewPlugins();

@@ -37,6 +37,7 @@ import { conversationAccess, ModelUnavailableError, textModel } from "../models.
 import { seal, unseal } from "../secrets/crypto.js";
 import { putIndexEntry, removeIndexEntries } from "../services/project-index.js";
 import { originData } from "../services/space-origin.js";
+import { readSetting, writeSetting } from "../settings.js";
 import { safeFetch } from "../tools/net-guard.js";
 import { channelsApi } from "./channels.js";
 import { claimsApiFor } from "./claims.js";
@@ -63,9 +64,40 @@ import { runsApiFor } from "./runs.js";
  * file lies.
  */
 
-/** What ships with this runtime, then the folders of `PLUGINS_DIR`. */
+/** Where Settings › Plugins puts the plugins someone installs here (plugins/install.ts). */
+export const installedPluginsDir = () => join(env.dataDir, "plugins");
+
+/** What ships with this runtime, then the folders of `PLUGINS_DIR`, then what was installed here. */
 export function pluginDirs(): string[] {
-  return [join(packageRoot, "modules"), ...env.plugins.dirs];
+  return [join(packageRoot, "modules"), ...env.plugins.dirs, installedPluginsDir()];
+}
+
+/** The plugins switched off in Settings › Plugins: found, not loaded. */
+const OFF = "plugins-off";
+let off = new Set<string>();
+/** Everything the last look found, the switched-off ones too. */
+let lastFound: PluginSource[] = [];
+
+/** Everything found, switched off or not, as of the last look. */
+export function foundPlugins(): PluginSource[] {
+  return lastFound;
+}
+
+export function pluginOff(id: string): boolean {
+  return off.has(id);
+}
+
+/** Switches a plugin on or off: off it unloads and its files and tables stay; on it loads again. */
+export async function setPluginOn(id: string, on: boolean): Promise<void> {
+  const next = new Set(off);
+  if (on) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  off = next;
+  await writeSetting(OFF, [...next].sort());
+  await findNewPlugins();
 }
 
 const own = (specifier: string) => fileURLToPath(import.meta.resolve(specifier));
@@ -400,7 +432,8 @@ function discover(): PluginSource[] {
   for (const problem of problems) {
     console.error(`[plugins] ${problem.path}: ${problem.message}`);
   }
-  return [...result.found, ...allowed.load];
+  lastFound = [...result.found, ...allowed.load];
+  return lastFound.filter((source) => !off.has(source.id));
 }
 
 /** One load at a time: the watcher and a person may ask for a reload at the same moment. */
@@ -425,6 +458,7 @@ export function loadPlugins(): Promise<void> {
         ),
       );
     }
+    off = new Set((await readSetting<string[]>(OFF)) ?? []);
     const found = discover();
     for (const source of found) {
       await load(source);
