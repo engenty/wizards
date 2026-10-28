@@ -631,6 +631,7 @@ function ChatRow({
   onNewThread,
   onNewSection,
   depth = 0,
+  last = false,
 }: {
   chat: SidebarChat;
   sections: Section[];
@@ -640,6 +641,8 @@ function ChatRow({
   onNewThread: () => void;
   onNewSection: () => void;
   depth?: number;
+  /** The last sub-thread under its chat: its line ends in a curve. */
+  last?: boolean;
 }) {
   const { chatId } = useParams();
   const navigate = useNavigate();
@@ -698,7 +701,16 @@ function ChatRow({
   const nested = threads.length > 0;
 
   return (
-    <div className={cn(depth > 0 && "ml-3.5 border-border-soft border-l pl-1.5")}>
+    <div className={cn(depth > 0 && "relative ml-4 pl-3")}>
+      {depth > 0 ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute top-0 left-0 border-border border-l",
+            last ? "h-4 w-2 rounded-bl-md border-b" : "bottom-0",
+          )}
+        />
+      ) : null}
       <ContextMenu>
         <ContextMenuTrigger
           render={
@@ -834,7 +846,7 @@ function ChatRow({
       </ContextMenu>
 
       {nested && !threadsFolded
-        ? threads.map((thread) => (
+        ? threads.map((thread, at) => (
             <ChatRow
               key={thread.id}
               chat={thread}
@@ -845,6 +857,7 @@ function ChatRow({
               onNewThread={onNewThread}
               onNewSection={onNewSection}
               depth={depth + 1}
+              last={at === threads.length - 1}
             />
           ))
         : null}
