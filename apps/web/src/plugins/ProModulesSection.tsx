@@ -1,8 +1,13 @@
 import { LOCALES } from "@engenty/wizards-shared/definition";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router";
 import { api } from "../lib/api";
+import { useFeature } from "../lib/features";
 import { type Key, lang, t } from "../lib/i18n";
+import { useMe } from "../lib/session";
+import { LinkStatus, useAccountLink } from "../studio/Account";
 import { openExternal } from "../studio/LocalRuntime";
 import { Section } from "../studio/project/Section";
 import { Button, Spinner } from "../ui";
@@ -81,6 +86,42 @@ export function usePro(enabled: boolean) {
   return { state, refresh, install, remove };
 }
 
+/**
+ * No account linked: what it brings here, the sign-in in the browser, and the way to a new one in
+ * Settings › Account (it takes an invitation code). The list asks the account again once linked.
+ */
+function SignIn() {
+  const navigate = useNavigate();
+  const me = useMe();
+  const qc = useQueryClient();
+  const offered = useFeature("account");
+  const signedIn = Boolean(me.data?.account?.signedIn);
+  const linking = useAccountLink(signedIn);
+  useEffect(() => {
+    if (signedIn) {
+      void qc.invalidateQueries({ queryKey: KEY });
+    }
+  }, [signedIn, qc]);
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[0.875rem] text-ink-3">{t("pro.notLinked")}</p>
+      {offered ? (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <Button busy={linking.link.isPending} onClick={() => linking.link.mutate({})}>
+              {t("account.signIn")}
+            </Button>
+            <Button variant="ghost" onClick={() => navigate("/settings/account")}>
+              {t("pro.newAccount")}
+            </Button>
+          </div>
+          <LinkStatus {...linking} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 /** The plan behind the Pro plugins: which it is, until when it is confirmed, checking it again. */
 export function ProPlanSection({ pro }: { pro: ReturnType<typeof usePro> }) {
   const { state, refresh } = pro;
@@ -109,7 +150,7 @@ export function ProPlanSection({ pro }: { pro: ReturnType<typeof usePro> }) {
       ) : !data ? (
         <Spinner />
       ) : !data.linked ? (
-        <p className="text-[0.875rem] text-ink-3">{t("pro.notLinked")}</p>
+        <SignIn />
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3 text-[0.8125rem] text-ink-3">
