@@ -1,14 +1,15 @@
 import { providerInfo } from "@engenty/wizards-shared/providers";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RotateCw } from "lucide-react";
+import { RotateCw, Server, ToggleRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { api } from "../lib/api";
 import { type Key, t } from "../lib/i18n";
 import type { Me } from "../lib/session";
 import { Button, Chip, Empty, Spinner, Switch } from "../ui";
 import { ModelTest } from "./Harness";
 import { Section } from "./project/Section";
+import { MenuRow, SubMenu, useDetail, useSettingsMenu } from "./settings-menu";
 
 /** What `/api/studio/runtime` says of this runtime. */
 interface RuntimeInfo {
@@ -37,7 +38,7 @@ interface FeatureRow {
   without: boolean;
 }
 
-/** Settings › Setup and Feature switches: on this computer, or for the platform's admins. */
+/** Settings › Setup and its Features: on this computer, or for the platform's admins. */
 export const runtimeSettingsOn = (me: Me | null | undefined) => me?.runtimeSettings === true;
 
 function useRuntime() {
@@ -123,8 +124,46 @@ function RestartButton() {
   );
 }
 
-/** Settings › Setup: what holds for the whole server, not for a space or a person. */
+/**
+ * Settings › Setup: what holds for the whole server, not for a space or a person. Its menu one
+ * level down: the overview, and Features (`?show=features`).
+ */
 export function RuntimeSetup({ me }: { me: Me }) {
+  const [params, setParams] = useSearchParams();
+  const { narrow } = useSettingsMenu();
+  const show = params.get("show") === "features" ? "features" : "general";
+  useDetail(params.get("show") || !narrow ? t(PARTS[show]) : null);
+  const open = (next: keyof typeof PARTS) => setParams({ show: next }, { replace: !narrow });
+  return (
+    <>
+      <SubMenu>
+        <ul className="flex flex-col gap-0.5">
+          <MenuRow
+            icon={Server}
+            label={t(PARTS.general)}
+            selected={show === "general" && Boolean(params.get("show") || !narrow)}
+            onPick={() => open("general")}
+          />
+          <MenuRow
+            icon={ToggleRight}
+            label={t(PARTS.features)}
+            selected={show === "features"}
+            onPick={() => open("features")}
+          />
+        </ul>
+      </SubMenu>
+      {show === "features" ? <FeatureSwitches me={me} /> : <SetupOverview me={me} />}
+    </>
+  );
+}
+
+const PARTS = {
+  general: "runtime.general",
+  features: "runtime.featuresNav",
+} as const satisfies Record<string, Key>;
+
+/** What the server says of itself, what it works with, and its restart. */
+function SetupOverview({ me }: { me: Me }) {
   const navigate = useNavigate();
   const runtime = useRuntime();
   const r = runtime.data;
@@ -201,11 +240,11 @@ const SOURCES: Record<FeatureSource, Key> = {
 };
 
 /**
- * Settings › Feature switches: every switch the code and the plugins declare, and what this
+ * Settings › Setup › Features: every switch the code and the plugins declare, and what this
  * server's `.features` file makes of them. The file is read on every request, so a change holds
  * at once; only what a plugin reads once when it loads waits for a restart.
  */
-export function FeatureSwitches({ me }: { me: Me }) {
+function FeatureSwitches({ me }: { me: Me }) {
   const qc = useQueryClient();
   const list = useQuery({
     queryKey: ["runtime", "features"],
