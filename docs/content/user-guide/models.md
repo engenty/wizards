@@ -53,6 +53,10 @@ Text & reasoning, Search and Decisions each have a part “Local model”. It li
 On a Mac with Apple silicon, Ollama 0.40 and later runs the models that come as MLX on Apple’s
 MLX. Where Ollama isn’t running, the part offers to start it, and on a Mac to install it.
 
+“Ollama” under “Access” shows Ollama on its own: whether it runs, every model it holds with the
+jobs it serves, the models to download for all jobs, and Ollama’s address. A model a job uses
+can’t be removed there; pick another one on that job’s page first.
+
 ## Apple Intelligence
 
 On a Mac with Apple silicon and macOS 26 or later, the [setup](./first-start.md) and “Text &

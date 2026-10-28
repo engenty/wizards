@@ -30,6 +30,7 @@ import {
   Coins,
   Ear,
   ExternalLink,
+  HardDrive,
   ImageIcon,
   KeyRound,
   Laptop,
@@ -55,7 +56,7 @@ import {
 import { Button, Card, cn, Input, LinkedText, Select, Spinner, Switch } from "../ui";
 import { billingUrl } from "./AppFrame";
 import { HarnessPanel } from "./Harness";
-import { LocalModels } from "./LocalModels";
+import { LocalModels, useLocalModels } from "./LocalModels";
 import { openExternal } from "./LocalRuntime";
 import {
   MenuGroup,
@@ -1224,7 +1225,7 @@ function CapabilityPanel({
           chosen.by === "apple" ? (
             <ApplePart cap={cap} state={state} place={place} />
           ) : (
-            <OllamaPart state={state} disabled={!place.canEdit} />
+            <OllamaPart state={state} disabled={!place.canEdit} onOpen={onOpen} />
           )
         ) : null}
 
@@ -1319,16 +1320,30 @@ function ApplePart({
   );
 }
 
-function OllamaPart({ state, disabled }: { state: ModelsState; disabled?: boolean }) {
+function OllamaPart({
+  state,
+  disabled,
+  onOpen,
+}: {
+  state: ModelsState;
+  disabled?: boolean;
+  onOpen: (target: Target) => void;
+}) {
   const save = useSave();
-  const qc = useQueryClient();
-  const [url, setUrl] = useState(state.ollamaUrl);
   return (
-    <Part title={t("models.optLocal")}>
+    <Part
+      title={t("models.optLocal")}
+      aside={
+        <Button variant="secondary" size="sm" onClick={() => onOpen({ type: "ollama" })}>
+          {t("models.ollamaOpen")}
+          <ArrowRight className="size-4" />
+        </Button>
+      }
+    >
       <Hint>{t("models.ollamaHint")}</Hint>
       <LocalModels
         job="text"
-        chosen={(state.bindings.low ?? "").replace(/^ollama:/, "")}
+        inUse={[(state.bindings.low ?? "").replace(/^ollama:/, "")]}
         disabled={disabled}
         onChoose={(model) =>
           save.mutate({
@@ -1339,31 +1354,84 @@ function OllamaPart({ state, disabled }: { state: ModelsState; disabled?: boolea
       {save.isError ? (
         <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
       ) : null}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[0.75rem] text-ink-3">{t("models.ollamaAddress")}</span>
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-          <Input
-            className="font-mono text-[0.8125rem]"
-            value={url}
-            disabled={disabled}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <Button
-            variant="secondary"
-            busy={save.isPending}
-            disabled={disabled || !url.trim() || url.trim() === state.ollamaUrl}
-            onClick={() =>
-              save.mutate(
-                { ollamaUrl: url },
-                { onSuccess: () => qc.invalidateQueries({ queryKey: ["models", "local"] }) },
-              )
-            }
-          >
-            {t("settings.save")}
-          </Button>
-        </div>
-      </div>
     </Part>
+  );
+}
+
+/** The models the studio asks Ollama for now: text, search and decisions. */
+function ollamaInUse(state: ModelsState): string[] {
+  const text = Object.values(state.bindings)
+    .filter((ref): ref is string => Boolean(ref?.startsWith("ollama:")))
+    .map((ref) => ref.slice("ollama:".length));
+  return [...text, state.embedding.local, ...(state.decision.local ? [state.decision.local] : [])];
+}
+
+/**
+ * Ollama on this computer as a way of its own: whether it runs, its address, and every model
+ * it holds with the jobs each serves — to download more or remove one. Each job picks its
+ * model on its own page.
+ */
+function OllamaAccessPanel({ state, place }: { state: ModelsState; place: Place }) {
+  const save = useSave();
+  const qc = useQueryClient();
+  const { data: local } = useLocalModels();
+  const [url, setUrl] = useState(state.ollamaUrl);
+  const version = local?.ollama.version;
+  return (
+    <div className="flex flex-col gap-5">
+      <PanelHead
+        icon={HardDrive}
+        title="Ollama"
+        lead={t("models.ollamaLead")}
+        status={
+          local ? (
+            <Status
+              text={
+                version
+                  ? t("models.ollamaRuns", { version })
+                  : local.ollama.installed
+                    ? t("models.ollamaStoppedShort")
+                    : t("models.ollamaMissingShort")
+              }
+              tone={version ? "done" : "warn"}
+            />
+          ) : null
+        }
+      />
+      <Card className="flex flex-col gap-6 p-3.5 sm:p-5 sm:p-6">
+        <Part title={t("models.ollamaModels")}>
+          <Hint>{t("models.ollamaModelsHint")}</Hint>
+          <LocalModels inUse={ollamaInUse(state)} disabled={!place.canEdit} />
+        </Part>
+        <Part title={t("models.ollamaAddress")}>
+          <Hint>{t("models.ollamaAddressHint")}</Hint>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <Input
+              className="font-mono text-[0.8125rem]"
+              value={url}
+              disabled={!place.canEdit}
+              onChange={(e) => setUrl(e.target.value)}
+            />
+            <Button
+              variant="secondary"
+              busy={save.isPending}
+              disabled={!place.canEdit || !url.trim() || url.trim() === state.ollamaUrl}
+              onClick={() =>
+                save.mutate(
+                  { ollamaUrl: url },
+                  { onSuccess: () => qc.invalidateQueries({ queryKey: ["models", "local"] }) },
+                )
+              }
+            >
+              {t("settings.save")}
+            </Button>
+          </div>
+          {save.isError ? (
+            <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+          ) : null}
+        </Part>
+      </Card>
+    </div>
   );
 }
 
@@ -2059,7 +2127,7 @@ function DecisionPanel({
             <Hint>{t("models.decisionLocalHint")}</Hint>
             <LocalModels
               job="decision"
-              chosen={state.decision.local ?? ""}
+              inUse={state.decision.local ? [state.decision.local] : []}
               disabled={!place.canEdit}
               onChoose={(model) => save.mutate({ decisionLocal: model })}
             />
@@ -2226,7 +2294,7 @@ function SearchPanel({
             </Hint>
             <LocalModels
               job="search"
-              chosen={state.embedding.local}
+              inUse={[state.embedding.local]}
               disabled={!place.canEdit}
               onChoose={(model) => save.mutate({ embeddingLocal: model })}
             />
@@ -2255,6 +2323,7 @@ type Target =
   | { type: "cap"; id: ModelCapability }
   | { type: "provider"; id: ProviderId }
   | { type: "client"; id: HarnessId }
+  | { type: "ollama" }
   | { type: "credits" };
 
 function targetOf(show: string | null): Target {
@@ -2264,7 +2333,7 @@ function targetOf(show: string | null): Target {
   if (show === "credits") {
     return { type: "credits" };
   }
-  if (show === "chat" || show === "decision" || show === "search") {
+  if (show === "chat" || show === "decision" || show === "search" || show === "ollama") {
     return { type: show };
   }
   if ((MODEL_CAPABILITIES as readonly string[]).includes(show)) {
@@ -2280,7 +2349,8 @@ const showOf = (target: Target) =>
   target.type === "credits" ||
   target.type === "chat" ||
   target.type === "decision" ||
-  target.type === "search"
+  target.type === "search" ||
+  target.type === "ollama"
     ? target.type
     : target.id;
 
@@ -2330,6 +2400,8 @@ function targetLabel(target: Target, me: Me | null | undefined): string {
       return providerInfo(target.id)?.name ?? target.id;
     case "client":
       return me?.harnesses.find((h) => h.id === target.id)?.name ?? target.id;
+    case "ollama":
+      return "Ollama";
     default:
       return me?.mode === "managed" ? t("models.creditsOrganization") : t("models.creditsName");
   }
@@ -2345,6 +2417,8 @@ function targetLabel(target: Target, me: Me | null | undefined): string {
 export function Models() {
   const me = useMe();
   const models = useModels();
+  // Ollama's row in the menu; a runtime of a Manage-App has none.
+  const local = useLocalModels(Boolean(me.data) && me.data?.mode !== "managed");
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<View>("auto");
   const { narrow } = useSettingsMenu();
@@ -2460,6 +2534,20 @@ export function Models() {
               onPick={() => open({ type: "client", id: h.id })}
             />
           ))}
+          {place.cloud ? null : (
+            <MenuRow
+              icon={HardDrive}
+              label="Ollama"
+              tone={local.data?.ollama.version ? "done" : "off"}
+              toneLabel={
+                local.data?.ollama.version
+                  ? t("models.ollamaRuns", { version: local.data.ollama.version })
+                  : t("models.ollamaStoppedShort")
+              }
+              selected={isOpen({ type: "ollama" })}
+              onPick={() => open({ type: "ollama" })}
+            />
+          )}
           {keyed.map((p) => (
             <MenuRow
               key={p.id}
@@ -2520,6 +2608,8 @@ export function Models() {
           place={place}
           onOpen={open}
         />
+      ) : target.type === "ollama" ? (
+        <OllamaAccessPanel state={state} place={place} />
       ) : target.type === "client" ? (
         <ClientPanel key={target.id} me={me.data} id={target.id} state={state} place={place} />
       ) : (
