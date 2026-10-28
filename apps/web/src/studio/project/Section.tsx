@@ -50,7 +50,11 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <section data-assist-section={title} className="flex flex-col gap-2.5">
+    // Buttons beside the heading need more room above the card than the heading's text alone.
+    <section
+      data-assist-section={title}
+      className={cn("flex flex-col", action ? "gap-4" : "gap-2.5")}
+    >
       <div className="group/head flex items-end justify-between gap-4 px-1">
         <div className="min-w-0">
           <div className="flex items-center gap-3">

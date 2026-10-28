@@ -82,7 +82,7 @@ export function PluginList() {
         title={t("plugins.title")}
         hint={t("plugins.hint")}
         action={
-          <div className="flex gap-2 pb-1.5">
+          <div className="flex gap-2">
             <Button variant="secondary" size="sm" busy={busy === "*"} onClick={() => void reload()}>
               {t("plugins.rescan")}
             </Button>
