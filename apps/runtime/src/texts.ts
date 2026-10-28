@@ -101,6 +101,7 @@ const EN = {
   somethingWentWrongTry: "Something went wrong. Try again.",
   unknownApp: "Unknown app.",
   onlyOrganizationAdminsChange: "Only organization admins can change its models.",
+  localModelNotRemoved: "Ollama didn’t remove the model: {error}",
   modelLacksForClass:
     "{model} lacks what the class {cls} can’t work without: {needs}. Choose another model for it.",
   "need.tools": "tool calls",
@@ -298,6 +299,7 @@ const DE: Partial<Record<ServerKey, Line>> = {
   somethingWentWrongTry: "Da ist etwas schiefgelaufen. Versuch es noch einmal.",
   unknownApp: "Diese App gibt es nicht.",
   onlyOrganizationAdminsChange: "Nur Admins der Organisation ändern ihre Modelle.",
+  localModelNotRemoved: "Ollama hat das Modell nicht entfernt: {error}",
   modelLacksForClass:
     "{model} fehlt, was die Klasse {cls} unbedingt braucht: {needs}. Wähle dafür ein anderes Modell.",
   "need.tools": "Tool-Aufrufe",

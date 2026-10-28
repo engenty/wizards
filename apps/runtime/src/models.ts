@@ -46,7 +46,7 @@ import {
   type TranscriptionModel,
 } from "ai";
 import { accountToken, linkedAccount } from "./auth/account.js";
-import { ollamaDecisionModel, ollamaRoot } from "./decision-model.js";
+import { LOCAL_DECISION_MODEL, ollamaDecisionModel, ollamaRoot } from "./decision-model.js";
 import { DeviceModel, deviceThinks } from "./engine/device.js";
 import { env } from "./env.js";
 import {
@@ -130,6 +130,8 @@ export interface LocalModelSettings {
   creditFallback?: boolean;
   /** Which decision model answers decisions (`DecisionChoice`). Default: `auto`. */
   decision?: DecisionChoice;
+  /** The decision model in Ollama on this computer. Default: Clef-flash, else Clef, as found. */
+  decisionLocal?: string;
   /** Which embedding model the search of a space's knowledge uses (`EmbeddingChoice`). Default: `auto`. */
   embedding?: EmbeddingChoice;
   /** The embedding model in Ollama on this computer. Default: `LOCAL_EMBEDDING_MODEL`. */
@@ -176,6 +178,7 @@ export interface ModelSettingsInput {
   ollamaUrl?: string;
   creditFallback?: boolean;
   decision?: DecisionChoice;
+  decisionLocal?: string;
   embedding?: EmbeddingChoice;
   embeddingLocal?: string;
   /** A key to store; an empty string removes it. */
@@ -286,6 +289,7 @@ export async function saveLocalModels(input: ModelSettingsInput) {
     ollamaUrl: input.ollamaUrl?.trim() || local.settings.ollamaUrl,
     creditFallback: input.creditFallback ?? local.settings.creditFallback,
     decision: input.decision ?? local.settings.decision,
+    decisionLocal: input.decisionLocal?.trim() || local.settings.decisionLocal,
     embedding: input.embedding ?? local.settings.embedding,
     embeddingLocal: input.embeddingLocal?.trim() || local.settings.embeddingLocal,
   } satisfies LocalModelSettings);
@@ -297,6 +301,7 @@ export async function saveLocalModels(input: ModelSettingsInput) {
     }
   }
   await loadLocalModels();
+  forgetLocalModels();
 }
 
 /** An organization's keys and bindings on a runtime of a Manage-App. No client and no local model there. */
@@ -973,14 +978,15 @@ function localEmbeddingName(cfg: ModelConfig): string {
   );
 }
 
-/** What the local Ollama held at the last look, so an index run does not ask it every time. */
-let localEmbedding: { key: string; there: boolean; at: number } | null = null;
+/** What the local Ollama held at the last look, by address and model, so a call does not ask it every time. */
+const ollamaHeld = new Map<string, { there: boolean; at: number }>();
 
 /** Whether Ollama on this computer holds `name`, looked up once a minute. */
 async function ollamaHolds(url: string, name: string): Promise<boolean> {
   const key = `${url} ${name}`;
-  if (localEmbedding?.key === key && Date.now() < localEmbedding.at) {
-    return localEmbedding.there;
+  const hit = ollamaHeld.get(key);
+  if (hit && Date.now() < hit.at) {
+    return hit.there;
   }
   const there = await fetch(`${ollamaRoot(url)}/api/tags`, { signal: AbortSignal.timeout(1500) })
     .then((res) => (res.ok ? (res.json() as Promise<{ models?: { name: string }[] }>) : null))
@@ -988,8 +994,19 @@ async function ollamaHolds(url: string, name: string): Promise<boolean> {
       (body?.models ?? []).some((m) => m.name === name || m.name === `${name}:latest`),
     )
     .catch(() => false);
-  localEmbedding = { key, there, at: Date.now() + 60_000 };
+  ollamaHeld.set(key, { there, at: Date.now() + 60_000 });
   return there;
+}
+
+/** Forgets what Ollama held: after a model was downloaded or removed (local-models.ts). */
+export function forgetLocalModels() {
+  ollamaHeld.clear();
+  localDecision = null;
+}
+
+/** Where Ollama answers for this machine (…/v1), as the settings name it. */
+export async function localOllamaUrl(): Promise<string> {
+  return (await config()).settings.ollamaUrl ?? env.ollamaUrl;
 }
 
 type ResolvedEmbedding = { model: EmbeddingModel; ref: string };
@@ -1088,57 +1105,6 @@ export async function embeddingModel(): Promise<ResolvedEmbedding | null> {
   return found ? { model: found.model, ref: found.ref } : null;
 }
 
-/** A download of the local embedding model into Ollama: while it runs, and how it ended. */
-interface EmbeddingDownload {
-  model: string;
-  done: number;
-  total: number;
-  /** `ollama`: Ollama does not run on this computer; else what Ollama said. */
-  error: string | null;
-  finished: boolean;
-}
-
-let embeddingDownload: EmbeddingDownload | null = null;
-
-/**
- * Pulls the local embedding model into Ollama in the background; `then` runs once it ended
- * well. A download that runs already is left to finish.
- */
-export async function downloadLocalEmbedding(then: () => Promise<void>) {
-  if (managed || (embeddingDownload && !embeddingDownload.finished)) {
-    return;
-  }
-  const cfg = await config();
-  const url = cfg.settings.ollamaUrl ?? env.ollamaUrl;
-  const state: EmbeddingDownload = {
-    model: localEmbeddingName(cfg),
-    done: 0,
-    total: 0,
-    error: null,
-    finished: false,
-  };
-  embeddingDownload = state;
-  const { pullModel } = await import("./cli/ollama.js");
-  void pullModel(
-    state.model,
-    (done, total) => {
-      state.done = done;
-      state.total = total;
-    },
-    { OLLAMA_URL: url },
-  )
-    .then(async () => {
-      localEmbedding = null;
-      state.finished = true;
-      await then();
-    })
-    .catch((err: Error) => {
-      const unreachable = /fetch failed|ECONNREFUSED/i.test(`${err.message} ${err.cause ?? ""}`);
-      state.error = unreachable ? "ollama" : err.message;
-      state.finished = true;
-    });
-}
-
 /**
  * The search, for the settings page: the choice, which ways have an embedding model, and which
  * one embeds now (null: the search finds words only).
@@ -1159,9 +1125,8 @@ async function embeddingSettings(cfg: ModelConfig) {
     way: now?.way ?? null,
     /** The model the vectors come from, as the index records it. */
     ref: now?.ref ?? null,
+    /** The model asked for in Ollama on this computer. */
     local: localEmbeddingName(cfg),
-    /** The download of the local model, where one ran since the start. */
-    download: embeddingDownload?.model === localEmbeddingName(cfg) ? embeddingDownload : null,
   };
 }
 
@@ -1183,12 +1148,19 @@ export interface SystemOneAccess {
 /** What the local Ollama held at the last look, so a decision does not ask it every time. */
 let localDecision: { url: string; model: string | null; at: number } | null = null;
 
-/** The decision model in the local Ollama (Clef-flash, pulled by the setup), looked up once a minute. */
-async function localDecisionModel(url: string): Promise<string | null> {
+/**
+ * The decision model in the local Ollama, looked up once a minute: the one the settings name,
+ * else Clef-flash (pulled by the setup) or Clef.
+ */
+async function localDecisionModel(url: string, named?: string): Promise<string | null> {
   if (localDecision?.url === url && Date.now() < localDecision.at) {
     return localDecision.model;
   }
-  const model = await ollamaDecisionModel(url);
+  const model = named
+    ? (await ollamaHolds(url, named))
+      ? named
+      : null
+    : await ollamaDecisionModel(url);
   localDecision = { url, model, at: Date.now() + 60_000 };
   return model;
 }
@@ -1249,7 +1221,7 @@ async function decisionBy(
         : null;
     case "local": {
       const ollama = cfg.settings.ollamaUrl ?? env.ollamaUrl;
-      const model = await localDecisionModel(ollama);
+      const model = await localDecisionModel(ollama, cfg.settings.decisionLocal);
       return model
         ? {
             url: `${ollamaRoot(ollama)}/v1/systemone`,
@@ -1318,6 +1290,11 @@ async function decisionSettings(cfg: ModelConfig) {
     way: now?.way ?? null,
     /** The model it names; null: the credits pick it. */
     model: now?.access.model ?? null,
+    /** The decision model asked for in Ollama on this computer. */
+    local:
+      cfg.settings.decisionLocal ??
+      (managed ? null : await ollamaDecisionModel(cfg.settings.ollamaUrl ?? env.ollamaUrl)) ??
+      LOCAL_DECISION_MODEL,
   };
 }
 

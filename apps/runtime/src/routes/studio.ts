@@ -87,6 +87,12 @@ import {
   wizardView,
 } from "../live/views.js";
 import {
+  downloadLocalModel,
+  localModels,
+  removeLocalModel,
+  startLocalOllama,
+} from "../local-models.js";
+import {
   installMail,
   managed,
   renameTenant,
@@ -106,7 +112,6 @@ import {
   classProblem,
   classWays,
   DECISION_CHOICES,
-  downloadLocalEmbedding,
   EMBEDDING_CHOICES,
   embeddingModel,
   hasTextModel,
@@ -336,6 +341,14 @@ async function setupDone(): Promise<boolean> {
   return hasTextModel();
 }
 
+/** A model as Ollama names it: `name`, `name:tag`, `namespace/name:tag` or `hf.co/…`. */
+const localModelName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^[\w.:/-]+$/);
+
 const modelsInput = z.object({
   source: z.enum([...HARNESS_IDS, "account", "own"]).optional(),
   bindings: z.partialRecord(z.enum(MODEL_CLASSES), z.string().max(160)).optional(),
@@ -343,6 +356,7 @@ const modelsInput = z.object({
   creditFallback: z.boolean().optional(),
   decision: z.enum(DECISION_CHOICES).optional(),
   embedding: z.enum(EMBEDDING_CHOICES).optional(),
+  decisionLocal: z.string().max(120).optional(),
   embeddingLocal: z.string().max(120).optional(),
   keys: z.partialRecord(z.enum(LOCAL_KEYS), z.string().max(400)).optional(),
 });
@@ -1855,18 +1869,49 @@ export const studio = new Hono<Vars>()
     }
     return c.json(await modelSettings(requestLang(c)));
   })
-  // The embedding model on this computer, pulled into Ollama; the spaces are indexed with it after.
-  .post("/models/embedding/download", async (c) => {
+  // Ollama on this computer: its models, what each can do, the ones to download, the downloads.
+  .get("/models/local", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    return c.json(await localModels());
+  })
+  // A model pulled into Ollama. Where it is the embedding model now, the spaces are indexed with it after.
+  .post("/models/local/pull", async (c) => {
     if (managed || !mayChangeModels(c.get("user"))) {
       return c.notFound();
     }
+    const { model } = z.object({ model: localModelName }).parse(await c.req.json());
     const embeddedBy = (await embeddingModel().catch(() => null))?.ref ?? null;
-    await downloadLocalEmbedding(async () => {
+    await downloadLocalModel(model, async () => {
       if (((await embeddingModel().catch(() => null))?.ref ?? null) !== embeddedBy) {
         await reindexAll();
       }
     });
-    return c.json(await modelSettings(requestLang(c)));
+    return c.json(await localModels());
+  })
+  .delete("/models/local", async (c) => {
+    if (managed || !mayChangeModels(c.get("user"))) {
+      return c.notFound();
+    }
+    const model = localModelName.parse(c.req.query("model"));
+    try {
+      await removeLocalModel(model);
+    } catch (err) {
+      return c.json(
+        { error: say(c, "localModelNotRemoved", { error: (err as Error).message }) },
+        400,
+      );
+    }
+    return c.json(await localModels());
+  })
+  // Ollama installed (on a Mac) and started, as `wizards setup` does.
+  .post("/models/local/ollama", async (c) => {
+    if (managed || !mayChangeModels(c.get("user"))) {
+      return c.notFound();
+    }
+    await startLocalOllama();
+    return c.json(await localModels());
   })
   // Whether a provider takes a key — the one typed, or the one stored. Nothing is generated.
   .post("/models/keys/:provider/check", async (c) => {
