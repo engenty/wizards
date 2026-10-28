@@ -36,6 +36,7 @@ import {
   type LucideIcon,
   MessageCircle,
   PenLine,
+  Search,
   Split,
   Volume2,
 } from "lucide-react";
@@ -96,6 +97,23 @@ interface ModelsState {
   /** The media models the credits pay for, which a binding may name. */
   creditModels: CreditModel[];
   decision: DecisionState;
+  embedding: EmbeddingState;
+}
+
+/** The ways to an embedding model, in the order `auto` tries them. */
+const EMBEDDING_WAYS = ["gateway", "openai", "local", "credits"] as const;
+type EmbeddingWay = (typeof EMBEDDING_WAYS)[number];
+type EmbeddingChoice = "auto" | EmbeddingWay | "off";
+
+/** Who embeds knowledge for the search: the choice, which ways have a model, which one embeds now. */
+interface EmbeddingState {
+  choice: EmbeddingChoice;
+  ready: Record<EmbeddingWay, boolean>;
+  /** Null: no embedding model, the search finds words only. */
+  way: EmbeddingWay | null;
+  ref: string | null;
+  /** The model asked for in Ollama on this computer. */
+  local: string;
 }
 
 /** The ways to a decision model, in the order `auto` tries them. */
@@ -127,6 +145,8 @@ interface ModelsInput {
   ollamaUrl?: string;
   creditFallback?: boolean;
   decision?: DecisionChoice;
+  embedding?: EmbeddingChoice;
+  embeddingLocal?: string;
   keys?: Partial<Record<ProviderId, string>>;
 }
 
@@ -2042,11 +2062,187 @@ function DecisionPanel({
   );
 }
 
+/** The embedding model a way reaches, by the way's name. */
+function embeddingName(way: EmbeddingWay, state: ModelsState, place: Place): string {
+  switch (way) {
+    case "gateway":
+    case "openai":
+      return providerInfo(way)?.name ?? way;
+    case "local":
+      return `${state.embedding.local} · ${t("models.way.local")}`;
+    default:
+      return place.cloud ? t("models.creditsOrganization") : t("models.creditsName");
+  }
+}
+
+/** How the search embeds now, in a few words: the menu's note and the panel's status. */
+function embeddingText(
+  state: ModelsState,
+  place: Place,
+): { text: string; tone: "done" | "ok" | "warn" } {
+  const { way } = state.embedding;
+  if (!way) {
+    return { text: t("models.searchWordsOnly"), tone: "warn" };
+  }
+  if (way === "local") {
+    return { text: state.embedding.local, tone: "done" };
+  }
+  return { text: embeddingName(way, state, place), tone: way === "credits" ? "ok" : "done" };
+}
+
+/**
+ * The search of a space's knowledge: an embedding model turns every passage into a vector, so a
+ * step finds what means the same in other words. Without one the search finds words only.
+ */
+function SearchPanel({
+  state,
+  place,
+  onOpen,
+}: {
+  state: ModelsState;
+  place: Place;
+  onOpen: (target: Target) => void;
+}) {
+  const save = useSave();
+  const [needsAccount, setNeedsAccount] = useState(false);
+  const [local, setLocal] = useState(state.embedding.local);
+  const { choice, ready } = state.embedding;
+  const status = embeddingText(state, place);
+  const pick = (next: EmbeddingChoice) => {
+    setNeedsAccount(false);
+    if ((next === "gateway" || next === "openai") && !ready[next]) {
+      // The key comes first: its page takes it.
+      onOpen({ type: "provider", id: next });
+      return;
+    }
+    if (next === "credits" && !ready.credits) {
+      setNeedsAccount(true);
+      return;
+    }
+    save.mutate({ embedding: next });
+  };
+  const notes: Record<EmbeddingWay, string> = {
+    gateway: ready.gateway ? t("models.noteKey") : t("models.noteNoKey"),
+    openai: ready.openai ? t("models.noteKey") : t("models.noteNoKey"),
+    local: ready.local ? t("models.decisionLocalReady") : t("models.decisionLocalMissing"),
+    credits: ready.credits ? t("models.noteUsage") : t("models.noteNeedsAccount"),
+  };
+  return (
+    <div className="flex flex-col gap-5">
+      <PanelHead
+        icon={Search}
+        title={t("models.cap.search")}
+        lead={t("models.cap.search.hint")}
+        status={<Status text={status.text} tone={status.tone} />}
+      />
+      <Card className="flex flex-col gap-6 p-3.5 sm:p-5 sm:p-6">
+        <Part title={t("models.who")}>
+          {place.cloud ? (
+            <>
+              <OptionGroup label={t("models.searchModelGroup")}>
+                <Option
+                  title={embeddingName("credits", state, place)}
+                  note={t("models.searchCloudHint")}
+                  noteTone="done"
+                  selected
+                  disabled
+                  onPick={() => undefined}
+                />
+              </OptionGroup>
+              <Hint>{t("models.searchCloudHint")}</Hint>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-3">
+                <OptionGroup label={t("models.searchModelGroup")}>
+                  <Option
+                    title={t("models.decisionAuto")}
+                    note={t("models.decisionAutoNote")}
+                    noteTone={EMBEDDING_WAYS.some((w) => ready[w]) ? "done" : undefined}
+                    selected={choice === "auto"}
+                    disabled={!place.canEdit}
+                    onPick={() => pick("auto")}
+                  />
+                  {EMBEDDING_WAYS.map((way) => (
+                    <Option
+                      key={way}
+                      title={embeddingName(way, state, place)}
+                      note={notes[way]}
+                      noteTone={ready[way] ? "done" : undefined}
+                      selected={choice === way}
+                      disabled={!place.canEdit}
+                      onPick={() => pick(way)}
+                    />
+                  ))}
+                </OptionGroup>
+                <OptionGroup label={t("models.optOther")}>
+                  <Option
+                    title={t("models.searchOff")}
+                    note={t("models.searchOffNote")}
+                    noteTone="done"
+                    selected={choice === "off"}
+                    disabled={!place.canEdit}
+                    onPick={() => pick("off")}
+                  />
+                </OptionGroup>
+              </div>
+              {needsAccount ? (
+                <p className="text-[0.8125rem] text-ink-2">
+                  {t("local.sourceNeedsAccount")} <AccountLink />
+                </p>
+              ) : null}
+              {save.isError ? (
+                <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+              ) : null}
+              <Hint>{t("models.searchHint")}</Hint>
+            </>
+          )}
+        </Part>
+        {place.cloud ? null : (
+          <Part title={t("models.optLocal")}>
+            <Hint>
+              {ready.local
+                ? t("models.searchLocalReady", { model: state.embedding.local })
+                : t("models.searchLocalHint", { model: state.embedding.local })}
+            </Hint>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <Input
+                className="font-mono text-[0.8125rem]"
+                value={local}
+                disabled={!place.canEdit}
+                onChange={(e) => setLocal(e.target.value)}
+              />
+              <Button
+                variant="secondary"
+                busy={save.isPending}
+                disabled={!place.canEdit || !local.trim() || local.trim() === state.embedding.local}
+                onClick={() => save.mutate({ embeddingLocal: local.trim() })}
+              >
+                {t("settings.save")}
+              </Button>
+            </div>
+          </Part>
+        )}
+        <Part
+          title={t("models.searchFallback")}
+          aside={
+            state.embedding.way ? null : <Status text={t("models.searchWordsOnly")} tone="warn" />
+          }
+        >
+          <Hint>{t("models.searchFallbackHint")}</Hint>
+          <Hint>{t("models.searchReindexHint")}</Hint>
+        </Part>
+      </Card>
+    </div>
+  );
+}
+
 // --- the page ----------------------------------------------------------------------
 
 type Target =
   | { type: "chat" }
   | { type: "decision" }
+  | { type: "search" }
   | { type: "cap"; id: ModelCapability }
   | { type: "provider"; id: ProviderId }
   | { type: "client"; id: HarnessId }
@@ -2059,7 +2255,7 @@ function targetOf(show: string | null): Target {
   if (show === "credits") {
     return { type: "credits" };
   }
-  if (show === "chat" || show === "decision") {
+  if (show === "chat" || show === "decision" || show === "search") {
     return { type: show };
   }
   if ((MODEL_CAPABILITIES as readonly string[]).includes(show)) {
@@ -2072,7 +2268,10 @@ function targetOf(show: string | null): Target {
 }
 
 const showOf = (target: Target) =>
-  target.type === "credits" || target.type === "chat" || target.type === "decision"
+  target.type === "credits" ||
+  target.type === "chat" ||
+  target.type === "decision" ||
+  target.type === "search"
     ? target.type
     : target.id;
 
@@ -2114,6 +2313,8 @@ function targetLabel(target: Target, me: Me | null | undefined): string {
       return t("models.cap.chat");
     case "decision":
       return t("models.cap.decision");
+    case "search":
+      return t("models.cap.search");
     case "cap":
       return t(`models.cap.${target.id}`);
     case "provider":
@@ -2197,6 +2398,22 @@ export function Models() {
                     onPick={() => open({ type: "decision" })}
                   />
                 ) : null}
+                {isText(cap) ? (
+                  <MenuRow
+                    icon={Search}
+                    label={t("models.cap.search")}
+                    tone={
+                      state.embedding.way
+                        ? state.embedding.way === "credits"
+                          ? "credits"
+                          : "done"
+                        : "off"
+                    }
+                    toneLabel={embeddingText(state, place).text}
+                    selected={isOpen({ type: "search" })}
+                    onPick={() => open({ type: "search" })}
+                  />
+                ) : null}
               </Fragment>
             );
           })}
@@ -2275,6 +2492,8 @@ export function Models() {
         <ChatPanel me={me.data} state={state} place={place} onOpen={open} />
       ) : target.type === "decision" ? (
         <DecisionPanel state={state} place={place} onOpen={open} />
+      ) : target.type === "search" ? (
+        <SearchPanel state={state} place={place} onOpen={open} />
       ) : target.type === "cap" ? (
         <CapabilityPanel
           key={target.id}

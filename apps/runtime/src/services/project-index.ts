@@ -881,3 +881,11 @@ export async function reindexSpace(projectId: string) {
     queueIndex(`v:${v.id}`);
   }
 }
+
+/** Every space into the index again, with the embedding model that is set up now. */
+export async function reindexAll() {
+  const projects = await db.query.project.findMany({ columns: { id: true } });
+  for (const p of projects) {
+    await reindexSpace(p.id);
+  }
+}

@@ -130,7 +130,25 @@ export interface LocalModelSettings {
   creditFallback?: boolean;
   /** Which decision model answers decisions (`DecisionChoice`). Default: `auto`. */
   decision?: DecisionChoice;
+  /** Which embedding model the search of a space's knowledge uses (`EmbeddingChoice`). Default: `auto`. */
+  embedding?: EmbeddingChoice;
+  /** The embedding model in Ollama on this computer. Default: `LOCAL_EMBEDDING_MODEL`. */
+  embeddingLocal?: string;
 }
+
+/** The ways to an embedding model, in the order `auto` tries them. */
+export const EMBEDDING_WAYS = ["gateway", "openai", "local", "credits"] as const;
+export type EmbeddingWay = (typeof EMBEDDING_WAYS)[number];
+
+/**
+ * Who turns knowledge into vectors: the first embedding model at hand (`auto`), the one of one
+ * way, or none (`off`). Without one the search finds words, not meaning.
+ */
+export const EMBEDDING_CHOICES = ["auto", ...EMBEDDING_WAYS, "off"] as const;
+export type EmbeddingChoice = (typeof EMBEDDING_CHOICES)[number];
+
+/** Google's EmbeddingGemma: open weights, about 600 MB, in Ollama's library. */
+export const LOCAL_EMBEDDING_MODEL = "embeddinggemma";
 
 /** The ways to a decision model, in the order `auto` tries them. */
 export const DECISION_WAYS = ["gateway", "typesafe", "local", "credits"] as const;
@@ -155,6 +173,8 @@ export interface ModelSettingsInput {
   ollamaUrl?: string;
   creditFallback?: boolean;
   decision?: DecisionChoice;
+  embedding?: EmbeddingChoice;
+  embeddingLocal?: string;
   /** A key to store; an empty string removes it. */
   keys?: Partial<Record<LocalKey, string>>;
 }
@@ -263,6 +283,8 @@ export async function saveLocalModels(input: ModelSettingsInput) {
     ollamaUrl: input.ollamaUrl?.trim() || local.settings.ollamaUrl,
     creditFallback: input.creditFallback ?? local.settings.creditFallback,
     decision: input.decision ?? local.settings.decision,
+    embedding: input.embedding ?? local.settings.embedding,
+    embeddingLocal: input.embeddingLocal?.trim() || local.settings.embeddingLocal,
   } satisfies LocalModelSettings);
   for (const [name, value] of Object.entries(input.keys ?? {})) {
     if (value?.trim()) {
@@ -940,44 +962,151 @@ export async function listenerModel(
   return { kind: "chat", resolved: await textModel("audio", meta) };
 }
 
-/**
- * The model that turns passages and questions into vectors for a project's document index.
- * Null where none is set up — an installed AI client has no such model — and the index then
- * works on keywords alone.
- */
-export async function embeddingModel(): Promise<{ model: EmbeddingModel; ref: string } | null> {
-  const cfg = await config();
-  if (managed) {
-    const access = await creditAccess(cfg, true).catch(() => null);
-    const bound = access ? (await classCatalog())?.classes.embedding : null;
-    return access && bound
-      ? { model: gatewayClient(access, {}).embeddingModel("wizards/embedding"), ref: bound.model }
-      : null;
+/** The embedding model Ollama is asked for: the setting, an `ollama:` MODEL_EMBEDDING, or EmbeddingGemma. */
+function localEmbeddingName(cfg: ModelConfig): string {
+  const { provider, id } = parse(env.models.embedding);
+  return (
+    cfg.settings.embeddingLocal ?? (provider === "ollama" ? id : null) ?? LOCAL_EMBEDDING_MODEL
+  );
+}
+
+/** What the local Ollama held at the last look, so an index run does not ask it every time. */
+let localEmbedding: { key: string; there: boolean; at: number } | null = null;
+
+/** Whether Ollama on this computer holds `name`, looked up once a minute. */
+async function ollamaHolds(url: string, name: string): Promise<boolean> {
+  const key = `${url} ${name}`;
+  if (localEmbedding?.key === key && Date.now() < localEmbedding.at) {
+    return localEmbedding.there;
   }
+  const there = await fetch(`${ollamaRoot(url)}/api/tags`, { signal: AbortSignal.timeout(1500) })
+    .then((res) => (res.ok ? (res.json() as Promise<{ models?: { name: string }[] }>) : null))
+    .then((body) =>
+      (body?.models ?? []).some((m) => m.name === name || m.name === `${name}:latest`),
+    )
+    .catch(() => false);
+  localEmbedding = { key, there, at: Date.now() + 60_000 };
+  return there;
+}
+
+type ResolvedEmbedding = { model: EmbeddingModel; ref: string };
+
+/** The embedding model one way reaches; null where that way has none. */
+async function embeddingBy(
+  cfg: ModelConfig,
+  way: EmbeddingWay,
+  chosen: boolean,
+): Promise<ResolvedEmbedding | null> {
   const ref = env.models.embedding;
   const { provider, id, vendor } = parse(ref);
-  if (provider === "ollama") {
-    const ollama = createOpenAI({
-      baseURL: cfg.settings.ollamaUrl ?? env.ollamaUrl,
-      apiKey: "ollama",
-    });
-    return { model: ollama.embedding(id), ref };
+  switch (way) {
+    case "gateway":
+      if (!cfg.keys.gateway) {
+        return null;
+      }
+      // The gateway names a model as `vendor/model`; an `ollama:` MODEL_EMBEDDING is not one.
+      return provider === null || provider === "gateway"
+        ? { model: createGateway({ apiKey: cfg.keys.gateway }).embeddingModel(id), ref }
+        : {
+            model: createGateway({ apiKey: cfg.keys.gateway }).embeddingModel(DEFAULT_EMBEDDING),
+            ref: DEFAULT_EMBEDDING,
+          };
+    case "openai": {
+      if (!cfg.keys.openai) {
+        return null;
+      }
+      const own = provider === "openai" || vendor === "openai";
+      return {
+        model: createOpenAI({ apiKey: cfg.keys.openai }).embedding(
+          own ? (provider ? id : aliasOf(id)) : aliasOf(DEFAULT_EMBEDDING),
+        ),
+        ref: own ? ref : DEFAULT_EMBEDDING,
+      };
+    }
+    case "local": {
+      const url = cfg.settings.ollamaUrl ?? env.ollamaUrl;
+      const name = localEmbeddingName(cfg);
+      if (!(await ollamaHolds(url, name))) {
+        return null;
+      }
+      const ollama = createOpenAI({ baseURL: url, apiKey: "ollama" });
+      return { model: ollama.embedding(name), ref: `ollama:${name}` };
+    }
+    default: {
+      const access = await creditAccess(cfg, chosen).catch(() => null);
+      const bound = access ? (await classCatalog())?.classes.embedding : null;
+      return access && bound
+        ? {
+            model: gatewayClient(access, {}).embeddingModel("wizards/embedding"),
+            ref: bound.model,
+          }
+        : null;
+    }
   }
-  if ((provider === null || provider === "gateway") && cfg.keys.gateway) {
-    return { model: createGateway({ apiKey: cfg.keys.gateway }).embeddingModel(id), ref };
+}
+
+/** OpenAI's small embedding model, as the AI Gateway names it: what a key gets without MODEL_EMBEDDING. */
+const DEFAULT_EMBEDDING = "openai/text-embedding-3-small";
+
+async function embeddingAccess(
+  cfg: ModelConfig,
+): Promise<(ResolvedEmbedding & { way: EmbeddingWay }) | null> {
+  if (managed) {
+    const found = await embeddingBy(cfg, "credits", true);
+    return found ? { ...found, way: "credits" } : null;
   }
-  if ((provider === "openai" || vendor === "openai") && cfg.keys.openai) {
-    return {
-      model: createOpenAI({ apiKey: cfg.keys.openai }).embedding(provider ? id : aliasOf(id)),
-      ref,
-    };
+  const choice = cfg.settings.embedding ?? "auto";
+  if (choice === "off") {
+    return null;
   }
-  // No key of its own: the linked account's gateway, where its catalog has the class.
-  const access = await creditAccess(cfg, false).catch(() => null);
-  const bound = access ? (await classCatalog())?.classes.embedding : null;
-  return access && bound
-    ? { model: gatewayClient(access, {}).embeddingModel("wizards/embedding"), ref: bound.model }
-    : null;
+  // An `ollama:` MODEL_EMBEDDING asks for the model on this computer before any key.
+  const auto =
+    parse(env.models.embedding).provider === "ollama"
+      ? (["local", ...EMBEDDING_WAYS.filter((w) => w !== "local")] as const)
+      : EMBEDDING_WAYS;
+  for (const way of choice === "auto" ? auto : [choice]) {
+    const found = await embeddingBy(cfg, way, choice !== "auto");
+    if (found) {
+      return { ...found, way };
+    }
+  }
+  return null;
+}
+
+/**
+ * The model that turns passages and questions into vectors for a project's document index: the
+ * credits on a Manage-App's runtime; alone, what the settings choose — by default an AI Gateway
+ * key, an OpenAI key, EmbeddingGemma in Ollama on this computer, then the linked account's
+ * credits. Null where none is set up — an installed AI client has no such model — and the
+ * index then works on keywords alone.
+ */
+export async function embeddingModel(): Promise<ResolvedEmbedding | null> {
+  const found = await embeddingAccess(await config());
+  return found ? { model: found.model, ref: found.ref } : null;
+}
+
+/**
+ * The search, for the settings page: the choice, which ways have an embedding model, and which
+ * one embeds now (null: the search finds words only).
+ */
+async function embeddingSettings(cfg: ModelConfig) {
+  const ready = Object.fromEntries(
+    await Promise.all(
+      EMBEDDING_WAYS.map(async (way) => [
+        way,
+        managed ? way === "credits" : Boolean(await embeddingBy(cfg, way, false)),
+      ]),
+    ),
+  ) as Record<EmbeddingWay, boolean>;
+  const now = await embeddingAccess(cfg);
+  return {
+    choice: managed ? ("credits" as const) : (cfg.settings.embedding ?? "auto"),
+    ready,
+    way: now?.way ?? null,
+    /** The model the vectors come from, as the index records it. */
+    ref: now?.ref ?? null,
+    local: localEmbeddingName(cfg),
+  };
 }
 
 /** Where a System One question goes: the address, how to sign the request, the model to name. */
@@ -1433,6 +1562,8 @@ export async function modelSettings(lang: Lang = "en") {
     ways: waysIn(ways, lang),
     /** Who answers decisions; where no decision model does, the classifier class's way. */
     decision: await decisionSettings(cfg),
+    /** Who embeds knowledge for the search; null way: words only. */
+    embedding: await embeddingSettings(cfg),
     /** Per text class, what of its minimums its model lacks (`CLASS_NEEDS`); null: not checked. */
     fit: classFit(ways),
     /** Apple Intelligence on this Mac: shown where the machine can run it, picked once it answers. */
