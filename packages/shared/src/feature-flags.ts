@@ -107,6 +107,12 @@ export const FEATURES = {
     label: "WordPress plugin",
     hint: "The plugin for WordPress sites, and a wizard as a package for one: offered in the share dialog and under Settings → Integrate.",
   },
+  plugins: {
+    kind: "release",
+    default: false,
+    label: "Plugins in the settings",
+    hint: "Settings › Plugins, also before any plugin is installed. Installing a plugin turns it on.",
+  },
   goose: {
     kind: "release",
     default: false,

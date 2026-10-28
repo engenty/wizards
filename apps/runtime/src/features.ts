@@ -147,3 +147,13 @@ export function writeFeature(name: string, on: boolean | null, file = featuresFi
   fileCache = null;
   return fileFeatures(file);
 }
+
+/**
+ * Turns a switch on in the `.features` file where it is off now: installing a plugin does that
+ * for `plugins`. A runtime of many tenants leaves its switches to the Manage-App.
+ */
+export function switchOn(name: string): void {
+  if (!managed && !feature(name)) {
+    writeFeature(name, true);
+  }
+}

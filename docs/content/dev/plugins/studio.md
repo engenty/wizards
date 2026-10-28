@@ -86,7 +86,7 @@ export default defineStudioPlugin((studio) => {
 |---|---|
 | `studio.registerPage({ path, component, wide? })` | A page of the studio at `/studio<path>`, inside the studio’s frame. `path` takes `:name` parts. `wide`: the page lays out its own columns and takes the screen’s width |
 | `studio.registerNav({ to, label, icon })` | An icon in the app bar that opens a page |
-| `studio.registerSettingsSection({ id, label, icon, component, menu? })` | A section of the settings at `/studio/settings/<id>`. `menu`: the user menu links to it directly |
+| `studio.registerSettingsSection({ id, label, icon, component, menu? })` | A section of the settings, one level down in Settings › Plugins, at `/studio/settings/plugins?show=<id>` (`/studio/settings/<id>` leads there). `menu`: the user menu links to it directly |
 | `studio.registerSpaceSection({ id, group?, label, hint?, component })` | A section of a part of the space page at `/studio/space/<group>#<id>`, below the part’s own. See [The space](#the-space) |
 | `studio.registerSpacePart({ id, label, icon, after?, component })` | A part of the space page of the plugin’s own, at `/studio/space/<id>`. See [A part of the plugin’s own](#a-part-of-the-plugins-own) |
 | `studio.registerShareSection({ runner, component })` | A runner’s own settings for a wizard (a keyword), under the share dialog’s gear once the runner is on and set up. See [Runners](./runners.md#the-runners-part-of-the-share-dialog) |
