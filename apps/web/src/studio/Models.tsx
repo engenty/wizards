@@ -36,9 +36,10 @@ import {
   type LucideIcon,
   MessageCircle,
   PenLine,
+  Split,
   Volume2,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../lib/api";
 import { lang, t } from "../lib/i18n";
@@ -94,6 +95,21 @@ interface ModelsState {
   prices: Partial<Record<ModelClass, ClassPrice | null>> | null;
   /** The media models the credits pay for, which a binding may name. */
   creditModels: CreditModel[];
+  decision: DecisionState;
+}
+
+/** The ways to a decision model, in the order `auto` tries them. */
+const DECISION_WAYS = ["gateway", "typesafe", "local", "credits"] as const;
+type DecisionWay = (typeof DECISION_WAYS)[number];
+type DecisionChoice = "auto" | DecisionWay | "llm";
+
+/** Who answers decisions: the choice, which ways have a decision model, which one answers now. */
+interface DecisionState {
+  choice: DecisionChoice;
+  ready: Record<DecisionWay, boolean>;
+  /** Null: no decision model answers, the Classifier language model does. */
+  way: DecisionWay | null;
+  model: string | null;
 }
 
 interface AppleStatus {
@@ -110,6 +126,7 @@ interface ModelsInput {
   bindings?: Partial<Record<ModelClass, string>>;
   ollamaUrl?: string;
   creditFallback?: boolean;
+  decision?: DecisionChoice;
   keys?: Partial<Record<ProviderId, string>>;
 }
 
@@ -1866,10 +1883,170 @@ function CreditsPanel({
   );
 }
 
+/** The decision model a way reaches, by name. */
+function decisionName(way: DecisionWay, place: Place): string {
+  switch (way) {
+    case "gateway":
+      return `Jev · ${providerInfo("gateway")?.name ?? "Vercel AI Gateway"}`;
+    case "typesafe":
+      return "Jev · TypeSafe";
+    case "local":
+      return `Clef-flash · ${t("models.way.local")}`;
+    default:
+      return `Jev · ${place.cloud ? t("models.creditsOrganization") : t("models.creditsName")}`;
+  }
+}
+
+/** How decisions are answered now, in a few words: the menu's note and the panel's status. */
+function decisionText(
+  state: ModelsState,
+  place: Place,
+): { text: string; tone: "done" | "ok" | "warn" } {
+  const { way } = state.decision;
+  if (way) {
+    return {
+      text: decisionName(way, place).split(" · ")[0],
+      tone: way === "credits" ? "ok" : "done",
+    };
+  }
+  return state.ways.classifier.kind === "none"
+    ? { text: t("models.way.none"), tone: "warn" }
+    : { text: t("models.decisionByLlm"), tone: "done" };
+}
+
+/**
+ * Decisions: a decision model (Jev, Clef-flash) answers typed questions with probabilities.
+ * Where none is at hand, the Classifier language model answers the same questions.
+ */
+function DecisionPanel({
+  state,
+  place,
+  onOpen,
+}: {
+  state: ModelsState;
+  place: Place;
+  onOpen: (target: Target) => void;
+}) {
+  const save = useSave();
+  const [needsAccount, setNeedsAccount] = useState(false);
+  const { choice, ready } = state.decision;
+  const status = decisionText(state, place);
+  const pick = (next: DecisionChoice) => {
+    setNeedsAccount(false);
+    if (next === "gateway" && !ready.gateway) {
+      // The key comes first: its page takes it.
+      onOpen({ type: "provider", id: "gateway" });
+      return;
+    }
+    if (next === "credits" && !ready.credits) {
+      setNeedsAccount(true);
+      return;
+    }
+    save.mutate({ decision: next });
+  };
+  const notes: Record<DecisionWay, string> = {
+    gateway: ready.gateway ? t("models.noteKey") : t("models.noteNoKey"),
+    typesafe: ready.typesafe ? t("models.noteShellKey") : t("models.decisionNoTypesafeKey"),
+    local: ready.local ? t("models.decisionLocalReady") : t("models.decisionLocalMissing"),
+    credits: ready.credits ? t("models.noteUsage") : t("models.noteNeedsAccount"),
+  };
+  const fallback = state.ways.classifier;
+  return (
+    <div className="flex flex-col gap-5">
+      <PanelHead
+        icon={Split}
+        title={t("models.cap.decision")}
+        lead={t("models.cap.decision.hint")}
+        status={<Status text={status.text} tone={status.tone} />}
+      />
+      <Card className="flex flex-col gap-6 p-3.5 sm:p-5 sm:p-6">
+        <Part title={t("models.who")}>
+          {place.cloud ? (
+            <>
+              <OptionGroup label={t("models.decisionModelGroup")}>
+                <Option
+                  title={decisionName("credits", place)}
+                  note={t("models.decisionCloudHint")}
+                  noteTone="done"
+                  selected
+                  disabled
+                  onPick={() => undefined}
+                />
+              </OptionGroup>
+              <Hint>{t("models.decisionCloudHint")}</Hint>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-3">
+                <OptionGroup label={t("models.decisionModelGroup")}>
+                  <Option
+                    title={t("models.decisionAuto")}
+                    note={t("models.decisionAutoNote")}
+                    noteTone={DECISION_WAYS.some((w) => ready[w]) ? "done" : undefined}
+                    selected={choice === "auto"}
+                    disabled={!place.canEdit}
+                    onPick={() => pick("auto")}
+                  />
+                  {DECISION_WAYS.map((way) => (
+                    <Option
+                      key={way}
+                      title={decisionName(way, place)}
+                      note={notes[way]}
+                      noteTone={ready[way] ? "done" : undefined}
+                      selected={choice === way}
+                      disabled={!place.canEdit}
+                      onPick={() => pick(way)}
+                    />
+                  ))}
+                </OptionGroup>
+                <OptionGroup label={t("models.optOther")}>
+                  <Option
+                    title={t("models.decisionLlm")}
+                    note={t("models.decisionLlmNote")}
+                    noteTone={fallback.kind === "none" ? undefined : "done"}
+                    selected={choice === "llm"}
+                    disabled={!place.canEdit}
+                    onPick={() => pick("llm")}
+                  />
+                </OptionGroup>
+              </div>
+              {needsAccount ? (
+                <p className="text-[0.8125rem] text-ink-2">
+                  {t("local.sourceNeedsAccount")} <AccountLink />
+                </p>
+              ) : null}
+              {choice === "local" && !ready.local ? (
+                <p className="text-[0.8125rem] text-ink-2">{t("models.decisionLocalHint")}</p>
+              ) : null}
+              {save.isError ? (
+                <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+              ) : null}
+              <Hint>{t("models.decisionHint")}</Hint>
+            </>
+          )}
+        </Part>
+        <Part title={t("models.decisionFallback")} aside={<Status {...wayText(fallback, place)} />}>
+          <Hint>{t("models.decisionFallbackHint")}</Hint>
+          {fallback.kind === "none" ? (
+            <p className="text-[0.8125rem] text-ink-2">{t("models.decisionFallbackNone")}</p>
+          ) : null}
+          <div>
+            <Button variant="secondary" onClick={() => onOpen({ type: "cap", id: "text" })}>
+              {t("models.decisionOpenText")}
+              <ArrowRight className="size-4" />
+            </Button>
+          </div>
+        </Part>
+      </Card>
+    </div>
+  );
+}
+
 // --- the page ----------------------------------------------------------------------
 
 type Target =
   | { type: "chat" }
+  | { type: "decision" }
   | { type: "cap"; id: ModelCapability }
   | { type: "provider"; id: ProviderId }
   | { type: "client"; id: HarnessId }
@@ -1882,8 +2059,8 @@ function targetOf(show: string | null): Target {
   if (show === "credits") {
     return { type: "credits" };
   }
-  if (show === "chat") {
-    return { type: "chat" };
+  if (show === "chat" || show === "decision") {
+    return { type: show };
   }
   if ((MODEL_CAPABILITIES as readonly string[]).includes(show)) {
     return { type: "cap", id: show as ModelCapability };
@@ -1895,7 +2072,9 @@ function targetOf(show: string | null): Target {
 }
 
 const showOf = (target: Target) =>
-  target.type === "credits" || target.type === "chat" ? target.type : target.id;
+  target.type === "credits" || target.type === "chat" || target.type === "decision"
+    ? target.type
+    : target.id;
 
 /** In development the page can be looked at as the local install, with an account, or in the cloud. */
 function Preview({ view, onView }: { view: View; onView: (v: View) => void }) {
@@ -1933,6 +2112,8 @@ function targetLabel(target: Target, me: Me | null | undefined): string {
   switch (target.type) {
     case "chat":
       return t("models.cap.chat");
+    case "decision":
+      return t("models.cap.decision");
     case "cap":
       return t(`models.cap.${target.id}`);
     case "provider":
@@ -1991,15 +2172,32 @@ export function Models() {
           {MODEL_CAPABILITIES.map((cap) => {
             const way = state.ways[LEAD_CLASS[cap]];
             return (
-              <MenuRow
-                key={cap}
-                icon={CAP_ICON[cap]}
-                label={t(`models.cap.${cap}`)}
-                tone={capTone(way)}
-                toneLabel={wayText(way, place).text}
-                selected={isOpen({ type: "cap", id: cap })}
-                onPick={() => open({ type: "cap", id: cap })}
-              />
+              <Fragment key={cap}>
+                <MenuRow
+                  icon={CAP_ICON[cap]}
+                  label={t(`models.cap.${cap}`)}
+                  tone={capTone(way)}
+                  toneLabel={wayText(way, place).text}
+                  selected={isOpen({ type: "cap", id: cap })}
+                  onPick={() => open({ type: "cap", id: cap })}
+                />
+                {isText(cap) ? (
+                  <MenuRow
+                    icon={Split}
+                    label={t("models.cap.decision")}
+                    tone={
+                      state.decision.way
+                        ? state.decision.way === "credits"
+                          ? "credits"
+                          : "done"
+                        : capTone(state.ways.classifier)
+                    }
+                    toneLabel={decisionText(state, place).text}
+                    selected={isOpen({ type: "decision" })}
+                    onPick={() => open({ type: "decision" })}
+                  />
+                ) : null}
+              </Fragment>
             );
           })}
         </MenuGroup>
@@ -2075,6 +2273,8 @@ export function Models() {
       )}
       {target.type === "chat" ? (
         <ChatPanel me={me.data} state={state} place={place} onOpen={open} />
+      ) : target.type === "decision" ? (
+        <DecisionPanel state={state} place={place} onOpen={open} />
       ) : target.type === "cap" ? (
         <CapabilityPanel
           key={target.id}

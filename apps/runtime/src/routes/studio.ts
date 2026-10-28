@@ -105,6 +105,7 @@ import {
   checkKey,
   classProblem,
   classWays,
+  DECISION_CHOICES,
   hasTextModel,
   LOCAL_KEYS,
   localModelSettings,
@@ -331,6 +332,7 @@ const modelsInput = z.object({
   bindings: z.partialRecord(z.enum(MODEL_CLASSES), z.string().max(160)).optional(),
   ollamaUrl: z.string().max(200).optional(),
   creditFallback: z.boolean().optional(),
+  decision: z.enum(DECISION_CHOICES).optional(),
   keys: z.partialRecord(z.enum(LOCAL_KEYS), z.string().max(400)).optional(),
 });
 
