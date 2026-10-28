@@ -23,6 +23,7 @@ import {
 import { OrganizationGeneral, OrganizationKeys, OrganizationMembers } from "./OrganizationSettings";
 import { PersonApps, PersonOrganizations, PersonProfile } from "./PersonAccount";
 import { projectReadOnlyText, ReadOnlyNote } from "./ReadOnly";
+import { FeatureSwitches, RuntimeSetup } from "./RuntimeSettings";
 import {
   BackRow,
   LevelHead,
@@ -225,6 +226,8 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
               {current.id === "integrate" ? <Integrate /> : null}
               {current.id === "account" && me.data ? <Account me={me.data} /> : null}
               {current.id === "cloud" ? <CloudSyncSection /> : null}
+              {current.id === "setup" && me.data ? <RuntimeSetup me={me.data} /> : null}
+              {current.id === "features" && me.data ? <FeatureSwitches me={me.data} /> : null}
               {current.id === "about" ? (
                 <Suspense fallback={null}>
                   <AboutPanel me={me.data} active initialTab={aboutTab(params.get("tab"))} />

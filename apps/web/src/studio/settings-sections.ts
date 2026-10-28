@@ -12,14 +12,17 @@ import {
   type LucideIcon,
   Plug,
   Receipt,
+  ToggleRight,
   UserRound,
   Users,
+  Wrench,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { t } from "../lib/i18n";
 import type { Me } from "../lib/session";
 import type { StudioPlugins } from "../plugins/host";
 import { cloudSyncOn } from "./CloudSync";
+import { runtimeSettingsOn } from "./RuntimeSettings";
 
 export interface SettingsSection {
   id: string;
@@ -123,6 +126,18 @@ export function settingsSections(
     // plan's Pro modules (ProModulesSection).
     ...(plugins.plugins.length || plugins.problems.length || (plugins.canReload && me?.account)
       ? [inStudio({ id: "plugins", label: t("plugins.title"), icon: Blocks, menu: false })]
+      : []),
+    // What holds for the whole runtime: on this computer, or for the platform's admins.
+    ...(runtimeSettingsOn(me)
+      ? [
+          inStudio({ id: "setup", label: t("runtime.setupNav"), icon: Wrench, menu: false }),
+          inStudio({
+            id: "features",
+            label: t("runtime.featuresNav"),
+            icon: ToggleRight,
+            menu: false,
+          }),
+        ]
       : []),
     // Which release this is, its updates, what is new, the credits.
     { id: "about", label: t("about.nav"), icon: Info, menu: false },
