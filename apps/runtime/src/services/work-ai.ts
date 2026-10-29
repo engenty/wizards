@@ -6,8 +6,9 @@ import { chatTurnWay } from "../agents/subscription.js";
 import { HarnessModel } from "../harness/index.js";
 import { managed } from "../manage.js";
 import { attachTools, chatModel, gatewayTools, type ResolvedModel } from "../models.js";
+import { pluginsOf } from "../plugins/registry.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { assistantToolRisk, assistantToolsOf } from "../tools/plugin.js";
+import { assistantToolPlugin, assistantToolRisk, assistantToolsOf } from "../tools/plugin.js";
 import { ClientSteps } from "./client-steps.js";
 import { searchKnowledge } from "./project-index.js";
 import { holdCall } from "./work-approvals.js";
@@ -25,6 +26,16 @@ export const TURN_MS = 20 * 60_000;
 /** Steps one turn may take. */
 export const MAX_STEPS = 16;
 
+/**
+ * What the person chose in the composer for the turns they ask for: `extra`, the way's more
+ * capable model; `web: false`, no web search; `pluginsOff`, plugins whose tools stay out.
+ */
+export interface TurnChoice {
+  extra?: boolean;
+  web?: boolean;
+  pluginsOff?: string[];
+}
+
 export interface WorkTurn {
   resolved: ResolvedModel<unknown>;
   tools: Record<string, unknown>;
@@ -39,12 +50,20 @@ const instructionsFor = (space: string) =>
     "Write short, plain answers. Use lists or a table where they help.",
   ].join("\n\n");
 
-/** The space's tools for a turn: its knowledge, the plugins' tools, the web. */
+/** Whether the model can search the web itself: on Anthropic's API, or through the gateway. */
+const searches = (resolved: ResolvedModel<unknown>) =>
+  resolved.vendor === "anthropic" || resolved.gateway;
+
+/**
+ * The space's tools for a turn: its knowledge, the plugins' tools, the web; the plugins and the
+ * web the person turned off (`choice`) left out.
+ */
 async function toolsFor(
   resolved: ResolvedModel<unknown> | null,
   space: { id: string; name: string },
   userId: string,
   signal: AbortSignal,
+  choice: TurnChoice = {},
 ): Promise<Record<string, unknown>> {
   const tools: Record<string, unknown> = {
     search_space: createTool({
@@ -67,12 +86,33 @@ async function toolsFor(
       card: () => {},
     })),
   };
-  if (resolved?.vendor === "anthropic") {
+  for (const [name, tool] of Object.entries(tools)) {
+    const plugin = tool && typeof tool === "object" ? assistantToolPlugin.get(tool) : undefined;
+    if (plugin && choice.pluginsOff?.includes(plugin)) {
+      delete tools[name];
+    }
+  }
+  if (choice.web !== false && resolved?.vendor === "anthropic") {
     tools.web_search = anthropic.tools.webSearch_20250305({ maxUses: 5 });
-  } else if (resolved?.gateway) {
+  } else if (choice.web !== false && resolved?.gateway) {
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
   }
   return sortedTools(tools);
+}
+
+/**
+ * What the composer offers for a turn: web search where the model can search, and the plugins
+ * whose tools the AI has. A way that isn't ready yet searches nothing.
+ */
+export async function composerTools(): Promise<{
+  web: boolean;
+  plugins: { id: string; name: string }[];
+}> {
+  const resolved = await chatModel(await chatTurnWay(managed), "standard").catch(() => null);
+  const plugins = (await pluginsOf(currentTenant()))
+    .filter((p) => p.assistantTools.size > 0)
+    .map((p) => ({ id: p.source.id, name: p.source.manifest.name }));
+  return { web: Boolean(resolved && searches(resolved)), plugins };
 }
 
 /**
@@ -151,17 +191,17 @@ export interface ToolToRun {
 /**
  * Everything a turn of the space's AI needs, made for the person who asked. Calls that reach past
  * the space are held (`gated`); on a client the tools are recorded as they run
- * (client-steps.ts): the client runs them itself. `extra`: the way's more capable model, as the
- * person chose it in the composer.
+ * (client-steps.ts): the client runs them itself. `choice`: what the person chose in the
+ * composer.
  */
 export async function workTurn(
   turn: TurnFor,
   signal: AbortSignal,
   steps: ClientSteps,
-  extra = false,
+  choice: TurnChoice = {},
 ): Promise<WorkTurn> {
-  const resolved = await chatModel(await chatTurnWay(managed), extra ? "high" : "standard");
-  const made = gated(await toolsFor(resolved, turn.space, turn.userId, signal), turn);
+  const resolved = await chatModel(await chatTurnWay(managed), choice.extra ? "high" : "standard");
+  const made = gated(await toolsFor(resolved, turn.space, turn.userId, signal, choice), turn);
   const tools = resolved.model instanceof HarnessModel ? steps.wrap(made) : made;
   attachTools(resolved, tools);
   return { resolved, tools, instructions: instructionsFor(turn.space.name) };
@@ -175,7 +215,7 @@ export interface LazyTurn {
   steps: ClientSteps;
 }
 
-export function lazyTurn(turn: TurnFor, extra = false): LazyTurn {
+export function lazyTurn(turn: TurnFor, choice: TurnChoice = {}): LazyTurn {
   const controller = new AbortController();
   const steps = new ClientSteps();
   let made: Promise<WorkTurn> | null = null;
@@ -185,7 +225,7 @@ export function lazyTurn(turn: TurnFor, extra = false): LazyTurn {
     get() {
       if (!made) {
         setTimeout(() => controller.abort(new Error("The turn took too long.")), TURN_MS).unref();
-        made = workTurn(turn, controller.signal, steps, extra);
+        made = workTurn(turn, controller.signal, steps, choice);
       }
       return made;
     },

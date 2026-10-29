@@ -1,16 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
-import { FolderOpen, MessageSquare, ShieldQuestion } from "lucide-react";
+import { MessageSquare, ShieldQuestion } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router";
 import { Mascot } from "../../brand";
-import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { type Me, useCurrentProject, useMe, type WizardSummary } from "../../lib/session";
 import { Button, cn } from "../../ui";
 import { Composer, type ComposerHandle } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
 import { openExternal } from "../LocalRuntime";
-import { ownLink, sharedLink, whereItRuns } from "../where";
 import {
   type Approval,
   type SidebarChat,
@@ -18,9 +15,9 @@ import {
   useCreateChat,
   useDecide,
   useSidebar,
-  useTurnModels,
   useWaiting,
 } from "./chats";
+import { usePublishedWizards, useTurnChoices, wizardChatLink } from "./choices";
 import { SpaceFilesDialog } from "./SpaceFilesDialog";
 
 /**
@@ -45,20 +42,10 @@ export function WorkHome() {
   const navigate = useNavigate();
   const composer = useRef<ComposerHandle>(null);
   const [choosing, setChoosing] = useState(false);
-  const [extra, setExtra] = useState(false);
-  const models = useTurnModels();
+  const choices = useTurnChoices(project?.id, () => setChoosing(true));
   const [error, setError] = useState<string | null>(null);
   // The same list as the studio's start page: where each wizard runs comes with it.
-  const wizards = (
-    useQuery({
-      queryKey: ["wizards", project?.id, Boolean(me?.account)],
-      queryFn: () => api.get<WizardSummary[]>(`/api/studio/projects/${project?.id}/wizards`),
-      enabled: Boolean(project),
-    }).data ?? []
-  )
-    .filter((w) => w.published)
-    .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1))
-    .slice(0, WIZARDS);
+  const wizards = usePublishedWizards(project?.id).slice(0, WIZARDS);
 
   const titles = new Map(chats.map((c) => [c.id, c.title || t("work.untitled")]));
   const unread = chats.filter((c) => c.unread && c.last);
@@ -96,14 +83,8 @@ export function WorkHome() {
             tall
             autoFocus
             placeholder={t("work.home.ask", { name: space })}
-            chooser={{ on: extra, onChange: setExtra, ...models }}
-            plus={[
-              {
-                icon: <FolderOpen />,
-                label: t("work.files.fromSpace"),
-                onSelect: () => setChoosing(true),
-              },
-            ]}
+            chooser={choices.chooser}
+            plus={choices.plus}
             onSend={async (raw, files, _later, picked = []) => {
               const text = raw.trim();
               if ((!text && !files.length && !picked.length) || !project) {
@@ -114,7 +95,7 @@ export function WorkHome() {
                 const chat = await createChat.mutateAsync({ spaceId: project.id });
                 const added = await uploadFiles(chat.id, files);
                 navigate(`/work/c/${chat.id}`, {
-                  state: { ask: text, files: [...picked, ...added], extra },
+                  state: { ask: text, files: [...picked, ...added], choice: choices.choice },
                 });
                 return true;
               } catch (err) {
@@ -280,11 +261,10 @@ function ApprovalCard({ approval, chat, may }: { approval: Approval; chat: strin
  * piece 7).
  */
 function WizardCard({ wizard: w, me }: { wizard: WizardSummary; me: Me }) {
-  const link = sharedLink(whereItRuns(w, me, w.cloud)) ?? ownLink(w);
   return (
     <button
       type="button"
-      onClick={() => openExternal(`${link}/chat`)}
+      onClick={() => openExternal(wizardChatLink(w, me))}
       title={t("work.home.wizardOpen")}
       className={cn(card, "grid-cols-[auto_1fr] items-start text-left hover:bg-ink/5")}
     >

@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
-import { FolderOpen, Lock, MessageSquarePlus, Sparkles } from "lucide-react";
+import { Lock, MessageSquarePlus, Sparkles } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -42,8 +42,8 @@ import {
   useDecide,
   useOpenChat,
   usePostMessage,
-  useTurnModels,
 } from "./chats";
+import { type ChoiceBody, type TurnChoice, useTurnChoices } from "./choices";
 import { DevButtons, useWorkDev } from "./dev";
 import { SpaceFilesDialog } from "./SpaceFilesDialog";
 import { AiParts, StepsContext } from "./Steps";
@@ -70,15 +70,12 @@ export function ChatView({ id }: { id: string }) {
   const [choosing, setChoosing] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [dropping, setDropping] = useState(false);
-  // Extra effort, as the composer chose it: it goes with each question to the AI.
   const location = useLocation();
   const handedOver = location.state as {
     ask?: string;
     files?: PickedFile[];
-    extra?: boolean;
+    choice?: TurnChoice;
   } | null;
-  const [extra, setExtra] = useState(Boolean(handedOver?.extra));
-  const models = useTurnModels();
   // Someone else's turn runs here: follow it from its start (useChat's resume), once per turn.
   const answering = data?.chat.answeringSince ?? null;
   const followed = useRef<string | null>(null);
@@ -92,20 +89,16 @@ export function ChatView({ id }: { id: string }) {
   const navigate = useNavigate();
   const loaded = Boolean(data);
   const spaceId = data?.chat.spaceId ?? "";
+  // What the composer chose (model, web search, plugins): it goes with each question to the AI.
+  const choices = useTurnChoices(data?.chat.spaceId, () => setChoosing(true), handedOver?.choice);
   const askedFor = useRef<string | null>(null);
   useEffect(() => {
     if (handedOver?.ask !== undefined && loaded && askedFor.current !== location.key) {
       askedFor.current = location.key;
       navigate(location.pathname, { replace: true, state: null });
-      void askWith(
-        turn,
-        spaceId,
-        handedOver.ask,
-        handedOver.files ?? [],
-        Boolean(handedOver.extra),
-      );
+      void askWith(turn, spaceId, handedOver.ask, handedOver.files ?? [], choices.body);
     }
-  }, [handedOver, loaded, spaceId, navigate, location.key, location.pathname, turn]);
+  }, [handedOver, loaded, spaceId, navigate, location.key, location.pathname, turn, choices.body]);
   // How often each of the person's texts was stored when its pending copy first showed.
   const storedBefore = useRef(new Map<string, number>());
   const { project } = useCurrentProject();
@@ -266,15 +259,9 @@ export function ChatView({ id }: { id: string }) {
           tall
           lines={2}
           busy={streaming}
-          chooser={{ on: extra, onChange: setExtra, ...models }}
+          chooser={choices.chooser}
           buttons={<DevButtons dev={dev} messages={messages} />}
-          plus={[
-            {
-              icon: <FolderOpen />,
-              label: t("work.files.fromSpace"),
-              onSelect: () => setChoosing(true),
-            },
-          ]}
+          plus={choices.plus}
           onStop={() => {
             void turn.stop();
             void stopTurn(id);
@@ -295,9 +282,15 @@ export function ChatView({ id }: { id: string }) {
             }
             const fileIds = attached.map((f) => f.id);
             if (later && streaming) {
-              await post.mutateAsync({ id, text, later: true, files: fileIds, extra });
+              await post.mutateAsync({
+                id,
+                text,
+                later: true,
+                files: fileIds,
+                choice: choices.body,
+              });
             } else if (ask || text.startsWith("@")) {
-              void askWith(turn, spaceId, text, attached, extra);
+              void askWith(turn, spaceId, text, attached, choices.body);
             } else {
               await post.mutateAsync({ id, text, files: fileIds });
             }
@@ -317,19 +310,18 @@ export function ChatView({ id }: { id: string }) {
 
 /**
  * Asks the space's AI through `useChat`: the files go along by their ids, and show in the
- * person's message while the turn runs as links into the space's files. `extra`: the turn works
- * with the way's more capable model.
+ * person's message while the turn runs as links into the space's files. `choice`: what the
+ * composer chose for the turn.
  */
 function askWith(
   turn: ReturnType<typeof useAiTurn>,
   spaceId: string,
   text: string,
   files: PickedFile[],
-  extra: boolean,
+  choice: ChoiceBody,
 ) {
-  const effort = extra ? { extra } : {};
   if (!files.length) {
-    return turn.sendMessage({ text }, { body: effort });
+    return turn.sendMessage({ text }, { body: choice });
   }
   const parts = files.map((f) => ({
     type: "file" as const,
@@ -338,7 +330,7 @@ function askWith(
     url: `/api/studio/projects/${spaceId}/files/${f.id}/content`,
   }));
   return turn.sendMessage(text ? { text, files: parts } : { files: parts }, {
-    body: { files: files.map((f) => f.id), ...effort },
+    body: { files: files.map((f) => f.id), ...choice },
   });
 }
 

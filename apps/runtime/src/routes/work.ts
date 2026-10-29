@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
 import { feature, remoteFeatures } from "../features.js";
 import { ServiceError } from "../services/errors.js";
+import { composerTools } from "../services/work-ai.js";
 import {
   addMember,
   attachFile,
@@ -129,11 +130,18 @@ export const workRoutes = new Hono<Vars>()
         files: z.array(z.string().min(1)).max(FILES_PER_MESSAGE).optional(),
         ask: z.boolean().optional(),
         later: z.boolean().optional(),
+        // What the person chose in the composer for the turn (work-ai.ts `TurnChoice`).
         extra: z.boolean().optional(),
+        web: z.boolean().optional(),
+        pluginsOff: z.array(z.string().min(1).max(80)).max(50).optional(),
       })
       .refine((b) => b.text || b.files?.length)
       .parse(await c.req.json());
-    const sent = await sendMessage(c.get("user"), c.req.param("id"), body.text, body);
+    const { extra, web, pluginsOff } = body;
+    const sent = await sendMessage(c.get("user"), c.req.param("id"), body.text, {
+      ...body,
+      choice: { extra, web, pluginsOff },
+    });
     return sent.kind === "turn"
       ? turnResponse(c.get("user"), sent.stream)
       : c.json({ sent: sent.kind });
@@ -155,6 +163,8 @@ export const workRoutes = new Hono<Vars>()
     const stream = await followTurn(c.get("user"), c.req.param("id"));
     return stream ? turnResponse(c.get("user"), stream) : c.body(null, 204);
   })
+  // What the composer offers for the space's AI's turns: web search, the plugins with tools.
+  .get("/composer", async (c) => c.json(await composerTools()))
   .get("/approvals", async (c) => c.json({ approvals: await waitingApprovals(c.get("user")) }))
   .post("/chats/:id/stop", async (c) =>
     c.json({ stopped: await stopTurn(c.get("user"), c.req.param("id")) }),
