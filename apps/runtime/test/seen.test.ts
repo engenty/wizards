@@ -27,3 +27,13 @@ describe("what the AI clients did", () => {
     expect(seenApps("t2")).toEqual({});
   });
 });
+
+describe("what kind of model an app thinks with", () => {
+  it("counts LM Studio and Goose as local, every other app as one on a subscription", async () => {
+    const { appKind } = await import("../src/mcp/seen");
+    expect(appKind("LM Studio")).toBe("local");
+    expect(appKind("goose")).toBe("local");
+    expect(appKind("claude-code")).toBe("subscription");
+    expect(appKind("some renamed app")).toBe("subscription");
+  });
+});

@@ -132,6 +132,26 @@ const de: Record<Key, Line> = {
   "tier.reason.retention": "{model} speichert Daten auf jedem Weg.",
   "tier.reason.training": "{model} darf mit den Daten trainieren.",
   "tier.reason.maker": "Deine Organisation lässt diesen Hersteller aus.",
+  "policy.apps": "Apps in Spaces",
+  "policy.appsLead":
+    "Apps, die Mitglieder per MCP mit einem Space verbinden, lesen seine Wizards, Ergebnisse und Dateien in ihr eigenes Modell.",
+  "policy.apps.all": "alle",
+  "policy.apps.localOnly": "nur lokal",
+  "policy.apps.subscriptionsOnly": "nur Abos",
+  "policy.apps.none": "keine",
+  "policy.appsWhich": "Welche Apps einen Space lesen dürfen",
+  "policy.apps.local": "Apps mit lokalem Modell",
+  "policy.apps.local.hint":
+    "LM Studio, Goose mit Ollama. Was sie aus dem Space lesen, bleibt auf dem Computer des Mitglieds.",
+  "policy.apps.subscriptions": "Apps mit Abos der Mitglieder",
+  "policy.apps.subscriptions.hint":
+    "Claude, ChatGPT, Claude Code, Codex, Cursor. Was sie aus dem Space lesen, geht zu ihrem Anbieter, zu den Bedingungen des Mitglieds.",
+  "policy.appsSeen": "Zuletzt gesehen",
+  "policy.appsAllowed": "erlaubt",
+  "policy.appsRefused": "{n}× abgelehnt",
+  "policy.appsNone": "Seit dem letzten Start hat noch keine App einen Space gelesen.",
+  "policy.appsNote":
+    "Eine App nennt ihren Namen, wenn sie sich verbindet. Solange Apps nicht nachweisen, wer sie sind, kommt eine umbenannte App durch; diese Liste zeigt jede Verbindung.",
   "policy.way": "Wer wählt",
   "policy.wayLead":
     "Wie {organization} {tier} aufteilt: für Wizards, Goose und Arbeitschats. Was gerade läuft, endet so, wie es begonnen hat.",
@@ -3197,6 +3217,26 @@ const en = {
   "tier.reason.retention": "{model} keeps data on every route.",
   "tier.reason.training": "{model} may train on what it gets.",
   "tier.reason.maker": "Your organization leaves this maker out.",
+  "policy.apps": "Apps in spaces",
+  "policy.appsLead":
+    "Apps your members connect to a space over MCP read its wizards, results and files into their own model.",
+  "policy.apps.all": "all",
+  "policy.apps.localOnly": "local only",
+  "policy.apps.subscriptionsOnly": "subscriptions only",
+  "policy.apps.none": "none",
+  "policy.appsWhich": "Which apps may read a space",
+  "policy.apps.local": "Apps with a local model",
+  "policy.apps.local.hint":
+    "LM Studio, Goose on Ollama. Space content stays on the member’s computer.",
+  "policy.apps.subscriptions": "Apps on members’ subscriptions",
+  "policy.apps.subscriptions.hint":
+    "Claude, ChatGPT, Claude Code, Codex, Cursor. Space content goes to their provider under the member’s terms.",
+  "policy.appsSeen": "Seen lately",
+  "policy.appsAllowed": "allowed",
+  "policy.appsRefused": "refused {n}×",
+  "policy.appsNone": "No app has read a space since the last start.",
+  "policy.appsNote":
+    "An app names itself when it connects. Until apps attest who they are, a renamed app gets through; this list shows every connection.",
   "policy.way": "Who chooses",
   "policy.wayLead":
     "How {organization} shares out {tier}: for wizards, Goose and work chats. Running work finishes as it started.",

@@ -125,6 +125,11 @@ const EN = {
   ownKeysNotInTier:
     "Your own API keys aren’t allowed in {tier}. Every call goes through engenty, so the tier’s list holds.",
   ownKeysNotInPolicy: "Your organization’s admins don’t allow your own API keys.",
+  appSubscriptionRefused:
+    "{organization} doesn’t let {app} read this space: it thinks on your own subscription, outside {tier}. Use the studio, an app with a local model, or ask an admin.",
+  appLocalRefused:
+    "{organization} doesn’t let apps with a local model read its spaces, {app} included. Use the studio, or ask an admin.",
+  appYourTier: "your organization’s tier",
   planUnavailable: "The organization’s plan can’t be checked right now. Try again later.",
   shareEmailName: "Email",
   shareEmailDescription: "As attachments to one or more addresses",
@@ -350,6 +355,11 @@ const DE: Partial<Record<ServerKey, Line>> = {
   ownKeysNotInTier:
     "Eigene API-Keys sind in {tier} nicht erlaubt. Jeder Aufruf geht über engenty, so gilt die Liste von {tier}.",
   ownKeysNotInPolicy: "Die Admins deiner Organisation erlauben keine eigenen API-Keys.",
+  appSubscriptionRefused:
+    "{organization} lässt {app} diesen Space nicht lesen: Es denkt mit deinem eigenen Abo, außerhalb von {tier}. Nimm das Studio, eine App mit lokalem Modell, oder frag die Admins.",
+  appLocalRefused:
+    "{organization} lässt Apps mit lokalem Modell ihre Spaces nicht lesen, auch {app} nicht. Nimm das Studio oder frag die Admins.",
+  appYourTier: "der Modellstufe deiner Organisation",
   planUnavailable:
     "Das Paket der Organisation lässt sich gerade nicht prüfen. Versuch es später noch einmal.",
   shareEmailName: "E-Mail",

@@ -104,7 +104,7 @@ import {
   tenantMembers,
   userInfo,
 } from "../manage.js";
-import { seenApps } from "../mcp/seen.js";
+import { checkedApps, seenApps } from "../mcp/seen.js";
 import { generateImageMedia, generateSpeechMedia, generateVideoMedia } from "../media/generate.js";
 import { transcribeAudio } from "../media/transcribe.js";
 import { errorText, saidOf } from "../model-errors.js";
@@ -1785,6 +1785,8 @@ export const studio = new Hono<Vars>()
   })
   // What each AI client did with the MCP server since the start: the test on "Integrate".
   .get("/integrations/seen", (c) => c.json(seenApps(c.get("user").tenantId)))
+  // The apps members used on the spaces, allowed or refused by the organization's model policy.
+  .get("/model-policy/apps", (c) => c.json({ apps: checkedApps(c.get("user").tenantId) }))
   .get("/local/models", (c) => (managed ? c.notFound() : c.json(localModelSettings())))
   .put("/local/models", async (c) => {
     if (managed) {
