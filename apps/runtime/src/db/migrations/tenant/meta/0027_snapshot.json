@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4eb3f8a9-82eb-4c52-ae3f-9b4b49a74c64",
+  "id": "d53607f4-c8dc-438a-949f-737a77f815a8",
   "prevId": "b21b05ff-f306-4b7b-b7bf-425e106e96bc",
   "tables": {
     "asset": {
@@ -286,6 +286,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "title": {
           "name": "title",
           "type": "text",
@@ -337,13 +344,34 @@
           "notNull": true,
           "autoincrement": false,
           "default": "(unixepoch() * 1000)"
+        },
+        "last_author_id": {
+          "name": "last_author_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_author_name": {
+          "name": "last_author_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_text": {
+          "name": "last_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
-        "chat_tenant": {
-          "name": "chat_tenant",
+        "chat_project": {
+          "name": "chat_project",
           "columns": [
-            "tenant_id",
+            "project_id",
             "updated_at"
           ],
           "isUnique": false
@@ -357,6 +385,19 @@
         }
       },
       "foreignKeys": {
+        "chat_project_id_project_id_fk": {
+          "name": "chat_project_id_project_id_fk",
+          "tableFrom": "chat",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "chat_section_id_chat_section_id_fk": {
           "name": "chat_section_id_chat_section_id_fk",
           "tableFrom": "chat",
@@ -459,82 +500,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "chat_message": {
-      "name": "chat_message",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "chat_id": {
-          "name": "chat_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "author_kind": {
-          "name": "author_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "author_id": {
-          "name": "author_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "parts": {
-          "name": "parts",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch() * 1000)"
-        }
-      },
-      "indexes": {
-        "chat_message_chat": {
-          "name": "chat_message_chat",
-          "columns": [
-            "chat_id",
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "chat_message_chat_id_chat_id_fk": {
-          "name": "chat_message_chat_id_chat_id_fk",
-          "tableFrom": "chat_message",
-          "tableTo": "chat",
-          "columnsFrom": [
-            "chat_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
     "chat_section": {
       "name": "chat_section",
       "columns": {
@@ -547,6 +512,13 @@
         },
         "tenant_id": {
           "name": "tenant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "project_id": {
+          "name": "project_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -584,16 +556,30 @@
         }
       },
       "indexes": {
-        "chat_section_tenant": {
-          "name": "chat_section_tenant",
+        "chat_section_project": {
+          "name": "chat_section_project",
           "columns": [
-            "tenant_id",
+            "project_id",
             "position"
           ],
           "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "chat_section_project_id_project_id_fk": {
+          "name": "chat_section_project_id_project_id_fk",
+          "tableFrom": "chat_section",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
