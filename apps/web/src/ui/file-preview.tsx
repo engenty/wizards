@@ -87,23 +87,26 @@ function TypeBadge({ file, large }: { file: PreviewFile; large?: boolean }) {
 
 /**
  * A file as a tile: a picture as itself, any other with its type, name and size. Clicked, it
- * opens; with `onRemove` the cross on its corner takes it out again. `large`: in a sent message.
+ * opens; with `onRemove` the cross on its corner takes it out again. `large`: in a sent message,
+ * where a picture keeps its shape, as large as `imageClassName` lets it (max-h-96 alone).
  */
 export function FileTile({
   file,
   onOpen,
   onRemove,
   large,
+  imageClassName,
 }: {
   file: PreviewFile;
   onOpen?: () => void;
   onRemove?: () => void;
   large?: boolean;
+  imageClassName?: string;
 }) {
   const image = kindOf(file) === "image" && file.url;
   const open = file.url ? onOpen : undefined;
   return (
-    <li className="relative list-none" title={file.name}>
+    <li className="relative max-w-full list-none" title={file.name}>
       <button
         type="button"
         disabled={!open}
@@ -113,7 +116,7 @@ export function FileTile({
           "block overflow-hidden text-left ring-1 ring-border transition enabled:cursor-zoom-in enabled:hover:ring-ink-4",
           image
             ? large
-              ? "rounded-xl"
+              ? "max-w-full rounded-xl"
               : "size-16 rounded-lg"
             : cn(
                 "flex items-center gap-2.5 rounded-xl bg-card p-2 pr-3 enabled:hover:bg-paper-2",
@@ -128,7 +131,9 @@ export function FileTile({
             alt={file.name}
             className={cn(
               "bg-paper-2",
-              large ? "max-h-48 max-w-64 object-cover" : "size-16 object-cover",
+              large
+                ? cn("h-auto w-auto max-w-full object-contain", imageClassName ?? "max-h-96")
+                : "size-16 object-cover",
             )}
           />
         ) : (
