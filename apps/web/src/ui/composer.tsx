@@ -112,6 +112,7 @@ export function Composer({
   className,
   onTalk,
   effort,
+  model,
   ref,
 }: {
   placeholder?: string;
@@ -135,7 +136,12 @@ export function Composer({
   /** Starts a live chat: its button stands where Send does while the field is empty. */
   onTalk?: () => void;
   /** Extra effort: a box in the plus menu; on, the chat works with its more capable model. */
-  effort?: { on: boolean; onChange: (on: boolean) => void };
+  effort?: ComposerEffort;
+  /**
+   * The model, in the plus menu: a list to pick from where the organization's policy lets people
+   * pick, or one line where it names the model.
+   */
+  model?: ComposerModel;
   ref?: Ref<ComposerHandle>;
 }) {
   const [text, setText] = useState("");
@@ -275,7 +281,7 @@ export function Composer({
           {attach ? (
             <>
               {effort ? (
-                <PlusMenu effort={effort} onAttach={() => picker.current?.click()} />
+                <PlusMenu effort={effort} model={model} onAttach={() => picker.current?.click()} />
               ) : (
                 <IconButton label={t("editor.attach")} onClick={() => picker.current?.click()}>
                   <Plus className="size-4" />
@@ -368,15 +374,69 @@ export function Composer({
 
 export type Speech = ReturnType<typeof useDictation>;
 
+export interface ComposerEffort {
+  on: boolean;
+  onChange: (on: boolean) => void;
+  /** The organization's policy allows no extra effort here; `hint` says up to what it does. */
+  disabled?: boolean;
+  hint?: string;
+}
+
+export type ComposerModel =
+  | {
+      items: { id: string; label: string; note: string }[];
+      value: string;
+      onChange: (id: string) => void;
+    }
+  | { line: string; note: string };
+
+/** The model group of the plus menu: the purpose's list, or the one model the chat runs on. */
+function ModelGroup({ model }: { model: ComposerModel }) {
+  return (
+    <>
+      <p className="px-3 pt-1.5 pb-0.5 font-medium text-[0.6875rem] text-ink-3 uppercase tracking-wide">
+        {t("composer.model")}
+      </p>
+      {"line" in model ? (
+        <p className="flex items-baseline gap-2 px-3 py-2 text-[0.875rem]">
+          <span className="flex-1">{model.line}</span>
+          <span className="text-[0.75rem] text-ink-3">{model.note}</span>
+        </p>
+      ) : (
+        model.items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="menuitemradio"
+            aria-checked={item.id === model.value}
+            onClick={() => model.onChange(item.id)}
+            className={cn(
+              "flex w-full items-baseline gap-2 rounded-lg px-3 py-2 text-left text-[0.875rem] hover:bg-paper-2",
+              item.id === model.value && "bg-ember-tint",
+            )}
+          >
+            <span className="flex-1">{item.label}</span>
+            <span className="text-[0.75rem] text-ink-3">{item.note}</span>
+            {item.id === model.value ? <Check className="size-3.5 text-ember-strong" /> : null}
+          </button>
+        ))
+      )}
+      <div className="mx-2 my-1 border-border-soft border-t" />
+    </>
+  );
+}
+
 /**
  * The plus button with its menu: attach files, and the box for extra effort. The menu stands
  * fixed to the window above the button, so a card around the composer does not cut it.
  */
 function PlusMenu({
   effort,
+  model,
   onAttach,
 }: {
-  effort: { on: boolean; onChange: (on: boolean) => void };
+  effort: ComposerEffort;
+  model?: ComposerModel;
   onAttach: () => void;
 }) {
   const [at, setAt] = useState<{ bottom: number; left: number } | null>(null);
@@ -450,24 +510,32 @@ function PlusMenu({
             {t("editor.attach")}
           </button>
           <div className="mx-2 my-1 border-border-soft border-t" />
+          {model ? <ModelGroup model={model} /> : null}
           <button
             type="button"
             role="menuitemcheckbox"
-            aria-checked={effort.on}
+            aria-checked={effort.on && !effort.disabled}
+            disabled={effort.disabled}
             onClick={() => effort.onChange(!effort.on)}
-            className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-paper-2"
+            className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-paper-2 disabled:cursor-default disabled:hover:bg-transparent"
           >
             <span
               className={cn(
                 "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border",
-                effort.on ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                effort.on && !effort.disabled
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input",
               )}
             >
-              {effort.on ? <Check className="size-3" strokeWidth={3} /> : null}
+              {effort.on && !effort.disabled ? <Check className="size-3" strokeWidth={3} /> : null}
             </span>
             <span className="flex flex-col">
-              <span className="text-[0.875rem]">{t("composer.extra")}</span>
-              <span className="text-[0.75rem] text-ink-3">{t("composer.extraHint")}</span>
+              <span className={cn("text-[0.875rem]", effort.disabled && "text-ink-3")}>
+                {t("composer.extra")}
+              </span>
+              <span className="text-[0.75rem] text-ink-3">
+                {effort.hint ?? t("composer.extraHint")}
+              </span>
             </span>
           </button>
         </div>

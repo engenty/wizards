@@ -1,4 +1,5 @@
 import {
+  classIdOf,
   EFFORTS,
   type Effort,
   MAKER_CLASSES,
@@ -18,7 +19,7 @@ import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { cn, Label, Segmented, Select } from "../../ui";
 import { usePopover } from "../../ui/date-picker";
-import { offered, reasonText, runsOnText, useTier } from "../tiers";
+import { offered, purposeChoice, reasonText, runsOnText, useModelTiers } from "../tiers";
 
 /** What a run of the draft is expected to cost. Refetched when a step's shape changes. */
 export function useEstimate(wizardId: string, def: WizardDefinition) {
@@ -76,13 +77,19 @@ export function ModelClassControl({
     effort: Effort | undefined;
   }) => void;
 }) {
-  const tier = useTier();
+  const { tier, modelPolicy } = useModelTiers();
+  // What the organization's admins allow for wizards: way C's list, way B's effort cap.
+  const choice = tier ? purposeChoice(tier, modelPolicy, "wizard") : null;
+  const id = classIdOf({ model: model ?? "standard", maker }, "standard");
+  const allowedEfforts = choice?.efforts(id) ?? [...EFFORTS];
   const none = t("class.effortAuto");
   return (
     <div className="flex flex-col gap-2">
       {tier ? (
         <TierClassControl
           tier={tier}
+          allowed={choice?.allowed ?? (() => true)}
+          notApproved={choice?.notApproved ?? (() => false)}
           model={model}
           maker={maker}
           onChange={(next) => onChange({ ...next, effort })}
@@ -104,6 +111,9 @@ export function ModelClassControl({
       <Segmented
         value={effort ? t(`class.effort.${effort}`) : none}
         options={[none, ...EFFORTS.map((e) => t(`class.effort.${e}`))]}
+        disabled={EFFORTS.filter((e) => !allowedEfforts.includes(e)).map((e) =>
+          t(`class.effort.${e}`),
+        )}
         onChange={(label: string) =>
           onChange({
             model,
@@ -122,11 +132,17 @@ export function ModelClassControl({
  */
 function TierClassControl({
   tier,
+  allowed,
+  notApproved,
   model,
   maker,
   onChange,
 }: {
   tier: ModelTier;
+  /** Offered in the tier and allowed by the organization's policy for wizards. */
+  allowed: (id: string) => boolean;
+  /** Offered in the tier, not on the admins' list. */
+  notApproved: (id: string) => boolean;
   model: StepClass | undefined;
   maker: Maker | undefined;
   onChange: (next: { model: StepClass | undefined; maker: Maker | undefined }) => void;
@@ -134,15 +150,14 @@ function TierClassControl({
   const chosen = model ?? "standard";
   const idOf = (cls: StepClass, by = maker) => (by ? `${by}/${cls}` : cls);
   const makers = MAKERS.filter(
-    (m) => m === maker || MAKER_CLASSES[m].some((c) => offered(tier.classes[idOf(c, m)])),
+    (m) => m === maker || MAKER_CLASSES[m].some((c) => allowed(idOf(c, m))),
   );
   const classes: readonly StepClass[] = maker ? MAKER_CLASSES[maker] : TEXT_CLASSES;
 
   /** Another maker keeps the class where it has it in the tier, else takes the nearest it has. */
   const pickMaker = (next: Maker | undefined) => {
     const has = (cls: StepClass) =>
-      (next ? MAKER_CLASSES[next] : TEXT_CLASSES).includes(cls) &&
-      offered(tier.classes[idOf(cls, next)]);
+      (next ? MAKER_CLASSES[next] : TEXT_CLASSES).includes(cls) && allowed(idOf(cls, next));
     const wanted = next ? chosen : textClassOf(chosen);
     const order: StepClass[] = [wanted, "standard", "high", "low", "highest"];
     onChange({ maker: next, model: order.find(has) ?? (next ? MAKER_CLASSES[next][0] : wanted) });
@@ -167,6 +182,8 @@ function TierClassControl({
       <Label>{t("class.label")}</Label>
       <ClassMenu
         tier={tier}
+        allowed={allowed}
+        notApproved={notApproved}
         classes={classes}
         chosen={chosen}
         idOf={idOf}
@@ -179,9 +196,11 @@ function TierClassControl({
           <ShieldCheck className="size-3.5" />
           {tier.name}
         </span>
-        {offered(current)
-          ? t("tier.runsOn", { model: runsOnText(current) })
-          : `${t("tier.notIn", { tier: tier.name })}. ${reasonText(current)}`}
+        {notApproved(idOf(chosen))
+          ? t("policy.notApproved")
+          : offered(current)
+            ? t("tier.runsOn", { model: runsOnText(current) })
+            : `${t("tier.notIn", { tier: tier.name })}. ${reasonText(current)}`}
       </p>
     </>
   );
@@ -190,6 +209,8 @@ function TierClassControl({
 /** The class field: each class with the model it runs on in the tier; those not offered greyed, with why. */
 function ClassMenu({
   tier,
+  allowed,
+  notApproved,
   classes,
   chosen,
   idOf,
@@ -197,6 +218,8 @@ function ClassMenu({
   onPick,
 }: {
   tier: ModelTier;
+  allowed: (id: string) => boolean;
+  notApproved: (id: string) => boolean;
   classes: readonly StepClass[];
   chosen: StepClass;
   idOf: (cls: StepClass) => string;
@@ -265,7 +288,8 @@ function ClassMenu({
           >
             {classes.map((cls) => {
               const bound = tier.classes[idOf(cls)];
-              const on = offered(bound);
+              const on = offered(bound) && allowed(idOf(cls));
+              const unlisted = notApproved(idOf(cls));
               return (
                 <button
                   key={cls}
@@ -291,16 +315,22 @@ function ClassMenu({
                       <Check className="size-4 text-ink-2" />
                     ) : (
                       <span className="text-[0.75rem] text-ink-3">
-                        {on ? bound.name : t("tier.notIn", { tier: tier.name })}
+                        {on
+                          ? bound.name
+                          : unlisted
+                            ? t("policy.notApprovedShort")
+                            : t("tier.notIn", { tier: tier.name })}
                       </span>
                     )}
                   </span>
                   <span className={cn("text-[0.75rem]", on ? "text-ink-3" : "text-ink-4")}>
-                    {on
+                    {on && offered(bound)
                       ? cls === chosen
                         ? `${bound.name} · ${t(`class.${cls}.hint`)}`
                         : t(`class.${cls}.hint`)
-                      : reasonText(bound)}
+                      : unlisted
+                        ? t("policy.notApproved")
+                        : reasonText(bound)}
                   </span>
                 </button>
               );

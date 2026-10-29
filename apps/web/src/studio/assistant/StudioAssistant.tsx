@@ -35,9 +35,18 @@ import { Mascot } from "../../brand";
 import { lang, t } from "../../lib/i18n";
 import { spokenText } from "../../lib/read-aloud";
 import { PluginFrame, useStudioPlugins } from "../../plugins/host";
-import { Composer, type ComposerHandle, cn, IconButton, LATER_KEYS, Spinner } from "../../ui";
+import {
+  Composer,
+  type ComposerHandle,
+  type ComposerModel,
+  cn,
+  IconButton,
+  LATER_KEYS,
+  Spinner,
+} from "../../ui";
 import { scrollRoot, useDismiss, useTrail } from "../AppFrame";
 import { type ChatCard, type ChatToolCall, Messages, Working } from "../editor/ChatPanel";
+import { offered, purposeChoice, tierClassLabel, useModelTiers } from "../tiers";
 import { type AssistantState, useAssistant, useEarlierChats, useStoredChat } from "./chat";
 import { CopyThread, StepLines, ToolDetails, TurnsDialog, UsageMeter } from "./dev";
 import {
@@ -835,6 +844,51 @@ function Pending({
   );
 }
 
+/**
+ * What the organization's policy lets Goose run on, for the plus menu: the list to pick from (ways
+ * B and C), or the one model (way A); and up to which effort. Nothing without a tier.
+ */
+function useGooseChoice(picked: string | null, onPick: (id: string) => void) {
+  const { tier, modelPolicy } = useModelTiers();
+  const choice = tier ? purposeChoice(tier, modelPolicy, "assistant") : null;
+  const value =
+    choice && choice.way !== "A"
+      ? picked && choice.allowed(picked)
+        ? picked
+        : (choice.default ?? choice.choices[0] ?? null)
+      : null;
+  // What the chat sends is what the menu shows: the default until the person picks.
+  useEffect(() => {
+    if (value && value !== picked) {
+      onPick(value);
+    }
+  }, [value, picked, onPick]);
+  if (!tier || !choice) {
+    return { model: undefined, effort: {} };
+  }
+  const runsOn = (id: string) => {
+    const bound = tier.classes[id];
+    return offered(bound) ? bound.name : "";
+  };
+  const efforts = choice.efforts(value ?? "standard");
+  const model: ComposerModel = value
+    ? {
+        items: choice.choices.map((id) => ({ id, label: tierClassLabel(id), note: runsOn(id) })),
+        value,
+        onChange: onPick,
+      }
+    : { line: runsOn("standard"), note: tier.name };
+  return {
+    model,
+    effort: efforts.includes("high")
+      ? {}
+      : {
+          disabled: true,
+          hint: t("composer.extraCap", { effort: t(`class.effort.${efforts.at(-1) ?? "low"}`) }),
+        },
+  };
+}
+
 function Bottom({
   state,
   composer,
@@ -849,6 +903,7 @@ function Bottom({
 }) {
   const page = usePageAssistant();
   const live = state.live;
+  const choice = useGooseChoice(state.model, state.setModel);
   if (state.view.kind === "earlier") {
     return null;
   }
@@ -878,7 +933,8 @@ function Bottom({
             }
             busy={busy}
             onStop={state.stop}
-            effort={{ on: state.extra, onChange: state.setExtra }}
+            effort={{ on: state.extra, onChange: state.setExtra, ...choice.effort }}
+            model={choice.model}
             onSend={(text, files, later) => state.send(text, files, later ? "queue" : "signal")}
             onTalk={
               canLive

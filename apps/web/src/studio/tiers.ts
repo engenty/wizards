@@ -3,8 +3,17 @@
  * models endpoint while `modelTiers` is on (docs/manage-contract.md, "Model tiers").
  */
 import {
+  EFFORTS,
+  type Effort,
+  MAKER_CLASSES,
+  MAKERS,
+  TEXT_CLASSES,
+} from "@engenty/wizards-shared/definition";
+import {
   type ModelPolicy,
   type ModelTier,
+  type Purpose,
+  type PurposePolicy,
   splitClassId,
   type TierClass,
 } from "@engenty/wizards-shared/tiers";
@@ -54,4 +63,45 @@ export function tierClassLabel(id: string): string {
   const { maker, cls } = splitClassId(id);
   const name = t(`class.${cls}` as Key);
   return maker ? `${t(`maker.family.${maker}`)} · ${name}` : name;
+}
+
+/** The text classes of the tier people can pick: the plain ones, then each maker's. */
+export function pickable(tier: ModelTier): string[] {
+  return [
+    ...TEXT_CLASSES.filter((cls) => cls !== "classifier"),
+    ...MAKERS.flatMap((maker) =>
+      MAKER_CLASSES[maker].map((cls) => `${maker}/${cls}`).filter((id) => id in tier.classes),
+    ),
+  ];
+}
+
+/** The entries a purpose allows in way C: its list, or every offered class of the tier. */
+export function approved(tier: ModelTier, purpose: PurposePolicy): string[] {
+  return purpose.models ?? pickable(tier).filter((id) => offered(tier.classes[id]));
+}
+
+/**
+ * What a purpose lets people pick: the tier's offered classes in ways A and B, the admins' list
+ * in way C; the efforts per class (way C's list, way B's cap); the class a new pick starts on.
+ */
+export function purposeChoice(tier: ModelTier, policy: ModelPolicy | null, purpose: Purpose) {
+  const own = policy?.purposes[purpose] ?? null;
+  const list = policy?.way === "C" && own ? approved(tier, own) : null;
+  const cap = policy?.way === "B" ? (own?.effortCap ?? null) : null;
+  return {
+    way: policy?.way ?? "A",
+    /** Offered in the tier and, in way C, on the admins' list. */
+    allowed: (id: string) => offered(tier.classes[id]) && (!list || list.includes(id)),
+    /** Offered in the tier, but not on way C's list. */
+    notApproved: (id: string) => offered(tier.classes[id]) && Boolean(list) && !list?.includes(id),
+    efforts: (id: string): Effort[] =>
+      list
+        ? (own?.efforts?.[id] ?? [...EFFORTS])
+        : cap
+          ? EFFORTS.slice(0, EFFORTS.indexOf(cap) + 1)
+          : [...EFFORTS],
+    choices: list ?? pickable(tier).filter((id) => offered(tier.classes[id])),
+    default: own?.default ?? null,
+    cap,
+  };
 }

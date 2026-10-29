@@ -65,7 +65,6 @@ import { LocalModels, useLocalModels } from "./LocalModels";
 import { openExternal } from "./LocalRuntime";
 import {
   ApprovedPanel,
-  approved,
   DEFAULT_POLICY,
   DefaultsPanel,
   usePurposes,
@@ -82,6 +81,7 @@ import {
   useDetail,
   useSettingsMenu,
 } from "./settings-menu";
+import { approved } from "./tiers";
 
 /** How a class runs right now, as the runtime resolves it (`classWays`). */
 interface ClassWay {
