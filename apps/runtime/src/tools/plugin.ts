@@ -196,6 +196,31 @@ export async function assistantToolsOf(turn: AssistantTurn): Promise<Record<stri
   return tools;
 }
 
+export interface AssistantToolLabel {
+  /** The plugin's name. */
+  plugin: string;
+  /** The tool's own name, without the plugin's. */
+  tool: string;
+  label: { de: string; en: string } | null;
+}
+
+/** How a Work chat names the plugins' assistant tools in its step lines, by the model's name. */
+export async function assistantToolLabels(
+  tenantId: string,
+): Promise<Record<string, AssistantToolLabel>> {
+  const labels: Record<string, AssistantToolLabel> = {};
+  for (const plugin of await pluginsOf(tenantId)) {
+    for (const tool of plugin.assistantTools.values()) {
+      labels[pluginToolName(plugin.source.id, tool.name)] = {
+        plugin: plugin.source.manifest.name,
+        tool: tool.name,
+        label: tool.label ?? null,
+      };
+    }
+  }
+  return labels;
+}
+
 /**
  * The admin talks to the space assistant from a plugin's own page: what the plugin says that page
  * holds now, and its name. `null` when the tenant has no such plugin.

@@ -1,8 +1,7 @@
-import { Markdown } from "@engenty/wizards-runner";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
-import { Brain, Lock, MessageSquarePlus, ShieldQuestion, Sparkles, Wrench } from "lucide-react";
-import { createContext, Fragment, useContext, useEffect, useRef, useState } from "react";
+import { Lock, MessageSquarePlus, Sparkles } from "lucide-react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Marker, MarkerContent } from "@/components/ui/marker";
@@ -22,19 +21,10 @@ import {
   MessageScrollerViewport,
   useMessageScroller,
 } from "@/components/ui/message-scroller";
-import {
-  Trace,
-  TraceCollapsible,
-  TraceCollapsibleContent,
-  TraceCollapsibleTrigger,
-  TraceIcon,
-  TraceLine,
-  TraceTitle,
-} from "@/components/ui/trace";
 import { EngentyLogoMark } from "../../engenty/logo";
 import { lang, t } from "../../lib/i18n";
 import { useCurrentProject, useMe } from "../../lib/session";
-import { Button, cn } from "../../ui";
+import { cn } from "../../ui";
 import { Composer } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
 import {
@@ -50,12 +40,12 @@ import {
   useOpenChat,
   usePostMessage,
 } from "./chats";
+import { AiParts, StepsContext } from "./Steps";
 
 /**
  * One chat of Work: its title, members and sub-threads, the messages in the shadcn/ui chat
  * parts, and the field to write in. A message's parts are the AI SDK's: people write text; a
- * turn of the space's AI adds its reasoning and tool calls as Trace lines (shadcn/ui AI
- * Elements, Tool).
+ * turn of the space's AI adds its reasoning and tool calls as steps (Steps.tsx).
  */
 
 export function ChatView({ id }: { id: string }) {
@@ -122,7 +112,12 @@ export function ChatView({ id }: { id: string }) {
     may: (a: Approval) => a.askedBy === me || role !== "member",
     decide: (approvalId: string, approve: boolean) => decide.mutate({ id: approvalId, approve }),
     busy: decide.isPending,
+    tools: data.tools ?? {},
   };
+  // The AI's answer streaming right now: the last message, while it is still `useChat`'s.
+  const last = messages.at(-1);
+  const liveId =
+    streaming && last?.author.kind === "ai" && last.id.startsWith("pending-") ? last.id : null;
   const authorOf = (m: ChatMessage): ChatMember | null =>
     m.author.kind === "ai"
       ? null
@@ -138,7 +133,7 @@ export function ChatView({ id }: { id: string }) {
       <ChatHeader chat={data} />
       <div className="min-h-0 flex-1">
         {messages.length ? (
-          <ApprovalsContext.Provider value={approvals}>
+          <StepsContext.Provider value={approvals}>
             {/* Whoever reads at the end stays there as messages and answers come in. */}
             <MessageScrollerProvider key={id} autoScroll>
               <EndOnSend
@@ -168,6 +163,7 @@ export function ChatView({ id }: { id: string }) {
                               mine={mine}
                               author={author}
                               spaceName={project?.name ?? ""}
+                              liveId={liveId}
                             />
                           </MessageScrollerItem>
                         </Fragment>
@@ -178,7 +174,7 @@ export function ChatView({ id }: { id: string }) {
                 <MessageScrollerButton />
               </MessageScroller>
             </MessageScrollerProvider>
-          </ApprovalsContext.Provider>
+          </StepsContext.Provider>
         ) : (
           <p className="grid h-full place-items-center text-[0.9375rem] text-ink-3">
             {t("work.emptyChat")}
@@ -404,11 +400,13 @@ function Turn({
   mine,
   author,
   spaceName,
+  liveId,
 }: {
   group: ChatMessage[];
   mine: boolean;
   author: ChatMember | null;
   spaceName: string;
+  liveId: string | null;
 }) {
   const ai = group[0].author.kind === "ai";
   return (
@@ -426,7 +424,7 @@ function Turn({
         <MessageGroup>
           {group.map((m) =>
             ai ? (
-              <AiParts key={m.id} parts={m.parts} />
+              <AiParts key={m.id} id={m.id} parts={m.parts} live={m.id === liveId} />
             ) : (
               <Bubble
                 key={m.id}
@@ -450,184 +448,3 @@ const textOf = (parts: ChatPart[]) =>
     .filter((p): p is { type: "text"; text: string } => p.type === "text")
     .map((p) => p.text)
     .join("\n");
-
-type ToolPart = Extract<ChatPart, { toolCallId: string }>;
-
-const isTool = (p: ChatPart): p is ToolPart => p.type.startsWith("tool-") && "toolCallId" in p;
-
-/** The chat's held calls and how to decide them, for the cards of the AI's turns. */
-const ApprovalsContext = createContext<{
-  approvals: Map<string, Approval>;
-  may: (a: Approval) => boolean;
-  decide: (id: string, approve: boolean) => void;
-  busy: boolean;
-}>({ approvals: new Map(), may: () => false, decide: () => {}, busy: false });
-
-/** The approval a tool's result names, when the gate held the call. */
-const heldBy = (part: ToolPart): string | null => {
-  const output = part.output as { approval?: unknown; status?: unknown } | undefined;
-  return output && typeof output.approval === "string" && output.status === "waiting"
-    ? output.approval
-    : null;
-};
-
-/** A turn of the space's AI: its steps (reasoning, tool calls) as Trace lines, then its text. */
-function AiParts({ parts }: { parts: ChatPart[] }) {
-  const steps = parts.filter((p) => p.type === "reasoning" || isTool(p));
-  const held = steps
-    .filter(isTool)
-    .map(heldBy)
-    .filter((id): id is string => Boolean(id));
-  const text = textOf(parts);
-  return (
-    <div className="grid gap-3">
-      {steps.length ? (
-        <Trace>
-          {steps.map((part, at) =>
-            isTool(part) ? (
-              <ToolStep key={part.toolCallId} part={part} />
-            ) : (
-              <TraceCollapsible key={at}>
-                <TraceCollapsibleTrigger>
-                  <TraceLine>
-                    <TraceIcon>
-                      <Brain />
-                    </TraceIcon>
-                    <TraceTitle>{t("work.thought")}</TraceTitle>
-                  </TraceLine>
-                </TraceCollapsibleTrigger>
-                <TraceCollapsibleContent>
-                  <p className="whitespace-pre-wrap text-[0.8125rem]">
-                    {String((part as { text?: string }).text ?? "")}
-                  </p>
-                </TraceCollapsibleContent>
-              </TraceCollapsible>
-            ),
-          )}
-        </Trace>
-      ) : null}
-      {held.map((id) => (
-        <ApprovalCard key={id} id={id} />
-      ))}
-      {text ? <Markdown text={text} className="text-[0.9375rem]" /> : null}
-    </div>
-  );
-}
-
-/** A held call (shadcn/ui AI Elements, Confirmation): what the AI wants to do, Approve or Deny. */
-function ApprovalCard({ id }: { id: string }) {
-  const { approvals, may, decide, busy } = useContext(ApprovalsContext);
-  const approval = approvals.get(id);
-  if (!approval) {
-    return null;
-  }
-  const input = JSON.stringify(approval.input ?? {}, null, 2);
-  const state =
-    approval.state === "approved"
-      ? t("work.approval.approved")
-      : approval.state === "denied"
-        ? t("work.approval.denied")
-        : approval.state === "failed"
-          ? t("work.approval.failed")
-          : null;
-  return (
-    <div className="grid gap-2 rounded-xl border border-border bg-card/40 p-3 text-[0.875rem]">
-      <p className="flex items-center gap-2 font-medium text-ink">
-        <ShieldQuestion className="size-4 shrink-0 text-ember" />
-        {t("work.approval.waiting", { name: approval.toolName })}
-      </p>
-      <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-ink/5 p-2 font-mono text-[0.75rem]">
-        {input}
-      </pre>
-      {state ? (
-        <p className="text-ink-3">{state}</p>
-      ) : may(approval) ? (
-        <div className="flex gap-2">
-          <Button size="sm" disabled={busy} onClick={() => decide(approval.id, true)}>
-            {t("work.approval.approve")}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={busy}
-            onClick={() => decide(approval.id, false)}
-          >
-            {t("work.approval.deny")}
-          </Button>
-        </div>
-      ) : (
-        <p className="text-ink-3">{t("work.approval.notYours")}</p>
-      )}
-    </div>
-  );
-}
-
-/** One tool call by the state the AI SDK gives it (shadcn/ui AI Elements, Tool's table). */
-function ToolStep({ part }: { part: ToolPart }) {
-  const { approvals } = useContext(ApprovalsContext);
-  const name = part.type.slice("tool-".length);
-  const icon = (
-    <TraceIcon>
-      <Wrench />
-    </TraceIcon>
-  );
-  // Held by the gate: the line says what the person decided (the card below has the details).
-  const held = part.state === "output-available" ? heldBy(part) : null;
-  if (held) {
-    const decided = approvals.get(held)?.state ?? "pending";
-    return (
-      <TraceLine
-        status={decided === "pending" ? "pending" : decided === "failed" ? "error" : undefined}
-      >
-        {icon}
-        <TraceTitle>
-          {decided === "approved"
-            ? t("work.tool.ran", { name })
-            : decided === "denied"
-              ? t("work.tool.denied", { name })
-              : decided === "failed"
-                ? t("work.tool.failed", { name })
-                : t("work.tool.asks", { name })}
-        </TraceTitle>
-      </TraceLine>
-    );
-  }
-  if (part.state === "output-available" || part.state === "output-error") {
-    const failed = part.state === "output-error";
-    return (
-      <TraceCollapsible>
-        <TraceCollapsibleTrigger>
-          <TraceLine status={failed ? "error" : undefined}>
-            {icon}
-            <TraceTitle>{t(failed ? "work.tool.failed" : "work.tool.ran", { name })}</TraceTitle>
-          </TraceLine>
-        </TraceCollapsibleTrigger>
-        <TraceCollapsibleContent>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-ink/5 p-2 font-mono text-[0.75rem]">
-            {failed ? part.errorText : JSON.stringify(part.output, null, 2)}
-          </pre>
-        </TraceCollapsibleContent>
-      </TraceCollapsible>
-    );
-  }
-  const title =
-    part.state === "output-denied"
-      ? t("work.tool.denied", { name })
-      : part.state === "approval-requested"
-        ? t("work.tool.asks", { name })
-        : t("work.tool.running", { name });
-  return (
-    <TraceLine
-      status={
-        part.state === "output-denied"
-          ? undefined
-          : part.state === "approval-requested"
-            ? "pending"
-            : "running"
-      }
-    >
-      {icon}
-      <TraceTitle>{title}</TraceTitle>
-    </TraceLine>
-  );
-}
