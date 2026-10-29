@@ -32,15 +32,22 @@ export const workRoutes = new Hono<Vars>()
     }
     await next();
   })
-  .get("/chats", async (c) => c.json(await sidebar(c.get("user"), c.req.query("q"))))
+  .get("/chats", async (c) => {
+    const { space, q } = z
+      .object({ space: z.string().min(1), q: z.string().max(200).optional() })
+      .parse(c.req.query());
+    return c.json(await sidebar(c.get("user"), space, q));
+  })
   .post("/chats", async (c) => {
     const body = z
       .object({
+        spaceId: z.string().min(1).optional(),
         title: z.string().max(120).optional(),
         sectionId: z.string().nullable().optional(),
         parentId: z.string().nullable().optional(),
         private: z.boolean().optional(),
       })
+      .refine((b) => b.spaceId || b.parentId)
       .parse(await c.req.json());
     return c.json(await createChat(c.get("user"), body));
   })
@@ -87,8 +94,8 @@ export const workRoutes = new Hono<Vars>()
     return c.json({ ok: true });
   })
   .post("/sections", async (c) => {
-    const body = z.object({ name }).parse(await c.req.json());
-    return c.json(await createSection(c.get("user"), body.name));
+    const body = z.object({ spaceId: z.string().min(1), name }).parse(await c.req.json());
+    return c.json(await createSection(c.get("user"), body.spaceId, body.name));
   })
   .patch("/sections/:id", async (c) => {
     const body = z.object({ name }).parse(await c.req.json());

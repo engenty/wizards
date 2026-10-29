@@ -748,25 +748,26 @@ export const assistantMessage = sqliteTable(
 );
 
 // --- Work's chats (behind `workMode`) --------------------------------------------
-// A chat has members, people and engenties, and lives in a section of the sidebar or in none. A
-// sub-thread is a chat with a parent. A private chat is seen by its members only; any other
-// chat by everyone of the tenant. Messages keep the AI SDK's parts (text, reasoning, tools), so
-// people, engenties and their tool calls share one shape.
-
-/** One part of a message, as the AI SDK's `UIMessage` holds it. */
-export type ChatPartRecord = { type: string } & Record<string, unknown>;
+// A chat belongs to a space, has members (people, later engenties) and lives in a section of
+// the space's sidebar or in none. A sub-thread is a chat with a parent. A private chat is seen by
+// its members only; any other chat by everyone of the tenant. The messages are Mastra's: a
+// memory thread per chat (thread id = chat id, resource id = the space), in Mastra's tables of
+// the same database (services/work-mastra.ts). The chat row keeps what the sidebar shows.
 
 export const chatSection = sqliteTable(
   "chat_section",
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     position: integer("position").notNull().default(0),
     createdBy: text("created_by").notNull(),
     createdAt: createdAt(),
   },
-  (t) => [index("chat_section_tenant").on(t.tenantId, t.position)],
+  (t) => [index("chat_section_project").on(t.projectId, t.position)],
 );
 
 export const chat = sqliteTable(
@@ -774,6 +775,9 @@ export const chat = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     sectionId: text("section_id").references(() => chatSection.id, { onDelete: "set null" }),
     parentId: text("parent_id").references((): AnySQLiteColumn => chat.id, {
@@ -784,8 +788,12 @@ export const chat = sqliteTable(
     createdAt: createdAt(),
     /** The last message's time, else when it was made: the sidebar's order. */
     updatedAt: updatedAt(),
+    /** The last message for the sidebar: who wrote it ("ai" for the space's AI), its start. */
+    lastAuthorId: text("last_author_id"),
+    lastAuthorName: text("last_author_name"),
+    lastText: text("last_text"),
   },
-  (t) => [index("chat_tenant").on(t.tenantId, t.updatedAt), index("chat_parent").on(t.parentId)],
+  (t) => [index("chat_project").on(t.projectId, t.updatedAt), index("chat_parent").on(t.parentId)],
 );
 
 export const chatMember = sqliteTable(
@@ -819,21 +827,6 @@ export const chatState = sqliteTable(
     readAt: integer("read_at", { mode: "timestamp_ms" }),
   },
   (t) => [primaryKey({ columns: [t.chatId, t.userId] })],
-);
-
-export const chatMessage = sqliteTable(
-  "chat_message",
-  {
-    id: text("id").primaryKey(),
-    chatId: text("chat_id")
-      .notNull()
-      .references(() => chat.id, { onDelete: "cascade" }),
-    authorKind: text("author_kind", { enum: ["person", "engenty"] }).notNull(),
-    authorId: text("author_id").notNull(),
-    parts: text("parts", { mode: "json" }).$type<ChatPartRecord[]>().notNull(),
-    createdAt: createdAt(),
-  },
-  (t) => [index("chat_message_chat").on(t.chatId, t.createdAt)],
 );
 
 // --- The wizard's store ------------------------------------------------------
