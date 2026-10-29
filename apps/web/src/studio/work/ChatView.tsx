@@ -20,6 +20,7 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "@/components/ui/message-scroller";
 import {
   Trace,
@@ -76,6 +77,8 @@ export function ChatView({ id }: { id: string }) {
       void turn.resumeStream();
     }
   }, [answering, streaming, turn]);
+  // How often each of the person's texts was stored when its pending copy first showed.
+  const storedBefore = useRef(new Map<string, number>());
   const { project } = useCurrentProject();
   const client = useQueryClient();
   const opened = data?.chat.id;
@@ -97,7 +100,10 @@ export function ChatView({ id }: { id: string }) {
   // Alone with the AI, every message asks it; with more people, the button or an "@" does.
   const people = data.members.filter((m) => m.kind === "person").length;
   const ask = askChoice ?? people <= 1;
-  const messages = [...data.messages, ...pending(turn.messages, me ?? "")];
+  const messages = [
+    ...data.messages,
+    ...pending(turn.messages, me ?? "", data.messages, storedBefore.current),
+  ];
   const approvals = {
     approvals: new Map(data.approvals.map((a) => [a.id, a])),
     may: (a: Approval) => a.askedBy === me || role !== "member",
@@ -120,7 +126,13 @@ export function ChatView({ id }: { id: string }) {
       <div className="min-h-0 flex-1">
         {messages.length ? (
           <ApprovalsContext.Provider value={approvals}>
-            <MessageScrollerProvider key={id}>
+            {/* Whoever reads at the end stays there as messages and answers come in. */}
+            <MessageScrollerProvider key={id} autoScroll>
+              <EndOnSend
+                sent={
+                  messages.filter((m) => m.author.kind === "person" && m.author.id === me).length
+                }
+              />
               <MessageScroller>
                 <MessageScrollerViewport>
                   <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 px-6 py-6">
@@ -137,7 +149,7 @@ export function ChatView({ id }: { id: string }) {
                               <MarkerContent>{dayLabel(first.createdAt)}</MarkerContent>
                             </Marker>
                           ) : null}
-                          <MessageScrollerItem messageId={first.id} scrollAnchor={mine}>
+                          <MessageScrollerItem messageId={first.id}>
                             <Turn
                               group={group}
                               mine={mine}
@@ -212,16 +224,55 @@ export function ChatView({ id }: { id: string }) {
 
 /**
  * What `useChat` holds of a turn under way, as the chat's messages: the person's message and the
- * AI's answer as it streams, until the chat is read again with both stored.
+ * AI's answer as it streams, until the chat is read again with both stored. The person's message
+ * is stored when it is sent, so its copy here goes as soon as the chat read again has it: one
+ * more stored message of the same text than when the copy first showed.
  */
-function pending(messages: UIMessage[], me: string): ChatMessage[] {
-  return messages.map((m) => ({
-    id: `pending-${m.id}`,
-    author:
-      m.role === "user" ? { kind: "person", id: me, name: "" } : { kind: "ai", id: "ai", name: "" },
-    parts: m.parts as ChatPart[],
-    createdAt: new Date().toISOString(),
-  }));
+function pending(
+  messages: UIMessage[],
+  me: string,
+  stored: ChatMessage[],
+  storedBefore: Map<string, number>,
+): ChatMessage[] {
+  const times = (text: string) =>
+    stored.filter(
+      (m) => m.author.kind === "person" && m.author.id === me && textOf(m.parts) === text,
+    ).length;
+  return messages.flatMap((m): ChatMessage[] => {
+    if (m.role === "user") {
+      const text = textOf(m.parts as ChatPart[]);
+      if (!storedBefore.has(m.id)) {
+        storedBefore.set(m.id, times(text));
+      }
+      if (times(text) > (storedBefore.get(m.id) ?? 0)) {
+        return [];
+      }
+    }
+    return [
+      {
+        id: `pending-${m.id}`,
+        author:
+          m.role === "user"
+            ? { kind: "person", id: me, name: "" }
+            : { kind: "ai", id: "ai", name: "" },
+        parts: m.parts as ChatPart[],
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  });
+}
+
+/** The person sent a message: back to the end, where it and the answer show, wherever they read. */
+function EndOnSend({ sent }: { sent: number }) {
+  const { scrollToEnd } = useMessageScroller();
+  const before = useRef(sent);
+  useEffect(() => {
+    if (sent > before.current) {
+      scrollToEnd({ behavior: "smooth" });
+    }
+    before.current = sent;
+  }, [sent, scrollToEnd]);
+  return null;
 }
 
 const titleOf = (data: OpenChat | undefined) =>
