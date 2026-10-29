@@ -21,6 +21,7 @@ import { PRESENCE_KINDS } from "@engenty/wizards-shared/live";
 import { PROJECT_FILE_KINDS } from "@engenty/wizards-shared/projects";
 import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
 import { note } from "@engenty/wizards-shared/run";
+import { type ModelPolicy, modelPolicySchema } from "@engenty/wizards-shared/tiers";
 import {
   PACKAGE_EXTENSION,
   PACKAGE_MAX_BYTES,
@@ -94,8 +95,10 @@ import {
 } from "../local-models.js";
 import {
   installMail,
+  ManageError,
   managed,
   renameTenant,
+  saveModelPolicy,
   saveOrganizationProfile,
   tenantInfo,
   tenantMembers,
@@ -1884,6 +1887,39 @@ export const studio = new Hono<Vars>()
     // Vectors of another model don't compare: every space goes into the index again.
     if (((await embeddingModel().catch(() => null))?.ref ?? null) !== embeddedBy) {
       void reindexAll().catch((err) => console.error("[models] reindex failed", err));
+    }
+    return c.json(await modelSettings(requestLang(c)));
+  })
+  // The organization's model policy (way A/B/C, the lists, where models may run), saved at the
+  // Manage-App by its admins. Behind `modelTiers`.
+  .put("/model-policy", async (c) => {
+    const user = c.get("user");
+    if (!managed || !mayChangeModels(user)) {
+      return c.json({ error: say(c, "onlyOrganizationAdminsChange"), code: "forbidden" }, 403);
+    }
+    const info = await tenantInfo(user.tenantId).catch(() => null);
+    if (!info) {
+      return c.json({ error: say(c, "planUnavailable"), code: "manage_unavailable" }, 503);
+    }
+    if (!feature("modelTiers", info.features) || !info.tier) {
+      return c.notFound();
+    }
+    const policy = modelPolicySchema.parse(await c.req.json());
+    // What the tier rules out stays off, whatever the page sent.
+    const { rules } = info.tier;
+    const allowed: ModelPolicy = {
+      ...policy,
+      ownKeys: policy.ownKeys && rules.ownKeys,
+      subscriptions: policy.subscriptions && !rules.zdr,
+      apps: { ...policy.apps, subscriptions: policy.apps.subscriptions && !rules.zdr },
+    };
+    try {
+      await saveModelPolicy(user.tenantId, user.id, allowed);
+    } catch (err) {
+      if (err instanceof ManageError && err.status < 500) {
+        return c.json({ error: err.message, code: err.code }, err.status as 400);
+      }
+      throw err;
     }
     return c.json(await modelSettings(requestLang(c)));
   })

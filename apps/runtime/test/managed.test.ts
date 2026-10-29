@@ -94,6 +94,11 @@ const manage: Server = createServer(async (req, res) => {
         : { ok: true },
     );
   }
+  if (/^\/v1\/tenants\/[^/]+\/model-policy$/.test(url.pathname) && req.method === "PUT") {
+    const body = JSON.parse(raw);
+    memberCalls.push({ method: "PUT", path: url.pathname, body });
+    return json({ modelPolicy: body.modelPolicy });
+  }
   if (/^\/v1\/users\/[^/]+(\/connections|\/computers)?(\/[^/]+)?$/.test(url.pathname) && req.method !== "GET") {
     memberCalls.push({ method: req.method ?? "", path: url.pathname, body: raw ? JSON.parse(raw) : null });
     return json(req.method === "PATCH" ? { name: JSON.parse(raw).name } : { ok: true });
@@ -583,6 +588,34 @@ describe("a runtime of a Manage-App", () => {
       };
       forgetTenant("tenant-b");
       expect(await (await put({ keys: { openai: "sk-test" } }, b)).json()).toMatchObject({ code: "tier" });
+      // The admins' policy goes to the Manage-App; what the tier rules out stays off.
+      const open = { models: null, default: null, effortCap: null, efforts: null };
+      const policy = {
+        way: "C",
+        purposes: { wizard: { ...open, models: ["standard"] }, assistant: open, work: open },
+        credits: true,
+        ownKeys: true,
+        subscriptions: true,
+        localModels: true,
+        apps: { local: true, subscriptions: true },
+        masking: true,
+      };
+      const saved = await app.fetch(
+        new Request(`${RUNTIME}/api/studio/model-policy`, {
+          method: "PUT",
+          headers: { cookie: b, "content-type": "application/json" },
+          body: JSON.stringify(policy),
+        }),
+      );
+      expect(saved.status).toBe(200);
+      expect(memberCalls.at(-1)).toMatchObject({
+        path: "/v1/tenants/tenant-b/model-policy",
+        body: {
+          actorId: "user-b",
+          modelPolicy: { way: "C", ownKeys: true, subscriptions: false, apps: { subscriptions: false } },
+        },
+      });
+      memberCalls.pop();
     } finally {
       tierOfB = null;
       forgetTenant("tenant-b");

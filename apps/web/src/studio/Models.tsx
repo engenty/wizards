@@ -35,12 +35,14 @@ import {
   ImageIcon,
   KeyRound,
   Laptop,
+  ListChecks,
   type LucideIcon,
   MessageCircle,
   PenLine,
   Search,
   ShieldCheck,
   Split,
+  Users,
   Volume2,
 } from "lucide-react";
 import { Fragment, type ReactNode, useState } from "react";
@@ -61,6 +63,15 @@ import { billingUrl } from "./AppFrame";
 import { HarnessPanel } from "./Harness";
 import { LocalModels, useLocalModels } from "./LocalModels";
 import { openExternal } from "./LocalRuntime";
+import {
+  ApprovedPanel,
+  approved,
+  DEFAULT_POLICY,
+  DefaultsPanel,
+  usePurposes,
+  WayPanel,
+  wayShort,
+} from "./ModelsPolicy";
 import { TierPanel } from "./ModelsTier";
 import { Hint, PanelHead, Part, Status } from "./models-parts";
 import {
@@ -2253,6 +2264,8 @@ function SearchPanel({
 
 type Target =
   | { type: "tier" }
+  | { type: "way" }
+  | { type: "list" }
   | { type: "chat" }
   | { type: "decision" }
   | { type: "search" }
@@ -2271,6 +2284,8 @@ function targetOf(show: string | null): Target {
   }
   if (
     show === "tier" ||
+    show === "way" ||
+    show === "list" ||
     show === "chat" ||
     show === "decision" ||
     show === "search" ||
@@ -2289,6 +2304,8 @@ function targetOf(show: string | null): Target {
 
 const showOf = (target: Target) =>
   target.type === "tier" ||
+  target.type === "way" ||
+  target.type === "list" ||
   target.type === "credits" ||
   target.type === "chat" ||
   target.type === "decision" ||
@@ -2333,10 +2350,15 @@ function targetLabel(
   target: Target,
   me: Me | null | undefined,
   tier: ModelTier | null | undefined,
+  way: ModelPolicy["way"],
 ): string {
   switch (target.type) {
     case "tier":
       return tier?.name ?? t("tier.group");
+    case "way":
+      return t("policy.way");
+    case "list":
+      return t(way === "B" ? "policy.defaults" : "policy.approved");
     case "chat":
       return t("models.cap.chat");
     case "decision":
@@ -2375,7 +2397,9 @@ export function Models() {
   const target = targetOf(show);
   const tiers = useFeature("modelTiers");
   const tier = tiers ? (models.data?.tier ?? null) : null;
-  useDetail(show || !narrow ? targetLabel(target, me.data, tier) : null);
+  const policy = models.data?.modelPolicy ?? DEFAULT_POLICY;
+  const purposes = usePurposes();
+  useDetail(show || !narrow ? targetLabel(target, me.data, tier, policy.way) : null);
   if (!me.data || !models.data) {
     return models.isError ? (
       <p className="text-[0.875rem] text-rose">{(models.error as Error).message}</p>
@@ -2414,6 +2438,30 @@ export function Models() {
               selected={isOpen({ type: "tier" })}
               onPick={() => open({ type: "tier" })}
             />
+            <MenuRow
+              icon={Users}
+              label={t("policy.way")}
+              badge={<span className="text-[0.75rem] text-ink-3">{wayShort(policy.way)}</span>}
+              selected={isOpen({ type: "way" })}
+              onPick={() => open({ type: "way" })}
+            />
+            {policy.way === "A" ? null : (
+              <MenuRow
+                icon={ListChecks}
+                label={t(policy.way === "C" ? "policy.approved" : "policy.defaults")}
+                badge={
+                  <span className="text-[0.75rem] text-ink-3">
+                    {policy.way === "C"
+                      ? t("policy.approvedShort", {
+                          n: approved(tier, policy.purposes.wizard).length,
+                        })
+                      : t("policy.defaultsShort", { n: purposes.length })}
+                  </span>
+                }
+                selected={isOpen({ type: "list" })}
+                onPick={() => open({ type: "list" })}
+              />
+            )}
           </MenuGroup>
         ) : null}
         <MenuGroup label={t("models.groupStudio")}>
@@ -2569,7 +2617,18 @@ export function Models() {
           {t("models.readOnly")}
         </p>
       )}
-      {target.type === "tier" && tier ? (
+      {target.type === "way" && tier ? (
+        <WayPanel
+          tier={tier}
+          policy={policy}
+          organization={me.data.tenant.name}
+          canEdit={place.canEdit}
+        />
+      ) : target.type === "list" && tier && policy.way === "C" ? (
+        <ApprovedPanel tier={tier} policy={policy} canEdit={place.canEdit} />
+      ) : target.type === "list" && tier && policy.way === "B" ? (
+        <DefaultsPanel tier={tier} policy={policy} canEdit={place.canEdit} />
+      ) : target.type === "tier" && tier ? (
         <TierPanel
           tier={tier}
           modelPolicy={state.modelPolicy ?? null}
