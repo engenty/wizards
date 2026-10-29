@@ -1,7 +1,7 @@
 import type { LookupAddress, LookupOptions } from "node:dns";
 import { lookup } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
-import { Agent } from "undici";
+import { Agent, fetch as pinnedFetch } from "undici";
 import { prompt } from "../prompts.js";
 
 const ALLOW_PRIVATE = process.env.ALLOW_PRIVATE_FETCH === "1";
@@ -161,15 +161,19 @@ const pinned = new Agent({
   },
 });
 
-/** fetch that re-checks every redirect hop, so a public URL cannot bounce into the private network. */
+/**
+ * fetch that re-checks every redirect hop, so a public URL cannot bounce into the private network.
+ * It is undici's own fetch: the global one bundles Node's undici, which cannot drive this
+ * version's Agent.
+ */
 export async function safeFetch(raw: string, init: RequestInit = {}): Promise<Response> {
   let url = await assertPublicUrl(raw);
   for (let hop = 0; hop < 6; hop++) {
-    const res = await fetch(url, {
-      ...init,
+    const res = (await pinnedFetch(url, {
+      ...(init as object),
       redirect: "manual",
       dispatcher: pinned,
-    } as RequestInit);
+    })) as unknown as Response;
     const location = res.headers.get("location");
     if (res.status < 300 || res.status >= 400 || !location) {
       return res;
