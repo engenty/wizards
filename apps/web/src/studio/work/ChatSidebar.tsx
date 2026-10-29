@@ -11,6 +11,7 @@ import {
   Link2,
   ListFilter,
   Lock,
+  MessageSquare,
   MessageSquarePlus,
   MoreHorizontal,
   Pencil,
@@ -74,7 +75,7 @@ import {
 } from "./chats";
 
 /**
- * Chats' sidebar in Work: a new chat, the search, the pinned chats, the sections and the chats in
+ * Chats' sidebar in Work: Work itself on top (its start page), a new chat, the search, the pinned chats, the sections and the chats in
  * none, each chat with its sub-threads beneath it. A chat is pinned, archived, marked unread,
  * renamed, moved (also by dragging it onto a section) and deleted from its row: the buttons on
  * hover, the ⋯ menu, a right click, or a key while the row has focus.
@@ -158,6 +159,19 @@ export function ChatSidebar() {
         aria-label={t("work.chats")}
         className="flex w-72 shrink-0 flex-col gap-0.5 overflow-y-auto border-border-soft border-r p-2 text-[0.875rem]"
       >
+        <NavLink
+          to="/work"
+          end
+          className={({ isActive }) =>
+            cn(
+              "mb-1 flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 font-semibold text-ink hover:bg-ink/5",
+              isActive && "bg-ink/10 hover:bg-ink/10",
+            )
+          }
+        >
+          <MessageSquare className="size-4 shrink-0" />
+          {t("mode.work")}
+        </NavLink>
         <button
           type="button"
           onClick={() => newChat()}
