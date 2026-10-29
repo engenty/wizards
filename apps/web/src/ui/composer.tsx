@@ -127,7 +127,7 @@ export const LATER_KEYS =
  * text, and on the last line once it grows. `floating` lifts it off the page for a composer that
  * stands at the lower edge of the window. With `onStop`, an answer under way (`busy`) does not
  * lock it: Enter sends on, ⌘↩ (Ctrl+↩) for after the answer, and an empty field offers Stop.
- * `tall`: the field starts at four lines, with its buttons in a row below it (the new-wizard page).
+ * `tall`: the field starts at `lines` lines (four), with its buttons in a row below it.
  */
 export function Composer({
   placeholder,
@@ -146,6 +146,7 @@ export function Composer({
   buttons,
   plus,
   tall: big,
+  lines = 4,
   ref,
 }: {
   placeholder?: string;
@@ -182,6 +183,8 @@ export function Composer({
   /** More entries for the plus menu, e.g. the space's files. */
   plus?: PlusItem[];
   tall?: boolean;
+  /** With `tall`: the lines the field starts at. */
+  lines?: number;
   ref?: Ref<ComposerHandle>;
 }) {
   const [text, setText] = useState("");
@@ -351,7 +354,7 @@ export function Composer({
   const field = (
     <textarea
       ref={area}
-      rows={big ? 4 : 1}
+      rows={big ? lines : 1}
       value={text}
       autoFocus={autoFocus}
       onChange={(e) => setText(e.target.value)}
@@ -371,10 +374,12 @@ export function Composer({
       placeholder={
         dropping ? t("new.dropHint") : speech.listening ? t("editor.listening") : placeholder
       }
+      // Tall, the field is `lines` lines of 1.5rem at least.
+      style={big ? { minHeight: `${lines * 1.5}rem` } : undefined}
       className={cn(
         "max-h-[200px] resize-none bg-transparent outline-none placeholder:text-ink-4",
         big
-          ? "min-h-24 w-full px-3 pt-2.5 pb-1 text-[1rem] leading-6"
+          ? "w-full px-3 pt-2.5 pb-1 text-[1rem] leading-6"
           : "min-h-9 flex-1 py-2 text-[0.875rem] leading-5 placeholder:truncate coarse:min-h-11 coarse:py-3",
         !big && (attach ? "px-1" : "px-3"),
       )}

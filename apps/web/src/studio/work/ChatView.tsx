@@ -261,6 +261,8 @@ export function ChatView({ id }: { id: string }) {
           key={id}
           ref={composer}
           autoFocus
+          tall
+          lines={2}
           busy={streaming}
           chooser={{ on: extra, onChange: setExtra, ...models }}
           plus={[
