@@ -47,7 +47,7 @@ Errors: `{ "error": string, "code": string }`.
 
 | Call | Body → answer |
 |---|---|
-| `GET /v1/tenants/:id` | → `{ id, name, slug?, pagesHost?, status: "active" \| "suspended" \| "deleted", balanceCredits, plan?: { id, name }, limits: { concurrentRuns, projects?, build?, members? }, modules?: string[], features?: { [id]: boolean }, db: { url: string } \| null }` · `db: null` means the runtime keeps the tenant's database as a file · `slug`, `pagesHost`: the organization's address (`acme`, `acme.wizards.page`), shown in the studio's "Public page" part; an older Manage-App names none · `plan`: the plan the tenant is on (Free, Pro, Team, …), shown in the studio · `limits.projects`: how many projects the tenant works with (the studio shows a project switcher above one; a project a local install synced counts); `null` for as many as it wants; left out, the runtime keeps one · `limits.build: false`: the tenant makes and changes nothing on the runtime, its studio shows what its local install synced; left out, it builds · `limits.members`: the people the plan allows (`null`: no limit), shown on the studio's organization page; the Manage-App enforces it · `modules` (optional, a list of plugin ids): the plugins of the runtime switched on for the tenant, besides the runtime's `PLUGINS_DEFAULT`; an id the runtime has no plugin for is ignored ([content/dev/plugins/shipping.md](content/dev/plugins/shipping.md)) · `features`: the plan's switches the runtime reads; one not named is off. Known: `ownKeys` — the tenant's own API keys and bindings to a provider's model in the cloud studio (`PUT /api/studio/models` refuses them with `403 { code: "plan" }` otherwise) · `level`: `{ level, name, next: { level, name, runs, published } \| null, progress: { runs, published } }`, what the team's use earned (or an admin gave it); the studio's catalog shows a template from its `level` on and the featured ones first; `features` already leave off what a level above the team's opens · `holds`: `{ page: { reason } \| null, wizards: [{ id, reason }] }`, what an admin held; a held wizard's run page starts no new run (`wizardPaused`) |
+| `GET /v1/tenants/:id` | → `{ id, name, slug?, pagesHost?, status: "active" \| "suspended" \| "deleted", balanceCredits, plan?: { id, name }, limits: { concurrentRuns, projects?, build?, members? }, modules?: string[], features?: { [id]: boolean }, db: { url: string } \| null }` · `db: null` means the runtime keeps the tenant's database as a file · `slug`, `pagesHost`: the organization's address (`acme`, `acme.wizards.page`), shown in the studio's "Public page" part; an older Manage-App names none · `plan`: the plan the tenant is on (Free, Pro, Team, …), shown in the studio · `limits.projects`: how many projects the tenant works with (the studio shows a project switcher above one; a project a local install synced counts); `null` for as many as it wants; left out, the runtime keeps one · `limits.build: false`: the tenant makes and changes nothing on the runtime, its studio shows what its local install synced; left out, it builds · `limits.members`: the people the plan allows (`null`: no limit), shown on the studio's organization page; the Manage-App enforces it · `modules` (optional, a list of plugin ids): the plugins of the runtime switched on for the tenant, besides the runtime's `PLUGINS_DEFAULT`; an id the runtime has no plugin for is ignored ([content/dev/plugins/shipping.md](content/dev/plugins/shipping.md)) · `features`: the plan's switches the runtime reads; one not named is off. Known: `ownKeys` — the tenant's own API keys and bindings to a provider's model in the cloud studio (`PUT /api/studio/models` refuses them with `403 { code: "plan" }` otherwise) · `level`: `{ level, name, next: { level, name, runs, published } \| null, progress: { runs, published } }`, what the team's use earned (or an admin gave it); the studio's catalog shows a template from its `level` on and the featured ones first; `features` already leave off what a level above the team's opens · `holds`: `{ page: { reason } \| null, wizards: [{ id, reason }] }`, what an admin held; a held wizard's run page starts no new run (`wizardPaused`) · `tier`, `modelPolicy`: the organization's model tier and how it manages its models ([Model tiers](#model-tiers)); left out, the organization has none and every class runs as before |
 | `GET /v1/tenants/:id/members` | → `{ members: [{ userId, name, email, image, role, joinedAt }], invitations: [{ id, email, role, expiresAt }], seats: { limit: number \| null, taken } }` · the people of the tenant and who is invited, for the studio's organization page; they are invited, given roles and removed with the calls below · `seats.taken` counts members and open invitations |
 | `POST /v1/tenants/:id/invitations` | `{ actorId, email, role, lang: "de" \| "en" }` → `{ invitation: { id, email, role, expiresAt } }` · invites for the person signed in to the studio (`actorId`), whose role the Manage-App checks in its own records: owners and admins invite (on plans other than Team only the owner), only an owner invites an owner · mails the invitation in `lang`; an open invitation to the same address is replaced · refusals: `403` `forbidden`, `PLAN_SEATS` (with `limit`), `PLAN_ROLES`, `not_member`; `409` `already_member` |
 | `DELETE /v1/tenants/:id/invitations/:invitationId` | `{ actorId }` → `{ ok: true }` · withdraws an open invitation; owners and admins, an owner's invitation only an owner |
@@ -329,14 +329,16 @@ The gateway speaks the Vercel AI Gateway protocol, so `@ai-sdk/gateway` works wi
 
 | | |
 |---|---|
-| Model id (header `ai-language-model-id` for language models, `ai-model-id` for the others — as `@ai-sdk/gateway` sends them) | `wizards/<class>` with class `classifier`, `low`, `standard`, `high`, `image`, `video`, `audio`, `speech`; the gateway binds it to a model. A concrete model id — an AI Gateway id, `fal:<endpoint>`, `elevenlabs:<model>` — is refused unless the catalog enables it; `models` of `/v1/models` lists the media models it enables. |
+| Model id (header `ai-language-model-id` for language models, `ai-model-id` for the others — as `@ai-sdk/gateway` sends them) | `wizards/<class>` with class `classifier`, `low`, `standard`, `high`, `image`, `video`, `audio`, `speech`; the gateway binds it to a model. A step that names a maker asks for its maker class, `wizards/<maker>/<class>` ([Model tiers](#model-tiers)). A concrete model id — an AI Gateway id, `fal:<endpoint>`, `elevenlabs:<model>` — is refused unless the catalog enables it; `models` of `/v1/models` lists the media models it enables. |
 | Caller: a person (desktop app) | `Authorization: Bearer <access token>`; the tenant is the token's |
 | Caller: a runtime | `Authorization: Bearer <service key>` plus `x-wizards-tenant`; visitors have no token |
 | Class names | `x-wizards-definition: 2` on every call and on `/v1/models`: the classes are named as in version 2 of the wizard definition. A caller without it is a runtime from before: its `standard`, `high` and `highest` are read as `low`, `standard` and `high`, and `/v1/models` answers it in those names |
 | Attribution (optional, both callers) | `x-wizards-run`, `x-wizards-step`, `x-wizards-effort` (`low` \| `medium` \| `high`); a runtime may add `x-wizards-user` |
+| Purpose (a runtime, while `modelTiers` is on) | `x-wizards-purpose` on every call: `wizard` for a run's calls, which also carry `x-wizards-run`; `assistant` for what the studio does outside a run (Goose, the editor's chat, reading files); `work` for a work chat. The gateway checks the call against the policy for that purpose |
 | Chat-image models | `wizards/image` may arrive on `/language-model` (models that answer a chat with an image, like Gemini) or on `/image-model` |
 | No balance | `402`, body `{ error: { message, type: "insufficient_credits" } }` — unless the run named in `x-wizards-run` holds a reservation |
 | Suspended tenant, unknown class, model not enabled | `403`, type `forbidden` |
+| Outside the tier or the policy | `403`, body `{ error: { message, type: "outside_tier" \| "not_in_policy", class, tier } }` ([Model tiers](#model-tiers)) |
 | Booking | one ledger row per call: tenant, user, run, step, class, model, tokens, provider cost, credits |
 
 The classifier class may be bound to a model that only decides (type `evaluation`, e.g.
@@ -394,3 +396,103 @@ Without it the runtime indexes them by keywords only and never calls that id.
 
 1 credit = 1 cent retail; credits = provider cost in cents × markup. The provider cost is the
 AI Gateway's cost of the call, which includes web-search fees.
+
+## Model tiers
+
+A tier is a managed list of models for an organization with compliance needs: which models
+and routes its calls may take, and which model each class runs on. The Manage-App sets a
+tier per organization and enforces it in the gateway; the runtime shows it and names the
+class a step asks for. All of this is behind the switch `modelTiers`: while it is off, the
+runtime reads neither field and sends neither header.
+
+**Maker classes.** A step names a class (`model: "high"`) and may name a maker
+(`maker: "anthropic"`). Without a maker the call asks for `wizards/<class>` and the tier picks
+the model. With one it asks for `wizards/<maker>/<class>`; the gateway never serves a maker
+class with another maker's model. The makers and their classes:
+
+| Maker | Classes |
+|---|---|
+| `anthropic`, `openai` | `low`, `standard`, `high`, `highest` |
+| `google` | `low`, `standard`, `high` |
+| `mistral` | `low`, `high` |
+
+`highest` exists only as a maker class. The classifier and the media classes take no maker.
+
+**`tier`** in `GET /v1/tenants/:id`:
+
+```ts
+tier?: {
+  id: string;            // the tier's id at the Manage-App
+  name: string;          // shown in the studio: "EU Private"
+  locked: boolean;       // set by contract: the organization's owner can't pick another
+  rules: {
+    regions: string[] | null; // where calls may run ("EU"); null: anywhere
+    zdr: boolean;             // providers keep no data
+    noTraining: boolean;      // providers don't train on the calls
+    ownKeys: boolean;         // the organization's own API keys are allowed at all
+    search: boolean;          // web search is allowed
+    decisions: boolean;       // an evaluation model may answer decisions (`/v4/ai/systemone`)
+  };
+  classes: {
+    // "low", "high", "image", "anthropic/high", …: every class the gateway knows
+    [cls: string]:
+      | { model: string; name: string; route: string | null; region: string | null }
+      | { model: null; name: string | null; reason: "unbound" | "region" | "retention" | "training" | "maker" };
+  };
+}
+```
+
+- `classes` says what each class runs on in this tier: `model` the catalog id, `name` the
+  model's name, `route` and `region` how the call gets there, as people read them. A class
+  that is not offered has `model: null` and why: `unbound` (no one bound it yet), `region` (no
+  route in the tier's regions), `retention` (the model keeps data on every route), `training`
+  (its terms allow training), `maker` (the tier leaves out its maker). `name` names the model
+  the class has elsewhere, where there is one. A class missing from the list is not offered.
+- A call for a class that is not offered is refused, never served by another class.
+- The studio lists the makers that have at least one class bound in the tier.
+
+**`modelPolicy`** in `GET /v1/tenants/:id`: how the organization's admins share out the
+tier's models.
+
+```ts
+modelPolicy?: {
+  way: "A" | "B" | "C";   // A: engenty picks · B: admins set defaults · C: approved models only
+  purposes: {
+    wizard: PurposePolicy;    // runs, also of public wizards
+    assistant: PurposePolicy; // Goose, each person's own
+    work: PurposePolicy;      // work chats of a space
+  };
+  credits: boolean;        // calls may run on the organization's credits
+  ownKeys: boolean;        // the organization's own API keys
+  subscriptions: boolean;  // a member's AI client on their own subscription (Goose only)
+  localModels: boolean;    // a model on a member's computer (Goose only)
+  apps: { local: boolean; subscriptions: boolean }; // apps connected to a space over MCP
+  masking: boolean;        // the gateway masks personal data before a call leaves it
+};
+
+type PurposePolicy = {
+  models: string[] | null;          // C: the classes and models people may pick; null: the whole tier
+  default: string | null;           // B: the class or model a new step or chat starts on
+  effortCap: "low" | "medium" | "high" | null; // B: the highest effort people may set
+  efforts: { [model: string]: ("low" | "medium" | "high")[] } | null; // C: the efforts offered per entry of `models`
+};
+```
+
+Entries of `models` and `default` are class ids as in a model id without `wizards/`
+(`standard`, `anthropic/high`) or model ids the catalog enables. Way A leaves `models`,
+`default`, `effortCap` and `efforts` null.
+
+**In the gateway.** It reads `x-wizards-purpose` (a call without it counts as `wizard`),
+resolves the class through the tier's `classes`, and checks it against the purpose's policy.
+An effort above `effortCap` is lowered to it, not refused. Refusals answer `403` in the AI
+Gateway's error shape, so `@ai-sdk/gateway` reads the message:
+
+```json
+{ "error": { "message": "…", "type": "outside_tier", "class": "anthropic/highest", "tier": { "id": "…", "name": "EU Private" } } }
+```
+
+- `outside_tier`: the tier doesn't offer the class or model.
+- `not_in_policy`: the tier offers it, the organization's policy for that purpose doesn't.
+
+`x-wizards-run` names the run on every call a run makes; masking keeps one map per run. Calls
+outside a run carry none, and masking keeps its map for the one call.
