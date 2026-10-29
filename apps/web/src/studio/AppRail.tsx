@@ -1,12 +1,16 @@
 import {
+  Bell,
   Check,
   ChevronsUpDown,
+  Database,
   Ellipsis,
+  Folder,
   Home,
   Inbox,
   Info,
   Layers,
   type LucideIcon,
+  MessageSquare,
   Monitor,
   Moon,
   Palette,
@@ -39,6 +43,7 @@ import {
   useAppBar,
 } from "../lib/appbar";
 import { type Key, t } from "../lib/i18n";
+import { useMode } from "../lib/mode";
 import { type Me, useCurrentProject, useMayCreate } from "../lib/session";
 import { setTheme, type ThemeMode, useThemePick } from "../lib/theme";
 import { PluginFrame, useStudioPlugins } from "../plugins/host";
@@ -46,6 +51,7 @@ import { cn } from "../ui";
 import { SpaceFace, SpaceMenu, UserMenu, useDismiss, useOneSpace } from "./AppFrame";
 import { EngentyMenu } from "./EngentyMenu";
 import { type PrimaryAction, useCurrentPrimaryAction } from "./primary-action";
+import { EngentyGlyph, WORK_PLACES, type WorkPlace } from "./work/WorkPages";
 
 const AboutDialog = lazy(() =>
   import("../about/AboutDialog").then((m) => ({ default: m.AboutDialog })),
@@ -251,6 +257,54 @@ function usePlace(): "home" | "new" | "space" | "results" | "settings" | null {
   return pathname === "/space" || pathname.startsWith("/space/") ? "space" : null;
 }
 
+const WORK_ICON: Record<WorkPlace, LucideIcon | typeof EngentyGlyph> = {
+  chats: MessageSquare,
+  engenties: EngentyGlyph,
+  files: Folder,
+  data: Database,
+  results: Inbox,
+  waiting: Bell,
+};
+
+/**
+ * Work's places in the bar: Chats, Engenties, Files, Data, Results, then the bell with what waits
+ * for the person (nothing yet: its count shows from one on).
+ */
+function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean }) {
+  const waiting = 0;
+  return (
+    <nav
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1",
+        labels ? "items-stretch" : "items-center",
+        horizontal ? "ml-1.5 flex-row gap-1.5 overflow-x-auto" : "mt-2 flex-col gap-2",
+      )}
+    >
+      {WORK_PLACES.map(({ place, to, label }) => {
+        const Icon = WORK_ICON[place];
+        return (
+          <NavLink
+            key={place}
+            to={to}
+            end
+            title={t(label)}
+            aria-label={t(label)}
+            className={({ isActive }) => cn(glyph(isActive, labels), "relative")}
+          >
+            <Icon className="size-5 shrink-0" />
+            {labels ? <Label>{t(label)}</Label> : null}
+            {place === "waiting" && waiting > 0 ? (
+              <span className="absolute top-0.5 left-6 grid h-4 min-w-4 place-items-center rounded-full bg-ember px-1 font-bold text-[0.625rem] text-white">
+                {waiting}
+              </span>
+            ) : null}
+          </NavLink>
+        );
+      })}
+    </nav>
+  );
+}
+
 /**
  * `labels`: the bar names its places now (`useAppBarLabels`); `room`: it could, so the menu
  * offers it.
@@ -260,6 +314,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
   const { position } = useAppBar();
   const horizontal = isHorizontal(position);
   const place = usePlace();
+  const mode = useMode(me);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
@@ -340,71 +395,79 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
       <div className={horizontal ? "ml-1" : "mt-2"}>
         <SpaceTile me={me} labels={labels} />
       </div>
-      <Link
-        to="/"
-        title={t("nav.home")}
-        aria-label={t("nav.home")}
-        aria-current={place === "home" || place === "new" ? "page" : undefined}
-        className={cn(
-          glyph(place === "home" || place === "new", labels),
-          horizontal ? "ml-1.5" : "mt-2",
-        )}
-      >
-        <Home className="size-5 shrink-0" />
-        {labels ? <Label>{t("nav.home")}</Label> : null}
-      </Link>
-      {/* The space's sources: Info, Brand, Knowledge and Data. */}
-      <Link
-        to="/space"
-        title={t("nav.sources")}
-        aria-label={t("nav.sources")}
-        aria-current={place === "space" ? "page" : undefined}
-        className={cn(glyph(place === "space", labels), horizontal ? "ml-1.5" : "mt-2")}
-      >
-        <Layers className="size-5 shrink-0" />
-        {labels ? <Label>{t("nav.sources")}</Label> : null}
-      </Link>
-      {/* What the space's wizards made. */}
-      <Link
-        to="/space/results"
-        title={t("space.results")}
-        aria-label={t("space.results")}
-        aria-current={place === "results" ? "page" : undefined}
-        className={cn(glyph(place === "results", labels), horizontal ? "ml-1.5" : "mt-2")}
-      >
-        <Inbox className="size-5 shrink-0" />
-        {labels ? <Label>{t("space.results")}</Label> : null}
-      </Link>
-      {/* The pages plugins added, each behind its icon, after a divider. */}
-      {plugins.nav.length ? (
-        <div
-          className={cn(
-            "shrink-0 bg-border",
-            horizontal ? "mx-2 h-7 w-px" : cn("my-3 h-px", labels ? "mx-2.5" : "w-7"),
-          )}
-        />
-      ) : null}
-      <nav
-        className={cn(
-          "flex min-h-0 min-w-0 flex-1 gap-1.5",
-          labels ? "items-stretch" : "items-center",
-          horizontal ? "flex-row overflow-x-auto" : "flex-col overflow-y-auto",
-        )}
-      >
-        {plugins.nav.map((entry) => (
-          <PluginFrame key={entry.serial} of={entry}>
-            <NavLink
-              to={entry.to}
-              title={entry.label()}
-              aria-label={entry.label()}
-              className={({ isActive }) => glyph(isActive, labels)}
-            >
-              <entry.icon className="size-5 shrink-0" />
-              {labels ? <Label>{entry.label()}</Label> : null}
-            </NavLink>
-          </PluginFrame>
-        ))}
-      </nav>
+      {mode === "work" ? (
+        <WorkRail labels={labels} horizontal={horizontal} />
+      ) : mode === "client" ? (
+        <div className="min-h-0 min-w-0 flex-1" />
+      ) : (
+        <>
+          <Link
+            to="/"
+            title={t("nav.home")}
+            aria-label={t("nav.home")}
+            aria-current={place === "home" || place === "new" ? "page" : undefined}
+            className={cn(
+              glyph(place === "home" || place === "new", labels),
+              horizontal ? "ml-1.5" : "mt-2",
+            )}
+          >
+            <Home className="size-5 shrink-0" />
+            {labels ? <Label>{t("nav.home")}</Label> : null}
+          </Link>
+          {/* The space's sources: Info, Brand, Knowledge and Data. */}
+          <Link
+            to="/space"
+            title={t("nav.sources")}
+            aria-label={t("nav.sources")}
+            aria-current={place === "space" ? "page" : undefined}
+            className={cn(glyph(place === "space", labels), horizontal ? "ml-1.5" : "mt-2")}
+          >
+            <Layers className="size-5 shrink-0" />
+            {labels ? <Label>{t("nav.sources")}</Label> : null}
+          </Link>
+          {/* What the space's wizards made. */}
+          <Link
+            to="/space/results"
+            title={t("space.results")}
+            aria-label={t("space.results")}
+            aria-current={place === "results" ? "page" : undefined}
+            className={cn(glyph(place === "results", labels), horizontal ? "ml-1.5" : "mt-2")}
+          >
+            <Inbox className="size-5 shrink-0" />
+            {labels ? <Label>{t("space.results")}</Label> : null}
+          </Link>
+          {/* The pages plugins added, each behind its icon, after a divider. */}
+          {plugins.nav.length ? (
+            <div
+              className={cn(
+                "shrink-0 bg-border",
+                horizontal ? "mx-2 h-7 w-px" : cn("my-3 h-px", labels ? "mx-2.5" : "w-7"),
+              )}
+            />
+          ) : null}
+          <nav
+            className={cn(
+              "flex min-h-0 min-w-0 flex-1 gap-1.5",
+              labels ? "items-stretch" : "items-center",
+              horizontal ? "flex-row overflow-x-auto" : "flex-col overflow-y-auto",
+            )}
+          >
+            {plugins.nav.map((entry) => (
+              <PluginFrame key={entry.serial} of={entry}>
+                <NavLink
+                  to={entry.to}
+                  title={entry.label()}
+                  aria-label={entry.label()}
+                  className={({ isActive }) => glyph(isActive, labels)}
+                >
+                  <entry.icon className="size-5 shrink-0" />
+                  {labels ? <Label>{entry.label()}</Label> : null}
+                </NavLink>
+              </PluginFrame>
+            ))}
+          </nav>
+        </>
+      )}
       <div
         className={cn(
           "flex shrink-0 gap-2",

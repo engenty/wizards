@@ -9,6 +9,7 @@ import { PluginFrame, startStudioPlugins, useStudioPlugins } from "./plugins/hos
 import { AppFrame } from "./studio/AppFrame";
 import { AssistantProvider } from "./studio/assistant/chat";
 import { SignInPage } from "./studio/SignInPage";
+import { ClientPage, InMode, WorkPage } from "./studio/work/WorkPages";
 
 // The public runner and the studio are separate bundles: a visitor never downloads the editor.
 const PublicRunner = lazy(() =>
@@ -156,7 +157,9 @@ export function StudioApp() {
             path="/"
             element={
               <Studio>
-                <HomePage />
+                <InMode mode="studio">
+                  <HomePage />
+                </InMode>
               </Studio>
             }
           />
@@ -189,6 +192,36 @@ export function StudioApp() {
             element={
               <Studio wide>
                 <ProjectPage />
+              </Studio>
+            }
+          />
+          <Route
+            path="/work"
+            element={
+              <Studio full>
+                <InMode mode="work">
+                  <WorkPage />
+                </InMode>
+              </Studio>
+            }
+          />
+          <Route
+            path="/work/:place"
+            element={
+              <Studio wide>
+                <InMode mode="work">
+                  <WorkPage />
+                </InMode>
+              </Studio>
+            }
+          />
+          <Route
+            path="/client"
+            element={
+              <Studio wide>
+                <InMode mode="client">
+                  <ClientPage />
+                </InMode>
               </Studio>
             }
           />

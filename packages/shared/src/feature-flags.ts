@@ -119,6 +119,12 @@ export const FEATURES = {
     label: "Goose",
     hint: "The studio's assistant: its chat at the foot of the page and in the sidebar.",
   },
+  workMode: {
+    kind: "release",
+    default: false,
+    label: "Work mode",
+    hint: "The switch between Studio, Work and Client in the engenty menu, and Work's places in the app bar: chats, engenties, files, data, results.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,
