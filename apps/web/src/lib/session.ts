@@ -168,6 +168,8 @@ export interface Me {
     /** The organization the account's space belongs to; null while the Manage-App has not answered. */
     organization: string | null;
     organizationId: string;
+    /** The organization's plan; null while the Manage-App has not answered. */
+    plan: { id: string; name: string } | null;
     /** The person's organizations, to switch to another; empty while the Manage-App has not answered. */
     organizations: Pick<Organization, "id" | "name" | "role">[];
     credits: number | null;

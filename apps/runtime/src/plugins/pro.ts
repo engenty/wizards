@@ -185,6 +185,35 @@ export async function refreshPro(): Promise<void> {
   }
 }
 
+let following: Promise<void> | null = null;
+let followedAt = 0;
+
+/**
+ * What the account says of its plan as it answers anyway (GET /v1/me, about once a minute while
+ * the sync runs): when the plan or its modules differ from what was confirmed, the modules are
+ * asked for again, so a plan an admin changed takes effect here within minutes. A Manage-App that
+ * sends no modules leaves the plan alone to tell. A check that failed waits ten minutes.
+ */
+export function followPlan(tenant: { id: string; plan?: { id: string }; modules?: string[] }) {
+  if (managed || following || (lastError && Date.now() - followedAt < 600_000)) {
+    return;
+  }
+  const confirmed = currentEntitlement();
+  const sorted = (ids: string[]) => [...ids].sort().join();
+  const changed =
+    !confirmed ||
+    confirmed.tenantId !== tenant.id ||
+    (tenant.plan !== undefined && tenant.plan.id !== confirmed.plan?.id) ||
+    (tenant.modules !== undefined && sorted(tenant.modules) !== sorted(confirmed.modules));
+  if (!changed) {
+    return;
+  }
+  followedAt = Date.now();
+  following = refreshPro().finally(() => {
+    following = null;
+  });
+}
+
 let timer: NodeJS.Timeout | null = null;
 
 /** Checks at start, then once a day while the runtime runs; a check that failed, within the hour. */
