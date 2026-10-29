@@ -4,6 +4,10 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.12.1] - 2026-10-29
+- FIXED **[runtime]** A local install follows its account's plan within minutes, and Settings › Account shows the plan with a button to reload plan and plugins (#276)
+- PERFORMANCE **[runtime]** The studio assistant keeps its prompt cache: one agent setup for spaces, tools sorted, history marked, no sliding window (#269)
+
 ## [0.12.0] - 2026-10-28
 - ADDED **[studio]** Ollama under Access in Settings › Models: whether it runs, every model with its jobs, downloads and its address (#262)
 - ADDED **[studio]** Local models per job in Settings › Models: what Ollama holds, suggestions from the Manage-App, any other name (#261)

@@ -108,9 +108,9 @@ Declared by two or more of the workspaces below:
 | [@hono/node-server](https://github.com/honojs/node-server) | 2.1.3 | MIT |
 | [@libsql/client](https://github.com/tursodatabase/libsql-client-ts#readme) | 0.18.0 | MIT |
 | [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
-| [@mastra/core](https://mastra.ai) | 1.77.0 | Apache-2.0 |
-| [@mastra/docker](https://mastra.ai) | 0.8.0 | Apache-2.0 |
-| [@mastra/quickjs](https://mastra.ai) | 0.1.3 | Apache-2.0 |
+| [@mastra/core](https://mastra.ai) | 1.80.0 | Apache-2.0 |
+| [@mastra/docker](https://mastra.ai) | 0.12.1 | Apache-2.0 |
+| [@mastra/quickjs](https://mastra.ai) | 0.1.5 | Apache-2.0 |
 | [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 0.1.80 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.1 | MIT |
@@ -121,7 +121,7 @@ Declared by two or more of the workspaces below:
 | [effect](https://effect.website) | 4.0.0-beta.59 | MIT |
 | [exceljs](https://github.com/exceljs/exceljs#readme) | 4.4.0 | MIT |
 | [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser#readme) | 5.11.2 | MIT |
-| [hono](https://hono.dev) | 4.13.12 | MIT |
+| [hono](https://hono.dev) | 4.13.14 | MIT |
 | [imapflow](https://imapflow.com/) | 2.2.1 | MIT |
 | [jiti](https://github.com/unjs/jiti#readme) | 2.7.0 | MIT |
 | [jose](https://github.com/panva/jose) | 6.2.12 | MIT |
