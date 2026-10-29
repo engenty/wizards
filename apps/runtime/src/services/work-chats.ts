@@ -8,6 +8,7 @@ import type { SessionUser } from "../auth/index.js";
 import { canSpend } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { managed, tenantMembers } from "../manage.js";
+import { assistantToolLabels } from "../tools/plugin.js";
 import { type ClientStep, ClientSteps, stepChunk, stepParts } from "./client-steps.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
@@ -389,6 +390,7 @@ export async function readChat(user: SessionUser, id: string) {
     messages: (recalled.messages as unknown as StoredMessage[]).map(messageView),
     threads: threads.map(listItem),
     approvals: await approvalsOf(chat.id),
+    tools: await assistantToolLabels(user.tenantId),
   };
 }
 
@@ -666,7 +668,8 @@ function beginRun(
   });
   const ui = toAISdkStream(
     { fullStream: chunks } as never,
-    { from: "agent", version: "v7" } as never,
+    // The chat shows the AI's reasoning and its sources as they come, not only once stored.
+    { from: "agent", version: "v7", sendReasoning: true, sendSources: true } as never,
   ) as unknown as AsyncIterable<{ type: string }>;
   const send = (chunk: unknown) => {
     run.chunks.push(chunk);

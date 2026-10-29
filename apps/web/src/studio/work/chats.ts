@@ -102,6 +102,14 @@ export interface OpenChat {
   messages: ChatMessage[];
   threads: ChatItem[];
   approvals: Approval[];
+  /** The plugins' tools of the space's AI by the model's name: whose, and what a call does. */
+  tools: Record<string, ToolLabel>;
+}
+
+export interface ToolLabel {
+  plugin: string;
+  tool: string;
+  label: { de: string; en: string } | null;
 }
 
 const SIDEBAR = ["work-chats"] as const;

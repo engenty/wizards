@@ -183,6 +183,9 @@ connected service). In a Work chat, a call of an `outside` tool, or of a tool wi
 doesn’t run when the AI makes it: a person approves or denies it first, and an approved call runs
 once.
 
+`label` is what a call does, in a few words, as a Work chat’s step line and its approval say it:
+`{ de: "Mail senden", en: "Send a mail" }`. Without it they show the plugin’s name and the tool’s.
+
 ### A card in the chat
 
 With `card: true` the result also goes to the chat. The studio half draws it:

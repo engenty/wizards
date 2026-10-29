@@ -448,6 +448,11 @@ export interface PluginAssistantTool<S extends z.ZodType = z.ZodType> {
    * for a person's approval before it runs.
    */
   risk?: "read" | "space" | "outside";
+  /**
+   * What a call does, as a Work chat's step line says it: `{ de: "Mail senden", en: "Send a
+   * mail" }`. Without it the line shows the plugin's name and the tool's.
+   */
+  label?: { de: string; en: string };
   execute(input: z.infer<S>, ctx: PluginAssistantContext): unknown | Promise<unknown>;
 }
 
