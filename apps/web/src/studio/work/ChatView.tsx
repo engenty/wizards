@@ -1,8 +1,8 @@
 import { Markdown } from "@engenty/wizards-runner";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
-import { Brain, Lock, MessageSquarePlus, Sparkles, Wrench } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { Brain, Lock, MessageSquarePlus, ShieldQuestion, Sparkles, Wrench } from "lucide-react";
+import { createContext, Fragment, useContext, useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Marker, MarkerContent } from "@/components/ui/marker";
@@ -33,10 +33,11 @@ import {
 import { EngentyLogoMark } from "../../engenty/logo";
 import { lang, t } from "../../lib/i18n";
 import { useCurrentProject, useMe } from "../../lib/session";
-import { cn } from "../../ui";
+import { Button, cn } from "../../ui";
 import { Composer } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
 import {
+  type Approval,
   type ChatMember,
   type ChatMessage,
   type ChatPart,
@@ -44,6 +45,7 @@ import {
   stopTurn,
   useAiTurn,
   useCreateChat,
+  useDecide,
   useOpenChat,
   usePostMessage,
 } from "./chats";
@@ -59,7 +61,10 @@ export function ChatView({ id }: { id: string }) {
   const turn = useAiTurn(id);
   const streaming = turn.status === "submitted" || turn.status === "streaming";
   const { data, isError } = useOpenChat(id, streaming);
-  const me = useMe().data?.user.id;
+  const meData = useMe().data;
+  const me = meData?.user.id;
+  const role = meData?.tenant.role ?? "member";
+  const decide = useDecide(id);
   const post = usePostMessage();
   const [askChoice, setAskChoice] = useState<boolean | null>(null);
   const { project } = useCurrentProject();
@@ -84,6 +89,12 @@ export function ChatView({ id }: { id: string }) {
   const people = data.members.filter((m) => m.kind === "person").length;
   const ask = askChoice ?? people <= 1;
   const messages = [...data.messages, ...pending(turn.messages, me ?? "")];
+  const approvals = {
+    approvals: new Map(data.approvals.map((a) => [a.id, a])),
+    may: (a: Approval) => a.askedBy === me || role !== "member",
+    decide: (approvalId: string, approve: boolean) => decide.mutate({ id: approvalId, approve }),
+    busy: decide.isPending,
+  };
   const authorOf = (m: ChatMessage): ChatMember | null =>
     m.author.kind === "ai"
       ? null
@@ -99,39 +110,41 @@ export function ChatView({ id }: { id: string }) {
       <ChatHeader chat={data} />
       <div className="min-h-0 flex-1">
         {messages.length ? (
-          <MessageScrollerProvider key={id}>
-            <MessageScroller>
-              <MessageScrollerViewport>
-                <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 px-6 py-6">
-                  {groups(messages).map((group, at, all) => {
-                    const first = group[0];
-                    const mine = first.author.kind === "person" && first.author.id === me;
-                    const author = authorOf(first);
-                    const day = dayOf(first.createdAt);
-                    const newDay = at === 0 || dayOf(all[at - 1][0].createdAt) !== day;
-                    return (
-                      <Fragment key={first.id}>
-                        {newDay ? (
-                          <Marker variant="separator">
-                            <MarkerContent>{dayLabel(first.createdAt)}</MarkerContent>
-                          </Marker>
-                        ) : null}
-                        <MessageScrollerItem messageId={first.id} scrollAnchor={mine}>
-                          <Turn
-                            group={group}
-                            mine={mine}
-                            author={author}
-                            spaceName={project?.name ?? ""}
-                          />
-                        </MessageScrollerItem>
-                      </Fragment>
-                    );
-                  })}
-                </MessageScrollerContent>
-              </MessageScrollerViewport>
-              <MessageScrollerButton />
-            </MessageScroller>
-          </MessageScrollerProvider>
+          <ApprovalsContext.Provider value={approvals}>
+            <MessageScrollerProvider key={id}>
+              <MessageScroller>
+                <MessageScrollerViewport>
+                  <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 px-6 py-6">
+                    {groups(messages).map((group, at, all) => {
+                      const first = group[0];
+                      const mine = first.author.kind === "person" && first.author.id === me;
+                      const author = authorOf(first);
+                      const day = dayOf(first.createdAt);
+                      const newDay = at === 0 || dayOf(all[at - 1][0].createdAt) !== day;
+                      return (
+                        <Fragment key={first.id}>
+                          {newDay ? (
+                            <Marker variant="separator">
+                              <MarkerContent>{dayLabel(first.createdAt)}</MarkerContent>
+                            </Marker>
+                          ) : null}
+                          <MessageScrollerItem messageId={first.id} scrollAnchor={mine}>
+                            <Turn
+                              group={group}
+                              mine={mine}
+                              author={author}
+                              spaceName={project?.name ?? ""}
+                            />
+                          </MessageScrollerItem>
+                        </Fragment>
+                      );
+                    })}
+                  </MessageScrollerContent>
+                </MessageScrollerViewport>
+                <MessageScrollerButton />
+              </MessageScroller>
+            </MessageScrollerProvider>
+          </ApprovalsContext.Provider>
         ) : (
           <p className="grid h-full place-items-center text-[0.9375rem] text-ink-3">
             {t("work.emptyChat")}
@@ -371,9 +384,29 @@ type ToolPart = Extract<ChatPart, { toolCallId: string }>;
 
 const isTool = (p: ChatPart): p is ToolPart => p.type.startsWith("tool-") && "toolCallId" in p;
 
+/** The chat's held calls and how to decide them, for the cards of the AI's turns. */
+const ApprovalsContext = createContext<{
+  approvals: Map<string, Approval>;
+  may: (a: Approval) => boolean;
+  decide: (id: string, approve: boolean) => void;
+  busy: boolean;
+}>({ approvals: new Map(), may: () => false, decide: () => {}, busy: false });
+
+/** The approval a tool's result names, when the gate held the call. */
+const heldBy = (part: ToolPart): string | null => {
+  const output = part.output as { approval?: unknown; status?: unknown } | undefined;
+  return output && typeof output.approval === "string" && output.status === "waiting"
+    ? output.approval
+    : null;
+};
+
 /** A turn of the space's AI: its steps (reasoning, tool calls) as Trace lines, then its text. */
 function AiParts({ parts }: { parts: ChatPart[] }) {
   const steps = parts.filter((p) => p.type === "reasoning" || isTool(p));
+  const held = steps
+    .filter(isTool)
+    .map(heldBy)
+    .filter((id): id is string => Boolean(id));
   const text = textOf(parts);
   return (
     <div className="grid gap-3">
@@ -402,19 +435,92 @@ function AiParts({ parts }: { parts: ChatPart[] }) {
           )}
         </Trace>
       ) : null}
+      {held.map((id) => (
+        <ApprovalCard key={id} id={id} />
+      ))}
       {text ? <Markdown text={text} className="text-[0.9375rem]" /> : null}
+    </div>
+  );
+}
+
+/** A held call (shadcn/ui AI Elements, Confirmation): what the AI wants to do, Approve or Deny. */
+function ApprovalCard({ id }: { id: string }) {
+  const { approvals, may, decide, busy } = useContext(ApprovalsContext);
+  const approval = approvals.get(id);
+  if (!approval) {
+    return null;
+  }
+  const input = JSON.stringify(approval.input ?? {}, null, 2);
+  const state =
+    approval.state === "approved"
+      ? t("work.approval.approved")
+      : approval.state === "denied"
+        ? t("work.approval.denied")
+        : approval.state === "failed"
+          ? t("work.approval.failed")
+          : null;
+  return (
+    <div className="grid gap-2 rounded-xl border border-border bg-card/40 p-3 text-[0.875rem]">
+      <p className="flex items-center gap-2 font-medium text-ink">
+        <ShieldQuestion className="size-4 shrink-0 text-ember" />
+        {t("work.approval.waiting", { name: approval.toolName })}
+      </p>
+      <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-ink/5 p-2 font-mono text-[0.75rem]">
+        {input}
+      </pre>
+      {state ? (
+        <p className="text-ink-3">{state}</p>
+      ) : may(approval) ? (
+        <div className="flex gap-2">
+          <Button size="sm" disabled={busy} onClick={() => decide(approval.id, true)}>
+            {t("work.approval.approve")}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => decide(approval.id, false)}
+          >
+            {t("work.approval.deny")}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-ink-3">{t("work.approval.notYours")}</p>
+      )}
     </div>
   );
 }
 
 /** One tool call by the state the AI SDK gives it (shadcn/ui AI Elements, Tool's table). */
 function ToolStep({ part }: { part: ToolPart }) {
+  const { approvals } = useContext(ApprovalsContext);
   const name = part.type.slice("tool-".length);
   const icon = (
     <TraceIcon>
       <Wrench />
     </TraceIcon>
   );
+  // Held by the gate: the line says what the person decided (the card below has the details).
+  const held = part.state === "output-available" ? heldBy(part) : null;
+  if (held) {
+    const decided = approvals.get(held)?.state ?? "pending";
+    return (
+      <TraceLine
+        status={decided === "pending" ? "pending" : decided === "failed" ? "error" : undefined}
+      >
+        {icon}
+        <TraceTitle>
+          {decided === "approved"
+            ? t("work.tool.ran", { name })
+            : decided === "denied"
+              ? t("work.tool.denied", { name })
+              : decided === "failed"
+                ? t("work.tool.failed", { name })
+                : t("work.tool.asks", { name })}
+        </TraceTitle>
+      </TraceLine>
+    );
+  }
   if (part.state === "output-available" || part.state === "output-error") {
     const failed = part.state === "output-error";
     return (

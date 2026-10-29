@@ -8,9 +8,11 @@ import type { SessionUser } from "../auth/index.js";
 import { canSpend } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { managed, tenantMembers } from "../manage.js";
+import { type ClientStep, type ClientSteps, stepChunk, stepParts } from "./client-steps.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
-import { lazyTurn, MAX_STEPS, TURN_KEY } from "./work-ai.js";
+import { type LazyTurn, lazyTurn, MAX_STEPS, TURN_KEY, toolToRun } from "./work-ai.js";
+import { approvalsOf, noteOutcome, takeDecision, waitingFor } from "./work-approvals.js";
 import { workMastra } from "./work-mastra.js";
 
 /**
@@ -349,6 +351,7 @@ export async function readChat(user: SessionUser, id: string) {
     ),
     messages: (recalled.messages as unknown as StoredMessage[]).map(messageView),
     threads: threads.map(listItem),
+    approvals: await approvalsOf(chat.id),
   };
 }
 
@@ -394,54 +397,98 @@ export async function sendMessage(
   const { agent } = await workMastra();
   const message = { contents: text, attributes: { name }, metadata: { authorId: user.id } };
   const target = { resourceId: chat.projectId, threadId: chat.id };
-  if (!options.ask) {
-    // Stored, never delivered: a remark to a colleague must not steer the AI's running turn
-    // (Mastra delivers to an active turn by default).
-    await agent.sendMessage(message, {
-      ...target,
-      ifActive: { behavior: "persist" },
-      ifIdle: { behavior: "persist" },
-    }).accepted;
-    await noteLast(chat, { id: user.id, name }, text);
-    return { kind: "kept" };
-  }
-  if (!(await canSpend())) {
+  if (options.ask && !(await canSpend())) {
     throw new ServiceError("no_credits", note("creditsUsedUp"));
   }
-  const space = await db.query.project.findFirst({ where: eq(schema.project.id, chat.projectId) });
-  // Made when a turn really starts (Mastra resolves the agent's model then): a message taken
-  // into a running turn builds nothing, and a queued one's 20 minutes start with its turn.
-  const turn = lazyTurn({ id: chat.projectId, name: space?.name ?? "" }, user.id);
-  const requestContext = new RequestContext();
-  requestContext.set(TURN_KEY, turn);
-  const streamOptions = { requestContext, maxSteps: MAX_STEPS, abortSignal: turn.signal };
+  // Every message is stored the moment it is sent, before any turn, and never delivered as
+  // itself: a remark to a colleague doesn't steer the AI's running turn, and a stopped or failed
+  // turn can't take a person's words with it (Mastra stores a turn's input when it ends, and
+  // throws a stopped turn away).
+  await agent.sendMessage(message, {
+    ...target,
+    ifActive: { behavior: "persist" },
+    ifIdle: { behavior: "persist" },
+  }).accepted;
   await noteLast(chat, { id: user.id, name }, text);
+  if (!options.ask) {
+    return { kind: "kept" };
+  }
+  // Asking the AI is a signal that isn't stored: the stored message is what it answers.
+  const { turn, streamOptions } = await turnFor(chat, user.id);
+  const asked = {
+    type: "reactive" as const,
+    tagName: "asked",
+    contents: `${name} asked you in the message above; answer it.`,
+    transient: true,
+  };
+  const running = Boolean(agent.getActiveThreadRunId(target));
   // For after the answer: queued while a turn runs; with none running it is a turn of its own.
-  if (options.later && agent.getActiveThreadRunId(target)) {
-    await agent.queueMessage(message, { ...target, ifIdle: { behavior: "wake", streamOptions } })
+  if (options.later && running) {
+    await agent.queueSignal(asked, { ...target, ifIdle: { behavior: "wake", streamOptions } })
       .accepted;
     return { kind: "queued" };
   }
+  // Into a running turn the message goes as it is (the turn doesn't read the thread again), with
+  // the reminder that the request before it still stands (engenty-pro, 8e7b970d1).
+  const signal = running
+    ? {
+        type: "user" as const,
+        attributes: { name },
+        contents: `${text}\n\n(The request before this one still stands.)`,
+        transient: true,
+      }
+    : asked;
+  return deliverOrWake(chat, turn, streamOptions, (ifIdle) =>
+    agent.sendSignal(signal, { ...target, ifActive: { behavior: "deliver" }, ifIdle }),
+  );
+}
+
+/**
+ * A turn for the person, made when it really starts (Mastra resolves the agent's model then):
+ * input taken into a running turn builds nothing, and a queued one's 20 minutes start with it.
+ */
+async function turnFor(chat: ChatRow, userId: string) {
+  const space = await db.query.project.findFirst({ where: eq(schema.project.id, chat.projectId) });
+  const turn = lazyTurn({
+    space: { id: chat.projectId, name: space?.name ?? "" },
+    chatId: chat.id,
+    userId,
+  });
+  const requestContext = new RequestContext();
+  requestContext.set(TURN_KEY, turn);
+  return { turn, streamOptions: { requestContext, maxSteps: MAX_STEPS, abortSignal: turn.signal } };
+}
+
+type StreamOptions = Awaited<ReturnType<typeof turnFor>>["streamOptions"];
+type IfIdle = { behavior: "wake"; streamOptions: StreamOptions };
+
+/** Sends input to the chat's thread: into a running turn, or waking one whose stream comes back. */
+async function deliverOrWake(
+  chat: ChatRow,
+  turn: LazyTurn,
+  streamOptions: StreamOptions,
+  send: (ifIdle: IfIdle) => { accepted: Promise<{ action?: string } | undefined> },
+): Promise<Sent> {
+  const { agent } = await workMastra();
+  const target = { resourceId: chat.projectId, threadId: chat.id };
   const subscription = await agent.subscribeToThread(target);
-  const accepted = await agent.sendMessage(message, {
-    ...target,
-    ifActive: { behavior: "deliver" },
-    ifIdle: { behavior: "wake", streamOptions },
-  }).accepted;
+  const accepted = await send({ behavior: "wake", streamOptions }).accepted;
   if (accepted?.action !== "wake") {
     subscription.unsubscribe();
     return { kind: "taken" };
   }
-  return { kind: "turn", stream: turnStream(chat, subscription) };
+  return { kind: "turn", stream: turnStream(chat, subscription, turn.steps) };
 }
 
 /**
  * The AI's turn as the browser reads it: Mastra's chunks of the thread until the turn finishes,
- * in the AI SDK's UI message stream. Its text becomes the chat's last message when it ends.
+ * in the AI SDK's UI message stream, with a client's tool steps among them. When it ends, its
+ * text becomes the chat's last message and a client's steps are stored before its answer.
  */
 function turnStream(
   chat: ChatRow,
   subscription: { stream: AsyncIterable<unknown>; unsubscribe(): void },
+  steps: ClientSteps,
 ): ReadableStream {
   let reply = "";
   const chunks = new ReadableStream({
@@ -460,21 +507,140 @@ function turnStream(
       } finally {
         subscription.unsubscribe();
         controller.close();
-        if (reply.trim()) {
-          await noteLast(chat, { id: AI_AUTHOR, name: "" }, reply).catch((err) =>
-            console.error("[work-chats] last message:", err),
-          );
-        }
       }
     },
   });
-  return toAISdkStream(
+  const ui = toAISdkStream(
     { fullStream: chunks } as never,
     {
       from: "agent",
       version: "v7",
     } as never,
   ) as unknown as ReadableStream;
+  return new ReadableStream({
+    async start(controller) {
+      const off = steps.on((step) => controller.enqueue(stepChunk(step)));
+      try {
+        for await (const chunk of ui as unknown as AsyncIterable<{ type: string }>) {
+          // A client's steps go before the turn's last chunk, inside its message.
+          if (chunk.type === "finish") {
+            off();
+          }
+          controller.enqueue(chunk);
+        }
+      } finally {
+        off();
+        controller.close();
+        await afterTurn(chat, reply, steps.list).catch((err) =>
+          console.error("[work-chats] after the turn:", err),
+        );
+      }
+    },
+  });
+}
+
+/** What a finished turn leaves: its text as the chat's last message, a client's steps stored. */
+async function afterTurn(chat: ChatRow, reply: string, steps: ClientStep[]) {
+  if (steps.length) {
+    const { memory } = await workMastra();
+    const { messages } = await memory.recall({
+      threadId: chat.id,
+      resourceId: chat.projectId,
+      perPage: false,
+    });
+    const answer = [...messages].reverse().find((m) => m.role === "assistant");
+    // Just before the answer they led to.
+    const at = answer ? new Date(new Date(answer.createdAt).getTime() - 1) : new Date();
+    await memory.saveMessages({
+      messages: [
+        {
+          id: nanoid(14),
+          role: "assistant",
+          threadId: chat.id,
+          resourceId: chat.projectId,
+          createdAt: at,
+          content: { format: 2, parts: stepParts(steps) },
+        } as never,
+      ],
+    });
+  }
+  if (reply.trim()) {
+    await noteLast(chat, { id: AI_AUTHOR, name: "" }, reply);
+  }
+}
+
+/**
+ * A person decides on a held call. Approved, the stored call runs once, with the stored arguments
+ * and the access of the person the turn was for; the AI hears the outcome in the chat (a signal)
+ * and goes on, waking for a turn of its own when none runs. Denied, it hears that.
+ */
+export async function decideApproval(
+  user: SessionUser,
+  chatId: string,
+  approvalId: string,
+  approve: boolean,
+): Promise<Sent> {
+  const chat = await visibleChat(user, chatId);
+  const taken = await takeDecision(user, chat.id, approvalId, approve);
+  const name = (await userProfile(user)).name;
+  const { turn, streamOptions } = await turnFor(chat, taken.askedBy);
+  let told: string;
+  if (approve) {
+    const space = await db.query.project.findFirst({
+      where: eq(schema.project.id, chat.projectId),
+    });
+    const tool = await toolToRun(
+      { id: chat.projectId, name: space?.name ?? "" },
+      taken.askedBy,
+      taken.toolName,
+      turn.signal,
+    );
+    try {
+      if (!tool?.execute) {
+        throw new Error(`The tool ${taken.toolName} is not there any more.`);
+      }
+      // Checked again: a client's call reaches the gate without Mastra's check, and the tool
+      // may have changed since the call was held.
+      const checked = tool.inputSchema?.safeParse?.(taken.input);
+      if (checked && !checked.success) {
+        throw new Error(
+          `The held arguments don't fit ${taken.toolName}: ${checked.error?.message ?? ""}`,
+        );
+      }
+      const output = await tool.execute(checked?.success ? checked.data : taken.input);
+      // Mastra answers a failed check of its own with a value, not an error.
+      if (output && typeof output === "object" && (output as { error?: unknown }).error === true) {
+        throw new Error(
+          String((output as { message?: unknown }).message ?? "The tool refused the call."),
+        );
+      }
+      await noteOutcome(taken.id, { output });
+      told = `${name} approved ${taken.toolName} (approval ${taken.id}); it ran once. Result: ${JSON.stringify(output ?? null).slice(0, 4000)}`;
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      await noteOutcome(taken.id, { error });
+      told = `${name} approved ${taken.toolName} (approval ${taken.id}), but it failed: ${error}`;
+    }
+  } else {
+    told = `${name} denied ${taken.toolName} (approval ${taken.id}); it did not run.`;
+  }
+  const { agent } = await workMastra();
+  const target = { resourceId: chat.projectId, threadId: chat.id };
+  return deliverOrWake(chat, turn, streamOptions, (ifIdle) =>
+    agent.sendSignal(
+      { type: "reactive", tagName: "approval", contents: told },
+      { ...target, ifActive: { behavior: "deliver" }, ifIdle },
+    ),
+  );
+}
+
+/** The approvals waiting for the person, in the chats they see: the bell's count. */
+export async function waitingApprovals(user: SessionUser) {
+  const chats = await db.query.chat.findMany({ where: visible(user), columns: { id: true } });
+  return waitingFor(
+    user,
+    chats.map((c) => c.id),
+  );
 }
 
 /** Stop: the AI's turn in the chat ends, and what was queued behind it is dropped. */

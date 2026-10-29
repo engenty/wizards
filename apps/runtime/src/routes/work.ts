@@ -7,6 +7,7 @@ import {
   addMember,
   createChat,
   createSection,
+  decideApproval,
   deleteChat,
   deleteSection,
   moveSection,
@@ -18,6 +19,7 @@ import {
   sidebar,
   stopTurn,
   updateChat,
+  waitingApprovals,
 } from "../services/work-chats.js";
 import { say } from "./lang.js";
 
@@ -93,6 +95,19 @@ export const workRoutes = new Hono<Vars>()
       ? createUIMessageStreamResponse({ stream: sent.stream as never })
       : c.json({ sent: sent.kind });
   })
+  .post("/chats/:id/approvals/:approval", async (c) => {
+    const { approve } = z.object({ approve: z.boolean() }).parse(await c.req.json());
+    const sent = await decideApproval(
+      c.get("user"),
+      c.req.param("id"),
+      c.req.param("approval"),
+      approve,
+    );
+    return sent.kind === "turn"
+      ? createUIMessageStreamResponse({ stream: sent.stream as never })
+      : c.json({ sent: sent.kind });
+  })
+  .get("/approvals", async (c) => c.json({ approvals: await waitingApprovals(c.get("user")) }))
   .post("/chats/:id/stop", async (c) =>
     c.json({ stopped: await stopTurn(c.get("user"), c.req.param("id")) }),
   )
