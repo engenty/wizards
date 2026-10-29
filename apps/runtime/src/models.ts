@@ -34,7 +34,7 @@ import {
 } from "@engenty/wizards-shared/providers";
 import type { RunNote, RunNoteCode, Said } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
-import type { Purpose } from "@engenty/wizards-shared/tiers";
+import type { ModelTier, Purpose } from "@engenty/wizards-shared/tiers";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import {
   type EmbeddingModel,
@@ -549,11 +549,16 @@ function gatewayClient(access: GatewayAccess, meta: CallMeta, tiers: boolean) {
   });
 }
 
-/** The model a class runs on in the organization's tier; null where the runtime can't tell. */
-async function tierModel(cls: string): Promise<string | null> {
+/** The organization's model tier, while `modelTiers` is on; null where it has none. */
+async function currentTier(): Promise<ModelTier | null> {
   const tenant = managed ? currentTenantOrNull() : null;
   const info = tenant ? await tenantInfo(tenant).catch(() => null) : null;
-  return info?.tier?.classes[cls]?.model ?? null;
+  return info?.tier && feature("modelTiers", info.features) ? info.tier : null;
+}
+
+/** The model a class runs on in the organization's tier; null where the runtime can't tell. */
+async function tierModel(cls: string): Promise<string | null> {
+  return (await currentTier())?.classes[cls]?.model ?? null;
 }
 
 export interface ClassPrice {
@@ -1655,6 +1660,8 @@ export async function modelSettings(lang: Lang = "en") {
     prices: (await classCatalog())?.classes ?? null,
     /** The media models the credits pay for, which a binding may name. */
     creditModels: (await classCatalog())?.models ?? [],
+    /** The organization's model tier and what each class runs on in it; null: none. */
+    tier: await currentTier(),
   };
 }
 
