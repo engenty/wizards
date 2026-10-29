@@ -39,7 +39,7 @@ import { Composer, type ComposerHandle, cn, IconButton, LATER_KEYS, Spinner } fr
 import { scrollRoot, useDismiss, useTrail } from "../AppFrame";
 import { type ChatCard, type ChatToolCall, Messages, Working } from "../editor/ChatPanel";
 import { type AssistantState, useAssistant, useEarlierChats, useStoredChat } from "./chat";
-import { CopyThread, StepLines, ToolDetails, TurnsDialog, UsageMeter } from "./dev";
+import { CopyThread, DevSwitch, StepLines, ToolDetails, TurnsDialog, UsageMeter } from "./dev";
 import {
   type DockPlace,
   type DockZone,
@@ -529,30 +529,6 @@ function ChatMenu({ state }: { state: AssistantState }) {
   );
 }
 
-/** The developer mode's switch beside the name, where the runtime offers it. */
-function DevSwitch({ state }: { state: AssistantState }) {
-  const on = state.dev.on;
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={t("assistant.dev")}
-      title={on ? t("assistant.devOn") : t("assistant.devOff")}
-      onClick={() => state.dev.set(!on)}
-      className={cn(
-        "inline-flex h-5 shrink-0 items-center gap-1 rounded-full font-mono font-semibold text-[0.625rem] uppercase tracking-wide transition",
-        on
-          ? "bg-ember pr-0.5 pl-2 text-white"
-          : "flex-row-reverse bg-paper-3 pr-2 pl-0.5 text-ink-3",
-      )}
-    >
-      dev
-      <span className="size-4 rounded-full bg-white shadow-sm" />
-    </button>
-  );
-}
-
 function Header({
   state,
   where,
@@ -609,7 +585,9 @@ function Header({
               {t("assistant.earlier")}
             </span>
           )}
-          {state.dev.offered && state.view.kind === "chat" ? <DevSwitch state={state} /> : null}
+          {state.dev.offered && state.view.kind === "chat" ? (
+            <DevSwitch on={state.dev.on} set={state.dev.set} />
+          ) : null}
           {/* On the name's line: live, or what Goose sees, shortened where the row ends. */}
           {live.state !== "off" ? (
             <span className="flex shrink-0 items-center gap-1.5 text-[0.75rem] text-ember-strong">

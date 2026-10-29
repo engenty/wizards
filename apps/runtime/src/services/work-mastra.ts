@@ -20,7 +20,7 @@ import { type LazyTurn, TURN_KEY, type WorkTurn } from "./work-ai.js";
  */
 
 /** Messages a turn of the AI reads as they are; older ones through observational memory later. */
-const LAST_MESSAGES = 40;
+export const LAST_MESSAGES = 40;
 
 export const SPACE_AI = "spaceAi";
 

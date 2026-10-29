@@ -4,19 +4,29 @@ import { toAISdkMessages } from "@mastra/ai-sdk/ui";
 import { RequestContext } from "@mastra/core/request-context";
 import { and, asc, desc, eq, exists, inArray, like, max, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { toolSizes } from "../agents/studio-assistant.js";
 import type { SessionUser } from "../auth/index.js";
 import { canSpend } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { managed, tenantMembers } from "../manage.js";
+import { contextWindowOf, costOf, usageOf } from "../models.js";
 import { assistantToolLabels } from "../tools/plugin.js";
 import { type ClientStep, ClientSteps, stepChunk, stepParts } from "./client-steps.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
 import { addProjectFile, fileView } from "./project-files.js";
-import { type LazyTurn, lazyTurn, MAX_STEPS, TURN_KEY, TURN_MS, toolToRun } from "./work-ai.js";
+import {
+  type LazyTurn,
+  lazyTurn,
+  MAX_STEPS,
+  TURN_KEY,
+  TURN_MS,
+  toolToRun,
+  type WorkTurn,
+} from "./work-ai.js";
 import { approvalsOf, noteOutcome, takeDecision, waitingFor } from "./work-approvals.js";
 import { type ChatFile, chatFiles, fileKind, messageContents, viewParts } from "./work-files.js";
-import { workMastra } from "./work-mastra.js";
+import { LAST_MESSAGES, workMastra } from "./work-mastra.js";
 
 /**
  * Work's chats (behind `workMode`): chats of a space with members, in sections of the space's
@@ -635,6 +645,7 @@ async function startWatching(chat: ChatRow): Promise<Watcher> {
   };
   void (async () => {
     let feed: ReadableStreamDefaultController<unknown> | null = null;
+    let dev: ((chunk: { type: string; payload?: any }) => void) | null = null;
     let runId: string | null = null;
     let reply = "";
     /** A run's `finish` (or abort, error), held until the run's status says it ended. */
@@ -665,7 +676,7 @@ async function startWatching(chat: ChatRow): Promise<Watcher> {
         end();
         runId = c.runId;
         reply = "";
-        feed = beginRun(chat, watcher, () => reply);
+        ({ feed, dev } = beginRun(chat, watcher, () => reply));
       } else if (c.type === "start") {
         // The run went on after a message came in: still one message for the chat.
         continue;
@@ -676,6 +687,7 @@ async function startWatching(chat: ChatRow): Promise<Watcher> {
       }
       // More came after a `finish`: it wasn't the run's last.
       last = null;
+      dev?.(c);
       if (c.type === "text-delta") {
         reply += c.payload?.text ?? "";
       }
@@ -686,12 +698,18 @@ async function startWatching(chat: ChatRow): Promise<Watcher> {
   return watcher;
 }
 
-/** A run starts: the chat says so, its chunks go to whoever follows, and its end is kept. */
+/**
+ * A run starts: the chat says so, its chunks go to whoever follows, and its end is kept. `dev`
+ * reads the run's own chunks for the developer mode.
+ */
 function beginRun(
   chat: ChatRow,
   watcher: Watcher,
   reply: () => string,
-): ReadableStreamDefaultController<unknown> {
+): {
+  feed: ReadableStreamDefaultController<unknown>;
+  dev: (chunk: { type: string; payload?: any }) => void;
+} {
   const setup = watcher.next.shift();
   const steps = setup?.steps ?? new ClientSteps();
   const run: Run = { chunks: [], listeners: new Set(), done: false };
@@ -749,7 +767,84 @@ function beginRun(
       }
     }
   })();
-  return feed;
+  return { feed, dev: devChunks(chat, setup, send) };
+}
+
+/** The chunks only the developer mode reads: the routes leave them out for everyone else. */
+export const DEV_CHUNK = "data-dev-";
+
+/**
+ * What the developer mode shows of a run (the web's dev.tsx): the prompt once the turn is made,
+ * and each step at its end with its model, tokens, time and cost, as Goose's developer mode does.
+ */
+function devChunks(
+  chat: ChatRow,
+  setup: LazyTurn | undefined,
+  send: (chunk: unknown) => void,
+): (chunk: { type: string; payload?: any }) => void {
+  let made: WorkTurn | null = null;
+  let step = 0;
+  // A step lasts from the end of the one before, its tools' work included, to its own end.
+  let started = Date.now();
+  void setup
+    ?.get()
+    .then(async (turn) => {
+      made = turn;
+      send({ type: `${DEV_CHUNK}prompt`, data: await devPrompt(chat, turn), transient: true });
+    })
+    .catch(() => null);
+  return (chunk) => {
+    if (chunk.type !== "step-finish" || !made) {
+      return;
+    }
+    const output = chunk.payload?.output;
+    const usage = usageOf(output?.usage);
+    step += 1;
+    send({
+      type: `${DEV_CHUNK}step`,
+      data: {
+        step,
+        model: made.resolved.ref,
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        cachedInputTokens: usage.cachedInputTokens ?? 0,
+        ms: Date.now() - started,
+        costUsd: costOf(made.resolved, output?.usage),
+        tools: (output?.toolCalls ?? []).map((c: any) => c.payload?.toolName ?? c.toolName ?? ""),
+        window: contextWindowOf(made.resolved.ref),
+      },
+      transient: true,
+    });
+    started = Date.now();
+  };
+}
+
+/** The prompt of a turn taken apart: its instructions, the chat's messages it reads, its tools. */
+async function devPrompt(chat: ChatRow, turn: WorkTurn) {
+  const { memory } = await workMastra();
+  const { messages } = await memory.recall({
+    threadId: chat.id,
+    resourceId: chat.projectId,
+    perPage: LAST_MESSAGES,
+  });
+  const chars = (m: { content?: { parts?: unknown[] } }) =>
+    (m.content?.parts ?? []).reduce<number>(
+      (n, p) =>
+        n +
+        ((p as { type?: string }).type === "text"
+          ? String((p as { text?: string }).text ?? "").length
+          : JSON.stringify(p).length),
+      0,
+    );
+  return {
+    model: turn.resolved.ref,
+    system: turn.instructions,
+    context: "",
+    history: (messages as unknown as { role: string; content?: { parts?: unknown[] } }[]).map(
+      (m) => ({ role: m.role === "assistant" ? "assistant" : "user", chars: chars(m) }),
+    ),
+    tools: toolSizes(turn.tools),
+  };
 }
 
 /** A run as a stream to follow from its start: the running one, or (`next`) the one about to start. */

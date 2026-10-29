@@ -824,7 +824,7 @@ function partOf(route: string): string | null {
 }
 
 /** How large each tool is in the prompt: its description and its schema, in characters. */
-function toolSizes(tools: Record<string, any>): AssistantPrompt["tools"] {
+export function toolSizes(tools: Record<string, any>): AssistantPrompt["tools"] {
   return Object.entries(tools)
     .map(([name, tool]) => {
       let schema = "";

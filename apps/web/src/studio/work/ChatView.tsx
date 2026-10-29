@@ -44,6 +44,7 @@ import {
   usePostMessage,
   useTurnModels,
 } from "./chats";
+import { DevButtons, useWorkDev } from "./dev";
 import { SpaceFilesDialog } from "./SpaceFilesDialog";
 import { AiParts, StepsContext } from "./Steps";
 
@@ -55,7 +56,8 @@ import { AiParts, StepsContext } from "./Steps";
  */
 
 export function ChatView({ id }: { id: string }) {
-  const turn = useAiTurn(id);
+  const dev = useWorkDev(id);
+  const turn = useAiTurn(id, dev.tap);
   const streaming = turn.status === "submitted" || turn.status === "streaming";
   const { data, isError } = useOpenChat(id, streaming);
   const meData = useMe().data;
@@ -265,6 +267,7 @@ export function ChatView({ id }: { id: string }) {
           lines={2}
           busy={streaming}
           chooser={{ on: extra, onChange: setExtra, ...models }}
+          buttons={<DevButtons dev={dev} messages={messages} />}
           plus={[
             {
               icon: <FolderOpen />,
