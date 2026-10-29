@@ -1,5 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftRight, Cloud, Coins, ExternalLink, HardDrive, LogOut } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Cloud,
+  Coins,
+  ExternalLink,
+  HardDrive,
+  LogOut,
+  RefreshCw,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { UpdateLine } from "../about/UpdateCheck";
 import { ApiError, api } from "../lib/api";
@@ -12,7 +20,7 @@ import {
   type Organization,
   type UserProfile,
 } from "../lib/session";
-import { Button, Chip, Input, Label, Spinner, Textarea } from "../ui";
+import { Button, Chip, cn, IconButton, Input, Label, Spinner, Textarea } from "../ui";
 import { LangPick } from "./LangSwitch";
 import { openExternal } from "./LocalRuntime";
 import { OrganizationFace } from "./Organizations";
@@ -182,6 +190,11 @@ function OrganizationRow({ account }: { account: LinkedAccount }) {
   const others = account.organizations.filter((o) => o.id !== account.organizationId);
   const current = account.organizations.find((o) => o.id === account.organizationId);
   const name = account.organization ?? current?.name ?? null;
+  // The plan, its switches and its Pro modules, asked for now instead of within the minute.
+  const refresh = useMutation({
+    mutationFn: () => api.post("/api/studio/account/refresh", {}),
+    onSettled: () => qc.invalidateQueries(),
+  });
   const go = useMutation({
     mutationFn: (input: { organization: string; anyway?: boolean }) =>
       api.post<{ url: string }>("/api/studio/account/switch", input),
@@ -219,7 +232,18 @@ function OrganizationRow({ account }: { account: LinkedAccount }) {
           />
           <div className="min-w-0">
             <div className="text-[0.8125rem] text-ink-3">{t("account.organization")}</div>
-            <div className="truncate font-medium text-[0.9375rem]">{name}</div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate font-medium text-[0.9375rem]">{name}</span>
+              {account.plan ? <Chip>{account.plan.name}</Chip> : null}
+              <IconButton
+                label={t("account.refresh")}
+                className="size-7 coarse:size-9"
+                disabled={refresh.isPending}
+                onClick={() => refresh.mutate()}
+              >
+                <RefreshCw className={cn("size-3.5", refresh.isPending && "animate-spin")} />
+              </IconButton>
+            </div>
           </div>
         </div>
         {others.length ? (

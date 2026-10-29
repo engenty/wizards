@@ -773,6 +773,7 @@ const de: Record<Key, Line> = {
   "account.kind.gift": "Geschenkt",
   "account.cloud": "Was du hier veröffentlichst, läuft auch auf {host}.",
   "account.organization": "Organisation",
+  "account.refresh": "Paket und Plugins neu laden",
   "account.switchAnyway": "Trotzdem wechseln",
   "account.switchHint":
     "Die Anmeldung läuft im Browser noch einmal, für die Organisation, die du wählst. Die Spaces von {name} bleiben auf diesem Computer und kommen erst wieder in der Cloud an, wenn du zurückwechselst. Spaces, die nur hier sind, gehen nicht mit.",
@@ -3585,6 +3586,7 @@ const en = {
   "account.kind.gift": "Gift",
   "account.cloud": "What you publish here also runs on {host}.",
   "account.organization": "Organization",
+  "account.refresh": "Reload plan and plugins",
   "account.switchAnyway": "Switch anyway",
   "account.switchHint":
     "The sign-in runs again in your browser, for the organization you pick. The spaces of {name} stay on this computer and arrive in the cloud again when you switch back. Spaces that are only here don’t go along.",

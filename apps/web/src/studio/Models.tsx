@@ -195,6 +195,7 @@ function placeOf(me: Me, view: View): Place {
               email: me.user.email,
               organization: null,
               organizationId: "",
+              plan: null,
               organizations: [],
               credits: 1250,
               expiring: [],

@@ -59,7 +59,7 @@ import { balanceCredits, canSpend } from "../credits/credits.js";
 import { estimateRun } from "../credits/estimate.js";
 import { missingModels, stepsWithoutModel } from "../engine/requirements.js";
 import { env } from "../env.js";
-import { feature, features } from "../features.js";
+import { feature, features, forgetAccountFeatures } from "../features.js";
 import { appleStatus } from "../harness/apple.js";
 import { freshAuth, loginEnv } from "../harness/env.js";
 import {
@@ -568,6 +568,8 @@ export const studio = new Hono<Vars>()
             /** The organization the account's space belongs to, as the Manage-App names it. */
             organization: overview?.tenant.name ?? null,
             organizationId: linked.tenantId,
+            /** The organization's plan; null while the Manage-App has not answered. */
+            plan: overview?.tenant.plan ?? null,
             /** The person's organizations, to switch to another; one alone means nothing to switch. */
             organizations: overview?.tenants ?? [],
             credits: overview?.tenant.balanceCredits ?? null,
@@ -2304,6 +2306,15 @@ export const studio = new Hono<Vars>()
       );
     }
     return c.json({ url: await startLink({ organization }) });
+  })
+  // Asks the account again now: its plan, its switches and the Pro modules the plan includes.
+  .post("/account/refresh", async (c) => {
+    if (managed) {
+      return c.notFound();
+    }
+    forgetAccountFeatures();
+    await refreshPro();
+    return c.json({ ok: true });
   })
   .delete("/account", async (c) => {
     if (managed) {

@@ -246,6 +246,9 @@ export async function accountOverview(): Promise<{
     id: string;
     name: string;
     role: string;
+    /** The plan, and the Pro modules it includes; an older Manage-App sends no modules. */
+    plan?: { id: string; name: string };
+    modules?: string[];
     balanceCredits: number;
     /** What of the balance ends on a date, the nearest first. */
     expiring?: { kind: string; credits: number; expiresAt: string }[];
@@ -269,6 +272,9 @@ export async function accountOverview(): Promise<{
   const overview = (await res.json()) as Awaited<ReturnType<typeof accountOverview>>;
   if (overview?.tenant) {
     await rememberOrganization(overview.tenant).catch(() => undefined);
+    // A plan that changed brings its Pro modules along (plugins/pro.ts).
+    const tenant = overview.tenant;
+    void import("../plugins/pro.js").then((pro) => pro.followPlan(tenant));
   }
   return overview;
 }
