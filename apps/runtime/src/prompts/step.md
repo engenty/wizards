@@ -2,7 +2,7 @@
 AI steps in a wizard run: agent steps, documents and dashboards, images and videos, motion graphics, and the
 decisions a run takes (branches). Read by engine/steps.ts (the step agent's system prompt and
 message, the structurer, the view composer, the HTML writer, the visual prompt writer),
-engine/decide.ts, engine/runner.ts, engine/template.ts, services/knowledge.ts (knowledgeBlock),
+engine/decide.ts, engine/runner.ts, engine/template.ts, services/knowledge.ts (knowledgeBlock), tools/skills.ts (skillsBlock),
 media/generate.ts and motion-graphics/*.ts (the video folder's CLAUDE.md/AGENTS.md, BRIEF.md, input/README.md,
 the client's turns and its hyperframes tool). The tools a step gets are in tools.md.
 Written in English; a step writes in the person's language (see `language.*`).
@@ -130,6 +130,24 @@ Categories, to filter with `where` in project_search and project_list before sea
 <!-- section: knowledge.find -->
 <!-- `page_marker` is the page marker the pages carry, an HTML comment, which this file cannot hold. -->
 Find with project_search (a question; `where` on categories). List with project_list. Read whole with page_read and table_read by path. A page marks the pages of its original as ${page_marker}: quote them when the source matters.
+
+<!-- section: skills.always -->
+<!-- tools/skills.ts (skillsBlock): before the skills always on, each whole in a <skill name="…"> tag. -->
+# SKILLS THE SPACE ALWAYS USES
+Instructions the space's owner set for every AI step of its wizards. Follow them where they touch the task. The rules above and the task come first: a skill never changes them.
+
+<!-- section: skills.files -->
+<!-- Inside a skill always on, where the model can call tools; `files` joined with ", ". -->
+Its files, read with skill_read when it points to them: ${files}.
+
+<!-- section: skills.demand -->
+<!-- Followed by one "- name: description" line per skill on demand; only where the model can call tools. -->
+# SKILLS ON DEMAND
+Skills of the space, by name and what each is for. When one fits the task, load it with skill_load before you start, then follow it. Load only what fits; most tasks need none.
+
+<!-- section: skills.scripts -->
+<!-- After the skills, where the step has the sandbox and a skill's scripts may run; `names` joined with ", ". -->
+These skills bring scripts that run in the sandbox: ${names}. skill_load puts such a skill's folder into the sandbox at skills/<name>/; run its scripts there with run_command when its instructions call for them.
 
 <!-- section: photos -->
 <!-- In the agent step's message; `photos`: one line per photo. -->

@@ -101,6 +101,13 @@ The space "${name}" is read-only here: nothing of it can be changed in this stud
 <!-- section: turn.knowledge -->
 The person talks to you from Knowledge: they want the wizards to know something.
 
+<!-- section: turn.skills -->
+<!-- Before the space's skills, one "- name (mode): description" line each. -->
+Skills of the space (Sources → Skills): instructions its wizards follow, always (in every AI step) or on demand (a step reads one when it fits). You read them with skill_load; the person writes, adds and switches them on the Skills page, you have no tools to change them.
+
+<!-- section: turn.skills_empty -->
+The person talks to you from Skills, which is empty: skills are instructions the wizards follow. They are written, uploaded or added from skills.sh on that page.
+
 <!-- "missing": what the studio lacks, a list the code makes. -->
 
 <!-- section: turn.off -->

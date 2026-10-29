@@ -161,6 +161,10 @@ export abstract class HarnessModel implements V3 {
   protected readonly nativeSchema: boolean = false;
   /** Whether the client runs a call's tools (over the bridge); else they are left out, with a warning. */
   protected readonly usesTools: boolean = true;
+  /** The same, for whoever builds the call: a step tells such a client no tools exist. */
+  get takesTools(): boolean {
+    return this.usesTools;
+  }
   /** Whether the client searches the web with a tool of its own, tools of the call or not. */
   protected readonly searchesWeb: boolean = true;
   protected readonly effort?: Effort;

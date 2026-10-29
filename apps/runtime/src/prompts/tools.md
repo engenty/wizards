@@ -131,6 +131,39 @@ Read a table of Knowledge by its path: its rows as CSV, filtered by its columns 
 <!-- section: tool.project_document -->
 Read a file of Knowledge as text by its path (files/…): a file that is not a page, or the original a page was read from. Long files come in parts: pass `from` to continue.
 
+<!-- Skills of the space (tools/skills.ts); Goose gets the same tools. `names` joined with ", ". -->
+
+<!-- section: tool.skill_load -->
+Load a skill of the space by its name: its instructions and the list of its files. Skills: ${names}.
+
+<!-- section: tool.skill_read -->
+Read a file of a skill by its path, as skill_load lists it: a reference, an example, a template.
+
+<!-- section: tool.skill_read.text_only -->
+<!-- After tool.skill_read where no skill's scripts run in this step (no sandbox, or none switched on). -->
+Scripts are text to read here; nothing runs them.
+
+<!-- section: note.skill_unknown -->
+No skill "${name}". Skills: ${names}.
+
+<!-- `files` joined with ", ", or "none". -->
+<!-- section: note.skill_no_file -->
+No file "${path}" in ${skill}. Its files: ${files}.
+
+<!-- In skill_load's answer for a skill whose scripts may run, in a step with the sandbox. `folder`: skills/<name>. -->
+<!-- section: note.skill_folder -->
+This skill's folder is in the sandbox at ${folder}: its SKILL.md and every file. Run its scripts with run_command from the working directory, e.g. python3 ${folder}/scripts/<file>.py, and install what they import first (pip install, npm install). Write what you make outside ${folder}.
+
+<!-- section: note.skill_folder_failed -->
+This skill's folder could not be put into the sandbox (${error}): its scripts can't run in this step. Follow its instructions without them.
+
+<!-- A file of a skill that is not text: a font, a template, a schema. -->
+<!-- section: note.skill_blob -->
+${path} is a file for the skill's scripts, not text to read.
+
+<!-- section: note.skill_more -->
+${rest} characters more: pass from=${from}
+
 <!-- Mail (tools/mail.ts) -->
 
 <!-- section: note.mail_not_connected -->

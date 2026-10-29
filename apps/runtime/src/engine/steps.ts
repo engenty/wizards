@@ -49,15 +49,18 @@ import {
   costOf,
   isHarnessVendor,
   type ResolvedModel,
+  takesTools,
   textModel,
   totalUsage,
 } from "../models.js";
 import { runMotionGraphicsStep } from "../motion-graphics/step.js";
 import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
+import { sandboxCapabilities } from "../sandbox/index.js";
 import { knowledgeBlock } from "../services/knowledge.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
+import { skillsBlock, skillsOf } from "../tools/skills.js";
 import { personUploads, type UploadRef } from "../tools/store.js";
 import { runWidgetStep } from "../widgets/step.js";
 import { decide } from "./decide.js";
@@ -603,6 +606,11 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     brandBlock(ctx),
     // Knowledge: what the space holds for its wizards, and how to find and read it.
     await knowledgeBlock(ctx.project.id),
+    // Skills: always on whole, on demand by name and description (docs/plans/skills.md).
+    skillsBlock(await skillsOf(ctx), {
+      tools: takesTools(resolved),
+      sandbox: step.tools.includes("sandbox") && sandboxCapabilities() !== null,
+    }),
     // What the space's plugins hold for its wizards: a wiki, questions and answers.
     ...(await spaceContextOf(ctx)).blocks,
     formatHint,
@@ -886,6 +894,8 @@ async function writeHtml(
     groundRules(ctx),
     `Today is ${today(ctx)}.`,
     brandBlock(ctx),
+    // The skills always on hold for what a step writes, a document too.
+    skillsBlock(await skillsOf(ctx), { tools: false }),
     guide,
     // What plugins hold for the space's look: a UI library, say.
     ...(await spaceContextOf(ctx)).html,

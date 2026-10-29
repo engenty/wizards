@@ -144,6 +144,8 @@ const ITEM_VIEWS: Record<LiveKind, ((r: Reader, x: LiveItem) => Promise<unknown>
     const row = await db.query.projectFile.findFirst({ where: eq(schema.projectFile.id, x.item) });
     return row ? fileView(row) : null;
   },
+  // The studio asks for the space's skills again: a list of names, no view of its own.
+  skill: null,
   connector: async (r, x) => {
     if (!x.projectId) {
       return null;

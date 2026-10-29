@@ -211,6 +211,13 @@
       "when": 1793227115692,
       "tag": "0029_work_chats_live",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1793272044265,
+      "tag": "0030_space_skill",
+      "breakpoints": true
     }
   ]
 }
