@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
-import { Lock, MessageSquarePlus, Sparkles } from "lucide-react";
+import { FileText, FolderOpen, Lock, MessageSquarePlus, Sparkles } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -22,10 +22,11 @@ import {
   useMessageScroller,
 } from "@/components/ui/message-scroller";
 import { EngentyLogoMark } from "../../engenty/logo";
+import { withBase } from "../../lib/base";
 import { lang, t } from "../../lib/i18n";
 import { useCurrentProject, useMe } from "../../lib/session";
 import { cn } from "../../ui";
-import { Composer } from "../../ui/composer";
+import { Composer, type ComposerHandle, type PickedFile, pastedName } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
 import {
   type Approval,
@@ -34,18 +35,21 @@ import {
   type ChatPart,
   type OpenChat,
   stopTurn,
+  uploadFiles,
   useAiTurn,
   useCreateChat,
   useDecide,
   useOpenChat,
   usePostMessage,
 } from "./chats";
+import { SpaceFilesDialog } from "./SpaceFilesDialog";
 import { AiParts, StepsContext } from "./Steps";
 
 /**
  * One chat of Work: its title, members and sub-threads, the messages in the shadcn/ui chat
- * parts, and the field to write in. A message's parts are the AI SDK's: people write text; a
- * turn of the space's AI adds its reasoning and tool calls as steps (Steps.tsx).
+ * parts, and the field to write in. A message's parts are the AI SDK's: people write text and add
+ * files (uploaded into the space's files, or chosen from them); a turn of the space's AI adds its
+ * reasoning and tool calls as steps (Steps.tsx).
  */
 
 export function ChatView({ id }: { id: string }) {
@@ -58,6 +62,10 @@ export function ChatView({ id }: { id: string }) {
   const decide = useDecide(id);
   const post = usePostMessage();
   const [askChoice, setAskChoice] = useState<boolean | null>(null);
+  const composer = useRef<ComposerHandle>(null);
+  const [choosing, setChoosing] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [dropping, setDropping] = useState(false);
   // Someone else's turn runs here: follow it from its start (useChat's resume), once per turn.
   const answering = data?.chat.answeringSince ?? null;
   const followed = useRef<string | null>(null);
@@ -70,16 +78,17 @@ export function ChatView({ id }: { id: string }) {
   // A question from Work's start comes along with the new chat: asked once the chat is read.
   const location = useLocation();
   const navigate = useNavigate();
-  const handedOver = (location.state as { ask?: string } | null)?.ask;
+  const handedOver = location.state as { ask?: string; files?: PickedFile[] } | null;
   const loaded = Boolean(data);
+  const spaceId = data?.chat.spaceId ?? "";
   const askedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (handedOver && loaded && askedFor.current !== location.key) {
+    if (handedOver?.ask !== undefined && loaded && askedFor.current !== location.key) {
       askedFor.current = location.key;
       navigate(location.pathname, { replace: true, state: null });
-      void turn.sendMessage({ text: handedOver });
+      void askWith(turn, spaceId, handedOver.ask, handedOver.files ?? []);
     }
-  }, [handedOver, loaded, navigate, location.key, location.pathname, turn]);
+  }, [handedOver, loaded, spaceId, navigate, location.key, location.pathname, turn]);
   // How often each of the person's texts was stored when its pending copy first showed.
   const storedBefore = useRef(new Map<string, number>());
   const { project } = useCurrentProject();
@@ -129,7 +138,34 @@ export function ChatView({ id }: { id: string }) {
         });
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    // Files dropped anywhere on the chat go into the field, to send with the next message.
+    <div
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setDropping(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setDropping(false);
+        }
+      }}
+      onDrop={(e) => {
+        setDropping(false);
+        if (e.dataTransfer.files.length) {
+          e.preventDefault();
+          composer.current?.add(Array.from(e.dataTransfer.files).map(pastedName));
+          composer.current?.focus();
+        }
+      }}
+    >
+      {dropping ? (
+        <div className="pointer-events-none absolute inset-3 z-20 grid place-items-center rounded-2xl border-2 border-focus border-dashed bg-card/95 font-medium text-[0.9375rem] text-ink">
+          {t("new.dropHint")}
+        </div>
+      ) : null}
       <ChatHeader chat={data} />
       <div className="min-h-0 flex-1">
         {messages.length ? (
@@ -187,6 +223,11 @@ export function ChatView({ id }: { id: string }) {
             {t("work.turnFailed", { message: turn.error.message })}
           </p>
         ) : null}
+        {sendError ? (
+          <p className="text-[0.8125rem] text-danger">
+            {t("work.files.uploadFailed", { message: sendError })}
+          </p>
+        ) : null}
         <div className="flex">
           <button
             type="button"
@@ -203,32 +244,78 @@ export function ChatView({ id }: { id: string }) {
         </div>
         <Composer
           key={id}
+          ref={composer}
           autoFocus
-          attach={false}
           busy={streaming}
+          plus={[
+            {
+              icon: <FolderOpen />,
+              label: t("work.files.fromSpace"),
+              onSelect: () => setChoosing(true),
+            },
+          ]}
           onStop={() => {
             void turn.stop();
             void stopTurn(id);
           }}
           placeholder={ask ? t("work.writeAsk") : t("work.write")}
-          onSend={async (raw, _files, later) => {
+          onSend={async (raw, files, later, picked = []) => {
             const text = raw.trim();
-            if (!text) {
+            if (!text && !files.length && !picked.length) {
               return false;
             }
+            setSendError(null);
+            let attached: PickedFile[];
+            try {
+              attached = [...picked, ...(await uploadFiles(id, files))];
+            } catch (err) {
+              setSendError((err as Error).message);
+              return false;
+            }
+            const fileIds = attached.map((f) => f.id);
             if (later && streaming) {
-              await post.mutateAsync({ id, text, later: true });
+              await post.mutateAsync({ id, text, later: true, files: fileIds });
             } else if (ask || text.startsWith("@")) {
-              void turn.sendMessage({ text });
+              void askWith(turn, spaceId, text, attached);
             } else {
-              await post.mutateAsync({ id, text });
+              await post.mutateAsync({ id, text, files: fileIds });
             }
             return true;
           }}
         />
+        <SpaceFilesDialog
+          spaceId={data.chat.spaceId}
+          open={choosing}
+          onClose={() => setChoosing(false)}
+          onPick={(files) => composer.current?.pick(files)}
+        />
       </div>
     </div>
   );
+}
+
+/**
+ * Asks the space's AI through `useChat`: the files go along by their ids, and show in the
+ * person's message while the turn runs as links into the space's files.
+ */
+function askWith(
+  turn: ReturnType<typeof useAiTurn>,
+  spaceId: string,
+  text: string,
+  files: PickedFile[],
+) {
+  if (!files.length) {
+    return turn.sendMessage({ text });
+  }
+  const parts = files.map((f) => ({
+    type: "file" as const,
+    mediaType: f.mime,
+    filename: f.name,
+    url: `/api/studio/projects/${spaceId}/files/${f.id}/content`,
+  }));
+  return turn.sendMessage(text ? { text, files: parts } : { files: parts }, {
+    body: { files: files.map((f) => f.id) },
+  });
 }
 
 /**
@@ -426,20 +513,59 @@ function Turn({
             ai ? (
               <AiParts key={m.id} id={m.id} parts={m.parts} live={m.id === liveId} />
             ) : (
-              <Bubble
-                key={m.id}
-                align={mine ? "end" : "start"}
-                variant={mine ? "muted" : "outline"}
-              >
-                <BubbleContent className="whitespace-pre-wrap text-[0.9375rem]">
-                  {textOf(m.parts)}
-                </BubbleContent>
-              </Bubble>
+              <Fragment key={m.id}>
+                {textOf(m.parts) ? (
+                  <Bubble align={mine ? "end" : "start"} variant={mine ? "muted" : "outline"}>
+                    <BubbleContent className="whitespace-pre-wrap text-[0.9375rem]">
+                      {textOf(m.parts)}
+                    </BubbleContent>
+                  </Bubble>
+                ) : null}
+                <Files parts={m.parts} mine={mine} />
+              </Fragment>
             ),
           )}
         </MessageGroup>
       </MessageContent>
     </Message>
+  );
+}
+
+type FilePart = Extract<ChatPart, { type: "file" }>;
+
+/** The files a person's message brought, opened from the space's files: pictures as such. */
+function Files({ parts, mine }: { parts: ChatPart[]; mine: boolean }) {
+  const files = parts.filter((p): p is FilePart => p.type === "file");
+  if (!files.length) {
+    return null;
+  }
+  return (
+    <div className={cn("flex flex-wrap gap-2", mine && "justify-end")}>
+      {files.map((f, at) => {
+        const href = withBase(f.url);
+        const name = f.filename ?? t("work.files.file");
+        return f.mediaType.startsWith("image/") ? (
+          <a key={f.fileId ?? at} href={href} target="_blank" rel="noreferrer" title={name}>
+            <img
+              src={href}
+              alt={name}
+              className="max-h-48 max-w-64 rounded-xl bg-paper-2 object-cover ring-1 ring-border"
+            />
+          </a>
+        ) : (
+          <a
+            key={f.fileId ?? at}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="flex max-w-64 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-[0.875rem] text-ink hover:bg-paper-2"
+          >
+            <FileText className="size-4 shrink-0 text-ink-3" />
+            <span className="truncate">{name}</span>
+          </a>
+        );
+      })}
+    </div>
   );
 }
 

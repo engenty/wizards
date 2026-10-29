@@ -12,8 +12,10 @@ import { assistantToolLabels } from "../tools/plugin.js";
 import { type ClientStep, ClientSteps, stepChunk, stepParts } from "./client-steps.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
+import { addProjectFile, fileView } from "./project-files.js";
 import { type LazyTurn, lazyTurn, MAX_STEPS, TURN_KEY, TURN_MS, toolToRun } from "./work-ai.js";
 import { approvalsOf, noteOutcome, takeDecision, waitingFor } from "./work-approvals.js";
+import { type ChatFile, chatFiles, fileKind, messageContents, viewParts } from "./work-files.js";
 import { workMastra } from "./work-mastra.js";
 
 /**
@@ -334,13 +336,16 @@ type StoredMessage = {
   content: {
     parts?: unknown[];
     metadata?: {
-      signal?: { attributes?: { name?: string; id?: string }; metadata?: { authorId?: string } };
+      signal?: {
+        attributes?: { name?: string; id?: string };
+        metadata?: { authorId?: string; files?: ChatFile[] };
+      };
     };
   };
 };
 
-/** A stored Mastra message as the chat shows it. */
-function messageView(m: StoredMessage): ChatMessageView {
+/** A stored Mastra message as the chat shows it; its files as links into the space's files. */
+function messageView(spaceId: string, m: StoredMessage): ChatMessageView {
   const signal = m.content.metadata?.signal;
   const person = m.role === "user" || m.role === "signal";
   const [converted] = toAISdkMessages([m] as never, { version: "v7" } as never) as {
@@ -355,7 +360,11 @@ function messageView(m: StoredMessage): ChatMessageView {
           name: signal?.attributes?.name ?? "",
         }
       : { kind: "ai", id: AI_AUTHOR, name: "" },
-    parts: (converted?.parts ?? []).filter((p) => p.type !== "step-start"),
+    parts: viewParts(
+      spaceId,
+      (converted?.parts ?? []).filter((p) => p.type !== "step-start"),
+      signal?.metadata?.files,
+    ),
     createdAt: new Date(m.createdAt).toISOString(),
   };
 }
@@ -387,7 +396,9 @@ export async function readChat(user: SessionUser, id: string) {
         image: names.get(m.memberId)?.image ?? null,
       }),
     ),
-    messages: (recalled.messages as unknown as StoredMessage[]).map(messageView),
+    messages: (recalled.messages as unknown as StoredMessage[]).map((m) =>
+      messageView(chat.projectId, m),
+    ),
     threads: threads.map(listItem),
     approvals: await approvalsOf(chat.id),
     tools: await assistantToolLabels(user.tenantId),
@@ -411,6 +422,20 @@ async function noteLast(chat: ChatRow, author: { id: string; name: string }, tex
     .where(eq(schema.chat.id, chat.id));
 }
 
+/**
+ * A file a person adds to a message in a chat: it lands in the chat's space's files (pictures and
+ * media as assets, the rest as documents, read and indexed), and the message names it by its id.
+ */
+export async function attachFile(
+  user: SessionUser,
+  id: string,
+  file: { name: string; mime: string; data: Uint8Array },
+) {
+  const chat = await visibleChat(user, id);
+  const row = await addProjectFile(chat.projectId, { ...file, kind: fileKind(file.mime) });
+  return fileView(row);
+}
+
 /** What became of a message: kept, queued, or a turn (new, or the running one it went into). */
 export type Sent = { kind: "kept" } | { kind: "queued" } | { kind: "turn"; stream: ReadableStream };
 
@@ -418,19 +443,29 @@ export type Sent = { kind: "kept" } | { kind: "queued" } | { kind: "turn"; strea
  * A person writes in a chat. They join it, the message goes into the chat's thread with them as
  * author, and their first message names the chat. Not asked, the AI doesn't run. Asked, the
  * message wakes it for a turn or goes into the turn it is running; the asker follows that turn
- * (its stream, in the AI SDK's UI parts). `later` waits until the running turn ends.
+ * (its stream, in the AI SDK's UI parts). `later` waits until the running turn ends. `files`: the
+ * ids of the space's files that go with it, which the model sees (work-files.ts).
  */
 export async function sendMessage(
   user: SessionUser,
   id: string,
   text: string,
-  options: { ask?: boolean; later?: boolean } = {},
+  options: { ask?: boolean; later?: boolean; files?: string[] } = {},
 ): Promise<Sent> {
   const chat = await visibleChat(user, id);
+  const named = await chatFiles(chat.projectId, options.files ?? []);
+  if (!text && !named.length) {
+    throw new ServiceError("invalid", "empty message");
+  }
   await join(chat.id, "person", user.id);
   const name = (await userProfile(user)).name;
   const { agent } = await workMastra();
-  const message = { contents: text, attributes: { name }, metadata: { authorId: user.id } };
+  const { contents, files } = await messageContents(chat.projectId, text, named);
+  const message = {
+    contents,
+    attributes: { name },
+    metadata: { authorId: user.id, ...(files.length ? { files } : {}) },
+  };
   const target = { resourceId: chat.projectId, threadId: chat.id };
   if (options.ask && !(await canSpend())) {
     throw new ServiceError("no_credits", note("creditsUsedUp"));
@@ -444,7 +479,7 @@ export async function sendMessage(
     ifActive: { behavior: "persist" },
     ifIdle: { behavior: "persist" },
   }).accepted;
-  await noteLast(chat, { id: user.id, name }, text);
+  await noteLast(chat, { id: user.id, name }, text || files.map((f) => f.name).join(", "));
   if (!options.ask) {
     return { kind: "kept" };
   }
@@ -471,7 +506,13 @@ export async function sendMessage(
     ? {
         type: "user" as const,
         attributes: { name },
-        contents: `${text}\n\n(The request before this one still stands.)`,
+        contents: (
+          await messageContents(
+            chat.projectId,
+            `${text}\n\n(The request before this one still stands.)`.trim(),
+            named,
+          )
+        ).contents,
         transient: true,
       }
     : asked;

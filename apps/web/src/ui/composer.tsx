@@ -3,6 +3,7 @@ import {
   AudioLines,
   Check,
   ChevronDown,
+  FolderOpen,
   Mic,
   Paperclip,
   Plus,
@@ -74,9 +75,25 @@ export function Thumb({
   );
 }
 
+/** A file that is already somewhere (the space's files): it goes with a message by its id. */
+export interface PickedFile {
+  id: string;
+  name: string;
+  mime: string;
+}
+
+/** One more entry in the plus menu, under the one that attaches files. */
+export interface PlusItem {
+  icon: ReactNode;
+  label: string;
+  onSelect: () => void;
+}
+
 /** What a conversation around the composer can do with it: files dropped on it go in here. */
 export interface ComposerHandle {
   add: (files: File[]) => void;
+  /** Files picked from where they already are, e.g. the space's files. */
+  pick: (files: PickedFile[]) => void;
   focus: () => void;
   /** Puts a draft into the field, e.g. a suggestion to finish before sending. */
   fill: (text: string) => void;
@@ -98,6 +115,7 @@ export const LATER_KEYS =
  * text, and on the last line once it grows. `floating` lifts it off the page for a composer that
  * stands at the lower edge of the window. With `onStop`, an answer under way (`busy`) does not
  * lock it: Enter sends on, ⌘↩ (Ctrl+↩) for after the answer, and an empty field offers Stop.
+ * `tall`: the field starts at four lines, with its buttons in a row below it (the new-wizard page).
  */
 export function Composer({
   placeholder,
@@ -112,6 +130,8 @@ export function Composer({
   className,
   onTalk,
   effort,
+  plus,
+  tall: big,
   ref,
 }: {
   placeholder?: string;
@@ -123,9 +143,14 @@ export function Composer({
   onStop?: () => void;
   /**
    * False keeps the draft, e.g. when sending failed. `later`: sent with ⌘↩ (Ctrl+↩), for after
-   * the answer under way.
+   * the answer under way. `picked`: files handed in through `ref.pick`.
    */
-  onSend: (text: string, files: File[], later?: boolean) => boolean | Promise<boolean>;
+  onSend: (
+    text: string,
+    files: File[],
+    later?: boolean,
+    picked?: PickedFile[],
+  ) => boolean | Promise<boolean>;
   attach?: boolean;
   floating?: boolean;
   /** Drawn inside a card of the caller's: no fill, ring, shadow or rounding of its own. */
@@ -136,10 +161,15 @@ export function Composer({
   onTalk?: () => void;
   /** Extra effort: a box in the plus menu; on, the chat works with its more capable model. */
   effort?: { on: boolean; onChange: (on: boolean) => void };
+  /** More entries for the plus menu, e.g. the space's files. */
+  plus?: PlusItem[];
+  tall?: boolean;
   ref?: Ref<ComposerHandle>;
 }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [picked, setPicked] = useState<PickedFile[]>([]);
+  const [dropping, setDropping] = useState(false);
   const [tall, setTall] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -149,6 +179,8 @@ export function Composer({
     setFiles((all) => [...all.filter((f) => !picked.some((p) => p.name === f.name)), ...picked]);
   useImperativeHandle(ref, () => ({
     add,
+    pick: (more: PickedFile[]) =>
+      setPicked((all) => [...all.filter((f) => !more.some((m) => m.id === f.id)), ...more]),
     focus: () => area.current?.focus(),
     fill: (draft: string) => {
       setText(draft);
@@ -199,7 +231,7 @@ export function Composer({
     };
   }, [files]);
 
-  const typed = Boolean(text.trim() || files.length > 0);
+  const typed = Boolean(text.trim() || files.length > 0 || picked.length > 0);
   const ready = typed && !disabled;
   const submit = async (later = false) => {
     if (!ready) {
@@ -208,24 +240,164 @@ export function Composer({
     if (speech.listening) {
       speech.stop();
     }
-    const draft = { text, files };
+    const draft = { text, files, picked };
     setText("");
     setFiles([]);
-    if (!(await onSend(draft.text.trim(), draft.files, later))) {
+    setPicked([]);
+    if (!(await onSend(draft.text.trim(), draft.files, later, draft.picked))) {
       setText(draft.text);
       setFiles(draft.files);
+      setPicked(draft.picked);
     }
   };
   const detach = (i: number) => setFiles((all) => all.filter((_, j) => j !== i));
+  const attachOpener = () => picker.current?.click();
+  const plusButton = attach ? (
+    <>
+      {effort || plus?.length ? (
+        <PlusMenu effort={effort} items={plus} onAttach={attachOpener} outlined={big} />
+      ) : big ? (
+        <button
+          type="button"
+          aria-label={t("editor.attach")}
+          title={t("editor.attach")}
+          onClick={attachOpener}
+          className={OUTLINED}
+        >
+          <Plus className="size-4" />
+        </button>
+      ) : (
+        <IconButton label={t("editor.attach")} onClick={attachOpener}>
+          <Plus className="size-4" />
+        </IconButton>
+      )}
+      <input
+        ref={picker}
+        type="file"
+        multiple
+        hidden
+        onChange={(e) => {
+          const chosen = Array.from(e.target.files ?? []);
+          e.target.value = "";
+          add(chosen);
+        }}
+      />
+    </>
+  ) : null;
+  const size = big ? "size-10" : "size-9";
+  const action =
+    busy && onStop && !typed ? (
+      <button
+        type="button"
+        onClick={onStop}
+        className={cn(
+          size,
+          "inline-flex shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition coarse:size-11",
+        )}
+        aria-label={t("composer.stop")}
+        title={t("composer.stop")}
+      >
+        <Square className="size-3 fill-current" />
+      </button>
+    ) : onTalk && !(typed || speech.listening) ? (
+      <button
+        type="button"
+        onClick={onTalk}
+        disabled={disabled}
+        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 font-medium text-[0.8125rem] text-primary-foreground transition disabled:opacity-50 coarse:h-11"
+        aria-label={t("assistant.talk")}
+      >
+        <AudioLines className="size-4" /> {t("assistant.talk")}
+      </button>
+    ) : (
+      <button
+        type="button"
+        onClick={() => void submit()}
+        disabled={!ready}
+        className={cn(
+          size,
+          "inline-flex shrink-0 items-center justify-center rounded-full transition coarse:size-11",
+          ready ? "bg-primary text-primary-foreground" : "bg-paper-2 text-ink-4",
+        )}
+        aria-label={t("composer.send")}
+        title={busy && onStop ? t("composer.sendBusy", { keys: LATER_KEYS }) : undefined}
+      >
+        <ArrowUp className="size-4" />
+      </button>
+    );
+
+  const chips = files.some((f) => !thumbs.has(f)) || picked.length;
+  const field = (
+    <textarea
+      ref={area}
+      rows={big ? 4 : 1}
+      value={text}
+      autoFocus={autoFocus}
+      onChange={(e) => setText(e.target.value)}
+      onPaste={(e) => {
+        const pasted = Array.from(e.clipboardData.files);
+        if (attach && pasted.length) {
+          e.preventDefault();
+          add(pasted.map(pastedName));
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+          e.preventDefault();
+          void submit(e.metaKey || e.ctrlKey);
+        }
+      }}
+      placeholder={
+        dropping ? t("new.dropHint") : speech.listening ? t("editor.listening") : placeholder
+      }
+      className={cn(
+        "max-h-[200px] resize-none bg-transparent outline-none placeholder:text-ink-4",
+        big
+          ? "min-h-24 w-full px-3 pt-2.5 pb-1 text-[1rem] leading-6"
+          : "min-h-9 flex-1 py-2 text-[0.875rem] leading-5 placeholder:truncate coarse:min-h-11 coarse:py-3",
+        !big && (attach ? "px-1" : "px-3"),
+      )}
+    />
+  );
 
   return (
     <div className={className}>
+      {/* Files dropped on the field are attached, as picked or pasted ones are. */}
       <div
+        {...(attach
+          ? {
+              onDragOver: (e: React.DragEvent) => {
+                if (e.dataTransfer.types.includes("Files")) {
+                  e.preventDefault();
+                  setDropping(true);
+                }
+              },
+              onDragLeave: (e: React.DragEvent) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setDropping(false);
+                }
+              },
+              onDrop: (e: React.DragEvent) => {
+                setDropping(false);
+                if (e.dataTransfer.files.length) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  add(Array.from(e.dataTransfer.files).map(pastedName));
+                }
+              },
+            }
+          : {})}
         className={cn(
-          bare ? "px-2 py-3" : "p-1",
+          bare ? "px-2 py-3" : big ? "p-2" : "p-1",
           !bare && "bg-card ring-1 ring-border focus-within:ring-focus",
-          !bare && (tall || files.length ? "rounded-[1.375rem]" : "rounded-full"),
-          !bare && (floating ? "shadow-overlay" : "shadow-soft"),
+          dropping && "ring-2 ring-focus",
+          !bare &&
+            (big
+              ? "rounded-2xl"
+              : tall || files.length || picked.length
+                ? "rounded-[1.375rem]"
+                : "rounded-full"),
+          !bare && (floating ? "shadow-overlay" : big ? "shadow-elevated" : "shadow-soft"),
         )}
       >
         {thumbs.size ? (
@@ -247,115 +419,47 @@ export function Composer({
             })}
           </div>
         ) : null}
-        {files.some((f) => !thumbs.has(f)) ? (
+        {chips ? (
           <ul className="flex flex-wrap gap-1.5 px-2 pt-2 pb-1">
             {files.map((f, i) =>
               thumbs.has(f) ? null : (
-                <li
+                <FileChip
                   key={`${f.name}-${i}`}
-                  className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-paper-2 py-1 pr-1 pl-2.5 text-[0.75rem] text-ink-2"
-                >
-                  <Paperclip className="size-3 shrink-0 text-ink-4" />
-                  <span className="truncate">{f.name}</span>
-                  <button
-                    type="button"
-                    aria-label={t("editor.detach")}
-                    onClick={() => detach(i)}
-                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-ink-3 hover:bg-paper-3 hover:text-ink"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </li>
+                  icon={<Paperclip className="size-3 shrink-0 text-ink-4" />}
+                  name={f.name}
+                  onDetach={() => detach(i)}
+                />
               ),
             )}
+            {picked.map((f) => (
+              <FileChip
+                key={f.id}
+                icon={<FolderOpen className="size-3 shrink-0 text-ink-4" />}
+                name={f.name}
+                onDetach={() => setPicked((all) => all.filter((p) => p.id !== f.id))}
+              />
+            ))}
           </ul>
         ) : null}
-        {/* The field is as high as a button on one line, so text and buttons share a middle. */}
-        <div className="flex items-end gap-0.5">
-          {attach ? (
-            <>
-              {effort ? (
-                <PlusMenu effort={effort} onAttach={() => picker.current?.click()} />
-              ) : (
-                <IconButton label={t("editor.attach")} onClick={() => picker.current?.click()}>
-                  <Plus className="size-4" />
-                </IconButton>
-              )}
-              <input
-                ref={picker}
-                type="file"
-                multiple
-                hidden
-                onChange={(e) => {
-                  const picked = Array.from(e.target.files ?? []);
-                  e.target.value = "";
-                  add(picked);
-                }}
-              />
-            </>
-          ) : null}
-          <textarea
-            ref={area}
-            rows={1}
-            value={text}
-            autoFocus={autoFocus}
-            onChange={(e) => setText(e.target.value)}
-            onPaste={(e) => {
-              const pasted = Array.from(e.clipboardData.files);
-              if (attach && pasted.length) {
-                e.preventDefault();
-                add(pasted.map(pastedName));
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                void submit(e.metaKey || e.ctrlKey);
-              }
-            }}
-            placeholder={speech.listening ? t("editor.listening") : placeholder}
-            className={cn(
-              "max-h-[200px] min-h-9 flex-1 resize-none bg-transparent py-2 text-[0.875rem] leading-5 outline-none placeholder:truncate placeholder:text-ink-4 coarse:min-h-11 coarse:py-3",
-              attach ? "px-1" : "px-3",
-            )}
-          />
-          {speech.supported ? <DictationButton speech={speech} /> : null}
-          {busy && onStop && !typed ? (
-            <button
-              type="button"
-              onClick={onStop}
-              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition coarse:size-11"
-              aria-label={t("composer.stop")}
-              title={t("composer.stop")}
-            >
-              <Square className="size-3 fill-current" />
-            </button>
-          ) : onTalk && !(text.trim() || files.length || speech.listening) ? (
-            <button
-              type="button"
-              onClick={onTalk}
-              disabled={disabled}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 font-medium text-[0.8125rem] text-primary-foreground transition disabled:opacity-50 coarse:h-11"
-              aria-label={t("assistant.talk")}
-            >
-              <AudioLines className="size-4" /> {t("assistant.talk")}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={!ready}
-              className={cn(
-                "inline-flex size-9 shrink-0 items-center justify-center rounded-full transition coarse:size-11",
-                ready ? "bg-primary text-primary-foreground" : "bg-paper-2 text-ink-4",
-              )}
-              aria-label={t("composer.send")}
-              title={busy && onStop ? t("composer.sendBusy", { keys: LATER_KEYS }) : undefined}
-            >
-              <ArrowUp className="size-4" />
-            </button>
-          )}
-        </div>
+        {big ? (
+          <>
+            {field}
+            <div className="flex items-center gap-2 px-1 pb-1">
+              {plusButton}
+              {speech.supported ? <DictationButton speech={speech} labelled /> : null}
+              <span className="flex-1" />
+              {action}
+            </div>
+          </>
+        ) : (
+          // The field is as high as a button on one line, so text and buttons share a middle.
+          <div className="flex items-end gap-0.5">
+            {plusButton}
+            {field}
+            {speech.supported ? <DictationButton speech={speech} /> : null}
+            {action}
+          </div>
+        )}
       </div>
       {speech.error ? (
         <p className="mt-2 px-3 text-[0.75rem] text-rose">
@@ -366,18 +470,52 @@ export function Composer({
   );
 }
 
+/** The outlined round button of the tall composer, as on the new-wizard page. */
+const OUTLINED =
+  "inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-border text-ink transition hover:bg-paper-2 coarse:size-11";
+
+function FileChip({
+  icon,
+  name,
+  onDetach,
+}: {
+  icon: ReactNode;
+  name: string;
+  onDetach: () => void;
+}) {
+  return (
+    <li className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-paper-2 py-1 pr-1 pl-2.5 text-[0.75rem] text-ink-2">
+      {icon}
+      <span className="truncate">{name}</span>
+      <button
+        type="button"
+        aria-label={t("editor.detach")}
+        onClick={onDetach}
+        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-ink-3 hover:bg-paper-3 hover:text-ink"
+      >
+        <X className="size-3" />
+      </button>
+    </li>
+  );
+}
+
 export type Speech = ReturnType<typeof useDictation>;
 
 /**
- * The plus button with its menu: attach files, and the box for extra effort. The menu stands
- * fixed to the window above the button, so a card around the composer does not cut it.
+ * The plus button with its menu: attach files, the caller's entries, and the box for extra
+ * effort. The menu stands fixed to the window above the button, so a card around the composer
+ * does not cut it.
  */
 function PlusMenu({
   effort,
+  items,
   onAttach,
+  outlined,
 }: {
-  effort: { on: boolean; onChange: (on: boolean) => void };
+  effort?: { on: boolean; onChange: (on: boolean) => void };
+  items?: PlusItem[];
   onAttach: () => void;
+  outlined?: boolean;
 }) {
   const [at, setAt] = useState<{ bottom: number; left: number } | null>(null);
   const opener = useRef<HTMLButtonElement>(null);
@@ -426,7 +564,11 @@ function PlusMenu({
         aria-haspopup="menu"
         aria-expanded={Boolean(at)}
         onClick={toggle}
-        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-ink-3 transition hover:bg-accent hover:text-ink coarse:size-11"
+        className={
+          outlined
+            ? OUTLINED
+            : "inline-flex size-9 shrink-0 items-center justify-center rounded-full text-ink-3 transition hover:bg-accent hover:text-ink coarse:size-11"
+        }
       >
         <Plus className="size-4" />
       </button>
@@ -449,29 +591,53 @@ function PlusMenu({
             <Paperclip className="size-4 text-ink-3" />
             {t("editor.attach")}
           </button>
-          <div className="mx-2 my-1 border-border-soft border-t" />
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={effort.on}
-            onClick={() => effort.onChange(!effort.on)}
-            className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-paper-2"
-          >
-            <span
-              className={cn(
-                "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border",
-                effort.on ? "border-primary bg-primary text-primary-foreground" : "border-input",
-              )}
+          {items?.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAt(null);
+                item.onSelect();
+              }}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[0.875rem] hover:bg-paper-2 [&>svg]:size-4 [&>svg]:text-ink-3"
             >
-              {effort.on ? <Check className="size-3" strokeWidth={3} /> : null}
-            </span>
-            <span className="flex flex-col">
-              <span className="text-[0.875rem]">{t("composer.extra")}</span>
-              <span className="text-[0.75rem] text-ink-3">{t("composer.extraHint")}</span>
-            </span>
-          </button>
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+          {effort ? <EffortBox effort={effort} /> : null}
         </div>
       ) : null}
+    </>
+  );
+}
+
+/** Extra effort, in the plus menu: on, the chat works with its more capable model. */
+function EffortBox({ effort }: { effort: { on: boolean; onChange: (on: boolean) => void } }) {
+  return (
+    <>
+      <div className="mx-2 my-1 border-border-soft border-t" />
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={effort.on}
+        onClick={() => effort.onChange(!effort.on)}
+        className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-paper-2"
+      >
+        <span
+          className={cn(
+            "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border",
+            effort.on ? "border-primary bg-primary text-primary-foreground" : "border-input",
+          )}
+        >
+          {effort.on ? <Check className="size-3" strokeWidth={3} /> : null}
+        </span>
+        <span className="flex flex-col">
+          <span className="text-[0.875rem]">{t("composer.extra")}</span>
+          <span className="text-[0.75rem] text-ink-3">{t("composer.extraHint")}</span>
+        </span>
+      </button>
     </>
   );
 }

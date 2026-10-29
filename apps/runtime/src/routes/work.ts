@@ -1,10 +1,13 @@
+import { note } from "@engenty/wizards-shared/run";
 import { createUIMessageStreamResponse } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
 import { feature, remoteFeatures } from "../features.js";
+import { ServiceError } from "../services/errors.js";
 import {
   addMember,
+  attachFile,
   createChat,
   createSection,
   decideApproval,
@@ -22,6 +25,7 @@ import {
   updateChat,
   waitingApprovals,
 } from "../services/work-chats.js";
+import { FILES_PER_MESSAGE } from "../services/work-files.js";
 import { say } from "./lang.js";
 
 type Vars = { Variables: { user: SessionUser } };
@@ -82,14 +86,29 @@ export const workRoutes = new Hono<Vars>()
     await setChatState(c.get("user"), c.req.param("id"), patch);
     return c.json({ ok: true });
   })
+  // A file for a message: it lands in the space's files; the message names it by its id.
+  .post("/chats/:id/files", async (c) => {
+    const file = (await c.req.formData()).get("file");
+    if (!(file instanceof File)) {
+      throw new ServiceError("invalid", note("chooseFile"));
+    }
+    const added = await attachFile(c.get("user"), c.req.param("id"), {
+      name: file.name,
+      mime: file.type.split(";")[0].trim().toLowerCase(),
+      data: new Uint8Array(await file.arrayBuffer()),
+    });
+    return c.json(added);
+  })
   // A person writes; asked, the space's AI answers with a UI message stream (`useChat`).
   .post("/chats/:id/messages", async (c) => {
     const body = z
       .object({
-        text: z.string().trim().min(1).max(8000),
+        text: z.string().trim().max(8000).default(""),
+        files: z.array(z.string().min(1)).max(FILES_PER_MESSAGE).optional(),
         ask: z.boolean().optional(),
         later: z.boolean().optional(),
       })
+      .refine((b) => b.text || b.files?.length)
       .parse(await c.req.json());
     const sent = await sendMessage(c.get("user"), c.req.param("id"), body.text, body);
     return sent.kind === "turn"
