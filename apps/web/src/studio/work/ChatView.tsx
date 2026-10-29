@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
-import { FileText, FolderOpen, Lock, MessageSquarePlus, Sparkles } from "lucide-react";
+import { FolderOpen, Lock, MessageSquarePlus, Sparkles } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -27,6 +27,7 @@ import { lang, t } from "../../lib/i18n";
 import { useCurrentProject, useMe } from "../../lib/session";
 import { cn } from "../../ui";
 import { Composer, type ComposerHandle, type PickedFile, pastedName } from "../../ui/composer";
+import { FilePreview, FileTile } from "../../ui/file-preview";
 import { useCrumbs } from "../AppFrame";
 import {
   type Approval,
@@ -533,39 +534,28 @@ function Turn({
 
 type FilePart = Extract<ChatPart, { type: "file" }>;
 
-/** The files a person's message brought, opened from the space's files: pictures as such. */
+/** The files a person's message brought, from the space's files; each opens large. */
 function Files({ parts, mine }: { parts: ChatPart[]; mine: boolean }) {
-  const files = parts.filter((p): p is FilePart => p.type === "file");
+  const [open, setOpen] = useState<number | null>(null);
+  const files = parts
+    .filter((p): p is FilePart => p.type === "file")
+    .map((f) => ({
+      name: f.filename ?? t("work.files.file"),
+      mime: f.mediaType,
+      url: withBase(f.url),
+    }));
   if (!files.length) {
     return null;
   }
   return (
-    <div className={cn("flex flex-wrap gap-2", mine && "justify-end")}>
-      {files.map((f, at) => {
-        const href = withBase(f.url);
-        const name = f.filename ?? t("work.files.file");
-        return f.mediaType.startsWith("image/") ? (
-          <a key={f.fileId ?? at} href={href} target="_blank" rel="noreferrer" title={name}>
-            <img
-              src={href}
-              alt={name}
-              className="max-h-48 max-w-64 rounded-xl bg-paper-2 object-cover ring-1 ring-border"
-            />
-          </a>
-        ) : (
-          <a
-            key={f.fileId ?? at}
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            className="flex max-w-64 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-[0.875rem] text-ink hover:bg-paper-2"
-          >
-            <FileText className="size-4 shrink-0 text-ink-3" />
-            <span className="truncate">{name}</span>
-          </a>
-        );
-      })}
-    </div>
+    <>
+      <ul className={cn("flex flex-wrap gap-2", mine && "justify-end")}>
+        {files.map((f, at) => (
+          <FileTile key={`${f.url}-${at}`} file={f} large onOpen={() => setOpen(at)} />
+        ))}
+      </ul>
+      <FilePreview files={files} at={open} onAt={setOpen} />
+    </>
   );
 }
 
