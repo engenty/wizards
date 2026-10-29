@@ -640,11 +640,11 @@ function Files({ parts, mine }: { parts: ChatPart[]; mine: boolean }) {
       ) : images.length ? (
         <ul
           className={cn(
-            "grid w-full max-w-2xl grid-cols-2 items-start gap-2",
+            "grid w-full max-w-3xl grid-cols-2 items-start gap-2",
             mine && "ml-auto justify-items-end",
           )}
         >
-          {images.map((one) => tile(one, "max-h-80"))}
+          {images.map((one) => tile(one, "max-h-[55dvh]"))}
         </ul>
       ) : null}
       {others.length ? (
