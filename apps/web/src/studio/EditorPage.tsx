@@ -56,6 +56,7 @@ import { LiveChip, useLiveDraft } from "./live";
 import { PresenceStack, useAlsoHere } from "./live/PresenceStack";
 import { useReportPresence } from "./live/presence";
 import { pageAddress, pageUrl } from "./project/page-address";
+import { tierClassLabel } from "./tiers";
 import { WizardMenu } from "./WizardMenu";
 import { WhereChip, whereItRuns } from "./where";
 
@@ -865,9 +866,11 @@ function Editor() {
           </p>
           <ul className="mt-2 list-disc pl-5 text-[0.8125rem] text-ink-2">
             {missing.map((m) => (
-              <li key={m.cls}>
-                <span className="text-ink">{t(`class.${m.cls}` as Key)}</span> (
-                {m.steps.map((s) => `„${s.title}“`).join(", ")}): <LinkedText text={m.problem} />
+              <li key={m.tierClass ?? m.cls}>
+                <span className="text-ink">
+                  {m.tierClass ? tierClassLabel(m.tierClass) : t(`class.${m.cls}` as Key)}
+                </span>{" "}
+                ({m.steps.map((s) => `„${s.title}“`).join(", ")}): <LinkedText text={m.problem} />
               </li>
             ))}
           </ul>
@@ -875,7 +878,9 @@ function Editor() {
             <Button size="sm" variant="quiet" onClick={() => navigate("/settings/models")}>
               {t("editor.models.settings")}
             </Button>
-            {credits === "connect" ? (
+            {missing.some((m) => m.tierClass) ? (
+              <p className="text-[0.8125rem] text-ink-3">{t("editor.models.tierAdmins")}</p>
+            ) : credits === "connect" ? (
               <p className="text-[0.8125rem] text-ink-3">
                 {t("teaser.models")}{" "}
                 <button

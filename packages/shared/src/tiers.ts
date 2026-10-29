@@ -4,7 +4,7 @@
  * `GET /v1/tenants/:id` and enforces them in its gateway (docs/manage-contract.md, "Model
  * tiers"); the runtime shows them and names the class a step asks for. Behind `modelTiers`.
  */
-import type { Effort } from "./definition.js";
+import { type Effort, MAKERS, type Maker } from "./definition.js";
 
 /** What a call is for: a run, the studio outside a run (Goose, the editor), a work chat. */
 export const PURPOSES = ["wizard", "assistant", "work"] as const;
@@ -64,3 +64,30 @@ export interface ModelPolicy {
   apps: { local: boolean; subscriptions: boolean };
   masking: boolean;
 }
+
+/** The makers by company name, as a tier leaves one out: "EU Sovereign leaves out Anthropic". */
+export const MAKER_COMPANIES: Record<Maker, string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  google: "Google",
+  mistral: "Mistral AI",
+};
+
+/** The makers by their models' name, as a maker class reads: "Claude · High". */
+export const MAKER_FAMILIES: Record<Maker, string> = {
+  anthropic: "Claude",
+  openai: "GPT",
+  google: "Gemini",
+  mistral: "Mistral",
+};
+
+/** A tier's class id split: `anthropic/high` → maker and class; `video` → no maker. */
+export function splitClassId(id: string): { maker: Maker | null; cls: string } {
+  const [maker, cls] = id.split("/");
+  return cls && (MAKERS as readonly string[]).includes(maker)
+    ? { maker: maker as Maker, cls }
+    : { maker: null, cls: id };
+}
+
+/** Why a call was refused by the gateway for the organization's tier or policy. */
+export type TierRefusalType = "outside_tier" | "not_in_policy";

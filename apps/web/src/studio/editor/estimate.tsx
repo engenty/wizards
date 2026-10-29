@@ -10,15 +10,15 @@ import {
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
 import type { RunEstimate } from "@engenty/wizards-shared/run";
-import type { ModelTier, TierClass } from "@engenty/wizards-shared/tiers";
+import type { ModelTier } from "@engenty/wizards-shared/tiers";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, ShieldCheck } from "lucide-react";
 import { type KeyboardEvent, useRef } from "react";
 import { api } from "../../lib/api";
-import { useFeature } from "../../lib/features";
 import { lang, t } from "../../lib/i18n";
 import { cn, Label, Segmented, Select } from "../../ui";
 import { usePopover } from "../../ui/date-picker";
+import { offered, reasonText, runsOnText, useTier } from "../tiers";
 
 /** What a run of the draft is expected to cost. Refetched when a step's shape changes. */
 export function useEstimate(wizardId: string, def: WizardDefinition) {
@@ -114,34 +114,6 @@ export function ModelClassControl({
       />
     </div>
   );
-}
-
-/** The organization's model tier, from the models endpoint; null without one or while `modelTiers` is off. */
-function useTier(): ModelTier | null {
-  const on = useFeature("modelTiers");
-  const { data } = useQuery({
-    queryKey: ["models"],
-    queryFn: () => api.get<{ tier?: ModelTier | null }>("/api/studio/models"),
-    enabled: on,
-  });
-  return on ? (data?.tier ?? null) : null;
-}
-
-const offered = (cls: TierClass | undefined): cls is Extract<TierClass, { model: string }> =>
-  Boolean(cls?.model);
-
-/** Why a class is not in the tier, in a sentence. */
-function reasonText(cls: TierClass | undefined): string {
-  const model = cls?.name ?? t("tier.theModel");
-  return cls && !offered(cls)
-    ? t(`tier.reason.${cls.reason}`, { model })
-    : t("tier.reason.unbound");
-}
-
-/** "Claude Opus 5.5 · Route, Frankfurt": what a class runs on, as people read it. */
-function runsOnText(cls: Extract<TierClass, { model: string }>): string {
-  const where = [cls.route, cls.region].filter(Boolean).join(", ");
-  return where ? `${cls.name} · ${where}` : cls.name;
 }
 
 /**
