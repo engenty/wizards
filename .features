@@ -48,6 +48,9 @@
 # Goose, the studio's assistant
 # goose=on|off
 #
+# the organization's model tier: a step's maker, what calls are for, what each class runs on (off by default)
+# modelTiers=on|off
+#
 # skills in a space's sources: always on, or read by a wizard when it needs one (off by default)
 # skills=on|off
 #

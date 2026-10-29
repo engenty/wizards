@@ -46,7 +46,7 @@ async function askSystemOne(
   input: DecideInput,
   signal: AbortSignal | undefined,
 ): Promise<Record<string, DecisionAnswer>> {
-  const access = await systemOneAccess().catch(() => null);
+  const access = await systemOneAccess(input.call).catch(() => null);
   if (!access) {
     return {};
   }

@@ -1,0 +1,66 @@
+/**
+ * Model tiers: the managed model lists of an organization with compliance needs, and how its
+ * admins share out the tier's models (its policy). The Manage-App serves both in
+ * `GET /v1/tenants/:id` and enforces them in its gateway (docs/manage-contract.md, "Model
+ * tiers"); the runtime shows them and names the class a step asks for. Behind `modelTiers`.
+ */
+import type { Effort } from "./definition.js";
+
+/** What a call is for: a run, the studio outside a run (Goose, the editor), a work chat. */
+export const PURPOSES = ["wizard", "assistant", "work"] as const;
+export type Purpose = (typeof PURPOSES)[number];
+
+/** Why a class is not offered in a tier. */
+export const TIER_REASONS = ["unbound", "region", "retention", "training", "maker"] as const;
+export type TierReason = (typeof TIER_REASONS)[number];
+
+/** What a class (`high`, `anthropic/high`, `image`) runs on in a tier, or why it doesn't. */
+export type TierClass =
+  | { model: string; name: string; route: string | null; region: string | null }
+  | { model: null; name: string | null; reason: TierReason };
+
+export interface ModelTier {
+  id: string;
+  /** Shown in the studio: "EU Private". */
+  name: string;
+  /** Set by contract: the organization's owner can't pick another. */
+  locked: boolean;
+  rules: {
+    /** Where calls may run ("EU"); null: anywhere. */
+    regions: string[] | null;
+    zdr: boolean;
+    noTraining: boolean;
+    ownKeys: boolean;
+    search: boolean;
+    /** An evaluation model may answer decisions. */
+    decisions: boolean;
+  };
+  /** Every class the gateway knows; one missing is not offered. */
+  classes: Record<string, TierClass>;
+}
+
+export interface PurposePolicy {
+  /** Way C: the classes and models people may pick; null: the whole tier. */
+  models: string[] | null;
+  /** Way B: the class or model a new step or chat starts on. */
+  default: string | null;
+  /** Way B: the highest effort people may set. */
+  effortCap: Effort | null;
+  /** Way C: the efforts offered per entry of `models`. */
+  efforts: Record<string, Effort[]> | null;
+}
+
+export interface ModelPolicy {
+  /** A: engenty picks · B: admins set defaults · C: approved models only. */
+  way: "A" | "B" | "C";
+  purposes: Record<Purpose, PurposePolicy>;
+  credits: boolean;
+  ownKeys: boolean;
+  /** A member's AI client on their own subscription, for Goose. */
+  subscriptions: boolean;
+  /** A model on a member's computer, for Goose. */
+  localModels: boolean;
+  /** Apps connected to a space over MCP: those with local models, those on subscriptions. */
+  apps: { local: boolean; subscriptions: boolean };
+  masking: boolean;
+}

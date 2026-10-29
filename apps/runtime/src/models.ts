@@ -34,6 +34,7 @@ import {
 } from "@engenty/wizards-shared/providers";
 import type { RunNote, RunNoteCode, Said } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
+import type { Purpose } from "@engenty/wizards-shared/tiers";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import {
   type EmbeddingModel,
@@ -49,6 +50,7 @@ import { accountToken, linkedAccount } from "./auth/account.js";
 import { LOCAL_DECISION_MODEL, ollamaDecisionModel, ollamaRoot } from "./decision-model.js";
 import { DeviceModel, deviceThinks } from "./engine/device.js";
 import { env } from "./env.js";
+import { feature, remoteFeatures } from "./features.js";
 import {
   appleModel,
   appleStatus,
@@ -65,7 +67,7 @@ import {
   notInstalled,
   signedOut,
 } from "./harness/index.js";
-import { managed } from "./manage.js";
+import { managed, tenantInfo } from "./manage.js";
 import { hasFfmpeg } from "./media/ffmpeg.js";
 import { ModelUnavailableError, saidOf } from "./model-errors.js";
 import { seal, unseal } from "./secrets/crypto.js";
@@ -95,6 +97,10 @@ export interface CallMeta {
   runId?: string;
   stepId?: string;
   effort?: Effort;
+  /** What the call is for; left out, a run's call is `wizard` and any other `assistant`. */
+  purpose?: Purpose;
+  /** The maker class a step names (`anthropic/high`): asked for on the credits instead of the class. */
+  makerClass?: string;
 }
 
 type VideoModel = Parameters<typeof experimental_generateVideo>[0]["model"];
@@ -516,7 +522,19 @@ function need(cfg: ModelConfig, name: LocalKey): string {
  */
 const DEFINITION_HEADER = { "x-wizards-definition": String(DEFINITION_VERSION) };
 
-function gatewayClient(access: GatewayAccess, meta: CallMeta) {
+/** Whether the organization's model tier counts: maker classes and the purpose header. */
+async function tiersOn(): Promise<boolean> {
+  return feature("modelTiers", await remoteFeatures().catch(() => null));
+}
+
+/** What a call is for, as the gateway checks it against the organization's policy. */
+function purposeHeader(meta: CallMeta, tiers: boolean): Record<string, string> {
+  return tiers
+    ? { "x-wizards-purpose": meta.purpose ?? (meta.runId ? "wizard" : "assistant") }
+    : {};
+}
+
+function gatewayClient(access: GatewayAccess, meta: CallMeta, tiers: boolean) {
   return createGateway({
     baseURL: `${access.baseUrl}/v4/ai`,
     apiKey: access.token,
@@ -526,8 +544,16 @@ function gatewayClient(access: GatewayAccess, meta: CallMeta) {
       ...(meta.runId ? { "x-wizards-run": meta.runId } : {}),
       ...(meta.stepId ? { "x-wizards-step": meta.stepId } : {}),
       ...(meta.effort ? { "x-wizards-effort": meta.effort } : {}),
+      ...purposeHeader(meta, tiers),
     },
   });
+}
+
+/** The model a class runs on in the organization's tier; null where the runtime can't tell. */
+async function tierModel(cls: string): Promise<string | null> {
+  const tenant = managed ? currentTenantOrNull() : null;
+  const info = tenant ? await tenantInfo(tenant).catch(() => null) : null;
+  return info?.tier?.classes[cls]?.model ?? null;
 }
 
 export interface ClassPrice {
@@ -594,9 +620,15 @@ async function viaCredits<M>(
   meta: CallMeta,
   pick: (client: ReturnType<typeof createGateway>, id: string) => M,
 ): Promise<ResolvedModel<M>> {
-  const bound = route.model ?? (await classCatalog())?.classes[cls]?.model ?? "";
+  const tiers = await tiersOn();
+  const asked = tiers && meta.makerClass ? meta.makerClass : null;
+  const bound =
+    route.model ??
+    (asked ? await tierModel(asked) : null) ??
+    (await classCatalog())?.classes[cls]?.model ??
+    "";
   return {
-    model: pick(gatewayClient(route.access, meta), route.model ?? `wizards/${cls}`),
+    model: pick(gatewayClient(route.access, meta, tiers), route.model ?? `wizards/${asked ?? cls}`),
     ref: bound,
     vendor: vendorOf(bound.replace(/^[a-z]+:/, "")),
     gateway: true,
@@ -1062,7 +1094,7 @@ async function embeddingBy(
       const bound = access ? (await classCatalog())?.classes.embedding : null;
       return access && bound
         ? {
-            model: gatewayClient(access, {}).embeddingModel("wizards/embedding"),
+            model: gatewayClient(access, {}, await tiersOn()).embeddingModel("wizards/embedding"),
             ref: bound.model,
           }
         : null;
@@ -1251,8 +1283,21 @@ async function decisionBy(
  * machine (free, and nothing leaves it), then Jev on the linked account's credits. Null when
  * there is none: the classifier class's language model answers then.
  */
-export async function systemOneAccess(): Promise<SystemOneAccess | null> {
-  return (await decisionAccess(await config()))?.access ?? null;
+export async function systemOneAccess(meta: CallMeta = {}): Promise<SystemOneAccess | null> {
+  const found = await decisionAccess(await config());
+  if (found?.way !== "credits") {
+    return found?.access ?? null;
+  }
+  const { access } = found;
+  return {
+    ...access,
+    headers: {
+      ...access.headers,
+      ...(meta.runId ? { "x-wizards-run": meta.runId } : {}),
+      ...(meta.stepId ? { "x-wizards-step": meta.stepId } : {}),
+      ...purposeHeader(meta, await tiersOn()),
+    },
+  };
 }
 
 async function decisionAccess(

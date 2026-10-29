@@ -1,4 +1,5 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
+import type { ModelPolicy, ModelTier } from "@engenty/wizards-shared/tiers";
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from "jose";
 import { currentImpersonator, refusedWhileImpersonating } from "./auth/impersonation.js";
 import { env } from "./env.js";
@@ -217,6 +218,12 @@ export interface TenantInfo {
   };
   /** What an admin held: a held wizard starts no new run, a held page shows none. */
   holds?: { page: { reason: string } | null; wizards: { id: string; reason: string }[] };
+  /**
+   * The organization's model tier and what each class runs on in it, and how its admins share
+   * out the tier's models. Read only while `modelTiers` is on; left out, it has none.
+   */
+  tier?: ModelTier;
+  modelPolicy?: ModelPolicy;
 }
 
 export interface TenantMembers {
