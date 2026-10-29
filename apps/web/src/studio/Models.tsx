@@ -21,6 +21,7 @@ import {
   providerOfRef,
   providerText,
 } from "@engenty/wizards-shared/providers";
+import type { ModelPolicy, ModelTier } from "@engenty/wizards-shared/tiers";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -38,12 +39,14 @@ import {
   MessageCircle,
   PenLine,
   Search,
+  ShieldCheck,
   Split,
   Volume2,
 } from "lucide-react";
 import { Fragment, type ReactNode, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../lib/api";
+import { useFeature } from "../lib/features";
 import { lang, t } from "../lib/i18n";
 import {
   type ChatWay,
@@ -58,6 +61,8 @@ import { billingUrl } from "./AppFrame";
 import { HarnessPanel } from "./Harness";
 import { LocalModels, useLocalModels } from "./LocalModels";
 import { openExternal } from "./LocalRuntime";
+import { TierPanel } from "./ModelsTier";
+import { Hint, PanelHead, Part, Status } from "./models-parts";
 import {
   MenuGroup,
   MenuRow,
@@ -100,6 +105,9 @@ interface ModelsState {
   creditModels: CreditModel[];
   decision: DecisionState;
   embedding: EmbeddingState;
+  /** The organization's model tier and its admins' policy; null without one (`modelTiers`). */
+  tier?: ModelTier | null;
+  modelPolicy?: ModelPolicy | null;
 }
 
 /** The ways to an embedding model, in the order `auto` tries them. */
@@ -366,80 +374,6 @@ function useSave() {
 }
 
 // --- small parts -------------------------------------------------------------------
-
-/** A part of the panel's card: a small heading, then its content. */
-function Part({
-  title,
-  aside,
-  children,
-}: {
-  title: string;
-  aside?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-3 border-border-soft border-t pt-5 first:border-t-0 first:pt-0">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="font-medium text-[0.875rem]">{title}</h3>
-        {aside}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Hint({ children }: { children: ReactNode }) {
-  return <p className="text-[0.8125rem] text-ink-3">{children}</p>;
-}
-
-/** The status of a panel, beside its name. */
-function Status({ text, tone }: { text: string; tone: "done" | "ok" | "warn" }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 font-medium text-[0.75rem]",
-        tone === "done" && "bg-moss-tint text-moss",
-        tone === "ok" && "bg-amber-tint text-ink-2",
-        tone === "warn" && "bg-paper-2 text-ink-3",
-      )}
-    >
-      {tone === "done" ? <Check className="size-3.5" strokeWidth={3} /> : null}
-      {tone === "ok" ? <Coins className="size-3.5" /> : null}
-      {tone === "warn" ? <CircleAlert className="size-3.5" /> : null}
-      {text}
-    </span>
-  );
-}
-
-/** The panel's head: its name, one line on what it is for, and how it stands. */
-function PanelHead({
-  icon: Icon,
-  title,
-  lead,
-  status,
-}: {
-  icon: LucideIcon;
-  title: string;
-  lead: string;
-  status?: ReactNode;
-}) {
-  return (
-    <div className="flex items-start gap-3 sm:gap-4">
-      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ember-tint text-ember-strong">
-        <Icon className="size-5" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h2 className="font-display font-semibold text-[1.375rem] leading-tight tracking-tight">
-            {title}
-          </h2>
-          {status}
-        </div>
-        <p className="mt-0.5 text-[0.875rem] text-ink-3">{lead}</p>
-      </div>
-    </div>
-  );
-}
 
 /** The ways of one kind (subscription, own key, …): their name once, then their cards. */
 function OptionGroup({ label, children }: { label: string; children: ReactNode }) {
@@ -2318,6 +2252,7 @@ function SearchPanel({
 // --- the page ----------------------------------------------------------------------
 
 type Target =
+  | { type: "tier" }
   | { type: "chat" }
   | { type: "decision" }
   | { type: "search" }
@@ -2334,7 +2269,13 @@ function targetOf(show: string | null): Target {
   if (show === "credits") {
     return { type: "credits" };
   }
-  if (show === "chat" || show === "decision" || show === "search" || show === "ollama") {
+  if (
+    show === "tier" ||
+    show === "chat" ||
+    show === "decision" ||
+    show === "search" ||
+    show === "ollama"
+  ) {
     return { type: show };
   }
   if ((MODEL_CAPABILITIES as readonly string[]).includes(show)) {
@@ -2347,6 +2288,7 @@ function targetOf(show: string | null): Target {
 }
 
 const showOf = (target: Target) =>
+  target.type === "tier" ||
   target.type === "credits" ||
   target.type === "chat" ||
   target.type === "decision" ||
@@ -2387,8 +2329,14 @@ function capTone(way: ClassWay): MenuTone {
 }
 
 /** What the page shows, for the trail in the top bar. */
-function targetLabel(target: Target, me: Me | null | undefined): string {
+function targetLabel(
+  target: Target,
+  me: Me | null | undefined,
+  tier: ModelTier | null | undefined,
+): string {
   switch (target.type) {
+    case "tier":
+      return tier?.name ?? t("tier.group");
     case "chat":
       return t("models.cap.chat");
     case "decision":
@@ -2425,7 +2373,9 @@ export function Models() {
   const { narrow } = useSettingsMenu();
   const show = params.get("show");
   const target = targetOf(show);
-  useDetail(show || !narrow ? targetLabel(target, me.data) : null);
+  const tiers = useFeature("modelTiers");
+  const tier = tiers ? (models.data?.tier ?? null) : null;
+  useDetail(show || !narrow ? targetLabel(target, me.data, tier) : null);
   if (!me.data || !models.data) {
     return models.isError ? (
       <p className="text-[0.875rem] text-rose">{(models.error as Error).message}</p>
@@ -2437,12 +2387,35 @@ export function Models() {
   // On a phone the menu marks nothing: a row opens the page.
   const isOpen = (next: Target) => Boolean(show || !narrow) && showOf(next) === showOf(target);
   const installed = place.harnesses.filter((h) => h.version !== null || state.source === h.id);
-  const keyed = PROVIDERS.filter((p) => state.keys[p.id]);
-  const others = PROVIDERS.filter((p) => !state.keys[p.id]);
+  // A tier without own keys leaves the providers out.
+  const providers = tier && !tier.rules.ownKeys ? [] : PROVIDERS;
+  const keyed = providers.filter((p) => state.keys[p.id]);
+  const others = providers.filter((p) => !state.keys[p.id]);
+  /** What a class runs on in the tier, as a row's status; undefined without a tier. */
+  const inTier = (cls: string) => {
+    const bound = tier?.classes[cls];
+    return tier ? (bound?.model ? bound.name : t("tier.notOffered").toLowerCase()) : undefined;
+  };
+  const tierTone = (cls: string): MenuTone => (tier?.classes[cls]?.model ? "credits" : "off");
 
   return (
     <>
       <SubMenu>
+        {tier ? (
+          <MenuGroup label={t("tier.group")}>
+            <MenuRow
+              icon={ShieldCheck}
+              label={tier.name}
+              badge={
+                tier.locked ? (
+                  <span className="text-[0.75rem] text-ink-3">{t("tier.lockedShort")}</span>
+                ) : null
+              }
+              selected={isOpen({ type: "tier" })}
+              onPick={() => open({ type: "tier" })}
+            />
+          </MenuGroup>
+        ) : null}
         <MenuGroup label={t("models.groupStudio")}>
           <MenuRow
             icon={MessageCircle}
@@ -2461,8 +2434,14 @@ export function Models() {
                 <MenuRow
                   icon={CAP_ICON[cap]}
                   label={t(`models.cap.${cap}`)}
-                  tone={capTone(way)}
-                  toneLabel={wayText(way, place).text}
+                  tone={tier ? (isText(cap) ? "credits" : tierTone(LEAD_CLASS[cap])) : capTone(way)}
+                  toneLabel={
+                    tier
+                      ? isText(cap)
+                        ? t("tier.bySteps")
+                        : inTier(LEAD_CLASS[cap])
+                      : wayText(way, place).text
+                  }
                   selected={isOpen({ type: "cap", id: cap })}
                   onPick={() => open({ type: "cap", id: cap })}
                 />
@@ -2471,13 +2450,15 @@ export function Models() {
                     icon={Split}
                     label={t("models.cap.decision")}
                     tone={
-                      state.decision.way
-                        ? state.decision.way === "credits"
-                          ? "credits"
-                          : "done"
-                        : capTone(state.ways.classifier)
+                      tier
+                        ? tierTone("classifier")
+                        : state.decision.way
+                          ? state.decision.way === "credits"
+                            ? "credits"
+                            : "done"
+                          : capTone(state.ways.classifier)
                     }
-                    toneLabel={decisionText(state, place).text}
+                    toneLabel={inTier("classifier") ?? decisionText(state, place).text}
                     selected={isOpen({ type: "decision" })}
                     onPick={() => open({ type: "decision" })}
                   />
@@ -2487,13 +2468,15 @@ export function Models() {
                     icon={Search}
                     label={t("models.cap.search")}
                     tone={
-                      state.embedding.way
-                        ? state.embedding.way === "credits"
-                          ? "credits"
-                          : "done"
-                        : "off"
+                      tier
+                        ? tierTone("embedding")
+                        : state.embedding.way
+                          ? state.embedding.way === "credits"
+                            ? "credits"
+                            : "done"
+                          : "off"
                     }
-                    toneLabel={embeddingText(state, place).text}
+                    toneLabel={inTier("embedding") ?? embeddingText(state, place).text}
                     selected={isOpen({ type: "search" })}
                     onPick={() => open({ type: "search" })}
                   />
@@ -2586,7 +2569,13 @@ export function Models() {
           {t("models.readOnly")}
         </p>
       )}
-      {target.type === "chat" ? (
+      {target.type === "tier" && tier ? (
+        <TierPanel
+          tier={tier}
+          modelPolicy={state.modelPolicy ?? null}
+          organization={me.data.tenant.name}
+        />
+      ) : target.type === "chat" ? (
         <ChatPanel me={me.data} state={state} place={place} onOpen={open} />
       ) : target.type === "decision" ? (
         <DecisionPanel state={state} place={place} onOpen={open} />
