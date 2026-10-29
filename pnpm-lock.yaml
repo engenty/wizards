@@ -39,13 +39,13 @@ importers:
     dependencies:
       fumadocs-core:
         specifier: 16.15.11
-        version: 16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.5)
+        version: 16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.6)
       fumadocs-mdx:
         specifier: 15.4.1
-        version: 15.4.1(@types/mdast@4.0.4)(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.5))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(rolldown@1.2.12)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 15.4.1(@types/mdast@4.0.4)(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.6))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(rolldown@1.2.12)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       fumadocs-ui:
         specifier: 16.15.11
-        version: 16.15.11(@types/mdx@2.0.14)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(fumadocs-core@16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.5))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3)
+        version: 16.15.11(@types/mdx@2.0.14)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(fumadocs-core@16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.6))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3)
       lucide-react:
         specifier: ^1.49.0
         version: 1.49.0(@types/react@19.3.0)(react@19.3.0)
@@ -65,8 +65,8 @@ importers:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
       zod:
-        specifier: 4.6.5
-        version: 4.6.5
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4.3.3
@@ -97,25 +97,25 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: 4.0.54
-        version: 4.0.54(zod@4.6.5)
+        version: 4.0.54(zod@4.6.6)
       '@ai-sdk/elevenlabs':
         specifier: 3.0.42
-        version: 3.0.42(zod@4.6.5)
+        version: 3.0.42(zod@4.6.6)
       '@ai-sdk/fal':
         specifier: 3.0.42
-        version: 3.0.42(zod@4.6.5)
+        version: 3.0.42(zod@4.6.6)
       '@ai-sdk/gateway':
         specifier: ^4.0.82
-        version: 4.0.82(zod@4.6.5)
+        version: 4.0.82(zod@4.6.6)
       '@ai-sdk/google':
         specifier: 4.0.72
-        version: 4.0.72(zod@4.6.5)
+        version: 4.0.72(zod@4.6.6)
       '@ai-sdk/openai':
         specifier: ^4.0.67
-        version: 4.0.67(zod@4.6.5)
+        version: 4.0.67(zod@4.6.6)
       '@ai-sdk/replicate':
         specifier: 3.0.42
-        version: 3.0.42(zod@4.6.5)
+        version: 3.0.42(zod@4.6.6)
       '@clack/prompts':
         specifier: ^1.8.1
         version: 1.8.1
@@ -178,19 +178,19 @@ importers:
         version: 1.1.0
       '@mastra/core':
         specifier: 1.80.0
-        version: 1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.5))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5)
+        version: 1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.6))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6)
       '@mastra/docker':
         specifier: 0.12.1
-        version: 0.12.1(@mastra/core@1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.5))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5))
+        version: 0.12.1(@mastra/core@1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.6))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6))
       '@mastra/quickjs':
         specifier: 0.1.5
-        version: 0.1.5(@mastra/core@1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.5))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5))
+        version: 0.1.5(@mastra/core@1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.6))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6))
       '@modelcontextprotocol/client':
         specifier: 2.3.0
         version: 2.3.0
       '@modelcontextprotocol/ext-apps':
         specifier: 2.0.3
-        version: 2.0.3(@modelcontextprotocol/client@2.3.0)(@modelcontextprotocol/core@2.3.0)(@modelcontextprotocol/server@2.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)
+        version: 2.0.3(@modelcontextprotocol/client@2.3.0)(@modelcontextprotocol/core@2.3.0)(@modelcontextprotocol/server@2.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)
       '@modelcontextprotocol/server':
         specifier: 2.3.0
         version: 2.3.0
@@ -202,7 +202,7 @@ importers:
         version: 1.23.1
       ai:
         specifier: 7.0.102
-        version: 7.0.102(zod@4.6.5)
+        version: 7.0.102(zod@4.6.6)
       aws4fetch:
         specifier: ^1.0.20
         version: 1.0.20
@@ -267,8 +267,8 @@ importers:
         specifier: 7.30.1
         version: 7.30.1
       zod:
-        specifier: 4.6.5
-        version: 4.6.5
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/cross-spawn':
         specifier: ^6.0.6
@@ -383,7 +383,7 @@ importers:
         version: 2.3.0
       '@modelcontextprotocol/ext-apps':
         specifier: 2.0.3
-        version: 2.0.3(@modelcontextprotocol/client@2.3.0)(@modelcontextprotocol/core@2.3.0)(@modelcontextprotocol/server@2.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)
+        version: 2.0.3(@modelcontextprotocol/client@2.3.0)(@modelcontextprotocol/core@2.3.0)(@modelcontextprotocol/server@2.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)
       '@tanstack/react-query':
         specifier: ^5.104.0
         version: 5.104.0(react@19.3.0)
@@ -462,13 +462,13 @@ importers:
         version: link:../../packages/wizards
       '@openuidev/react-headless':
         specifier: 0.18.1
-        version: 0.18.1(ai@7.0.102(zod@4.6.5))(react@19.3.0)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0))
+        version: 0.18.1(ai@7.0.102(zod@4.6.6))(react@19.3.0)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0))
       '@openuidev/react-lang':
         specifier: 1.0.1
-        version: 1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)
+        version: 1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)
       '@openuidev/react-ui':
         specifier: 0.18.1
-        version: 0.18.1(@openuidev/react-headless@0.18.1(ai@7.0.102(zod@4.6.5))(react@19.3.0)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0)))(@openuidev/react-lang@1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0))
+        version: 0.18.1(@openuidev/react-headless@0.18.1(ai@7.0.102(zod@4.6.6))(react@19.3.0)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0)))(@openuidev/react-lang@1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0))
       react:
         specifier: 19.3.0
         version: 19.3.0
@@ -476,8 +476,8 @@ importers:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
       zod:
-        specifier: 4.6.5
-        version: 4.6.5
+        specifier: 4.6.6
+        version: 4.6.6
       zustand:
         specifier: ^4.5.7
         version: 4.5.7(@types/react@19.3.0)(react@19.3.0)
@@ -531,8 +531,8 @@ importers:
         specifier: ~7.0.2
         version: 7.0.2
       zod:
-        specifier: 4.6.5
-        version: 4.6.5
+        specifier: 4.6.6
+        version: 4.6.6
 
   packages/runner:
     dependencies:
@@ -601,8 +601,8 @@ importers:
   packages/shared:
     dependencies:
       zod:
-        specifier: 4.6.5
-        version: 4.6.5
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       typescript:
         specifier: ~7.0.2
@@ -640,7 +640,7 @@ importers:
         version: 7.59.4(@types/node@26.6.4)
       '@openuidev/react-lang':
         specifier: 1.0.1
-        version: 1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)
+        version: 1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -672,8 +672,8 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@26.6.4)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       zod:
-        specifier: 4.6.5
-        version: 4.6.5
+        specifier: 4.6.6
+        version: 4.6.6
 
 packages:
 
@@ -4908,8 +4908,8 @@ packages:
   emoticon@4.1.0:
     resolution: {integrity: sha512-VWZfnxqwNcc51hIy/sbOdEem6D+cVtpPzEEtVAFdaas30+1dgkyaOQ4sQ6Bp0tOMqWO1v+HQfYaoodOkdhK6SQ==}
 
-  encodeurl@2.0.0:
-    resolution: {integrity: sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==}
+  encodeurl@2.0.1:
+    resolution: {integrity: sha512-Ev/hIyePLZtpL98x562lvPtenrUfGr0lfaf44HFZ+hDEwso7ccV9QAZrEVLg0hxNAzygaAFxy2dYaAKKM0G06A==}
     engines: {node: '>= 0.8'}
 
   encoding-japanese@2.4.0:
@@ -6680,8 +6680,8 @@ packages:
   qr-scanner@1.4.2:
     resolution: {integrity: sha512-kV1yQUe2FENvn59tMZW6mOVfpq9mGxGf8l6+EGaXUOd4RBOLg7tRC83OrirM5AtDvZRpdjdlXURsHreAOSPOUw==}
 
-  qs@6.17.0:
-    resolution: {integrity: sha512-5LK5BZ2XDHMvcUJaf0CQ5HL3aVgKbpklvByC7qLSxYkfE8COEEbJg5xCHWCTqzqi0Gs4Jn5Mv5v3R38W6edscA==}
+  qs@6.17.1:
+    resolution: {integrity: sha512-jd3COkaKVgGUW+ZHyEHCG9bH7RoaaiWuMgzsIBjUMVjLAaWGWpoUAVwljVvBHxRu/2qEHnadLGZrkutYUBPQJA==}
     engines: {node: '>=0.6'}
 
   quansync@0.2.11:
@@ -7804,8 +7804,8 @@ packages:
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
-  zod@4.6.5:
-    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
+  zod@4.6.6:
+    resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
 
   zustand@4.5.7:
     resolution: {integrity: sha512-CHOUy7mu3lbD6o6LJLfllpjkzhHXSBlX8B9+qPddUsIfeF5S/UZ5q0kmCsnRqT1UHFQZchNFDDzMbQsuesHWlw==}
@@ -7846,68 +7846,68 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  '@ai-sdk/anthropic@4.0.54(zod@4.6.5)':
+  '@ai-sdk/anthropic@4.0.54(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.15
-      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/elevenlabs@3.0.42(zod@4.6.5)':
+  '@ai-sdk/elevenlabs@3.0.42(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.15
-      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/fal@3.0.42(zod@4.6.5)':
+  '@ai-sdk/fal@3.0.42(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.15
-      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/gateway@4.0.82(zod@4.6.5)':
+  '@ai-sdk/gateway@4.0.82(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.15
-      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.5)
+      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.6)
       '@vercel/oidc': 3.2.0
-      zod: 4.6.5
+      zod: 4.6.6
 
-  '@ai-sdk/google@4.0.72(zod@4.6.5)':
+  '@ai-sdk/google@4.0.72(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.15
-      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/openai@4.0.67(zod@4.6.5)':
+  '@ai-sdk/openai@4.0.67(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.15
-      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/provider-utils@4.0.61(zod@4.6.5)':
+  '@ai-sdk/provider-utils@4.0.61(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.1
       undici: 6.29.1
-      zod: 4.6.5
+      zod: 4.6.6
 
-  '@ai-sdk/provider-utils@5.0.41(zod@4.6.5)':
+  '@ai-sdk/provider-utils@5.0.41(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.15
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.1
       undici: 7.30.1
-      zod: 4.6.5
+      zod: 4.6.6
 
-  '@ai-sdk/provider-utils@5.0.62(zod@4.6.5)':
+  '@ai-sdk/provider-utils@5.0.62(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.29
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.1
       undici: 7.30.1
-      zod: 4.6.5
+      zod: 4.6.6
 
   '@ai-sdk/provider@2.0.5':
     dependencies:
@@ -7925,11 +7925,11 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/replicate@3.0.42(zod@4.6.5)':
+  '@ai-sdk/replicate@3.0.42(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.15
-      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.6)
+      zod: 4.6.6
 
   '@alloc/quick-lru@5.3.0': {}
 
@@ -8893,26 +8893,26 @@ snapshots:
 
   '@marijn/find-cluster-break@1.0.4': {}
 
-  '@mastra/core@1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.5))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5)':
+  '@mastra/core@1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.6))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6)':
     dependencies:
       '@a2a-js/sdk-v0_3': '@a2a-js/sdk@0.3.14(@grpc/grpc-js@1.14.5)(express@5.2.1)'
       '@a2a-js/sdk-v1': '@a2a-js/sdk@1.0.1(@grpc/grpc-js@1.14.5)(express@5.2.1)'
-      '@ai-sdk/provider-utils-v6': '@ai-sdk/provider-utils@4.0.61(zod@4.6.5)'
-      '@ai-sdk/provider-utils-v7': '@ai-sdk/provider-utils@5.0.62(zod@4.6.5)'
+      '@ai-sdk/provider-utils-v6': '@ai-sdk/provider-utils@4.0.61(zod@4.6.6)'
+      '@ai-sdk/provider-utils-v7': '@ai-sdk/provider-utils@5.0.62(zod@4.6.6)'
       '@ai-sdk/provider-v5': '@ai-sdk/provider@2.0.5'
       '@ai-sdk/provider-v6': '@ai-sdk/provider@3.0.19'
       '@ai-sdk/provider-v7': '@ai-sdk/provider@4.0.29'
       '@isaacs/ttlcache': 2.1.5
       '@lukeed/uuid': 2.0.1
-      '@mastra/schema-compat': 1.3.17(zod@4.6.5)
+      '@mastra/schema-compat': 1.3.17(zod@4.6.6)
       '@standard-schema/spec': 1.1.0
-      chat: 4.43.0(ai@7.0.102(zod@4.6.5))(zod@4.6.5)
+      chat: 4.43.0(ai@7.0.102(zod@4.6.6))(zod@4.6.6)
       croner: 10.0.1
       dotenv: 17.4.2
       execa: 9.6.1
       fastq: 1.20.3
       hono: 4.13.14
-      hono-openapi: 1.5.0(effect@4.0.0-beta.59)(hono@4.13.14)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5)
+      hono-openapi: 1.5.0(effect@4.0.0-beta.59)(hono@4.13.14)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6)
       ignore: 7.0.14
       jpeg-js: 0.4.4
       json-schema: 0.4.0
@@ -8925,7 +8925,7 @@ snapshots:
       ws: 8.22.0
       xxhash-wasm: 1.1.0
       yaml: 2.9.1
-      zod: 4.6.5
+      zod: 4.6.6
     transitivePeerDependencies:
       - '@bufbuild/protobuf'
       - '@grpc/grpc-js'
@@ -8946,10 +8946,10 @@ snapshots:
       - zod-openapi
       - zod-to-json-schema
 
-  '@mastra/docker@0.12.1(@mastra/core@1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.5))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5))':
+  '@mastra/docker@0.12.1(@mastra/core@1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.6))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6))':
     dependencies:
       '@grpc/grpc-js': 1.14.5
-      '@mastra/core': 1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.5))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5)
+      '@mastra/core': 1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.6))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6)
       dockerode: 4.0.12
       tar-stream: 3.2.2
     transitivePeerDependencies:
@@ -8958,16 +8958,16 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  '@mastra/quickjs@0.1.5(@mastra/core@1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.5))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5))':
+  '@mastra/quickjs@0.1.5(@mastra/core@1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.6))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6))':
     dependencies:
-      '@mastra/core': 1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.5))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5)
+      '@mastra/core': 1.80.0(@grpc/grpc-js@1.14.5)(ai@7.0.102(zod@4.6.6))(effect@4.0.0-beta.59)(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6)
       quickjs-emscripten: 0.31.0
       ts-blank-space: 0.6.2
 
-  '@mastra/schema-compat@1.3.17(zod@4.6.5)':
+  '@mastra/schema-compat@1.3.17(zod@4.6.6)':
     dependencies:
       json-schema-to-zod: 2.8.1
-      zod: 4.6.5
+      zod: 4.6.6
       zod-from-json-schema: 0.5.2
 
   '@mdx-js/mdx@3.1.1':
@@ -9049,18 +9049,18 @@ snapshots:
       eventsource-parser: 3.1.1
       jose: 6.2.12
       pkce-challenge: 5.0.1
-      zod: 4.6.5
+      zod: 4.6.6
 
   '@modelcontextprotocol/core@2.3.0':
     dependencies:
-      zod: 4.6.5
+      zod: 4.6.6
 
-  '@modelcontextprotocol/ext-apps@2.0.3(@modelcontextprotocol/client@2.3.0)(@modelcontextprotocol/core@2.3.0)(@modelcontextprotocol/server@2.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)':
+  '@modelcontextprotocol/ext-apps@2.0.3(@modelcontextprotocol/client@2.3.0)(@modelcontextprotocol/core@2.3.0)(@modelcontextprotocol/server@2.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)':
     dependencies:
       '@modelcontextprotocol/client': 2.3.0
       '@modelcontextprotocol/core': 2.3.0
       '@standard-schema/spec': 1.1.0
-      zod: 4.6.5
+      zod: 4.6.6
     optionalDependencies:
       '@modelcontextprotocol/server': 2.3.0
       react: 19.3.0
@@ -9069,7 +9069,7 @@ snapshots:
   '@modelcontextprotocol/server@2.3.0':
     dependencies:
       '@modelcontextprotocol/core': 2.3.0
-      zod: 4.6.5
+      zod: 4.6.6
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4':
     optional: true
@@ -9195,46 +9195,46 @@ snapshots:
 
   '@oozcitak/util@8.3.3': {}
 
-  '@openuidev/devtools@0.3.0(@openuidev/observability@0.0.4)(@openuidev/react-lang@1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@openuidev/devtools@0.3.0(@openuidev/observability@0.0.4)(@openuidev/react-lang@1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@openuidev/observability': 0.0.4
       lucide-react: 0.575.0(react@19.3.0)
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
     optionalDependencies:
-      '@openuidev/react-lang': 1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)
+      '@openuidev/react-lang': 1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)
 
-  '@openuidev/lang-core@1.0.1(zod@4.6.5)':
+  '@openuidev/lang-core@1.0.1(zod@4.6.6)':
     dependencies:
       ci-info: 4.4.0
-      zod: 4.6.5
+      zod: 4.6.6
 
   '@openuidev/observability@0.0.4': {}
 
-  '@openuidev/react-headless@0.18.1(ai@7.0.102(zod@4.6.5))(react@19.3.0)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0))':
+  '@openuidev/react-headless@0.18.1(ai@7.0.102(zod@4.6.6))(react@19.3.0)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0))':
     dependencies:
       '@ag-ui/core': 0.0.53
       '@openuidev/observability': 0.0.4
       react: 19.3.0
       zustand: 4.5.7(@types/react@19.3.0)(react@19.3.0)
     optionalDependencies:
-      ai: 7.0.102(zod@4.6.5)
+      ai: 7.0.102(zod@4.6.6)
 
-  '@openuidev/react-lang@1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)':
+  '@openuidev/react-lang@1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)':
     dependencies:
-      '@openuidev/devtools': 0.3.0(@openuidev/observability@0.0.4)(@openuidev/react-lang@1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      '@openuidev/lang-core': 1.0.1(zod@4.6.5)
+      '@openuidev/devtools': 0.3.0(@openuidev/observability@0.0.4)(@openuidev/react-lang@1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@openuidev/lang-core': 1.0.1(zod@4.6.6)
       '@openuidev/observability': 0.0.4
       react: 19.3.0
-      zod: 4.6.5
+      zod: 4.6.6
     optionalDependencies:
       react-dom: 19.3.0(react@19.3.0)
 
-  '@openuidev/react-ui@0.18.1(@openuidev/react-headless@0.18.1(ai@7.0.102(zod@4.6.5))(react@19.3.0)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0)))(@openuidev/react-lang@1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0))':
+  '@openuidev/react-ui@0.18.1(@openuidev/react-headless@0.18.1(ai@7.0.102(zod@4.6.6))(react@19.3.0)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0)))(@openuidev/react-lang@1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0))':
     dependencies:
       '@floating-ui/react-dom': 2.1.9(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      '@openuidev/react-headless': 0.18.1(ai@7.0.102(zod@4.6.5))(react@19.3.0)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0))
-      '@openuidev/react-lang': 1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.5)
+      '@openuidev/react-headless': 0.18.1(ai@7.0.102(zod@4.6.6))(react@19.3.0)(zustand@4.5.7(@types/react@19.3.0)(react@19.3.0))
+      '@openuidev/react-lang': 1.0.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(zod@4.6.6)
       '@radix-ui/react-accordion': 1.2.20(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@radix-ui/react-aspect-ratio': 1.2.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@radix-ui/react-checkbox': 1.4.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -9270,7 +9270,7 @@ snapshots:
       remark-math: 6.0.0
       tiny-invariant: 1.3.3
       unist-util-visit: 5.1.0
-      zod: 4.6.5
+      zod: 4.6.6
       zustand: 4.5.7(@types/react@19.3.0)(react@19.3.0)
     transitivePeerDependencies:
       - '@types/react'
@@ -10186,24 +10186,24 @@ snapshots:
 
   '@sqltools/formatter@1.2.5': {}
 
-  '@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5)':
+  '@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@types/json-schema': 7.0.15
       quansync: 0.2.11
     optionalDependencies:
       effect: 4.0.0-beta.59
-      zod: 4.6.5
-      zod-to-json-schema: 3.25.2(zod@4.6.5)
+      zod: 4.6.6
+      zod-to-json-schema: 3.25.2(zod@4.6.6)
 
-  '@standard-community/standard-openapi@0.2.11(@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5))(@standard-schema/spec@1.1.0)(effect@4.0.0-beta.59)(openapi-types@12.1.3)(zod@4.6.5)':
+  '@standard-community/standard-openapi@0.2.11(@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6))(@standard-schema/spec@1.1.0)(effect@4.0.0-beta.59)(openapi-types@12.1.3)(zod@4.6.6)':
     dependencies:
-      '@standard-community/standard-json': 0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5)
+      '@standard-community/standard-json': 0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6)
       '@standard-schema/spec': 1.1.0
       openapi-types: 12.1.3
     optionalDependencies:
       effect: 4.0.0-beta.59
-      zod: 4.6.5
+      zod: 4.6.6
 
   '@standard-schema/spec@1.1.0': {}
 
@@ -10785,12 +10785,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  ai@7.0.102(zod@4.6.5):
+  ai@7.0.102(zod@4.6.6):
     dependencies:
-      '@ai-sdk/gateway': 4.0.82(zod@4.6.5)
+      '@ai-sdk/gateway': 4.0.82(zod@4.6.6)
       '@ai-sdk/provider': 4.0.15
-      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.41(zod@4.6.6)
+      zod: 4.6.6
 
   ajv-draft-04@1.0.0(ajv@8.20.0):
     optionalDependencies:
@@ -11000,7 +11000,7 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.3
       on-finished: 2.4.2
-      qs: 6.17.0
+      qs: 6.17.1
       raw-body: 3.0.2
       type-is: 2.1.0
     transitivePeerDependencies:
@@ -11100,7 +11100,7 @@ snapshots:
 
   character-reference-invalid@2.0.1: {}
 
-  chat@4.43.0(ai@7.0.102(zod@4.6.5))(zod@4.6.5):
+  chat@4.43.0(ai@7.0.102(zod@4.6.6))(zod@4.6.6):
     dependencies:
       '@chat-adapter/catalog': 4.43.0
       '@workflow/serde': 4.1.0-beta.2
@@ -11111,8 +11111,8 @@ snapshots:
       remend: 1.4.0
       unified: 11.0.5
     optionalDependencies:
-      ai: 7.0.102(zod@4.6.5)
-      zod: 4.6.5
+      ai: 7.0.102(zod@4.6.6)
+      zod: 4.6.6
     transitivePeerDependencies:
       - supports-color
 
@@ -11638,7 +11638,7 @@ snapshots:
 
   emoticon@4.1.0: {}
 
-  encodeurl@2.0.0:
+  encodeurl@2.0.1:
     optional: true
 
   encoding-japanese@2.4.0: {}
@@ -11881,7 +11881,7 @@ snapshots:
       cookie-signature: 1.2.2
       debug: 4.4.3
       depd: 2.0.0
-      encodeurl: 2.0.0
+      encodeurl: 2.0.1
       escape-html: 1.0.3
       etag: 1.8.1
       finalhandler: 2.1.1
@@ -11893,7 +11893,7 @@ snapshots:
       once: 1.4.0
       parseurl: 1.3.3
       proxy-addr: 2.0.8
-      qs: 6.17.0
+      qs: 6.17.1
       range-parser: 1.3.0
       router: 2.2.0
       send: 1.2.1
@@ -11980,7 +11980,7 @@ snapshots:
   finalhandler@2.1.1:
     dependencies:
       debug: 4.4.3
-      encodeurl: 2.0.0
+      encodeurl: 2.0.1
       escape-html: 1.0.3
       on-finished: 2.4.2
       parseurl: 1.3.3
@@ -12061,7 +12061,7 @@ snapshots:
       mkdirp: 0.5.6
       rimraf: 2.7.1
 
-  fumadocs-core@16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.5):
+  fumadocs-core@16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.6):
     dependencies:
       '@fumari/image-size': 0.1.1
       estree-util-value-to-estree: 3.5.0
@@ -12094,18 +12094,18 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
       react-router: 7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      zod: 4.6.5
+      zod: 4.6.6
     transitivePeerDependencies:
       - supports-color
 
-  fumadocs-mdx@15.4.1(@types/mdast@4.0.4)(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.5))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(rolldown@1.2.12)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
+  fumadocs-mdx@15.4.1(@types/mdast@4.0.4)(@types/mdx@2.0.14)(@types/react@19.3.0)(fumadocs-core@16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.6))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(rolldown@1.2.12)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@mdx-js/mdx': 3.1.1
       '@standard-schema/spec': 1.1.0
       chokidar: 5.0.0
       esbuild: 0.28.2
       estree-util-value-to-estree: 3.5.0
-      fumadocs-core: 16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.5)
+      fumadocs-core: 16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.6)
       github-slugger: 2.0.0
       magic-string: 1.4.3
       mdast-util-mdx: 3.0.0
@@ -12119,7 +12119,7 @@ snapshots:
       vfile: 6.0.3
       yaml: 2.9.1
       yuku-analyzer: 0.9.5
-      zod: 4.6.5
+      zod: 4.6.6
     optionalDependencies:
       '@types/mdast': 4.0.4
       '@types/mdx': 2.0.14
@@ -12131,7 +12131,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  fumadocs-ui@16.15.11(@types/mdx@2.0.14)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(fumadocs-core@16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.5))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3):
+  fumadocs-ui@16.15.11(@types/mdx@2.0.14)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(fumadocs-core@16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.6))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tailwindcss@4.3.3):
     dependencies:
       '@fuma-translate/react': 1.0.2(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@fumadocs/tailwind': 0.1.2(tailwindcss@4.3.3)
@@ -12147,7 +12147,7 @@ snapshots:
       '@radix-ui/react-tabs': 1.1.21(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       class-variance-authority: 0.7.1
       cn: 0.2.6
-      fumadocs-core: 16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.5)
+      fumadocs-core: 16.15.11(@mdx-js/mdx@3.1.1)(@modelcontextprotocol/server@2.3.0)(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0))(next@16.4.1(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(zod@4.6.6)
       lucide-react: 1.49.0(@types/react@19.3.0)(react@19.3.0)
       motion: 13.5.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       next-themes: 0.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -12422,11 +12422,11 @@ snapshots:
 
   highlightjs-vue@1.0.0: {}
 
-  hono-openapi@1.5.0(effect@4.0.0-beta.59)(hono@4.13.14)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5):
+  hono-openapi@1.5.0(effect@4.0.0-beta.59)(hono@4.13.14)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6):
     dependencies:
       '@hono/standard-validator': 0.4.0(@standard-schema/spec@1.1.0)(hono@4.13.14)
-      '@standard-community/standard-json': 0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5)
-      '@standard-community/standard-openapi': 0.2.11(@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.5))(zod@4.6.5))(@standard-schema/spec@1.1.0)(effect@4.0.0-beta.59)(openapi-types@12.1.3)(zod@4.6.5)
+      '@standard-community/standard-json': 0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6)
+      '@standard-community/standard-openapi': 0.2.11(@standard-community/standard-json@0.3.7(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(effect@4.0.0-beta.59)(zod-to-json-schema@3.25.2(zod@4.6.6))(zod@4.6.6))(@standard-schema/spec@1.1.0)(effect@4.0.0-beta.59)(openapi-types@12.1.3)(zod@4.6.6)
       '@standard-schema/spec': 1.1.0
       '@types/json-schema': 7.0.15
       hono: 4.13.14
@@ -13911,7 +13911,7 @@ snapshots:
     dependencies:
       '@types/offscreencanvas': 2019.7.3
 
-  qs@6.17.0:
+  qs@6.17.1:
     dependencies:
       es-define-property: 1.0.1
       side-channel: 1.1.1
@@ -14314,7 +14314,7 @@ snapshots:
   send@1.2.1:
     dependencies:
       debug: 4.4.3
-      encodeurl: 2.0.0
+      encodeurl: 2.0.1
       escape-html: 1.0.3
       etag: 1.8.1
       fresh: 2.0.0
@@ -14330,7 +14330,7 @@ snapshots:
 
   serve-static@2.2.1:
     dependencies:
-      encodeurl: 2.0.0
+      encodeurl: 2.0.1
       escape-html: 1.0.3
       parseurl: 1.3.3
       send: 1.2.1
@@ -15155,18 +15155,18 @@ snapshots:
 
   zod-from-json-schema@0.5.2:
     dependencies:
-      zod: 4.6.5
+      zod: 4.6.6
 
-  zod-to-json-schema@3.25.2(zod@4.6.5):
+  zod-to-json-schema@3.25.2(zod@4.6.6):
     dependencies:
-      zod: 4.6.5
+      zod: 4.6.6
     optional: true
 
   zod@3.25.76: {}
 
   zod@4.3.6: {}
 
-  zod@4.6.5: {}
+  zod@4.6.6: {}
 
   zustand@4.5.7(@types/react@19.3.0)(react@19.3.0):
     dependencies:
