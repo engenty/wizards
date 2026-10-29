@@ -1,3 +1,4 @@
+import type { Context } from "hono";
 import { basePath } from "../env.js";
 
 /** Uploads stay small; a clip from the phone's camera is the one thing that needs more room. */
@@ -98,4 +99,30 @@ export function byteRange(header: string | undefined, size: number) {
   const start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]));
   const end = m[1] && m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
   return start > end || start >= size ? ("unsatisfiable" as const) : { start, end };
+}
+
+/**
+ * A file of the space as it is opened (the studio's files, a Work chat's): shown, never run, and
+ * a clip or recording by the byte range a phone asks for. A PDF is left to the browser's own
+ * viewer, which a sandbox would keep from starting.
+ */
+export function spaceFileResponse(c: Context, mime: string, data: Uint8Array) {
+  const headers: Record<string, string> = {
+    "content-type": bareMime(mime) ?? "application/octet-stream",
+    "cache-control": "private, max-age=3600",
+    "x-content-type-options": "nosniff",
+    ...(mime === "application/pdf" ? {} : { "content-security-policy": "sandbox" }),
+  };
+  if (/^(audio|video)\//.test(mime)) {
+    headers["accept-ranges"] = "bytes";
+    const range = byteRange(c.req.header("range"), data.byteLength);
+    if (range === "unsatisfiable") {
+      return c.body(null, 416, { "content-range": `bytes */${data.byteLength}` });
+    }
+    if (range) {
+      headers["content-range"] = `bytes ${range.start}-${range.end}/${data.byteLength}`;
+      return c.body(new Uint8Array(data.subarray(range.start, range.end + 1)), 206, headers);
+    }
+  }
+  return c.body(new Uint8Array(data), 200, headers);
 }

@@ -1,6 +1,6 @@
 import { Eraser, PenLine, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { api, runBase, withBase } from "./env.js";
+import { api, withBase } from "./env.js";
 import { t } from "./i18n.js";
 import { Button, Dialog, IconButton } from "./ui.js";
 
@@ -141,12 +141,13 @@ async function picture(strokes: Strokes): Promise<File | null> {
 export function SignatureField({
   label,
   value,
-  runId,
+  base,
   onChange,
 }: {
   label: string;
   value: unknown;
-  runId: string;
+  /** The routes of the run (or chat) it answers in: `${base}/uploads`, `${base}/assets/…`. */
+  base: string;
   onChange: (v: string | undefined) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -163,7 +164,7 @@ export function SignatureField({
       if (!file) {
         return;
       }
-      const ref = await api.upload<{ id: string }>(`${runBase(runId)}/uploads`, file);
+      const ref = await api.upload<{ id: string }>(`${base}/uploads`, file);
       onChange(ref.id);
       setOpen(false);
     } catch (err) {
@@ -187,7 +188,7 @@ export function SignatureField({
             aria-label={t("sign.again")}
           >
             <img
-              src={withBase(`${runBase(runId)}/assets/${id}`)}
+              src={withBase(`${base}/assets/${id}`)}
               alt={label}
               className="mx-auto h-20 object-contain"
             />

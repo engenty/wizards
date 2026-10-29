@@ -14,7 +14,7 @@ import { assistantToolLabels } from "../tools/plugin.js";
 import { type ClientStep, ClientSteps, stepChunk, stepParts } from "./client-steps.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
-import { addProjectFile, fileView } from "./project-files.js";
+import { addProjectFile, fileView, projectFileContent } from "./project-files.js";
 import {
   type LazyTurn,
   lazyTurn,
@@ -79,6 +79,14 @@ export interface ChatMessageView {
   author: { kind: "person" | "ai"; id: string; name: string };
   parts: { type: string; [key: string]: unknown }[];
   createdAt: string;
+  /** A view's Form this message answers: the call that showed it, and the answers by field. */
+  form?: FormAnswer;
+}
+
+/** A Form's answers, sent as a person's message (`show_view`, work-ai.ts). */
+export interface FormAnswer {
+  call: string;
+  values: Record<string, unknown>;
 }
 
 const listItem = (c: ChatRow): ChatListItem => ({
@@ -349,7 +357,7 @@ type StoredMessage = {
     metadata?: {
       signal?: {
         attributes?: { name?: string; id?: string };
-        metadata?: { authorId?: string; files?: ChatFile[] };
+        metadata?: { authorId?: string; files?: ChatFile[]; form?: FormAnswer };
       };
     };
   };
@@ -377,6 +385,7 @@ function messageView(spaceId: string, m: StoredMessage): ChatMessageView {
       signal?.metadata?.files,
     ),
     createdAt: new Date(m.createdAt).toISOString(),
+    ...(signal?.metadata?.form ? { form: signal.metadata.form } : {}),
   };
 }
 
@@ -447,6 +456,17 @@ export async function attachFile(
   return fileView(row);
 }
 
+/** Throws unless the person sees the chat: for routes of a chat that read nothing of it. */
+export async function seeChat(user: SessionUser, id: string): Promise<void> {
+  await visibleChat(user, id);
+}
+
+/** A file of the chat's space, for the chat's views and their Fields (`/chats/:id/assets/:file`). */
+export async function chatFileContent(user: SessionUser, id: string, fileId: string) {
+  const chat = await visibleChat(user, id);
+  return projectFileContent(chat.projectId, fileId);
+}
+
 /** What became of a message: kept, queued, or a turn (new, or the running one it went into). */
 export type Sent = { kind: "kept" } | { kind: "queued" } | { kind: "turn"; stream: ReadableStream };
 
@@ -462,7 +482,13 @@ export async function sendMessage(
   id: string,
   text: string,
   /** `choice`: what the person chose in the composer for the turn it starts (work-ai.ts). */
-  options: { ask?: boolean; later?: boolean; files?: string[]; choice?: TurnChoice } = {},
+  options: {
+    ask?: boolean;
+    later?: boolean;
+    files?: string[];
+    choice?: TurnChoice;
+    form?: FormAnswer;
+  } = {},
 ): Promise<Sent> {
   const chat = await visibleChat(user, id);
   const named = await chatFiles(chat.projectId, options.files ?? []);
@@ -476,7 +502,11 @@ export async function sendMessage(
   const message = {
     contents,
     attributes: { name },
-    metadata: { authorId: user.id, ...(files.length ? { files } : {}) },
+    metadata: {
+      authorId: user.id,
+      ...(files.length ? { files } : {}),
+      ...(options.form ? { form: options.form } : {}),
+    },
   };
   const target = { resourceId: chat.projectId, threadId: chat.id };
   if (options.ask && !(await canSpend())) {

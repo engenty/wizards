@@ -31,6 +31,7 @@ import {
 import { lang, t } from "../../lib/i18n";
 import { Button, cn } from "../../ui";
 import type { Approval, ChatPart, ToolLabel } from "./chats";
+import { ChatViewPart, VIEW_TOOL, type ViewPart } from "./View";
 
 /**
  * A turn of the space's AI as the chat shows it: its texts, and between them the steps it took
@@ -75,8 +76,11 @@ export function labelOf(name: string, tools: Record<string, ToolLabel>): string 
 
 const words = (name: string) => name.replaceAll("_", " ").replace(/([a-z])([A-Z])/g, "$1 $2");
 
-/** A turn's parts in its order: runs of steps between its texts. */
-type Run = { kind: "steps"; parts: ChatPart[] } | { kind: "text"; text: string };
+/** A turn's parts in its order: runs of steps between its texts, and the views it showed. */
+type Run =
+  | { kind: "steps"; parts: ChatPart[] }
+  | { kind: "text"; text: string }
+  | { kind: "view"; part: ViewPart };
 
 function runsOf(parts: ChatPart[]): Run[] {
   const runs: Run[] = [];
@@ -89,6 +93,8 @@ function runsOf(parts: ChatPart[]): Run[] {
       } else if (text) {
         runs.push({ kind: "text", text });
       }
+    } else if (part.type === VIEW_TOOL && "toolCallId" in part) {
+      runs.push({ kind: "view", part: part as ViewPart });
     } else if (isReasoning(part) || isTool(part)) {
       if (last?.kind === "steps") {
         last.parts.push(part);
@@ -113,6 +119,8 @@ export function AiParts({ parts, live, id }: { parts: ChatPart[]; live: boolean;
       {runs.map((run, at) =>
         run.kind === "text" ? (
           <Markdown key={`text-${at}`} text={run.text} className="text-[0.9375rem]" />
+        ) : run.kind === "view" ? (
+          <ChatViewPart key={run.part.toolCallId} part={run.part} live={live} />
         ) : (
           <Fragment key={`steps-${at}`}>
             <Steps

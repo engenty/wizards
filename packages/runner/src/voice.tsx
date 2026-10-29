@@ -3,7 +3,7 @@ import { FileAudio, Mic, RotateCcw, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { stamp } from "./camera";
 import { canUseMedia } from "./device";
-import { api, appCall, appCan, runBase, runnerEnv } from "./env.js";
+import { api, appCall, appCan, runnerEnv } from "./env.js";
 import { t } from "./i18n.js";
 import { Button, Spinner } from "./ui.js";
 
@@ -54,12 +54,13 @@ function clock(seconds: number): string {
  */
 export function VoiceField({
   value,
-  runId,
+  base,
   onChange,
   onBusy,
 }: {
   value: unknown;
-  runId: string;
+  /** The routes of the run (or chat) it answers in: `${base}/uploads`, `${base}/assets/…`. */
+  base: string;
   onChange: (v: AudioValue | undefined) => void;
   onBusy?: (busy: boolean) => void;
 }) {
@@ -100,7 +101,7 @@ export function VoiceField({
     onBusy?.(true);
     setError(null);
     try {
-      const ref = await api.upload<{ id: string }>(`${runBase(runId)}/uploads`, file);
+      const ref = await api.upload<{ id: string }>(`${base}/uploads`, file);
       setLocal({ asset: ref.id, url: URL.createObjectURL(file) });
       // In the app the phone writes the note down itself; else the server does before the next step.
       const { lang } = runnerEnv();
@@ -221,7 +222,7 @@ export function VoiceField({
           <audio
             controls
             preload="metadata"
-            src={local?.asset === note.asset ? local.url : `${runBase(runId)}/assets/${note.asset}`}
+            src={local?.asset === note.asset ? local.url : `${base}/assets/${note.asset}`}
             className="h-11 w-full"
           />
           {note.transcript ? (

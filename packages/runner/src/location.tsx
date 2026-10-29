@@ -1,7 +1,7 @@
 import { isLocationValue, type LocationValue } from "@engenty/wizards-shared/definition";
 import { ExternalLink, LocateFixed, MapPin, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { api, runBase } from "./env.js";
+import { api } from "./env.js";
 import { lang, t } from "./i18n.js";
 import { Button, IconButton, Input } from "./ui.js";
 
@@ -25,13 +25,14 @@ function trouble(err: GeolocationPositionError): Trouble {
  */
 export function LocationField({
   value,
-  runId,
+  base,
   placeholder,
   onChange,
   onBusy,
 }: {
   value: unknown;
-  runId: string;
+  /** The routes of the run (or chat) it answers in: `${base}/geocode`. */
+  base: string;
   placeholder?: string;
   onChange: (v: LocationValue | undefined) => void;
   onBusy?: (busy: boolean) => void;
@@ -66,7 +67,7 @@ export function LocationField({
 
   const name = async (lat: number, lng: number) => {
     try {
-      const { label } = await api.post<{ label: string | null }>(`${runBase(runId)}/geocode`, {
+      const { label } = await api.post<{ label: string | null }>(`${base}/geocode`, {
         lat,
         lng,
         language: lang,

@@ -16,6 +16,9 @@ import type { ChoiceBody } from "./choices";
  */
 
 const BASE = "/api/studio/work";
+
+/** A chat's routes, as a view's Fields call them: `uploads`, `assets/<id>`, `geocode` below it. */
+export const chatRoutes = (id: string) => `${BASE}/chats/${id}`;
 /**
  * How often an open chat, the sidebar and the bell ask for what others wrote when the live feed
  * is off (`liveChanges`); with it on, they are read again when it tells of a change.
@@ -79,6 +82,14 @@ export interface ChatMessage {
   author: { kind: "person" | "ai"; id: string; name: string };
   parts: ChatPart[];
   createdAt: string;
+  /** A view's Form this message answers: the call that showed it, and the answers. */
+  form?: FormAnswer;
+}
+
+/** A view's Form, answered (a `show_view` call of the space's AI). */
+export interface FormAnswer {
+  call: string;
+  values: Record<string, unknown>;
 }
 
 export interface ChatMember {
@@ -338,6 +349,7 @@ export const usePostMessage = () =>
       later,
       files,
       choice,
+      form,
     }: {
       id: string;
       text: string;
@@ -345,10 +357,12 @@ export const usePostMessage = () =>
       files?: string[];
       /** For after the answer: what the composer chose for the turn it starts (choices.tsx). */
       choice?: ChoiceBody;
+      form?: FormAnswer;
     }) =>
       api.post<{ sent: string }>(`${BASE}/chats/${id}/messages`, {
         text,
         ...(files?.length ? { files } : {}),
+        ...(form ? { form } : {}),
         ...(later ? { ask: true, later, ...choice } : {}),
       }),
   );

@@ -292,7 +292,7 @@ import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
 import { applyUpdate, updateStatus } from "../update.js";
-import { bareMime, byteRange } from "./delivery.js";
+import { spaceFileResponse } from "./delivery.js";
 import { notFoundAnswer, requestLang, say } from "./lang.js";
 import { mayChangeRuntime } from "./runtime-settings.js";
 
@@ -1008,26 +1008,7 @@ export const studio = new Hono<Vars>()
   .get("/projects/:id/files/:fileId/content", async (c) => {
     const project = await ownedProject(c.get("user").id, c.req.param("id"));
     const { row, data } = await projectFileContent(project.id, c.req.param("fileId"));
-    const headers: Record<string, string> = {
-      "content-type": bareMime(row.mime) ?? "application/octet-stream",
-      "cache-control": "private, max-age=3600",
-      "x-content-type-options": "nosniff",
-      // An uploaded SVG or HTML file is shown, never run. A PDF is left to the browser's own
-      // viewer, which a sandbox would keep from starting.
-      ...(row.mime === "application/pdf" ? {} : { "content-security-policy": "sandbox" }),
-    };
-    if (/^(audio|video)\//.test(row.mime)) {
-      headers["accept-ranges"] = "bytes";
-      const range = byteRange(c.req.header("range"), data.byteLength);
-      if (range === "unsatisfiable") {
-        return c.body(null, 416, { "content-range": `bytes */${data.byteLength}` });
-      }
-      if (range) {
-        headers["content-range"] = `bytes ${range.start}-${range.end}/${data.byteLength}`;
-        return c.body(new Uint8Array(data.subarray(range.start, range.end + 1)), 206, headers);
-      }
-    }
-    return c.body(new Uint8Array(data), 200, headers);
+    return spaceFileResponse(c, row.mime, data);
   })
   // A document as the models read it: its text as Markdown, or the start of it.
   .get("/projects/:id/files/:fileId/text", async (c) => {

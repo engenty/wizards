@@ -1,14 +1,17 @@
+import { LANGS } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import { createUIMessageStreamResponse } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
 import { feature, remoteFeatures } from "../features.js";
+import { reverseGeocode } from "../geocode.js";
 import { ServiceError } from "../services/errors.js";
 import { composerTools } from "../services/work-ai.js";
 import {
   addMember,
   attachFile,
+  chatFileContent,
   createChat,
   createSection,
   DEV_CHUNK,
@@ -20,6 +23,7 @@ import {
   readChat,
   removeMember,
   renameSection,
+  seeChat,
   sendMessage,
   setChatState,
   sidebar,
@@ -28,6 +32,7 @@ import {
   waitingApprovals,
 } from "../services/work-chats.js";
 import { FILES_PER_MESSAGE } from "../services/work-files.js";
+import { spaceFileResponse } from "./delivery.js";
 import { say } from "./lang.js";
 import { assistantDevFor } from "./studio.js";
 
@@ -109,8 +114,9 @@ export const workRoutes = new Hono<Vars>()
     await setChatState(c.get("user"), c.req.param("id"), patch);
     return c.json({ ok: true });
   })
-  // A file for a message: it lands in the space's files; the message names it by its id.
-  .post("/chats/:id/files", async (c) => {
+  // A file for a message, or for a Field of a view's Form (`uploads`, as the runner's fields call
+  // it): it lands in the space's files; the message names it by its id.
+  .on("POST", ["/chats/:id/files", "/chats/:id/uploads"], async (c) => {
     const file = (await c.req.formData()).get("file");
     if (!(file instanceof File)) {
       throw new ServiceError("invalid", note("chooseFile"));
@@ -121,6 +127,27 @@ export const workRoutes = new Hono<Vars>()
       data: new Uint8Array(await file.arrayBuffer()),
     });
     return c.json(added);
+  })
+  // A file of the chat's space, as a view shows it and a Field's upload shows itself.
+  .get("/chats/:id/assets/:file", async (c) => {
+    const { row, data } = await chatFileContent(
+      c.get("user"),
+      c.req.param("id"),
+      c.req.param("file"),
+    );
+    return spaceFileResponse(c, row.mime, data);
+  })
+  // The address of where the person stands, for a Field asking for the place.
+  .post("/chats/:id/geocode", async (c) => {
+    const { lat, lng, language } = z
+      .object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        language: z.enum(LANGS).default("en"),
+      })
+      .parse(await c.req.json());
+    await seeChat(c.get("user"), c.req.param("id"));
+    return c.json({ label: await reverseGeocode(lat, lng, language) });
   })
   // A person writes; asked, the space's AI answers with a UI message stream (`useChat`).
   .post("/chats/:id/messages", async (c) => {
@@ -134,6 +161,11 @@ export const workRoutes = new Hono<Vars>()
         extra: z.boolean().optional(),
         web: z.boolean().optional(),
         pluginsOff: z.array(z.string().min(1).max(80)).max(50).optional(),
+        // A view's Form answered: everyone in the chat may send it (work-ai.ts, show_view).
+        form: z
+          .object({ call: z.string().min(1).max(200), values: z.record(z.string(), z.unknown()) })
+          .refine((f) => JSON.stringify(f.values).length <= 20_000)
+          .optional(),
       })
       .refine((b) => b.text || b.files?.length)
       .parse(await c.req.json());
