@@ -1848,6 +1848,22 @@ export const studio = new Hono<Vars>()
           403,
         );
       }
+      // The organization's tier, or its admins' policy, may allow no own keys at all.
+      if (
+        feature("modelTiers", info.features) &&
+        ((info.tier && !info.tier.rules.ownKeys) || info.modelPolicy?.ownKeys === false)
+      ) {
+        return c.json(
+          {
+            error:
+              info.tier && !info.tier.rules.ownKeys
+                ? say(c, "ownKeysNotInTier", { tier: info.tier.name })
+                : say(c, "ownKeysNotInPolicy"),
+            code: "tier",
+          },
+          403,
+        );
+      }
     }
     const blocked = input.bindings ? blockedBinding(input.bindings) : null;
     if (blocked) {

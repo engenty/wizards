@@ -133,6 +133,14 @@ describe("gateway calls of an organization with a tier", () => {
   });
 });
 
+describe("side doors of an organization with a tier", () => {
+  it("take no evaluation model and no web search where the tier allows neither", async () => {
+    expect(await withTenant("tenant-a", () => models.systemOneAccess({ runId: "run-1" }))).toBeNull();
+    expect(await withTenant("tenant-a", () => models.searchAllowed())).toBe(false);
+    expect(await withTenant("tenant-b", () => models.searchAllowed())).toBe(true);
+  });
+});
+
 describe("gateway calls while modelTiers is off", () => {
   it("ask for the class and send no purpose, whatever the step names", async () => {
     const call = await callOf("tenant-b", { runId: "run-2", makerClass: "anthropic/high" });

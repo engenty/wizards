@@ -122,6 +122,9 @@ const EN = {
   desktopSignedIn: "Signed in. Go back to engenty wizards now.",
   ownKeysNotInPlan: "Your own API keys aren’t part of the {plan} plan.",
   ownKeysNotInOrganizationPlan: "Your own API keys aren’t part of the organization’s plan.",
+  ownKeysNotInTier:
+    "Your own API keys aren’t allowed in {tier}. Every call goes through engenty, so the tier’s list holds.",
+  ownKeysNotInPolicy: "Your organization’s admins don’t allow your own API keys.",
   planUnavailable: "The organization’s plan can’t be checked right now. Try again later.",
   shareEmailName: "Email",
   shareEmailDescription: "As attachments to one or more addresses",
@@ -344,6 +347,9 @@ const DE: Partial<Record<ServerKey, Line>> = {
   desktopSignedIn: "Angemeldet. Geh jetzt zurück zu engenty wizards.",
   ownKeysNotInPlan: "Eigene API-Keys gibt es nicht im Paket {plan}.",
   ownKeysNotInOrganizationPlan: "Eigene API-Keys gibt es nicht im Paket der Organisation.",
+  ownKeysNotInTier:
+    "Eigene API-Keys sind in {tier} nicht erlaubt. Jeder Aufruf geht über engenty, so gilt die Liste von {tier}.",
+  ownKeysNotInPolicy: "Die Admins deiner Organisation erlauben keine eigenen API-Keys.",
   planUnavailable:
     "Das Paket der Organisation lässt sich gerade nicht prüfen. Versuch es später noch einmal.",
   shareEmailName: "E-Mail",

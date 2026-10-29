@@ -21,6 +21,8 @@ const profiles: { tenantId: string; body: any }[] = [];
 const memberCalls: { method: string; path: string; body: any }[] = [];
 const channelUsage: { tenantId: string; body: any }[] = [];
 // The Manage-App fails on tenant B's plan while this is set.
+// Tenant B on a model tier, while a test sets one.
+let tierOfB: Record<string, unknown> | null = null;
 let tenantBDown = false;
 // The Manage-App refuses reservations for visitors' runs while this is set (its guest budget).
 let guestFull = false;
@@ -196,7 +198,8 @@ const manage: Server = createServer(async (req, res) => {
       limits: tenant === "tenant-a" ? { concurrentRuns: 2, projects: null, members: 5 } : { concurrentRuns: 2 },
       // The plugins this tenant has switched on, besides the runtime's PLUGINS_DEFAULT.
       ...(tenant === "tenant-a" ? { modules: ["teams", "not-installed"] } : {}),
-      features: tenant === "tenant-a" ? { ownKeys: false } : {},
+      features: tenant === "tenant-a" ? { ownKeys: false } : tierOfB && tenant === "tenant-b" ? { modelTiers: true } : {},
+      ...(tierOfB && tenant === "tenant-b" ? tierOfB : {}),
       db: null,
     });
   }
@@ -563,6 +566,25 @@ describe("a runtime of a Manage-App", () => {
       expect((await put({}, b)).status).toBe(200);
     } finally {
       tenantBDown = false;
+      forgetTenant("tenant-b");
+    }
+    // A tier without own keys refuses them, whatever the plan says; so does the admins' policy.
+    const rules = { regions: ["eu"], zdr: true, noTraining: true, search: false, decisions: false };
+    try {
+      tierOfB = { tier: { id: "eu-sovereign", name: "EU Sovereign", locked: true, rules: { ...rules, ownKeys: false }, classes: {} } };
+      forgetTenant("tenant-b");
+      const inTier = await put({ keys: { openai: "sk-test" } }, b);
+      expect(inTier.status).toBe(403);
+      expect(await inTier.json()).toMatchObject({ code: "tier" });
+      expect((await put({}, b)).status).toBe(200);
+      tierOfB = {
+        tier: { id: "eu-private", name: "EU Private", locked: true, rules: { ...rules, ownKeys: true }, classes: {} },
+        modelPolicy: { ownKeys: false },
+      };
+      forgetTenant("tenant-b");
+      expect(await (await put({ keys: { openai: "sk-test" } }, b)).json()).toMatchObject({ code: "tier" });
+    } finally {
+      tierOfB = null;
       forgetTenant("tenant-b");
     }
     const plugins = await app.fetch(
