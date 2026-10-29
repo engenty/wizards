@@ -10,7 +10,7 @@ export { ApiError, isOffline };
  * Who this is, to the runtime (docs/content/dev/api.md): the runner in a browser, or the same
  * runner inside the mobile app. A managed runtime may limit or refuse a client by this name.
  */
-const CLIENT = { "x-wizards-client": IN_APP ? "app" : "web" };
+export const CLIENT = { "x-wizards-client": IN_APP ? "app" : "web" };
 
 /** JSON calls to this runtime, under the app's base path (and a remote runtime's ticket); a 5xx goes to the log. */
 export const api = createApi(withBase, CLIENT, (line) => report("error", line));

@@ -163,6 +163,14 @@ the previous turn's until observational memory rewrites it:
 - The "send after the answer" queue is tied to the chat, cleared on Stop, held while an approval
   is open (ff749bdfa, 2b4682968).
 
+## Whose access a taken-in message runs with
+
+A message taken into a running turn runs on the tools of the person who started that turn. As
+of #272 that is the same for everyone: `search_space` is space-wide, and no plugin's assistant
+tool reads `userId`. Once a tool gives one person's data (a personal connection, a private
+table), a message of another person starts a turn of its own instead of being taken in: part
+of piece 4's "who may".
+
 ## Approvals: the gate on the tool
 
 The spike (#268, `docs/plans/work-chats-spike.md`) showed that with Claude Code as the model the
