@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import { Brain, Lock, MessageSquarePlus, ShieldQuestion, Sparkles, Wrench } from "lucide-react";
 import { createContext, Fragment, useContext, useEffect, useRef, useState } from "react";
-import { NavLink, useNavigate } from "react-router";
+import { NavLink, useLocation, useNavigate } from "react-router";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import {
@@ -77,6 +77,19 @@ export function ChatView({ id }: { id: string }) {
       void turn.resumeStream();
     }
   }, [answering, streaming, turn]);
+  // A question from Work's start comes along with the new chat: asked once the chat is read.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handedOver = (location.state as { ask?: string } | null)?.ask;
+  const loaded = Boolean(data);
+  const askedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (handedOver && loaded && askedFor.current !== location.key) {
+      askedFor.current = location.key;
+      navigate(location.pathname, { replace: true, state: null });
+      void turn.sendMessage({ text: handedOver });
+    }
+  }, [handedOver, loaded, navigate, location.key, location.pathname, turn]);
   // How often each of the person's texts was stored when its pending copy first showed.
   const storedBefore = useRef(new Map<string, number>());
   const { project } = useCurrentProject();

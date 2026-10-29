@@ -8,6 +8,7 @@ import { useCrumbs } from "../AppFrame";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatView } from "./ChatView";
 import { useWaiting } from "./chats";
+import { WorkHome } from "./WorkHome";
 
 /**
  * Work mode's places (behind `workMode`), empty in this step: Chats with its sidebar, the
@@ -81,16 +82,7 @@ function ChatsPage() {
   return (
     <div className="flex min-h-0 flex-1">
       <ChatSidebar />
-      {chatId ? <ChatView id={chatId} /> : <NoChat />}
-    </div>
-  );
-}
-
-function NoChat() {
-  useCrumbs([{ label: t("work.chats") }]);
-  return (
-    <div className="grid min-w-0 flex-1 place-items-center p-6">
-      <p className="text-center text-[0.9375rem] text-ink-3">{t("work.chatsEmpty")}</p>
+      {chatId ? <ChatView id={chatId} /> : <WorkHome />}
     </div>
   );
 }
