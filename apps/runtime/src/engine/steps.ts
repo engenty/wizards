@@ -56,6 +56,7 @@ import {
 import { runMotionGraphicsStep } from "../motion-graphics/step.js";
 import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
+import { sandboxCapabilities } from "../sandbox/index.js";
 import { knowledgeBlock } from "../services/knowledge.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
@@ -606,7 +607,10 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     // Knowledge: what the space holds for its wizards, and how to find and read it.
     await knowledgeBlock(ctx.project.id),
     // Skills: always on whole, on demand by name and description (docs/plans/skills.md).
-    skillsBlock(await skillsOf(ctx), { tools: takesTools(resolved) }),
+    skillsBlock(await skillsOf(ctx), {
+      tools: takesTools(resolved),
+      sandbox: step.tools.includes("sandbox") && sandboxCapabilities() !== null,
+    }),
     // What the space's plugins hold for its wizards: a wiki, questions and answers.
     ...(await spaceContextOf(ctx)).blocks,
     formatHint,

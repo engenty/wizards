@@ -1,8 +1,9 @@
 /**
  * Skills of a space (docs/plans/skills.md): instructions in the Agent Skills format – a folder
- * with a `SKILL.md` (front matter `name` and `description`, then Markdown) and the text files it
+ * with a `SKILL.md` (front matter `name` and `description`, then Markdown) and the files it
  * points to. A space's wizards follow a skill that is always on in every AI step; one on demand
- * they see by name and description and read when it fits the task. Behind the `skills` switch.
+ * they see by name and description and read when it fits the task. A skill whose scripts may
+ * run gets its folder in the run's sandbox. Behind the `skills` switch.
  */
 
 /** When a skill counts: in every AI step, when a step reads it, or not at all. */
@@ -28,6 +29,13 @@ export const SKILL_LIMITS = {
   alwaysChars: 20_000,
   /** Skills on demand a step sees by name; more are left out of its list. */
   listed: 50,
+  /**
+   * Files kept for scripts only (fonts, templates, schemas): bytes of one, of all of a skill's
+   * together, and how many. They live in the blob store, not in the skill's row.
+   */
+  blobFile: 5_000_000,
+  blobTotal: 20_000_000,
+  blobFiles: 200,
 } as const;
 
 /** Lower-case letters, digits and single hyphens inside. */
@@ -152,6 +160,17 @@ export interface SkillFile {
   text: string;
 }
 
+/**
+ * A file of a skill that no model reads: not text, or of a kind the format keeps for its scripts
+ * (a font, a template, a schema). Its bytes are in the blob store, by their hash; they reach a
+ * run's sandbox when the skill's scripts may run.
+ */
+export interface SkillBlobFile {
+  path: string;
+  hash: string;
+  bytes: number;
+}
+
 /** A skill as the list shows it. */
 export interface SkillSummary {
   id: string;
@@ -162,7 +181,9 @@ export interface SkillSummary {
   /** skills.sh: `owner/repo/skill`. */
   origin: string | null;
   official: boolean;
-  /** Its files beside the `SKILL.md`. */
+  /** Its scripts run in the sandbox of a step that has one. Off until someone switches it on. */
+  runScripts: boolean;
+  /** Its files beside the `SKILL.md`, the ones for scripts too. */
   files: number;
   /** Characters of its instructions: what a step reads, or carries when it is always on. */
   chars: number;
@@ -181,6 +202,8 @@ export interface SkillDetail extends SkillSummary {
   /** Front matter beside `name` and `description`, kept as it came (`license`, `metadata` …). */
   meta: Record<string, unknown>;
   fileList: SkillFile[];
+  /** Files for its scripts only. */
+  blobList: SkillBlobFile[];
   /** The hash of what skills.sh had when it was added: an update is offered when it differs. */
   originHash: string | null;
   readOnly: boolean;
@@ -206,6 +229,8 @@ export interface SkillPreview {
   body: string;
   meta: Record<string, unknown>;
   fileList: SkillFile[];
+  /** Files kept for its scripts only. */
+  blobList: { path: string; bytes: number }[];
   /** Files left out: not text, or too large. */
   skipped: { path: string; reason: "binary" | "size" | "path" | "count" }[];
   official: boolean;
@@ -223,7 +248,7 @@ export function skillPathOk(path: string): boolean {
     .every((part) => part !== "" && part !== "." && part !== ".." && /^[\w.@+ -]+$/.test(part));
 }
 
-/** Text files only: instructions, references, data, and scripts kept as text. */
+/** Files a model reads as text: instructions, references, data and scripts. */
 const TEXT_EXT =
   /\.(md|markdown|mdx|txt|text|csv|tsv|json|jsonl|yaml|yml|toml|xml|html|htm|css|js|mjs|cjs|ts|tsx|jsx|py|sh|bash|zsh|rb|go|rs|java|kt|swift|php|sql|r|ini|cfg|conf|env\.example|svg|tex|rst|adoc)$/i;
 const TEXT_NAMES =
@@ -236,7 +261,7 @@ export function skillTextPath(path: string): boolean {
 
 const scriptPath = /\.(py|sh|bash|zsh|js|mjs|cjs|ts|rb|php|go|rs)$/i;
 
-/** A script: kept as text, never run. */
+/** A script: text a model reads, run in the sandbox when the skill's scripts may run. */
 export function skillScript(path: string): boolean {
   return scriptPath.test(path);
 }

@@ -44,11 +44,12 @@ const patchSchema = z.object({
   files: z.array(fileSchema).max(SKILL_LIMITS.files).optional(),
   skillMd: z.string().max(SKILL_LIMITS.skillMd).optional(),
   mode: z.enum(SKILL_MODES).optional(),
+  runScripts: z.boolean().optional(),
 });
 
-// A skill is 1 MB at most; a zip of one, with what is left out, a few more.
+// A skill is 1 MB of text and 20 MB of files for scripts at most; a zip of one, a few more.
 const uploadLimit = bodyLimit({
-  maxSize: 8 * 1024 * 1024,
+  maxSize: 32 * 1024 * 1024,
   onError: (c) => c.json({ error: say(c, "tooLarge"), code: "too_large" }, 413),
 });
 

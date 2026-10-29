@@ -740,7 +740,9 @@ function RegistryDialog({
                         : "border-transparent text-ink-3 hover:text-ink",
                     )}
                   >
-                    {x === "skill" ? "SKILL.md" : t("skills.tabFiles", { n: p.fileList.length })}
+                    {x === "skill"
+                      ? "SKILL.md"
+                      : t("skills.tabFiles", { n: p.fileList.length + p.blobList.length })}
                   </button>
                 ))}
               </div>
@@ -759,6 +761,16 @@ function RegistryDialog({
                         <span className="text-[0.75rem] text-ink-3">{kb(f.text.length)}</span>
                       </li>
                     ))}
+                    {p.blobList.map((f) => (
+                      <li key={f.path} className="flex items-center gap-2 px-3 py-2">
+                        <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">
+                          {f.path}
+                        </span>
+                        <span className="text-[0.75rem] text-ink-3">
+                          {t("skills.forScripts")} · {kb(f.bytes)}
+                        </span>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </div>
@@ -769,7 +781,9 @@ function RegistryDialog({
               <div className="-mx-5 sm:-mx-7 -mb-5 sm:-mb-7 -bottom-5 sm:-bottom-7 sticky flex flex-wrap items-center gap-3 border-border-soft border-t bg-card px-5 pt-3 pb-5 sm:px-7 sm:pb-7">
                 <ModeSwitch value={mode === "off" ? "demand" : mode} onChange={setMode} />
                 <span className="flex-1 text-[0.75rem] text-ink-3">
-                  {[kb(p.bytes), countFiles(p.fileList.length)].filter(Boolean).join(" · ")}
+                  {[kb(p.bytes), countFiles(p.fileList.length + p.blobList.length)]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
                 <Button busy={add.isPending} onClick={() => add.mutate()}>
                   {t("skills.add")}

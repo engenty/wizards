@@ -21,8 +21,12 @@ and skills.sh lists thousands of them.
 - **One table, `space_skill`**: name, description, body, the rest of the front matter (`meta`),
   the folder's other files as JSON, mode, source (`own`, `upload`, `skills.sh`), origin and the
   hash of what skills.sh had. A sync kind `skill` and live triggers (migration 0026).
-- **Text only.** Binary files are left out on upload and import. Scripts stay as text; nothing
-  runs them and they don't reach the sandbox.
+- **Text for the model, other files for scripts.** Text files sit in the row; any other file
+  (a font, a template, an `.xsd`) goes to the blob store by hash (`blob_files`, migration 0027).
+  Scripts are text and run only where a person switched on `run_scripts` for the skill: then a
+  step with the sandbox gets the skill's folder at `skills/<name>/` when it loads the skill. Off
+  by default, from skills.sh too, since its skills are unchecked and the Docker sandbox reaches
+  the internet.
 - **skills.sh as the source**, through the runtime: `/api/search` and `/r/<owner>/<repo>/<skill>`,
   which hands out every file of the folder. Owners on skills.sh's official list count as an
   official source; the search shows only those by default. A skill added is a copy: an update is

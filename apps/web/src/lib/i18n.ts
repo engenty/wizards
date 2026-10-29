@@ -2124,7 +2124,7 @@ const de: Record<Key, Line> = {
   "skills.inSpace": "schon im Space",
   "skills.open": "Ansehen",
   "skills.officialNote":
-    "Offizielle Quellen sind Organisationen, die skills.sh als offiziell führt. Skripte in einem Skill führt engenty wizards nie aus.",
+    "Offizielle Quellen sind Organisationen, die skills.sh als offiziell führt. Die Skripte eines Skills laufen nur, wenn du sie für ihn einschaltest.",
   "skills.registryStart": "Such nach dem, was deine Wizards können sollen.",
   "skills.registryNone": "Nichts gefunden.",
   "skills.results": "Treffer",
@@ -2132,8 +2132,9 @@ const de: Record<Key, Line> = {
     "Diese Quelle ist nicht offiziell. Lies den Skill, bevor du ihn hinzufügst: Deine Wizards folgen seiner Anleitung.",
   "skills.onGithub": "auf GitHub",
   "skills.tabFiles": "Dateien ({n})",
-  "skills.scriptNote": "{path} bleibt als Text dabei und wird nie ausgeführt.",
-  "skills.skippedBinary": "{path} wird übersprungen: Ein Skill hält nur Textdateien.",
+  "skills.scriptNote":
+    "{path} ist ein Skript. Es läuft nur, wenn du „Skripte ausführen“ einschaltest.",
+  "skills.skippedBinary": "{path} wird übersprungen: skills.sh liefert die Datei nicht mit.",
   "skills.skippedSize": "{path} wird übersprungen: Die Datei ist zu groß.",
   "skills.skippedOther": "{path} wird übersprungen.",
   "skills.descHint": "Die Beschreibung sagt einem Wizard, wann er den Skill braucht.",
@@ -2173,6 +2174,15 @@ const de: Record<Key, Line> = {
   "skills.newFile": "Neue Datei",
   "skills.filePath": "Pfad",
   "skills.filePathHint": "z. B. references/beispiele.md",
+  "skills.scriptsTitle": "Skripte",
+  "skills.runScripts": "Skripte ausführen",
+  "skills.runScriptsHint":
+    "Ein KI-Schritt mit Sandbox legt den Ordner des Skills dort ab und führt seine Skripte aus. Ohne Sandbox bleiben sie Text.",
+  "skills.runScriptsWarn":
+    "Niemand hat diese Skripte geprüft. Lies sie, bevor du sie laufen lässt: Die Sandbox ist mit dem Internet verbunden.",
+  "skills.forScripts": "für Skripte",
+  "skills.blobHint":
+    "Dateien für Skripte liest kein Wizard. Sie liegen in der Sandbox, wenn die Skripte laufen.",
   "skills.newTitle": "Skill schreiben",
   "skills.nameHint": "Kleinbuchstaben, Ziffern und Bindestriche",
   "skills.create": "Anlegen",
@@ -4847,7 +4857,7 @@ const en = {
   "skills.inSpace": "in this space",
   "skills.open": "View",
   "skills.officialNote":
-    "Official sources are organizations skills.sh lists as official. engenty wizards never runs the scripts in a skill.",
+    "Official sources are organizations skills.sh lists as official. A skill’s scripts run only when you switch them on for it.",
   "skills.registryStart": "Search for what your wizards should be able to do.",
   "skills.registryNone": "Nothing found.",
   "skills.results": "Results",
@@ -4855,8 +4865,8 @@ const en = {
     "This source isn’t official. Read the skill before you add it: your wizards follow its instructions.",
   "skills.onGithub": "on GitHub",
   "skills.tabFiles": "Files ({n})",
-  "skills.scriptNote": "{path} comes along as text and never runs.",
-  "skills.skippedBinary": "{path} is left out: a skill holds text files only.",
+  "skills.scriptNote": "{path} is a script. It runs only when you switch on “Run scripts”.",
+  "skills.skippedBinary": "{path} is left out: skills.sh doesn’t hand out this file.",
   "skills.skippedSize": "{path} is left out: the file is too large.",
   "skills.skippedOther": "{path} is left out.",
   "skills.descHint": "The description tells a wizard when it needs the skill.",
@@ -4896,6 +4906,15 @@ const en = {
   "skills.newFile": "New file",
   "skills.filePath": "Path",
   "skills.filePathHint": "e.g. references/examples.md",
+  "skills.scriptsTitle": "Scripts",
+  "skills.runScripts": "Run scripts",
+  "skills.runScriptsHint":
+    "An AI step with the sandbox puts the skill’s folder there and runs its scripts. Without the sandbox they stay text.",
+  "skills.runScriptsWarn":
+    "Nobody has checked these scripts. Read them before you let them run: the sandbox is connected to the internet.",
+  "skills.forScripts": "for scripts",
+  "skills.blobHint":
+    "No wizard reads files for scripts. They’re in the sandbox when the scripts run.",
   "skills.newTitle": "Write a skill",
   "skills.nameHint": "Lower-case letters, digits and hyphens",
   "skills.create": "Create",

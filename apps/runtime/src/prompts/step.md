@@ -145,6 +145,10 @@ Its files, read with skill_read when it points to them: ${files}.
 # SKILLS ON DEMAND
 Skills of the space, by name and what each is for. When one fits the task, load it with skill_load before you start, then follow it. Load only what fits; most tasks need none.
 
+<!-- section: skills.scripts -->
+<!-- After the skills, where the step has the sandbox and a skill's scripts may run; `names` joined with ", ". -->
+These skills bring scripts that run in the sandbox: ${names}. skill_load puts such a skill's folder into the sandbox at skills/<name>/; run its scripts there with run_command when its instructions call for them.
+
 <!-- section: photos -->
 <!-- In the agent step's message; `photos`: one line per photo. -->
 # PHOTOS THE PERSON GAVE

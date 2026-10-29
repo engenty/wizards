@@ -362,12 +362,16 @@ describe("more of the space", () => {
 
   it("sends a skill with its files both ways", async () => {
     const skills = await import("../src/services/skills");
+    const { putBlob } = await import("../src/files/blobs");
+    const font = new Uint8Array([0, 1, 0, 0, 7]);
+    const hash = await local(() => putBlob(font));
     const content = {
       name: "voice",
       description: "How we write.",
       body: "# Voice",
       meta: { license: "MIT" },
       files: [{ path: "references/examples.md", text: "Short." }],
+      blobFiles: [{ path: "assets/font.ttf", hash, bytes: font.length }],
     };
     const mine = await local(() =>
       skills.insertSkill(spaceId, content, { source: "own", mode: "always" }),

@@ -16,7 +16,12 @@ import type {
 import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
-import { SKILL_MODES, SKILL_SOURCES, type SkillFile } from "@engenty/wizards-shared/skills";
+import {
+  SKILL_MODES,
+  SKILL_SOURCES,
+  type SkillBlobFile,
+  type SkillFile,
+} from "@engenty/wizards-shared/skills";
 import type { Theme } from "@engenty/wizards-shared/theme";
 import type { TranslationMemory } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
@@ -706,7 +711,11 @@ export const spaceSkill = sqliteTable(
     meta: text("meta", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
     /** The other files of its folder, by their path in it. */
     files: text("files", { mode: "json" }).$type<SkillFile[]>().notNull().default([]),
+    /** Files for its scripts only, their bytes in the blob store (files/blobs.ts). */
+    blobFiles: text("blob_files", { mode: "json" }).$type<SkillBlobFile[]>().notNull().default([]),
     mode: text("mode", { enum: SKILL_MODES }).notNull().default("demand"),
+    /** Its scripts run in the sandbox of a step that has one: switched on by a person, never by default. */
+    runScripts: integer("run_scripts", { mode: "boolean" }).notNull().default(false),
     source: text("source", { enum: SKILL_SOURCES }).notNull().default("own"),
     /** skills.sh: `owner/repo/skill`, and the hash of what it had when added. */
     origin: text("origin"),

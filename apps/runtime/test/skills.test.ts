@@ -5,7 +5,8 @@ import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // Skills of a space: behind their switch; written, uploaded or added from skills.sh; always on
-// in a step's instructions or read on demand with skill_load; refused past their limits.
+// in a step's instructions or read on demand with skill_load; refused past their limits; their
+// scripts in a step's sandbox once someone switched them on.
 
 const dir = mkdtempSync(join(tmpdir(), "wizards-skills-"));
 process.env.DATA_DIR = join(dir, "data");
@@ -49,7 +50,7 @@ const upload = (name: string, data: Uint8Array) => {
 const local = <T>(fn: () => T | Promise<T>) => client.withTenant("local", fn);
 
 /** What skills.sh holds in this test: its search and its registry items. */
-const registry: Record<string, { path: string; content: string }[]> = {
+const registry: Record<string, { path: string; content: string | null }[]> = {
   "anthropics/skills/pdf": [
     {
       path: "SKILL.md",
@@ -59,6 +60,7 @@ const registry: Record<string, { path: string; content: string }[]> = {
     { path: "forms.md", content: "# Forms\n\nFill the fields." },
     { path: "scripts/fill.py", content: "print('fill')" },
     { path: "assets/logo.png", content: "\u0000PNG" },
+    { path: "assets/font.ttf", content: null },
   ],
   "someone/tools/brandkit": [
     { path: "SKILL.md", content: '---\nname: brandkit\ndescription: "A brand kit"\n---\nBody.' },
@@ -150,7 +152,7 @@ describe("the switch", () => {
       const { insertSkill } = await import("../src/services/skills");
       await insertSkill(
         spaceId,
-        { name: "hidden", description: "Hidden.", body: "Never shown.", meta: {}, files: [] },
+        { name: "hidden", description: "Hidden.", body: "Never shown.", meta: {}, files: [], blobFiles: [] },
         { source: "own", mode: "always" },
       );
       expect(await activeSkills(spaceId)).toEqual({ always: [], demand: [] });
@@ -268,7 +270,7 @@ describe("uploads", () => {
     expect((await res.json()).name).toBe("catering");
   });
 
-  it("take a zip's folder, and leave out what is not text", async () => {
+  it("take a zip's folder, files that are not text kept for scripts", async () => {
     const zip = zipSync({
       "__MACOSX/._x": strToU8("junk"),
       "angebot/SKILL.md": strToU8("---\nname: angebot\ndescription: Angebote.\n---\nBody"),
@@ -279,10 +281,35 @@ describe("uploads", () => {
     const res = await upload("angebot.skill", zip);
     expect(res.status).toBe(200);
     const made = await res.json();
-    expect(made.skipped).toEqual([{ path: "assets/photo.jpg", reason: "binary" }]);
+    expect(made.skipped).toEqual([]);
     const skill = await json(send("GET", `/api/studio/skills/${made.id}`));
-    expect(skill.source).toBe("upload");
+    expect(skill).toMatchObject({ source: "upload", runScripts: false, files: 2 });
     expect(skill.fileList).toEqual([{ path: "references/menu.md", text: "# Menü" }]);
+    expect(skill.blobList).toEqual([
+      { path: "assets/photo.jpg", hash: expect.stringMatching(/^[a-f0-9]{64}$/), bytes: 4 },
+    ]);
+    // The zip to download carries them, byte for byte.
+    const downloaded = unzipSync(
+      new Uint8Array(await (await send("GET", `/api/studio/skills/${made.id}/zip`)).arrayBuffer()),
+    );
+    expect([...downloaded["angebot/assets/photo.jpg"]]).toEqual([0xff, 0xd8, 0x00, 0x01]);
+  });
+
+  it("leave out files for scripts past their limits", async () => {
+    const zip = zipSync({
+      "big/SKILL.md": strToU8("---\nname: big\ndescription: Big.\n---\nBody"),
+      "big/a.bin": new Uint8Array(4_000_000),
+      "big/b.bin": new Uint8Array(4_000_000).fill(1),
+      "big/c.bin": new Uint8Array(4_000_000).fill(2),
+      "big/d.bin": new Uint8Array(4_000_000).fill(3),
+      "big/e.bin": new Uint8Array(4_000_000).fill(4),
+      "big/f.bin": new Uint8Array(4_000_000).fill(5),
+    });
+    const made = await json(upload("big.zip", zip));
+    expect(made.skipped).toEqual([{ path: "f.bin", reason: "size" }]);
+    const skill = await json(send("GET", `/api/studio/skills/${made.id}`));
+    expect(skill.blobList).toHaveLength(5);
+    await send("DELETE", `/api/studio/skills/${made.id}`);
   });
 
   it("refuse what is no skill", async () => {
@@ -318,7 +345,9 @@ describe("skills.sh", () => {
       meta: { license: "Proprietary" },
     });
     expect(preview.fileList.map((f: any) => f.path)).toEqual(["forms.md", "scripts/fill.py"]);
-    expect(preview.skipped).toEqual([{ path: "assets/logo.png", reason: "binary" }]);
+    expect(preview.blobList).toEqual([{ path: "assets/logo.png", bytes: 4 }]);
+    // A file skills.sh hands out without its content can't come along.
+    expect(preview.skipped).toEqual([{ path: "assets/font.ttf", reason: "binary" }]);
   });
 
   it("adds a copy that only its update changes", async () => {
@@ -330,7 +359,12 @@ describe("skills.sh", () => {
     );
     id = made.id;
     const skill = await json(send("GET", `/api/studio/skills/${id}`));
-    expect(skill).toMatchObject({ source: "skills.sh", origin: "anthropics/skills/pdf", official: true });
+    expect(skill).toMatchObject({
+      source: "skills.sh",
+      origin: "anthropics/skills/pdf",
+      official: true,
+      runScripts: false,
+    });
     const refused = await send("PATCH", `/api/studio/skills/${id}`, { body: "changed" });
     expect(refused.status).toBe(400);
     expect((await refused.json()).error).toMatch(/Copy it as your own/);
@@ -349,11 +383,26 @@ describe("skills.sh", () => {
     const after = await json(send("GET", `/api/studio/skills/${id}`));
     expect(after.fileList[0].text).toBe("# Forms\n\nFill every field.");
     expect(after.mode).toBe("off");
+    expect(after.blobList.map((f: any) => f.path)).toEqual(["assets/logo.png"]);
+  });
+
+  it("runs its scripts only once someone switches them on, as the sync record carries", async () => {
+    const on = await send("PATCH", `/api/studio/skills/${id}`, { runScripts: true });
+    expect(on.status).toBe(200);
+    expect((await json(send("GET", `/api/studio/skills/${id}`))).runScripts).toBe(true);
+    const { KINDS } = await import("../src/sync/records");
+    const read = await local(() => KINDS.skill.read(id));
+    expect(read?.record).toMatchObject({ runScripts: true, blobFiles: [{ path: "assets/logo.png" }] });
+    expect(KINDS.skill.blobs?.(read!.record)).toEqual([
+      expect.stringMatching(/^[a-f0-9]{64}$/),
+    ]);
   });
 
   it("copies one as the space's own, to change", async () => {
     const copy = await json(send("POST", `/api/studio/skills/${id}/copy`));
     expect(copy.name).toBe("pdf-2");
+    // A copy is a new skill: its scripts are off until someone switches them on for it.
+    expect((await json(send("GET", `/api/studio/skills/${copy.id}`))).runScripts).toBe(false);
     expect((await send("PATCH", `/api/studio/skills/${copy.id}`, { body: "mine" })).status).toBe(200);
     await send("DELETE", `/api/studio/skills/${copy.id}`);
     await send("PATCH", `/api/studio/skills/${id}`, { mode: "demand" });
@@ -387,8 +436,10 @@ describe("in a step", () => {
 
       const tools = await skillTools(ctx);
       expect(Object.keys(tools)).toEqual(["skill_load", "skill_read"]);
+      expect(tools.skill_read.description).toContain("nothing runs them");
       const loaded = await tools.skill_load.execute({ name: "pdf" });
       expect(loaded).toMatchObject({ name: "pdf", files: ["forms.md", "scripts/fill.py"] });
+      expect(loaded.folder).toBeUndefined();
       expect(loaded.instructions).toContain("Read forms.md for forms.");
       const file = await tools.skill_read.execute({ name: "pdf", path: "forms.md" });
       expect(file.text).toBe("# Forms\n\nFill every field.");
@@ -399,6 +450,115 @@ describe("in a step", () => {
         { code: "readsSkill", params: { name: "pdf" } },
         { code: "readsSkill", params: { name: "pdf/forms.md" } },
       ]);
+    });
+  });
+});
+
+describe("scripts in the sandbox", () => {
+  /** A sandbox that keeps what is written to it. */
+  const fakeSandbox = () => {
+    const files = new Map<string, string | Uint8Array>();
+    const commands: string[] = [];
+    const sandbox = {
+      capabilities: { commands: [], network: "none", uses: "", workdir: "/sandbox" },
+      exec: async (command: string) => {
+        commands.push(command);
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+      writeFile: async (path: string, data: string | Uint8Array) => {
+        files.set(path, data);
+      },
+      readFile: async () => new Uint8Array(),
+      destroy: async () => undefined,
+    };
+    return { sandbox, files, commands };
+  };
+  const ctx = { project: { id: "" }, emit: async () => undefined };
+
+  it("puts the folder of a skill whose scripts may run into the sandbox, once per run", async () => {
+    const { skillsBlock, skillToolsOf } = await import("../src/tools/skills");
+    const { activeSkills } = await import("../src/services/skills");
+    const { sandbox, files, commands } = fakeSandbox();
+    ctx.project.id = spaceId;
+    await local(async () => {
+      const skills = await activeSkills(spaceId);
+      expect(skills.demand.find((k) => k.name === "pdf")?.runScripts).toBe(true);
+      expect(skillsBlock(skills, { tools: true, sandbox: true })).toContain(
+        "These skills bring scripts that run in the sandbox: pdf.",
+      );
+      expect(skillsBlock(skills, { tools: true })).not.toContain("scripts that run");
+
+      const tools = skillToolsOf(skills, () => undefined, {
+        handle: () => sandbox,
+        workdir: "/sandbox",
+      });
+      expect(tools.skill_read.description).not.toContain("nothing runs them");
+      const loaded = await tools.skill_load.execute({ name: "pdf" });
+      expect(loaded).toMatchObject({
+        folder: "/sandbox/skills/pdf",
+        files: ["assets/logo.png", "forms.md", "scripts/fill.py"],
+      });
+      expect(loaded.scripts).toContain("python3 skills/pdf/scripts/<file>.py");
+      expect([...files.keys()].sort()).toEqual([
+        "skills/pdf/SKILL.md",
+        "skills/pdf/assets/logo.png",
+        "skills/pdf/forms.md",
+        "skills/pdf/scripts/fill.py",
+      ]);
+      expect(files.get("skills/pdf/scripts/fill.py")).toBe("print('fill')");
+      expect(String(files.get("skills/pdf/SKILL.md"))).toMatch(/^---\nname: pdf\n/);
+      expect([...(files.get("skills/pdf/assets/logo.png") as Uint8Array)]).toEqual([
+        0, 80, 78, 71,
+      ]);
+      expect(commands).toEqual(["rm -rf skills/pdf"]);
+
+      // Loaded again in the same run, the folder is there already.
+      await tools.skill_load.execute({ name: "pdf" });
+      expect(commands).toHaveLength(1);
+      expect(
+        (await tools.skill_read.execute({ name: "pdf", path: "assets/logo.png" })).error,
+      ).toMatch(/for the skill's scripts/);
+    });
+  });
+
+  it("leaves a skill whose scripts are off as text, sandbox or not", async () => {
+    const { skillToolsOf } = await import("../src/tools/skills");
+    const { activeSkills } = await import("../src/services/skills");
+    const listed = await json(send("GET", `/api/studio/projects/${spaceId}/skills`));
+    const pdf = listed.skills.find((s: any) => s.name === "pdf");
+    await send("PATCH", `/api/studio/skills/${pdf.id}`, { runScripts: false });
+    const { sandbox, files } = fakeSandbox();
+    await local(async () => {
+      const tools = skillToolsOf(await activeSkills(spaceId), () => undefined, {
+        handle: () => sandbox,
+        workdir: "/sandbox",
+      });
+      const loaded = await tools.skill_load.execute({ name: "pdf" });
+      expect(loaded.folder).toBeUndefined();
+      expect(loaded.files).toEqual(["forms.md", "scripts/fill.py"]);
+      expect(files.size).toBe(0);
+    });
+  });
+
+  it("says when the folder could not be written, and gives the instructions all the same", async () => {
+    const { skillToolsOf } = await import("../src/tools/skills");
+    const { activeSkills } = await import("../src/services/skills");
+    const listed = await json(send("GET", `/api/studio/projects/${spaceId}/skills`));
+    const pdf = listed.skills.find((s: any) => s.name === "pdf");
+    await send("PATCH", `/api/studio/skills/${pdf.id}`, { runScripts: true });
+    const { sandbox } = fakeSandbox();
+    sandbox.writeFile = async () => {
+      throw new Error("disk full");
+    };
+    await local(async () => {
+      const tools = skillToolsOf(await activeSkills(spaceId), () => undefined, {
+        handle: () => sandbox,
+        workdir: "/sandbox",
+      });
+      const loaded = await tools.skill_load.execute({ name: "pdf" });
+      expect(loaded.instructions).toContain("Read forms.md for forms.");
+      expect(loaded.folder).toBeUndefined();
+      expect(loaded.scripts).toMatch(/disk full.*can't run/);
     });
   });
 });

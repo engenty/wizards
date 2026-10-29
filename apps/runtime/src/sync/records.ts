@@ -1,6 +1,11 @@
 import { validateWizard } from "@engenty/wizards-shared/definition";
 import { tableColumnsSchema } from "@engenty/wizards-shared/engenty/data-tables";
-import { SKILL_MODES, SKILL_SOURCES, type SkillFile } from "@engenty/wizards-shared/skills";
+import {
+  SKILL_MODES,
+  SKILL_SOURCES,
+  type SkillBlobFile,
+  type SkillFile,
+} from "@engenty/wizards-shared/skills";
 import type { SyncKind, SyncRecord } from "@engenty/wizards-shared/sync";
 import { themeSchema } from "@engenty/wizards-shared/theme";
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
@@ -1018,7 +1023,9 @@ const skill: KindDef = {
         body: k.body,
         meta: k.meta,
         files: k.files,
+        blobFiles: k.blobFiles,
         mode: k.mode,
+        runScripts: k.runScripts,
         source: k.source,
         origin: k.origin,
         originHash: k.originHash,
@@ -1037,7 +1044,14 @@ const skill: KindDef = {
       files: arr<SkillFile>(r.files).filter(
         (f) => typeof f?.path === "string" && typeof f?.text === "string",
       ),
+      blobFiles: arr<SkillBlobFile>(r.blobFiles).filter(
+        (f) =>
+          typeof f?.path === "string" &&
+          /^[a-f0-9]{64}$/.test(String(f?.hash)) &&
+          typeof f?.bytes === "number",
+      ),
       mode,
+      runScripts: r.runScripts === true,
       source,
       origin: str(r.origin),
       originHash: str(r.originHash),
@@ -1076,6 +1090,7 @@ const skill: KindDef = {
     return rows.map((r) => r.id);
   },
   title: (r, item) => str(r?.name) ?? item,
+  blobs: (r) => arr<SkillBlobFile>(r.blobFiles).map((f) => String(f.hash)),
 };
 
 export const KINDS: Record<SyncKind, KindDef> = {

@@ -14,14 +14,15 @@ import { notFound, ServiceError } from "./errors.js";
 import { ownedProject } from "./projects.js";
 import {
   asText,
+  blobBytes,
   checkAlways,
   checkContent,
   contentHash,
   contentOf,
   insertSkill,
+  keepBlobs,
   requireSkills,
-  type SkillContent,
-  type SkippedFile,
+  type SkillIntake,
   skillBytes,
   skillRow,
 } from "./skills.js";
@@ -29,8 +30,9 @@ import {
 /**
  * skills.sh, the open directory of skills (docs/plans/skills.md): its search, and a skill read
  * whole from its registry address `/r/<owner>/<repo>/<skill>`, which hands out the `SKILL.md`
- * and every file of the skill's folder as text. A skill added is a copy: it changes only when
- * someone takes an update.
+ * and the text files of the skill's folder (not fonts or images). A skill added is a copy: it
+ * changes only when someone takes an update, and its scripts stay off until someone switches
+ * them on.
  */
 
 const BASE = (process.env.SKILLS_REGISTRY_URL ?? "https://skills.sh").replace(/\/+$/, "");
@@ -128,9 +130,7 @@ const registryItem = z.object({
 });
 
 /** A skill of skills.sh read whole: its content as the space would keep it, and what was left out. */
-export async function readRegistrySkill(
-  ref: string,
-): Promise<{ content: SkillContent; skipped: SkippedFile[]; hash: string }> {
+export async function readRegistrySkill(ref: string): Promise<SkillIntake & { hash: string }> {
   if (!SKILL_REF.test(ref)) {
     throw notFound();
   }
@@ -143,13 +143,12 @@ export async function readRegistrySkill(
   const enc = new TextEncoder();
   const read = contentOf(
     item.data.files.map((f) => {
-      const text = typeof f.content === "string" ? f.content : null;
-      // The registry hands out text; a file that is not came as something else (base64, empty).
-      const bytes = text === null ? 0 : enc.encode(text).length;
+      // The registry hands out text; a file that is not came as something else (null, empty).
+      const data = typeof f.content === "string" ? enc.encode(f.content) : null;
       return {
         path: f.path.replace(/^\.?\//, ""),
-        text: text === null ? null : asText(enc.encode(text)),
-        bytes,
+        text: data === null ? null : asText(data),
+        data,
       };
     }),
   );
@@ -168,9 +167,10 @@ export async function previewSkill(userId: string, projectId: string, ref: strin
     body: read.content.body,
     meta: read.content.meta,
     fileList: read.content.files,
+    blobList: read.content.blobFiles.map((f) => ({ path: f.path, bytes: f.bytes })),
     skipped: read.skipped,
     official: officialSkill(ref),
-    bytes: skillBytes(read.content),
+    bytes: skillBytes(read.content) + blobBytes(read.content.blobFiles),
     hash: read.hash,
   };
   // What the space would refuse is said now, before anyone presses Add.
@@ -188,6 +188,7 @@ export async function addRegistrySkill(
   const project = await ownedProject(userId, projectId);
   await requireWritableProject(project.id);
   const read = await readRegistrySkill(input.ref);
+  await keepBlobs(read.blobs);
   return insertSkill(project.id, read.content, {
     source: "skills.sh",
     mode: input.mode,
@@ -213,7 +214,10 @@ export async function skillUpdate(userId: string, id: string) {
     update: {
       description: read.content.description,
       body: read.content.body,
-      fileList: read.content.files.map((f) => ({ path: f.path, bytes: byteLength(f.text) })),
+      fileList: [
+        ...read.content.files.map((f) => ({ path: f.path, bytes: byteLength(f.text) })),
+        ...read.content.blobFiles.map((f) => ({ path: f.path, bytes: f.bytes })),
+      ].sort((a, b) => a.path.localeCompare(b.path)),
       skipped: read.skipped,
       hash: read.hash,
     },
@@ -236,6 +240,7 @@ export async function applySkillUpdate(userId: string, id: string, hash: string)
   }
   const next = checkContent({ ...read.content, name: row.name });
   await checkAlways(row.projectId, row.id, row.mode, next.body);
+  await keepBlobs(read.blobs);
   await db
     .update(schema.spaceSkill)
     .set({
@@ -243,6 +248,7 @@ export async function applySkillUpdate(userId: string, id: string, hash: string)
       body: next.body,
       meta: next.meta,
       files: next.files,
+      blobFiles: next.blobFiles,
       originHash: read.hash,
       updatedAt: new Date(),
     })

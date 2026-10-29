@@ -15,6 +15,7 @@ import {
   Copy,
   Download,
   Eye,
+  FileArchive,
   FileText,
   MoreHorizontal,
   Plus,
@@ -27,7 +28,7 @@ import { api } from "../../lib/api";
 import { withBase } from "../../lib/base";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { Button, Card, cn, Dialog, IconButton, Input, Label, Spinner } from "../../ui";
+import { Button, Card, cn, Dialog, IconButton, Input, Label, Spinner, Switch } from "../../ui";
 import { CodeEditor } from "../../ui/code-editor";
 import { frontmatterLines } from "../../ui/code-editor/frontmatter";
 import { useAutosave } from "./data";
@@ -36,9 +37,9 @@ import { FileNotes, MODE_ICON, SideHead, SourceChip } from "./Skills";
 
 /**
  * One skill, opened (docs/plans/skills.md): its name and description in the header, its
- * instructions as text or as the `SKILL.md` they are, when it counts, and its files in a
- * dialog. A skill of the space's own saves as it is typed; one from skills.sh is read only,
- * offers a newer version when skills.sh has one, and is copied to be changed.
+ * instructions as text or as the `SKILL.md` they are, when it counts, whether its scripts run,
+ * and its files in a dialog. A skill of the space's own saves as it is typed; one from skills.sh
+ * is read only, offers a newer version when skills.sh has one, and is copied to be changed.
  */
 
 const MODES: SkillMode[] = ["always", "demand", "off"];
@@ -105,6 +106,48 @@ function ModeCards({
   );
 }
 
+/**
+ * Whether the skill's scripts run in the sandbox of a step that has one. A skill nobody checked
+ * (uploaded, or from a source skills.sh does not list as official) says so beside the switch.
+ */
+function ScriptsCard({ skill }: { skill: SkillDetail }) {
+  const qc = useQueryClient();
+  const set = useMutation({
+    mutationFn: (next: boolean) =>
+      api.patch(`/api/studio/skills/${skill.id}`, { runScripts: next }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: keys.skill(skill.id) });
+      await qc.invalidateQueries({ queryKey: keys.skills(skill.projectId) });
+    },
+  });
+  const unchecked = skill.source !== "own" && !skill.official;
+  return (
+    <div className="flex flex-col gap-2">
+      <SideHead title={t("skills.scriptsTitle")} />
+      <Card className="flex flex-col gap-2 p-4">
+        <div className="flex items-center gap-3">
+          <span className="flex-1 font-medium text-[0.8125rem]">{t("skills.runScripts")}</span>
+          <Switch
+            checked={skill.runScripts}
+            label={t("skills.runScripts")}
+            disabled={skill.readOnly || set.isPending}
+            onChange={(next) => set.mutate(next)}
+          />
+        </div>
+        <p className="text-[0.75rem] text-ink-3 leading-snug">{t("skills.runScriptsHint")}</p>
+        {unchecked ? (
+          <p className="rounded-lg bg-amber-tint px-3 py-2 text-[0.75rem] text-ink-2 leading-snug">
+            {t("skills.runScriptsWarn")}
+          </p>
+        ) : null}
+        {set.error ? (
+          <p className="text-[0.75rem] text-rose">{(set.error as Error).message}</p>
+        ) : null}
+      </Card>
+    </div>
+  );
+}
+
 /** One button that switches between the text as it reads and the code it is. */
 function ViewToggle({ code, onChange }: { code: boolean; onChange: (code: boolean) => void }) {
   return (
@@ -115,8 +158,9 @@ function ViewToggle({ code, onChange }: { code: boolean; onChange: (code: boolea
   );
 }
 
-const kb = (text: string) =>
-  `${(new TextEncoder().encode(text).length / 1000).toLocaleString(lang, { maximumFractionDigits: 1 })} KB`;
+const bytesKb = (bytes: number) =>
+  `${(bytes / 1000).toLocaleString(lang, { maximumFractionDigits: 1 })} KB`;
+const kb = (text: string) => bytesKb(new TextEncoder().encode(text).length);
 
 const isMarkdown = (path: string) => /\.(md|markdown|mdx)$/i.test(path);
 
@@ -595,6 +639,8 @@ function SkillForm({
             />
           </div>
 
+          <ScriptsCard skill={skill} />
+
           {fromRegistry ? (
             <div className="flex flex-col gap-2">
               <SideHead title={t("skills.origin")} />
@@ -647,7 +693,7 @@ function SkillForm({
                 </Button>
               )}
             </SideHead>
-            {draft.files.length ? (
+            {draft.files.length || skill.blobList.length ? (
               <Card className="flex flex-col divide-y divide-border-soft overflow-hidden">
                 {draft.files.map((f) => (
                   <button
@@ -663,11 +709,25 @@ function SkillForm({
                     <span className="shrink-0 text-[0.75rem] text-ink-3">{kb(f.text)}</span>
                   </button>
                 ))}
+                {skill.blobList.map((f) => (
+                  <div key={f.path} className="flex items-center gap-2.5 px-3 py-2.5">
+                    <FileArchive className="size-4 shrink-0 text-ink-3" />
+                    <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">
+                      {f.path}
+                    </span>
+                    <span className="shrink-0 text-[0.75rem] text-ink-3">
+                      {t("skills.forScripts")} · {bytesKb(f.bytes)}
+                    </span>
+                  </div>
+                ))}
               </Card>
             ) : (
               <p className="px-1 text-[0.8125rem] text-ink-3">{t("skills.noFiles")}</p>
             )}
             <p className="px-1 text-[0.75rem] text-ink-3">{t("skills.filesHint")}</p>
+            {skill.blobList.length ? (
+              <p className="px-1 text-[0.75rem] text-ink-3">{t("skills.blobHint")}</p>
+            ) : null}
           </div>
         </aside>
       </div>
