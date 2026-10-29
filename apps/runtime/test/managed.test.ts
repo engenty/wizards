@@ -97,7 +97,8 @@ const manage: Server = createServer(async (req, res) => {
   if (/^\/v1\/tenants\/[^/]+\/model-policy$/.test(url.pathname) && req.method === "PUT") {
     const body = JSON.parse(raw);
     memberCalls.push({ method: "PUT", path: url.pathname, body });
-    return json({ modelPolicy: body.modelPolicy });
+    const { actorId: _, ...modelPolicy } = body;
+    return json({ modelPolicy });
   }
   if (/^\/v1\/users\/[^/]+(\/connections|\/computers)?(\/[^/]+)?$/.test(url.pathname) && req.method !== "GET") {
     memberCalls.push({ method: req.method ?? "", path: url.pathname, body: raw ? JSON.parse(raw) : null });
@@ -612,7 +613,11 @@ describe("a runtime of a Manage-App", () => {
         path: "/v1/tenants/tenant-b/model-policy",
         body: {
           actorId: "user-b",
-          modelPolicy: { way: "C", ownKeys: true, subscriptions: false, apps: { subscriptions: false } },
+          way: "C",
+          ownKeys: true,
+          subscriptions: false,
+          apps: { local: false, subscriptions: false },
+          purposes: { wizard: { models: ["standard"], effortCap: null } },
         },
       });
       memberCalls.pop();

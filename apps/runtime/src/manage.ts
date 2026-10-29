@@ -482,7 +482,7 @@ export async function saveModelPolicy(
   const saved = await call<{ modelPolicy: ModelPolicy }>(
     "PUT",
     `${tenantPath(tenantId)}/model-policy`,
-    { actorId, modelPolicy },
+    { actorId, ...modelPolicy },
   );
   forgetTenant(tenantId);
   return saved.modelPolicy;

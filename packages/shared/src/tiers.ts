@@ -93,6 +93,24 @@ export function splitClassId(id: string): { maker: Maker | null; cls: string } {
 /** Why a call was refused by the gateway for the organization's tier or policy. */
 export type TierRefusalType = "outside_tier" | "not_in_policy";
 
+/**
+ * The purposes as a way keeps them: way A none of the fields, way B the default and the cap, way C
+ * the list, its efforts and the default.
+ */
+export function purposesOfWay(policy: ModelPolicy): ModelPolicy["purposes"] {
+  const keep = (p: PurposePolicy): PurposePolicy =>
+    policy.way === "A"
+      ? { models: null, default: null, effortCap: null, efforts: null }
+      : policy.way === "B"
+        ? { ...p, models: null, efforts: null }
+        : { ...p, effortCap: null };
+  return {
+    wizard: keep(policy.purposes.wizard),
+    assistant: keep(policy.purposes.assistant),
+    work: keep(policy.purposes.work),
+  };
+}
+
 const purposePolicySchema = z.object({
   models: z.array(z.string().min(1).max(80)).max(60).nullable(),
   default: z.string().min(1).max(80).nullable(),
