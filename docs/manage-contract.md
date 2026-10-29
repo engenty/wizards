@@ -74,6 +74,7 @@ Errors: `{ "error": string, "code": string }`.
 | `GET /v1/tenants/:id/usage?months=` | → `{ months: [{ month: "2026-10", credits, runs: [{ runId, credits }] }] }` · what the tenant spent per calendar month (UTC), the newest first, `months` 1–12 (3 when left out), each with its 20 costliest runs; the studio assistant names the wizards behind the runs |
 | `PATCH /v1/tenants/:id` | `{ name }` → the same answer as `GET /v1/tenants/:id` · renames the organization; the studio's first visit asks for the name ([content/user-guide/create-account.md](content/user-guide/create-account.md)) · `name` 1–80 characters |
 | `PUT /v1/tenants/:id/profile` | `{ userId, lang, kind: "personal" \| "club" \| "small" \| "corp", size?, sector?, role?, need?, phone?, website?, links?: string[], questions? }` → `{ ok }` · what the studio's first visit learned about the organization, for the admin app's list of people · `links`: the addresses the person ticked or added (≤ 10) · `questions`: “Wünsche oder Fragen”; a new one is mailed to the platform's people · `403 not_member` |
+| `PUT /v1/tenants/:id/model-policy` | `{ actorId, way, purposes, credits, ownKeys, subscriptions, localModels, apps, masking }` → `{ modelPolicy }` · the organization's model policy ([Model tiers](#model-tiers)) as an owner or admin (`actorId`) saves it in the studio; the fields as in `modelPolicy`, all of them · the answer is the policy as `GET /v1/tenants/:id` serves it from then on · refusals: `403` `forbidden`, `not_member`, `plan` (the plan doesn't offer the way), `outside_tier` (an entry the tier doesn't offer, or a switch the tier keeps off); `409` `no_tier` (the organization has no tier, or `modelTiers` is off) |
 | `POST /v1/install-mail` | `{ email, lang: "de" \| "en" }` → `{ ok: true }` · the Manage-App mails its install mail (the command and the first steps) to `email`, which must belong to a person of a tenant this runtime serves (`404` otherwise); 3 a day per address (`429`) · "Mail me the command" on the cloud studio's start page |
 | `GET /v1/users/:id` | → `{ id, name, email, image, features, admin, tenants: [{ id, name, slug, role, personal, plan: { id, name } \| null, invitedBy: { name } \| null }] }` · `features`: the person's own switches, laid over the organization's · `admin`: the person runs the platform; the studio offers them the assistant's developer mode and “Organisation erstellen” · `tenants`: the person's organizations, their own first; the studio's switcher lists them (an older Manage-App sends none) · `invitedBy`: who invited the person into it, for the studio's welcome page; null for their own |
 | `PATCH /v1/users/:id` | `{ name }` → `{ name }` · the person's name, 1–80 characters, for every organization; the studio's Konto › Profil |
@@ -426,7 +427,7 @@ tier?: {
   name: string;          // shown in the studio: "EU Private"
   locked: boolean;       // set by contract: the organization's owner can't pick another
   rules: {
-    regions: string[] | null; // where calls may run ("EU"); null: anywhere
+    regions: string[] | null; // where calls may run, lower case ("eu"); null: anywhere
     zdr: boolean;             // providers keep no data
     noTraining: boolean;      // providers don't train on the calls
     ownKeys: boolean;         // the organization's own API keys are allowed at all
@@ -480,7 +481,15 @@ type PurposePolicy = {
 
 Entries of `models` and `default` are class ids as in a model id without `wizards/`
 (`standard`, `anthropic/high`) or model ids the catalog enables. Way A leaves `models`,
-`default`, `effortCap` and `efforts` null.
+`default`, `effortCap` and `efforts` null; way B leaves `models` and `efforts` null; way C
+leaves `effortCap` null.
+
+What the tier keeps off is off in the policy too, whatever was saved: `ownKeys` while
+`tier.rules.ownKeys` is false, and `subscriptions`, `apps.local` and `apps.subscriptions` while
+`tier.rules.zdr` is on (a member's subscription or an app's own model keeps what it reads). A
+way the plan no longer offers is served as way A.
+
+Admins save the policy with `PUT /v1/tenants/:id/model-policy`.
 
 **In the gateway.** It reads `x-wizards-purpose` (a call without it counts as `wizard`),
 resolves the class through the tier's `classes`, and checks it against the purpose's policy.
@@ -496,3 +505,7 @@ Gateway's error shape, so `@ai-sdk/gateway` reads the message:
 
 `x-wizards-run` names the run on every call a run makes; masking keeps one map per run. Calls
 outside a run carry none, and masking keeps its map for the one call.
+
+Where the gateway masked personal data, its answer carries `x-wizards-masked`: the count per
+kind as JSON, e.g. `{"person":2,"email":1}`. No header: nothing was masked. The run log shows
+it.
