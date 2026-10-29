@@ -16,3 +16,18 @@ overrides:
   # proxy-agent's get-uri still asks for basic-ftp 5, whose directory-listing parser can be made to
   # burn CPU (GHSA-c475-qrg2-pj4r). 6.x has the same API; its breaking change is a stricter PASV check.
   get-uri>basic-ftp: ^6.2.1
+  # Security fixes for packages others pull in, until their parents move up:
+  # mermaid (docs) pins dompurify 3.4.16, whose HTML cleaning can be bypassed (critical).
+  mermaid>dompurify: ^3.4.17
+  # effect's CLI parses TOML with toml 4, which a crafted file keeps busy (CPU DoS). Only its
+  # unstable CLI imports it, which nothing here runs; 5.x keeps `parse`.
+  effect>toml: ^5.0.1
+  # @executor-js/fumadb pins zod 4.3.6, which can run out of memory on oversized collections.
+  "@executor-js/fumadb>zod": 4.6.6
+  # ajv (via api-extractor and the runtime's dev tools) and socks (imapflow) stay on versions
+  # with known fixes: fast-uri link confusion, ip-address quadratic parsing.
+  fast-uri: ^3.1.9
+  ip-address: ^10.7.4
+  # @ag-ui/core 0.0.x (the openui-chat example) asks for zod 3, which has the same memory issue;
+  # its schemas are plain objects, enums and unions that zod 4 reads alike.
+  "@ag-ui/core>zod": 4.6.6
