@@ -4,13 +4,7 @@
  * way C (Approved models) and the defaults of way B (Defaults). Saved through the runtime at the
  * Manage-App. Behind `modelTiers` (docs/manage-contract.md, "Model tiers").
  */
-import {
-  EFFORTS,
-  type Effort,
-  MAKER_CLASSES,
-  MAKERS,
-  TEXT_CLASSES,
-} from "@engenty/wizards-shared/definition";
+import { EFFORTS, type Effort } from "@engenty/wizards-shared/definition";
 import {
   type ModelPolicy,
   type ModelTier,
@@ -40,7 +34,7 @@ import { useFeatures } from "../lib/features";
 import { type Key, t } from "../lib/i18n";
 import { Card, cn, Segmented, Select, Switch } from "../ui";
 import { Hint, PanelHead, Part } from "./models-parts";
-import { offered, reasonText, tierClassLabel } from "./tiers";
+import { approved, offered, pickable, reasonText, tierClassLabel } from "./tiers";
 
 const OPEN: PurposePolicy = { models: null, default: null, effortCap: null, efforts: null };
 
@@ -68,21 +62,6 @@ const PURPOSE_ICON: Record<Purpose, LucideIcon> = {
   assistant: Sparkles,
   work: MessageCircle,
 };
-
-/** The text classes of the tier people can pick: the plain ones, then each maker's. */
-export function pickable(tier: ModelTier): string[] {
-  return [
-    ...TEXT_CLASSES.filter((cls) => cls !== "classifier"),
-    ...MAKERS.flatMap((maker) =>
-      MAKER_CLASSES[maker].map((cls) => `${maker}/${cls}`).filter((id) => id in tier.classes),
-    ),
-  ];
-}
-
-/** The entries a purpose allows in way C: its list, or every offered class of the tier. */
-export function approved(tier: ModelTier, purpose: PurposePolicy): string[] {
-  return purpose.models ?? pickable(tier).filter((id) => offered(tier.classes[id]));
-}
 
 export function useSavePolicy() {
   const qc = useQueryClient();

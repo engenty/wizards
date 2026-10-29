@@ -819,6 +819,7 @@ export const studio = new Hono<Vars>()
             writable,
             message,
             extra: body.extra,
+            model: body.model,
             page,
             browserTools: body.tools,
             lang: body.lang,
