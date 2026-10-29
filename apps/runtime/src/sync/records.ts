@@ -1,5 +1,11 @@
 import { validateWizard } from "@engenty/wizards-shared/definition";
 import { tableColumnsSchema } from "@engenty/wizards-shared/engenty/data-tables";
+import {
+  SKILL_MODES,
+  SKILL_SOURCES,
+  type SkillBlobFile,
+  type SkillFile,
+} from "@engenty/wizards-shared/skills";
 import type { SyncKind, SyncRecord } from "@engenty/wizards-shared/sync";
 import { themeSchema } from "@engenty/wizards-shared/theme";
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
@@ -1000,6 +1006,93 @@ const connector: KindDef = {
   title: (r, item) => str(obj(r?.record).name) ?? splitTwo(item)[1],
 };
 
+const skill: KindDef = {
+  async read(id) {
+    const k = await db.query.spaceSkill.findFirst({
+      where: and(eq(schema.spaceSkill.id, id), eq(schema.spaceSkill.tenantId, currentTenant())),
+    });
+    if (!k) {
+      return null;
+    }
+    return {
+      projectId: k.projectId,
+      record: {
+        projectId: k.projectId,
+        name: k.name,
+        description: k.description,
+        body: k.body,
+        meta: k.meta,
+        files: k.files,
+        blobFiles: k.blobFiles,
+        mode: k.mode,
+        runScripts: k.runScripts,
+        source: k.source,
+        origin: k.origin,
+        originHash: k.originHash,
+      },
+    };
+  },
+  async write(projectId, id, r) {
+    const mode = SKILL_MODES.find((m) => m === r.mode) ?? "demand";
+    const source = SKILL_SOURCES.find((m) => m === r.source) ?? "own";
+    const values = {
+      projectId,
+      name: str(r.name) ?? id.toLowerCase(),
+      description: str(r.description) ?? "",
+      body: str(r.body) ?? "",
+      meta: obj(r.meta),
+      files: arr<SkillFile>(r.files).filter(
+        (f) => typeof f?.path === "string" && typeof f?.text === "string",
+      ),
+      blobFiles: arr<SkillBlobFile>(r.blobFiles).filter(
+        (f) =>
+          typeof f?.path === "string" &&
+          /^[a-f0-9]{64}$/.test(String(f?.hash)) &&
+          typeof f?.bytes === "number",
+      ),
+      mode,
+      runScripts: r.runScripts === true,
+      source,
+      origin: str(r.origin),
+      originHash: str(r.originHash),
+    };
+    // Two sides named a skill alike: the one arriving takes the name with its id behind it.
+    const clash = await db.query.spaceSkill.findFirst({
+      where: and(
+        eq(schema.spaceSkill.projectId, projectId),
+        eq(schema.spaceSkill.name, values.name),
+        ne(schema.spaceSkill.id, id),
+      ),
+      columns: { id: true },
+    });
+    if (clash) {
+      values.name =
+        `${values.name.slice(0, 50)}-${id.toLowerCase().replace(/[^a-z0-9]/g, "")}`.slice(0, 64);
+    }
+    await db
+      .insert(schema.spaceSkill)
+      .values({ id, tenantId: currentTenant(), ...values })
+      .onConflictDoUpdate({
+        target: schema.spaceSkill.id,
+        set: { ...values, updatedAt: new Date() },
+      });
+    return undefined;
+  },
+  async remove(_projectId, id) {
+    await db.delete(schema.spaceSkill).where(eq(schema.spaceSkill.id, id));
+    return undefined;
+  },
+  async list(projectId) {
+    const rows = await db
+      .select({ id: schema.spaceSkill.id })
+      .from(schema.spaceSkill)
+      .where(eq(schema.spaceSkill.projectId, projectId));
+    return rows.map((r) => r.id);
+  },
+  title: (r, item) => str(r?.name) ?? item,
+  blobs: (r) => arr<SkillBlobFile>(r.blobFiles).map((f) => String(f.hash)),
+};
+
 export const KINDS: Record<SyncKind, KindDef> = {
   space,
   wizard,
@@ -1011,11 +1104,12 @@ export const KINDS: Record<SyncKind, KindDef> = {
   category,
   file,
   connector,
+  skill,
 };
 
 /**
  * The order items are written in, so what one points to is there first: the space, its files,
- * tables and categories, then rows, pages, connectors, wizards and what belongs to them.
+ * tables and categories, then rows, pages, connectors, skills, wizards and what belongs to them.
  */
 export const KIND_ORDER: SyncKind[] = [
   "space",
@@ -1025,6 +1119,7 @@ export const KIND_ORDER: SyncKind[] = [
   "row",
   "page",
   "connector",
+  "skill",
   "wizard",
   "translation",
   "message",

@@ -215,6 +215,7 @@ const NOTES_EN = {
   searchesDocuments: "Searching the documents: {query}",
   searchesKnowledge: "Searching knowledge: {query} – {relevant} of {candidates} fit",
   listsKnowledge: "Listing knowledge",
+  readsSkill: "Reading the skill {name}",
   searchesMail: "Searching {label}",
   savesReceipts: {
     one: "Saving {count} receipt from {label}",
@@ -569,6 +570,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   searchesDocuments: "Sucht in den Dokumenten: {query}",
   searchesKnowledge: "Sucht in Wissen: {query} – {relevant} von {candidates} passen",
   listsKnowledge: "Listet Wissen",
+  readsSkill: "Liest den Skill {name}",
   searchesMail: "Durchsucht {label}",
   savesReceipts: {
     one: "Speichert {count} Beleg aus {label}",

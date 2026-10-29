@@ -23,6 +23,7 @@ import { pageTools } from "./pages.js";
 import { pluginTools, spaceContextOf } from "./plugin.js";
 import { projectTools } from "./project.js";
 import { clip, FileKeeper } from "./shared.js";
+import { skillTools } from "./skills.js";
 import { storeTools, type UploadRef } from "./store.js";
 
 export interface StepTools {
@@ -190,6 +191,14 @@ export async function buildStepTools(
     Object.assign(tools, storeTools(ctx, uploads, files));
   }
   Object.assign(tools, await projectTools(ctx));
+  const sandbox = allowed.has("sandbox") ? sandboxCapabilities() : null;
+  Object.assign(
+    tools,
+    await skillTools(
+      ctx,
+      sandbox ? { handle: () => ctx.resources.sandboxHandle(), workdir: sandbox.workdir } : null,
+    ),
+  );
   Object.assign(tools, mailTools(step, ctx, files));
   Object.assign(tools, await connectorTools(step, ctx, files));
   Object.assign(tools, await pluginTools(step, ctx));
@@ -199,8 +208,7 @@ export async function buildStepTools(
     Object.assign(tools, pageTools(ctx));
   }
 
-  const sandbox = sandboxCapabilities();
-  if (allowed.has("sandbox") && sandbox) {
+  if (sandbox) {
     const timeoutMs = (seconds?: number) => Math.min((seconds ?? 120) * 1000, 600_000);
     const report = (result: ExecResult) => ({
       exitCode: result.exitCode,

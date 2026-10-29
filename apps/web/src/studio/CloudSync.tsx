@@ -107,6 +107,7 @@ const KINDS: Record<SyncKind, Key> = {
   category: "cloudSync.kind.category",
   file: "cloudSync.kind.file",
   connector: "cloudSync.kind.connector",
+  skill: "cloudSync.kind.skill",
 };
 
 /** The places of an item in plain words: `steps › “File it” › title` reads `Steps › “File it” › Title`. */
