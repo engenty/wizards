@@ -618,13 +618,40 @@ function Files({ parts, mine }: { parts: ChatPart[]; mine: boolean }) {
   if (!files.length) {
     return null;
   }
+  // Pictures first and large, as they are: one alone, more in two columns; other files below.
+  const at = files.map((f, i) => ({ f, i }));
+  const images = at.filter(({ f }) => f.mime.startsWith("image/"));
+  const others = at.filter(({ f }) => !f.mime.startsWith("image/"));
+  const tile = ({ f, i }: (typeof at)[number], imageClassName?: string) => (
+    <FileTile
+      key={`${f.url}-${i}`}
+      file={f}
+      large
+      imageClassName={imageClassName}
+      onOpen={() => setOpen(i)}
+    />
+  );
   return (
     <>
-      <ul className={cn("flex flex-wrap gap-2", mine && "justify-end")}>
-        {files.map((f, at) => (
-          <FileTile key={`${f.url}-${at}`} file={f} large onOpen={() => setOpen(at)} />
-        ))}
-      </ul>
+      {images.length === 1 ? (
+        <ul className={cn("flex w-full", mine && "justify-end")}>
+          {images.map((one) => tile(one))}
+        </ul>
+      ) : images.length ? (
+        <ul
+          className={cn(
+            "grid w-full max-w-2xl grid-cols-2 items-start gap-2",
+            mine && "ml-auto justify-items-end",
+          )}
+        >
+          {images.map((one) => tile(one, "max-h-80"))}
+        </ul>
+      ) : null}
+      {others.length ? (
+        <ul className={cn("flex flex-wrap gap-2", mine && "justify-end")}>
+          {others.map((one) => tile(one))}
+        </ul>
+      ) : null}
       <FilePreview files={files} at={open} onAt={setOpen} />
     </>
   );
