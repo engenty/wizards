@@ -2,16 +2,16 @@ import { note } from "@engenty/wizards-shared/run";
 import { toAISdkStream } from "@mastra/ai-sdk";
 import { toAISdkMessages } from "@mastra/ai-sdk/ui";
 import { RequestContext } from "@mastra/core/request-context";
-import { and, asc, desc, eq, exists, like, max, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, like, max, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { SessionUser } from "../auth/index.js";
 import { canSpend } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { managed, tenantMembers } from "../manage.js";
-import { type ClientStep, type ClientSteps, stepChunk, stepParts } from "./client-steps.js";
+import { type ClientStep, ClientSteps, stepChunk, stepParts } from "./client-steps.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
-import { type LazyTurn, lazyTurn, MAX_STEPS, TURN_KEY, toolToRun } from "./work-ai.js";
+import { type LazyTurn, lazyTurn, MAX_STEPS, TURN_KEY, TURN_MS, toolToRun } from "./work-ai.js";
 import { approvalsOf, noteOutcome, takeDecision, waitingFor } from "./work-approvals.js";
 import { workMastra } from "./work-mastra.js";
 
@@ -40,6 +40,8 @@ export interface ChatListItem {
   parentId: string | null;
   private: boolean;
   updatedAt: string;
+  /** Since when the space's AI answers here; null while it doesn't. */
+  answeringSince: string | null;
 }
 
 /** A chat as the sidebar shows it: with what the person did with it and its last message. */
@@ -73,6 +75,11 @@ const listItem = (c: ChatRow): ChatListItem => ({
   parentId: c.parentId,
   private: c.private,
   updatedAt: c.updatedAt.toISOString(),
+  // A turn older than its limit isn't running any more (its process may have died).
+  answeringSince:
+    c.answeringSince && Date.now() - c.answeringSince.getTime() < TURN_MS
+      ? c.answeringSince.toISOString()
+      : null,
 });
 
 const isMember = (user: SessionUser) =>
@@ -180,6 +187,36 @@ export async function sidebar(user: SessionUser, spaceId: string, query?: string
       };
     }),
   };
+}
+
+/**
+ * The live feed's changes as the person may hear of them: a chat they see as it is; one they
+ * don't see (private, or they were taken out of it) as gone, with its id alone, so it leaves a
+ * sidebar that had it. A section's always (sections are the space's).
+ */
+export async function chatChangesFor<
+  T extends {
+    kind: string;
+    op: string;
+    item: string;
+    projectId: string | null;
+    parent: string | null;
+  },
+>(user: SessionUser, items: T[]): Promise<T[]> {
+  const ids = items.filter((i) => i.kind === "chat" && i.parent !== "section").map((i) => i.item);
+  if (!ids.length) {
+    return items;
+  }
+  const seen = await db.query.chat.findMany({
+    where: and(inArray(schema.chat.id, ids), visible(user)),
+    columns: { id: true },
+  });
+  const ok = new Set(seen.map((c) => c.id));
+  return items.map((i) =>
+    i.kind !== "chat" || i.parent === "section" || ok.has(i.item)
+      ? i
+      : { ...i, op: "del", projectId: null, parent: null },
+  );
 }
 
 /** What the person does with a chat for themselves: pin, archive, mark read or unread. */
@@ -372,18 +409,14 @@ async function noteLast(chat: ChatRow, author: { id: string; name: string }, tex
     .where(eq(schema.chat.id, chat.id));
 }
 
-/** What became of a message: kept, taken into the AI's running turn, queued, or a new turn. */
-export type Sent =
-  | { kind: "kept" }
-  | { kind: "taken" }
-  | { kind: "queued" }
-  | { kind: "turn"; stream: ReadableStream };
+/** What became of a message: kept, queued, or a turn (new, or the running one it went into). */
+export type Sent = { kind: "kept" } | { kind: "queued" } | { kind: "turn"; stream: ReadableStream };
 
 /**
  * A person writes in a chat. They join it, the message goes into the chat's thread with them as
  * author, and their first message names the chat. Not asked, the AI doesn't run. Asked, the
- * message wakes it for a turn (its stream comes back, in the AI SDK's UI parts), or goes into the
- * turn it is running (`taken`), or, `later`, waits until that turn ends.
+ * message wakes it for a turn or goes into the turn it is running; the asker follows that turn
+ * (its stream, in the AI SDK's UI parts). `later` waits until the running turn ends.
  */
 export async function sendMessage(
   user: SessionUser,
@@ -421,9 +454,11 @@ export async function sendMessage(
     contents: `${name} asked you in the message above; answer it.`,
     transient: true,
   };
-  const running = Boolean(agent.getActiveThreadRunId(target));
+  // Running as the chat's watcher sees it: a run Mastra still winds down after its status is over.
+  const running = await runningIn(chat.id);
   // For after the answer: queued while a turn runs; with none running it is a turn of its own.
   if (options.later && running) {
+    await expectTurn(chat, turn);
     await agent.queueSignal(asked, { ...target, ifIdle: { behavior: "wake", streamOptions } })
       .accepted;
     return { kind: "queued" };
@@ -462,85 +497,287 @@ async function turnFor(chat: ChatRow, userId: string) {
 type StreamOptions = Awaited<ReturnType<typeof turnFor>>["streamOptions"];
 type IfIdle = { behavior: "wake"; streamOptions: StreamOptions };
 
-/** Sends input to the chat's thread: into a running turn, or waking one whose stream comes back. */
+/**
+ * Sends input to the chat's thread: into the running turn, or waking one. Either way the asker
+ * follows the run it went into (the chat's watcher), from its start.
+ */
 async function deliverOrWake(
   chat: ChatRow,
   turn: LazyTurn,
   streamOptions: StreamOptions,
   send: (ifIdle: IfIdle) => { accepted: Promise<{ action?: string } | undefined> },
 ): Promise<Sent> {
-  const { agent } = await workMastra();
-  const target = { resourceId: chat.projectId, threadId: chat.id };
-  const subscription = await agent.subscribeToThread(target);
+  const watcher = await watch(chat);
+  await settled(chat);
+  watcher.next.push(turn);
   const accepted = await send({ behavior: "wake", streamOptions }).accepted;
   if (accepted?.action !== "wake") {
-    subscription.unsubscribe();
-    return { kind: "taken" };
+    watcher.next.splice(watcher.next.indexOf(turn), 1);
   }
-  return { kind: "turn", stream: turnStream(chat, subscription, turn.steps) };
+  return { kind: "turn", stream: followRun(chat.id, true) };
 }
 
-/**
- * The AI's turn as the browser reads it: Mastra's chunks of the thread until the turn finishes,
- * in the AI SDK's UI message stream, with a client's tool steps among them. When it ends, its
- * text becomes the chat's last message and a client's steps are stored before its answer.
- */
-function turnStream(
-  chat: ChatRow,
-  subscription: { stream: AsyncIterable<unknown>; unsubscribe(): void },
-  steps: ClientSteps,
-): ReadableStream {
-  let reply = "";
-  const chunks = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of subscription.stream) {
-          const c = chunk as { type: string; payload?: { text?: string } };
-          if (c.type === "text-delta") {
-            reply += c.payload?.text ?? "";
-          }
-          controller.enqueue(chunk);
-          if (c.type === "finish" || c.type === "error" || c.type === "abort") {
-            break;
-          }
+/** A queued turn's setup waits in the watcher's line for the run Mastra starts after this one. */
+async function expectTurn(chat: ChatRow, turn: LazyTurn) {
+  (await watch(chat)).next.push(turn);
+}
+
+// --- the chat's watcher -------------------------------------------------------------------
+// Every run of a chat's thread goes through one path, however it started (a message waking the
+// AI, an approval's outcome, a message queued for after the answer): the watcher subscribes to
+// the thread and, for each run, says the AI answers (`answering_since`), lets the chat follow it
+// (`followRun`), keeps a client's tool steps, and at its end writes the chat's last message.
+// It lives in this process: a second process per tenant would need it shared, like signals.
+
+/** One run of the AI as others follow it: what streamed so far, and who listens. */
+interface Run {
+  chunks: unknown[];
+  listeners: Set<(c: unknown) => void>;
+  done: boolean;
+}
+
+interface Watcher {
+  /** The setups of the turns that will start, in order (a client's steps live in them). */
+  next: LazyTurn[];
+  run: Run | null;
+  /** Who waits for the next run to start (the asker who just woke one). */
+  waiting: Set<(run: Run) => void>;
+  idle: ReturnType<typeof setTimeout> | null;
+  stop: () => void;
+}
+
+const watchers = new Map<string, Promise<Watcher>>();
+/** A watcher with nothing running and nothing queued lets go of the thread after this long. */
+const IDLE_MS = 60_000;
+const END = Symbol("end");
+
+function watch(chat: ChatRow): Promise<Watcher> {
+  let found = watchers.get(chat.id);
+  if (!found) {
+    found = startWatching(chat);
+    watchers.set(chat.id, found);
+    found.catch(() => watchers.delete(chat.id));
+  }
+  return found.then((w) => {
+    if (w.idle) {
+      clearTimeout(w.idle);
+      w.idle = null;
+    }
+    return w;
+  });
+}
+
+async function startWatching(chat: ChatRow): Promise<Watcher> {
+  const { agent } = await workMastra();
+  // With the runs' status: a run ends when Mastra says so, not at its `finish` chunk (a message
+  // delivered just then goes on in the same run).
+  const subscription = await agent.subscribeToThread({
+    resourceId: chat.projectId,
+    threadId: chat.id,
+    withRunStatus: true,
+  });
+  const watcher: Watcher = {
+    next: [],
+    run: null,
+    waiting: new Set(),
+    idle: null,
+    stop: () => {
+      subscription.unsubscribe();
+      watchers.delete(chat.id);
+    },
+  };
+  void (async () => {
+    let feed: ReadableStreamDefaultController<unknown> | null = null;
+    let runId: string | null = null;
+    let reply = "";
+    /** A run's `finish` (or abort, error), held until the run's status says it ended. */
+    let last: unknown = null;
+    const end = () => {
+      if (feed) {
+        if (last) {
+          feed.enqueue(last);
         }
-      } finally {
-        subscription.unsubscribe();
-        controller.close();
+        feed.close();
       }
+      feed = null;
+      runId = null;
+      last = null;
+    };
+    for await (const chunk of subscription.stream) {
+      const c = chunk as { type: string; runId?: string; payload?: { text?: string } };
+      if (c.type === "thread-run-status") {
+        if (c.runId === runId) {
+          end();
+        }
+        continue;
+      }
+      if (!c.runId) {
+        continue;
+      }
+      if (c.runId !== runId) {
+        end();
+        runId = c.runId;
+        reply = "";
+        feed = beginRun(chat, watcher, () => reply);
+      } else if (c.type === "start") {
+        // The run went on after a message came in: still one message for the chat.
+        continue;
+      }
+      if (c.type === "finish" || c.type === "abort" || c.type === "error") {
+        last = chunk;
+        continue;
+      }
+      // More came after a `finish`: it wasn't the run's last.
+      last = null;
+      if (c.type === "text-delta") {
+        reply += c.payload?.text ?? "";
+      }
+      feed?.enqueue(chunk);
+    }
+    end();
+  })().catch((err) => console.error("[work-chats] watching a chat:", err));
+  return watcher;
+}
+
+/** A run starts: the chat says so, its chunks go to whoever follows, and its end is kept. */
+function beginRun(
+  chat: ChatRow,
+  watcher: Watcher,
+  reply: () => string,
+): ReadableStreamDefaultController<unknown> {
+  const setup = watcher.next.shift();
+  const steps = setup?.steps ?? new ClientSteps();
+  const run: Run = { chunks: [], listeners: new Set(), done: false };
+  watcher.run = run;
+  for (const wake of watcher.waiting) {
+    wake(run);
+  }
+  watcher.waiting.clear();
+  void db
+    .update(schema.chat)
+    .set({ answeringSince: new Date() })
+    .where(eq(schema.chat.id, chat.id))
+    .catch((err) => console.error("[work-chats] answering:", err));
+  let feed!: ReadableStreamDefaultController<unknown>;
+  const chunks = new ReadableStream({
+    start(controller) {
+      feed = controller;
     },
   });
   const ui = toAISdkStream(
     { fullStream: chunks } as never,
-    {
-      from: "agent",
-      version: "v7",
-    } as never,
-  ) as unknown as ReadableStream;
+    { from: "agent", version: "v7" } as never,
+  ) as unknown as AsyncIterable<{ type: string }>;
+  const send = (chunk: unknown) => {
+    run.chunks.push(chunk);
+    for (const listener of run.listeners) {
+      listener(chunk);
+    }
+  };
+  void (async () => {
+    const off = steps.on((step) => send(stepChunk(step)));
+    try {
+      for await (const chunk of ui) {
+        // A client's steps go before the run's last chunk, inside its message.
+        if (chunk.type === "finish") {
+          off();
+        }
+        send(chunk);
+      }
+    } finally {
+      off();
+      run.done = true;
+      for (const listener of [...run.listeners]) {
+        listener(END);
+      }
+      if (watcher.run === run) {
+        watcher.run = null;
+      }
+      await afterTurn(chat, reply(), steps.list).catch((err) =>
+        console.error("[work-chats] after the turn:", err),
+      );
+      if (!watcher.next.length && !watcher.run) {
+        watcher.idle = setTimeout(watcher.stop, IDLE_MS);
+      }
+    }
+  })();
+  return feed;
+}
+
+/** A run as a stream to follow from its start: the running one, or (`next`) the one about to start. */
+function followRun(chatId: string, next: boolean): ReadableStream {
+  const found = watchers.get(chatId);
+  let listener: ((c: unknown) => void) | null = null;
+  let current: Run | null = null;
   return new ReadableStream({
     async start(controller) {
-      const off = steps.on((step) => controller.enqueue(stepChunk(step)));
-      try {
-        for await (const chunk of ui as unknown as AsyncIterable<{ type: string }>) {
-          // A client's steps go before the turn's last chunk, inside its message.
-          if (chunk.type === "finish") {
-            off();
-          }
+      const watcher = await found;
+      const attach = (run: Run) => {
+        current = run;
+        for (const chunk of run.chunks) {
           controller.enqueue(chunk);
         }
-      } finally {
-        off();
+        if (run.done) {
+          controller.close();
+          return;
+        }
+        listener = (chunk) => {
+          if (chunk === END) {
+            run.listeners.delete(listener as (c: unknown) => void);
+            controller.close();
+          } else {
+            controller.enqueue(chunk);
+          }
+        };
+        run.listeners.add(listener);
+      };
+      if (watcher?.run && !watcher.run.done) {
+        attach(watcher.run);
+      } else if (watcher && next) {
+        watcher.waiting.add(attach);
+      } else {
         controller.close();
-        await afterTurn(chat, reply, steps.list).catch((err) =>
-          console.error("[work-chats] after the turn:", err),
-        );
+      }
+    },
+    cancel() {
+      if (listener && current) {
+        current.listeners.delete(listener);
       }
     },
   });
 }
 
+/**
+ * Waits until a run the watcher saw end has let go of the thread in Mastra too (a few ms): input
+ * sent before would continue the finished run instead of starting the next.
+ */
+async function settled(chat: ChatRow) {
+  if (await runningIn(chat.id)) {
+    return;
+  }
+  const { agent } = await workMastra();
+  const target = { resourceId: chat.projectId, threadId: chat.id };
+  for (let waited = 0; agent.getActiveThreadRunId(target) && waited < 2000; waited += 20) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
+/** Whether a run of the AI is under way in the chat, as its watcher sees it. */
+async function runningIn(chatId: string): Promise<boolean> {
+  const watcher = await watchers.get(chatId);
+  return Boolean(watcher?.run && !watcher.run.done);
+}
+
+/** The running turn of a chat as a stream to follow, from its start; null when none runs here. */
+export async function followTurn(user: SessionUser, id: string): Promise<ReadableStream | null> {
+  const chat = await visibleChat(user, id);
+  const watcher = await watchers.get(chat.id);
+  return watcher?.run && !watcher.run.done ? followRun(chat.id, false) : null;
+}
+
 /** What a finished turn leaves: its text as the chat's last message, a client's steps stored. */
 async function afterTurn(chat: ChatRow, reply: string, steps: ClientStep[]) {
+  await db.update(schema.chat).set({ answeringSince: null }).where(eq(schema.chat.id, chat.id));
   if (steps.length) {
     const { memory } = await workMastra();
     const { messages } = await memory.recall({

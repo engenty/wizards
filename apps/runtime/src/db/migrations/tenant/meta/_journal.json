@@ -204,6 +204,13 @@
       "when": 1793225772434,
       "tag": "0028_chat_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1793227115692,
+      "tag": "0029_work_chats_live",
+      "breakpoints": true
     }
   ]
 }

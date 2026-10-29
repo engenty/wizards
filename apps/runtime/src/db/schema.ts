@@ -792,6 +792,8 @@ export const chat = sqliteTable(
     lastAuthorId: text("last_author_id"),
     lastAuthorName: text("last_author_name"),
     lastText: text("last_text"),
+    /** Since when the space's AI answers here; null while it doesn't. Others follow the turn. */
+    answeringSince: integer("answering_since", { mode: "timestamp_ms" }),
   },
   (t) => [index("chat_project").on(t.projectId, t.updatedAt), index("chat_parent").on(t.parentId)],
 );

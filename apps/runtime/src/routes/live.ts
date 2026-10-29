@@ -5,6 +5,7 @@ import { feature, remoteFeatures } from "../features.js";
 import { type LiveEvent, openStreams, subscribe } from "../live/hub.js";
 import { itemView } from "../live/views.js";
 import { asRole } from "../services/access.js";
+import { chatChangesFor } from "../services/work-chats.js";
 import { requestLang, say } from "./lang.js";
 
 type Vars = { Variables: { user: SessionUser } };
@@ -51,6 +52,10 @@ export const liveRoutes = new Hono<Vars>().get("/", async (c) => {
         const next = queue.shift();
         if (!next || closed) {
           return;
+        }
+        // A private chat's changes go to its members only (Work's chats).
+        if (next.event === "changes" && next.items.some((i) => i.kind === "chat")) {
+          next.items = await chatChangesFor(user, next.items);
         }
         const { event, ...data } = next;
         await stream.writeSSE({

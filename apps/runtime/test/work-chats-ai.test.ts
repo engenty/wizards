@@ -155,13 +155,14 @@ describe("the space's AI in a chat", () => {
     const before = prompts.length;
     const turn = send("POST", `/chats/${id}/messages`, { text: "Welche Frist?", ask: true });
     await vi.waitFor(() => expect(prompts.length).toBe(before + 1));
-    const during = await json(
-      send("POST", `/chats/${id}/messages`, { text: "Und für Lang?", ask: true }),
-    );
-    expect(during).toEqual({ sent: "taken" });
+    // The second asker follows the turn their message went into, from its start.
+    const during = send("POST", `/chats/${id}/messages`, { text: "Und für Lang?", ask: true });
     step.open();
-    await chunks(await turn);
+    const [first, second] = await Promise.all([chunks(await turn), chunks(await during)]);
     expect(prompts.at(-1)).toContain("Und für Lang?");
+    const text = (cs: any[]) => cs.filter((c) => c.type === "text-delta").map((c) => c.delta).join("");
+    expect(text(second)).toBe(text(first));
+    expect(text(first)).toBe("Frist ist der 7. November.");
   });
 
   it("keeps a message that doesn't ask it out of the running turn, and builds no turn for one taken in", async () => {
@@ -176,11 +177,9 @@ describe("the space's AI in a chat", () => {
     expect(
       await json(send("POST", `/chats/${id}/messages`, { text: "Ben, kannst du morgen?" })),
     ).toEqual({ sent: "kept" });
-    expect(
-      await json(send("POST", `/chats/${id}/messages`, { text: "Und für Lang?", ask: true })),
-    ).toEqual({ sent: "taken" });
+    const during = send("POST", `/chats/${id}/messages`, { text: "Und für Lang?", ask: true });
     step.open();
-    await chunks(await turn);
+    await Promise.all([chunks(await turn), chunks(await during)]);
     expect(prompts.at(-1)).not.toContain("Ben, kannst du morgen?");
     expect(prompts.at(-1)).toContain("Und für Lang?");
     expect(made.turns - turnsBefore).toBe(1);
