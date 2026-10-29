@@ -151,14 +151,16 @@ export interface ToolToRun {
 /**
  * Everything a turn of the space's AI needs, made for the person who asked. Calls that reach past
  * the space are held (`gated`); on a client the tools are recorded as they run
- * (client-steps.ts): the client runs them itself.
+ * (client-steps.ts): the client runs them itself. `extra`: the way's more capable model, as the
+ * person chose it in the composer.
  */
 export async function workTurn(
   turn: TurnFor,
   signal: AbortSignal,
   steps: ClientSteps,
+  extra = false,
 ): Promise<WorkTurn> {
-  const resolved = await chatModel(await chatTurnWay(managed), "standard");
+  const resolved = await chatModel(await chatTurnWay(managed), extra ? "high" : "standard");
   const made = gated(await toolsFor(resolved, turn.space, turn.userId, signal), turn);
   const tools = resolved.model instanceof HarnessModel ? steps.wrap(made) : made;
   attachTools(resolved, tools);
@@ -173,7 +175,7 @@ export interface LazyTurn {
   steps: ClientSteps;
 }
 
-export function lazyTurn(turn: TurnFor): LazyTurn {
+export function lazyTurn(turn: TurnFor, extra = false): LazyTurn {
   const controller = new AbortController();
   const steps = new ClientSteps();
   let made: Promise<WorkTurn> | null = null;
@@ -183,7 +185,7 @@ export function lazyTurn(turn: TurnFor): LazyTurn {
     get() {
       if (!made) {
         setTimeout(() => controller.abort(new Error("The turn took too long.")), TURN_MS).unref();
-        made = workTurn(turn, controller.signal, steps);
+        made = workTurn(turn, controller.signal, steps, extra);
       }
       return made;
     },

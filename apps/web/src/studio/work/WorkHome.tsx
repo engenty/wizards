@@ -18,6 +18,7 @@ import {
   useCreateChat,
   useDecide,
   useSidebar,
+  useTurnModels,
   useWaiting,
 } from "./chats";
 import { SpaceFilesDialog } from "./SpaceFilesDialog";
@@ -44,6 +45,8 @@ export function WorkHome() {
   const navigate = useNavigate();
   const composer = useRef<ComposerHandle>(null);
   const [choosing, setChoosing] = useState(false);
+  const [extra, setExtra] = useState(false);
+  const models = useTurnModels();
   const [error, setError] = useState<string | null>(null);
   // The same list as the studio's start page: where each wizard runs comes with it.
   const wizards = (
@@ -93,6 +96,7 @@ export function WorkHome() {
             tall
             autoFocus
             placeholder={t("work.home.ask", { name: space })}
+            chooser={{ on: extra, onChange: setExtra, ...models }}
             plus={[
               {
                 icon: <FolderOpen />,
@@ -110,7 +114,7 @@ export function WorkHome() {
                 const chat = await createChat.mutateAsync({ spaceId: project.id });
                 const added = await uploadFiles(chat.id, files);
                 navigate(`/work/c/${chat.id}`, {
-                  state: { ask: text, files: [...picked, ...added] },
+                  state: { ask: text, files: [...picked, ...added], extra },
                 });
                 return true;
               } catch (err) {

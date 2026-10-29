@@ -107,6 +107,7 @@ export const workRoutes = new Hono<Vars>()
         files: z.array(z.string().min(1)).max(FILES_PER_MESSAGE).optional(),
         ask: z.boolean().optional(),
         later: z.boolean().optional(),
+        extra: z.boolean().optional(),
       })
       .refine((b) => b.text || b.files?.length)
       .parse(await c.req.json());
