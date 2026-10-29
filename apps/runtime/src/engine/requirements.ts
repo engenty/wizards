@@ -11,6 +11,7 @@ import {
   type NextRule,
   type PageStep,
   type Step,
+  textClassOf,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
 import {
@@ -57,7 +58,7 @@ function ownClasses(step: Step): ModelClass[] {
       if (isDecisionStep(step)) {
         return ["classifier"];
       }
-      const classes: ModelClass[] = [step.model ?? "standard"];
+      const classes: ModelClass[] = [textClassOf(step.model ?? "standard")];
       if (step.tools.includes("image")) {
         classes.push("image");
       }
@@ -78,10 +79,10 @@ function ownClasses(step: Step): ModelClass[] {
         case "voice":
           return ["speech"];
         default:
-          return [step.model ?? "standard"];
+          return [textClassOf(step.model ?? "standard")];
       }
     case "motion-graphics":
-      return [step.model ?? "low"];
+      return [textClassOf(step.model ?? "low")];
     case "page":
       // A voice note the page asks for is listened to before the next step reads it.
       return step.fields.some((f) => f.kind === "audio" && f.required) ? ["audio"] : [];
@@ -299,7 +300,7 @@ export async function missingModelsSaid(def: WizardDefinition): Promise<MissingM
     if (step.type !== "motion-graphics") {
       continue;
     }
-    const cls = step.model ?? "low";
+    const cls = textClassOf(step.model ?? "low");
     const found = await motionClient(cls);
     if ("problem" in found) {
       missing.push({

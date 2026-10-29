@@ -1,8 +1,9 @@
 import {
   EFFORTS,
   type Effort,
+  type StepClass,
   TEXT_CLASSES,
-  type TextClass,
+  textClassOf,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
 import type { RunEstimate } from "@engenty/wizards-shared/run";
@@ -57,20 +58,22 @@ export function ModelClassControl({
   effort,
   onChange,
 }: {
-  model: TextClass | undefined;
+  model: StepClass | undefined;
   effort: Effort | undefined;
-  onChange: (next: { model: TextClass | undefined; effort: Effort | undefined }) => void;
+  onChange: (next: { model: StepClass | undefined; effort: Effort | undefined }) => void;
 }) {
   const none = t("class.effortAuto");
   return (
     <div className="flex flex-col gap-2">
       <Label>{t("class.label")}</Label>
       <Select
-        value={model ?? "standard"}
-        onChange={(v) => onChange({ model: v as TextClass, effort })}
+        value={textClassOf(model ?? "standard")}
+        onChange={(v) => onChange({ model: v as StepClass, effort })}
         options={TEXT_CLASSES.map((c) => ({ value: c, label: t(`class.${c}`) }))}
       />
-      <p className="text-[0.75rem] text-ink-3">{t(`class.${model ?? "standard"}.hint`)}</p>
+      <p className="text-[0.75rem] text-ink-3">
+        {t(`class.${textClassOf(model ?? "standard")}.hint`)}
+      </p>
       <Label>{t("class.effort")}</Label>
       <Segmented
         value={effort ? t(`class.effort.${effort}`) : none}
