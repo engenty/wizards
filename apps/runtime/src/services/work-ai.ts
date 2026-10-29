@@ -1,4 +1,5 @@
 import { anthropic } from "@ai-sdk/anthropic";
+import { surfaceComponentsSchema, validateSurface } from "@engenty/wizards-shared/surface";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { sortedTools } from "../agents/space-agent.js";
@@ -7,6 +8,7 @@ import { HarnessModel } from "../harness/index.js";
 import { managed } from "../manage.js";
 import { attachTools, chatModel, gatewayTools, type ResolvedModel } from "../models.js";
 import { pluginsOf } from "../plugins/registry.js";
+import { prompt } from "../prompts.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { assistantToolPlugin, assistantToolRisk, assistantToolsOf } from "../tools/plugin.js";
 import { ClientSteps } from "./client-steps.js";
@@ -47,8 +49,49 @@ const instructionsFor = (space: string) =>
     `You are the AI of the space "${space}" in engenty wizards. The team of the space talks with you and with each other in this chat.`,
     'Each message of a person comes as <user name="…">; answer the person who asked you, in their language, and call them by their name only when it helps.',
     "Before you answer about the space (its clients, matters, files, data), look it up with search_space; say where you found it. When you can't find it, say so.",
-    "Write short, plain answers. Use lists or a table where they help.",
+    "Write short, plain answers. Use lists or a table where they help. Rows, figures, a comparison or a few questions to the team can be a view instead: show_view.",
   ].join("\n\n");
+
+/** A view stays this small: what a chat shows at a glance, not a data dump. */
+export const VIEW_MAX_BYTES = 64_000;
+
+/**
+ * The view a turn draws in the chat (docs/plans/work-chats.md, generative UI): components of the
+ * surface catalog, the chat's own (Form, Ref, ask) among them, and the data they bind. It is
+ * checked here, so the model gets the issues and tries again; the chat draws the call's input
+ * once its result says ok. A client as the model calls it like any tool of the space.
+ */
+export const showView = () =>
+  createTool({
+    id: "show_view",
+    description: [
+      "Shows a view in the chat: key figures, a table, a chart, a list of files, a form that asks the team. Everyone in the chat sees it.",
+      prompt("authoring", "surfaces"),
+      prompt("authoring", "surfaces.chat"),
+    ].join("\n\n"),
+    inputSchema: z.object({
+      title: z.string().max(120).optional().describe("What the view shows, in a few words"),
+      components: surfaceComponentsSchema,
+      data: z
+        .record(z.string(), z.unknown())
+        .default({})
+        .describe('What the components bind by {"path": "/key/…"}: the rows and figures you found'),
+    }),
+    execute: async ({ components, data }) => {
+      const bytes = Buffer.byteLength(JSON.stringify({ components, data }));
+      const issues =
+        bytes > VIEW_MAX_BYTES
+          ? [
+              `The view is ${bytes} bytes, more than ${VIEW_MAX_BYTES}: show fewer rows or less text.`,
+            ]
+          : validateSurface(components, Object.keys(data ?? {}), { chat: true }).map(
+              (i) => i.message,
+            );
+      return issues.length
+        ? { ok: false, issues, note: "Nothing was shown. Fix these and call show_view again." }
+        : { ok: true, note: "Shown in the chat. Don't repeat what it shows." };
+    },
+  });
 
 /** Whether the model can search the web itself: on Anthropic's API, or through the gateway. */
 const searches = (resolved: ResolvedModel<unknown>) =>
@@ -76,6 +119,7 @@ async function toolsFor(
         return { hits: found.hits };
       },
     }),
+    show_view: showView(),
     ...(await assistantToolsOf({
       tenantId: currentTenant(),
       space,

@@ -144,13 +144,13 @@ function typingTarget(el: Element | null): boolean {
 function UploadField({
   field,
   value,
-  runId,
+  base,
   onChange,
   onBusy,
 }: {
   field: Field;
   value: unknown;
-  runId: string;
+  base: string;
   onChange: (v: unknown) => void;
   onBusy?: (busy: boolean) => void;
 }) {
@@ -203,7 +203,7 @@ function UploadField({
       for (const raw of wanted.slice(0, Math.max(0, free))) {
         const file = await shrinkImage(raw);
         const ref = await api.upload<{ id: string; name: string; mime: string }>(
-          `${runBase(runId)}/uploads`,
+          `${base}/uploads`,
           file,
         );
         setNames((n) => ({ ...n, [ref.id]: { name: ref.name, mime: ref.mime } }));
@@ -342,7 +342,7 @@ function UploadField({
                 ) : null}
                 {mime.startsWith("image/") ? (
                   <img
-                    src={withBase(`${runBase(runId)}/assets/${id}`)}
+                    src={withBase(`${base}/assets/${id}`)}
                     alt=""
                     className="size-14 rounded-lg object-cover"
                   />
@@ -728,6 +728,7 @@ export function FieldInput({
   value,
   values,
   runId,
+  base: routes,
   view,
   onChange,
   onBusy,
@@ -738,6 +739,11 @@ export function FieldInput({
   value: unknown;
   values: Values;
   runId: string;
+  /**
+   * Where uploads, pictures and places go instead of the run's routes: a Work chat's
+   * (`/api/work/chats/<id>`), with the same `uploads`, `assets/<id>` and `geocode` below it.
+   */
+  base?: string;
   /** Answers that lead to a step this app has no model for: shown, not to be picked. */
   closed?: ClosedChoice;
   /** The run as the server sees it: connections, stored lists and card choices come from there. */
@@ -747,6 +753,7 @@ export function FieldInput({
   onBusy?: (busy: boolean) => void;
   error?: string;
 }) {
+  const base = routes ?? runBase(runId);
   const str = value === undefined || value === null ? "" : String(value);
   const shut = new Set(closed?.values.map(String));
   let control: React.ReactNode;
@@ -906,13 +913,7 @@ export function FieldInput({
     case "image":
     case "file":
       control = (
-        <UploadField
-          field={field}
-          value={value}
-          runId={runId}
-          onChange={onChange}
-          onBusy={onBusy}
-        />
+        <UploadField field={field} value={value} base={base} onChange={onChange} onBusy={onBusy} />
       );
       break;
     case "items":
@@ -935,7 +936,7 @@ export function FieldInput({
       control = (
         <LocationField
           value={value}
-          runId={runId}
+          base={base}
           placeholder={field.placeholder}
           onChange={onChange}
           onBusy={onBusy}
@@ -945,12 +946,12 @@ export function FieldInput({
     case "audio":
       // Nothing here can listen to it: the reason below stands in for the recorder.
       control = closed ? null : (
-        <VoiceField value={value} runId={runId} onChange={onChange} onBusy={onBusy} />
+        <VoiceField value={value} base={base} onChange={onChange} onBusy={onBusy} />
       );
       break;
     case "signature":
       control = (
-        <SignatureField label={field.label} value={value} runId={runId} onChange={onChange} />
+        <SignatureField label={field.label} value={value} base={base} onChange={onChange} />
       );
       break;
     default:

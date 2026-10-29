@@ -34,6 +34,7 @@ import {
   type ChatMember,
   type ChatMessage,
   type ChatPart,
+  type FormAnswer,
   type OpenChat,
   stopTurn,
   uploadFiles,
@@ -47,6 +48,7 @@ import { type ChoiceBody, type TurnChoice, useTurnChoices } from "./choices";
 import { DevButtons, useWorkDev } from "./dev";
 import { SpaceFilesDialog } from "./SpaceFilesDialog";
 import { AiParts, StepsContext } from "./Steps";
+import { ViewContext, type ViewHost } from "./View";
 
 /**
  * One chat of Work: its title, members and sub-threads, the messages in the shadcn/ui chat
@@ -133,6 +135,45 @@ export function ChatView({ id }: { id: string }) {
     busy: decide.isPending,
     tools: data.tools ?? {},
   };
+  // What the AI's views do here: a button asks as the person who taps it; anyone in the chat may
+  // send a Form, as their message; a Form someone sent shows their answers.
+  const views: ViewHost = {
+    chatId: id,
+    spaceId,
+    ask: (text) => {
+      if (streaming) {
+        void post.mutateAsync({ id, text, later: true, choice: choices.body });
+      } else {
+        void askWith(turn, spaceId, text, [], choices.body);
+      }
+    },
+    submit: async (call, answer) => {
+      const form = { call, values: answer.values };
+      if (streaming) {
+        await post.mutateAsync({
+          id,
+          text: answer.text,
+          later: true,
+          files: answer.files,
+          form,
+          choice: choices.body,
+        });
+      } else {
+        await askWith(turn, spaceId, answer.text, [], choices.body, { files: answer.files, form });
+      }
+    },
+    answered: new Map(
+      data.messages
+        .filter((m) => m.form)
+        .map((m) => [
+          m.form?.call ?? "",
+          {
+            by: names.get(`person:${m.author.id}`)?.name ?? m.author.name,
+            values: m.form?.values ?? {},
+          },
+        ]),
+    ),
+  };
   // The AI's answer streaming right now: the last message, while it is still `useChat`'s.
   const last = messages.at(-1);
   const liveId =
@@ -180,46 +221,48 @@ export function ChatView({ id }: { id: string }) {
       <div className="min-h-0 flex-1">
         {messages.length ? (
           <StepsContext.Provider value={approvals}>
-            {/* Whoever reads at the end stays there as messages and answers come in. */}
-            <MessageScrollerProvider key={id} autoScroll>
-              <EndOnSend
-                sent={
-                  messages.filter((m) => m.author.kind === "person" && m.author.id === me).length
-                }
-              />
-              <MessageScroller>
-                <MessageScrollerViewport>
-                  <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 px-6 py-6">
-                    {groups(messages).map((group, at, all) => {
-                      const first = group[0];
-                      const mine = first.author.kind === "person" && first.author.id === me;
-                      const author = authorOf(first);
-                      const day = dayOf(first.createdAt);
-                      const newDay = at === 0 || dayOf(all[at - 1][0].createdAt) !== day;
-                      return (
-                        <Fragment key={first.id}>
-                          {newDay ? (
-                            <Marker variant="separator">
-                              <MarkerContent>{dayLabel(first.createdAt)}</MarkerContent>
-                            </Marker>
-                          ) : null}
-                          <MessageScrollerItem messageId={first.id}>
-                            <Turn
-                              group={group}
-                              mine={mine}
-                              author={author}
-                              spaceName={project?.name ?? ""}
-                              liveId={liveId}
-                            />
-                          </MessageScrollerItem>
-                        </Fragment>
-                      );
-                    })}
-                  </MessageScrollerContent>
-                </MessageScrollerViewport>
-                <MessageScrollerButton />
-              </MessageScroller>
-            </MessageScrollerProvider>
+            <ViewContext.Provider value={views}>
+              {/* Whoever reads at the end stays there as messages and answers come in. */}
+              <MessageScrollerProvider key={id} autoScroll>
+                <EndOnSend
+                  sent={
+                    messages.filter((m) => m.author.kind === "person" && m.author.id === me).length
+                  }
+                />
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 px-6 py-6">
+                      {groups(messages).map((group, at, all) => {
+                        const first = group[0];
+                        const mine = first.author.kind === "person" && first.author.id === me;
+                        const author = authorOf(first);
+                        const day = dayOf(first.createdAt);
+                        const newDay = at === 0 || dayOf(all[at - 1][0].createdAt) !== day;
+                        return (
+                          <Fragment key={first.id}>
+                            {newDay ? (
+                              <Marker variant="separator">
+                                <MarkerContent>{dayLabel(first.createdAt)}</MarkerContent>
+                              </Marker>
+                            ) : null}
+                            <MessageScrollerItem messageId={first.id}>
+                              <Turn
+                                group={group}
+                                mine={mine}
+                                author={author}
+                                spaceName={project?.name ?? ""}
+                                liveId={liveId}
+                              />
+                            </MessageScrollerItem>
+                          </Fragment>
+                        );
+                      })}
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              </MessageScrollerProvider>
+            </ViewContext.Provider>
           </StepsContext.Provider>
         ) : (
           <p className="grid h-full place-items-center text-[0.9375rem] text-ink-3">
@@ -311,7 +354,7 @@ export function ChatView({ id }: { id: string }) {
 /**
  * Asks the space's AI through `useChat`: the files go along by their ids, and show in the
  * person's message while the turn runs as links into the space's files. `choice`: what the
- * composer chose for the turn.
+ * composer chose for the turn. `extra`: a view's Form answered, with the files its Fields took.
  */
 function askWith(
   turn: ReturnType<typeof useAiTurn>,
@@ -319,7 +362,20 @@ function askWith(
   text: string,
   files: PickedFile[],
   choice: ChoiceBody,
+  extra?: { files: string[]; form: FormAnswer },
 ) {
+  if (extra) {
+    return turn.sendMessage(
+      { text },
+      {
+        body: {
+          ...choice,
+          form: extra.form,
+          ...(extra.files.length ? { files: extra.files } : {}),
+        },
+      },
+    );
+  }
   if (!files.length) {
     return turn.sendMessage({ text }, { body: choice });
   }

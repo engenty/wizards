@@ -15,6 +15,9 @@ import { type FieldShape, type ListShape, type ObjectShape, shapeAt } from "./sh
  * path without a leading slash reads the row ("name"), one with a slash the whole data. A path
  * may turn what it reads into words: `map` looks the value up (`{ "true": "im Kühlschrank" }`),
  * `format` sets it into a text ("{} Min").
+ *
+ * A chat's view (Work, `show_view`) may also ask: a `Form` of `Field`s, a `Ref` to a thing of the
+ * space, a Button that asks the AI. A wizard asks on its pages, so its views take none of them.
  */
 
 export const SURFACE_COMPONENTS = [
@@ -42,6 +45,15 @@ export const SURFACE_COMPONENTS = [
   "Steps",
   "Link",
   "Callout",
+  "Markdown",
+  "Sources",
+  "File",
+  "Video",
+  "Audio",
+  "Gallery",
+  "Ref",
+  "Form",
+  "Field",
 ] as const;
 export type SurfaceComponentName = (typeof SURFACE_COMPONENTS)[number];
 
@@ -54,7 +66,34 @@ const CONTAINERS: ReadonlySet<string> = new Set([
   "Card",
   "Fold",
   "Group",
+  "Form",
 ]);
+
+/** Only a chat's view has these: a wizard asks on its pages, and its run has no space to open. */
+const CHAT_ONLY: ReadonlySet<string> = new Set(["Form", "Field", "Ref"]);
+
+/**
+ * The kinds of a Field, the runner's own field kinds (definition.ts FIELD_KINDS) that need
+ * nothing of a run: no kept list, connection, line items or free slots.
+ */
+export const FORM_FIELD_KINDS = [
+  "text",
+  "textarea",
+  "number",
+  "select",
+  "multiselect",
+  "date",
+  "email",
+  "url",
+  "toggle",
+  "color",
+  "image",
+  "file",
+  "location",
+  "audio",
+  "signature",
+] as const;
+export type FormFieldKind = (typeof FORM_FIELD_KINDS)[number];
 
 /** The props each component needs. */
 const REQUIRED: Partial<Record<SurfaceComponentName, string[]>> = {
@@ -78,9 +117,19 @@ const REQUIRED: Partial<Record<SurfaceComponentName, string[]>> = {
   Steps: ["items"],
   Link: ["title", "items", "value", "view"],
   Callout: ["text"],
+  Markdown: ["text"],
+  Sources: ["items"],
+  File: ["file"],
+  Video: ["src"],
+  Audio: ["src"],
+  Gallery: ["items"],
+  Ref: ["title", "open"],
+  Form: ["children", "submit"],
+  Field: ["name", "kind", "label"],
 };
 
-export const SURFACE_ACTIONS = ["regenerate", "open"] as const;
+/** `ask` (a chat's view only): the person asks the AI the button's `prompt`, or its label. */
+export const SURFACE_ACTIONS = ["regenerate", "open", "ask"] as const;
 
 const id = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,40}$/, "ids are letters, digits, _ and -");
 
@@ -160,6 +209,10 @@ const ENTRY_KEYS = [
   "groupKey",
   "textKey",
   "minutesKey",
+  "srcKey",
+  "captionKey",
+  "titleKey",
+  "urlKey",
 ] as const;
 
 type Shape = FieldShape | ListShape["of"];
@@ -321,9 +374,14 @@ function shapeIssues(byId: Map<string, SurfaceComponent>, root: ObjectShape): Su
 /**
  * What can be wrong with a surface: an unknown or missing component, no root, a child that is
  * not there, an id twice, a loop, a prop missing, and — given the data keys a run will provide,
- * or the step's schema — a path into data nothing provides.
+ * or the step's schema — a path into data nothing provides. `chat`: a chat's view, which may ask
+ * (one Form, its Fields, Refs, `ask`).
  */
-export function validateSurface(raw: unknown, data?: string[] | ObjectShape): SurfaceIssue[] {
+export function validateSurface(
+  raw: unknown,
+  data?: string[] | ObjectShape,
+  options: { chat?: boolean } = {},
+): SurfaceIssue[] {
   const dataKeys = Array.isArray(data) ? data : undefined;
   const parsed = surfaceComponentsSchema.safeParse(raw);
   if (!parsed.success) {
@@ -341,6 +399,7 @@ export function validateSurface(raw: unknown, data?: string[] | ObjectShape): Su
   if (!byId.has("root")) {
     issues.push({ message: 'A surface has a component with id "root".' });
   }
+  issues.push(...askIssues(components, byId, Boolean(options.chat)));
   for (const c of components) {
     for (const prop of REQUIRED[c.component] ?? []) {
       if ((c as Record<string, unknown>)[prop] === undefined) {
@@ -402,6 +461,79 @@ export function validateSurface(raw: unknown, data?: string[] | ObjectShape): Su
     return issues;
   }
   return data && !Array.isArray(data) ? [...issues, ...shapeIssues(byId, data)] : issues;
+}
+
+/** What a view may ask, and how: a chat's only, one Form, its Fields in it and named once. */
+function askIssues(
+  components: SurfaceComponent[],
+  byId: Map<string, SurfaceComponent>,
+  chat: boolean,
+): SurfaceIssue[] {
+  const issues: SurfaceIssue[] = [];
+  if (!chat) {
+    for (const c of components) {
+      if (CHAT_ONLY.has(c.component)) {
+        issues.push({
+          message: `${c.component} "${c.id}" is for a chat's view; a wizard asks on its pages.`,
+        });
+      }
+      if ((c as Record<string, unknown>).action === "ask") {
+        issues.push({ message: `"${c.id}": "ask" is for a chat's view.` });
+      }
+    }
+    return issues;
+  }
+  const forms = components.filter((c) => c.component === "Form");
+  if (forms.length > 1) {
+    issues.push({ message: "A view holds at most one Form." });
+  }
+  const inForm = new Set<string>();
+  for (const form of forms) {
+    const kids = Array.isArray(form.children) ? form.children : [];
+    if (!Array.isArray(form.children)) {
+      issues.push({ message: `Form "${form.id}" names its Fields: children [ids].` });
+    }
+    const names = new Set<string>();
+    for (const kid of kids) {
+      const field = byId.get(kid);
+      if (field && field.component !== "Field") {
+        issues.push({ message: `Form "${form.id}" holds Fields only, not ${field.component}.` });
+      }
+      inForm.add(kid);
+      const name = (field as Record<string, unknown> | undefined)?.name;
+      if (typeof name === "string") {
+        if (names.has(name)) {
+          issues.push({ message: `Form "${form.id}" names the field "${name}" twice.` });
+        }
+        names.add(name);
+      }
+    }
+  }
+  for (const c of components) {
+    if (c.component !== "Field") {
+      continue;
+    }
+    const f = c as Record<string, unknown>;
+    if (!inForm.has(c.id)) {
+      issues.push({ message: `Field "${c.id}" sits in a Form.` });
+    }
+    if (typeof f.kind === "string" && !(FORM_FIELD_KINDS as readonly string[]).includes(f.kind)) {
+      issues.push({
+        message: `Field "${c.id}": kind is one of ${FORM_FIELD_KINDS.join(", ")}.`,
+      });
+    }
+    const options = f.options;
+    if (
+      (f.kind === "select" || f.kind === "multiselect") &&
+      !(Array.isArray(options) && options.length && options.every((o) => typeof o === "string"))
+    ) {
+      issues.push({ message: `Field "${c.id}" (${f.kind}) needs "options": [texts].` });
+    }
+    if (typeof f.name === "string" && !/^[a-zA-Z][a-zA-Z0-9_]{0,40}$/.test(f.name)) {
+      issues.push({ message: `Field "${c.id}": name is letters, digits and _.` });
+    }
+  }
+  return issues;
 }
 
 /** A JSON pointer into data: "/suppliers/0/name". */

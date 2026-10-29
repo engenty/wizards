@@ -1,8 +1,21 @@
 import type { Surface, SurfaceComponent } from "@engenty/wizards-shared/surface";
 import { bound } from "@engenty/wizards-shared/surface";
-import { Check, ChevronRight, Clock, Lightbulb, Share2 } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  FileText,
+  Lightbulb,
+  MessageSquare,
+  Share2,
+  Table2,
+  Wand2,
+} from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { lang, t } from "./i18n.js";
+import { Markdown } from "./outputs.js";
+import { FormView, type SurfaceChat } from "./surface-form.js";
 import { cn, Dialog, Tabs as Segments } from "./ui.js";
 
 /**
@@ -10,7 +23,9 @@ import { cn, Dialog, Tabs as Segments } from "./ui.js";
  * else. Unknown components render nothing; a prop that is not there shows empty.
  */
 
-export type SurfaceAction = { action: "regenerate" | "open"; target?: unknown };
+export type SurfaceAction = { action: "regenerate" | "open" | "ask"; target?: unknown };
+
+export type { SurfaceChat, SurfaceFormAnswer } from "./surface-form.js";
 
 /** What the person did in a view that is kept with the run: a checklist's ticks, by component id. */
 export type SurfaceState = Record<string, unknown>;
@@ -24,6 +39,8 @@ interface Ctx {
   setState: (id: string, value: unknown) => void;
   /** Opens an entry in a sheet, drawn by `view`. */
   open: (view: string, row: unknown) => void;
+  /** A chat's view: its Refs, its Form. */
+  chat?: SurfaceChat;
 }
 
 // A yes/no without words of its own reads as yes or no, never as true or false.
@@ -41,13 +58,19 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-/** A picture: an asset of the run by id, or an address. */
-function src(v: unknown, assetUrl: (id: string) => string): string | null {
+/**
+ * A picture or file: an asset of the run by id, or an address. A chat's view shows the space's
+ * own files only: an address on the web could tell its owner who reads the chat.
+ */
+function src(v: unknown, ctx: Pick<Ctx, "assetUrl" | "chat">): string | null {
   const s = text(v);
   if (!s) {
     return null;
   }
-  return /^(https?:|data:|\/)/.test(s) ? s : assetUrl(s);
+  if (/^(https?:|data:|\/)/.test(s)) {
+    return ctx.chat ? null : s;
+  }
+  return ctx.assetUrl(s);
 }
 
 function prop(c: SurfaceComponent, key: string, ctx: Ctx, row?: unknown): unknown {
@@ -411,6 +434,162 @@ function Donut({ data }: { data: { label: string; value: number }[] }) {
   );
 }
 
+/** What a file is, from its type or else its name: drawn as itself where the browser can. */
+function fileType(mime: string, name: string): "pdf" | "image" | "video" | "audio" | "other" {
+  const m = mime.toLowerCase();
+  const ext = name.toLowerCase().split(".").at(-1) ?? "";
+  if (m === "application/pdf" || ext === "pdf") {
+    return "pdf";
+  }
+  if (m.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "avif"].includes(ext)) {
+    return "image";
+  }
+  if (m.startsWith("video/") || ["mp4", "webm", "mov"].includes(ext)) {
+    return "video";
+  }
+  if (m.startsWith("audio/") || ["mp3", "m4a", "wav", "ogg", "webm"].includes(ext)) {
+    return "audio";
+  }
+  return "other";
+}
+
+/** A file: its name and a way to open it, and — for a PDF or a picture — the file itself. */
+function FileView({
+  url,
+  name,
+  mime,
+  preview,
+}: {
+  url: string;
+  name: string;
+  mime: string;
+  preview: boolean;
+}) {
+  const type = fileType(mime, name);
+  return (
+    <div className="overflow-hidden rounded-xl bg-card ring-1 ring-border-soft">
+      {preview && type === "pdf" ? (
+        <iframe
+          src={`${url}#navpanes=0&view=FitH`}
+          title={name}
+          className="block h-[28rem] w-full bg-paper-2"
+        />
+      ) : preview && type === "image" ? (
+        <img src={url} alt={name} className="block max-h-[28rem] w-full object-contain" />
+      ) : null}
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="flex items-center gap-3 px-4 py-3 hover:bg-paper-2/70"
+      >
+        <FileText className="size-5 shrink-0 text-ink-3" />
+        <span className="min-w-0 flex-1 truncate text-[0.9375rem]">
+          {name || t("surface.file")}
+        </span>
+        <span className="shrink-0 text-[0.8125rem] text-ink-3">{t("surface.openFile")}</span>
+      </a>
+    </div>
+  );
+}
+
+/** A Ref's mark, by what its `open` names: a page, a table, a file, a chat, a wizard. */
+const REF_ICON: Record<string, typeof FileText> = {
+  p: FileText,
+  t: Table2,
+  f: FileText,
+  chat: MessageSquare,
+  wizard: Wand2,
+};
+
+function RefView({ c, ctx, row }: { c: SurfaceComponent; ctx: Ctx; row?: unknown }) {
+  const p = (key: string) => prop(c, key, ctx, row);
+  const open = text(p("open"));
+  const href = ctx.chat?.href(open) ?? null;
+  const Icon = REF_ICON[open.split(":")[0]] ?? FileText;
+  const body = (
+    <>
+      <Icon className="size-4 shrink-0 text-ink-3" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[0.9375rem]">{text(p("title"))}</span>
+        {p("subtitle") ? (
+          <span className="block truncate text-[0.8125rem] text-ink-3">{text(p("subtitle"))}</span>
+        ) : null}
+      </span>
+      {p("meta") ? (
+        <span className="shrink-0 text-[0.8125rem] text-ink-3 tabular-nums">{text(p("meta"))}</span>
+      ) : null}
+      {href ? <ChevronRight className="size-4 shrink-0 text-ink-3" /> : null}
+    </>
+  );
+  const look = "flex items-center gap-3 rounded-xl bg-card px-4 py-3 ring-1 ring-border-soft";
+  if (!href) {
+    return <div className={look}>{body}</div>;
+  }
+  const follow = ctx.chat?.follow;
+  return (
+    <a
+      href={href}
+      onClick={(e) => {
+        if (follow && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+          e.preventDefault();
+          follow(href);
+        }
+      }}
+      className={cn(look, "hover:ring-ink-4")}
+    >
+      {body}
+    </a>
+  );
+}
+
+/** Where something was found: a page of the space (a Ref's `open`) or an address on the web. */
+function SourcesView({ c, ctx, row }: { c: SurfaceComponent; ctx: Ctx; row?: unknown }) {
+  const p = (key: string) => prop(c, key, ctx, row);
+  const titleKey = text(p("titleKey")) || "title";
+  const urlKey = text(p("urlKey")) || "url";
+  const items = rows(p("items"));
+  if (!items.length) {
+    return null;
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[0.8125rem]">
+      <span className="text-ink-3">{t("surface.foundIn")}</span>
+      {items.map((item, i) => {
+        const title = text(cell(item, titleKey)) || labelOf(item, "");
+        const url = text(cell(item, urlKey));
+        const open = text(cell(item, "open"));
+        const href = /^https?:\/\//.test(url) ? url : open ? (ctx.chat?.href(open) ?? null) : null;
+        const look =
+          "inline-flex max-w-full items-center gap-1 rounded-full bg-paper-2 px-2.5 py-0.5 text-ink-2";
+        return href ? (
+          <a
+            key={i}
+            href={href}
+            target={url ? "_blank" : undefined}
+            rel="noreferrer"
+            onClick={(e) => {
+              const follow = ctx.chat?.follow;
+              if (!url && follow) {
+                e.preventDefault();
+                follow(href);
+              }
+            }}
+            className={cn(look, "hover:text-ink")}
+          >
+            <span className="truncate">{title}</span>
+            {url ? <ExternalLink className="size-3 shrink-0" /> : null}
+          </a>
+        ) : (
+          <span key={i} className={look}>
+            <span className="truncate">{title}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function Titled({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="rounded-xl bg-card p-4 ring-1 ring-border-soft">
@@ -456,7 +635,7 @@ function Node({ id, ctx, row }: { id: string; ctx: Ctx; row?: unknown }) {
         </div>
       );
     case "Row": {
-      const image = src(p("image"), ctx.assetUrl);
+      const image = src(p("image"), ctx);
       const badge = text(p("badge"));
       return (
         <div className="flex items-center gap-3 px-4 py-3">
@@ -578,7 +757,7 @@ function Node({ id, ctx, row }: { id: string; ctx: Ctx; row?: unknown }) {
       );
     }
     case "Image": {
-      const url = src(p("src"), ctx.assetUrl);
+      const url = src(p("src"), ctx);
       return url ? <img src={url} alt={text(p("alt"))} className="w-full rounded-xl" /> : null;
     }
     case "BarChart":
@@ -616,13 +795,17 @@ function Node({ id, ctx, row }: { id: string; ctx: Ctx; row?: unknown }) {
           onClick={() => {
             const target = p("target");
             if (action === "open") {
-              const url = src(target, ctx.assetUrl);
+              const url = src(target, ctx);
               if (url) {
                 window.open(url, "_blank", "noopener");
               }
               return;
             }
-            ctx.onAction?.({ action, target });
+            // Asking, the person says the button's prompt, or else its label.
+            ctx.onAction?.({
+              action,
+              target: action === "ask" ? text(p("prompt")) || text(p("label")) : target,
+            });
           }}
           className="inline-flex h-9 items-center rounded-full bg-paper-2 px-4 text-[0.875rem] text-ink-2 hover:text-ink coarse:h-11"
         >
@@ -633,7 +816,7 @@ function Node({ id, ctx, row }: { id: string; ctx: Ctx; row?: unknown }) {
     case "Tabs":
       return <TabsView c={c} ctx={ctx} row={row} />;
     case "Card": {
-      const image = src(p("image"), ctx.assetUrl);
+      const image = src(p("image"), ctx);
       const eyebrow = text(p("eyebrow"));
       const subtitle = text(p("subtitle"));
       return (
@@ -827,6 +1010,82 @@ function Node({ id, ctx, row }: { id: string; ctx: Ctx; row?: unknown }) {
         </div>
       );
     }
+    case "Markdown":
+      return <Markdown text={text(p("text"))} className="text-[0.9375rem]" />;
+    case "Sources":
+      return <SourcesView c={c} ctx={ctx} row={row} />;
+    case "File": {
+      const url = src(p("file"), ctx);
+      return url ? (
+        <FileView
+          url={url}
+          name={text(p("name"))}
+          mime={text(p("mime"))}
+          preview={p("preview") !== false}
+        />
+      ) : null;
+    }
+    case "Video": {
+      const url = src(p("src"), ctx);
+      const poster = src(p("poster"), ctx);
+      return url ? (
+        // biome-ignore lint/a11y/useMediaCaption: a file of the run or the space, with no captions of its own
+        <video
+          src={url}
+          poster={poster ?? undefined}
+          controls
+          playsInline
+          preload="metadata"
+          className="w-full rounded-xl bg-paper-2"
+        />
+      ) : null;
+    }
+    case "Audio": {
+      const url = src(p("src"), ctx);
+      const title = text(p("title"));
+      return url ? (
+        <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-border-soft">
+          {title ? <div className="text-[0.875rem]">{title}</div> : null}
+          {/* biome-ignore lint/a11y/useMediaCaption: a recording of the run or the space */}
+          <audio src={url} controls preload="metadata" className="w-full" />
+        </div>
+      ) : null;
+    }
+    case "Gallery": {
+      const srcKey = text(p("srcKey"));
+      const captionKey = text(p("captionKey"));
+      const items = rows(p("items"))
+        .map((item) => ({
+          url: src(srcKey ? cell(item, srcKey) : item, ctx),
+          caption: captionKey ? text(cell(item, captionKey)) : "",
+        }))
+        .filter((item): item is { url: string; caption: string } => Boolean(item.url));
+      return (
+        <div
+          className="grid gap-2"
+          style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 9rem), 1fr))" }}
+        >
+          {items.map((item, i) => (
+            <a key={i} href={item.url} target="_blank" rel="noreferrer" className="group">
+              <img
+                src={item.url}
+                alt={item.caption}
+                className="aspect-square w-full rounded-lg object-cover ring-1 ring-border-soft group-hover:ring-ink-4"
+              />
+              {item.caption ? (
+                <span className="mt-1 block truncate text-[0.75rem] text-ink-3">
+                  {item.caption}
+                </span>
+              ) : null}
+            </a>
+          ))}
+        </div>
+      );
+    }
+    case "Ref":
+      return <RefView c={c} ctx={ctx} row={row} />;
+    case "Form":
+      return <FormView c={c} byId={ctx.byId} data={ctx.data} chat={ctx.chat} />;
   }
   return null;
 }
@@ -837,10 +1096,13 @@ export function SurfaceView({
   onAction,
   initial,
   onState,
+  chat,
 }: {
   surface: Surface;
   assetUrl: (id: string) => string;
   onAction?: (a: SurfaceAction) => void;
+  /** A chat's view (Work): where its Refs lead, and how its Form is sent. */
+  chat?: SurfaceChat;
   /** What the person did in the view last time (kept with the run). */
   initial?: SurfaceState;
   /** Keeps what the person did; without it, it lasts as long as the page. */
@@ -860,6 +1122,7 @@ export function SurfaceView({
       onState?.(next);
     },
     open: (view, row) => setSheet({ view, row }),
+    chat,
   };
   return (
     <>

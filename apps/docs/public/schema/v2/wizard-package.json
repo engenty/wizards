@@ -2812,7 +2812,16 @@
                                     "Checklist",
                                     "Steps",
                                     "Link",
-                                    "Callout"
+                                    "Callout",
+                                    "Markdown",
+                                    "Sources",
+                                    "File",
+                                    "Video",
+                                    "Audio",
+                                    "Gallery",
+                                    "Ref",
+                                    "Form",
+                                    "Field"
                                   ]
                                 },
                                 "children": {
@@ -3495,7 +3504,16 @@
                             "Checklist",
                             "Steps",
                             "Link",
-                            "Callout"
+                            "Callout",
+                            "Markdown",
+                            "Sources",
+                            "File",
+                            "Video",
+                            "Audio",
+                            "Gallery",
+                            "Ref",
+                            "Form",
+                            "Field"
                           ]
                         },
                         "children": {
@@ -3583,7 +3601,16 @@
                                   "Checklist",
                                   "Steps",
                                   "Link",
-                                  "Callout"
+                                  "Callout",
+                                  "Markdown",
+                                  "Sources",
+                                  "File",
+                                  "Video",
+                                  "Audio",
+                                  "Gallery",
+                                  "Ref",
+                                  "Form",
+                                  "Field"
                                 ]
                               },
                               "children": {

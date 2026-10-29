@@ -447,3 +447,76 @@ describe("surface steps", () => {
     ]);
   });
 });
+
+describe("a chat's view", () => {
+  const form = [
+    { id: "root", component: "Column", children: ["form", "ref", "ask"] },
+    { id: "form", component: "Form", submit: "Senden", children: ["day", "how"] },
+    { id: "day", component: "Field", name: "day", kind: "date", label: "Tag", required: true },
+    { id: "how", component: "Field", name: "how", kind: "select", label: "Wie", options: ["Telefon", "Video"] },
+    { id: "ref", component: "Ref", title: "Rechnungen", open: "t:invoices" },
+    { id: "ask", component: "Button", label: "Mahnung", action: "ask" },
+  ];
+
+  it("may ask: a Form of Fields, Refs, a button that asks", () => {
+    expect(validateSurface(form, [], { chat: true })).toEqual([]);
+  });
+
+  it("is the only view that asks: a wizard asks on its pages", () => {
+    const messages = validateSurface(form, []).map((i) => i.message);
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        'Form "form" is for a chat\'s view; a wizard asks on its pages.',
+        'Field "day" is for a chat\'s view; a wizard asks on its pages.',
+        'Ref "ref" is for a chat\'s view; a wizard asks on its pages.',
+        '"ask": "ask" is for a chat\'s view.',
+      ]),
+    );
+  });
+
+  it("names what is wrong with a Form", () => {
+    const messages = validateSurface(
+      [
+        { id: "root", component: "Column", children: ["a", "b", "loose"] },
+        { id: "a", component: "Form", submit: "OK", children: ["x", "y", "text"] },
+        { id: "b", component: "Form", submit: "OK", children: [] },
+        { id: "x", component: "Field", name: "same", kind: "multiselect", label: "X" },
+        { id: "y", component: "Field", name: "same", kind: "connection", label: "Y" },
+        { id: "text", component: "Text", text: "hi" },
+        { id: "loose", component: "Field", name: "z", kind: "text", label: "Z" },
+      ],
+      [],
+      { chat: true },
+    ).map((i) => i.message);
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        "A view holds at most one Form.",
+        'Form "a" holds Fields only, not Text.',
+        'Form "a" names the field "same" twice.',
+        'Field "x" (multiselect) needs "options": [texts].',
+        expect.stringContaining('Field "y": kind is one of text, textarea'),
+        'Field "loose" sits in a Form.',
+      ]),
+    );
+  });
+
+  it("shows files and media: File, Video, Audio, Gallery, Markdown, Sources", () => {
+    expect(
+      validateSurface(
+        [
+          { id: "root", component: "Column", children: ["f", "v", "a", "g", "m", "s"] },
+          { id: "f", component: "File", file: "f:abc", name: "Angebot.pdf" },
+          { id: "v", component: "Video", src: { path: "/clip" } },
+          { id: "a", component: "Audio", src: "voice" },
+          { id: "g", component: "Gallery", items: { path: "/photos" }, srcKey: "id" },
+          { id: "m", component: "Markdown", text: "**fett**" },
+          { id: "s", component: "Sources", items: [{ title: "Rechnungen", open: "t:x" }] },
+        ],
+        ["clip", "photos"],
+      ),
+    ).toEqual([]);
+    expect(
+      validateSurface([{ id: "root", component: "File", name: "x" }]).map((i) => i.message),
+    ).toContain('File "root" needs "file".');
+  });
+});
