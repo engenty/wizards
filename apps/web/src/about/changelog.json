@@ -1,7 +1,27 @@
 [
   {
+    "version": "v0.12.1",
+    "timestamp": 1793256993,
+    "commits": [
+      {
+        "id": "73f570c",
+        "message": "a local install follows its account's plan within minutes, and Settings › Account shows the plan with a button to reload plan and plugins (#276)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      },
+      {
+        "id": "4cee8f3",
+        "message": "the studio assistant keeps its prompt cache: one agent setup for spaces, tools sorted, history marked, no sliding window (#269)",
+        "group": "Performance",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.12.0",
-    "timestamp": 1793209935,
+    "timestamp": 1793210299,
     "commits": [
       {
         "id": "5c345a5",
