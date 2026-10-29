@@ -34,7 +34,7 @@ import {
 } from "@engenty/wizards-shared/providers";
 import type { RunNote, RunNoteCode, Said } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
-import type { ModelTier, Purpose } from "@engenty/wizards-shared/tiers";
+import type { ModelPolicy, ModelTier, Purpose } from "@engenty/wizards-shared/tiers";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import {
   type EmbeddingModel,
@@ -549,11 +549,30 @@ function gatewayClient(access: GatewayAccess, meta: CallMeta, tiers: boolean) {
   });
 }
 
-/** The organization's model tier, while `modelTiers` is on; null where it has none. */
-async function currentTier(): Promise<ModelTier | null> {
+/**
+ * The organization's model tier and its admins' policy, while `modelTiers` is on; null where it
+ * has none.
+ */
+export async function currentTiers(): Promise<{
+  tier: ModelTier | null;
+  modelPolicy: ModelPolicy | null;
+}> {
   const tenant = managed ? currentTenantOrNull() : null;
   const info = tenant ? await tenantInfo(tenant).catch(() => null) : null;
-  return info?.tier && feature("modelTiers", info.features) ? info.tier : null;
+  if (!info || !feature("modelTiers", info.features)) {
+    return { tier: null, modelPolicy: null };
+  }
+  return { tier: info.tier ?? null, modelPolicy: info.modelPolicy ?? null };
+}
+
+/** The organization's model tier, while `modelTiers` is on; null where it has none. */
+export async function currentTier(): Promise<ModelTier | null> {
+  return (await currentTiers()).tier;
+}
+
+/** Whether the organization's tier allows web search; true without a tier. */
+export async function searchAllowed(): Promise<boolean> {
+  return (await currentTier())?.rules.search ?? true;
 }
 
 /** The model a class runs on in the organization's tier; null where the runtime can't tell. */
@@ -1289,6 +1308,11 @@ async function decisionBy(
  * there is none: the classifier class's language model answers then.
  */
 export async function systemOneAccess(meta: CallMeta = {}): Promise<SystemOneAccess | null> {
+  // A tier without evaluation models: the classifier class's language model answers, inside it.
+  const tier = await currentTier();
+  if (tier && !tier.rules.decisions) {
+    return null;
+  }
   const found = await decisionAccess(await config());
   if (found?.way !== "credits") {
     return found?.access ?? null;
@@ -1660,8 +1684,8 @@ export async function modelSettings(lang: Lang = "en") {
     prices: (await classCatalog())?.classes ?? null,
     /** The media models the credits pay for, which a binding may name. */
     creditModels: (await classCatalog())?.models ?? [],
-    /** The organization's model tier and what each class runs on in it; null: none. */
-    tier: await currentTier(),
+    /** The organization's model tier, what each class runs on in it, and its admins' policy. */
+    ...(await currentTiers()),
   };
 }
 

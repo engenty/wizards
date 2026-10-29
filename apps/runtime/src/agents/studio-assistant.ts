@@ -33,6 +33,7 @@ import {
   contextWindowOf,
   costOf,
   gatewayTools,
+  searchAllowed,
   totalUsage,
   usageOf,
 } from "../models.js";
@@ -939,9 +940,11 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   }
   const toolCalls: AssistantToolCallRecord[] = [];
   traced(tools, input, toolCalls);
-  if (resolved.vendor === "anthropic") {
+  // The organization's tier may allow no web search.
+  const search = await searchAllowed();
+  if (search && resolved.vendor === "anthropic") {
     tools.web_search = anthropic.tools.webSearch_20250305({ maxUses: 5 });
-  } else if (resolved.gateway) {
+  } else if (search && resolved.gateway) {
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
   }
   const instructions = system();
