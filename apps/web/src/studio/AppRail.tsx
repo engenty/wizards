@@ -50,6 +50,7 @@ import { PluginFrame, useStudioPlugins } from "../plugins/host";
 import { cn } from "../ui";
 import { SpaceFace, SpaceMenu, UserMenu, useDismiss, useOneSpace } from "./AppFrame";
 import { EngentyMenu } from "./EngentyMenu";
+import { ModeSwitch } from "./ModeSwitch";
 import { type PrimaryAction, useCurrentPrimaryAction } from "./primary-action";
 import { useWaiting } from "./work/chats";
 import { EngentyGlyph, WORK_PLACES, type WorkPlace } from "./work/WorkPages";
@@ -60,7 +61,7 @@ const AboutDialog = lazy(() =>
 
 /**
  * The app bar at an edge of the window: the engenty in the corner (its menu holds what belongs to
- * the app itself), the space (it switches between spaces), its home (the wizards), its sources
+ * the app itself), the switch between the modes under it, the space (it switches between spaces), its home (the wizards), its sources
  * (Info, Brand, Knowledge, Data), its results, the apps the plugins added, and at its end the
  * settings and the person. A place is a filled tile, a tool a line glyph; the one that is open is
  * cut from the page's own paper. On a wide window a bar at a side names its places beside
@@ -393,6 +394,12 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
       {/* Beside the page, the engenty's row is as tall as the page's top bar, so the two sit on
           one line. */}
       <EngentyMenu me={me} position={position} horizontal={horizontal} labels={labels} />
+      {/* The mode, always in sight: right under the engenty that wears it. */}
+      <ModeSwitch
+        me={me}
+        look={horizontal ? "row" : labels ? "named" : "stacked"}
+        className={horizontal ? "ml-1" : "mt-1"}
+      />
       <div className={horizontal ? "ml-1" : "mt-2"}>
         <SpaceTile me={me} labels={labels} />
       </div>

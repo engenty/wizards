@@ -8,10 +8,10 @@ import {
   Eye,
   EyeOff,
   FolderInput,
+  Home,
   Link2,
   ListFilter,
   Lock,
-  MessageSquare,
   MessageSquarePlus,
   MoreHorizontal,
   Pencil,
@@ -75,7 +75,7 @@ import {
 } from "./chats";
 
 /**
- * Chats' sidebar in Work: Work itself on top (its start page), a new chat, the search, the pinned chats, the sections and the chats in
+ * Chats' sidebar in Work: Work's start page on top, a new chat, the search, the pinned chats, the sections and the chats in
  * none, each chat with its sub-threads beneath it. A chat is pinned, archived, marked unread,
  * renamed, moved (also by dragging it onto a section) and deleted from its row: the buttons on
  * hover, the ⋯ menu, a right click, or a key while the row has focus.
@@ -169,8 +169,8 @@ export function ChatSidebar() {
             )
           }
         >
-          <MessageSquare className="size-4 shrink-0" />
-          {t("mode.work")}
+          <Home className="size-4 shrink-0" />
+          {t("work.start")}
         </NavLink>
         <button
           type="button"

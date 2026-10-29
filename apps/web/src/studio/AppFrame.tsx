@@ -36,6 +36,7 @@ import { useFeature } from "../lib/features";
 import { lang, t } from "../lib/i18n";
 import { acceptInstall, standalone, useInstallPrompt } from "../lib/install";
 import { keys } from "../lib/keys";
+import { allowedModes } from "../lib/mode";
 import {
   initialsOf,
   type Me,
@@ -59,6 +60,7 @@ import { NewSpaceDialog } from "./HomePage";
 import { InstallBanner, InstallDialog } from "./InstallBanner";
 import { LangSwitch } from "./LangSwitch";
 import { useLiveFeed } from "./live/index";
+import { ModeSwitch } from "./ModeSwitch";
 import {
   currentOrganization,
   OrganizationFace,
@@ -898,7 +900,8 @@ export function UserMenu({
 /**
  * The row at the top of the page: the space's name, which switches between spaces, then the
  * trail and the credits. No wordmark: the app bar holds the places. A phone starts at the
- * space's name; the rest stands in its app bar along the bottom.
+ * space's name; the rest stands in its app bar along the bottom, and where the person has more
+ * than one mode, their switch stands up here in the credits' place.
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
   const { phone } = useAppBar();
@@ -911,7 +914,11 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
         <Trail alone={personal} />
         {children}
       </div>
-      {personal ? null : <CreditsPill me={me} />}
+      {personal ? null : phone && allowedModes(me).length > 1 ? (
+        <ModeSwitch me={me} look="row" />
+      ) : (
+        <CreditsPill me={me} />
+      )}
       {/* A phone's bar keeps the places: the person stands up here. */}
       {phone ? <UserMenu me={me} /> : null}
     </header>
