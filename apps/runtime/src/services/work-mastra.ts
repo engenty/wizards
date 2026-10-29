@@ -3,8 +3,9 @@ import { Mastra } from "@mastra/core";
 import { Agent } from "@mastra/core/agent";
 import { LibSQLStore } from "@mastra/libsql";
 import { Memory } from "@mastra/memory";
+import { isNotNull } from "drizzle-orm";
 import { cacheMarksProcessor, markedInstructions } from "../agents/space-agent.js";
-import { tenantClient } from "../db/client.js";
+import { db, schema, tenantClient } from "../db/client.js";
 import { agentModel } from "../models.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { type LazyTurn, TURN_KEY, type WorkTurn } from "./work-ai.js";
@@ -31,6 +32,17 @@ interface TenantMastra {
 }
 
 const byTenant = new Map<string, TenantMastra>();
+
+/**
+ * A turn doesn't outlive the process that ran it: when this process first serves a tenant's
+ * chats, none of them is answering (a chat still marked so was left by a process that died).
+ */
+async function forgetDeadTurns() {
+  await db
+    .update(schema.chat)
+    .set({ answeringSince: null })
+    .where(isNotNull(schema.chat.answeringSince));
+}
 
 /** The turn the request runs (work-ai.ts), made on first use; a run without one is a mistake of ours. */
 function turnOf(context: { get(key: string): unknown }): Promise<WorkTurn> {
@@ -61,7 +73,7 @@ function make(client: Client): TenantMastra {
     storage: store,
     logger: false,
   });
-  return { client, ready: store.init(), memory, mastra };
+  return { client, ready: store.init().then(forgetDeadTurns), memory, mastra };
 }
 
 /** The current tenant's Mastra, its store ready. */

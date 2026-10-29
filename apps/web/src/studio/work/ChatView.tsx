@@ -2,7 +2,7 @@ import { Markdown } from "@engenty/wizards-runner";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import { Brain, Lock, MessageSquarePlus, ShieldQuestion, Sparkles, Wrench } from "lucide-react";
-import { createContext, Fragment, useContext, useEffect, useState } from "react";
+import { createContext, Fragment, useContext, useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Marker, MarkerContent } from "@/components/ui/marker";
@@ -67,6 +67,15 @@ export function ChatView({ id }: { id: string }) {
   const decide = useDecide(id);
   const post = usePostMessage();
   const [askChoice, setAskChoice] = useState<boolean | null>(null);
+  // Someone else's turn runs here: follow it from its start (useChat's resume), once per turn.
+  const answering = data?.chat.answeringSince ?? null;
+  const followed = useRef<string | null>(null);
+  useEffect(() => {
+    if (answering && !streaming && followed.current !== answering) {
+      followed.current = answering;
+      void turn.resumeStream();
+    }
+  }, [answering, streaming, turn]);
   const { project } = useCurrentProject();
   const client = useQueryClient();
   const opened = data?.chat.id;

@@ -136,6 +136,8 @@ const ITEM_VIEWS: Record<LiveKind, ((r: Reader, x: LiveItem) => Promise<unknown>
     return row ? { ...row, tableId: x.parent } : null;
   },
   category: null,
+  // Work's chats: the studio reads the chat and the sidebar again (routes/live.ts checks each).
+  chat: null,
   presence: async (_r, x) =>
     x.parent ? presentIn(x.parent, x.item.slice(x.parent.length + 1)) : [],
   file: async (_r, x) => {

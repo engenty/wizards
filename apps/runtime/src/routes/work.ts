@@ -10,6 +10,7 @@ import {
   decideApproval,
   deleteChat,
   deleteSection,
+  followTurn,
   moveSection,
   readChat,
   removeMember,
@@ -106,6 +107,11 @@ export const workRoutes = new Hono<Vars>()
     return sent.kind === "turn"
       ? createUIMessageStreamResponse({ stream: sent.stream as never })
       : c.json({ sent: sent.kind });
+  })
+  // Follow the AI's running turn from its start, as `useChat`'s resume reads it; 204 when none runs.
+  .get("/chats/:id/follow", async (c) => {
+    const stream = await followTurn(c.get("user"), c.req.param("id"));
+    return stream ? createUIMessageStreamResponse({ stream: stream as never }) : c.body(null, 204);
   })
   .get("/approvals", async (c) => c.json({ approvals: await waitingApprovals(c.get("user")) }))
   .post("/chats/:id/stop", async (c) =>

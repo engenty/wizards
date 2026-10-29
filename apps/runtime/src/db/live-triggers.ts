@@ -143,6 +143,49 @@ export const PRESENCE_TABLE: LiveTable = {
     "old.state IS NOT new.state OR old.place IS NOT new.place OR old.name IS NOT new.name",
 };
 
+/**
+ * Work's chats (behind `workMode`, migration 0029): any change of a chat, its members, its held
+ * calls or a section of the sidebar is a change of kind `chat` (the item: the chat, or the
+ * section). The feed carries no view of it: the stream checks each against the person (a private
+ * chat goes to its members only), and the studio reads the chat and the sidebar again. Messages
+ * are Mastra's; a new one updates its chat's row (its last message), so it is heard through that.
+ */
+const ofChat = "(SELECT project_id FROM chat WHERE id = $.chat_id)";
+export const CHAT_TABLES: LiveTable[] = [
+  {
+    table: "chat",
+    project: "$.project_id",
+    kind: "'chat'",
+    item: "$.id",
+    parent: "NULL",
+    owns: true,
+  },
+  {
+    table: "chat_member",
+    project: ofChat,
+    kind: "'chat'",
+    item: "$.chat_id",
+    parent: "NULL",
+    owns: false,
+  },
+  {
+    table: "chat_approval",
+    project: ofChat,
+    kind: "'chat'",
+    item: "$.chat_id",
+    parent: "NULL",
+    owns: false,
+  },
+  {
+    table: "chat_section",
+    project: "$.project_id",
+    kind: "'chat'",
+    item: "$.id",
+    parent: "'section'",
+    owns: true,
+  },
+];
+
 /** The trigger SQL of `tables`, in drizzle's statement-breakpoint form. */
 export function liveTriggerSql(tables: LiveTable[] = LIVE_TABLES): string {
   const out: string[] = [];
