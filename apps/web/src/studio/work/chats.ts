@@ -8,6 +8,7 @@ import { useFeature } from "../../lib/features";
 import { lang } from "../../lib/i18n";
 import { useMe } from "../../lib/session";
 import type { PickedFile } from "../../ui/composer";
+import type { ChoiceBody } from "./choices";
 
 /**
  * Work's chats from `/api/studio/work` (behind `workMode`): the sidebar, one chat, and what the
@@ -336,19 +337,19 @@ export const usePostMessage = () =>
       text,
       later,
       files,
-      extra,
+      choice,
     }: {
       id: string;
       text: string;
       later?: boolean;
       files?: string[];
-      /** For after the answer: the turn it starts works with extra effort. */
-      extra?: boolean;
+      /** For after the answer: what the composer chose for the turn it starts (choices.tsx). */
+      choice?: ChoiceBody;
     }) =>
       api.post<{ sent: string }>(`${BASE}/chats/${id}/messages`, {
         text,
         ...(files?.length ? { files } : {}),
-        ...(later ? { ask: true, later, ...(extra ? { extra } : {}) } : {}),
+        ...(later ? { ask: true, later, ...choice } : {}),
       }),
   );
 
