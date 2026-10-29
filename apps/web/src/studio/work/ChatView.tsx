@@ -296,12 +296,10 @@ function ChatHeader({ chat: data }: { chat: OpenChat }) {
   const navigate = useNavigate();
   return (
     <header className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-border-soft border-b px-6 py-2">
-      <h1 className="flex min-w-0 items-center gap-1.5 font-semibold text-[0.9375rem] text-ink">
-        <span className="truncate">{titleOf(data)}</span>
-        {data.chat.private ? (
-          <Lock className="size-3.5 shrink-0 text-ink-4" aria-label={t("work.private")} />
-        ) : null}
-      </h1>
+      {/* The title stands in the top bar's trail; here what belongs to the chat. */}
+      {data.chat.private ? (
+        <Lock className="size-3.5 shrink-0 text-ink-4" aria-label={t("work.private")} />
+      ) : null}
       <div className="-space-x-1.5 flex" title={data.members.map((m) => m.name).join(", ")}>
         {data.members.slice(0, 5).map((m) => (
           <Avatar key={`${m.kind}:${m.id}`} member={m} className="ring-2 ring-canvas" />
