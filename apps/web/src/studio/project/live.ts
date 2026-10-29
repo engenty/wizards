@@ -133,3 +133,17 @@ export const knowledgeLive: LiveBinding[] = [
     ],
   },
 ];
+
+/** Skills: the list and an opened skill are fetched again; a skill has no view of its own. */
+export const skillsLive: LiveBinding[] = [
+  {
+    id: "skills",
+    kinds: ["skill"],
+    patch: (c, { invalidate, flash }) => {
+      flash(c.item);
+      invalidate(keys.skills(c.projectId ?? undefined));
+      invalidate(keys.skill(c.item));
+    },
+    fallback: (c) => [keys.skills(c.projectId ?? undefined), keys.skill(c.item)],
+  },
+];

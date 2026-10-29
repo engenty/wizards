@@ -1,12 +1,18 @@
 import { useEffect, useReducer } from "react";
 import { wizardLive } from "../editor/live-bindings";
-import { knowledgeLive } from "../project/live";
+import { knowledgeLive, skillsLive } from "../project/live";
 import { flashClass, registerLiveBindings, watchFlash } from "./patch";
 import { presenceLive } from "./presence";
 import { spaceLive } from "./spaces";
 
 // Every area's live bindings, read by the one feed of the studio (feed.ts).
-registerLiveBindings([...spaceLive, ...wizardLive, ...knowledgeLive, ...presenceLive]);
+registerLiveBindings([
+  ...spaceLive,
+  ...wizardLive,
+  ...knowledgeLive,
+  ...skillsLive,
+  ...presenceLive,
+]);
 
 export { useLiveFeed } from "./feed";
 export { registerLiveEditor } from "./patch";

@@ -1,5 +1,5 @@
 import { Inbox, Layers, LayoutGrid, Puzzle } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
@@ -16,6 +16,7 @@ import { ProjectSettings } from "./project/ProjectSettings";
 import { PublicPage } from "./project/PublicPage";
 import { NO_FILTER, Results, type ResultsFilter, useResults } from "./project/Results";
 import { Anchor, Section } from "./project/Section";
+import { MODE_ICON, SkillsOverview, useSkills } from "./project/Skills";
 import { DATA_ICON, DataOverview, dataGroups, useSpaceData } from "./project/SpaceData";
 import { TableEditor } from "./project/TableEditor";
 import {
@@ -135,6 +136,11 @@ function SectionRows({
   });
 }
 
+// The skill editor brings CodeMirror's pieces with it: loaded when a skill opens.
+const SkillEditor = lazy(() =>
+  import("./project/SkillEditor").then((m) => ({ default: m.SkillEditor })),
+);
+
 /**
  * The space at /space/<part>: what all its wizards share, in six parts — Info, Brand, Knowledge,
  * Data, Public page and Results. The left container shows one level at a time, as the settings do: the
@@ -165,7 +171,11 @@ export function ProjectPage() {
   const atParts = (location.state as { parts?: boolean } | null)?.parts === true;
   // The public page waits behind its switch.
   const pagesOn = useFeature("pages");
-  const groups = spaceGroups().filter((g) => pagesOn || g.id !== "page");
+  // Skills wait behind theirs.
+  const skillsOn = useFeature("skills");
+  const groups = spaceGroups().filter(
+    (g) => (pagesOn || g.id !== "page") && (skillsOn || g.id !== "skills"),
+  );
   const entries = withParts(groups, plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
   // Results have a place of their own in the app bar: no part among the others, no way up.
   const resultsEntry = {
@@ -224,6 +234,9 @@ export function ProjectPage() {
     : undefined;
   // Knowledge: a page, a table or a file, opened.
   const item = group === "knowledge" && picked && /^[ptf]:/.test(picked) ? picked : null;
+  // Skills: one opened (`?show=k:<id>`), or all of them.
+  const skillPick = group === "skills" && show?.startsWith("k:") ? show : null;
+  const skills = useSkills(group === "skills" && skillsOn ? project?.id : undefined);
   const spaceData = useSpaceData(group === "data" ? project?.id : undefined);
   const knowledge = useKnowledge(group === "knowledge" ? project?.id : undefined);
   const pickedValue = useValue(picked?.startsWith("v:") ? picked.slice(2) : "");
@@ -231,19 +244,21 @@ export function ProjectPage() {
     (c) => c.id === (picked?.startsWith("c:") ? picked.slice(2) : pickedValue.data?.category.id),
   );
   const pickedTitle =
-    group === "knowledge"
-      ? pickedSection
-        ? pickedSection.label()
-        : picked?.startsWith("v:")
-          ? pickedValue.data && `${pickedValue.data.category.name}: ${pickedValue.data.value}`
-          : picked?.startsWith("c:")
-            ? pickedCategory?.name
-            : knowledge.data?.items.find((item) => item.key === picked)?.title
-      : spaceData.data
-        ? dataGroups(spaceData.data)
-            .flatMap((g) => g.items)
-            .find((item) => item.key === picked)?.title
-        : undefined;
+    group === "skills"
+      ? skills.data?.skills.find((k) => `k:${k.id}` === skillPick)?.name
+      : group === "knowledge"
+        ? pickedSection
+          ? pickedSection.label()
+          : picked?.startsWith("v:")
+            ? pickedValue.data && `${pickedValue.data.category.name}: ${pickedValue.data.value}`
+            : picked?.startsWith("c:")
+              ? pickedCategory?.name
+              : knowledge.data?.items.find((item) => item.key === picked)?.title
+        : spaceData.data
+          ? dataGroups(spaceData.data)
+              .flatMap((g) => g.items)
+              .find((item) => item.key === picked)?.title
+          : undefined;
 
   useCrumbs([
     ...(group === "results" ? [] : [{ label: t("nav.sources"), to: "/space" }]),
@@ -305,10 +320,10 @@ export function ProjectPage() {
   // What is picked in the menu of Knowledge or Data takes the page's place: it starts at its top.
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new pick is what scrolls up.
   useEffect(() => {
-    if (!narrow && (open === "knowledge" || open === "data")) {
+    if (!narrow && (open === "knowledge" || open === "data" || open === "skills")) {
       scrollRoot().scrollTo({ top: 0 });
     }
-  }, [narrow, open, picked]);
+  }, [narrow, open, picked, skillPick]);
   const rootHeight = useScrollRootHeight();
 
   if (!open) {
@@ -346,6 +361,10 @@ export function ProjectPage() {
         replace
       />
     );
+  }
+
+  if (group === "skills" && !skillsOn) {
+    return <Navigate to="/space/info" replace />;
   }
 
   if (group === "knowledge" && !show && plugins.spaceSections.some((x) => x.id === hash.slice(1))) {
@@ -523,6 +542,27 @@ export function ProjectPage() {
                     onPick={(id) => pick(`s:${id}`)}
                   />
                 </SubMenu>
+              ) : group === "skills" ? (
+                <SubMenu>
+                  <ul className="flex flex-col gap-0.5">
+                    <MenuRow
+                      icon={LayoutGrid}
+                      label={t("skills.all")}
+                      selected={!(narrow || skillPick)}
+                      onPick={() => pick("all")}
+                    />
+                    {skills.data?.skills.map((k) => (
+                      <MenuRow
+                        key={k.id}
+                        icon={MODE_ICON[k.mode]}
+                        label={k.name}
+                        selected={!narrow && skillPick === `k:${k.id}`}
+                        onPick={() => pick(`k:${k.id}`)}
+                      />
+                    ))}
+                  </ul>
+                  <SectionRows groups={added} current={marked} onPick={jump} />
+                </SubMenu>
               ) : (
                 <SubMenu>
                   <SectionRows groups={sections} current={marked} onPick={jump} />
@@ -629,6 +669,27 @@ export function ProjectPage() {
                   )}
                   {group === "info" || group === "brand" ? pluginSections(added) : null}
                 </ProjectSettings>
+              ) : null}
+              {project && group === "skills" && skillsOn ? (
+                <div className="flex flex-col gap-9 pb-20">
+                  {skillPick ? (
+                    <Suspense fallback={null}>
+                      <SkillEditor
+                        key={skillPick}
+                        skillId={skillPick.slice(2)}
+                        onGone={() => pick("all")}
+                        onOpen={pick}
+                      />
+                    </Suspense>
+                  ) : skills.data ? (
+                    <>
+                      <SkillsOverview projectId={project.id} data={skills.data} onOpen={pick} />
+                      {pluginSections(added)}
+                    </>
+                  ) : skills.error ? (
+                    <p className="text-[0.875rem] text-rose">{(skills.error as Error).message}</p>
+                  ) : null}
+                </div>
               ) : null}
               {project && group === "page" && pagesOn ? (
                 <div className="flex flex-col gap-9 pb-20">

@@ -37,6 +37,7 @@ import { pluginRoutes } from "./routes/plugins.js";
 import { reportRoutes } from "./routes/reports.js";
 import { clientIp, connectCallback, publicRoutes, runRoutes, shareRoutes } from "./routes/runs.js";
 import { runtimeSettingsRoutes } from "./routes/runtime-settings.js";
+import { skillRoutes } from "./routes/skills.js";
 import { studio } from "./routes/studio.js";
 import { wizardStream } from "./routes/wizard-stream.js";
 import { runTicketValid } from "./secrets/signing.js";
@@ -250,9 +251,9 @@ if (serves.doors) {
   });
 }
 
-/** The studio's requests that open an item: a wizard, a page, a table, a space. */
+/** The studio's requests that open an item: a wizard, a page, a table, a skill, a space. */
 const STUDIO_LOADS =
-  /\/api\/studio\/(wizards\/[^/]+|pages\/[^/]+|tables\/[^/]+|projects(\/[^/]+(\/(data|knowledge|files|wizards|page))?)?)$/;
+  /\/api\/studio\/(wizards\/[^/]+|pages\/[^/]+|tables\/[^/]+|skills\/[^/]+|projects(\/[^/]+(\/(data|knowledge|files|wizards|page|skills))?)?)$/;
 
 if (serves.studio) {
   /** Studio requests act as the signed-in person, inside that person's tenant. */
@@ -343,6 +344,7 @@ if (serves.studio) {
   app.route("/api/studio/plugins", pluginRoutes);
   app.route("/api/studio/organization", organizationRoutes);
   app.route("/api/studio/person", personRoutes);
+  app.route("/api/studio", skillRoutes);
   app.route("/api/studio/runtime", runtimeSettingsRoutes);
   app.route("/api/studio", studio);
   app.route("/api/v1", apiRoutes);

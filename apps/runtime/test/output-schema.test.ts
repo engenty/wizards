@@ -38,6 +38,7 @@ vi.mock("@mastra/core/agent", () => ({
 vi.mock("../src/models.js", () => ({
   textModel: async () => ({ model: "test", vendor: "test" }),
   attachTools: () => {},
+  takesTools: () => true,
   costOf: () => 0,
   isHarnessVendor: () => false,
   agentModel: (resolved: { model: unknown }) => resolved.model,
