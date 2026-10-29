@@ -41,16 +41,16 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request(url("/api/local/enter?k=test-key")));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
-  const projects = await import("../src/services/projects");
-  spaceId = (await client.withTenant("local", () => projects.defaultProject("local"))).id;
-  wizardId = (await json(send("POST", "/api/studio/wizards", { projectId: spaceId }))).id;
+  const spaces = await import("../src/services/spaces");
+  spaceId = (await client.withTenant("local", () => spaces.defaultSpace("local"))).id;
+  wizardId = (await json(send("POST", "/api/studio/wizards", { spaceId: spaceId }))).id;
 }, 60_000);
 
 describe("a table of the space", () => {
   let tableId = "";
 
   it("starts with one text column and takes typed columns", async () => {
-    const made = await json(send("POST", `/api/studio/projects/${spaceId}/tables`, { title: "Kunden" }));
+    const made = await json(send("POST", `/api/studio/spaces/${spaceId}/tables`, { title: "Kunden" }));
     tableId = made.id;
     const table = await json(send("GET", `/api/studio/tables/${tableId}`));
     expect(table).toMatchObject({
@@ -108,9 +108,9 @@ describe("a table of the space", () => {
 
   it("is listed in Knowledge with its rows, not in Data, and goes with its rows", async () => {
     await send("POST", `/api/studio/tables/${tableId}/rows`, { cells: { name: "Birke" } });
-    const data = await json(send("GET", `/api/studio/projects/${spaceId}/data`));
+    const data = await json(send("GET", `/api/studio/spaces/${spaceId}/data`));
     expect(data.tables).toEqual([]);
-    const knowledge = await json(send("GET", `/api/studio/projects/${spaceId}/knowledge`));
+    const knowledge = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
     expect(knowledge.items).toEqual([
       expect.objectContaining({ id: tableId, kind: "table", title: "Kunden", rows: 2, path: "tables/kunden" }),
     ]);
@@ -123,10 +123,10 @@ describe("a table of the space", () => {
 
   it("belongs to a wizard of the space, and to no other", async () => {
     const own = await json(
-      send("POST", `/api/studio/projects/${spaceId}/tables`, { title: "Leads", wizardId }),
+      send("POST", `/api/studio/spaces/${spaceId}/tables`, { title: "Leads", wizardId }),
     );
     expect((await json(send("GET", `/api/studio/tables/${own.id}`))).wizardId).toBe(wizardId);
-    const stranger = await send("POST", `/api/studio/projects/${spaceId}/tables`, {
+    const stranger = await send("POST", `/api/studio/spaces/${spaceId}/tables`, {
       title: "Fremd",
       wizardId: "nope",
     });
@@ -137,7 +137,7 @@ describe("a table of the space", () => {
 describe("a page of the space", () => {
   it("keeps a title and markdown", async () => {
     const { id } = await json(
-      send("POST", `/api/studio/projects/${spaceId}/pages`, { title: "Über uns", wizardId }),
+      send("POST", `/api/studio/spaces/${spaceId}/pages`, { title: "Über uns", wizardId }),
     );
     await send("PATCH", `/api/studio/pages/${id}`, { markdown: "# Ahorn\n\nTischlerei seit 1952." });
     const page = await json(send("GET", `/api/studio/pages/${id}`));
@@ -149,7 +149,7 @@ describe("a page of the space", () => {
     });
     const long = await send("PATCH", `/api/studio/pages/${id}`, { markdown: "x".repeat(200_001) });
     expect(long.status).toBe(400);
-    const data = await json(send("GET", `/api/studio/projects/${spaceId}/data`));
+    const data = await json(send("GET", `/api/studio/spaces/${spaceId}/data`));
     expect(data.pages).toEqual([expect.objectContaining({ id, title: "Über uns", wizardId })]);
     await send("DELETE", `/api/studio/pages/${id}`);
     expect((await send("GET", `/api/studio/pages/${id}`)).status).toBe(404);
@@ -180,11 +180,11 @@ describe("the space's results", () => {
         },
       ]);
     });
-    const all = await json(send("GET", `/api/studio/projects/${spaceId}/results`));
+    const all = await json(send("GET", `/api/studio/spaces/${spaceId}/results`));
     expect(all.wizards[0]).toMatchObject({ id: wizardId, results: 2 });
     expect(all.runs.map((r: any) => r.id)).toEqual(["run-live", "run-old"]);
     const ids = async (query: string) =>
-      (await json(send("GET", `/api/studio/projects/${spaceId}/results?${query}`))).runs.map(
+      (await json(send("GET", `/api/studio/spaces/${spaceId}/results?${query}`))).runs.map(
         (r: any) => r.id,
       );
     expect(await ids("q=graz")).toEqual(["run-live"]);
@@ -226,7 +226,7 @@ describe("a shared list", () => {
       // Nothing of it is a person's.
       expect(await store.listRows({ wizardId, holder: "v:anna" }, { ...leads, shared: false })).toEqual([]);
     });
-    const data = await json(send("GET", `/api/studio/projects/${spaceId}/data`));
+    const data = await json(send("GET", `/api/studio/spaces/${spaceId}/data`));
     const table = data.tables.find((t: any) => t.list === "leads");
     expect(table).toMatchObject({ wizardId, title: "Anfragen", rows: 2 });
     // The columns are the wizard's; a row whose key is taken is refused in the studio too.
@@ -282,11 +282,11 @@ describe("a run's pages", () => {
     const client = await import("../src/db/client");
     const { pageTools } = await import("../src/tools/pages");
     const own = await json(
-      send("POST", `/api/studio/projects/${spaceId}/pages`, { title: "Preise", markdown: "Ab 90 €." }),
+      send("POST", `/api/studio/spaces/${spaceId}/pages`, { title: "Preise", markdown: "Ab 90 €." }),
     );
     const emitted: unknown[] = [];
     const tools = pageTools({
-      project: { id: spaceId },
+      space: { id: spaceId },
       store: { wizardId, holder: "v:anna" },
       emit: async (_type: string, message: unknown) => {
         emitted.push(message);
@@ -314,11 +314,11 @@ describe("a run's pages", () => {
 describe("the space's own data from a local install", () => {
   it("replaces what came before, keeps the install's ids and leaves the wizards' data", async () => {
     const client = await import("../src/db/client");
-    const spaces = await import("../src/services/spaces");
+    const spaces = await import("../src/services/synced-spaces");
     const { schema } = client;
     const synced = "localSpace01";
     await client.withTenant("local", async () => {
-      await client.db.insert(schema.project).values({
+      await client.db.insert(schema.space).values({
         id: synced,
         tenantId: "local",
         name: "Vom Mac",
@@ -349,11 +349,11 @@ describe("the space's own data from a local install", () => {
       });
       expect(rows.map((r) => r.cells)).toEqual([{ name: "Treppe" }]);
       expect(
-        await client.db.query.spacePage.findMany({ where: (p, { eq }) => eq(p.projectId, synced) }),
+        await client.db.query.spacePage.findMany({ where: (p, { eq }) => eq(p.spaceId, synced) }),
       ).toEqual([]);
       // An id this tenant uses elsewhere is refused.
       const taken = (await client.db.query.spaceTable.findMany({
-        where: (t, { eq }) => eq(t.projectId, spaceId),
+        where: (t, { eq }) => eq(t.spaceId, spaceId),
       }))[0];
       await expect(
         spaces.syncSpaceData(synced, {

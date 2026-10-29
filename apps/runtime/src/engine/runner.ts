@@ -69,9 +69,9 @@ import {
 import { runEnded } from "../plugins/events.js";
 import { prompt } from "../prompts.js";
 import { reportRun } from "../services/manage-reports.js";
-import { projectFiles } from "../services/project-files.js";
-import { projectProfile } from "../services/projects.js";
 import { switchedOffRunners } from "../services/runners.js";
+import { spaceFiles } from "../services/space-files.js";
+import { spaceProfile } from "../services/spaces.js";
 import { storedTranslation } from "../services/translations.js";
 import { latestShareJob } from "../sharing/state.js";
 import { listRows, listSecrets, scopeOf } from "../store/index.js";
@@ -102,7 +102,7 @@ import {
 import { releaseResources, resourcesFor } from "./resources.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
 import { answersAsText, resolveRef } from "./template.js";
-import type { ProjectRow, RunRow, StepContext } from "./types.js";
+import type { RunRow, SpaceRow, StepContext } from "./types.js";
 import { StepError } from "./types.js";
 
 /** A command the run cannot take in its current state; a note where the person may read it. */
@@ -154,17 +154,17 @@ async function loadRun(runId: string): Promise<RunRow | undefined> {
   return db.query.run.findFirst({ where: eq(schema.run.id, runId) });
 }
 
-/** The project a run's wizard belongs to — where its imported connectors live. */
-export async function projectIdOf(run: RunRow): Promise<string> {
+/** The space a run's wizard belongs to — where its imported connectors live. */
+export async function spaceIdOf(run: RunRow): Promise<string> {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
-  return w?.projectId ?? "";
+  return w?.spaceId ?? "";
 }
 
-export async function loadProject(run: RunRow): Promise<ProjectRow> {
+export async function loadSpace(run: RunRow): Promise<SpaceRow> {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
-  const p = w && (await db.query.project.findFirst({ where: eq(schema.project.id, w.projectId) }));
+  const p = w && (await db.query.space.findFirst({ where: eq(schema.space.id, w.spaceId) }));
   if (!p) {
-    throw new Error("project missing");
+    throw new Error("space missing");
   }
   return p;
 }
@@ -531,7 +531,7 @@ async function storedLists(
  */
 export async function makeContext(
   run: RunRow,
-  project: ProjectRow,
+  space: SpaceRow,
   state: RunState,
   signal: AbortSignal,
   own: Partial<Pick<StepContext, "stepId" | "emit" | "ask">> = {},
@@ -553,11 +553,11 @@ export async function makeContext(
     scope: {
       def: run.definition,
       state,
-      brand: projectProfile(project),
+      brand: spaceProfile(space),
       lists: await storedLists(run),
     },
-    project,
-    projectFiles: (await projectFiles(project.id)).filter((f) => f.status === "ready"),
+    space,
+    spaceFiles: (await spaceFiles(space.id)).filter((f) => f.status === "ready"),
     signal,
     resources,
     ask:
@@ -821,10 +821,10 @@ async function drive(runId: string, signal: AbortSignal) {
       return;
     }
     await emitEvent(runId, step.id, "step_started", step.working ?? step.title);
-    const project = await loadProject(run);
+    const space = await loadSpace(run);
     const state = structuredClone(run.state);
     try {
-      const output = await runAutomaticStep(step, await makeContext(run, project, state, signal));
+      const output = await runAutomaticStep(step, await makeContext(run, space, state, signal));
       if (signal.aborted) {
         return;
       }
@@ -891,7 +891,7 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
     ? await connectionViews(
         run.definition.connections ?? [],
         scopeOf(run),
-        await projectIdOf(run),
+        await spaceIdOf(run),
         textLang(wizardLang(run.definition)),
       )
     : [];
@@ -1246,7 +1246,7 @@ export async function runView(run: RunRow, brand: RunView["brand"]): Promise<Run
         ? await connectionViews(
             def.connections ?? [],
             scopeOf(run),
-            await projectIdOf(run),
+            await spaceIdOf(run),
             textLang(wizardLang(def)),
           )
         : [],

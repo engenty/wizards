@@ -9,9 +9,8 @@ import {
 import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "../db/client.js";
-import { requireWritableProject } from "./access.js";
+import { requireWritableSpace } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
-import { ownedProject } from "./projects.js";
 import {
   asText,
   blobBytes,
@@ -26,6 +25,7 @@ import {
   skillBytes,
   skillRow,
 } from "./skills.js";
+import { ownedSpace } from "./spaces.js";
 
 /**
  * skills.sh, the open directory of skills (docs/plans/skills.md): its search, and a skill read
@@ -84,9 +84,9 @@ const searchAnswer = z.object({
 });
 
 /** Skills on skills.sh for a few words, the space's own marked as added. */
-export async function searchSkills(userId: string, projectId: string, query: string) {
+export async function searchSkills(userId: string, spaceId: string, query: string) {
   await requireSkills();
-  const project = await ownedProject(userId, projectId);
+  const space = await ownedSpace(userId, spaceId);
   const q = query.trim();
   if (q.length < 2) {
     return { hits: [] as SkillHit[] };
@@ -102,9 +102,7 @@ export async function searchSkills(userId: string, projectId: string, query: str
       await db
         .select({ origin: schema.spaceSkill.origin })
         .from(schema.spaceSkill)
-        .where(
-          and(eq(schema.spaceSkill.projectId, project.id), isNotNull(schema.spaceSkill.origin)),
-        )
+        .where(and(eq(schema.spaceSkill.spaceId, space.id), isNotNull(schema.spaceSkill.origin)))
     ).map((r) => r.origin),
   );
   const hits: SkillHit[] = answer.data.skills
@@ -156,9 +154,9 @@ export async function readRegistrySkill(ref: string): Promise<SkillIntake & { ha
 }
 
 /** A skill of skills.sh to look at before it is added: everything it would bring. */
-export async function previewSkill(userId: string, projectId: string, ref: string) {
+export async function previewSkill(userId: string, spaceId: string, ref: string) {
   await requireSkills();
-  await ownedProject(userId, projectId);
+  await ownedSpace(userId, spaceId);
   const read = await readRegistrySkill(ref);
   const preview: SkillPreview = {
     ref,
@@ -181,15 +179,15 @@ export async function previewSkill(userId: string, projectId: string, ref: strin
 /** Adds a skill of skills.sh to the space, as it is there now. */
 export async function addRegistrySkill(
   userId: string,
-  projectId: string,
+  spaceId: string,
   input: { ref: string; mode?: SkillMode },
 ) {
   await requireSkills();
-  const project = await ownedProject(userId, projectId);
-  await requireWritableProject(project.id);
+  const space = await ownedSpace(userId, spaceId);
+  await requireWritableSpace(space.id);
   const read = await readRegistrySkill(input.ref);
   await keepBlobs(read.blobs);
-  return insertSkill(project.id, read.content, {
+  return insertSkill(space.id, read.content, {
     source: "skills.sh",
     mode: input.mode,
     origin: input.ref,
@@ -205,7 +203,7 @@ export async function skillUpdate(userId: string, id: string) {
   if (!row.origin || row.source !== "skills.sh") {
     throw notFound();
   }
-  await ownedProject(userId, row.projectId);
+  await ownedSpace(userId, row.spaceId);
   const read = await readRegistrySkill(row.origin);
   if (read.hash === row.originHash) {
     return { update: null };
@@ -231,15 +229,15 @@ export async function applySkillUpdate(userId: string, id: string, hash: string)
   if (!row.origin || row.source !== "skills.sh") {
     throw notFound();
   }
-  await ownedProject(userId, row.projectId);
-  await requireWritableProject(row.projectId);
+  await ownedSpace(userId, row.spaceId);
+  await requireWritableSpace(row.spaceId);
   const read = await readRegistrySkill(row.origin);
   // Taken only as it was shown: a change since the person looked is shown first.
   if (read.hash !== hash) {
     throw new ServiceError("revision_conflict", { server: "skillUpdateChanged" });
   }
   const next = checkContent({ ...read.content, name: row.name });
-  await checkAlways(row.projectId, row.id, row.mode, next.body);
+  await checkAlways(row.spaceId, row.id, row.mode, next.body);
   await keepBlobs(read.blobs);
   await db
     .update(schema.spaceSkill)

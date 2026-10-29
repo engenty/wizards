@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { t } from "../lib/i18n";
-import { useCurrentProject, useManyProjects, useMe } from "../lib/session";
+import { useCurrentSpace, useManySpaces, useMe } from "../lib/session";
 import { useStudioPlugins } from "../plugins/host";
 import { PluginsSettings } from "../plugins/PluginsSettings";
 import { cn, Empty } from "../ui";
@@ -10,7 +10,7 @@ import { useCrumbs } from "./AppFrame";
 import { useAssistantPage } from "./assistant/page";
 import { CloudSyncSection } from "./CloudSync";
 import { Connectors } from "./Connectors";
-import { ProjectSwitcher } from "./HomePage";
+import { SpaceSwitcher } from "./HomePage";
 import { Integrate } from "./Integrate";
 import { Models } from "./Models";
 import { Organization } from "./Organization";
@@ -21,7 +21,7 @@ import {
 } from "./OrganizationCredits";
 import { OrganizationGeneral, OrganizationKeys, OrganizationMembers } from "./OrganizationSettings";
 import { PersonApps, PersonOrganizations, PersonProfile } from "./PersonAccount";
-import { projectReadOnlyText, ReadOnlyNote } from "./ReadOnly";
+import { ReadOnlyNote, spaceReadOnlyText } from "./ReadOnly";
 import { RuntimeSetup } from "./RuntimeSettings";
 import {
   BackRow,
@@ -56,10 +56,10 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const me = useMe();
-  const { project, loading } = useCurrentProject();
-  const many = useManyProjects();
-  const [key, setKey] = useState(project?.id);
-  useEffect(() => setKey(project?.id), [project?.id]);
+  const { space, loading } = useCurrentSpace();
+  const many = useManySpaces();
+  const [key, setKey] = useState(space?.id);
+  useEffect(() => setKey(space?.id), [space?.id]);
   const plugins = useStudioPlugins();
   const narrow = useNarrow();
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -133,10 +133,6 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
     if (section === "build") {
       return <Navigate to="/settings/integrate" replace />;
     }
-    // The space was the settings section "project" before it got a page of its own.
-    if (section === "project") {
-      return <Navigate to="/space" replace />;
-    }
     // A plugin's settings stand one level down in Plugins.
     if (plugins.sections.some((s) => s.id === section)) {
       return <Navigate to={`${base}/plugins?show=${section}`} replace />;
@@ -148,7 +144,7 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
       ) : null;
     }
   }
-  // Connectors belong to a project: with several, the switcher stands above them.
+  // Connectors belong to a space: with several, the switcher stands above them.
   const scoped = current?.id === "connectors" && many;
   // The settings' menu, at the page's left.
   const menuBody = (
@@ -210,20 +206,18 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
               ) : null}
               {scoped ? (
                 <div className="mb-6">
-                  <ProjectSwitcher />
+                  <SpaceSwitcher />
                 </div>
               ) : null}
-              {current.id === "connectors" && project ? (
+              {current.id === "connectors" && space ? (
                 <div className="flex flex-col gap-6">
-                  {project.readOnly ? (
-                    <ReadOnlyNote>{projectReadOnlyText(project)}</ReadOnlyNote>
-                  ) : null}
-                  <Connectors key={key} projectId={project.id} readOnly={project.readOnly} />
+                  {space.readOnly ? <ReadOnlyNote>{spaceReadOnlyText(space)}</ReadOnlyNote> : null}
+                  <Connectors key={key} spaceId={space.id} readOnly={space.readOnly} />
                 </div>
               ) : null}
-              {/* No project yet: nothing is built here, and no local install has sent one. */}
-              {current.id === "connectors" && !project && !loading ? (
-                <Empty>{t("settings.noProject")}</Empty>
+              {/* No space yet: nothing is built here, and no local install has sent one. */}
+              {current.id === "connectors" && !space && !loading ? (
+                <Empty>{t("settings.noSpace")}</Empty>
               ) : null}
               {current.id === "models" ? <Models /> : null}
               {current.id === "integrate" ? <Integrate /> : null}

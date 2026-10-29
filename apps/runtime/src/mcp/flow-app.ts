@@ -139,7 +139,7 @@ export async function flowView(
   // The app's own look unless it asks for one the wizard offers.
   const theme =
     options.theme && themeOffered(options.theme, definition.themes) ? options.theme : "host";
-  const { theme: look } = await brandView(w.projectId, definition.themes, theme);
+  const { theme: look } = await brandView(w.spaceId, definition.themes, theme);
   return {
     wizard: {
       id: w.id,

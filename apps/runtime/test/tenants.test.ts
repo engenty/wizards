@@ -12,7 +12,7 @@ let app: App;
 let client: typeof import("../src/db/client");
 let wizards: typeof import("../src/services/wizards");
 let files: typeof import("../src/services/files");
-let projects: typeof import("../src/services/projects");
+let spaces: typeof import("../src/services/spaces");
 
 const A = "tenant-a";
 const B = "tenant-b";
@@ -41,7 +41,7 @@ beforeAll(async () => {
   await client.migrateControlDb();
   wizards = await import("../src/services/wizards");
   files = await import("../src/services/files");
-  projects = await import("../src/services/projects");
+  spaces = await import("../src/services/spaces");
   app = (await import("../src/app")).default;
   await client.withTenant(A, async () => {
     const created = await wizards.createWizard("user-a", { definition });
@@ -71,7 +71,7 @@ describe("tenants", () => {
       await expect(wizards.ownedWizard("user-a", wizardId)).rejects.toMatchObject({
         code: "not_found",
       });
-      const own = await projects.listProjects("user-b");
+      const own = await spaces.listSpaces("user-b");
       expect(own).toHaveLength(1);
       expect(own[0].wizardCount).toBe(0);
     });
@@ -80,13 +80,13 @@ describe("tenants", () => {
 
   it("names a tenant's first space in the language of whoever opens the studio first", async () => {
     await client.withTenant("tenant-de", async () => {
-      const [first] = await projects.listProjects("user-de", "de");
+      const [first] = await spaces.listSpaces("user-de", "de");
       expect(first.name).toBe("Mein Computer");
       // Once it exists, a later request in another language doesn't rename it.
-      expect((await projects.listProjects("user-de", "en"))[0].name).toBe("Mein Computer");
+      expect((await spaces.listSpaces("user-de", "en"))[0].name).toBe("Mein Computer");
     });
     await client.withTenant("tenant-en", async () => {
-      expect((await projects.listProjects("user-en", "en"))[0].name).toBe("My computer");
+      expect((await spaces.listSpaces("user-en", "en"))[0].name).toBe("My computer");
     });
   });
 

@@ -14,12 +14,12 @@ import {
   FONT_USES,
   factKey,
   gradientCss,
-  PROJECT_FILE_KINDS,
-  PROJECT_LIMITS,
   parseGradient,
   RULE_MARKS,
+  SPACE_FILE_KINDS,
+  SPACE_LIMITS,
   textStyleLine,
-} from "@engenty/wizards-shared/projects";
+} from "@engenty/wizards-shared/spaces";
 import { createTool } from "@mastra/core/tools";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -40,16 +40,16 @@ import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
 import type { ChatRow, TurnHistory } from "../services/assistant-chats.js";
 import { knowledgeCounts } from "../services/knowledge.js";
-import {
-  addProjectFileFromUrl,
-  projectFileContent,
-  projectFiles,
-  updateProjectFile,
-} from "../services/project-files.js";
-import { documentText } from "../services/project-index.js";
-import { ownedProject, type ProjectRow, updateProject } from "../services/projects.js";
 import { activeSkills, skillList } from "../services/skills.js";
 import { categoryRows } from "../services/space-categories.js";
+import {
+  addSpaceFileFromUrl,
+  spaceFileContent,
+  spaceFiles,
+  updateSpaceFile,
+} from "../services/space-files.js";
+import { documentText } from "../services/space-index.js";
+import { ownedSpace, type SpaceRow, updateSpace } from "../services/spaces.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
@@ -65,7 +65,7 @@ export interface AssistantInput {
   chat: ChatRow;
   history: TurnHistory;
   /** The space the studio shows; null where it has none. */
-  project: ProjectRow | null;
+  space: SpaceRow | null;
   /** The space may be changed: its tools and the plugins' tools are there. */
   writable: boolean;
   message: string;
@@ -179,13 +179,13 @@ function activity(tool: string, args: Record<string, unknown>, lang: Lang): stri
 /** A tool failure the model can read and fix, instead of a crashed turn: the whole message. */
 const attempt = <T>(run: () => Promise<T>) => attemptTool(run, { limit: Number.POSITIVE_INFINITY });
 
-async function projectState(userId: string, projectId: string) {
-  const p = await ownedProject(userId, projectId);
-  const files = await projectFiles(projectId);
-  const categories = await categoryRows(projectId);
+async function spaceState(userId: string, spaceId: string) {
+  const p = await ownedSpace(userId, spaceId);
+  const files = await spaceFiles(spaceId);
+  const categories = await categoryRows(spaceId);
   return {
     knowledge: {
-      ...(await knowledgeCounts(projectId)),
+      ...(await knowledgeCounts(spaceId)),
       categories: categories.map((c) => `${c.name} (${c.type}${c.proposed ? ", proposed" : ""})`),
     },
     title: p.brand.name ?? "",
@@ -278,15 +278,10 @@ interface BrandSwitches {
   typography: boolean;
 }
 
-function spaceTools(
-  input: AssistantInput,
-  project: ProjectRow,
-  wrote: () => void,
-  on: BrandSwitches,
-) {
+function spaceTools(input: AssistantInput, space: SpaceRow, wrote: () => void, on: BrandSwitches) {
   const { signal } = input;
   const userId = input.user.id;
-  const projectId = project.id;
+  const spaceId = space.id;
   // Said from inside the tool: an installed AI client runs tools without the stream showing it.
   const doing = (tool: string, args: Record<string, unknown> = {}) => {
     const label = activity(tool, args, input.lang);
@@ -294,7 +289,7 @@ function spaceTools(
       input.onActivity?.(label);
     }
   };
-  // Tools of one step run together; writes to the project's row take turns.
+  // Tools of one step run together; writes to the space's row take turns.
   let turn: Promise<unknown> = Promise.resolve();
   const inTurn = <T>(run: () => Promise<T>): Promise<T> => {
     const next = turn.then(run, run);
@@ -322,7 +317,7 @@ function spaceTools(
         attempt(() =>
           inTurn(async () => {
             doing("set_profile");
-            await updateProject(userId, projectId, {
+            await updateSpace(userId, spaceId, {
               brand: {
                 ...(title !== undefined ? { name: title } : {}),
                 ...(about !== undefined ? { about } : {}),
@@ -351,7 +346,7 @@ function spaceTools(
         attempt(() =>
           inTurn(async () => {
             doing("set_facts");
-            const p = await ownedProject(userId, projectId);
+            const p = await ownedSpace(userId, spaceId);
             const next = [...p.facts];
             for (const f of facts) {
               const label = f.label.trim();
@@ -371,10 +366,10 @@ function spaceTools(
                 });
               }
             }
-            if (next.length > PROJECT_LIMITS.facts) {
-              throw new Error(`A project holds at most ${PROJECT_LIMITS.facts} facts.`);
+            if (next.length > SPACE_LIMITS.facts) {
+              throw new Error(`A space holds at most ${SPACE_LIMITS.facts} facts.`);
             }
-            await updateProject(userId, projectId, { facts: next });
+            await updateSpace(userId, spaceId, { facts: next });
             wrote();
             return { ok: true, facts: next.length };
           }),
@@ -388,10 +383,10 @@ function spaceTools(
         attempt(() =>
           inTurn(async () => {
             doing("remove_facts");
-            const p = await ownedProject(userId, projectId);
+            const p = await ownedSpace(userId, spaceId);
             const gone = new Set(labels.map((l) => l.trim().toLowerCase()));
             const next = p.facts.filter((f) => !gone.has(f.label.toLowerCase()));
-            await updateProject(userId, projectId, { facts: next });
+            await updateSpace(userId, spaceId, { facts: next });
             wrote();
             return { ok: true, removed: p.facts.length - next.length };
           }),
@@ -409,10 +404,10 @@ function spaceTools(
               section: z.string().max(80).optional().describe("A section's title"),
             }),
           )
-          .max(PROJECT_LIMITS.colors),
+          .max(SPACE_LIMITS.colors),
         sections: z
           .array(z.object({ title: z.string().min(1).max(80) }))
-          .max(PROJECT_LIMITS.logoSections)
+          .max(SPACE_LIMITS.logoSections)
           .optional(),
       }),
       execute: ({ colors, sections }) =>
@@ -424,7 +419,7 @@ function spaceTools(
                 "Colour sections are not available in this studio: pass the colours without them.",
               );
             }
-            const p = await ownedProject(userId, projectId);
+            const p = await ownedSpace(userId, spaceId);
             const groups = sections
               ? sections.map((s) => ({
                   id: p.brand.colorSections?.find((x) => x.title === s.title)?.id ?? nanoid(10),
@@ -439,7 +434,7 @@ function spaceTools(
                 `No colour section named: ${unknown.map((c) => c.section).join(", ")}`,
               );
             }
-            await updateProject(userId, projectId, {
+            await updateSpace(userId, spaceId, {
               brand: {
                 colors: colors.map(({ section, ...c }) => {
                   const id = groups.find((s) => s.title === section)?.id;
@@ -468,18 +463,18 @@ function spaceTools(
               logos: z.array(z.string()).describe("Ids of the space's logo files, in order"),
             }),
           )
-          .max(PROJECT_LIMITS.logoSections),
+          .max(SPACE_LIMITS.logoSections),
       }),
       execute: ({ sections }) =>
         attempt(() =>
           inTurn(async () => {
             doing("set_logo_sections");
-            const logos = (await projectFiles(projectId, "logo")).map((f) => f.id);
+            const logos = (await spaceFiles(spaceId, "logo")).map((f) => f.id);
             const unknown = sections.flatMap((s) => s.logos).filter((id) => !logos.includes(id));
             if (unknown.length) {
               throw new Error(`Not a logo of this space: ${unknown.join(", ")}`);
             }
-            await updateProject(userId, projectId, {
+            await updateSpace(userId, spaceId, {
               brand: {
                 logoSections: cleanLogoSections(
                   sections.map((s) => ({ ...s, id: nanoid(10) })),
@@ -503,18 +498,18 @@ function spaceTools(
               assets: z.array(z.string()).describe("Ids of the space's asset files, in order"),
             }),
           )
-          .max(PROJECT_LIMITS.logoSections),
+          .max(SPACE_LIMITS.logoSections),
       }),
       execute: ({ sections }) =>
         attempt(() =>
           inTurn(async () => {
             doing("set_asset_sections");
-            const assets = (await projectFiles(projectId, "asset")).map((f) => f.id);
+            const assets = (await spaceFiles(spaceId, "asset")).map((f) => f.id);
             const unknown = sections.flatMap((s) => s.assets).filter((id) => !assets.includes(id));
             if (unknown.length) {
               throw new Error(`Not an asset of this space: ${unknown.join(", ")}`);
             }
-            await updateProject(userId, projectId, {
+            await updateSpace(userId, spaceId, {
               brand: {
                 assetSections: cleanAssetSections(
                   sections.map((s) => ({ ...s, id: nanoid(10) })),
@@ -548,7 +543,7 @@ function spaceTools(
                 .describe("All the licence allows it for, only where a source says so"),
             }),
           )
-          .max(PROJECT_LIMITS.fonts),
+          .max(SPACE_LIMITS.fonts),
         textStyles: z
           .array(
             z.object({
@@ -561,19 +556,19 @@ function spaceTools(
               uppercase: z.boolean().optional(),
             }),
           )
-          .max(PROJECT_LIMITS.textStyles)
+          .max(SPACE_LIMITS.textStyles)
           .optional(),
       }),
       execute: ({ fonts, textStyles }) =>
         attempt(() =>
           inTurn(async () => {
             doing("set_typography");
-            const p = await ownedProject(userId, projectId);
+            const p = await ownedSpace(userId, spaceId);
             const faces = fonts.map((f) => ({
               ...f,
               id: p.brand.fonts?.find((x) => x.family === f.family)?.id ?? nanoid(10),
             }));
-            await updateProject(userId, projectId, {
+            await updateSpace(userId, spaceId, {
               brand: {
                 fonts: faces,
                 ...(textStyles
@@ -605,13 +600,13 @@ function spaceTools(
               css: z.string().max(1000),
             }),
           )
-          .max(PROJECT_LIMITS.gradients),
+          .max(SPACE_LIMITS.gradients),
       }),
       execute: ({ section, gradients }) =>
         attempt(() =>
           inTurn(async () => {
             doing("set_gradients");
-            const p = await ownedProject(userId, projectId);
+            const p = await ownedSpace(userId, spaceId);
             const sections = p.brand.colorSections ?? [];
             const found = sections.find((s) => s.title === section && s.kind === "gradients");
             const id = found?.id ?? nanoid(10);
@@ -620,7 +615,7 @@ function spaceTools(
             if (bad.length) {
               throw new Error(`Not a gradient with hex stops: ${bad.join(", ")}`);
             }
-            await updateProject(userId, projectId, {
+            await updateSpace(userId, spaceId, {
               brand: {
                 colorSections: found
                   ? sections
@@ -657,13 +652,13 @@ function spaceTools(
                 .describe("do, dont, important, question, number; none for a plain note"),
             }),
           )
-          .max(PROJECT_LIMITS.logoRules),
+          .max(SPACE_LIMITS.logoRules),
       }),
       execute: ({ of, rules }) =>
         attempt(() =>
           inTurn(async () => {
             doing("set_rules");
-            await updateProject(userId, projectId, {
+            await updateSpace(userId, spaceId, {
               brand:
                 of === "logos"
                   ? { logoRules: rules }
@@ -681,7 +676,7 @@ function spaceTools(
       description: prompt("goose", "tool.save_file"),
       inputSchema: z.object({
         url: z.string(),
-        kind: z.enum(PROJECT_FILE_KINDS),
+        kind: z.enum(SPACE_FILE_KINDS),
         description: z
           .string()
           .max(600)
@@ -691,7 +686,7 @@ function spaceTools(
       execute: ({ url, kind, description }) =>
         attempt(async () => {
           doing("save_file", { kind });
-          const row = await addProjectFileFromUrl(projectId, { url, kind, description, signal });
+          const row = await addSpaceFileFromUrl(spaceId, { url, kind, description, signal });
           wrote();
           return { ok: true, id: row.id, name: row.name, mime: row.mime, size: row.size };
         }),
@@ -703,7 +698,7 @@ function spaceTools(
       execute: ({ id, description }) =>
         attempt(async () => {
           doing("describe_file");
-          await updateProjectFile(projectId, id, { description });
+          await updateSpaceFile(spaceId, id, { description });
           wrote();
           return { ok: true };
         }),
@@ -718,7 +713,7 @@ function spaceTools(
       execute: ({ id, from }) =>
         attempt(async () => {
           doing("look_at_file");
-          const { row, data } = await projectFileContent(projectId, id);
+          const { row, data } = await spaceFileContent(spaceId, id);
           if (row.kind === "document") {
             const text = await documentText(row);
             if (!text) {
@@ -855,8 +850,8 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     input.onChanged?.();
   };
   const cards: AssistantCardRecord[] = [];
-  const { project } = input;
-  const space = project && input.writable ? project : null;
+  const { space } = input;
+  const writable = space && input.writable ? space : null;
   const switches = await currentFeatures();
   const brandOn: BrandSwitches = {
     brandSections: switches.brandSections === true,
@@ -866,7 +861,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   const tools: Record<string, any> = {
     ...knowsTools({
       user: input.user,
-      project: project ? { id: project.id, name: project.name } : null,
+      space: space ? { id: space.id, name: space.name } : null,
       lang: input.lang,
       chatId: input.chat.id,
       doing: (label) => input.onActivity?.(label),
@@ -875,7 +870,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
         input.onCard?.(card);
       },
     }),
-    ...(space ? spaceTools(input, space, wrote, brandOn) : {}),
+    ...(writable ? spaceTools(input, writable, wrote, brandOn) : {}),
   };
   // On everyday effort the chat can offer extra effort for work that asks for more: a card with
   // a button, while it goes on answering.
@@ -900,12 +895,12 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     });
   }
   // What the tenant's plugins let the assistant do besides: a source of knowledge, say.
-  if (space) {
+  if (writable) {
     Object.assign(
       tools,
       await assistantToolsOf({
         tenantId: currentTenant(),
-        space: { id: space.id, name: space.name },
+        space: { id: writable.id, name: writable.name },
         userId: input.user.id,
         signal: input.signal ?? new AbortController().signal,
         emit: (message) => input.onActivity?.(message),
@@ -918,8 +913,8 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     );
   }
   // The space's skills (docs/plans/skills.md): Goose reads them as a step does.
-  const skills = project && switches.skills === true ? await activeSkills(project.id) : null;
-  const allSkills = project && switches.skills === true ? await skillList(project.id) : [];
+  const skills = space && switches.skills === true ? await activeSkills(space.id) : null;
+  const allSkills = space && switches.skills === true ? await skillList(space.id) : [];
   if (skills) {
     Object.assign(
       tools,
@@ -954,8 +949,8 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   });
   const page = input.page;
   const pluginPage =
-    page?.plugin && project
-      ? await assistantPageOf(currentTenant(), page.plugin, { id: project.id, name: project.name })
+    page?.plugin && space
+      ? await assistantPageOf(currentTenant(), page.plugin, { id: space.id, name: space.name })
       : null;
   const part = page ? partOf(page.route) : null;
   const { history } = input;
@@ -986,10 +981,10 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
           ...pluginPage.blocks,
         ].join("\n\n")
       : "",
-    space
-      ? `The space now:\n\`\`\`json\n${JSON.stringify(await projectState(input.user.id, space.id))}\n\`\`\``
-      : project
-        ? prompt("goose", "turn.space_read_only", { name: project.name })
+    writable
+      ? `The space now:\n\`\`\`json\n${JSON.stringify(await spaceState(input.user.id, writable.id))}\n\`\`\``
+      : space
+        ? prompt("goose", "turn.space_read_only", { name: space.name })
         : "No space is open.",
     part === "knowledge" ? prompt("goose", "turn.knowledge") : "",
     allSkills.length
@@ -1000,7 +995,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
       : part === "skills"
         ? prompt("goose", "turn.skills_empty")
         : "",
-    space && !(brandOn.brandSections && brandOn.brandRules && brandOn.typography)
+    writable && !(brandOn.brandSections && brandOn.brandRules && brandOn.typography)
       ? prompt("goose", "turn.off", {
           missing: [
             brandOn.brandSections ? "" : "sections of logos and colours, gradients and patterns",

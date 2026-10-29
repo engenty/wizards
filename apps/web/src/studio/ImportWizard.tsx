@@ -6,10 +6,10 @@ import { useNavigate } from "react-router";
 import { ApiError, api } from "../lib/api";
 import { t } from "../lib/i18n";
 import { keys } from "../lib/keys";
-import { useCurrentProject, useMayCreate } from "../lib/session";
+import { useCurrentSpace, useMayCreate } from "../lib/session";
 import { Button, Dialog } from "../ui";
 
-/** Makes a new wizard in the current project of a package (`.wizard`) and opens it. */
+/** Makes a new wizard in the current space of a package (`.wizard`) and opens it. */
 export function ImportWizard({
   variant = "secondary",
   label = t("home.import"),
@@ -19,12 +19,12 @@ export function ImportWizard({
 }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   const build = useMayCreate();
   const input = useRef<HTMLInputElement>(null);
   const upload = useMutation({
     mutationFn: (file: File) =>
-      api.upload<{ id: string }>(`/api/studio/projects/${project!.id}/wizards/import`, file),
+      api.upload<{ id: string }>(`/api/studio/spaces/${space!.id}/wizards/import`, file),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });
@@ -33,8 +33,8 @@ export function ImportWizard({
   });
   const issues: ValidationIssue[] =
     upload.error instanceof ApiError ? (upload.error.body?.issues ?? []) : [];
-  // Importing makes a wizard: not offered where nothing is made, or the project is not changed here.
-  if (!build || project?.readOnly) {
+  // Importing makes a wizard: not offered where nothing is made, or the space is not changed here.
+  if (!build || space?.readOnly) {
     return null;
   }
   return (
@@ -42,7 +42,7 @@ export function ImportWizard({
       <Button
         variant={variant}
         busy={upload.isPending}
-        disabled={!project}
+        disabled={!space}
         onClick={() => input.current?.click()}
       >
         <Upload className="size-4" /> {label}

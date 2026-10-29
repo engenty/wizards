@@ -16,7 +16,7 @@ import { type Key, lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import { type Me, useMe } from "../lib/session";
 import { Button, Chip, Spinner, Switch } from "../ui";
-import { Section } from "./project/Section";
+import { Section } from "./space/Section";
 
 /**
  * The two-way sync of this computer's spaces with the organization in the cloud

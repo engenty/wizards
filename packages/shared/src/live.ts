@@ -17,7 +17,7 @@ export interface LiveItem {
   op: LiveOp;
   /** The changed item's id, as the two-way sync names it. */
   item: string;
-  projectId: string | null;
+  spaceId: string | null;
   /** Where the item shows when its id alone doesn't say: a row's table, a translation's wizard. */
   parent: string | null;
   /** The feed's number of the item's last change in this batch. */

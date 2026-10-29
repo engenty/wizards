@@ -55,7 +55,7 @@ export const BROWSER_TOOL_TIMEOUT_MS = 60_000;
 export const assistantTurnSchema = z.object({
   message: z.string().min(1).max(8000),
   /** The space the page shows; its tools need it. */
-  projectId: z.string().max(80).optional(),
+  spaceId: z.string().max(80).optional(),
   page: assistantPageSchema.optional(),
   tools: z.array(browserToolSchema).max(40).default([]),
   /** Developer mode: the turn also sends its prompt and each step (`prompt`, `step`). */

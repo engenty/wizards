@@ -39,11 +39,11 @@ import {
 import { api } from "../lib/api";
 import { STUDIO_PAGES, withBase } from "../lib/base";
 import { lang, t } from "../lib/i18n";
-import { type Me, useCurrentProject } from "../lib/session";
+import { type Me, useCurrentSpace } from "../lib/session";
 import { useCrumbs } from "../studio/AppFrame";
 import { useAssistantPage } from "../studio/assistant/page";
 import { useAssistantTool } from "../studio/assistant/tools";
-import { OWN_SPACE_SECTIONS } from "../studio/project-sections";
+import { OWN_SPACE_SECTIONS } from "../studio/space-sections";
 import * as ui from "../ui";
 
 /**
@@ -148,7 +148,7 @@ export function useStudioPlugins(): StudioPlugins {
 }
 
 /** The sections of the studio's own settings. */
-const OWN_SECTIONS = new Set(["account", "project", "connectors", "models", "build", "plugins"]);
+const OWN_SECTIONS = new Set(["account", "space", "connectors", "models", "build", "plugins"]);
 /** The space page's own parts. */
 const OWN_PARTS = new Set(["info", "brand", "knowledge", "data", "page", "results"]);
 
@@ -179,14 +179,14 @@ interface Draft {
 
 /** The space the studio shows, as a plugin sees it; the same object while nothing changes. */
 function useSpace(): StudioSpace | null {
-  const { project } = useCurrentProject();
-  const id = project?.id;
-  const name = project?.name ?? "";
-  const readOnly = project?.readOnly ?? false;
+  const { space } = useCurrentSpace();
+  const id = space?.id;
+  const name = space?.name ?? "";
+  const readOnly = space?.readOnly ?? false;
   const brand = JSON.stringify({
-    name: project?.brand.name ?? "",
-    colors: (project?.brand.colors ?? []).map(({ name, value }) => ({ name, value })),
-    fonts: (project?.brand.fonts ?? []).map(({ family, role, weights }) => ({
+    name: space?.brand.name ?? "",
+    colors: (space?.brand.colors ?? []).map(({ name, value }) => ({ name, value })),
+    fonts: (space?.brand.fonts ?? []).map(({ family, role, weights }) => ({
       family,
       role,
       weights,

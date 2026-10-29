@@ -59,12 +59,12 @@ import {
   GuestBudgetError,
   goBack,
   NoCreditsError,
-  projectIdOf,
   RunConflict,
   RunInputError,
   retry,
   reviewStep,
   runView,
+  spaceIdOf,
   submitPage,
   talkAllowed,
 } from "../engine/runner.js";
@@ -224,7 +224,7 @@ async function accessibleRun(c: Context, runId: string, opts: { signed?: boolean
 
 async function viewOf(run: NonNullable<Awaited<ReturnType<typeof accessibleRun>>>) {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
-  return runView(run, await brandView(w?.projectId ?? "", run.definition.themes));
+  return runView(run, await brandView(w?.spaceId ?? "", run.definition.themes));
 }
 
 function commandError(c: Context, err: unknown) {
@@ -365,7 +365,7 @@ async function publicBody(
     costume: def.costume,
     intro: def.intro ?? null,
     // `?theme=`: the theme the page showing the wizard asks for (an embed's `data-theme`).
-    brand: await brandView(w.projectId, def.themes, c.req.query("theme")?.slice(0, 80)),
+    brand: await brandView(w.spaceId, def.themes, c.req.query("theme")?.slice(0, 80)),
     turnstileSiteKey: env.turnstile.siteKey || null,
     available: !reason,
     unavailableReason: reason && noteText(reason, requestLang(c)),
@@ -676,9 +676,9 @@ export const publicRoutes = new Hono()
   // frames load it from here, so any origin may.
   .get("/fonts/:id", async (c) => {
     const id = c.req.param("id");
-    const row = await db.query.projectFile.findFirst({ where: eq(schema.projectFile.id, id) });
+    const row = await db.query.spaceFile.findFirst({ where: eq(schema.spaceFile.id, id) });
     const p = row
-      ? await db.query.project.findFirst({ where: eq(schema.project.id, row.projectId) })
+      ? await db.query.space.findFirst({ where: eq(schema.space.id, row.spaceId) })
       : null;
     const named = p?.brand.fonts?.some(
       (f) => f.source && "file" in f.source && f.source.file === id,
@@ -1287,17 +1287,15 @@ export const runRoutes = new Hono()
   // --- the person's accounts ----------------------------------------------------
   .post("/:id/connections/:connectionId/oauth/:connectorId", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
-    const projectId = run ? await projectIdOf(run) : "";
-    const connection = run
-      ? await findConnection(run, c.req.param("connectionId"), projectId)
-      : null;
+    const spaceId = run ? await spaceIdOf(run) : "";
+    const connection = run ? await findConnection(run, c.req.param("connectionId"), spaceId) : null;
     if (!run || !connection) {
       return c.json(notFoundAnswer(c), 404);
     }
     try {
       const url = await startOAuth(
         scopeOf(run),
-        await projectIdOf(run),
+        await spaceIdOf(run),
         run.id,
         connection,
         c.req.param("connectorId"),
@@ -1313,10 +1311,8 @@ export const runRoutes = new Hono()
   })
   .post("/:id/connections/:connectionId/credentials/:connectorId", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"));
-    const projectId = run ? await projectIdOf(run) : "";
-    const connection = run
-      ? await findConnection(run, c.req.param("connectionId"), projectId)
-      : null;
+    const spaceId = run ? await spaceIdOf(run) : "";
+    const connection = run ? await findConnection(run, c.req.param("connectionId"), spaceId) : null;
     if (!run || !connection) {
       return c.json(notFoundAnswer(c), 404);
     }
@@ -1326,7 +1322,7 @@ export const runRoutes = new Hono()
     try {
       const label = await connectWithCredentials(
         scopeOf(run),
-        projectId,
+        spaceId,
         connection,
         c.req.param("connectorId"),
         values,
@@ -1456,7 +1452,7 @@ export const runRoutes = new Hono()
           await connectionViews(
             run.definition.connections ?? [],
             scope,
-            await projectIdOf(run),
+            await spaceIdOf(run),
             requestLang(c),
           )
         ).filter((x) => x.account),
@@ -1574,7 +1570,7 @@ export const runRoutes = new Hono()
       return c.json({ error: "not found" }, 404);
     }
     return c.json(
-      await shareOverview(run, await projectIdOf(run), await isMember(c, run), langOf(c)),
+      await shareOverview(run, await spaceIdOf(run), await isMember(c, run), langOf(c)),
     );
   })
   .get("/:id/share/targets/:key/choices/:field", async (c) => {

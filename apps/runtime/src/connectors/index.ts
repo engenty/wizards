@@ -81,7 +81,7 @@ type RunRow = typeof schema.run.$inferSelect;
 type ConnectionSource = (
   run: RunRow,
   connectionId: string,
-  projectId: string,
+  spaceId: string,
 ) => Promise<ConnectionDef | null>;
 const sources: ConnectionSource[] = [];
 
@@ -93,14 +93,14 @@ export function registerConnectionSource(source: ConnectionSource) {
 export async function findConnection(
   run: RunRow,
   connectionId: string,
-  projectId: string,
+  spaceId: string,
 ): Promise<ConnectionDef | null> {
   const declared = run.definition.connections?.find((c) => c.id === connectionId);
   if (declared) {
     return declared;
   }
   for (const source of sources) {
-    const found = await source(run, connectionId, projectId);
+    const found = await source(run, connectionId, spaceId);
     if (found) {
       return found;
     }
@@ -133,15 +133,15 @@ const open = (connector: ConnectorDefinition) =>
  * The connectors behind a connection: the built-in ones of its kind, the one it names, or the
  * ones a share target lets the person pick from.
  */
-async function candidates(connection: ConnectionDef, projectId: string) {
+async function candidates(connection: ConnectionDef, spaceId: string) {
   if (connection.target) {
     const found = await Promise.all(
-      connection.target.connectors.map((id) => resolveConnector(projectId, id)),
+      connection.target.connectors.map((id) => resolveConnector(spaceId, id)),
     );
     return found.flatMap((f) => (f ? [f.connector] : []));
   }
   if (connection.connector) {
-    const found = await resolveConnector(projectId, connection.connector);
+    const found = await resolveConnector(spaceId, connection.connector);
     return found ? [found.connector] : [];
   }
   return connection.kind ? CONNECTORS[connection.kind] : [];
@@ -149,11 +149,11 @@ async function candidates(connection: ConnectionDef, projectId: string) {
 
 export async function connectorOptions(
   connection: ConnectionDef,
-  projectId: string,
+  spaceId: string,
   lang: Lang = "en",
 ): Promise<ConnectorOption[]> {
   const out: ConnectorOption[] = [];
-  for (const c of await candidates(connection, projectId)) {
+  for (const c of await candidates(connection, spaceId)) {
     if (!(await usable(c))) {
       continue;
     }
@@ -178,9 +178,9 @@ export async function connectorOptions(
 async function connectorFor(
   connection: ConnectionDef,
   connectorId: string,
-  projectId: string,
+  spaceId: string,
 ): Promise<ConnectorDefinition> {
-  const connector = (await candidates(connection, projectId)).find((c) => c.id === connectorId);
+  const connector = (await candidates(connection, spaceId)).find((c) => c.id === connectorId);
   if (!connector) {
     throw new Error(`Unknown connector "${connectorId}".`);
   }
@@ -190,14 +190,14 @@ async function connectorFor(
 export async function connectionViews(
   connections: ConnectionDef[],
   scope: StoreScope,
-  projectId: string,
+  spaceId: string,
   /** The language the person reads the connectors' fields in. */
   lang: Lang = "en",
 ): Promise<ConnectionView[]> {
   return Promise.all(
     connections.map(async (c) => {
       const stored = await getSecret<StoredConnection>(scope, slot(c.id));
-      const only = c.connector ? (await candidates(c, projectId))[0] : undefined;
+      const only = c.connector ? (await candidates(c, spaceId))[0] : undefined;
       return {
         id: c.id,
         kind: c.kind ?? null,
@@ -213,7 +213,7 @@ export async function connectionViews(
           : only && open(only)
             ? { connector: only.id, label: only.name, connectedAt: new Date(0).toISOString() }
             : null,
-        connectors: await connectorOptions(c, projectId, lang),
+        connectors: await connectorOptions(c, spaceId, lang),
       };
     }),
   );
@@ -224,7 +224,7 @@ export async function connectionViews(
 /** Carried through the provider as `state`: sealed, so the PKCE verifier stays with us. */
 interface OAuthState {
   scope: StoreScope;
-  projectId: string;
+  spaceId: string;
   runId: string;
   connectionId: string;
   connectorId: string;
@@ -236,13 +236,13 @@ interface OAuthState {
 
 export async function startOAuth(
   scope: StoreScope,
-  projectId: string,
+  spaceId: string,
   runId: string,
   connection: ConnectionDef,
   connectorId: string,
   lang?: Lang,
 ): Promise<string> {
-  const connector = await connectorFor(connection, connectorId, projectId);
+  const connector = await connectorFor(connection, connectorId, spaceId);
   if (connector.auth.kind !== "oauth2") {
     throw new Error(`${connector.name} is not connected by signing in.`);
   }
@@ -250,7 +250,7 @@ export async function startOAuth(
     // The Manage-App keeps the PKCE verifier; ours stays empty.
     const state: OAuthState = {
       scope,
-      projectId,
+      spaceId,
       runId,
       connectionId: connection.id,
       connectorId,
@@ -273,7 +273,7 @@ export async function startOAuth(
   const pkce = createOAuth2Pkce();
   const state: OAuthState = {
     scope,
-    projectId,
+    spaceId,
     runId,
     connectionId: connection.id,
     connectorId,
@@ -315,11 +315,11 @@ export async function finishOAuth(
     throw new Error("The sign-in has expired. Connect again.");
   }
   const run = await db.query.run.findFirst({ where: eq(schema.run.id, state.runId) });
-  const connection = run ? await findConnection(run, state.connectionId, state.projectId) : null;
+  const connection = run ? await findConnection(run, state.connectionId, state.spaceId) : null;
   if (!connection) {
     throw new Error("The run this sign-in belongs to is gone.");
   }
-  const connector = await connectorFor(connection, state.connectorId, state.projectId);
+  const connector = await connectorFor(connection, state.connectorId, state.spaceId);
   if (connector.auth.kind !== "oauth2") {
     throw new Error("not an oauth connector");
   }
@@ -351,12 +351,12 @@ export async function finishOAuth(
 /** Connects an `api_key` connector with what the person typed; the connector checks it first. */
 export async function connectWithCredentials(
   scope: StoreScope,
-  projectId: string,
+  spaceId: string,
   connection: ConnectionDef,
   connectorId: string,
   values: Record<string, string>,
 ): Promise<string> {
-  const connector = await connectorFor(connection, connectorId, projectId);
+  const connector = await connectorFor(connection, connectorId, spaceId);
   if (connector.auth.kind !== "api_key") {
     throw new Error(`${connector.name} is connected by signing in.`);
   }
@@ -425,16 +425,16 @@ export function disconnect(scope: StoreScope, connectionId: string) {
 export async function connectionContext(
   scope: StoreScope,
   connection: ConnectionDef,
-  projectId: string,
+  spaceId: string,
 ): Promise<{ connector: ConnectorDefinition; ctx: ConnectorActionContext; label: string } | null> {
   const stored = await getSecret<StoredConnection>(scope, slot(connection.id));
   if (!stored) {
-    const only = connection.connector ? (await candidates(connection, projectId))[0] : undefined;
+    const only = connection.connector ? (await candidates(connection, spaceId))[0] : undefined;
     return only && open(only)
       ? { connector: only, label: only.name, ctx: actionContext(scope, connection, only, "{}", []) }
       : null;
   }
-  const connector = await connectorFor(connection, stored.provider, projectId);
+  const connector = await connectorFor(connection, stored.provider, spaceId);
   let data = stored.data;
   const expires = data.expiresAt ? Date.parse(data.expiresAt) : null;
   if (

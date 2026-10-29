@@ -20,9 +20,9 @@ import { asSync } from "../services/access.js";
 import { emitDraftChanged } from "../services/draft-events.js";
 import { forgetWizardLinks } from "../services/links.js";
 import { pushPages } from "../services/pages.js";
-import { removeProjectFile } from "../services/project-files.js";
-import { dropIndex, queueIndex } from "../services/project-index.js";
-import { removeProject } from "../services/projects.js";
+import { removeSpaceFile } from "../services/space-files.js";
+import { dropIndex, queueIndex } from "../services/space-index.js";
+import { removeSpace } from "../services/spaces.js";
 import { parseDraft } from "../services/wizards.js";
 import { putLink } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -36,18 +36,18 @@ import { currentTenant } from "../tenants/tenant.js";
  */
 
 /** What reading found: the item and its space; `null`: it is gone; `skip`: it is there but does not sync now. */
-export type ReadResult = { projectId: string; record: SyncRecord } | null | "skip";
+export type ReadResult = { spaceId: string; record: SyncRecord } | null | "skip";
 
 /** After a write: what follows outside the transaction (links, events, the index). */
 type After = () => Promise<void> | void;
 
 interface KindDef {
   read(item: string): Promise<ReadResult>;
-  /** Writes the record under `item` in `projectId`; returns what follows after the commit. */
-  write(projectId: string, item: string, record: SyncRecord): Promise<After | undefined>;
-  remove(projectId: string, item: string): Promise<After | undefined>;
+  /** Writes the record under `item` in `spaceId`; returns what follows after the commit. */
+  write(spaceId: string, item: string, record: SyncRecord): Promise<After | undefined>;
+  remove(spaceId: string, item: string): Promise<After | undefined>;
   /** Every item of this kind in the space, for a full pull or a first push. */
-  list(projectId: string): Promise<string[]>;
+  list(spaceId: string): Promise<string[]>;
   title(record: SyncRecord | null, item: string): string;
   /** Hashes of the bytes the record points to. */
   blobs?(record: SyncRecord): string[];
@@ -85,7 +85,7 @@ async function categoriesOf(column: ItemColumn, id: string) {
   }));
 }
 
-async function writeCategories(projectId: string, column: ItemColumn, id: string, list: unknown) {
+async function writeCategories(spaceId: string, column: ItemColumn, id: string, list: unknown) {
   await db.delete(schema.spaceItemCategory).where(eq(schema.spaceItemCategory[column], id));
   const rows = arr<Record<string, unknown>>(list).filter((a) => str(a.categoryId));
   if (!rows.length) {
@@ -93,7 +93,7 @@ async function writeCategories(projectId: string, column: ItemColumn, id: string
   }
   await db.insert(schema.spaceItemCategory).values(
     rows.map((a) => ({
-      projectId,
+      spaceId,
       categoryId: a.categoryId as string,
       pageId: column === "pageId" ? id : null,
       rowId: column === "rowId" ? id : null,
@@ -114,8 +114,8 @@ async function writeCategories(projectId: string, column: ItemColumn, id: string
 
 /** An item a plugin wrote under a key: another one under the same key here gives way to it. */
 async function clearOrigin(
-  table: typeof schema.spacePage | typeof schema.spaceTable | typeof schema.projectFile,
-  projectId: string,
+  table: typeof schema.spacePage | typeof schema.spaceTable | typeof schema.spaceFile,
+  spaceId: string,
   id: string,
   record: SyncRecord,
 ) {
@@ -128,7 +128,7 @@ async function clearOrigin(
     .delete(table)
     .where(
       and(
-        eq(table.projectId, projectId),
+        eq(table.spaceId, spaceId),
         eq(table.origin, origin),
         eq(table.originKey, key),
         ne(table.id, id),
@@ -140,14 +140,14 @@ async function clearOrigin(
 
 const space: KindDef = {
   async read(id) {
-    const p = await db.query.project.findFirst({
-      where: and(eq(schema.project.id, id), eq(schema.project.tenantId, currentTenant())),
+    const p = await db.query.space.findFirst({
+      where: and(eq(schema.space.id, id), eq(schema.space.tenantId, currentTenant())),
     });
     if (!p) {
       return null;
     }
     return {
-      projectId: p.id,
+      spaceId: p.id,
       record: {
         name: p.name,
         brand: p.brand,
@@ -158,7 +158,7 @@ const space: KindDef = {
     };
   },
   async write(id, _item, r) {
-    const before = await db.query.project.findFirst({ where: eq(schema.project.id, id) });
+    const before = await db.query.space.findFirst({ where: eq(schema.space.id, id) });
     const values = {
       name: str(r.name) ?? before?.name ?? "Space",
       brand: obj(r.brand),
@@ -168,11 +168,11 @@ const space: KindDef = {
     };
     if (before) {
       await db
-        .update(schema.project)
+        .update(schema.space)
         .set({ ...values, updatedAt: new Date() })
-        .where(eq(schema.project.id, id));
+        .where(eq(schema.space.id, id));
     } else {
-      await db.insert(schema.project).values({ id, tenantId: currentTenant(), ...values });
+      await db.insert(schema.space).values({ id, tenantId: currentTenant(), ...values });
     }
     return () => {
       spaceChanged(before ? "space.updated" : "space.created", id);
@@ -180,10 +180,10 @@ const space: KindDef = {
     };
   },
   async remove(id) {
-    await asSync(() => removeProject(id));
+    await asSync(() => removeSpace(id));
     return undefined;
   },
-  list: async (projectId) => [projectId],
+  list: async (spaceId) => [spaceId],
   title: (r, item) => str(r?.name) ?? item,
   check(merged) {
     const issues: string[] = [];
@@ -207,9 +207,9 @@ const wizard: KindDef = {
       orderBy: [asc(schema.wizardFile.path)],
     });
     return {
-      projectId: w.projectId,
+      spaceId: w.spaceId,
       record: {
-        projectId: w.projectId,
+        spaceId: w.spaceId,
         // The title is the draft's: it travels once, in the draft.
         draft: w.draft,
         shareEnabled: w.shareEnabled,
@@ -229,7 +229,7 @@ const wizard: KindDef = {
       },
     };
   },
-  async write(projectId, id, r) {
+  async write(spaceId, id, r) {
     const files = arr<Record<string, unknown>>(r.files).filter((f) => str(f.path) && str(f.hash));
     const { draft } = parseDraft(
       r.draft,
@@ -237,7 +237,7 @@ const wizard: KindDef = {
     );
     const before = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, id) });
     const values = {
-      projectId,
+      spaceId,
       title: draft.title,
       draft,
       shareEnabled: bool(r.shareEnabled, true),
@@ -291,18 +291,18 @@ const wizard: KindDef = {
       });
     };
   },
-  async remove(_projectId, id) {
+  async remove(_spaceId, id) {
     await forgetWizardLinks(id);
     await db
       .delete(schema.wizard)
       .where(and(eq(schema.wizard.id, id), eq(schema.wizard.tenantId, currentTenant())));
     return () => pushPages();
   },
-  async list(projectId) {
+  async list(spaceId) {
     const rows = await db
       .select({ id: schema.wizard.id })
       .from(schema.wizard)
-      .where(eq(schema.wizard.projectId, projectId));
+      .where(eq(schema.wizard.spaceId, spaceId));
     return rows.map((r) => r.id);
   },
   title: (r, item) => str(obj(r?.draft).title) ?? item,
@@ -348,14 +348,12 @@ const translation: KindDef = {
     const w = row
       ? await db.query.wizard.findFirst({
           where: eq(schema.wizard.id, wizardId),
-          columns: { projectId: true },
+          columns: { spaceId: true },
         })
       : null;
-    return row && w
-      ? { projectId: w.projectId, record: { wizardId, lang, texts: row.texts } }
-      : null;
+    return row && w ? { spaceId: w.spaceId, record: { wizardId, lang, texts: row.texts } } : null;
   },
-  async write(_projectId, item, r) {
+  async write(_spaceId, item, r) {
     const [wizardId, lang] = splitTwo(item);
     const texts = obj(r.texts) as never;
     await db
@@ -367,7 +365,7 @@ const translation: KindDef = {
       });
     return undefined;
   },
-  async remove(_projectId, item) {
+  async remove(_spaceId, item) {
     const [wizardId, lang] = splitTwo(item);
     await db
       .delete(schema.wizardTranslation)
@@ -379,12 +377,12 @@ const translation: KindDef = {
       );
     return undefined;
   },
-  async list(projectId) {
+  async list(spaceId) {
     const rows = await db
       .select({ wizardId: schema.wizardTranslation.wizardId, lang: schema.wizardTranslation.lang })
       .from(schema.wizardTranslation)
       .innerJoin(schema.wizard, eq(schema.wizard.id, schema.wizardTranslation.wizardId))
-      .where(eq(schema.wizard.projectId, projectId));
+      .where(eq(schema.wizard.spaceId, spaceId));
     return rows.map((r) => `${r.wizardId}:${r.lang}`);
   },
   title: (_r, item) => splitTwo(item)[1],
@@ -396,14 +394,14 @@ const message: KindDef = {
     const w = m
       ? await db.query.wizard.findFirst({
           where: eq(schema.wizard.id, m.wizardId),
-          columns: { projectId: true },
+          columns: { spaceId: true },
         })
       : null;
     if (!m || !w) {
       return null;
     }
     return {
-      projectId: w.projectId,
+      spaceId: w.spaceId,
       record: {
         wizardId: m.wizardId,
         role: m.role,
@@ -415,7 +413,7 @@ const message: KindDef = {
       },
     };
   },
-  async write(_projectId, id, r) {
+  async write(_spaceId, id, r) {
     const values = {
       wizardId: String(r.wizardId),
       role: (r.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
@@ -431,16 +429,16 @@ const message: KindDef = {
       .onConflictDoUpdate({ target: schema.wizardMessage.id, set: values });
     return undefined;
   },
-  async remove(_projectId, id) {
+  async remove(_spaceId, id) {
     await db.delete(schema.wizardMessage).where(eq(schema.wizardMessage.id, id));
     return undefined;
   },
-  async list(projectId) {
+  async list(spaceId) {
     const rows = await db
       .select({ id: schema.wizardMessage.id })
       .from(schema.wizardMessage)
       .innerJoin(schema.wizard, eq(schema.wizard.id, schema.wizardMessage.wizardId))
-      .where(eq(schema.wizard.projectId, projectId));
+      .where(eq(schema.wizard.spaceId, spaceId));
     return rows.map((r) => r.id);
   },
   title: (r) => (str(r?.content) ?? "").slice(0, 60),
@@ -459,9 +457,9 @@ const page: KindDef = {
       return "skip";
     }
     return {
-      projectId: p.projectId,
+      spaceId: p.spaceId,
       record: {
-        projectId: p.projectId,
+        spaceId: p.spaceId,
         title: p.title,
         slug: p.slug,
         markdown: p.markdown,
@@ -477,10 +475,10 @@ const page: KindDef = {
       },
     };
   },
-  async write(projectId, id, r) {
-    await clearOrigin(schema.spacePage, projectId, id, r);
+  async write(spaceId, id, r) {
+    await clearOrigin(schema.spacePage, spaceId, id, r);
     const values = {
-      projectId,
+      spaceId,
       title: str(r.title) ?? "",
       slug: str(r.slug),
       markdown: str(r.markdown) ?? "",
@@ -500,18 +498,18 @@ const page: KindDef = {
         target: schema.spacePage.id,
         set: { ...values, updatedAt: new Date() },
       });
-    await writeCategories(projectId, "pageId", id, r.categories);
+    await writeCategories(spaceId, "pageId", id, r.categories);
     return () => queueIndex(`P:${id}`);
   },
-  async remove(_projectId, id) {
+  async remove(_spaceId, id) {
     await db.delete(schema.spacePage).where(eq(schema.spacePage.id, id));
     return undefined;
   },
-  async list(projectId) {
+  async list(spaceId) {
     const rows = await db
       .select({ id: schema.spacePage.id })
       .from(schema.spacePage)
-      .where(and(eq(schema.spacePage.projectId, projectId), isNull(schema.spacePage.wizardId)));
+      .where(and(eq(schema.spacePage.spaceId, spaceId), isNull(schema.spacePage.wizardId)));
     return rows.map((r) => r.id);
   },
   title: (r, item) => str(r?.title) ?? item,
@@ -529,9 +527,9 @@ const table: KindDef = {
       return "skip";
     }
     return {
-      projectId: t.projectId,
+      spaceId: t.spaceId,
       record: {
-        projectId: t.projectId,
+        spaceId: t.spaceId,
         title: t.title,
         slug: t.slug,
         format: t.format,
@@ -546,10 +544,10 @@ const table: KindDef = {
       },
     };
   },
-  async write(projectId, id, r) {
-    await clearOrigin(schema.spaceTable, projectId, id, r);
+  async write(spaceId, id, r) {
+    await clearOrigin(schema.spaceTable, spaceId, id, r);
     const values = {
-      projectId,
+      spaceId,
       title: str(r.title) ?? "",
       slug: str(r.slug),
       format: (r.format === "faq" ? "faq" : null) as "faq" | null,
@@ -568,18 +566,18 @@ const table: KindDef = {
         target: schema.spaceTable.id,
         set: { ...values, updatedAt: new Date() },
       });
-    await writeCategories(projectId, "tableId", id, r.categories);
+    await writeCategories(spaceId, "tableId", id, r.categories);
     return () => queueIndex(`t:${id}`);
   },
-  async remove(_projectId, id) {
+  async remove(_spaceId, id) {
     await db.delete(schema.spaceTable).where(eq(schema.spaceTable.id, id));
     return undefined;
   },
-  async list(projectId) {
+  async list(spaceId) {
     const rows = await db
       .select({ id: schema.spaceTable.id })
       .from(schema.spaceTable)
-      .where(and(eq(schema.spaceTable.projectId, projectId), isNull(schema.spaceTable.wizardId)));
+      .where(and(eq(schema.spaceTable.spaceId, spaceId), isNull(schema.spaceTable.wizardId)));
     return rows.map((r) => r.id);
   },
   title: (r, item) => str(r?.title) ?? item,
@@ -597,7 +595,7 @@ const row: KindDef = {
             eq(schema.spaceTable.id, r.tableId),
             eq(schema.spaceTable.tenantId, currentTenant()),
           ),
-          columns: { projectId: true, wizardId: true },
+          columns: { spaceId: true, wizardId: true },
         })
       : null;
     if (!r || !t) {
@@ -607,9 +605,9 @@ const row: KindDef = {
       return "skip";
     }
     return {
-      projectId: t.projectId,
+      spaceId: t.spaceId,
       record: {
-        projectId: t.projectId,
+        spaceId: t.spaceId,
         tableId: r.tableId,
         key: r.key,
         cells: r.cells,
@@ -618,7 +616,7 @@ const row: KindDef = {
       },
     };
   },
-  async write(projectId, id, r) {
+  async write(spaceId, id, r) {
     const values = {
       tableId: String(r.tableId),
       key: str(r.key),
@@ -632,19 +630,19 @@ const row: KindDef = {
         target: schema.spaceTableRow.id,
         set: { ...values, updatedAt: new Date() },
       });
-    await writeCategories(projectId, "rowId", id, r.categories);
+    await writeCategories(spaceId, "rowId", id, r.categories);
     return () => queueIndex(`r:${id}`);
   },
-  async remove(_projectId, id) {
+  async remove(_spaceId, id) {
     await db.delete(schema.spaceTableRow).where(eq(schema.spaceTableRow.id, id));
     return undefined;
   },
-  async list(projectId) {
+  async list(spaceId) {
     const rows = await db
       .select({ id: schema.spaceTableRow.id })
       .from(schema.spaceTableRow)
       .innerJoin(schema.spaceTable, eq(schema.spaceTable.id, schema.spaceTableRow.tableId))
-      .where(and(eq(schema.spaceTable.projectId, projectId), isNull(schema.spaceTable.wizardId)));
+      .where(and(eq(schema.spaceTable.spaceId, spaceId), isNull(schema.spaceTable.wizardId)));
     return rows.map((r) => r.id);
   },
   title(r, item) {
@@ -679,9 +677,9 @@ async function rekeyValue(from: string, to: string) {
     .set({ valueId: to })
     .where(eq(schema.spaceItemCategory.valueId, from));
   await db
-    .update(schema.projectChunk)
+    .update(schema.spaceChunk)
     .set({ valueId: to })
-    .where(eq(schema.projectChunk.valueId, from));
+    .where(eq(schema.spaceChunk.valueId, from));
 }
 
 const category: KindDef = {
@@ -700,9 +698,9 @@ const category: KindDef = {
       orderBy: [asc(schema.spaceCategoryValue.position), asc(schema.spaceCategoryValue.id)],
     });
     return {
-      projectId: c.projectId,
+      spaceId: c.spaceId,
       record: {
-        projectId: c.projectId,
+        spaceId: c.spaceId,
         name: c.name,
         type: c.type,
         unit: c.unit,
@@ -723,11 +721,11 @@ const category: KindDef = {
       },
     };
   },
-  async write(projectId, id, r) {
+  async write(spaceId, id, r) {
     const name = str(r.name) ?? "";
     const same = await db.query.spaceCategory.findFirst({
       where: and(
-        eq(schema.spaceCategory.projectId, projectId),
+        eq(schema.spaceCategory.spaceId, spaceId),
         eq(schema.spaceCategory.name, name),
         ne(schema.spaceCategory.id, id),
       ),
@@ -739,7 +737,7 @@ const category: KindDef = {
     }
     const type = (r.type as string) ?? "text";
     const values = {
-      projectId,
+      spaceId,
       name,
       type: (["choice", "date", "number", "text", "boolean"].includes(type) ? type : "text") as
         | "choice"
@@ -812,15 +810,15 @@ const category: KindDef = {
       }
     };
   },
-  async remove(_projectId, id) {
+  async remove(_spaceId, id) {
     await db.delete(schema.spaceCategory).where(eq(schema.spaceCategory.id, id));
     return undefined;
   },
-  async list(projectId) {
+  async list(spaceId) {
     const rows = await db
       .select({ id: schema.spaceCategory.id })
       .from(schema.spaceCategory)
-      .where(eq(schema.spaceCategory.projectId, projectId));
+      .where(eq(schema.spaceCategory.spaceId, spaceId));
     return rows.map((r) => r.id);
   },
   title: (r, item) => str(r?.name) ?? item,
@@ -830,13 +828,10 @@ const assetKey = (path: string) => `assets/${path}`;
 
 const file: KindDef = {
   async read(id) {
-    const f = await db.query.projectFile.findFirst({ where: eq(schema.projectFile.id, id) });
+    const f = await db.query.spaceFile.findFirst({ where: eq(schema.spaceFile.id, id) });
     const p = f
-      ? await db.query.project.findFirst({
-          where: and(
-            eq(schema.project.id, f.projectId),
-            eq(schema.project.tenantId, currentTenant()),
-          ),
+      ? await db.query.space.findFirst({
+          where: and(eq(schema.space.id, f.spaceId), eq(schema.space.tenantId, currentTenant())),
           columns: { id: true },
         })
       : null;
@@ -853,9 +848,9 @@ const file: KindDef = {
       return "skip";
     }
     return {
-      projectId: f.projectId,
+      spaceId: f.spaceId,
       record: {
-        projectId: f.projectId,
+        spaceId: f.spaceId,
         kind: f.kind,
         name: f.name,
         mime: f.mime,
@@ -874,8 +869,8 @@ const file: KindDef = {
       },
     };
   },
-  async write(projectId, id, r) {
-    await clearOrigin(schema.projectFile, projectId, id, r);
+  async write(spaceId, id, r) {
+    await clearOrigin(schema.spaceFile, spaceId, id, r);
     const mime = str(r.mime) ?? "application/octet-stream";
     const name = str(r.name) ?? "file";
     const kind = (
@@ -886,7 +881,7 @@ const file: KindDef = {
     const path = `${id}-${nanoid(6)}.${extFor(mime)}`;
     await objects.put(assetKey(path), bytes);
     const assetValues = {
-      kind: kind === "logo" ? "logo" : "project",
+      kind: kind === "logo" ? "logo" : "space",
       mime,
       name,
       path,
@@ -897,7 +892,7 @@ const file: KindDef = {
       .values({ id, tenantId: currentTenant(), ...assetValues })
       .onConflictDoUpdate({ target: schema.asset.id, set: assetValues });
     const values = {
-      projectId,
+      spaceId,
       kind,
       name,
       mime,
@@ -915,13 +910,13 @@ const file: KindDef = {
       originLabel: str(r.originLabel),
     };
     await db
-      .insert(schema.projectFile)
+      .insert(schema.spaceFile)
       .values({ id, ...values })
       .onConflictDoUpdate({
-        target: schema.projectFile.id,
+        target: schema.spaceFile.id,
         set: { ...values, updatedAt: new Date() },
       });
-    await writeCategories(projectId, "fileId", id, r.categories);
+    await writeCategories(spaceId, "fileId", id, r.categories);
     return async () => {
       if (before && before.path !== path) {
         await objects.remove(assetKey(before.path));
@@ -938,17 +933,15 @@ const file: KindDef = {
       }
     };
   },
-  async remove(projectId, id) {
-    await asSync(() => removeProjectFile(projectId, id)).catch(() => undefined);
+  async remove(spaceId, id) {
+    await asSync(() => removeSpaceFile(spaceId, id)).catch(() => undefined);
     return undefined;
   },
-  async list(projectId) {
+  async list(spaceId) {
     const rows = await db
-      .select({ id: schema.projectFile.id })
-      .from(schema.projectFile)
-      .where(
-        and(eq(schema.projectFile.projectId, projectId), eq(schema.projectFile.status, "ready")),
-      );
+      .select({ id: schema.spaceFile.id })
+      .from(schema.spaceFile)
+      .where(and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.status, "ready")));
     return rows.map((r) => r.id);
   },
   title: (r, item) => str(r?.name) ?? item,
@@ -957,51 +950,43 @@ const file: KindDef = {
 
 const connector: KindDef = {
   async read(item) {
-    const [projectId, id] = splitTwo(item);
-    const c = await db.query.projectConnector.findFirst({
-      where: and(
-        eq(schema.projectConnector.projectId, projectId),
-        eq(schema.projectConnector.id, id),
-      ),
+    const [spaceId, id] = splitTwo(item);
+    const c = await db.query.spaceConnector.findFirst({
+      where: and(eq(schema.spaceConnector.spaceId, spaceId), eq(schema.spaceConnector.id, id)),
     });
     const p = c
-      ? await db.query.project.findFirst({
-          where: and(
-            eq(schema.project.id, projectId),
-            eq(schema.project.tenantId, currentTenant()),
-          ),
+      ? await db.query.space.findFirst({
+          where: and(eq(schema.space.id, spaceId), eq(schema.space.tenantId, currentTenant())),
           columns: { id: true },
         })
       : null;
-    return c && p ? { projectId, record: { projectId, record: c.record } } : null;
+    return c && p ? { spaceId, record: { spaceId, record: c.record } } : null;
   },
-  async write(projectId, item, r) {
+  async write(spaceId, item, r) {
     const [, id] = splitTwo(item);
     const record = obj(r.record) as never;
     await db
-      .insert(schema.projectConnector)
-      .values({ projectId, id, record })
+      .insert(schema.spaceConnector)
+      .values({ spaceId, id, record })
       .onConflictDoUpdate({
-        target: [schema.projectConnector.projectId, schema.projectConnector.id],
+        target: [schema.spaceConnector.spaceId, schema.spaceConnector.id],
         set: { record, updatedAt: new Date() },
       });
     return undefined;
   },
-  async remove(projectId, item) {
+  async remove(spaceId, item) {
     const [, id] = splitTwo(item);
     await db
-      .delete(schema.projectConnector)
-      .where(
-        and(eq(schema.projectConnector.projectId, projectId), eq(schema.projectConnector.id, id)),
-      );
+      .delete(schema.spaceConnector)
+      .where(and(eq(schema.spaceConnector.spaceId, spaceId), eq(schema.spaceConnector.id, id)));
     return undefined;
   },
-  async list(projectId) {
+  async list(spaceId) {
     const rows = await db
-      .select({ id: schema.projectConnector.id })
-      .from(schema.projectConnector)
-      .where(eq(schema.projectConnector.projectId, projectId));
-    return rows.map((r) => `${projectId}:${r.id}`);
+      .select({ id: schema.spaceConnector.id })
+      .from(schema.spaceConnector)
+      .where(eq(schema.spaceConnector.spaceId, spaceId));
+    return rows.map((r) => `${spaceId}:${r.id}`);
   },
   title: (r, item) => str(obj(r?.record).name) ?? splitTwo(item)[1],
 };
@@ -1015,9 +1000,9 @@ const skill: KindDef = {
       return null;
     }
     return {
-      projectId: k.projectId,
+      spaceId: k.spaceId,
       record: {
-        projectId: k.projectId,
+        spaceId: k.spaceId,
         name: k.name,
         description: k.description,
         body: k.body,
@@ -1032,11 +1017,11 @@ const skill: KindDef = {
       },
     };
   },
-  async write(projectId, id, r) {
+  async write(spaceId, id, r) {
     const mode = SKILL_MODES.find((m) => m === r.mode) ?? "demand";
     const source = SKILL_SOURCES.find((m) => m === r.source) ?? "own";
     const values = {
-      projectId,
+      spaceId,
       name: str(r.name) ?? id.toLowerCase(),
       description: str(r.description) ?? "",
       body: str(r.body) ?? "",
@@ -1059,7 +1044,7 @@ const skill: KindDef = {
     // Two sides named a skill alike: the one arriving takes the name with its id behind it.
     const clash = await db.query.spaceSkill.findFirst({
       where: and(
-        eq(schema.spaceSkill.projectId, projectId),
+        eq(schema.spaceSkill.spaceId, spaceId),
         eq(schema.spaceSkill.name, values.name),
         ne(schema.spaceSkill.id, id),
       ),
@@ -1078,15 +1063,15 @@ const skill: KindDef = {
       });
     return undefined;
   },
-  async remove(_projectId, id) {
+  async remove(_spaceId, id) {
     await db.delete(schema.spaceSkill).where(eq(schema.spaceSkill.id, id));
     return undefined;
   },
-  async list(projectId) {
+  async list(spaceId) {
     const rows = await db
       .select({ id: schema.spaceSkill.id })
       .from(schema.spaceSkill)
-      .where(eq(schema.spaceSkill.projectId, projectId));
+      .where(eq(schema.spaceSkill.spaceId, spaceId));
     return rows.map((r) => r.id);
   },
   title: (r, item) => str(r?.name) ?? item,
@@ -1144,16 +1129,16 @@ export async function letDanglingGo() {
     sql`UPDATE space_page SET parent_id = NULL WHERE parent_id IS NOT NULL AND parent_id NOT IN (SELECT id FROM space_page)`,
   );
   await db.run(
-    sql`UPDATE space_page SET file_id = NULL WHERE file_id IS NOT NULL AND file_id NOT IN (SELECT id FROM project_file)`,
+    sql`UPDATE space_page SET file_id = NULL WHERE file_id IS NOT NULL AND file_id NOT IN (SELECT id FROM space_file)`,
   );
   await db.run(
-    sql`UPDATE space_table SET file_id = NULL WHERE file_id IS NOT NULL AND file_id NOT IN (SELECT id FROM project_file)`,
+    sql`UPDATE space_table SET file_id = NULL WHERE file_id IS NOT NULL AND file_id NOT IN (SELECT id FROM space_file)`,
   );
   await db.run(
     sql`UPDATE space_category SET table_id = NULL, column_id = NULL WHERE table_id IS NOT NULL AND table_id NOT IN (SELECT id FROM space_table)`,
   );
   await db.run(
-    sql`DELETE FROM space_item_category WHERE category_id NOT IN (SELECT id FROM space_category) OR (value_id IS NOT NULL AND value_id NOT IN (SELECT id FROM space_category_value)) OR (page_id IS NOT NULL AND page_id NOT IN (SELECT id FROM space_page)) OR (row_id IS NOT NULL AND row_id NOT IN (SELECT id FROM space_table_row)) OR (table_id IS NOT NULL AND table_id NOT IN (SELECT id FROM space_table)) OR (file_id IS NOT NULL AND file_id NOT IN (SELECT id FROM project_file))`,
+    sql`DELETE FROM space_item_category WHERE category_id NOT IN (SELECT id FROM space_category) OR (value_id IS NOT NULL AND value_id NOT IN (SELECT id FROM space_category_value)) OR (page_id IS NOT NULL AND page_id NOT IN (SELECT id FROM space_page)) OR (row_id IS NOT NULL AND row_id NOT IN (SELECT id FROM space_table_row)) OR (table_id IS NOT NULL AND table_id NOT IN (SELECT id FROM space_table)) OR (file_id IS NOT NULL AND file_id NOT IN (SELECT id FROM space_file))`,
   );
   await db.run(sql`DELETE FROM space_table_row WHERE table_id NOT IN (SELECT id FROM space_table)`);
   await db.run(sql`DELETE FROM wizard_translation WHERE wizard_id NOT IN (SELECT id FROM wizard)`);

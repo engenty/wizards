@@ -39,7 +39,7 @@ import {
 interface PluginOAuthState {
   plugin: string;
   tenantId: string;
-  projectId: string;
+  spaceId: string;
   connectorId: string;
   actions: string[];
   verifier: string;
@@ -87,11 +87,11 @@ function knownActions(connector: ConnectorDefinition, actions: string[]): string
 }
 
 async function spaceExists(space: string) {
-  const project = await db.query.project.findFirst({
-    where: eq(schema.project.id, space),
+  const row = await db.query.space.findFirst({
+    where: eq(schema.space.id, space),
     columns: { id: true },
   });
-  if (!project) {
+  if (!row) {
     throw new Error(`There’s no space “${space}”.`);
   }
 }
@@ -99,7 +99,7 @@ async function spaceExists(space: string) {
 /** Keeps a connection: the same account for the same space again replaces the first one. */
 async function keep(input: {
   plugin: string;
-  projectId: string;
+  spaceId: string;
   connector: string;
   label: string;
   actions: string[];
@@ -108,7 +108,7 @@ async function keep(input: {
   const same = await db.query.pluginConnection.findFirst({
     where: and(
       eq(schema.pluginConnection.plugin, input.plugin),
-      eq(schema.pluginConnection.projectId, input.projectId),
+      eq(schema.pluginConnection.spaceId, input.spaceId),
       eq(schema.pluginConnection.connector, input.connector),
       eq(schema.pluginConnection.label, input.label),
     ),
@@ -126,7 +126,7 @@ async function keep(input: {
     .values({
       id: nanoid(14),
       plugin: input.plugin,
-      projectId: input.projectId,
+      spaceId: input.spaceId,
       connector: input.connector,
       label: input.label,
       actions: input.actions,
@@ -153,7 +153,7 @@ function scopesOf(connector: ConnectorDefinition, actions: string[]): string[] {
 
 const view = (row: Row): PluginConnection => ({
   id: row.id,
-  space: row.projectId,
+  space: row.spaceId,
   connector: row.connector,
   label: row.label,
   actions: row.actions,
@@ -173,7 +173,7 @@ export function pluginStateTenant(rawState: string): string | null {
 export async function finishPluginOAuth(
   answer: { code: string } | { ticket: string },
   rawState: string,
-): Promise<{ plugin: string; projectId: string }> {
+): Promise<{ plugin: string; spaceId: string }> {
   const state = unseal<PluginOAuthState>(rawState);
   if (!state?.plugin || state.exp < Date.now()) {
     throw new Error("The sign-in has expired. Connect again.");
@@ -204,13 +204,13 @@ export async function finishPluginOAuth(
   };
   await keep({
     plugin: state.plugin,
-    projectId: state.projectId,
+    spaceId: state.spaceId,
     connector: connector.id,
     label: account.label,
     actions: state.actions,
     stored,
   });
-  return { plugin: state.plugin, projectId: state.projectId };
+  return { plugin: state.plugin, spaceId: state.spaceId };
 }
 
 /** The tokens of a connection, refreshed when they run out within five minutes. */
@@ -266,7 +266,7 @@ function contextOf(row: Row, connector: ConnectorDefinition, data: StoredTokens)
       external_account: row.label,
       granted_scopes: data.scopes,
       owner_user_id: null,
-      space_id: row.projectId,
+      space_id: row.spaceId,
       status: "active",
       tenant_id: currentTenant(),
     },
@@ -319,7 +319,7 @@ export function pluginConnections(plugin: string): PluginConnections {
       const base = {
         plugin,
         tenantId: currentTenant(),
-        projectId: space,
+        spaceId: space,
         connectorId,
         actions: [...new Set(actions)],
         exp: Date.now() + 15 * 60_000,
@@ -384,7 +384,7 @@ export function pluginConnections(plugin: string): PluginConnections {
       }
       const row = await keep({
         plugin,
-        projectId: space,
+        spaceId: space,
         connector: connector.id,
         label: account.label,
         actions: wanted,
@@ -402,7 +402,7 @@ export function pluginConnections(plugin: string): PluginConnections {
       const rows = await db.query.pluginConnection.findMany({
         where: and(
           eq(schema.pluginConnection.plugin, plugin),
-          eq(schema.pluginConnection.projectId, space),
+          eq(schema.pluginConnection.spaceId, space),
         ),
         orderBy: [desc(schema.pluginConnection.createdAt)],
       });

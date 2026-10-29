@@ -15,8 +15,8 @@ loads them from their files and loads a plugin again when its files change.
 | A runner: a door a wizard runs through, with the run API that drives runs from it | In the share dialog’s channels, at `/w/<token>/<runner>`, on the wizard’s first page | [Runners](./runners.md) |
 | A runner’s settings and setup in the share dialog | In the share dialog, behind its gear and behind “Set up” in the runner’s row | [Runners](./runners.md#the-runners-part-of-the-share-dialog) |
 | A block and tools for every AI step of a space | In the steps’ instructions | [The space](./space.md) |
-| Pages, tables and files of a space’s Knowledge, with their categories | In Knowledge, and in what `project_search` finds | [The space](./space.md#knowledge-a-plugin-writes) |
-| Texts in a space’s search index | In what `project_search` finds | [The space](./space.md#the-search-index) |
+| Pages, tables and files of a space’s Knowledge, with their categories | In Knowledge, and in what `space_search` finds | [The space](./space.md#knowledge-a-plugin-writes) |
+| Texts in a space’s search index | In what `space_search` finds | [The space](./space.md#the-search-index) |
 | Tools of the studio’s assistant, and their cards | In the assistant’s chat, on every page. For now the assistant is off unless it is switched on | [The space](./space.md#tools-of-the-space-assistant) |
 | Routes | Below `/api/studio/plugins/<id>`, for programs with a key below `/api/v1/plugins/<id>`; public ones below `/api/public/plugins/<id>`, one for every tenant below `/api/public/plugins/<id>/shared` | [Routes](./routes.md) |
 | Tables | In every tenant’s database | [Tables](./tables.md) |

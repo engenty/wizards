@@ -12,7 +12,6 @@ import {
   templateRefs,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import { mainLogo, ruleLines, runTheme } from "@engenty/wizards-shared/projects";
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import {
@@ -25,6 +24,7 @@ import {
   shapeZod,
   titleKey,
 } from "@engenty/wizards-shared/shape";
+import { mainLogo, ruleLines, runTheme } from "@engenty/wizards-shared/spaces";
 import {
   type Surface,
   type SurfaceComponent,
@@ -605,7 +605,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     `Today is ${today(ctx)}.`,
     brandBlock(ctx),
     // Knowledge: what the space holds for its wizards, and how to find and read it.
-    await knowledgeBlock(ctx.project.id),
+    await knowledgeBlock(ctx.space.id),
     // Skills: always on whole, on demand by name and description (docs/plans/skills.md).
     skillsBlock(await skillsOf(ctx), {
       tools: takesTools(resolved),
@@ -794,7 +794,7 @@ function entriesOf(step: GenerateStep, ctx: StepContext): Entry[] {
 /** The document templates a document step can name; each is a `document.*` section. */
 const DOCUMENT_TEMPLATES = new Set(["invoice", "offer", "briefing", "letter", "report", "free"]);
 
-/** Images a document may place: earlier generated images, uploads, the project's logos and images. */
+/** Images a document may place: earlier generated images, uploads, the space's logos and images. */
 function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; label: string }[] {
   const out: { id: string; label: string }[] = [];
   const index = ctx.def.steps.indexOf(step);
@@ -826,7 +826,7 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       }
     }
   }
-  const logos = ctx.projectFiles.filter((f) => f.kind === "logo");
+  const logos = ctx.spaceFiles.filter((f) => f.kind === "logo");
   const main = mainLogo(logos, ctx.scope.brand.logoSections);
   for (const f of logos) {
     const section = logoSectionLine(ctx.scope.brand.logoSections, f.id);
@@ -840,7 +840,7 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
     });
   }
   for (const p of ctx.scope.brand.patterns ?? []) {
-    const file = ctx.projectFiles.find((f) => f.id === p.file);
+    const file = ctx.spaceFiles.find((f) => f.id === p.file);
     const section = ctx.scope.brand.colorSections?.find((s) => s.id === p.section);
     if (file) {
       out.push({
@@ -849,12 +849,12 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       });
     }
   }
-  for (const f of ctx.projectFiles) {
+  for (const f of ctx.spaceFiles) {
     if (f.kind === "asset" && f.mime.startsWith("image/")) {
       const section = assetSectionLine(ctx.scope.brand.assetSections, f.id);
       out.push({
         id: f.id,
-        label: `${f.description || f.name} (from the project's assets${section ? `, section ${section}` : ""})`,
+        label: `${f.description || f.name} (from the space's assets${section ? `, section ${section}` : ""})`,
       });
     }
   }

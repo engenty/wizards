@@ -84,8 +84,8 @@ async function withUploads(runId, values) {
 let wizardId = process.env.WIZARD ?? "";
 let runId = process.env.RUN ?? "";
 if (!runId) {
-  const [project] = await call("GET", "/api/studio/projects");
-  wizardId = (await call("POST", "/api/studio/wizards", { projectId: project.id, starterId })).id;
+  const [space] = await call("GET", "/api/studio/spaces");
+  wizardId = (await call("POST", "/api/studio/wizards", { spaceId: space.id, starterId })).id;
   runId = (await call("POST", `/api/studio/wizards/${wizardId}/test-runs`)).runId;
 }
 console.log(`wizard ${wizardId} run ${runId}`);

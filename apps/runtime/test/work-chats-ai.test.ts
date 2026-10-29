@@ -101,8 +101,8 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request(url("/api/local/enter?k=test-key")));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
-  const projects = await import("../src/services/projects");
-  spaceId = (await client.withTenant("local", () => projects.defaultProject("local"))).id;
+  const spaces = await import("../src/services/spaces");
+  spaceId = (await client.withTenant("local", () => spaces.defaultSpace("local"))).id;
 }, 60_000);
 
 describe("the space's AI in a chat", () => {

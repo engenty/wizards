@@ -108,8 +108,8 @@ beforeAll(async () => {
   routes = await import("../src/routes/live");
   const entered = await app.fetch(new Request(url("/api/local/enter?k=test-key")));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
-  const projects = await import("../src/services/projects");
-  spaceId = (await local(() => projects.defaultProject("local"))).id;
+  const spaces = await import("../src/services/spaces");
+  spaceId = (await local(() => spaces.defaultSpace("local"))).id;
 }, 60_000);
 
 const streams: { close: () => Promise<unknown> }[] = [];
@@ -118,7 +118,7 @@ afterAll(async () => {
 });
 
 async function newPage(title: string): Promise<string> {
-  const res = await call("POST", `/api/studio/projects/${spaceId}/pages`, { title });
+  const res = await call("POST", `/api/studio/spaces/${spaceId}/pages`, { title });
   return ((await res.json()) as { id: string }).id;
 }
 
@@ -136,7 +136,7 @@ describe("GET /api/studio/live", () => {
     expect(Date.now() - started).toBeLessThan(900);
     expect(heard.id).toBe(String(heard.data.seq));
     expect(heard.data.items).toContainEqual(
-      expect.objectContaining({ kind: "page", op: "put", item: id, projectId: spaceId, parent: null }),
+      expect.objectContaining({ kind: "page", op: "put", item: id, spaceId: spaceId, parent: null }),
     );
     await s.close();
   });
@@ -149,7 +149,7 @@ describe("GET /api/studio/live", () => {
     const other = createClient({ url: `file:${join(process.env.DATA_DIR ?? "", "tenants", "local.db")}` });
     const started = Date.now();
     await other.execute({
-      sql: "INSERT INTO space_page (id, tenant_id, project_id, title, markdown) VALUES ('elsewhere', 'local', ?, 'From the runner', '')",
+      sql: "INSERT INTO space_page (id, tenant_id, space_id, title, markdown) VALUES ('elsewhere', 'local', ?, 'From the runner', '')",
       args: [spaceId],
     });
     await s.next(hasItem("elsewhere"), 3500);
@@ -192,7 +192,7 @@ describe("GET /api/studio/live", () => {
     const s = await open();
     streams.push(s);
     await s.next((e) => e.event === "hello");
-    const tableId = ((await (await call("POST", `/api/studio/projects/${spaceId}/tables`, { title: "Bulk" })).json()) as { id: string }).id;
+    const tableId = ((await (await call("POST", `/api/studio/spaces/${spaceId}/tables`, { title: "Bulk" })).json()) as { id: string }).id;
     await local(async () => {
       const { sql } = await import("drizzle-orm");
       await client.db.run(sql`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1100)
@@ -248,7 +248,7 @@ describe("views on the stream", () => {
     const s = await open();
     streams.push(s);
     await s.next((e) => e.event === "hello");
-    const tableId = ((await (await call("POST", `/api/studio/projects/${spaceId}/tables`, { title: "Leads" })).json()) as { id: string }).id;
+    const tableId = ((await (await call("POST", `/api/studio/spaces/${spaceId}/tables`, { title: "Leads" })).json()) as { id: string }).id;
     const table = await changeOf(s, tableId);
     const { rows: _rows, ...header } = await json(`/api/studio/tables/${tableId}`);
     expect(table.view).toEqual(header);
@@ -256,9 +256,9 @@ describe("views on the stream", () => {
     const rowChange = await changeOf(s, row.id);
     const listed = (await json(`/api/studio/tables/${tableId}`)).rows.find((r: { id: string }) => r.id === row.id);
     expect(rowChange.view).toEqual({ ...listed, tableId });
-    const wizard = ((await (await call("POST", "/api/studio/wizards", { projectId: spaceId })).json()) as { id: string });
+    const wizard = ((await (await call("POST", "/api/studio/wizards", { spaceId: spaceId })).json()) as { id: string });
     const wizardChange = await changeOf(s, wizard.id);
-    const card = (await json(`/api/studio/projects/${spaceId}/wizards`)).find((w: { id: string }) => w.id === wizard.id);
+    const card = (await json(`/api/studio/spaces/${spaceId}/wizards`)).find((w: { id: string }) => w.id === wizard.id);
     expect(wizardChange.view.summary).toEqual(card);
     expect(wizardChange.view.detail).toEqual(await json(`/api/studio/wizards/${wizard.id}`));
     await s.close();
@@ -268,9 +268,9 @@ describe("views on the stream", () => {
     const s = await open();
     streams.push(s);
     await s.next((e) => e.event === "hello");
-    await call("PATCH", `/api/studio/projects/${spaceId}`, { name: "Renamed space" });
+    await call("PATCH", `/api/studio/spaces/${spaceId}`, { name: "Renamed space" });
     const change = (await s.next((e) => e.event === "changes" && e.data.items.some((i: any) => i.item === spaceId && i.view?.name === "Renamed space"))).data.items.find((i: any) => i.item === spaceId);
-    expect(change.view).toEqual((await json("/api/studio/projects")).find((p: { id: string }) => p.id === spaceId));
+    expect(change.view).toEqual((await json("/api/studio/spaces")).find((p: { id: string }) => p.id === spaceId));
     await s.close();
   });
 
@@ -291,7 +291,7 @@ describe("views on the stream", () => {
   it("names an item gone by the time its view is read as deleted", async () => {
     const { itemView } = await import("../src/live/views");
     const view = await local(() =>
-      itemView({ userId: "local", lang: "en" }, { kind: "page", op: "put", item: "no-such-page", projectId: spaceId, parent: null }),
+      itemView({ userId: "local", lang: "en" }, { kind: "page", op: "put", item: "no-such-page", spaceId: spaceId, parent: null }),
     );
     expect(view).toBeNull();
   });

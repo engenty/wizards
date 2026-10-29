@@ -3,7 +3,7 @@ import { Plus, RotateCw, TriangleAlert, Upload } from "lucide-react";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { api } from "../lib/api";
 import { type Key, t } from "../lib/i18n";
-import { DropArea, Section } from "../studio/project/Section";
+import { DropArea, Section } from "../studio/space/Section";
 import { Button, Chip, Dialog, IconButton, Input, Spinner, Switch } from "../ui";
 import { reloadPlugins, useStudioPlugins } from "./host";
 import { HELD, type ProModule, ProPlanSection, usePro } from "./ProModulesSection";

@@ -13,13 +13,12 @@ export function pluginToolName(plugin: string, tool: string): string {
 
 /** What a plugin's tool learns of the step that calls it. */
 function toolContext(ctx: StepContext) {
-  const space = { id: ctx.project.id, name: ctx.project.name };
+  const space = { id: ctx.space.id, name: ctx.space.name };
   return {
     runId: ctx.runId,
     stepId: ctx.stepId,
     tenantId: ctx.tenantId,
     space,
-    project: space,
     wizard: { id: ctx.store.wizardId, title: ctx.def.title },
     mode: ctx.test ? ("test" as const) : ("live" as const),
     signal: ctx.signal,
@@ -116,7 +115,7 @@ export function spaceContextOf(ctx: StepContext): Promise<SpaceContext> {
 }
 
 async function gather(ctx: StepContext): Promise<SpaceContext> {
-  const space: PluginSpace = { id: ctx.project.id, name: ctx.project.name };
+  const space: PluginSpace = { id: ctx.space.id, name: ctx.space.name };
   const result: SpaceContext = { blocks: [], html: [], tools: {} };
   for (const plugin of await pluginsOf(ctx.tenantId)) {
     for (const context of plugin.contexts) {

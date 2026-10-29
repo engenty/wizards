@@ -7,16 +7,16 @@ import { currentTenant } from "../tenants/tenant.js";
 import { ServiceError } from "./errors.js";
 
 /**
- * Who may change what on this runtime. A project a local install synced (`origin: "local"`) is
+ * Who may change what on this runtime. A space a local install synced (`origin: "local"`) is
  * changed only by that install's next sync: here it is shown and run. And a tenant the
  * Manage-App gives no building (`limits.build: false`) makes and changes nothing on this
- * runtime. Every write of a project or a wizard asks here, whichever way it came in: studio,
+ * runtime. Every write of a space or a wizard asks here, whichever way it came in: studio,
  * MCP client or API.
  */
 
 const sync = new AsyncLocalStorage<true>();
 
-/** Runs the writes of a sync: they are the one way a synced project changes. */
+/** Runs the writes of a sync: they are the one way a synced space changes. */
 export function asSync<T>(fn: () => T): T {
   return sync.run(true, fn);
 }
@@ -66,7 +66,7 @@ export async function mayBuild(): Promise<boolean> {
   return info ? info.limits.build !== false : false;
 }
 
-export const READ_ONLY_PROJECT = note("spaceEditedLocally");
+export const READ_ONLY_SPACE = note("spaceEditedLocally");
 export const READ_ONLY_TENANT = note("wizardsRunOncePublished");
 
 /** Refuses when the tenant builds nothing here. */
@@ -77,30 +77,30 @@ export async function requireBuild(): Promise<void> {
   throw new ServiceError("read_only", READ_ONLY_TENANT);
 }
 
-/** Refuses a change of a synced project, and any change by a tenant that builds nothing here. */
-export async function requireWritable(project: { origin: string | null }): Promise<void> {
+/** Refuses a change of a synced space, and any change by a tenant that builds nothing here. */
+export async function requireWritable(space: { origin: string | null }): Promise<void> {
   if (syncing()) {
     return;
   }
-  if (project.origin === "local") {
-    throw new ServiceError("read_only", READ_ONLY_PROJECT);
+  if (space.origin === "local") {
+    throw new ServiceError("read_only", READ_ONLY_SPACE);
   }
   await requireBuild();
 }
 
-export async function requireWritableProject(projectId: string): Promise<void> {
+export async function requireWritableSpace(spaceId: string): Promise<void> {
   if (syncing()) {
     return;
   }
-  const project = await db.query.project.findFirst({
-    where: and(eq(schema.project.id, projectId), eq(schema.project.tenantId, currentTenant())),
+  const space = await db.query.space.findFirst({
+    where: and(eq(schema.space.id, spaceId), eq(schema.space.tenantId, currentTenant())),
     columns: { origin: true },
   });
-  // A project that is not there is the caller's "not found", not ours.
-  await requireWritable(project ?? { origin: null });
+  // A space that is not there is the caller's "not found", not ours.
+  await requireWritable(space ?? { origin: null });
 }
 
-/** Whether the person may change this project's wizards and settings here. */
-export async function projectWritable(project: { origin: string | null }): Promise<boolean> {
-  return project.origin !== "local" && (await mayBuild());
+/** Whether the person may change this space's wizards and settings here. */
+export async function spaceWritable(space: { origin: string | null }): Promise<boolean> {
+  return space.origin !== "local" && (await mayBuild());
 }

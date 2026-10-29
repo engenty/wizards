@@ -7,8 +7,8 @@ import { initialsOf, type Me, type Organization, type UserProfile } from "../lib
 import { Button, Chip, Input, Label, Spinner, Textarea } from "../ui";
 import { LangPick } from "./LangSwitch";
 import { switchTo } from "./Organizations";
-import { useAutosave } from "./project/data";
-import { Section } from "./project/Section";
+import { useAutosave } from "./space/data";
+import { Section } from "./space/Section";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 const hint = "mt-1.5 text-[0.8125rem] text-ink-3";

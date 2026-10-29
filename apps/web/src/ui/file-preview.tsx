@@ -111,7 +111,7 @@ export function FileTile({
         type="button"
         disabled={!open}
         onClick={open}
-        aria-label={`${t("project.preview")}: ${file.name}`}
+        aria-label={`${t("space.preview")}: ${file.name}`}
         className={cn(
           "block overflow-hidden text-left ring-1 ring-border transition enabled:cursor-zoom-in enabled:hover:ring-ink-4",
           image
@@ -230,7 +230,7 @@ function Body({ file }: { file: PreviewFile & { url: string } }) {
         download={file.name}
         className="rounded-full bg-paper-2 px-4 py-1.5 font-medium text-[0.8125rem] text-ink hover:bg-paper-3"
       >
-        {t("project.download")}
+        {t("space.download")}
       </a>
     </div>
   );
@@ -292,8 +292,8 @@ export function FilePreview({
               href={file.url}
               target="_blank"
               rel="noreferrer"
-              aria-label={t("project.openOriginal")}
-              title={t("project.openOriginal")}
+              aria-label={t("space.openOriginal")}
+              title={t("space.openOriginal")}
               className="inline-flex size-9 items-center justify-center rounded-full text-ink-3 transition hover:bg-accent hover:text-ink"
             >
               <ExternalLink className="size-4" />
@@ -301,8 +301,8 @@ export function FilePreview({
             <a
               href={file.url}
               download={file.name}
-              aria-label={t("project.download")}
-              title={t("project.download")}
+              aria-label={t("space.download")}
+              title={t("space.download")}
               className="inline-flex size-9 items-center justify-center rounded-full text-ink-3 transition hover:bg-accent hover:text-ink"
             >
               <Download className="size-4" />

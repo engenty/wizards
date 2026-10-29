@@ -9,7 +9,7 @@ import { connectionContext } from "../connectors/index.js";
 import { askPerson } from "../engine/asks.js";
 import { signalChanged } from "../engine/events.js";
 import { releaseResources } from "../engine/resources.js";
-import { loadProject, makeContext, projectIdOf } from "../engine/runner.js";
+import { loadSpace, makeContext, spaceIdOf } from "../engine/runner.js";
 import type { RunRow } from "../engine/types.js";
 import { env } from "../env.js";
 import { errorText } from "../model-errors.js";
@@ -59,7 +59,7 @@ function publicOrigin(): boolean {
 
 function contextOf(
   run: RunRow,
-  projectId: string,
+  spaceId: string,
   entry: OfferedTarget,
   who: { member: boolean; lang: ShareLang },
   job: { id: string; signal: AbortSignal; sentBefore: number } | null,
@@ -73,17 +73,17 @@ function contextOf(
       ? Promise.resolve(null)
       : askPerson(run.id, { ...question, stepId: SHARE_STEP }, signal);
   return {
-    ...targetScope(run, projectId, who.lang),
+    ...targetScope(run, spaceId, who.lang),
     signal,
     member: who.member,
     sentBefore: job?.sentBefore ?? 0,
     emit,
     ask,
     account: () =>
-      connection ? connectionContext(scopeOf(run), connection, projectId) : Promise.resolve(null),
+      connection ? connectionContext(scopeOf(run), connection, spaceId) : Promise.resolve(null),
     link: async () => (publicOrigin() ? (await shareRun(run)).url : null),
     step: async () =>
-      makeContext(run, await loadProject(run), structuredClone(run.state), signal, {
+      makeContext(run, await loadSpace(run), structuredClone(run.state), signal, {
         stepId: SHARE_STEP,
         emit: (_type, message) =>
           emit(typeof message === "string" ? message : noteText(message, who.lang)),
@@ -92,8 +92,8 @@ function contextOf(
   };
 }
 
-async function entryOf(run: RunRow, projectId: string, key: string, member: boolean) {
-  const entry = (await offeredTargets(run, projectId, member)).find((e) => e.key === key);
+async function entryOf(run: RunRow, spaceId: string, key: string, member: boolean) {
+  const entry = (await offeredTargets(run, spaceId, member)).find((e) => e.key === key);
   if (!entry) {
     throw new ServiceError("not_found", { server: "shareTargetUnknown" });
   }
@@ -120,8 +120,8 @@ export async function startShare(
     throw new ServiceError("refused", { server: "shareTooOften" });
   }
   const lang = request.lang ?? "en";
-  const projectId = await projectIdOf(run);
-  const entry = await entryOf(run, projectId, request.target, who.member);
+  const spaceId = await spaceIdOf(run);
+  const entry = await entryOf(run, spaceId, request.target, who.member);
   const { target } = entry;
 
   const values: Record<string, string> = {};
@@ -153,7 +153,7 @@ export async function startShare(
     errors._files = serverText(lang, "sharePickFile");
   }
   const connection = target.connection?.() ?? null;
-  if (connection && !(await connectionContext(scopeOf(run), connection, projectId))) {
+  if (connection && !(await connectionContext(scopeOf(run), connection, spaceId))) {
     errors._account = serverText(lang, "shareConnectAccount");
   }
   if (Object.keys(errors).length) {
@@ -171,7 +171,7 @@ export async function startShare(
   setWorking(run.id, { jobId: job.id, abort });
   const ctx = contextOf(
     run,
-    projectId,
+    spaceId,
     entry,
     { member: who.member, lang },
     { id: job.id, signal: abort.signal, sentBefore: await sentCount(run.id, target.id) },
@@ -239,10 +239,10 @@ export async function shareChoices(
   field: string,
   who: { member: boolean; lang: ShareLang },
 ): Promise<ShareChoice[]> {
-  const projectId = await projectIdOf(run);
-  const entry = await entryOf(run, projectId, key, who.member);
+  const spaceId = await spaceIdOf(run);
+  const entry = await entryOf(run, spaceId, key, who.member);
   if (!entry.target.choices) {
     return [];
   }
-  return entry.target.choices(field, contextOf(run, projectId, entry, who, null));
+  return entry.target.choices(field, contextOf(run, spaceId, entry, who, null));
 }

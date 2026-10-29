@@ -6,15 +6,15 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { effortOf } from "@engenty/wizards-shared/marketplace";
 import { type EntryResult, resultsOf } from "@engenty/wizards-shared/marketplace-entry";
+import type { RunTheme } from "@engenty/wizards-shared/run";
 import {
   factType,
   type PageForm,
   type PageLang,
-  type ProjectFact,
   pageSlugOf,
   runTheme,
-} from "@engenty/wizards-shared/projects";
-import type { RunTheme } from "@engenty/wizards-shared/run";
+  type SpaceFact,
+} from "@engenty/wizards-shared/spaces";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
@@ -136,7 +136,7 @@ export function pageSteps(def: WizardDefinition, lang: PageLang): PageWizard["st
  * The space's facts as the imprint: who stands behind the page, one line per fact, the postcode
  * and the town as one line after the address, the website apart; null without filled facts.
  */
-export function imprintOf(facts: ProjectFact[], fallbackName: string): PageSpace["imprint"] {
+export function imprintOf(facts: SpaceFact[], fallbackName: string): PageSpace["imprint"] {
   const filled = facts.filter((f) => f.value.trim());
   if (!filled.length) {
     return null;
@@ -188,9 +188,9 @@ export async function pageOrganization(): Promise<PageOrganization | null> {
   }
   const tenantId = currentTenant();
   const organization = await tenantInfo(tenantId);
-  // Only one space of an organization has its page on (services/projects.ts).
-  const spaces = await db.query.project.findMany({
-    where: eq(schema.project.tenantId, tenantId),
+  // Only one space of an organization has its page on (services/spaces.ts).
+  const spaces = await db.query.space.findMany({
+    where: eq(schema.space.tenantId, tenantId),
   });
   // Behind its switch the organization has no page: what Manage holds is sent as none.
   const space = feature("pages", organization.features)
@@ -205,7 +205,7 @@ export async function pageOrganization(): Promise<PageOrganization | null> {
   const listed = page.wizards.length
     ? await db.query.wizard.findMany({
         where: and(
-          eq(schema.wizard.projectId, space.id),
+          eq(schema.wizard.spaceId, space.id),
           inArray(schema.wizard.id, page.wizards),
           eq(schema.wizard.shareEnabled, true),
         ),
@@ -265,9 +265,9 @@ export async function pageOrganization(): Promise<PageOrganization | null> {
   }
   if (Object.keys(made).length) {
     await db
-      .update(schema.project)
+      .update(schema.space)
       .set({ page: { ...page, slugs: { ...kept, ...made } } })
-      .where(eq(schema.project.id, space.id));
+      .where(eq(schema.space.id, space.id));
   }
   if (!wizards.length) {
     return { ...base, space: null };

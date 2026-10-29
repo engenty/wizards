@@ -36,7 +36,7 @@ const upload = async (name: string, type: string, bytes: Uint8Array) => {
   const form = new FormData();
   form.append("file", new File([bytes], name, { type }));
   const res = await app.fetch(
-    new Request(url(`/api/studio/projects/${spaceId}/files?kind=asset`), {
+    new Request(url(`/api/studio/spaces/${spaceId}/files?kind=asset`), {
       method: "POST",
       headers: { cookie, origin: "http://localhost:5181" },
       body: form,
@@ -61,8 +61,8 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request(url("/api/local/enter?k=test-key")));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
-  const projects = await import("../src/services/projects");
-  spaceId = (await client.withTenant("local", () => projects.defaultProject("local"))).id;
+  const spaces = await import("../src/services/spaces");
+  spaceId = (await client.withTenant("local", () => spaces.defaultSpace("local"))).id;
 }, 60_000);
 
 describe("a brand font's own file", () => {
@@ -71,7 +71,7 @@ describe("a brand font's own file", () => {
     const id = await upload("acme.woff2", "font/woff2", bytes);
     expect((await app.fetch(new Request(url(`/api/public/fonts/${id}`)))).status).toBe(404);
 
-    const saved = await send("PATCH", `/api/studio/projects/${spaceId}`, {
+    const saved = await send("PATCH", `/api/studio/spaces/${spaceId}`, {
       brand: { fonts: [font({ file: id })] },
     });
     expect(saved.status).toBe(200);
@@ -83,7 +83,7 @@ describe("a brand font's own file", () => {
     expect(new Uint8Array(await served.arrayBuffer())).toEqual(bytes);
 
     const { themes, brandFonts } = (await (
-      await send("GET", `/api/studio/projects/${spaceId}/themes`)
+      await send("GET", `/api/studio/spaces/${spaceId}/themes`)
     ).json()) as { themes: unknown[]; brandFonts: unknown };
     expect(themes).toEqual([]);
     expect(brandFonts).toEqual({
@@ -92,7 +92,7 @@ describe("a brand font's own file", () => {
       faces: [{ family: "Acme Sans", url: `/api/public/fonts/${id}`, stylesheet: false }],
     });
 
-    await send("PATCH", `/api/studio/projects/${spaceId}`, { brand: { fonts: [font()] } });
+    await send("PATCH", `/api/studio/spaces/${spaceId}`, { brand: { fonts: [font()] } });
     expect((await app.fetch(new Request(url(`/api/public/fonts/${id}`)))).status).toBe(404);
   });
 
@@ -100,12 +100,12 @@ describe("a brand font's own file", () => {
     const { createCanvas } = await import("@napi-rs/canvas");
     const pixel = new Uint8Array(await createCanvas(1, 1).encode("png"));
     const png = await upload("pixel.png", "image/png", pixel);
-    const res = await send("PATCH", `/api/studio/projects/${spaceId}`, {
+    const res = await send("PATCH", `/api/studio/spaces/${spaceId}`, {
       brand: { fonts: [font({ file: png })] },
     });
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toContain("Acme Sans");
-    const elsewhere = await send("PATCH", `/api/studio/projects/${spaceId}`, {
+    const elsewhere = await send("PATCH", `/api/studio/spaces/${spaceId}`, {
       brand: { fonts: [font({ file: "not-a-file" })] },
     });
     expect(elsewhere.status).toBe(400);
@@ -114,11 +114,11 @@ describe("a brand font's own file", () => {
 
 describe("a brand font on the space's website", () => {
   it("takes an https address only", async () => {
-    const ok = await send("PATCH", `/api/studio/projects/${spaceId}`, {
+    const ok = await send("PATCH", `/api/studio/spaces/${spaceId}`, {
       brand: { fonts: [font({ url: "https://acme.example/fonts/acme.woff2" })] },
     });
     expect(ok.status).toBe(200);
-    const plain = await send("PATCH", `/api/studio/projects/${spaceId}`, {
+    const plain = await send("PATCH", `/api/studio/spaces/${spaceId}`, {
       brand: { fonts: [font({ url: "http://acme.example/fonts/acme.woff2" })] },
     });
     expect(plain.status).toBe(400);

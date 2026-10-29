@@ -390,7 +390,7 @@ describe("a runtime of a Manage-App", () => {
       user: { id: "user-a", name: "User A" },
       tenant: { id: "tenant-a", role: "owner", name: "tenant-a", plan: { id: "team", name: "Team" } },
       features: { ownKeys: false },
-      limits: { projects: null, build: true, create: true, members: 5 },
+      limits: { spaces: null, build: true, create: true, members: 5 },
       mode: "managed",
       credits: 500,
       manageUrl: issuer,
@@ -408,9 +408,9 @@ describe("a runtime of a Manage-App", () => {
     const me = (await (await get("/api/studio/me", m)).json()) as any;
     expect(me.tenant).toMatchObject({ id: "tenant-a", role: "member" });
     expect(me.limits.create).toBe(false);
-    const [project] = (await (await get("/api/studio/projects", m)).json()) as { id: string }[];
+    const [space] = (await (await get("/api/studio/spaces", m)).json()) as { id: string }[];
     // Making: refused for a wizard, a space, a copy; by every door.
-    const made = await post("/api/studio/wizards", m, { projectId: project.id });
+    const made = await post("/api/studio/wizards", m, { spaceId: space.id });
     expect(made.status).toBe(403);
     expect(await made.json()).toMatchObject({
       code: "forbidden",
@@ -421,13 +421,13 @@ describe("a runtime of a Manage-App", () => {
       new Request(`${RUNTIME}/api/studio/wizards`, {
         method: "POST",
         headers: { cookie: m, "content-type": "application/json", "accept-language": "en-GB,en;q=0.8" },
-        body: JSON.stringify({ projectId: project.id }),
+        body: JSON.stringify({ spaceId: space.id }),
       }),
     );
     expect(((await british.json()) as { error: string }).error).toContain("Only organisation admins");
-    expect((await post("/api/studio/projects", m, { name: "Neu" })).status).toBe(403);
+    expect((await post("/api/studio/spaces", m, { name: "Neu" })).status).toBe(403);
     // A wizard the owner made: the member edits it, copies and deletes it not.
-    const w = (await (await post("/api/studio/wizards", a, { projectId: project.id })).json()) as { id: string };
+    const w = (await (await post("/api/studio/wizards", a, { spaceId: space.id })).json()) as { id: string };
     expect((await post(`/api/studio/wizards/${w.id}/duplicate`, m, {})).status).toBe(403);
     expect(
       (await app.fetch(new Request(`${RUNTIME}/api/studio/wizards/${w.id}`, { method: "DELETE", headers: { cookie: m } }))).status,
@@ -443,7 +443,7 @@ describe("a runtime of a Manage-App", () => {
     );
     expect(edited.status).toBe(200);
     // The owner still makes.
-    expect((await post("/api/studio/wizards", a, { projectId: project.id })).status).toBe(200);
+    expect((await post("/api/studio/wizards", a, { spaceId: space.id })).status).toBe(200);
     // The organization page: people, invitations and places, from the Manage-App.
     const organization = (await (await get("/api/studio/organization", m)).json()) as any;
     expect(organization).toMatchObject({
@@ -578,15 +578,15 @@ describe("a runtime of a Manage-App", () => {
   });
 
   it("gives each tenant its own studio", async () => {
-    const [project] = (await (await get("/api/studio/projects", a)).json()) as { id: string }[];
-    const created = await post("/api/studio/wizards", a, { projectId: project.id });
+    const [space] = (await (await get("/api/studio/spaces", a)).json()) as { id: string }[];
+    const created = await post("/api/studio/wizards", a, { spaceId: space.id });
     wizardOfA = ((await created.json()) as { id: string }).id;
     expect((await get(`/api/studio/wizards/${wizardOfA}`, a)).status).toBe(200);
     // The other tenant's session finds nothing under that id, and lists none.
     expect((await get(`/api/studio/wizards/${wizardOfA}`, b)).status).toBe(404);
-    const [projectB] = (await (await get("/api/studio/projects", b)).json()) as { id: string; wizardCount: number }[];
-    expect(projectB.id).not.toBe(project.id);
-    expect(projectB.wizardCount).toBe(0);
+    const [spaceB] = (await (await get("/api/studio/spaces", b)).json()) as { id: string; wizardCount: number }[];
+    expect(spaceB.id).not.toBe(space.id);
+    expect(spaceB.wizardCount).toBe(0);
   });
 
   it("gives a tenant the plugins switched on for it, and never reloads one", async () => {
@@ -664,8 +664,8 @@ describe("a runtime of a Manage-App", () => {
   });
 
   it("refuses a test run without credits and reserves credits with them", async () => {
-    const [projectB] = (await (await get("/api/studio/projects", b)).json()) as { id: string }[];
-    const wb = ((await (await post("/api/studio/wizards", b, { projectId: projectB.id })).json()) as { id: string }).id;
+    const [spaceB] = (await (await get("/api/studio/spaces", b)).json()) as { id: string }[];
+    const wb = ((await (await post("/api/studio/wizards", b, { spaceId: spaceB.id })).json()) as { id: string }).id;
     const broke = await post(`/api/studio/wizards/${wb}/test-runs`, b, {});
     expect(broke.status).toBe(402);
     const ok = await post(`/api/studio/wizards/${wizardOfA}/test-runs`, a, {});
@@ -877,12 +877,12 @@ describe("a runtime of a Manage-App", () => {
     const found = await post("/api/studio/onboarding/find", owner, { name: "tenant-a" });
     expect(await found.json()).toEqual({ addresses: [] });
     expect((await post("/api/studio/onboarding/find", member, { name: "x" })).status).toBe(403);
-    const [space] = (await (await get("/api/studio/projects", owner)).json()) as { id: string }[];
-    const read = await post(`/api/studio/projects/${space.id}/website`, owner, {
+    const [space] = (await (await get("/api/studio/spaces", owner)).json()) as { id: string }[];
+    const read = await post(`/api/studio/spaces/${space.id}/website`, owner, {
       urls: ["instagram.com/baeckerei.huber", "https://www.linkedin.com/company/huber"],
     });
     expect(await read.json()).toBeNull();
-    const after = (await (await get("/api/studio/projects", owner)).json()) as {
+    const after = (await (await get("/api/studio/spaces", owner)).json()) as {
       id: string;
       facts: { label: string; value: string }[];
     }[];
@@ -935,7 +935,7 @@ describe("a runtime of a Manage-App", () => {
     expect((await tell("tenant-a", "resume")).status).toBe(200);
     expect((await get("/api/studio/me", a)).status).toBe(200);
     expect((await tell("tenant-a", "delete")).status).toBe(200);
-    const projects = (await (await get("/api/studio/projects", a)).json()) as { wizardCount: number }[];
-    expect(projects[0].wizardCount).toBe(0);
+    const spaces = (await (await get("/api/studio/spaces", a)).json()) as { wizardCount: number }[];
+    expect(spaces[0].wizardCount).toBe(0);
   });
 });

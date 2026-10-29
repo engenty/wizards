@@ -205,8 +205,8 @@ describe("an admin signed in as someone", () => {
   });
 
   it("marks the runs it starts with the admin", async () => {
-    const [project] = (await (await get("/api/studio/projects", imp)).json()) as { id: string }[];
-    const wizard = (await (await send("POST", "/api/studio/wizards", imp, { projectId: project.id })).json()) as {
+    const [space] = (await (await get("/api/studio/spaces", imp)).json()) as { id: string }[];
+    const wizard = (await (await send("POST", "/api/studio/wizards", imp, { spaceId: space.id })).json()) as {
       id: string;
     };
     const started = await send("POST", `/api/studio/wizards/${wizard.id}/test-runs`, imp);

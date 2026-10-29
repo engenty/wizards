@@ -15,9 +15,9 @@ import { and, asc, eq, inArray, isNotNull, or, type SQL, sql } from "drizzle-orm
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { requireWritableProject } from "./access.js";
+import { requireWritableSpace } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
-import { queueIndex } from "./project-index.js";
+import { queueIndex } from "./space-index.js";
 
 /**
  * Categories: typed properties that run across Knowledge. A choice keeps the values it met, in
@@ -176,9 +176,9 @@ function cellOf(row: AssignRow, values: Map<string, string>): CategoryCell | nul
 
 // --- the categories of a space ---------------------------------------------------
 
-export async function categoryRows(projectId: string): Promise<CategoryRow[]> {
+export async function categoryRows(spaceId: string): Promise<CategoryRow[]> {
   return db.query.spaceCategory.findMany({
-    where: eq(schema.spaceCategory.projectId, projectId),
+    where: eq(schema.spaceCategory.spaceId, spaceId),
     orderBy: [asc(schema.spaceCategory.position), asc(schema.spaceCategory.name)],
   });
 }
@@ -222,8 +222,8 @@ function alike(a: string, b: string): boolean {
 }
 
 /** The space's categories with their values, how many items have each, and their ranges. */
-export async function listCategories(projectId: string): Promise<SpaceCategory[]> {
-  const rows = await categoryRows(projectId);
+export async function listCategories(spaceId: string): Promise<SpaceCategory[]> {
+  const rows = await categoryRows(spaceId);
   if (!rows.length) {
     return [];
   }
@@ -374,12 +374,12 @@ async function addValues(categoryId: string, values: string[]) {
  * values it does not know yet. `proposed`: shown to be confirmed, never filled before.
  */
 export async function putCategory(
-  projectId: string,
+  spaceId: string,
   draft: CategoryDraft,
   opts: { origin?: string | null; proposed?: boolean } = {},
 ): Promise<CategoryRow> {
   const name = checkDraft(draft);
-  const rows = await categoryRows(projectId);
+  const rows = await categoryRows(spaceId);
   const known = byName(rows, name);
   if (known) {
     if (draft.values?.length && known.type === "choice") {
@@ -404,7 +404,7 @@ export async function putCategory(
     .values({
       id,
       tenantId: currentTenant(),
-      projectId,
+      spaceId,
       name,
       type: draft.type,
       unit: draft.type === "number" ? (draft.unit?.trim().slice(0, 20) ?? null) : null,
@@ -485,11 +485,11 @@ export async function updateCategory(
   },
 ) {
   const row = await categoryRow(categoryId);
-  await requireWritableProject(row.projectId);
+  await requireWritableSpace(row.spaceId);
   const name =
     patch.name !== undefined ? checkDraft({ name: patch.name, type: row.type }) : row.name;
   if (name !== row.name) {
-    const clash = byName(await categoryRows(row.projectId), name);
+    const clash = byName(await categoryRows(row.spaceId), name);
     if (clash && clash.id !== row.id) {
       throw new ServiceError("invalid", note("categoryAlreadyExists", { name }));
     }
@@ -521,7 +521,7 @@ export async function updateCategory(
 
 export async function deleteCategory(categoryId: string) {
   const row = await categoryRow(categoryId);
-  await requireWritableProject(row.projectId);
+  await requireWritableSpace(row.spaceId);
   await reindexHolders(row.id);
   await db.delete(schema.spaceCategory).where(eq(schema.spaceCategory.id, row.id));
 }
@@ -543,7 +543,7 @@ export async function categoryValue(valueId: string) {
 
 export async function addCategoryValue(categoryId: string, value: string) {
   const category = await categoryRow(categoryId);
-  await requireWritableProject(category.projectId);
+  await requireWritableSpace(category.spaceId);
   if (category.type !== "choice") {
     throw new ServiceError("invalid", note("onlyChoiceCategoriesValues"));
   }
@@ -553,7 +553,7 @@ export async function addCategoryValue(categoryId: string, value: string) {
 
 export async function renameCategoryValue(valueId: string, value: string) {
   const { value: row, category } = await valueRow(valueId);
-  await requireWritableProject(category.projectId);
+  await requireWritableSpace(category.spaceId);
   const next = value.replace(/\s+/g, " ").trim().slice(0, 200);
   if (!next || next === row.value) {
     return;
@@ -582,7 +582,7 @@ export async function mergeCategoryValues(fromId: string, intoId: string) {
   if (from.category.id !== into.category.id || fromId === intoId) {
     throw new ServiceError("invalid", note("onlyValuesOneCategory"));
   }
-  await requireWritableProject(from.category.projectId);
+  await requireWritableSpace(from.category.spaceId);
   const t = schema.spaceItemCategory;
   const moving = await db.query.spaceItemCategory.findMany({ where: eq(t.valueId, fromId) });
   const having = new Set(
@@ -606,14 +606,14 @@ export async function mergeCategoryValues(fromId: string, intoId: string) {
 
 export async function deleteCategoryValue(valueId: string) {
   const { value, category } = await valueRow(valueId);
-  await requireWritableProject(category.projectId);
+  await requireWritableSpace(category.spaceId);
   await reindexHolders(category.id);
   await db.delete(schema.spaceCategoryValue).where(eq(schema.spaceCategoryValue.id, value.id));
 }
 
 export async function orderCategoryValues(categoryId: string, ids: string[]) {
   const category = await categoryRow(categoryId);
-  await requireWritableProject(category.projectId);
+  await requireWritableSpace(category.spaceId);
   for (const [position, id] of ids.entries()) {
     await db
       .update(schema.spaceCategoryValue)
@@ -635,12 +635,12 @@ export async function orderCategoryValues(categoryId: string, ids: string[]) {
  * category for are skipped and returned. True in `changed` when anything changed.
  */
 export async function setItemCategories(
-  projectId: string,
+  spaceId: string,
   ref: ItemRef,
   input: CategoryInput,
   by: "person" | "origin" | "model",
 ): Promise<{ changed: boolean; unknown: string[] }> {
-  const rows = (await categoryRows(projectId)).filter((c) => !c.proposed);
+  const rows = (await categoryRows(spaceId)).filter((c) => !c.proposed);
   const t = schema.spaceItemCategory;
   const current = await db.query.spaceItemCategory.findMany({ where: refWhere(ref) });
   const unknown: string[] = [];
@@ -700,7 +700,7 @@ export async function setItemCategories(
     if (next.length) {
       await db.insert(t).values(
         next.map((n) => ({
-          projectId,
+          spaceId,
           categoryId: category.id,
           ...("pageId" in ref ? { pageId: ref.pageId } : {}),
           ...("rowId" in ref ? { rowId: ref.rowId } : {}),
@@ -716,20 +716,20 @@ export async function setItemCategories(
 }
 
 /** Whether an item is of the space's own Knowledge. */
-async function itemInProject(projectId: string, ref: ItemRef): Promise<boolean> {
+async function itemInSpace(spaceId: string, ref: ItemRef): Promise<boolean> {
   if ("pageId" in ref) {
     const page = await db.query.spacePage.findFirst({
       where: eq(schema.spacePage.id, ref.pageId),
-      columns: { projectId: true, wizardId: true },
+      columns: { spaceId: true, wizardId: true },
     });
-    return page?.projectId === projectId && !page.wizardId;
+    return page?.spaceId === spaceId && !page.wizardId;
   }
   if ("fileId" in ref) {
-    const file = await db.query.projectFile.findFirst({
-      where: eq(schema.projectFile.id, ref.fileId),
-      columns: { projectId: true },
+    const file = await db.query.spaceFile.findFirst({
+      where: eq(schema.spaceFile.id, ref.fileId),
+      columns: { spaceId: true },
     });
-    return file?.projectId === projectId;
+    return file?.spaceId === spaceId;
   }
   const tableId =
     "tableId" in ref
@@ -743,25 +743,25 @@ async function itemInProject(projectId: string, ref: ItemRef): Promise<boolean> 
   const table = tableId
     ? await db.query.spaceTable.findFirst({
         where: eq(schema.spaceTable.id, tableId),
-        columns: { projectId: true, wizardId: true },
+        columns: { spaceId: true, wizardId: true },
       })
     : undefined;
-  return table?.projectId === projectId && !table.wizardId;
+  return table?.spaceId === spaceId && !table.wizardId;
 }
 
 /** What a person set from the studio: by the category's id, a list of values or none. */
 export async function setItemCategory(
-  projectId: string,
+  spaceId: string,
   ref: ItemRef,
   categoryId: string,
   values: CategoryCell[],
 ) {
   const category = await categoryRow(categoryId);
-  if (category.projectId !== projectId || !(await itemInProject(projectId, ref))) {
+  if (category.spaceId !== spaceId || !(await itemInSpace(spaceId, ref))) {
     throw notFound();
   }
   const { changed } = await setItemCategories(
-    projectId,
+    spaceId,
     ref,
     { [category.name]: values.length ? values : null },
     "person",
@@ -865,7 +865,7 @@ export async function syncColumnCategory(category: CategoryRow, rowIds?: string[
   });
   for (const row of rows) {
     await setItemCategories(
-      category.projectId,
+      category.spaceId,
       { rowId: row.id },
       {
         [category.name]: (row.cells[category.columnId] as CategoryCell | null | undefined) ?? null,
@@ -1007,14 +1007,14 @@ async function withSubPages(pageIds: string[]): Promise<string[]> {
  * category for is an error that lists the names there are.
  */
 export async function filterItems(
-  projectId: string,
+  spaceId: string,
   where: Where | undefined,
 ): Promise<Filtered | null> {
   const entries = Object.entries(where ?? {});
   if (!entries.length) {
     return null;
   }
-  const rows = (await categoryRows(projectId)).filter((c) => !c.proposed);
+  const rows = (await categoryRows(spaceId)).filter((c) => !c.proposed);
   let result = null as Set<string> | null;
   for (const [name, w] of entries) {
     const category = byName(rows, name);

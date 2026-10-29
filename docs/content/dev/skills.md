@@ -93,12 +93,12 @@ Under `/api/studio`, signed in as for the studio:
 
 | Route | What it does |
 | --- | --- |
-| `GET /projects/:id/skills` | The space’s skills, without their content |
-| `POST /projects/:id/skills` | A new skill: `{ name, description, body?, mode? }` |
-| `POST /projects/:id/skills/upload` | A `SKILL.md`, `.zip` or `.skill` in the form field `file` |
-| `GET /projects/:id/skills/registry?q=` | A search on skills.sh |
-| `GET /projects/:id/skills/registry/preview?ref=` | A skill of skills.sh read whole: `owner/repo/skill` |
-| `POST /projects/:id/skills/registry` | Adds one: `{ ref, mode? }` |
+| `GET /spaces/:id/skills` | The space’s skills, without their content |
+| `POST /spaces/:id/skills` | A new skill: `{ name, description, body?, mode? }` |
+| `POST /spaces/:id/skills/upload` | A `SKILL.md`, `.zip` or `.skill` in the form field `file` |
+| `GET /spaces/:id/skills/registry?q=` | A search on skills.sh |
+| `GET /spaces/:id/skills/registry/preview?ref=` | A skill of skills.sh read whole: `owner/repo/skill` |
+| `POST /spaces/:id/skills/registry` | Adds one: `{ ref, mode? }` |
 | `GET`, `PATCH`, `DELETE /skills/:id` | One skill. `PATCH` takes `name`, `description`, `body`, `meta`, `files`, `mode`, `runScripts`, or the whole `skillMd` |
 | `POST /skills/:id/copy` | A copy as the space’s own skill |
 | `GET /skills/:id/zip` | The skill’s folder as a zip |

@@ -47,7 +47,7 @@ Errors: `{ "error": string, "code": string }`.
 
 | Call | Body → answer |
 |---|---|
-| `GET /v1/tenants/:id` | → `{ id, name, slug?, pagesHost?, status: "active" \| "suspended" \| "deleted", balanceCredits, plan?: { id, name }, limits: { concurrentRuns, projects?, build?, members? }, modules?: string[], features?: { [id]: boolean }, db: { url: string } \| null }` · `db: null` means the runtime keeps the tenant's database as a file · `slug`, `pagesHost`: the organization's address (`acme`, `acme.wizards.page`), shown in the studio's "Public page" part; an older Manage-App names none · `plan`: the plan the tenant is on (Free, Pro, Team, …), shown in the studio · `limits.projects`: how many projects the tenant works with (the studio shows a project switcher above one; a project a local install synced counts); `null` for as many as it wants; left out, the runtime keeps one · `limits.build: false`: the tenant makes and changes nothing on the runtime, its studio shows what its local install synced; left out, it builds · `limits.members`: the people the plan allows (`null`: no limit), shown on the studio's organization page; the Manage-App enforces it · `modules` (optional, a list of plugin ids): the plugins of the runtime switched on for the tenant, besides the runtime's `PLUGINS_DEFAULT`; an id the runtime has no plugin for is ignored ([content/dev/plugins/shipping.md](content/dev/plugins/shipping.md)) · `features`: the plan's switches the runtime reads; one not named is off. Known: `ownKeys` — the tenant's own API keys and bindings to a provider's model in the cloud studio (`PUT /api/studio/models` refuses them with `403 { code: "plan" }` otherwise) · `level`: `{ level, name, next: { level, name, runs, published } \| null, progress: { runs, published } }`, what the team's use earned (or an admin gave it); the studio's catalog shows a template from its `level` on and the featured ones first; `features` already leave off what a level above the team's opens · `holds`: `{ page: { reason } \| null, wizards: [{ id, reason }] }`, what an admin held; a held wizard's run page starts no new run (`wizardPaused`) |
+| `GET /v1/tenants/:id` | → `{ id, name, slug?, pagesHost?, status: "active" \| "suspended" \| "deleted", balanceCredits, plan?: { id, name }, limits: { concurrentRuns, projects?, build?, members? }, modules?: string[], features?: { [id]: boolean }, db: { url: string } \| null }` · `db: null` means the runtime keeps the tenant's database as a file · `slug`, `pagesHost`: the organization's address (`acme`, `acme.wizards.page`), shown in the studio's "Public page" part; an older Manage-App names none · `plan`: the plan the tenant is on (Free, Pro, Team, …), shown in the studio · `limits.projects`: how many spaces the tenant works with (the Manage-App's name for them; the studio shows a space switcher above one; a space a local install synced counts); `null` for as many as it wants; left out, the runtime keeps one · `limits.build: false`: the tenant makes and changes nothing on the runtime, its studio shows what its local install synced; left out, it builds · `limits.members`: the people the plan allows (`null`: no limit), shown on the studio's organization page; the Manage-App enforces it · `modules` (optional, a list of plugin ids): the plugins of the runtime switched on for the tenant, besides the runtime's `PLUGINS_DEFAULT`; an id the runtime has no plugin for is ignored ([content/dev/plugins/shipping.md](content/dev/plugins/shipping.md)) · `features`: the plan's switches the runtime reads; one not named is off. Known: `ownKeys` — the tenant's own API keys and bindings to a provider's model in the cloud studio (`PUT /api/studio/models` refuses them with `403 { code: "plan" }` otherwise) · `level`: `{ level, name, next: { level, name, runs, published } \| null, progress: { runs, published } }`, what the team's use earned (or an admin gave it); the studio's catalog shows a template from its `level` on and the featured ones first; `features` already leave off what a level above the team's opens · `holds`: `{ page: { reason } \| null, wizards: [{ id, reason }] }`, what an admin held; a held wizard's run page starts no new run (`wizardPaused`) |
 | `GET /v1/tenants/:id/members` | → `{ members: [{ userId, name, email, image, role, joinedAt }], invitations: [{ id, email, role, expiresAt }], seats: { limit: number \| null, taken } }` · the people of the tenant and who is invited, for the studio's organization page; they are invited, given roles and removed with the calls below · `seats.taken` counts members and open invitations |
 | `POST /v1/tenants/:id/invitations` | `{ actorId, email, role, lang: "de" \| "en" }` → `{ invitation: { id, email, role, expiresAt } }` · invites for the person signed in to the studio (`actorId`), whose role the Manage-App checks in its own records: owners and admins invite (on plans other than Team only the owner), only an owner invites an owner · mails the invitation in `lang`; an open invitation to the same address is replaced · refusals: `403` `forbidden`, `PLAN_SEATS` (with `limit`), `PLAN_ROLES`, `not_member`; `409` `already_member` |
 | `DELETE /v1/tenants/:id/invitations/:invitationId` | `{ actorId }` → `{ ok: true }` · withdraws an open invitation; owners and admins, an owner's invitation only an owner |
@@ -215,7 +215,7 @@ access token; `runtime` is the install's release (`0.2.27` or `v0.2.27`).
 
 A runtime that runs alone, linked to an account, sends what it publishes to the account's cloud
 runtime (`CLOUD_URL`). Only the published version goes, when it is published; drafts, runs and
-connected accounts stay. The project keeps the ids it has on the install — its own and its
+connected accounts stay. The space keeps the ids it has on the install — its own and its
 wizards' — and is changed on the cloud runtime only by the next sync: the studio there shows it
 and runs it. The share link of a copy is the cloud runtime's own.
 
@@ -224,28 +224,28 @@ Calls of the cloud runtime, below `<RUNTIME_URL>/api/v1`, with the account's acc
 
 | Call | Scopes | Body → answer |
 |---|---|---|
-| `PUT /spaces/:spaceId/wizards/:wizardId` | `wizards:write wizards:publish` | `{ space: { name, brand: { name?, about?, colors? }, facts, logo: { name, mime, description, data } \| null }, version, definition, files: [{ path, mime?, data }], shareEnabled, dailyRunLimit? }` (`data` is base64) → `{ wizardId, shareUrl, code, shareEnabled, publishedVersion: number \| null, runnable, problems }` · makes or updates the project and the wizard; the same wizard again keeps its link · `code`: the copy's ID for the mobile app |
+| `PUT /spaces/:spaceId/wizards/:wizardId` | `wizards:write wizards:publish` | `{ space: { name, brand: { name?, about?, colors? }, facts, logo: { name, mime, description, data } \| null }, version, definition, files: [{ path, mime?, data }], shareEnabled, dailyRunLimit? }` (`data` is base64) → `{ wizardId, shareUrl, code, shareEnabled, publishedVersion: number \| null, runnable, problems }` · makes or updates the space and the wizard; the same wizard again keeps its link · `code`: the copy's ID for the mobile app |
 | `PUT /spaces/:spaceId/data` | `wizards:write` | `{ tables: [{ id, title, columns, rows: [{ id, cells }] }], pages: [{ id, title, markdown }] }` → `{ tables, pages }` · the space's own tables and pages (not a wizard's), sent after a wizard when they changed; replaces what came before, under the install's ids · `404` before the space's first wizard arrived |
 | `PATCH /spaces/:spaceId/wizards/:wizardId` | `wizards:publish` | `{ shareEnabled?, dailyRunLimit? }` → `{ ok: true }` |
 | `POST /spaces/:spaceId/wizards/:wizardId/rotate-link` | `wizards:publish` | → `{ shareUrl, code }` · the copy gets a new link (the install made one); the old one stops answering |
 | `DELETE /spaces/:spaceId/wizards/:wizardId` | `wizards:write` | → `{ ok: true }` · the copy goes with its link and its runs |
 | `GET /spaces` | `wizards:read` | → `{ spaces: [{ id, name, syncedAt, wizards: [{ id, title, publishedVersion, shareUrl, shareEnabled }] }] }` |
-| `DELETE /spaces/:spaceId` | `wizards:write` | → `{ ok: true }` · the project goes with its wizards |
+| `DELETE /spaces/:spaceId` | `wizards:write` | → `{ ok: true }` · the space goes with its wizards |
 | `POST /spaces/check` | `wizards:read` | `{ definition, files: [path] }` → `{ problems }` · what a wizard would lack there, nothing is written |
 
-- **Ids**: 8 to 40 characters of `A–Z a–z 0–9 _ -`, as the install makes them. An id a project or
+- **Ids**: 8 to 40 characters of `A–Z a–z 0–9 _ -`, as the install makes them. An id a space or
   wizard made on the cloud runtime already has is refused (`reason: "id_taken"`).
 - **Problems**: `{ code: "invalid" | "connector" | "model" | "sandbox" | "mcp", blocking, steps: [{ id, title }], detail }`.
   A sent version with a blocking problem is kept and shown but not published: runs go on with the
   version before (`publishedVersion`), and `runnable` is false.
-- **Room**: a synced project counts against `limits.projects`. Beyond it the call is refused with
-  `400 { reason: "space_limit", spaces: [{ id, name }] }`, naming the synced projects in the way.
+- **Room**: a synced space counts against the tenant's `limits.projects`. Beyond it the call is refused with
+  `400 { reason: "space_limit", spaces: [{ id, name }] }`, naming the synced spaces in the way.
 - **Limits**: 240 sendings an hour per tenant (`429`), 48 MB per wizard (`413`), and the
-  runtime's `LIMIT_SYNCED_WIZARDS` (50) wizards per synced project (`400 { reason: "wizard_limit" }`).
+  runtime's `LIMIT_SYNCED_WIZARDS` (50) wizards per synced space (`400 { reason: "wizard_limit" }`).
 - **Refusals**: `403 { code: "insufficient_scope" }`; and `403 { code: "read_only" }` from every
-  other write of a synced project, or by a tenant with `limits.build: false`.
+  other write of a synced space, or by a tenant with `limits.build: false`.
 - **A sending that breaks off** (`5xx`, the connection) leaves nothing behind: the files' bytes
-  are kept first, then the project, the wizard, its workspace and the version are written in one
+  are kept first, then the space, the wizard, its workspace and the version are written in one
   transaction. The install sends again by itself — after a minute, then twice as long each time,
   up to an hour — until it arrives; not after a refusal (`4xx`), which only the person can mend.
 
@@ -267,7 +267,7 @@ Calls of the cloud runtime, below `<RUNTIME_URL>/api/v1`, with the account's acc
 
 | Call | Scopes | Body → answer |
 |---|---|---|
-| `GET /sync` | `wizards:read` | → `{ tenantId, schema, role, limits: { projects }, spaces: [{ id, name, seq }] }` |
+| `GET /sync` | `wizards:read` | → `{ tenantId, schema, role, limits: { spaces }, spaces: [{ id, name, seq }] }` |
 | `GET /sync/spaces/:spaceId/changes?since=&cursor=` | `wizards:read` | → `{ changes: [{ kind, item, seq, record }], next, more, cursor? }` · `record: null` = deleted · from `since=0` every item of the space, a page at a time (`cursor`) · 300 a page |
 | `POST /sync/spaces/:spaceId/changes` | `wizards:write` | `{ schema, items: [{ kind, item, base, record }] }` → `{ results: [{ kind, item, status: "taken", seq } \| { status: "conflict", seq, record } \| { status: "refused", reason, message }], seq }` · 500 items, 16 MB · a space is made by the item `{ kind: "space", item: spaceId }` |
 | `POST /sync/spaces/:spaceId/blobs/missing` | `wizards:write` | `{ hashes }` → `{ missing }` · the files' bytes go before the records that point to them |
@@ -309,7 +309,7 @@ Calls of the runtime, below `<RUNTIME_URL>/api/v1`:
 |---|---|---|
 | `GET /me` | — | `{ user: { id, name, email, role }, tenant: { id, name, plan: { id, name } \| null, credits }, build, create, plugins, missing, spaces: [{ id, name, title, wizards, writable }], scopes, client, urls: { app, embed, studio, newWizard, space, account, billing, upgrade } }` · `missing`: of `contacts` and `appointments`, what the plan lacks |
 | `GET /wizards?space=` | `wizards:read` | `{ wizards: [{ id, spaceId, title, description, avatar, published, publishedVersion, token, code, shareUrl, shareEnabled, iconUrl, available, unavailableReason, dailyRunLimit, plugins, standalone, studioUrl, updatedAt }] }` · a draft has no `token`, `code`, `shareUrl` · `standalone`: whether it runs on a website by itself, `{ fit: "full" \| "less" \| "no", notes, missing, optional, needs, without }` (`packages/shared/src/fit.ts`) |
-| `GET /wizards/:id/package?knowledge=` | `wizards:read` | the published version as a `.wizard` package (`application/vnd.engenty.wizard+zip`, `content-disposition` with the file name); `knowledge=1` adds the project's pages under `files/knowledge/` as Markdown (2 MB cap, the manifest's `knowledge: { pages, truncated }`); `404 not_found` while the wizard is a draft only |
+| `GET /wizards/:id/package?knowledge=` | `wizards:read` | the published version as a `.wizard` package (`application/vnd.engenty.wizard+zip`, `content-disposition` with the file name); `knowledge=1` adds the space's pages under `files/knowledge/` as Markdown (2 MB cap, the manifest's `knowledge: { pages, truncated }`); `404 not_found` while the wizard is a draft only |
 | `POST /wizards` | `wizards:write wizards:publish` | `{ starterId, spaceId?, lang?, publish = true }` → `{ wizard, published, issues }` · a wizard from a template, published when it has no issues; `403 read_only` without `limits.build` |
 | `GET /templates?q=&lang=` | `wizards:read` | `{ templates: [{ id, title, pitch, avatar, language, useCases, formats, plan, plugin, needs, credits }] }` · the plugins' starters first |
 | `GET /runs?space=&wizard=&status=done\|open\|all&q=&days=&page=` | `runs:read` | `{ runs: [{ id, wizardId, wizard, status, step, createdAt, updatedAt, origin, email, summary, credits, files }], page, pages, total }` · live runs, 50 a page |
@@ -389,7 +389,7 @@ are the media models a caller may name itself (`kind` `image`, `video`, `speech`
 the AI Gateway's shapes and books them by the catalog's price.
 
 A catalog that lists the class `embedding` (`"kind": "embedding"`) says the gateway also takes
-`wizards/embedding` on `/embedding-model`: the runtime then keeps vectors of a project's documents.
+`wizards/embedding` on `/embedding-model`: the runtime then keeps vectors of a space's documents.
 Without it the runtime indexes them by keywords only and never calls that id.
 
 1 credit = 1 cent retail; credits = provider cost in cents × markup. The provider cost is the

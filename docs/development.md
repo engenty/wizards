@@ -18,7 +18,7 @@ The Manage-App (accounts, tenants, credits, the model-gateway) is a separate, cl
 the two speak is in [manage-contract.md](manage-contract.md).
 
 The two ways meet in an account: a runtime that runs alone and is linked to one sends what it
-publishes to the account's cloud runtime, which shows the project read-only and runs its wizards
+publishes to the account's cloud runtime, which shows the space read-only and runs its wizards
 (the contract's "Spaces of a local install"). Building stays on the install; a tenant builds on
 the cloud runtime only when the Manage-App says so (`limits.build`).
 
@@ -408,7 +408,7 @@ SMTP (the person enters a token, keys or a mailbox password). The settings show 
 enabled and the scopes on the consent screen; a connection asks only for what the wizard's
 actions need.
 
-For everything else: in the project settings, search a service (Notion, Stripe, GitHub …) in the
+For everything else: in the space settings, search a service (Notion, Stripe, GitHub …) in the
 [integrations.sh](https://integrations.sh) registry and import it — from its OpenAPI spec or its
 MCP server. The architect and MCP clients can do the same (`find_connectors`, `import_connector`).
 A wizard declares a connection to it; the person running the wizard connects their own account
@@ -602,8 +602,8 @@ reach only servers on the internet: for them a wizard runs on engenty.ai, not on
 | Installed AI clients as models (Claude Code, Codex, Antigravity, Cursor Agent): headless calls, tools over MCP, sign-in in an inline terminal; first-start setup | `apps/runtime/src/harness/`, `apps/runtime/src/mcp/bridge.ts`, `apps/web/src/studio/{SetupPage,Harness,Terminal}.tsx` |
 | Credits: balance, reservation, cost per step; estimate before a run | `apps/runtime/src/credits/credits.ts`, `apps/runtime/src/credits/estimate.ts` |
 | Studio chat on the Claude subscription | `apps/runtime/src/agents/subscription.ts` |
-| A local install's project in the cloud: what is sent on publish (alone), what takes it and runs it (managed), the import API | `docs/manage-contract.md` ("Spaces of a local install"), `apps/runtime/src/services/cloud.ts`, `apps/runtime/src/services/spaces.ts`, `apps/runtime/src/routes/api.ts` |
-| Who may change what: a synced project is read-only, a tenant without `limits.build` builds nothing | `apps/runtime/src/services/access.ts`, `apps/web/src/studio/ReadOnly.tsx` |
+| A local install's space in the cloud: what is sent on publish (alone), what takes it and runs it (managed), the import API | `docs/manage-contract.md` ("Spaces of a local install"), `apps/runtime/src/services/cloud.ts`, `apps/runtime/src/services/synced-spaces.ts`, `apps/runtime/src/routes/api.ts` |
+| Who may change what: a synced space is read-only, a tenant without `limits.build` builds nothing | `apps/runtime/src/services/access.ts`, `apps/web/src/studio/ReadOnly.tsx` |
 | Files in the data folder or a bucket, per tenant | `apps/runtime/src/files/objects.ts` |
 | Studio (editor, diagram, chat, inspector) | `apps/web/src/studio/` |
 | Public runner | `apps/web/src/runner/` |

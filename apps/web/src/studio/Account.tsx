@@ -24,8 +24,8 @@ import { Button, Chip, cn, IconButton, Input, Label, Spinner, Textarea } from ".
 import { LangPick } from "./LangSwitch";
 import { openExternal } from "./LocalRuntime";
 import { OrganizationFace } from "./Organizations";
-import { useAutosave } from "./project/data";
-import { Section } from "./project/Section";
+import { useAutosave } from "./space/data";
+import { Section } from "./space/Section";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { hostOf } from "./where";
 

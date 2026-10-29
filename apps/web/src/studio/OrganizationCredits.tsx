@@ -6,7 +6,7 @@ import { type Key, lang, t } from "../lib/i18n";
 import type { Me } from "../lib/session";
 import { Button, Chip, IconButton, Spinner } from "../ui";
 import { openExternal } from "./LocalRuntime";
-import { Section } from "./project/Section";
+import { Section } from "./space/Section";
 
 /** The Manage-App's billing view, as the studio reads it through its runtime. */
 interface Billing {

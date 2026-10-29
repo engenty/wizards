@@ -29,7 +29,7 @@ const found = new WeakMap<StepContext, Promise<Skills>>();
 export function skillsOf(ctx: StepContext): Promise<Skills> {
   let skills = found.get(ctx);
   if (!skills) {
-    skills = activeSkills(ctx.project.id);
+    skills = activeSkills(ctx.space.id);
     found.set(ctx, skills);
   }
   return skills;

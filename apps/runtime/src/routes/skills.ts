@@ -54,10 +54,10 @@ const uploadLimit = bodyLimit({
 });
 
 export const skillRoutes = new Hono<Vars>()
-  .get("/projects/:id/skills", async (c) =>
+  .get("/spaces/:id/skills", async (c) =>
     c.json(await listSkills(c.get("user").id, c.req.param("id"))),
   )
-  .post("/projects/:id/skills", async (c) => {
+  .post("/spaces/:id/skills", async (c) => {
     const body = z
       .object({
         name: z.string().max(200),
@@ -68,7 +68,7 @@ export const skillRoutes = new Hono<Vars>()
       .parse(await c.req.json());
     return c.json(await createSkill(c.get("user").id, c.req.param("id"), body));
   })
-  .post("/projects/:id/skills/upload", uploadLimit, async (c) => {
+  .post("/spaces/:id/skills/upload", uploadLimit, async (c) => {
     const file = (await c.req.formData()).get("file");
     if (!(file instanceof File)) {
       throw new ServiceError("invalid", note("chooseFile"));
@@ -80,14 +80,14 @@ export const skillRoutes = new Hono<Vars>()
       }),
     );
   })
-  .get("/projects/:id/skills/registry", async (c) =>
+  .get("/spaces/:id/skills/registry", async (c) =>
     c.json(await searchSkills(c.get("user").id, c.req.param("id"), c.req.query("q") ?? "")),
   )
-  .get("/projects/:id/skills/registry/preview", async (c) => {
+  .get("/spaces/:id/skills/registry/preview", async (c) => {
     const ref = z.string().regex(SKILL_REF).parse(c.req.query("ref"));
     return c.json(await previewSkill(c.get("user").id, c.req.param("id"), ref));
   })
-  .post("/projects/:id/skills/registry", async (c) => {
+  .post("/spaces/:id/skills/registry", async (c) => {
     const body = z
       .object({ ref: z.string().regex(SKILL_REF), mode: z.enum(SKILL_MODES).optional() })
       .parse(await c.req.json());

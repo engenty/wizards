@@ -6,13 +6,13 @@ import { eq } from "drizzle-orm";
 import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { embeddingModel } from "../models.js";
-import { mayBuild, projectWritable } from "../services/access.js";
+import { mayBuild, spaceWritable } from "../services/access.js";
 import { cloudLinked, cloudState } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
 import { presentIn } from "../services/presence.js";
-import { fileView, projectFiles } from "../services/project-files.js";
-import { listProjects, ownedProject } from "../services/projects.js";
 import { getPage, getRow, getTableHeader } from "../services/space-data.js";
+import { fileView, spaceFiles } from "../services/space-files.js";
+import { listSpaces, ownedSpace } from "../services/spaces.js";
 import { publishedDefinition, translationsOf } from "../services/translations.js";
 import { listWizards, ownedWizard, wizardMessages, wizardState } from "../services/wizards.js";
 
@@ -30,9 +30,9 @@ export interface Reader {
 
 /** The spaces, as the studio lists them. */
 export async function spacesView(r: Reader) {
-  const projects = await listProjects(r.userId, r.lang);
+  const spaces = await listSpaces(r.userId, r.lang);
   const build = await mayBuild();
-  return projects.map((p) => ({
+  return spaces.map((p) => ({
     id: p.id,
     name: p.name,
     brand: p.brand,
@@ -48,9 +48,9 @@ export async function spacesView(r: Reader) {
 }
 
 /** A space's wizards, as its cards show them. */
-export async function wizardsView(r: Reader, projectId: string) {
-  await ownedProject(r.userId, projectId);
-  const wizards = await listWizards(r.userId, projectId);
+export async function wizardsView(r: Reader, spaceId: string) {
+  await ownedSpace(r.userId, spaceId);
+  const wizards = await listWizards(r.userId, spaceId);
   // A local install with an account: where each wizard stands in its cloud, for the cards.
   const linked = await cloudLinked();
   return Promise.all(
@@ -62,11 +62,11 @@ export async function wizardsView(r: Reader, projectId: string) {
 export async function wizardView(r: Reader, id: string) {
   const w = await ownedWizard(r.userId, id);
   const messages = await wizardMessages(w.id);
-  const project = await ownedProject(r.userId, w.projectId);
+  const space = await ownedSpace(r.userId, w.spaceId);
   return {
     ...(await wizardState(w)),
     /** Shown and run here, changed elsewhere: a local install's wizard, or nothing is built here. */
-    readOnly: !(await projectWritable(project)),
+    readOnly: !(await spaceWritable(space)),
     blank: messages.length === 0 && !w.starter,
     messages: messages.map((m) => ({
       id: m.id,
@@ -96,19 +96,19 @@ export async function translationsView(r: Reader, wizardId: string) {
 }
 
 /** What a space holds for all its wizards. */
-export async function filesView(r: Reader, projectId: string) {
-  const project = await ownedProject(r.userId, projectId);
+export async function filesView(r: Reader, spaceId: string) {
+  const space = await ownedSpace(r.userId, spaceId);
   return {
-    files: (await projectFiles(project.id)).map(fileView),
+    files: (await spaceFiles(space.id)).map(fileView),
     /** Whether documents get vectors, or the index works on keywords alone. */
     embeddings: Boolean(await embeddingModel().catch(() => null)),
   };
 }
 
 /** The connectors a space's wizards can name. */
-export async function connectorsView(r: Reader, projectId: string) {
-  const project = await ownedProject(r.userId, projectId);
-  return listConnectors(project.id);
+export async function connectorsView(r: Reader, spaceId: string) {
+  const space = await ownedSpace(r.userId, spaceId);
+  return listConnectors(space.id);
 }
 
 // --- one item, for the live stream ------------------------------------------------------------
@@ -122,8 +122,8 @@ const gone = (err: unknown) => err instanceof ServiceError && err.code === "not_
 const ITEM_VIEWS: Record<LiveKind, ((r: Reader, x: LiveItem) => Promise<unknown>) | null> = {
   space: async (r, x) => (await spacesView(r)).find((s) => s.id === x.item) ?? null,
   wizard: async (r, x) => {
-    const summary = x.projectId
-      ? (await wizardsView(r, x.projectId)).find((w) => w.id === x.item)
+    const summary = x.spaceId
+      ? (await wizardsView(r, x.spaceId)).find((w) => w.id === x.item)
       : undefined;
     return summary ? { summary, detail: await wizardView(r, x.item) } : null;
   },
@@ -141,17 +141,17 @@ const ITEM_VIEWS: Record<LiveKind, ((r: Reader, x: LiveItem) => Promise<unknown>
   presence: async (_r, x) =>
     x.parent ? presentIn(x.parent, x.item.slice(x.parent.length + 1)) : [],
   file: async (_r, x) => {
-    const row = await db.query.projectFile.findFirst({ where: eq(schema.projectFile.id, x.item) });
+    const row = await db.query.spaceFile.findFirst({ where: eq(schema.spaceFile.id, x.item) });
     return row ? fileView(row) : null;
   },
   // The studio asks for the space's skills again: a list of names, no view of its own.
   skill: null,
   connector: async (r, x) => {
-    if (!x.projectId) {
+    if (!x.spaceId) {
       return null;
     }
-    const id = x.item.slice(x.projectId.length + 1);
-    return (await connectorsView(r, x.projectId)).find((c) => c.id === id) ?? null;
+    const id = x.item.slice(x.spaceId.length + 1);
+    return (await connectorsView(r, x.spaceId)).find((c) => c.id === id) ?? null;
   },
 };
 

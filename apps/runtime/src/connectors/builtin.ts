@@ -22,7 +22,7 @@ import { googleThroughAccount } from "./via-account.js";
 
 /**
  * engenty's own connectors, as engenty ships them: Gmail, Drive, Calendar, Contacts, Outlook,
- * OneDrive, Slack, GitHub, HubSpot, S3 — and SMTP, for sending from any mailbox. Every project
+ * OneDrive, Slack, GitHub, HubSpot, S3 — and SMTP, for sending from any mailbox. Every space
  * has them; an OAuth one can be connected once its client is configured.
  */
 export const BUILTIN_CONNECTORS: ConnectorDefinition[] = [

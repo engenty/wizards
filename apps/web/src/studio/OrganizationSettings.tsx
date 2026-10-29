@@ -17,7 +17,7 @@ import { type Key, t } from "../lib/i18n";
 import { initialsOf, type Me } from "../lib/session";
 import { useStudioPlugins } from "../plugins/host";
 import { Button, Chip, IconButton, Input, Select, Spinner, useAutosave } from "../ui";
-import { Section } from "./project/Section";
+import { Section } from "./space/Section";
 
 type Role = "owner" | "admin" | "member";
 

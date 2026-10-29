@@ -35,7 +35,7 @@ import { currentFeatures } from "../features.js";
 import { managed } from "../manage.js";
 import { conversationAccess, ModelUnavailableError, textModel } from "../models.js";
 import { seal, unseal } from "../secrets/crypto.js";
-import { putIndexEntry, removeIndexEntries } from "../services/project-index.js";
+import { putIndexEntry, removeIndexEntries } from "../services/space-index.js";
 import { originData } from "../services/space-origin.js";
 import { readSetting, writeSetting } from "../settings.js";
 import { safeFetch } from "../tools/net-guard.js";
@@ -268,7 +268,7 @@ function apiFor(record: LoadedPlugin): WizardsPluginApi {
       spaceData: originData(source.id),
       spaces: {
         async brand(space) {
-          const p = await db.query.project.findFirst({ where: eq(schema.project.id, space) });
+          const p = await db.query.space.findFirst({ where: eq(schema.space.id, space) });
           return p
             ? {
                 name: p.brand.name ?? "",

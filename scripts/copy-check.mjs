@@ -219,7 +219,7 @@ const SOURCE_DIRS = [
 const NOT_COPY = [
   ["apps/web/src/dev", null, "the dev-only mascot builder, not shipped to people"],
   [
-    "apps/web/src/studio/project/page-words.ts",
+    "apps/web/src/studio/space/page-words.ts",
     null,
     "the public page's own words in the page's language, as Manage writes them",
   ],
@@ -232,8 +232,8 @@ const NOT_COPY = [
   ["apps/runtime/src/authoring/guide.ts", null, "AI prompt: German examples of what people write"],
   ["apps/runtime/src/media/transcribe.ts", "ähm", "AI prompt: filler words to keep"],
   ["apps/runtime/src/services/knowledge.ts", "Graz Süd", "AI tool hint: an example value"],
-  ["apps/runtime/src/tools/project.ts", "Graz Süd", "AI tool description: an example value"],
-  ["apps/runtime/src/services/project-index.ts", "der die das", "stop words for search"],
+  ["apps/runtime/src/tools/space.ts", "Graz Süd", "AI tool description: an example value"],
+  ["apps/runtime/src/services/space-index.ts", "der die das", "stop words for search"],
   [
     "packages/shared/src/sectors.ts",
     null,

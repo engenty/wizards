@@ -53,8 +53,8 @@ describe("what the runtime inherits from the terminal", () => {
     PATH: "/usr/bin:/bin",
     API_HOST: "127.0.0.1",
     MODEL_STANDARD: "ollama:qwen3",
-    // Exported for other projects: none of it is ours to use.
-    OPENAI_API_KEY: "sk-other-project",
+    // Exported for other spaces: none of it is ours to use.
+    OPENAI_API_KEY: "sk-other-space",
     DATABASE_URL: "libsql://other",
     MANAGE_URL: "https://manage.example",
     APP_SECRET: "other",

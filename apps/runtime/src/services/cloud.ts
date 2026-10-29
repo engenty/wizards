@@ -18,9 +18,9 @@ import {
 import { currentTenant } from "../tenants/tenant.js";
 import { mainLogoId } from "./brand.js";
 import { ServiceError } from "./errors.js";
-import { projectFileContent, projectFiles } from "./project-files.js";
-import { ownedProject } from "./projects.js";
-import type { ServerProblem, SpaceInput, SyncDataInput, SyncResult } from "./spaces.js";
+import { spaceFileContent, spaceFiles } from "./space-files.js";
+import { ownedSpace } from "./spaces.js";
+import type { ServerProblem, SpaceInput, SyncDataInput, SyncResult } from "./synced-spaces.js";
 import { themesOf } from "./themes.js";
 import { ownedWizard, publishedVersion, publishWizard } from "./wizards.js";
 
@@ -65,7 +65,7 @@ export interface CloudState {
 /** What the cloud lacks for a wizard, and what stays here: said before it is sent. */
 export interface CloudCheck {
   problems: ServerProblem[];
-  /** The project has documents; they are not sent, so steps there work without them. */
+  /** The space has documents; they are not sent, so steps there work without them. */
   documents: boolean;
 }
 
@@ -148,19 +148,19 @@ function nextTry(tries: number, from: Date): string {
   return new Date(from.getTime() + minutes * 60_000).toISOString();
 }
 
-/** The project as the cloud keeps it: its name, what it says about itself, its logo. */
-async function spaceOf(userId: string, projectId: string): Promise<SpaceInput> {
-  const project = await ownedProject(userId, projectId);
-  const logoId = await mainLogoId(project.id);
-  const logo = logoId ? await projectFileContent(project.id, logoId).catch(() => null) : null;
+/** The space as the cloud keeps it: its name, what it says about itself, its logo. */
+async function spaceOf(userId: string, spaceId: string): Promise<SpaceInput> {
+  const space = await ownedSpace(userId, spaceId);
+  const logoId = await mainLogoId(space.id);
+  const logo = logoId ? await spaceFileContent(space.id, logoId).catch(() => null) : null;
   return {
-    name: project.name,
+    name: space.name,
     brand: {
-      name: project.brand.name,
-      about: project.brand.about,
-      colors: project.brand.colors,
+      name: space.brand.name,
+      about: space.brand.about,
+      colors: space.brand.colors,
     },
-    facts: project.facts,
+    facts: space.facts,
     logo: logo
       ? {
           name: logo.row.name,
@@ -173,9 +173,9 @@ async function spaceOf(userId: string, projectId: string): Promise<SpaceInput> {
 }
 
 /** The space's own tables and pages, as they are sent: not what a wizard's runs keep. */
-async function spaceDataOf(projectId: string): Promise<SyncDataInput> {
+async function spaceDataOf(spaceId: string): Promise<SyncDataInput> {
   const own = (table: typeof schema.spaceTable | typeof schema.spacePage) =>
-    and(eq(table.projectId, projectId), isNull(table.wizardId));
+    and(eq(table.spaceId, spaceId), isNull(table.wizardId));
   const tables = await db.query.spaceTable.findMany({
     where: own(schema.spaceTable),
     orderBy: [asc(schema.spaceTable.id)],
@@ -194,10 +194,7 @@ async function spaceDataOf(projectId: string): Promise<SyncDataInput> {
     orderBy: [asc(schema.spacePage.id)],
   });
   const categories = await db.query.spaceCategory.findMany({
-    where: and(
-      eq(schema.spaceCategory.projectId, projectId),
-      eq(schema.spaceCategory.proposed, false),
-    ),
+    where: and(eq(schema.spaceCategory.spaceId, spaceId), eq(schema.spaceCategory.proposed, false)),
     orderBy: [asc(schema.spaceCategory.position), asc(schema.spaceCategory.id)],
   });
   const values = categories.length
@@ -212,7 +209,7 @@ async function spaceDataOf(projectId: string): Promise<SyncDataInput> {
   const assignments = categories.length
     ? await db.query.spaceItemCategory.findMany({
         where: and(
-          eq(schema.spaceItemCategory.projectId, projectId),
+          eq(schema.spaceItemCategory.spaceId, spaceId),
           isNull(schema.spaceItemCategory.fileId),
         ),
         orderBy: [asc(schema.spaceItemCategory.id)],
@@ -278,15 +275,15 @@ async function spaceDataOf(projectId: string): Promise<SyncDataInput> {
  * Sends the space's own tables and pages along with a wizard, when they changed since they last
  * arrived. A sending that fails is tried with the next wizard; the wizard is there either way.
  */
-async function syncSpaceDataToCloud(projectId: string): Promise<void> {
-  const data = await spaceDataOf(projectId);
+async function syncSpaceDataToCloud(spaceId: string): Promise<void> {
+  const data = await spaceDataOf(spaceId);
   const hash = createHash("sha256").update(JSON.stringify(data)).digest("hex");
-  const sent = `cloud-data:${projectId}`;
+  const sent = `cloud-data:${spaceId}`;
   if ((await readSetting<string>(sent)) === hash) {
     return;
   }
   try {
-    const answer = await call("PUT", `/spaces/${projectId}/data`, data, 120_000);
+    const answer = await call("PUT", `/spaces/${spaceId}/data`, data, 120_000);
     if (answer.ok) {
       await writeSetting(sent, hash);
     } else {
@@ -309,13 +306,13 @@ export async function syncToCloud(userId: string, wizardId: string): Promise<Clo
     throw new ServiceError("refused", note("publishWizardFirst"));
   }
   const before = await cloudState(w.id);
-  const twoWay = await spaceSyncs(w.projectId);
+  const twoWay = await spaceSyncs(w.spaceId);
   try {
     // A space of the organization the account was signed in to before stays out of this one.
-    await refuseOtherOrganization(w.projectId);
+    await refuseOtherOrganization(w.spaceId);
     if (twoWay) {
       // The space syncs both ways: its draft goes up with the space, then the cloud publishes it.
-      const published = await publishInCloud(w.projectId, w.id);
+      const published = await publishInCloud(w.spaceId, w.id);
       const state: CloudState = {
         copy: {
           shareUrl: published.shareUrl,
@@ -340,18 +337,15 @@ export async function syncToCloud(userId: string, wizardId: string): Promise<Clo
     );
     const answer = await call<SyncResult>(
       "PUT",
-      `/spaces/${w.projectId}/wizards/${w.id}`,
+      `/spaces/${w.spaceId}/wizards/${w.id}`,
       {
-        space: await spaceOf(userId, w.projectId),
+        space: await spaceOf(userId, w.spaceId),
         version: version.version,
         definition: version.definition,
         files,
         shareEnabled: w.shareEnabled,
         dailyRunLimit: w.dailyRunLimit,
-        themes: themesOf(
-          version.definition.themes,
-          (await ownedProject(userId, w.projectId)).themes,
-        ),
+        themes: themesOf(version.definition.themes, (await ownedSpace(userId, w.spaceId)).themes),
       },
       120_000,
     );
@@ -371,7 +365,7 @@ export async function syncToCloud(userId: string, wizardId: string): Promise<Clo
       error: null,
     };
     await writeSetting(key(w.id), state);
-    await syncSpaceDataToCloud(w.projectId);
+    await syncSpaceDataToCloud(w.spaceId);
     return state;
   } catch (err) {
     const now = new Date();
@@ -411,7 +405,7 @@ export async function pushSharing(userId: string, wizardId: string): Promise<voi
   }
   // A space that syncs both ways takes the settings along with the wizard.
   const own = await ownedWizard(userId, wizardId).catch(() => null);
-  if (own && (await spaceSyncs(own.projectId))) {
+  if (own && (await spaceSyncs(own.spaceId))) {
     return;
   }
   const state = await cloudState(wizardId);
@@ -419,7 +413,7 @@ export async function pushSharing(userId: string, wizardId: string): Promise<voi
     return;
   }
   const w = await ownedWizard(userId, wizardId);
-  await call("PATCH", `/spaces/${w.projectId}/wizards/${w.id}`, {
+  await call("PATCH", `/spaces/${w.spaceId}/wizards/${w.id}`, {
     shareEnabled: w.shareEnabled,
     dailyRunLimit: w.dailyRunLimit,
     translate: w.translate,
@@ -441,12 +435,12 @@ export async function rotateInCloud(userId: string, wizardId: string): Promise<C
   }
   const w = await ownedWizard(userId, wizardId);
   let link: { shareUrl: string; code?: string };
-  if (await spaceSyncs(w.projectId)) {
-    link = await rotateInCloudSpace(w.projectId, w.id);
+  if (await spaceSyncs(w.spaceId)) {
+    link = await rotateInCloudSpace(w.spaceId, w.id);
   } else {
     const answer = await call<{ shareUrl: string; code?: string }>(
       "POST",
-      `/spaces/${w.projectId}/wizards/${w.id}/rotate-link`,
+      `/spaces/${w.spaceId}/wizards/${w.id}/rotate-link`,
     );
     if (!answer.ok || !answer.body.shareUrl) {
       throw refusal(answer, "The link in the cloud could not be renewed.");
@@ -470,10 +464,10 @@ export async function removeFromCloud(userId: string, wizardId: string): Promise
   const w = await ownedWizard(userId, wizardId).catch(() => null);
   await deleteSetting(key(wizardId));
   // A space that syncs both ways deletes the copy with the next push.
-  if (!w || !state.copy || !(await cloudLinked()) || (await spaceSyncs(w.projectId))) {
+  if (!w || !state.copy || !(await cloudLinked()) || (await spaceSyncs(w.spaceId))) {
     return;
   }
-  await call("DELETE", `/spaces/${w.projectId}/wizards/${w.id}`).catch((err) =>
+  await call("DELETE", `/spaces/${w.spaceId}/wizards/${w.id}`).catch((err) =>
     console.error("[cloud] copy not removed:", (err as Error).message),
   );
 }
@@ -530,12 +524,12 @@ export async function syncAllToCloud(userId: string): Promise<{ sent: number; fa
   const account = await linkedAccount();
   const wizards = (
     await db
-      .select({ id: schema.wizard.id, projectId: schema.wizard.projectId })
+      .select({ id: schema.wizard.id, spaceId: schema.wizard.spaceId })
       .from(schema.wizard)
       .where(
         and(eq(schema.wizard.tenantId, currentTenant()), isNotNull(schema.wizard.publishedVersion)),
       )
-  ).filter((w) => !owners[w.projectId] || owners[w.projectId].id === account?.tenantId);
+  ).filter((w) => !owners[w.spaceId] || owners[w.spaceId].id === account?.tenantId);
   let sent = 0;
   let failed = 0;
   for (const [i, { id }] of wizards.entries()) {
@@ -575,7 +569,7 @@ export async function checkForCloud(userId: string, wizardId: string): Promise<C
   if (!answer.ok) {
     throw refusal(answer, "The cloud did not answer.");
   }
-  const documents = await projectFiles(w.projectId, "document");
+  const documents = await spaceFiles(w.spaceId, "document");
   return {
     problems: answer.body.problems ?? [],
     documents: documents.length > 0 && w.draft.steps.some((s) => s.type === "agent"),
@@ -589,7 +583,7 @@ export interface CloudSpace {
   wizards: { id: string; title: string; publishedVersion: number | null; shareUrl: string }[];
 }
 
-/** The projects the account's cloud holds of local installs: this one's, or another machine's. */
+/** The spaces the account's cloud holds of local installs: this one's, or another machine's. */
 export async function cloudSpaces(): Promise<CloudSpace[]> {
   const answer = await call<{ spaces: CloudSpace[] }>("GET", "/spaces");
   if (!answer.ok) {
@@ -599,7 +593,7 @@ export async function cloudSpaces(): Promise<CloudSpace[]> {
 }
 
 /**
- * Makes room for this install's project: the projects of other installs go from the cloud, with
+ * Makes room for this install's space: the spaces of other installs go from the cloud, with
  * their links, then everything published here is sent. For the person who moved to a new
  * machine or installed anew.
  */
@@ -607,9 +601,9 @@ export async function replaceCloudSpaces(userId: string) {
   const mine = new Set(
     (
       await db
-        .select({ id: schema.project.id })
-        .from(schema.project)
-        .where(eq(schema.project.tenantId, currentTenant()))
+        .select({ id: schema.space.id })
+        .from(schema.space)
+        .where(eq(schema.space.tenantId, currentTenant()))
     ).map((p) => p.id),
   );
   for (const space of await cloudSpaces()) {

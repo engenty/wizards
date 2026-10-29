@@ -22,7 +22,7 @@ import { pluginToolsOf } from "../plugins/registry.js";
 import { dropLinks, putLink } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
-import { requireAdmin, requireBuild, requireWritable, requireWritableProject } from "./access.js";
+import { requireAdmin, requireBuild, requireWritable, requireWritableSpace } from "./access.js";
 import { changedSteps, emitDraftChanged } from "./draft-events.js";
 import { notFound, ServiceError } from "./errors.js";
 import { copyFiles, draftFiles, sameFiles, seedFiles } from "./files.js";
@@ -30,8 +30,8 @@ import { forgetWizardLinks } from "./links.js";
 import { pushWizards } from "./manage-reports.js";
 import { asLang, countInstall, marketplaceWizard } from "./marketplace.js";
 import { pushPages } from "./pages.js";
-import { defaultProject, ownedProject } from "./projects.js";
 import { checkRunnerSettings } from "./runners.js";
+import { defaultSpace, ownedSpace } from "./spaces.js";
 import { saveTheme } from "./themes.js";
 
 export type WizardRow = typeof schema.wizard.$inferSelect;
@@ -80,17 +80,17 @@ export async function ownedWizard(_userId: string, wizardId: string): Promise<Wi
   return w;
 }
 
-/** The wizard, for a change: refused where its project is a local install's or nothing is built here. */
+/** The wizard, for a change: refused where its space is a local install's or nothing is built here. */
 export async function writableWizard(userId: string, wizardId: string): Promise<WizardRow> {
   const w = await ownedWizard(userId, wizardId);
-  await requireWritableProject(w.projectId);
+  await requireWritableSpace(w.spaceId);
   return w;
 }
 
 export function wizardSummary(w: WizardRow) {
   return {
     id: w.id,
-    projectId: w.projectId,
+    spaceId: w.spaceId,
     title: w.title,
     description: w.draft.description,
     avatar: w.draft.avatar,
@@ -110,11 +110,11 @@ export function wizardSummary(w: WizardRow) {
   };
 }
 
-export async function listWizards(_userId: string, projectId?: string) {
+export async function listWizards(_userId: string, spaceId?: string) {
   const rows = await db.query.wizard.findMany({
     where: and(
       eq(schema.wizard.tenantId, currentTenant()),
-      projectId ? eq(schema.wizard.projectId, projectId) : undefined,
+      spaceId ? eq(schema.wizard.spaceId, spaceId) : undefined,
     ),
     orderBy: [desc(schema.wizard.updatedAt)],
   });
@@ -143,19 +143,19 @@ export async function publishedVersion(w: WizardRow) {
   return v ?? null;
 }
 
-/** Connections must name connectors the project has imported, and actions those connectors have. */
-async function connectorIssues(projectId: string, draft: WizardDefinition) {
+/** Connections must name connectors the space has imported, and actions those connectors have. */
+async function connectorIssues(spaceId: string, draft: WizardDefinition) {
   const wanted = (draft.connections ?? []).filter((c) => c.connector);
   if (!wanted.length) {
     return [];
   }
   const issues: ValidationIssue[] = [];
-  const connectors = await listConnectors(projectId);
+  const connectors = await listConnectors(spaceId);
   for (const connection of wanted) {
     const connector = connectors.find((c) => c.id === connection.connector);
     if (!connector) {
       issues.push({
-        message: `Connection "${connection.id}" uses connector "${connection.connector}", which this project has not imported.`,
+        message: `Connection "${connection.id}" uses connector "${connection.connector}", which this space has not imported.`,
       });
       continue;
     }
@@ -193,20 +193,20 @@ async function pluginIssues(draft: WizardDefinition) {
   return issues;
 }
 
-/** Everything wrong with a draft: its structure, its workspace files, its project's connectors and plugins. */
-async function checkDraft(projectId: string, draft: WizardDefinition, files: string[]) {
+/** Everything wrong with a draft: its structure, its workspace files, its space's connectors and plugins. */
+async function checkDraft(spaceId: string, draft: WizardDefinition, files: string[]) {
   return [
     ...validateWizard(draft, files),
-    ...(await connectorIssues(projectId, draft)),
+    ...(await connectorIssues(spaceId, draft)),
     ...(await pluginIssues(draft)),
   ];
 }
 
-/** Validator issues of the draft, checked against its workspace and the project's connectors. */
+/** Validator issues of the draft, checked against its workspace and the space's connectors. */
 export async function draftIssues(w: WizardRow) {
   const files = await draftFiles(w.id);
   return checkDraft(
-    w.projectId,
+    w.spaceId,
     w.draft,
     files.map((f) => f.path),
   );
@@ -221,7 +221,7 @@ export async function wizardState(w: WizardRow) {
     draft: w.draft,
     files,
     issues: await checkDraft(
-      w.projectId,
+      w.spaceId,
       w.draft,
       files.map((f) => f.path),
     ),
@@ -307,7 +307,7 @@ export function parseDraft(
 export async function createWizard(
   userId: string,
   input: {
-    projectId?: string;
+    spaceId?: string;
     /** A marketplace entry or a plugin's starter to start from, in `lang` where it is translated. */
     starterId?: string;
     lang?: string;
@@ -316,13 +316,13 @@ export async function createWizard(
   },
   writer: Writer = { source: "studio" },
 ) {
-  // Asked first: a tenant that builds nothing here has no project of its own to name.
+  // Asked first: a tenant that builds nothing here has no space of its own to name.
   await requireBuild();
   await requireAdmin();
-  const project = input.projectId
-    ? await ownedProject(userId, input.projectId)
-    : await defaultProject(userId);
-  await requireWritable(project);
+  const space = input.spaceId
+    ? await ownedSpace(userId, input.spaceId)
+    : await defaultSpace(userId);
+  await requireWritable(space);
   const starter = input.starterId
     ? await marketplaceWizard(input.starterId, asLang(input.lang))
     : undefined;
@@ -345,7 +345,7 @@ export async function createWizard(
   const shareToken = newShareToken();
   await db.insert(schema.wizard).values({
     id,
-    projectId: project.id,
+    spaceId: space.id,
     tenantId: currentTenant(),
     title: draft.title,
     draft,
@@ -388,7 +388,7 @@ export async function writeDraft(
   const files = await draftFiles(w.id);
   const paths = files.map((f) => f.path);
   const { draft } = parseDraft(input.definition, paths);
-  const issues = await checkDraft(w.projectId, draft, paths);
+  const issues = await checkDraft(w.spaceId, draft, paths);
   const [row] = await db
     .update(schema.wizard)
     .set({
@@ -435,7 +435,7 @@ export async function editWizard(
   // A theme belongs to the space: it is saved there first, and the ops put it into the chain.
   for (const op of input.ops) {
     if (op.op === "set_theme") {
-      await saveTheme(userId, w.projectId, op.theme);
+      await saveTheme(userId, w.spaceId, op.theme);
     }
   }
   let definition: unknown;
@@ -461,14 +461,14 @@ export async function updateWizardSettings(
   patch: {
     shareEnabled?: boolean;
     dailyRunLimit?: number;
-    projectId?: string;
+    spaceId?: string;
     runners?: RunnerSettings;
     translate?: boolean;
   },
 ) {
   const w = await writableWizard(userId, wizardId);
-  if (patch.projectId) {
-    await requireWritable(await ownedProject(userId, patch.projectId));
+  if (patch.spaceId) {
+    await requireWritable(await ownedSpace(userId, patch.spaceId));
   }
   const runners = patch.runners ? await checkRunnerSettings(patch.runners) : undefined;
   await db
@@ -506,7 +506,7 @@ export async function duplicateWizard(userId: string, wizardId: string) {
   const shareToken = newShareToken();
   await db.insert(schema.wizard).values({
     id,
-    projectId: w.projectId,
+    spaceId: w.spaceId,
     tenantId: currentTenant(),
     title: draft.title,
     draft,
@@ -527,14 +527,14 @@ export async function deleteWizard(userId: string, wizardId: string) {
   await db
     .delete(schema.wizard)
     .where(and(eq(schema.wizard.id, wizardId), eq(schema.wizard.tenantId, currentTenant())));
-  await unlistWizard(w.projectId, wizardId);
+  await unlistWizard(w.spaceId, wizardId);
   pushWizards();
 }
 
 /** A wizard that is gone leaves its space's public page, which is sent again without it. */
-async function unlistWizard(projectId: string, wizardId: string) {
-  const p = await db.query.project.findFirst({
-    where: eq(schema.project.id, projectId),
+async function unlistWizard(spaceId: string, wizardId: string) {
+  const p = await db.query.space.findFirst({
+    where: eq(schema.space.id, spaceId),
     columns: { page: true },
   });
   if (!p?.page?.wizards.includes(wizardId)) {
@@ -542,12 +542,12 @@ async function unlistWizard(projectId: string, wizardId: string) {
   }
   const { [wizardId]: _gone, ...examples } = p.page.examples;
   await db
-    .update(schema.project)
+    .update(schema.space)
     .set({
       page: { ...p.page, wizards: p.page.wizards.filter((id) => id !== wizardId), examples },
       updatedAt: new Date(),
     })
-    .where(eq(schema.project.id, projectId));
+    .where(eq(schema.space.id, spaceId));
   pushPages();
 }
 
@@ -555,7 +555,7 @@ async function unlistWizard(projectId: string, wizardId: string) {
 export async function requireClean(w: WizardRow) {
   const files = await draftFiles(w.id);
   const issues = await checkDraft(
-    w.projectId,
+    w.spaceId,
     w.draft,
     files.map((f) => f.path),
   );

@@ -179,7 +179,7 @@ describe("an agent step's output schema", () => {
 describe("a step with a schema, run", () => {
   const ctx = () => ({
     def: wizard(),
-    project: { id: "p" },
+    space: { id: "p" },
     call: {},
     signal: new AbortController().signal,
     state: { values: {}, outputs: {}, notes: {} },

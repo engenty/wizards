@@ -9,7 +9,7 @@ import { type Key, lang, t } from "../lib/i18n";
 import { useMe } from "../lib/session";
 import { LinkStatus, useAccountLink } from "../studio/Account";
 import { openExternal } from "../studio/LocalRuntime";
-import { Section } from "../studio/project/Section";
+import { Section } from "../studio/space/Section";
 import { Button, Spinner } from "../ui";
 
 export type HeldBack = "managed" | "not_installed" | "release" | "unconfirmed" | "plan";

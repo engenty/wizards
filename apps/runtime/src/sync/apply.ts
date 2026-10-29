@@ -10,7 +10,7 @@ import { KIND_ORDER, KINDS, letDanglingGo } from "./records.js";
 export interface ApplyItem {
   kind: SyncKind;
   item: string;
-  projectId: string;
+  spaceId: string;
   /** `null`: the item goes. */
   record: SyncRecord | null;
 }
@@ -35,8 +35,8 @@ export async function applyItems(items: ApplyItem[], options: { quiet: boolean }
         for (const x of sorted) {
           const def = KINDS[x.kind];
           const after = x.record
-            ? await def.write(x.projectId, x.item, x.record)
-            : await def.remove(x.projectId, x.item);
+            ? await def.write(x.spaceId, x.item, x.record)
+            : await def.remove(x.spaceId, x.item);
           if (after) {
             done.push(after);
           }

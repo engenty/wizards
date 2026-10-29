@@ -1,8 +1,8 @@
-import type { ProjectFileKind } from "@engenty/wizards-shared/projects";
+import type { SpaceFileKind } from "@engenty/wizards-shared/spaces";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
 import { ServiceError } from "./errors.js";
-import { projectFileContent } from "./project-files.js";
+import { spaceFileContent } from "./space-files.js";
 
 /**
  * Files in Work's chats: what a person adds to a message lands in the space's files, and the
@@ -32,7 +32,7 @@ const MODEL_READS: Record<string, number> = {
 };
 
 /** Where an upload goes among the space's files: pictures and media are assets, the rest documents. */
-export const fileKind = (mime: string): ProjectFileKind =>
+export const fileKind = (mime: string): SpaceFileKind =>
   /^(image|audio|video)\//.test(mime) ? "asset" : "document";
 
 type TextPart = { type: "text"; text: string };
@@ -47,8 +47,8 @@ export async function chatFiles(spaceId: string, ids: string[]): Promise<ChatFil
   if (!ids.length) {
     return [];
   }
-  const rows = await db.query.projectFile.findMany({
-    where: and(eq(schema.projectFile.projectId, spaceId), inArray(schema.projectFile.id, ids)),
+  const rows = await db.query.spaceFile.findMany({
+    where: and(eq(schema.spaceFile.spaceId, spaceId), inArray(schema.spaceFile.id, ids)),
   });
   return [...new Set(ids)].map((id) => {
     const row = rows.find((r) => r.id === id);
@@ -74,7 +74,7 @@ export async function messageContents(
   const parts: (TextPart | FilePart)[] = text ? [{ type: "text", text }] : [];
   const kept: ChatFile[] = [];
   for (const file of files) {
-    const { row, data } = await projectFileContent(spaceId, file.id);
+    const { row, data } = await spaceFileContent(spaceId, file.id);
     const read = data.byteLength <= (MODEL_READS[row.mime] ?? 0);
     if (read) {
       parts.push({
@@ -113,7 +113,7 @@ export function viewParts(
       fileId: f.id,
       mediaType: f.mime,
       filename: f.name,
-      url: `/api/studio/projects/${spaceId}/files/${f.id}/content`,
+      url: `/api/studio/spaces/${spaceId}/files/${f.id}/content`,
     })),
   ];
 }

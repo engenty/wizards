@@ -22,13 +22,7 @@ import { useFeature } from "../lib/features";
 import { eventText, type Key, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import { useMediaQuery } from "../lib/media";
-import {
-  type PublishResult,
-  useCloud,
-  useMe,
-  useProjects,
-  type WizardDetail,
-} from "../lib/session";
+import { type PublishResult, useCloud, useMe, useSpaces, type WizardDetail } from "../lib/session";
 import { Button, Chip, cn, IconButton, LinkedText, Spinner } from "../ui";
 import { CreditsPill } from "./AppFrame";
 import { SyncNotice } from "./CloudSync";
@@ -55,7 +49,7 @@ import { ResultPageOpener } from "./editor/share";
 import { LiveChip, useLiveDraft } from "./live";
 import { PresenceStack, useAlsoHere } from "./live/PresenceStack";
 import { useReportPresence } from "./live/presence";
-import { pageAddress, pageUrl } from "./project/page-address";
+import { pageAddress, pageUrl } from "./space/page-address";
 import { WizardMenu } from "./WizardMenu";
 import { WhereChip, whereItRuns } from "./where";
 
@@ -443,7 +437,7 @@ function Editor() {
     },
     [saveDraft],
   );
-  const projects = useProjects();
+  const spaces = useSpaces();
 
   const chat = useArchitectChat(wizard.data, (draft, revision) => {
     qc.setQueryData<WizardDetail>(keys.wizard(id), (old) =>
@@ -473,7 +467,7 @@ function Editor() {
   const cloudLinked = me.data?.mode === "local" && Boolean(me.data.account);
   // The organization's public page, where the wizard stands on it: one more place it runs.
   const pagesHost = me.data?.tenant.pagesHost ?? null;
-  const spacePage = projects.data?.find((p) => p.id === wizard.data?.projectId)?.page;
+  const spacePage = spaces.data?.find((p) => p.id === wizard.data?.spaceId)?.page;
   const onPage =
     pagesHost && spacePage?.on && wizard.data && spacePage.wizards.includes(wizard.data.id)
       ? spacePage
@@ -568,12 +562,10 @@ function Editor() {
     );
   };
   // Read-only for one of two reasons: the wizard is a local install's, or nothing is built here.
-  // Its project says which. A project that is not in the list was made here by a tenant that
+  // Its space says which. A space that is not in the list was made here by a tenant that
   // builds nothing here any more.
-  const project = projects.data?.find((p) => p.id === w.projectId);
-  const fromLocal = project
-    ? project.origin === "local"
-    : me.data.limits.build || projects.isLoading;
+  const space = spaces.data?.find((p) => p.id === w.spaceId);
+  const fromLocal = space ? space.origin === "local" : me.data.limits.build || spaces.isLoading;
   const readOnlyNote = w.readOnly ? t(fromLocal ? "readonly.wizard" : "readonly.server") : null;
   /**
    * What the account's credits would do for the models that are missing — text, images, videos:
@@ -698,7 +690,7 @@ function Editor() {
             issues={w.issues}
             files={w.files}
             wizardId={w.id}
-            projectId={w.projectId}
+            spaceId={w.spaceId}
             readOnly={w.readOnly}
             decisions={shownDecisions}
             branchFocus={branchFocus}
@@ -1190,7 +1182,7 @@ function Editor() {
                 ) : shownView === "memory" ? (
                   <MemoryPanel
                     wizardId={w.id}
-                    projectId={w.projectId}
+                    spaceId={w.spaceId}
                     def={def}
                     readOnly={w.readOnly}
                   />

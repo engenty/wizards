@@ -6,9 +6,9 @@ import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { cn, Spinner } from "../../ui";
-import { PageEditor } from "../project/PageEditor";
-import { DATA_ICON, useSpaceData } from "../project/SpaceData";
-import { TableEditor } from "../project/TableEditor";
+import { PageEditor } from "../space/PageEditor";
+import { DATA_ICON, useSpaceData } from "../space/SpaceData";
+import { TableEditor } from "../space/TableEditor";
 
 /**
  * What the wizard remembers across all its runs: its part of the space's data – the pages AI
@@ -18,17 +18,17 @@ import { TableEditor } from "../project/TableEditor";
  */
 export function MemoryPanel({
   wizardId,
-  projectId,
+  spaceId,
   def,
   readOnly,
 }: {
   wizardId: string;
-  projectId: string;
+  spaceId: string;
   def: WizardDefinition;
   readOnly?: boolean;
 }) {
   const qc = useQueryClient();
-  const data = useSpaceData(projectId);
+  const data = useSpaceData(spaceId);
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export function MemoryPanel({
   const usesPages = def.steps.some((s) => s.type === "agent" && s.tools.includes("pages"));
   const sharesLists = (def.lists ?? []).some((l) => l.shared);
   const fmt = new Intl.DateTimeFormat(lang, { dateStyle: "medium" });
-  const refresh = () => qc.invalidateQueries({ queryKey: keys.spaceData(projectId) });
+  const refresh = () => qc.invalidateQueries({ queryKey: keys.spaceData(spaceId) });
 
   if (open) {
     const id = open.slice(2);
@@ -90,7 +90,7 @@ export function MemoryPanel({
     setAdding(true);
     setError(null);
     try {
-      const { id } = await api.post<{ id: string }>(`/api/studio/projects/${projectId}/pages`, {
+      const { id } = await api.post<{ id: string }>(`/api/studio/spaces/${spaceId}/pages`, {
         title: t("memory.newNote"),
         wizardId,
       });

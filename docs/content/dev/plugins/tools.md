@@ -49,7 +49,6 @@ The second argument is the step that calls the tool:
 | `step.runId`, `step.stepId` | The run and the step |
 | `step.tenantId` | The tenant |
 | `step.space` | `{ id, name }`: the space of the step’s wizard |
-| `step.project` | The same as `step.space`, by its older name |
 | `step.wizard` | `{ id, title }` |
 | `step.mode` | `"test"` for a test run from the studio, else `"live"`. Keep what a test run makes apart, such as a booking or a message to someone outside |
 | `step.signal` | Aborted when the run is cancelled. Pass it to `fetch` |

@@ -7,7 +7,7 @@ import { db, schema } from "../db/client.js";
 import { managed } from "../manage.js";
 import { serverText } from "../texts.js";
 import { draftFiles, readFile } from "./files.js";
-import { ownedProject } from "./projects.js";
+import { ownedSpace } from "./spaces.js";
 import { addMessage, draftIssues, ownedWizard, wizardMessages, writableWizard } from "./wizards.js";
 
 /** The formats a model can look at; an SVG it reads as text. */
@@ -55,7 +55,7 @@ export async function architectTurn(
   // Asked before the first model call: a wizard that is not changed here costs nothing to refuse.
   const w = await writableWizard(userId, wizardId);
   const history = await wizardMessages(w.id);
-  const project = await ownedProject(userId, w.projectId);
+  const space = await ownedSpace(userId, w.spaceId);
   const images = await attachedImages(userId, w.id, message);
   const userMessageId = await addMessage(w.id, { role: "user", content: message });
   try {
@@ -86,7 +86,7 @@ export async function architectTurn(
             message,
             extra,
             history: history.map((m) => ({ role: m.role, content: m.content })),
-            connectors: await listConnectors(project.id),
+            connectors: await listConnectors(space.id),
             signal: io.signal,
             onText: io.onText,
             onActivity: io.onActivity,

@@ -390,7 +390,7 @@ function ReadChat({ id }: { id: string }) {
           send: async () => false,
         }}
         avatar="round"
-        changedLabel={t("project.assistantChanged")}
+        changedLabel={t("space.assistantChanged")}
         // Its cards show again with what their tools returned; nothing is sent from here.
         card={(card) => <AnswerCard card={card} send={() => undefined} />}
         calls={(m) => <Calls calls={m.toolCalls} />}
@@ -451,7 +451,7 @@ function Thread({
         <Messages
           chat={chat}
           avatar="round"
-          changedLabel={t("project.assistantChanged")}
+          changedLabel={t("space.assistantChanged")}
           card={(card) => <AnswerCard card={card} send={(message) => void chat.send(message)} />}
           calls={(m) =>
             state.dev.on ? <ToolDetails calls={m.toolCalls} /> : <Calls calls={m.toolCalls} />

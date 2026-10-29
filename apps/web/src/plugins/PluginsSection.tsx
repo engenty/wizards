@@ -1,5 +1,5 @@
 import { t } from "../lib/i18n";
-import { Section } from "../studio/project/Section";
+import { Section } from "../studio/space/Section";
 import { Chip } from "../ui";
 import { useStudioPlugins } from "./host";
 

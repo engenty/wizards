@@ -1115,12 +1115,12 @@ function CostumePicker({ def, update }: { def: WizardDefinition; update: Update 
 export function WizardSettings({
   def,
   update,
-  projectId,
+  spaceId,
   wizardId,
 }: {
   def: WizardDefinition;
   update: Update;
-  projectId: string;
+  spaceId: string;
   wizardId: string;
 }) {
   return (
@@ -1181,7 +1181,7 @@ export function WizardSettings({
       <ThemeLook
         def={def}
         update={update}
-        projectId={projectId}
+        spaceId={spaceId}
         wizardId={wizardId}
         costume={<CostumePicker def={def} update={update} />}
       />
@@ -1220,7 +1220,7 @@ interface InspectorProps {
   files: WorkspaceFile[];
   wizardId: string;
   /** The wizard's space: its themes are the looks the wizard can wear. */
-  projectId: string;
+  spaceId: string;
   /** The wizard is shown here and changed elsewhere: every setting is there to read. */
   readOnly?: boolean;
   /** What the last test run's decided branches answered, by step. */
@@ -1436,7 +1436,7 @@ export function Inspector(props: InspectorProps) {
               <WizardSettings
                 def={def}
                 update={update}
-                projectId={props.projectId}
+                spaceId={props.spaceId}
                 wizardId={props.wizardId}
               />
             </>

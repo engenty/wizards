@@ -128,7 +128,7 @@ export function ChatViewPart({ part, live }: { part: ViewPart; live: boolean }) 
         assetUrl={(id) =>
           host.assetUrl?.(id) ??
           withBase(
-            `/api/studio/projects/${host.spaceId}/files/${encodeURIComponent(id.replace(/^f:/, ""))}/content`,
+            `/api/studio/spaces/${host.spaceId}/files/${encodeURIComponent(id.replace(/^f:/, ""))}/content`,
           )
         }
         onAction={(a) => {

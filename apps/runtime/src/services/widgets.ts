@@ -3,7 +3,7 @@ import { probeWidget } from "../widgets/render.js";
 import { widgetPreviewHtml } from "../widgets/step.js";
 import { notFound, ServiceError } from "./errors.js";
 import { draftFiles } from "./files.js";
-import { ownedProject } from "./projects.js";
+import { ownedSpace } from "./spaces.js";
 import { ownedWizard } from "./wizards.js";
 
 async function draftWidget(userId: string, wizardId: string, stepId: string) {
@@ -19,7 +19,7 @@ async function draftWidget(userId: string, wizardId: string, stepId: string) {
   if (!files.some((f) => f.path === step.entry)) {
     throw new ServiceError("invalid", `The widget file ${step.entry} is not in the workspace yet.`);
   }
-  return { step, files, project: await ownedProject(userId, w.projectId) };
+  return { step, files, space: await ownedSpace(userId, w.spaceId) };
 }
 
 /** The draft widget with its sample data, as one HTML file — the studio shows it before any run. */
@@ -29,8 +29,8 @@ export async function draftWidgetPreview(
   stepId: string,
   data?: unknown,
 ) {
-  const { step, files, project } = await draftWidget(userId, wizardId, stepId);
-  return widgetPreviewHtml(step, files, project, data);
+  const { step, files, space } = await draftWidget(userId, wizardId, stepId);
+  return widgetPreviewHtml(step, files, space, data);
 }
 
 /** Loads the draft widget in Chromium: what broke, whether it animates, and how it looks. */
@@ -40,8 +40,8 @@ export async function checkDraftWidget(
   stepId: string,
   data?: unknown,
 ) {
-  const { step, files, project } = await draftWidget(userId, wizardId, stepId);
-  const html = await widgetPreviewHtml(step, files, project, data);
+  const { step, files, space } = await draftWidget(userId, wizardId, stepId);
+  const html = await widgetPreviewHtml(step, files, space, data);
   const probe = await probeWidget(html, widgetSize(step));
   return { ...probe, size: widgetSize(step), bytes: Buffer.byteLength(html) };
 }

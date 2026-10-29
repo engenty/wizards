@@ -14,7 +14,7 @@ import { getBlob, hasBlob, putBlobOf } from "../files/blobs.js";
 import { managed, tenantInfo } from "../manage.js";
 import { currentRole, isAdminRole, MEMBERS_EDIT_ONLY, mayBuild } from "../services/access.js";
 import { ServiceError } from "../services/errors.js";
-import { projectLimit } from "../services/projects.js";
+import { spaceLimit } from "../services/spaces.js";
 import { publishWizard, rotateShareLink, shareUrl } from "../services/wizards.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -45,19 +45,19 @@ function requireSchema(theirs: string) {
 
 /** The organization as an install meets it: its schema, its number of spaces, its spaces. */
 export async function syncOverview(): Promise<SyncOverview> {
-  const spaces = await db.query.project.findMany({
-    where: eq(schema.project.tenantId, currentTenant()),
+  const spaces = await db.query.space.findMany({
+    where: eq(schema.space.tenantId, currentTenant()),
     columns: { id: true, name: true, origin: true },
-    orderBy: [schema.project.createdAt],
+    orderBy: [schema.space.createdAt],
   });
   const info = managed ? await tenantInfo(currentTenant()).catch(() => null) : null;
-  const limit = await projectLimit();
+  const limit = await spaceLimit();
   return {
     tenantId: currentTenant(),
     schema: tenantSchemaVersion,
     role: currentRole(),
     limits: {
-      projects: info?.limits.projects === null || !Number.isFinite(limit) ? null : limit,
+      spaces: info?.limits.projects === null || !Number.isFinite(limit) ? null : limit,
     },
     spaces: await Promise.all(
       spaces.map(async (s) => ({ id: s.id, name: s.name, seq: await spaceSeq(s.id) })),
@@ -70,12 +70,12 @@ export async function syncOverview(): Promise<SyncOverview> {
  * time (`cursor`); `next` then is the number the log stood at when the listing began.
  */
 export async function pullChanges(
-  projectId: string,
+  spaceId: string,
   since: number,
   cursor?: string,
 ): Promise<PullAnswer & { cursor?: string }> {
   if (since > 0) {
-    const logged = await changedSince(projectId, since, PAGE);
+    const logged = await changedSince(spaceId, since, PAGE);
     const changes: SyncChange[] = [];
     for (const x of logged) {
       const def = KINDS[x.kind];
@@ -96,17 +96,17 @@ export async function pullChanges(
   }
   const [offsetText, topText] = (cursor ?? "").split(".");
   const offset = Number.parseInt(offsetText ?? "", 10) || 0;
-  const top = cursor ? Number.parseInt(topText ?? "", 10) || 0 : await spaceSeq(projectId);
-  const project = await db.query.project.findFirst({
-    where: eq(schema.project.id, projectId),
+  const top = cursor ? Number.parseInt(topText ?? "", 10) || 0 : await spaceSeq(spaceId);
+  const space = await db.query.space.findFirst({
+    where: eq(schema.space.id, spaceId),
     columns: { tenantId: true },
   });
-  if (!project || project.tenantId !== currentTenant()) {
+  if (!space || space.tenantId !== currentTenant()) {
     throw new ServiceError("not_found", note("syncSpaceNotInCloud"));
   }
   const all: { kind: (typeof KIND_ORDER)[number]; item: string }[] = [];
   for (const kind of KIND_ORDER) {
-    for (const item of await KINDS[kind].list(projectId)) {
+    for (const item of await KINDS[kind].list(spaceId)) {
       all.push({ kind, item });
     }
   }
@@ -145,9 +145,9 @@ function mayChange(x: PushItem, exists: boolean): boolean {
 async function requireRoomForSpace() {
   const [{ n }] = await db
     .select({ n: count() })
-    .from(schema.project)
-    .where(eq(schema.project.tenantId, currentTenant()));
-  const limit = await projectLimit();
+    .from(schema.space)
+    .where(eq(schema.space.tenantId, currentTenant()));
+  const limit = await spaceLimit();
   if (n >= limit) {
     throw new ServiceError(
       "refused",
@@ -170,22 +170,22 @@ const refused = (x: PushItem, reason: string, message: string): PushResult => ({
  * not changed after the one the install changed (`base`); else the answer is the cloud's
  * version, to merge with. What is taken is written in one transaction, and gets its number.
  */
-export async function pushChanges(projectId: string, input: PushInput): Promise<PushAnswer> {
+export async function pushChanges(spaceId: string, input: PushInput): Promise<PushAnswer> {
   requireSchema(input.schema);
   if (!(await mayBuild())) {
     throw new ServiceError("read_only", note("wizardsRunOncePublished"), { reason: "read_only" });
   }
-  const project = await db.query.project.findFirst({
-    where: eq(schema.project.id, projectId),
+  const space = await db.query.space.findFirst({
+    where: eq(schema.space.id, spaceId),
     columns: { tenantId: true },
   });
-  if (project && project.tenantId !== currentTenant()) {
+  if (space && space.tenantId !== currentTenant()) {
     throw new ServiceError("refused", note("spaceIdAlreadyExists"), { reason: "id_taken" });
   }
   const makesSpace = input.items.some(
-    (x) => x.kind === "space" && x.item === projectId && x.record !== null,
+    (x) => x.kind === "space" && x.item === spaceId && x.record !== null,
   );
-  if (!project && !makesSpace) {
+  if (!space && !makesSpace) {
     throw new ServiceError("not_found", note("syncSpaceNotInCloud"), { reason: "not_found" });
   }
   const seqs = await lastSeqs(input.items);
@@ -199,11 +199,11 @@ export async function pushChanges(projectId: string, input: PushInput): Promise<
       results.push(refused(x, "not_synced", "This item does not sync."));
       continue;
     }
-    if (current && current.projectId !== projectId) {
+    if (current && current.spaceId !== spaceId) {
       results.push(refused(x, "id_taken", "In the cloud this belongs to another space."));
       continue;
     }
-    if (x.record && x.kind !== "space" && x.record.projectId !== projectId) {
+    if (x.record && x.kind !== "space" && x.record.spaceId !== spaceId) {
       results.push(refused(x, "invalid", "The item names another space."));
       continue;
     }
@@ -250,7 +250,7 @@ export async function pushChanges(projectId: string, input: PushInput): Promise<
         continue;
       }
     }
-    taking.push({ x, apply: { kind: x.kind, item: x.item, projectId, record: x.record } });
+    taking.push({ x, apply: { kind: x.kind, item: x.item, spaceId, record: x.record } });
   }
   const taken = await applyEach(taking.map((t) => t.apply));
   const after = await lastSeqs(taking.map((t) => t.x));
@@ -267,8 +267,8 @@ export async function pushChanges(projectId: string, input: PushInput): Promise<
           },
     );
   }
-  await compactLog(projectId);
-  return { results, seq: await spaceSeq(projectId) };
+  await compactLog(spaceId);
+  return { results, seq: await spaceSeq(spaceId) };
 }
 
 /**
@@ -309,19 +309,19 @@ export const blobBytes = getBlob;
 
 // --- publishing and links ------------------------------------------------------------------
 
-async function wizardInSpace(projectId: string, wizardId: string) {
+async function wizardInSpace(spaceId: string, wizardId: string) {
   const w = await db.query.wizard.findFirst({
     where: eq(schema.wizard.id, wizardId),
-    columns: { projectId: true, tenantId: true },
+    columns: { spaceId: true, tenantId: true },
   });
-  if (!w || w.projectId !== projectId || w.tenantId !== currentTenant()) {
+  if (!w || w.spaceId !== spaceId || w.tenantId !== currentTenant()) {
     throw new ServiceError("not_found", note("syncSpaceNotInCloud"));
   }
 }
 
 /** Publishes the cloud's draft of a wizard, which the install pushed before it asked. */
-export async function publishSynced(userId: string, projectId: string, wizardId: string) {
-  await wizardInSpace(projectId, wizardId);
+export async function publishSynced(userId: string, spaceId: string, wizardId: string) {
+  await wizardInSpace(spaceId, wizardId);
   const published = await publishWizard(userId, wizardId);
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, wizardId) });
   if (!w) {
@@ -339,8 +339,8 @@ export async function publishSynced(userId: string, projectId: string, wizardId:
 }
 
 /** A new link for the cloud's copy of a wizard; the old one stops answering. */
-export async function rotateSynced(userId: string, projectId: string, wizardId: string) {
-  await wizardInSpace(projectId, wizardId);
+export async function rotateSynced(userId: string, spaceId: string, wizardId: string) {
+  await wizardInSpace(spaceId, wizardId);
   const { shareToken } = await rotateShareLink(userId, wizardId);
   return { shareUrl: shareUrl(shareToken), code: await codeOf(shareToken) };
 }
@@ -349,22 +349,22 @@ export async function rotateSynced(userId: string, projectId: string, wizardId: 
  * A space a local install synced one way (`origin = "local"`) becomes a space of the cloud's
  * own, which the studio here edits: from now on it syncs both ways.
  */
-export async function adoptSpace(projectId: string) {
+export async function adoptSpace(spaceId: string) {
   if (managed && !isAdminRole(currentRole())) {
     throw new ServiceError("forbidden", MEMBERS_EDIT_ONLY);
   }
-  const project = await db.query.project.findFirst({
-    where: eq(schema.project.id, projectId),
+  const space = await db.query.space.findFirst({
+    where: eq(schema.space.id, spaceId),
     columns: { tenantId: true, origin: true },
   });
-  if (!project || project.tenantId !== currentTenant()) {
+  if (!space || space.tenantId !== currentTenant()) {
     return { adopted: false };
   }
-  if (project.origin === "local") {
+  if (space.origin === "local") {
     await db
-      .update(schema.project)
+      .update(schema.space)
       .set({ origin: null, syncedAt: new Date() })
-      .where(eq(schema.project.id, projectId));
+      .where(eq(schema.space.id, spaceId));
   }
   return { adopted: true };
 }

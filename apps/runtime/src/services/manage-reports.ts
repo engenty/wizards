@@ -19,12 +19,12 @@ let last: Promise<void> = Promise.resolve();
 /** The team's wizards as the admin app lists them: the published version where there is one. */
 export async function wizardsReport() {
   const tenantId = currentTenant();
-  const [wizards, projects] = await Promise.all([
+  const [wizards, spaceRows] = await Promise.all([
     db.select().from(schema.wizard).where(eq(schema.wizard.tenantId, tenantId)),
     db
-      .select({ id: schema.project.id, name: schema.project.name })
-      .from(schema.project)
-      .where(eq(schema.project.tenantId, tenantId)),
+      .select({ id: schema.space.id, name: schema.space.name })
+      .from(schema.space)
+      .where(eq(schema.space.tenantId, tenantId)),
   ]);
   const published = wizards.filter((w) => w.publishedVersion !== null);
   const versions = published.length
@@ -43,7 +43,7 @@ export async function wizardsReport() {
           ),
         )
     : [];
-  const spaces = new Map(projects.map((p) => [p.id, p.name]));
+  const spaces = new Map(spaceRows.map((p) => [p.id, p.name]));
   return {
     wizards: wizards.map((w) => {
       const live = versions.find((v) => v.wizardId === w.id && v.version === w.publishedVersion);
@@ -54,7 +54,7 @@ export async function wizardsReport() {
         description: (def.description ?? "").slice(0, 1000),
         avatar: def.avatar ?? "round",
         lang: (def.lang ?? "de").slice(0, 5),
-        space: spaces.has(w.projectId) ? { id: w.projectId, name: spaces.get(w.projectId)! } : null,
+        space: spaces.has(w.spaceId) ? { id: w.spaceId, name: spaces.get(w.spaceId)! } : null,
         published: Boolean(live),
         publishedAt: live?.createdAt.toISOString() ?? null,
         template: w.starter ? { id: w.starter, revision: w.starterRevision ?? null } : null,

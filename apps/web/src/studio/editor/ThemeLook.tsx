@@ -41,22 +41,22 @@ type Mode = "light" | "dark";
 export function ThemeLook({
   def,
   update,
-  projectId,
+  spaceId,
   wizardId,
   costume,
 }: {
   def: WizardDefinition;
   update: Update;
-  projectId: string;
+  spaceId: string;
   wizardId: string;
   /** The engenty's costume picker: part of the look, shown with its settings. */
   costume: ReactNode;
 }) {
   const qc = useQueryClient();
-  const key = keys.themes(projectId);
+  const key = keys.themes(spaceId);
   const answer = useQuery({
     queryKey: key,
-    queryFn: () => api.get<ThemesAnswer>(`/api/studio/projects/${projectId}/themes`),
+    queryFn: () => api.get<ThemesAnswer>(`/api/studio/spaces/${spaceId}/themes`),
   });
   const themes = answer.data?.themes ?? [];
   const chosen = def.themes?.[0];
@@ -76,7 +76,7 @@ export function ThemeLook({
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       void api
-        .put(`/api/studio/projects/${projectId}/themes`, theme)
+        .put(`/api/studio/spaces/${spaceId}/themes`, theme)
         .then(() => qc.invalidateQueries({ queryKey: key }));
     }, 350);
   };

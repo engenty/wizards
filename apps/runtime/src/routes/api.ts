@@ -37,7 +37,7 @@ import {
   syncSpaceData,
   syncWizard,
   syncWizardSchema,
-} from "../services/spaces.js";
+} from "../services/synced-spaces.js";
 import { createWizard, ownedWizard, publishWizard, writeDraft } from "../services/wizards.js";
 import {
   adoptSpace,
@@ -57,7 +57,7 @@ import { dispatchAs } from "./plugins.js";
 const importSchema = z.object({
   /** An earlier import's wizard: it is updated instead of a new one being made. */
   wizardId: z.string().optional(),
-  projectId: z.string().optional(),
+  spaceId: z.string().optional(),
   definition: z.unknown(),
   files: z
     .array(z.object({ path: z.string(), mime: z.string().optional(), data: z.string() }))
@@ -193,7 +193,7 @@ const runsQuery = z.object({
 });
 
 /**
- * The runtime's API for other programs. `/spaces/…` is how a local install's project comes
+ * The runtime's API for other programs. `/spaces/…` is how a local install's space comes
  * here: the wizards it publishes, under the ids they have there (docs/manage-contract.md).
  * `POST /wizards/import` takes a whole wizard as a new one of a tenant that builds here.
  */
@@ -249,7 +249,7 @@ export const apiRoutes = new Hono()
     );
   })
   // The published wizard as a `.wizard` package: what a WordPress site runs on its own; with
-  // `knowledge=1` the project's pages come along as files (up to the snapshot's cap).
+  // `knowledge=1` the space's pages come along as files (up to the snapshot's cap).
   .get("/wizards/:id/package", async (c) => {
     const who = await caller(c, ["wizards:read"]);
     if (who instanceof Response) {
@@ -296,7 +296,7 @@ export const apiRoutes = new Hono()
       const writer = { source: "mcp" as const, client: who.client };
       const created = await createWizard(
         who.userId,
-        { projectId: body.spaceId, starterId: body.starterId, lang: body.lang },
+        { spaceId: body.spaceId, starterId: body.starterId, lang: body.lang },
         writer,
       );
       let published = false;
@@ -682,7 +682,7 @@ export const apiRoutes = new Hono()
       }
       if (!wizardId) {
         // The workspace must be there before the definition is checked against it.
-        const created = await createWizard(who.userId, { projectId: body.projectId }, writer);
+        const created = await createWizard(who.userId, { spaceId: body.spaceId }, writer);
         wizardId = created.id;
       }
       const incoming = new Set(body.files.map((f) => f.path));

@@ -16,7 +16,7 @@ process.env.PLUGINS_DIR = join(dir, "plugins");
 process.env.PLUGINS_WATCH = "0";
 process.env.PLUGIN_JOBS = "0";
 process.env.FEATURES = "twoWaySync=on";
-process.env.LIMIT_PROJECTS = "5";
+process.env.LIMIT_SPACES = "5";
 process.env.MARKETPLACE_URL = "off";
 delete process.env.MANAGE_URL;
 delete process.env.SECRETS;
@@ -25,7 +25,7 @@ let client: typeof import("../src/db/client");
 let sync: typeof import("../src/sync/client");
 let hub: typeof import("../src/sync/hub");
 let account: typeof import("../src/auth/account");
-let projects: typeof import("../src/services/projects");
+let spaces: typeof import("../src/services/spaces");
 let data: typeof import("../src/services/space-data");
 let settings: typeof import("../src/settings");
 
@@ -72,17 +72,17 @@ beforeAll(async () => {
   sync = await import("../src/sync/client");
   hub = await import("../src/sync/hub");
   account = await import("../src/auth/account");
-  projects = await import("../src/services/projects");
+  spaces = await import("../src/services/spaces");
   data = await import("../src/services/space-data");
   settings = await import("../src/settings");
   sync.useTransport(inCloud);
   await account.keep({ access_token: token("org-a"), refresh_token: "refresh-a" } as never);
   await local(async () => {
-    first = (await projects.defaultProject(USER)).id;
+    first = (await spaces.defaultSpace(USER)).id;
     pageId = (await data.createPage(USER, first, { title: "Notes", markdown: "From A." })).id;
     await sync.syncAll();
     // A space the person keeps on this computer only.
-    onlyHere = (await projects.createProject(USER, "Private")).id;
+    onlyHere = (await spaces.createSpace(USER, "Private")).id;
     await sync.stopSpace(onlyHere);
   });
 }, 60_000);
@@ -102,7 +102,7 @@ describe("switching the organization", () => {
     await local(() => sync.syncAll());
     expect(await spacesIn("org-b")).toEqual([]);
     // Both spaces are still on this computer, with what they hold.
-    const here = await local(() => projects.listProjects(USER));
+    const here = await local(() => spaces.listSpaces(USER));
     expect(here.map((p) => p.id).sort()).toEqual([first, onlyHere].sort());
     expect((await local(() => data.getPage(USER, pageId))).markdown).toBe("Changed before the switch.");
     const view = await local(() => sync.syncView());

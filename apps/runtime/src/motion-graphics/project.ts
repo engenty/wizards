@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { dataRef, MOTION_SIZES, type MotionGraphicsStep } from "@engenty/wizards-shared/definition";
-import { gradientCss, ruleLines, textStyleLine } from "@engenty/wizards-shared/projects";
+import { gradientCss, ruleLines, textStyleLine } from "@engenty/wizards-shared/spaces";
 import { unzipSync } from "fflate";
 import { logoSectionLine, renderTemplate, resolveRef } from "../engine/template.js";
 import type { StepContext } from "../engine/types.js";
@@ -12,7 +12,7 @@ import { getBlob } from "../files/blobs.js";
 import { extFor, loadAsset } from "../files/storage.js";
 import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
-import { projectFileContent } from "../services/project-files.js";
+import { spaceFileContent } from "../services/space-files.js";
 import { placeSkills } from "./skills.js";
 import { soundCatalog } from "./sounds.js";
 import { runHyperframes } from "./tools.js";
@@ -94,10 +94,10 @@ async function writeBrand(
     `${dir}/${safeName(f.name.replace(/\.[^.]+$/, ""))}.${extFor(f.mime) === "bin" ? (f.name.split(".").pop() ?? "bin") : extFor(f.mime)}`;
   const patterns: { file: string; name: string; description?: string; tile: boolean }[] = [];
   for (const p of b.patterns ?? []) {
-    const f = ctx.projectFiles.find((x) => x.id === p.file);
+    const f = ctx.spaceFiles.find((x) => x.id === p.file);
     try {
       if (f) {
-        const { data } = await projectFileContent(f.projectId, f.id);
+        const { data } = await spaceFileContent(f.spaceId, f.id);
         const name = fileName("patterns", f);
         files.push({ name, data });
         hash.update(name).update(data);
@@ -113,9 +113,9 @@ async function writeBrand(
     }
   }
   const logos: { file: string; section?: string; description?: string }[] = [];
-  for (const f of ctx.projectFiles.filter((p) => p.kind === "logo")) {
+  for (const f of ctx.spaceFiles.filter((p) => p.kind === "logo")) {
     try {
-      const { data } = await projectFileContent(f.projectId, f.id);
+      const { data } = await spaceFileContent(f.spaceId, f.id);
       const name = fileName("logos", f);
       files.push({ name, data });
       hash.update(name).update(data);
@@ -208,7 +208,7 @@ const BASE = join(".engenty", "base");
  */
 function brandBaseDir(ctx: StepContext, kitHash: string, brandStamp: string): string {
   const key = createHash("sha256").update(`${kitHash}:${brandStamp}`).digest("hex").slice(0, 24);
-  return join(env.dataDir, "brand-bases", ctx.project.id, key);
+  return join(env.dataDir, "brand-bases", ctx.space.id, key);
 }
 
 /** What in video/brand/ is the brand base: everything but the brand itself. */
@@ -216,7 +216,7 @@ const isBrandItself = (name: string) =>
   name === "brand.json" || name === "logos" || name === "patterns";
 
 /**
- * Brings the brand into a project that started from a base: brand.json and the logos as they are
+ * Brings the brand into a space that started from a base: brand.json and the logos as they are
  * now, and the brand base kept for them when there is one. A base that no longer fits the brand
  * is removed — the video makes it again, as BRAND.md says.
  */

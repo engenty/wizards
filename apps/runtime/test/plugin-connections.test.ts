@@ -65,8 +65,8 @@ beforeAll(async () => {
   await client.openTenantDb(TENANT);
   connections = await import("../src/connectors/plugin-connections");
   app = (await import("../src/app")).default;
-  const projects = await import("../src/services/projects");
-  space = (await inTenant(() => projects.createProject("user-c", "Kalender"))).id;
+  const spaces = await import("../src/services/spaces");
+  space = (await inTenant(() => spaces.createSpace("user-c", "Kalender"))).id;
 }, 60_000);
 
 afterEach(() => {

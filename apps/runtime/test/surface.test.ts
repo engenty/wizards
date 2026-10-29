@@ -1,5 +1,5 @@
 import { assembleSurface, parseWizard, type SurfaceStep } from "@engenty/wizards-shared/definition";
-import { fontFace, runTheme } from "@engenty/wizards-shared/projects";
+import { fontFace, runTheme } from "@engenty/wizards-shared/spaces";
 import { freeThemeId, type Theme, themeContentKey, themeIdFrom, themeIdProblem, themeOffered, themeSchema } from "@engenty/wizards-shared/theme";
 import { chosenTheme, lookColours, themedLook } from "@engenty/wizards-shared/theme-look";
 import { bound, pointer, validateSurface, worded } from "@engenty/wizards-shared/surface";

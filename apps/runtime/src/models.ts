@@ -1099,7 +1099,7 @@ async function embeddingAccess(
 }
 
 /**
- * The model that turns passages and questions into vectors for a project's document index: the
+ * The model that turns passages and questions into vectors for a space's document index: the
  * credits on a Manage-App's runtime; alone, what the settings choose — by default an AI Gateway
  * key, an OpenAI key, EmbeddingGemma in Ollama on this computer, then the linked account's
  * credits. Null where none is set up — an installed AI client has no such model — and the

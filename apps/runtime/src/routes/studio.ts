@@ -18,9 +18,9 @@ import {
 } from "@engenty/wizards-shared/definition";
 import { CATEGORY_TYPES, whereSchema } from "@engenty/wizards-shared/knowledge";
 import { PRESENCE_KINDS } from "@engenty/wizards-shared/live";
-import { PROJECT_FILE_KINDS } from "@engenty/wizards-shared/projects";
 import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
 import { note } from "@engenty/wizards-shared/run";
+import { SPACE_FILE_KINDS } from "@engenty/wizards-shared/spaces";
 import {
   PACKAGE_EXTENSION,
   PACKAGE_MAX_BYTES,
@@ -132,9 +132,9 @@ import {
   isAdminRole,
   mayBuild,
   mayCreate,
-  projectWritable,
   requireAdmin,
   requireWritable,
+  spaceWritable,
 } from "../services/access.js";
 import { architectTurn } from "../services/architect.js";
 import {
@@ -197,32 +197,6 @@ import {
   userLang,
   userProfile,
 } from "../services/profile.js";
-import {
-  addProjectFile,
-  addProjectFileFromUrl,
-  fileView,
-  orderProjectFiles,
-  projectFile,
-  projectFileContent,
-  reindexProjectFile,
-  removeProjectFile,
-  updateProjectFile,
-} from "../services/project-files.js";
-import {
-  documentText,
-  queueIndex,
-  reindexAll,
-  searchKnowledge,
-} from "../services/project-index.js";
-import {
-  createProject,
-  deleteProject,
-  gradientSchema,
-  ownedProject,
-  projectLimitOrNull,
-  projectPatchSchema,
-  updateProject,
-} from "../services/projects.js";
 import { runnersOf, wizardRunners } from "../services/runners.js";
 import { draftStepView, listResults, listRuns, startTestRun } from "../services/runs.js";
 import {
@@ -253,6 +227,27 @@ import {
   updateTable,
   updateTableRow,
 } from "../services/space-data.js";
+import {
+  addSpaceFile,
+  addSpaceFileFromUrl,
+  fileView,
+  orderSpaceFiles,
+  reindexSpaceFile,
+  removeSpaceFile,
+  spaceFile,
+  spaceFileContent,
+  updateSpaceFile,
+} from "../services/space-files.js";
+import { documentText, queueIndex, reindexAll, searchKnowledge } from "../services/space-index.js";
+import {
+  createSpace,
+  deleteSpace,
+  gradientSchema,
+  ownedSpace,
+  spaceLimitOrNull,
+  spacePatchSchema,
+  updateSpace,
+} from "../services/spaces.js";
 import { deleteTheme, listThemes, saveTheme } from "../services/themes.js";
 import {
   deleteTranslation,
@@ -274,7 +269,7 @@ import {
   writeDraft,
 } from "../services/wizards.js";
 import { deleteSetting, readSetting, writeSetting } from "../settings.js";
-import { projectShareTargets, sharePreview } from "../sharing/index.js";
+import { sharePreview, spaceShareTargets } from "../sharing/index.js";
 import {
   keepCloudForAll,
   mergesSeen,
@@ -607,13 +602,13 @@ export const studio = new Hono<Vars>()
       aiReady: (await hasTextModel()) || (!managed && (await subscriptionClients()).length > 0),
       mcpUrl: `${env.appUrl}/api/mcp`,
       /**
-       * One project: the studio shows no project switcher; null: as many as wanted. `build:
+       * One space: the studio shows no space switcher; null: as many as wanted. `build:
        * false`: nothing is made or changed here; the studio shows what the person's local
        * install synced. `create`: the person makes and deletes here (builds, and is no mere
        * member). `members`: the people the plan allows, null for no limit.
        */
       limits: {
-        projects: await projectLimitOrNull(),
+        spaces: await spaceLimitOrNull(),
         build: await mayBuild(),
         create: await mayCreate(),
         members: info?.limits.members ?? null,
@@ -756,8 +751,8 @@ export const studio = new Hono<Vars>()
     if (!(await canSpend())) {
       throw new ServiceError("no_credits", note("creditsUsedUp"));
     }
-    const project = body.projectId ? await ownedProject(user.id, body.projectId) : null;
-    const writable = project ? await projectWritable(project) : false;
+    const space = body.spaceId ? await ownedSpace(user.id, body.spaceId) : null;
+    const writable = space ? await spaceWritable(space) : false;
     // The page's snapshot is cut, not refused: a page that says too much still gets an answer.
     const page =
       body.page && JSON.stringify(body.page).length > ASSISTANT_PAGE_BYTES
@@ -812,7 +807,7 @@ export const studio = new Hono<Vars>()
             user,
             chat,
             history,
-            project,
+            space,
             writable,
             message,
             extra: body.extra,
@@ -878,43 +873,43 @@ export const studio = new Hono<Vars>()
     });
   })
 
-  // --- projects --------------------------------------------------------------
-  .get("/projects", async (c) => c.json(await spacesView(reader(c))))
-  .post("/projects", async (c) => {
+  // --- spaces --------------------------------------------------------------
+  .get("/spaces", async (c) => c.json(await spacesView(reader(c))))
+  .post("/spaces", async (c) => {
     const body = z.object({ name: z.string().min(1).max(80) }).parse(await c.req.json());
-    return c.json(await createProject(c.get("user").id, body.name));
+    return c.json(await createSpace(c.get("user").id, body.name));
   })
-  .patch("/projects/:id", async (c) => {
-    const patch = projectPatchSchema.parse(await c.req.json());
-    await updateProject(c.get("user").id, c.req.param("id"), patch);
+  .patch("/spaces/:id", async (c) => {
+    const patch = spacePatchSchema.parse(await c.req.json());
+    await updateSpace(c.get("user").id, c.req.param("id"), patch);
     return c.json({ ok: true });
   })
   // The organization's public page as Manage will draw it, for the preview beside the page's fields.
-  .get("/projects/:id/page", async (c) => {
-    await ownedProject(c.get("user").id, c.req.param("id"));
+  .get("/spaces/:id/page", async (c) => {
+    await ownedSpace(c.get("user").id, c.req.param("id"));
     return c.json(await pagePreview());
   })
   // --- the space's themes: how its wizards' pages look (docs/plans/themes.md) ---
-  .get("/projects/:id/themes", async (c) =>
+  .get("/spaces/:id/themes", async (c) =>
     c.json(await listThemes(c.get("user").id, c.req.param("id"))),
   )
-  .put("/projects/:id/themes", async (c) =>
+  .put("/spaces/:id/themes", async (c) =>
     c.json(await saveTheme(c.get("user").id, c.req.param("id"), await c.req.json())),
   )
-  .delete("/projects/:id/themes/:themeId{.+}", async (c) => {
+  .delete("/spaces/:id/themes/:themeId{.+}", async (c) => {
     await deleteTheme(c.get("user").id, c.req.param("id"), c.req.param("themeId"));
     return c.json({ ok: true });
   })
-  // --- what a project holds for all its wizards: logos, assets, documents -------
-  .get("/projects/:id/files", async (c) => c.json(await filesView(reader(c), c.req.param("id"))))
-  .post("/projects/:id/files", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    const kind = z.enum(PROJECT_FILE_KINDS).parse(c.req.query("kind"));
+  // --- what a space holds for all its wizards: logos, assets, documents -------
+  .get("/spaces/:id/files", async (c) => c.json(await filesView(reader(c), c.req.param("id"))))
+  .post("/spaces/:id/files", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const kind = z.enum(SPACE_FILE_KINDS).parse(c.req.query("kind"));
     const file = (await c.req.formData()).get("file");
     if (!(file instanceof File)) {
       throw new ServiceError("invalid", note("chooseFile"));
     }
-    const row = await addProjectFile(project.id, {
+    const row = await addSpaceFile(space.id, {
       kind,
       name: file.name,
       mime: file.type.split(";")[0].trim().toLowerCase(),
@@ -922,14 +917,14 @@ export const studio = new Hono<Vars>()
     });
     return c.json(fileView(row));
   })
-  .post("/projects/:id/files/url", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
+  .post("/spaces/:id/files/url", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const input = z
-      .object({ url: z.string().min(1).max(500_000), kind: z.enum(PROJECT_FILE_KINDS) })
+      .object({ url: z.string().min(1).max(500_000), kind: z.enum(SPACE_FILE_KINDS) })
       .parse(await c.req.json());
     const url = /^(https?:\/\/|data:)/i.test(input.url) ? input.url : `https://${input.url}`;
     try {
-      return c.json({ file: fileView(await addProjectFileFromUrl(project.id, { ...input, url })) });
+      return c.json({ file: fileView(await addSpaceFileFromUrl(space.id, { ...input, url })) });
     } catch (err) {
       // A web page where a logo or an asset was asked for: its logos or pictures, to pick from.
       if (err instanceof ServiceError && err.data.reason === "page") {
@@ -940,8 +935,8 @@ export const studio = new Hono<Vars>()
       throw err;
     }
   })
-  .post("/projects/:id/colors/scan", async (c) => {
-    await ownedProject(c.get("user").id, c.req.param("id"));
+  .post("/spaces/:id/colors/scan", async (c) => {
+    await ownedSpace(c.get("user").id, c.req.param("id"));
     const { url } = z.object({ url: z.string().min(1).max(2000) }).parse(await c.req.json());
     const colors = await scanColors(url).catch(() => {
       throw new ServiceError("invalid", note("pageNotReached"));
@@ -949,8 +944,8 @@ export const studio = new Hono<Vars>()
     return c.json({ colors });
   })
   // A gradient from the admin's words, or theirs changed as they say. Nothing is saved.
-  .post("/projects/:id/gradients/describe", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
+  .post("/spaces/:id/gradients/describe", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const { text, gradient } = z
       .object({
         text: z.string().trim().min(1).max(1000),
@@ -964,7 +959,7 @@ export const studio = new Hono<Vars>()
     }
     try {
       return c.json({
-        gradient: await describeGradient(project.brand.colors ?? [], text, gradient),
+        gradient: await describeGradient(space.brand.colors ?? [], text, gradient),
       });
     } catch (err) {
       if (err instanceof ModelUnavailableError) {
@@ -973,47 +968,47 @@ export const studio = new Hono<Vars>()
       throw err;
     }
   })
-  .post("/projects/:id/fonts/scan", async (c) => {
-    await ownedProject(c.get("user").id, c.req.param("id"));
+  .post("/spaces/:id/fonts/scan", async (c) => {
+    await ownedSpace(c.get("user").id, c.req.param("id"));
     const { url } = z.object({ url: z.string().min(1).max(2000) }).parse(await c.req.json());
     const fonts = await scanFonts(url).catch(() => {
       throw new ServiceError("invalid", note("pageNotReached"));
     });
     return c.json({ fonts });
   })
-  .put("/projects/:id/files/order", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
+  .put("/spaces/:id/files/order", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const body = z
-      .object({ kind: z.enum(PROJECT_FILE_KINDS), ids: z.array(z.string()).max(200) })
+      .object({ kind: z.enum(SPACE_FILE_KINDS), ids: z.array(z.string()).max(200) })
       .parse(await c.req.json());
-    await orderProjectFiles(project.id, body.kind, body.ids);
+    await orderSpaceFiles(space.id, body.kind, body.ids);
     return c.json({ ok: true });
   })
-  .patch("/projects/:id/files/:fileId", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
+  .patch("/spaces/:id/files/:fileId", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const patch = z
       .object({ name: z.string().max(120).optional(), description: z.string().max(600).optional() })
       .parse(await c.req.json());
-    return c.json(fileView(await updateProjectFile(project.id, c.req.param("fileId"), patch)));
+    return c.json(fileView(await updateSpaceFile(space.id, c.req.param("fileId"), patch)));
   })
-  .post("/projects/:id/files/:fileId/reindex", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    return c.json(fileView(await reindexProjectFile(project.id, c.req.param("fileId"))));
+  .post("/spaces/:id/files/:fileId/reindex", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(fileView(await reindexSpaceFile(space.id, c.req.param("fileId"))));
   })
-  .delete("/projects/:id/files/:fileId", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    await removeProjectFile(project.id, c.req.param("fileId"));
+  .delete("/spaces/:id/files/:fileId", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    await removeSpaceFile(space.id, c.req.param("fileId"));
     return c.json({ ok: true });
   })
-  .get("/projects/:id/files/:fileId/content", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    const { row, data } = await projectFileContent(project.id, c.req.param("fileId"));
+  .get("/spaces/:id/files/:fileId/content", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const { row, data } = await spaceFileContent(space.id, c.req.param("fileId"));
     return spaceFileResponse(c, row.mime, data);
   })
   // A document as the models read it: its text as Markdown, or the start of it.
-  .get("/projects/:id/files/:fileId/text", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    const row = await projectFile(project.id, c.req.param("fileId"));
+  .get("/spaces/:id/files/:fileId/text", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const row = await spaceFile(space.id, c.req.param("fileId"));
     const limit = z.coerce
       .number()
       .int()
@@ -1025,15 +1020,15 @@ export const studio = new Hono<Vars>()
     return c.json({ text: text.slice(0, limit), chars: text.length });
   })
   // What a search of Knowledge finds for a question: the items an agent step would get.
-  .post("/projects/:id/search", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
+  .post("/spaces/:id/search", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const body = z
       .object({ query: z.string().min(1).max(400), where: whereSchema.optional() })
       .parse(await c.req.json());
-    return c.json(await searchKnowledge(project.id, body.query, { where: body.where }));
+    return c.json(await searchKnowledge(space.id, body.query, { where: body.where }));
   })
-  .delete("/projects/:id", async (c) => {
-    await deleteProject(c.get("user").id, c.req.param("id"));
+  .delete("/spaces/:id", async (c) => {
+    await deleteSpace(c.get("user").id, c.req.param("id"));
     return c.json({ ok: true });
   })
 
@@ -1055,29 +1050,29 @@ export const studio = new Hono<Vars>()
       .parse(await c.req.json());
     return c.json(await previewSource(body));
   })
-  .get("/projects/:id/connectors", async (c) =>
+  .get("/spaces/:id/connectors", async (c) =>
     c.json(await connectorsView(reader(c), c.req.param("id"))),
   )
-  .post("/projects/:id/connectors", async (c) => {
+  .post("/spaces/:id/connectors", async (c) => {
     const user = c.get("user");
-    const project = await ownedProject(user.id, c.req.param("id"));
+    const space = await ownedSpace(user.id, c.req.param("id"));
     return c.json(
-      await importConnector(user.id, project.id, connectorImportSchema.parse(await c.req.json())),
+      await importConnector(user.id, space.id, connectorImportSchema.parse(await c.req.json())),
     );
   })
-  .post("/projects/:id/connectors/:connectorId/refresh", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    return c.json(await refreshConnector(project.id, c.req.param("connectorId"), null));
+  .post("/spaces/:id/connectors/:connectorId/refresh", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(await refreshConnector(space.id, c.req.param("connectorId"), null));
   })
-  .delete("/projects/:id/connectors/:connectorId", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    await removeConnector(project.id, c.req.param("connectorId"));
+  .delete("/spaces/:id/connectors/:connectorId", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    await removeConnector(space.id, c.req.param("connectorId"));
     return c.json({ ok: true });
   })
 
   // The runs of the space's wizards that reached their result: of one wizard, or of all.
-  .get("/projects/:id/results", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
+  .get("/spaces/:id/results", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const query = z
       .object({
         wizard: z.string().optional(),
@@ -1087,7 +1082,7 @@ export const studio = new Hono<Vars>()
       })
       .parse(c.req.query());
     return c.json(
-      await listResults(project.id, {
+      await listResults(space.id, {
         wizardId: query.wizard || undefined,
         q: query.q,
         mode: query.mode,
@@ -1097,21 +1092,21 @@ export const studio = new Hono<Vars>()
   })
 
   // --- Knowledge: its items and categories ------------------------------------
-  .get("/projects/:id/knowledge", async (c) =>
+  .get("/spaces/:id/knowledge", async (c) =>
     c.json(await listKnowledge(c.get("user").id, c.req.param("id"))),
   )
   // What a link in a page names (`pages/bgb/p-281`): the studio opens it.
-  .get("/projects/:id/resolve", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    const found = await resolvePath(project.id, z.string().max(600).parse(c.req.query("path")));
+  .get("/spaces/:id/resolve", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const found = await resolvePath(space.id, z.string().max(600).parse(c.req.query("path")));
     if (!found) {
       throw notFound();
     }
     return c.json(found);
   })
-  .post("/projects/:id/categories", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    await requireWritable(project);
+  .post("/spaces/:id/categories", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    await requireWritable(space);
     const body = z
       .object({
         name: z.string().min(1).max(80),
@@ -1125,12 +1120,12 @@ export const studio = new Hono<Vars>()
         columnId: z.string().nullish(),
       })
       .parse(await c.req.json());
-    const row = await putCategory(project.id, body);
+    const row = await putCategory(space.id, body);
     return c.json({ id: row.id });
   })
   .patch("/categories/:id", async (c) => {
     const row = await categoryRow(c.req.param("id"));
-    await ownedProject(c.get("user").id, row.projectId);
+    await ownedSpace(c.get("user").id, row.spaceId);
     const body = z
       .object({
         name: z.string().min(1).max(80).optional(),
@@ -1147,19 +1142,19 @@ export const studio = new Hono<Vars>()
   })
   .delete("/categories/:id", async (c) => {
     const row = await categoryRow(c.req.param("id"));
-    await ownedProject(c.get("user").id, row.projectId);
+    await ownedSpace(c.get("user").id, row.spaceId);
     await deleteCategory(row.id);
     return c.json({ ok: true });
   })
   .post("/categories/:id/values", async (c) => {
     const row = await categoryRow(c.req.param("id"));
-    await ownedProject(c.get("user").id, row.projectId);
+    await ownedSpace(c.get("user").id, row.spaceId);
     const { value } = z.object({ value: z.string().min(1).max(200) }).parse(await c.req.json());
     return c.json(await addCategoryValue(row.id, value));
   })
   .put("/categories/:id/values/order", async (c) => {
     const row = await categoryRow(c.req.param("id"));
-    await ownedProject(c.get("user").id, row.projectId);
+    await ownedSpace(c.get("user").id, row.spaceId);
     const { ids } = z.object({ ids: z.array(z.string()).max(500) }).parse(await c.req.json());
     await orderCategoryValues(row.id, ids);
     return c.json({ ok: true });
@@ -1171,35 +1166,35 @@ export const studio = new Hono<Vars>()
   )
   .patch("/values/:id", async (c) => {
     const { category } = await categoryValue(c.req.param("id"));
-    await ownedProject(c.get("user").id, category.projectId);
+    await ownedSpace(c.get("user").id, category.spaceId);
     const { value } = z.object({ value: z.string().min(1).max(200) }).parse(await c.req.json());
     await renameCategoryValue(c.req.param("id"), value);
     return c.json({ ok: true });
   })
   .post("/values/:id/merge", async (c) => {
     const { category } = await categoryValue(c.req.param("id"));
-    await ownedProject(c.get("user").id, category.projectId);
+    await ownedSpace(c.get("user").id, category.spaceId);
     const { into } = z.object({ into: z.string() }).parse(await c.req.json());
     await mergeCategoryValues(c.req.param("id"), into);
     return c.json({ ok: true });
   })
   .delete("/values/:id", async (c) => {
     const { category } = await categoryValue(c.req.param("id"));
-    await ownedProject(c.get("user").id, category.projectId);
+    await ownedSpace(c.get("user").id, category.spaceId);
     await deleteCategoryValue(c.req.param("id"));
     return c.json({ ok: true });
   })
   // The summary of a value: a model writes it from the value's items.
   .post("/values/:id/summary", async (c) => {
     const { category } = await categoryValue(c.req.param("id"));
-    const project = await ownedProject(c.get("user").id, category.projectId);
-    await requireWritable(project);
+    const space = await ownedSpace(c.get("user").id, category.spaceId);
+    await requireWritable(space);
     return c.json({ summary: await writeSummary(c.req.param("id")) });
   })
   // A category a person sets on an item: `p:<page>`, `t:<table>`, `r:<row>`, `f:<file>`.
-  .put("/projects/:id/items/:key/categories/:categoryId", async (c) => {
-    const project = await ownedProject(c.get("user").id, c.req.param("id"));
-    await requireWritable(project);
+  .put("/spaces/:id/items/:key/categories/:categoryId", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    await requireWritable(space);
     const key = c.req.param("key");
     const id = key.slice(2);
     const ref =
@@ -1218,17 +1213,17 @@ export const studio = new Hono<Vars>()
     const { values } = z
       .object({ values: z.array(z.union([z.string().max(300), z.number(), z.boolean()])).max(50) })
       .parse(await c.req.json());
-    if (await setItemCategory(project.id, ref, c.req.param("categoryId"), values)) {
+    if (await setItemCategory(space.id, ref, c.req.param("categoryId"), values)) {
       queueIndex(key[0] === "p" ? `P:${id}` : key);
     }
     return c.json({ ok: true });
   })
 
   // --- the space's tables and pages --------------------------------------------
-  .get("/projects/:id/data", async (c) =>
+  .get("/spaces/:id/data", async (c) =>
     c.json(await listSpaceData(c.get("user").id, c.req.param("id"))),
   )
-  .post("/projects/:id/tables", async (c) => {
+  .post("/spaces/:id/tables", async (c) => {
     const body = z
       .object({
         title: z.string().max(120),
@@ -1274,7 +1269,7 @@ export const studio = new Hono<Vars>()
     await deleteTableRows(c.get("user").id, c.req.param("id"), body.ids);
     return c.json({ ok: true });
   })
-  .post("/projects/:id/pages", async (c) => {
+  .post("/spaces/:id/pages", async (c) => {
     const body = z
       .object({
         title: z.string().max(200),
@@ -1310,13 +1305,11 @@ export const studio = new Hono<Vars>()
   })
 
   // --- wizards ---------------------------------------------------------------
-  .get("/projects/:id/wizards", async (c) =>
-    c.json(await wizardsView(reader(c), c.req.param("id"))),
-  )
+  .get("/spaces/:id/wizards", async (c) => c.json(await wizardsView(reader(c), c.req.param("id"))))
   .post("/wizards", async (c) => {
     const body = z
       .object({
-        projectId: z.string(),
+        spaceId: z.string(),
         starterId: z.string().optional(),
         lang: z.string().optional(),
       })
@@ -1325,7 +1318,7 @@ export const studio = new Hono<Vars>()
     return c.json({ id });
   })
   // A wizard as a file, and a new wizard made of such a file.
-  .post("/projects/:id/wizards/import", async (c) => {
+  .post("/spaces/:id/wizards/import", async (c) => {
     const file = (await c.req.formData()).get("file");
     if (!(file instanceof File) || !file.size || file.size > PACKAGE_MAX_BYTES) {
       throw new ServiceError("invalid", note("chooseWizardFileMb", { PACKAGE_EXTENSION }));
@@ -1363,7 +1356,7 @@ export const studio = new Hono<Vars>()
   // The share targets a result of this wizard can name, for the editor.
   .get("/wizards/:id/share-targets", async (c) => {
     const w = await ownedWizard(c.get("user").id, c.req.param("id"));
-    return c.json(await projectShareTargets(w.projectId, requestLang(c)));
+    return c.json(await spaceShareTargets(w.spaceId, requestLang(c)));
   })
   // The draft's result page with its share sheet, for a visitor (`as=visitor`) or the owner.
   .get("/wizards/:id/share-preview", async (c) => {
@@ -1392,7 +1385,7 @@ export const studio = new Hono<Vars>()
       .object({
         shareEnabled: z.boolean().optional(),
         dailyRunLimit: z.number().int().min(1).max(10_000).optional(),
-        projectId: z.string().optional(),
+        spaceId: z.string().optional(),
         runners: z.object({ default: z.string(), enabled: z.array(z.string()).max(20) }).optional(),
         translate: z.boolean().optional(),
       })
@@ -1495,7 +1488,7 @@ export const studio = new Hono<Vars>()
     const linked = await cloudLinked();
     return c.json({ linked, ...(linked ? await cloudState(w.id) : { copy: null, error: null }) });
   })
-  // Sends the published version again: after a try that failed, or a change of the project.
+  // Sends the published version again: after a try that failed, or a change of the space.
   .post("/wizards/:id/cloud", async (c) => {
     if (!(await cloudLinked())) {
       return c.notFound();
@@ -1584,14 +1577,14 @@ export const studio = new Hono<Vars>()
     await mergesSeen(ids);
     return c.json({ ok: true });
   })
-  // The projects of local installs the account's cloud holds.
+  // The spaces of local installs the account's cloud holds.
   .get("/cloud/spaces", async (c) => {
     if (!(await cloudLinked())) {
       return c.notFound();
     }
     return c.json({ spaces: await cloudSpaces() });
   })
-  // Another install's project is in the way: it goes, and what is published here is sent.
+  // Another install's space is in the way: it goes, and what is published here is sent.
   .post("/cloud/replace", async (c) => {
     if (!(await cloudLinked())) {
       return c.notFound();
@@ -1686,7 +1679,7 @@ export const studio = new Hono<Vars>()
   // The looks of the themes the draft offers: what the test run's preview switches between.
   .get("/wizards/:id/looks", async (c) => {
     const w = await ownedWizard(c.get("user").id, c.req.param("id"));
-    return c.json({ looks: await themeLooks(w.projectId, w.draft.themes) });
+    return c.json({ looks: await themeLooks(w.spaceId, w.draft.themes) });
   })
 
   // --- workspace -------------------------------------------------------------
@@ -2223,9 +2216,9 @@ export const studio = new Hono<Vars>()
     }
     return c.json({ ok: true });
   })
-  .post("/projects/:id/website", async (c) => {
+  .post("/spaces/:id/website", async (c) => {
     const user = c.get("user");
-    const project = await ownedProject(user.id, c.req.param("id"));
+    const space = await ownedSpace(user.id, c.req.param("id"));
     // One address (as before) or several: the first website is read, the others kept as facts.
     const { url, urls, lang } = z
       .object({
@@ -2236,7 +2229,7 @@ export const studio = new Hono<Vars>()
       .parse(await c.req.json());
     const outcome = await applyAddresses(
       user.id,
-      project.id,
+      space.id,
       urls ?? (url ? [url] : []),
       lang ?? requestLang(c),
     );

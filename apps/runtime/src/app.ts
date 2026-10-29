@@ -254,7 +254,7 @@ if (serves.doors) {
 
 /** The studio's requests that open an item: a wizard, a page, a table, a skill, a space. */
 const STUDIO_LOADS =
-  /\/api\/studio\/(wizards\/[^/]+|pages\/[^/]+|tables\/[^/]+|skills\/[^/]+|projects(\/[^/]+(\/(data|knowledge|files|wizards|page|skills))?)?)$/;
+  /\/api\/studio\/(wizards\/[^/]+|pages\/[^/]+|tables\/[^/]+|skills\/[^/]+|spaces(\/[^/]+(\/(data|knowledge|files|wizards|page|skills))?)?)$/;
 
 if (serves.studio) {
   /** Studio requests act as the signed-in person, inside that person's tenant. */
