@@ -485,8 +485,8 @@ async function testClass(cls: (typeof MODEL_CLASSES)[number], lang: Lang): Promi
 }
 
 /** The size of an inline terminal, as the page lays it out. */
-/** Whether the studio assistant's developer mode is offered to this person. */
-async function assistantDevFor(user: SessionUser): Promise<boolean> {
+/** Whether the developer mode (Goose's, a Work chat's) is offered to this person. */
+export async function assistantDevFor(user: SessionUser): Promise<boolean> {
   return managed ? (await userInfo(user.id)).admin : env.assistantDev;
 }
 

@@ -10,6 +10,7 @@ import {
   attachFile,
   createChat,
   createSection,
+  DEV_CHUNK,
   decideApproval,
   deleteChat,
   deleteSection,
@@ -27,8 +28,29 @@ import {
 } from "../services/work-chats.js";
 import { FILES_PER_MESSAGE } from "../services/work-files.js";
 import { say } from "./lang.js";
+import { assistantDevFor } from "./studio.js";
 
 type Vars = { Variables: { user: SessionUser } };
+
+/**
+ * A turn of the AI as `useChat` reads it. The developer mode's chunks (the prompt, each step's
+ * tokens) go only to a person it is offered to.
+ */
+async function turnResponse(user: SessionUser, stream: ReadableStream) {
+  const dev = await assistantDevFor(user);
+  const shown = dev
+    ? stream
+    : stream.pipeThrough(
+        new TransformStream<{ type?: string }, { type?: string }>({
+          transform(chunk, controller) {
+            if (!chunk.type?.startsWith(DEV_CHUNK)) {
+              controller.enqueue(chunk);
+            }
+          },
+        }),
+      );
+  return createUIMessageStreamResponse({ stream: shown as never });
+}
 
 const name = z.string().trim().min(1).max(120);
 const member = z.object({ kind: z.enum(["person", "engenty"]), id: z.string().min(1).max(80) });
@@ -113,7 +135,7 @@ export const workRoutes = new Hono<Vars>()
       .parse(await c.req.json());
     const sent = await sendMessage(c.get("user"), c.req.param("id"), body.text, body);
     return sent.kind === "turn"
-      ? createUIMessageStreamResponse({ stream: sent.stream as never })
+      ? turnResponse(c.get("user"), sent.stream)
       : c.json({ sent: sent.kind });
   })
   .post("/chats/:id/approvals/:approval", async (c) => {
@@ -125,13 +147,13 @@ export const workRoutes = new Hono<Vars>()
       approve,
     );
     return sent.kind === "turn"
-      ? createUIMessageStreamResponse({ stream: sent.stream as never })
+      ? turnResponse(c.get("user"), sent.stream)
       : c.json({ sent: sent.kind });
   })
   // Follow the AI's running turn from its start, as `useChat`'s resume reads it; 204 when none runs.
   .get("/chats/:id/follow", async (c) => {
     const stream = await followTurn(c.get("user"), c.req.param("id"));
-    return stream ? createUIMessageStreamResponse({ stream: stream as never }) : c.body(null, 204);
+    return stream ? turnResponse(c.get("user"), stream) : c.body(null, 204);
   })
   .get("/approvals", async (c) => c.json({ approvals: await waitingApprovals(c.get("user")) }))
   .post("/chats/:id/stop", async (c) =>

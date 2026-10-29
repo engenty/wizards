@@ -233,8 +233,34 @@ export function UsageMeter({ messages, narrow }: { messages: ChatMessage[]; narr
   );
 }
 
+/** The developer mode's switch, where the runtime offers it: beside Goose's name, in a Work chat's composer. */
+export function DevSwitch({ on, set }: { on: boolean; set: (on: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={t("assistant.dev")}
+      title={on ? t("assistant.devOn") : t("assistant.devOff")}
+      onClick={() => set(!on)}
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center gap-1 rounded-full font-mono font-semibold text-[0.625rem] uppercase tracking-wide transition",
+        on
+          ? "bg-ember pr-0.5 pl-2 text-white"
+          : "flex-row-reverse bg-paper-3 pr-2 pl-0.5 text-ink-3",
+      )}
+    >
+      dev
+      <span className="size-4 rounded-full bg-white shadow-sm" />
+    </button>
+  );
+}
+
+/** A chat's messages as the thread's JSON takes them: Goose's, or a Work chat's. */
+type ThreadMessage = object & { previews?: unknown };
+
 /** The thread with the recorded turns, as JSON. */
-export function threadJson(messages: ChatMessage[], turns: DevTurn[]): string {
+export function threadJson(messages: ThreadMessage[], turns: DevTurn[]): string {
   return JSON.stringify(
     {
       messages: messages.map(({ previews: _, ...m }) => m),
@@ -245,7 +271,7 @@ export function threadJson(messages: ChatMessage[], turns: DevTurn[]): string {
   );
 }
 
-export function CopyThread({ messages, turns }: { messages: ChatMessage[]; turns: DevTurn[] }) {
+export function CopyThread({ messages, turns }: { messages: ThreadMessage[]; turns: DevTurn[] }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) {
@@ -396,11 +422,14 @@ export function TurnsDialog({
   onClose,
   turns,
   messages,
+  file = "goose",
 }: {
   open: boolean;
   onClose: () => void;
+  /** The start of the download's name. */
+  file?: string;
   turns: DevTurn[];
-  messages: ChatMessage[];
+  messages: ThreadMessage[];
 }) {
   const [tab, setTab] = useState<"timeline" | "prompt" | "events">("timeline");
   const last = turns.at(-1);
@@ -411,7 +440,7 @@ export function TurnsDialog({
     const blob = new Blob([`${lines.join("\n")}\n`], { type: "application/x-ndjson" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `goose-${new Date().toISOString().slice(0, 19)}.jsonl`;
+    a.download = `${file}-${new Date().toISOString().slice(0, 19)}.jsonl`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };

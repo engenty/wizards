@@ -1,7 +1,7 @@
 import { useChat as useAiChat } from "@ai-sdk/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createUIMessageStreamResponse, DefaultChatTransport } from "ai";
-import { useMemo } from "react";
+import { type RefObject, useMemo } from "react";
 import { api, CLIENT } from "../../lib/api";
 import { withBase } from "../../lib/base";
 import { useFeature } from "../../lib/features";
@@ -158,12 +158,61 @@ const NO_TURN = () =>
     }),
   });
 
+/** What the developer mode hears of a turn (dev.tsx): its start, each chunk of its stream, its end. */
+export interface TurnTap {
+  /** `message`: what the person asked; empty when following a turn someone else started. */
+  start: (message: string) => void;
+  chunk: (chunk: { type: string } & Record<string, unknown>) => void;
+  end: () => void;
+}
+
+/** Reads a copy of a turn's stream for the developer mode: one chunk per `data:` line. */
+async function hear(
+  body: ReadableStream<Uint8Array>,
+  request: RequestInit | undefined,
+  tap: TurnTap,
+) {
+  let message = "";
+  try {
+    message = String((JSON.parse(String(request?.body ?? "{}")) as { text?: string }).text ?? "");
+  } catch {
+    // Not a question of ours: a turn followed from its start.
+  }
+  tap.start(message);
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let rest = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      const lines = (rest + decoder.decode(value, { stream: true })).split("\n");
+      rest = lines.pop() ?? "";
+      for (const line of lines) {
+        const data = line.startsWith("data:") ? line.slice(5).trim() : "";
+        if (data && data !== "[DONE]") {
+          try {
+            tap.chunk(JSON.parse(data));
+          } catch {
+            // Half a line or none of ours: the turn goes on without it.
+          }
+        }
+      }
+    }
+  } finally {
+    tap.end();
+  }
+}
+
 /**
  * Messages that ask the space's AI, through `useChat`: the turn's answer streams in as the AI
  * SDK's parts. A message taken into a turn already running, or queued, comes back without one.
  * When a turn ends, the chat is read again and the streamed message gives way to the stored one.
+ * `tap`: the developer mode, while it is on, hears a copy of each turn's stream.
  */
-export function useAiTurn(id: string) {
+export function useAiTurn(id: string, tap?: RefObject<TurnTap | null>) {
   const client = useQueryClient();
   const transport = useMemo(
     () =>
@@ -184,12 +233,24 @@ export function useAiTurn(id: string) {
         }),
         fetch: async (input, init) => {
           const res = await fetch(input, init);
-          return res.ok && res.headers.get("content-type")?.includes("application/json")
-            ? NO_TURN()
-            : res;
+          if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
+            return NO_TURN();
+          }
+          // 204: no turn to follow, and nothing to hear.
+          const listening = tap?.current;
+          if (!(listening && res.status === 200 && res.body)) {
+            return res;
+          }
+          const [shown, heard] = res.body.tee();
+          void hear(heard, init, listening);
+          return new Response(shown, {
+            status: res.status,
+            statusText: res.statusText,
+            headers: res.headers,
+          });
         },
       }),
-    [id],
+    [id, tap],
   );
   const chat = useAiChat({
     id: `work-${id}`,
