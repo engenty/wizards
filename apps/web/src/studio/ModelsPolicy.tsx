@@ -6,6 +6,9 @@
  */
 import { EFFORTS, type Effort } from "@engenty/wizards-shared/definition";
 import {
+  MAX_MASK_INSTRUCTIONS,
+  MAX_MASK_LABEL_CHARS,
+  MAX_MASK_LABELS,
   type ModelPolicy,
   type ModelTier,
   type Purpose,
@@ -24,18 +27,19 @@ import {
   type LucideIcon,
   MessageCircle,
   Plug,
+  Plus,
   Sparkles,
   TerminalSquare,
   Users,
   Wand2,
   X,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "../lib/api";
 import { useFeatures } from "../lib/features";
 import { type Key, t } from "../lib/i18n";
-import { Card, cn, Segmented, Select, Switch } from "../ui";
+import { Button, Card, cn, Input, Segmented, Select, Switch, Textarea } from "../ui";
 import { Hint, PanelHead, Part } from "./models-parts";
 import { approved, offered, pickable, reasonText, tierClassLabel } from "./tiers";
 
@@ -51,6 +55,8 @@ export const DEFAULT_POLICY: ModelPolicy = {
   localModels: true,
   apps: { local: true, subscriptions: true },
   masking: false,
+  maskInstructions: "",
+  maskLabels: [],
 };
 
 /** The purposes people see: work chats only once the Work mode is on. */
@@ -257,12 +263,169 @@ export function WayPanel({
               disabled={!canEdit}
               onChange={(masking) => set({ masking })}
             />
+            {shown.masking ? (
+              <MaskingInstructions policy={policy} shown={shown} canEdit={canEdit} set={set} />
+            ) : null}
           </div>
         </Part>
         {save.error ? (
           <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
         ) : null}
       </Card>
+    </div>
+  );
+}
+
+/**
+ * O: what else to mask, in a sentence; the labels it turned into when saved (the Manage-App asks
+ * a model in the EU), which admins can remove or add to; and what a model would see of a sentence.
+ */
+function MaskingInstructions({
+  policy,
+  shown,
+  canEdit,
+  set,
+}: {
+  policy: ModelPolicy;
+  shown: ModelPolicy;
+  canEdit: boolean;
+  set: (patch: Partial<ModelPolicy>) => void;
+}) {
+  const [draft, setDraft] = useState(policy.maskInstructions);
+  const [label, setLabel] = useState("");
+  const [sentence, setSentence] = useState("");
+  // Saved elsewhere or turned into labels: the field shows what is saved.
+  useEffect(() => setDraft(policy.maskInstructions), [policy.maskInstructions]);
+  const tryIt = useMutation({
+    mutationFn: (text: string) =>
+      api.post<{ text: string; counts: Record<string, number> }>("/api/studio/model-policy/try", {
+        text,
+        maskLabels: shown.maskLabels,
+      }),
+  });
+  const labels = shown.maskLabels;
+  const addLabel = () => {
+    const next = label.trim().toLowerCase().replace(/\s+/g, " ");
+    if (next && !labels.includes(next) && labels.length < MAX_MASK_LABELS) {
+      set({ maskLabels: [...labels, next] });
+    }
+    setLabel("");
+  };
+  return (
+    <div className="flex flex-col gap-4 border-border-soft border-t py-4">
+      <div className="flex flex-col gap-2">
+        <span className="font-medium text-[0.875rem]">{t("policy.maskWhat")}</span>
+        <Hint>{t("policy.maskWhat.hint")}</Hint>
+        <Textarea
+          minRows={2}
+          maxLength={MAX_MASK_INSTRUCTIONS}
+          value={draft}
+          disabled={!canEdit}
+          placeholder={t("policy.maskWhat.placeholder")}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        {canEdit && draft.trim() !== shown.maskInstructions.trim() ? (
+          <div>
+            <Button size="sm" onClick={() => set({ maskInstructions: draft.trim() })}>
+              {t("policy.maskWhat.save")}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+      <div className="flex flex-col gap-2">
+        <span className="font-medium text-[0.875rem]">{t("policy.maskLabels")}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {labels.length ? (
+            labels.map((l) => (
+              <span
+                key={l}
+                className="inline-flex h-7 items-center gap-1 rounded-full border border-border-soft bg-paper-2 pr-1.5 pl-3 text-[0.8125rem] text-ink-2"
+              >
+                {l}
+                {canEdit ? (
+                  <button
+                    type="button"
+                    aria-label={t("policy.maskLabels.remove", { label: l })}
+                    className="grid size-5 place-items-center rounded-full text-ink-3 hover:bg-paper-3 hover:text-ink"
+                    onClick={() => set({ maskLabels: labels.filter((x) => x !== l) })}
+                  >
+                    <X className="size-3" />
+                  </button>
+                ) : null}
+              </span>
+            ))
+          ) : (
+            <Hint>{t("policy.maskLabels.none")}</Hint>
+          )}
+        </div>
+        {canEdit && labels.length < MAX_MASK_LABELS ? (
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              addLabel();
+            }}
+          >
+            <Input
+              value={label}
+              maxLength={MAX_MASK_LABEL_CHARS}
+              placeholder={t("policy.maskLabels.addPlaceholder")}
+              onChange={(e) => setLabel(e.target.value)}
+              className="max-w-xs"
+            />
+            <Button type="submit" size="sm" variant="secondary" disabled={!label.trim()}>
+              <Plus className="size-3.5" />
+              {t("policy.maskLabels.add")}
+            </Button>
+          </form>
+        ) : null}
+        <Hint>{t("policy.maskLabels.hint")}</Hint>
+      </div>
+      <div className="flex flex-col gap-2 rounded-xl bg-paper-2/60 p-3">
+        <span className="font-medium text-[0.875rem]">{t("policy.maskTry")}</span>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (sentence.trim()) {
+              tryIt.mutate(sentence.trim());
+            }
+          }}
+        >
+          <Input
+            value={sentence}
+            maxLength={2000}
+            placeholder={t("policy.maskTry.placeholder")}
+            onChange={(e) => setSentence(e.target.value)}
+          />
+          <Button
+            type="submit"
+            size="sm"
+            variant="secondary"
+            busy={tryIt.isPending}
+            disabled={!sentence.trim()}
+          >
+            {t("policy.maskTry.button")}
+          </Button>
+        </form>
+        {tryIt.data ? (
+          <p className="text-[0.8125rem] text-ink-2">
+            <span className="text-ink-3">{t("policy.maskTry.sees")} </span>
+            {tryIt.data.text.split(/(‹[^‹›]+›)/).map((part, i) =>
+              part.startsWith("‹") ? (
+                <span key={i} className="text-cobalt">
+                  {part}
+                </span>
+              ) : (
+                part
+              ),
+            )}
+          </p>
+        ) : null}
+        {tryIt.error ? (
+          <p className="text-[0.8125rem] text-rose">{(tryIt.error as Error).message}</p>
+        ) : null}
+      </div>
     </div>
   );
 }

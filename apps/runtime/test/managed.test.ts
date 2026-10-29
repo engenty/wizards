@@ -94,6 +94,14 @@ const manage: Server = createServer(async (req, res) => {
         : { ok: true },
     );
   }
+  if (/^\/v1\/tenants\/[^/]+\/model-policy\/try$/.test(url.pathname) && req.method === "POST") {
+    const body = JSON.parse(raw);
+    memberCalls.push({ method: "POST", path: url.pathname, body });
+    if (body.text.includes("down")) {
+      return json({ error: "Personal data could not be masked.", code: "masking_unavailable" }, 503);
+    }
+    return json({ text: body.text.replace("Johanna Leitner", "‹Person 1›"), counts: { person: 1 } });
+  }
   if (/^\/v1\/tenants\/[^/]+\/model-policy$/.test(url.pathname) && req.method === "PUT") {
     const body = JSON.parse(raw);
     memberCalls.push({ method: "PUT", path: url.pathname, body });
@@ -618,8 +626,31 @@ describe("a runtime of a Manage-App", () => {
           subscriptions: false,
           apps: { local: false, subscriptions: false },
           purposes: { wizard: { models: ["standard"], effortCap: null } },
+          // Left out by the page: sent as they start, empty.
+          maskInstructions: "",
+          maskLabels: [],
         },
       });
+      memberCalls.pop();
+      // "Try a sentence": what a model would see, with the labels the page has.
+      const tryIt = (text: string) =>
+        app.fetch(
+          new Request(`${RUNTIME}/api/studio/model-policy/try`, {
+            method: "POST",
+            headers: { cookie: b, "content-type": "application/json" },
+            body: JSON.stringify({ text, maskLabels: ["company"] }),
+          }),
+        );
+      const tried = await tryIt("Johanna Leitner fragt nach.");
+      expect(await tried.json()).toEqual({ text: "‹Person 1› fragt nach.", counts: { person: 1 } });
+      expect(memberCalls.at(-1)).toMatchObject({
+        path: "/v1/tenants/tenant-b/model-policy/try",
+        body: { actorId: "user-b", text: "Johanna Leitner fragt nach.", maskLabels: ["company"] },
+      });
+      memberCalls.pop();
+      const down = await tryIt("down");
+      expect(down.status).toBe(503);
+      expect(await down.json()).toMatchObject({ code: "masking_unavailable" });
       memberCalls.pop();
     } finally {
       tierOfB = null;

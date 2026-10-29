@@ -74,7 +74,8 @@ Errors: `{ "error": string, "code": string }`.
 | `GET /v1/tenants/:id/usage?months=` | → `{ months: [{ month: "2026-10", credits, runs: [{ runId, credits }] }] }` · what the tenant spent per calendar month (UTC), the newest first, `months` 1–12 (3 when left out), each with its 20 costliest runs; the studio assistant names the wizards behind the runs |
 | `PATCH /v1/tenants/:id` | `{ name }` → the same answer as `GET /v1/tenants/:id` · renames the organization; the studio's first visit asks for the name ([content/user-guide/create-account.md](content/user-guide/create-account.md)) · `name` 1–80 characters |
 | `PUT /v1/tenants/:id/profile` | `{ userId, lang, kind: "personal" \| "club" \| "small" \| "corp", size?, sector?, role?, need?, phone?, website?, links?: string[], questions? }` → `{ ok }` · what the studio's first visit learned about the organization, for the admin app's list of people · `links`: the addresses the person ticked or added (≤ 10) · `questions`: “Wünsche oder Fragen”; a new one is mailed to the platform's people · `403 not_member` |
-| `PUT /v1/tenants/:id/model-policy` | `{ actorId, way, purposes, credits, ownKeys, subscriptions, localModels, apps, masking }` → `{ modelPolicy }` · the organization's model policy ([Model tiers](#model-tiers)) as an owner or admin (`actorId`) saves it in the studio; the fields as in `modelPolicy`, all of them · the answer is the policy as `GET /v1/tenants/:id` serves it from then on · refusals: `403` `forbidden`, `not_member`, `plan` (the plan doesn't offer the way), `outside_tier` (an entry the tier doesn't offer, or a switch the tier keeps off); `409` `no_tier` (the organization has no tier, or `modelTiers` is off) |
+| `PUT /v1/tenants/:id/model-policy` | `{ actorId, way, purposes, credits, ownKeys, subscriptions, localModels, apps, masking, maskInstructions?, maskLabels? }` → `{ modelPolicy }` · the organization's model policy ([Model tiers](#model-tiers)) as an owner or admin (`actorId`) saves it in the studio; the fields as in `modelPolicy`, all of them but the two masking fields, which stay as saved when left out · changed `maskInstructions` are turned into labels by one model call in the EU, and those replace the `maskLabels` sent; unchanged ones keep the `maskLabels` sent · the answer is the policy as `GET /v1/tenants/:id` serves it from then on · refusals: `403` `forbidden`, `not_member`, `plan` (the plan doesn't offer the way), `outside_tier` (an entry the tier doesn't offer, or a switch the tier keeps off); `409` `no_tier` (the organization has no tier, or `modelTiers` is off); `502` `labels_unavailable` (the instructions couldn't be turned into labels; nothing was saved) |
+| `POST /v1/tenants/:id/model-policy/try` | `{ actorId, text, maskLabels? }` → `{ text, counts }` · "Try a sentence" under the masking instructions: `text` (≤ 2,000 characters) as a model would see it with masking on, the placeholders in it, and the count per kind as in `x-wizards-masked`; with `maskLabels` (unsaved) or else the saved ones · nothing is kept or booked · `403` `forbidden`, `not_member`; `503` `masking_unavailable` (the detector doesn't answer or isn't set) |
 | `POST /v1/install-mail` | `{ email, lang: "de" \| "en" }` → `{ ok: true }` · the Manage-App mails its install mail (the command and the first steps) to `email`, which must belong to a person of a tenant this runtime serves (`404` otherwise); 3 a day per address (`429`) · "Mail me the command" on the cloud studio's start page |
 | `GET /v1/users/:id` | → `{ id, name, email, image, features, admin, tenants: [{ id, name, slug, role, personal, plan: { id, name } \| null, invitedBy: { name } \| null }] }` · `features`: the person's own switches, laid over the organization's · `admin`: the person runs the platform; the studio offers them the assistant's developer mode and “Organisation erstellen” · `tenants`: the person's organizations, their own first; the studio's switcher lists them (an older Manage-App sends none) · `invitedBy`: who invited the person into it, for the studio's welcome page; null for their own |
 | `PATCH /v1/users/:id` | `{ name }` → `{ name }` · the person's name, 1–80 characters, for every organization; the studio's Konto › Profil |
@@ -373,6 +374,7 @@ its list — is refused with `403`, type `forbidden`, whatever the catalog enabl
     "speech":   { "model": "google/gemini-3.8-flash-tts", "kind": "speech", "creditsPer1kCharacters": 3.334 }
   },
   "webSearchCredits": 2,
+  "maskingCredits": 1,
   "models": [
     { "id": "fal:fal-ai/flux/schnell", "name": "FLUX.1 [schnell]", "source": "fal", "provider": "fal", "kind": "image", "creditsPerImage": 0.6 },
     { "id": "elevenlabs:eleven_multilingual_v2", "name": "ElevenLabs Multilingual v2", "source": "elevenlabs", "provider": "elevenlabs", "kind": "speech", "creditsPer1kCharacters": 20 }
@@ -469,6 +471,9 @@ modelPolicy?: {
   localModels: boolean;    // a model on a member's computer (Goose only)
   apps: { local: boolean; subscriptions: boolean }; // apps connected to a space over MCP
   masking: boolean;        // the gateway masks personal data before a call leaves it
+  maskInstructions: string; // what else to mask, in the admins' words (≤ 1,000 characters)
+  maskLabels: string[];     // what the detector looks for besides personal data, from the
+                            // instructions or added by hand: "company", "project name" (≤ 20)
 };
 
 type PurposePolicy = {
@@ -508,4 +513,12 @@ outside a run carry none, and masking keeps its map for the one call.
 
 Where the gateway masked personal data, its answer carries `x-wizards-masked`: the count per
 kind as JSON, e.g. `{"person":2,"email":1}`. No header: nothing was masked. The run log shows
-it.
+it. What a label found counts as `term`. A call with something masked costs `maskingCredits`
+more (`GET /v4/ai/v1/models`).
+
+Where masking is on and the detector is late, down or not set, the gateway refuses the call
+before anything leaves, with `503`:
+
+```json
+{ "error": { "message": "Personal data could not be masked, so the call was not sent.", "type": "masking_unavailable" } }
+```

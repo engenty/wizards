@@ -21,7 +21,13 @@ import { PRESENCE_KINDS } from "@engenty/wizards-shared/live";
 import { PROJECT_FILE_KINDS } from "@engenty/wizards-shared/projects";
 import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
 import { note } from "@engenty/wizards-shared/run";
-import { type ModelPolicy, modelPolicySchema, purposesOfWay } from "@engenty/wizards-shared/tiers";
+import {
+  MAX_MASK_LABEL_CHARS,
+  MAX_MASK_LABELS,
+  type ModelPolicy,
+  modelPolicySchema,
+  purposesOfWay,
+} from "@engenty/wizards-shared/tiers";
 import {
   PACKAGE_EXTENSION,
   PACKAGE_MAX_BYTES,
@@ -102,6 +108,7 @@ import {
   saveOrganizationProfile,
   tenantInfo,
   tenantMembers,
+  tryMasking,
   userInfo,
 } from "../manage.js";
 import { checkedApps, seenApps } from "../mcp/seen.js";
@@ -351,6 +358,9 @@ const localModelName = z
   .min(1)
   .max(120)
   .regex(/^[\w.:/-]+$/);
+
+/** The Manage-App's masking errors, passed on as it sends them: 502 labels, 503 the detector. */
+const MASKING_CODES = new Set(["labels_unavailable", "masking_unavailable"]);
 
 const modelsInput = z.object({
   source: z.enum([...HARNESS_IDS, "account", "own"]).optional(),
@@ -1923,12 +1933,36 @@ export const studio = new Hono<Vars>()
     try {
       await saveModelPolicy(user.tenantId, user.id, allowed);
     } catch (err) {
-      if (err instanceof ManageError && err.status < 500) {
+      if (err instanceof ManageError && (err.status < 500 || MASKING_CODES.has(err.code))) {
         return c.json({ error: err.message, code: err.code }, err.status as 400);
       }
       throw err;
     }
     return c.json(await modelSettings(requestLang(c)));
+  })
+  // "Try a sentence" under the masking instructions: what a model would see of it.
+  .post("/model-policy/try", async (c) => {
+    const user = c.get("user");
+    if (!managed || !mayChangeModels(user)) {
+      return c.json({ error: say(c, "onlyOrganizationAdminsChange"), code: "forbidden" }, 403);
+    }
+    const { text, maskLabels } = z
+      .object({
+        text: z.string().trim().min(1).max(2000),
+        maskLabels: z
+          .array(z.string().trim().min(1).max(MAX_MASK_LABEL_CHARS))
+          .max(MAX_MASK_LABELS)
+          .optional(),
+      })
+      .parse(await c.req.json());
+    try {
+      return c.json(await tryMasking(user.tenantId, user.id, text, maskLabels));
+    } catch (err) {
+      if (err instanceof ManageError && (err.status < 500 || MASKING_CODES.has(err.code))) {
+        return c.json({ error: err.message, code: err.code }, err.status as 400);
+      }
+      throw err;
+    }
   })
   // Ollama on this computer: its models, what each can do, the ones to download, the downloads.
   .get("/models/local", async (c) => {
