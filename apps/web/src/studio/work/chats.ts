@@ -6,6 +6,7 @@ import { api, CLIENT } from "../../lib/api";
 import { withBase } from "../../lib/base";
 import { useFeature } from "../../lib/features";
 import { lang } from "../../lib/i18n";
+import type { PickedFile } from "../../ui/composer";
 
 /**
  * Work's chats from `/api/studio/work` (behind `workMode`): the sidebar, one chat, and what the
@@ -50,6 +51,8 @@ export interface Section {
 /** One part of a message, as the AI SDK's `UIMessage` holds it. */
 export type ChatPart =
   | { type: "text"; text: string }
+  /** A file of the space that went with the message: `url` its content, `fileId` its id there. */
+  | { type: "file"; url: string; mediaType: string; filename?: string; fileId?: string }
   | { type: "reasoning"; text: string }
   | {
       type: `tool-${string}`;
@@ -246,12 +249,24 @@ export const useDeleteChat = () => useChange((id: string) => api.del(`${BASE}/ch
 
 /** A message that doesn't start a turn now: one the AI isn't asked for, or one for after its answer. */
 export const usePostMessage = () =>
-  useChange(({ id, text, later }: { id: string; text: string; later?: boolean }) =>
-    api.post<{ sent: string }>(
-      `${BASE}/chats/${id}/messages`,
-      later ? { text, ask: true, later } : { text },
-    ),
+  useChange(
+    ({ id, text, later, files }: { id: string; text: string; later?: boolean; files?: string[] }) =>
+      api.post<{ sent: string }>(`${BASE}/chats/${id}/messages`, {
+        text,
+        ...(files?.length ? { files } : {}),
+        ...(later ? { ask: true, later } : {}),
+      }),
   );
+
+/** Files for a message: each lands in the chat's space's files, and comes back as its entry there. */
+export async function uploadFiles(id: string, files: File[]): Promise<PickedFile[]> {
+  const added: PickedFile[] = [];
+  for (const file of files) {
+    const row = await api.upload<PickedFile>(`${BASE}/chats/${id}/files`, file);
+    added.push({ id: row.id, name: row.name, mime: row.mime });
+  }
+  return added;
+}
 
 export const useCreateSection = () =>
   useChange((body: { spaceId: string; name: string }) =>

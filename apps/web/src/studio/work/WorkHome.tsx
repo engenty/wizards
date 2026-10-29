@@ -1,28 +1,37 @@
-import { MessageSquare, ShieldQuestion } from "lucide-react";
-import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { FolderOpen, MessageSquare, ShieldQuestion } from "lucide-react";
+import { type ReactNode, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router";
+import { Mascot } from "../../brand";
+import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
-import { useCurrentProject, useMe } from "../../lib/session";
+import { type Me, useCurrentProject, useMe, type WizardSummary } from "../../lib/session";
 import { Button, cn } from "../../ui";
-import { Composer } from "../../ui/composer";
+import { Composer, type ComposerHandle } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
+import { openExternal } from "../LocalRuntime";
+import { ownLink, sharedLink, whereItRuns } from "../where";
 import {
   type Approval,
   type SidebarChat,
+  uploadFiles,
   useCreateChat,
   useDecide,
   useSidebar,
   useWaiting,
 } from "./chats";
+import { SpaceFilesDialog } from "./SpaceFilesDialog";
 
 /**
  * Work's start, where no chat is open (docs: engenty-dev concepts, "Work Beyond Chat", Today):
  * what needs the person first (calls held for their approval, chats with something new), what
- * the space's AI answers right now, the chats of late, and a field that starts a new chat by
- * asking the space's AI.
+ * the space's AI answers right now, a few of the space's wizards, the chats of late, and a field
+ * that starts a new chat by asking the space's AI, with files if the person adds some.
  */
 
 const RECENT = 6;
+/** The space's published wizards the start shows, the ones changed last first. */
+const WIZARDS = 4;
 
 export function WorkHome() {
   useCrumbs([{ label: t("work.chats") }]);
@@ -33,6 +42,20 @@ export function WorkHome() {
   const approvals = useWaiting().data?.approvals ?? [];
   const createChat = useCreateChat();
   const navigate = useNavigate();
+  const composer = useRef<ComposerHandle>(null);
+  const [choosing, setChoosing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // The same list as the studio's start page: where each wizard runs comes with it.
+  const wizards = (
+    useQuery({
+      queryKey: ["wizards", project?.id, Boolean(me?.account)],
+      queryFn: () => api.get<WizardSummary[]>(`/api/studio/projects/${project?.id}/wizards`),
+      enabled: Boolean(project),
+    }).data ?? []
+  )
+    .filter((w) => w.published)
+    .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1))
+    .slice(0, WIZARDS);
 
   const titles = new Map(chats.map((c) => [c.id, c.title || t("work.untitled")]));
   const unread = chats.filter((c) => c.unread && c.last);
@@ -66,20 +89,47 @@ export function WorkHome() {
 
         <div className="grid gap-1.5">
           <Composer
+            ref={composer}
+            tall
             autoFocus
-            attach={false}
             placeholder={t("work.home.ask", { name: space })}
-            onSend={async (raw) => {
+            plus={[
+              {
+                icon: <FolderOpen />,
+                label: t("work.files.fromSpace"),
+                onSelect: () => setChoosing(true),
+              },
+            ]}
+            onSend={async (raw, files, _later, picked = []) => {
               const text = raw.trim();
-              if (!text || !project) {
+              if ((!text && !files.length && !picked.length) || !project) {
                 return false;
               }
-              const chat = await createChat.mutateAsync({ spaceId: project.id });
-              navigate(`/work/c/${chat.id}`, { state: { ask: text } });
-              return true;
+              setError(null);
+              try {
+                const chat = await createChat.mutateAsync({ spaceId: project.id });
+                const added = await uploadFiles(chat.id, files);
+                navigate(`/work/c/${chat.id}`, {
+                  state: { ask: text, files: [...picked, ...added] },
+                });
+                return true;
+              } catch (err) {
+                setError((err as Error).message);
+                return false;
+              }
             }}
           />
-          <p className="px-3 text-[0.75rem] text-ink-4">{t("work.home.askHint")}</p>
+          <p className={cn("px-3 text-[0.75rem]", error ? "text-danger" : "text-ink-4")}>
+            {error ? t("work.files.uploadFailed", { message: error }) : t("work.home.askHint")}
+          </p>
+          {project ? (
+            <SpaceFilesDialog
+              spaceId={project.id}
+              open={choosing}
+              onClose={() => setChoosing(false)}
+              onPick={(files) => composer.current?.pick(files)}
+            />
+          ) : null}
         </div>
 
         {needs ? (
@@ -116,6 +166,16 @@ export function WorkHome() {
                 />
               ))}
             </ul>
+          </Part>
+        ) : null}
+
+        {wizards.length && me ? (
+          <Part label={t("work.home.wizards")}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {wizards.map((w) => (
+                <WizardCard key={w.id} wizard={w} me={me} />
+              ))}
+            </div>
           </Part>
         ) : null}
 
@@ -207,6 +267,29 @@ function ApprovalCard({ approval, chat, may }: { approval: Approval; chat: strin
         </NavLink>
       </div>
     </div>
+  );
+}
+
+/**
+ * A published wizard of the space: it opens in its own chat (the chat runner, `/w/<token>/chat`)
+ * in a new tab, where it runs. Work's chats don't run wizards yet (docs/plans/work-chats.md,
+ * piece 7).
+ */
+function WizardCard({ wizard: w, me }: { wizard: WizardSummary; me: Me }) {
+  const link = sharedLink(whereItRuns(w, me, w.cloud)) ?? ownLink(w);
+  return (
+    <button
+      type="button"
+      onClick={() => openExternal(`${link}/chat`)}
+      title={t("work.home.wizardOpen")}
+      className={cn(card, "grid-cols-[auto_1fr] items-start text-left hover:bg-ink/5")}
+    >
+      <Mascot kind={w.avatar} costume={w.costume} size={40} />
+      <div className="grid min-w-0 gap-0.5">
+        <p className="truncate font-medium text-[0.9375rem] text-ink">{w.title}</p>
+        <p className="line-clamp-2 text-[0.8125rem] text-ink-3">{w.description}</p>
+      </div>
+    </button>
   );
 }
 
