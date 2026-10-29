@@ -773,6 +773,30 @@ describe("a runtime of a Manage-App", () => {
     const asB = await list("Bearer wz_key_of_b");
     expect(asB.status).toBe(200);
     expect(await asB.text()).not.toContain(wizardOfA);
+    // An organization whose model policy keeps apps on subscriptions out of its spaces: the call
+    // is answered with a tool error the app shows, and counted.
+    const { forgetTenant } = await import("../src/manage");
+    try {
+      tierOfB = {
+        tier: { id: "eu-private", name: "EU Private", locked: true, rules: {}, classes: {} },
+        modelPolicy: { apps: { local: true, subscriptions: false } },
+      };
+      forgetTenant("tenant-b");
+      const refused = await list("Bearer wz_key_of_b");
+      expect(refused.status).toBe(200);
+      expect(await refused.json()).toMatchObject({
+        id: 1,
+        result: { isError: true, content: [{ text: expect.stringContaining("outside EU Private") }] },
+      });
+      tierOfB = { ...tierOfB, modelPolicy: { apps: { local: true, subscriptions: true } } };
+      forgetTenant("tenant-b");
+      expect(await (await list("Bearer wz_key_of_b")).text()).not.toContain("outside EU Private");
+      const { checkedApps } = await import("../src/mcp/seen");
+      expect(checkedApps("tenant-b")).toMatchObject([{ kind: "subscription", allowed: 1, refused: 1 }]);
+    } finally {
+      tierOfB = null;
+      forgetTenant("tenant-b");
+    }
     // A token for another audience, an unknown key and no token are all turned away.
     const wrongAudience = await list(
       `Bearer ${await token({ sub: "user-a", tenant: "tenant-a" }, "https://elsewhere.example")}`,

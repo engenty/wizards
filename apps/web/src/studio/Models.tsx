@@ -39,6 +39,7 @@ import {
   type LucideIcon,
   MessageCircle,
   PenLine,
+  Plug,
   Search,
   ShieldCheck,
   Split,
@@ -65,6 +66,8 @@ import { LocalModels, useLocalModels } from "./LocalModels";
 import { openExternal } from "./LocalRuntime";
 import {
   ApprovedPanel,
+  AppsPanel,
+  appsShort,
   DEFAULT_POLICY,
   DefaultsPanel,
   usePurposes,
@@ -2266,6 +2269,7 @@ type Target =
   | { type: "tier" }
   | { type: "way" }
   | { type: "list" }
+  | { type: "apps" }
   | { type: "chat" }
   | { type: "decision" }
   | { type: "search" }
@@ -2286,6 +2290,7 @@ function targetOf(show: string | null): Target {
     show === "tier" ||
     show === "way" ||
     show === "list" ||
+    show === "apps" ||
     show === "chat" ||
     show === "decision" ||
     show === "search" ||
@@ -2306,6 +2311,7 @@ const showOf = (target: Target) =>
   target.type === "tier" ||
   target.type === "way" ||
   target.type === "list" ||
+  target.type === "apps" ||
   target.type === "credits" ||
   target.type === "chat" ||
   target.type === "decision" ||
@@ -2359,6 +2365,8 @@ function targetLabel(
       return t("policy.way");
     case "list":
       return t(way === "B" ? "policy.defaults" : "policy.approved");
+    case "apps":
+      return t("policy.apps");
     case "chat":
       return t("models.cap.chat");
     case "decision":
@@ -2462,6 +2470,13 @@ export function Models() {
                 onPick={() => open({ type: "list" })}
               />
             )}
+            <MenuRow
+              icon={Plug}
+              label={t("policy.apps")}
+              badge={<span className="text-[0.75rem] text-ink-3">{appsShort(policy.apps)}</span>}
+              selected={isOpen({ type: "apps" })}
+              onPick={() => open({ type: "apps" })}
+            />
           </MenuGroup>
         ) : null}
         <MenuGroup label={t("models.groupStudio")}>
@@ -2628,6 +2643,8 @@ export function Models() {
         <ApprovedPanel tier={tier} policy={policy} canEdit={place.canEdit} />
       ) : target.type === "list" && tier && policy.way === "B" ? (
         <DefaultsPanel tier={tier} policy={policy} canEdit={place.canEdit} />
+      ) : target.type === "apps" && tier ? (
+        <AppsPanel tier={tier} policy={policy} canEdit={place.canEdit} />
       ) : target.type === "tier" && tier ? (
         <TierPanel
           tier={tier}

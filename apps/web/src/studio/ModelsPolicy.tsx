@@ -12,8 +12,9 @@ import {
   type PurposePolicy,
   splitClassId,
 } from "@engenty/wizards-shared/tiers";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Check,
   Coins,
   EyeOff,
   KeyRound,
@@ -22,10 +23,12 @@ import {
   Lock,
   type LucideIcon,
   MessageCircle,
+  Plug,
   Sparkles,
   TerminalSquare,
   Users,
   Wand2,
+  X,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
@@ -537,6 +540,125 @@ export function DefaultsPanel({
           }
         >
           <Hint>{t("policy.tierModelsHint")}</Hint>
+        </Part>
+        {save.error ? (
+          <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+        ) : null}
+      </Card>
+    </div>
+  );
+}
+
+/** An app members used on a space, checked against the policy (`GET /api/studio/model-policy/apps`). */
+interface CheckedApp {
+  app: string;
+  kind: "local" | "subscription";
+  person: string | null;
+  allowed: number;
+  refused: number;
+  at: number;
+}
+
+/** "local only": which apps may read a space, short, for the menu. */
+export function appsShort(apps: ModelPolicy["apps"]): string {
+  return t(
+    apps.local && apps.subscriptions
+      ? "policy.apps.all"
+      : apps.local
+        ? "policy.apps.localOnly"
+        : apps.subscriptions
+          ? "policy.apps.subscriptionsOnly"
+          : "policy.apps.none",
+  );
+}
+
+/** M: which apps may read a space over MCP, and the ones members used, allowed or refused. */
+export function AppsPanel({
+  tier,
+  policy,
+  canEdit,
+}: {
+  tier: ModelTier;
+  policy: ModelPolicy;
+  canEdit: boolean;
+}) {
+  const save = useSavePolicy();
+  const shown = save.isPending && save.variables ? save.variables : policy;
+  const setApps = (patch: Partial<ModelPolicy["apps"]>) =>
+    save.mutate({ ...shown, apps: { ...shown.apps, ...patch } });
+  const seen = useQuery({
+    queryKey: ["model-policy-apps"],
+    queryFn: () => api.get<{ apps: CheckedApp[] }>("/api/studio/model-policy/apps"),
+    refetchInterval: 30_000,
+  });
+  const apps = seen.data?.apps ?? [];
+  return (
+    <div className="flex flex-col gap-6">
+      <PanelHead
+        icon={Plug}
+        title={t("policy.apps")}
+        lead={t("policy.appsLead")}
+        status={
+          <span className="inline-flex h-7 items-center rounded-full bg-paper-2 px-3 font-medium text-[0.75rem] text-ink-2">
+            {appsShort(shown.apps)}
+          </span>
+        }
+      />
+      <Card className="flex flex-col gap-6 p-5 sm:p-6">
+        <Part title={t("policy.appsWhich")}>
+          <div>
+            <PolicyRow
+              icon={Laptop}
+              title={t("policy.apps.local")}
+              hint={t("policy.apps.local.hint")}
+              checked={shown.apps.local}
+              disabled={!canEdit}
+              onChange={(local) => setApps({ local })}
+            />
+            <PolicyRow
+              icon={TerminalSquare}
+              title={t("policy.apps.subscriptions")}
+              hint={t("policy.apps.subscriptions.hint")}
+              checked={shown.apps.subscriptions}
+              locked={tier.rules.zdr ? t("policy.notIn", { tier: tier.name }) : null}
+              disabled={!canEdit}
+              onChange={(subscriptions) => setApps({ subscriptions })}
+            />
+          </div>
+        </Part>
+        <Part title={t("policy.appsSeen")}>
+          {apps.length ? (
+            <ul className="flex flex-col">
+              {apps.map((a) => (
+                <li
+                  key={`${a.app}-${a.person ?? ""}`}
+                  className="flex items-center gap-3 border-border-soft border-t py-2.5 first:border-t-0"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium text-[0.875rem]">{a.app}</span>
+                    {a.person ? (
+                      <span className="block text-[0.75rem] text-ink-3">{a.person}</span>
+                    ) : null}
+                  </span>
+                  {a.refused ? (
+                    <span className="inline-flex h-6 items-center gap-1 rounded-full bg-amber-tint px-2.5 text-[0.75rem] text-ink-2">
+                      <X className="size-3" />
+                      {t("policy.appsRefused", { n: a.refused })}
+                    </span>
+                  ) : null}
+                  {a.allowed ? (
+                    <span className="inline-flex h-6 items-center gap-1 rounded-full bg-moss-tint px-2.5 text-[0.75rem] text-moss">
+                      <Check className="size-3" strokeWidth={3} />
+                      {t("policy.appsAllowed")}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Hint>{t("policy.appsNone")}</Hint>
+          )}
+          <Hint>{t("policy.appsNote")}</Hint>
         </Part>
         {save.error ? (
           <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
