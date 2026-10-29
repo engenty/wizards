@@ -441,6 +441,13 @@ export interface PluginAssistantTool<S extends z.ZodType = z.ZodType> {
    * (`registerAssistantCard`) draws it. It is sent as it is: keep such a result small.
    */
   card?: boolean;
+  /**
+   * What a call does, for the AI of a Work chat (docs/plans/work-chats.md): `read` only reads,
+   * `space` changes the space's own data, `outside` reaches past the space (sends, books,
+   * cancels with someone, publishes, deletes on a connected service). An `outside` call waits
+   * for a person's approval before it runs.
+   */
+  risk?: "read" | "space" | "outside";
   execute(input: z.infer<S>, ctx: PluginAssistantContext): unknown | Promise<unknown>;
 }
 

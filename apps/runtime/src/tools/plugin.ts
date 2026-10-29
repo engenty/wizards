@@ -161,6 +161,9 @@ export interface AssistantTurn {
   card(card: { plugin: string; tool: string; data: unknown }): void;
 }
 
+/** What a plugin's assistant tool says it does (`risk`), by the tool made of it; null: unmarked. */
+export const assistantToolRisk = new WeakMap<object, "read" | "space" | "outside" | null>();
+
 /** The tenant's plugins' tools of the space assistant (`registerAssistantTool`). */
 export async function assistantToolsOf(turn: AssistantTurn): Promise<Record<string, any>> {
   const tools: Record<string, any> = {};
@@ -187,6 +190,7 @@ export async function assistantToolsOf(turn: AssistantTurn): Promise<Record<stri
             return result;
           }),
       });
+      assistantToolRisk.set(tools[id], tool.risk ?? null);
     }
   }
   return tools;

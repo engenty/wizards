@@ -829,6 +829,37 @@ export const chatState = sqliteTable(
   (t) => [primaryKey({ columns: [t.chatId, t.userId] })],
 );
 
+/**
+ * A call of a tool that reaches past the space, held for a person's approval (Work chats, step 3
+ * piece 4). Approve runs the stored call once with the stored arguments; Deny doesn't. Either way
+ * the AI hears of it in the chat and goes on.
+ */
+export const chatApproval = sqliteTable(
+  "chat_approval",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chat.id, { onDelete: "cascade" }),
+    toolName: text("tool_name").notNull(),
+    input: text("input", { mode: "json" }).$type<unknown>(),
+    /** Who the turn was for: the call runs with their access, and they may decide. */
+    askedBy: text("asked_by").notNull(),
+    state: text("state", { enum: ["pending", "approved", "denied", "failed"] })
+      .notNull()
+      .default("pending"),
+    output: text("output", { mode: "json" }).$type<unknown>(),
+    decidedBy: text("decided_by"),
+    decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("chat_approval_chat").on(t.chatId, t.createdAt),
+    index("chat_approval_state").on(t.tenantId, t.state),
+  ],
+);
+
 // --- The wizard's store ------------------------------------------------------
 // What a wizard keeps between runs for one person. `holder` is that person: "u:<userId>" for a
 // signed-in admin, "v:<visitorId>" for an end user on a shared link.

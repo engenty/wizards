@@ -3,11 +3,14 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { sortedTools } from "../agents/space-agent.js";
 import { chatTurnWay } from "../agents/subscription.js";
+import { HarnessModel } from "../harness/index.js";
 import { managed } from "../manage.js";
 import { attachTools, chatModel, gatewayTools, type ResolvedModel } from "../models.js";
 import { currentTenant } from "../tenants/tenant.js";
-import { assistantToolsOf } from "../tools/plugin.js";
+import { assistantToolRisk, assistantToolsOf } from "../tools/plugin.js";
+import { ClientSteps } from "./client-steps.js";
 import { searchKnowledge } from "./project-index.js";
+import { holdCall } from "./work-approvals.js";
 
 /**
  * What the space's AI gets for one turn of a Work chat (docs/plans/work-chats.md): the model of
@@ -38,7 +41,7 @@ const instructionsFor = (space: string) =>
 
 /** The space's tools for a turn: its knowledge, the plugins' tools, the web. */
 async function toolsFor(
-  resolved: ResolvedModel<unknown>,
+  resolved: ResolvedModel<unknown> | null,
   space: { id: string; name: string },
   userId: string,
   signal: AbortSignal,
@@ -64,45 +67,123 @@ async function toolsFor(
       card: () => {},
     })),
   };
-  if (resolved.vendor === "anthropic") {
+  if (resolved?.vendor === "anthropic") {
     tools.web_search = anthropic.tools.webSearch_20250305({ maxUses: 5 });
-  } else if (resolved.gateway) {
+  } else if (resolved?.gateway) {
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
   }
-  const sorted = sortedTools(tools);
-  attachTools(resolved, sorted);
-  return sorted;
+  return sortedTools(tools);
 }
 
-/** Everything a turn of the space's AI needs, made for the person who asked. */
-export async function workTurn(
+/**
+ * Whether a call of the tool waits for a person's approval: a plugin's tool marked `outside`
+ * does, and so does one without a mark (decided: "risk per tool", the safe side). The space's
+ * own tools only read.
+ */
+const UNMARKED_ASKS = true;
+
+export function asksFirst(tool: unknown): boolean {
+  if (!tool || typeof tool !== "object" || !assistantToolRisk.has(tool)) {
+    return false;
+  }
+  const risk = assistantToolRisk.get(tool);
+  return risk === "outside" || (risk === null && UNMARKED_ASKS);
+}
+
+/** Who a turn is for and where: what a held call is stored with. */
+export interface TurnFor {
+  space: { id: string; name: string };
+  chatId: string;
+  userId: string;
+}
+
+/**
+ * The gate on the tool: a call that waits for approval doesn't run. It is stored, and the AI is
+ * told it waits; Approve runs it later (work-chats.ts). On a client too, since the gate is the
+ * tool's own and the client calls the tool.
+ */
+export function gated(tools: Record<string, unknown>, turn: TurnFor): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(tools).map(([name, tool]) => {
+      if (!asksFirst(tool)) {
+        return [name, tool];
+      }
+      return [
+        name,
+        Object.assign(Object.create(Object.getPrototypeOf(tool)), tool, {
+          execute: async (input: unknown) => {
+            const id = await holdCall(turn, name, input);
+            return {
+              approval: id,
+              status: "waiting",
+              note: "Held for a person's approval. Don't call it again: the chat tells you once it is decided.",
+            };
+          },
+        }),
+      ];
+    }),
+  );
+}
+
+/** One tool of the space as it runs once approved, for the person the turn was for. */
+export async function toolToRun(
   space: { id: string; name: string },
   userId: string,
+  name: string,
   signal: AbortSignal,
+): Promise<ToolToRun | null> {
+  const tools = await toolsFor(null, space, userId, signal);
+  return (tools[name] as ToolToRun) ?? null;
+}
+
+/** A tool as an approved call runs it: its schema checks the held arguments first. */
+export interface ToolToRun {
+  inputSchema?: {
+    safeParse?: (input: unknown) => {
+      success: boolean;
+      data?: unknown;
+      error?: { message: string };
+    };
+  };
+  execute?: (input: unknown) => Promise<unknown>;
+}
+
+/**
+ * Everything a turn of the space's AI needs, made for the person who asked. Calls that reach past
+ * the space are held (`gated`); on a client the tools are recorded as they run
+ * (client-steps.ts): the client runs them itself.
+ */
+export async function workTurn(
+  turn: TurnFor,
+  signal: AbortSignal,
+  steps: ClientSteps,
 ): Promise<WorkTurn> {
   const resolved = await chatModel(await chatTurnWay(managed), "standard");
-  return {
-    resolved,
-    tools: await toolsFor(resolved, space, userId, signal),
-    instructions: instructionsFor(space.name),
-  };
+  const made = gated(await toolsFor(resolved, turn.space, turn.userId, signal), turn);
+  const tools = resolved.model instanceof HarnessModel ? steps.wrap(made) : made;
+  attachTools(resolved, tools);
+  return { resolved, tools, instructions: instructionsFor(turn.space.name) };
 }
 
 /** A turn made on its first use, and the signal that ends it TURN_MS after that. */
 export interface LazyTurn {
   get(): Promise<WorkTurn>;
   signal: AbortSignal;
+  /** The tool steps of a client as the model; empty on an API model, whose stream has them. */
+  steps: ClientSteps;
 }
 
-export function lazyTurn(space: { id: string; name: string }, userId: string): LazyTurn {
+export function lazyTurn(turn: TurnFor): LazyTurn {
   const controller = new AbortController();
+  const steps = new ClientSteps();
   let made: Promise<WorkTurn> | null = null;
   return {
     signal: controller.signal,
+    steps,
     get() {
       if (!made) {
         setTimeout(() => controller.abort(new Error("The turn took too long.")), TURN_MS).unref();
-        made = workTurn(space, userId, controller.signal);
+        made = workTurn(turn, controller.signal, steps);
       }
       return made;
     },
