@@ -4,10 +4,11 @@ import { Navigate, NavLink, useParams } from "react-router";
 import { type Key, t } from "../../lib/i18n";
 import { MODE_HOME, type Mode, useMode } from "../../lib/mode";
 import { useMe } from "../../lib/session";
-import { useCrumbs } from "../AppFrame";
+import { TopBar, useCrumbs } from "../AppFrame";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatView } from "./ChatView";
 import { useWaiting } from "./chats";
+import { WorkHome } from "./WorkHome";
 
 /**
  * Work mode's places (behind `workMode`), empty in this step: Chats with its sidebar, the
@@ -75,22 +76,20 @@ export function WorkPage() {
   return known ? <EmptyPlace place={known.place as keyof typeof EMPTY} /> : <ChatsPage />;
 }
 
-/** Chats: the sidebar, and the open chat or a line where it will be. */
+/**
+ * Chats: the studio's top bar (organization, space, where the page stands), then the sidebar
+ * and the open chat or Work's start. The page fills the frame, so it draws the bar itself.
+ */
 function ChatsPage() {
   const { chatId } = useParams();
+  const me = useMe().data;
   return (
-    <div className="flex min-h-0 flex-1">
-      <ChatSidebar />
-      {chatId ? <ChatView id={chatId} /> : <NoChat />}
-    </div>
-  );
-}
-
-function NoChat() {
-  useCrumbs([{ label: t("work.chats") }]);
-  return (
-    <div className="grid min-w-0 flex-1 place-items-center p-6">
-      <p className="text-center text-[0.9375rem] text-ink-3">{t("work.chatsEmpty")}</p>
+    <div className="flex min-h-0 flex-1 flex-col">
+      {me ? <TopBar me={me} /> : null}
+      <div className="flex min-h-0 flex-1">
+        <ChatSidebar />
+        {chatId ? <ChatView id={chatId} /> : <WorkHome />}
+      </div>
     </div>
   );
 }

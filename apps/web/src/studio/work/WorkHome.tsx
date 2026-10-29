@@ -1,0 +1,269 @@
+import { MessageSquare, ShieldQuestion } from "lucide-react";
+import type { ReactNode } from "react";
+import { NavLink, useNavigate } from "react-router";
+import { lang, t } from "../../lib/i18n";
+import { useCurrentProject, useMe } from "../../lib/session";
+import { Button, cn } from "../../ui";
+import { Composer } from "../../ui/composer";
+import { useCrumbs } from "../AppFrame";
+import {
+  type Approval,
+  type SidebarChat,
+  useCreateChat,
+  useDecide,
+  useSidebar,
+  useWaiting,
+} from "./chats";
+
+/**
+ * Work's start, where no chat is open (docs: engenty-dev concepts, "Work Beyond Chat", Today):
+ * what needs the person first (calls held for their approval, chats with something new), what
+ * the space's AI answers right now, the chats of late, and a field that starts a new chat by
+ * asking the space's AI.
+ */
+
+const RECENT = 6;
+
+export function WorkHome() {
+  useCrumbs([{ label: t("work.chats") }]);
+  const { project } = useCurrentProject();
+  const me = useMe().data;
+  const space = project?.name ?? "";
+  const chats = (useSidebar(project?.id, "").data?.chats ?? []).filter((c) => !c.archived);
+  const approvals = useWaiting().data?.approvals ?? [];
+  const createChat = useCreateChat();
+  const navigate = useNavigate();
+
+  const titles = new Map(chats.map((c) => [c.id, c.title || t("work.untitled")]));
+  const unread = chats.filter((c) => c.unread && c.last);
+  const answering = chats.filter((c) => c.answeringSince);
+  const shown = new Set([...unread, ...answering].map((c) => c.id));
+  const recent = [...chats]
+    .filter((c) => !shown.has(c.id))
+    .sort((a, b) => (lastAt(b) > lastAt(a) ? 1 : -1))
+    .slice(0, RECENT);
+  const needs = approvals.length + unread.length;
+  const name = me?.user.name.split(" ")[0] ?? "";
+
+  return (
+    <div className="min-w-0 flex-1 overflow-y-auto">
+      <div className="mx-auto grid w-full max-w-3xl gap-10 px-6 pt-14 pb-16">
+        <header className="grid gap-1.5">
+          <p className="text-[0.8125rem] text-ink-3">
+            {new Date().toLocaleDateString(lang, {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+          </p>
+          <h1 className="font-display font-semibold text-[2rem] text-ink leading-tight">
+            {greeting(name)}
+          </h1>
+          <p className="text-[0.9375rem] text-ink-2">
+            {needs ? t("work.home.needs", { count: needs }) : t("work.waitingEmpty")}
+          </p>
+        </header>
+
+        <div className="grid gap-1.5">
+          <Composer
+            autoFocus
+            attach={false}
+            placeholder={t("work.home.ask", { name: space })}
+            onSend={async (raw) => {
+              const text = raw.trim();
+              if (!text || !project) {
+                return false;
+              }
+              const chat = await createChat.mutateAsync({ spaceId: project.id });
+              navigate(`/work/c/${chat.id}`, { state: { ask: text } });
+              return true;
+            }}
+          />
+          <p className="px-3 text-[0.75rem] text-ink-4">{t("work.home.askHint")}</p>
+        </div>
+
+        {needs ? (
+          <Part label={t("work.home.needsYou")}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {approvals.map((a) => (
+                <ApprovalCard
+                  key={a.id}
+                  approval={a}
+                  chat={titles.get(a.chatId) ?? t("work.untitled")}
+                  may={a.askedBy === me?.user.id || me?.tenant.role !== "member"}
+                />
+              ))}
+              {unread.map((c) => (
+                <UnreadCard key={c.id} chat={c} />
+              ))}
+            </div>
+          </Part>
+        ) : null}
+
+        {answering.length ? (
+          <Part label={t("work.home.running")}>
+            <ul className="grid">
+              {answering.map((c) => (
+                <ChatLine
+                  key={c.id}
+                  chat={c}
+                  note={
+                    <span className="flex items-center gap-1.5 text-ember">
+                      <span className="size-1.5 animate-pulse rounded-full bg-ember" />
+                      {t("work.home.answering", { name: space })}
+                    </span>
+                  }
+                />
+              ))}
+            </ul>
+          </Part>
+        ) : null}
+
+        {recent.length ? (
+          <Part label={t("work.home.recent")}>
+            <ul className="grid">
+              {recent.map((c) => (
+                <ChatLine key={c.id} chat={c} />
+              ))}
+            </ul>
+          </Part>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+const lastAt = (c: SidebarChat) => c.last?.at ?? c.updatedAt;
+
+function greeting(name: string) {
+  const hour = new Date().getHours();
+  const key = hour < 11 ? "work.home.morning" : hour < 18 ? "work.home.day" : "work.home.evening";
+  return t(key, { name });
+}
+
+/** Today at its time, yesterday as such, else the date. */
+function when(iso: string) {
+  const day = new Date(iso);
+  const today = new Date();
+  if (day.toDateString() === today.toDateString()) {
+    return day.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+  }
+  if (day.toDateString() === new Date(today.getTime() - 86_400_000).toDateString()) {
+    return t("work.yesterday");
+  }
+  return day.toLocaleDateString(lang, { day: "numeric", month: "short" });
+}
+
+function Part({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-3">
+      <h2 className="font-semibold text-[0.75rem] text-ink-3 uppercase tracking-wide">{label}</h2>
+      {children}
+    </section>
+  );
+}
+
+const card = "grid content-start gap-3 rounded-2xl border border-border bg-card p-4";
+
+/** A call held for approval: decided right here, or opened in its chat. */
+function ApprovalCard({ approval, chat, may }: { approval: Approval; chat: string; may: boolean }) {
+  const decide = useDecide(approval.chatId);
+  return (
+    <div className={cn(card, "border-ember/40")}>
+      <div className="flex items-start gap-2.5">
+        <ShieldQuestion className="mt-0.5 size-4 shrink-0 text-ember" />
+        <div className="grid min-w-0 gap-0.5">
+          <p className="truncate text-[0.75rem] text-ink-3">{chat}</p>
+          <p className="font-medium text-[0.9375rem] text-ink">
+            {t("work.approval.waiting", { name: approval.toolName })}
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {may ? (
+          <>
+            <Button
+              size="sm"
+              disabled={decide.isPending}
+              onClick={() => decide.mutate({ id: approval.id, approve: true })}
+            >
+              {t("work.approval.approve")}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={decide.isPending}
+              onClick={() => decide.mutate({ id: approval.id, approve: false })}
+            >
+              {t("work.approval.deny")}
+            </Button>
+          </>
+        ) : null}
+        <NavLink
+          to={`/work/c/${approval.chatId}`}
+          className="ml-auto text-[0.8125rem] text-ink-3 hover:text-ink"
+        >
+          {t("work.home.open")}
+        </NavLink>
+      </div>
+    </div>
+  );
+}
+
+/** A chat with something new: its last message, and the way in. */
+function UnreadCard({ chat }: { chat: SidebarChat }) {
+  const byline = useByline(chat);
+  return (
+    <NavLink to={`/work/c/${chat.id}`} className={cn(card, "hover:bg-ink/5")}>
+      <div className="flex items-start gap-2.5">
+        <MessageSquare className="mt-0.5 size-4 shrink-0 text-ink-3" />
+        <div className="grid min-w-0 gap-0.5">
+          <p className="truncate text-[0.75rem] text-ink-3">
+            {chat.title || t("work.untitled")} · {when(lastAt(chat))}
+          </p>
+          <p className="line-clamp-3 text-[0.9375rem] text-ink">
+            <span className="font-medium">{byline}</span>
+            {chat.last?.text}
+          </p>
+        </div>
+      </div>
+    </NavLink>
+  );
+}
+
+/** Who wrote a chat's last message, before its text: the person themselves as "You". */
+function useByline(chat: SidebarChat) {
+  const name = useMe().data?.user.name;
+  const author = chat.last?.author;
+  return author ? `${author === name ? t("work.you") : author}: ` : "";
+}
+
+function ChatLine({ chat, note }: { chat: SidebarChat; note?: ReactNode }) {
+  const byline = useByline(chat);
+  return (
+    <li>
+      <NavLink
+        to={`/work/c/${chat.id}`}
+        className="-mx-3 flex items-baseline gap-3 rounded-xl px-3 py-2.5 hover:bg-ink/5"
+      >
+        <div className="grid min-w-0 flex-1 gap-0.5">
+          <p className="truncate font-medium text-[0.9375rem] text-ink">
+            {chat.title || t("work.untitled")}
+          </p>
+          <div className="truncate text-[0.8125rem] text-ink-3">
+            {note ??
+              (chat.last ? (
+                <>
+                  {byline}
+                  {chat.last.text}
+                </>
+              ) : (
+                t("work.emptyChat")
+              ))}
+          </div>
+        </div>
+        <span className="shrink-0 text-[0.75rem] text-ink-4">{when(lastAt(chat))}</span>
+      </NavLink>
+    </li>
+  );
+}

@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage } from "ai";
 import { Brain, Lock, MessageSquarePlus, ShieldQuestion, Sparkles, Wrench } from "lucide-react";
 import { createContext, Fragment, useContext, useEffect, useRef, useState } from "react";
-import { NavLink, useNavigate } from "react-router";
+import { NavLink, useLocation, useNavigate } from "react-router";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import {
@@ -77,6 +77,19 @@ export function ChatView({ id }: { id: string }) {
       void turn.resumeStream();
     }
   }, [answering, streaming, turn]);
+  // A question from Work's start comes along with the new chat: asked once the chat is read.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handedOver = (location.state as { ask?: string } | null)?.ask;
+  const loaded = Boolean(data);
+  const askedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (handedOver && loaded && askedFor.current !== location.key) {
+      askedFor.current = location.key;
+      navigate(location.pathname, { replace: true, state: null });
+      void turn.sendMessage({ text: handedOver });
+    }
+  }, [handedOver, loaded, navigate, location.key, location.pathname, turn]);
   // How often each of the person's texts was stored when its pending copy first showed.
   const storedBefore = useRef(new Map<string, number>());
   const { project } = useCurrentProject();
@@ -283,12 +296,10 @@ function ChatHeader({ chat: data }: { chat: OpenChat }) {
   const navigate = useNavigate();
   return (
     <header className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-border-soft border-b px-6 py-2">
-      <h1 className="flex min-w-0 items-center gap-1.5 font-semibold text-[0.9375rem] text-ink">
-        <span className="truncate">{titleOf(data)}</span>
-        {data.chat.private ? (
-          <Lock className="size-3.5 shrink-0 text-ink-4" aria-label={t("work.private")} />
-        ) : null}
-      </h1>
+      {/* The title stands in the top bar's trail; here what belongs to the chat. */}
+      {data.chat.private ? (
+        <Lock className="size-3.5 shrink-0 text-ink-4" aria-label={t("work.private")} />
+      ) : null}
       <div className="-space-x-1.5 flex" title={data.members.map((m) => m.name).join(", ")}>
         {data.members.slice(0, 5).map((m) => (
           <Avatar key={`${m.kind}:${m.id}`} member={m} className="ring-2 ring-canvas" />
