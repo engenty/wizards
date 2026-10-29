@@ -470,6 +470,24 @@ export function forgetTenant(id: string) {
   tenants.delete(id);
 }
 
+/**
+ * Saves the organization's model policy for the admin who asks (`actorId`): the Manage-App checks
+ * their role and the plan's ways and answers with the policy as it stands now.
+ */
+export async function saveModelPolicy(
+  tenantId: string,
+  actorId: string,
+  modelPolicy: ModelPolicy,
+): Promise<ModelPolicy> {
+  const saved = await call<{ modelPolicy: ModelPolicy }>(
+    "PUT",
+    `${tenantPath(tenantId)}/model-policy`,
+    { actorId, modelPolicy },
+  );
+  forgetTenant(tenantId);
+  return saved.modelPolicy;
+}
+
 /** Renames the organization at the Manage-App; what it answers is the tenant as it stands now. */
 export async function renameTenant(id: string, name: string): Promise<TenantInfo> {
   const value = await call<TenantInfo>("PATCH", `/v1/tenants/${encodeURIComponent(id)}`, {

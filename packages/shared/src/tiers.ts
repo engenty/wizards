@@ -4,7 +4,8 @@
  * `GET /v1/tenants/:id` and enforces them in its gateway (docs/manage-contract.md, "Model
  * tiers"); the runtime shows them and names the class a step asks for. Behind `modelTiers`.
  */
-import { type Effort, MAKERS, type Maker } from "./definition.js";
+import { z } from "zod";
+import { EFFORTS, type Effort, MAKERS, type Maker } from "./definition.js";
 
 /** What a call is for: a run, the studio outside a run (Goose, the editor), a work chat. */
 export const PURPOSES = ["wizard", "assistant", "work"] as const;
@@ -91,3 +92,26 @@ export function splitClassId(id: string): { maker: Maker | null; cls: string } {
 
 /** Why a call was refused by the gateway for the organization's tier or policy. */
 export type TierRefusalType = "outside_tier" | "not_in_policy";
+
+const purposePolicySchema = z.object({
+  models: z.array(z.string().min(1).max(80)).max(60).nullable(),
+  default: z.string().min(1).max(80).nullable(),
+  effortCap: z.enum(EFFORTS).nullable(),
+  efforts: z.record(z.string(), z.array(z.enum(EFFORTS))).nullable(),
+});
+
+/** A policy as the studio's admins save it. */
+export const modelPolicySchema = z.object({
+  way: z.enum(["A", "B", "C"]),
+  purposes: z.object({
+    wizard: purposePolicySchema,
+    assistant: purposePolicySchema,
+    work: purposePolicySchema,
+  }),
+  credits: z.boolean(),
+  ownKeys: z.boolean(),
+  subscriptions: z.boolean(),
+  localModels: z.boolean(),
+  apps: z.object({ local: z.boolean(), subscriptions: z.boolean() }),
+  masking: z.boolean(),
+}) satisfies z.ZodType<ModelPolicy>;
