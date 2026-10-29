@@ -450,7 +450,8 @@ export async function sendMessage(
   user: SessionUser,
   id: string,
   text: string,
-  options: { ask?: boolean; later?: boolean; files?: string[] } = {},
+  /** `extra`: the turn it starts works with the way's more capable model (extra effort). */
+  options: { ask?: boolean; later?: boolean; files?: string[]; extra?: boolean } = {},
 ): Promise<Sent> {
   const chat = await visibleChat(user, id);
   const named = await chatFiles(chat.projectId, options.files ?? []);
@@ -484,7 +485,7 @@ export async function sendMessage(
     return { kind: "kept" };
   }
   // Asking the AI is a signal that isn't stored: the stored message is what it answers.
-  const { turn, streamOptions } = await turnFor(chat, user.id);
+  const { turn, streamOptions } = await turnFor(chat, user.id, options.extra);
   const asked = {
     type: "reactive" as const,
     tagName: "asked",
@@ -525,13 +526,16 @@ export async function sendMessage(
  * A turn for the person, made when it really starts (Mastra resolves the agent's model then):
  * input taken into a running turn builds nothing, and a queued one's 20 minutes start with it.
  */
-async function turnFor(chat: ChatRow, userId: string) {
+async function turnFor(chat: ChatRow, userId: string, extra = false) {
   const space = await db.query.project.findFirst({ where: eq(schema.project.id, chat.projectId) });
-  const turn = lazyTurn({
-    space: { id: chat.projectId, name: space?.name ?? "" },
-    chatId: chat.id,
-    userId,
-  });
+  const turn = lazyTurn(
+    {
+      space: { id: chat.projectId, name: space?.name ?? "" },
+      chatId: chat.id,
+      userId,
+    },
+    extra,
+  );
   const requestContext = new RequestContext();
   requestContext.set(TURN_KEY, turn);
   return { turn, streamOptions: { requestContext, maxSteps: MAX_STEPS, abortSignal: turn.signal } };

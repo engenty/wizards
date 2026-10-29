@@ -42,6 +42,7 @@ import {
   useDecide,
   useOpenChat,
   usePostMessage,
+  useTurnModels,
 } from "./chats";
 import { SpaceFilesDialog } from "./SpaceFilesDialog";
 import { AiParts, StepsContext } from "./Steps";
@@ -67,6 +68,15 @@ export function ChatView({ id }: { id: string }) {
   const [choosing, setChoosing] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [dropping, setDropping] = useState(false);
+  // Extra effort, as the composer chose it: it goes with each question to the AI.
+  const location = useLocation();
+  const handedOver = location.state as {
+    ask?: string;
+    files?: PickedFile[];
+    extra?: boolean;
+  } | null;
+  const [extra, setExtra] = useState(Boolean(handedOver?.extra));
+  const models = useTurnModels();
   // Someone else's turn runs here: follow it from its start (useChat's resume), once per turn.
   const answering = data?.chat.answeringSince ?? null;
   const followed = useRef<string | null>(null);
@@ -77,9 +87,7 @@ export function ChatView({ id }: { id: string }) {
     }
   }, [answering, streaming, turn]);
   // A question from Work's start comes along with the new chat: asked once the chat is read.
-  const location = useLocation();
   const navigate = useNavigate();
-  const handedOver = location.state as { ask?: string; files?: PickedFile[] } | null;
   const loaded = Boolean(data);
   const spaceId = data?.chat.spaceId ?? "";
   const askedFor = useRef<string | null>(null);
@@ -87,7 +95,13 @@ export function ChatView({ id }: { id: string }) {
     if (handedOver?.ask !== undefined && loaded && askedFor.current !== location.key) {
       askedFor.current = location.key;
       navigate(location.pathname, { replace: true, state: null });
-      void askWith(turn, spaceId, handedOver.ask, handedOver.files ?? []);
+      void askWith(
+        turn,
+        spaceId,
+        handedOver.ask,
+        handedOver.files ?? [],
+        Boolean(handedOver.extra),
+      );
     }
   }, [handedOver, loaded, spaceId, navigate, location.key, location.pathname, turn]);
   // How often each of the person's texts was stored when its pending copy first showed.
@@ -247,7 +261,10 @@ export function ChatView({ id }: { id: string }) {
           key={id}
           ref={composer}
           autoFocus
+          tall
+          lines={2}
           busy={streaming}
+          chooser={{ on: extra, onChange: setExtra, ...models }}
           plus={[
             {
               icon: <FolderOpen />,
@@ -275,9 +292,9 @@ export function ChatView({ id }: { id: string }) {
             }
             const fileIds = attached.map((f) => f.id);
             if (later && streaming) {
-              await post.mutateAsync({ id, text, later: true, files: fileIds });
+              await post.mutateAsync({ id, text, later: true, files: fileIds, extra });
             } else if (ask || text.startsWith("@")) {
-              void askWith(turn, spaceId, text, attached);
+              void askWith(turn, spaceId, text, attached, extra);
             } else {
               await post.mutateAsync({ id, text, files: fileIds });
             }
@@ -297,16 +314,19 @@ export function ChatView({ id }: { id: string }) {
 
 /**
  * Asks the space's AI through `useChat`: the files go along by their ids, and show in the
- * person's message while the turn runs as links into the space's files.
+ * person's message while the turn runs as links into the space's files. `extra`: the turn works
+ * with the way's more capable model.
  */
 function askWith(
   turn: ReturnType<typeof useAiTurn>,
   spaceId: string,
   text: string,
   files: PickedFile[],
+  extra: boolean,
 ) {
+  const effort = extra ? { extra } : {};
   if (!files.length) {
-    return turn.sendMessage({ text });
+    return turn.sendMessage({ text }, { body: effort });
   }
   const parts = files.map((f) => ({
     type: "file" as const,
@@ -315,7 +335,7 @@ function askWith(
     url: `/api/studio/projects/${spaceId}/files/${f.id}/content`,
   }));
   return turn.sendMessage(text ? { text, files: parts } : { files: parts }, {
-    body: { files: files.map((f) => f.id) },
+    body: { files: files.map((f) => f.id), ...effort },
   });
 }
 

@@ -6,6 +6,7 @@ import { api, CLIENT } from "../../lib/api";
 import { withBase } from "../../lib/base";
 import { useFeature } from "../../lib/features";
 import { lang } from "../../lib/i18n";
+import { useMe } from "../../lib/session";
 import type { PickedFile } from "../../ui/composer";
 
 /**
@@ -202,6 +203,25 @@ export function useAiTurn(id: string) {
   return chat;
 }
 
+/**
+ * The names of the models a turn answers with, for everyday work and for extra effort: what the
+ * person chose in the settings, else the way's own. None where engenty picks them (credits).
+ */
+export function useTurnModels(): { normal?: string; extra?: string } {
+  const me = useMe().data;
+  const listed = me ? me.chatModels.ways[me.chatEngine] : undefined;
+  if (!(me && listed)) {
+    return {};
+  }
+  const chosen = me.chatModels.chosen[me.chatEngine] ?? {};
+  const label = (id: string) =>
+    listed.models.find((m) => m.id === id)?.label ?? id.replace(/^[a-z]+:/, "");
+  return {
+    normal: label(chosen.normal ?? listed.normal),
+    extra: label(chosen.extra ?? listed.extra),
+  };
+}
+
 export const stopTurn = (id: string) => api.post(`${BASE}/chats/${id}/stop`);
 
 /** Every change re-reads the sidebar and the open chat. */
@@ -250,11 +270,24 @@ export const useDeleteChat = () => useChange((id: string) => api.del(`${BASE}/ch
 /** A message that doesn't start a turn now: one the AI isn't asked for, or one for after its answer. */
 export const usePostMessage = () =>
   useChange(
-    ({ id, text, later, files }: { id: string; text: string; later?: boolean; files?: string[] }) =>
+    ({
+      id,
+      text,
+      later,
+      files,
+      extra,
+    }: {
+      id: string;
+      text: string;
+      later?: boolean;
+      files?: string[];
+      /** For after the answer: the turn it starts works with extra effort. */
+      extra?: boolean;
+    }) =>
       api.post<{ sent: string }>(`${BASE}/chats/${id}/messages`, {
         text,
         ...(files?.length ? { files } : {}),
-        ...(later ? { ask: true, later } : {}),
+        ...(later ? { ask: true, later, ...(extra ? { extra } : {}) } : {}),
       }),
   );
 
