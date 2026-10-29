@@ -1,10 +1,10 @@
-import type { ProjectFileView } from "@engenty/wizards-shared/projects";
+import type { SpaceFileView } from "@engenty/wizards-shared/spaces";
 import { Check, FileText } from "lucide-react";
 import { useState } from "react";
 import { t } from "../../lib/i18n";
 import { Button, cn, Dialog, Input } from "../../ui";
 import type { PickedFile } from "../../ui/composer";
-import { fileUrl, useProjectFiles } from "../project/data";
+import { fileUrl, useSpaceFiles } from "../space/data";
 
 /**
  * The space's files to choose from for a message: its documents and assets, newest first, found
@@ -21,7 +21,7 @@ export function SpaceFilesDialog({
   onClose: () => void;
   onPick: (files: PickedFile[]) => void;
 }) {
-  const all = (useProjectFiles(spaceId).data?.files ?? []).filter(
+  const all = (useSpaceFiles(spaceId).data?.files ?? []).filter(
     (f) => (f.kind === "document" || f.kind === "asset") && f.status !== "failed",
   );
   const [query, setQuery] = useState("");
@@ -103,7 +103,7 @@ export function SpaceFilesDialog({
   );
 }
 
-function FileIcon({ spaceId, file }: { spaceId: string; file: ProjectFileView }) {
+function FileIcon({ spaceId, file }: { spaceId: string; file: SpaceFileView }) {
   return file.mime.startsWith("image/") ? (
     <img
       src={fileUrl(spaceId, file.id)}

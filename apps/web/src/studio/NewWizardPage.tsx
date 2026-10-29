@@ -14,7 +14,7 @@ import { keys } from "../lib/keys";
 import {
   dropWish,
   pendingWish,
-  useCurrentProject,
+  useCurrentSpace,
   useMayCreate,
   useMe,
   type WizardSummary,
@@ -92,13 +92,13 @@ function ownMatches(wizards: WizardSummary[], wish: string): WizardSummary[] {
  */
 function Similar({
   wish,
-  projectId,
+  spaceId,
   busy,
   onTake,
   onMore,
 }: {
   wish: string;
-  projectId: string;
+  spaceId: string;
   busy: boolean;
   onTake: (entry: MarketplaceEntry) => void;
   onMore: (words: string) => void;
@@ -107,8 +107,8 @@ function Similar({
   const [picked, setPicked] = useState<string | null>(null);
   const q = useSettled(wish.trim(), 300);
   const wizards = useQuery({
-    queryKey: ["wizards", projectId, "similar"],
-    queryFn: () => api.get<WizardSummary[]>(`/api/studio/projects/${projectId}/wizards`),
+    queryKey: ["wizards", spaceId, "similar"],
+    queryFn: () => api.get<WizardSummary[]>(`/api/studio/spaces/${spaceId}/wizards`),
   });
   const templates = useQuery({
     queryKey: ["marketplace", lang, q, "similar"],
@@ -192,7 +192,7 @@ function Similar({
 export function NewWizardPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   const build = useMayCreate();
   const me = useMe();
   // The templates that fit the organization first, the full browser a click away.
@@ -240,7 +240,7 @@ export function NewWizardPage() {
 
   const fromStarter = useMutation({
     mutationFn: (starterId: string) =>
-      api.post<{ id: string }>("/api/studio/wizards", { projectId: project!.id, starterId, lang }),
+      api.post<{ id: string }>("/api/studio/wizards", { spaceId: space!.id, starterId, lang }),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });
@@ -254,8 +254,7 @@ export function NewWizardPage() {
     mutationFn: async () => {
       const id =
         made.current ??
-        (await api.post<{ id: string }>("/api/studio/wizards", { projectId: project!.id, lang }))
-          .id;
+        (await api.post<{ id: string }>("/api/studio/wizards", { spaceId: space!.id, lang })).id;
       made.current = id;
       if (!isDefaultChoice(channels)) {
         await api.patch(`/api/studio/wizards/${id}`, { runners: runnerSettingsOf(channels) });
@@ -281,7 +280,7 @@ export function NewWizardPage() {
   });
 
   const submit = () => {
-    if (prompt.trim() && project && !create.isPending) {
+    if (prompt.trim() && space && !create.isPending) {
       if (speech.listening) {
         speech.stop();
       }
@@ -290,14 +289,14 @@ export function NewWizardPage() {
   };
 
   useEffect(() => {
-    if (guestWish.current && project && build && !project.readOnly && prompt.trim()) {
+    if (guestWish.current && space && build && !space.readOnly && prompt.trim()) {
       guestWish.current = false;
       create.mutate();
     }
-  }, [project, build, prompt, create]);
+  }, [space, build, prompt, create]);
 
-  // Nothing is made here, or not in this project (a local install's): back to what there is.
-  if (!build || project?.readOnly) {
+  // Nothing is made here, or not in this space (a local install's): back to what there is.
+  if (!build || space?.readOnly) {
     return <Navigate to="/" replace />;
   }
   const error = create.error ?? fromStarter.error;
@@ -419,10 +418,10 @@ export function NewWizardPage() {
         {error ? (
           <p className="mt-3 text-center text-[0.875rem] text-rose">{(error as Error).message}</p>
         ) : null}
-        {project ? (
+        {space ? (
           <Similar
             wish={prompt}
-            projectId={project.id}
+            spaceId={space.id}
             busy={fromStarter.isPending || create.isPending}
             onTake={(entry) => !fromStarter.isPending && fromStarter.mutate(entry.id)}
             onMore={(words) => {
@@ -439,7 +438,7 @@ export function NewWizardPage() {
             page={fit}
             organization={me.data?.tenant.name ?? ""}
             busy={fromStarter.isPending}
-            onUse={(entry) => project && !fromStarter.isPending && fromStarter.mutate(entry.id)}
+            onUse={(entry) => space && !fromStarter.isPending && fromStarter.mutate(entry.id)}
             onAll={() => setAll(true)}
           />
         </div>
@@ -455,7 +454,7 @@ export function NewWizardPage() {
           open={params.get("starter")}
           search={gallerySearch}
           busy={fromStarter.isPending}
-          onUse={(entry) => project && !fromStarter.isPending && fromStarter.mutate(entry.id)}
+          onUse={(entry) => space && !fromStarter.isPending && fromStarter.mutate(entry.id)}
         />
       </section>
       <div className="mt-8 flex justify-center">

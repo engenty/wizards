@@ -1,18 +1,5 @@
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
-import type {
-  AssetSection,
-  BrandColor,
-  BrandFont,
-  BrandGradient,
-  BrandPattern,
-  BrandRule,
-  ColorSection,
-  LogoSection,
-  ProjectFact,
-  ProjectPage,
-  TextStyle,
-} from "@engenty/wizards-shared/projects";
 import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
@@ -22,6 +9,19 @@ import {
   type SkillBlobFile,
   type SkillFile,
 } from "@engenty/wizards-shared/skills";
+import type {
+  AssetSection,
+  BrandColor,
+  BrandFont,
+  BrandGradient,
+  BrandPattern,
+  BrandRule,
+  ColorSection,
+  LogoSection,
+  SpaceFact,
+  SpacePage,
+  TextStyle,
+} from "@engenty/wizards-shared/spaces";
 import type { Theme } from "@engenty/wizards-shared/theme";
 import type { TranslationMemory } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
@@ -76,20 +76,20 @@ export interface BrandConfig {
   logoRules?: BrandRule[];
 }
 
-export const project = sqliteTable(
-  "project",
+export const space = sqliteTable(
+  "space",
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
     name: text("name").notNull(),
     brand: text("brand", { mode: "json" }).$type<BrandConfig>().notNull().default({}),
-    facts: text("facts", { mode: "json" }).$type<ProjectFact[]>().notNull().default([]),
+    facts: text("facts", { mode: "json" }).$type<SpaceFact[]>().notNull().default([]),
     /** The space's themes: values only (docs/plans/themes.md). Wizards name them in `themes`. */
     themes: text("themes", { mode: "json" }).$type<Theme[]>().notNull().default([]),
     /** The space's public page at `<organization>.wizards.page/<slug>`; null until it is set up. */
-    page: text("page", { mode: "json" }).$type<ProjectPage>(),
+    page: text("page", { mode: "json" }).$type<SpacePage>(),
     /**
-     * `local`: the project of a local install, synced here when that install publishes. It keeps
+     * `local`: the space of a local install, synced here when that install publishes. It keeps
      * the ids it has there and is changed only by the next sync. Null: made on this runtime.
      */
     origin: text("origin", { enum: ["local"] }),
@@ -97,16 +97,16 @@ export const project = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("project_tenant").on(t.tenantId)],
+  (t) => [index("space_tenant").on(t.tenantId)],
 );
 
 export const wizard = sqliteTable(
   "wizard",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     tenantId: text("tenant_id").notNull(),
     title: text("title").notNull(),
     draft: text("draft", { mode: "json" }).$type<WizardDefinition>().notNull(),
@@ -126,10 +126,7 @@ export const wizard = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [
-    uniqueIndex("wizard_share_token").on(t.shareToken),
-    index("wizard_project").on(t.projectId),
-  ],
+  (t) => [uniqueIndex("wizard_share_token").on(t.shareToken), index("wizard_space").on(t.spaceId)],
 );
 
 export const wizardVersion = sqliteTable(
@@ -370,31 +367,31 @@ export const asset = sqliteTable(
  * A service imported as a connector, from the integrations registry or a pasted OpenAPI spec /
  * MCP endpoint. The record is engenty's: actions, auth and source, normalised at import time.
  */
-export const projectConnector = sqliteTable(
-  "project_connector",
+export const spaceConnector = sqliteTable(
+  "space_connector",
   {
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     id: text("id").notNull(),
     record: text("record", { mode: "json" }).$type<ImportedConnectorRecord>().notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.id] })],
+  (t) => [primaryKey({ columns: [t.spaceId, t.id] })],
 );
 
 /**
- * What a project holds for all its wizards: logos, assets (images, graphics, videos) and
+ * What a space holds for all its wizards: logos, assets (images, graphics, videos) and
  * documents. `id` is the asset the content lives in. The first logo is the one end users see.
  */
-export const projectFile = sqliteTable(
-  "project_file",
+export const spaceFile = sqliteTable(
+  "space_file",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     kind: text("kind", { enum: ["logo", "asset", "document", "pattern"] }).notNull(),
     name: text("name").notNull(),
     mime: text("mime").notNull(),
@@ -422,8 +419,8 @@ export const projectFile = sqliteTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    index("project_file_project").on(t.projectId, t.kind, t.position),
-    uniqueIndex("project_file_origin").on(t.projectId, t.origin, t.originKey),
+    index("space_file_space").on(t.spaceId, t.kind, t.position),
+    uniqueIndex("space_file_origin").on(t.spaceId, t.origin, t.originKey),
   ],
 );
 
@@ -431,19 +428,19 @@ export const projectFile = sqliteTable(
  * The index of Knowledge: one unit per section of a page, row of a table, file, summary of a
  * category's value, passage of a document read before pages, and passage of a plugin's text
  * (`server.index`). Each unit's text starts with where it stands and its categories. Keywords
- * live in two FTS5 tables, words (`project_chunk_fts`) and trigrams (`project_chunk_tri`), which
+ * live in two FTS5 tables, words (`space_chunk_fts`) and trigrams (`space_chunk_tri`), which
  * triggers keep in step (see the migrations); `embedding` is the unit's vector as float32
  * bytes, compared with libSQL's `vector_distance_cos`.
  */
-export const projectChunk = sqliteTable(
-  "project_chunk",
+export const spaceChunk = sqliteTable(
+  "space_chunk",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     /** The document the passage is of; null for a plugin's text. */
-    fileId: text("file_id").references(() => projectFile.id, { onDelete: "cascade" }),
+    fileId: text("file_id").references(() => spaceFile.id, { onDelete: "cascade" }),
     /** What the unit is of: a page, a row (with its table), a table (FAQ format: a row), a value. */
     pageId: text("page_id").references((): AnySQLiteColumn => spacePage.id, {
       onDelete: "cascade",
@@ -473,13 +470,13 @@ export const projectChunk = sqliteTable(
     model: text("model"),
   },
   (t) => [
-    index("project_chunk_project").on(t.projectId, t.model),
-    index("project_chunk_file").on(t.fileId),
-    index("project_chunk_ref").on(t.projectId, t.plugin, t.ref),
-    index("project_chunk_page").on(t.pageId),
-    index("project_chunk_row").on(t.rowId),
-    index("project_chunk_table").on(t.tableId),
-    index("project_chunk_value").on(t.valueId),
+    index("space_chunk_space").on(t.spaceId, t.model),
+    index("space_chunk_file").on(t.fileId),
+    index("space_chunk_ref").on(t.spaceId, t.plugin, t.ref),
+    index("space_chunk_page").on(t.pageId),
+    index("space_chunk_row").on(t.rowId),
+    index("space_chunk_table").on(t.tableId),
+    index("space_chunk_value").on(t.valueId),
   ],
 );
 
@@ -493,9 +490,9 @@ export const spaceTable = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     /** The wizard it belongs to; null: the space's own. */
     wizardId: text("wizard_id").references(() => wizard.id, { onDelete: "cascade" }),
     /**
@@ -523,14 +520,14 @@ export const spaceTable = sqliteTable(
     /** Why a person should look at it ("hardly readable"); null when nothing is in doubt. */
     review: text("review"),
     /** The file it was read from, kept as the evidence. */
-    fileId: text("file_id").references(() => projectFile.id, { onDelete: "set null" }),
+    fileId: text("file_id").references(() => spaceFile.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    index("space_table_project").on(t.projectId, t.wizardId),
+    index("space_table_space").on(t.spaceId, t.wizardId),
     uniqueIndex("space_table_list").on(t.wizardId, t.list),
-    uniqueIndex("space_table_origin").on(t.projectId, t.origin, t.originKey),
+    uniqueIndex("space_table_origin").on(t.spaceId, t.origin, t.originKey),
   ],
 );
 
@@ -563,9 +560,9 @@ export const spacePage = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     wizardId: text("wizard_id").references(() => wizard.id, { onDelete: "cascade" }),
     parentId: text("parent_id").references((): AnySQLiteColumn => spacePage.id, {
       onDelete: "cascade",
@@ -588,14 +585,14 @@ export const spacePage = sqliteTable(
     /** Why a person should look at it ("hardly readable"); null when nothing is in doubt. */
     review: text("review"),
     /** The file it was read from, kept as the evidence. */
-    fileId: text("file_id").references(() => projectFile.id, { onDelete: "set null" }),
+    fileId: text("file_id").references(() => spaceFile.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    index("space_page_project").on(t.projectId, t.wizardId),
+    index("space_page_space").on(t.spaceId, t.wizardId),
     index("space_page_parent").on(t.parentId, t.position),
-    uniqueIndex("space_page_origin").on(t.projectId, t.origin, t.originKey),
+    uniqueIndex("space_page_origin").on(t.spaceId, t.origin, t.originKey),
   ],
 );
 
@@ -609,9 +606,9 @@ export const spaceCategory = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     type: text("type", { enum: ["choice", "date", "number", "text", "boolean"] }).notNull(),
     /** A number's unit: `h`, `€`, `kg`. */
@@ -633,7 +630,7 @@ export const spaceCategory = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex("space_category_name").on(t.projectId, t.name)],
+  (t) => [uniqueIndex("space_category_name").on(t.spaceId, t.name)],
 );
 
 /** A value of a choice: grows as items arrive; its summary is the summary of its items. */
@@ -663,16 +660,16 @@ export const spaceItemCategory = sqliteTable(
   "space_item_category",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     categoryId: text("category_id")
       .notNull()
       .references(() => spaceCategory.id, { onDelete: "cascade" }),
     pageId: text("page_id").references(() => spacePage.id, { onDelete: "cascade" }),
     rowId: text("row_id").references(() => spaceTableRow.id, { onDelete: "cascade" }),
     tableId: text("table_id").references(() => spaceTable.id, { onDelete: "cascade" }),
-    fileId: text("file_id").references(() => projectFile.id, { onDelete: "cascade" }),
+    fileId: text("file_id").references(() => spaceFile.id, { onDelete: "cascade" }),
     valueId: text("value_id").references(() => spaceCategoryValue.id, { onDelete: "cascade" }),
     text: text("text"),
     num: real("num"),
@@ -701,9 +698,9 @@ export const spaceSkill = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     /** Its name in the format: lower case and hyphens, unique in the space. */
     name: text("name").notNull(),
     description: text("description").notNull(),
@@ -725,7 +722,7 @@ export const spaceSkill = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex("space_skill_name").on(t.projectId, t.name)],
+  (t) => [uniqueIndex("space_skill_name").on(t.spaceId, t.name)],
 );
 
 // --- The studio's assistant ---------------------------------------------------
@@ -801,15 +798,15 @@ export const chatSection = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     position: integer("position").notNull().default(0),
     createdBy: text("created_by").notNull(),
     createdAt: createdAt(),
   },
-  (t) => [index("chat_section_project").on(t.projectId, t.position)],
+  (t) => [index("chat_section_space").on(t.spaceId, t.position)],
 );
 
 export const chat = sqliteTable(
@@ -817,9 +814,9 @@ export const chat = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     sectionId: text("section_id").references(() => chatSection.id, { onDelete: "set null" }),
     parentId: text("parent_id").references((): AnySQLiteColumn => chat.id, {
@@ -837,7 +834,7 @@ export const chat = sqliteTable(
     /** Since when the space's AI answers here; null while it doesn't. Others follow the turn. */
     answeringSince: integer("answering_since", { mode: "timestamp_ms" }),
   },
-  (t) => [index("chat_project").on(t.projectId, t.updatedAt), index("chat_parent").on(t.parentId)],
+  (t) => [index("chat_space").on(t.spaceId, t.updatedAt), index("chat_parent").on(t.parentId)],
 );
 
 export const chatMember = sqliteTable(
@@ -1002,9 +999,9 @@ export const pluginConnection = sqliteTable(
   {
     id: text("id").primaryKey(),
     plugin: text("plugin").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     /** The built-in connector: `google-calendar`, `microsoft-outlook`. */
     connector: text("connector").notNull(),
     /** Shown to the person: the account's address. */
@@ -1016,7 +1013,7 @@ export const pluginConnection = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("plugin_connection_space").on(t.plugin, t.projectId)],
+  (t) => [index("plugin_connection_space").on(t.plugin, t.spaceId)],
 );
 
 // --- The two-way sync -----------------------------------------------------------
@@ -1029,14 +1026,14 @@ export const syncChange = sqliteTable(
   "sync_change",
   {
     seq: integer("seq").primaryKey({ autoIncrement: true }),
-    projectId: text("project_id").notNull(),
+    spaceId: text("space_id").notNull(),
     kind: text("kind").notNull(),
     item: text("item").notNull(),
     at: integer("at", { mode: "timestamp_ms" }).notNull().default(now),
   },
   (t) => [
     index("sync_change_item").on(t.kind, t.item),
-    index("sync_change_project").on(t.projectId, t.seq),
+    index("sync_change_space").on(t.spaceId, t.seq),
   ],
 );
 
@@ -1048,7 +1045,7 @@ export const liveChange = sqliteTable(
   "live_change",
   {
     seq: integer("seq").primaryKey({ autoIncrement: true }),
-    projectId: text("project_id"),
+    spaceId: text("space_id"),
     kind: text("kind").notNull(),
     /** `put` or `del`. */
     op: text("op").notNull(),
@@ -1106,11 +1103,11 @@ export const syncBase = sqliteTable(
   {
     kind: text("kind").notNull(),
     item: text("item").notNull(),
-    projectId: text("project_id").notNull(),
+    spaceId: text("space_id").notNull(),
     seq: integer("seq").notNull(),
     record: text("record", { mode: "json" }).$type<Record<string, unknown> | null>(),
   },
-  (t) => [primaryKey({ columns: [t.kind, t.item] }), index("sync_base_project").on(t.projectId)],
+  (t) => [primaryKey({ columns: [t.kind, t.item] }), index("sync_base_space").on(t.spaceId)],
 );
 
 /** An item both sides changed, where the merge was not clean: it waits for the person. */
@@ -1118,7 +1115,7 @@ export const syncConflict = sqliteTable(
   "sync_conflict",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id").notNull(),
+    spaceId: text("space_id").notNull(),
     kind: text("kind").notNull(),
     item: text("item").notNull(),
     /** The cloud's number of its version. */
@@ -1136,7 +1133,7 @@ export const syncMerge = sqliteTable(
   "sync_merge",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id").notNull(),
+    spaceId: text("space_id").notNull(),
     kind: text("kind").notNull(),
     item: text("item").notNull(),
     /** Labels of the places each side changed. */

@@ -31,7 +31,7 @@ import { readDoc, searchDocs } from "./docs.js";
 
 export interface KnowsContext {
   user: SessionUser;
-  project: { id: string; name: string } | null;
+  space: { id: string; name: string } | null;
   lang: Lang;
   /** The chat that is open: `chats_search` leaves it out where asked. */
   chatId: string;
@@ -95,7 +95,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
         attempt(async () => {
           ctx.doing(serverText(ctx.lang, "doingAuthoringGuide"));
           const guide = authoringGuide(
-            ctx.project ? await listConnectors(ctx.project.id) : [],
+            ctx.space ? await listConnectors(ctx.space.id) : [],
             await pluginToolsOf(user.tenantId),
           );
           const start = Math.min(from ?? 0, guide.length);
@@ -283,11 +283,11 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       inputSchema: z.object({}),
       execute: () =>
         attempt(async () => {
-          if (!ctx.project) {
+          if (!ctx.space) {
             return { note: "No space is open." };
           }
           return {
-            wizards: (await listWizards(user.id, ctx.project.id)).map((w) => ({
+            wizards: (await listWizards(user.id, ctx.space.id)).map((w) => ({
               id: w.id,
               title: w.title,
               description: w.description,
@@ -309,7 +309,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
       }),
       execute: ({ status, limit }) =>
         attempt(async () => {
-          if (!ctx.project) {
+          if (!ctx.space) {
             return { note: "No space is open." };
           }
           const rows = await db
@@ -327,7 +327,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
             .innerJoin(schema.wizard, eq(schema.wizard.id, schema.run.wizardId))
             .where(
               and(
-                eq(schema.wizard.projectId, ctx.project.id),
+                eq(schema.wizard.spaceId, ctx.space.id),
                 status ? eq(schema.run.status, status) : undefined,
               ),
             )

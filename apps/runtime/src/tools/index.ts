@@ -21,9 +21,9 @@ import { mailTools } from "./mail.js";
 import { assertPublicUrl, safeFetch } from "./net-guard.js";
 import { pageTools } from "./pages.js";
 import { pluginTools, spaceContextOf } from "./plugin.js";
-import { projectTools } from "./project.js";
 import { clip, FileKeeper } from "./shared.js";
 import { skillTools } from "./skills.js";
+import { spaceTools } from "./space.js";
 import { storeTools, type UploadRef } from "./store.js";
 
 export interface StepTools {
@@ -179,7 +179,7 @@ export async function buildStepTools(
   const browser = allowed.has("browser") ? await browserTools(ctx, assets, files) : {};
   Object.assign(tools, browser);
 
-  // The wizard's lists and files, the documents the person gave and the project's documents are
+  // The wizard's lists and files, the documents the person gave and the space's documents are
   // always at hand. An installed client gets tools over an MCP bridge its CLI starts for every
   // call, seconds of its own: a step with no use for the store goes without its tools, and
   // without others (Knowledge, a workspace file) the client answers without the bridge.
@@ -190,7 +190,7 @@ export async function buildStepTools(
   if (!idle) {
     Object.assign(tools, storeTools(ctx, uploads, files));
   }
-  Object.assign(tools, await projectTools(ctx));
+  Object.assign(tools, await spaceTools(ctx));
   const sandbox = allowed.has("sandbox") ? sandboxCapabilities() : null;
   Object.assign(
     tools,

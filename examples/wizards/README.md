@@ -31,7 +31,7 @@ webs, flying bats and embers.
 | `monster-haustier` | Their pet as a Halloween monster, with a profile |
 
 Import one in the studio with "Import" on the wizards page, or through the API:
-`POST /api/studio/projects/:id/wizards/import` with the file as `file`. The theme lands in the
+`POST /api/studio/spaces/:id/wizards/import` with the file as `file`. The theme lands in the
 space's themes; the wizard names it in `themes`.
 
 The AI, document and image steps need a model behind the runtime; the pages, uploads and

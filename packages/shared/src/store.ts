@@ -52,11 +52,11 @@ export const STORE_LIMITS = {
 export const CONNECTION_KINDS = ["mail"] as const;
 export type ConnectionKind = (typeof CONNECTION_KINDS)[number];
 
-/** An account the person connects: a built-in kind, or one of the project's imported connectors. */
+/** An account the person connects: a built-in kind, or one of the space's imported connectors. */
 export interface ConnectionDef {
   id: string;
   kind?: ConnectionKind;
-  /** Id of an imported connector of the project. */
+  /** Id of an imported connector of the space. */
   connector?: string;
   /** Imported connectors: the actions steps may call. Default: every action that only reads. */
   actions?: string[];

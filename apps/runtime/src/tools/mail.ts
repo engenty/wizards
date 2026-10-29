@@ -27,7 +27,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
     return {};
   }
   const open = async () => {
-    const found = await connectionContext(ctx.store, connection, ctx.project.id);
+    const found = await connectionContext(ctx.store, connection, ctx.space.id);
     if (!found) {
       throw new Error(prompt("tools", "note.mail_not_connected"));
     }

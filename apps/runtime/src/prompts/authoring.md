@@ -2,7 +2,7 @@
 The authoring guide: how a wizard is written down and what makes a good one. Read by
 authoring/guide.ts. authoringGuide() (section guide) is what MCP clients get from
 get_authoring_guide and what Goose knows; the architect (agents/architect.ts) builds its own
-system prompt from schema, principles, widgets, surfaces and the line.* sections (projectLines()).
+system prompt from schema, principles, widgets, surfaces and the line.* sections (spaceLines()).
 engine/steps.ts reads surfaces too.
 -->
 
@@ -58,7 +58,7 @@ ${sandbox}
 <!-- Technical: engineering owns everything below. -->
 
 <!-- section: guide -->
-<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; project_tools is projectLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON. -->
+<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON. -->
 engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author the wizard as JSON; the person who asked you is the ADMIN, the people who later open the link are END USERS.
 
 ${schema}
@@ -70,7 +70,7 @@ ${widgets}
 Surface catalog (for surface steps and output.surface):
 ${surfaces}
 
-${project_tools}
+${space_tools}
 
 Models: a step names the KIND of model it needs, never a model. Pick the cheapest class that does the job:
 - "classifier": routing, yes/no, picking from options, pulling a few values out of text.
@@ -133,7 +133,7 @@ type Connection =
       // the person picks how to connect (Gmail, Outlook, or any mailbox over IMAP); steps only ever READ it
   | { id, connector: connectorId, actions?: actionId[], policy?: { [actionId]: "allow"|"ask" }, title?, description? }
       // connector = a service the wizard works in for the person: a built-in one (Gmail, Google Drive, Calendar and
-      //   Contacts, Outlook, OneDrive, Slack, GitHub, HubSpot, S3) or one imported into the project from the
+      //   Contacts, Outlook, OneDrive, Slack, GitHub, HubSpot, S3) or one imported into the space from the
       //   integrations registry. The person connects their own account (OAuth or API key) on a page.
       //   kind "mail" reads any mailbox the same way and keeps attachments as files; use the gmail / outlook
       //   connectors only for what it cannot do (drafts, sending, labels, calendar).
@@ -259,8 +259,8 @@ type AgentStep = {
 // Every agent step also has, without listing them: list_read / list_write (the wizard's lists), files_list,
 //   read_document (PDF, scans and photos, Word, Excel, CSV, saved mails) and scan_documents (invoice / receipt fields, many at once)
 //   — on an installed client only where there is something to read: tools or connections, uploads, lists or kept files;
-//   and where the space has Knowledge: project_search (a question, "where" on its typed categories, hits checked for relevance),
-//   project_list (by categories), page_read / table_read / project_document (an item whole, by its path).
+//   and where the space has Knowledge: space_search (a question, "where" on its typed categories, hits checked for relevance),
+//   space_list (by categories), page_read / table_read / space_document (an item whole, by its path).
 // "pages" brings: page_read / page_write — Markdown pages of the space the wizard keeps for every run (notes, a log
 //   that grows with append), shown to the admin under Space → Data; page_read also reads Knowledge by path.
 // "code" brings: execute_typescript — the model writes one program that calls the step's other tools (not the browser) as
@@ -411,7 +411,7 @@ type ResultStep = { type: "result", message?: string, deliverables: { from: step
 
 Templates (in instructions/prompt): {{fieldId}} · {{steps.stepId}} (whole output) · {{steps.stepId.key}} (json key)
   · {{itemsField}} (line items as a table WITH computed net/VAT/total) · {{itemsField.net|vat|gross}} · {{today}}
-  · the project (its settings): {{brand.name}} {{brand.about}} {{brand.colors}} · {{facts.key}} (one fact: address, VAT ID, …) · {{facts}} (all facts)
+  · the space (its settings): {{brand.name}} {{brand.about}} {{brand.colors}} · {{facts.key}} (one fact: address, VAT ID, …) · {{facts}} (all facts)
     — every AI step already knows them, name one only where the text must carry it; agent steps also search the space's Knowledge
       and are told its categories: say in a step's instructions which category to filter by when the task names one
   · {{lists.listId}} (the stored list as a table, as it is when the step starts) · {{fileField}} (the names of the uploads, for read_document)
@@ -506,7 +506,7 @@ Use a view when rows, figures, a comparison or a few questions answer better tha
 
 <!-- section: line.connectors -->
 <!-- connectors: one "- id — name, tools prefix_*: actions" line per connector -->
-Connectors a wizard of this project can use (built in, or imported from the integrations registry; find more with find_connectors + import_connector):
+Connectors a wizard of this space can use (built in, or imported from the integrations registry; find more with find_connectors + import_connector):
 ${connectors}
 
 <!-- section: line.connectors.not_set_up -->

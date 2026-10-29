@@ -45,8 +45,8 @@ function pluginToolsLine(tools: GuideTool[]): string {
   return prompt("authoring", "line.plugin_tools", { tools: lines.join("\n") });
 }
 
-/** What the project offers agent steps: its connectors and plugin tools. */
-export function projectLines(connectors: GuideConnector[], pluginTools: GuideTool[]): string {
+/** What the space offers agent steps: its connectors and plugin tools. */
+export function spaceLines(connectors: GuideConnector[], pluginTools: GuideTool[]): string {
   return [connectorsLine(connectors), pluginToolsLine(pluginTools)].filter(Boolean).join("\n\n");
 }
 
@@ -64,7 +64,7 @@ export function authoringGuide(
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
-    project_tools: projectLines(connectors, pluginTools),
+    space_tools: spaceLines(connectors, pluginTools),
     schema_url: WIZARD_SCHEMA_URL,
     example: exampleWizard(),
   });

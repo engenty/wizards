@@ -8,8 +8,8 @@ import { type Key, t } from "../lib/i18n";
 import type { Me } from "../lib/session";
 import { Button, Chip, Empty, Spinner, Switch } from "../ui";
 import { ModelTest } from "./Harness";
-import { Section } from "./project/Section";
 import { MenuRow, SubMenu, useDetail, useSettingsMenu } from "./settings-menu";
+import { Section } from "./space/Section";
 
 /** What `/api/studio/runtime` says of this runtime. */
 interface RuntimeInfo {

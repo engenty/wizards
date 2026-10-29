@@ -2,7 +2,7 @@
  * The triggers that fill `live_change` (docs/plans/live-changes.md, 1). One entry per table
  * names the item a write changes; `pnpm --filter @engenty/wizards-runtime exec tsx
  * scripts/live-triggers.ts` prints the SQL that migration 0023 carries, or with a table's name
- * that table's alone (0026). Unlike the two-way sync's triggers (0022) they have no guard, since
+ * that table's alone (0026); 0031 carries all of them, under the space's names. Unlike the two-way sync's triggers (0022) they have no guard, since
  * a pulled write is a change on this side's screen too, and they count wizard-owned pages and
  * tables, which the studio shows as shared lists.
  */
@@ -10,7 +10,7 @@
 export interface LiveTable {
   table: string;
   /** SQL over `$` (`new` or `old`) for the item's space, kind (a `LiveKind`), id and parent. */
-  project: string;
+  space: string;
   kind: string;
   item: string;
   parent: string;
@@ -20,13 +20,13 @@ export interface LiveTable {
   updateWhen?: string;
 }
 
-const ofWizard = "(SELECT project_id FROM wizard WHERE id = $.wizard_id)";
+const ofWizard = "(SELECT space_id FROM wizard WHERE id = $.wizard_id)";
 
 export const LIVE_TABLES: LiveTable[] = [
-  { table: "project", project: "$.id", kind: "'space'", item: "$.id", parent: "NULL", owns: true },
+  { table: "space", space: "$.id", kind: "'space'", item: "$.id", parent: "NULL", owns: true },
   {
     table: "wizard",
-    project: "$.project_id",
+    space: "$.space_id",
     kind: "'wizard'",
     item: "$.id",
     parent: "NULL",
@@ -34,7 +34,7 @@ export const LIVE_TABLES: LiveTable[] = [
   },
   {
     table: "wizard_file",
-    project: ofWizard,
+    space: ofWizard,
     kind: "'wizard'",
     item: "$.wizard_id",
     parent: "NULL",
@@ -42,7 +42,7 @@ export const LIVE_TABLES: LiveTable[] = [
   },
   {
     table: "wizard_translation",
-    project: ofWizard,
+    space: ofWizard,
     kind: "'translation'",
     item: "$.wizard_id || ':' || $.lang",
     parent: "$.wizard_id",
@@ -50,7 +50,7 @@ export const LIVE_TABLES: LiveTable[] = [
   },
   {
     table: "wizard_message",
-    project: ofWizard,
+    space: ofWizard,
     kind: "'message'",
     item: "$.id",
     parent: "$.wizard_id",
@@ -58,7 +58,7 @@ export const LIVE_TABLES: LiveTable[] = [
   },
   {
     table: "space_page",
-    project: "$.project_id",
+    space: "$.space_id",
     kind: "'page'",
     item: "$.id",
     parent: "$.wizard_id",
@@ -66,7 +66,7 @@ export const LIVE_TABLES: LiveTable[] = [
   },
   {
     table: "space_table",
-    project: "$.project_id",
+    space: "$.space_id",
     kind: "'table'",
     item: "$.id",
     parent: "$.wizard_id",
@@ -74,7 +74,7 @@ export const LIVE_TABLES: LiveTable[] = [
   },
   {
     table: "space_table_row",
-    project: "(SELECT project_id FROM space_table WHERE id = $.table_id)",
+    space: "(SELECT space_id FROM space_table WHERE id = $.table_id)",
     kind: "'row'",
     item: "$.id",
     parent: "$.table_id",
@@ -82,7 +82,7 @@ export const LIVE_TABLES: LiveTable[] = [
   },
   {
     table: "space_category",
-    project: "$.project_id",
+    space: "$.space_id",
     kind: "'category'",
     item: "$.id",
     parent: "NULL",
@@ -90,7 +90,7 @@ export const LIVE_TABLES: LiveTable[] = [
   },
   {
     table: "space_category_value",
-    project: "(SELECT project_id FROM space_category WHERE id = $.category_id)",
+    space: "(SELECT space_id FROM space_category WHERE id = $.category_id)",
     kind: "'category'",
     item: "$.category_id",
     parent: "NULL",
@@ -98,7 +98,7 @@ export const LIVE_TABLES: LiveTable[] = [
   },
   {
     table: "space_item_category",
-    project: "$.project_id",
+    space: "$.space_id",
     kind: "CASE WHEN $.page_id IS NOT NULL THEN 'page' WHEN $.row_id IS NOT NULL THEN 'row' WHEN $.table_id IS NOT NULL THEN 'table' ELSE 'file' END",
     item: "COALESCE($.page_id, $.row_id, $.table_id, $.file_id)",
     parent:
@@ -106,25 +106,25 @@ export const LIVE_TABLES: LiveTable[] = [
     owns: false,
   },
   {
-    table: "project_file",
-    project: "$.project_id",
+    table: "space_file",
+    space: "$.space_id",
     kind: "'file'",
     item: "$.id",
     parent: "NULL",
     owns: true,
   },
   {
-    table: "project_connector",
-    project: "$.project_id",
+    table: "space_connector",
+    space: "$.space_id",
     kind: "'connector'",
-    item: "$.project_id || ':' || $.id",
+    item: "$.space_id || ':' || $.id",
     parent: "NULL",
     owns: true,
   },
-  // Migration 0027.
+  // Migration 0030.
   {
     table: "space_skill",
-    project: "$.project_id",
+    space: "$.space_id",
     kind: "'skill'",
     item: "$.id",
     parent: "NULL",
@@ -144,7 +144,7 @@ const OPS = [
  */
 export const PRESENCE_TABLE: LiveTable = {
   table: "live_presence",
-  project: "NULL",
+  space: "NULL",
   kind: "'presence'",
   item: "$.kind || ':' || $.item",
   parent: "$.kind",
@@ -160,11 +160,11 @@ export const PRESENCE_TABLE: LiveTable = {
  * chat goes to its members only), and the studio reads the chat and the sidebar again. Messages
  * are Mastra's; a new one updates its chat's row (its last message), so it is heard through that.
  */
-const ofChat = "(SELECT project_id FROM chat WHERE id = $.chat_id)";
+const ofChat = "(SELECT space_id FROM chat WHERE id = $.chat_id)";
 export const CHAT_TABLES: LiveTable[] = [
   {
     table: "chat",
-    project: "$.project_id",
+    space: "$.space_id",
     kind: "'chat'",
     item: "$.id",
     parent: "NULL",
@@ -172,7 +172,7 @@ export const CHAT_TABLES: LiveTable[] = [
   },
   {
     table: "chat_member",
-    project: ofChat,
+    space: ofChat,
     kind: "'chat'",
     item: "$.chat_id",
     parent: "NULL",
@@ -180,7 +180,7 @@ export const CHAT_TABLES: LiveTable[] = [
   },
   {
     table: "chat_approval",
-    project: ofChat,
+    space: ofChat,
     kind: "'chat'",
     item: "$.chat_id",
     parent: "NULL",
@@ -188,7 +188,7 @@ export const CHAT_TABLES: LiveTable[] = [
   },
   {
     table: "chat_section",
-    project: "$.project_id",
+    space: "$.space_id",
     kind: "'chat'",
     item: "$.id",
     parent: "'section'",
@@ -208,8 +208,8 @@ export function liveTriggerSql(tables: LiveTable[] = LIVE_TABLES): string {
       out.push(
         [
           `CREATE TRIGGER \`${name}_${op.suffix}\` AFTER ${op.event} ON \`${t.table}\`${when} BEGIN`,
-          "\tINSERT INTO `live_change` (`project_id`, `kind`, `op`, `item`, `parent`, `at`)",
-          `\tSELECT ${at(t.project)}, ${at(t.kind)}, ${kind}, i, ${at(t.parent)}, unixepoch() * 1000 FROM (SELECT ${at(t.item)} AS i) WHERE i IS NOT NULL;`,
+          "\tINSERT INTO `live_change` (`space_id`, `kind`, `op`, `item`, `parent`, `at`)",
+          `\tSELECT ${at(t.space)}, ${at(t.kind)}, ${kind}, i, ${at(t.parent)}, unixepoch() * 1000 FROM (SELECT ${at(t.item)} AS i) WHERE i IS NOT NULL;`,
           "END;",
         ].join("\n"),
       );

@@ -3,7 +3,7 @@ import { type ReactNode, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router";
 import { Mascot } from "../../brand";
 import { lang, t } from "../../lib/i18n";
-import { type Me, useCurrentProject, useMe, type WizardSummary } from "../../lib/session";
+import { type Me, useCurrentSpace, useMe, type WizardSummary } from "../../lib/session";
 import { Button, cn } from "../../ui";
 import { Composer, type ComposerHandle } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
@@ -33,19 +33,19 @@ const WIZARDS = 4;
 
 export function WorkHome() {
   useCrumbs([{ label: t("work.chats") }]);
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   const me = useMe().data;
-  const space = project?.name ?? "";
-  const chats = (useSidebar(project?.id, "").data?.chats ?? []).filter((c) => !c.archived);
+  const spaceName = space?.name ?? "";
+  const chats = (useSidebar(space?.id, "").data?.chats ?? []).filter((c) => !c.archived);
   const approvals = useWaiting().data?.approvals ?? [];
   const createChat = useCreateChat();
   const navigate = useNavigate();
   const composer = useRef<ComposerHandle>(null);
   const [choosing, setChoosing] = useState(false);
-  const choices = useTurnChoices(project?.id, () => setChoosing(true));
+  const choices = useTurnChoices(space?.id, () => setChoosing(true));
   const [error, setError] = useState<string | null>(null);
   // The same list as the studio's start page: where each wizard runs comes with it.
-  const wizards = usePublishedWizards(project?.id).slice(0, WIZARDS);
+  const wizards = usePublishedWizards(space?.id).slice(0, WIZARDS);
 
   const titles = new Map(chats.map((c) => [c.id, c.title || t("work.untitled")]));
   const unread = chats.filter((c) => c.unread && c.last);
@@ -82,17 +82,17 @@ export function WorkHome() {
             ref={composer}
             tall
             autoFocus
-            placeholder={t("work.home.ask", { name: space })}
+            placeholder={t("work.home.ask", { name: spaceName })}
             chooser={choices.chooser}
             plus={choices.plus}
             onSend={async (raw, files, _later, picked = []) => {
               const text = raw.trim();
-              if ((!text && !files.length && !picked.length) || !project) {
+              if ((!text && !files.length && !picked.length) || !space) {
                 return false;
               }
               setError(null);
               try {
-                const chat = await createChat.mutateAsync({ spaceId: project.id });
+                const chat = await createChat.mutateAsync({ spaceId: space.id });
                 const added = await uploadFiles(chat.id, files);
                 navigate(`/work/c/${chat.id}`, {
                   state: { ask: text, files: [...picked, ...added], choice: choices.choice },
@@ -107,9 +107,9 @@ export function WorkHome() {
           <p className={cn("px-3 text-[0.75rem]", error ? "text-danger" : "text-ink-4")}>
             {error ? t("work.files.uploadFailed", { message: error }) : t("work.home.askHint")}
           </p>
-          {project ? (
+          {space ? (
             <SpaceFilesDialog
-              spaceId={project.id}
+              spaceId={space.id}
               open={choosing}
               onClose={() => setChoosing(false)}
               onPick={(files) => composer.current?.pick(files)}
@@ -145,7 +145,7 @@ export function WorkHome() {
                   note={
                     <span className="flex items-center gap-1.5 text-ember">
                       <span className="size-1.5 animate-pulse rounded-full bg-ember" />
-                      {t("work.home.answering", { name: space })}
+                      {t("work.home.answering", { name: spaceName })}
                     </span>
                   }
                 />

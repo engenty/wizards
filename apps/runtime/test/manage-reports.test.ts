@@ -200,8 +200,8 @@ describe("what the runtime reports to the admin app", () => {
 
   it("sends the team's wizards on a creation and on a publish", async () => {
     cookie = await signIn(TENANT);
-    const [project] = (await call("GET", "/api/studio/projects", { cookie })).body;
-    wizard = (await call("POST", "/api/studio/wizards", { cookie, body: { projectId: project.id } }))
+    const [space] = (await call("GET", "/api/studio/spaces", { cookie })).body;
+    wizard = (await call("POST", "/api/studio/wizards", { cookie, body: { spaceId: space.id } }))
       .body.id;
     await settle();
     const created = sent.filter((s) => s.path === `/v1/wizards/${TENANT}`).at(-1)?.body;

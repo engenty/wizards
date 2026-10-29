@@ -73,7 +73,7 @@ import { ENGENTY_FILL, ENGENTY_KIND_FILL, type EngentyKind } from "../engenty/co
 import { api } from "../lib/api";
 import { lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
-import { useCurrentProject, useMayCreate } from "../lib/session";
+import { useCurrentSpace, useMayCreate } from "../lib/session";
 import { useTheme } from "../lib/theme";
 import { Button, Card, Chip, cn, Dialog, Spinner } from "../ui";
 import { TYPE_TONE } from "./editor/meta";
@@ -1025,12 +1025,12 @@ export function MarketplaceFit({
 export function MarketplaceCards({ entries }: { entries: MarketplaceEntry[] }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { project } = useCurrentProject();
-  const mayCreate = useMayCreate() && Boolean(project) && !project?.readOnly;
+  const { space } = useCurrentSpace();
+  const mayCreate = useMayCreate() && Boolean(space) && !space?.readOnly;
   const [picked, setPicked] = useState<string | null>(null);
   const create = useMutation({
     mutationFn: (starterId: string) =>
-      api.post<{ id: string }>("/api/studio/wizards", { projectId: project!.id, starterId, lang }),
+      api.post<{ id: string }>("/api/studio/wizards", { spaceId: space!.id, starterId, lang }),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });

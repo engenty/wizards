@@ -39,10 +39,10 @@ import { keys } from "../lib/keys";
 import {
   initialsOf,
   type Me,
-  type Project,
+  type Space,
   signOut,
   spendableCredits,
-  useCurrentProject,
+  useCurrentSpace,
   useMayCreate,
 } from "../lib/session";
 import { openReport } from "../report/ReportDialog";
@@ -240,17 +240,17 @@ const onFill = (color: string) =>
 
 /** A space as a tile: its first brand colour behind its initials; without one, quiet paper. */
 export function SpaceFace({
-  project,
+  space,
   name,
   size = "md",
 }: {
-  project: Project | null;
+  space: Space | null;
   /** The initials' name where the tile stands for the organization (useOneSpace). */
   name?: string;
   size?: "xs" | "sm" | "md";
 }) {
-  const color = project?.brand.colors?.[0]?.value;
-  const initials = initialsOf(name ?? project?.name ?? "");
+  const color = space?.brand.colors?.[0]?.value;
+  const initials = initialsOf(name ?? space?.name ?? "");
   const face = (
     <span
       className={cn(
@@ -267,12 +267,12 @@ export function SpaceFace({
       {initials || <Folder className="size-4" />}
     </span>
   );
-  if (project?.origin !== "local") {
+  if (space?.origin !== "local") {
     return face;
   }
   // A space a local install sent: a laptop on its corner, as the note on its pages says.
   return (
-    <span className="relative shrink-0" title={t("readonly.project")}>
+    <span className="relative shrink-0" title={t("readonly.space")}>
       {face}
       <span className="-right-1 -bottom-1 absolute grid size-4 place-items-center rounded-full bg-amber ring-2 ring-paper">
         <Laptop className="size-2.5 text-paper" />
@@ -286,12 +286,9 @@ export function SpaceFace({
  * names the organization only and its menu has no spaces to list.
  */
 export function useOneSpace(me: Me): boolean {
-  const { projects } = useCurrentProject();
+  const { spaces } = useCurrentSpace();
   return (
-    me.mode === "managed" &&
-    Boolean(me.tenant.name) &&
-    me.limits.projects === 1 &&
-    projects.length <= 1
+    me.mode === "managed" && Boolean(me.tenant.name) && me.limits.spaces === 1 && spaces.length <= 1
   );
 }
 
@@ -317,7 +314,7 @@ export function SpaceMenu({
 }) {
   const navigate = useNavigate();
   const { position, phone } = useAppBar();
-  const { project, projects, select } = useCurrentProject();
+  const { space, spaces, select } = useCurrentSpace();
   const one = useOneSpace(me);
   const manage = useManageOrganization(me);
   const mayCreate = useMayCreate();
@@ -329,8 +326,8 @@ export function SpaceMenu({
   const [at, setAt] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, open, () => setOpen(false));
-  const limit = me.limits.projects;
-  const full = limit !== null && projects.length >= limit;
+  const limit = me.limits.spaces;
+  const full = limit !== null && spaces.length >= limit;
   const row =
     "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition hover:bg-accent";
   // What the menu does, beside the spaces: a line glyph and a word, as in the person's menu.
@@ -412,8 +409,8 @@ export function SpaceMenu({
                 {me.tenant.name}
               </div>
             ) : null}
-            {(one ? [] : projects).map((p) => {
-              const current = p.id === project?.id;
+            {(one ? [] : spaces).map((p) => {
+              const current = p.id === space?.id;
               return (
                 <button
                   key={p.id}
@@ -429,7 +426,7 @@ export function SpaceMenu({
                     }
                   }}
                 >
-                  <SpaceFace project={p} size="sm" />
+                  <SpaceFace space={p} size="sm" />
                   <span className="flex min-w-0 flex-1 flex-col leading-tight">
                     <span
                       className={cn(
@@ -491,7 +488,7 @@ export function SpaceMenu({
                 </button>
               </>
             ) : null}
-            {project && !project.readOnly && !one ? (
+            {space && !space.readOnly && !one ? (
               <>
                 <div className="mx-2 my-1.5 h-px bg-border-soft" />
                 <button
@@ -534,8 +531,8 @@ export function SpaceMenu({
         {switchable(me) ? (
           <OrganizationSheet me={me} open={switching} onClose={() => setSwitching(false)} />
         ) : null}
-        {project ? (
-          <RenameSpaceDialog project={project} open={renaming} onClose={() => setRenaming(false)} />
+        {space ? (
+          <RenameSpaceDialog space={space} open={renaming} onClose={() => setRenaming(false)} />
         ) : null}
       </div>
     </div>
@@ -545,23 +542,23 @@ export function SpaceMenu({
 /** The space's name in the top bar; it opens the spaces to switch between and to add one. */
 /** The space's name, changed in a dialog of its own. */
 function RenameSpaceDialog({
-  project,
+  space,
   open,
   onClose,
 }: {
-  project: Project;
+  space: Space;
   open: boolean;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [name, setName] = useState(project.name);
+  const [name, setName] = useState(space.name);
   useEffect(() => {
     if (open) {
-      setName(project.name);
+      setName(space.name);
     }
-  }, [open, project.name]);
+  }, [open, space.name]);
   const rename = useMutation({
-    mutationFn: () => api.patch(`/api/studio/projects/${project.id}`, { name: name.trim() }),
+    mutationFn: () => api.patch(`/api/studio/spaces/${space.id}`, { name: name.trim() }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: keys.spaces() });
       onClose();
@@ -598,8 +595,8 @@ function RenameSpaceDialog({
 }
 
 /** Where the space lives: on this computer (a local install, or a space one sent here) or in the cloud. */
-function SpacePlace({ me, project }: { me: Me; project: Project }) {
-  const local = me.mode === "local" || project.origin === "local";
+function SpacePlace({ me, space }: { me: Me; space: Space }) {
+  const local = me.mode === "local" || space.origin === "local";
   const Icon = local ? Laptop : Cloud;
   const label = local ? t("nav.spaceLocal") : t("nav.spaceCloud");
   return (
@@ -610,11 +607,11 @@ function SpacePlace({ me, project }: { me: Me; project: Project }) {
 }
 
 function SpaceName({ me }: { me: Me }) {
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   // A phone's bar holds no space: its tile stands here, in the top left corner, before its name.
   const { phone } = useAppBar();
   const one = useOneSpace(me);
-  if (!project) {
+  if (!space) {
     return null;
   }
   // One space: the organization's name opens the menu, the space's name would only repeat it.
@@ -635,11 +632,11 @@ function SpaceName({ me }: { me: Me }) {
             )
           }
         >
-          {phone ? <SpaceFace project={project} name={me.tenant.name} size="sm" /> : null}
+          {phone ? <SpaceFace space={space} name={me.tenant.name} size="sm" /> : null}
           <span className="truncate">{me.tenant.name}</span>
           <ChevronsUpDown className="size-3.5 shrink-0 text-ink-4" />
         </SpaceMenu>
-        <SpacePlace me={me} project={project} />
+        <SpacePlace me={me} space={space} />
       </span>
     );
   }
@@ -658,7 +655,7 @@ function SpaceName({ me }: { me: Me }) {
       <SpaceMenu
         me={me}
         placement="below"
-        label={project.name}
+        label={space.name}
         className={(open) =>
           phone
             ? cn(
@@ -673,7 +670,7 @@ function SpaceName({ me }: { me: Me }) {
       >
         {phone ? (
           <>
-            <SpaceFace project={project} size="sm" />
+            <SpaceFace space={space} size="sm" />
             {/* The organization as a small line above the space: a phone's bar has no room beside it. */}
             <span className="flex min-w-0 flex-col leading-tight">
               {me.tenant.name ? (
@@ -681,14 +678,14 @@ function SpaceName({ me }: { me: Me }) {
                   {me.tenant.name}
                 </span>
               ) : null}
-              <span className="truncate">{project.name}</span>
+              <span className="truncate">{space.name}</span>
             </span>
           </>
         ) : (
-          project.name
+          space.name
         )}
       </SpaceMenu>
-      <SpacePlace me={me} project={project} />
+      <SpacePlace me={me} space={space} />
     </span>
   );
 }

@@ -1,4 +1,4 @@
-import { runTheme } from "@engenty/wizards-shared/projects";
+import { runTheme } from "@engenty/wizards-shared/spaces";
 import {
   freeThemeId,
   MAX_SPACE_THEMES,
@@ -12,17 +12,17 @@ import { db, schema } from "../db/client.js";
 import { spaceChanged } from "../plugins/events.js";
 import { requireBuild, requireWritable } from "./access.js";
 import { ServiceError } from "./errors.js";
-import { ownedProject } from "./projects.js";
+import { ownedSpace } from "./spaces.js";
 
 /**
  * The space's themes, which of its wizards name each, the brand's fonts for headings and text
  * (what `brand` means in a theme of this space) and the brand's named colours.
  */
-export async function listThemes(userId: string, projectId: string) {
-  const p = await ownedProject(userId, projectId);
+export async function listThemes(userId: string, spaceId: string) {
+  const p = await ownedSpace(userId, spaceId);
   const wizards = await db.query.wizard.findMany({
     columns: { id: true, title: true, draft: true },
-    where: eq(schema.wizard.projectId, p.id),
+    where: eq(schema.wizard.spaceId, p.id),
   });
   const { display, body, faces } = runTheme(p.brand);
   return {
@@ -59,20 +59,20 @@ function checkedTheme(raw: unknown, origin: "studio" | "import"): Theme {
   return parsed.data;
 }
 
-async function writeThemes(projectId: string, themes: Theme[]) {
+async function writeThemes(spaceId: string, themes: Theme[]) {
   if (themes.length > MAX_SPACE_THEMES) {
     throw new ServiceError("invalid", `A space keeps at most ${MAX_SPACE_THEMES} themes.`);
   }
   await db
-    .update(schema.project)
+    .update(schema.space)
     .set({ themes, updatedAt: new Date() })
-    .where(eq(schema.project.id, projectId));
-  spaceChanged("space.updated", projectId);
+    .where(eq(schema.space.id, spaceId));
+  spaceChanged("space.updated", spaceId);
 }
 
 /** Adds the theme to the space, or replaces the one with its id. */
-export async function saveTheme(userId: string, projectId: string, raw: unknown): Promise<Theme> {
-  const p = await ownedProject(userId, projectId);
+export async function saveTheme(userId: string, spaceId: string, raw: unknown): Promise<Theme> {
+  const p = await ownedSpace(userId, spaceId);
   await requireWritable(p);
   await requireBuild();
   const theme = checkedTheme(raw, "studio");
@@ -82,8 +82,8 @@ export async function saveTheme(userId: string, projectId: string, raw: unknown)
 }
 
 /** Removes the theme. Wizards that name it show the next theme of their chain, or the brand. */
-export async function deleteTheme(userId: string, projectId: string, themeId: string) {
-  const p = await ownedProject(userId, projectId);
+export async function deleteTheme(userId: string, spaceId: string, themeId: string) {
+  const p = await ownedSpace(userId, spaceId);
   await requireWritable(p);
   await requireBuild();
   await writeThemes(
@@ -98,13 +98,13 @@ export async function deleteTheme(userId: string, projectId: string, themeId: st
  * free id. Answers how ids were renamed, for the wizard's `themes`.
  */
 export async function importThemes(
-  projectId: string,
+  spaceId: string,
   incoming: readonly unknown[],
 ): Promise<Record<string, string>> {
   if (!incoming.length) {
     return {};
   }
-  const p = await db.query.project.findFirst({ where: eq(schema.project.id, projectId) });
+  const p = await db.query.space.findFirst({ where: eq(schema.space.id, spaceId) });
   if (!p) {
     return {};
   }

@@ -68,18 +68,18 @@ const AUTH_LABEL: Record<ConnectorView["auth"], string> = {
 };
 
 function Imported({
-  projectId,
+  spaceId,
   connector,
   readOnly,
 }: {
-  projectId: string;
+  spaceId: string;
   connector: ConnectorView;
   readOnly?: boolean;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const done = () => qc.invalidateQueries({ queryKey: keys.connectors(projectId) });
-  const base = `/api/studio/projects/${projectId}/connectors/${connector.id}`;
+  const done = () => qc.invalidateQueries({ queryKey: keys.connectors(spaceId) });
+  const base = `/api/studio/spaces/${spaceId}/connectors/${connector.id}`;
   const refresh = useMutation({ mutationFn: () => api.post(`${base}/refresh`), onSuccess: done });
   const remove = useMutation({ mutationFn: () => api.del(base), onSuccess: done });
   const reads = connector.actions.filter((a) => a.group === "read").length;
@@ -167,13 +167,13 @@ function Imported({
 }
 
 function SourceRow({
-  projectId,
+  spaceId,
   domain,
   source,
   taken,
   onDone,
 }: {
-  projectId: string;
+  spaceId: string;
   domain: string;
   source: RegistrySource;
   taken: string[];
@@ -186,7 +186,7 @@ function SourceRow({
   const run = useMutation({
     mutationFn: () =>
       api.post<{ connector: ConnectorView; warnings: string[] }>(
-        `/api/studio/projects/${projectId}/connectors`,
+        `/api/studio/spaces/${spaceId}/connectors`,
         {
           domain,
           sourceKind: source.sourceKind,
@@ -200,7 +200,7 @@ function SourceRow({
         } satisfies ImportRequest,
       ),
     onSuccess: async (result) => {
-      await qc.invalidateQueries({ queryKey: keys.connectors(projectId) });
+      await qc.invalidateQueries({ queryKey: keys.connectors(spaceId) });
       onDone(result.warnings);
     },
   });
@@ -255,19 +255,19 @@ function SourceRow({
 }
 
 /**
- * The project's connectors: any service becomes one, found in the integrations registry by name
- * and imported from its OpenAPI spec or its MCP server. `readOnly`: the project is not changed
+ * The space's connectors: any service becomes one, found in the integrations registry by name
+ * and imported from its OpenAPI spec or its MCP server. `readOnly`: the space is not changed
  * here, so the list is shown and nothing is imported, refreshed or removed.
  */
-export function Connectors({ projectId, readOnly }: { projectId: string; readOnly?: boolean }) {
+export function Connectors({ spaceId, readOnly }: { spaceId: string; readOnly?: boolean }) {
   const unsetConnectors = useFeature("unsetConnectors");
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<RegistryHit[] | null>(null);
   const [service, setService] = useState<RegistryService | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const list = useQuery({
-    queryKey: keys.connectors(projectId),
-    queryFn: () => api.get<ConnectorView[]>(`/api/studio/projects/${projectId}/connectors`),
+    queryKey: keys.connectors(spaceId),
+    queryFn: () => api.get<ConnectorView[]>(`/api/studio/spaces/${spaceId}/connectors`),
   });
   const search = useMutation({
     mutationFn: () => api.post<RegistryHit[]>("/api/studio/connectors/search", { query }),
@@ -304,7 +304,7 @@ export function Connectors({ projectId, readOnly }: { projectId: string; readOnl
       {imported.length ? (
         <div className="mb-4 flex flex-col gap-2">
           {imported.map((c) => (
-            <Imported key={c.id} projectId={projectId} connector={c} readOnly={readOnly} />
+            <Imported key={c.id} spaceId={spaceId} connector={c} readOnly={readOnly} />
           ))}
         </div>
       ) : null}
@@ -380,7 +380,7 @@ export function Connectors({ projectId, readOnly }: { projectId: string; readOnl
           {service.sources.map((source) => (
             <SourceRow
               key={`${source.sourceKind}:${source.sourceUrl}`}
-              projectId={projectId}
+              spaceId={spaceId}
               domain={service.domain}
               source={source}
               taken={connectors.map((c) => c.id)}

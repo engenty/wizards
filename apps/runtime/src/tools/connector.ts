@@ -115,19 +115,19 @@ function asks(connection: ConnectionDef, action: ConnectorAction): boolean {
 
 /** One connection's actions as tools — for a step that lists it, or a share job that sends through it. */
 export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files: FileKeeper) {
-  const projectId = ctx.project.id;
+  const spaceId = ctx.space.id;
   const id = connection.connector ?? "";
-  let resolved = await resolveConnector(projectId, id);
+  let resolved = await resolveConnector(spaceId, id);
   if (!resolved) {
     return {};
   }
-  const account = () => connectionContext(ctx.store, connection, projectId);
+  const account = () => connectionContext(ctx.store, connection, spaceId);
   // An MCP server that lists its tools only to a signed-in account: ask it now that there is one.
   if (resolved.imported && !resolved.connector.actions.length) {
     const found = await account();
     if (found) {
-      await refreshConnector(projectId, id, found.ctx.accessToken).catch(() => undefined);
-      resolved = (await resolveConnector(projectId, id)) ?? resolved;
+      await refreshConnector(spaceId, id, found.ctx.accessToken).catch(() => undefined);
+      resolved = (await resolveConnector(spaceId, id)) ?? resolved;
     }
   }
   const { connector, inputSchema } = resolved;

@@ -16,13 +16,13 @@ import { wizardUnavailable } from "../limits.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
-import { mayBuild, projectWritable, READ_ONLY_TENANT } from "./access.js";
+import { mayBuild, READ_ONLY_TENANT, spaceWritable } from "./access.js";
 import { mainLogoId } from "./brand.js";
 import { notFound, ServiceError } from "./errors.js";
 import { knowledgeCounts } from "./knowledge.js";
-import { listProjects, ownedProject } from "./projects.js";
 import { runReport } from "./runs.js";
 import { shareUrlFor } from "./shares.js";
+import { listSpaces, ownedSpace } from "./spaces.js";
 import { shareUrl, studioUrl } from "./wizards.js";
 
 /*
@@ -34,14 +34,14 @@ type RunRow = typeof schema.run.$inferSelect;
 
 /** The spaces the caller works with, as the studio lists them, and whether each may change here. */
 export async function apiSpaces(userId: string) {
-  const projects = await listProjects(userId);
+  const spaces = await listSpaces(userId);
   return Promise.all(
-    projects.map(async (p) => ({
+    spaces.map(async (p) => ({
       id: p.id,
       name: p.name,
       title: p.brand.name ?? "",
       wizards: p.wizardCount,
-      writable: await projectWritable(p),
+      writable: await spaceWritable(p),
     })),
   );
 }
@@ -49,9 +49,9 @@ export async function apiSpaces(userId: string) {
 /** The space a call names, or the one a caller means when it names none: the first one listed. */
 export async function apiSpace(userId: string, spaceId?: string | null) {
   if (spaceId) {
-    return ownedProject(userId, spaceId);
+    return ownedSpace(userId, spaceId);
   }
-  const [first] = await listProjects(userId);
+  const [first] = await listSpaces(userId);
   if (!first) {
     // A plan that builds nothing here has a space only once its local install synced one.
     if (!(await mayBuild())) {
@@ -75,7 +75,7 @@ export async function apiSpaceDetails(userId: string, spaceId?: string | null) {
     facts: p.facts.map(({ label, value }) => ({ label, value })),
     logoUrl: logo ? `${env.publicUrl}/api/public/logos/${logo}` : null,
     knowledge: await knowledgeCounts(p.id),
-    writable: await projectWritable(p),
+    writable: await spaceWritable(p),
     studioUrl: `${env.appUrl}/studio/space`,
   };
 }
@@ -85,7 +85,7 @@ export async function apiSpaceDetails(userId: string, spaceId?: string | null) {
  * embeds it with: its link's token and the ID the mobile app takes.
  */
 export async function apiWizards(userId: string, spaceId?: string | null) {
-  const spaces = (await listProjects(userId)).filter((p) => !spaceId || p.id === spaceId);
+  const spaces = (await listSpaces(userId)).filter((p) => !spaceId || p.id === spaceId);
   if (!spaces.length) {
     return [];
   }
@@ -93,7 +93,7 @@ export async function apiWizards(userId: string, spaceId?: string | null) {
     where: and(
       eq(schema.wizard.tenantId, currentTenant()),
       inArray(
-        schema.wizard.projectId,
+        schema.wizard.spaceId,
         spaces.map((p) => p.id),
       ),
     ),
@@ -120,7 +120,7 @@ export async function apiWizards(userId: string, spaceId?: string | null) {
       const reason = live ? await wizardUnavailable(w) : null;
       return {
         id: w.id,
-        spaceId: w.projectId,
+        spaceId: w.spaceId,
         title: def.title,
         description: def.description ?? "",
         avatar: def.avatar ?? null,

@@ -32,17 +32,17 @@ export async function oldestSeq(): Promise<number | null> {
 export async function changesAfter(since: number, limit: number): Promise<LiveRow[]> {
   const rows = await db.all<{
     seq: number;
-    project_id: string | null;
+    space_id: string | null;
     kind: string;
     op: string;
     item: string;
     parent: string | null;
   }>(
-    sql`SELECT seq, project_id, kind, op, item, parent FROM live_change WHERE seq > ${since} ORDER BY seq LIMIT ${limit}`,
+    sql`SELECT seq, space_id, kind, op, item, parent FROM live_change WHERE seq > ${since} ORDER BY seq LIMIT ${limit}`,
   );
   return rows.map((r) => ({
     seq: r.seq,
-    projectId: r.project_id,
+    spaceId: r.space_id,
     kind: r.kind as LiveKind,
     op: r.op as LiveOp,
     item: r.item,

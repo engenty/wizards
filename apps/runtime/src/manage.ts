@@ -190,7 +190,8 @@ export interface TenantInfo {
   /** The plan the tenant is on (Free, Pro, Team, …); an older Manage-App names none. */
   plan?: { id: string; name: string };
   /**
-   * `projects`: how many projects the tenant works with, null for as many as it wants.
+   * `projects`: how many spaces the tenant works with, null for as many as it wants (the
+   * Manage-App's name for them).
    * `build: false`: the tenant makes and changes nothing here; its studio shows what its local
    * install synced. `members`: the people its plan allows, null for no limit.
    */

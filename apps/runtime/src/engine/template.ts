@@ -10,6 +10,7 @@ import {
   wizardLang,
 } from "@engenty/wizards-shared/definition";
 import { formatMoney } from "@engenty/wizards-shared/numbers";
+import type { RunState } from "@engenty/wizards-shared/run";
 import {
   type AssetSection,
   type BrandColor,
@@ -21,18 +22,17 @@ import {
   fontLicenseWords,
   gradientCss,
   type LogoSection,
-  type ProjectFact,
+  type SpaceFact,
   type TextStyle,
   textStyleLine,
-} from "@engenty/wizards-shared/projects";
-import type { RunState } from "@engenty/wizards-shared/run";
+} from "@engenty/wizards-shared/spaces";
 import { type ListDef, type ListRow, listAsMarkdown } from "@engenty/wizards-shared/store";
 import { prompt } from "../prompts.js";
 
 export interface TemplateScope {
   def: WizardDefinition;
   state: RunState;
-  /** The project the wizard belongs to: who it is, its colours, how its logos are used, its facts. */
+  /** The space the wizard belongs to: who it is, its colours, how its logos are used, its facts. */
   brand: {
     name?: string;
     about?: string;
@@ -47,7 +47,7 @@ export interface TemplateScope {
     textStyles?: TextStyle[];
     typeRules?: BrandRule[];
     logoRules?: BrandRule[];
-    facts?: ProjectFact[];
+    facts?: SpaceFact[];
   };
   /** The wizard's stored lists as they are when the step starts. */
   lists?: Record<string, { def: ListDef; rows: ListRow[] }>;
@@ -92,7 +92,7 @@ export function itemsAsMarkdown(
 }
 
 /** Facts as lines a model reads: "Label: value". */
-export function factLines(facts: ProjectFact[]): string {
+export function factLines(facts: SpaceFact[]): string {
   return facts.map((f) => `${f.label}: ${f.value}`).join("\n");
 }
 

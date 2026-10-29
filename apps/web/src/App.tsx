@@ -29,9 +29,7 @@ const NewWizardPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("./studio/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
-const ProjectPage = lazy(() =>
-  import("./studio/ProjectPage").then((m) => ({ default: m.ProjectPage })),
-);
+const SpacePage = lazy(() => import("./studio/SpacePage").then((m) => ({ default: m.SpacePage })));
 const SetupPage = lazy(() => import("./studio/SetupPage").then((m) => ({ default: m.SetupPage })));
 
 const ViewLab = import.meta.env.DEV
@@ -191,7 +189,7 @@ export function StudioApp() {
             path="/space/:group?"
             element={
               <Studio wide>
-                <ProjectPage />
+                <SpacePage />
               </Studio>
             }
           />

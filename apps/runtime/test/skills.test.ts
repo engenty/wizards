@@ -40,7 +40,7 @@ const upload = (name: string, data: Uint8Array) => {
   const form = new FormData();
   form.set("file", new File([data], name));
   return app.fetch(
-    new Request(url(`/api/studio/projects/${spaceId}/skills/upload`), {
+    new Request(url(`/api/studio/spaces/${spaceId}/skills/upload`), {
       method: "POST",
       headers: { cookie, origin: "http://localhost:5181" },
       body: form,
@@ -99,8 +99,8 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request(url("/api/local/enter?k=test-key")));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
-  const projects = await import("../src/services/projects");
-  spaceId = (await local(() => projects.defaultProject("local"))).id;
+  const spaces = await import("../src/services/spaces");
+  spaceId = (await local(() => spaces.defaultSpace("local"))).id;
 }, 60_000);
 
 afterAll(() => {
@@ -146,7 +146,7 @@ describe("SKILL.md", () => {
 
 describe("the switch", () => {
   it("keeps skills away while it is off", async () => {
-    expect((await send("GET", `/api/studio/projects/${spaceId}/skills`)).status).toBe(404);
+    expect((await send("GET", `/api/studio/spaces/${spaceId}/skills`)).status).toBe(404);
     const { activeSkills } = await import("../src/services/skills");
     await local(async () => {
       const { insertSkill } = await import("../src/services/skills");
@@ -158,8 +158,8 @@ describe("the switch", () => {
       expect(await activeSkills(spaceId)).toEqual({ always: [], demand: [] });
     });
     process.env.FEATURES = "skills=on";
-    expect((await send("GET", `/api/studio/projects/${spaceId}/skills`)).status).toBe(200);
-    const listed = await json(send("GET", `/api/studio/projects/${spaceId}/skills`));
+    expect((await send("GET", `/api/studio/spaces/${spaceId}/skills`)).status).toBe(200);
+    const listed = await json(send("GET", `/api/studio/spaces/${spaceId}/skills`));
     const hidden = listed.skills.find((s: any) => s.name === "hidden");
     await send("DELETE", `/api/studio/skills/${hidden.id}`);
   });
@@ -170,7 +170,7 @@ describe("own skills", () => {
 
   it("are written, renamed, and edited as a whole SKILL.md", async () => {
     const made = await json(
-      send("POST", `/api/studio/projects/${spaceId}/skills`, {
+      send("POST", `/api/studio/spaces/${spaceId}/skills`, {
         name: "tonalitaet",
         description: "So schreiben wir.",
         body: "# Tonalität\n\nPer du.",
@@ -180,7 +180,7 @@ describe("own skills", () => {
     expect(made.name).toBe("tonalitaet");
     // The same name again gets the next free one.
     const again = await json(
-      send("POST", `/api/studio/projects/${spaceId}/skills`, { name: "tonalitaet", description: "x" }),
+      send("POST", `/api/studio/spaces/${spaceId}/skills`, { name: "tonalitaet", description: "x" }),
     );
     expect(again.name).toBe("tonalitaet-2");
     await send("DELETE", `/api/studio/skills/${again.id}`);
@@ -229,7 +229,7 @@ describe("own skills", () => {
     const ids: string[] = [];
     for (const n of [1, 2, 3, 4, 5]) {
       const made = await json(
-        send("POST", `/api/studio/projects/${spaceId}/skills`, {
+        send("POST", `/api/studio/spaces/${spaceId}/skills`, {
           name: `rule-${n}`,
           description: `Rule ${n}.`,
           body: "x".repeat(n === 5 ? 19_700 : 100),
@@ -324,19 +324,19 @@ describe("skills.sh", () => {
   let id = "";
 
   it("finds skills, marks the official ones and the ones the space has", async () => {
-    const { hits } = await json(send("GET", `/api/studio/projects/${spaceId}/skills/registry?q=pdf`));
+    const { hits } = await json(send("GET", `/api/studio/spaces/${spaceId}/skills/registry?q=pdf`));
     expect(hits).toEqual([
       expect.objectContaining({ ref: "anthropics/skills/pdf", official: true, added: false }),
       expect.objectContaining({ ref: "someone/tools/brandkit", official: false }),
     ]);
     const before = searched;
-    await send("GET", `/api/studio/projects/${spaceId}/skills/registry?q=p`);
+    await send("GET", `/api/studio/spaces/${spaceId}/skills/registry?q=p`);
     expect(searched).toBe(before);
   });
 
   it("shows a skill whole before it is added", async () => {
     const preview = await json(
-      send("GET", `/api/studio/projects/${spaceId}/skills/registry/preview?ref=anthropics/skills/pdf`),
+      send("GET", `/api/studio/spaces/${spaceId}/skills/registry/preview?ref=anthropics/skills/pdf`),
     );
     expect(preview).toMatchObject({
       name: "pdf",
@@ -352,7 +352,7 @@ describe("skills.sh", () => {
 
   it("adds a copy that only its update changes", async () => {
     const made = await json(
-      send("POST", `/api/studio/projects/${spaceId}/skills/registry`, {
+      send("POST", `/api/studio/spaces/${spaceId}/skills/registry`, {
         ref: "anthropics/skills/pdf",
         mode: "demand",
       }),
@@ -412,12 +412,12 @@ describe("skills.sh", () => {
 describe("in a step", () => {
   it("stands whole when always on, by name on demand, and reads with skill_load and skill_read", async () => {
     const { skillsBlock, skillsOf, skillTools } = await import("../src/tools/skills");
-    const listed = await json(send("GET", `/api/studio/projects/${spaceId}/skills`));
+    const listed = await json(send("GET", `/api/studio/spaces/${spaceId}/skills`));
     const voice = listed.skills.find((s: any) => s.name === "voice");
     await send("PATCH", `/api/studio/skills/${voice.id}`, { mode: "always" });
     const emitted: any[] = [];
     const ctx = {
-      project: { id: spaceId },
+      space: { id: spaceId },
       emit: async (_type: string, message: unknown) => {
         emitted.push(message);
       },
@@ -473,13 +473,13 @@ describe("scripts in the sandbox", () => {
     };
     return { sandbox, files, commands };
   };
-  const ctx = { project: { id: "" }, emit: async () => undefined };
+  const ctx = { space: { id: "" }, emit: async () => undefined };
 
   it("puts the folder of a skill whose scripts may run into the sandbox, once per run", async () => {
     const { skillsBlock, skillToolsOf } = await import("../src/tools/skills");
     const { activeSkills } = await import("../src/services/skills");
     const { sandbox, files, commands } = fakeSandbox();
-    ctx.project.id = spaceId;
+    ctx.space.id = spaceId;
     await local(async () => {
       const skills = await activeSkills(spaceId);
       expect(skills.demand.find((k) => k.name === "pdf")?.runScripts).toBe(true);
@@ -524,7 +524,7 @@ describe("scripts in the sandbox", () => {
   it("leaves a skill whose scripts are off as text, sandbox or not", async () => {
     const { skillToolsOf } = await import("../src/tools/skills");
     const { activeSkills } = await import("../src/services/skills");
-    const listed = await json(send("GET", `/api/studio/projects/${spaceId}/skills`));
+    const listed = await json(send("GET", `/api/studio/spaces/${spaceId}/skills`));
     const pdf = listed.skills.find((s: any) => s.name === "pdf");
     await send("PATCH", `/api/studio/skills/${pdf.id}`, { runScripts: false });
     const { sandbox, files } = fakeSandbox();
@@ -543,7 +543,7 @@ describe("scripts in the sandbox", () => {
   it("says when the folder could not be written, and gives the instructions all the same", async () => {
     const { skillToolsOf } = await import("../src/tools/skills");
     const { activeSkills } = await import("../src/services/skills");
-    const listed = await json(send("GET", `/api/studio/projects/${spaceId}/skills`));
+    const listed = await json(send("GET", `/api/studio/spaces/${spaceId}/skills`));
     const pdf = listed.skills.find((s: any) => s.name === "pdf");
     await send("PATCH", `/api/studio/skills/${pdf.id}`, { runScripts: true });
     const { sandbox } = fakeSandbox();

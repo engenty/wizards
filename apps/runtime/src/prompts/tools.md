@@ -109,26 +109,26 @@ Read a page: one this wizard wrote, by its title, or a page of Knowledge, by its
 <!-- section: tool.page_write -->
 Write a page of this wizard in Markdown, kept for every later run and shown to the admin in the studio. A page with the same title is replaced — or added to with append: true (a log, a list that grows). Pages of Knowledge are read-only.
 
-<!-- Knowledge (tools/project.ts) -->
+<!-- Knowledge (tools/space.ts) -->
 
-<!-- section: tool.project_search -->
+<!-- section: tool.space_search -->
 Search the space's Knowledge: its pages, tables and files, its images, videos and sounds by their description, and what its plugins keep (wiki pages, questions and answers). Gives items with their path, categories and best section, each checked for relevance. Ask in their language, with the words they would use; filter with `where` when the task names a category's value. Then read the items you need whole with page_read or table_read.
 
-<!-- The `where` input of project_search and project_list. -->
-<!-- section: tool.project.where -->
-Filter by categories before searching, by their names: a value ("Baustelle": "Graz Süd"), a list of values, a range of numbers ({ "gte": 20000 }) or of days ({ "after": "2026-03-01", "before": "2026-03-31" }), { "contains": "…" } for a text, true/false. project_list without arguments names the categories and their values.
+<!-- The `where` input of space_search and space_list. -->
+<!-- section: tool.space.where -->
+Filter by categories before searching, by their names: a value ("Baustelle": "Graz Süd"), a list of values, a range of numbers ({ "gte": 20000 }) or of days ({ "after": "2026-03-01", "before": "2026-03-31" }), { "contains": "…" } for a text, true/false. space_list without arguments names the categories and their values.
 
-<!-- section: tool.project_list -->
-List Knowledge by its categories. Without `where`: the categories with their values and how many items each has. With `where`: the items it leaves, with their paths — all of them, where project_search gives the best few.
+<!-- section: tool.space_list -->
+List Knowledge by its categories. Without `where`: the categories with their values and how many items each has. With `where`: the items it leaves, with their paths — all of them, where space_search gives the best few.
 
 <!-- page_read when the step does not list "pages". -->
 <!-- section: tool.page_read.knowledge -->
 Read a page of Knowledge whole by its path: front matter (title, categories, its source and original, its parent and sub-pages) and its Markdown. Long pages come in parts: pass `from` to continue. `section` reads one section.
 
 <!-- section: tool.table_read -->
-Read a table of Knowledge by its path: its rows as CSV, filtered by its columns (by their names, like `where` of project_search). A few hundred rows at a time: pass `offset` to continue.
+Read a table of Knowledge by its path: its rows as CSV, filtered by its columns (by their names, like `where` of space_search). A few hundred rows at a time: pass `offset` to continue.
 
-<!-- section: tool.project_document -->
+<!-- section: tool.space_document -->
 Read a file of Knowledge as text by its path (files/…): a file that is not a page, or the original a page was read from. Long files come in parts: pass `from` to continue.
 
 <!-- Skills of the space (tools/skills.ts); Goose gets the same tools. `names` joined with ", ". -->

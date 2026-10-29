@@ -89,8 +89,8 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request(url("/api/local/enter?k=test-key")));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
-  const projects = await import("../src/services/projects");
-  spaceId = (await client.withTenant("local", () => projects.defaultProject("local"))).id;
+  const spaces = await import("../src/services/spaces");
+  spaceId = (await client.withTenant("local", () => spaces.defaultSpace("local"))).id;
 }, 60_000);
 
 describe("work chats live", () => {
@@ -117,16 +117,16 @@ describe("work chats live", () => {
     const other = { id: "ben", tenantId: "local", role: "member" as const, name: "Ben", email: "" };
     const me = { ...other, id: "local", role: "owner" as const };
     const items = [
-      { kind: "chat", op: "put", item: open.id, projectId: spaceId, parent: null },
-      { kind: "chat", op: "put", item: closed.id, projectId: spaceId, parent: null },
-      { kind: "chat", op: "put", item: "sec1", projectId: spaceId, parent: "section" },
-      { kind: "wizard", op: "put", item: "w1", projectId: spaceId, parent: null },
+      { kind: "chat", op: "put", item: open.id, spaceId: spaceId, parent: null },
+      { kind: "chat", op: "put", item: closed.id, spaceId: spaceId, parent: null },
+      { kind: "chat", op: "put", item: "sec1", spaceId: spaceId, parent: "section" },
+      { kind: "wizard", op: "put", item: "w1", spaceId: spaceId, parent: null },
     ];
     const forBen = await client.withTenant("local", () => chatChangesFor(other, items));
     // A chat Ben doesn't see reaches him as gone, its id alone: it leaves his sidebar if it was there.
     expect(forBen).toEqual([
       items[0],
-      { kind: "chat", op: "del", item: closed.id, projectId: null, parent: null },
+      { kind: "chat", op: "del", item: closed.id, spaceId: null, parent: null },
       items[2],
       items[3],
     ]);

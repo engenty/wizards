@@ -60,21 +60,17 @@ import { setCloudSpaceLimit, setTwoWayActive, twoWayActive } from "./state.js";
 /** The cloud's sync calls, as this install makes them; a test hands its own (`useTransport`). */
 export interface Transport {
   overview(): Promise<SyncOverview>;
-  pull(
-    projectId: string,
-    since: number,
-    cursor?: string,
-  ): Promise<PullAnswer & { cursor?: string }>;
-  push(projectId: string, input: PushInput): Promise<PushAnswer>;
-  missing(projectId: string, hashes: string[]): Promise<string[]>;
-  putBlob(projectId: string, hash: string, data: Uint8Array): Promise<void>;
-  getBlob(projectId: string, hash: string): Promise<Uint8Array>;
+  pull(spaceId: string, since: number, cursor?: string): Promise<PullAnswer & { cursor?: string }>;
+  push(spaceId: string, input: PushInput): Promise<PushAnswer>;
+  missing(spaceId: string, hashes: string[]): Promise<string[]>;
+  putBlob(spaceId: string, hash: string, data: Uint8Array): Promise<void>;
+  getBlob(spaceId: string, hash: string): Promise<Uint8Array>;
   publish(
-    projectId: string,
+    spaceId: string,
     wizardId: string,
   ): Promise<{ shareUrl: string; code?: string; publishedVersion: number | null }>;
-  rotate(projectId: string, wizardId: string): Promise<{ shareUrl: string; code?: string }>;
-  adopt(projectId: string): Promise<void>;
+  rotate(spaceId: string, wizardId: string): Promise<{ shareUrl: string; code?: string }>;
+  adopt(spaceId: string): Promise<void>;
   /** Hears what changes in the cloud's spaces until `signal` ends it (`GET /v1/sync/live`). */
   follow?(since: number | null, hear: (e: CloudLive) => void, signal: AbortSignal): Promise<void>;
 }
@@ -283,15 +279,15 @@ async function belongHere(ids: string[]): Promise<void> {
 }
 
 /** The organization a space synced with, when it is not the one the account is signed in to now. */
-async function otherOrganization(projectId: string): Promise<SpaceOrganization | null> {
+async function otherOrganization(spaceId: string): Promise<SpaceOrganization | null> {
   const account = await linkedAccount();
-  const owner = (await spaceOrganizations())[projectId];
+  const owner = (await spaceOrganizations())[spaceId];
   return owner && account && owner.id !== account.tenantId ? owner : null;
 }
 
 /** A space of another organization stays here and never goes up to this one. */
-export async function refuseOtherOrganization(projectId: string): Promise<void> {
-  const owner = await otherOrganization(projectId);
+export async function refuseOtherOrganization(spaceId: string): Promise<void> {
+  const owner = await otherOrganization(spaceId);
   if (owner) {
     throw new ServiceError(
       "refused",
@@ -314,8 +310,8 @@ export async function syncedSpaceIds(): Promise<string[]> {
 }
 
 /** Whether a space of this install syncs both ways. */
-export async function spaceSyncs(projectId: string): Promise<boolean> {
-  return twoWayActive() && (await readState(projectId)) !== null;
+export async function spaceSyncs(spaceId: string): Promise<boolean> {
+  return twoWayActive() && (await readState(spaceId)) !== null;
 }
 
 /** The two-way sync can run here: a runtime alone, an account linked, the switch on. */
@@ -334,7 +330,7 @@ async function overview(force = false): Promise<SyncOverview> {
   }
   const value = await transport.overview();
   overviewCache = { at: Date.now(), value };
-  setCloudSpaceLimit(value.limits.projects);
+  setCloudSpaceLimit(value.limits.spaces);
   return value;
 }
 
@@ -349,7 +345,7 @@ async function baseOf(kind: SyncKind, item: string) {
 }
 
 async function setBase(
-  projectId: string,
+  spaceId: string,
   kind: SyncKind,
   item: string,
   seq: number,
@@ -357,10 +353,10 @@ async function setBase(
 ) {
   await db
     .insert(schema.syncBase)
-    .values({ kind, item, projectId, seq, record })
+    .values({ kind, item, spaceId, seq, record })
     .onConflictDoUpdate({
       target: [schema.syncBase.kind, schema.syncBase.item],
-      set: { projectId, seq, record },
+      set: { spaceId, seq, record },
     });
 }
 
@@ -481,7 +477,7 @@ async function mergeItem(
  * up with the next push) and noted; anything else waits as a conflict.
  */
 async function reconcile(
-  projectId: string,
+  spaceId: string,
   kind: SyncKind,
   item: string,
   local: SyncRecord | null,
@@ -491,27 +487,27 @@ async function reconcile(
   const base = await baseOf(kind, item);
   const baseRecord = base?.record ?? null;
   if (same(local, remote)) {
-    await setBase(projectId, kind, item, remoteSeq, remote);
+    await setBase(spaceId, kind, item, remoteSeq, remote);
     return "same";
   }
   if (base && same(local, baseRecord)) {
-    await applyItems([{ kind, item, projectId, record: remote }], { quiet: true });
-    await setBase(projectId, kind, item, remoteSeq, remote);
+    await applyItems([{ kind, item, spaceId, record: remote }], { quiet: true });
+    await setBase(spaceId, kind, item, remoteSeq, remote);
     return "remote";
   }
   if (base && same(remote, baseRecord)) {
-    await setBase(projectId, kind, item, remoteSeq, remote);
-    await notePending(projectId, kind, item);
+    await setBase(spaceId, kind, item, remoteSeq, remote);
+    await notePending(spaceId, kind, item);
     return "local";
   }
   if (local && remote) {
     const m = await mergeItem(kind, baseRecord, local, remote);
     if (!m.conflicts.length && !m.issues.length) {
-      await applyItems([{ kind, item, projectId, record: m.value }], { quiet: false });
-      await setBase(projectId, kind, item, remoteSeq, remote);
+      await applyItems([{ kind, item, spaceId, record: m.value }], { quiet: false });
+      await setBase(spaceId, kind, item, remoteSeq, remote);
       await db.insert(schema.syncMerge).values({
         id: nanoid(12),
-        projectId,
+        spaceId,
         kind,
         item,
         local: placesChanged(baseRecord ?? {}, local),
@@ -525,7 +521,7 @@ async function reconcile(
     .insert(schema.syncConflict)
     .values({
       id: nanoid(12),
-      projectId,
+      spaceId,
       kind,
       item,
       seq: remoteSeq,
@@ -542,16 +538,16 @@ async function reconcile(
 
 // --- push and pull --------------------------------------------------------------------------
 
-async function conflicted(projectId: string): Promise<Set<string>> {
+async function conflicted(spaceId: string): Promise<Set<string>> {
   const rows = await db.query.syncConflict.findMany({
-    where: eq(schema.syncConflict.projectId, projectId),
+    where: eq(schema.syncConflict.spaceId, spaceId),
     columns: { kind: true, item: true },
   });
   return new Set(rows.map((r) => seqKey(r.kind, r.item)));
 }
 
 /** What this install changed in the space and has not pushed: from its log, or all of it the first time. */
-async function pending(projectId: string, st: SpaceState) {
+async function pending(spaceId: string, st: SpaceState) {
   const out = new Map<string, { kind: SyncKind; item: string; seq: number }>();
   const logged = await db
     .select({
@@ -560,7 +556,7 @@ async function pending(projectId: string, st: SpaceState) {
       seq: schema.syncChange.seq,
     })
     .from(schema.syncChange)
-    .where(and(eq(schema.syncChange.projectId, projectId), gt(schema.syncChange.seq, st.pushed)));
+    .where(and(eq(schema.syncChange.spaceId, spaceId), gt(schema.syncChange.seq, st.pushed)));
   for (const x of logged) {
     const key = seqKey(x.kind, x.item);
     out.set(key, {
@@ -571,7 +567,7 @@ async function pending(projectId: string, st: SpaceState) {
   }
   if (!st.full) {
     for (const kind of KIND_ORDER) {
-      for (const item of await KINDS[kind].list(projectId)) {
+      for (const item of await KINDS[kind].list(spaceId)) {
         if (!out.has(seqKey(kind, item))) {
           out.set(seqKey(kind, item), { kind, item, seq: 0 });
         }
@@ -583,10 +579,10 @@ async function pending(projectId: string, st: SpaceState) {
 
 const CHUNK = 300;
 
-async function push(projectId: string, st: SpaceState) {
+async function push(spaceId: string, st: SpaceState) {
   for (let round = 0; round < 5; round++) {
-    const waiting = await conflicted(projectId);
-    const changed = (await pending(projectId, st)).filter(
+    const waiting = await conflicted(spaceId);
+    const changed = (await pending(spaceId, st)).filter(
       (x) => !waiting.has(seqKey(x.kind, x.item)),
     );
     if (!changed.length) {
@@ -597,7 +593,7 @@ async function push(projectId: string, st: SpaceState) {
     const items: PushItem[] = [];
     for (const x of changed) {
       const read = await KINDS[x.kind].read(x.item);
-      if (read === "skip" || (read && read.projectId !== projectId)) {
+      if (read === "skip" || (read && read.spaceId !== spaceId)) {
         continue;
       }
       const base = await baseOf(x.kind, x.item);
@@ -613,20 +609,20 @@ async function push(projectId: string, st: SpaceState) {
       ...new Set(items.flatMap((x) => (x.record ? (KINDS[x.kind].blobs?.(x.record) ?? []) : []))),
     ];
     for (let i = 0; i < hashes.length; i += 1000) {
-      for (const hash of await transport.missing(projectId, hashes.slice(i, i + 1000))) {
-        await transport.putBlob(projectId, hash, new Uint8Array(await getBlob(hash)));
+      for (const hash of await transport.missing(spaceId, hashes.slice(i, i + 1000))) {
+        await transport.putBlob(spaceId, hash, new Uint8Array(await getBlob(hash)));
       }
     }
     const refusals: string[] = [];
     for (let i = 0; i < items.length; i += CHUNK) {
       const chunk = items.slice(i, i + CHUNK);
-      const answer = await transport.push(projectId, { schema: tenantSchemaVersion, items: chunk });
+      const answer = await transport.push(spaceId, { schema: tenantSchemaVersion, items: chunk });
       for (const r of answer.results) {
         const sent = chunk.find((x) => x.kind === r.kind && x.item === r.item);
         if (r.status === "taken") {
-          await setBase(projectId, r.kind, r.item, r.seq, sent?.record ?? null);
+          await setBase(spaceId, r.kind, r.item, r.seq, sent?.record ?? null);
         } else if (r.status === "conflict") {
-          await reconcile(projectId, r.kind, r.item, sent?.record ?? null, r.record, r.seq);
+          await reconcile(spaceId, r.kind, r.item, sent?.record ?? null, r.record, r.seq);
         } else {
           refusals.push(`${KINDS[r.kind].title(sent?.record ?? null, r.item)}: ${r.message}`);
         }
@@ -634,7 +630,7 @@ async function push(projectId: string, st: SpaceState) {
     }
     st.pushed = top;
     st.full = true;
-    await dropPushed(projectId, top);
+    await dropPushed(spaceId, top);
     if (refusals.length) {
       st.error = {
         message: noteText(
@@ -644,7 +640,7 @@ async function push(projectId: string, st: SpaceState) {
         reason: "refused",
         at: new Date().toISOString(),
       };
-      lastRefusals.set(projectId, refusals);
+      lastRefusals.set(spaceId, refusals);
     }
   }
 }
@@ -652,7 +648,7 @@ async function push(projectId: string, st: SpaceState) {
 /** Why the last push of a space was not taken, item by item, for the studio. */
 const lastRefusals = new Map<string, string[]>();
 
-async function pull(projectId: string, st: SpaceState) {
+async function pull(spaceId: string, st: SpaceState) {
   const changes = new Map<
     string,
     { kind: SyncKind; item: string; seq: number; record: SyncRecord | null }
@@ -661,7 +657,7 @@ async function pull(projectId: string, st: SpaceState) {
   let cursor: string | undefined;
   let next = since;
   for (;;) {
-    const answer = await transport.pull(projectId, since, cursor);
+    const answer = await transport.pull(spaceId, since, cursor);
     for (const c of answer.changes) {
       changes.set(seqKey(c.kind, c.item), c);
     }
@@ -682,20 +678,20 @@ async function pull(projectId: string, st: SpaceState) {
   for (const c of changes.values()) {
     for (const hash of c.record ? (KINDS[c.kind].blobs?.(c.record) ?? []) : []) {
       if (!(await hasBlob(hash))) {
-        await putBlobOf(hash, await transport.getBlob(projectId, hash));
+        await putBlobOf(hash, await transport.getBlob(spaceId, hash));
       }
     }
   }
-  const waiting = await conflicted(projectId);
+  const waiting = await conflicted(spaceId);
   const mine = new Set(
-    (await pending(projectId, { ...st, full: true })).map((x) => seqKey(x.kind, x.item)),
+    (await pending(spaceId, { ...st, full: true })).map((x) => seqKey(x.kind, x.item)),
   );
   const direct: (ApplyItem & { seq: number })[] = [];
   for (const c of changes.values()) {
     const key = seqKey(c.kind, c.item);
-    if (c.kind === "space" && c.item === projectId && c.record === null) {
+    if (c.kind === "space" && c.item === spaceId && c.record === null) {
       // The space went in the cloud: the copy here stays, and syncs no more.
-      await stopSpace(projectId);
+      await stopSpace(spaceId);
       return;
     }
     if (waiting.has(key)) {
@@ -711,18 +707,18 @@ async function pull(projectId: string, st: SpaceState) {
     }
     const local = read?.record ?? null;
     if (mine.has(key)) {
-      await reconcile(projectId, c.kind, c.item, local, c.record, c.seq);
+      await reconcile(spaceId, c.kind, c.item, local, c.record, c.seq);
       continue;
     }
     if (same(local, c.record)) {
-      await setBase(projectId, c.kind, c.item, c.seq, c.record);
+      await setBase(spaceId, c.kind, c.item, c.seq, c.record);
       continue;
     }
-    direct.push({ kind: c.kind, item: c.item, projectId, record: c.record, seq: c.seq });
+    direct.push({ kind: c.kind, item: c.item, spaceId, record: c.record, seq: c.seq });
   }
   await applyItems(direct, { quiet: true });
   for (const x of direct) {
-    await setBase(projectId, x.kind, x.item, x.seq, x.record);
+    await setBase(spaceId, x.kind, x.item, x.seq, x.record);
   }
   st.pulled = Math.max(st.pulled, next);
 }
@@ -736,26 +732,26 @@ type What = "push" | "pull" | "both";
 const widen = (a: What | undefined, b: What): What => (!a || a === b ? b : "both");
 
 /** Pushes and pulls a space; one run at a time, a call meanwhile runs once more after it. */
-export function syncSpace(projectId: string, what: What = "both"): Promise<void> {
-  const busy = running.get(projectId);
+export function syncSpace(spaceId: string, what: What = "both"): Promise<void> {
+  const busy = running.get(spaceId);
   if (busy) {
-    again.set(projectId, widen(again.get(projectId), what));
+    again.set(spaceId, widen(again.get(spaceId), what));
     return busy;
   }
   const run = (async () => {
     let next: What | undefined = what;
     while (next) {
-      again.delete(projectId);
-      await runSync(projectId, next);
-      next = again.get(projectId);
+      again.delete(spaceId);
+      await runSync(spaceId, next);
+      next = again.get(spaceId);
     }
-  })().finally(() => running.delete(projectId));
-  running.set(projectId, run);
+  })().finally(() => running.delete(spaceId));
+  running.set(spaceId, run);
   return run;
 }
 
-async function runSync(projectId: string, what: What) {
-  const st = await readState(projectId);
+async function runSync(spaceId: string, what: What) {
+  const st = await readState(spaceId);
   if (!st) {
     return;
   }
@@ -771,25 +767,25 @@ async function runSync(projectId: string, what: What) {
       };
       return;
     }
-    const here = await db.query.project.findFirst({
-      where: eq(schema.project.id, projectId),
+    const here = await db.query.space.findFirst({
+      where: eq(schema.space.id, spaceId),
       columns: { id: true },
     });
-    const inCloud = ov.spaces.some((s) => s.id === projectId);
+    const inCloud = ov.spaces.some((s) => s.id === spaceId);
     if (!here && !inCloud) {
       return;
     }
     st.error = null;
-    lastRefusals.delete(projectId);
+    lastRefusals.delete(spaceId);
     // A space this install has goes up as a whole once before anything comes down for it.
     if (what !== "push" && inCloud && (st.full || !here)) {
-      await pull(projectId, st);
+      await pull(spaceId, st);
       if (!here) {
         st.full = true;
       }
     }
     if (what !== "pull") {
-      await push(projectId, st);
+      await push(spaceId, st);
       if (!inCloud) {
         overviewCache = null;
       }
@@ -802,12 +798,12 @@ async function runSync(projectId: string, what: What) {
       at: new Date().toISOString(),
     };
     if (!(err instanceof ServiceError)) {
-      console.error(`[sync] ${projectId}:`, err);
+      console.error(`[sync] ${spaceId}:`, err);
     }
   } finally {
     // The space may have been turned off meanwhile.
-    if (await readState(projectId)) {
-      await writeState(projectId, st);
+    if (await readState(spaceId)) {
+      await writeState(spaceId, st);
     }
     changed();
   }
@@ -828,7 +824,7 @@ export async function syncAll(): Promise<void> {
   }
   const excluded = new Set((await readSetting<string[]>(EXCLUDED)) ?? []);
   const known = new Set(await syncedSpaceIds());
-  const local = await db.query.project.findMany({ columns: { id: true } });
+  const local = await db.query.space.findMany({ columns: { id: true } });
   const ov = await overview(true).catch(() => null);
   const ids = [...new Set([...local.map((p) => p.id), ...(ov?.spaces ?? []).map((s) => s.id)])];
   // Spaces that synced before their organization was noted.
@@ -851,32 +847,32 @@ export async function startTwoWay(): Promise<void> {
 }
 
 /** A space starts to sync both ways: one this install synced one way becomes the cloud's own. */
-export async function startSpace(projectId: string): Promise<void> {
-  await refuseOtherOrganization(projectId);
-  const excluded = ((await readSetting<string[]>(EXCLUDED)) ?? []).filter((x) => x !== projectId);
+export async function startSpace(spaceId: string): Promise<void> {
+  await refuseOtherOrganization(spaceId);
+  const excluded = ((await readSetting<string[]>(EXCLUDED)) ?? []).filter((x) => x !== spaceId);
   await writeSetting(EXCLUDED, excluded);
-  if (!(await readState(projectId))) {
-    const here = await db.query.project.findFirst({
-      where: eq(schema.project.id, projectId),
+  if (!(await readState(spaceId))) {
+    const here = await db.query.space.findFirst({
+      where: eq(schema.space.id, spaceId),
       columns: { id: true },
     });
     if (here) {
-      await transport.adopt(projectId).catch(() => undefined);
+      await transport.adopt(spaceId).catch(() => undefined);
     }
-    await writeState(projectId, { pushed: 0, pulled: 0, full: false, at: null, error: null });
+    await writeState(spaceId, { pushed: 0, pulled: 0, full: false, at: null, error: null });
   }
-  await belongHere([projectId]);
-  await syncSpace(projectId);
+  await belongHere([spaceId]);
+  await syncSpace(spaceId);
 }
 
 /** The space syncs no more; what it holds here stays. */
-export async function stopSpace(projectId: string): Promise<void> {
+export async function stopSpace(spaceId: string): Promise<void> {
   const excluded = new Set((await readSetting<string[]>(EXCLUDED)) ?? []);
-  excluded.add(projectId);
+  excluded.add(spaceId);
   await writeSetting(EXCLUDED, [...excluded]);
-  await deleteSetting(stateKey(projectId));
+  await deleteSetting(stateKey(spaceId));
   for (const table of [schema.syncBase, schema.syncConflict, schema.syncMerge, schema.syncChange]) {
-    await db.delete(table).where(eq(table.projectId, projectId));
+    await db.delete(table).where(eq(table.spaceId, spaceId));
   }
 }
 
@@ -935,20 +931,17 @@ export interface PublishedInCloud {
 }
 
 /** Pushes the space, then has the cloud publish its draft, which is now this install's. */
-export async function publishInCloud(
-  projectId: string,
-  wizardId: string,
-): Promise<PublishedInCloud> {
-  await syncSpace(projectId, "push");
-  const st = await readState(projectId);
+export async function publishInCloud(spaceId: string, wizardId: string): Promise<PublishedInCloud> {
+  await syncSpace(spaceId, "push");
+  const st = await readState(spaceId);
   if (st?.error) {
     throw new ServiceError("refused", st.error.message, { reason: st.error.reason ?? "refused" });
   }
-  return transport.publish(projectId, wizardId);
+  return transport.publish(spaceId, wizardId);
 }
 
-export function rotateInCloudSpace(projectId: string, wizardId: string) {
-  return transport.rotate(projectId, wizardId);
+export function rotateInCloudSpace(spaceId: string, wizardId: string) {
+  return transport.rotate(spaceId, wizardId);
 }
 
 // --- what the studio shows and asks ---------------------------------------------------------
@@ -969,7 +962,7 @@ async function conflictView(
       : [];
   return {
     id: row.id,
-    spaceId: row.projectId,
+    spaceId: row.spaceId,
     kind: row.kind as SyncKind,
     item: row.item,
     title: def.title(local ?? remote, row.item),
@@ -993,7 +986,7 @@ export async function syncView(): Promise<SyncView> {
   if (!available) {
     return { available, spaces: [], conflicts: [], merges: [], refusals: {} };
   }
-  const local = await db.query.project.findMany({ columns: { id: true, name: true } });
+  const local = await db.query.space.findMany({ columns: { id: true, name: true } });
   const cloud = await overview().catch(() => null);
   const account = await linkedAccount();
   const owners = await spaceOrganizations();
@@ -1021,8 +1014,8 @@ export async function syncView(): Promise<SyncView> {
         on: st !== null,
         syncedAt: st?.at ?? null,
         waiting,
-        conflicts: conflicts.filter((c) => c.projectId === id).length,
-        merges: merges.filter((m) => m.projectId === id).length,
+        conflicts: conflicts.filter((c) => c.spaceId === id).length,
+        merges: merges.filter((m) => m.spaceId === id).length,
         error: sayError(st?.error ?? null),
         organization:
           owners[id] && owners[id].id !== account?.tenantId
@@ -1037,7 +1030,7 @@ export async function syncView(): Promise<SyncView> {
     conflicts: await Promise.all(conflicts.map(conflictView)),
     merges: merges.map((m) => ({
       id: m.id,
-      spaceId: m.projectId,
+      spaceId: m.spaceId,
       kind: m.kind as SyncKind,
       item: m.item,
       title: KINDS[m.kind as SyncKind].title(m.before.local ?? m.before.remote, m.item),
@@ -1070,8 +1063,8 @@ export async function resolveConflict(id: string, how: Resolution): Promise<void
   const local = row.local ?? null;
   const remote = row.remote ?? null;
   const settle = async (record: SyncRecord | null, quiet: boolean) => {
-    await applyItems([{ kind, item: row.item, projectId: row.projectId, record }], { quiet });
-    await setBase(row.projectId, kind, row.item, row.seq, remote);
+    await applyItems([{ kind, item: row.item, spaceId: row.spaceId, record }], { quiet });
+    await setBase(row.spaceId, kind, row.item, row.seq, remote);
     await db.delete(schema.syncConflict).where(eq(schema.syncConflict.id, row.id));
   };
   if ("take" in how && how.take === "remote") {
@@ -1081,9 +1074,9 @@ export async function resolveConflict(id: string, how: Resolution): Promise<void
       .delete(schema.syncChange)
       .where(and(eq(schema.syncChange.kind, kind), eq(schema.syncChange.item, row.item)));
   } else if ("take" in how) {
-    await setBase(row.projectId, kind, row.item, row.seq, remote);
+    await setBase(row.spaceId, kind, row.item, row.seq, remote);
     await db.delete(schema.syncConflict).where(eq(schema.syncConflict.id, row.id));
-    await notePending(row.projectId, kind, row.item);
+    await notePending(row.spaceId, kind, row.item);
   } else {
     let record: SyncRecord;
     if ("record" in how) {
@@ -1101,13 +1094,13 @@ export async function resolveConflict(id: string, how: Resolution): Promise<void
     }
     await settle(record, false);
   }
-  await syncSpace(row.projectId, "push");
+  await syncSpace(row.spaceId, "push");
 }
 
 /** Every conflict of a space settled with the cloud's version. */
-export async function keepCloudForAll(projectId: string): Promise<number> {
+export async function keepCloudForAll(spaceId: string): Promise<number> {
   const rows = await db.query.syncConflict.findMany({
-    where: eq(schema.syncConflict.projectId, projectId),
+    where: eq(schema.syncConflict.spaceId, spaceId),
     columns: { id: true },
   });
   for (const r of rows) {
@@ -1123,11 +1116,11 @@ export async function undoMerge(id: string, take: "local" | "remote"): Promise<v
     throw new ServiceError("not_found", note("notFound"));
   }
   await applyItems(
-    [{ kind: m.kind as SyncKind, item: m.item, projectId: m.projectId, record: m.before[take] }],
+    [{ kind: m.kind as SyncKind, item: m.item, spaceId: m.spaceId, record: m.before[take] }],
     { quiet: false },
   );
   await db.delete(schema.syncMerge).where(eq(schema.syncMerge.id, id));
-  await syncSpace(m.projectId, "push");
+  await syncSpace(m.spaceId, "push");
 }
 
 export async function mergesSeen(ids: string[]): Promise<void> {
@@ -1210,8 +1203,8 @@ export async function sendBeforeSwitch(): Promise<{ name: string; message: strin
     const st = await readState(id);
     const waiting = st ? (await pending(id, st)).filter((x) => x.seq > 0 || !st.full).length : 0;
     if (st?.error || waiting) {
-      const here = await db.query.project.findFirst({
-        where: eq(schema.project.id, id),
+      const here = await db.query.space.findFirst({
+        where: eq(schema.space.id, id),
         columns: { name: true },
       });
       stuck.push({
@@ -1235,7 +1228,7 @@ export async function noteSyncedSpaces(): Promise<void> {
     .where(like(control.setting.key, "cloud:%"));
   const wizards = sent.length
     ? await db
-        .select({ projectId: schema.wizard.projectId })
+        .select({ spaceId: schema.wizard.spaceId })
         .from(schema.wizard)
         .where(
           inArray(
@@ -1244,7 +1237,7 @@ export async function noteSyncedSpaces(): Promise<void> {
           ),
         )
     : [];
-  await belongHere([...new Set([...(await syncedSpaceIds()), ...wizards.map((w) => w.projectId)])]);
+  await belongHere([...new Set([...(await syncedSpaceIds()), ...wizards.map((w) => w.spaceId)])]);
 }
 
 /**
@@ -1253,7 +1246,7 @@ export async function noteSyncedSpaces(): Promise<void> {
  */
 export async function keepUnsyncedHere(): Promise<void> {
   const owners = await spaceOrganizations();
-  const local = await db.query.project.findMany({ columns: { id: true } });
+  const local = await db.query.space.findMany({ columns: { id: true } });
   await writeSetting(
     EXCLUDED,
     local.map((p) => p.id).filter((id) => !owners[id]),
@@ -1278,20 +1271,20 @@ const LIVE_PULL_MS = 2000;
 const livePulled = new Map<string, number>();
 const livePending = new Map<string, NodeJS.Timeout>();
 
-function pullSoon(tenant: string, projectId: string) {
-  if (livePending.has(projectId)) {
+function pullSoon(tenant: string, spaceId: string) {
+  if (livePending.has(spaceId)) {
     return;
   }
-  const wait = Math.max(0, LIVE_PULL_MS - (Date.now() - (livePulled.get(projectId) ?? 0)));
+  const wait = Math.max(0, LIVE_PULL_MS - (Date.now() - (livePulled.get(spaceId) ?? 0)));
   const timer = setTimeout(() => {
-    livePending.delete(projectId);
-    livePulled.set(projectId, Date.now());
-    void withTenantOf(tenant, () => syncSpace(projectId, "pull")).catch((err) =>
-      console.error(`[sync] live pull of ${projectId}:`, err),
+    livePending.delete(spaceId);
+    livePulled.set(spaceId, Date.now());
+    void withTenantOf(tenant, () => syncSpace(spaceId, "pull")).catch((err) =>
+      console.error(`[sync] live pull of ${spaceId}:`, err),
     );
   }, wait);
   timer.unref?.();
-  livePending.set(projectId, timer);
+  livePending.set(spaceId, timer);
 }
 
 /** What the cloud's live call said: pulls the spaces that sync here and changed there. */

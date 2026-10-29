@@ -14,7 +14,7 @@ import { control, controlDb, openTenantDb } from "./client.js";
  * and folders stay where they are.
  */
 const TABLES = [
-  "project",
+  "space",
   "wizard",
   "wizard_version",
   "wizard_file",
@@ -22,7 +22,7 @@ const TABLES = [
   "run",
   "run_event",
   "asset",
-  "project_connector",
+  "space_connector",
   "store_holder",
   "store_row",
   "store_file",
@@ -59,7 +59,7 @@ export async function adoptLegacyData(): Promise<void> {
     return;
   }
   const legacy = createClient({ url: `file:${legacyFile}` });
-  const hasOwner = (await legacy.execute("PRAGMA table_info(project)")).rows.some(
+  const hasOwner = (await legacy.execute("PRAGMA table_info(space)")).rows.some(
     (r) => r.name === "owner_id",
   );
   if (!hasOwner) {

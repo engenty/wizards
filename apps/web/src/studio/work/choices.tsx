@@ -46,7 +46,7 @@ export function usePublishedWizards(spaceId: string | undefined) {
   return (
     useQuery({
       queryKey: ["wizards", spaceId, Boolean(me?.account)],
-      queryFn: () => api.get<WizardSummary[]>(`/api/studio/projects/${spaceId}/wizards`),
+      queryFn: () => api.get<WizardSummary[]>(`/api/studio/spaces/${spaceId}/wizards`),
       enabled: Boolean(spaceId),
     }).data ?? []
   )

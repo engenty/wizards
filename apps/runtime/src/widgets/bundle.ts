@@ -9,9 +9,9 @@ export interface WidgetBrand {
   name: string;
   accent: string | null;
   logo: string | null;
-  /** The project's colours by name; the first is the accent. */
+  /** The space's colours by name; the first is the accent. */
   colors?: { name: string; value: string }[];
-  /** The project's facts: key → value. */
+  /** The space's facts: key → value. */
   facts?: Record<string, string>;
   /** How the run page looks: accent, second colour, ground, typefaces (`runTheme`). */
   theme?: RunTheme;

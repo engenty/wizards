@@ -10,8 +10,8 @@ import type { AskResult } from "./asks.js";
 import type { RunResources } from "./resources.js";
 import type { TemplateScope } from "./template.js";
 
-export type ProjectRow = typeof schema.project.$inferSelect;
-export type ProjectFileRow = typeof schema.projectFile.$inferSelect;
+export type SpaceRow = typeof schema.space.$inferSelect;
+export type SpaceFileRow = typeof schema.spaceFile.$inferSelect;
 export type RunRow = typeof schema.run.$inferSelect;
 
 export interface StepContext {
@@ -30,9 +30,9 @@ export interface StepContext {
   files: WorkspaceFile[];
   state: RunState;
   scope: TemplateScope;
-  project: ProjectRow;
-  /** The project's logos, assets and documents that are ready to use. */
-  projectFiles: ProjectFileRow[];
+  space: SpaceRow;
+  /** The space's logos, assets and documents that are ready to use. */
+  spaceFiles: SpaceFileRow[];
   signal: AbortSignal;
   resources: RunResources;
   /** Tells the person what the step is doing; `asset` is a picture of the run it is about. */

@@ -24,7 +24,7 @@ import {
 import { EngentyLogoMark } from "../../engenty/logo";
 import { withBase } from "../../lib/base";
 import { lang, t } from "../../lib/i18n";
-import { useCurrentProject, useMe } from "../../lib/session";
+import { useCurrentSpace, useMe } from "../../lib/session";
 import { cn } from "../../ui";
 import { Composer, type ComposerHandle, type PickedFile, pastedName } from "../../ui/composer";
 import { FilePreview, FileTile } from "../../ui/file-preview";
@@ -103,7 +103,7 @@ export function ChatView({ id }: { id: string }) {
   }, [handedOver, loaded, spaceId, navigate, location.key, location.pathname, turn, choices.body]);
   // How often each of the person's texts was stored when its pending copy first showed.
   const storedBefore = useRef(new Map<string, number>());
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   const client = useQueryClient();
   const opened = data?.chat.id;
   // Opening a chat marks it read: the sidebar loses its dot at once.
@@ -250,7 +250,7 @@ export function ChatView({ id }: { id: string }) {
                                 group={group}
                                 mine={mine}
                                 author={author}
-                                spaceName={project?.name ?? ""}
+                                spaceName={space?.name ?? ""}
                                 liveId={liveId}
                               />
                             </MessageScrollerItem>
@@ -292,7 +292,7 @@ export function ChatView({ id }: { id: string }) {
             )}
           >
             <Sparkles className="size-3.5" />
-            {t("work.askAi", { name: project?.name ?? "" })}
+            {t("work.askAi", { name: space?.name ?? "" })}
           </button>
         </div>
         <Composer
@@ -383,7 +383,7 @@ function askWith(
     type: "file" as const,
     mediaType: f.mime,
     filename: f.name,
-    url: `/api/studio/projects/${spaceId}/files/${f.id}/content`,
+    url: `/api/studio/spaces/${spaceId}/files/${f.id}/content`,
   }));
   return turn.sendMessage(text ? { text, files: parts } : { files: parts }, {
     body: { files: files.map((f) => f.id), ...choice },

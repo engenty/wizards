@@ -3,8 +3,8 @@ import { z } from "zod";
 import type { StepContext } from "../engine/types.js";
 import { prompt } from "../prompts.js";
 import { runPages, writeRunPage } from "../services/space-data.js";
-import { pageReadInput, readKnowledgePage } from "./project.js";
 import { attempt, clip } from "./shared.js";
+import { pageReadInput, readKnowledgePage } from "./space.js";
 
 /**
  * Pages for a step that lists "pages": Markdown its wizard keeps for every run — notes, a log, a
@@ -13,11 +13,11 @@ import { attempt, clip } from "./shared.js";
  * writes into a copy of its own in the run's state, which goes with the run.
  */
 export function pageTools(ctx: StepContext) {
-  const projectId = ctx.project.id;
+  const spaceId = ctx.space.id;
   const wizardId = ctx.store.wizardId;
   /** The wizard's pages as this run sees them: a test run's own writes over the real ones. */
   const pages = async (): Promise<{ title: string; markdown: string }[]> => {
-    const real = await runPages(projectId, wizardId);
+    const real = await runPages(spaceId, wizardId);
     const copy = ctx.test ? (ctx.state.memory ?? {}) : {};
     const lower = (t: string) => t.toLowerCase();
     const written = Object.entries(copy).map(([title, markdown]) => ({ title, markdown }));
@@ -79,7 +79,7 @@ export function pageTools(ctx: StepContext) {
             });
             return { title: before?.title ?? title, chars: markdown.length, test: true };
           }
-          const page = await writeRunPage(projectId, wizardId, input);
+          const page = await writeRunPage(spaceId, wizardId, input);
           await ctx.emit("tool", { code: "writesPage", params: { title: page.title } });
           return page;
         }),

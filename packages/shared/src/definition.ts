@@ -992,7 +992,7 @@ export const connectionSchema = z.object({
   id,
   /** A built-in kind of account … */
   kind: z.enum(CONNECTION_KINDS).optional(),
-  /** … or the id of one of the project's imported connectors. */
+  /** … or the id of one of the space's imported connectors. */
   connector: z.string().optional(),
   /** Imported connectors: the actions steps may call. Default: every action that only reads. */
   actions: z.array(z.string()).max(200).optional(),

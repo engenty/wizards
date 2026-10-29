@@ -102,8 +102,8 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request(url("/api/local/enter?k=test-key")));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
-  const projects = await import("../src/services/projects");
-  spaceId = (await client.withTenant("local", () => projects.defaultProject("local"))).id;
+  const spaces = await import("../src/services/spaces");
+  spaceId = (await client.withTenant("local", () => spaces.defaultSpace("local"))).id;
 }, 60_000);
 
 describe("files in a chat", () => {
@@ -112,7 +112,7 @@ describe("files in a chat", () => {
     const file = await json(upload(id, "karton.png", "image/png", PIXEL));
     expect(file).toMatchObject({ kind: "asset", name: "karton.png", mime: "image/png" });
     const listed = await app.fetch(
-      new Request(url(`/api/studio/projects/${spaceId}/files`), { headers: { cookie } }),
+      new Request(url(`/api/studio/spaces/${spaceId}/files`), { headers: { cookie } }),
     );
     expect((await listed.json()).files.map((f: any) => f.id)).toContain(file.id);
 
@@ -140,7 +140,7 @@ describe("files in a chat", () => {
         fileId: file.id,
         mediaType: "image/png",
         filename: "karton.png",
-        url: `/api/studio/projects/${spaceId}/files/${file.id}/content`,
+        url: `/api/studio/spaces/${spaceId}/files/${file.id}/content`,
       },
     ]);
     expect(JSON.stringify(read.messages[0])).not.toContain(PIXEL.toString("base64"));

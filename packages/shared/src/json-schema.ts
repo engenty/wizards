@@ -71,7 +71,7 @@ export function wizardJsonSchema(): JsonSchema {
   };
 }
 
-/** `wizard.json` in a `.wizard` package: the definition with what it needs from its project. */
+/** `wizard.json` in a `.wizard` package: the definition with what it needs from its space. */
 export function packageJsonSchema(): JsonSchema {
   const manifest = generate(manifestSchema);
   const properties = manifest.properties as Record<string, JsonSchema>;

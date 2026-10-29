@@ -14,7 +14,7 @@ import { textModel } from "../models.js";
 import { prompt } from "../prompts.js";
 import { readSetting } from "../settings.js";
 import { ServiceError } from "./errors.js";
-import { trigramQuery } from "./project-index.js";
+import { trigramQuery } from "./space-index.js";
 
 /**
  * The studio assistant's chats: one open chat per person and tenant, the same on every page and

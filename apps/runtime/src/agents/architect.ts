@@ -12,7 +12,7 @@ import {
   exampleWizard,
   type GuideConnector,
   type GuideTool,
-  projectLines,
+  spaceLines,
 } from "../authoring/guide.js";
 import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
@@ -89,7 +89,7 @@ function systemPrompt(connectors: GuideConnector[], pluginTools: GuideTool[]): s
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
-    project_tools: projectLines(connectors, pluginTools),
+    space_tools: spaceLines(connectors, pluginTools),
     example: exampleWizard(),
     how_you_work: prompt("architect", "how_you_work"),
   })}\n\n${contentPolicy()}`;
@@ -141,7 +141,7 @@ const attempt = <T>(run: () => Promise<T>) => attemptTool(run, { limit: Number.P
 function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wrote: () => void) {
   const { userId, wizardId } = input;
   const signal = input.signal;
-  const projectId = async () => (await ownedWizard(userId, wizardId)).projectId;
+  const spaceId = async () => (await ownedWizard(userId, wizardId)).spaceId;
   const tools: Record<string, any> = {
     find_connectors: createTool({
       id: "find_connectors",
@@ -162,7 +162,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
       }),
       execute: async ({ domain, kind }) =>
         attempt(async () => {
-          const result = await importFromRegistry(userId, await projectId(), { domain, kind });
+          const result = await importFromRegistry(userId, await spaceId(), { domain, kind });
           wrote();
           return result;
         }),
@@ -172,7 +172,7 @@ function buildTools(input: ArchitectInput, resolved: ResolvedModel<unknown>, wro
       description: prompt("mcp", "tool.list_connectors"),
       inputSchema: z.object({}),
       execute: async () =>
-        attempt(async () => ({ connectors: await listConnectors(await projectId()) })),
+        attempt(async () => ({ connectors: await listConnectors(await spaceId()) })),
     }),
     replace_wizard: createTool({
       id: "replace_wizard",

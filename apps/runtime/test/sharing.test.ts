@@ -483,7 +483,7 @@ describe("the editor's preview of a result", () => {
     const email = body.targets[0];
     expect(email.name).toBe("An mich");
     expect(email.fields.find((f) => f.id === "to")?.value).toBe("kundin@example.com");
-    // The project has no name yet: the placeholder comes out empty, and the preview says which.
+    // The space has no name yet: the placeholder comes out empty, and the preview says which.
     expect(email.empty).toEqual(["brand.name"]);
     // Drive has no OAuth client here: nobody gets it.
     expect(body.left.map((l) => l.why)).toEqual(["setup"]);

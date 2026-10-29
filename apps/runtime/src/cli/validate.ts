@@ -10,7 +10,7 @@ import { bad, dim, ok } from "./ui.js";
  * running studio and no account. A path is a `.wizard` package, an unpacked one (its folder or
  * its wizard.json, with the workspace beside it under files/), or a definition on its own.
  *
- * What a project holds — its connectors, MCP servers and plugins — is checked on import.
+ * What a space holds — its connectors, MCP servers and plugins — is checked on import.
  */
 
 interface Checked {

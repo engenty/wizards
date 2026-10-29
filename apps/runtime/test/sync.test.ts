@@ -16,7 +16,7 @@ process.env.PLUGINS_DIR = join(dir, "plugins");
 process.env.PLUGINS_WATCH = "0";
 process.env.PLUGIN_JOBS = "0";
 process.env.FEATURES = "twoWaySync=on,liveChanges=on";
-process.env.LIMIT_PROJECTS = "5";
+process.env.LIMIT_SPACES = "5";
 process.env.MARKETPLACE_URL = "off";
 process.env.AI_GATEWAY_API_KEY = "";
 process.env.OPENAI_API_KEY = "";
@@ -57,7 +57,7 @@ let hub: typeof import("../src/sync/hub");
 let records: typeof import("../src/sync/records");
 let wizards: typeof import("../src/services/wizards");
 let data: typeof import("../src/services/space-data");
-let projects: typeof import("../src/services/projects");
+let spaces: typeof import("../src/services/spaces");
 let categories: typeof import("../src/services/space-categories");
 let origin: typeof import("../src/live/origin");
 
@@ -158,7 +158,7 @@ beforeAll(async () => {
   records = await import("../src/sync/records");
   wizards = await import("../src/services/wizards");
   data = await import("../src/services/space-data");
-  projects = await import("../src/services/projects");
+  spaces = await import("../src/services/spaces");
   categories = await import("../src/services/space-categories");
   origin = await import("../src/live/origin");
   const settings = await import("../src/settings");
@@ -172,10 +172,10 @@ beforeAll(async () => {
   sync.useTransport(inCloud);
   // What the space holds before the sync starts.
   await local(async () => {
-    spaceId = (await projects.defaultProject(USER)).id;
+    spaceId = (await spaces.defaultSpace(USER)).id;
     wizardId = (
       await wizards.createWizard(USER, {
-        projectId: spaceId,
+        spaceId: spaceId,
         definition: definition("Report", [
           { id: "a", title: "A" },
           { id: "b", title: "B" },
@@ -346,9 +346,9 @@ describe("both sides changed the same item", () => {
 
 describe("more of the space", () => {
   it("sends a file with its bytes", async () => {
-    const files = await import("../src/services/project-files");
+    const files = await import("../src/services/space-files");
     const added = await local(() =>
-      files.addProjectFile(spaceId, {
+      files.addSpaceFile(spaceId, {
         kind: "asset",
         name: "data.json",
         mime: "application/json",
@@ -356,7 +356,7 @@ describe("more of the space", () => {
       }),
     );
     await local(() => sync.syncSpace(spaceId, "push"));
-    const there = await cloud(() => files.projectFileContent(spaceId, added.id));
+    const there = await cloud(() => files.spaceFileContent(spaceId, added.id));
     expect(Buffer.from(there.data).toString("utf8")).toBe('{"a":1}');
   });
 
@@ -405,7 +405,7 @@ describe("more of the space", () => {
   it("brings a space made in the cloud to this install, and lists it beside the others", async () => {
     const state = await import("../src/sync/state");
     const made = await cloud(async () => {
-      const { id } = await projects.createProject(USER, "Made in the cloud");
+      const { id } = await spaces.createSpace(USER, "Made in the cloud");
       await data.createPage(USER, id, { title: "Hello from the cloud" });
       return id;
     });
@@ -413,13 +413,13 @@ describe("more of the space", () => {
     const page = await local(async () => {
       const db = client.db;
       return db.query.spacePage.findFirst({
-        where: (p, { eq }) => eq(p.projectId, made),
+        where: (p, { eq }) => eq(p.spaceId, made),
       });
     });
     expect(page?.title).toBe("Hello from the cloud");
     // This install lists as many spaces as the organization allows.
     state.setCloudSpaceLimit(3);
-    expect(await local(() => projects.projectLimit())).toBe(3);
+    expect(await local(() => spaces.spaceLimit())).toBe(3);
   });
 
   it("asks when one side deleted what the other changed, and keeps it when told", async () => {

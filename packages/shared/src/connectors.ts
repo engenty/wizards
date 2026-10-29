@@ -1,4 +1,4 @@
-/** Imported connectors as the studio shows them: a service of a project, with its actions. */
+/** Imported connectors as the studio shows them: a service of a space, with its actions. */
 
 export type ActionGroup = "read" | "write" | "destructive";
 

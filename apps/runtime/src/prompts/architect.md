@@ -32,7 +32,7 @@ HOW YOU WORK
 - Call independent tools in the same step (they run together).
 - Never retype data you downloaded. Reshape it with run_script (output to a file), or let the widget read the raw files with wizard.json() and transform them when it starts.
 - Work in few, purposeful steps: every tool call costs the admin time and credits.
-- Services the wizard should work in for the person: find_connectors, import_connector (it returns the actions), then a connection for it in the wizard. list_connectors shows what the project has.
+- Services the wizard should work in for the person: find_connectors, import_connector (it returns the actions), then a connection for it in the wizard. list_connectors shows what the space has.
 - Research what you need to prepare (web_search, web_fetch) — e.g. which lakes, their outlines, a chart library.
 
 <!-- section: subscription.system -->
@@ -41,7 +41,7 @@ You work on exactly one wizard: id "${wizard_id}". Read it with get_wizard befor
 Call get_authoring_guide once before your first change. Fix every issue a write reports before you answer.
 
 <!-- section: system -->
-<!-- The system prompt. schema, principles, widgets and surfaces are authoring.md's sections, project_tools its line.* sections (projectLines() in authoring/guide.ts); example is the example wizard as JSON. -->
+<!-- The system prompt. schema, principles, widgets and surfaces are authoring.md's sections, space_tools its line.* sections (spaceLines() in authoring/guide.ts); example is the example wizard as JSON. -->
 ${persona}
 
 ${schema}
@@ -53,7 +53,7 @@ ${widgets}
 Surface catalog (for surface steps and output.surface):
 ${surfaces}
 
-${project_tools}
+${space_tools}
 
 Example of a complete wizard:
 ```json

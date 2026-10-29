@@ -80,7 +80,7 @@ export interface TargetField extends Omit<ShareField, "label" | "placeholder" | 
 /** What a target knows about the run it is offered on. */
 export interface TargetScope {
   run: RunRow;
-  projectId: string;
+  spaceId: string;
   lang: ShareLang;
   /** The result's title with the wizard's, as a subject line. */
   title: string;

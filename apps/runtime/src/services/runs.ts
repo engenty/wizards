@@ -615,7 +615,7 @@ export async function draftStepView(
     answer: null,
     shareToken: null,
   };
-  const view = await runView(run, await brandView(w.projectId, def.themes));
+  const view = await runView(run, await brandView(w.spaceId, def.themes));
   // What the latest run said while it worked, and when, is its own: nothing works here.
   return { ...view, events: [] };
 }
@@ -668,7 +668,7 @@ export interface ResultsFilter {
  * The results of a space: its wizards' runs that reached their result, newest first, narrowed by
  * `filter`; and each wizard with how many it has and when its last one came, the latest first.
  */
-export async function listResults(projectId: string, filter: ResultsFilter = {}) {
+export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
   const wizards = await db
     .select({
       id: schema.wizard.id,
@@ -681,7 +681,7 @@ export async function listResults(projectId: string, filter: ResultsFilter = {})
       schema.run,
       and(eq(schema.run.wizardId, schema.wizard.id), eq(schema.run.status, "done")),
     )
-    .where(and(eq(schema.wizard.projectId, projectId), eq(schema.wizard.tenantId, currentTenant())))
+    .where(and(eq(schema.wizard.spaceId, spaceId), eq(schema.wizard.tenantId, currentTenant())))
     .groupBy(schema.wizard.id)
     // Wizards without a result last: SQLite sorts null below every time.
     .orderBy(desc(max(schema.run.updatedAt)), desc(schema.wizard.updatedAt));

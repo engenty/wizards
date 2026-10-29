@@ -7,7 +7,7 @@ description: Build or change an engenty wizard — a page-by-page AI flow that p
 
 You work with the `engenty-wizards` MCP tools. The person you talk to is the ADMIN; the people who later open the wizard's link are END USERS.
 
-1. **Read the guide first.** Call `get_authoring_guide` once per conversation. It holds the JSON schema, the design rules and the project's connected systems. Follow it.
+1. **Read the guide first.** Call `get_authoring_guide` once per conversation. It holds the JSON schema, the design rules and the space's connected systems. Follow it.
 2. **Start from an example.** `list_starters`, then `get_starter` for the closest one. For an existing wizard, use `list_wizards` and `get_wizard`.
 3. **Write it.**
    - Use `create_wizard` with the full definition and a short `note` in the admin's language. The admin sees that note in the studio.

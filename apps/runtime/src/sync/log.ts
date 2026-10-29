@@ -11,7 +11,7 @@ import { db, schema } from "../db/client.js";
 export interface LoggedItem {
   kind: SyncKind;
   item: string;
-  projectId: string;
+  spaceId: string;
   /** The item's last change. */
   seq: number;
 }
@@ -47,17 +47,17 @@ export async function lastSeqs(
 export const seqKey = (kind: string, item: string) => `${kind}|${item}`;
 
 /** The last number of the space's log; 0 when nothing of it changed yet. */
-export async function spaceSeq(projectId: string): Promise<number> {
+export async function spaceSeq(spaceId: string): Promise<number> {
   const [row] = await db
     .select({ seq: max(schema.syncChange.seq) })
     .from(schema.syncChange)
-    .where(eq(schema.syncChange.projectId, projectId));
+    .where(eq(schema.syncChange.spaceId, spaceId));
   return row?.seq ?? 0;
 }
 
 /** The items of a space that changed after `since`, by their last change, oldest first. */
 export async function changedSince(
-  projectId: string,
+  spaceId: string,
   since: number,
   limit: number,
 ): Promise<LoggedItem[]> {
@@ -65,39 +65,37 @@ export async function changedSince(
   const rows = await db
     .select({ kind: schema.syncChange.kind, item: schema.syncChange.item, seq })
     .from(schema.syncChange)
-    .where(and(eq(schema.syncChange.projectId, projectId), gt(schema.syncChange.seq, since)))
+    .where(and(eq(schema.syncChange.spaceId, spaceId), gt(schema.syncChange.seq, since)))
     .groupBy(schema.syncChange.kind, schema.syncChange.item)
     .orderBy(seq)
     .limit(limit);
   return rows.map((r) => ({
     kind: r.kind as SyncKind,
     item: r.item,
-    projectId,
+    spaceId,
     seq: r.seq ?? 0,
   }));
 }
 
 /** Keeps only each item's last change: what a pull or a push needs. */
-export async function compactLog(projectId?: string) {
+export async function compactLog(spaceId?: string) {
   await db.run(
-    projectId
-      ? sql`DELETE FROM sync_change WHERE project_id = ${projectId} AND seq NOT IN (SELECT MAX(seq) FROM sync_change WHERE project_id = ${projectId} GROUP BY kind, item)`
+    spaceId
+      ? sql`DELETE FROM sync_change WHERE space_id = ${spaceId} AND seq NOT IN (SELECT MAX(seq) FROM sync_change WHERE space_id = ${spaceId} GROUP BY kind, item)`
       : sql`DELETE FROM sync_change WHERE seq NOT IN (SELECT MAX(seq) FROM sync_change GROUP BY kind, item)`,
   );
 }
 
 /** Drops what was pushed: changes of the space up to `seq`. */
-export async function dropPushed(projectId: string, seq: number) {
+export async function dropPushed(spaceId: string, seq: number) {
   await db
     .delete(schema.syncChange)
-    .where(
-      and(eq(schema.syncChange.projectId, projectId), sql`${schema.syncChange.seq} <= ${seq}`),
-    );
+    .where(and(eq(schema.syncChange.spaceId, spaceId), sql`${schema.syncChange.seq} <= ${seq}`));
 }
 
 /** Notes an item as changed here, though no write did: a version kept by the person's choice. */
-export async function notePending(projectId: string, kind: SyncKind, item: string) {
-  await db.insert(schema.syncChange).values({ projectId, kind, item });
+export async function notePending(spaceId: string, kind: SyncKind, item: string) {
+  await db.insert(schema.syncChange).values({ spaceId, kind, item });
 }
 
 /** Runs `fn` with the triggers quiet: what it writes is not noted as a change of this side. */

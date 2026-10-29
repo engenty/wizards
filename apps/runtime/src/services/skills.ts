@@ -26,9 +26,9 @@ import { currentFeatures } from "../features.js";
 import { getBlob, putBlob } from "../files/blobs.js";
 import { currentTenant } from "../tenants/tenant.js";
 import type { ServerKey } from "../texts.js";
-import { projectWritable, requireWritableProject } from "./access.js";
+import { requireWritableSpace, spaceWritable } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
-import { ownedProject } from "./projects.js";
+import { ownedSpace } from "./spaces.js";
 
 /**
  * The skills of a space (docs/plans/skills.md): instructions in the Agent Skills format, written
@@ -151,10 +151,10 @@ export function checkContent(c: SkillContent): SkillContent {
   return out;
 }
 
-async function nameTaken(projectId: string, name: string, except?: string): Promise<boolean> {
+async function nameTaken(spaceId: string, name: string, except?: string): Promise<boolean> {
   const row = await db.query.spaceSkill.findFirst({
     where: and(
-      eq(schema.spaceSkill.projectId, projectId),
+      eq(schema.spaceSkill.spaceId, spaceId),
       eq(schema.spaceSkill.name, name),
       ...(except ? [ne(schema.spaceSkill.id, except)] : []),
     ),
@@ -164,14 +164,14 @@ async function nameTaken(projectId: string, name: string, except?: string): Prom
 }
 
 /** A name not yet taken in the space: the name itself, else with `-2`, `-3` … */
-async function freeName(projectId: string, name: string): Promise<string> {
-  if (!(await nameTaken(projectId, name))) {
+async function freeName(spaceId: string, name: string): Promise<string> {
+  if (!(await nameTaken(spaceId, name))) {
     return name;
   }
   for (let n = 2; n < 1000; n++) {
     const suffix = `-${n}`;
     const next = `${name.slice(0, SKILL_LIMITS.name - suffix.length).replace(/-+$/, "")}${suffix}`;
-    if (!(await nameTaken(projectId, next))) {
+    if (!(await nameTaken(spaceId, next))) {
       return next;
     }
   }
@@ -185,7 +185,7 @@ async function freeName(projectId: string, name: string): Promise<string> {
  * is in every AI step of the space.
  */
 export async function checkAlways(
-  projectId: string,
+  spaceId: string,
   id: string | null,
   mode: SkillMode,
   body: string,
@@ -196,7 +196,7 @@ export async function checkAlways(
   const others = await db
     .select({ id: schema.spaceSkill.id, body: schema.spaceSkill.body })
     .from(schema.spaceSkill)
-    .where(and(eq(schema.spaceSkill.projectId, projectId), eq(schema.spaceSkill.mode, "always")));
+    .where(and(eq(schema.spaceSkill.spaceId, spaceId), eq(schema.spaceSkill.mode, "always")));
   const rest = others.filter((o) => o.id !== id);
   if (rest.length + 1 > SKILL_LIMITS.always) {
     throw refuse("skillsAlwaysCount");
@@ -235,29 +235,29 @@ export async function skillRow(id: string): Promise<SkillRow> {
   return row;
 }
 
-export async function listSkills(userId: string, projectId: string): Promise<SkillsList> {
+export async function listSkills(userId: string, spaceId: string): Promise<SkillsList> {
   await requireSkills();
-  const project = await ownedProject(userId, projectId);
+  const space = await ownedSpace(userId, spaceId);
   const rows = await db.query.spaceSkill.findMany({
-    where: eq(schema.spaceSkill.projectId, project.id),
+    where: eq(schema.spaceSkill.spaceId, space.id),
     orderBy: [asc(schema.spaceSkill.name)],
   });
-  return { skills: rows.map(summaryOf), readOnly: !(await projectWritable(project)) };
+  return { skills: rows.map(summaryOf), readOnly: !(await spaceWritable(space)) };
 }
 
 export async function getSkill(userId: string, id: string): Promise<SkillDetail> {
   await requireSkills();
   const row = await skillRow(id);
-  const project = await ownedProject(userId, row.projectId);
+  const space = await ownedSpace(userId, row.spaceId);
   return {
     ...summaryOf(row),
-    projectId: row.projectId,
+    spaceId: row.spaceId,
     body: row.body,
     meta: row.meta,
     fileList: row.files,
     blobList: row.blobFiles,
     originHash: row.originHash,
-    readOnly: !(await projectWritable(project)),
+    readOnly: !(await spaceWritable(space)),
   };
 }
 
@@ -287,7 +287,7 @@ export async function keepBlobs(blobs: Uint8Array[]): Promise<void> {
 
 /** Puts a new skill into the space; its name is the one given, or the next free one. */
 export async function insertSkill(
-  projectId: string,
+  spaceId: string,
   content: SkillContent,
   options: {
     source: SkillSource;
@@ -301,21 +301,21 @@ export async function insertSkill(
   const [{ n }] = await db
     .select({ n: count() })
     .from(schema.spaceSkill)
-    .where(eq(schema.spaceSkill.projectId, projectId));
+    .where(eq(schema.spaceSkill.spaceId, spaceId));
   if (n >= SKILL_LIMITS.perSpace) {
     throw refuse("skillsTooMany");
   }
-  const name = options.rename ? await freeName(projectId, checked.name) : checked.name;
-  if (!options.rename && (await nameTaken(projectId, name))) {
+  const name = options.rename ? await freeName(spaceId, checked.name) : checked.name;
+  if (!options.rename && (await nameTaken(spaceId, name))) {
     throw refuse("skillNameTaken", { name });
   }
   const mode = options.mode ?? "demand";
-  await checkAlways(projectId, null, mode, checked.body);
+  await checkAlways(spaceId, null, mode, checked.body);
   const id = nanoid(12);
   await db.insert(schema.spaceSkill).values({
     id,
     tenantId: currentTenant(),
-    projectId,
+    spaceId,
     name,
     description: checked.description,
     body: checked.body,
@@ -333,14 +333,14 @@ export async function insertSkill(
 /** A skill written in the studio: a name, a description and a first heading. */
 export async function createSkill(
   userId: string,
-  projectId: string,
+  spaceId: string,
   input: { name: string; description: string; body?: string; mode?: SkillMode },
 ) {
   await requireSkills();
-  const project = await ownedProject(userId, projectId);
-  await requireWritableProject(project.id);
+  const space = await ownedSpace(userId, spaceId);
+  await requireWritableSpace(space.id);
   return insertSkill(
-    project.id,
+    space.id,
     {
       name: input.name,
       description: input.description,
@@ -372,8 +372,8 @@ export interface SkillPatch {
 export async function updateSkill(userId: string, id: string, patch: SkillPatch) {
   await requireSkills();
   const row = await skillRow(id);
-  await ownedProject(userId, row.projectId);
-  await requireWritableProject(row.projectId);
+  await ownedSpace(userId, row.spaceId);
+  await requireWritableSpace(row.spaceId);
   const content = { ...patch };
   if (patch.skillMd !== undefined) {
     Object.assign(content, readSkillMd(patch.skillMd));
@@ -392,11 +392,11 @@ export async function updateSkill(userId: string, id: string, patch: SkillPatch)
     files: content.files ?? row.files,
     blobFiles: row.blobFiles,
   });
-  if (next.name !== row.name && (await nameTaken(row.projectId, next.name, row.id))) {
+  if (next.name !== row.name && (await nameTaken(row.spaceId, next.name, row.id))) {
     throw refuse("skillNameTaken", { name: next.name });
   }
   const mode = patch.mode ?? row.mode;
-  await checkAlways(row.projectId, row.id, mode, next.body);
+  await checkAlways(row.spaceId, row.id, mode, next.body);
   await db
     .update(schema.spaceSkill)
     .set({ ...next, mode, runScripts: patch.runScripts ?? row.runScripts, updatedAt: new Date() })
@@ -407,8 +407,8 @@ export async function updateSkill(userId: string, id: string, patch: SkillPatch)
 export async function deleteSkill(userId: string, id: string) {
   await requireSkills();
   const row = await skillRow(id);
-  await ownedProject(userId, row.projectId);
-  await requireWritableProject(row.projectId);
+  await ownedSpace(userId, row.spaceId);
+  await requireWritableSpace(row.spaceId);
   await db.delete(schema.spaceSkill).where(eq(schema.spaceSkill.id, row.id));
 }
 
@@ -419,10 +419,10 @@ export async function deleteSkill(userId: string, id: string) {
 export async function copySkill(userId: string, id: string) {
   await requireSkills();
   const row = await skillRow(id);
-  await ownedProject(userId, row.projectId);
-  await requireWritableProject(row.projectId);
+  await ownedSpace(userId, row.spaceId);
+  await requireWritableSpace(row.spaceId);
   return insertSkill(
-    row.projectId,
+    row.spaceId,
     {
       name: row.name,
       description: row.description,
@@ -551,12 +551,12 @@ export function unpackSkill(data: Uint8Array) {
 /** An uploaded `SKILL.md`, `.zip` or `.skill`, as a skill of the space. */
 export async function uploadSkill(
   userId: string,
-  projectId: string,
+  spaceId: string,
   file: { name: string; data: Uint8Array },
 ) {
   await requireSkills();
-  const project = await ownedProject(userId, projectId);
-  await requireWritableProject(project.id);
+  const space = await ownedSpace(userId, spaceId);
+  await requireWritableSpace(space.id);
   const lower = file.name.toLowerCase();
   let read: SkillIntake;
   if (lower.endsWith(".zip") || lower.endsWith(".skill")) {
@@ -571,7 +571,7 @@ export async function uploadSkill(
     throw refuse("skillUploadKind");
   }
   await keepBlobs(read.blobs);
-  const made = await insertSkill(project.id, read.content, { source: "upload", rename: true });
+  const made = await insertSkill(space.id, read.content, { source: "upload", rename: true });
   return { ...made, skipped: read.skipped };
 }
 
@@ -579,7 +579,7 @@ export async function uploadSkill(
 export async function skillZip(userId: string, id: string) {
   await requireSkills();
   const row = await skillRow(id);
-  await ownedProject(userId, row.projectId);
+  await ownedSpace(userId, row.spaceId);
   const enc = new TextEncoder();
   const files: Record<string, Uint8Array> = {
     [`${row.name}/SKILL.md`]: enc.encode(skillMd(row)),
@@ -596,7 +596,7 @@ export async function skillZip(userId: string, id: string) {
 // --- for steps and Goose ----------------------------------------------------------------------
 
 /** Every skill of the space, off ones too, by name: what Goose is told the space has. */
-export async function skillList(projectId: string) {
+export async function skillList(spaceId: string) {
   return db
     .select({
       name: schema.spaceSkill.name,
@@ -604,12 +604,12 @@ export async function skillList(projectId: string) {
       mode: schema.spaceSkill.mode,
     })
     .from(schema.spaceSkill)
-    .where(eq(schema.spaceSkill.projectId, projectId))
+    .where(eq(schema.spaceSkill.spaceId, spaceId))
     .orderBy(asc(schema.spaceSkill.name));
 }
 
 /** The space's skills that count, by mode: none while the switch is off. */
-export async function activeSkills(projectId: string): Promise<{
+export async function activeSkills(spaceId: string): Promise<{
   always: SkillRow[];
   demand: SkillRow[];
 }> {
@@ -617,7 +617,7 @@ export async function activeSkills(projectId: string): Promise<{
     return { always: [], demand: [] };
   }
   const rows = await db.query.spaceSkill.findMany({
-    where: and(eq(schema.spaceSkill.projectId, projectId), ne(schema.spaceSkill.mode, "off")),
+    where: and(eq(schema.spaceSkill.spaceId, spaceId), ne(schema.spaceSkill.mode, "off")),
     orderBy: [asc(schema.spaceSkill.name)],
   });
   return {

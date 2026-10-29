@@ -15,7 +15,7 @@ const jwk = { ...(await exportJWK(publicKey)), kid: "k1", alg: "ES256", use: "si
 
 const RUNTIME = "http://localhost:5181";
 const SERVICE_KEY = "wzr_test_service_key";
-const LIMITS: Record<string, { concurrentRuns: number; projects: number; build: boolean }> = {
+const LIMITS: Record<string, { concurrentRuns: number; spaces: number; build: boolean }> = {
   org: { concurrentRuns: 2, projects: 3, build: true },
   viewer: { concurrentRuns: 2, projects: 1, build: false },
 };
@@ -137,7 +137,7 @@ describe("the cloud's sync calls", () => {
   it("names the schema and the spaces", async () => {
     const res = await v1("GET", "/sync", owner);
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ tenantId: "org", schema: schemaTag, role: "owner", limits: { projects: 3 } });
+    expect(res.body).toMatchObject({ tenantId: "org", schema: schemaTag, role: "owner", limits: { spaces: 3 } });
   });
 
   it("takes a new space with a wizard from its owner, and hands it out from 0", async () => {
@@ -149,7 +149,7 @@ describe("the cloud's sync calls", () => {
           kind: "wizard",
           item: WIZARD,
           base: 0,
-          record: { projectId: SPACE, title: "From the install", draft: definition, shareEnabled: true, translate: true, files: [] },
+          record: { spaceId: SPACE, title: "From the install", draft: definition, shareEnabled: true, translate: true, files: [] },
         },
       ],
     });
@@ -163,7 +163,7 @@ describe("the cloud's sync calls", () => {
   it("answers a change made on an older version with the cloud's", async () => {
     const pulled = await v1("GET", `/sync/spaces/${SPACE}/changes?since=0`, owner);
     const seq = pulled.body.changes.find((c: any) => c.kind === "wizard").seq;
-    const record = { projectId: SPACE, title: "Renamed", draft: { ...definition, title: "Renamed" }, shareEnabled: true, translate: true, files: [] };
+    const record = { spaceId: SPACE, title: "Renamed", draft: { ...definition, title: "Renamed" }, shareEnabled: true, translate: true, files: [] };
     expect((await v1("POST", `/sync/spaces/${SPACE}/changes`, owner, { schema: schemaTag, items: [{ kind: "wizard", item: WIZARD, base: seq, record }] })).body.results[0].status).toBe("taken");
     const stale = await v1("POST", `/sync/spaces/${SPACE}/changes`, owner, {
       schema: schemaTag,
@@ -176,7 +176,7 @@ describe("the cloud's sync calls", () => {
     const made = await v1("POST", `/sync/spaces/${SPACE}/changes`, member, {
       schema: schemaTag,
       items: [
-        { kind: "wizard", item: "wizardOfAMember", base: 0, record: { projectId: SPACE, title: "Mine", draft: definition, files: [] } },
+        { kind: "wizard", item: "wizardOfAMember", base: 0, record: { spaceId: SPACE, title: "Mine", draft: definition, files: [] } },
         { kind: "space", item: SPACE, base: 999_999, record: { name: "Renamed by a member" } },
       ],
     });

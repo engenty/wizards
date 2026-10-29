@@ -197,7 +197,7 @@ export interface SkillsList {
 
 /** A skill opened: its instructions, the rest of its front matter and its files. */
 export interface SkillDetail extends SkillSummary {
-  projectId: string;
+  spaceId: string;
   body: string;
   /** Front matter beside `name` and `description`, kept as it came (`license`, `metadata` …). */
   meta: Record<string, unknown>;

@@ -3,7 +3,7 @@ import type {
   AssistantLayout,
   AssistantPrompt,
 } from "@engenty/wizards-shared/assistant";
-import type { ProjectFileKind } from "@engenty/wizards-shared/projects";
+import type { SpaceFileKind } from "@engenty/wizards-shared/spaces";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createContext,
@@ -19,7 +19,7 @@ import { useNavigate } from "react-router";
 import { api, postStream } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { useCurrentProject, useMe } from "../../lib/session";
+import { useCurrentSpace, useMe } from "../../lib/session";
 import { useStudioPlugins } from "../../plugins/host";
 import type { Chat, ChatCard, ChatMessage, ChatToolCall } from "../editor/ChatPanel";
 import { previewsOf } from "../editor/ChatPanel";
@@ -82,7 +82,7 @@ const asMessage = (m: StoredMessage): ChatMessage => ({
 });
 
 /** Where a file given to the assistant goes: pictures and clips are assets, the rest documents. */
-function kindOf(file: File): ProjectFileKind {
+function kindOf(file: File): SpaceFileKind {
   if (file.type.startsWith("image/") && /logo/i.test(file.name)) {
     return "logo";
   }
@@ -158,7 +158,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const me = useMe();
   const signedIn = Boolean(me.data);
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   const navigate = useNavigate();
   const routes = useRoutes();
   useEffect(() => {
@@ -242,14 +242,14 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     refreshing.current ??= (async () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: keys.spaces() }),
-        project ? qc.invalidateQueries({ queryKey: keys.files(project.id) }) : null,
-        project ? qc.invalidateQueries({ queryKey: keys.knowledge(project.id) }) : null,
+        space ? qc.invalidateQueries({ queryKey: keys.files(space.id) }) : null,
+        space ? qc.invalidateQueries({ queryKey: keys.knowledge(space.id) }) : null,
       ]);
       pageChanged();
       refreshing.current = null;
     })();
     return refreshing.current;
-  }, [qc, project]);
+  }, [qc, space]);
 
   // What waits, readable at once by the turn that ends; the state draws it.
   const waiting = useRef<PendingMessage[]>([]);
@@ -294,13 +294,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       if (!files.length) {
         return text;
       }
-      if (!project || project.readOnly) {
+      if (!space || space.readOnly) {
         setError(t("assistant.filesNeedSpace"));
         return null;
       }
       try {
         for (const file of files) {
-          await api.upload(`/api/studio/projects/${project.id}/files?kind=${kindOf(file)}`, file);
+          await api.upload(`/api/studio/spaces/${space.id}/files?kind=${kindOf(file)}`, file);
         }
       } catch (err) {
         setError((err as Error).message);
@@ -311,7 +311,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       const named = `${t("editor.attached")}: ${files.map((f) => f.name).join(", ")}`;
       return text.trim() ? `${text}\n\n${named}` : named;
     },
-    [project, refresh],
+    [space, refresh],
   );
 
   const runTurn = useCallback(
@@ -367,7 +367,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           "/api/studio/assistant/turn",
           {
             message: text,
-            projectId: project?.id,
+            spaceId: space?.id,
             page: pageSnapshot(),
             tools: browserTools(),
             lang,
@@ -533,7 +533,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         startNext.current(next);
       }
     },
-    [project, refresh, qc, postSignals, setPending],
+    [space, refresh, qc, postSignals, setPending],
   );
   startNext.current = (text) => void runTurn(text);
 

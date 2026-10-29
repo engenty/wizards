@@ -22,7 +22,7 @@ const row = (id: string, name: string, at: string) => ({
 const table = (rows: ReturnType<typeof row>[]): SpaceTable =>
   ({
     id: "t1",
-    projectId: "s1",
+    spaceId: "s1",
     wizardId: null,
     list: false,
     title: "Leads",
@@ -36,7 +36,7 @@ const table = (rows: ReturnType<typeof row>[]): SpaceTable =>
 const card = (id: string, revision: number, title = "Report") =>
   ({
     id,
-    projectId: "s1",
+    spaceId: "s1",
     title,
     revision,
     updatedAt: "2026-10-22T00:00:00.000Z",
@@ -59,7 +59,7 @@ describe("the patcher", () => {
       kind: "row",
       op: "put",
       item: `r${i}`,
-      projectId: "s1",
+      spaceId: "s1",
       parent: "t1",
       view: { ...row(`r${i}`, `Lead ${i}`, "2026-10-22T10:00:00.000Z"), tableId: "t1" },
     }));
@@ -68,7 +68,7 @@ describe("the patcher", () => {
     expect(rows).toHaveLength(200);
     expect(rows[199]).toEqual(row("r199", "Lead 199", "2026-10-22T10:00:00.000Z"));
     expect(fetches).toHaveBeenCalledTimes(1);
-    await apply([{ kind: "row", op: "del", item: "r0", projectId: "s1", parent: "t1" }]);
+    await apply([{ kind: "row", op: "del", item: "r0", spaceId: "s1", parent: "t1" }]);
     expect(qc.getQueryData<SpaceTable>(keys.table("t1"))?.rows).toHaveLength(199);
   });
 
@@ -83,7 +83,7 @@ describe("the patcher", () => {
           kind: "row",
           op: "put",
           item: "r1",
-          projectId: "s1",
+          spaceId: "s1",
           parent: "t1",
           view: { ...row("r1", "Old", at), tableId: "t1" },
         },
@@ -114,7 +114,7 @@ describe("the patcher", () => {
         kind: "row",
         op: "put",
         item: "r1",
-        projectId: "s1",
+        spaceId: "s1",
         parent: "t1",
         view: { ...row("r1", "New", "2026-10-22T10:00:05.000Z"), tableId: "t1" },
       },
@@ -135,7 +135,7 @@ describe("the patcher", () => {
         kind: "wizard",
         op: "put",
         item: "w2",
-        projectId: "s1",
+        spaceId: "s1",
         parent: null,
         view: { summary: card("w2", 1, "Offer"), detail: card("w2", 1, "Offer") },
       },
@@ -143,7 +143,7 @@ describe("the patcher", () => {
         kind: "wizard",
         op: "put",
         item: "w1",
-        projectId: "s1",
+        spaceId: "s1",
         parent: null,
         view: { summary: card("w1", 2, "Report, renamed"), detail: card("w1", 2) },
       },
@@ -163,7 +163,7 @@ describe("the patcher", () => {
     const qc = fresh();
     const page = {
       id: "p1",
-      projectId: "s1",
+      spaceId: "s1",
       title: "About",
       markdown: "Mine",
       updatedAt: "2026-10-22T10:00:00.000Z",
@@ -176,7 +176,7 @@ describe("the patcher", () => {
         kind: "page",
         op: "put",
         item: "p1",
-        projectId: "s1",
+        spaceId: "s1",
         parent: null,
         view: { ...page, markdown: "Theirs", updatedAt: "2026-10-22T10:00:09.000Z" },
       },
@@ -201,9 +201,9 @@ describe("the patcher", () => {
     ]);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const apply = createPatcher(qc);
-    await apply([{ kind: "page", op: "put", item: "p9", projectId: "s1", parent: null }]);
+    await apply([{ kind: "page", op: "put", item: "p9", spaceId: "s1", parent: null }]);
     await apply([
-      { kind: "connector", op: "put", item: "s1:c1", projectId: "s1", parent: null, view: {} },
+      { kind: "connector", op: "put", item: "s1:c1", spaceId: "s1", parent: null, view: {} },
     ]);
     await tick(200);
     const fetched = spy.mock.calls.map(([f]) => JSON.stringify(f?.queryKey));

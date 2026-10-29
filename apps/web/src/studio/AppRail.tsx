@@ -44,7 +44,7 @@ import {
 } from "../lib/appbar";
 import { type Key, t } from "../lib/i18n";
 import { useMode } from "../lib/mode";
-import { type Me, useCurrentProject, useMayCreate } from "../lib/session";
+import { type Me, useCurrentSpace, useMayCreate } from "../lib/session";
 import { setTheme, type ThemeMode, useThemePick } from "../lib/theme";
 import { PluginFrame, useStudioPlugins } from "../plugins/host";
 import { cn } from "../ui";
@@ -91,14 +91,14 @@ function Label({ children }: { children: string }) {
  * bar that names its places, the space's name stands beside it.
  */
 export function SpaceTile({ me, labels }: { me: Me; labels?: boolean }) {
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   const one = useOneSpace(me);
   const name = one ? (me.tenant.name ?? undefined) : undefined;
   return (
     <SpaceMenu
       me={me}
       placement="bar-start"
-      label={project?.name ?? t("nav.space")}
+      label={space?.name ?? t("nav.space")}
       className={(open) =>
         labels
           ? cn(
@@ -112,11 +112,11 @@ export function SpaceTile({ me, labels }: { me: Me; labels?: boolean }) {
       }
     >
       {/* One space: the tile stands for the organization. */}
-      <SpaceFace project={project} name={name} />
+      <SpaceFace space={space} name={name} />
       {labels ? (
         <>
           <span className="min-w-0 flex-1 truncate font-semibold text-[0.875rem] text-ink">
-            {name ?? project?.name ?? t("nav.space")}
+            {name ?? space?.name ?? t("nav.space")}
           </span>
           {one ? null : <ChevronsUpDown className="size-4 shrink-0 text-ink-4" />}
         </>
@@ -571,11 +571,11 @@ export function PhoneBar({ me }: { me: Me }) {
   const ref = useRef<HTMLElement>(null);
   const named = useCurrentPrimaryAction();
   const mayCreate = useMayCreate();
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   // The round button: what the page names, else a new wizard (not where one is being made).
   const action: PrimaryAction | null =
     named ??
-    (mayCreate && !project?.readOnly && place !== "new"
+    (mayCreate && !space?.readOnly && place !== "new"
       ? { icon: Plus, label: t("home.new"), run: () => navigate("/new") }
       : null);
   useDismiss(ref, open, () => setOpen(false));

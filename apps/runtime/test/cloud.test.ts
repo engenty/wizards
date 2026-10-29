@@ -108,7 +108,7 @@ process.env.PLUGINS_WATCH = "0";
 let client: typeof import("../src/db/client");
 let wizards: typeof import("../src/services/wizards");
 let files: typeof import("../src/services/files");
-let projects: typeof import("../src/services/projects");
+let spaces: typeof import("../src/services/spaces");
 let sync: typeof import("../src/services/cloud");
 
 const USER = "local";
@@ -140,21 +140,21 @@ async function link() {
 const sent = (method: string) => seen.filter((s) => s.method === method && s.path.includes("/wizards/"));
 
 let wizardId = "";
-let projectId = "";
+let spaceId = "";
 
 beforeAll(async () => {
   client = await import("../src/db/client");
   await client.migrateControlDb();
   wizards = await import("../src/services/wizards");
   files = await import("../src/services/files");
-  projects = await import("../src/services/projects");
+  spaces = await import("../src/services/spaces");
   sync = await import("../src/services/cloud");
   await local(async () => {
     wizardId = (await wizards.createWizard(USER, { definition: definition("Angebot") })).id;
     await files.writeFile(USER, wizardId, "prices.csv", "a;1\n");
-    const project = await projects.defaultProject(USER);
-    projectId = project.id;
-    await projects.updateProject(USER, projectId, { brand: { name: "Tischlerei Holz" } });
+    const space = await spaces.defaultSpace(USER);
+    spaceId = space.id;
+    await spaces.updateSpace(USER, spaceId, { brand: { name: "Tischlerei Holz" } });
   });
 }, 60_000);
 
@@ -200,8 +200,8 @@ describe("a runtime that runs alone and the cloud of its account", () => {
       error: null,
     });
     const [put] = sent("PUT");
-    // Under the ids the wizard and its project have here, as the account's person.
-    expect(put.path).toBe(`/api/v1/spaces/${projectId}/wizards/${wizardId}`);
+    // Under the ids the wizard and its space have here, as the account's person.
+    expect(put.path).toBe(`/api/v1/spaces/${spaceId}/wizards/${wizardId}`);
     expect(put.authorization).toMatch(/^Bearer e30\./);
     expect(put.body).toMatchObject({
       space: { name: "My computer", brand: { name: "Tischlerei Holz" }, facts: [], logo: null },
@@ -233,7 +233,7 @@ describe("a runtime that runs alone and the cloud of its account", () => {
       await sync.pushSharing(USER, wizardId);
     });
     expect(sent("PATCH").at(-1)).toMatchObject({
-      path: `/api/v1/spaces/${projectId}/wizards/${wizardId}`,
+      path: `/api/v1/spaces/${spaceId}/wizards/${wizardId}`,
       body: { shareEnabled: false, dailyRunLimit: 9 },
     });
   });
@@ -241,7 +241,7 @@ describe("a runtime that runs alone and the cloud of its account", () => {
   it("gives the copy a new link when one is made here", async () => {
     const state = await local(() => sync.rotateInCloud(USER, wizardId));
     expect(sent("POST").at(-1)).toMatchObject({
-      path: `/api/v1/spaces/${projectId}/wizards/${wizardId}/rotate-link`,
+      path: `/api/v1/spaces/${spaceId}/wizards/${wizardId}/rotate-link`,
     });
     expect(state?.copy).toMatchObject({ shareUrl: `${origin}/w/cloudtoken00002`, code: "K7WM4TQ9" });
     expect((await local(() => sync.cloudState(wizardId))).copy?.shareUrl).toBe(
@@ -292,15 +292,15 @@ describe("a runtime that runs alone and the cloud of its account", () => {
     });
     await local(() => sync.retryFailedSends(USER));
     expect(seen.slice(before).map((s) => `${s.method} ${s.path}`)).toEqual([
-      `PUT /api/v1/spaces/${projectId}/wizards/${wizardId}`,
+      `PUT /api/v1/spaces/${spaceId}/wizards/${wizardId}`,
     ]);
     expect(await sync.cloudState(wizardId)).toMatchObject({ copy: { version: 3 }, error: null });
   });
 
-  it("makes room by removing another install's project, then sends everything", async () => {
+  it("makes room by removing another install's space, then sends everything", async () => {
     cloudSpaces.push(
       { id: "old-space", name: "Alter Rechner", syncedAt: null, wizards: [] },
-      { id: projectId, name: "Meine Wizards", syncedAt: null, wizards: [] },
+      { id: spaceId, name: "Meine Wizards", syncedAt: null, wizards: [] },
     );
     const before = seen.length;
     const result = await local(() => sync.replaceCloudSpaces(USER));
@@ -308,11 +308,11 @@ describe("a runtime that runs alone and the cloud of its account", () => {
     const calls = seen.slice(before).map((s) => `${s.method} ${s.path}`);
     expect(calls).toEqual([
       "GET /api/v1/spaces",
-      // Only the other install's project goes.
+      // Only the other install's space goes.
       "DELETE /api/v1/spaces/old-space",
-      `PUT /api/v1/spaces/${projectId}/wizards/${wizardId}`,
+      `PUT /api/v1/spaces/${spaceId}/wizards/${wizardId}`,
       // The space's own tables and pages go again: the cloud's copy of the space is new.
-      `PUT /api/v1/spaces/${projectId}/data`,
+      `PUT /api/v1/spaces/${spaceId}/data`,
     ]);
     expect(await sync.cloudState(wizardId)).toMatchObject({ copy: { version: 3 }, error: null });
   });
@@ -334,7 +334,7 @@ describe("a runtime that runs alone and the cloud of its account", () => {
       await sync.removeFromCloud(USER, wizardId);
       await wizards.deleteWizard(USER, wizardId);
     });
-    expect(sent("DELETE").at(-1)?.path).toBe(`/api/v1/spaces/${projectId}/wizards/${wizardId}`);
+    expect(sent("DELETE").at(-1)?.path).toBe(`/api/v1/spaces/${spaceId}/wizards/${wizardId}`);
     expect(await sync.cloudState(wizardId)).toEqual({ copy: null, error: null });
   });
 

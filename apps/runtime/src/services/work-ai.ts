@@ -12,7 +12,7 @@ import { prompt } from "../prompts.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { assistantToolPlugin, assistantToolRisk, assistantToolsOf } from "../tools/plugin.js";
 import { ClientSteps } from "./client-steps.js";
-import { searchKnowledge } from "./project-index.js";
+import { searchKnowledge } from "./space-index.js";
 import { holdCall } from "./work-approvals.js";
 
 /**

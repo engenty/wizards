@@ -44,7 +44,7 @@ export async function sharedTable(wizardId: string, def: ListDef): Promise<Table
   }
   const wizard = await db.query.wizard.findFirst({
     where: eq(schema.wizard.id, wizardId),
-    columns: { projectId: true, tenantId: true },
+    columns: { spaceId: true, tenantId: true },
   });
   if (!wizard) {
     throw new StoreError("The wizard is gone.");

@@ -14,7 +14,7 @@ import { assistantToolLabels } from "../tools/plugin.js";
 import { type ClientStep, ClientSteps, stepChunk, stepParts } from "./client-steps.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
-import { addProjectFile, fileView, projectFileContent } from "./project-files.js";
+import { addSpaceFile, fileView, spaceFileContent } from "./space-files.js";
 import {
   type LazyTurn,
   lazyTurn,
@@ -91,7 +91,7 @@ export interface FormAnswer {
 
 const listItem = (c: ChatRow): ChatListItem => ({
   id: c.id,
-  spaceId: c.projectId,
+  spaceId: c.spaceId,
   title: c.title,
   sectionId: c.sectionId,
   parentId: c.parentId,
@@ -134,8 +134,8 @@ async function visibleChat(user: SessionUser, id: string): Promise<ChatRow> {
 
 /** A space of the person's tenant. */
 async function spaceOf(user: SessionUser, id: string) {
-  const found = await db.query.project.findFirst({
-    where: and(eq(schema.project.id, id), eq(schema.project.tenantId, user.tenantId)),
+  const found = await db.query.space.findFirst({
+    where: and(eq(schema.space.id, id), eq(schema.space.tenantId, user.tenantId)),
   });
   if (!found) {
     throw new ServiceError("not_found", "space not found");
@@ -151,7 +151,7 @@ async function sectionOf(user: SessionUser, spaceId: string, id: string | null |
     where: and(
       eq(schema.chatSection.id, id),
       eq(schema.chatSection.tenantId, user.tenantId),
-      eq(schema.chatSection.projectId, spaceId),
+      eq(schema.chatSection.spaceId, spaceId),
     ),
   });
   if (!found) {
@@ -172,14 +172,14 @@ async function join(chatId: string, kind: MemberKind, memberId: string) {
 export async function sidebar(user: SessionUser, spaceId: string, query?: string) {
   const space = await spaceOf(user, spaceId);
   const sections = await db.query.chatSection.findMany({
-    where: eq(schema.chatSection.projectId, space),
+    where: eq(schema.chatSection.spaceId, space),
     orderBy: [asc(schema.chatSection.position), asc(schema.chatSection.createdAt)],
   });
   const q = query?.trim();
   const chats = await db.query.chat.findMany({
     where: and(
       visible(user),
-      eq(schema.chat.projectId, space),
+      eq(schema.chat.spaceId, space),
       q ? or(like(schema.chat.title, `%${q}%`), like(schema.chat.lastText, `%${q}%`)) : undefined,
     ),
     orderBy: [desc(schema.chat.updatedAt)],
@@ -221,7 +221,7 @@ export async function chatChangesFor<
     kind: string;
     op: string;
     item: string;
-    projectId: string | null;
+    spaceId: string | null;
     parent: string | null;
   },
 >(user: SessionUser, items: T[]): Promise<T[]> {
@@ -237,7 +237,7 @@ export async function chatChangesFor<
   return items.map((i) =>
     i.kind !== "chat" || i.parent === "section" || ok.has(i.item)
       ? i
-      : { ...i, op: "del", projectId: null, parent: null },
+      : { ...i, op: "del", spaceId: null, parent: null },
   );
 }
 
@@ -275,13 +275,13 @@ export async function createChat(
 ): Promise<ChatListItem> {
   const parent = input.parentId ? await visibleChat(user, input.parentId) : null;
   // A sub-thread is in its parent's space and section, and as private.
-  const space = parent ? parent.projectId : await spaceOf(user, input.spaceId ?? "");
+  const space = parent ? parent.spaceId : await spaceOf(user, input.spaceId ?? "");
   const [row] = await db
     .insert(schema.chat)
     .values({
       id: nanoid(12),
       tenantId: user.tenantId,
-      projectId: space,
+      spaceId: space,
       title: input.title?.trim() ?? "",
       sectionId: parent ? parent.sectionId : await sectionOf(user, space, input.sectionId),
       parentId: parent?.id ?? null,
@@ -306,7 +306,7 @@ export async function updateChat(
     .set({
       ...(patch.title !== undefined ? { title: patch.title.trim() } : {}),
       ...(patch.sectionId !== undefined
-        ? { sectionId: await sectionOf(user, chat.projectId, patch.sectionId) }
+        ? { sectionId: await sectionOf(user, chat.spaceId, patch.sectionId) }
         : {}),
       ...(patch.private !== undefined ? { private: patch.private } : {}),
     })
@@ -399,7 +399,7 @@ export async function readChat(user: SessionUser, id: string) {
       where: eq(schema.chatMember.chatId, chat.id),
       orderBy: [asc(schema.chatMember.joinedAt)],
     }),
-    memory.recall({ threadId: chat.id, resourceId: chat.projectId, perPage: false }),
+    memory.recall({ threadId: chat.id, resourceId: chat.spaceId, perPage: false }),
     db.query.chat.findMany({
       where: and(eq(schema.chat.parentId, chat.id), visible(user)),
       orderBy: [desc(schema.chat.updatedAt)],
@@ -417,7 +417,7 @@ export async function readChat(user: SessionUser, id: string) {
       }),
     ),
     messages: (recalled.messages as unknown as StoredMessage[]).map((m) =>
-      messageView(chat.projectId, m),
+      messageView(chat.spaceId, m),
     ),
     threads: threads.map(listItem),
     approvals: await approvalsOf(chat.id),
@@ -452,7 +452,7 @@ export async function attachFile(
   file: { name: string; mime: string; data: Uint8Array },
 ) {
   const chat = await visibleChat(user, id);
-  const row = await addProjectFile(chat.projectId, { ...file, kind: fileKind(file.mime) });
+  const row = await addSpaceFile(chat.spaceId, { ...file, kind: fileKind(file.mime) });
   return fileView(row);
 }
 
@@ -464,7 +464,7 @@ export async function seeChat(user: SessionUser, id: string): Promise<void> {
 /** A file of the chat's space, for the chat's views and their Fields (`/chats/:id/assets/:file`). */
 export async function chatFileContent(user: SessionUser, id: string, fileId: string) {
   const chat = await visibleChat(user, id);
-  return projectFileContent(chat.projectId, fileId);
+  return spaceFileContent(chat.spaceId, fileId);
 }
 
 /** What became of a message: kept, queued, or a turn (new, or the running one it went into). */
@@ -491,14 +491,14 @@ export async function sendMessage(
   } = {},
 ): Promise<Sent> {
   const chat = await visibleChat(user, id);
-  const named = await chatFiles(chat.projectId, options.files ?? []);
+  const named = await chatFiles(chat.spaceId, options.files ?? []);
   if (!text && !named.length) {
     throw new ServiceError("invalid", "empty message");
   }
   await join(chat.id, "person", user.id);
   const name = (await userProfile(user)).name;
   const { agent } = await workMastra();
-  const { contents, files } = await messageContents(chat.projectId, text, named);
+  const { contents, files } = await messageContents(chat.spaceId, text, named);
   const message = {
     contents,
     attributes: { name },
@@ -508,7 +508,7 @@ export async function sendMessage(
       ...(options.form ? { form: options.form } : {}),
     },
   };
-  const target = { resourceId: chat.projectId, threadId: chat.id };
+  const target = { resourceId: chat.spaceId, threadId: chat.id };
   if (options.ask && !(await canSpend())) {
     throw new ServiceError("no_credits", note("creditsUsedUp"));
   }
@@ -550,7 +550,7 @@ export async function sendMessage(
         attributes: { name },
         contents: (
           await messageContents(
-            chat.projectId,
+            chat.spaceId,
             `${text}\n\n(The request before this one still stands.)`.trim(),
             named,
           )
@@ -568,10 +568,10 @@ export async function sendMessage(
  * input taken into a running turn builds nothing, and a queued one's 20 minutes start with it.
  */
 async function turnFor(chat: ChatRow, userId: string, choice: TurnChoice = {}) {
-  const space = await db.query.project.findFirst({ where: eq(schema.project.id, chat.projectId) });
+  const space = await db.query.space.findFirst({ where: eq(schema.space.id, chat.spaceId) });
   const turn = lazyTurn(
     {
-      space: { id: chat.projectId, name: space?.name ?? "" },
+      space: { id: chat.spaceId, name: space?.name ?? "" },
       chatId: chat.id,
       userId,
     },
@@ -660,7 +660,7 @@ async function startWatching(chat: ChatRow): Promise<Watcher> {
   // With the runs' status: a run ends when Mastra says so, not at its `finish` chunk (a message
   // delivered just then goes on in the same run).
   const subscription = await agent.subscribeToThread({
-    resourceId: chat.projectId,
+    resourceId: chat.spaceId,
     threadId: chat.id,
     withRunStatus: true,
   });
@@ -855,7 +855,7 @@ async function devPrompt(chat: ChatRow, turn: WorkTurn) {
   const { memory } = await workMastra();
   const { messages } = await memory.recall({
     threadId: chat.id,
-    resourceId: chat.projectId,
+    resourceId: chat.spaceId,
     perPage: LAST_MESSAGES,
   });
   const chars = (m: { content?: { parts?: unknown[] } }) =>
@@ -930,7 +930,7 @@ async function settled(chat: ChatRow) {
     return;
   }
   const { agent } = await workMastra();
-  const target = { resourceId: chat.projectId, threadId: chat.id };
+  const target = { resourceId: chat.spaceId, threadId: chat.id };
   for (let waited = 0; agent.getActiveThreadRunId(target) && waited < 2000; waited += 20) {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
@@ -956,7 +956,7 @@ async function afterTurn(chat: ChatRow, reply: string, steps: ClientStep[]) {
     const { memory } = await workMastra();
     const { messages } = await memory.recall({
       threadId: chat.id,
-      resourceId: chat.projectId,
+      resourceId: chat.spaceId,
       perPage: false,
     });
     const answer = [...messages].reverse().find((m) => m.role === "assistant");
@@ -968,7 +968,7 @@ async function afterTurn(chat: ChatRow, reply: string, steps: ClientStep[]) {
           id: nanoid(14),
           role: "assistant",
           threadId: chat.id,
-          resourceId: chat.projectId,
+          resourceId: chat.spaceId,
           createdAt: at,
           content: { format: 2, parts: stepParts(steps) },
         } as never,
@@ -997,11 +997,11 @@ export async function decideApproval(
   const { turn, streamOptions } = await turnFor(chat, taken.askedBy);
   let told: string;
   if (approve) {
-    const space = await db.query.project.findFirst({
-      where: eq(schema.project.id, chat.projectId),
+    const space = await db.query.space.findFirst({
+      where: eq(schema.space.id, chat.spaceId),
     });
     const tool = await toolToRun(
-      { id: chat.projectId, name: space?.name ?? "" },
+      { id: chat.spaceId, name: space?.name ?? "" },
       taken.askedBy,
       taken.toolName,
       turn.signal,
@@ -1036,7 +1036,7 @@ export async function decideApproval(
     told = `${name} denied ${taken.toolName} (approval ${taken.id}); it did not run.`;
   }
   const { agent } = await workMastra();
-  const target = { resourceId: chat.projectId, threadId: chat.id };
+  const target = { resourceId: chat.spaceId, threadId: chat.id };
   return deliverOrWake(chat, turn, streamOptions, (ifIdle) =>
     agent.sendSignal(
       { type: "reactive", tagName: "approval", contents: told },
@@ -1059,7 +1059,7 @@ export async function stopTurn(user: SessionUser, id: string) {
   const chat = await visibleChat(user, id);
   const { agent } = await workMastra();
   return agent.abortThreadStream({
-    resourceId: chat.projectId,
+    resourceId: chat.spaceId,
     threadId: chat.id,
     clearPendingSignals: true,
   });
@@ -1102,13 +1102,13 @@ export async function createSection(user: SessionUser, spaceId: string, name: st
   const [last] = await db
     .select({ position: max(schema.chatSection.position) })
     .from(schema.chatSection)
-    .where(eq(schema.chatSection.projectId, space));
+    .where(eq(schema.chatSection.spaceId, space));
   const [row] = await db
     .insert(schema.chatSection)
     .values({
       id: nanoid(12),
       tenantId: user.tenantId,
-      projectId: space,
+      spaceId: space,
       name: name.trim(),
       position: (last?.position ?? -1) + 1,
       createdBy: user.id,
@@ -1140,7 +1140,7 @@ export async function renameSection(user: SessionUser, id: string, name: string)
 export async function moveSection(user: SessionUser, id: string, direction: "up" | "down") {
   const section = await ownSection(user, id);
   const all = await db.query.chatSection.findMany({
-    where: eq(schema.chatSection.projectId, section.projectId),
+    where: eq(schema.chatSection.spaceId, section.spaceId),
     orderBy: [asc(schema.chatSection.position), asc(schema.chatSection.createdAt)],
   });
   const at = all.findIndex((sec) => sec.id === section.id);

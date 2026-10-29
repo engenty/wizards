@@ -3,7 +3,7 @@ export * from "@engenty/wizards-runner/ui";
 // A QR code, as the share dialog draws it: a runner's setup shows one of its number.
 export { QrCode } from "../studio/editor/WizardQr";
 // The space page's pieces, for a plugin's own part of it (`registerSpacePart`).
-export { type SaveState, useAutosave } from "../studio/project/data";
+export { type SaveState, useAutosave } from "../studio/space/data";
 export {
   type AddEntry,
   AddMenu,
@@ -14,7 +14,7 @@ export {
   RuleRows,
   Section,
   useRuleRows,
-} from "../studio/project/Section";
+} from "../studio/space/Section";
 export {
   Composer,
   type ComposerHandle,
