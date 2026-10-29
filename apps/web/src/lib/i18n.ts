@@ -1453,6 +1453,9 @@ const de: Record<Key, Line> = {
   "files.delete": "Löschen",
   "files.confirmDelete": "„{path}“ löschen?",
   "files.none": "Dieser Wizard hat keine Dateien.",
+  "files.noPreview": "Diese Datei lässt sich hier nicht zeigen.",
+  "files.previous": "Vorige Datei",
+  "files.next": "Nächste Datei",
   "editor.thinking": "Denkt nach …",
   "editor.chatBroken":
     "Die Verbindung ist abgebrochen. Was schon gebaut war, ist gespeichert. Schick die Nachricht noch einmal.",
@@ -4380,6 +4383,9 @@ const en = {
   "files.delete": "Delete",
   "files.confirmDelete": "Delete “{path}”?",
   "files.none": "This wizard has no files.",
+  "files.noPreview": "This file can't be shown here.",
+  "files.previous": "Previous file",
+  "files.next": "Next file",
   "editor.thinking": "Thinking…",
   "editor.chatBroken":
     "The connection dropped. What was already built is saved. Send your message again.",

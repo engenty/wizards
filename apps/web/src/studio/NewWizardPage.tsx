@@ -3,7 +3,7 @@ import type { MarketplaceEntry } from "@engenty/wizards-shared/marketplace";
 import { isSentence, searchTerms } from "@engenty/wizards-shared/marketplace-search";
 import type { RunnerInfo } from "@engenty/wizards-shared/runners";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Paperclip, Plus, X } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { Mascot } from "../brand";
@@ -20,16 +20,8 @@ import {
   type WizardSummary,
 } from "../lib/session";
 import { useDictation, useDictationSettings } from "../lib/speech";
-import {
-  Button,
-  Chip,
-  cn,
-  DictationButton,
-  pastedName,
-  Textarea,
-  Thumb,
-  workspaceFile,
-} from "../ui";
+import { Button, Chip, cn, DictationButton, pastedName, Textarea, workspaceFile } from "../ui";
+import { FilePreview, FileTile } from "../ui/file-preview";
 import { ImportWizard } from "./ImportWizard";
 import {
   EntryDialog,
@@ -68,25 +60,6 @@ async function putFile(wizardId: string, file: File) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? res.statusText);
   }
-}
-
-/** Takes a file off again: in a picture's corner, or at the end of a file's chip. */
-function Detach({ over, onClick }: { over: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label={t("editor.detach")}
-      onClick={onClick}
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full",
-        over
-          ? "-top-1.5 -right-1.5 absolute size-5 bg-ink text-paper shadow-soft coarse:size-7"
-          : "size-5 text-ink-3 hover:bg-paper-3 hover:text-ink coarse:size-7",
-      )}
-    >
-      <X className="size-3" />
-    </button>
-  );
 }
 
 /** The space's own wizards the wish reads like, best first: the gallery's scoring on title and description. */
@@ -250,18 +223,20 @@ export function NewWizardPage() {
     const picked = raw.map(workspaceFile);
     setFiles((all) => [...all.filter((f) => !picked.some((p) => p.name === f.name)), ...picked]);
   };
-  const [thumbs, setThumbs] = useState<Map<File, string>>(new Map());
+  // Each attached file opens from a URL of its own until the wizard is made.
+  const [urls, setUrls] = useState<Map<File, string>>(new Map());
+  const [previewAt, setPreviewAt] = useState<number | null>(null);
   useEffect(() => {
-    const next = new Map(
-      files.filter((f) => f.type.startsWith("image/")).map((f) => [f, URL.createObjectURL(f)]),
-    );
-    setThumbs(next);
+    const next = new Map(files.map((f) => [f, URL.createObjectURL(f)]));
+    setUrls(next);
     return () => {
       for (const url of next.values()) {
         URL.revokeObjectURL(url);
       }
     };
   }, [files]);
+
+  const shown = files.map((f) => ({ name: f.name, mime: f.type, size: f.size, url: urls.get(f) }));
 
   const fromStarter = useMutation({
     mutationFn: (starterId: string) =>
@@ -368,27 +343,18 @@ export function NewWizardPage() {
           }}
         >
           {files.length ? (
-            <div className="flex flex-wrap items-center gap-2 px-2 pt-2 pb-1">
-              {files.map((f, i) => {
-                const url = thumbs.get(f);
-                const drop = () => setFiles((all) => all.filter((_, j) => j !== i));
-                return url ? (
-                  <Thumb key={`${f.name}-${i}`} url={url} label={f.name}>
-                    <Detach over={Boolean(url)} onClick={drop} />
-                  </Thumb>
-                ) : (
-                  <span
-                    key={`${f.name}-${i}`}
-                    className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-paper-2 py-1 pr-1 pl-2.5 text-[0.8125rem] text-ink-2"
-                  >
-                    <Paperclip className="size-3.5 shrink-0 text-ink-4" />
-                    <span className="truncate">{f.name}</span>
-                    <Detach over={Boolean(url)} onClick={drop} />
-                  </span>
-                );
-              })}
-            </div>
+            <ul className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
+              {shown.map((f, i) => (
+                <FileTile
+                  key={`${f.name}-${i}`}
+                  file={f}
+                  onOpen={() => setPreviewAt(i)}
+                  onRemove={() => setFiles((all) => all.filter((_, j) => j !== i))}
+                />
+              ))}
+            </ul>
           ) : null}
+          <FilePreview files={shown} at={previewAt} onAt={setPreviewAt} />
           <Textarea
             autoFocus
             minRows={4}

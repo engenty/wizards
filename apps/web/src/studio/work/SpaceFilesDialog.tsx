@@ -87,7 +87,9 @@ export function SpaceFilesDialog({
               onPick(
                 chosen.flatMap((id) => {
                   const f = all.find((file) => file.id === id);
-                  return f ? [{ id: f.id, name: f.name, mime: f.mime }] : [];
+                  return f
+                    ? [{ id: f.id, name: f.name, mime: f.mime, url: fileUrl(spaceId, f.id) }]
+                    : [];
                 }),
               );
               close();

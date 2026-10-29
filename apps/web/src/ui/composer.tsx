@@ -3,16 +3,15 @@ import {
   AudioLines,
   Check,
   ChevronDown,
-  FolderOpen,
   Mic,
   Paperclip,
   Plus,
   Square,
-  X,
 } from "lucide-react";
 import { type ReactNode, type Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { t } from "../lib/i18n";
 import { useDictation, useDictationSettings, useMicrophones } from "../lib/speech";
+import { FilePreview, FileTile, type PreviewFile } from "./file-preview";
 import { cn, IconButton, Spinner, Switch } from "./index";
 
 /** A clipboard picture is always "image.png"; give each its own name so two pastes both stay. */
@@ -80,6 +79,8 @@ export interface PickedFile {
   id: string;
   name: string;
   mime: string;
+  /** Where it opens, to look at before it is sent. */
+  url?: string;
 }
 
 /** One more entry in the plus menu, under the one that attaches files. */
@@ -218,12 +219,12 @@ export function Composer({
     return () => observer.disconnect();
   }, [text]);
 
-  const [thumbs, setThumbs] = useState<Map<File, string>>(new Map());
+  // Each attached file opens from a URL of its own until it is sent.
+  const [urls, setUrls] = useState<Map<File, string>>(new Map());
+  const [previewAt, setPreviewAt] = useState<number | null>(null);
   useEffect(() => {
-    const next = new Map(
-      files.filter((f) => f.type.startsWith("image/")).map((f) => [f, URL.createObjectURL(f)]),
-    );
-    setThumbs(next);
+    const next = new Map(files.map((f) => [f, URL.createObjectURL(f)]));
+    setUrls(next);
     return () => {
       for (const url of next.values()) {
         URL.revokeObjectURL(url);
@@ -326,7 +327,10 @@ export function Composer({
       </button>
     );
 
-  const chips = files.some((f) => !thumbs.has(f)) || picked.length;
+  const shown: PreviewFile[] = [
+    ...files.map((f) => ({ name: f.name, mime: f.type, size: f.size, url: urls.get(f) })),
+    ...picked.map((f) => ({ name: f.name, mime: f.mime, url: f.url })),
+  ];
   const field = (
     <textarea
       ref={area}
@@ -400,43 +404,18 @@ export function Composer({
           !bare && (floating ? "shadow-overlay" : big ? "shadow-elevated" : "shadow-soft"),
         )}
       >
-        {thumbs.size ? (
-          <div className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
-            {files.map((f, i) => {
-              const url = thumbs.get(f);
-              return url ? (
-                <Thumb key={`${f.name}-${i}`} url={url} label={f.name}>
-                  <button
-                    type="button"
-                    aria-label={t("editor.detach")}
-                    onClick={() => detach(i)}
-                    className="-top-1.5 -right-1.5 absolute flex size-5 items-center justify-center rounded-full bg-ink text-paper opacity-0 shadow-soft transition focus-visible:opacity-100 group-hover:opacity-100"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </Thumb>
-              ) : null;
-            })}
-          </div>
-        ) : null}
-        {chips ? (
-          <ul className="flex flex-wrap gap-1.5 px-2 pt-2 pb-1">
-            {files.map((f, i) =>
-              thumbs.has(f) ? null : (
-                <FileChip
-                  key={`${f.name}-${i}`}
-                  icon={<Paperclip className="size-3 shrink-0 text-ink-4" />}
-                  name={f.name}
-                  onDetach={() => detach(i)}
-                />
-              ),
-            )}
-            {picked.map((f) => (
-              <FileChip
-                key={f.id}
-                icon={<FolderOpen className="size-3 shrink-0 text-ink-4" />}
-                name={f.name}
-                onDetach={() => setPicked((all) => all.filter((p) => p.id !== f.id))}
+        {shown.length ? (
+          <ul className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
+            {shown.map((f, i) => (
+              <FileTile
+                key={i < files.length ? `${f.name}-${i}` : picked[i - files.length]?.id}
+                file={f}
+                onOpen={() => setPreviewAt(i)}
+                onRemove={() =>
+                  i < files.length
+                    ? detach(i)
+                    : setPicked((all) => all.filter((_, j) => j !== i - files.length))
+                }
               />
             ))}
           </ul>
@@ -461,6 +440,7 @@ export function Composer({
           </div>
         )}
       </div>
+      <FilePreview files={shown} at={previewAt} onAt={setPreviewAt} />
       {speech.error ? (
         <p className="mt-2 px-3 text-[0.75rem] text-rose">
           {speech.error === "denied" ? t("editor.micDenied") : speech.error}
@@ -473,31 +453,6 @@ export function Composer({
 /** The outlined round button of the tall composer, as on the new-wizard page. */
 const OUTLINED =
   "inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-border text-ink transition hover:bg-paper-2 coarse:size-11";
-
-function FileChip({
-  icon,
-  name,
-  onDetach,
-}: {
-  icon: ReactNode;
-  name: string;
-  onDetach: () => void;
-}) {
-  return (
-    <li className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-paper-2 py-1 pr-1 pl-2.5 text-[0.75rem] text-ink-2">
-      {icon}
-      <span className="truncate">{name}</span>
-      <button
-        type="button"
-        aria-label={t("editor.detach")}
-        onClick={onDetach}
-        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-ink-3 hover:bg-paper-3 hover:text-ink"
-      >
-        <X className="size-3" />
-      </button>
-    </li>
-  );
-}
 
 export type Speech = ReturnType<typeof useDictation>;
 
