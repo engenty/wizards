@@ -88,7 +88,7 @@ function TypeBadge({ file, large }: { file: PreviewFile; large?: boolean }) {
 /**
  * A file as a tile: a picture as itself, any other with its type, name and size. Clicked, it
  * opens; with `onRemove` the cross on its corner takes it out again. `large`: in a sent message,
- * where a picture keeps its shape, as large as `imageClassName` lets it (max-h-96 alone).
+ * where a picture keeps its shape, as large as `imageClassName` lets it (65% of the window high alone).
  */
 export function FileTile({
   file,
@@ -132,7 +132,7 @@ export function FileTile({
             className={cn(
               "bg-paper-2",
               large
-                ? cn("h-auto w-auto max-w-full object-contain", imageClassName ?? "max-h-96")
+                ? cn("h-auto w-auto max-w-full object-contain", imageClassName ?? "max-h-[65dvh]")
                 : "size-16 object-cover",
             )}
           />
