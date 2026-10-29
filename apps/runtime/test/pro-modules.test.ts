@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { zipSync } from "fflate";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // A stand-in for the account's Manage-App: discovery, its JWKS, the token endpoint, /v1/modules.
 const signing = generateKeyPairSync("ed25519");
@@ -230,6 +230,23 @@ describe("Pro modules on a local install", () => {
     state.modules = ["notes-pro"];
     await pro.refreshPro();
     expect(registry.loadedPlugin("notes-pro")?.source.pro).toBe(true);
+  });
+
+  it("asks again when the account names other modules or another plan, and only then", async () => {
+    await pro.refreshPro();
+    await pro.installPro("notes-pro");
+    const checkedAt = () => state_.currentEntitlement()?.checkedAt;
+    const before = checkedAt();
+    pro.followPlan({ id: "tenant-1", plan: { id: "pro" }, modules: ["notes-pro"] });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(checkedAt()).toBe(before);
+    state.modules = [];
+    pro.followPlan({ id: "tenant-1", plan: { id: "pro" }, modules: [] });
+    await vi.waitFor(() => expect(registry.loadedPlugin("notes-pro")).toBeUndefined());
+    expect(state_.currentEntitlement()?.modules).toEqual([]);
+    state.modules = ["notes-pro"];
+    pro.followPlan({ id: "tenant-1", plan: { id: "pro" }, modules: ["notes-pro"] });
+    await vi.waitFor(() => expect(registry.loadedPlugin("notes-pro")?.source.pro).toBe(true));
   });
 
   it("keeps a module on offline until the confirmation ends, then holds it back", async () => {

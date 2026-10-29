@@ -117,6 +117,11 @@ export async function remoteFeatures(): Promise<Features | null> {
   return accountCache.value;
 }
 
+/** Asks the Manage-App again on the next look, after the account was checked on request. */
+export function forgetAccountFeatures() {
+  accountCache = null;
+}
+
 /** The switches for the tenant at hand, with what the Manage-App says fetched. */
 export async function currentFeatures(): Promise<Features> {
   return features(await remoteFeatures());
