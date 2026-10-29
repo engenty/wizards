@@ -1,0 +1,110 @@
+import { anthropic } from "@ai-sdk/anthropic";
+import { createTool } from "@mastra/core/tools";
+import { z } from "zod";
+import { sortedTools } from "../agents/space-agent.js";
+import { chatTurnWay } from "../agents/subscription.js";
+import { managed } from "../manage.js";
+import { attachTools, chatModel, gatewayTools, type ResolvedModel } from "../models.js";
+import { currentTenant } from "../tenants/tenant.js";
+import { assistantToolsOf } from "../tools/plugin.js";
+import { searchKnowledge } from "./project-index.js";
+
+/**
+ * What the space's AI gets for one turn of a Work chat (docs/plans/work-chats.md): the model of
+ * the way the settings chose, the space's tools, and instructions that stay the same for the
+ * space, so the prompt's start is cached. The agent itself is the tenant's (work-mastra.ts); it
+ * reads this from the request context.
+ */
+
+export const TURN_KEY = "workTurn";
+/** A turn stops after this long. */
+export const TURN_MS = 20 * 60_000;
+/** Steps one turn may take. */
+export const MAX_STEPS = 16;
+
+export interface WorkTurn {
+  resolved: ResolvedModel<unknown>;
+  tools: Record<string, unknown>;
+  instructions: string;
+}
+
+const instructionsFor = (space: string) =>
+  [
+    `You are the AI of the space "${space}" in engenty wizards. The team of the space talks with you and with each other in this chat.`,
+    'Each message of a person comes as <user name="…">; answer the person who asked you, in their language, and call them by their name only when it helps.',
+    "Before you answer about the space (its clients, matters, files, data), look it up with search_space; say where you found it. When you can't find it, say so.",
+    "Write short, plain answers. Use lists or a table where they help.",
+  ].join("\n\n");
+
+/** The space's tools for a turn: its knowledge, the plugins' tools, the web. */
+async function toolsFor(
+  resolved: ResolvedModel<unknown>,
+  space: { id: string; name: string },
+  userId: string,
+  signal: AbortSignal,
+): Promise<Record<string, unknown>> {
+  const tools: Record<string, unknown> = {
+    search_space: createTool({
+      id: "search_space",
+      description:
+        "Searches the space's knowledge: its documents, pages, tables and the sources its plugins bring. Returns the best matches with where they are.",
+      inputSchema: z.object({ query: z.string().min(2).max(300) }),
+      execute: async ({ query }) => {
+        const found = await searchKnowledge(space.id, query, { limit: 8, signal });
+        return { hits: found.hits };
+      },
+    }),
+    ...(await assistantToolsOf({
+      tenantId: currentTenant(),
+      space,
+      userId,
+      signal,
+      emit: () => {},
+      changed: () => {},
+      card: () => {},
+    })),
+  };
+  if (resolved.vendor === "anthropic") {
+    tools.web_search = anthropic.tools.webSearch_20250305({ maxUses: 5 });
+  } else if (resolved.gateway) {
+    tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
+  }
+  const sorted = sortedTools(tools);
+  attachTools(resolved, sorted);
+  return sorted;
+}
+
+/** Everything a turn of the space's AI needs, made for the person who asked. */
+export async function workTurn(
+  space: { id: string; name: string },
+  userId: string,
+  signal: AbortSignal,
+): Promise<WorkTurn> {
+  const resolved = await chatModel(await chatTurnWay(managed), "standard");
+  return {
+    resolved,
+    tools: await toolsFor(resolved, space, userId, signal),
+    instructions: instructionsFor(space.name),
+  };
+}
+
+/** A turn made on its first use, and the signal that ends it TURN_MS after that. */
+export interface LazyTurn {
+  get(): Promise<WorkTurn>;
+  signal: AbortSignal;
+}
+
+export function lazyTurn(space: { id: string; name: string }, userId: string): LazyTurn {
+  const controller = new AbortController();
+  let made: Promise<WorkTurn> | null = null;
+  return {
+    signal: controller.signal,
+    get() {
+      if (!made) {
+        setTimeout(() => controller.abort(new Error("The turn took too long.")), TURN_MS).unref();
+        made = workTurn(space, userId, controller.signal);
+      }
+      return made;
+    },
+  };
+}

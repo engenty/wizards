@@ -1,11 +1,16 @@
+import { note } from "@engenty/wizards-shared/run";
+import { toAISdkStream } from "@mastra/ai-sdk";
 import { toAISdkMessages } from "@mastra/ai-sdk/ui";
+import { RequestContext } from "@mastra/core/request-context";
 import { and, asc, desc, eq, exists, like, max, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { SessionUser } from "../auth/index.js";
+import { canSpend } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { managed, tenantMembers } from "../manage.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
+import { lazyTurn, MAX_STEPS, TURN_KEY } from "./work-ai.js";
 import { workMastra } from "./work-mastra.js";
 
 /**
@@ -347,33 +352,140 @@ export async function readChat(user: SessionUser, id: string) {
   };
 }
 
-/**
- * A person writes in a chat: they join it, the message goes into the chat's thread with them as
- * author, and the first message names the chat. The AI is not asked here: the message is kept
- * without a run (step 3, PR 3 asks it).
- */
-export async function postMessage(user: SessionUser, id: string, text: string) {
-  const chat = await visibleChat(user, id);
-  await join(chat.id, "person", user.id);
-  const name = (await userProfile(user)).name;
-  const { agent } = await workMastra();
-  const sent = agent.sendMessage(
-    { contents: text, attributes: { name }, metadata: { authorId: user.id } },
-    { resourceId: chat.projectId, threadId: chat.id, ifIdle: { behavior: "persist" } },
-  );
-  await sent.accepted;
+/** The chat row's last message, for the sidebar; the first message of a person names the chat. */
+async function noteLast(chat: ChatRow, author: { id: string; name: string }, text: string) {
   const flat = text.replace(/\s+/g, " ").trim();
   await db
     .update(schema.chat)
     .set({
       updatedAt: new Date(),
-      lastAuthorId: user.id,
-      lastAuthorName: name,
+      lastAuthorId: author.id,
+      lastAuthorName: author.name,
       lastText: flat.slice(0, PREVIEW_CHARS),
-      ...(chat.title ? {} : { title: (text.trim().split("\n")[0] ?? "").slice(0, TITLE_CHARS) }),
+      ...(chat.title || author.id === AI_AUTHOR
+        ? {}
+        : { title: (text.trim().split("\n")[0] ?? "").slice(0, TITLE_CHARS) }),
     })
     .where(eq(schema.chat.id, chat.id));
-  return { ok: true };
+}
+
+/** What became of a message: kept, taken into the AI's running turn, queued, or a new turn. */
+export type Sent =
+  | { kind: "kept" }
+  | { kind: "taken" }
+  | { kind: "queued" }
+  | { kind: "turn"; stream: ReadableStream };
+
+/**
+ * A person writes in a chat. They join it, the message goes into the chat's thread with them as
+ * author, and their first message names the chat. Not asked, the AI doesn't run. Asked, the
+ * message wakes it for a turn (its stream comes back, in the AI SDK's UI parts), or goes into the
+ * turn it is running (`taken`), or, `later`, waits until that turn ends.
+ */
+export async function sendMessage(
+  user: SessionUser,
+  id: string,
+  text: string,
+  options: { ask?: boolean; later?: boolean } = {},
+): Promise<Sent> {
+  const chat = await visibleChat(user, id);
+  await join(chat.id, "person", user.id);
+  const name = (await userProfile(user)).name;
+  const { agent } = await workMastra();
+  const message = { contents: text, attributes: { name }, metadata: { authorId: user.id } };
+  const target = { resourceId: chat.projectId, threadId: chat.id };
+  if (!options.ask) {
+    // Stored, never delivered: a remark to a colleague must not steer the AI's running turn
+    // (Mastra delivers to an active turn by default).
+    await agent.sendMessage(message, {
+      ...target,
+      ifActive: { behavior: "persist" },
+      ifIdle: { behavior: "persist" },
+    }).accepted;
+    await noteLast(chat, { id: user.id, name }, text);
+    return { kind: "kept" };
+  }
+  if (!(await canSpend())) {
+    throw new ServiceError("no_credits", note("creditsUsedUp"));
+  }
+  const space = await db.query.project.findFirst({ where: eq(schema.project.id, chat.projectId) });
+  // Made when a turn really starts (Mastra resolves the agent's model then): a message taken
+  // into a running turn builds nothing, and a queued one's 20 minutes start with its turn.
+  const turn = lazyTurn({ id: chat.projectId, name: space?.name ?? "" }, user.id);
+  const requestContext = new RequestContext();
+  requestContext.set(TURN_KEY, turn);
+  const streamOptions = { requestContext, maxSteps: MAX_STEPS, abortSignal: turn.signal };
+  await noteLast(chat, { id: user.id, name }, text);
+  // For after the answer: queued while a turn runs; with none running it is a turn of its own.
+  if (options.later && agent.getActiveThreadRunId(target)) {
+    await agent.queueMessage(message, { ...target, ifIdle: { behavior: "wake", streamOptions } })
+      .accepted;
+    return { kind: "queued" };
+  }
+  const subscription = await agent.subscribeToThread(target);
+  const accepted = await agent.sendMessage(message, {
+    ...target,
+    ifActive: { behavior: "deliver" },
+    ifIdle: { behavior: "wake", streamOptions },
+  }).accepted;
+  if (accepted?.action !== "wake") {
+    subscription.unsubscribe();
+    return { kind: "taken" };
+  }
+  return { kind: "turn", stream: turnStream(chat, subscription) };
+}
+
+/**
+ * The AI's turn as the browser reads it: Mastra's chunks of the thread until the turn finishes,
+ * in the AI SDK's UI message stream. Its text becomes the chat's last message when it ends.
+ */
+function turnStream(
+  chat: ChatRow,
+  subscription: { stream: AsyncIterable<unknown>; unsubscribe(): void },
+): ReadableStream {
+  let reply = "";
+  const chunks = new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of subscription.stream) {
+          const c = chunk as { type: string; payload?: { text?: string } };
+          if (c.type === "text-delta") {
+            reply += c.payload?.text ?? "";
+          }
+          controller.enqueue(chunk);
+          if (c.type === "finish" || c.type === "error" || c.type === "abort") {
+            break;
+          }
+        }
+      } finally {
+        subscription.unsubscribe();
+        controller.close();
+        if (reply.trim()) {
+          await noteLast(chat, { id: AI_AUTHOR, name: "" }, reply).catch((err) =>
+            console.error("[work-chats] last message:", err),
+          );
+        }
+      }
+    },
+  });
+  return toAISdkStream(
+    { fullStream: chunks } as never,
+    {
+      from: "agent",
+      version: "v7",
+    } as never,
+  ) as unknown as ReadableStream;
+}
+
+/** Stop: the AI's turn in the chat ends, and what was queued behind it is dropped. */
+export async function stopTurn(user: SessionUser, id: string) {
+  const chat = await visibleChat(user, id);
+  const { agent } = await workMastra();
+  return agent.abortThreadStream({
+    resourceId: chat.projectId,
+    threadId: chat.id,
+    clearPendingSignals: true,
+  });
 }
 
 /** Adds a person of the tenant or an engenty to a chat the person sees. */

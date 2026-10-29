@@ -1,7 +1,8 @@
 import { Markdown } from "@engenty/wizards-runner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Brain, Lock, MessageSquarePlus, Wrench } from "lucide-react";
-import { Fragment, useEffect } from "react";
+import type { UIMessage } from "ai";
+import { Brain, Lock, MessageSquarePlus, Sparkles, Wrench } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Marker, MarkerContent } from "@/components/ui/marker";
@@ -32,6 +33,7 @@ import {
 import { EngentyLogoMark } from "../../engenty/logo";
 import { lang, t } from "../../lib/i18n";
 import { useCurrentProject, useMe } from "../../lib/session";
+import { cn } from "../../ui";
 import { Composer } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
 import {
@@ -39,8 +41,10 @@ import {
   type ChatMessage,
   type ChatPart,
   type OpenChat,
-  useChat,
+  stopTurn,
+  useAiTurn,
   useCreateChat,
+  useOpenChat,
   usePostMessage,
 } from "./chats";
 
@@ -52,9 +56,12 @@ import {
  */
 
 export function ChatView({ id }: { id: string }) {
-  const { data, isError } = useChat(id);
+  const turn = useAiTurn(id);
+  const streaming = turn.status === "submitted" || turn.status === "streaming";
+  const { data, isError } = useOpenChat(id, streaming);
   const me = useMe().data?.user.id;
   const post = usePostMessage();
+  const [askChoice, setAskChoice] = useState<boolean | null>(null);
   const { project } = useCurrentProject();
   const client = useQueryClient();
   const opened = data?.chat.id;
@@ -73,6 +80,10 @@ export function ChatView({ id }: { id: string }) {
     return <div className="flex-1" />;
   }
   const names = new Map(data.members.map((m) => [`${m.kind}:${m.id}`, m]));
+  // Alone with the AI, every message asks it; with more people, the button or an "@" does.
+  const people = data.members.filter((m) => m.kind === "person").length;
+  const ask = askChoice ?? people <= 1;
+  const messages = [...data.messages, ...pending(turn.messages, me ?? "")];
   const authorOf = (m: ChatMessage): ChatMember | null =>
     m.author.kind === "ai"
       ? null
@@ -87,12 +98,12 @@ export function ChatView({ id }: { id: string }) {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <ChatHeader chat={data} />
       <div className="min-h-0 flex-1">
-        {data.messages.length ? (
+        {messages.length ? (
           <MessageScrollerProvider key={id}>
             <MessageScroller>
               <MessageScrollerViewport>
                 <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 px-6 py-6">
-                  {groups(data.messages).map((group, at, all) => {
+                  {groups(messages).map((group, at, all) => {
                     const first = group[0];
                     const mine = first.author.kind === "person" && first.author.id === me;
                     const author = authorOf(first);
@@ -127,23 +138,68 @@ export function ChatView({ id }: { id: string }) {
           </p>
         )}
       </div>
-      <div className="mx-auto w-full max-w-3xl px-6 pb-5">
+      <div className="mx-auto grid w-full max-w-3xl gap-2 px-6 pb-5">
+        {turn.error ? (
+          <p className="text-[0.8125rem] text-danger">
+            {t("work.turnFailed", { message: turn.error.message })}
+          </p>
+        ) : null}
+        <div className="flex">
+          <button
+            type="button"
+            aria-pressed={ask}
+            onClick={() => setAskChoice(!ask)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.8125rem] transition",
+              ask ? "bg-ember/15 text-ink" : "text-ink-3 hover:bg-ink/5 hover:text-ink",
+            )}
+          >
+            <Sparkles className="size-3.5" />
+            {t("work.askAi", { name: project?.name ?? "" })}
+          </button>
+        </div>
         <Composer
           key={id}
           autoFocus
           attach={false}
-          placeholder={t("work.write")}
-          onSend={async (text) => {
-            if (!text.trim()) {
+          busy={streaming}
+          onStop={() => {
+            void turn.stop();
+            void stopTurn(id);
+          }}
+          placeholder={ask ? t("work.writeAsk") : t("work.write")}
+          onSend={async (raw, _files, later) => {
+            const text = raw.trim();
+            if (!text) {
               return false;
             }
-            await post.mutateAsync({ id, text: text.trim() });
+            if (later && streaming) {
+              await post.mutateAsync({ id, text, later: true });
+            } else if (ask || text.startsWith("@")) {
+              void turn.sendMessage({ text });
+            } else {
+              await post.mutateAsync({ id, text });
+            }
             return true;
           }}
         />
       </div>
     </div>
   );
+}
+
+/**
+ * What `useChat` holds of a turn under way, as the chat's messages: the person's message and the
+ * AI's answer as it streams, until the chat is read again with both stored.
+ */
+function pending(messages: UIMessage[], me: string): ChatMessage[] {
+  return messages.map((m) => ({
+    id: `pending-${m.id}`,
+    author:
+      m.role === "user" ? { kind: "person", id: me, name: "" } : { kind: "ai", id: "ai", name: "" },
+    parts: m.parts as ChatPart[],
+    createdAt: new Date().toISOString(),
+  }));
 }
 
 const titleOf = (data: OpenChat | undefined) =>

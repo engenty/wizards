@@ -1,5 +1,10 @@
+import { useChat as useAiChat } from "@ai-sdk/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../../lib/api";
+import { createUIMessageStreamResponse, DefaultChatTransport } from "ai";
+import { useMemo } from "react";
+import { api, CLIENT } from "../../lib/api";
+import { withBase } from "../../lib/base";
+import { lang } from "../../lib/i18n";
 
 /**
  * Work's chats from `/api/studio/work` (behind `workMode`): the sidebar, one chat, and what the
@@ -96,14 +101,68 @@ export function useSidebar(spaceId: string | undefined, query: string) {
   });
 }
 
-export function useChat(id: string | undefined) {
+/** One chat with its messages; not asked again while the AI's answer streams in here. */
+export function useOpenChat(id: string | undefined, streaming = false) {
   return useQuery({
     queryKey: ["work-chat", id],
     queryFn: () => api.get<OpenChat>(`${BASE}/chats/${id}`),
     enabled: Boolean(id),
-    refetchInterval: POLL_MS,
+    refetchInterval: streaming ? false : POLL_MS,
   });
 }
+
+/** A message that went somewhere else than a new turn answers in JSON: an empty stream for `useChat`. */
+const NO_TURN = () =>
+  createUIMessageStreamResponse({
+    stream: new ReadableStream({
+      start(controller) {
+        controller.enqueue({ type: "start" });
+        controller.enqueue({ type: "finish" });
+        controller.close();
+      },
+    }),
+  });
+
+/**
+ * Messages that ask the space's AI, through `useChat`: the turn's answer streams in as the AI
+ * SDK's parts. A message taken into a turn already running, or queued, comes back without one.
+ * When a turn ends, the chat is read again and the streamed message gives way to the stored one.
+ */
+export function useAiTurn(id: string) {
+  const client = useQueryClient();
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: withBase(`${BASE}/chats/${id}/messages`),
+        credentials: "include",
+        headers: { ...CLIENT, "accept-language": lang },
+        prepareSendMessagesRequest: ({ messages, body }) => {
+          const last = messages.at(-1);
+          const text = (last?.parts ?? []).map((p) => (p.type === "text" ? p.text : "")).join("");
+          return { body: { text, ask: true, ...body } };
+        },
+        fetch: async (input, init) => {
+          const res = await fetch(input, init);
+          return res.ok && res.headers.get("content-type")?.includes("application/json")
+            ? NO_TURN()
+            : res;
+        },
+      }),
+    [id],
+  );
+  const chat = useAiChat({
+    id: `work-${id}`,
+    transport,
+    onFinish: async () => {
+      await client.invalidateQueries({ queryKey: ["work-chat", id] });
+      await client.invalidateQueries({ queryKey: SIDEBAR });
+      chat.setMessages([]);
+    },
+  });
+  return chat;
+}
+
+export const stopTurn = (id: string) => api.post(`${BASE}/chats/${id}/stop`);
 
 /** Every change re-reads the sidebar and the open chat. */
 function useChange<A, R>(run: (args: A) => Promise<R>) {
@@ -148,9 +207,13 @@ export const useChatState = () =>
 
 export const useDeleteChat = () => useChange((id: string) => api.del(`${BASE}/chats/${id}`));
 
+/** A message that doesn't start a turn now: one the AI isn't asked for, or one for after its answer. */
 export const usePostMessage = () =>
-  useChange(({ id, text }: { id: string; text: string }) =>
-    api.post<ChatMessage>(`${BASE}/chats/${id}/messages`, { text }),
+  useChange(({ id, text, later }: { id: string; text: string; later?: boolean }) =>
+    api.post<{ sent: string }>(
+      `${BASE}/chats/${id}/messages`,
+      later ? { text, ask: true, later } : { text },
+    ),
   );
 
 export const useCreateSection = () =>
