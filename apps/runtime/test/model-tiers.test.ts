@@ -62,7 +62,7 @@ const server: Server = createServer(async (req, res) => {
   }
   calls.push({ path: url.pathname, headers: req.headers });
   // Refused: what the call asked for is all this test reads, and what the gateway masked.
-  res.setHeader("x-wizards-masked", "person=2, email=1");
+  res.setHeader("x-wizards-masked", JSON.stringify({ person: 2, email: 1 }));
   return json({ error: { message: "refused", type: "outside_tier" } }, 403);
 });
 await new Promise<void>((r) => server.listen(0, r));

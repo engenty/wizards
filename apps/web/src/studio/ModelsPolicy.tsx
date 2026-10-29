@@ -612,6 +612,7 @@ export function AppsPanel({
               title={t("policy.apps.local")}
               hint={t("policy.apps.local.hint")}
               checked={shown.apps.local}
+              locked={tier.rules.zdr ? t("policy.notIn", { tier: tier.name }) : null}
               disabled={!canEdit}
               onChange={(local) => setApps({ local })}
             />

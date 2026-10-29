@@ -21,7 +21,7 @@ import { PRESENCE_KINDS } from "@engenty/wizards-shared/live";
 import { PROJECT_FILE_KINDS } from "@engenty/wizards-shared/projects";
 import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
 import { note } from "@engenty/wizards-shared/run";
-import { type ModelPolicy, modelPolicySchema } from "@engenty/wizards-shared/tiers";
+import { type ModelPolicy, modelPolicySchema, purposesOfWay } from "@engenty/wizards-shared/tiers";
 import {
   PACKAGE_EXTENSION,
   PACKAGE_MAX_BYTES,
@@ -1908,13 +1908,17 @@ export const studio = new Hono<Vars>()
       return c.notFound();
     }
     const policy = modelPolicySchema.parse(await c.req.json());
-    // What the tier rules out stays off, whatever the page sent.
+    // What the tier rules out stays off, whatever the page sent; each way leaves the others' fields out.
     const { rules } = info.tier;
     const allowed: ModelPolicy = {
       ...policy,
+      purposes: purposesOfWay(policy),
       ownKeys: policy.ownKeys && rules.ownKeys,
       subscriptions: policy.subscriptions && !rules.zdr,
-      apps: { ...policy.apps, subscriptions: policy.apps.subscriptions && !rules.zdr },
+      apps: {
+        local: policy.apps.local && !rules.zdr,
+        subscriptions: policy.apps.subscriptions && !rules.zdr,
+      },
     };
     try {
       await saveModelPolicy(user.tenantId, user.id, allowed);

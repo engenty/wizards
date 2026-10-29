@@ -541,7 +541,7 @@ function purposeHeader(meta: CallMeta, tiers: boolean): Record<string, string> {
 
 /**
  * What the gateway masked in a run's calls, per run and step, until the step's Log line says it:
- * `x-wizards-masked: person=2, email=1` counts per kind.
+ * `x-wizards-masked: {"person":2,"email":1}` counts per kind.
  */
 const maskedCounts = new Map<string, Record<string, number>>();
 
@@ -551,10 +551,14 @@ function countMasked(meta: CallMeta, header: string | null) {
   }
   const key = `${meta.runId}|${meta.stepId ?? ""}`;
   const counts = maskedCounts.get(key) ?? {};
-  for (const pair of header.split(",")) {
-    const [kind, n] = pair.split("=").map((part) => part.trim());
-    const count = Number(n);
-    if (kind && Number.isInteger(count) && count > 0) {
+  let said: unknown = null;
+  try {
+    said = JSON.parse(header);
+  } catch {
+    return;
+  }
+  for (const [kind, count] of Object.entries(said && typeof said === "object" ? said : {})) {
+    if (Number.isInteger(count) && count > 0) {
       counts[kind] = (counts[kind] ?? 0) + count;
     }
   }
