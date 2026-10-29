@@ -520,6 +520,34 @@ const NOTES_EN = {
   makesVideos: "videos",
   makesSpeech: "speech",
   makesVoiceNotes: "voice notes",
+  makesDecisions: "decisions",
+  makesSearch: "search",
+  tierLeavesOutMaker:
+    "{tier}, your organization’s tier, leaves out {maker}. Pick another maker in the Inspector.",
+  tierOffersNo: "{tier}, your organization’s tier, offers no model for {what}.",
+  tierOffersNoWhy: "{tier}, your organization’s tier, offers no model for {what} ({why}).",
+  tierWhyUnbound: "none is bound yet",
+  tierWhyRegion: "no route in the tier’s regions",
+  tierWhyRetention: "{model} keeps data on every route",
+  tierWhyTraining: "{model} may train on what it gets",
+  tierRefused: "Didn’t run: {problem} Change the step, or ask an admin.",
+  tierNoSearch:
+    "{tier}, your organization’s tier, allows no web search. This step runs without it.",
+  notInPolicy:
+    "Didn’t run: your organization’s admins haven’t approved {what} for wizards. Pick an approved model in the Inspector, or ask an admin.",
+  masked: {
+    one: "{count} personal detail masked and put back in the answer: {kinds}",
+    other: "{count} personal details masked and put back in the answer: {kinds}",
+  },
+  maskedPerson: { one: "{count} name", other: "{count} names" },
+  maskedEmail: { one: "{count} e-mail address", other: "{count} e-mail addresses" },
+  maskedPhone: { one: "{count} phone number", other: "{count} phone numbers" },
+  maskedIban: { one: "{count} IBAN", other: "{count} IBANs" },
+  maskedId: { one: "{count} ID number", other: "{count} ID numbers" },
+  maskedAddress: { one: "{count} address", other: "{count} addresses" },
+  maskedContract: { one: "{count} contract number", other: "{count} contract numbers" },
+  maskedTerm: { one: "{count} term of your own", other: "{count} terms of your own" },
+  maskedOther: { one: "{count} other detail", other: "{count} other details" },
 } as const satisfies Record<string, Line>;
 export type RunNoteCode = keyof typeof NOTES_EN;
 
@@ -881,6 +909,35 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   makesVideos: "Videos",
   makesSpeech: "Sprachausgabe",
   makesVoiceNotes: "Sprachnotizen",
+  makesDecisions: "Entscheidungen",
+  makesSearch: "die Suche",
+  tierLeavesOutMaker:
+    "{tier}, die Modellstufe deiner Organisation, lässt {maker} aus. Wähl im Inspector einen anderen Hersteller.",
+  tierOffersNo: "{tier}, die Modellstufe deiner Organisation, hat kein Modell für {what}.",
+  tierOffersNoWhy:
+    "{tier}, die Modellstufe deiner Organisation, hat kein Modell für {what} ({why}).",
+  tierWhyUnbound: "noch keines festgelegt",
+  tierWhyRegion: "kein Weg in den Regionen der Stufe",
+  tierWhyRetention: "{model} speichert Daten auf jedem Weg",
+  tierWhyTraining: "{model} darf mit den Daten trainieren",
+  tierRefused: "Nicht gelaufen: {problem} Ändere den Schritt oder frag die Admins.",
+  tierNoSearch:
+    "{tier}, die Modellstufe deiner Organisation, erlaubt keine Websuche. Dieser Schritt läuft ohne sie.",
+  notInPolicy:
+    "Nicht gelaufen: Die Admins deiner Organisation haben {what} für Wizards nicht freigegeben. Wähl im Inspector ein freigegebenes Modell oder frag die Admins.",
+  masked: {
+    one: "{count} persönliche Angabe maskiert und in der Antwort wieder eingesetzt: {kinds}",
+    other: "{count} persönliche Angaben maskiert und in der Antwort wieder eingesetzt: {kinds}",
+  },
+  maskedPerson: { one: "{count} Name", other: "{count} Namen" },
+  maskedEmail: { one: "{count} E-Mail-Adresse", other: "{count} E-Mail-Adressen" },
+  maskedPhone: { one: "{count} Telefonnummer", other: "{count} Telefonnummern" },
+  maskedIban: { one: "{count} IBAN", other: "{count} IBANs" },
+  maskedId: { one: "{count} Ausweisnummer", other: "{count} Ausweisnummern" },
+  maskedAddress: { one: "{count} Adresse", other: "{count} Adressen" },
+  maskedContract: { one: "{count} Vertragsnummer", other: "{count} Vertragsnummern" },
+  maskedTerm: { one: "{count} eigener Begriff", other: "{count} eigene Begriffe" },
+  maskedOther: { one: "{count} andere Angabe", other: "{count} andere Angaben" },
 };
 
 export const RUN_NOTES: Texts<RunNoteCode> = { en: NOTES_EN, de: NOTES_DE };
@@ -1140,6 +1197,11 @@ export interface StepEstimate {
 /** A model class a wizard needs that this runtime cannot serve, with the steps that call it. */
 export interface MissingModel {
   cls: ModelClass;
+  /**
+   * The class as the organization's model tier names it (`anthropic/highest`, `video`), where
+   * the tier doesn't offer it; only admins can change that.
+   */
+  tierClass?: string;
   /** Why the class cannot run, as the person reads it. */
   problem: string;
   steps: { id: string; title: string }[];

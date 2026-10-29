@@ -61,7 +61,8 @@ const server: Server = createServer(async (req, res) => {
     return json({ markup: 2, classes: {}, webSearchCredits: 2 });
   }
   calls.push({ path: url.pathname, headers: req.headers });
-  // Refused: what the call asked for is all this test reads.
+  // Refused: what the call asked for is all this test reads, and what the gateway masked.
+  res.setHeader("x-wizards-masked", "person=2, email=1");
   return json({ error: { message: "refused", type: "outside_tier" } }, 403);
 });
 await new Promise<void>((r) => server.listen(0, r));
@@ -123,6 +124,13 @@ describe("gateway calls of an organization with a tier", () => {
   it("take the purpose a caller names", async () => {
     const call = await callOf("tenant-a", { purpose: "work" });
     expect(call?.headers["x-wizards-purpose"]).toBe("work");
+  });
+
+  it("keep what the gateway masked in a run's step until its Log line takes it", async () => {
+    await callOf("tenant-a", { runId: "run-m", stepId: "draft" });
+    await callOf("tenant-a", { runId: "run-m", stepId: "draft" });
+    expect(models.takeMasked("run-m", "draft")).toEqual({ person: 4, email: 2 });
+    expect(models.takeMasked("run-m", "draft")).toBeNull();
   });
 
   it("name the model the maker class runs on in the tier", async () => {

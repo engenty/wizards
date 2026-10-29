@@ -65,6 +65,7 @@ import {
   freeTierText,
   ModelUnavailableError,
   noteFreeTierRefusal,
+  takeMasked,
 } from "../models.js";
 import { runEnded } from "../plugins/events.js";
 import { prompt } from "../prompts.js";
@@ -95,9 +96,11 @@ import { pushRun } from "./push.js";
 import {
   blockingMessage,
   closedChoices,
+  maskedNote,
   missingModelsSaid,
   openValue,
   stepsWithoutModel,
+  tierRefusalSaid,
 } from "./requirements.js";
 import { releaseResources, resourcesFor } from "./resources.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
@@ -231,7 +234,7 @@ function friendly(err: unknown): Said {
  * as that note, so a runner shows it in its language; the run's error is in the wizard's.
  */
 async function failRun(run: RunRow, stepId: string, err: unknown) {
-  const said = noteOf(err) ?? friendly(err);
+  const said = noteOf(err) ?? (await tierRefusalSaid(err)) ?? friendly(err);
   const message = saidText(said, textLang(wizardLang(run.definition)));
   await emitEvent(run.id, stepId, "error", said);
   await updateRun(run.id, { status: "failed", error: message });
@@ -834,6 +837,10 @@ async function drive(runId: string, signal: AbortSignal) {
       delete state.redo?.[step.id];
       const cursor = await advance(run, step.id, state);
       await updateRun(runId, { state, cursor, status: cursor ? "running" : "done", error: null });
+      const masked = takeMasked(runId, step.id);
+      if (masked) {
+        await emitEvent(runId, step.id, "info", maskedNote(masked));
+      }
       await emitEvent(runId, step.id, "step_done", step.title);
     } catch (err) {
       if (signal.aborted) {

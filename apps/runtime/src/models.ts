@@ -34,7 +34,12 @@ import {
 } from "@engenty/wizards-shared/providers";
 import type { RunNote, RunNoteCode, Said } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
-import type { ModelPolicy, ModelTier, Purpose } from "@engenty/wizards-shared/tiers";
+import type {
+  ModelPolicy,
+  ModelTier,
+  Purpose,
+  TierRefusalType,
+} from "@engenty/wizards-shared/tiers";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import {
   type EmbeddingModel,
@@ -534,10 +539,50 @@ function purposeHeader(meta: CallMeta, tiers: boolean): Record<string, string> {
     : {};
 }
 
+/**
+ * What the gateway masked in a run's calls, per run and step, until the step's Log line says it:
+ * `x-wizards-masked: person=2, email=1` counts per kind.
+ */
+const maskedCounts = new Map<string, Record<string, number>>();
+
+function countMasked(meta: CallMeta, header: string | null) {
+  if (!header || !meta.runId) {
+    return;
+  }
+  const key = `${meta.runId}|${meta.stepId ?? ""}`;
+  const counts = maskedCounts.get(key) ?? {};
+  for (const pair of header.split(",")) {
+    const [kind, n] = pair.split("=").map((part) => part.trim());
+    const count = Number(n);
+    if (kind && Number.isInteger(count) && count > 0) {
+      counts[kind] = (counts[kind] ?? 0) + count;
+    }
+  }
+  maskedCounts.set(key, counts);
+}
+
+/** What the gateway masked in a step's calls, per kind, once: the counts are gone after. */
+export function takeMasked(runId: string, stepId: string): Record<string, number> | null {
+  const key = `${runId}|${stepId}`;
+  const counts = maskedCounts.get(key);
+  maskedCounts.delete(key);
+  return counts && Object.keys(counts).length ? counts : null;
+}
+
 function gatewayClient(access: GatewayAccess, meta: CallMeta, tiers: boolean) {
   return createGateway({
     baseURL: `${access.baseUrl}/v4/ai`,
     apiKey: access.token,
+    // A run's call that had personal data masked says how much, for the step's Log line.
+    ...(tiers && meta.runId
+      ? {
+          fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+            const res = await fetch(input, init);
+            countMasked(meta, res.headers.get("x-wizards-masked"));
+            return res;
+          },
+        }
+      : {}),
     headers: {
       ...DEFINITION_HEADER,
       ...(access.tenant ? { "x-wizards-tenant": access.tenant } : {}),
@@ -1398,6 +1443,29 @@ export function freeTierRefusal(err: unknown): string | null {
     return null;
   }
   return /"originalModelId":"([^"]+)"/.exec(text)?.[1] ?? "";
+}
+
+/**
+ * A call the gateway refused for the organization's tier (`outside_tier`) or its admins' policy
+ * (`not_in_policy`), with the class it asked for; null for any other failure.
+ */
+export function tierRefusal(
+  err: unknown,
+): { type: TierRefusalType; cls: string | null; tier: string | null } | null {
+  let text = "";
+  for (let e = err as any; e && text.length < 100_000; e = e.cause) {
+    text += ` ${e.message ?? ""} ${typeof e.responseBody === "string" ? e.responseBody : ""}`;
+  }
+  const type = /"type"\s*:\s*"(outside_tier|not_in_policy)"/.exec(text)?.[1] as
+    | TierRefusalType
+    | undefined;
+  return type
+    ? {
+        type,
+        cls: /"class"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? null,
+        tier: /"tier"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? null,
+      }
+    : null;
 }
 
 /** What the person reads when Vercel's free tier leaves a model out, and how to fix it. */
