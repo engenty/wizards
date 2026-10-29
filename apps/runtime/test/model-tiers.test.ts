@@ -141,3 +141,13 @@ describe("gateway calls while modelTiers is off", () => {
     expect(call?.headers["x-wizards-run"]).toBe("run-2");
   });
 });
+
+describe("the studio's models endpoint", () => {
+  it("names the organization's tier while modelTiers is on, and none while it is off", async () => {
+    const a = await withTenant("tenant-a", () => models.modelSettings());
+    expect(a.tier?.name).toBe("EU Private");
+    expect(a.tier?.classes["anthropic/high"]).toMatchObject({ name: "Model A", region: "Frankfurt" });
+    const b = await withTenant("tenant-b", () => models.modelSettings());
+    expect(b.tier).toBeNull();
+  });
+});
