@@ -125,6 +125,12 @@ export const FEATURES = {
     label: "Goose",
     hint: "The studio's assistant: its chat at the foot of the page and in the sidebar.",
   },
+  modelTiers: {
+    kind: "release",
+    default: false,
+    label: "Model tiers",
+    hint: "The organization's model tier: steps may name a maker, calls say what they are for, and the studio shows what each class runs on in the tier.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

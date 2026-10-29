@@ -2,6 +2,7 @@ import { type DecisionQuestion, pOf } from "@engenty/wizards-shared/decision";
 import {
   type AgentStep,
   allFields,
+  classIdOf,
   dataRef,
   type GenerateStep,
   isDecisionStep,
@@ -587,6 +588,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
   const resolved = await textModel(textClassOf(step.model ?? "standard"), {
     ...ctx.call,
     effort: step.effort,
+    makerClass: step.maker ? classIdOf(step, "standard") : undefined,
   });
   const uploads = await personUploads(ctx);
   const { tools, assets, instructions } = await buildStepTools(step, ctx, resolved, uploads);
@@ -918,6 +920,7 @@ async function writeHtml(
   const writer = await textModel(textClassOf(step.model ?? "standard"), {
     ...ctx.call,
     effort: step.effort,
+    makerClass: step.maker ? classIdOf(step, "standard") : undefined,
   });
   const result = await generateText({
     model: writer.model,
