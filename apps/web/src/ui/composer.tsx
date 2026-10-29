@@ -169,6 +169,7 @@ export function Composer({
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [picked, setPicked] = useState<PickedFile[]>([]);
+  const [dropping, setDropping] = useState(false);
   const [tall, setTall] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -346,7 +347,9 @@ export function Composer({
           void submit(e.metaKey || e.ctrlKey);
         }
       }}
-      placeholder={speech.listening ? t("editor.listening") : placeholder}
+      placeholder={
+        dropping ? t("new.dropHint") : speech.listening ? t("editor.listening") : placeholder
+      }
       className={cn(
         "max-h-[200px] resize-none bg-transparent outline-none placeholder:text-ink-4",
         big
@@ -359,10 +362,35 @@ export function Composer({
 
   return (
     <div className={className}>
+      {/* Files dropped on the field are attached, as picked or pasted ones are. */}
       <div
+        {...(attach
+          ? {
+              onDragOver: (e: React.DragEvent) => {
+                if (e.dataTransfer.types.includes("Files")) {
+                  e.preventDefault();
+                  setDropping(true);
+                }
+              },
+              onDragLeave: (e: React.DragEvent) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setDropping(false);
+                }
+              },
+              onDrop: (e: React.DragEvent) => {
+                setDropping(false);
+                if (e.dataTransfer.files.length) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  add(Array.from(e.dataTransfer.files).map(pastedName));
+                }
+              },
+            }
+          : {})}
         className={cn(
           bare ? "px-2 py-3" : big ? "p-2" : "p-1",
           !bare && "bg-card ring-1 ring-border focus-within:ring-focus",
+          dropping && "ring-2 ring-focus",
           !bare &&
             (big
               ? "rounded-2xl"

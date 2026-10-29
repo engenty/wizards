@@ -26,7 +26,7 @@ import { withBase } from "../../lib/base";
 import { lang, t } from "../../lib/i18n";
 import { useCurrentProject, useMe } from "../../lib/session";
 import { cn } from "../../ui";
-import { Composer, type ComposerHandle, type PickedFile } from "../../ui/composer";
+import { Composer, type ComposerHandle, type PickedFile, pastedName } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
 import {
   type Approval,
@@ -65,6 +65,7 @@ export function ChatView({ id }: { id: string }) {
   const composer = useRef<ComposerHandle>(null);
   const [choosing, setChoosing] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [dropping, setDropping] = useState(false);
   // Someone else's turn runs here: follow it from its start (useChat's resume), once per turn.
   const answering = data?.chat.answeringSince ?? null;
   const followed = useRef<string | null>(null);
@@ -137,7 +138,34 @@ export function ChatView({ id }: { id: string }) {
         });
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    // Files dropped anywhere on the chat go into the field, to send with the next message.
+    <div
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setDropping(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setDropping(false);
+        }
+      }}
+      onDrop={(e) => {
+        setDropping(false);
+        if (e.dataTransfer.files.length) {
+          e.preventDefault();
+          composer.current?.add(Array.from(e.dataTransfer.files).map(pastedName));
+          composer.current?.focus();
+        }
+      }}
+    >
+      {dropping ? (
+        <div className="pointer-events-none absolute inset-3 z-20 grid place-items-center rounded-2xl border-2 border-focus border-dashed bg-card/95 font-medium text-[0.9375rem] text-ink">
+          {t("new.dropHint")}
+        </div>
+      ) : null}
       <ChatHeader chat={data} />
       <div className="min-h-0 flex-1">
         {messages.length ? (
