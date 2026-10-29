@@ -1,0 +1,380 @@
+import { Markdown } from "@engenty/wizards-runner";
+import { useQueryClient } from "@tanstack/react-query";
+import { Brain, Lock, MessageSquarePlus, Wrench } from "lucide-react";
+import { Fragment, useEffect } from "react";
+import { NavLink, useNavigate } from "react-router";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Marker, MarkerContent } from "@/components/ui/marker";
+import {
+  Message,
+  MessageAvatar,
+  MessageContent,
+  MessageGroup,
+  MessageHeader,
+} from "@/components/ui/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
+} from "@/components/ui/trace";
+import { lang, t } from "../../lib/i18n";
+import { useMe } from "../../lib/session";
+import { Composer } from "../../ui/composer";
+import { useCrumbs } from "../AppFrame";
+import {
+  type ChatMember,
+  type ChatMessage,
+  type ChatPart,
+  type OpenChat,
+  useChat,
+  useCreateChat,
+  usePostMessage,
+} from "./chats";
+
+/**
+ * One chat of Work: its title, members and sub-threads, the messages in the shadcn/ui chat
+ * parts, and the field to write in. A message's parts are the AI SDK's: people write text; an
+ * engenty's turn adds its reasoning and tool calls as Trace lines (shadcn/ui AI Elements, Tool).
+ */
+
+export function ChatView({ id }: { id: string }) {
+  const { data, isError } = useChat(id);
+  const me = useMe().data?.user.id;
+  const post = usePostMessage();
+  const client = useQueryClient();
+  const opened = data?.chat.id;
+  // Opening a chat marks it read: the sidebar loses its dot at once.
+  useEffect(() => {
+    if (opened) {
+      client.invalidateQueries({ queryKey: ["work-chats"] });
+    }
+  }, [opened, client]);
+  useCrumbs([{ label: t("work.chats"), to: "/work" }, { label: titleOf(data) }]);
+
+  if (isError) {
+    return <p className="m-auto text-ink-3">{t("work.chatGone")}</p>;
+  }
+  if (!data) {
+    return <div className="flex-1" />;
+  }
+  const names = new Map(data.members.map((m) => [`${m.kind}:${m.id}`, m]));
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ChatHeader chat={data} />
+      <div className="min-h-0 flex-1">
+        {data.messages.length ? (
+          <MessageScrollerProvider key={id}>
+            <MessageScroller>
+              <MessageScrollerViewport>
+                <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 px-6 py-6">
+                  {groups(data.messages).map((group, at, all) => {
+                    const first = group[0];
+                    const mine = first.author.kind === "person" && first.author.id === me;
+                    const author = names.get(`${first.author.kind}:${first.author.id}`);
+                    const day = dayOf(first.createdAt);
+                    const newDay = at === 0 || dayOf(all[at - 1][0].createdAt) !== day;
+                    return (
+                      <Fragment key={first.id}>
+                        {newDay ? (
+                          <Marker variant="separator">
+                            <MarkerContent>{dayLabel(first.createdAt)}</MarkerContent>
+                          </Marker>
+                        ) : null}
+                        <MessageScrollerItem messageId={first.id} scrollAnchor={mine}>
+                          <Turn group={group} mine={mine} author={author} />
+                        </MessageScrollerItem>
+                      </Fragment>
+                    );
+                  })}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+          </MessageScrollerProvider>
+        ) : (
+          <p className="grid h-full place-items-center text-[0.9375rem] text-ink-3">
+            {t("work.emptyChat")}
+          </p>
+        )}
+      </div>
+      <div className="mx-auto w-full max-w-3xl px-6 pb-5">
+        <Composer
+          key={id}
+          autoFocus
+          attach={false}
+          placeholder={t("work.write")}
+          onSend={async (text) => {
+            if (!text.trim()) {
+              return false;
+            }
+            await post.mutateAsync({ id, text: text.trim() });
+            return true;
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+const titleOf = (data: OpenChat | undefined) =>
+  data ? data.chat.title || t("work.untitled") : t("work.chats");
+
+function ChatHeader({ chat: data }: { chat: OpenChat }) {
+  const create = useCreateChat();
+  const navigate = useNavigate();
+  return (
+    <header className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-border-soft border-b px-6 py-2">
+      <h1 className="flex min-w-0 items-center gap-1.5 font-semibold text-[0.9375rem] text-ink">
+        <span className="truncate">{titleOf(data)}</span>
+        {data.chat.private ? (
+          <Lock className="size-3.5 shrink-0 text-ink-4" aria-label={t("work.private")} />
+        ) : null}
+      </h1>
+      <div className="-space-x-1.5 flex" title={data.members.map((m) => m.name).join(", ")}>
+        {data.members.slice(0, 5).map((m) => (
+          <Avatar key={`${m.kind}:${m.id}`} member={m} className="ring-2 ring-canvas" />
+        ))}
+      </div>
+      <div className="ml-auto flex flex-wrap items-center gap-1.5">
+        {data.threads.map((thread) => (
+          <NavLink
+            key={thread.id}
+            to={`/work/c/${thread.id}`}
+            className="max-w-48 truncate rounded-full bg-ink/5 px-2.5 py-1 text-[0.8125rem] text-ink-2 hover:bg-ink/10"
+          >
+            {thread.title || t("work.untitled")}
+          </NavLink>
+        ))}
+        <button
+          type="button"
+          onClick={async () => {
+            const thread = await create.mutateAsync({ parentId: data.chat.id });
+            navigate(`/work/c/${thread.id}`);
+          }}
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.8125rem] text-ink-3 hover:bg-ink/5 hover:text-ink"
+        >
+          <MessageSquarePlus className="size-3.5" />
+          {t("work.newThread")}
+        </button>
+        {data.chat.parentId ? (
+          <NavLink
+            to={`/work/c/${data.chat.parentId}`}
+            className="rounded-full px-2.5 py-1 text-[0.8125rem] text-ink-3 hover:bg-ink/5 hover:text-ink"
+          >
+            {t("work.toParent")}
+          </NavLink>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+function Avatar({ member, className }: { member?: ChatMember; className?: string }) {
+  const initials = (member?.name ?? "?")
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  return member?.image ? (
+    <img
+      src={member.image}
+      alt=""
+      className={`size-7 shrink-0 rounded-full object-cover ${className ?? ""}`}
+    />
+  ) : (
+    <span
+      className={`grid size-7 shrink-0 place-items-center rounded-full bg-ink/10 font-semibold text-[0.6875rem] text-ink-2 ${className ?? ""}`}
+    >
+      {initials}
+    </span>
+  );
+}
+
+/** Consecutive messages of one author within five minutes read as one turn. */
+function groups(messages: ChatMessage[]): ChatMessage[][] {
+  const out: ChatMessage[][] = [];
+  for (const m of messages) {
+    const last = out.at(-1)?.at(-1);
+    if (
+      last &&
+      last.author.kind === m.author.kind &&
+      last.author.id === m.author.id &&
+      Date.parse(m.createdAt) - Date.parse(last.createdAt) < 5 * 60_000
+    ) {
+      out.at(-1)?.push(m);
+    } else {
+      out.push([m]);
+    }
+  }
+  return out;
+}
+
+const dayOf = (iso: string) => new Date(iso).toDateString();
+
+function dayLabel(iso: string) {
+  const day = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today.getTime() - 86_400_000);
+  if (day.toDateString() === today.toDateString()) {
+    return t("work.today");
+  }
+  if (day.toDateString() === yesterday.toDateString()) {
+    return t("work.yesterday");
+  }
+  return day.toLocaleDateString(lang, { weekday: "long", day: "numeric", month: "long" });
+}
+
+const timeOf = (iso: string) =>
+  new Date(iso).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+
+function Turn({
+  group,
+  mine,
+  author,
+}: {
+  group: ChatMessage[];
+  mine: boolean;
+  author: ChatMember | undefined;
+}) {
+  const engenty = group[0].author.kind === "engenty";
+  return (
+    <Message align={mine ? "end" : "start"}>
+      {mine ? null : (
+        <MessageAvatar className="min-w-0 self-start bg-transparent">
+          <Avatar member={author} />
+        </MessageAvatar>
+      )}
+      <MessageContent>
+        <MessageHeader className={mine ? "justify-end" : undefined}>
+          {mine ? t("work.you") : (author?.name ?? "")}
+          <span className="ml-2 font-normal text-ink-4">{timeOf(group[0].createdAt)}</span>
+        </MessageHeader>
+        <MessageGroup>
+          {group.map((m) =>
+            engenty ? (
+              <EngentyParts key={m.id} parts={m.parts} />
+            ) : (
+              <Bubble
+                key={m.id}
+                align={mine ? "end" : "start"}
+                variant={mine ? "muted" : "outline"}
+              >
+                <BubbleContent className="whitespace-pre-wrap text-[0.9375rem]">
+                  {textOf(m.parts)}
+                </BubbleContent>
+              </Bubble>
+            ),
+          )}
+        </MessageGroup>
+      </MessageContent>
+    </Message>
+  );
+}
+
+const textOf = (parts: ChatPart[]) =>
+  parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("\n");
+
+type ToolPart = Extract<ChatPart, { toolCallId: string }>;
+
+const isTool = (p: ChatPart): p is ToolPart => p.type.startsWith("tool-") && "toolCallId" in p;
+
+/** An engenty's turn: its steps (reasoning, tool calls) as Trace lines, then its text. */
+function EngentyParts({ parts }: { parts: ChatPart[] }) {
+  const steps = parts.filter((p) => p.type === "reasoning" || isTool(p));
+  const text = textOf(parts);
+  return (
+    <div className="grid gap-3">
+      {steps.length ? (
+        <Trace>
+          {steps.map((part, at) =>
+            isTool(part) ? (
+              <ToolStep key={part.toolCallId} part={part} />
+            ) : (
+              <TraceCollapsible key={at}>
+                <TraceCollapsibleTrigger>
+                  <TraceLine>
+                    <TraceIcon>
+                      <Brain />
+                    </TraceIcon>
+                    <TraceTitle>{t("work.thought")}</TraceTitle>
+                  </TraceLine>
+                </TraceCollapsibleTrigger>
+                <TraceCollapsibleContent>
+                  <p className="whitespace-pre-wrap text-[0.8125rem]">
+                    {String((part as { text?: string }).text ?? "")}
+                  </p>
+                </TraceCollapsibleContent>
+              </TraceCollapsible>
+            ),
+          )}
+        </Trace>
+      ) : null}
+      {text ? <Markdown text={text} className="text-[0.9375rem]" /> : null}
+    </div>
+  );
+}
+
+/** One tool call by the state the AI SDK gives it (shadcn/ui AI Elements, Tool's table). */
+function ToolStep({ part }: { part: ToolPart }) {
+  const name = part.type.slice("tool-".length);
+  const icon = (
+    <TraceIcon>
+      <Wrench />
+    </TraceIcon>
+  );
+  if (part.state === "output-available" || part.state === "output-error") {
+    const failed = part.state === "output-error";
+    return (
+      <TraceCollapsible>
+        <TraceCollapsibleTrigger>
+          <TraceLine status={failed ? "error" : undefined}>
+            {icon}
+            <TraceTitle>{t(failed ? "work.tool.failed" : "work.tool.ran", { name })}</TraceTitle>
+          </TraceLine>
+        </TraceCollapsibleTrigger>
+        <TraceCollapsibleContent>
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-ink/5 p-2 font-mono text-[0.75rem]">
+            {failed ? part.errorText : JSON.stringify(part.output, null, 2)}
+          </pre>
+        </TraceCollapsibleContent>
+      </TraceCollapsible>
+    );
+  }
+  const title =
+    part.state === "output-denied"
+      ? t("work.tool.denied", { name })
+      : part.state === "approval-requested"
+        ? t("work.tool.asks", { name })
+        : t("work.tool.running", { name });
+  return (
+    <TraceLine
+      status={
+        part.state === "output-denied"
+          ? undefined
+          : part.state === "approval-requested"
+            ? "pending"
+            : "running"
+      }
+    >
+      {icon}
+      <TraceTitle>{title}</TraceTitle>
+    </TraceLine>
+  );
+}

@@ -1,11 +1,11 @@
-import { Plus, Search } from "lucide-react";
 import type { ReactNode, SVGProps } from "react";
 import { Navigate, useParams } from "react-router";
 import { type Key, t } from "../../lib/i18n";
 import { MODE_HOME, type Mode, useMode } from "../../lib/mode";
 import { useMe } from "../../lib/session";
-import { Button } from "../../ui";
 import { useCrumbs } from "../AppFrame";
+import { ChatSidebar } from "./ChatSidebar";
+import { ChatView } from "./ChatView";
 
 /**
  * Work mode's places (behind `workMode`), empty in this step: Chats with its sidebar, the
@@ -59,7 +59,10 @@ export function InMode({ mode, children }: { mode: Mode; children: ReactNode }) 
 
 /** `/work/:place?`: Chats without a place, else one of the others. */
 export function WorkPage() {
-  const { place } = useParams();
+  const { place, chatId } = useParams();
+  if (chatId) {
+    return <ChatsPage />;
+  }
   const known = WORK_PLACES.find((p) => p.place === place && p.place !== "chats");
   if (place && !known) {
     return <Navigate to="/work" replace />;
@@ -67,45 +70,23 @@ export function WorkPage() {
   return known ? <EmptyPlace place={known.place as keyof typeof EMPTY} /> : <ChatsPage />;
 }
 
-/** Chats: the sidebar with a new chat, the search, the sections and the chats; no chat open. */
+/** Chats: the sidebar, and the open chat or a line where it will be. */
 function ChatsPage() {
+  const { chatId } = useParams();
   return (
     <div className="flex min-h-0 flex-1">
-      <aside
-        aria-label={t("work.chats")}
-        className="flex w-72 shrink-0 flex-col gap-3 border-border-soft border-r p-3"
-      >
-        <Button disabled className="w-full">
-          <Plus className="size-4" />
-          {t("work.newChat")}
-        </Button>
-        <label className="flex items-center gap-2 rounded-lg bg-ink/5 px-2.5 py-1.5 text-[0.875rem]">
-          <Search className="size-4 shrink-0 text-ink-4" />
-          <input
-            type="search"
-            placeholder={t("work.search")}
-            aria-label={t("work.search")}
-            className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-4"
-          />
-        </label>
-        <Group title={t("work.sections")} empty={t("work.noSections")} />
-        <Group title={t("work.chats")} empty={t("work.noChats")} />
-      </aside>
-      <div className="grid min-w-0 flex-1 place-items-center p-6">
-        <p className="text-center text-[0.9375rem] text-ink-3">{t("work.chatsEmpty")}</p>
-      </div>
+      <ChatSidebar />
+      {chatId ? <ChatView id={chatId} /> : <NoChat />}
     </div>
   );
 }
 
-function Group({ title, empty }: { title: string; empty: string }) {
+function NoChat() {
+  useCrumbs([{ label: t("work.chats") }]);
   return (
-    <section className="grid gap-1">
-      <h2 className="px-2.5 pt-2 font-semibold text-[0.6875rem] text-ink-4 uppercase tracking-[0.06em]">
-        {title}
-      </h2>
-      <p className="px-2.5 text-[0.8125rem] text-ink-4">{empty}</p>
-    </section>
+    <div className="grid min-w-0 flex-1 place-items-center p-6">
+      <p className="text-center text-[0.9375rem] text-ink-3">{t("work.chatsEmpty")}</p>
+    </div>
   );
 }
 
