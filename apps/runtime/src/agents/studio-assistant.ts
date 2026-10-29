@@ -20,7 +20,6 @@ import {
   RULE_MARKS,
   textStyleLine,
 } from "@engenty/wizards-shared/projects";
-import { Agent } from "@mastra/core/agent";
 import { createTool } from "@mastra/core/tools";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -30,8 +29,6 @@ import type { AssistantCardRecord, AssistantToolCallRecord } from "../db/schema.
 import { currentFeatures } from "../features.js";
 import { managed } from "../manage.js";
 import {
-  agentModel,
-  attachTools,
   chatModel,
   contextWindowOf,
   costOf,
@@ -56,6 +53,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
+import { spaceAgent } from "./space-agent.js";
 import { chatTurnWay } from "./subscription.js";
 import { readWebsite } from "./website.js";
 
@@ -933,17 +931,12 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   } else if (resolved.gateway) {
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
   }
-  attachTools(resolved, tools);
   const instructions = system();
-  const agent = new Agent({
+  const agent = spaceAgent({
     id: "studio-assistant",
     name: "Studio assistant",
-    instructions: {
-      role: "system",
-      content: instructions,
-      providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
-    },
-    model: agentModel(resolved),
+    instructions,
+    resolved,
     tools,
   });
   const page = input.page;
