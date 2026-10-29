@@ -488,6 +488,20 @@ export async function saveModelPolicy(
   return saved.modelPolicy;
 }
 
+/** What a model would see of `text` with masking on: the labels given, else the saved ones. */
+export async function tryMasking(
+  tenantId: string,
+  actorId: string,
+  text: string,
+  maskLabels?: string[],
+): Promise<{ text: string; counts: Record<string, number> }> {
+  return call("POST", `${tenantPath(tenantId)}/model-policy/try`, {
+    actorId,
+    text,
+    ...(maskLabels ? { maskLabels } : {}),
+  });
+}
+
 /** Renames the organization at the Manage-App; what it answers is the tenant as it stands now. */
 export async function renameTenant(id: string, name: string): Promise<TenantInfo> {
   const value = await call<TenantInfo>("PATCH", `/v1/tenants/${encodeURIComponent(id)}`, {

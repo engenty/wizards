@@ -189,6 +189,24 @@ const de: Record<Key, Line> = {
   "policy.notApprovedShort": "nicht freigegeben",
   "policy.masking.hint":
     "Namen, E-Mail-Adressen, Telefonnummern, IBANs und Ausweisnummern werden zu Platzhaltern, bevor ein Aufruf engenty verlässt, und kommen in der Antwort zurück. Berechnet je Aufruf, in dem etwas zu maskieren war.",
+  "policy.maskWhat": "Was noch maskiert wird",
+  "policy.maskWhat.hint":
+    "Sag es in einem Satz. engenty macht daraus, wonach es in jedem Aufruf der Organisation sucht.",
+  "policy.maskWhat.placeholder":
+    "Maskiere die Namen unserer Kundschaft, interne Codenamen und alles zur Gesundheit von Mitarbeitenden.",
+  "policy.maskWhat.save": "Speichern",
+  "policy.maskLabels": "Sucht nach",
+  "policy.maskLabels.none": "Nur nach persönlichen Daten.",
+  "policy.maskLabels.add": "Hinzufügen",
+  "policy.maskLabels.addPlaceholder": "z. B. contract number",
+  "policy.maskLabels.remove": "{label} entfernen",
+  "policy.maskLabels.hint":
+    "Auf Englisch, als schlichtes Wort dafür, was es ist: „company“ findet mehr als „customer name“.",
+  "policy.maskTry": "Einen Satz ausprobieren",
+  "policy.maskTry.placeholder":
+    "Frau Leitner von Rheinberg Holding fragt nach dem Stand von Lichtblick.",
+  "policy.maskTry.button": "Ausprobieren",
+  "policy.maskTry.sees": "Das Modell sieht:",
   "policy.purpose.wizard": "Wizards",
   "policy.purpose.assistant": "Goose",
   "policy.purpose.work": "Arbeitschats",
@@ -3273,6 +3291,23 @@ const en = {
   "policy.notApprovedShort": "not approved",
   "policy.masking.hint":
     "Names, e-mail addresses, phone numbers, IBANs and IDs become placeholders before a call leaves engenty, and come back in the answer. Billed per call that had something to mask.",
+  "policy.maskWhat": "What else to mask",
+  "policy.maskWhat.hint":
+    "Say it in a sentence. engenty turns it into things to look for, in every call of the organization.",
+  "policy.maskWhat.placeholder":
+    "Mask our clients’ names, internal code names and anything about employees’ health.",
+  "policy.maskWhat.save": "Save",
+  "policy.maskLabels": "Looks for",
+  "policy.maskLabels.none": "Personal data only.",
+  "policy.maskLabels.add": "Add",
+  "policy.maskLabels.addPlaceholder": "e.g. contract number",
+  "policy.maskLabels.remove": "Remove {label}",
+  "policy.maskLabels.hint":
+    "In English, as a plain word for what the thing is: “company” finds more than “customer name”.",
+  "policy.maskTry": "Try a sentence",
+  "policy.maskTry.placeholder": "Ms Leitner of Rheinberg Holding asks how Lichtblick is going.",
+  "policy.maskTry.button": "Try",
+  "policy.maskTry.sees": "The model sees:",
   "policy.purpose.wizard": "Wizards",
   "policy.purpose.assistant": "Goose",
   "policy.purpose.work": "Work chats",

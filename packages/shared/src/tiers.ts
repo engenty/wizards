@@ -64,7 +64,16 @@ export interface ModelPolicy {
   /** Apps connected to a space over MCP: those with local models, those on subscriptions. */
   apps: { local: boolean; subscriptions: boolean };
   masking: boolean;
+  /** What else to mask, in the admins' words; saved, it turns into `maskLabels`. */
+  maskInstructions: string;
+  /** What the masking detector looks for besides personal data: `company`, `project name`. */
+  maskLabels: string[];
 }
+
+/** Masking instructions and the labels they turn into, as the Manage-App takes them. */
+export const MAX_MASK_INSTRUCTIONS = 1000;
+export const MAX_MASK_LABELS = 20;
+export const MAX_MASK_LABEL_CHARS = 60;
 
 /** The makers by company name, as a tier leaves one out: "EU Sovereign leaves out Anthropic". */
 export const MAKER_COMPANIES: Record<Maker, string> = {
@@ -132,4 +141,9 @@ export const modelPolicySchema = z.object({
   localModels: z.boolean(),
   apps: z.object({ local: z.boolean(), subscriptions: z.boolean() }),
   masking: z.boolean(),
-}) satisfies z.ZodType<ModelPolicy>;
+  maskInstructions: z.string().max(MAX_MASK_INSTRUCTIONS).default(""),
+  maskLabels: z
+    .array(z.string().trim().min(1).max(MAX_MASK_LABEL_CHARS))
+    .max(MAX_MASK_LABELS)
+    .default([]),
+}) satisfies z.ZodType<ModelPolicy, unknown>;
