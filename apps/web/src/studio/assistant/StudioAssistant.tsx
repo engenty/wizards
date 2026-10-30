@@ -46,7 +46,7 @@ import {
 } from "../../ui";
 import { scrollRoot, useDismiss, useTrail } from "../AppFrame";
 import { type ChatCard, type ChatToolCall, Messages, Working } from "../editor/ChatPanel";
-import { offered, purposeChoice, tierClassLabel, useModelTiers } from "../tiers";
+import { purposeChoice, useModelTiers } from "../tiers";
 import { type AssistantState, useAssistant, useEarlierChats, useStoredChat } from "./chat";
 import { CopyThread, StepLines, ToolDetails, TurnsDialog, UsageMeter } from "./dev";
 import {
@@ -844,47 +844,58 @@ function Pending({
   );
 }
 
+/** The menu's line for Auto: no pick. */
+const AUTO = "auto";
+
 /**
- * What the organization's policy lets Goose run on, for the plus menu: the list to pick from (ways
- * B and C), or the one model (way A); and up to which effort. Nothing without a tier.
+ * What Goose runs on, for the plus menu: Auto and the tier's preselection, or the admins' list in
+ * way C; and up to which effort. Nothing without a tier.
  */
-function useGooseChoice(picked: string | null, onPick: (id: string) => void) {
+function useGooseChoice(picked: string | null, onPick: (id: string | null) => void) {
   const { tier, modelPolicy } = useModelTiers();
   const choice = tier ? purposeChoice(tier, modelPolicy, "assistant") : null;
-  const value =
-    choice && choice.way !== "A"
-      ? picked && choice.allowed(picked)
-        ? picked
-        : (choice.default ?? choice.choices[0] ?? null)
-      : null;
-  // What the chat sends is what the menu shows: the default until the person picks.
+  // No pick is Auto; way B starts on the admins' default, way C (no Auto) on its list's first.
+  const value = choice
+    ? picked && choice.allowed(picked)
+      ? picked
+      : choice.way === "A"
+        ? null
+        : (choice.default ?? (choice.auto ? null : (choice.items[0]?.id ?? null)))
+    : null;
+  // What the chat sends is what the menu shows.
+  const ready = choice !== null;
   useEffect(() => {
-    if (value && value !== picked) {
+    if (ready && value !== picked) {
       onPick(value);
     }
-  }, [value, picked, onPick]);
+  }, [ready, value, picked, onPick]);
   if (!tier || !choice) {
     return { model: undefined, effort: {} };
   }
-  const runsOn = (id: string) => {
-    const bound = tier.classes[id];
-    return offered(bound) ? bound.name : "";
+  const item = value ? choice.itemFor(value, choice.items) : null;
+  const model: ComposerModel = {
+    items: [
+      ...(choice.auto
+        ? [{ id: AUTO, label: t("chooser.auto"), note: t("chooser.auto.hint") }]
+        : []),
+      ...choice.items.map((i) => ({ id: i.id, label: i.name, note: i.hint })),
+    ],
+    value: item?.id ?? value ?? AUTO,
+    onChange: (id) => onPick(id === AUTO ? null : id),
   };
-  const efforts = choice.efforts(value ?? "standard");
-  const model: ComposerModel = value
-    ? {
-        items: choice.choices.map((id) => ({ id, label: tierClassLabel(id), note: runsOn(id) })),
-        value,
-        onChange: onPick,
-      }
-    : { line: runsOn("standard"), note: tier.name };
+  const efforts = choice
+    .efforts(value ?? "standard")
+    .filter((e) => !item || item.efforts.includes(e));
   return {
     model,
     effort: efforts.includes("high")
       ? {}
       : {
           disabled: true,
-          hint: t("composer.extraCap", { effort: t(`class.effort.${efforts.at(-1) ?? "low"}`) }),
+          hint:
+            item && !item.efforts.length
+              ? t("chooser.noEffort", { model: item.name })
+              : t("composer.extraCap", { effort: t(`class.effort.${efforts.at(-1) ?? "low"}`) }),
         },
   };
 }

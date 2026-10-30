@@ -156,18 +156,18 @@ const de: Record<Key, Line> = {
   "policy.wayLead":
     "Wie {organization} {tier} aufteilt: für Wizards, Goose und Arbeitschats. Was gerade läuft, endet so, wie es begonnen hat.",
   "policy.yourOrganization": "deine Organisation",
-  "policy.wayShort.A": "engenty wählt",
+  "policy.wayShort.A": "Vorauswahl",
   "policy.wayShort.B": "Vorgaben",
-  "policy.wayShort.C": "nur freigegebene",
-  "policy.way.A": "engenty wählt",
+  "policy.wayShort.C": "Expertenmodus",
+  "policy.way.A": "Vorauswahl",
   "policy.way.A.hint":
-    "Das beste Modell je Aufgabe in deiner Stufe, mit neueren, sobald sie bereit sind. Alle sehen, welches Modell läuft.",
+    "Alle wählen aus der Vorauswahl deiner Stufe: Auto und wenige Modelle, die am besten passen. Neue Modelle kommen von selbst dazu.",
   "policy.way.B": "Ihr gebt vor",
   "policy.way.B.hint":
     "Eine Vorgabe je Aufgabe. Alle können auf jedes Modell der Stufe wechseln, bis zum Aufwand, den ihr erlaubt.",
-  "policy.way.C": "Nur freigegebene Modelle",
+  "policy.way.C": "Expertenmodus",
   "policy.way.C.hint":
-    "Eine Liste je Aufgabe, mit dem Aufwand, den ihr erlaubt. Alle wählen daraus.",
+    "Du legst selbst fest, welche Modelle zur Auswahl stehen, getrennt für Wizards, Goose und Arbeitschats, mit dem Aufwand, den ihr erlaubt. Neue Modelle kommen erst dazu, wenn du sie freigibst.",
   "policy.whoPicks": "Wer das Modell wählt",
   "policy.where": "Wo Modelle laufen dürfen",
   "policy.whereAside": "{tier} legt fest, was geht",
@@ -179,8 +179,10 @@ const de: Record<Key, Line> = {
     "Ollama und Apples Modelle auf dem Gerät, nur für Goose. Nichts verlässt den Computer.",
   "policy.ownKeys": "Eigene API-Keys",
   "policy.ownKeys.hint": "Anbieter, die die Stufe erlaubt. Aufrufe gehen trotzdem über engenty.",
-  "policy.ownKeys.warn": "Was der Anbieter mit den Daten macht, regelt euer Vertrag mit ihm, nicht {tier}.",
-  "policy.subscriptions.warn": "Was der Chat liest, geht an den Anbieter des Abos, zu dessen Bedingungen.",
+  "policy.ownKeys.warn":
+    "Was der Anbieter mit den Daten macht, regelt euer Vertrag mit ihm, nicht {tier}.",
+  "policy.subscriptions.warn":
+    "Was der Chat liest, geht an den Anbieter des Abos, zu dessen Bedingungen.",
   "policy.subscriptions": "Abos der Mitglieder",
   "policy.subscriptions.hint":
     "Claude Code und Codex auf dem Computer eines Mitglieds behalten Daten zu dessen eigenen Bedingungen.",
@@ -233,7 +235,7 @@ const de: Record<Key, Line> = {
   "policy.defaultsLead":
     "Was läuft, wenn niemand wählt. Alle können auf jedes Modell der Stufe wechseln, bis zum höchsten Aufwand.",
   "policy.defaultPerTask": "Vorgabe je Aufgabe",
-  "policy.engentyPicks": "engenty wählt",
+  "policy.engentyPicks": "Auto",
   "policy.capHint":
     "Ein höherer Aufwand wird darauf gesenkt, nicht abgelehnt. Für Admins gilt keine Grenze.",
   "policy.tierModels": "Die Modelle der Stufe",
@@ -1460,6 +1462,20 @@ const de: Record<Key, Line> = {
   "composer.more": "Mehr",
   "composer.extra": "Extra-Aufwand",
   "composer.model": "Modell",
+  "chooser.auto": "Auto",
+  "chooser.auto.hint": "das passende je Aufgabe",
+  "chooser.hint.low": "schnell · günstig",
+  "chooser.hint.standard": "ausgewogen",
+  "chooser.hint.high": "gründlich",
+  "chooser.hint.highest": "gründlich · kostet mehr",
+  "chooser.title": "Zur Auswahl stehen",
+  "chooser.lead":
+    "Die Vorauswahl von {tier} für Text und Denken: Auto und die Modelle, die am besten passen. Neue kommen von selbst dazu, ältere gehen.",
+  "chooser.leadOwn":
+    "Die Liste der Admins deiner Organisation im Expertenmodus. Neue Modelle kommen erst dazu, wenn sie sie freigeben.",
+  "chooser.notInPreselection": "nicht in der Vorauswahl",
+  "chooser.add": "Modell hinzufügen",
+  "chooser.noEffort": "Mit {model} nicht möglich.",
   "composer.extraCap": "Deine Organisation erlaubt in Goose höchstens {effort}.",
   "composer.extraHint": "Intelligenteres Modell für anspruchsvolle Aufgaben",
   "assistant.extraTitle": "Das wird aufwendig.",
@@ -3256,17 +3272,18 @@ const en = {
   "policy.wayLead":
     "How {organization} shares out {tier}: for wizards, Goose and work chats. Running work finishes as it started.",
   "policy.yourOrganization": "your organization",
-  "policy.wayShort.A": "engenty decides",
+  "policy.wayShort.A": "preselection",
   "policy.wayShort.B": "defaults",
-  "policy.wayShort.C": "approved only",
-  "policy.way.A": "engenty decides",
+  "policy.wayShort.C": "expert mode",
+  "policy.way.A": "Preselection",
   "policy.way.A.hint":
-    "The best model per task in your tier, moving to newer ones when they’re ready. People see which model runs.",
+    "People choose from your tier’s preselection: Auto and a few models that fit best. New models join on their own.",
   "policy.way.B": "You set defaults",
   "policy.way.B.hint":
     "A default per task. People switch to any model in the tier, up to the effort you allow.",
-  "policy.way.C": "Approved models only",
-  "policy.way.C.hint": "A list per task, with the efforts you allow. People choose from it.",
+  "policy.way.C": "Expert mode",
+  "policy.way.C.hint":
+    "You decide which models people choose from, separately for wizards, Goose and work chats, with the efforts you allow. New models join only when you approve them.",
   "policy.whoPicks": "Who picks the model",
   "policy.where": "Where models may run",
   "policy.whereAside": "{tier} decides what’s possible",
@@ -3278,8 +3295,10 @@ const en = {
     "Ollama and Apple’s on-device models, for Goose only. Nothing leaves the computer.",
   "policy.ownKeys": "Your own API keys",
   "policy.ownKeys.hint": "Providers the tier allows. Calls still go through engenty.",
-  "policy.ownKeys.warn": "What the provider does with the data is up to your contract with them, not {tier}.",
-  "policy.subscriptions.warn": "What the chat reads goes to the subscription’s provider, under its terms.",
+  "policy.ownKeys.warn":
+    "What the provider does with the data is up to your contract with them, not {tier}.",
+  "policy.subscriptions.warn":
+    "What the chat reads goes to the subscription’s provider, under its terms.",
   "policy.subscriptions": "Members’ subscriptions",
   "policy.subscriptions.hint":
     "Claude Code, Codex on a member’s computer keep data under the member’s own terms.",
@@ -3331,7 +3350,7 @@ const en = {
   "policy.defaultsLead":
     "What runs when nobody picks. People can switch to any model in the tier, up to the effort cap.",
   "policy.defaultPerTask": "Default per task",
-  "policy.engentyPicks": "engenty picks",
+  "policy.engentyPicks": "Auto",
   "policy.capHint": "An effort above the cap is lowered to it, not refused. Admins aren’t capped.",
   "policy.tierModels": "The tier’s models",
   "policy.tierModelsCount": "{n} text classes in {tier}",
@@ -4530,6 +4549,20 @@ const en = {
   "composer.more": "More",
   "composer.extra": "Extra effort",
   "composer.model": "Model",
+  "chooser.auto": "Auto",
+  "chooser.auto.hint": "the right one for each task",
+  "chooser.hint.low": "fast · low cost",
+  "chooser.hint.standard": "balanced",
+  "chooser.hint.high": "thorough",
+  "chooser.hint.highest": "thorough · costs more",
+  "chooser.title": "To choose from",
+  "chooser.lead":
+    "{tier}’s preselection for text and thinking: Auto and the models that fit best. New ones join on their own, older ones leave.",
+  "chooser.leadOwn":
+    "Your admins’ list in expert mode. New models join only when they approve them.",
+  "chooser.notInPreselection": "not in the preselection",
+  "chooser.add": "Add a model",
+  "chooser.noEffort": "Not possible with {model}.",
   "composer.extraCap": "Your organization allows up to {effort} in Goose.",
   "composer.extraHint": "A smarter model for demanding tasks",
   "assistant.extraTitle": "This will take some work.",

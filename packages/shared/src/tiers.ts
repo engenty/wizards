@@ -20,6 +20,21 @@ export type TierClass =
   | { model: string; name: string; route: string | null; region: string | null }
   | { model: null; name: string | null; reason: TierReason };
 
+/** A model the tier offers (`tier.models`): in its list and passing its rules now. */
+export interface TierModel {
+  /** The catalog id: "anthropic/claude-sonnet-5.5". */
+  id: string;
+  name: string;
+  maker: string;
+  kind: "text" | "image" | "video" | "audio" | "speech";
+  /** The offered classes it runs on now: "standard", "anthropic/standard". */
+  classes: string[];
+  /** The efforts it takes; empty for none. */
+  efforts: Effort[];
+  /** In the tier's preselection: what the studio's choosers show after Auto. */
+  chooser: boolean;
+}
+
 export interface ModelTier {
   id: string;
   /** Shown in the studio: "EU Private". */
@@ -37,6 +52,8 @@ export interface ModelTier {
   };
   /** Every class the gateway knows; one missing is not offered. */
   classes: Record<string, TierClass>;
+  /** What the tier offers, the preselection first; left out by an older Manage-App. */
+  models?: TierModel[];
 }
 
 export interface PurposePolicy {

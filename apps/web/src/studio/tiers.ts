@@ -16,6 +16,7 @@ import {
   type PurposePolicy,
   splitClassId,
   type TierClass,
+  type TierModel,
 } from "@engenty/wizards-shared/tiers";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -80,6 +81,107 @@ export function approved(tier: ModelTier, purpose: PurposePolicy): string[] {
   return purpose.models ?? pickable(tier).filter((id) => offered(tier.classes[id]));
 }
 
+/** One line of a model chooser: what a pick asks for, and the model it runs on now. */
+export interface ChooserItem {
+  /** A class (`anthropic/standard`, `high`) or, approved in way C, a model id. */
+  id: string;
+  /** The catalog id of the model it runs on. */
+  model: string;
+  name: string;
+  /** "schnell · günstig": how the model works, from its class. */
+  hint: string;
+  /** The efforts the model takes. */
+  efforts: Effort[];
+}
+
+const LEVELS = ["low", "standard", "high", "highest"];
+
+/** The class a pick of a model asks for: a maker class first, so it follows the tier's binding. */
+function pickClassOf(classes: string[]): string | null {
+  const picked = classes.filter((id) => LEVELS.includes(splitClassId(id).cls));
+  return picked.find((id) => splitClassId(id).maker) ?? picked[0] ?? null;
+}
+
+function hintOf(id: string | null): string {
+  const cls = id ? splitClassId(id).cls : "";
+  return LEVELS.includes(cls) ? t(`chooser.hint.${cls}` as Key) : "";
+}
+
+/** The tier's text models: `tier.models`, or its classes where an older Manage-App names none. */
+function textModels(tier: ModelTier): TierModel[] {
+  if (tier.models) {
+    return tier.models.filter((m) => m.kind === "text");
+  }
+  const byModel = new Map<string, TierModel>();
+  for (const id of pickable(tier)) {
+    const cls = tier.classes[id];
+    if (!offered(cls)) {
+      continue;
+    }
+    const model = byModel.get(cls.model) ?? {
+      id: cls.model,
+      name: cls.name,
+      maker: splitClassId(id).maker ?? "",
+      kind: "text" as const,
+      classes: [],
+      efforts: [...EFFORTS],
+      chooser: true,
+    };
+    model.classes.push(id);
+    byModel.set(cls.model, model);
+  }
+  return [...byModel.values()];
+}
+
+const itemOf = (model: TierModel, id: string): ChooserItem => ({
+  id,
+  model: model.id,
+  name: model.name,
+  hint: hintOf(LEVELS.includes(splitClassId(id).cls) ? id : pickClassOf(model.classes)),
+  efforts: model.efforts,
+});
+
+/** The tier's preselection for text and thinking: one line per model, in the tier's order. */
+export function preselection(tier: ModelTier): ChooserItem[] {
+  return textModels(tier).flatMap((m) => {
+    const id = m.chooser ? pickClassOf(m.classes) : null;
+    return id ? [itemOf(m, id)] : [];
+  });
+}
+
+/** The tier's text models off the preselection: what admins can still approve in way C. */
+export function offPreselection(tier: ModelTier): ChooserItem[] {
+  return textModels(tier).flatMap((m) => {
+    const id = m.chooser ? null : pickClassOf(m.classes);
+    return id ? [itemOf(m, id)] : [];
+  });
+}
+
+/** What admins can approve in way C: the preselection, then the tier's other text models. */
+export function approvable(tier: ModelTier): ChooserItem[] {
+  return [...preselection(tier), ...offPreselection(tier)];
+}
+
+/** A class or model id as a chooser line; null where the tier doesn't offer it. */
+export function chooserItem(tier: ModelTier, entry: string): ChooserItem | null {
+  const cls = tier.classes[entry];
+  const id = offered(cls) ? cls.model : cls ? null : entry;
+  const model = id ? textModels(tier).find((m) => m.id === id) : undefined;
+  return model ? itemOf(model, entry) : null;
+}
+
+/** One line per model: the first entry that runs on it wins. */
+function oncePerModel(items: (ChooserItem | null)[]): ChooserItem[] {
+  const seen = new Set<string>();
+  return items.filter((item): item is ChooserItem => {
+    if (!item || seen.has(item.model)) {
+      return false;
+    }
+    seen.add(item.model);
+    return true;
+  });
+}
+
 /**
  * What a purpose lets people pick: the tier's offered classes in ways A and B, the admins' list
  * in way C; the efforts per class (way C's list, way B's cap); the class a new pick starts on.
@@ -101,6 +203,17 @@ export function purposeChoice(tier: ModelTier, policy: ModelPolicy | null, purpo
           ? EFFORTS.slice(0, EFFORTS.indexOf(cap) + 1)
           : [...EFFORTS],
     choices: list ?? pickable(tier).filter((id) => offered(tier.classes[id])),
+    /**
+     * The chooser's lines after Auto: the preselection, or way C's list. Way C offers no Auto:
+     * a pick without a model takes the admins' default.
+     */
+    items: list ? oncePerModel(list.map((id) => chooserItem(tier, id))) : preselection(tier),
+    auto: !list,
+    /** The line a class or model id shows as: its own, or the one running the same model. */
+    itemFor(id: string, items: ChooserItem[]): ChooserItem | null {
+      const runs = chooserItem(tier, id)?.model;
+      return items.find((i) => i.id === id) ?? items.find((i) => i.model === runs) ?? null;
+    },
     default: own?.default ?? null,
     cap,
   };

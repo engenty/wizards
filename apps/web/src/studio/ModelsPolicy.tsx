@@ -41,7 +41,15 @@ import { useFeatures } from "../lib/features";
 import { type Key, t } from "../lib/i18n";
 import { Button, Card, cn, Input, Segmented, Select, Switch, Textarea } from "../ui";
 import { Hint, PanelHead, Part } from "./models-parts";
-import { approved, offered, pickable, reasonText, tierClassLabel } from "./tiers";
+import {
+  approvable,
+  approved,
+  chooserItem,
+  offered,
+  pickable,
+  preselection,
+  tierClassLabel,
+} from "./tiers";
 
 const OPEN: PurposePolicy = { models: null, default: null, effortCap: null, efforts: null };
 
@@ -80,7 +88,7 @@ export function useSavePolicy() {
   });
 }
 
-/** The way's name, short, for the menu: "engenty decides", "defaults", "approved only". */
+/** The way's name, short, for the menu: "preselection", "defaults", "expert mode". */
 export function wayShort(way: ModelPolicy["way"]): string {
   return t(`policy.wayShort.${way}`);
 }
@@ -490,7 +498,7 @@ function purposeOf(value: string | null, purposes: Purpose[]): Purpose {
   return purposes.find((p) => p === value) ?? "wizard";
 }
 
-/** J: way C's list per purpose: which classes people may pick, with which efforts, and the default. */
+/** J: way C (expert mode) per purpose: which models people may pick, with which efforts, and the default. */
 export function ApprovedPanel({
   tier,
   policy,
@@ -513,6 +521,7 @@ export function ApprovedPanel({
       purposes: { ...shown.purposes, [purpose]: { ...current, ...patch } },
     });
   const effortsOf = (id: string): Effort[] => current.efforts?.[id] ?? [...EFFORTS];
+  const inPreselection = new Set(preselection(tier).map((i) => i.model));
   const toggle = (id: string, on: boolean) => {
     const models = on ? [...list, id] : list.filter((m) => m !== id);
     setPurpose({
@@ -541,80 +550,67 @@ export function ApprovedPanel({
             </tr>
           </thead>
           <tbody>
-            {pickable(tier).map((id) => {
-              const bound = tier.classes[id];
-              const on = offered(bound) && list.includes(id);
-              const { maker } = splitClassId(id);
+            {approvable(tier).map((item) => {
+              // The list's entry running this model: the line's class, or one saved before.
+              const entry = list.find(
+                (id) => id === item.id || chooserItem(tier, id)?.model === item.model,
+              );
+              const key = entry ?? item.id;
+              const bound = tier.classes[item.id];
+              const takes = EFFORTS.filter((e) => item.efforts.includes(e));
               return (
-                <tr
-                  key={id}
-                  className={cn(
-                    "border-border-soft border-b last:border-b-0",
-                    !offered(bound) && "bg-paper-2/60",
-                  )}
-                >
+                <tr key={item.model} className="border-border-soft border-b last:border-b-0">
                   <td className="px-4 py-3">
                     <Switch
-                      checked={on}
-                      disabled={!canEdit || !offered(bound)}
-                      onChange={(next) => toggle(id, next)}
-                      label={tierClassLabel(id)}
+                      checked={Boolean(entry)}
+                      disabled={!canEdit}
+                      onChange={(next) => toggle(key, next)}
+                      label={item.name}
                     />
                   </td>
                   <td className="px-2 py-3">
-                    <span className={cn("font-medium", !offered(bound) && "text-ink-3")}>
-                      {tierClassLabel(id)}
-                    </span>
-                    <span className="block font-mono text-[0.75rem] text-ink-3">
-                      {maker ? id : `${id} · ${t("policy.anyMaker")}`}
+                    <span className="font-medium">{item.name}</span>
+                    <span className="block text-[0.75rem] text-ink-3">
+                      {inPreselection.has(item.model)
+                        ? item.hint
+                        : [item.hint, t("chooser.notInPreselection")].filter(Boolean).join(" · ")}
                     </span>
                   </td>
-                  {offered(bound) ? (
-                    <>
-                      <td className="px-2 py-3">
-                        {bound.name}
-                        <span className="block text-[0.75rem] text-ink-3">
-                          {[bound.route, bound.region].filter(Boolean).join(", ")}
-                        </span>
-                      </td>
-                      <td className="px-2 py-3">
-                        {on ? (
-                          <Segmented
-                            multi
-                            value={effortsOf(id)}
-                            options={[...EFFORTS]}
-                            label={(e) => t(`class.effort.${e}` as Key)}
-                            onChange={(efforts: Effort[]) =>
-                              canEdit && efforts.length
-                                ? setPurpose({
-                                    efforts: { ...(current.efforts ?? {}), [id]: efforts },
-                                  })
-                                : undefined
-                            }
-                          />
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3">
-                        {on ? (
-                          <label className="inline-flex items-center gap-1.5 text-ink-3">
-                            <input
-                              type="radio"
-                              name={`default-${purpose}`}
-                              checked={current.default === id}
-                              disabled={!canEdit}
-                              onChange={() => setPurpose({ default: id })}
-                              className="accent-ember"
-                            />
-                            {current.default === id ? t("policy.isDefault") : null}
-                          </label>
-                        ) : null}
-                      </td>
-                    </>
-                  ) : (
-                    <td colSpan={3} className="px-2 py-3 text-ink-2">
-                      {t("policy.notInTier", { tier: tier.name, why: reasonText(bound) })}
-                    </td>
-                  )}
+                  <td className="px-2 py-3 text-ink-2">
+                    {offered(bound) ? [bound.route, bound.region].filter(Boolean).join(", ") : null}
+                  </td>
+                  <td className="px-2 py-3">
+                    {entry && takes.length ? (
+                      <Segmented
+                        multi
+                        value={effortsOf(key).filter((e) => takes.includes(e))}
+                        options={takes}
+                        label={(e) => t(`class.effort.${e}` as Key)}
+                        onChange={(efforts: Effort[]) =>
+                          canEdit && efforts.length
+                            ? setPurpose({
+                                efforts: { ...(current.efforts ?? {}), [key]: efforts },
+                              })
+                            : undefined
+                        }
+                      />
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3">
+                    {entry ? (
+                      <label className="inline-flex items-center gap-1.5 text-ink-3">
+                        <input
+                          type="radio"
+                          name={`default-${purpose}`}
+                          checked={current.default === key}
+                          disabled={!canEdit}
+                          onChange={() => setPurpose({ default: key })}
+                          className="accent-ember"
+                        />
+                        {current.default === key ? t("policy.isDefault") : null}
+                      </label>
+                    ) : null}
+                  </td>
                 </tr>
               );
             })}
