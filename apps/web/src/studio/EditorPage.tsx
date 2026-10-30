@@ -30,7 +30,6 @@ import {
   type WizardDetail,
 } from "../lib/session";
 import { Button, Chip, cn, IconButton, LinkedText, Spinner } from "../ui";
-import { CreditsPill } from "./AppFrame";
 import { SyncNotice } from "./CloudSync";
 import {
   type Adding,
@@ -1033,9 +1032,6 @@ function Editor() {
             </Button>
           ) : null}
           {shareButton}
-          <span className="contents max-md:hidden">
-            <CreditsPill me={me.data} />
-          </span>
           {/* At the very right: a copy, the package to keep, deleting it. */}
           <WizardMenu
             wizard={{ id: w.id, title: def.title, published: w.published }}

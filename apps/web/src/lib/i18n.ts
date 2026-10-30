@@ -1297,6 +1297,10 @@ const de: Record<Key, Line> = {
   "orgSettings.members": "Mitglieder",
   "orgSettings.name": "Name",
   "orgSettings.nameHint": "So heißt die Organisation im Studio, im Menü und in Einladungen.",
+  "orgSettings.plan": "Plan",
+  "orgSettings.planHint":
+    "Was deine Organisation nutzen kann: Spaces, Mitglieder, Guthaben im Monat und Modelle.",
+  "orgSettings.planChange": "Plan ändern",
   "orgSettings.address": "Adresse",
   "orgSettings.addressHint":
     "Hier sind das Studio und die veröffentlichten Wizards der Organisation zu finden.",
@@ -4490,6 +4494,10 @@ const en = {
   "orgSettings.name": "Name",
   "orgSettings.nameHint":
     "What the organization is called in the studio, the menu and invitations.",
+  "orgSettings.plan": "Plan",
+  "orgSettings.planHint":
+    "What your organization can use: spaces, members, monthly credits and models.",
+  "orgSettings.planChange": "Change plan",
   "orgSettings.address": "Address",
   "orgSettings.addressHint": "Where the studio and the organization’s published wizards live.",
   "orgSettings.addressHintOpen":
