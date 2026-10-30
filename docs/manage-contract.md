@@ -526,9 +526,13 @@ as way A.
 
 Admins save the policy with `PUT /v1/tenants/:id/model-policy`.
 
-**In the gateway.** It reads `x-wizards-purpose` (a call without it counts as `wizard`),
-resolves the class through the tier's `classes`, and checks it against the purpose's policy.
-An effort above `effortCap` is lowered to it, not refused. Refusals answer `403` in the AI
+**In the gateway.** It reads `x-wizards-purpose` from a runtime's key (a call without it counts
+as `wizard`); a person's own access token always counts as `assistant`, whatever it sends, so a
+local install that runs wizards with a person's token is checked against the assistant's policy.
+It resolves the class through the tier's `classes` and checks it against the purpose's policy.
+An effort above `effortCap` is lowered to it, not refused; where the policy caps the effort, the
+caller's `reasoning` and the reasoning options under `providerOptions` are ignored and the
+gateway sets its own. Refusals answer `403` in the AI
 Gateway's error shape, so `@ai-sdk/gateway` reads the message:
 
 ```json
@@ -538,8 +542,14 @@ Gateway's error shape, so `@ai-sdk/gateway` reads the message:
 - `outside_tier`: the tier doesn't offer the class or model.
 - `not_in_policy`: the tier offers it, the organization's policy for that purpose doesn't.
 
-`x-wizards-run` names the run on every call a run makes; masking keeps one map per run. Calls
-outside a run carry none, and masking keeps its map for the one call.
+`x-wizards-run` names the run on every call a run makes; masking keeps one map per run and
+owner: the tenant for a runtime's key, the tenant and the person for a person's token, so a
+person's token reaches only the runs it made. Calls outside a run carry none, and masking keeps
+its map for the one call. Only placeholders a run's map issued pass unmasked.
+
+Masked are the text of language-model calls, System One's `state`, embedding `values`,
+reranking `documents` and `query`, and speech `text` and `instructions`. Not masked: audio sent
+for transcription, and files.
 
 Where the gateway masked personal data, its answer carries `x-wizards-masked`: the count per
 kind as JSON, e.g. `{"person":2,"email":1}`. No header: nothing was masked. The run log shows
@@ -552,3 +562,10 @@ before anything leaves, with `503`:
 ```json
 { "error": { "message": "Personal data could not be masked, so the call was not sent.", "type": "masking_unavailable" } }
 ```
+
+Two more refusals on masked calls: `413` (`invalid_request_error`) when a call brings more than
+`MASKING_MAX_CHARS` new characters, and `429` (`rate_limit_exceeded`) while the organization
+already has `MASKING_PER_TENANT` calls at the detector. `POST /v1/tenants/:id/model-policy/try`
+answers `409 no_tier` without a tier or `modelTiers`, and `429 rate_limited` past 20 a minute;
+`PUT /v1/tenants/:id/model-policy` answers `429 rate_limited` when the masking instructions
+change more than 20 times an hour.
