@@ -102,6 +102,7 @@ function PolicyRow({
   checked,
   locked,
   note,
+  warn,
   disabled,
   onChange,
 }: {
@@ -112,6 +113,8 @@ function PolicyRow({
   locked?: string | null;
   /** A word beside the title: "recommended on EU Private". */
   note?: string | null;
+  /** A sentence after the hint, highlighted: "Your own responsibility." */
+  warn?: string | null;
   disabled?: boolean;
   onChange: (on: boolean) => void;
 }) {
@@ -135,7 +138,10 @@ function PolicyRow({
             </span>
           ) : null}
         </div>
-        <p className="mt-0.5 text-[0.8125rem] text-ink-3">{hint}</p>
+        <p className="mt-0.5 text-[0.8125rem] text-ink-3">
+          {hint}
+          {warn ? <span className="font-medium text-amber"> {warn}</span> : null}
+        </p>
       </div>
       <Switch
         checked={checked && !locked}
@@ -162,7 +168,9 @@ export function WayPanel({
   const save = useSavePolicy();
   const shown = save.isPending && save.variables ? save.variables : policy;
   const set = (patch: Partial<ModelPolicy>) => save.mutate({ ...shown, ...patch });
-  const notIn = t("policy.notIn", { tier: tier.name });
+  // On a strict tier, own keys and subscriptions stay the admins' choice, in their responsibility.
+  const strict = Boolean(tier.rules.regions || tier.rules.zdr || tier.rules.noTraining);
+  const responsibility = strict ? t("policy.ownResponsibility") : null;
   return (
     <div className="flex flex-col gap-6">
       <PanelHead
@@ -237,7 +245,7 @@ export function WayPanel({
               title={t("policy.ownKeys")}
               hint={t("policy.ownKeys.hint")}
               checked={shown.ownKeys}
-              locked={tier.rules.ownKeys ? null : notIn}
+              warn={responsibility}
               disabled={!canEdit}
               onChange={(ownKeys) => set({ ownKeys })}
             />
@@ -246,7 +254,7 @@ export function WayPanel({
               title={t("policy.subscriptions")}
               hint={t("policy.subscriptions.hint")}
               checked={shown.subscriptions}
-              locked={tier.rules.zdr ? notIn : null}
+              warn={responsibility}
               disabled={!canEdit}
               onChange={(subscriptions) => set({ subscriptions })}
             />

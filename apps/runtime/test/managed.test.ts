@@ -582,22 +582,22 @@ describe("a runtime of a Manage-App", () => {
       tenantBDown = false;
       forgetTenant("tenant-b");
     }
-    // A tier without own keys refuses them, whatever the plan says; so does the admins' policy.
+    // Even a strict tier leaves own keys to the admins: they come in where the policy allows them,
+    // and the admins' policy alone refuses them.
     const rules = { regions: ["eu"], zdr: true, noTraining: true, search: false, decisions: false };
+    const sovereign = { id: "eu-sovereign", name: "EU Sovereign", locked: true, rules, classes: {} };
     try {
-      tierOfB = { tier: { id: "eu-sovereign", name: "EU Sovereign", locked: true, rules: { ...rules, ownKeys: false }, classes: {} } };
+      tierOfB = { tier: sovereign, modelPolicy: { ownKeys: true } };
       forgetTenant("tenant-b");
-      const inTier = await put({ keys: { openai: "sk-test" } }, b);
-      expect(inTier.status).toBe(403);
-      expect(await inTier.json()).toMatchObject({ code: "tier" });
+      expect((await put({ keys: { openai: "sk-test" } }, b)).status).toBe(200);
+      tierOfB = { tier: sovereign, modelPolicy: { ownKeys: false } };
+      forgetTenant("tenant-b");
+      const notAllowed = await put({ keys: { openai: "sk-test" } }, b);
+      expect(notAllowed.status).toBe(403);
+      expect(await notAllowed.json()).toMatchObject({ code: "tier" });
       expect((await put({}, b)).status).toBe(200);
-      tierOfB = {
-        tier: { id: "eu-private", name: "EU Private", locked: true, rules: { ...rules, ownKeys: true }, classes: {} },
-        modelPolicy: { ownKeys: false },
-      };
-      forgetTenant("tenant-b");
-      expect(await (await put({ keys: { openai: "sk-test" } }, b)).json()).toMatchObject({ code: "tier" });
-      // The admins' policy goes to the Manage-App; what the tier rules out stays off.
+      // The admins' policy goes to the Manage-App: on a zdr tier own keys and subscriptions stay
+      // as saved, apps connected to a space stay off.
       const open = { models: null, default: null, effortCap: null, efforts: null };
       const policy = {
         way: "C",
@@ -623,7 +623,7 @@ describe("a runtime of a Manage-App", () => {
           actorId: "user-b",
           way: "C",
           ownKeys: true,
-          subscriptions: false,
+          subscriptions: true,
           apps: { local: false, subscriptions: false },
           purposes: { wizard: { models: ["standard"], effortCap: null } },
           // Left out by the page: sent as they start, empty.

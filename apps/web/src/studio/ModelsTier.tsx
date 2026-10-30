@@ -165,11 +165,6 @@ export function TierPanel({
         >
           <TierClasses tier={tier} />
         </Part>
-        <Part title={t("tier.ownKeys")}>
-          <Hint>
-            {t(rules.ownKeys ? "tier.ownKeysOn" : "tier.ownKeysOff", { tier: tier.name })}
-          </Hint>
-        </Part>
         <Part title={t("tier.search")}>
           <Hint>{t(rules.search ? "tier.searchOn" : "tier.searchOff", { tier: tier.name })}</Hint>
         </Part>

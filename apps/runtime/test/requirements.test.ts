@@ -240,7 +240,7 @@ describe("what an organization's model tier doesn't offer", () => {
     id: "eu-sovereign",
     name: "EU Sovereign",
     locked: true,
-    rules: { regions: ["eu"], zdr: true, noTraining: true, ownKeys: false, search: false, decisions: false },
+    rules: { regions: ["eu"], zdr: true, noTraining: true, search: false, decisions: false },
     classes: {
       low: { model: "ovh/mistral-small", name: "Mistral Small 3.2", route: "OVHcloud", region: "France" },
       standard: { model: "stackit/gpt-oss-120b", name: "gpt-oss-120b", route: "STACKIT", region: "Germany" },

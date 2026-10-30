@@ -122,8 +122,6 @@ const EN = {
   desktopSignedIn: "Signed in. Go back to engenty wizards now.",
   ownKeysNotInPlan: "Your own API keys aren’t part of the {plan} plan.",
   ownKeysNotInOrganizationPlan: "Your own API keys aren’t part of the organization’s plan.",
-  ownKeysNotInTier:
-    "Your own API keys aren’t allowed in {tier}. Every call goes through engenty, so the tier’s list holds.",
   ownKeysNotInPolicy: "Your organization’s admins don’t allow your own API keys.",
   appSubscriptionRefused:
     "{organization} doesn’t let {app} read this space: it thinks on your own subscription, outside {tier}. Use the studio, an app with a local model, or ask an admin.",
@@ -352,8 +350,6 @@ const DE: Partial<Record<ServerKey, Line>> = {
   desktopSignedIn: "Angemeldet. Geh jetzt zurück zu engenty wizards.",
   ownKeysNotInPlan: "Eigene API-Keys gibt es nicht im Paket {plan}.",
   ownKeysNotInOrganizationPlan: "Eigene API-Keys gibt es nicht im Paket der Organisation.",
-  ownKeysNotInTier:
-    "Eigene API-Keys sind in {tier} nicht erlaubt. Jeder Aufruf geht über engenty, so gilt die Liste von {tier}.",
   ownKeysNotInPolicy: "Die Admins deiner Organisation erlauben keine eigenen API-Keys.",
   appSubscriptionRefused:
     "{organization} lässt {app} diesen Space nicht lesen: Es denkt mit deinem eigenen Abo, außerhalb von {tier}. Nimm das Studio, eine App mit lokalem Modell, oder frag die Admins.",

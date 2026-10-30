@@ -432,7 +432,6 @@ tier?: {
     regions: string[] | null; // where calls may run, lower case ("eu"); null: anywhere
     zdr: boolean;             // providers keep no data
     noTraining: boolean;      // providers don't train on the calls
-    ownKeys: boolean;         // the organization's own API keys are allowed at all
     search: boolean;          // web search is allowed
     decisions: boolean;       // an evaluation model may answer decisions (`/v4/ai/systemone`)
   };
@@ -489,10 +488,11 @@ Entries of `models` and `default` are class ids as in a model id without `wizard
 `default`, `effortCap` and `efforts` null; way B leaves `models` and `efforts` null; way C
 leaves `effortCap` null.
 
-What the tier keeps off is off in the policy too, whatever was saved: `ownKeys` while
-`tier.rules.ownKeys` is false, and `subscriptions`, `apps.local` and `apps.subscriptions` while
-`tier.rules.zdr` is on (a member's subscription or an app's own model keeps what it reads). A
-way the plan no longer offers is served as way A.
+What the tier keeps off is off in the policy too, whatever was saved: `apps.local` and
+`apps.subscriptions` while `tier.rules.zdr` is on (an app's own model keeps what it reads).
+`ownKeys` and `subscriptions` are the admins' choice on every tier; on a strict one the studio
+says they are the organization's own responsibility. A way the plan no longer offers is served
+as way A.
 
 Admins save the policy with `PUT /v1/tenants/:id/model-policy`.
 
