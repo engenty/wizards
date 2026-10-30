@@ -31,7 +31,6 @@ export interface ModelTier {
     regions: string[] | null;
     zdr: boolean;
     noTraining: boolean;
-    ownKeys: boolean;
     search: boolean;
     /** An evaluation model may answer decisions. */
     decisions: boolean;

@@ -2419,10 +2419,8 @@ export function Models() {
   // On a phone the menu marks nothing: a row opens the page.
   const isOpen = (next: Target) => Boolean(show || !narrow) && showOf(next) === showOf(target);
   const installed = place.harnesses.filter((h) => h.version !== null || state.source === h.id);
-  // A tier without own keys leaves the providers out.
-  const providers = tier && !tier.rules.ownKeys ? [] : PROVIDERS;
-  const keyed = providers.filter((p) => state.keys[p.id]);
-  const others = providers.filter((p) => !state.keys[p.id]);
+  const keyed = PROVIDERS.filter((p) => state.keys[p.id]);
+  const others = PROVIDERS.filter((p) => !state.keys[p.id]);
   /** What a class runs on in the tier, as a row's status; undefined without a tier. */
   const inTier = (cls: string) => {
     const bound = tier?.classes[cls];

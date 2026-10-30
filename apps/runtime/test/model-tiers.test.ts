@@ -39,7 +39,6 @@ const server: Server = createServer(async (req, res) => {
                 regions: ["EU"],
                 zdr: true,
                 noTraining: true,
-                ownKeys: false,
                 search: false,
                 decisions: false,
               },

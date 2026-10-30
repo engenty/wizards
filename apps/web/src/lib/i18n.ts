@@ -179,6 +179,7 @@ const de: Record<Key, Line> = {
     "Ollama und Apples Modelle auf dem Gerät, nur für Goose. Nichts verlässt den Computer.",
   "policy.ownKeys": "Eigene API-Keys",
   "policy.ownKeys.hint": "Anbieter, die die Stufe erlaubt. Aufrufe gehen trotzdem über engenty.",
+  "policy.ownResponsibility": "In eurer Verantwortung.",
   "policy.subscriptions": "Abos der Mitglieder",
   "policy.subscriptions.hint":
     "Claude Code und Codex auf dem Computer eines Mitglieds behalten Daten zu dessen eigenen Bedingungen.",
@@ -261,11 +262,6 @@ const de: Record<Key, Line> = {
   "tier.short.retention": "{model} speichert Daten auf jedem Weg",
   "tier.short.training": "{model} darf mit den Daten trainieren",
   "tier.short.maker": "Die Stufe lässt den Hersteller aus",
-  "tier.ownKeys": "Eigene API-Keys",
-  "tier.ownKeysOff":
-    "In {tier} nicht erlaubt. Jeder Aufruf geht über engenty, so gilt die Liste oben.",
-  "tier.ownKeysOn":
-    "In {tier} erlaubt, wo die Admins der Organisation sie zulassen. Aufrufe damit gehen trotzdem über engenty.",
   "tier.search": "Websuche",
   "tier.searchOff":
     "In {tier} aus. Schritte, die im Web suchen, laufen ohne sie; der Builder sagt es.",
@@ -3281,6 +3277,7 @@ const en = {
     "Ollama and Apple’s on-device models, for Goose only. Nothing leaves the computer.",
   "policy.ownKeys": "Your own API keys",
   "policy.ownKeys.hint": "Providers the tier allows. Calls still go through engenty.",
+  "policy.ownResponsibility": "Your own responsibility.",
   "policy.subscriptions": "Members’ subscriptions",
   "policy.subscriptions.hint":
     "Claude Code, Codex on a member’s computer keep data under the member’s own terms.",
@@ -3361,11 +3358,6 @@ const en = {
   "tier.short.retention": "{model} keeps data on every route",
   "tier.short.training": "{model} may train on what it gets",
   "tier.short.maker": "The tier leaves out its maker",
-  "tier.ownKeys": "Your own API keys",
-  "tier.ownKeysOff":
-    "Not allowed in {tier}. Every call goes through engenty, so the list above holds.",
-  "tier.ownKeysOn":
-    "Allowed in {tier}, where the organization’s admins allow them. Calls with them still go through engenty.",
   "tier.search": "Web search",
   "tier.searchOff": "Off in {tier}. Steps that search the web run without it; the builder says so.",
   "tier.searchOn": "On in {tier}.",

@@ -1864,21 +1864,9 @@ export const studio = new Hono<Vars>()
           403,
         );
       }
-      // The organization's tier, or its admins' policy, may allow no own keys at all.
-      if (
-        feature("modelTiers", info.features) &&
-        ((info.tier && !info.tier.rules.ownKeys) || info.modelPolicy?.ownKeys === false)
-      ) {
-        return c.json(
-          {
-            error:
-              info.tier && !info.tier.rules.ownKeys
-                ? say(c, "ownKeysNotInTier", { tier: info.tier.name })
-                : say(c, "ownKeysNotInPolicy"),
-            code: "tier",
-          },
-          403,
-        );
+      // The organization's admins may allow no own keys at all.
+      if (feature("modelTiers", info.features) && info.modelPolicy?.ownKeys === false) {
+        return c.json({ error: say(c, "ownKeysNotInPolicy"), code: "tier" }, 403);
       }
     }
     const blocked = input.bindings ? blockedBinding(input.bindings) : null;
@@ -1919,12 +1907,11 @@ export const studio = new Hono<Vars>()
     }
     const policy = modelPolicySchema.parse(await c.req.json());
     // What the tier rules out stays off, whatever the page sent; each way leaves the others' fields out.
+    // Own keys and subscriptions are the admins' choice on every tier.
     const { rules } = info.tier;
     const allowed: ModelPolicy = {
       ...policy,
       purposes: purposesOfWay(policy),
-      ownKeys: policy.ownKeys && rules.ownKeys,
-      subscriptions: policy.subscriptions && !rules.zdr,
       apps: {
         local: policy.apps.local && !rules.zdr,
         subscriptions: policy.apps.subscriptions && !rules.zdr,

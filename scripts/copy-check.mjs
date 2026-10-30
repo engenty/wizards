@@ -96,7 +96,12 @@ const RULES = {
     ["gerade Anführungszeichen: „…“ verwenden", /"/],
     ["gerader Apostroph: ’ verwenden", /\w'\w/],
     ["Sie-Form", /\b(Ihnen|Ihre[mnrs]?)\b|[a-zäöü,] Sie\b/],
-    ["ihr/euch für die Lesenden: du verwenden", /\b(euch|eure[mnrs]?)\b/i],
+    // The organization's admins together, by the product owner's decision.
+    [
+      "ihr/euch für die Lesenden: du verwenden",
+      /\b(euch|eure[mnrs]?)\b/i,
+      ["policy.ownResponsibility"],
+    ],
     ["Ausrufezeichen", /!/],
     [
       "österreichisch: Standarddeutsch verwenden (Januar, USt-IdNr., Kassierer)",
