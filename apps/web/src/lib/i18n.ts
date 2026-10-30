@@ -3260,9 +3260,6 @@ const de: Record<Key, Line> = {
   "assistant.remove": "Entfernen",
   "assistant.signalled": "Während der Antwort geschrieben",
   "assistant.dev": "Entwicklermodus",
-  "assistant.devOn":
-    "Entwicklermodus an: Schritte, Werkzeuge, Prompt und Runden. Klick schaltet ihn aus.",
-  "assistant.devOff": "Entwicklermodus aus. Klick schaltet ihn ein.",
   "assistant.step": "Schritt {n}",
   "assistant.tokens": "{input} ein · {output} aus · {total} Token",
   "assistant.stepTools": "Werkzeuge",
@@ -6559,8 +6556,6 @@ const en = {
   "assistant.remove": "Remove",
   "assistant.signalled": "Written during the answer",
   "assistant.dev": "Developer mode",
-  "assistant.devOn": "Developer mode on: steps, tools, prompt and turns. Click to switch it off.",
-  "assistant.devOff": "Developer mode off. Click to switch it on.",
   "assistant.step": "Step {n}",
   "assistant.tokens": "{input} in · {output} out · {total} tokens",
   "assistant.stepTools": "Tools",

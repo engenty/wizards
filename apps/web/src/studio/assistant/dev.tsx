@@ -233,29 +233,6 @@ export function UsageMeter({ messages, narrow }: { messages: ChatMessage[]; narr
   );
 }
 
-/** The developer mode's switch, where the runtime offers it: beside Goose's name, in a Work chat's composer. */
-export function DevSwitch({ on, set }: { on: boolean; set: (on: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={t("assistant.dev")}
-      title={on ? t("assistant.devOn") : t("assistant.devOff")}
-      onClick={() => set(!on)}
-      className={cn(
-        "inline-flex h-5 shrink-0 items-center gap-1 rounded-full font-mono font-semibold text-[0.625rem] uppercase tracking-wide transition",
-        on
-          ? "bg-ember pr-0.5 pl-2 text-white"
-          : "flex-row-reverse bg-paper-3 pr-2 pl-0.5 text-ink-3",
-      )}
-    >
-      dev
-      <span className="size-4 rounded-full bg-white shadow-sm" />
-    </button>
-  );
-}
-
 /** A chat's messages as the thread's JSON takes them: Goose's, or a Work chat's. */
 type ThreadMessage = object & { previews?: unknown };
 
