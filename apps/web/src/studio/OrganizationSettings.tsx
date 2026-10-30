@@ -474,7 +474,7 @@ export function OrganizationMembers({ me }: { me: Me }) {
       <p className="px-1 text-[0.8125rem] text-ink-3 leading-relaxed">
         {me.tenant.role === "member" ? t("organization.memberNote") : t("orgSettings.rolesNote")}
       </p>
-      {data && data.members.some((m) => m.userId !== me.user.id) ? <LeaveSection me={me} /> : null}
+      {data?.members.some((m) => m.userId !== me.user.id) ? <LeaveSection me={me} /> : null}
     </div>
   );
 }
