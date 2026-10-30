@@ -394,15 +394,15 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
       {/* Beside the page, the engenty's row is as tall as the page's top bar, so the two sit on
           one line. */}
       <EngentyMenu me={me} position={position} horizontal={horizontal} labels={labels} />
-      {/* The mode, always in sight: right under the engenty that wears it. */}
+      <div className={horizontal ? "ml-1" : "mt-1"}>
+        <SpaceTile me={me} labels={labels} />
+      </div>
+      {/* The mode, always in sight: under the space, near the engenty that wears it. */}
       <ModeSwitch
         me={me}
         look={horizontal ? "row" : labels ? "named" : "stacked"}
-        className={horizontal ? "ml-1" : "mt-1"}
+        className={horizontal ? "ml-1" : "mt-2"}
       />
-      <div className={horizontal ? "ml-1" : "mt-2"}>
-        <SpaceTile me={me} labels={labels} />
-      </div>
       {mode === "work" ? (
         <WorkRail labels={labels} horizontal={horizontal} />
       ) : mode === "client" ? (

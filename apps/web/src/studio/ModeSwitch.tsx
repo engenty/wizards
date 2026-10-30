@@ -1,4 +1,5 @@
 import { Eye, type LucideIcon, MessageSquare, PenLine } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import type { EngentyKind } from "../engenty/colors";
 import { t } from "../lib/i18n";
@@ -22,10 +23,11 @@ export const MODE_ENGENTY: Record<Mode, EngentyKind> = {
 
 /**
  * The switch between the modes, always in sight: in the app bar right under the engenty, and on
- * a phone in the top bar. `look`: `named` is a row of glyphs with their names, under the wordmark
- * of a bar that names its places; `stacked` puts each glyph over a short name, one under the
- * other, in a narrow bar; `row` is the glyphs alone side by side, in a bar along the top or
- * bottom and on a phone. Someone with one mode gets none.
+ * a phone in the top bar. Compact: each mode is its glyph, and only the one the person is in
+ * (or points at) shows its name; a card slides under the one they are in. `named` lies along
+ * the wordmark of a bar that names its places, `stacked` stands in a narrow bar with the name
+ * under the glyph, `row` is glyphs alone, for a bar along the top or bottom and on a phone.
+ * Someone with one mode gets none.
  */
 export function ModeSwitch({
   me,
@@ -39,6 +41,30 @@ export function ModeSwitch({
   const mode = useMode(me);
   const modes = allowedModes(me);
   const navigate = useNavigate();
+  const box = useRef<HTMLFieldSetElement>(null);
+  const [card, setCard] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const vertical = look === "stacked";
+  // The card follows the button of the current mode, also while names open and close around it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new mode moves the card; a second mode makes the switch appear.
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) {
+      return;
+    }
+    const place = () => {
+      const on = el.querySelector<HTMLElement>("[aria-pressed=true]");
+      setCard(
+        on ? { x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight } : null,
+      );
+    };
+    place();
+    const watch = new ResizeObserver(place);
+    watch.observe(el);
+    for (const child of el.children) {
+      watch.observe(child);
+    }
+    return () => watch.disconnect();
+  }, [mode, modes.length]);
   if (modes.length < 2) {
     return null;
   }
@@ -50,18 +76,26 @@ export function ModeSwitch({
   };
   return (
     <fieldset
+      ref={box}
       aria-label={t("mode.switch")}
       className={cn(
-        "shrink-0 gap-0.5 rounded-xl bg-ink/5 p-0.5 ring-1 ring-border-soft",
-        look === "named" ? "grid w-full" : look === "stacked" ? "flex w-13 flex-col" : "flex",
+        "relative flex w-fit shrink-0 gap-0.5 rounded-[14px] bg-ink/5 p-1 ring-1 ring-border-soft",
+        vertical && "flex-col",
         className,
       )}
-      style={
-        look === "named"
-          ? { gridTemplateColumns: `repeat(${modes.length}, minmax(0, 1fr))` }
-          : undefined
-      }
     >
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute top-0 left-0 rounded-[10px] bg-card shadow-soft transition-[transform,width,height,opacity] duration-300 ease-out motion-reduce:transition-none dark:ring-1 dark:ring-border-soft",
+          card ? "opacity-100" : "opacity-0",
+        )}
+        style={
+          card
+            ? { transform: `translate(${card.x}px, ${card.y}px)`, width: card.w, height: card.h }
+            : undefined
+        }
+      />
       {modes.map((m) => {
         const Icon = MODE_ICON[m];
         const name = t(`mode.${m}`);
@@ -72,21 +106,36 @@ export function ModeSwitch({
             aria-pressed={m === mode}
             onClick={() => pick(m)}
             title={look === "row" ? name : undefined}
-            aria-label={look === "row" ? name : undefined}
             className={cn(
-              "rounded-lg transition",
-              m === mode
-                ? "bg-card text-ink shadow-soft dark:ring-1 dark:ring-border-soft"
-                : "text-ink-3 hover:text-ink",
-              look === "named"
-                ? "flex h-8 items-center justify-center gap-1.5 font-medium text-[0.8125rem]"
-                : look === "stacked"
-                  ? "flex flex-col items-center gap-0.5 py-1.5 font-medium text-[0.625rem] coarse:py-2"
-                  : "grid size-8 place-items-center coarse:size-9",
+              "group relative flex items-center rounded-[10px] text-ink-3 transition-colors hover:text-ink focus-visible:text-ink aria-pressed:text-ink",
+              vertical
+                ? "w-11 flex-col justify-center py-2 coarse:py-2.5"
+                : "h-8 px-2 coarse:h-9 coarse:px-2.5",
             )}
           >
-            <Icon className={look === "named" ? "size-3.5" : "size-4"} strokeWidth={2} />
-            {look === "row" ? null : name}
+            <Icon className="size-4 shrink-0" strokeWidth={2} />
+            {look === "row" ? (
+              <span className="sr-only">{name}</span>
+            ) : (
+              // The name opens from nothing: a grid track that grows from 0fr to 1fr.
+              <span
+                className={cn(
+                  "grid transition-[grid-template-columns,grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
+                  vertical
+                    ? "grid-rows-[0fr] opacity-0 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-focus-visible:grid-rows-[1fr] group-focus-visible:opacity-100 group-aria-pressed:grid-rows-[1fr] group-aria-pressed:opacity-100"
+                    : "grid-cols-[0fr] opacity-0 group-hover:grid-cols-[1fr] group-hover:opacity-100 group-focus-visible:grid-cols-[1fr] group-focus-visible:opacity-100 group-aria-pressed:grid-cols-[1fr] group-aria-pressed:opacity-100",
+                )}
+              >
+                <span
+                  className={cn(
+                    "overflow-hidden whitespace-nowrap font-medium",
+                    vertical ? "pt-0.5 text-center text-[0.625rem]" : "pl-1.5 text-[0.8125rem]",
+                  )}
+                >
+                  {name}
+                </span>
+              </span>
+            )}
           </button>
         );
       })}
