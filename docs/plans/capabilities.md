@@ -177,6 +177,57 @@ The proposal on the table, in two steps:
    only connections with the audience „alle“, never a person's own sign-in. This is the
    connections plan's appliance phase.
 
+## Review: guests and the team on this setup (2026-10-31)
+
+Against the code on `feat/work-mode`. The direction holds; little is impossible by design yet.
+
+**The shape** is right: processes by audience, one queue in a database, one database per
+organization, secrets sealed, the model path apart from the tool path. Three gaps:
+
+- The split is by door, not by trust. Guest steps and team test runs share the runner process,
+  its keys and its reach into every organization's database; a guest differs only by the run's
+  row and `if guest` checks in `drive()` (`runner.ts:857`).
+- No gate: five places call connectors; only `tools/connector.ts` asks anyone; plugin
+  connections don't know who calls.
+- The rules live only in code (`connector.ts:109`): nobody sees or sets them, and a wizard's
+  `connection.policy` overrides them.
+
+**Scripts.** A shell reaches an AI step only when its author listed `sandbox` in `step.tools`;
+a Work chat always (members only); skill scripts only with `run_scripts` on. Code Mode
+(`tools/code.ts`, QuickJS in WebAssembly, no I/O but the step's tools) is safe.
+
+| Engine | Isolation | Network | Packages |
+|---|---|---|---|
+| Docker (`sandbox/docker.ts`) | a container per run, `capDrop ALL`, `no-new-privileges`, 1 GiB, 256 pids, nothing from `/data` | open internet, Docker's default bridge | anything |
+| agentOS (`sandbox/agentos.ts`) | a VM per run | npm and PyPI only, plus `SANDBOX_ALLOW_HOSTS`; loopback and private refused | registries |
+| off (the cloud compose) | no shell | – | – |
+
+On Docker a guest's step can install and send anything; the host's published ports are
+probably reachable from the bridge (not verified). On agentOS it reaches the registries and
+nothing else.
+
+**Data and tools.** Organizations are apart by a request context (`withTenant`); a bug in a
+shared process crosses it, and the three containers share one sealing key. Outbound HTTP
+(`tools/net-guard.ts`) refuses private addresses and re-checks DNS and redirects: it stops
+reaching in, not sending out. Mail tools, share targets and plugin connections ask nobody;
+Goose holds nothing. A connector's ask goes to the person running the wizard, for a guest the
+attacker.
+
+| Attack | Today | By design? |
+|---|---|---|
+| Prompt injection in a guest's answers | a prompt line (`prompts/step.md:17`), no detection; content guards check abuse, not injection | no; planned: AI steps read only on space connections, writes in fixed steps, results kept in the space |
+| Exfiltrating what a step read | `http_request` to any public URL, mail from our address, a Docker sandbox with internet, share links | open; rules 5 and 7 of the connections plan |
+| Another client's data | only through a bug in a shared process | mitigated; isolated instances make it structural |
+| Network or `/data` from a script | Docker: host likely reachable, `/data` not mounted; agentOS: refused; cloud: no scripts | mitigated on agentOS only |
+| Installing packages | Docker: anything; agentOS: registries | supply chain open, contained to the sandbox |
+| Approving one's own write | the guest answers the ask | open; „Mit Freigabe“ to admins |
+| Exhausting resources | Turnstile, 6 runs/h, daily limit, guest budget, concurrency, 15 min ask timeout | mitigated |
+
+**In order:** (1) guests get agentOS or no sandbox, never Docker; (2) one broker call path with
+„who calls“, which also closes plugin connections for guests; (3) fixed steps for writes and
+„Mit Freigabe“ to admins, so a guest never approves; (4) what an AI step read from a space
+connection stays in the space; (5) isolated instances.
+
 ## Who sees what
 
 | | Wizard step | Work chat | Goose |
