@@ -1,12 +1,11 @@
 ---
 title: Skills
 description: Instructions your wizards work by – always, or when a wizard needs one. Add them from skills.sh, upload them or write your own.
-version: 0.11.6
+version: 0.13.0
 ---
 
 A skill is a set of instructions your wizards work by: how you write, what a quote must hold, how
-to handle a PDF. You find them under **Sources › Skills**. Skills are not switched on for
-everyone yet.
+to handle a PDF. You find them under **Skills** in the app bar, beside Sources and Results.
 
 A skill is a folder in the open Agent Skills format: a `SKILL.md` with a name, a description and
 the instructions, and any text files the instructions point to. The same skill works in Claude,

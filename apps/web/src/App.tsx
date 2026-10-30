@@ -194,6 +194,14 @@ export function StudioApp() {
             }
           />
           <Route
+            path="/skills"
+            element={
+              <Studio wide>
+                <SpacePage place="skills" />
+              </Studio>
+            }
+          />
+          <Route
             path="/work"
             element={
               <Studio full>

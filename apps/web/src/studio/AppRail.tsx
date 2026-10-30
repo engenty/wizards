@@ -20,6 +20,7 @@ import {
   PanelRight,
   PanelTop,
   Plus,
+  ScrollText,
   Settings,
   Sun,
 } from "lucide-react";
@@ -42,6 +43,7 @@ import {
   setAppBar,
   useAppBar,
 } from "../lib/appbar";
+import { useFeature } from "../lib/features";
 import { type Key, t } from "../lib/i18n";
 import { useMode } from "../lib/mode";
 import { type Me, useCurrentSpace, useMayCreate } from "../lib/session";
@@ -62,7 +64,7 @@ const AboutDialog = lazy(() =>
 /**
  * The app bar at an edge of the window: the engenty in the corner (its menu holds what belongs to
  * the app itself), the switch between the modes under it, the space (it switches between spaces), its home (the wizards), its sources
- * (Info, Brand, Knowledge, Data), its results, the apps the plugins added, and at its end the
+ * (Info, Brand, Knowledge, Data), its skills, its results, the apps the plugins added, and at its end the
  * settings and the person. A place is a filled tile, a tool a line glyph; the one that is open is
  * cut from the page's own paper. On a wide window a bar at a side names its places beside
  * their glyphs, unless another sidebar stands beside the page. A right click on the bar, or a
@@ -241,14 +243,17 @@ function BarMenu({
   );
 }
 
-/** The place in the bar a page belongs to: Home (the wizards), the space's sources, its results. */
-function usePlace(): "home" | "new" | "space" | "results" | "settings" | null {
+/** The place in the bar a page belongs to: Home (the wizards), the space's sources, its skills, its results. */
+function usePlace(): "home" | "new" | "space" | "skills" | "results" | "settings" | null {
   const { pathname } = useLocation();
   if (pathname === "/new") {
     return "new";
   }
   if (pathname === "/" || pathname.startsWith("/edit/")) {
     return "home";
+  }
+  if (pathname === "/skills") {
+    return "skills";
   }
   if (pathname === "/space/results" || pathname.startsWith("/space/results/")) {
     return "results";
@@ -313,6 +318,7 @@ function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean
  */
 export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: boolean }) {
   const plugins = useStudioPlugins();
+  const skillsOn = useFeature("skills");
   const { position } = useAppBar();
   const horizontal = isHorizontal(position);
   const place = usePlace();
@@ -433,6 +439,19 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
             <Layers className="size-5 shrink-0" />
             {labels ? <Label>{t("nav.sources")}</Label> : null}
           </Link>
+          {/* The skills the space's wizards work by, behind their switch. */}
+          {skillsOn ? (
+            <Link
+              to="/skills"
+              title={t("space.skills")}
+              aria-label={t("space.skills")}
+              aria-current={place === "skills" ? "page" : undefined}
+              className={cn(glyph(place === "skills", labels), horizontal ? "ml-1.5" : "mt-2")}
+            >
+              <ScrollText className="size-5 shrink-0" />
+              {labels ? <Label>{t("space.skills")}</Label> : null}
+            </Link>
+          ) : null}
           {/* What the space's wizards made. */}
           <Link
             to="/space/results"
@@ -501,7 +520,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
 
 /**
  * A phone's bar: always along the bottom, floating over the page as glass. It holds the space and
- * its two places to go every day, Home and the space's sources; "⋯" holds the rest (results, the
+ * its two places to go every day, Home and the space's sources; "⋯" holds the rest (skills, results, the
  * plugins' apps, then what the engenty's menu holds, the settings among it). The person sits at the top.
  */
 /**
@@ -565,12 +584,13 @@ function Capsule({ index }: { index: number | null }) {
 /**
  * A phone's bar: always along the bottom, a capsule of glass floating over the page. Three tabs:
  * the space's two places to go every day, Home and its sources, and "More" with the rest in a menu:
- * Results, the settings, the plugins' apps, then About (in a dialog). Beside it, on glass of its
+ * Skills, Results, the settings, the plugins' apps, then About (in a dialog). Beside it, on glass of its
  * own, the page's main action (`usePrimaryAction`), else a new wizard. The space and the person
  * sit in the top bar.
  */
 export function PhoneBar({ me }: { me: Me }) {
   const plugins = useStudioPlugins();
+  const skillsOn = useFeature("skills");
   const place = usePlace();
   const [open, setOpen] = useState(false);
   const [about, setAbout] = useState(false);
@@ -598,7 +618,7 @@ export function PhoneBar({ me }: { me: Me }) {
       ? 0
       : place === "space"
         ? 1
-        : place === "results" || place === "settings"
+        : place === "skills" || place === "results" || place === "settings"
           ? 2
           : null;
   const go = (to: string) => {
@@ -642,7 +662,7 @@ export function PhoneBar({ me }: { me: Me }) {
           aria-expanded={open}
           aria-haspopup="menu"
           onClick={() => setOpen((o) => !o)}
-          className={tab(open || place === "results" || place === "settings")}
+          className={tab(open || place === "skills" || place === "results" || place === "settings")}
         >
           <Ellipsis className="size-[1.375rem]" />
         </button>
@@ -653,6 +673,17 @@ export function PhoneBar({ me }: { me: Me }) {
             role="menu"
             className="absolute right-0 bottom-full mb-3 flex w-60 animate-rise flex-col rounded-2xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft"
           >
+            {skillsOn ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={row(place === "skills")}
+                onClick={() => go("/skills")}
+              >
+                <ScrollText className="size-[1.125rem] shrink-0 text-ink-3" />
+                <span className="min-w-0 flex-1 truncate">{t("space.skills")}</span>
+              </button>
+            ) : null}
             <button
               type="button"
               role="menuitem"

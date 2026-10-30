@@ -1,4 +1,4 @@
-import { Inbox, Layers, LayoutGrid, Puzzle } from "lucide-react";
+import { Inbox, Layers, LayoutGrid, Puzzle, ScrollText } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useFeature } from "../lib/features";
@@ -142,13 +142,13 @@ const SkillEditor = lazy(() =>
 );
 
 /**
- * The space at /space/<part>: what all its wizards share, in six parts — Info, Brand, Knowledge,
- * Data, Public page and Results. The left container shows one level at a time, as the settings do: the
- * parts, or the menu of the part that is open, which jumps to its sections and marks the one in
+ * The space at /space/<part>: what all its wizards share, in five parts — Info, Brand, Knowledge,
+ * Data and Public page — and Results; Skills at /skills (`place`). The left container shows one
+ * level at a time, as the settings do: the parts, or the menu of the part that is open, which jumps to its sections and marks the one in
  * view (Results: picks a wizard). On a phone the parts, a part's menu and the page take
  * turns. Plugins add sections to a part, each plugin's under its name, and parts of their own.
  */
-export function SpacePage() {
+export function SpacePage({ place }: { place?: "skills" }) {
   const { group: param } = useParams();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
@@ -162,7 +162,9 @@ export function SpacePage() {
   // Back up to the parts on a wide page, while the part's page stays; another part opens its
   // own menu again.
   const [upAt, setUpAt] = useState<string | null>(null);
-  const group: SpaceGroupId | undefined = isSpaceGroup(param) ? param : undefined;
+  // Skills have their own address; `/space/skills` leads there.
+  const group: SpaceGroupId | undefined =
+    place ?? (isSpaceGroup(param) && param !== "skills" ? param : undefined);
   // A plugin's part: it draws itself, and says its menu.
   const part = group ? undefined : plugins.spaceParts.find((p) => p.id === param);
   const open = group ?? part?.id;
@@ -173,9 +175,7 @@ export function SpacePage() {
   const pagesOn = useFeature("pages");
   // Skills wait behind theirs.
   const skillsOn = useFeature("skills");
-  const groups = spaceGroups().filter(
-    (g) => (pagesOn || g.id !== "page") && (skillsOn || g.id !== "skills"),
-  );
+  const groups = spaceGroups().filter((g) => pagesOn || g.id !== "page");
   const entries = withParts(groups, plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
   // Results have a place of their own in the app bar: no part among the others, no way up.
   const resultsEntry = {
@@ -184,19 +184,21 @@ export function SpacePage() {
     icon: Inbox,
     to: "/space/results",
   };
-  const entry = group === "results" ? resultsEntry : entries.find((e) => e.id === open);
+  // So have Skills, at their own address: a menu of their own, but no way up to the parts.
+  const skillsEntry = { id: "skills", label: t("space.skills"), icon: ScrollText, to: "/skills" };
+  // Places of their own in the app bar, not parts of the sources.
+  const own = group === "results" || group === "skills";
+  const entry =
+    group === "results"
+      ? resultsEntry
+      : group === "skills"
+        ? skillsEntry
+        : entries.find((e) => e.id === open);
   const show = params.get("show");
   // A phone: 0 the parts, 1 the part's menu, 2 the page.
   // Results have no menu: the page at once, the wizard picked above the list.
   const phone = group === "results" ? 2 : !open ? 0 : show ? 2 : 1;
-  const level =
-    group === "results"
-      ? 1
-      : narrow
-        ? Math.min(phone, 1)
-        : open && upAt !== open && !atParts
-          ? 1
-          : 0;
+  const level = own ? 1 : narrow ? Math.min(phone, 1) : open && upAt !== open && !atParts ? 1 : 0;
   const levelStep = useStepDirection(level);
   const pageStep = useStepDirection(phone);
   const menu = useMemo(() => ({ slot, narrow, setDetail }), [slot, narrow]);
@@ -261,8 +263,8 @@ export function SpacePage() {
           : undefined;
 
   useCrumbs([
-    ...(group === "results" ? [] : [{ label: t("nav.sources"), to: "/space" }]),
-    ...(entry ? [{ label: entry.label, to: `/space/${entry.id}` }] : []),
+    ...(own ? [] : [{ label: t("nav.sources"), to: "/space" }]),
+    ...(entry ? [{ label: entry.label, to: entry.to }] : []),
     ...(entry && (detail ?? wizardTitle ?? pickedTitle)
       ? [{ label: (detail ?? wizardTitle ?? pickedTitle) as string }]
       : []),
@@ -326,6 +328,10 @@ export function SpacePage() {
   }, [narrow, open, picked, skillPick]);
   const rootHeight = useScrollRootHeight();
 
+  if (param === "skills") {
+    return <Navigate to={{ pathname: "/skills", search: location.search, hash }} replace />;
+  }
+
   if (!open) {
     // The space was one page: `/space#documents` opens the part the section is in now.
     const id = hash.slice(1);
@@ -364,7 +370,7 @@ export function SpacePage() {
   }
 
   if (group === "skills" && !skillsOn) {
-    return <Navigate to="/space/info" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (group === "knowledge" && !show && plugins.spaceSections.some((x) => x.id === hash.slice(1))) {
@@ -408,11 +414,7 @@ export function SpacePage() {
       <LevelHead
         title={title}
         open={level === 1 ? (entry ?? null) : null}
-        onBack={
-          group === "results"
-            ? undefined
-            : () => (narrow ? navigate("/space") : setUpAt(open ?? null))
-        }
+        onBack={own ? undefined : () => (narrow ? navigate("/space") : setUpAt(open ?? null))}
         // The page's own name in the bar, and the way back to the wizards.
         root={{
           icon: Layers,
@@ -474,7 +476,7 @@ export function SpacePage() {
                 <div className="mb-3">
                   <BackRow
                     label={entry?.label ?? title}
-                    onBack={() => navigate(`/space/${open}`)}
+                    onBack={() => navigate(entry?.to ?? `/space/${open}`)}
                   />
                 </div>
               ) : null}

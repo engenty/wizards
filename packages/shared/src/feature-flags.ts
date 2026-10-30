@@ -109,9 +109,9 @@ export const FEATURES = {
   },
   skills: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Skills",
-    hint: "Skills in a space's sources: from skills.sh, uploaded or written; always on in every AI step, or read by a wizard when it needs one.",
+    hint: "Skills, a place of their own in the app bar: from skills.sh, uploaded or written; always on in every AI step, or read by a wizard when it needs one.",
   },
   plugins: {
     kind: "release",
