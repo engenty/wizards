@@ -1,5 +1,6 @@
 import {
   type Condition,
+  classIdOf,
   conditionMatches,
   conditionsOf,
   isDecidedField,
@@ -11,6 +12,8 @@ import {
   type NextRule,
   type PageStep,
   type Step,
+  type TextClass,
+  textClassOf,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
 import {
@@ -22,9 +25,22 @@ import {
   unavoidableSteps,
 } from "@engenty/wizards-shared/fit";
 
-import type { ClosedChoice, MissingModel, RunNote, Said } from "@engenty/wizards-shared/run";
+import { CLASS_NAMES } from "@engenty/wizards-shared/providers";
+import type {
+  ClosedChoice,
+  MissingModel,
+  NoteGap,
+  RunNote,
+  Said,
+} from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
-import { classProblem, motionClient } from "../models.js";
+import {
+  MAKER_COMPANIES,
+  MAKER_FAMILIES,
+  type ModelTier,
+  splitClassId,
+} from "@engenty/wizards-shared/tiers";
+import { classProblem, currentTier, motionClient, tierRefusal } from "../models.js";
 
 // The steps every run passes through, and the choices that lead around a missing model, are
 // pure and shared (packages/shared/src/fit.ts): the standalone check uses the same.
@@ -57,7 +73,7 @@ function ownClasses(step: Step): ModelClass[] {
       if (isDecisionStep(step)) {
         return ["classifier"];
       }
-      const classes: ModelClass[] = [step.model ?? "standard"];
+      const classes: ModelClass[] = [textClassOf(step.model ?? "standard")];
       if (step.tools.includes("image")) {
         classes.push("image");
       }
@@ -78,10 +94,10 @@ function ownClasses(step: Step): ModelClass[] {
         case "voice":
           return ["speech"];
         default:
-          return [step.model ?? "standard"];
+          return [textClassOf(step.model ?? "standard")];
       }
     case "motion-graphics":
-      return [step.model ?? "low"];
+      return [textClassOf(step.model ?? "low")];
     case "page":
       // A voice note the page asks for is listened to before the next step reads it.
       return step.fields.some((f) => f.kind === "audio" && f.required) ? ["audio"] : [];
@@ -262,12 +278,132 @@ export function mostAlongOnePath(
   return walk(closed) ?? walk(new Set()) ?? def.steps.reduce((sum, s) => sum + cost(s), 0);
 }
 
-/** The steps that call a class this runtime cannot serve. */
+/** The steps that call a class this runtime cannot serve, or the organization's tier doesn't offer. */
 export async function stepsWithoutModel(def: WizardDefinition): Promise<Set<string>> {
   const missing = await missingClasses();
+  const tier = await currentTier();
   return new Set(
-    def.steps.filter((s) => stepClasses(s).some((cls) => missing.has(cls))).map((s) => s.id),
+    def.steps
+      .filter((s) =>
+        stepClasses(s).some(
+          (cls) => missing.has(cls) || (tier && tierProblem(tier, tierClassOf(s, cls))),
+        ),
+      )
+      .map((s) => s.id),
   );
+}
+
+/**
+ * The class a step asks the gateway for, as the tier names it: `anthropic/highest` where the
+ * step names a maker for its own text class, else the class.
+ */
+export function tierClassOf(step: Step, cls: ModelClass): string {
+  if (!("maker" in step) || !step.maker || cls === "classifier") {
+    return cls;
+  }
+  const own = step.model ?? (cls as TextClass);
+  return textClassOf(own) === cls ? classIdOf({ model: own, maker: step.maker }, "standard") : cls;
+}
+
+/** What a tier's class id makes, as a note's gap: "videos", "Claude · High". */
+export function tierClassWhat(id: string): NoteGap {
+  const { maker, cls } = splitClassId(id);
+  const name = cls === "highest" ? "Highest" : (CLASS_NAMES as Record<string, string>)[cls];
+  if (maker) {
+    return `${MAKER_FAMILIES[maker]} · ${name ?? cls}`;
+  }
+  switch (cls) {
+    case "image":
+      return note("makesImages");
+    case "video":
+      return note("makesVideos");
+    case "speech":
+      return note("makesSpeech");
+    case "audio":
+      return note("makesVoiceNotes");
+    case "classifier":
+      return note("makesDecisions");
+    case "embedding":
+      return note("makesSearch");
+    default:
+      return name ?? cls;
+  }
+}
+
+/**
+ * What a step the gateway refused for the organization's tier or policy says: the class and the
+ * tier, or that the admins haven't approved it. Null for any other failure.
+ */
+export async function tierRefusalSaid(err: unknown): Promise<RunNote | null> {
+  const refused = tierRefusal(err);
+  if (!refused) {
+    return null;
+  }
+  const what = refused.cls ? tierClassWhat(refused.cls) : note("thisModel");
+  if (refused.type === "not_in_policy") {
+    return note("notInPolicy", { what });
+  }
+  const tier = await currentTier();
+  const problem =
+    (tier && refused.cls ? tierProblem(tier, refused.cls) : null) ??
+    note("tierOffersNo", { tier: refused.tier ?? tier?.name ?? "", what });
+  return note("tierRefused", { problem });
+}
+
+const MASKED_KINDS = {
+  person: "maskedPerson",
+  email: "maskedEmail",
+  phone: "maskedPhone",
+  iban: "maskedIban",
+  id: "maskedId",
+  address: "maskedAddress",
+  contract: "maskedContract",
+  term: "maskedTerm",
+} as const;
+
+/** The Log line of what the gateway masked in a step's calls, from its counts per kind. */
+export function maskedNote(counts: Record<string, number>): RunNote {
+  const kinds: RunNote[] = [];
+  let other = 0;
+  for (const [kind, count] of Object.entries(counts)) {
+    const code = MASKED_KINDS[kind as keyof typeof MASKED_KINDS];
+    if (code) {
+      kinds.push(note(code, { count }));
+    } else {
+      other += count;
+    }
+  }
+  if (other) {
+    kinds.push(note("maskedOther", { count: other }));
+  }
+  const count = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  return note("masked", { count, kinds });
+}
+
+/** Why the organization's tier doesn't serve a class; null where it does. */
+export function tierProblem(tier: ModelTier, id: string): RunNote | null {
+  const entry = tier.classes[id];
+  const what = tierClassWhat(id);
+  if (!entry) {
+    return note("tierOffersNo", { tier: tier.name, what });
+  }
+  if (entry.model !== null) {
+    return null;
+  }
+  const { maker } = splitClassId(id);
+  if (entry.reason === "maker" && maker) {
+    return note("tierLeavesOutMaker", { tier: tier.name, maker: MAKER_COMPANIES[maker] });
+  }
+  const model = entry.name ?? note("thisModel");
+  const why =
+    entry.reason === "region"
+      ? note("tierWhyRegion")
+      : entry.reason === "retention"
+        ? note("tierWhyRetention", { model })
+        : entry.reason === "training"
+          ? note("tierWhyTraining", { model })
+          : note("tierWhyUnbound");
+  return note("tierOffersNoWhy", { tier: tier.name, what, why });
 }
 
 /** A missing class whose problem is said in both languages, until it is read in one. */
@@ -284,22 +420,39 @@ export async function missingModels(
 /** The classes this wizard needs that this runtime cannot serve; empty = every step can run. */
 export async function missingModelsSaid(def: WizardDefinition): Promise<MissingModelSaid[]> {
   const unavoidable = unavoidableSteps(def);
+  const tier = await currentTier();
   const needs = new Map<ModelClass, { step: Step; required: boolean }[]>();
+  // What the organization's tier doesn't offer is missing whatever this runtime could serve.
+  const outside = new Map<string, MissingModelSaid>();
+  const use = (step: Step, cls: ModelClass, required: boolean) => {
+    const id = tier ? tierClassOf(step, cls) : cls;
+    const problem = tier ? tierProblem(tier, id) : null;
+    if (!problem) {
+      needs.set(cls, [...(needs.get(cls) ?? []), { step, required }]);
+      return;
+    }
+    const entry = outside.get(id) ?? { cls, tierClass: id, problem, steps: [], blocking: false };
+    if (!entry.steps.some((s) => s.id === step.id)) {
+      entry.steps.push({ id: step.id, title: step.title });
+    }
+    entry.blocking ||= required && unavoidable.has(step.id);
+    outside.set(id, entry);
+  };
   for (const step of def.steps) {
     for (const cls of new Set(stepClasses(step))) {
-      needs.set(cls, [...(needs.get(cls) ?? []), { step, required: true }]);
+      use(step, cls, true);
     }
     for (const cls of optionalStepClasses(step)) {
-      needs.set(cls, [...(needs.get(cls) ?? []), { step, required: false }]);
+      use(step, cls, false);
     }
   }
-  const missing: MissingModelSaid[] = [];
+  const missing: MissingModelSaid[] = [...outside.values()];
   // A video runs on an installed client only, whatever serves its class otherwise.
   for (const step of def.steps) {
     if (step.type !== "motion-graphics") {
       continue;
     }
-    const cls = step.model ?? "low";
+    const cls = textClassOf(step.model ?? "low");
     const found = await motionClient(cls);
     if ("problem" in found) {
       missing.push({

@@ -310,6 +310,25 @@ export function renderTemplate(template: string, scope: TemplateScope): string {
   );
 }
 
+const REFERENCE_KINDS = new Set(["image", "file", "signature"]);
+
+/**
+ * A step's task with what the person typed marked as data: a field's value in `<data field="…">`,
+ * so a model tells the wizard's instructions from a visitor's words (prompts/step.md,
+ * ground_rules). Files and images stay names a tool reads; the rest as `renderTemplate`.
+ */
+export function renderTask(template: string, scope: TemplateScope): string {
+  return template.replace(TEMPLATE_RE, (_m, ref: string) => {
+    const value = stringify(resolveRef(ref.trim(), scope));
+    const head = ref.trim().split(".")[0];
+    const field = allFields(scope.def).find((f) => f.id === head);
+    if (!field || REFERENCE_KINDS.has(field.kind) || value === "") {
+      return value;
+    }
+    return `<data field="${head}">${value.replaceAll("</data>", "")}</data>`;
+  });
+}
+
 /** Everything the person entered so far, readable — handed to agents as data. */
 export function answersAsText(scope: TemplateScope): string {
   const lines: string[] = [];

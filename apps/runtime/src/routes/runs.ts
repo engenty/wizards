@@ -1790,6 +1790,11 @@ function sharedStepIds(run: RunRow): Set<string> {
 
 /** `/api/shares/:token` — a shared result, readable by anyone holding the link until it expires. */
 export const shareRoutes = new Hono()
+  // What a shared link shows is someone's result: never in a search engine.
+  .use("*", async (c, next) => {
+    await next();
+    c.header("X-Robots-Tag", "noindex, nofollow");
+  })
   .use("/:token", resultLink)
   .use("/:token/*", resultLink)
   .get("/:token", async (c) => {

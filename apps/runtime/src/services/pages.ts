@@ -20,6 +20,7 @@ import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { feature } from "../features.js";
 import { managed, putPages, tenantInfo } from "../manage.js";
+import { guestRun } from "../safety.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { mainLogoId } from "./brand.js";
 
@@ -241,11 +242,14 @@ export async function pageOrganization(): Promise<PageOrganization | null> {
     const example = exampleToken
       ? await db.query.run.findFirst({
           where: and(eq(schema.run.wizardId, w.id), eq(schema.run.shareToken, exampleToken)),
-          columns: { status: true, expiresAt: true },
+          columns: { status: true, expiresAt: true, mode: true, userId: true },
         })
       : null;
+    // A guest's result is never shown on a public page: only a run a member started.
     const shown =
-      example?.status === "done" && !(example.expiresAt && example.expiresAt < new Date());
+      example?.status === "done" &&
+      !guestRun(example) &&
+      !(example.expiresAt && example.expiresAt < new Date());
     const slug = kept[w.id] ?? wizardSlug(def.title, taken);
     if (!kept[w.id]) {
       made[w.id] = slug;

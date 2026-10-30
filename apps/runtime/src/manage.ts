@@ -1,4 +1,5 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
+import type { ModelPolicy, ModelPolicyInput, ModelTier } from "@engenty/wizards-shared/tiers";
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from "jose";
 import { currentImpersonator, refusedWhileImpersonating } from "./auth/impersonation.js";
 import { env } from "./env.js";
@@ -207,17 +208,18 @@ export interface TenantInfo {
   features?: Record<string, boolean>;
   db: { url: string } | null;
   /**
-   * The level the team's use earned (Manage's levels): the catalog shows the templates up to it.
-   * An older Manage-App names none: read it as level 1.
+   * The admins' abuse checks: `guests` false, the runtime does not check what guests make
+   * (safety.ts). Left out by an older Manage-App: checked.
    */
-  level?: {
-    level: number;
-    name: string;
-    next: { level: number; name: string; runs: number; published: number } | null;
-    progress: { runs: number; published: number };
-  };
+  checks?: { guests: boolean };
   /** What an admin held: a held wizard starts no new run, a held page shows none. */
   holds?: { page: { reason: string } | null; wizards: { id: string; reason: string }[] };
+  /**
+   * The organization's model tier and what each class runs on in it, and how its admins share
+   * out the tier's models. Read only while `modelTiers` is on; left out, it has none.
+   */
+  tier?: ModelTier;
+  modelPolicy?: ModelPolicy;
 }
 
 export interface TenantMembers {
@@ -462,6 +464,51 @@ export async function tenantInfo(id: string, fresh = false): Promise<TenantInfo>
 
 export function forgetTenant(id: string) {
   tenants.delete(id);
+}
+
+/**
+ * Saves the organization's model policy for the admin who asks (`actorId`): the Manage-App checks
+ * their role and the plan's ways and answers with the policy as it stands now.
+ */
+export async function saveModelPolicy(
+  tenantId: string,
+  actorId: string,
+  modelPolicy: ModelPolicyInput,
+): Promise<ModelPolicy> {
+  const saved = await call<{ modelPolicy: ModelPolicy }>(
+    "PUT",
+    `${tenantPath(tenantId)}/model-policy`,
+    { actorId, ...modelPolicy },
+  );
+  forgetTenant(tenantId);
+  return saved.modelPolicy;
+}
+
+/**
+ * Puts the organization on another tier its plan offers, for the admin who asks (`actorId`); the
+ * Manage-App refuses one a contract set.
+ */
+export async function saveModelTier(
+  tenantId: string,
+  actorId: string,
+  tier: string,
+): Promise<void> {
+  await call("PUT", `${tenantPath(tenantId)}/model-tier`, { actorId, tier });
+  forgetTenant(tenantId);
+}
+
+/** What a model would see of `text` with masking on: the labels given, else the saved ones. */
+export async function tryMasking(
+  tenantId: string,
+  actorId: string,
+  text: string,
+  maskLabels?: string[],
+): Promise<{ text: string; counts: Record<string, number> }> {
+  return call("POST", `${tenantPath(tenantId)}/model-policy/try`, {
+    actorId,
+    text,
+    ...(maskLabels ? { maskLabels } : {}),
+  });
 }
 
 /** Renames the organization at the Manage-App; what it answers is the tenant as it stands now. */

@@ -1,7 +1,7 @@
 ---
 title: Working together
-description: How the studio shows what others change while you work, merges it with what you type, and shows who else is in a wizard, page or table.
-version: 0.10.0
+description: How the studio shows what others change while you work, merges it with what you type, shows who else is in a wizard, page or table, and where an organization’s settings are.
+version: 0.12.2
 ---
 
 The studio shows changes made elsewhere as they happen. You don’t reload anything. That holds
@@ -48,6 +48,19 @@ This is for your awareness only. Anyone can still edit, and nothing is locked.
 An app over MCP learns who else is in a wizard when it reads or changes it. When a person edits
 the same wizard, the app hears that their editor merges its change, and it tells you before
 larger changes.
+
+## Your organization
+
+On engenty.ai the settings start with the organization’s:
+
+| Page | What it holds |
+|---|---|
+| General | The organization’s name; its plan with what is in use (Spaces, Members, Credits left, Models: the [tier](./models.md#which-models) and the tiers the plan offers), and “Change plan” for owners and admins; its address, where the studio and the published wizards live |
+| Members | Who is in it and who is invited, with their roles. Owners and admins change roles and remove people; owners invite, and on Team admins too. “Leave the organization” is here too, while someone else is in it |
+| Credits, Usage, Invoices | The balance and its entries, what was spent, the bills |
+
+The person who made the organization can change its address once, in its first 14 days. The
+studio moves with it.
 
 ## Switch it off
 

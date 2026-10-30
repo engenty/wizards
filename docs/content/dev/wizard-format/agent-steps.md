@@ -1,7 +1,7 @@
 ---
 title: Agent steps
-description: An AI step's instructions, tools, output, model class, decisions, and one run per entry.
-version: 0.11.3
+description: An AI step’s instructions, tools, output, model class and maker, decisions, and one run per entry.
+version: 0.12.2
 ---
 
 An `agent` step is an AI step. It reads its `instructions`, may call tools, and returns its
@@ -76,6 +76,24 @@ outside the wizard.
 | `low` | Short copy, calling an API, reformatting |
 | `standard` | Research with tools, long documents, reasoning over many sources. The default |
 | `high` | Hard reasoning or writing code. Several times the cost of `standard` |
+
+`maker` (`anthropic`, `openai`, `google`, `mistral`) asks for that maker’s model of the class,
+never another maker’s. Each maker has its own classes:
+
+| `maker` | `model` |
+|---|---|
+| `anthropic`, `openai` | `low`, `standard`, `high`, `highest` |
+| `google` | `low`, `standard`, `high` |
+| `mistral` | `low`, `high` |
+
+`highest` exists only with a maker, and `classifier` takes none. A maker counts on engenty.ai,
+where the organization’s model tier binds the maker’s class to one of its models. Elsewhere the
+step runs on its plain class, `highest` as `high`. The editor writes `maker` when someone chooses a
+step’s model by name.
+
+```json
+{ "id": "draft", "type": "agent", "model": "high", "maker": "anthropic" }
+```
 
 `effort` (`low`, `medium`, `high`) tells the model how hard to think, where the bound model can be
 told. Leave it out unless a step is clearly simple or clearly hard.

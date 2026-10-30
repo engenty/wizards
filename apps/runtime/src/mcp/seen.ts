@@ -83,3 +83,72 @@ export function seenApps(tenantId: string): Record<string, Seen> {
   }
   return out;
 }
+
+/** The name a sign-in's client gave on `initialize`, else the one its sign-in carries. */
+export function clientNameOf(signIn: string, client: string): string {
+  return names.get(signIn) ?? client;
+}
+
+/**
+ * Apps whose model runs on the member's computer: what they read of a space stays there. Goose
+ * is not one: it mostly thinks on a provider's model.
+ */
+const LOCAL_APPS = new Set(["lm-studio"]);
+
+/**
+ * Whether an app thinks on the member's computer (`local`) or on a provider under the member's
+ * own subscription, from every name it goes by (the one it gave on `initialize`, its sign-in's).
+ * It counts as local only where a name says so and none names another app; any other counts as
+ * one on a subscription.
+ */
+export function appKind(...names: string[]): "local" | "subscription" {
+  const ids = names.flatMap(appIdsOf);
+  return ids.length && ids.every((id) => LOCAL_APPS.has(id)) ? "local" : "subscription";
+}
+
+/** An app a member used on a space, checked against the organization's model policy. */
+export interface CheckedApp {
+  /** As the app names itself. */
+  app: string;
+  kind: "local" | "subscription";
+  person: string | null;
+  allowed: number;
+  refused: number;
+  at: number;
+}
+
+const checked = new Map<string, CheckedApp>();
+
+/** Counts one tool call of an app the policy allowed or refused. */
+export function noteChecked(
+  tenantId: string,
+  app: string,
+  person: string | null,
+  allowed: boolean,
+  kind: CheckedApp["kind"],
+) {
+  const key = `${tenantId}\n${app}\n${person ?? ""}`;
+  const last = checked.get(key) ?? {
+    app,
+    kind,
+    person,
+    allowed: 0,
+    refused: 0,
+    at: 0,
+  };
+  last.at = Date.now();
+  if (allowed) {
+    last.allowed++;
+  } else {
+    last.refused++;
+  }
+  checked.set(key, last);
+}
+
+/** The apps the tenant's members used on its spaces since the runtime started, latest first. */
+export function checkedApps(tenantId: string): CheckedApp[] {
+  return [...checked]
+    .filter(([key]) => key.startsWith(`${tenantId}\n`))
+    .map(([, value]) => value)
+    .sort((a, b) => b.at - a.at);
+}

@@ -410,6 +410,56 @@ export const TEXT_CLASSES = ["classifier", "low", "standard", "high"] as const;
 export type TextClass = (typeof TEXT_CLASSES)[number];
 export const MODEL_CLASSES = [...TEXT_CLASSES, "image", "video", "audio", "speech"] as const;
 export type ModelClass = (typeof MODEL_CLASSES)[number];
+/**
+ * The makers a step may name next to its class (`maker`), and each one's classes. With a maker
+ * the step asks for `wizards/<maker>/<class>`: the organization's tier binds it to one of that
+ * maker's models, never another maker's. `highest` is the top line some makers have; it exists
+ * only with a maker. The classifier class takes none.
+ */
+export const MAKERS = ["anthropic", "openai", "google", "mistral"] as const;
+export type Maker = (typeof MAKERS)[number];
+export const STEP_CLASSES = [...TEXT_CLASSES, "highest"] as const;
+export type StepClass = (typeof STEP_CLASSES)[number];
+export const MAKER_CLASSES: Record<Maker, readonly StepClass[]> = {
+  anthropic: ["low", "standard", "high", "highest"],
+  openai: ["low", "standard", "high", "highest"],
+  google: ["low", "standard", "high"],
+  mistral: ["low", "high"],
+};
+
+/** The text class a step runs on where no maker class can be asked for: `highest` is `high` there. */
+export function textClassOf(model: StepClass): TextClass {
+  return model === "highest" ? "high" : model;
+}
+
+/** What the gateway is asked for: `<maker>/<class>` with a maker, else the class. */
+export function classIdOf(step: { model?: StepClass; maker?: Maker }, fallback: TextClass): string {
+  const model = step.model ?? fallback;
+  return step.maker ? `${step.maker}/${model}` : textClassOf(model);
+}
+
+/** Why a step's maker and class don't go together; null where they do. */
+export function makerProblem(step: { model?: StepClass; maker?: Maker }): string | null {
+  if (!step.maker) {
+    return step.model === "highest"
+      ? `The class "highest" needs a maker: ${makersWith("highest").join(" or ")}.`
+      : null;
+  }
+  if (!step.model) {
+    return `A step with a maker names its class too: one of ${MAKER_CLASSES[step.maker].join(", ")}.`;
+  }
+  if (step.model === "classifier") {
+    return "The classifier class takes no maker.";
+  }
+  return MAKER_CLASSES[step.maker].includes(step.model)
+    ? null
+    : `"${step.maker}" has no class "${step.model}": it has ${MAKER_CLASSES[step.maker].join(", ")}.`;
+}
+
+function makersWith(model: StepClass): Maker[] {
+  return MAKERS.filter((maker) => MAKER_CLASSES[maker].includes(model));
+}
+
 /** How hard the model should think, where the bound model can be told. */
 export const EFFORTS = ["low", "medium", "high"] as const;
 export type Effort = (typeof EFFORTS)[number];
@@ -684,7 +734,9 @@ export const agentStepSchema = z.object({
     })
     .default({ format: "markdown" }),
   /** The model class the step needs; default `standard`. The model itself is bound elsewhere. */
-  model: z.enum(TEXT_CLASSES).optional(),
+  model: z.enum(STEP_CLASSES).optional(),
+  /** The maker whose model runs the class; without one the organization's tier picks it. */
+  maker: z.enum(MAKERS).optional(),
   effort: z.enum(EFFORTS).optional(),
   /** Shown to the person while it works. */
   /**
@@ -728,7 +780,9 @@ export const generateStepSchema = z.object({
    */
   each: z.string().optional(),
   /** For document/dashboard: the model class that writes it; default `standard`. */
-  model: z.enum(TEXT_CLASSES).optional(),
+  model: z.enum(STEP_CLASSES).optional(),
+  /** The maker whose model runs the class; without one the organization's tier picks it. */
+  maker: z.enum(MAKERS).optional(),
   effort: z.enum(EFFORTS).optional(),
   working: z.string().optional(),
 });
@@ -808,7 +862,9 @@ export const motionGraphicsStepSchema = z.object({
   /** About how long the video runs, in seconds. */
   seconds: z.number().int().min(3).max(600).optional(),
   /** The model class; default `low` — the kit carries the craft. */
-  model: z.enum(TEXT_CLASSES).optional(),
+  model: z.enum(STEP_CLASSES).optional(),
+  /** The maker whose model runs the class; without one the organization's tier picks it. */
+  maker: z.enum(MAKERS).optional(),
   effort: z.enum(EFFORTS).optional(),
   working: z.string().optional(),
 });
@@ -1044,38 +1100,53 @@ export function upgradeDefinition(raw: unknown, unversioned = 1): unknown {
 }
 
 /** A definition of this version, as it is written: what the JSON Schema describes. */
-export const currentWizardSchema = z.object({
-  version: z.literal(DEFINITION_VERSION).default(DEFINITION_VERSION),
-  title: z.string().min(1),
-  description: z.string().default(""),
-  avatar: z.enum(ENGENTY_KINDS).default("round"),
-  /** A costume the avatar wears; none without one. */
-  costume: z.enum(ENGENTY_COSTUMES).optional(),
-  /** Shown on the first page above the first question. */
-  intro: z.string().optional(),
-  /**
-   * The language the wizard speaks to people: its texts, the runner's words, its numbers and
-   * dates, by its two-letter code ("en", "de", "it"). Any language, not only those engenty's own
-   * strings are written in; `validateWizard` checks it names a real one. Without one it is read
-   * from the wizard's own words (`wizardLang`).
-   */
-  lang: z
-    .string()
-    .regex(/^[a-z]{2}$/)
-    .optional(),
-  /** Tabular data the wizard keeps between runs, per person — or for all runs (`shared`). */
-  lists: z.array(listSchema).max(12).optional(),
-  /** Accounts the person connects; kept between runs, per person. */
-  connections: z.array(connectionSchema).max(12).optional(),
-  /** How the wizard's pages look, over its space's brand: colours, typefaces, effects, CSS. */
-  /**
-   * The themes the wizard offers, in its order: ids of the space's themes, or `brand`, `host`
-   * and `default`. The place that shows the wizard picks one; its own pages take the first the
-   * space has. Without any: the space's brand.
-   */
-  themes: z.array(z.string().regex(THEME_ID)).max(8).optional(),
-  steps: z.array(stepSchema).min(1),
-});
+export const currentWizardSchema = z
+  .object({
+    version: z.literal(DEFINITION_VERSION).default(DEFINITION_VERSION),
+    title: z.string().min(1),
+    description: z.string().default(""),
+    avatar: z.enum(ENGENTY_KINDS).default("round"),
+    /** A costume the avatar wears; none without one. */
+    costume: z.enum(ENGENTY_COSTUMES).optional(),
+    /** Shown on the first page above the first question. */
+    intro: z.string().optional(),
+    /**
+     * The language the wizard speaks to people: its texts, the runner's words, its numbers and
+     * dates, by its two-letter code ("en", "de", "it"). Any language, not only those engenty's own
+     * strings are written in; `validateWizard` checks it names a real one. Without one it is read
+     * from the wizard's own words (`wizardLang`).
+     */
+    lang: z
+      .string()
+      .regex(/^[a-z]{2}$/)
+      .optional(),
+    /** Tabular data the wizard keeps between runs, per person — or for all runs (`shared`). */
+    lists: z.array(listSchema).max(12).optional(),
+    /** Accounts the person connects; kept between runs, per person. */
+    connections: z.array(connectionSchema).max(12).optional(),
+    /** How the wizard's pages look, over its space's brand: colours, typefaces, effects, CSS. */
+    /**
+     * The themes the wizard offers, in its order: ids of the space's themes, or `brand`, `host`
+     * and `default`. The place that shows the wizard picks one; its own pages take the first the
+     * space has. Without any: the space's brand.
+     */
+    themes: z.array(z.string().regex(THEME_ID)).max(8).optional(),
+    steps: z.array(stepSchema).min(1),
+  })
+  .superRefine((def, ctx) => {
+    def.steps.forEach((step, i) => {
+      const classed =
+        step.type === "agent" || step.type === "generate" || step.type === "motion-graphics";
+      const problem = classed ? makerProblem(step) : null;
+      if (classed && problem) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["steps", i, step.maker ? "maker" : "model"],
+          message: problem,
+        });
+      }
+    });
+  });
 
 /** A definition of any version this app reads, brought to this one. */
 export const wizardSchema = z.preprocess((raw) => upgradeDefinition(raw), currentWizardSchema);

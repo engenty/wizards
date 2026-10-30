@@ -2643,7 +2643,17 @@
                   "classifier",
                   "low",
                   "standard",
-                  "high"
+                  "high",
+                  "highest"
+                ]
+              },
+              "maker": {
+                "type": "string",
+                "enum": [
+                  "anthropic",
+                  "openai",
+                  "google",
+                  "mistral"
                 ]
               },
               "effort": {
@@ -2875,7 +2885,17 @@
                   "classifier",
                   "low",
                   "standard",
-                  "high"
+                  "high",
+                  "highest"
+                ]
+              },
+              "maker": {
+                "type": "string",
+                "enum": [
+                  "anthropic",
+                  "openai",
+                  "google",
+                  "mistral"
                 ]
               },
               "effort": {
@@ -3670,7 +3690,17 @@
                   "classifier",
                   "low",
                   "standard",
-                  "high"
+                  "high",
+                  "highest"
+                ]
+              },
+              "maker": {
+                "type": "string",
+                "enum": [
+                  "anthropic",
+                  "openai",
+                  "google",
+                  "mistral"
                 ]
               },
               "effort": {

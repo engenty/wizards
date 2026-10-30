@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // A stand-in Manage-App that keeps what the runtime reports for the admin app
 // (docs/plans/wizards-admin.md in the Manage repository): the team's wizards, each run's turns,
-// the feedback at a run's end and the bug reports; its tenant answer carries holds and a level.
+// the feedback at a run's end and the bug reports; its tenant answer carries holds.
 const { publicKey, privateKey } = await generateKeyPair("ES256");
 const jwk = { ...(await exportJWK(publicKey)), kid: "k1", alg: "ES256", use: "sig" };
 
@@ -19,7 +19,6 @@ let issuer = "";
 
 const sent: { path: string; method: string; body: any }[] = [];
 let holds: { page: null; wizards: { id: string; reason: string }[] } = { page: null, wizards: [] };
-let level = { level: 1, name: "Starter", next: null, progress: { runs: 0, published: 0 } };
 
 function token(tenant: string, aud = RUNTIME) {
   return new SignJWT({
@@ -93,7 +92,6 @@ const manage: Server = createServer(async (req, res) => {
       balanceCredits: 500,
       limits: { concurrentRuns: 2, projects: 3, build: true },
       db: null,
-      level,
       holds,
     });
   }
@@ -301,39 +299,20 @@ describe("what the runtime reports to the admin app", () => {
   });
 });
 
-describe("the catalog by level", () => {
-  it("leaves out what is above the team's level and puts the featured first", async () => {
-    level = {
-      level: 2,
-      name: "Explorer",
-      next: null,
-      progress: { runs: 3, published: 0 },
-    };
-    const { forgetTenant } = await import("../src/manage");
-    forgetTenant(TENANT);
-    const { byLevel } = await import("../src/services/marketplace");
-    const { withTenant } = await import("../src/db/client");
+describe("the catalog's featured entries", () => {
+  it("puts the featured first, and leaves a search in its order", async () => {
+    const { featuredFirst } = await import("../src/services/marketplace");
     const entry = (id: string, extra: Record<string, unknown> = {}) => ({ id, ...extra }) as any;
     const page = {
-      entries: [
-        entry("plain"),
-        entry("hard", { level: 4 }),
-        entry("featured-low", { featured: true, level: 1 }),
-        entry("featured-own", { featured: true, level: 2 }),
-      ],
-      total: 4,
-      all: 4,
+      entries: [entry("plain"), entry("featured-a", { featured: true }), entry("featured-b", { featured: true })],
+      total: 3,
+      all: 3,
       facets: {},
       offline: false,
       unavailable: [],
     } as any;
-    const shown = await withTenant(TENANT, () => byLevel(page, {}));
-    expect(shown.entries.map((e: { id: string }) => e.id)).toEqual([
-      "featured-own",
-      "featured-low",
-      "plain",
-    ]);
-    expect(shown.total).toBe(3);
-    expect(shown.level).toMatchObject({ level: 2, name: "Explorer" });
+    const ids = (p: { entries: { id: string }[] }) => p.entries.map((e) => e.id);
+    expect(ids(featuredFirst(page, {}))).toEqual(["featured-a", "featured-b", "plain"]);
+    expect(ids(featuredFirst(page, { q: "invoice" }))).toEqual(["plain", "featured-a", "featured-b"]);
   });
 });

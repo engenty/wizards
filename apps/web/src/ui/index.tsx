@@ -17,7 +17,9 @@ export {
 } from "../studio/space/Section";
 export {
   Composer,
+  type ComposerEffort,
   type ComposerHandle,
+  type ComposerModel,
   DictationButton,
   LATER_KEYS,
   pastedName,

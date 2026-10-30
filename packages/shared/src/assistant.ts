@@ -62,6 +62,11 @@ export const assistantTurnSchema = z.object({
   debug: z.boolean().optional(),
   /** Extra effort: the chat works with its more capable model. Off where the field is left out. */
   extra: z.boolean().optional(),
+  /**
+   * The class the person picked in an organization with a model tier (`anthropic/high`,
+   * `standard`), from what its policy allows for Goose; left out, the chat's own way answers.
+   */
+  model: z.string().max(80).optional(),
 });
 export type AssistantTurn = z.input<typeof assistantTurnSchema>;
 

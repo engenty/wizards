@@ -193,6 +193,7 @@ export function reportRun(runId: string, status: RunStatus): void {
         cursor: true,
         error: true,
         definition: true,
+        state: true,
         createdAt: true,
       },
     });
@@ -214,6 +215,8 @@ export function reportRun(runId: string, status: RunStatus): void {
         ? { step: { id: step.id, title: (step.title ?? step.id).slice(0, 160), kind: step.type } }
         : {}),
       ...(state === "failed" && run.error ? { error: run.error.slice(0, 2000) } : {}),
+      // What the content rules stopped: an image, a guest's text, their input, an override.
+      ...(state === "failed" && run.state.blocked ? { blocked: run.state.blocked } : {}),
     });
   })().catch((err) => {
     console.warn(`[reports] run ${runId}:`, (err as Error).message);

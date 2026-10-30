@@ -11,7 +11,7 @@ import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
 import {
   asLang,
-  byLevel,
+  featuredFirst,
   marketplaceDetail,
   searchMarketplace,
   searchMarketplaceAsGuest,
@@ -48,12 +48,12 @@ export const marketplaceStudio = new Hono<{ Variables: { user: SessionUser } }>(
     const context = fit ? await organizationContext(c.get("user").tenantId) : null;
     if (!context) {
       return c.json({
-        ...(await byLevel(await searchMarketplace({ ...search, lang: asLang(lang) }), search)),
+        ...featuredFirst(await searchMarketplace({ ...search, lang: asLang(lang) }), search),
         context: null,
       });
     }
     // The whole catalog in the order that fits, then the page of it.
-    const all = await byLevel(
+    const all = featuredFirst(
       await searchMarketplace({ lang: asLang(lang), limit: 100, offset: 0 }),
       {},
     );

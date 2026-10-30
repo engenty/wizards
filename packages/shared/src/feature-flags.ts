@@ -131,6 +131,18 @@ export const FEATURES = {
     label: "Work mode",
     hint: "The switch between Studio, Work and Client in the engenty menu, and Work's places in the app bar: chats, engenties, files, data, results.",
   },
+  modelTiers: {
+    kind: "release",
+    default: false,
+    label: "Model tiers",
+    hint: "The organization's model tier: steps may name a maker, calls say what they are for, and the studio shows what each class runs on in the tier.",
+  },
+  customDomains: {
+    kind: "release",
+    default: false,
+    label: "Own domains",
+    hint: "Settings › Allgemein: the organization's wizards under a domain of its own, once a TXT record confirms it.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

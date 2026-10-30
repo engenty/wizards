@@ -488,10 +488,22 @@ if (existsSync(webDir)) {
             `<link rel="icon" href="${own}/icons/favicon.png" type="image/png" />`,
           )
       : html;
+    // A result and a run are someone's own: search engines leave them out. A wizard's start
+    // page stays findable.
+    const personal = /^\/s\/|^\/w\/[^/]+\/[^/]+\/./.test(c.req.path);
+    if (personal) {
+      c.header("X-Robots-Tag", "noindex, nofollow");
+    }
+    const withPreview = preview
+      ? page.replace(/<title>[^<]*<\/title>/, "").replace("</head>", `${preview}\n</head>`)
+      : page;
     return c.html(
-      preview
-        ? page.replace(/<title>[^<]*<\/title>/, "").replace("</head>", `${preview}\n</head>`)
-        : page,
+      personal
+        ? withPreview.replace(
+            "</head>",
+            `<meta name="robots" content="noindex, nofollow">\n</head>`,
+          )
+        : withPreview,
     );
   });
 }

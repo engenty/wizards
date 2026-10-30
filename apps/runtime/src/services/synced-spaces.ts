@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { tableColumnsSchema } from "@engenty/wizards-shared/engenty/data-tables";
 import { CATEGORY_TYPES } from "@engenty/wizards-shared/knowledge";
-import { note } from "@engenty/wizards-shared/run";
+import { note, noteText } from "@engenty/wizards-shared/run";
 import { SPACE_DATA_LIMITS } from "@engenty/wizards-shared/space-data";
 import { SPACE_LIMITS } from "@engenty/wizards-shared/spaces";
 import { MAX_WIZARD_THEMES, type Theme, themeSchema } from "@engenty/wizards-shared/theme";
@@ -13,6 +13,7 @@ import { z } from "zod";
 import { db, inTransaction, schema } from "../db/client.js";
 import { missingModels, unavoidableSteps } from "../engine/requirements.js";
 import { env } from "../env.js";
+import { currentTier } from "../models.js";
 import { spaceChanged } from "../plugins/events.js";
 import { sandboxEngine } from "../sandbox/index.js";
 import { codeOf, putLink } from "../tenants/control.js";
@@ -152,6 +153,19 @@ export async function serverProblems(
       steps: missing.steps,
       detail: `${missing.cls}: ${missing.problem}`,
     });
+  }
+  // The organization's tier may allow no web search: steps that search run without it.
+  const tier = await currentTier();
+  if (tier && !tier.rules.search) {
+    const steps = stepsWith(def, (s) => s.type === "agent" && s.tools.includes("web_search"));
+    if (steps.length) {
+      problems.push({
+        code: "model",
+        blocking: false,
+        steps,
+        detail: `web_search: ${noteText(note("tierNoSearch", { tier: tier.name }), "en")}`,
+      });
+    }
   }
   if (!sandboxEngine()) {
     const steps = stepsWith(def, (s) => s.type === "agent" && s.tools.includes("sandbox"));

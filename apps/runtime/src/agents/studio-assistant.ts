@@ -6,7 +6,7 @@ import type {
   AssistantStep,
   BrowserTool,
 } from "@engenty/wizards-shared/assistant";
-import type { Lang } from "@engenty/wizards-shared/definition";
+import { type Lang, textClassOf } from "@engenty/wizards-shared/definition";
 import {
   cleanAssetSections,
   cleanLogoSections,
@@ -20,6 +20,7 @@ import {
   SPACE_LIMITS,
   textStyleLine,
 } from "@engenty/wizards-shared/spaces";
+import { pickedClass } from "@engenty/wizards-shared/tiers";
 import { createTool } from "@mastra/core/tools";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -29,10 +30,14 @@ import type { AssistantCardRecord, AssistantToolCallRecord } from "../db/schema.
 import { currentFeatures } from "../features.js";
 import { managed } from "../manage.js";
 import {
+  type ChatTurnWay,
   chatModel,
   contextWindowOf,
   costOf,
+  currentTier,
   gatewayTools,
+  searchAllowed,
+  textModel,
   totalUsage,
   usageOf,
 } from "../models.js";
@@ -71,6 +76,8 @@ export interface AssistantInput {
   message: string;
   /** Extra effort: the more capable model of the way. */
   extra?: boolean;
+  /** The tier's class the person picked (`anthropic/high`); only on the credits, while `modelTiers` is on. */
+  model?: string;
   /** What the page the person writes from shows. */
   page: AssistantPage | null;
   /** Tools the browser runs (AG-UI's `tools`): the built-in six and what the page adds. */
@@ -837,6 +844,24 @@ export function toolSizes(tools: Record<string, any>): AssistantPrompt["tools"] 
     .sort((a, b) => b.chars - a.chars);
 }
 
+/**
+ * The model of a turn: the tier's class the person picked, on the credits, where the organization
+ * has a tier; else the chat's way, with its more capable model for extra effort.
+ */
+async function assistantModel(way: ChatTurnWay, input: AssistantInput) {
+  const tier = input.model && way === "models" ? await currentTier() : null;
+  // A model id picked in the chooser asks for the class it runs on; anything else is no pick.
+  const picked = tier && input.model ? pickedClass(tier, input.model) : null;
+  if (!picked) {
+    return chatModel(way, input.extra ? "high" : "standard");
+  }
+  return textModel(textClassOf(picked.cls), {
+    purpose: "assistant",
+    makerClass: picked.maker ? `${picked.maker}/${picked.cls}` : undefined,
+    effort: input.extra ? "high" : undefined,
+  });
+}
+
 /** One turn of the studio assistant. */
 export async function runStudioAssistant(input: AssistantInput): Promise<AssistantResult> {
   // How often the space or a plugin's data changed: a part of the answer changed something when
@@ -844,7 +869,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   let changes = 0;
   // The way the settings chose for the studio's chats: on a client, its tools reach it over MCP.
   const way = await chatTurnWay(managed);
-  const resolved = await chatModel(way, input.extra ? "high" : "standard");
+  const resolved = await assistantModel(way, input);
   const wrote = () => {
     changes++;
     input.onChanged?.();
@@ -934,9 +959,11 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   }
   const toolCalls: AssistantToolCallRecord[] = [];
   traced(tools, input, toolCalls);
-  if (resolved.vendor === "anthropic") {
+  // The organization's tier may allow no web search.
+  const search = await searchAllowed();
+  if (search && resolved.vendor === "anthropic") {
     tools.web_search = anthropic.tools.webSearch_20250305({ maxUses: 5 });
-  } else if (resolved.gateway) {
+  } else if (search && resolved.gateway) {
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
   }
   const instructions = system();

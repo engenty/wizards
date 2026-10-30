@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db, schema } from "./db/client.js";
 import { env } from "./env.js";
 import { escapeHtml } from "./render/convert.js";
+import { guestRun } from "./safety.js";
 import { sharedRun, shareView } from "./services/shares.js";
 
 function tags(p: { title: string; description: string; url: string; image?: string }): string {
@@ -34,6 +35,14 @@ export async function linkPreview(path: string): Promise<string | null> {
       return null;
     }
     const view = await shareView(run);
+    // A guest's result stays private: the card names the wizard, never what it made.
+    if (guestRun(run)) {
+      return tags({
+        title: view.wizard.title,
+        description: view.wizard.description,
+        url: `${env.publicUrl}/s/${share[1]}`,
+      });
+    }
     return tags({
       title: view.title === view.wizard.title ? view.title : `${view.title} · ${view.wizard.title}`,
       description: view.message ?? view.wizard.description,

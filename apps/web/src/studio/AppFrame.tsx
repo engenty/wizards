@@ -36,13 +36,11 @@ import { useFeature } from "../lib/features";
 import { lang, t } from "../lib/i18n";
 import { acceptInstall, standalone, useInstallPrompt } from "../lib/install";
 import { keys } from "../lib/keys";
-import { allowedModes } from "../lib/mode";
 import {
   initialsOf,
   type Me,
   type Space,
   signOut,
-  spendableCredits,
   useCurrentSpace,
   useMayCreate,
 } from "../lib/session";
@@ -158,28 +156,6 @@ const accountBase = (me: Me): string | null => me.manageUrl ?? me.account?.url ?
 export function billingUrl(me: Me): string | null {
   const base = accountBase(me);
   return base ? `${base}/billing` : null;
-}
-
-export function CreditsPill({ me }: { me: Me }) {
-  const credits = spendableCredits(me);
-  const url = billingUrl(me);
-  if (credits === null || !url) {
-    return null;
-  }
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      className={cn(
-        "flex h-8 shrink-0 items-center whitespace-nowrap rounded-full px-3 font-medium text-[0.8125rem] tabular-nums transition",
-        credits < 50 ? "bg-amber-tint text-ink" : "bg-paper-2 text-ink-2 hover:text-ink",
-      )}
-    >
-      {/* Whole credits, rounded down: the pill never shows more than there is. */}
-      {t("nav.credits", { n: Math.floor(credits).toLocaleString(lang) })}
-    </a>
-  );
 }
 
 /**
@@ -899,9 +875,9 @@ export function UserMenu({
 
 /**
  * The row at the top of the page: the space's name, which switches between spaces, then the
- * trail and the credits. No wordmark: the app bar holds the places. A phone starts at the
- * space's name; the rest stands in its app bar along the bottom, and where the person has more
- * than one mode, their switch stands up here in the credits' place.
+ * trail. No wordmark: the app bar holds the places. A phone starts at the space's name; the rest
+ * stands in its app bar along the bottom, and where the person has more than one mode, their
+ * switch stands up here.
  */
 export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
   const { phone } = useAppBar();
@@ -914,11 +890,8 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
         <Trail alone={personal} />
         {children}
       </div>
-      {personal ? null : phone && allowedModes(me).length > 1 ? (
-        <ModeSwitch me={me} look="row" />
-      ) : (
-        <CreditsPill me={me} />
-      )}
+      {/* A phone has no app bar beside the page: the switch between the modes stands up here. */}
+      {personal || !phone ? null : <ModeSwitch me={me} look="row" />}
       {/* A phone's bar keeps the places: the person stands up here. */}
       {phone ? <UserMenu me={me} /> : null}
     </header>

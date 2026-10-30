@@ -167,6 +167,7 @@ export function Composer({
   className,
   onTalk,
   effort,
+  model,
   chooser,
   buttons,
   plus,
@@ -200,7 +201,12 @@ export function Composer({
   /** Starts a live chat: its button stands where Send does while the field is empty. */
   onTalk?: () => void;
   /** Extra effort: a box in the plus menu; on, the chat works with its more capable model. */
-  effort?: { on: boolean; onChange: (on: boolean) => void };
+  effort?: ComposerEffort;
+  /**
+   * The model, in the plus menu: a list to pick from where the organization's policy lets people
+   * pick, or one line where it names the model.
+   */
+  model?: ComposerModel;
   /** The same choice as a menu of its own in the row, with the models' names (Work's chats). */
   chooser?: EffortChoice;
   /** More buttons in the row, before the chooser and the mic: the developer mode's in Work. */
@@ -300,8 +306,14 @@ export function Composer({
   const attachOpener = () => picker.current?.click();
   const plusButton = attach ? (
     <>
-      {effort || plus?.some((group) => group.length) ? (
-        <PlusMenu effort={effort} items={plus} onAttach={attachOpener} outlined={big} />
+      {effort || model || plus?.some((group) => group.length) ? (
+        <PlusMenu
+          effort={effort}
+          model={model}
+          items={plus}
+          onAttach={attachOpener}
+          outlined={big}
+        />
       ) : big ? (
         <button
           type="button"
@@ -519,6 +531,48 @@ const OUTLINED =
 
 export type Speech = ReturnType<typeof useDictation>;
 
+export interface ComposerEffort {
+  on: boolean;
+  onChange: (on: boolean) => void;
+  /** The organization's policy allows no extra effort here; `hint` says up to what it does. */
+  disabled?: boolean;
+  hint?: string;
+}
+
+export interface ComposerModel {
+  items: { id: string; label: string; note: string }[];
+  value: string;
+  onChange: (id: string) => void;
+}
+
+/** The model group of the plus menu: the purpose's list. */
+function ModelGroup({ model }: { model: ComposerModel }) {
+  return (
+    <>
+      <p className="px-3 pt-1.5 pb-0.5 font-medium text-[0.6875rem] text-ink-3 uppercase tracking-wide">
+        {t("composer.model")}
+      </p>
+      {model.items.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          role="menuitemradio"
+          aria-checked={item.id === model.value}
+          onClick={() => model.onChange(item.id)}
+          className={cn(
+            "flex w-full items-baseline gap-2 rounded-lg px-3 py-2 text-left text-[0.875rem] hover:bg-paper-2",
+            item.id === model.value && "bg-ember-tint",
+          )}
+        >
+          <span className="flex-1">{item.label}</span>
+          <span className="text-[0.75rem] text-ink-3">{item.note}</span>
+          {item.id === model.value ? <Check className="size-3.5 text-ember-strong" /> : null}
+        </button>
+      ))}
+    </>
+  );
+}
+
 /**
  * The plus button with its menu: upload files (⌘U), the caller's groups of entries, and the box
  * for extra effort. An entry with choices opens them beside the menu. The menu stands fixed to
@@ -526,11 +580,13 @@ export type Speech = ReturnType<typeof useDictation>;
  */
 function PlusMenu({
   effort,
+  model,
   items,
   onAttach,
   outlined,
 }: {
-  effort?: { on: boolean; onChange: (on: boolean) => void };
+  effort?: ComposerEffort;
+  model?: ComposerModel;
   items?: PlusItem[][];
   onAttach: () => void;
   outlined?: boolean;
@@ -703,6 +759,12 @@ function PlusMenu({
               </div>
             ) : null,
           )}
+          {model ? (
+            <>
+              <div className="mx-2 my-1 border-border-soft border-t" />
+              <ModelGroup model={model} />
+            </>
+          ) : null}
           {effort ? <EffortBox effort={effort} /> : null}
         </div>
       ) : null}
@@ -757,28 +819,32 @@ function PlusMenu({
 const SUB_WIDTH = 256;
 
 /** Extra effort, in the plus menu: on, the chat works with its more capable model. */
-function EffortBox({ effort }: { effort: { on: boolean; onChange: (on: boolean) => void } }) {
+function EffortBox({ effort }: { effort: ComposerEffort }) {
+  const on = effort.on && !effort.disabled;
   return (
     <>
       <div className="mx-2 my-1 border-border-soft border-t" />
       <button
         type="button"
         role="menuitemcheckbox"
-        aria-checked={effort.on}
+        aria-checked={on}
+        disabled={effort.disabled}
         onClick={() => effort.onChange(!effort.on)}
-        className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-paper-2"
+        className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left hover:bg-paper-2 disabled:cursor-default disabled:hover:bg-transparent"
       >
         <span
           className={cn(
             "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border",
-            effort.on ? "border-primary bg-primary text-primary-foreground" : "border-input",
+            on ? "border-primary bg-primary text-primary-foreground" : "border-input",
           )}
         >
-          {effort.on ? <Check className="size-3" strokeWidth={3} /> : null}
+          {on ? <Check className="size-3" strokeWidth={3} /> : null}
         </span>
         <span className="flex flex-col">
-          <span className="text-[0.875rem]">{t("composer.extra")}</span>
-          <span className="text-[0.75rem] text-ink-3">{t("composer.extraHint")}</span>
+          <span className={cn("text-[0.875rem]", effort.disabled && "text-ink-3")}>
+            {t("composer.extra")}
+          </span>
+          <span className="text-[0.75rem] text-ink-3">{effort.hint ?? t("composer.extraHint")}</span>
         </span>
       </button>
     </>

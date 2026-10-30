@@ -1,5 +1,6 @@
 import type { ModelClass, WizardDefinition } from "@engenty/wizards-shared/definition";
 import { noteText } from "@engenty/wizards-shared/run";
+import type { ModelTier } from "@engenty/wizards-shared/tiers";
 import { describe, expect, it, vi } from "vitest";
 import {
   blockingMessage,
@@ -7,16 +8,22 @@ import {
   missingModels,
   missingModelsSaid,
   mostAlongOnePath,
+  maskedNote,
   optionalCapabilities,
+  tierRefusalSaid,
   unavoidableSteps,
 } from "../src/engine/requirements";
 
 const unavailable = new Set<ModelClass>();
-vi.mock("../src/models", () => ({
+// The organization's model tier, while a test sets one.
+let tier: ModelTier | null = null;
+vi.mock("../src/models", async (actual) => ({
   classProblem: async (cls: ModelClass) =>
     unavailable.has(cls)
       ? { code: "noModelFor", params: { makes: cls } }
       : null,
+  currentTier: async () => tier,
+  tierRefusal: ((await actual()) as typeof import("../src/models")).tierRefusal,
 }));
 
 /** The property video's shape: voice and video sit behind a choice, the photos do not. */
@@ -225,5 +232,80 @@ describe("what a run adds up to along one way", () => {
   it("counts them again where nothing else reaches the end", () => {
     const only = { ...ad, steps: ad.steps.map((s) => ({ ...s, next: undefined })) };
     expect(mostAlongOnePath(only, cost, new Set(["clips"]))).toBe(141);
+  });
+});
+
+describe("what an organization's model tier doesn't offer", () => {
+  const sovereign: ModelTier = {
+    id: "eu-sovereign",
+    name: "EU Sovereign",
+    locked: true,
+    rules: { regions: ["eu"], zdr: true, noTraining: true, search: false, decisions: false },
+    classes: {
+      low: { model: "ovh/mistral-small", name: "Mistral Small 3.2", route: "OVHcloud", region: "France" },
+      standard: { model: "stackit/gpt-oss-120b", name: "gpt-oss-120b", route: "STACKIT", region: "Germany" },
+      high: { model: "ionos/qwen", name: "Qwen3.5 397B", route: "IONOS", region: "Germany" },
+      "anthropic/high": { model: null, name: "Claude Opus 5.5", reason: "maker" },
+      video: { model: null, name: null, reason: "region" },
+    },
+  };
+  const answer = {
+    title: "Kundenanfrage",
+    steps: [
+      { id: "draft", type: "agent", title: "Antwort entwerfen", model: "high", maker: "anthropic", tools: [], output: { format: "text" } },
+      { id: "read", type: "agent", title: "Anfrage lesen", tools: [], output: { format: "text" } },
+      { id: "film", type: "generate", title: "Erklärvideo", asset: "video" },
+      { id: "voice", type: "generate", title: "Sprecher", asset: "voice" },
+    ],
+  } as unknown as WizardDefinition;
+
+  it("lists each class it leaves out with why, and the rest as before", async () => {
+    tier = sovereign;
+    try {
+      const missing = await missingModels(answer);
+      expect(missing.map((m) => [m.tierClass, m.blocking])).toEqual([
+        ["anthropic/high", true],
+        ["video", true],
+        ["speech", true],
+      ]);
+      expect(missing[0].problem).toBe(
+        "EU Sovereign, your organization’s tier, leaves out Anthropic. Pick another maker in the Inspector.",
+      );
+      expect(missing[1].problem).toBe(
+        "EU Sovereign, your organization’s tier, offers no model for videos (no route in the tier’s regions).",
+      );
+      expect(missing[2].problem).toBe("EU Sovereign, your organization’s tier, offers no model for speech.");
+    } finally {
+      tier = null;
+    }
+    // Without a tier the same wizard needs nothing.
+    expect(await missingModels(answer)).toEqual([]);
+  });
+
+  it("says why the gateway refused a step, and what the gateway masked", async () => {
+    tier = sovereign;
+    try {
+      const refused = Object.assign(new Error("Forbidden"), {
+        cause: {
+          responseBody: JSON.stringify({
+            error: { message: "x", type: "outside_tier", class: "video", tier: { id: "eu-sovereign", name: "EU Sovereign" } },
+          }),
+        },
+      });
+      expect(noteText((await tierRefusalSaid(refused))!, "en")).toBe(
+        "Didn’t run: EU Sovereign, your organization’s tier, offers no model for videos (no route in the tier’s regions). Change the step, or ask an admin.",
+      );
+      const policy = new Error('{"error":{"message":"x","type":"not_in_policy","class":"anthropic/high"}}');
+      expect(noteText((await tierRefusalSaid(policy))!, "en")).toContain("haven’t approved Claude · High for wizards");
+      expect(await tierRefusalSaid(new Error("timeout"))).toBeNull();
+    } finally {
+      tier = null;
+    }
+    expect(noteText(maskedNote({ person: 2, email: 1, contract: 1 }), "en")).toBe(
+      "4 personal details masked and put back in the answer: 2 names, 1 e-mail address, 1 contract number",
+    );
+    expect(noteText(maskedNote({ person: 1, LOCATION: 2 }), "de")).toBe(
+      "3 persönliche Angaben maskiert und in der Antwort wieder eingesetzt: 1 Name, 2 andere Angaben",
+    );
   });
 });

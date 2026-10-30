@@ -13,6 +13,7 @@ import {
   saveAsset,
 } from "../files/storage.js";
 import { htmlToPng } from "../render/convert.js";
+import { guestRun } from "../safety.js";
 import { dropLinks, dropRuns, putLink } from "../tenants/control.js";
 import { brandView } from "./brand.js";
 import { ServiceError } from "./errors.js";
@@ -104,6 +105,10 @@ export async function shareView(run: RunRow): Promise<ShareView> {
  * a widget's poster, or a document's first screen. Rendered once and kept.
  */
 export async function shareImage(run: RunRow): Promise<{ data: Uint8Array; mime: string } | null> {
+  // A guest's result stays private: link previews get no picture of it.
+  if (guestRun(run)) {
+    return null;
+  }
   const view = await shareView(run);
   for (const { output } of view.shown) {
     const assets = output?.assets ?? [];

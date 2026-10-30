@@ -508,3 +508,20 @@ describe("the editor's preview of a result", () => {
     }
   });
 });
+
+describe("a guest's shared result", () => {
+  it("opens for whoever has the link, but stays private: no picture, no words in a card, no index", async () => {
+    const runId = await finishedRun("guest-share-1");
+    const shared = await call<{ url: string }>(`/api/runs/${runId}/share`, VISITOR, {});
+    expect(shared.status).toBe(200);
+    const token = shared.body.url.split("/s/")[1];
+    const view = await app.fetch(new Request(`${ORIGIN}/api/shares/${token}`));
+    expect(view.status).toBe(200);
+    expect(view.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect((await app.fetch(new Request(`${ORIGIN}/api/shares/${token}/image`))).status).toBe(404);
+    const { linkPreview } = await import("../src/link-preview");
+    const card = await client.withTenant(TENANT, () => linkPreview(`/s/${token}`));
+    expect(card).not.toContain("Alles im Plan");
+    expect(card).not.toContain("og:image");
+  });
+});
