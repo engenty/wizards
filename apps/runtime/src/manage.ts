@@ -207,15 +207,10 @@ export interface TenantInfo {
   features?: Record<string, boolean>;
   db: { url: string } | null;
   /**
-   * The level the team's use earned (Manage's levels): the catalog shows the templates up to it.
-   * An older Manage-App names none: read it as level 1.
+   * The admins' abuse checks: `guests` false, the runtime does not check what guests make
+   * (safety.ts). Left out by an older Manage-App: checked.
    */
-  level?: {
-    level: number;
-    name: string;
-    next: { level: number; name: string; runs: number; published: number } | null;
-    progress: { runs: number; published: number };
-  };
+  checks?: { guests: boolean };
   /** What an admin held: a held wizard starts no new run, a held page shows none. */
   holds?: { page: { reason: string } | null; wizards: { id: string; reason: string }[] };
   /**

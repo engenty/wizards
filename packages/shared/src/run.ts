@@ -59,6 +59,10 @@ export interface RunState {
   history: string[];
   /** Regenerate notes per step. */
   notes: Record<string, string>;
+  /** A guest's run: a hash of the answers the input check passed, so the same are not asked again. */
+  inputChecked?: string;
+  /** What the content rules stopped, where they stopped the run (safety.ts ContentKind). */
+  blocked?: string;
   /** Steps that make several results: the entries (from 0) to make again; the others stay. */
   redo?: Record<string, number[]>;
   /** The step whose `ask` branches are being decided; the run waits on that decision. */

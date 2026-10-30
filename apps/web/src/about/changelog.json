@@ -1,7 +1,27 @@
 [
   {
+    "version": "v0.12.2",
+    "timestamp": 1793301684,
+    "commits": [
+      {
+        "id": "4478823",
+        "message": "the open security alerts: dompurify, zod, toml, fast-uri, ip-address, vitest (#292)",
+        "group": "Fixed",
+        "scope": "deps",
+        "breaking": false
+      },
+      {
+        "id": "a1fd5a0",
+        "message": "skills in Sources, behind the skills switch (#205)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.12.1",
-    "timestamp": 1793256993,
+    "timestamp": 1793257171,
     "commits": [
       {
         "id": "73f570c",

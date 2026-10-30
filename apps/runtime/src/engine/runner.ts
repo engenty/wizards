@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   type ChoiceAnswer,
   type DecisionQuestion,
@@ -69,6 +70,13 @@ import {
 } from "../models.js";
 import { runEnded } from "../plugins/events.js";
 import { prompt } from "../prompts.js";
+import {
+  ContentBlockedError,
+  checkGuestInput,
+  checkGuestText,
+  guestChecksOn,
+  guestRun,
+} from "../safety.js";
 import { reportRun } from "../services/manage-reports.js";
 import { projectFiles } from "../services/project-files.js";
 import { projectProfile } from "../services/projects.js";
@@ -237,7 +245,23 @@ async function failRun(run: RunRow, stepId: string, err: unknown) {
   const said = noteOf(err) ?? (await tierRefusalSaid(err)) ?? friendly(err);
   const message = saidText(said, textLang(wizardLang(run.definition)));
   await emitEvent(run.id, stepId, "error", said);
-  await updateRun(run.id, { status: "failed", error: message });
+  // What the content rules stopped is kept on the run: Manage hears of it with the failed turn.
+  const blocked =
+    err instanceof ContentBlockedError
+      ? (
+          await db.query.run.findFirst({
+            where: eq(schema.run.id, run.id),
+            columns: { state: true },
+          })
+        )?.state
+      : undefined;
+  await updateRun(run.id, {
+    status: "failed",
+    error: message,
+    ...(blocked && err instanceof ContentBlockedError
+      ? { state: { ...blocked, blocked: err.kind } }
+      : {}),
+  });
 }
 
 // --- creating & driving ------------------------------------------------------
@@ -827,9 +851,28 @@ async function drive(runId: string, signal: AbortSignal) {
     const project = await loadProject(run);
     const state = structuredClone(run.state);
     try {
-      const output = await runAutomaticStep(step, await makeContext(run, project, state, signal));
+      const ctx = await makeContext(run, project, state, signal);
+      // A guest's answers are checked once before any model works on them, and what a step
+      // wrote for a guest before it is kept (docs/plans/guest-content-guards.md).
+      const guest = guestRun(run) && (await guestChecksOn());
+      if (guest) {
+        const answers = [answersAsText(ctx.scope), ...Object.values(state.notes)].join("\n");
+        const hash = createHash("sha256").update(answers).digest("base64url").slice(0, 24);
+        if (state.inputChecked !== hash) {
+          await checkGuestInput({ text: answers, call: ctx.call, signal });
+          state.inputChecked = hash;
+        }
+      }
+      const output = await runAutomaticStep(step, ctx);
       if (signal.aborted) {
         return;
+      }
+      if (guest) {
+        await checkGuestText({
+          text: output.text || (output.json ? JSON.stringify(output.json) : ""),
+          call: ctx.call,
+          signal,
+        });
       }
       await syncRunCost(runId);
       state.outputs[step.id] = output;
@@ -1011,6 +1054,10 @@ export async function reviewStep(runId: string, stepId: string, action: ReviewAc
         state.outputs[target] = { ...output, text: edit.slice(0, 50_000) };
       } else {
         state.outputs[target] = editedJson(run.definition, target, output, edit);
+      }
+      // A guest's own words in a result are held to the same rules as what a step wrote.
+      if (guestRun(run) && (await guestChecksOn())) {
+        await checkGuestText({ text: typeof edit === "string" ? edit : JSON.stringify(edit) });
       }
     }
     state.history.push(stepId);
