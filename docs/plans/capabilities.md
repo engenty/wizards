@@ -12,7 +12,8 @@ their place.
 - **Fähigkeiten / Capabilities**, a place in the Studio's app bar after Quellen. Renamed from
   „Werkzeuge“ on review. The glossary gets a row for the place; „Fähigkeit“ stays ruled out as
   a word for one skill.
-- Only the Studio shows it. Members work in Work and set nothing up; Client shows none.
+- Only the Studio shows it; Client shows none. Admins let members into the Studio per space,
+  with less: they build, write skills and add knowledge, but connect no account for others.
 - It holds **Skills** and **Connectors**, each with „Im Space“ and „Entdecken“. An MCP server is
   a kind of connector.
 - Built-in connectors (Gmail, Drive, Slack, GitHub …) show as a quiet list of names until
@@ -76,13 +77,18 @@ never with the space's accounts.
 
 ## Who sees the place
 
-- **Owners and admins:** Fähigkeiten in the Studio. They connect space accounts, set rules and
-  add skills.
-- **A member with building rights** sees Fähigkeiten in the Studio too. They may write skills
-  and bind a space account into a step only when its audience includes them. Rules of accounts
-  they don't own are locked.
-- **A member in Work** sees no Fähigkeiten. Their chats use the space's accounts; their own
-  accounts sit in their menu.
+Admins give members the Studio **per space**, one switch per member in the space's members.
+
+| | Owner, admin | Member with Studio | Member without |
+|---|---|---|---|
+| Studio | yes | yes, in the spaces they were given | no, Work only |
+| Wizards | build, publish | build, test | run |
+| Skills, Wissen, Daten | add, change | add, change | none |
+| Space accounts | connect for others, set rules and audience | use the ones open to members; rules locked | their chats use them |
+| Own accounts | in their menu | in their menu, and „nur ich“ accounts in the space | in their menu |
+
+A member with Studio can't connect an account for others or change the rules of an account they
+don't own. Freigaben for a space account go to its owner.
 
 ## Addresses
 
@@ -101,8 +107,9 @@ model; these PRs give it the place.
    rules per action (connections plan, phase 1).
 4. `feat(studio): personal accounts in the person's menu` — once per person, for Goose.
 5. `feat(work): Work chats read the space's accounts` — writes as confirmed actions.
-6. `feat(studio): Entdecken` — one search over skills.sh and integrations.sh.
-7. `feat: Fähigkeiten on by default` — switch, docs, glossary.
+6. `feat(studio): members in the Studio per space` — the switch per member, the reduced set.
+7. `feat(studio): Entdecken` — one search over skills.sh and integrations.sh.
+8. `feat: Fähigkeiten on by default` — switch, docs, glossary.
 
 ## Roadmap
 
@@ -112,3 +119,4 @@ model; these PRs give it the place.
 ## Open
 
 - Does a member in Work ever need to see the space's accounts and rules, or is the menu enough?
+- May a member with Studio publish a wizard to people outside the space, or only an admin?
