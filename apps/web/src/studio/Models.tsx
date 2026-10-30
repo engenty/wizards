@@ -2578,6 +2578,7 @@ function heroOf(s: Situation, jobs: OverviewJob[]): Hero {
         tier && strict
           ? t("overview.hero.cloudStrict", { tier: tier.name })
           : t("overview.hero.cloudAll"),
+      plan: me.tenant.plan?.name ?? null,
       where: "cloud",
       missing,
       helpers:

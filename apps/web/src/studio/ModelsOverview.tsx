@@ -25,6 +25,48 @@ function WhereIcon({ where, className }: { where: Where; className?: string }) {
   );
 }
 
+/** "Alles bereit" in green, or how many jobs lack an access in amber. */
+function StatePill({ missing, small }: { missing: number; small?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-2 rounded-full font-medium",
+        small ? "h-6 px-2.5 text-[0.75rem]" : "h-7 px-3 text-[0.8125rem]",
+        missing ? "bg-amber-tint text-ink-2" : "bg-moss-tint text-moss",
+      )}
+    >
+      <i className={cn("size-2 rounded-full", missing ? "bg-amber" : "bg-moss")} aria-hidden />
+      {missing
+        ? t(missing === 1 ? "overview.missingOne" : "overview.missing", { n: missing })
+        : t("overview.allReady")}
+    </span>
+  );
+}
+
+/** A job's state as the menu shows it: green ready, amber missing, a ring where not offered. */
+function StateDot({ state }: { state: Job["state"] }) {
+  const label = t(
+    state === "ok"
+      ? "overview.state.ok"
+      : state === "miss"
+        ? "overview.missingWord"
+        : "overview.state.na",
+  );
+  return (
+    <span
+      role="img"
+      title={label}
+      aria-label={label}
+      className={cn(
+        "size-2 shrink-0 rounded-full",
+        state === "ok" && "bg-moss",
+        state === "miss" && "bg-amber",
+        state === "na" && "ring-1 ring-ink-4 ring-inset",
+      )}
+    />
+  );
+}
+
 export interface Helper {
   name: string;
   /** The jobs it does: "Entscheidungen, Wissen". */
@@ -34,6 +76,8 @@ export interface Helper {
 
 export interface Hero {
   name: string;
+  /** The organization's plan, in the cloud: "Team". */
+  plan?: string | null;
   sub: string;
   where: Where;
   missing: number;
@@ -53,25 +97,17 @@ export function HeroCard({ hero }: { hero: Hero }) {
           <span className="font-medium text-[0.6875rem] text-ink-3 uppercase tracking-[0.12em]">
             {t("overview.runsWith")}
           </span>
-          <b className="font-display font-semibold text-[1.25rem] leading-tight">{hero.name}</b>
+          <span className="flex flex-wrap items-center gap-2">
+            <b className="font-display font-semibold text-[1.25rem] leading-tight">{hero.name}</b>
+            {hero.plan ? (
+              <span className="rounded-full bg-paper-2 px-2 py-0.5 font-medium text-[0.6875rem] text-ink-2">
+                {t("overview.plan", { plan: hero.plan })}
+              </span>
+            ) : null}
+          </span>
           <span className="text-[0.8125rem] text-ink-2">{hero.sub}</span>
         </div>
-        <span
-          className={cn(
-            "inline-flex h-7 shrink-0 items-center gap-2 rounded-full px-3 font-medium text-[0.8125rem]",
-            hero.missing ? "bg-amber-tint text-ink-2" : "bg-moss-tint text-moss",
-          )}
-        >
-          <i
-            className={cn("size-2 rounded-full", hero.missing ? "bg-amber" : "bg-moss")}
-            aria-hidden
-          />
-          {hero.missing
-            ? t(hero.missing === 1 ? "overview.missingOne" : "overview.missing", {
-                n: hero.missing,
-              })
-            : t("overview.allReady")}
-        </span>
+        <StatePill missing={hero.missing} />
       </div>
       {hero.helpers.length ? (
         <div className="flex flex-wrap items-center gap-2 border-border-soft border-t bg-paper-2/50 px-4 py-3 sm:px-5">
@@ -195,9 +231,14 @@ function JobRow({ job }: { job: Job }) {
       }}
       className="grid cursor-pointer grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3.5 gap-y-1.5 border-border-soft border-t px-4 py-3.5 transition first:border-t-0 hover:bg-accent/60 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_1rem] sm:px-5"
     >
-      <div className="min-w-0">
-        <b className="block font-medium text-[0.875rem]">{job.name}</b>
-        <span className="block text-[0.75rem] text-ink-3">{job.purpose}</span>
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="mt-[0.4rem] flex">
+          <StateDot state={job.state} />
+        </span>
+        <div className="min-w-0">
+          <b className="block font-medium text-[0.875rem]">{job.name}</b>
+          <span className="block text-[0.75rem] text-ink-3">{job.purpose}</span>
+        </div>
       </div>
       <ChevronRight className="col-start-2 row-start-1 size-4 text-ink-4 sm:col-start-4" />
       {job.state === "ok" ? (
@@ -242,11 +283,14 @@ function JobRow({ job }: { job: Job }) {
 export function JobsBox({ title, desc, jobs }: { title: string; desc: string; jobs: Job[] }) {
   return (
     <Card className="overflow-hidden p-0">
-      <div className="border-border-soft border-b bg-paper-2/50 px-4 pt-3 pb-2 sm:px-5">
-        <b className="block font-semibold text-[0.75rem] text-ink-2 uppercase tracking-[0.08em]">
-          {title}
-        </b>
-        <span className="block text-[0.8125rem] text-ink-3">{desc}</span>
+      <div className="flex items-center gap-3 border-border-soft border-b bg-paper-2/50 px-4 pt-3 pb-2 sm:px-5">
+        <div className="min-w-0 flex-1">
+          <b className="block font-semibold text-[0.75rem] text-ink-2 uppercase tracking-[0.08em]">
+            {title}
+          </b>
+          <span className="block text-[0.8125rem] text-ink-3">{desc}</span>
+        </div>
+        <StatePill small missing={jobs.filter((j) => j.state === "miss").length} />
       </div>
       {jobs.map((job) => (
         <JobRow key={job.id} job={job} />
