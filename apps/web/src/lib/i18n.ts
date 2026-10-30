@@ -627,7 +627,7 @@ const de: Record<Key, Line> = {
   "overview.keys.admin": "Aufrufe über Keys, die du hinterlegst, statt über Guthaben.",
   "overview.keysLead":
     "Deine Keys bei den Anbietern. Was über einen Key läuft, kostet kein Guthaben.",
-  "overview.subs": "KI-Apps im Studio-Chat",
+  "overview.subs": "AI Subscriptions im Studio-Chat",
   "overview.subs.desc":
     "Claude Code und Codex mit dem eigenen Abo. Agents und Wizards laufen nie darüber.",
   "overview.subs.allowed":
@@ -647,7 +647,7 @@ const de: Record<Key, Line> = {
     "Namen, E-Mails und IBANs werden zu Platzhaltern, bevor ein Aufruf hinausgeht. Dazu: {labels}.",
   "overview.maskingLead": "Was ein Modell von den Daten deiner Organisation zu sehen bekommt.",
   "overview.choice": "Automatisch das passende Modell. Oder du gibst Modelle vor.",
-  "overview.menu.subs": "KI-Apps",
+  "overview.menu.subs": "AI Subscriptions",
   "overview.menu.local": "Lokale Modelle",
   "overview.menu.keys": "API-Keys",
   "overview.menu.masking": "Maskierung",
@@ -3832,7 +3832,7 @@ const en = {
   "overview.keys.plan": "Calls on your own keys instead of credits. From Pro.",
   "overview.keys.admin": "Calls on keys you store, instead of credits.",
   "overview.keysLead": "Your keys at the providers. What runs on a key costs no credits.",
-  "overview.subs": "AI apps in the studio chat",
+  "overview.subs": "AI Subscriptions in the studio chat",
   "overview.subs.desc":
     "Claude Code and Codex on members’ own subscriptions. Agents and wizards never run on them.",
   "overview.subs.allowed":
@@ -3851,7 +3851,7 @@ const en = {
     "Names, emails and IBANs turn into placeholders before a call goes out. Also: {labels}.",
   "overview.maskingLead": "What a model gets to see of your organization’s data.",
   "overview.choice": "The right model, picked automatically. Or you set models.",
-  "overview.menu.subs": "AI apps",
+  "overview.menu.subs": "AI Subscriptions",
   "overview.menu.local": "Local models",
   "overview.menu.keys": "API keys",
   "overview.menu.masking": "Masking",
