@@ -441,6 +441,15 @@ tier?: {
       | { model: string; name: string; route: string | null; region: string | null }
       | { model: null; name: string | null; reason: "unbound" | "region" | "retention" | "training" | "maker" };
   };
+  models?: {
+    id: string;            // the catalog id: "anthropic/claude-sonnet-5.5"
+    name: string;          // "Claude Sonnet 5.5"
+    maker: string;         // "anthropic", "google", …
+    kind: "text" | "image" | "video" | "audio" | "speech";
+    classes: string[];     // the offered classes it runs on now: ["standard", "anthropic/standard"]
+    efforts: ("low" | "medium" | "high")[]; // the efforts it takes; [] for none
+    chooser: boolean;      // in the tier's preselection, what people pick from
+  }[];
 }
 ```
 
@@ -451,6 +460,14 @@ tier?: {
   (its terms allow training), `maker` (the tier leaves out its maker). `name` names the model
   the class has elsewhere, where there is one. A class missing from the list is not offered.
 - A call for a class that is not offered is refused, never served by another class.
+- `models` are the models the tier offers: in its list (General: switched on in the catalog) and
+  passing its rules now. `chooser` marks the preselection the studio's model choosers show
+  after Auto ("Zur Auswahl"): for now every model that runs a text class people pick (`low`,
+  `standard`, `high`, a maker class), later what an admin curates per tier. A model off the
+  preselection is one an organization's admins can still approve in way C. A step or chat that
+  picks a model asks for one of its `classes`, a maker class first, so the pick follows the
+  tier when a class is bound to a newer model. Left out by an older Manage-App: the studio
+  builds the preselection from `classes`.
 - The studio lists the makers that have at least one class bound in the tier.
 
 **`modelPolicy`** in `GET /v1/tenants/:id`: how the organization's admins share out the

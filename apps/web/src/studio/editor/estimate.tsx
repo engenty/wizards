@@ -2,8 +2,6 @@ import {
   classIdOf,
   EFFORTS,
   type Effort,
-  MAKER_CLASSES,
-  MAKERS,
   type Maker,
   type StepClass,
   TEXT_CLASSES,
@@ -11,7 +9,7 @@ import {
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
 import type { RunEstimate } from "@engenty/wizards-shared/run";
-import type { ModelTier } from "@engenty/wizards-shared/tiers";
+import { type ModelTier, splitClassId } from "@engenty/wizards-shared/tiers";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, ShieldCheck } from "lucide-react";
 import { type KeyboardEvent, useRef } from "react";
@@ -19,7 +17,15 @@ import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { cn, Label, Segmented, Select } from "../../ui";
 import { usePopover } from "../../ui/date-picker";
-import { offered, purposeChoice, reasonText, runsOnText, useModelTiers } from "../tiers";
+import {
+  type ChooserItem,
+  offered,
+  purposeChoice,
+  reasonText,
+  runsOnText,
+  tierClassLabel,
+  useModelTiers,
+} from "../tiers";
 
 /** What a run of the draft is expected to cost. Refetched when a step's shape changes. */
 export function useEstimate(wizardId: string, def: WizardDefinition) {
@@ -81,15 +87,18 @@ export function ModelClassControl({
   // What the organization's admins allow for wizards: way C's list, way B's effort cap.
   const choice = tier ? purposeChoice(tier, modelPolicy, "wizard") : null;
   const id = classIdOf({ model: model ?? "standard", maker }, "standard");
-  const allowedEfforts = choice?.efforts(id) ?? [...EFFORTS];
+  // The efforts the policy allows that the model takes; Auto's model is the tier's to pick.
+  const takes = model || maker ? choice?.itemFor(id, choice.items)?.efforts : undefined;
+  const allowedEfforts = (choice?.efforts(id) ?? [...EFFORTS]).filter(
+    (e) => !takes || takes.includes(e),
+  );
   const none = t("class.effortAuto");
   return (
     <div className="flex flex-col gap-2">
-      {tier ? (
-        <TierClassControl
+      {tier && choice ? (
+        <TierModelControl
           tier={tier}
-          allowed={choice?.allowed ?? (() => true)}
-          notApproved={choice?.notApproved ?? (() => false)}
+          choice={choice}
           model={model}
           maker={maker}
           onChange={(next) => onChange({ ...next, effort })}
@@ -125,109 +134,84 @@ export function ModelClassControl({
     </div>
   );
 }
-
 /**
- * Maker and class in an organization with a model tier: the makers that have a class there,
- * each class with what it runs on in the tier, and the ones the tier doesn't offer, with why.
+ * The model of a step in an organization with a model tier: Auto, then the tier's preselection
+ * (or the admins' list in way C), one line per model with how it works. A pick asks for the
+ * model's class, so the step follows the tier when the class gets a newer model.
  */
-function TierClassControl({
+function TierModelControl({
   tier,
-  allowed,
-  notApproved,
+  choice,
   model,
   maker,
   onChange,
 }: {
   tier: ModelTier;
-  /** Offered in the tier and allowed by the organization's policy for wizards. */
-  allowed: (id: string) => boolean;
-  /** Offered in the tier, not on the admins' list. */
-  notApproved: (id: string) => boolean;
+  choice: ReturnType<typeof purposeChoice>;
   model: StepClass | undefined;
   maker: Maker | undefined;
   onChange: (next: { model: StepClass | undefined; maker: Maker | undefined }) => void;
 }) {
-  const chosen = model ?? "standard";
-  const idOf = (cls: StepClass, by = maker) => (by ? `${by}/${cls}` : cls);
-  const makers = MAKERS.filter(
-    (m) => m === maker || MAKER_CLASSES[m].some((c) => allowed(idOf(c, m))),
-  );
-  const classes: readonly StepClass[] = maker ? MAKER_CLASSES[maker] : TEXT_CLASSES;
-
-  /** Another maker keeps the class where it has it in the tier, else takes the nearest it has. */
-  const pickMaker = (next: Maker | undefined) => {
-    const has = (cls: StepClass) =>
-      (next ? MAKER_CLASSES[next] : TEXT_CLASSES).includes(cls) && allowed(idOf(cls, next));
-    const wanted = next ? chosen : textClassOf(chosen);
-    const order: StepClass[] = [wanted, "standard", "high", "low", "highest"];
-    onChange({ maker: next, model: order.find(has) ?? (next ? MAKER_CLASSES[next][0] : wanted) });
+  const auto = !model && !maker;
+  const id = classIdOf({ model: model ?? "standard", maker }, "standard");
+  const picked = auto ? null : choice.itemFor(id, choice.items);
+  const current = tier.classes[id];
+  const pick = (next: string | null) => {
+    if (!next) {
+      onChange({ model: undefined, maker: undefined });
+      return;
+    }
+    const { maker: by, cls } = splitClassId(next);
+    onChange({ model: cls as StepClass, maker: by ?? undefined });
   };
-
-  const current = tier.classes[idOf(chosen)];
   return (
     <>
-      {chosen === "classifier" ? null : (
-        <>
-          <Label>{t("maker.label")}</Label>
-          <Select
-            value={maker ?? ""}
-            onChange={(v) => pickMaker((v || undefined) as Maker | undefined)}
-            options={[
-              { value: "", label: t("maker.any") },
-              ...makers.map((m) => ({ value: m, label: t(`maker.${m}`) })),
-            ]}
-          />
-        </>
-      )}
-      <Label>{t("class.label")}</Label>
-      <ClassMenu
-        tier={tier}
-        allowed={allowed}
-        notApproved={notApproved}
-        classes={classes}
-        chosen={chosen}
-        idOf={idOf}
-        follows={maker ? `${t(`maker.${maker}`)} · ${t(`class.${chosen}`)}` : t(`class.${chosen}`)}
-        onPick={(cls) => onChange({ maker, model: cls })}
+      <Label>{t("composer.model")}</Label>
+      <ModelMenu
+        items={choice.items}
+        auto={choice.auto}
+        value={auto ? null : (picked?.id ?? id)}
+        label={auto ? t("chooser.auto") : (picked?.name ?? tierClassLabel(id))}
+        onPick={pick}
       />
-      <p className="text-[0.75rem] text-ink-3">{t(`class.${chosen}.hint`)}</p>
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.75rem] text-ink-2">
         <span className="inline-flex h-6 items-center gap-1 rounded-full bg-paper-2 px-2 font-medium text-ink-2">
           <ShieldCheck className="size-3.5" />
           {tier.name}
         </span>
-        {notApproved(idOf(chosen))
-          ? t("policy.notApproved")
-          : offered(current)
-            ? t("tier.runsOn", { model: runsOnText(current) })
-            : `${t("tier.notIn", { tier: tier.name })}. ${reasonText(current)}`}
+        {auto
+          ? t("chooser.auto.hint")
+          : choice.notApproved(id)
+            ? t("policy.notApproved")
+            : offered(current)
+              ? t("tier.runsOn", { model: runsOnText(current) })
+              : `${t("tier.notIn", { tier: tier.name })}. ${reasonText(current)}`}
       </p>
     </>
   );
 }
 
-/** The class field: each class with the model it runs on in the tier; those not offered greyed, with why. */
-function ClassMenu({
-  tier,
-  allowed,
-  notApproved,
-  classes,
-  chosen,
-  idOf,
-  follows,
+/** The model field: Auto and one line per model, each with how it works. */
+function ModelMenu({
+  items,
+  auto,
+  value,
+  label,
   onPick,
 }: {
-  tier: ModelTier;
-  allowed: (id: string) => boolean;
-  notApproved: (id: string) => boolean;
-  classes: readonly StepClass[];
-  chosen: StepClass;
-  idOf: (cls: StepClass) => string;
-  follows: string;
-  onPick: (cls: StepClass) => void;
+  items: ChooserItem[];
+  auto: boolean;
+  /** The picked line's id; null for Auto. */
+  value: string | null;
+  label: string;
+  onPick: (id: string | null) => void;
 }) {
   const { open, setOpen, close, anchor, panel, place } = usePopover();
   const list = useRef<HTMLDivElement>(null);
+  const lines = [
+    ...(auto ? [{ id: null, name: t("chooser.auto"), hint: t("chooser.auto.hint") }] : []),
+    ...items,
+  ];
 
   const move = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
@@ -239,12 +223,12 @@ function ClassMenu({
       return;
     }
     event.preventDefault();
-    const items = [
+    const options = [
       ...(list.current?.querySelectorAll<HTMLButtonElement>("[role=option]:not([disabled])") ?? []),
     ];
-    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const at = options.indexOf(document.activeElement as HTMLButtonElement);
     const next = at + (event.key === "ArrowDown" ? 1 : -1);
-    items[(next + items.length) % items.length]?.focus();
+    options[(next + options.length) % options.length]?.focus();
   };
 
   return (
@@ -266,7 +250,7 @@ function ClassMenu({
           open && "border-focus ring-4 ring-focus-glow",
         )}
       >
-        <span className="min-w-0 flex-1 truncate">{t(`class.${chosen}`)}</span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
         <ChevronDown className="size-4 shrink-0 text-ink-3" />
       </button>
       {open ? (
@@ -283,62 +267,33 @@ function ClassMenu({
           <div
             ref={list}
             role="listbox"
-            aria-label={t("class.label")}
+            aria-label={t("composer.model")}
             className="flex flex-col gap-0.5"
           >
-            {classes.map((cls) => {
-              const bound = tier.classes[idOf(cls)];
-              const on = offered(bound) && allowed(idOf(cls));
-              const unlisted = notApproved(idOf(cls));
+            {lines.map((line) => {
+              const on = line.id === value;
               return (
                 <button
-                  key={cls}
+                  key={line.id ?? "auto"}
                   type="button"
                   role="option"
-                  aria-selected={cls === chosen}
-                  disabled={!on}
+                  aria-selected={on}
                   onClick={() => {
-                    onPick(cls);
+                    onPick(line.id);
                     close();
                   }}
                   className={cn(
-                    "flex flex-col gap-0.5 rounded-lg px-2.5 py-2 text-left outline-none transition",
-                    cls === chosen ? "bg-paper-2" : "hover:bg-paper-2 focus-visible:bg-paper-2",
-                    !on && "cursor-default text-ink-4 hover:bg-transparent",
+                    "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[0.875rem] outline-none transition",
+                    on ? "bg-paper-2" : "hover:bg-paper-2 focus-visible:bg-paper-2",
                   )}
                 >
-                  <span className="flex items-center gap-2 text-[0.875rem]">
-                    <span className={cn("flex-1", cls === chosen && "font-medium")}>
-                      {t(`class.${cls}`)}
-                    </span>
-                    {cls === chosen ? (
-                      <Check className="size-4 text-ink-2" />
-                    ) : (
-                      <span className="text-[0.75rem] text-ink-3">
-                        {on
-                          ? bound.name
-                          : unlisted
-                            ? t("policy.notApprovedShort")
-                            : t("tier.notIn", { tier: tier.name })}
-                      </span>
-                    )}
-                  </span>
-                  <span className={cn("text-[0.75rem]", on ? "text-ink-3" : "text-ink-4")}>
-                    {on && offered(bound)
-                      ? cls === chosen
-                        ? `${bound.name} · ${t(`class.${cls}.hint`)}`
-                        : t(`class.${cls}.hint`)
-                      : unlisted
-                        ? t("policy.notApproved")
-                        : reasonText(bound)}
-                  </span>
+                  <span className={cn("flex-1", on && "font-medium")}>{line.name}</span>
+                  <span className="text-[0.75rem] text-ink-3">{line.hint}</span>
+                  {on ? <Check className="size-4 text-ink-2" /> : <span className="size-4" />}
                 </button>
               );
             })}
           </div>
-          <p className="mx-0.5 mt-1 border-border-soft border-t px-2 pt-2 pb-1 text-[0.75rem] text-ink-3">
-            {t("tier.follows", { class: follows })}
-          </p>
         </div>
       ) : null}
     </div>

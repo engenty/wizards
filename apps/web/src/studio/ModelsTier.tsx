@@ -23,7 +23,7 @@ import { Fragment } from "react";
 import { type Key, t } from "../lib/i18n";
 import { Card, cn } from "../ui";
 import { Hint, PanelHead, Part } from "./models-parts";
-import { offered, tierClassLabel } from "./tiers";
+import { offered, purposeChoice, tierClassLabel } from "./tiers";
 
 /** A promise of the tier, as a chip: kept (a check) or not (crossed out). */
 function PromiseChip({ kept, children }: { kept: boolean; children: string }) {
@@ -115,6 +115,43 @@ function TierClasses({ tier }: { tier: ModelTier }) {
   );
 }
 
+/**
+ * What people choose from for text and thinking in wizards: Auto and the tier's preselection,
+ * or the admins' list in way C, one line per model with how it works and its efforts.
+ */
+function TierChooser({ tier, modelPolicy }: { tier: ModelTier; modelPolicy: ModelPolicy | null }) {
+  const choice = purposeChoice(tier, modelPolicy, "wizard");
+  const lines = [
+    ...(choice.auto
+      ? [{ id: "auto", name: t("chooser.auto"), hint: t("chooser.auto.hint"), efforts: null }]
+      : []),
+    ...choice.items.map((i) => ({
+      ...i,
+      efforts: choice.efforts(i.id).filter((e) => i.efforts.includes(e)),
+    })),
+  ];
+  return (
+    <>
+      <Hint>{choice.auto ? t("chooser.lead", { tier: tier.name }) : t("chooser.leadOwn")}</Hint>
+      <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-x-3 gap-y-2 text-[0.8125rem]">
+        {lines.map((line) => (
+          <Fragment key={line.id}>
+            <dt>
+              <span className="font-medium text-ink">{line.name}</span>
+              <span className="block text-[0.75rem] text-ink-3">{line.hint}</span>
+            </dt>
+            <dd className="text-[0.75rem] text-ink-3">
+              {line.efforts?.length
+                ? `${t("class.effort")}: ${line.efforts.map((e) => t(`class.effort.${e}` as Key)).join(", ")}`
+                : null}
+            </dd>
+          </Fragment>
+        ))}
+      </dl>
+    </>
+  );
+}
+
 /** The tier's page: as every member sees it; only the organization's admins change its models. */
 export function TierPanel({
   tier,
@@ -158,6 +195,9 @@ export function TierPanel({
           {rules.regions || rules.zdr || rules.noTraining ? null : (
             <Hint>{t("tier.promise.none")}</Hint>
           )}
+        </Part>
+        <Part title={t("chooser.title")}>
+          <TierChooser tier={tier} modelPolicy={modelPolicy} />
         </Part>
         <Part
           title={t("tier.classes")}
