@@ -264,9 +264,11 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    deny by default, *verboten* wins, one reader per resource kind (documents, tables,
    connections, mail, hosts, the sandbox), search filtered by R, the deny test suite
    (`docs/plans/broker.md`, „First: RWX“).
-1. `fix(runtime): guest runs never get the Docker sandbox` — a guest run (and a channel's) gets
-   agentOS or no sandbox; `SANDBOX_GUESTS=off|agentos`, default `off`. Members keep what the
-   server has. Closes: install and send anything from a guest's step.
+1. `fix(runtime): guest runs never get the Docker sandbox` — **built** (#354): a guest run (and a
+   channel's) gets agentOS or no sandbox; `SANDBOX_GUESTS=off|agentos`, default `off`; one place
+   decides (`runSandboxEngine`, `engine/resources.ts`); a step without the sandbox says so in the
+   run's log. Members keep what the server has. Closes: install and send anything from a guest's
+   step.
 2. `feat(runtime): one broker path for every connector call` — `broker.call(who, where,
    connection, action, input)` in the runtime (`docs/plans/broker.md`); the five call sites (`tools/connector.ts`,
    `tools/mail.ts`, `sharing/targets/*`, `plugin-connections.ts`, `engine/resources.ts`) move
