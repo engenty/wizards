@@ -51,6 +51,10 @@ It needs SSO and servers that support the extension, so it stays on the roadmap.
 
 Several connections per service in one space are fine (Gmail · Bestellungen, Gmail · Support).
 
+**A person's own page.** Their menu › „Verbindungen“ lists their sign-ins: on top the ones only
+for their Goose, in no space; then each of their spaces, where they sign in or out of connections
+in which each person signs in, and see the ones that sign in as the space.
+
 **Per space, not per organization.** Spaces keep data apart, e.g. one space per client of an
 agency. A later admin action may offer one connection to several spaces („Auch in: …“). With one
 space on your computer the question doesn't come up.
@@ -76,6 +80,28 @@ A call goes through only when three allowances say yes:
 On a connection that signs in as the space, the AI only reads. Writing (sending, creating, saving) is a fixed step, or in
 a Work chat an action the AI fills in and the person confirms; with „Mit Freigabe“ it then waits
 for an admin of the space. Every call goes through the broker, which logs it.
+
+## The gatekeeper
+
+Every tool call and every read or write of a connected service goes through one path in the
+runtime: the broker (connections plan). Nothing else holds a token, a key or a folder path.
+
+- **Who calls:** an AI step of a wizard (reads only on a space connection), a fixed step (the
+  writes), a Work chat (reads; writes as a confirmed action), Goose (its person's own sign-ins),
+  a plugin (`server.connections.call`), a script in the sandbox (reaches the broker, holds no
+  secrets), an AI app over `/api/mcp` (as the signed-in person).
+- **What it checks:** `call(who, run, connection, action, input)` against the run's grant (what
+  the wizard, chat or Goose may reach), the connection's rules (*Erlaubt / Mit Freigabe / Nie*
+  per action, audience) and the person (role, their own sign-in). It answers *allow / ask /
+  deny* with a reason; on any failure it denies.
+- **What it does:** takes the secret from the vault, signs in the way the connection says (as
+  the space, as the person, later through the company sign-in, or a folder path), runs the
+  action, returns the result and logs the call („Letzte Nutzung“). *Ask* goes to Freigaben: the
+  bell in Work or the run's page, for the space's admins or the person.
+
+Model calls take a separate path, the model gateway (model tiers, masking). In phase 1 the broker
+is a function in the runtime with plain rules; later it can read Cedar policies or run as its own
+process with agentgateway in front.
 
 ## Who sees what
 
@@ -134,4 +160,4 @@ model; these PRs give it the place.
 ## Open
 
 - Does a member in Work ever need to see the space's connections and rules, or is the menu enough?
-- May a member with Studio publish a wizard to people outside the space, or only an admin?
+- Later: may a member with Studio publish a wizard to people outside the space, or only an admin?
