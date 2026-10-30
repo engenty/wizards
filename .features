@@ -54,6 +54,9 @@
 # skills in a space's sources: always on, or read by a wizard when it needs one (off by default)
 # skills=on|off
 #
+# the organization's own domains for its wizards, in Settings → Allgemein (off by default)
+# customDomains=on|off
+#
 # own API keys in the cloud studio (a plan's switch; on alone)
 # ownKeys=on|off
 #

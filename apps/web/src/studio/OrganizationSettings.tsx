@@ -14,12 +14,14 @@ import {
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router";
 import { ApiError, api } from "../lib/api";
-import { type Key, t } from "../lib/i18n";
-import { initialsOf, type Me } from "../lib/session";
+import { useFeature } from "../lib/features";
+import { type Key, lang, t } from "../lib/i18n";
+import { initialsOf, type Me, useProjects } from "../lib/session";
 import { useStudioPlugins } from "../plugins/host";
 import { Button, Chip, IconButton, Input, Select, Spinner, useAutosave } from "../ui";
 import { billingUrl } from "./AppFrame";
 import { Section } from "./project/Section";
+import { useModelTiers } from "./tiers";
 
 type Role = "owner" | "admin" | "member";
 
@@ -99,9 +101,85 @@ function CopyRow({ label, text }: { label: string; text: string }) {
   );
 }
 
+/** One fact of the plan: what it is, how much, and a line under it. */
+function PlanFact({ label, value, sub }: { label: string; value: string; sub?: string | null }) {
+  return (
+    <div className="min-w-0 rounded-lg bg-paper-2/60 px-3 py-2.5">
+      <span className="block font-medium text-[0.6875rem] text-ink-3 uppercase tracking-[0.1em]">
+        {label}
+      </span>
+      <b className="block truncate font-medium text-[0.9375rem]">{value}</b>
+      {sub ? <span className="block truncate text-[0.75rem] text-ink-3">{sub}</span> : null}
+    </div>
+  );
+}
+
+/** "3 von 5", or "3 · ohne Grenze" where the plan sets none. */
+const ofLimit = (n: number, limit: number | null) =>
+  limit === null ? t("orgSettings.planNoLimit", { n }) : t("orgSettings.planOf", { n, limit });
+
+/**
+ * The organization's plan: its name, what of it is in use (spaces, members), the credits left,
+ * the model tier it is on and the tiers the plan offers.
+ */
+function PlanSection({ me, billing, admin }: { me: Me; billing: string | null; admin: boolean }) {
+  const org = useOrganization(me);
+  const projects = useProjects();
+  const { tier } = useModelTiers();
+  const offered = (tier?.choices ?? []).filter((c) => c.inPlan).map((c) => c.name);
+  return (
+    <Section title={t("orgSettings.plan")} hint={t("orgSettings.planHint")}>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <b className="min-w-0 flex-1 font-display font-semibold text-[1.125rem]">
+            {me.tenant.plan?.name}
+          </b>
+          {admin && billing ? (
+            <a
+              href={billing}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 font-medium text-[0.8125rem] text-ember-strong hover:underline"
+            >
+              {t("orgSettings.planChange")} <ExternalLink className="size-3" />
+            </a>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <PlanFact
+            label={t("orgSettings.planSpaces")}
+            value={projects.data ? ofLimit(projects.data.length, me.limits.projects) : "–"}
+          />
+          <PlanFact
+            label={t("orgSettings.planMembers")}
+            value={org.data ? ofLimit(org.data.seats.taken, org.data.seats.limit) : "–"}
+          />
+          <PlanFact
+            label={t("orgSettings.planCredits")}
+            value={
+              me.credits === null
+                ? "–"
+                : t("orgSettings.planCreditsLeft", {
+                    n: Math.floor(me.credits).toLocaleString(lang),
+                  })
+            }
+          />
+          <PlanFact
+            label={t("orgSettings.planModels")}
+            value={tier?.name ?? "–"}
+            sub={
+              offered.length > 1 ? t("orgSettings.planTiers", { tiers: offered.join(", ") }) : null
+            }
+          />
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 /**
  * Settings › Allgemein: the organization's name, saved as it is typed (owners and admins), its
- * plan, its addresses, and leaving it.
+ * plan and its addresses; its own domains behind `customDomains`.
  */
 export function OrganizationGeneral({ me }: { me: Me }) {
   const qc = useQueryClient();
@@ -113,12 +191,7 @@ export function OrganizationGeneral({ me }: { me: Me }) {
       await qc.invalidateQueries({ queryKey: ["me"] });
     }
   });
-  const [leaving, setLeaving] = useState(false);
-  const leave = useMutation({
-    mutationFn: () => api.del(`/api/studio/organization/members/${encodeURIComponent(me.user.id)}`),
-    // The studio's sign-in still names this organization: a new one goes to another.
-    onSuccess: () => window.location.assign("/api/auth/login"),
-  });
+  const domains = useFeature("customDomains");
   const studioUrl = me.tenant.slug ? `${window.location.origin}/studio/${me.tenant.slug}/` : null;
   const billing = billingUrl(me);
   return (
@@ -136,50 +209,47 @@ export function OrganizationGeneral({ me }: { me: Me }) {
           onChange={(e) => setName(e.target.value)}
         />
       </Section>
-      {me.tenant.plan ? (
-        <Section title={t("orgSettings.plan")} hint={t("orgSettings.planHint")}>
-          <div className="flex flex-wrap items-center gap-3">
-            <b className="min-w-0 flex-1 font-display font-semibold text-[1.125rem]">
-              {me.tenant.plan.name}
-            </b>
-            {admin && billing ? (
-              <a
-                href={billing}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 font-medium text-[0.8125rem] text-ember-strong hover:underline"
-              >
-                {t("orgSettings.planChange")} <ExternalLink className="size-3" />
-              </a>
-            ) : null}
-          </div>
-        </Section>
-      ) : null}
+      {me.tenant.plan ? <PlanSection me={me} billing={billing} admin={admin} /> : null}
       <AddressSection me={me} studioUrl={studioUrl} />
-      {admin ? <DomainsSection me={me} /> : null}
-      <Section title={t("orgSettings.leave")} hint={t("orgSettings.leaveHint")}>
-        {leaving ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="min-w-48 flex-1 text-[0.875rem]">
-              {t("orgSettings.leaveConfirm", { name: me.tenant.name ?? "" })}
-            </p>
-            <Button variant="ghost" onClick={() => setLeaving(false)}>
-              {t("orgSettings.cancel")}
-            </Button>
-            <Button busy={leave.isPending} onClick={() => leave.mutate()}>
-              {t("orgSettings.leaveYes")}
-            </Button>
-          </div>
-        ) : (
-          <Button variant="secondary" onClick={() => setLeaving(true)}>
-            {t("orgSettings.leaveButton")}
-          </Button>
-        )}
-        {leave.error ? (
-          <p className="mt-3 text-[0.875rem] text-rose">{refusal(leave.error)}</p>
-        ) : null}
-      </Section>
+      {admin && domains ? <DomainsSection me={me} /> : null}
     </div>
+  );
+}
+
+/**
+ * Leaving the organization, under Mitglieder: only while someone else is in it, so it never
+ * stays behind with nobody. The last owner is refused by the Manage-App (`last_owner`).
+ */
+function LeaveSection({ me }: { me: Me }) {
+  const [leaving, setLeaving] = useState(false);
+  const leave = useMutation({
+    mutationFn: () => api.del(`/api/studio/organization/members/${encodeURIComponent(me.user.id)}`),
+    // The studio's sign-in still names this organization: a new one goes to another.
+    onSuccess: () => window.location.assign("/api/auth/login"),
+  });
+  return (
+    <Section title={t("orgSettings.leave")} hint={t("orgSettings.leaveHint")}>
+      {leaving ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="min-w-48 flex-1 text-[0.875rem]">
+            {t("orgSettings.leaveConfirm", { name: me.tenant.name ?? "" })}
+          </p>
+          <Button variant="ghost" onClick={() => setLeaving(false)}>
+            {t("orgSettings.cancel")}
+          </Button>
+          <Button busy={leave.isPending} onClick={() => leave.mutate()}>
+            {t("orgSettings.leaveYes")}
+          </Button>
+        </div>
+      ) : (
+        <Button variant="secondary" onClick={() => setLeaving(true)}>
+          {t("orgSettings.leaveButton")}
+        </Button>
+      )}
+      {leave.error ? (
+        <p className="mt-3 text-[0.875rem] text-rose">{refusal(leave.error)}</p>
+      ) : null}
+    </Section>
   );
 }
 
@@ -404,6 +474,7 @@ export function OrganizationMembers({ me }: { me: Me }) {
       <p className="px-1 text-[0.8125rem] text-ink-3 leading-relaxed">
         {me.tenant.role === "member" ? t("organization.memberNote") : t("orgSettings.rolesNote")}
       </p>
+      {data && data.members.some((m) => m.userId !== me.user.id) ? <LeaveSection me={me} /> : null}
     </div>
   );
 }

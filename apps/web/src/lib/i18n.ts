@@ -1301,24 +1301,33 @@ const de: Record<Key, Line> = {
   "orgSettings.planHint":
     "Was deine Organisation nutzen kann: Spaces, Mitglieder, Guthaben im Monat und Modelle.",
   "orgSettings.planChange": "Plan ändern",
-  "orgSettings.address": "Adresse",
+  "orgSettings.planSpaces": "Spaces",
+  "orgSettings.planMembers": "Mitglieder",
+  "orgSettings.planCredits": "Guthaben",
+  "orgSettings.planModels": "Modelle",
+  "orgSettings.planOf": "{n} von {limit}",
+  "orgSettings.planNoLimit": "{n} · ohne Grenze",
+  "orgSettings.planCreditsLeft": "{n} Credits übrig",
+  "orgSettings.planTiers": "Im Plan: {tiers}",
+  "orgSettings.address": "Web-Adresse",
   "orgSettings.addressHint":
     "Hier sind das Studio und die veröffentlichten Wizards der Organisation zu finden.",
   "orgSettings.addressHintOpen":
-    "Hier sind das Studio und die veröffentlichten Wizards der Organisation zu finden. Du kannst die Adresse bis {date} einmal ändern.",
-  "orgSettings.addressChange": "Adresse ändern",
+    "Hier sind das Studio und die veröffentlichten Wizards der Organisation zu finden. Du kannst die Web-Adresse bis {date} einmal ändern.",
+  "orgSettings.addressChange": "Web-Adresse ändern",
   "orgSettings.addressConfirm":
-    "Die neue Adresse ist {host}. Danach lässt sie sich hier nicht mehr ändern, und das Studio zieht mit um.",
-  "orgSettings.addressConfirmYes": "Adresse ändern",
-  "orgSettings.addressProblem.length": "Eine Adresse hat 3 bis 30 Zeichen.",
+    "Die neue Web-Adresse ist {host}. Danach lässt sie sich hier nicht mehr ändern, und das Studio zieht mit um.",
+  "orgSettings.addressConfirmYes": "Web-Adresse ändern",
+  "orgSettings.addressProblem.length": "Eine Web-Adresse hat 3 bis 30 Zeichen.",
   "orgSettings.addressProblem.chars":
-    "Eine Adresse enthält nur Kleinbuchstaben a–z, Ziffern und Bindestriche.",
+    "Eine Web-Adresse enthält nur Kleinbuchstaben a–z, Ziffern und Bindestriche.",
   "orgSettings.addressProblem.hyphen":
-    "Eine Adresse beginnt und endet nicht mit einem Bindestrich und hat keine zwei hintereinander.",
-  "orgSettings.addressProblem.reserved": "Diese Adresse ist für die Plattform reserviert.",
-  "orgSettings.addressProblem.profanity": "Diese Adresse ist nicht erlaubt.",
-  "orgSettings.addressProblem.brand": "Diese Adresse ist eine Marke. Bestätige zuerst ihre Domain.",
-  "orgSettings.addressProblem.taken": "Diese Adresse ist vergeben.",
+    "Eine Web-Adresse beginnt und endet nicht mit einem Bindestrich und hat keine zwei hintereinander.",
+  "orgSettings.addressProblem.reserved": "Diese Web-Adresse ist für die Plattform reserviert.",
+  "orgSettings.addressProblem.profanity": "Diese Web-Adresse ist nicht erlaubt.",
+  "orgSettings.addressProblem.brand":
+    "Diese Web-Adresse ist eine Marke. Bestätige zuerst ihre Domain.",
+  "orgSettings.addressProblem.taken": "Diese Web-Adresse ist vergeben.",
   "orgSettings.domains": "Eigene Domain",
   "orgSettings.domainsHint":
     "Wizards unter der Domain der Organisation, sobald ein TXT-Eintrag sie bestätigt.",
@@ -4498,6 +4507,14 @@ const en = {
   "orgSettings.planHint":
     "What your organization can use: spaces, members, monthly credits and models.",
   "orgSettings.planChange": "Change plan",
+  "orgSettings.planSpaces": "Spaces",
+  "orgSettings.planMembers": "Members",
+  "orgSettings.planCredits": "Credits",
+  "orgSettings.planModels": "Models",
+  "orgSettings.planOf": "{n} of {limit}",
+  "orgSettings.planNoLimit": "{n} · no limit",
+  "orgSettings.planCreditsLeft": "{n} credits left",
+  "orgSettings.planTiers": "In the plan: {tiers}",
   "orgSettings.address": "Address",
   "orgSettings.addressHint": "Where the studio and the organization’s published wizards live.",
   "orgSettings.addressHintOpen":
