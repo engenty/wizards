@@ -69,6 +69,7 @@ the studio doesn’t: one `NAME=value` per line. Restart engenty wizards after a
 | `CHROME_PATH` | The browser for PDF and PNG exports and steps on websites: Chrome, Edge, Chromium or Brave | The first one found: on a Mac Google Chrome, Microsoft Edge, Chromium or Brave in `/Applications` or `~/Applications`; on Linux `google-chrome`, `chromium`, `chromium-browser` or `microsoft-edge` on the PATH; on Windows Chrome, Edge, Chromium or Brave under Program Files or your local AppData. `wizards status` names it |
 | `FFMPEG_PATH` | ffmpeg for MP4 videos | `ffmpeg` |
 | `SANDBOX_ALLOW_HOSTS` | Addresses the sandbox reaches besides the npm and PyPI registries, comma-separated: `api.example.com`. It reaches nothing else | not set |
+| `SANDBOX_GUESTS` | The sandbox for runs by people without an account – a wizard’s link, WhatsApp, SMS: `off` or `agentos`, never Docker. With `off`, such a run works without code and says so in its log; with `agentos`, only when agentOS is installed. Your own runs keep the server’s sandbox | `off` |
 | `OLLAMA_URL` | Where Ollama answers | `http://127.0.0.1:11434/v1` |
 | `PLUGINS_DIR` | Folders with plugins, comma-separated. If you set it, it replaces the default | `~/.engenty/wizards/plugins` |
 | `PLUGINS_WATCH` | With `0`, plugins no longer load again when their files change | `1` |

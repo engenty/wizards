@@ -1,6 +1,13 @@
 import type { BrowserContext, CDPSession, Page } from "playwright-core";
 import { webContext } from "../render/chromium.js";
-import { createSandbox, type Sandbox } from "../sandbox/index.js";
+import { guestRun } from "../safety.js";
+import {
+  guestSandboxEngine,
+  type Sandbox,
+  type SandboxCapabilities,
+  type SandboxEngine,
+  sandboxEngine,
+} from "../sandbox/index.js";
 import { getSecret, putSecret, type StoreScope } from "../store/index.js";
 
 /** Sign-ins the person asked the wizard to keep, as Playwright storage state. */
@@ -17,6 +24,19 @@ export type BrowserSeat = "agent" | "person";
 const SEAT_IDLE_MS = 3 * 60_000;
 
 /**
+ * The sandbox engine of a run: a member's (a `userId`) and a Work chat's is the server's
+ * (`SANDBOX`); a guest's – a live run with a visitor and no user, a plugin door's among them –
+ * is `SANDBOX_GUESTS`: agentOS when it is ready, else none, never Docker. The one place where a
+ * run's engine is picked (docs/plans/capabilities.md, A1).
+ */
+export function runSandboxEngine(run: {
+  mode: string;
+  userId: string | null;
+}): SandboxEngine | null {
+  return guestRun(run) ? guestSandboxEngine() : sandboxEngine();
+}
+
+/**
  * What a run holds while an agent works: a browser context and a sandbox, both made on first
  * use and released when the run stops running.
  */
@@ -24,6 +44,8 @@ export class RunResources {
   private context: BrowserContext | null = null;
   private page: Page | null = null;
   private sandbox: Sandbox | null = null;
+  /** The engine this run's sandbox is made on; null until bound, or when the run has none. */
+  private engine: SandboxEngine | null = null;
   private scope: StoreScope | null = null;
   /** Changes the person allowed for the rest of this run, as "<connection>:<action>". */
   readonly allowed = new Set<string>();
@@ -37,9 +59,15 @@ export class RunResources {
 
   constructor(readonly runId: string) {}
 
-  /** Whose store kept sign-ins are read from and written to. */
-  bind(scope: StoreScope) {
+  /** Whose store kept sign-ins are read from and written to, and whose run this is. */
+  bind(scope: StoreScope, run: { mode: string; userId: string | null }) {
     this.scope = scope;
+    this.engine = runSandboxEngine(run);
+  }
+
+  /** What this run's sandbox runs, or null when the run has none (a guest's, or `SANDBOX=off`). */
+  sandboxCapabilities(): SandboxCapabilities | null {
+    return this.engine?.capabilities() ?? null;
   }
 
   async browserContext(): Promise<BrowserContext> {
@@ -187,7 +215,10 @@ export class RunResources {
   }
 
   sandboxHandle(): Sandbox {
-    this.sandbox ??= createSandbox(this.runId);
+    if (!this.engine) {
+      throw new Error("This run has no sandbox.");
+    }
+    this.sandbox ??= this.engine.create(this.runId);
     return this.sandbox;
   }
 

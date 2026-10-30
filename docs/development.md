@@ -91,6 +91,10 @@ pandas, but no native programs; `off` removes the tool. agentOS is not a depende
 an image gets it with `--build-arg SANDBOX_ENGINES=agentos` ([plan](plans/agentos-sandbox.md)).
 Unset, `SANDBOX` is the first engine that is ready: `docker` when the image is on the machine,
 else `agentos` when it is installed, else `off`. The agent is told what the chosen sandbox runs.
+A guest's run (a visitor's, a channel's: no `userId`) never gets Docker: `SANDBOX_GUESTS` picks
+its engine, `off` (the default) or `agentos` when that is ready; `runSandboxEngine` in
+`apps/runtime/src/engine/resources.ts` is the one place that decides, and a step without the
+sandbox says so in the run's log.
 
 Each engine is a `SandboxEngine` in `apps/runtime/src/sandbox/index.ts`. One of Mastra's sandboxes
 (`@mastra/docker`, `@mastra/e2b`, `@mastra/daytona`) becomes one through `MastraRunSandbox`

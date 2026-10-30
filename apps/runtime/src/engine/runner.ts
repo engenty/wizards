@@ -565,7 +565,7 @@ export async function makeContext(
 ): Promise<StepContext> {
   const store = scopeOf(run);
   const resources = resourcesFor(run.id);
-  resources.bind(store);
+  resources.bind(store, run);
   const stepId = own.stepId ?? run.cursor ?? "";
   return {
     runId: run.id,
