@@ -128,7 +128,7 @@
     },
     {
       "name": "zod",
-      "version": "4.6.5",
+      "version": "4.6.6",
       "license": "MIT",
       "homepage": "https://zod.dev"
     }
@@ -237,7 +237,7 @@
         },
         {
           "name": "@napi-rs/canvas",
-          "version": "0.1.80",
+          "version": "1.0.13",
           "license": "MIT",
           "homepage": "https://github.com/Brooooooklyn/canvas#readme"
         },
@@ -321,13 +321,13 @@
         },
         {
           "name": "nanoid",
-          "version": "5.1.16",
+          "version": "6.0.2",
           "license": "MIT",
           "homepage": "https://github.com/ai/nanoid#readme"
         },
         {
           "name": "nodemailer",
-          "version": "10.0.10",
+          "version": "10.1.4",
           "license": "MIT-0",
           "homepage": "https://nodemailer.com/"
         },
@@ -345,7 +345,7 @@
         },
         {
           "name": "postal-mime",
-          "version": "4.0.2",
+          "version": "4.0.8",
           "license": "MIT-0",
           "homepage": "https://postal-mime.postalsys.com"
         },
@@ -363,7 +363,7 @@
         },
         {
           "name": "undici",
-          "version": "8.12.2",
+          "version": "8.12.3",
           "license": "MIT",
           "homepage": "https://undici.nodejs.org"
         }

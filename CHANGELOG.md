@@ -4,6 +4,10 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.12.2] - 2026-10-29
+- ADDED **[studio]** Skills in Sources, behind the skills switch (#205)
+- FIXED **[deps]** The open security alerts: dompurify, zod, toml, fast-uri, ip-address, vitest (#292)
+
 ## [0.12.1] - 2026-10-29
 - FIXED **[runtime]** A local install follows its account's plan within minutes, and Settings › Account shows the plan with a button to reload plan and plugins (#276)
 - PERFORMANCE **[runtime]** The studio assistant keeps its prompt cache: one agent setup for spaces, tools sorted, history marked, no sliding window (#269)

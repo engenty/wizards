@@ -248,7 +248,6 @@ export function useIsAdmin(): boolean {
   return !me || me.mode === "local" || me.tenant.role !== "member";
 }
 
-
 /** Switches the language and keeps it with the person: another browser or device opens in it. */
 export function usePickLang() {
   const qc = useQueryClient();

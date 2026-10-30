@@ -74,6 +74,7 @@ import {
   colorLine,
   factLines,
   logoSectionLine,
+  renderTask,
   renderTemplate,
   resolveRef,
   type TemplateScope,
@@ -624,7 +625,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     .filter(Boolean)
     .join("\n\n");
   const request = [
-    `# TASK\n${renderTemplate(step.instructions, ctx.scope)}`,
+    `# TASK\n${renderTask(step.instructions, ctx.scope)}`,
     answersBlock(ctx),
     photos.length
       ? prompt("step", "photos", {

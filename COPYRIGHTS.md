@@ -79,7 +79,7 @@ Declared by two or more of the workspaces below:
 | [qr-scanner](https://github.com/nimiq/qr-scanner#readme) | 1.4.2 | MIT |
 | [react](https://react.dev/) | 19.3.0 | MIT |
 | [react-dom](https://react.dev/) | 19.3.0 | MIT |
-| [zod](https://zod.dev) | 4.6.5 | MIT |
+| [zod](https://zod.dev) | 4.6.6 | MIT |
 
 ### docs (apps/docs)
 
@@ -112,7 +112,7 @@ Declared by two or more of the workspaces below:
 | [@mastra/docker](https://mastra.ai) | 0.12.1 | Apache-2.0 |
 | [@mastra/quickjs](https://mastra.ai) | 0.1.5 | Apache-2.0 |
 | [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
-| [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 0.1.80 | MIT |
+| [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 1.0.13 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.1 | MIT |
 | [ai](https://ai-sdk.dev/docs) | 7.0.102 | Apache-2.0 |
 | [aws4fetch](https://github.com/mhart/aws4fetch#readme) | 1.0.20 | MIT |
@@ -126,14 +126,14 @@ Declared by two or more of the workspaces below:
 | [jiti](https://github.com/unjs/jiti#readme) | 2.7.0 | MIT |
 | [jose](https://github.com/panva/jose) | 6.2.12 | MIT |
 | [mammoth](https://github.com/mwilliamson/mammoth.js#readme) | 1.13.0 | BSD-2-Clause |
-| [nanoid](https://github.com/ai/nanoid#readme) | 5.1.16 | MIT |
-| [nodemailer](https://nodemailer.com/) | 10.0.10 | MIT-0 |
+| [nanoid](https://github.com/ai/nanoid#readme) | 6.0.2 | MIT |
+| [nodemailer](https://nodemailer.com/) | 10.1.4 | MIT-0 |
 | [pdf-parse](https://mehmet-kozan.github.io/pdf-parse/) | 2.4.5 | Apache-2.0 |
 | [playwright-core](https://playwright.dev) | 1.63.0 | Apache-2.0 |
-| [postal-mime](https://postal-mime.postalsys.com) | 4.0.2 | MIT-0 |
+| [postal-mime](https://postal-mime.postalsys.com) | 4.0.8 | MIT-0 |
 | [rfc6902](https://github.com/chbrown/rfc6902) | 5.3.0 | MIT |
 | [turndown](https://github.com/mixmark-io/turndown#readme) | 7.2.4 | MIT |
-| [undici](https://undici.nodejs.org) | 8.12.2 | MIT |
+| [undici](https://undici.nodejs.org) | 8.12.3 | MIT |
 
 ### studio (apps/web)
 
@@ -189,8 +189,8 @@ Used to build, check and test; not part of what people run:
 | [tsx](https://tsx.hirok.io) | 4.23.15 | MIT |
 | [typescript](https://www.typescriptlang.org/) | 7.0.2 | Apache-2.0 |
 | [vite](https://vite.dev) | 8.3.4 | MIT |
-| [vite-plugin-dts](https://github.com/qmhc/vite-plugin-dts#readme) | 4.5.4 | MIT |
+| [vite-plugin-dts](https://github.com/qmhc/unplugin-dts#readme) | 5.1.2 | MIT |
 | [vite-plugin-singlefile](https://github.com/richardtallent/vite-plugin-singlefile/tree/main/#readme) | 2.3.3 | MIT |
-| [vitest](https://vitest.dev) | 4.1.11 | MIT |
+| [vitest](https://vitest.dev) | 5.0.5 | MIT |
 
 <!-- /third-party -->
