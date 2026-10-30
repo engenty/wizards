@@ -4,6 +4,17 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.13.0] - 2026-10-30
+- ADDED **[models]** Settings › Models opens on an overview: what your studio chat and your wizards run on, which model does which job, and what is still missing (#328)
+- ADDED **[models]** Choose models by name in wizard steps and in Goose's menu, from a short list that fits your organization; Auto picks for you (#328)
+- ADDED **[models]** Model tiers for organizations: all models, EU-Datenschutz (EU data centres, nothing stored, never trained on) and EU-Souverän (EU companies only); Pro and Team admins choose (#328)
+- ADDED **[models]** Mask personal data: names, e-mails and IBANs become placeholders before a call leaves engenty and come back in the answer; admins add what else to mask (#328)
+- ADDED **[models]** Admins decide whether members may use their own API keys and AI subscriptions in the studio chat; the page says where the data then goes (#328)
+- ADDED **[studio]** Settings › General shows your plan and what it holds: spaces, members, credits and models (#328)
+- CHANGED **[studio]** Leaving an organization moved to Settings › Members, and the credit balance left the top bar (#328)
+- ADDED **[runtime]** What guests make stays private and is checked against the content rules; admins can switch the checks off (#315, #316)
+- CHANGED **[studio]** Team levels are gone from the catalog; featured templates come first (#312)
+
 ## [0.12.2] - 2026-10-29
 - ADDED **[studio]** Skills in Sources, behind the skills switch (#205)
 - FIXED **[deps]** The open security alerts: dompurify, zod, toml, fast-uri, ip-address, vitest (#292)
