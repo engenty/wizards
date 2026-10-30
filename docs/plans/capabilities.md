@@ -1,7 +1,8 @@
 # Plan: Fähigkeiten, one place for skills and connectors
 
-Status: plan, nothing built. Written on 2026-10-30 against `feat/work-mode` (v0.13.x), revised the
-same day after review. Behind a new switch `capabilities`, off by default. Mockups: the artifact
+Status: plan, nothing built. Written on 2026-10-30 against `feat/work-mode` (v0.13.x), revised
+after review on 2026-10-30 and 2026-10-31. The runtime comes first (part A below), the places
+after (part B). Behind a new switch `capabilities`, off by default. Mockups: the artifact
 “Fähigkeiten in the Studio” (claude.ai/artifact/SLU1E9iwxQ8SjNAeHVg5qT). The connection model,
 the three allowances, fixed steps and the broker come from the connections plan (artifact
 “Verbindungen in Quellen”, claude.ai/artifact/GUtiTfPMVvoe1EcgRes3fh); this plan gives them
@@ -22,6 +23,8 @@ their place.
   as the space, or each person for themselves. A person's own sign-ins sit in their menu.
 - Settings › Connectors moves here. Plugins move later (roadmap).
 - Held calls stay where they wait today: the bell in Work, the run's page in a wizard.
+- Before any of these places: the broker, fixed steps and the guest sandbox rule (part A). The
+  review of 2026-10-31 says why.
 - On a phone Fähigkeiten sits in the „⋯“ menu, as Skills does now.
 - A skill's page keeps today's two columns (instructions left, settings right). Dateien moves
   to the top of the right column, above „Wann gilt er“ and „Skripte“.
@@ -79,17 +82,21 @@ A call goes through only when three allowances say yes:
 
 On a connection that signs in as the space, the AI only reads. Writing (sending, creating, saving) is a fixed step, or in
 a Work chat an action the AI fills in and the person confirms; with „Mit Freigabe“ it then waits
-for an admin of the space. Every call goes through the broker, which logs it.
+for an admin of the space. Every call goes through the broker, which logs it (planned; today see
+„The gatekeeper“).
 
 ## The gatekeeper
 
-Every tool call and every read or write of a connected service goes through one path in the
-runtime: the broker (connections plan). Nothing else holds a token, a key or a folder path.
+Planned: every tool call and every read or write of a connected service goes through one path in
+the runtime, the broker (connections plan). Nothing else holds a token, a key or a folder path.
+Today there is no such path: five places call connectors, and `http_request`, mail tools, share
+targets and a sandbox with internet go out past any gate (see the review).
 
 - **Who calls:** an AI step of a wizard (reads only on a space connection), a fixed step (the
   writes), a Work chat (reads; writes as a confirmed action), Goose (its person's own sign-ins),
-  a plugin (`server.connections.call`), a script in the sandbox (reaches the broker, holds no
-  secrets), an AI app over `/api/mcp` (as the signed-in person).
+  a plugin (`server.connections.call`), a script in the sandbox (planned: the broker only; today
+  open internet on Docker, registries on agentOS), an AI app over `/api/mcp` (as the signed-in
+  person), and `http_request` and the mail tools once they go through it too.
 - **What it checks:** `call(who, run, connection, action, input)` against the run's grant (what
   the wizard, chat or Goose may reach), the connection's rules (*Erlaubt / Mit Freigabe / Nie*
   per action, audience) and the person (role, their own sign-in). It answers *allow / ask /
@@ -122,7 +129,9 @@ Today on `feat/work-mode`, with the broker as planned. Model calls never pass th
   daily limit and the organization's guest budget, creates the run (`live`, holder
   `v:<visitor>`). It never runs a step.
 - runner process: `drive()` runs the steps. AI steps read, with content checks on the guest's
-  text; fixed steps write (planned); a sandbox per run for skill scripts.
+  text; fixed steps write (planned); a sandbox per run for skill scripts (Docker: open internet;
+  agentOS: registries only; cloud: none). Today a connector's ask goes to the guest, and
+  `http_request`, mail and share links are ways out.
 - Model: the step's class (Low, Standard, High) on the organization's own way (installed client,
   own API key, local model) or on credits through the model gateway (tier, masking).
 - Broker, guest instance: the grant is fixed at start from the published wizard. It opens
@@ -135,7 +144,7 @@ Today on `feat/work-mode`, with the broker as planned. Model calls never pass th
 - Who: a signed-in person (holder `u:<user>`) with a role: owner, admin or member; the Studio
   if the space opens it to members.
 - studio process: Work chat turns (the space's AI, a Mastra agent per tenant, skills, a sandbox
-  per chat, held calls in `chat_approval`), Goose (its person only, reads skills, runs no
+  per chat with the same engine rules as a run's, held calls in `chat_approval`), Goose (its person only, reads skills, runs no
   scripts), test runs and wizards from Work (created here, run by the runner without guest
   checks).
 - Model: chats and Goose on the Agent-Chat way (installed client, own API key, or credits; in
@@ -149,22 +158,8 @@ Today on `feat/work-mode`, with the broker as planned. Model calls never pass th
 Open question: do guests' runs (the public link, chat, voice, WhatsApp, SMS) and the team's work
 (test runs, Work chats, Goose) go through the same broker?
 
-Today, on `feat/work-mode`:
-
-- Three processes from one image (`RUNTIME_ROLE`, `env.ts:64`): studio (studio API, Work chats,
-  Goose), doors (guests' entry, never runs a step), runner (runs every wizard run with one
-  `drive()`, `engine/runner.ts:776`, guest and test runs alike).
-- A guest is an anonymous visitor id (`wz_vid`, `routes/runs.ts:127`); a channel uses a hash of
-  its id. Guest runs get Turnstile, 6 runs per hour, a guest budget and content checks.
-- One database per tenant on one shared volume, chosen per request (`db/client.ts:223`): one
-  runner process can reach every tenant's data and secrets.
-- No single gate. Five places run an action or read a secret: wizard-step tools
-  (`tools/connector.ts:181`, ask before writes), mail tools (`tools/mail.ts:30`), share targets
-  (`sharing/targets/slack.ts:44`), plugin connections (`plugin-connections.ts:431`, no ask and no
-  holder, reached by guest runs through plugin tools), the browser session
-  (`engine/resources.ts:48`).
-- The sandbox is off in the cloud compose; the Docker sandbox has open network. That is the
-  current state, not a decision.
+What the code does today is in the review below: one runner process for guest and test runs, one
+database per tenant on a shared volume, five call sites and no gate.
 
 The proposal on the table, in two steps:
 
@@ -223,10 +218,8 @@ attacker.
 | Approving one's own write | the guest answers the ask | open; „Mit Freigabe“ to admins |
 | Exhausting resources | Turnstile, 6 runs/h, daily limit, guest budget, concurrency, 15 min ask timeout | mitigated |
 
-**In order:** (1) guests get agentOS or no sandbox, never Docker; (2) one broker call path with
-„who calls“, which also closes plugin connections for guests; (3) fixed steps for writes and
-„Mit Freigabe“ to admins, so a guest never approves; (4) what an AI step read from a space
-connection stays in the space; (5) isolated instances.
+**In order:** part A of „Order of work“: the guest sandbox rule, one broker path, the run's
+grant, fixed steps, connections of the space, ways out, then isolated instances.
 
 ## Who sees what
 
@@ -260,21 +253,62 @@ admins.
 `/capabilities`, `/capabilities/skills`, `/capabilities/connectors`, an item with `?show=`.
 `/skills` and `/settings/connectors` redirect.
 
-## Order of PRs
+## Order of work
 
-All behind `capabilities`, off by default. The connections plan's phases deliver the connection
-model; these PRs give it the place.
+### Part A: the runtime first
+
+Before any new place in the studio. Each PR is small, behind a switch where it changes
+behaviour, and testable with the API and the existing pages. Nothing here needs a frontend.
+
+1. `fix(runtime): guest runs never get the Docker sandbox` — a guest run (and a channel's) gets
+   agentOS or no sandbox; `SANDBOX_GUESTS=off|agentos`, default `off`. Members keep what the
+   server has. Closes: install and send anything from a guest's step.
+2. `feat(runtime): one broker path for every connector call` — `broker.call(who, run,
+   connection, action, input)` in the runtime; the five call sites (`tools/connector.ts`,
+   `tools/mail.ts`, `sharing/targets/*`, `plugin-connections.ts`, `engine/resources.ts`) move
+   onto it. `who` is visitor, member, admin, Goose or plugin. Rules as in code today (read
+   allowed, write asks, delete always asks), one log table, „Letzte Nutzung“ from it. Plugin
+   connections from a guest run: reads only, logged. Closes: plugin connections with no ask and
+   no holder; nobody knowing who called.
+3. `feat(runtime): a run's grant, fixed at start` — from the published definition: which
+   connections, which actions, which hosts for `http_request`; the broker refuses the rest. A
+   test run gets the draft's. Closes: the AI steering a step to another action.
+4. `feat(runtime): fixed steps write, AI steps on space connections read` — `step.call` takes a
+   connection's action with fixed fields from the run's values; an AI step on a space-owned
+   connection gets read actions only; a write there never asks the guest (denied until „Mit
+   Freigabe“ exists). The person's own connection keeps today's ask. Closes: a guest approving
+   their own write; injected text becoming a write.
+5. `feat(runtime): connections belong to the space` — `plugin_connection` becomes the space's
+   connection table: name, how it signs in (space, person), audience (*Admins / Mitglieder /
+   alle*), rules per action; `store_secret` rows move once by command; API under
+   `/api/studio/spaces/:id/connections`. „Mit Freigabe“ holds the call for the space's admins
+   (the bell, `chat_approval`). The rules leave the code.
+6. `feat(runtime): ways out for guests` — `http_request` only to hosts in the grant; a send
+   step's recipient as a rule (the run's confirmed address or the space's domain) with a cap
+   per run and per day; what an AI step read from a space connection stays in the space when the
+   run is outside its audience (rules 5 and 7 of the connections plan).
+7. `feat(runtime): Work chats and Goose call the broker` — Work chats reach the space's
+   connections (reads; writes as a confirmed action), Goose its person's own sign-ins; both
+   through the same path and gate.
+8. Later, when the cloud needs it: `feat(runtime): isolated instances` — `RUNTIME_ROLE`
+   `runner-guests`, the broker as its own process holding the sealing key, a guest instance
+   that opens only connections for „alle“.
+
+After 1–5 the review's open rows read: injection mitigated structurally, own-write approval
+closed, plugin connections closed, scripts contained; exfiltration closes with 6; cross-tenant
+reach becomes structural with 8.
+
+### Part B: the places
+
+All behind `capabilities`, off by default. They show what part A built.
 
 1. `feat(studio): Fähigkeiten in the app bar` — Skills move in, `/skills` redirects.
-2. `feat(studio): connectors move to Fähigkeiten` — list, page, built-ins as names;
-   `/settings/connectors` redirects.
-3. `feat(runtime): connections owned by the space` — named, several per service, signing in as
-   the space, audience and rules per action (connections plan, phase 1).
-4. `feat(studio): each person signs in` — the second way, sign-ins in the person's menu.
-5. `feat(work): Work chats and Goose use connections` — writes as confirmed actions.
-6. `feat(studio): members in the Studio per space` — one rule per space, the reduced set.
-7. `feat(studio): Entdecken` — one search over skills.sh and integrations.sh.
-8. `feat: Fähigkeiten on by default` — switch, docs, glossary.
+2. `feat(studio): connectors move to Fähigkeiten` — list, page with sign-in kind, audience and
+   rules (from A5), built-ins as names; `/settings/connectors` redirects.
+3. `feat(studio): each person signs in` — the person's menu › „Verbindungen“.
+4. `feat(studio): members in the Studio per space` — one rule per space, the reduced set.
+5. `feat(studio): Entdecken` — one search over skills.sh and integrations.sh.
+6. `feat: Fähigkeiten on by default` — switch, docs, glossary.
 
 ## Roadmap
 
