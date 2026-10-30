@@ -12,7 +12,7 @@ their place.
 - **Fähigkeiten / Capabilities**, a place in the Studio's app bar after Quellen. Renamed from
   „Werkzeuge“ on review. The glossary gets a row for the place; „Fähigkeit“ stays ruled out as
   a word for one skill.
-- Only the Studio shows it; Client shows none. Admins let members into the Studio per space,
+- Only the Studio shows it; Client shows none. A space can open the Studio to all its members,
   with less: they build, write skills and add knowledge, but connect no account for others.
 - It holds **Skills** and **Connectors**, each with „Im Space“ and „Entdecken“. An MCP server is
   a kind of connector.
@@ -77,11 +77,12 @@ never with the space's accounts.
 
 ## Who sees the place
 
-Admins give members the Studio **per space**, one switch per member in the space's members.
+One rule **per space**, set by an admin: „Mitglieder dürfen ins Studio“. It counts for all
+members of the space; there is no switch per person.
 
 | | Owner, admin | Member with Studio | Member without |
 |---|---|---|---|
-| Studio | yes | yes, in the spaces they were given | no, Work only |
+| Studio | yes | yes, in spaces that open it to members | no, Work only |
 | Wizards | build, publish | build, test | run |
 | Skills, Wissen, Daten | add, change | add, change | none |
 | Space accounts | connect for others, set rules and audience | use the ones open to members; rules locked | their chats use them |
@@ -107,7 +108,7 @@ model; these PRs give it the place.
    rules per action (connections plan, phase 1).
 4. `feat(studio): personal accounts in the person's menu` — once per person, for Goose.
 5. `feat(work): Work chats read the space's accounts` — writes as confirmed actions.
-6. `feat(studio): members in the Studio per space` — the switch per member, the reduced set.
+6. `feat(studio): members in the Studio per space` — one rule per space, the reduced set.
 7. `feat(studio): Entdecken` — one search over skills.sh and integrations.sh.
 8. `feat: Fähigkeiten on by default` — switch, docs, glossary.
 
