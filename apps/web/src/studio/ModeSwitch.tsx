@@ -23,8 +23,8 @@ export const MODE_ENGENTY: Record<Mode, EngentyKind> = {
 
 /**
  * The switch between the modes, always in sight: in the app bar right under the engenty, and on
- * a phone in the top bar. Compact: each mode is its glyph, and only the one the person is in
- * (or points at) shows its name; a card slides under the one they are in. `named` lies along
+ * a phone in the top bar. Compact: each mode is its glyph, and a card under the one the person
+ * is in carries its name; pointing at another slides the card and the name over to it. `named` lies along
  * the wordmark of a bar that names its places, `stacked` stands in a narrow bar with the name
  * under the glyph, `row` is glyphs alone, for a bar along the top or bottom and on a phone.
  * Someone with one mode gets none.
@@ -42,17 +42,20 @@ export function ModeSwitch({
   const modes = allowedModes(me);
   const navigate = useNavigate();
   const box = useRef<HTMLFieldSetElement>(null);
+  // The mode pointed at (or focused), else the current one: it has the card and the name.
+  const [pointed, setPointed] = useState<Mode | null>(null);
+  const shown = pointed ?? mode;
   const [card, setCard] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const vertical = look === "stacked";
   // The card follows the button of the current mode, also while names open and close around it.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new mode moves the card; a second mode makes the switch appear.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another mode moves the card; a second mode makes the switch appear.
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) {
       return;
     }
     const place = () => {
-      const on = el.querySelector<HTMLElement>("[aria-pressed=true]");
+      const on = el.querySelector<HTMLElement>("[data-shown]");
       setCard(
         on ? { x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight } : null,
       );
@@ -64,7 +67,7 @@ export function ModeSwitch({
       watch.observe(child);
     }
     return () => watch.disconnect();
-  }, [mode, modes.length]);
+  }, [shown, modes.length]);
   if (modes.length < 2) {
     return null;
   }
@@ -78,6 +81,12 @@ export function ModeSwitch({
     <fieldset
       ref={box}
       aria-label={t("mode.switch")}
+      onMouseLeave={() => setPointed(null)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          setPointed(null);
+        }
+      }}
       className={cn(
         "relative flex w-fit shrink-0 gap-0.5 rounded-[14px] bg-ink/5 p-1 ring-1 ring-border-soft",
         vertical && "flex-col",
@@ -99,15 +108,20 @@ export function ModeSwitch({
       {modes.map((m) => {
         const Icon = MODE_ICON[m];
         const name = t(`mode.${m}`);
+        const open = m === shown;
         return (
           <button
             key={m}
             type="button"
             aria-pressed={m === mode}
+            data-shown={open || undefined}
             onClick={() => pick(m)}
+            onMouseEnter={() => setPointed(m)}
+            onFocus={() => setPointed(m)}
             title={look === "row" ? name : undefined}
             className={cn(
-              "group relative flex items-center rounded-[10px] text-ink-3 transition-colors hover:text-ink focus-visible:text-ink aria-pressed:text-ink",
+              "relative flex items-center rounded-[10px] transition-colors",
+              open ? "text-ink" : "text-ink-3",
               vertical
                 ? "w-11 flex-col justify-center py-2 coarse:py-2.5"
                 : "h-8 px-2 coarse:h-9 coarse:px-2.5",
@@ -122,8 +136,12 @@ export function ModeSwitch({
                 className={cn(
                   "grid transition-[grid-template-columns,grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
                   vertical
-                    ? "grid-rows-[0fr] opacity-0 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-focus-visible:grid-rows-[1fr] group-focus-visible:opacity-100 group-aria-pressed:grid-rows-[1fr] group-aria-pressed:opacity-100"
-                    : "grid-cols-[0fr] opacity-0 group-hover:grid-cols-[1fr] group-hover:opacity-100 group-focus-visible:grid-cols-[1fr] group-focus-visible:opacity-100 group-aria-pressed:grid-cols-[1fr] group-aria-pressed:opacity-100",
+                    ? open
+                      ? "grid-rows-[1fr]"
+                      : "grid-rows-[0fr] opacity-0"
+                    : open
+                      ? "grid-cols-[1fr]"
+                      : "grid-cols-[0fr] opacity-0",
                 )}
               >
                 <span
