@@ -1,13 +1,14 @@
-# Plan: Werkzeuge, one place for skills and connectors
+# Plan: Fähigkeiten, one place for skills and connectors
 
 Status: plan, nothing built. Written on 2026-10-30 against `feat/work-mode` (v0.13.x), revised the
-same day after review. Behind a new switch `tools`, off by default. Mockups: the artifact
-“Werkzeuge in the Studio” (claude.ai/artifact/SLU1E9iwxQ8SjNAeHVg5qT).
+same day after review. Behind a new switch `capabilities`, off by default. Mockups: the artifact
+“Fähigkeiten in the Studio” (claude.ai/artifact/SLU1E9iwxQ8SjNAeHVg5qT).
 
 ## In short
 
-- **Werkzeuge / Tools**, a place in the app bar: after Quellen in Studio, after Daten in Work,
-  none in Client. The name holds for now.
+- **Fähigkeiten / Capabilities**, a place in the app bar: after Quellen in Studio, after Daten
+  in Work, none in Client. Renamed from „Fähigkeiten“ on review. The glossary gets a row for the
+  place; „Fähigkeit“ stays ruled out as a word for one skill.
 - It holds **Skills** and **Connectors**, each with „Meine“ and „Entdecken“. An MCP server is a
   kind of connector.
 - Built-in connectors (Gmail, Drive, Slack, GitHub …) show as a quiet list of names until
@@ -18,7 +19,7 @@ same day after review. Behind a new switch `tools`, off by default. Mockups: the
   follow the same rules, with the same connectors.
 - Settings › Connectors moves here. Plugins move later (roadmap).
 - Held calls stay where they wait today: the bell in Work, the run's page in a wizard.
-- On a phone Werkzeuge sits in the „⋯“ menu, as Skills does now.
+- On a phone Fähigkeiten sits in the „⋯“ menu, as Skills does now.
 - A skill's page keeps today's two columns (instructions left, settings right). Dateien moves
   to the top of the right column, above „Wann gilt er“ and „Skripte“.
 
@@ -51,25 +52,25 @@ All three use the person's account (or the space's) and the same rule per action
 
 ## Addresses
 
-`/tools`, `/tools/skills`, `/tools/connectors`, an item with `?show=`. `/skills` and
+`/capabilities`, `/capabilities/skills`, `/capabilities/connectors`, an item with `?show=`. `/skills` and
 `/settings/connectors` redirect.
 
 ## Order of PRs
 
-All behind `tools`, off by default.
+All behind `capabilities`, off by default.
 
-1. `feat(studio): Werkzeuge in the app bar` — Skills move in, `/skills` redirects.
-2. `feat(studio): connectors move to Werkzeuge` — list, page, built-ins as names;
+1. `feat(studio): Fähigkeiten in the app bar` — Skills move in, `/skills` redirects.
+2. `feat(studio): connectors move to Fähigkeiten` — list, page, built-ins as names;
    `/settings/connectors` redirects.
 3. `feat(runtime): accounts per space and person, or shared` — with the one-time move.
 4. `feat(studio): rules per action` — on the connector's page.
 5. `feat(work): Work chats and Goose use the space's connectors`.
 6. `feat(studio): Entdecken` — one search over skills.sh and integrations.sh.
-7. `feat: Werkzeuge on by default` — switch, docs, glossary.
+7. `feat: Fähigkeiten on by default` — switch, docs, glossary.
 
 ## Roadmap
 
-- Plugins move to Werkzeuge, with their settings; `/settings/plugins` redirects.
+- Plugins move to Fähigkeiten, with their settings; `/settings/plugins` redirects.
 
 ## Open
 
