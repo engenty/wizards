@@ -74,4 +74,7 @@ All behind `capabilities`, off by default.
 
 ## Open
 
-- Does a Work user (not an admin) see a connector's rules? Mockup 7 shows both ways.
+- What does a Work user meet? In every version the chat asks them to connect a service once
+  and asks before it writes (mockup 7). Then one of three: Fähigkeiten in Work with the rules
+  locked (7 A), with their accounts only (7 B), or no place in Work and their accounts in their
+  own menu under „Verbindungen“ (7 C).
