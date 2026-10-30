@@ -110,6 +110,40 @@ Two things. The **runner** runs a wizard: its steps, model calls, pages and wait
 go through, holds the secrets and runs the call. The runner asks; the broker decides. Work chats
 and Goose run in the studio process and ask the same broker.
 
+### How guests' and the team's work runs
+
+Today on `feat/work-mode`, with the broker as planned. Model calls never pass the broker.
+
+**Guests** (a wizard at its link, the chat runner, voice, WhatsApp, SMS):
+
+- Who: a visitor id (cookie `wz_vid`, or a hash of the channel id); signed in or not, a visitor.
+  No role, no space.
+- doors process: finds the tenant from the link, checks Turnstile, 6 runs per hour, the wizard's
+  daily limit and the organization's guest budget, creates the run (`live`, holder
+  `v:<visitor>`). It never runs a step.
+- runner process: `drive()` runs the steps. AI steps read, with content checks on the guest's
+  text; fixed steps write (planned); a sandbox per run for skill scripts.
+- Model: the step's class (Low, Standard, High) on the organization's own way (installed client,
+  own API key, local model) or on credits through the model gateway (tier, masking).
+- Broker, guest instance: the grant is fixed at start from the published wizard. It opens
+  connections for „alle“ and the guest's own sign-in („Wer den Wizard nutzt“), never members'
+  connections or a team member's sign-in. „Mit Freigabe“ goes to the space's admins, never to the
+  guest.
+
+**The team** (Work chats, Goose, test runs):
+
+- Who: a signed-in person (holder `u:<user>`) with a role: owner, admin or member; the Studio
+  if the space opens it to members.
+- studio process: Work chat turns (the space's AI, a Mastra agent per tenant, skills, a sandbox
+  per chat, held calls in `chat_approval`), Goose (its person only, reads skills, runs no
+  scripts), test runs and wizards from Work (created here, run by the runner without guest
+  checks).
+- Model: chats and Goose on the Agent-Chat way (installed client, own API key, or credits; in
+  the cloud the organization's classes); test runs on model classes, as guests' runs.
+- Broker, team instance: opens connections for „Mitglieder“ and „alle“ and the person's own
+  sign-ins; Goose only its person's own. „Mit Freigabe“ asks the space's admins under the bell;
+  an own sign-in asks the person before a write.
+
 ### Guests and the team
 
 Open question: do guests' runs (the public link, chat, voice, WhatsApp, SMS) and the team's work
