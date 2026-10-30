@@ -907,6 +907,7 @@ function StepBody({
             />
             <ModelClassControl
               model={step.model}
+              maker={step.maker}
               effort={step.effort}
               onChange={(next) => set({ ...step, ...next })}
             />
@@ -939,6 +940,7 @@ function StepBody({
             {step.asset === "document" || step.asset === "dashboard" ? (
               <ModelClassControl
                 model={step.model}
+                maker={step.maker}
                 effort={step.effort}
                 onChange={(next) => set({ ...step, ...next })}
               />

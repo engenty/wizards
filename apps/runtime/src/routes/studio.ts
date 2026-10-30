@@ -22,6 +22,12 @@ import { PROJECT_FILE_KINDS } from "@engenty/wizards-shared/projects";
 import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
 import { note } from "@engenty/wizards-shared/run";
 import {
+  MAX_MASK_LABEL_CHARS,
+  MAX_MASK_LABELS,
+  type ModelPolicy,
+  modelPolicySchema,
+} from "@engenty/wizards-shared/tiers";
+import {
   PACKAGE_EXTENSION,
   PACKAGE_MAX_BYTES,
   PACKAGE_MIME,
@@ -94,14 +100,18 @@ import {
 } from "../local-models.js";
 import {
   installMail,
+  ManageError,
   managed,
   renameTenant,
+  saveModelPolicy,
+  saveModelTier,
   saveOrganizationProfile,
   tenantInfo,
   tenantMembers,
+  tryMasking,
   userInfo,
 } from "../manage.js";
-import { seenApps } from "../mcp/seen.js";
+import { checkedApps, seenApps } from "../mcp/seen.js";
 import { generateImageMedia, generateSpeechMedia, generateVideoMedia } from "../media/generate.js";
 import { transcribeAudio } from "../media/transcribe.js";
 import { errorText, saidOf } from "../model-errors.js";
@@ -349,6 +359,9 @@ const localModelName = z
   .max(120)
   .regex(/^[\w.:/-]+$/);
 
+/** The Manage-App's masking errors, passed on as it sends them: 502 labels, 503 the detector. */
+const MASKING_CODES = new Set(["labels_unavailable", "masking_unavailable"]);
+
 const modelsInput = z.object({
   source: z.enum([...HARNESS_IDS, "account", "own"]).optional(),
   bindings: z.partialRecord(z.enum(MODEL_CLASSES), z.string().max(160)).optional(),
@@ -364,6 +377,12 @@ const modelsInput = z.object({
 /** Alone the person changes everything; in an organization its owner and admins. */
 function mayChangeModels(user: SessionUser): boolean {
   return !managed || user.role === "owner" || user.role === "admin";
+}
+
+/** The model settings for the person who asks: the key hints only for those who change the keys. */
+async function settingsFor(c: Context<Vars>) {
+  const settings = await modelSettings(requestLang(c));
+  return mayChangeModels(c.get("user")) ? settings : { ...settings, keyHints: {} };
 }
 
 /** A binding the cloud can run: a provider's model or the credits, no client, no local model. */
@@ -816,6 +835,7 @@ export const studio = new Hono<Vars>()
             writable,
             message,
             extra: body.extra,
+            model: body.model,
             page,
             browserTools: body.tools,
             lang: body.lang,
@@ -1781,6 +1801,15 @@ export const studio = new Hono<Vars>()
   })
   // What each AI client did with the MCP server since the start: the test on "Integrate".
   .get("/integrations/seen", (c) => c.json(seenApps(c.get("user").tenantId)))
+  // The apps members used on the spaces, allowed or refused by the organization's model policy.
+  // Who used which app is for the organization's owners and admins.
+  .get("/model-policy/apps", (c) => {
+    const user = c.get("user");
+    if (!mayChangeModels(user)) {
+      return c.json({ error: say(c, "onlyOrganizationAdminsChange"), code: "forbidden" }, 403);
+    }
+    return c.json({ apps: checkedApps(user.tenantId) });
+  })
   .get("/local/models", (c) => (managed ? c.notFound() : c.json(localModelSettings())))
   .put("/local/models", async (c) => {
     if (managed) {
@@ -1791,7 +1820,7 @@ export const studio = new Hono<Vars>()
   })
   // --- models: where each class runs, own API keys, the credits behind them -----------------
   // Alone for this machine; on a Manage-App's runtime for the organization, whose admins change it.
-  .get("/models", async (c) => c.json(await modelSettings(requestLang(c))))
+  .get("/models", async (c) => c.json(await settingsFor(c)))
   .put("/models", async (c) => {
     if (!mayChangeModels(c.get("user"))) {
       return c.json(
@@ -1848,6 +1877,10 @@ export const studio = new Hono<Vars>()
           403,
         );
       }
+      // The organization's admins may allow no own keys at all.
+      if (feature("modelTiers", info.features) && info.modelPolicy?.ownKeys === false) {
+        return c.json({ error: say(c, "ownKeysNotInPolicy"), code: "tier" }, 403);
+      }
     }
     const blocked = input.bindings ? blockedBinding(input.bindings) : null;
     if (blocked) {
@@ -1869,7 +1902,81 @@ export const studio = new Hono<Vars>()
     if (((await embeddingModel().catch(() => null))?.ref ?? null) !== embeddedBy) {
       void reindexAll().catch((err) => console.error("[models] reindex failed", err));
     }
-    return c.json(await modelSettings(requestLang(c)));
+    return c.json(await settingsFor(c));
+  })
+  // The organization's model policy (way A/B/C, the lists, where models may run), saved at the
+  // Manage-App by its admins. Behind `modelTiers`.
+  .put("/model-policy", async (c) => {
+    const user = c.get("user");
+    if (!managed || !mayChangeModels(user)) {
+      return c.json({ error: say(c, "onlyOrganizationAdminsChange"), code: "forbidden" }, 403);
+    }
+    const info = await tenantInfo(user.tenantId).catch(() => null);
+    if (!info) {
+      return c.json({ error: say(c, "planUnavailable"), code: "manage_unavailable" }, 503);
+    }
+    if (!feature("modelTiers", info.features) || !info.tier) {
+      return c.notFound();
+    }
+    // The Manage-App checks the policy against the plan and the tier, and keeps what its way uses.
+    const policy = modelPolicySchema.parse(await c.req.json());
+    try {
+      await saveModelPolicy(user.tenantId, user.id, policy);
+    } catch (err) {
+      if (err instanceof ManageError && (err.status < 500 || MASKING_CODES.has(err.code))) {
+        return c.json({ error: err.message, code: err.code }, err.status as 400);
+      }
+      throw err;
+    }
+    return c.json(await settingsFor(c));
+  })
+  // The organization's tier, picked by its admins among those the plan offers. Behind `modelTiers`.
+  .put("/model-tier", async (c) => {
+    const user = c.get("user");
+    if (!managed || !mayChangeModels(user)) {
+      return c.json({ error: say(c, "onlyOrganizationAdminsChange"), code: "forbidden" }, 403);
+    }
+    const info = await tenantInfo(user.tenantId).catch(() => null);
+    if (!info) {
+      return c.json({ error: say(c, "planUnavailable"), code: "manage_unavailable" }, 503);
+    }
+    if (!feature("modelTiers", info.features) || !info.tier) {
+      return c.notFound();
+    }
+    const { tier } = z.object({ tier: z.string().min(1).max(40) }).parse(await c.req.json());
+    try {
+      await saveModelTier(user.tenantId, user.id, tier);
+    } catch (err) {
+      if (err instanceof ManageError && err.status < 500) {
+        return c.json({ error: err.message, code: err.code }, err.status as 400);
+      }
+      throw err;
+    }
+    return c.json(await settingsFor(c));
+  })
+  // "Try a sentence" under the masking instructions: what a model would see of it.
+  .post("/model-policy/try", async (c) => {
+    const user = c.get("user");
+    if (!managed || !mayChangeModels(user)) {
+      return c.json({ error: say(c, "onlyOrganizationAdminsChange"), code: "forbidden" }, 403);
+    }
+    const { text, maskLabels } = z
+      .object({
+        text: z.string().trim().min(1).max(2000),
+        maskLabels: z
+          .array(z.string().trim().min(1).max(MAX_MASK_LABEL_CHARS))
+          .max(MAX_MASK_LABELS)
+          .optional(),
+      })
+      .parse(await c.req.json());
+    try {
+      return c.json(await tryMasking(user.tenantId, user.id, text, maskLabels));
+    } catch (err) {
+      if (err instanceof ManageError && (err.status < 500 || MASKING_CODES.has(err.code))) {
+        return c.json({ error: err.message, code: err.code }, err.status as 400);
+      }
+      throw err;
+    }
   })
   // Ollama on this computer: its models, what each can do, the ones to download, the downloads.
   .get("/models/local", async (c) => {

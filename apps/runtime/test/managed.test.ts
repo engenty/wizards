@@ -21,6 +21,8 @@ const profiles: { tenantId: string; body: any }[] = [];
 const memberCalls: { method: string; path: string; body: any }[] = [];
 const channelUsage: { tenantId: string; body: any }[] = [];
 // The Manage-App fails on tenant B's plan while this is set.
+// Tenant B on a model tier, while a test sets one.
+let tierOfB: Record<string, unknown> | null = null;
 let tenantBDown = false;
 // The Manage-App refuses reservations for visitors' runs while this is set (its guest budget).
 let guestFull = false;
@@ -91,6 +93,28 @@ const manage: Server = createServer(async (req, res) => {
         ? { invitation: { id: "inv-2", email: body.email, role: body.role, expiresAt: "2026-10-30T00:00:00.000Z" } }
         : { ok: true },
     );
+  }
+  if (/^\/v1\/tenants\/[^/]+\/model-policy\/try$/.test(url.pathname) && req.method === "POST") {
+    const body = JSON.parse(raw);
+    memberCalls.push({ method: "POST", path: url.pathname, body });
+    if (body.text.includes("down")) {
+      return json({ error: "Personal data could not be masked.", code: "masking_unavailable" }, 503);
+    }
+    return json({ text: body.text.replace("Johanna Leitner", "‹Person 1›"), counts: { person: 1 } });
+  }
+  if (/^\/v1\/tenants\/[^/]+\/model-tier$/.test(url.pathname) && req.method === "PUT") {
+    const body = JSON.parse(raw);
+    memberCalls.push({ method: "PUT", path: url.pathname, body });
+    if (body.tier === "eu-sovereign") {
+      return json({ error: "The organization's plan doesn't offer this tier.", code: "plan" }, 403);
+    }
+    return json({ tier: null, modelPolicy: null });
+  }
+  if (/^\/v1\/tenants\/[^/]+\/model-policy$/.test(url.pathname) && req.method === "PUT") {
+    const body = JSON.parse(raw);
+    memberCalls.push({ method: "PUT", path: url.pathname, body });
+    const { actorId: _, ...modelPolicy } = body;
+    return json({ modelPolicy });
   }
   if (/^\/v1\/users\/[^/]+(\/connections|\/computers)?(\/[^/]+)?$/.test(url.pathname) && req.method !== "GET") {
     memberCalls.push({ method: req.method ?? "", path: url.pathname, body: raw ? JSON.parse(raw) : null });
@@ -196,7 +220,8 @@ const manage: Server = createServer(async (req, res) => {
       limits: tenant === "tenant-a" ? { concurrentRuns: 2, projects: null, members: 5 } : { concurrentRuns: 2 },
       // The plugins this tenant has switched on, besides the runtime's PLUGINS_DEFAULT.
       ...(tenant === "tenant-a" ? { modules: ["teams", "not-installed"] } : {}),
-      features: tenant === "tenant-a" ? { ownKeys: false } : {},
+      features: tenant === "tenant-a" ? { ownKeys: false } : tierOfB && tenant === "tenant-b" ? { modelTiers: true } : {},
+      ...(tierOfB && tenant === "tenant-b" ? tierOfB : {}),
       db: null,
     });
   }
@@ -403,6 +428,16 @@ describe("a runtime of a Manage-App", () => {
     expect((await get("/api/studio/me", "")).status).toBe(401);
   });
 
+  it("shows who used which app, and the key hints, to owners and admins only", async () => {
+    const m = await signIn("code-m");
+    const refused = await get("/api/studio/model-policy/apps", m);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: "forbidden" });
+    expect((await get("/api/studio/model-policy/apps", a)).status).toBe(200);
+    const models = (await (await get("/api/studio/models", m)).json()) as any;
+    expect(models.keyHints).toEqual({});
+  });
+
   it("lets a member edit wizards, not make or delete them; shows the organization as the Manage-App keeps it", async () => {
     const m = await signIn("code-m");
     const me = (await (await get("/api/studio/me", m)).json()) as any;
@@ -565,6 +600,98 @@ describe("a runtime of a Manage-App", () => {
       tenantBDown = false;
       forgetTenant("tenant-b");
     }
+    // Even a strict tier leaves own keys to the admins: they come in where the policy allows them,
+    // and the admins' policy alone refuses them.
+    const rules = { regions: ["eu"], zdr: true, noTraining: true, search: false, decisions: false };
+    const sovereign = { id: "eu-sovereign", name: "EU Sovereign", locked: true, rules, classes: {} };
+    try {
+      tierOfB = { tier: sovereign, modelPolicy: { ownKeys: true } };
+      forgetTenant("tenant-b");
+      expect((await put({ keys: { openai: "sk-test" } }, b)).status).toBe(200);
+      tierOfB = { tier: sovereign, modelPolicy: { ownKeys: false } };
+      forgetTenant("tenant-b");
+      const notAllowed = await put({ keys: { openai: "sk-test" } }, b);
+      expect(notAllowed.status).toBe(403);
+      expect(await notAllowed.json()).toMatchObject({ code: "tier" });
+      expect((await put({}, b)).status).toBe(200);
+      // The admins' policy goes to the Manage-App as the page sent it: the Manage-App checks it
+      // against the plan and the tier, and keeps what its way uses.
+      const open = { models: null, default: null, effortCap: null, efforts: null };
+      const policy = {
+        way: "C",
+        purposes: { wizard: { ...open, models: ["standard"] }, assistant: open, work: open },
+        credits: true,
+        ownKeys: true,
+        subscriptions: true,
+        localModels: true,
+        apps: { local: true, subscriptions: true },
+        masking: true,
+      };
+      const saved = await app.fetch(
+        new Request(`${RUNTIME}/api/studio/model-policy`, {
+          method: "PUT",
+          headers: { cookie: b, "content-type": "application/json" },
+          body: JSON.stringify(policy),
+        }),
+      );
+      expect(saved.status).toBe(200);
+      expect(memberCalls.at(-1)).toMatchObject({
+        path: "/v1/tenants/tenant-b/model-policy",
+        body: {
+          actorId: "user-b",
+          way: "C",
+          ownKeys: true,
+          subscriptions: true,
+          apps: { local: true, subscriptions: true },
+          purposes: { wizard: { models: ["standard"], effortCap: null } },
+        },
+      });
+      // Left out by the page, the masking fields stay as the Manage-App keeps them.
+      expect(memberCalls.at(-1)?.body).not.toHaveProperty("maskLabels");
+      memberCalls.pop();
+      // The admins pick another tier their plan offers; a refusal reaches the page as it is.
+      const tierPut = (tier: string) =>
+        app.fetch(
+          new Request(`${RUNTIME}/api/studio/model-tier`, {
+            method: "PUT",
+            headers: { cookie: b, "content-type": "application/json" },
+            body: JSON.stringify({ tier }),
+          }),
+        );
+      expect((await tierPut("general")).status).toBe(200);
+      expect(memberCalls.at(-1)).toMatchObject({
+        path: "/v1/tenants/tenant-b/model-tier",
+        body: { actorId: "user-b", tier: "general" },
+      });
+      memberCalls.pop();
+      const refused = await tierPut("eu-sovereign");
+      expect(refused.status).toBe(403);
+      expect(await refused.json()).toMatchObject({ code: "plan" });
+      memberCalls.pop();
+      // "Try a sentence": what a model would see, with the labels the page has.
+      const tryIt = (text: string) =>
+        app.fetch(
+          new Request(`${RUNTIME}/api/studio/model-policy/try`, {
+            method: "POST",
+            headers: { cookie: b, "content-type": "application/json" },
+            body: JSON.stringify({ text, maskLabels: ["company"] }),
+          }),
+        );
+      const tried = await tryIt("Johanna Leitner fragt nach.");
+      expect(await tried.json()).toEqual({ text: "‹Person 1› fragt nach.", counts: { person: 1 } });
+      expect(memberCalls.at(-1)).toMatchObject({
+        path: "/v1/tenants/tenant-b/model-policy/try",
+        body: { actorId: "user-b", text: "Johanna Leitner fragt nach.", maskLabels: ["company"] },
+      });
+      memberCalls.pop();
+      const down = await tryIt("down");
+      expect(down.status).toBe(503);
+      expect(await down.json()).toMatchObject({ code: "masking_unavailable" });
+      memberCalls.pop();
+    } finally {
+      tierOfB = null;
+      forgetTenant("tenant-b");
+    }
     const plugins = await app.fetch(
       new Request(`${RUNTIME}/api/internal/plugins`, { headers: { authorization: `Bearer ${SERVICE_KEY}` } }),
     );
@@ -718,6 +845,37 @@ describe("a runtime of a Manage-App", () => {
     const asB = await list("Bearer wz_key_of_b");
     expect(asB.status).toBe(200);
     expect(await asB.text()).not.toContain(wizardOfA);
+    // An organization whose model policy keeps apps on subscriptions out of its spaces: the call
+    // is answered with a tool error the app shows, and counted.
+    const { forgetTenant } = await import("../src/manage");
+    try {
+      tierOfB = {
+        tier: { id: "eu-private", name: "EU Private", locked: true, rules: {}, classes: {} },
+        modelPolicy: { apps: { local: true, subscriptions: false } },
+      };
+      forgetTenant("tenant-b");
+      const refused = await list("Bearer wz_key_of_b");
+      expect(refused.status).toBe(200);
+      expect(await refused.json()).toMatchObject({
+        id: 1,
+        result: { isError: true, content: [{ text: expect.stringContaining("outside EU Private") }] },
+      });
+      tierOfB = { ...tierOfB, modelPolicy: { apps: { local: true, subscriptions: true } } };
+      forgetTenant("tenant-b");
+      expect(await (await list("Bearer wz_key_of_b")).text()).not.toContain("outside EU Private");
+      const { checkedApps } = await import("../src/mcp/seen");
+      expect(checkedApps("tenant-b")).toMatchObject([{ kind: "subscription", allowed: 1, refused: 1 }]);
+      // When the Manage-App can't say what the policy allows, the app waits.
+      tenantBDown = true;
+      forgetTenant("tenant-b");
+      expect(await (await list("Bearer wz_key_of_b")).json()).toMatchObject({
+        result: { isError: true, content: [{ text: expect.stringContaining("can’t be checked") }] },
+      });
+    } finally {
+      tenantBDown = false;
+      tierOfB = null;
+      forgetTenant("tenant-b");
+    }
     // A token for another audience, an unknown key and no token are all turned away.
     const wrongAudience = await list(
       `Bearer ${await token({ sub: "user-a", tenant: "tenant-a" }, "https://elsewhere.example")}`,

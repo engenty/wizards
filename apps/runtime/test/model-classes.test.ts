@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createClient } from "@libsql/client";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  classIdOf,
   DEFINITION_VERSION,
   parseWizard,
   readable,
@@ -77,6 +78,67 @@ describe("a definition of version 1", () => {
   it("keeps an effort as it is: effort is not a class", () => {
     const def = { version: 1, title: "x", steps: [{ ...step("a", "high"), effort: "high" }, result] };
     expect(wizardSchema.parse(def).steps[0]).toMatchObject({ model: "standard", effort: "high" });
+  });
+});
+
+describe("a step that names a maker", () => {
+  const withMaker = (model?: string, maker?: string) => ({
+    version: 2,
+    title: "Maker",
+    steps: [{ ...step("a", model), ...(maker ? { maker } : {}) }, result],
+  });
+  const problems = (def: unknown) => {
+    const parsed = wizardSchema.safeParse(def);
+    return parsed.success ? [] : parsed.error.issues.map((i) => [i.path.join("."), i.message]);
+  };
+
+  it("takes a maker next to its class, and highest only with a maker that has it", () => {
+    expect(problems(withMaker("high", "anthropic"))).toEqual([]);
+    expect(problems(withMaker("highest", "openai"))).toEqual([]);
+    expect(problems(withMaker("low", "mistral"))).toEqual([]);
+    expect(wizardSchema.parse(withMaker("highest", "anthropic")).steps[0]).toMatchObject({
+      model: "highest",
+      maker: "anthropic",
+    });
+  });
+
+  it("refuses highest without a maker", () => {
+    expect(problems(withMaker("highest"))).toEqual([
+      ["steps.0.model", 'The class "highest" needs a maker: anthropic or openai.'],
+    ]);
+  });
+
+  it("refuses a maker without a class, on the classifier, and a class the maker lacks", () => {
+    expect(problems(withMaker(undefined, "anthropic"))[0]?.[0]).toBe("steps.0.maker");
+    expect(problems(withMaker("classifier", "anthropic"))[0]?.[1]).toBe(
+      "The classifier class takes no maker.",
+    );
+    expect(problems(withMaker("standard", "mistral"))[0]?.[1]).toContain("has no class");
+    expect(problems(withMaker("highest", "google"))[0]?.[1]).toContain("has no class");
+    expect(problems(withMaker("high", "acme"))).not.toEqual([]);
+  });
+
+  it("asks the gateway for the maker class, or the plain class without a maker", () => {
+    expect(classIdOf({ model: "high", maker: "anthropic" }, "standard")).toBe("anthropic/high");
+    expect(classIdOf({ maker: "openai", model: "highest" }, "standard")).toBe("openai/highest");
+    expect(classIdOf({}, "standard")).toBe("standard");
+  });
+
+  it("leaves a definition without makers as it was", () => {
+    const old = { version: 2, title: "Old", steps: [step("a", "high"), step("b"), result] };
+    expect(wizardSchema.parse(old).steps.map((s) => ("maker" in s ? s.maker : undefined))).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    expect(modelsOf(wizardSchema.parse(version1(1)))).toEqual([
+      "low",
+      "standard",
+      "high",
+      "classifier",
+      undefined,
+      undefined,
+    ]);
   });
 });
 

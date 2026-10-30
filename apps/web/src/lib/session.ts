@@ -248,14 +248,6 @@ export function useIsAdmin(): boolean {
   return !me || me.mode === "local" || me.tenant.role !== "member";
 }
 
-/** The credits a person can spend right now, wherever they come from. */
-export function spendableCredits(me: Me): number | null {
-  if (me.mode === "managed") {
-    return me.credits;
-  }
-  return me.models?.source === "account" ? (me.account?.credits ?? null) : null;
-}
-
 /** Switches the language and keeps it with the person: another browser or device opens in it. */
 export function usePickLang() {
   const qc = useQueryClient();

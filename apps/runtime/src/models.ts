@@ -34,6 +34,13 @@ import {
 } from "@engenty/wizards-shared/providers";
 import type { RunNote, RunNoteCode, Said } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
+import {
+  type ModelPolicy,
+  type ModelTier,
+  type Purpose,
+  policyEntry,
+  type TierRefusalType,
+} from "@engenty/wizards-shared/tiers";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import {
   type EmbeddingModel,
@@ -49,6 +56,7 @@ import { accountToken, linkedAccount } from "./auth/account.js";
 import { LOCAL_DECISION_MODEL, ollamaDecisionModel, ollamaRoot } from "./decision-model.js";
 import { DeviceModel, deviceThinks } from "./engine/device.js";
 import { env } from "./env.js";
+import { feature, remoteFeatures } from "./features.js";
 import {
   appleModel,
   appleStatus,
@@ -65,7 +73,7 @@ import {
   notInstalled,
   signedOut,
 } from "./harness/index.js";
-import { managed } from "./manage.js";
+import { managed, tenantInfo } from "./manage.js";
 import { hasFfmpeg } from "./media/ffmpeg.js";
 import { ModelUnavailableError, saidOf } from "./model-errors.js";
 import { seal, unseal } from "./secrets/crypto.js";
@@ -95,6 +103,10 @@ export interface CallMeta {
   runId?: string;
   stepId?: string;
   effort?: Effort;
+  /** What the call is for; left out, a run's call is `wizard` and any other `assistant`. */
+  purpose?: Purpose;
+  /** The maker class a step names (`anthropic/high`): asked for on the credits instead of the class. */
+  makerClass?: string;
 }
 
 type VideoModel = Parameters<typeof experimental_generateVideo>[0]["model"];
@@ -187,6 +199,44 @@ export interface ModelSettingsInput {
 
 const local: ModelConfig = { settings: { source: "own", bindings: {} }, keys: {} };
 
+/** The environment variable a runtime that runs alone reads a provider's key from. */
+const ENV_KEYS: Record<LocalKey, string> = {
+  gateway: "AI_GATEWAY_API_KEY",
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  google: "GOOGLE_GENERATIVE_AI_API_KEY",
+  fal: "FAL_KEY",
+  elevenlabs: "ELEVENLABS_API_KEY",
+  replicate: "REPLICATE_API_TOKEN",
+};
+
+/** A key as the settings page may show it: its prefix and its last four characters. */
+export function maskKey(key: string): string {
+  if (key.length < 12) {
+    return `…${key.slice(-2)}`;
+  }
+  const prefix = key.match(/^[A-Za-z]{1,8}[-_](?:[A-Za-z]{1,8}[-_])?/)?.[0] ?? "";
+  return `${prefix}…${key.slice(-4)}`;
+}
+
+/**
+ * Where each key the settings page shows comes from: kept in the studio (sealed for an
+ * organization), or read from an environment variable of this machine; masked, never whole.
+ */
+async function keyHints(
+  cfg: ModelConfig,
+): Promise<Partial<Record<LocalKey, { masked: string; env: string | null }>>> {
+  const hints: Partial<Record<LocalKey, { masked: string; env: string | null }>> = {};
+  for (const name of LOCAL_KEYS) {
+    const key = cfg.keys[name];
+    if (key) {
+      const fromEnv = !managed && !(await vaultGet(`key.${name}`));
+      hints[name] = { masked: maskKey(key), env: fromEnv ? ENV_KEYS[name] : null };
+    }
+  }
+  return hints;
+}
+
 function envKey(name: LocalKey): string | undefined {
   const value = {
     gateway: env.aiGatewayKey,
@@ -244,12 +294,46 @@ async function tenantConfig(tenant: string): Promise<ModelConfig> {
   return value;
 }
 
-async function config(): Promise<ModelConfig> {
+/** What an organization saved: its keys and bindings as they are, used or not. */
+async function storedConfig(): Promise<ModelConfig> {
   if (!managed) {
     return local;
   }
   const tenant = currentTenantOrNull();
   return tenant ? tenantConfig(tenant) : { settings: organizationSettings({}), keys: {} };
+}
+
+/**
+ * Whether the organization thinks on its own keys now: its plan has them and, while `modelTiers`
+ * is on, its admins' policy allows them. When the Manage-App can't say, it doesn't.
+ */
+async function ownKeysAllowed(tenant: string): Promise<boolean> {
+  const info = await tenantInfo(tenant).catch(() => null);
+  return Boolean(
+    info &&
+      feature("ownKeys", info.features) &&
+      !(feature("modelTiers", info.features) && info.modelPolicy?.ownKeys === false),
+  );
+}
+
+/**
+ * What a call runs on. An organization whose plan or policy leaves out own keys keeps them saved,
+ * but every class goes to the credits: its keys and the bindings to a provider's model don't count.
+ */
+async function config(): Promise<ModelConfig> {
+  const cfg = await storedConfig();
+  const tenant = managed ? currentTenantOrNull() : null;
+  if (!tenant || (await ownKeysAllowed(tenant))) {
+    return cfg;
+  }
+  return {
+    settings: organizationSettings(
+      Object.fromEntries(
+        Object.entries(cfg.settings.bindings).filter(([, ref]) => isCreditsRef(ref)),
+      ),
+    ),
+    keys: {},
+  };
 }
 
 function mergeBindings(
@@ -333,7 +417,7 @@ export async function saveModels(input: ModelSettingsInput) {
 
 /** A stored key, for a check of the key itself; never sent to the studio. */
 export async function storedKey(name: LocalKey): Promise<string | undefined> {
-  return (await config()).keys[name];
+  return (await storedConfig()).keys[name];
 }
 
 // --- where a class runs -------------------------------------------------------------
@@ -516,18 +600,117 @@ function need(cfg: ModelConfig, name: LocalKey): string {
  */
 const DEFINITION_HEADER = { "x-wizards-definition": String(DEFINITION_VERSION) };
 
-function gatewayClient(access: GatewayAccess, meta: CallMeta) {
+/** Whether the organization's model tier counts: maker classes and the purpose header. */
+async function tiersOn(): Promise<boolean> {
+  return feature("modelTiers", await remoteFeatures().catch(() => null));
+}
+
+/** What a call is for, as the gateway checks it against the organization's policy. */
+const purposeOf = (meta: CallMeta): Purpose =>
+  meta.purpose ?? (meta.runId ? "wizard" : "assistant");
+
+function purposeHeader(meta: CallMeta, tiers: boolean): Record<string, string> {
+  return tiers ? { "x-wizards-purpose": purposeOf(meta) } : {};
+}
+
+/**
+ * What the gateway masked in a run's calls, per run and step, until the step's Log line says it:
+ * `x-wizards-masked: {"person":2,"email":1}` counts per kind.
+ */
+const maskedCounts = new Map<string, Record<string, number>>();
+
+function countMasked(meta: CallMeta, header: string | null) {
+  if (!header || !meta.runId) {
+    return;
+  }
+  const key = `${meta.runId}|${meta.stepId ?? ""}`;
+  const counts = maskedCounts.get(key) ?? {};
+  let said: unknown = null;
+  try {
+    said = JSON.parse(header);
+  } catch {
+    return;
+  }
+  for (const [kind, count] of Object.entries(said && typeof said === "object" ? said : {})) {
+    if (Number.isInteger(count) && count > 0) {
+      counts[kind] = (counts[kind] ?? 0) + count;
+    }
+  }
+  maskedCounts.set(key, counts);
+}
+
+/** What the gateway masked in a step's calls, per kind, once: the counts are gone after. */
+export function takeMasked(runId: string, stepId: string): Record<string, number> | null {
+  const key = `${runId}|${stepId}`;
+  const counts = maskedCounts.get(key);
+  maskedCounts.delete(key);
+  return counts && Object.keys(counts).length ? counts : null;
+}
+
+function gatewayClient(access: GatewayAccess, meta: CallMeta, tiers: boolean) {
   return createGateway({
     baseURL: `${access.baseUrl}/v4/ai`,
     apiKey: access.token,
+    // A run's call that had personal data masked says how much, for the step's Log line.
+    ...(tiers && meta.runId
+      ? {
+          fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+            const res = await fetch(input, init);
+            countMasked(meta, res.headers.get("x-wizards-masked"));
+            return res;
+          },
+        }
+      : {}),
     headers: {
       ...DEFINITION_HEADER,
       ...(access.tenant ? { "x-wizards-tenant": access.tenant } : {}),
       ...(meta.runId ? { "x-wizards-run": meta.runId } : {}),
       ...(meta.stepId ? { "x-wizards-step": meta.stepId } : {}),
       ...(meta.effort ? { "x-wizards-effort": meta.effort } : {}),
+      ...purposeHeader(meta, tiers),
     },
   });
+}
+
+/**
+ * The organization's model tier and its admins' policy, while `modelTiers` is on; null where it
+ * has none.
+ */
+interface Tiers {
+  tier: ModelTier | null;
+  modelPolicy: ModelPolicy | null;
+}
+
+const NO_TIER: Tiers = { tier: null, modelPolicy: null };
+
+export async function currentTiers(): Promise<Tiers> {
+  const tenant = managed ? currentTenantOrNull() : null;
+  const info = tenant ? await tenantInfo(tenant).catch(() => null) : null;
+  if (!info || !feature("modelTiers", info.features)) {
+    return NO_TIER;
+  }
+  return { tier: info.tier ?? null, modelPolicy: info.modelPolicy ?? null };
+}
+
+/** The organization's model tier, while `modelTiers` is on; null where it has none. */
+export async function currentTier(): Promise<ModelTier | null> {
+  return (await currentTiers()).tier;
+}
+
+/**
+ * Whether the organization's tier allows web search; true without a tier. When the Manage-App
+ * can't say, an organization's search waits: a tier that rules it out may be the reason.
+ */
+export async function searchAllowed(): Promise<boolean> {
+  const tenant = managed ? currentTenantOrNull() : null;
+  if (!tenant) {
+    return true;
+  }
+  const info = await tenantInfo(tenant).catch(() => null);
+  if (!info) {
+    return false;
+  }
+  return !feature("modelTiers", info.features) || (info.tier?.rules.search ?? true);
 }
 
 export interface ClassPrice {
@@ -594,9 +777,20 @@ async function viaCredits<M>(
   meta: CallMeta,
   pick: (client: ReturnType<typeof createGateway>, id: string) => M,
 ): Promise<ResolvedModel<M>> {
-  const bound = route.model ?? (await classCatalog())?.classes[cls]?.model ?? "";
+  const tiers = await tiersOn();
+  const asked = tiers && meta.makerClass ? meta.makerClass : null;
+  // Where way C's list approves the model a class runs on and not the class, the call asks for it.
+  const { tier, modelPolicy } = tiers && !route.model ? await currentTiers() : NO_TIER;
+  const entry = tier ? policyEntry(tier, modelPolicy, purposeOf(meta), asked ?? cls) : null;
+  const byModel = entry && entry !== (asked ?? cls) ? entry : null;
+  const makerModel = asked ? (tier?.classes[asked]?.model ?? null) : null;
+  const bound =
+    route.model ?? byModel ?? makerModel ?? (await classCatalog())?.classes[cls]?.model ?? "";
   return {
-    model: pick(gatewayClient(route.access, meta), route.model ?? `wizards/${cls}`),
+    model: pick(
+      gatewayClient(route.access, meta, tiers),
+      route.model ?? byModel ?? `wizards/${asked ?? cls}`,
+    ),
     ref: bound,
     vendor: vendorOf(bound.replace(/^[a-z]+:/, "")),
     gateway: true,
@@ -1062,7 +1256,7 @@ async function embeddingBy(
       const bound = access ? (await classCatalog())?.classes.embedding : null;
       return access && bound
         ? {
-            model: gatewayClient(access, {}).embeddingModel("wizards/embedding"),
+            model: gatewayClient(access, {}, await tiersOn()).embeddingModel("wizards/embedding"),
             ref: bound.model,
           }
         : null;
@@ -1251,8 +1445,26 @@ async function decisionBy(
  * machine (free, and nothing leaves it), then Jev on the linked account's credits. Null when
  * there is none: the classifier class's language model answers then.
  */
-export async function systemOneAccess(): Promise<SystemOneAccess | null> {
-  return (await decisionAccess(await config()))?.access ?? null;
+export async function systemOneAccess(meta: CallMeta = {}): Promise<SystemOneAccess | null> {
+  // A tier without evaluation models: the classifier class's language model answers, inside it.
+  const tier = await currentTier();
+  if (tier && !tier.rules.decisions) {
+    return null;
+  }
+  const found = await decisionAccess(await config());
+  if (found?.way !== "credits") {
+    return found?.access ?? null;
+  }
+  const { access } = found;
+  return {
+    ...access,
+    headers: {
+      ...access.headers,
+      ...(meta.runId ? { "x-wizards-run": meta.runId } : {}),
+      ...(meta.stepId ? { "x-wizards-step": meta.stepId } : {}),
+      ...purposeHeader(meta, await tiersOn()),
+    },
+  };
 }
 
 async function decisionAccess(
@@ -1324,6 +1536,29 @@ export function freeTierRefusal(err: unknown): string | null {
     return null;
   }
   return /"originalModelId":"([^"]+)"/.exec(text)?.[1] ?? "";
+}
+
+/**
+ * A call the gateway refused for the organization's tier (`outside_tier`) or its admins' policy
+ * (`not_in_policy`), with the class it asked for; null for any other failure.
+ */
+export function tierRefusal(
+  err: unknown,
+): { type: TierRefusalType; cls: string | null; tier: string | null } | null {
+  let text = "";
+  for (let e = err as any; e && text.length < 100_000; e = e.cause) {
+    text += ` ${e.message ?? ""} ${typeof e.responseBody === "string" ? e.responseBody : ""}`;
+  }
+  const type = /"type"\s*:\s*"(outside_tier|not_in_policy)"/.exec(text)?.[1] as
+    | TierRefusalType
+    | undefined;
+  return type
+    ? {
+        type,
+        cls: /"class"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? null,
+        tier: /"tier"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/.exec(text)?.[1] ?? null,
+      }
+    : null;
 }
 
 /** What the person reads when Vercel's free tier leaves a model out, and how to fix it. */
@@ -1587,16 +1822,21 @@ export function waysIn(ways: Record<ModelClass, ClassWay>, lang: Lang) {
 /** What the settings page shows: the choices, which keys are there (never the keys), and the ways. */
 export async function modelSettings(lang: Lang = "en") {
   const cfg = await config();
+  const stored = await storedConfig();
   const ways = await classWays();
   return {
     source: cfg.settings.source,
-    bindings: cfg.settings.bindings,
+    bindings: stored.settings.bindings,
     ollamaUrl: cfg.settings.ollamaUrl ?? env.ollamaUrl,
     creditFallback: cfg.settings.creditFallback !== false,
-    keys: Object.fromEntries(LOCAL_KEYS.map((k) => [k, Boolean(cfg.keys[k])])) as Record<
+    keys: Object.fromEntries(LOCAL_KEYS.map((k) => [k, Boolean(stored.keys[k])])) as Record<
       LocalKey,
       boolean
     >,
+    /** Each key there is, masked, and the environment variable it came from. */
+    keyHints: await keyHints(stored),
+    /** Saved keys and provider bindings the plan or the admins' policy leaves unused for now. */
+    ownKeysUnused: cfg !== stored,
     ways: waysIn(ways, lang),
     /** Who answers decisions; where no decision model does, the classifier class's way. */
     decision: await decisionSettings(cfg),
@@ -1610,6 +1850,8 @@ export async function modelSettings(lang: Lang = "en") {
     prices: (await classCatalog())?.classes ?? null,
     /** The media models the credits pay for, which a binding may name. */
     creditModels: (await classCatalog())?.models ?? [],
+    /** The organization's model tier, what each class runs on in it, and its admins' policy. */
+    ...(await currentTiers()),
   };
 }
 

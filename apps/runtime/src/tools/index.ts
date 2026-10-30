@@ -8,7 +8,7 @@ import { documentMime, parseDocument } from "../documents/parse.js";
 import type { StepContext } from "../engine/types.js";
 import { generateImageMedia } from "../media/generate.js";
 import { markMedia } from "../media/marking.js";
-import { gatewayTools, isHarnessVendor, type ResolvedModel } from "../models.js";
+import { gatewayTools, isHarnessVendor, type ResolvedModel, searchAllowed } from "../models.js";
 import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
 import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../sandbox/index.js";
@@ -85,7 +85,8 @@ export async function buildStepTools(
   const assets: AssetRef[] = [];
   const allowed = new Set(step.tools);
 
-  if (allowed.has("web_search")) {
+  // A tier without web search leaves the tool out; the builder says so before a run.
+  if (allowed.has("web_search") && (await searchAllowed())) {
     // Anthropic models search natively; other models search through the AI Gateway's tool.
     if (resolved.vendor === "anthropic") {
       tools.web_search = anthropic.tools.webSearch_20250305({ maxUses: 8 });

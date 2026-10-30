@@ -3,6 +3,7 @@ import {
   isDecisionStep,
   type Step,
   type TextClass,
+  textClassOf,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
 import type { RunEstimate, StepEstimate } from "@engenty/wizards-shared/run";
@@ -66,7 +67,8 @@ function stepFormula(step: Step, catalog: GatewayCatalog): number {
         ? TOKENS.tools
         : TOKENS.plain;
     // A step with `each` runs once per entry; until it has run, three stand in.
-    let credits = textCredits(cls(step.model ?? "standard"), shape) * (step.each ? 3 : 1);
+    let credits =
+      textCredits(cls(textClassOf(step.model ?? "standard")), shape) * (step.each ? 3 : 1);
     if (step.tools.includes("web_search")) {
       credits += 4 * catalog.webSearchCredits;
     }
@@ -92,7 +94,7 @@ function stepFormula(step: Step, catalog: GatewayCatalog): number {
         textCredits(cls("low"), TOKENS.prompt)
       );
     }
-    return textCredits(cls(step.model ?? "standard"), TOKENS.document);
+    return textCredits(cls(textClassOf(step.model ?? "standard")), TOKENS.document);
   }
   return 0;
 }

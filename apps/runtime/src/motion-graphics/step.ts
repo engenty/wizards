@@ -2,7 +2,11 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, normalize } from "node:path";
-import { MOTION_SIZES, type MotionGraphicsStep } from "@engenty/wizards-shared/definition";
+import {
+  MOTION_SIZES,
+  type MotionGraphicsStep,
+  textClassOf,
+} from "@engenty/wizards-shared/definition";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import { type StepContext, StepError } from "../engine/types.js";
@@ -120,7 +124,7 @@ export async function runMotionGraphicsStep(
   step: MotionGraphicsStep,
   ctx: StepContext,
 ): Promise<StepOutput> {
-  const found = await motionClient(step.model ?? "low");
+  const found = await motionClient(textClassOf(step.model ?? "low"));
   if ("problem" in found) {
     throw new StepError(found.problem);
   }

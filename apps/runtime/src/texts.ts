@@ -122,6 +122,14 @@ const EN = {
   desktopSignedIn: "Signed in. Go back to engenty wizards now.",
   ownKeysNotInPlan: "Your own API keys aren’t part of the {plan} plan.",
   ownKeysNotInOrganizationPlan: "Your own API keys aren’t part of the organization’s plan.",
+  ownKeysNotInPolicy: "Your organization’s admins don’t allow your own API keys.",
+  appSubscriptionRefused:
+    "{organization} doesn’t let {app} read this space: it thinks on your own subscription, outside {tier}. Use the studio, an app with a local model, or ask an admin.",
+  appLocalRefused:
+    "{organization} doesn’t let apps with a local model read its spaces, {app} included. Use the studio, or ask an admin.",
+  appYourTier: "your organization’s tier",
+  appPolicyUnavailable:
+    "The organization’s model policy can’t be checked right now, so {app} can’t read its spaces. Try again in a moment.",
   planUnavailable: "The organization’s plan can’t be checked right now. Try again later.",
   shareEmailName: "Email",
   shareEmailDescription: "As attachments to one or more addresses",
@@ -344,6 +352,7 @@ const DE: Partial<Record<ServerKey, Line>> = {
   desktopSignedIn: "Angemeldet. Geh jetzt zurück zu engenty wizards.",
   ownKeysNotInPlan: "Eigene API-Keys gibt es nicht im Paket {plan}.",
   ownKeysNotInOrganizationPlan: "Eigene API-Keys gibt es nicht im Paket der Organisation.",
+  ownKeysNotInPolicy: "Die Admins deiner Organisation erlauben keine eigenen API-Keys.",
   planUnavailable:
     "Das Paket der Organisation lässt sich gerade nicht prüfen. Versuch es später noch einmal.",
   shareEmailName: "E-Mail",

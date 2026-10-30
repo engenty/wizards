@@ -41,7 +41,6 @@ import {
   type Me,
   type Project,
   signOut,
-  spendableCredits,
   useCurrentProject,
   useMayCreate,
 } from "../lib/session";
@@ -156,28 +155,6 @@ const accountBase = (me: Me): string | null => me.manageUrl ?? me.account?.url ?
 export function billingUrl(me: Me): string | null {
   const base = accountBase(me);
   return base ? `${base}/billing` : null;
-}
-
-export function CreditsPill({ me }: { me: Me }) {
-  const credits = spendableCredits(me);
-  const url = billingUrl(me);
-  if (credits === null || !url) {
-    return null;
-  }
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      className={cn(
-        "flex h-8 shrink-0 items-center whitespace-nowrap rounded-full px-3 font-medium text-[0.8125rem] tabular-nums transition",
-        credits < 50 ? "bg-amber-tint text-ink" : "bg-paper-2 text-ink-2 hover:text-ink",
-      )}
-    >
-      {/* Whole credits, rounded down: the pill never shows more than there is. */}
-      {t("nav.credits", { n: Math.floor(credits).toLocaleString(lang) })}
-    </a>
-  );
 }
 
 /**
@@ -914,7 +891,6 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
         <Trail alone={personal} />
         {children}
       </div>
-      {personal ? null : <CreditsPill me={me} />}
       {/* A phone's bar keeps the places: the person stands up here. */}
       {phone ? <UserMenu me={me} /> : null}
     </header>

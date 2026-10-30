@@ -114,6 +114,9 @@ export interface AssistantState {
   /** Extra effort for the next messages: the chat works with its more capable model. */
   extra: boolean;
   setExtra: (on: boolean) => void;
+  /** The tier's class picked for the next messages, where the organization's policy lets people pick; null: its default. */
+  model: string | null;
+  setModel: (id: string | null) => void;
   layout: AssistantLayout;
   setLayout: (layout: AssistantLayout) => void;
   /** The sidebar's width the person set with its handle; null: the default. */
@@ -202,6 +205,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [extra, setExtra] = useState(false);
   const extraRef = useRef(extra);
   extraRef.current = extra;
+  const [model, setModel] = useState<string | null>(null);
+  const modelRef = useRef(model);
+  modelRef.current = model;
 
   // The stored chat is the truth once, when it arrives; the turns keep the thread from then on.
   useEffect(() => {
@@ -373,6 +379,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             lang,
             ...(devRef.current ? { debug: true } : {}),
             ...(extraRef.current ? { extra: true } : {}),
+            ...(modelRef.current ? { model: modelRef.current } : {}),
           },
           (event, raw) => {
             const data = JSON.parse(raw);
@@ -644,6 +651,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       stop,
       extra,
       setExtra,
+      model,
+      setModel,
       layout: layout ?? savedLayout.data?.layout ?? "bottom",
       setLayout,
       width: width === undefined ? (savedLayout.data?.width ?? null) : width,
@@ -666,6 +675,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       takeBack,
       stop,
       extra,
+      model,
       layout,
       savedLayout.data,
       setLayout,
