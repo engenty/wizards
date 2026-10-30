@@ -488,6 +488,19 @@ export async function saveModelPolicy(
   return saved.modelPolicy;
 }
 
+/**
+ * Puts the organization on another tier its plan offers, for the admin who asks (`actorId`); the
+ * Manage-App refuses one a contract set.
+ */
+export async function saveModelTier(
+  tenantId: string,
+  actorId: string,
+  tier: string,
+): Promise<void> {
+  await call("PUT", `${tenantPath(tenantId)}/model-tier`, { actorId, tier });
+  forgetTenant(tenantId);
+}
+
 /** What a model would see of `text` with masking on: the labels given, else the saved ones. */
 export async function tryMasking(
   tenantId: string,

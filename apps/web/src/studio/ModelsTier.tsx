@@ -1,6 +1,6 @@
 /**
  * Settings › Models › the organization's model tier: what it promises, what each class runs on
- * in it (`tier.classes`), own keys and web search. Behind `modelTiers` (docs/manage-contract.md,
+ * in it (`tier.classes`) and web search; and what people choose from for text (Text & reasoning). Behind `modelTiers` (docs/manage-contract.md,
  * "Model tiers").
  */
 import { MAKER_CLASSES, MAKERS, TEXT_CLASSES } from "@engenty/wizards-shared/definition";
@@ -19,7 +19,7 @@ import {
   Split,
   Volume2,
 } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { type Key, t } from "../lib/i18n";
 import { Card, cn } from "../ui";
 import { Hint, PanelHead, Part } from "./models-parts";
@@ -119,7 +119,13 @@ function TierClasses({ tier }: { tier: ModelTier }) {
  * What people choose from for text and thinking in wizards: Auto and the tier's preselection,
  * or the admins' list in way C, one line per model with how it works and its efforts.
  */
-function TierChooser({ tier, modelPolicy }: { tier: ModelTier; modelPolicy: ModelPolicy | null }) {
+export function TierChooser({
+  tier,
+  modelPolicy,
+}: {
+  tier: ModelTier;
+  modelPolicy: ModelPolicy | null;
+}) {
   const choice = purposeChoice(tier, modelPolicy, "wizard");
   const lines = [
     ...(choice.auto
@@ -152,22 +158,27 @@ function TierChooser({ tier, modelPolicy }: { tier: ModelTier; modelPolicy: Mode
   );
 }
 
-/** The tier's page: as every member sees it; only the organization's admins change its models. */
+/**
+ * Welche Modelle: the tier, as every member sees it; `children`, the tiers to pick from, for the
+ * organization's admins.
+ */
 export function TierPanel({
   tier,
   modelPolicy,
   organization,
+  children,
 }: {
   tier: ModelTier;
   modelPolicy: ModelPolicy | null;
   organization: string | null;
+  children?: ReactNode;
 }) {
   const { rules } = tier;
   return (
     <div className="flex flex-col gap-6">
       <PanelHead
         icon={ShieldCheck}
-        title={tier.name}
+        title={t("overview.scope")}
         lead={organization ? t("tier.lead", { organization }) : t("tier.leadNoName")}
         status={
           tier.locked ? (
@@ -178,8 +189,9 @@ export function TierPanel({
           ) : null
         }
       />
+      {children}
       <Card className="flex flex-col gap-6 p-5 sm:p-6">
-        <Part title={t("tier.promises")}>
+        <Part title={t("tier.promises")} aside={<b className="text-[0.875rem]">{tier.name}</b>}>
           <div className="flex flex-wrap gap-1.5">
             {rules.regions ? <PromiseChip kept>{regionsText(rules.regions)}</PromiseChip> : null}
             {rules.zdr ? <PromiseChip kept>{t("tier.promise.zdr")}</PromiseChip> : null}
@@ -195,9 +207,6 @@ export function TierPanel({
           {rules.regions || rules.zdr || rules.noTraining ? null : (
             <Hint>{t("tier.promise.none")}</Hint>
           )}
-        </Part>
-        <Part title={t("chooser.title")}>
-          <TierChooser tier={tier} modelPolicy={modelPolicy} />
         </Part>
         <Part
           title={t("tier.classes")}

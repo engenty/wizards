@@ -1,8 +1,8 @@
 /**
  * Settings › Models › how the organization's admins share out its model tier (`modelPolicy`):
- * who picks the model (way A/B/C), where models may run and masking (Who chooses), the lists of
- * way C (Approved models) and the defaults of way B (Defaults). Saved through the runtime at the
- * Manage-App. Behind `modelTiers` (docs/manage-contract.md, "Model tiers").
+ * who picks the model (way A/B/C), the lists of way C (Approved models) and the defaults of way B
+ * (Defaults), the switches of the access pages, masking and apps in spaces. Saved through the
+ * runtime at the Manage-App. Behind `modelTiers` (docs/manage-contract.md, "Model tiers").
  */
 import { EFFORTS, type Effort } from "@engenty/wizards-shared/definition";
 import {
@@ -18,7 +18,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
-  Coins,
   EyeOff,
   KeyRound,
   Laptop,
@@ -161,8 +160,8 @@ function PolicyRow({
   );
 }
 
-/** I: who picks the model, where models may run, and masking. */
-export function WayPanel({
+/** Modellwahl: who picks the model, Auto (way A), the admins' defaults (B) or their list (C). */
+export function ChoicePanel({
   tier,
   policy,
   organization,
@@ -175,10 +174,6 @@ export function WayPanel({
 }) {
   const save = useSavePolicy();
   const shown = save.isPending && save.variables ? save.variables : policy;
-  const set = (patch: Partial<ModelPolicy>) => save.mutate({ ...shown, ...patch });
-  // On a strict tier, own keys and subscriptions stay the admins' choice; each says where the data
-  // goes then, outside the tier's promises.
-  const strict = Boolean(tier.rules.regions || tier.rules.zdr || tier.rules.noTraining);
   return (
     <div className="flex flex-col gap-6">
       <PanelHead
@@ -199,7 +194,7 @@ export function WayPanel({
                 type="button"
                 aria-pressed={shown.way === way}
                 disabled={!canEdit}
-                onClick={() => set({ way })}
+                onClick={() => save.mutate({ ...shown, way })}
                 className={cn(
                   "flex flex-col gap-1.5 rounded-xl border p-4 text-left transition",
                   shown.way === way
@@ -223,67 +218,98 @@ export function WayPanel({
             ))}
           </div>
         </Part>
-        <Part
-          title={t("policy.where")}
-          aside={
-            <span className="text-[0.75rem] text-ink-3">
-              {t("policy.whereAside", { tier: tier.name })}
-            </span>
-          }
-        >
-          <div>
-            <PolicyRow
-              icon={Coins}
-              title={t("policy.credits")}
-              hint={t("policy.credits.hint")}
-              checked
-              disabled
-              onChange={() => {}}
-            />
-            <PolicyRow
-              icon={Laptop}
-              title={t("policy.localModels")}
-              hint={t("policy.localModels.hint")}
-              checked={shown.localModels}
-              disabled={!canEdit}
-              onChange={(localModels) => set({ localModels })}
-            />
-            <PolicyRow
-              icon={KeyRound}
-              title={t("policy.ownKeys")}
-              hint={t("policy.ownKeys.hint")}
-              checked={shown.ownKeys}
-              warn={strict ? t("policy.ownKeys.warn", { tier: tier.name }) : null}
-              disabled={!canEdit}
-              onChange={(ownKeys) => set({ ownKeys })}
-            />
-            <PolicyRow
-              icon={TerminalSquare}
-              title={t("policy.subscriptions")}
-              hint={t("policy.subscriptions.hint")}
-              checked={shown.subscriptions}
-              warn={strict ? t("policy.subscriptions.warn") : null}
-              disabled={!canEdit}
-              onChange={(subscriptions) => set({ subscriptions })}
-            />
-          </div>
-        </Part>
-        <Part title={t("policy.personalData")}>
-          <div>
-            <PolicyRow
-              icon={EyeOff}
-              title={t("policy.masking")}
-              hint={t("policy.masking.hint")}
-              checked={shown.masking}
-              note={tier.rules.regions ? t("policy.recommendedOn", { tier: tier.name }) : null}
-              disabled={!canEdit}
-              onChange={(masking) => set({ masking })}
-            />
-            {shown.masking ? (
-              <MaskingInstructions policy={policy} shown={shown} canEdit={canEdit} set={set} />
-            ) : null}
-          </div>
-        </Part>
+        {save.error ? (
+          <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+        ) : null}
+      </Card>
+    </div>
+  );
+}
+
+/** The switches of the policy an access page carries: own keys, subscriptions, local models. */
+export type PolicySwitch = "ownKeys" | "subscriptions" | "localModels";
+
+const SWITCH_ICON: Record<PolicySwitch, LucideIcon> = {
+  ownKeys: KeyRound,
+  subscriptions: TerminalSquare,
+  localModels: Laptop,
+};
+
+/**
+ * One switch of the policy, for the organization's admins, on its access page. On a strict tier
+ * own keys and subscriptions say where the data goes then, outside the tier's promises.
+ */
+export function PolicySwitchCard({
+  tier,
+  policy,
+  field,
+  canEdit,
+}: {
+  tier: ModelTier;
+  policy: ModelPolicy;
+  field: PolicySwitch;
+  canEdit: boolean;
+}) {
+  const save = useSavePolicy();
+  const shown = save.isPending && save.variables ? save.variables : policy;
+  const strict = Boolean(tier.rules.regions || tier.rules.zdr || tier.rules.noTraining);
+  const warn =
+    strict && field === "ownKeys"
+      ? t("policy.ownKeys.warn", { tier: tier.name })
+      : strict && field === "subscriptions"
+        ? t("policy.subscriptions.warn")
+        : null;
+  return (
+    <Card className="flex flex-col gap-3 p-5 sm:p-6">
+      <PolicyRow
+        icon={SWITCH_ICON[field]}
+        title={t(`policy.${field}`)}
+        hint={t(`policy.${field}.hint`)}
+        checked={shown[field]}
+        warn={warn}
+        disabled={!canEdit}
+        onChange={(on) => save.mutate({ ...shown, [field]: on })}
+      />
+      {save.error ? (
+        <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+      ) : null}
+    </Card>
+  );
+}
+
+/** Maskierung: personal data turns into placeholders before a call leaves, and what else to mask. */
+export function MaskingPanel({
+  tier,
+  policy,
+  canEdit,
+}: {
+  tier: ModelTier;
+  policy: ModelPolicy;
+  canEdit: boolean;
+}) {
+  const save = useSavePolicy();
+  const shown = save.isPending && save.variables ? save.variables : policy;
+  const set = (patch: Partial<ModelPolicy>) => save.mutate({ ...shown, ...patch });
+  return (
+    <div className="flex flex-col gap-6">
+      <PanelHead
+        icon={EyeOff}
+        title={t("overview.menu.masking")}
+        lead={t("overview.maskingLead")}
+      />
+      <Card className="flex flex-col gap-3 p-5 sm:p-6">
+        <PolicyRow
+          icon={EyeOff}
+          title={t("policy.masking")}
+          hint={t("policy.masking.hint")}
+          checked={shown.masking}
+          note={tier.rules.regions ? t("policy.recommendedOn", { tier: tier.name }) : null}
+          disabled={!canEdit}
+          onChange={(masking) => set({ masking })}
+        />
+        {shown.masking ? (
+          <MaskingInstructions policy={policy} shown={shown} canEdit={canEdit} set={set} />
+        ) : null}
         {save.error ? (
           <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
         ) : null}

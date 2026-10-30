@@ -102,6 +102,14 @@ const manage: Server = createServer(async (req, res) => {
     }
     return json({ text: body.text.replace("Johanna Leitner", "‹Person 1›"), counts: { person: 1 } });
   }
+  if (/^\/v1\/tenants\/[^/]+\/model-tier$/.test(url.pathname) && req.method === "PUT") {
+    const body = JSON.parse(raw);
+    memberCalls.push({ method: "PUT", path: url.pathname, body });
+    if (body.tier === "eu-sovereign") {
+      return json({ error: "The organization's plan doesn't offer this tier.", code: "plan" }, 403);
+    }
+    return json({ tier: null, modelPolicy: null });
+  }
   if (/^\/v1\/tenants\/[^/]+\/model-policy$/.test(url.pathname) && req.method === "PUT") {
     const body = JSON.parse(raw);
     memberCalls.push({ method: "PUT", path: url.pathname, body });
@@ -631,6 +639,25 @@ describe("a runtime of a Manage-App", () => {
           maskLabels: [],
         },
       });
+      memberCalls.pop();
+      // The admins pick another tier their plan offers; a refusal reaches the page as it is.
+      const tierPut = (tier: string) =>
+        app.fetch(
+          new Request(`${RUNTIME}/api/studio/model-tier`, {
+            method: "PUT",
+            headers: { cookie: b, "content-type": "application/json" },
+            body: JSON.stringify({ tier }),
+          }),
+        );
+      expect((await tierPut("general")).status).toBe(200);
+      expect(memberCalls.at(-1)).toMatchObject({
+        path: "/v1/tenants/tenant-b/model-tier",
+        body: { actorId: "user-b", tier: "general" },
+      });
+      memberCalls.pop();
+      const refused = await tierPut("eu-sovereign");
+      expect(refused.status).toBe(403);
+      expect(await refused.json()).toMatchObject({ code: "plan" });
       memberCalls.pop();
       // "Try a sentence": what a model would see, with the labels the page has.
       const tryIt = (text: string) =>

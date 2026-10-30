@@ -54,6 +54,8 @@ export interface ModelTier {
   classes: Record<string, TierClass>;
   /** What the tier offers, the preselection first; left out by an older Manage-App. */
   models?: TierModel[];
+  /** Every tier there is, in order, and whether the plan offers it; left out by an older Manage-App. */
+  choices?: { id: string; name: string; inPlan: boolean }[];
 }
 
 export interface PurposePolicy {
