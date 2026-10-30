@@ -71,6 +71,13 @@ they made is never shown in public:
   stops by kind over 7 days, each a link to the runs; a wizard with stops gets a flag
   ("Misused"), which also points the publishing check at its creator.
 
+## The switch
+
+The Manage-App's Abuse checks page has a switch per goal (2026-10-30). "Creating abusive content"
+off: `GET /v1/tenants/:id` answers `checks: { guests: false }` and the runtime stops checking
+guests' answers and step text (`guestChecksOn` in `safety.ts`). The rules in every prompt, the
+media check and private results stay. Without a Manage-App, or when it is not reached: checked.
+
 ## Decided
 
 1. Guest results: private sharing stays, nothing public (Matthias, 2026-10-30).

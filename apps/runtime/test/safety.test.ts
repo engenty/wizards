@@ -10,8 +10,30 @@ vi.mock("../src/engine/decide.js", () => ({
   },
 }));
 
-const { checkContent, checkGuestInput, checkGuestText, contentPolicy, ContentBlockedError } =
-  await import("../src/safety.js");
+// A managed runtime: the Manage-App's tenant answer says whether guests are checked.
+let tenant: { checks?: { guests: boolean } } | null = {};
+vi.mock("../src/manage.js", async (original) => ({
+  ...(await original<typeof import("../src/manage.js")>()),
+  managed: true,
+  tenantInfo: async () => {
+    if (!tenant) throw new Error("unreachable");
+    return tenant;
+  },
+}));
+
+vi.mock("../src/tenants/tenant.js", async (original) => ({
+  ...(await original<typeof import("../src/tenants/tenant.js")>()),
+  currentTenant: () => "tenant-s",
+}));
+
+const {
+  checkContent,
+  checkGuestInput,
+  checkGuestText,
+  contentPolicy,
+  ContentBlockedError,
+  guestChecksOn,
+} = await import("../src/safety.js");
 
 /** Every question asked answered yes this sure; `by` sets some by name. */
 const breaks =
@@ -79,5 +101,19 @@ describe("a guest's run", () => {
     const before = asked.length;
     await checkGuestInput({ text: "  " });
     expect(asked.length).toBe(before);
+  });
+});
+
+describe("the switch on the Manage-App", () => {
+  it("turns the guest checks off only when it says so; unreachable, they stay on", async () => {
+    const on = guestChecksOn;
+    tenant = { checks: { guests: false } };
+    expect(await on()).toBe(false);
+    tenant = { checks: { guests: true } };
+    expect(await on()).toBe(true);
+    tenant = {};
+    expect(await on()).toBe(true);
+    tenant = null;
+    expect(await on()).toBe(true);
   });
 });

@@ -1,8 +1,10 @@
 import { note } from "@engenty/wizards-shared/run";
 import { decide } from "./engine/decide.js";
+import { managed, tenantInfo } from "./manage.js";
 import { NotedError } from "./model-errors.js";
 import type { CallMeta } from "./models.js";
 import { prompt } from "./prompts.js";
+import { currentTenant } from "./tenants/tenant.js";
 
 /**
  * The content rules, in one place. `prompts/safety.md` holds them: its `policy` goes into the
@@ -21,6 +23,16 @@ export type ContentKind = "image" | "video" | "speech" | "text" | "input" | "inj
  */
 export const guestRun = (run: { mode: string; userId: string | null }) =>
   run.mode === "live" && !run.userId;
+
+/**
+ * Whether what this tenant's guests make is checked: the Manage-App's abuse checks can switch it
+ * off; a runtime without one, or one that cannot reach it, checks.
+ */
+export async function guestChecksOn(): Promise<boolean> {
+  if (!managed) return true;
+  const info = await tenantInfo(currentTenant()).catch(() => null);
+  return info?.checks?.guests !== false;
+}
 
 /** A request the content rules stop. */
 export class ContentBlockedError extends NotedError {
