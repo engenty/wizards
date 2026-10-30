@@ -198,6 +198,44 @@ export interface ModelSettingsInput {
 
 const local: ModelConfig = { settings: { source: "own", bindings: {} }, keys: {} };
 
+/** The environment variable a runtime that runs alone reads a provider's key from. */
+const ENV_KEYS: Record<LocalKey, string> = {
+  gateway: "AI_GATEWAY_API_KEY",
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  google: "GOOGLE_GENERATIVE_AI_API_KEY",
+  fal: "FAL_KEY",
+  elevenlabs: "ELEVENLABS_API_KEY",
+  replicate: "REPLICATE_API_TOKEN",
+};
+
+/** A key as the settings page may show it: its prefix and its last four characters. */
+export function maskKey(key: string): string {
+  if (key.length < 12) {
+    return `…${key.slice(-2)}`;
+  }
+  const prefix = key.match(/^[A-Za-z]{1,8}[-_](?:[A-Za-z]{1,8}[-_])?/)?.[0] ?? "";
+  return `${prefix}…${key.slice(-4)}`;
+}
+
+/**
+ * Where each key the settings page shows comes from: kept in the studio (sealed for an
+ * organization), or read from an environment variable of this machine; masked, never whole.
+ */
+async function keyHints(
+  cfg: ModelConfig,
+): Promise<Partial<Record<LocalKey, { masked: string; env: string | null }>>> {
+  const hints: Partial<Record<LocalKey, { masked: string; env: string | null }>> = {};
+  for (const name of LOCAL_KEYS) {
+    const key = cfg.keys[name];
+    if (key) {
+      const fromEnv = !managed && !(await vaultGet(`key.${name}`));
+      hints[name] = { masked: maskKey(key), env: fromEnv ? ENV_KEYS[name] : null };
+    }
+  }
+  return hints;
+}
+
 function envKey(name: LocalKey): string | undefined {
   const value = {
     gateway: env.aiGatewayKey,
@@ -1743,6 +1781,8 @@ export async function modelSettings(lang: Lang = "en") {
       LocalKey,
       boolean
     >,
+    /** Each key there is, masked, and the environment variable it came from. */
+    keyHints: await keyHints(cfg),
     ways: waysIn(ways, lang),
     /** Who answers decisions; where no decision model does, the classifier class's way. */
     decision: await decisionSettings(cfg),
