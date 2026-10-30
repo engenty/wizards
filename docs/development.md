@@ -205,9 +205,9 @@ Manage-App.
 GitHub runs lint and typecheck, test, build and the docs' build side by side on every push to
 `main`, every pull request and every release tag (`.github/workflows/ci.yml`).
 
-The packages type-check and compile with TypeScript 7. `packages/runner` stays on TypeScript 6:
-`vite-plugin-dts` writes its declaration files through the compiler's JavaScript API, which
-TypeScript 7 no longer has.
+The packages type-check and compile with TypeScript 7. `packages/runner` writes its declaration
+files with `tsc --emitDeclarationOnly` after the Vite build: tools that load TypeScript as a
+library (`vite-plugin-dts` and the like) need the JavaScript API, which TypeScript 7 no longer has.
 
 ## Releases and changelog
 

@@ -1,15 +1,14 @@
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defaultClientConditions, defineConfig } from "vite";
-import dts from "vite-plugin-dts";
 
 /**
  * The package as a host without this monorepo takes it (the WordPress plugin): ES modules with
- * React external, the shared package and the libraries bundled in. `runner.css` is written by
- * scripts/css.mjs afterwards.
+ * React external, the shared package and the libraries bundled in. The declaration files come
+ * from `tsc` and `runner.css` from scripts/css.mjs afterwards.
  */
 export default defineConfig({
-  plugins: [react(), dts({ rollupTypes: false, include: ["src"] })],
+  plugins: [react()],
   resolve: { conditions: ["wizards-source", ...defaultClientConditions] },
   build: {
     outDir: "dist",

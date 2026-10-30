@@ -35,7 +35,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "vite build && node scripts/css.mjs",
+    "build": "vite build && tsc -p tsconfig.json --noEmit false --emitDeclarationOnly && node scripts/css.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -62,9 +62,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "~6.0.3",
+    "typescript": "~7.0.2",
     "vite": "^8.3.3",
-    "vite-plugin-dts": "^5.1.2",
     "vitest": "^5.0.5"
   }
 }
