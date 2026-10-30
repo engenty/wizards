@@ -1,5 +1,6 @@
 import { Eye, type LucideIcon, MessageSquare, PenLine } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useNavigate } from "react-router";
 import type { EngentyKind } from "../engenty/colors";
 import { t } from "../lib/i18n";
@@ -194,7 +195,7 @@ export function ModeSwitch({
       <span
         aria-hidden="true"
         className={cn(
-          "absolute top-0 left-0 rounded-[10px] bg-card shadow-soft transition-[transform,width,height,opacity] duration-300 ease-out motion-reduce:transition-none dark:ring-1 dark:ring-border-soft",
+          "absolute top-0 left-0 rounded-[10px] bg-card shadow-soft transition-[transform,width,height,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none dark:ring-1 dark:ring-border-soft",
           card && !piled ? "opacity-100" : "opacity-0",
         )}
         style={
@@ -214,14 +215,16 @@ export function ModeSwitch({
             aria-pressed={m === mode}
             data-shown={open || undefined}
             onClick={() => pick(m)}
-            onMouseEnter={() => setPointed(m)}
+            // Pointing is a low-priority update to React; rendered at once, the card moves on
+            // the next frame instead of a few later.
+            onMouseEnter={() => flushSync(() => setPointed(m))}
             onFocus={() => {
               setPointed(m);
               setFanned(true);
             }}
             title={look === "row" && !stack ? name : undefined}
             className={cn(
-              "relative flex items-center rounded-[10px] transition-[color,margin,opacity,background-color,box-shadow,flex-grow] duration-300 ease-out motion-reduce:transition-none",
+              "relative flex items-center rounded-[10px] transition-[color,margin,opacity,background-color,box-shadow,flex-grow] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
               open ? "text-ink" : "text-ink-3",
               vertical
                 ? "w-11 flex-col justify-center"
@@ -244,7 +247,7 @@ export function ModeSwitch({
               <span
                 data-name
                 className={cn(
-                  "grid transition-[grid-template-columns,grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
+                  "grid transition-[grid-template-columns,grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
                   vertical
                     ? open
                       ? "grid-rows-[1fr]"
