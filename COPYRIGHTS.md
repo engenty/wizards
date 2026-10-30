@@ -189,7 +189,6 @@ Used to build, check and test; not part of what people run:
 | [tsx](https://tsx.hirok.io) | 4.23.15 | MIT |
 | [typescript](https://www.typescriptlang.org/) | 7.0.2 | Apache-2.0 |
 | [vite](https://vite.dev) | 8.3.4 | MIT |
-| [vite-plugin-dts](https://github.com/qmhc/unplugin-dts#readme) | 5.1.2 | MIT |
 | [vite-plugin-singlefile](https://github.com/richardtallent/vite-plugin-singlefile/tree/main/#readme) | 2.3.3 | MIT |
 | [vitest](https://vitest.dev) | 5.0.5 | MIT |
 
