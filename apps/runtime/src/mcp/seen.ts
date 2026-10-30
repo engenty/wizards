@@ -89,15 +89,20 @@ export function clientNameOf(signIn: string, client: string): string {
   return names.get(signIn) ?? client;
 }
 
-/** Apps whose model runs on the member's computer: what they read of a space stays there. */
-const LOCAL_APPS = new Set(["lm-studio", "goose"]);
+/**
+ * Apps whose model runs on the member's computer: what they read of a space stays there. Goose
+ * is not one: it mostly thinks on a provider's model.
+ */
+const LOCAL_APPS = new Set(["lm-studio"]);
 
 /**
  * Whether an app thinks on the member's computer (`local`) or on a provider under the member's
- * own subscription. An app it can't tell counts as one on a subscription.
+ * own subscription, from every name it goes by (the one it gave on `initialize`, its sign-in's).
+ * It counts as local only where a name says so and none names another app; any other counts as
+ * one on a subscription.
  */
-export function appKind(client: string): "local" | "subscription" {
-  const ids = appIdsOf(client);
+export function appKind(...names: string[]): "local" | "subscription" {
+  const ids = names.flatMap(appIdsOf);
   return ids.length && ids.every((id) => LOCAL_APPS.has(id)) ? "local" : "subscription";
 }
 
@@ -120,11 +125,12 @@ export function noteChecked(
   app: string,
   person: string | null,
   allowed: boolean,
+  kind: CheckedApp["kind"],
 ) {
   const key = `${tenantId}\n${app}\n${person ?? ""}`;
   const last = checked.get(key) ?? {
     app,
-    kind: appKind(app),
+    kind,
     person,
     allowed: 0,
     refused: 0,

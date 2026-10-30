@@ -21,6 +21,24 @@ const server: Server = createServer(async (req, res) => {
   };
   if (url.pathname.startsWith("/v1/tenants/")) {
     const id = decodeURIComponent(url.pathname.split("/")[3]);
+    // Tenant D's Manage-App doesn't answer.
+    if (id === "tenant-d") {
+      return json({ error: "down" }, 500);
+    }
+    // Tenants C and E have their own policy: C approves a model by its id in way C, E no own keys.
+    const policyOf: Record<string, unknown> = {
+      "tenant-c": {
+        way: "C",
+        purposes: {
+          wizard: { models: ["anthropic/model-a"], default: null, effortCap: null, efforts: null },
+          assistant: { models: null, default: null, effortCap: null, efforts: null },
+          work: { models: null, default: null, effortCap: null, efforts: null },
+        },
+        ownKeys: true,
+      },
+      "tenant-e": { way: "A", ownKeys: false },
+    };
+    const tiered = id === "tenant-a" || id in policyOf;
     return json({
       id,
       name: id,
@@ -28,8 +46,9 @@ const server: Server = createServer(async (req, res) => {
       balanceCredits: 100,
       limits: { concurrentRuns: 2 },
       db: null,
-      features: { modelTiers: id === "tenant-a" },
-      ...(id === "tenant-a"
+      features: { modelTiers: tiered },
+      ...(policyOf[id] ? { modelPolicy: policyOf[id] } : {}),
+      ...(tiered
         ? {
             tier: {
               id: "eu-private",
@@ -145,6 +164,39 @@ describe("side doors of an organization with a tier", () => {
     expect(await withTenant("tenant-a", () => models.systemOneAccess({ runId: "run-1" }))).toBeNull();
     expect(await withTenant("tenant-a", () => models.searchAllowed())).toBe(false);
     expect(await withTenant("tenant-b", () => models.searchAllowed())).toBe(true);
+  });
+
+  it("take no web search while the Manage-App can't say what the tier allows", async () => {
+    expect(await withTenant("tenant-d", () => models.searchAllowed())).toBe(false);
+  });
+});
+
+describe("a way-C list that approves a model by its id", () => {
+  it("asks the gateway for that model where the list doesn't name the class", async () => {
+    const call = await callOf("tenant-c", { runId: "run-c", makerClass: "anthropic/high" });
+    expect(call?.headers["ai-language-model-id"]).toBe("anthropic/model-a");
+    // A purpose without a list keeps the class.
+    const chat = await callOf("tenant-c", { makerClass: "anthropic/high" });
+    expect(chat?.headers["ai-language-model-id"]).toBe("wizards/anthropic/high");
+  });
+});
+
+describe("own keys the admins' policy leaves out", () => {
+  it("stay saved, but every call runs on the credits", async () => {
+    const own = { keys: { openai: "sk-test-own-key-1234" }, bindings: { high: "openai:gpt-own" } };
+    await withTenant("tenant-e", () => models.saveModels(own));
+    await withTenant("tenant-f", () => models.saveModels(own));
+    const e = await withTenant("tenant-e", () => models.textModel("high"));
+    expect(e.metered).toBe(true);
+    const settings = await withTenant("tenant-e", () => models.modelSettings());
+    expect(settings.keys.openai).toBe(true);
+    expect(settings.bindings.high).toBe("openai:gpt-own");
+    expect(settings.ownKeysUnused).toBe(true);
+    expect(settings.ways.high.kind).toBe("credits");
+    // Where the plan and the policy allow them, the same keys are used.
+    const f = await withTenant("tenant-f", () => models.textModel("high"));
+    expect(f.ref).toBe("openai:gpt-own");
+    expect((await withTenant("tenant-f", () => models.modelSettings())).ownKeysUnused).toBe(false);
   });
 });
 

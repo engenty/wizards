@@ -428,6 +428,16 @@ describe("a runtime of a Manage-App", () => {
     expect((await get("/api/studio/me", "")).status).toBe(401);
   });
 
+  it("shows who used which app, and the key hints, to owners and admins only", async () => {
+    const m = await signIn("code-m");
+    const refused = await get("/api/studio/model-policy/apps", m);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: "forbidden" });
+    expect((await get("/api/studio/model-policy/apps", a)).status).toBe(200);
+    const models = (await (await get("/api/studio/models", m)).json()) as any;
+    expect(models.keyHints).toEqual({});
+  });
+
   it("lets a member edit wizards, not make or delete them; shows the organization as the Manage-App keeps it", async () => {
     const m = await signIn("code-m");
     const me = (await (await get("/api/studio/me", m)).json()) as any;
@@ -604,8 +614,8 @@ describe("a runtime of a Manage-App", () => {
       expect(notAllowed.status).toBe(403);
       expect(await notAllowed.json()).toMatchObject({ code: "tier" });
       expect((await put({}, b)).status).toBe(200);
-      // The admins' policy goes to the Manage-App: on a zdr tier own keys and subscriptions stay
-      // as saved, apps connected to a space stay off.
+      // The admins' policy goes to the Manage-App as the page sent it: the Manage-App checks it
+      // against the plan and the tier, and keeps what its way uses.
       const open = { models: null, default: null, effortCap: null, efforts: null };
       const policy = {
         way: "C",
@@ -632,13 +642,12 @@ describe("a runtime of a Manage-App", () => {
           way: "C",
           ownKeys: true,
           subscriptions: true,
-          apps: { local: false, subscriptions: false },
+          apps: { local: true, subscriptions: true },
           purposes: { wizard: { models: ["standard"], effortCap: null } },
-          // Left out by the page: sent as they start, empty.
-          maskInstructions: "",
-          maskLabels: [],
         },
       });
+      // Left out by the page, the masking fields stay as the Manage-App keeps them.
+      expect(memberCalls.at(-1)?.body).not.toHaveProperty("maskLabels");
       memberCalls.pop();
       // The admins pick another tier their plan offers; a refusal reaches the page as it is.
       const tierPut = (tier: string) =>
@@ -856,7 +865,14 @@ describe("a runtime of a Manage-App", () => {
       expect(await (await list("Bearer wz_key_of_b")).text()).not.toContain("outside EU Private");
       const { checkedApps } = await import("../src/mcp/seen");
       expect(checkedApps("tenant-b")).toMatchObject([{ kind: "subscription", allowed: 1, refused: 1 }]);
+      // When the Manage-App can't say what the policy allows, the app waits.
+      tenantBDown = true;
+      forgetTenant("tenant-b");
+      expect(await (await list("Bearer wz_key_of_b")).json()).toMatchObject({
+        result: { isError: true, content: [{ text: expect.stringContaining("can’t be checked") }] },
+      });
     } finally {
+      tenantBDown = false;
       tierOfB = null;
       forgetTenant("tenant-b");
     }

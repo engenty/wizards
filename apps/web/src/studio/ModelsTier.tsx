@@ -23,7 +23,7 @@ import { Fragment, type ReactNode } from "react";
 import { type Key, t } from "../lib/i18n";
 import { Card, cn } from "../ui";
 import { Hint, PanelHead, Part } from "./models-parts";
-import { offered, purposeChoice, tierClassLabel } from "./tiers";
+import { isStrict, offered, purposeChoice, tierClassLabel } from "./tiers";
 
 /** A promise of the tier, as a chip: kept (a check) or not (crossed out). */
 function PromiseChip({ kept, children }: { kept: boolean; children: string }) {
@@ -204,9 +204,7 @@ export function TierPanel({
               </PromiseChip>
             ) : null}
           </div>
-          {rules.regions || rules.zdr || rules.noTraining ? null : (
-            <Hint>{t("tier.promise.none")}</Hint>
-          )}
+          {isStrict(tier) ? null : <Hint>{t("tier.promise.none")}</Hint>}
         </Part>
         <Part
           title={t("tier.classes")}

@@ -26,7 +26,6 @@ import {
   MAX_MASK_LABELS,
   type ModelPolicy,
   modelPolicySchema,
-  purposesOfWay,
 } from "@engenty/wizards-shared/tiers";
 import {
   PACKAGE_EXTENSION,
@@ -378,6 +377,12 @@ const modelsInput = z.object({
 /** Alone the person changes everything; in an organization its owner and admins. */
 function mayChangeModels(user: SessionUser): boolean {
   return !managed || user.role === "owner" || user.role === "admin";
+}
+
+/** The model settings for the person who asks: the key hints only for those who change the keys. */
+async function settingsFor(c: Context<Vars>) {
+  const settings = await modelSettings(requestLang(c));
+  return mayChangeModels(c.get("user")) ? settings : { ...settings, keyHints: {} };
 }
 
 /** A binding the cloud can run: a provider's model or the credits, no client, no local model. */
@@ -1797,7 +1802,14 @@ export const studio = new Hono<Vars>()
   // What each AI client did with the MCP server since the start: the test on "Integrate".
   .get("/integrations/seen", (c) => c.json(seenApps(c.get("user").tenantId)))
   // The apps members used on the spaces, allowed or refused by the organization's model policy.
-  .get("/model-policy/apps", (c) => c.json({ apps: checkedApps(c.get("user").tenantId) }))
+  // Who used which app is for the organization's owners and admins.
+  .get("/model-policy/apps", (c) => {
+    const user = c.get("user");
+    if (!mayChangeModels(user)) {
+      return c.json({ error: say(c, "onlyOrganizationAdminsChange"), code: "forbidden" }, 403);
+    }
+    return c.json({ apps: checkedApps(user.tenantId) });
+  })
   .get("/local/models", (c) => (managed ? c.notFound() : c.json(localModelSettings())))
   .put("/local/models", async (c) => {
     if (managed) {
@@ -1808,7 +1820,7 @@ export const studio = new Hono<Vars>()
   })
   // --- models: where each class runs, own API keys, the credits behind them -----------------
   // Alone for this machine; on a Manage-App's runtime for the organization, whose admins change it.
-  .get("/models", async (c) => c.json(await modelSettings(requestLang(c))))
+  .get("/models", async (c) => c.json(await settingsFor(c)))
   .put("/models", async (c) => {
     if (!mayChangeModels(c.get("user"))) {
       return c.json(
@@ -1890,7 +1902,7 @@ export const studio = new Hono<Vars>()
     if (((await embeddingModel().catch(() => null))?.ref ?? null) !== embeddedBy) {
       void reindexAll().catch((err) => console.error("[models] reindex failed", err));
     }
-    return c.json(await modelSettings(requestLang(c)));
+    return c.json(await settingsFor(c));
   })
   // The organization's model policy (way A/B/C, the lists, where models may run), saved at the
   // Manage-App by its admins. Behind `modelTiers`.
@@ -1906,27 +1918,17 @@ export const studio = new Hono<Vars>()
     if (!feature("modelTiers", info.features) || !info.tier) {
       return c.notFound();
     }
+    // The Manage-App checks the policy against the plan and the tier, and keeps what its way uses.
     const policy = modelPolicySchema.parse(await c.req.json());
-    // What the tier rules out stays off, whatever the page sent; each way leaves the others' fields out.
-    // Own keys and subscriptions are the admins' choice on every tier.
-    const { rules } = info.tier;
-    const allowed: ModelPolicy = {
-      ...policy,
-      purposes: purposesOfWay(policy),
-      apps: {
-        local: policy.apps.local && !rules.zdr,
-        subscriptions: policy.apps.subscriptions && !rules.zdr,
-      },
-    };
     try {
-      await saveModelPolicy(user.tenantId, user.id, allowed);
+      await saveModelPolicy(user.tenantId, user.id, policy);
     } catch (err) {
       if (err instanceof ManageError && (err.status < 500 || MASKING_CODES.has(err.code))) {
         return c.json({ error: err.message, code: err.code }, err.status as 400);
       }
       throw err;
     }
-    return c.json(await modelSettings(requestLang(c)));
+    return c.json(await settingsFor(c));
   })
   // The organization's tier, picked by its admins among those the plan offers. Behind `modelTiers`.
   .put("/model-tier", async (c) => {
@@ -1950,7 +1952,7 @@ export const studio = new Hono<Vars>()
       }
       throw err;
     }
-    return c.json(await modelSettings(requestLang(c)));
+    return c.json(await settingsFor(c));
   })
   // "Try a sentence" under the masking instructions: what a model would see of it.
   .post("/model-policy/try", async (c) => {

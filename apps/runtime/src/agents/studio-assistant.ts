@@ -6,7 +6,7 @@ import type {
   AssistantStep,
   BrowserTool,
 } from "@engenty/wizards-shared/assistant";
-import { type Lang, type StepClass, textClassOf } from "@engenty/wizards-shared/definition";
+import { type Lang, textClassOf } from "@engenty/wizards-shared/definition";
 import {
   cleanAssetSections,
   cleanLogoSections,
@@ -20,7 +20,7 @@ import {
   RULE_MARKS,
   textStyleLine,
 } from "@engenty/wizards-shared/projects";
-import { splitClassId } from "@engenty/wizards-shared/tiers";
+import { pickedClass } from "@engenty/wizards-shared/tiers";
 import { createTool } from "@mastra/core/tools";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -855,13 +855,14 @@ function toolSizes(tools: Record<string, any>): AssistantPrompt["tools"] {
  */
 async function assistantModel(way: ChatTurnWay, input: AssistantInput) {
   const tier = input.model && way === "models" ? await currentTier() : null;
-  if (!tier || !input.model) {
+  // A model id picked in the chooser asks for the class it runs on; anything else is no pick.
+  const picked = tier && input.model ? pickedClass(tier, input.model) : null;
+  if (!picked) {
     return chatModel(way, input.extra ? "high" : "standard");
   }
-  const { maker, cls } = splitClassId(input.model);
-  return textModel(textClassOf(cls as StepClass), {
+  return textModel(textClassOf(picked.cls), {
     purpose: "assistant",
-    makerClass: maker ? input.model : undefined,
+    makerClass: picked.maker ? `${picked.maker}/${picked.cls}` : undefined,
     effort: input.extra ? "high" : undefined,
   });
 }

@@ -382,45 +382,36 @@ export interface ComposerEffort {
   hint?: string;
 }
 
-export type ComposerModel =
-  | {
-      items: { id: string; label: string; note: string }[];
-      value: string;
-      onChange: (id: string) => void;
-    }
-  | { line: string; note: string };
+export interface ComposerModel {
+  items: { id: string; label: string; note: string }[];
+  value: string;
+  onChange: (id: string) => void;
+}
 
-/** The model group of the plus menu: the purpose's list, or the one model the chat runs on. */
+/** The model group of the plus menu: the purpose's list. */
 function ModelGroup({ model }: { model: ComposerModel }) {
   return (
     <>
       <p className="px-3 pt-1.5 pb-0.5 font-medium text-[0.6875rem] text-ink-3 uppercase tracking-wide">
         {t("composer.model")}
       </p>
-      {"line" in model ? (
-        <p className="flex items-baseline gap-2 px-3 py-2 text-[0.875rem]">
-          <span className="flex-1">{model.line}</span>
-          <span className="text-[0.75rem] text-ink-3">{model.note}</span>
-        </p>
-      ) : (
-        model.items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="menuitemradio"
-            aria-checked={item.id === model.value}
-            onClick={() => model.onChange(item.id)}
-            className={cn(
-              "flex w-full items-baseline gap-2 rounded-lg px-3 py-2 text-left text-[0.875rem] hover:bg-paper-2",
-              item.id === model.value && "bg-ember-tint",
-            )}
-          >
-            <span className="flex-1">{item.label}</span>
-            <span className="text-[0.75rem] text-ink-3">{item.note}</span>
-            {item.id === model.value ? <Check className="size-3.5 text-ember-strong" /> : null}
-          </button>
-        ))
-      )}
+      {model.items.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          role="menuitemradio"
+          aria-checked={item.id === model.value}
+          onClick={() => model.onChange(item.id)}
+          className={cn(
+            "flex w-full items-baseline gap-2 rounded-lg px-3 py-2 text-left text-[0.875rem] hover:bg-paper-2",
+            item.id === model.value && "bg-ember-tint",
+          )}
+        >
+          <span className="flex-1">{item.label}</span>
+          <span className="text-[0.75rem] text-ink-3">{item.note}</span>
+          {item.id === model.value ? <Check className="size-3.5 text-ember-strong" /> : null}
+        </button>
+      ))}
       <div className="mx-2 my-1 border-border-soft border-t" />
     </>
   );

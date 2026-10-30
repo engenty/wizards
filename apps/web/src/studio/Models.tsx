@@ -102,7 +102,7 @@ import {
   useDetail,
   useSettingsMenu,
 } from "./settings-menu";
-import { offered, withTierNames } from "./tiers";
+import { isStrict, offered, withTierNames } from "./tiers";
 
 /** How a class runs right now, as the runtime resolves it (`classWays`). */
 interface ClassWay {
@@ -129,6 +129,8 @@ interface ModelsState {
   keys: Record<ProviderId, boolean>;
   /** Each key there is, masked, and the environment variable it came from (null: kept here). */
   keyHints?: Partial<Record<ProviderId, KeyHint>>;
+  /** Saved keys and provider bindings the plan or the admins' policy leaves unused for now. */
+  ownKeysUnused?: boolean;
   ways: Record<ModelClass, ClassWay>;
   /** Per text class, what of its minimums (`CLASS_NEEDS`) its model lacks; null: not checked. */
   fit: Record<TextClass, ModelNeed[] | null>;
@@ -2591,7 +2593,7 @@ function heroOf(s: Situation, jobs: OverviewJob[]): Hero {
   const { me, state, place, tier, policy } = s;
   const missing = jobs.filter((j) => j.state === "miss").length;
   if (place.cloud) {
-    const strict = Boolean(tier && (tier.rules.regions || tier.rules.zdr || tier.rules.noTraining));
+    const strict = isStrict(tier);
     return {
       name:
         planOf(me) === "team" && me.tenant.name
@@ -2700,7 +2702,7 @@ function accessRows(s: Situation, save: ReturnType<typeof useSave>): AccessRow[]
         },
       ];
     }
-    const strict = Boolean(tier.rules.regions || tier.rules.zdr || tier.rules.noTraining);
+    const strict = isStrict(tier);
     const savePolicy = (patch: Partial<ModelPolicy>) => s.savePolicy({ ...policy, ...patch });
     rows.push(
       ...(place.ownKeys
@@ -2980,6 +2982,9 @@ function KeysPanel({ s }: { s: Situation }) {
       <PanelHead icon={KeyRound} title={t("overview.menu.keys")} lead={t("overview.keysLead")} />
       {admin && tier ? (
         <PolicySwitchCard tier={tier} policy={policy} field="ownKeys" canEdit={place.canEdit} />
+      ) : null}
+      {state.ownKeysUnused && Object.values(state.keys).some(Boolean) ? (
+        <Hint>{t("overview.keysUnused")}</Hint>
       ) : null}
       {place.ownKeys ? (
         <AccessList
