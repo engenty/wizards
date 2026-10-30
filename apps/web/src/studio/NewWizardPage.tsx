@@ -374,7 +374,7 @@ export function NewWizardPage() {
             placeholder={speech.listening ? t("editor.listening") : t("new.placeholder")}
             className="border-0 bg-transparent text-[1rem] shadow-none focus:ring-0"
           />
-          <div className="flex items-center gap-2 px-1 pb-1">
+          <div className="@container flex items-center gap-2 px-1 pb-1">
             <button
               type="button"
               aria-label={t("editor.attach")}

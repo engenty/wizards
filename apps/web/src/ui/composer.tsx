@@ -963,7 +963,8 @@ function EffortMenu({ choice }: { choice: EffortChoice }) {
 /**
  * The mic button and, beside it, its menu: which microphone, and whether the button records while
  * it is held (push to talk) or on and off with a click. `labelled`: an outlined button that says
- * what it does, where the row has the room (the new-wizard page).
+ * what it does, where the row has the room (the new-wizard page); in a narrow row that is an
+ * `@container` it keeps only the icon.
  */
 export function DictationButton({ speech, labelled }: { speech: Speech; labelled?: boolean }) {
   const [prefs, setPrefs] = useDictationSettings();
@@ -1073,18 +1074,20 @@ export function DictationButton({ speech, labelled }: { speech: Speech; labelled
           disabled={speech.processing}
           {...hold}
           className={cn(
-            "inline-flex h-10 touch-none select-none items-center gap-2 whitespace-nowrap rounded-full border px-4 font-medium text-sm transition disabled:opacity-60 coarse:h-11",
+            "inline-flex h-10 touch-none select-none items-center justify-center gap-2 whitespace-nowrap rounded-full border px-4 font-medium text-sm transition disabled:opacity-60 @max-sm:w-10 @max-sm:px-0 coarse:h-11 @max-sm:coarse:w-11",
             speech.listening
               ? "border-rose/40 bg-rose-tint text-rose"
               : "border-border text-ink hover:bg-paper-2",
           )}
         >
           {icon}
-          {speech.processing
-            ? t("dictation.writing")
-            : speech.listening
-              ? t("dictation.stop")
-              : t("dictation.speak")}
+          <span className="@max-sm:sr-only">
+            {speech.processing
+              ? t("dictation.writing")
+              : speech.listening
+                ? t("dictation.stop")
+                : t("dictation.speak")}
+          </span>
         </button>
       ) : (
         <IconButton
