@@ -27,9 +27,63 @@ that has to be right.
 6. **Heard.** A critical decision reaches a person: in the app at once, by mail where nobody is
    in the app, to the Manage-App's admins for the platform.
 
-## The model
+## First: RWX, and nothing else
 
-A call is `call(who, where, connection, action, input)`.
+Decided 2026-10-31: start simple and clear. Phase 1 has exactly three permissions, per subject
+and resource, and they must be bullet-proof. Everything else in this plan (*Mit Freigabe*,
+limits, audiences, hosts, notifications) comes after, on top of them.
+
+| | Permission | Means |
+|---|---|---|
+| **R** | lesen | read the resource: open a document, search it, list a table, read a mailbox, read through a connector's read action |
+| **W** | schreiben | change it: write a row, change a document, a connector's write and delete actions |
+| **X** | ausführen | make it do something outward: send a mail, call a fixed step, run a command, call a plugin tool, request a host |
+
+**Subjects:** a guest, one person (by id), a role (Mitglieder, Admins), Goose of a person, a
+wizard, a plugin. **Resources:** a document or a folder in Wissen, a table or page in Daten, a
+connection (as a whole, or one action), „E-Mail senden“, a host, the sandbox. Resources have
+stable ids; a rule names the id, never a title.
+
+**One table:** `(space, subject, resource, R, W, X, by whom, since)`, each flag *erlaubt* or
+*verboten* or unset. **Deny by default:** unset is *verboten*. **A *verboten* wins** over every
+*erlaubt* from any other rule, grant or role, and only an admin can remove it, logged. So „Julia
+darf diese Datei nicht lesen“ and „Gäste dürfen keine E-Mail senden“ are one row each and hold
+against everything.
+
+The page shows the row as a sentence and lets an admin write it the same way: pick who, pick
+what, tick R, W, X. Nothing else to learn.
+
+### Bullet-proof means
+
+1. **One reader.** A document's bytes, a table's rows, a connection's secret, the mail sender:
+   each has one function that hands them out, and that function asks the broker first with a
+   *who*. Today `search_space`, the store tools, `connectionContext` and the mail tools read on
+   their own (`space-index.ts:641`, `tools/store.ts`, `connectors/index.ts:425`,
+   `tools/mail.ts`); documents have no read rule at all (`space_file`).
+2. **Search filters before it ranks.** The index returns only what the subject may read; a
+   document the subject may not read is never in a result, a snippet, a count or an embedding
+   neighbour. The same for Daten and Wissen categories.
+3. **Nothing leaks around the side.** A refusal says *verboten* and the resource's id, not its
+   content. A log line holds no content. A result of a run that read a document the viewer may
+   not read is kept in the space, not shown to the viewer (rule 5 of the connections plan). A
+   share link inherits the viewer's R.
+4. **No path without a *who*.** A call with no subject is refused. Every entry (doors, studio,
+   runner, Goose, plugins, MCP) sets the subject before any tool runs.
+5. **X is never granted implicitly.** An AI step has X only where the wizard's grant names it
+   and the connection allows it; a guest never has X on a space connection; a sandbox command's
+   network is X on hosts.
+6. **A test suite that proves it.** One fixture per sentence: „B darf Dokument D nicht lesen“,
+   „Gäste dürfen keine E-Mail senden“, „Agent A darf nicht löschen“. Each fixture runs every
+   path (search, store, a step, a Work chat, Goose, a share link, a plugin, MCP) and asserts the
+   content or effect is absent. CI fails on any new tool that isn't in the walk.
+
+What phase 1 does not have: *Mit Freigabe* (a write is *erlaubt* or *verboten*; the ask stays
+where it is today for a person's own connection), limits, audiences beyond the role subjects,
+rule sentences beyond RWX. They come as rows of the same table or beside it, later.
+
+## The model, later
+
+Beyond RWX. A call is `call(who, where, connection, action, input)`.
 
 | Part | Values | Where it comes from |
 |---|---|---|
@@ -148,6 +202,8 @@ same function the broker uses, with no side effect. The same shows on a wizard's
 
 ## Phases
 
+0. **RWX.** The table, deny by default, *verboten* wins, one reader per resource kind, search
+   filtered by R, the test suite. Documents, tables, connections, mail, hosts, the sandbox.
 1. **Library, rules as data, log.** `apps/runtime/src/broker/`: `call`, the decision, the
    table of rules on the space's connections, `broker_log`, the migration of the five call sites
    (A2–A5 of the capabilities plan). Rules editable only through the API; the pages come with

@@ -260,6 +260,10 @@ admins.
 Before any new place in the studio. Each PR is small, behind a switch where it changes
 behaviour, and testable with the API and the existing pages. Nothing here needs a frontend.
 
+0. `feat(runtime): RWX` — one table of permissions per space (`subject × resource × R W X`),
+   deny by default, *verboten* wins, one reader per resource kind (documents, tables,
+   connections, mail, hosts, the sandbox), search filtered by R, the deny test suite
+   (`docs/plans/broker.md`, „First: RWX“).
 1. `fix(runtime): guest runs never get the Docker sandbox` — a guest run (and a channel's) gets
    agentOS or no sandbox; `SANDBOX_GUESTS=off|agentos`, default `off`. Members keep what the
    server has. Closes: install and send anything from a guest's step.
