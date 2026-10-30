@@ -34,8 +34,9 @@ const OPEN_GROW = { named: 2, stacked: 2.75 / 2.125 } as const;
  * in carries its name; pointing at another slides the card and the name over to it. `named`
  * lies along the wordmark of a bar that names its places, `stacked` stands in a narrow bar with
  * the name under the glyph, `row` is glyphs alone, for a bar along the top or bottom and on a
- * phone. `stack` (the phone's top bar) lays the other modes behind the current one, overlapping;
- * pointing at the stack or tapping it fans them out. Someone with one mode gets none.
+ * phone. `stack` (the phone's top bar) shows the current mode alone; a tap (or the pointer)
+ * opens all of them downward over the page, with their names, and a second tap picks one.
+ * Someone with one mode gets none.
  */
 export function ModeSwitch({
   me,
@@ -57,6 +58,8 @@ export function ModeSwitch({
   const shown = pointed ?? mode;
   const [card, setCard] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const vertical = look === "stacked";
+  // The stack opens downward: its modes stand in a column too.
+  const column = vertical || Boolean(stack);
   const [fanned, setFanned] = useState(false);
   const piled = Boolean(stack) && !fanned;
   // A tap outside folds the fanned stack again.
@@ -90,7 +93,7 @@ export function ModeSwitch({
         return;
       }
       const style = getComputedStyle(el);
-      const pad = Number.parseFloat(vertical ? style.paddingTop : style.paddingLeft);
+      const pad = Number.parseFloat(column ? style.paddingTop : style.paddingLeft);
       const gap = Number.parseFloat(style.gap) || 0;
       const sizes =
         look !== "row"
@@ -106,8 +109,9 @@ export function ModeSwitch({
             })()
           : buttons.map((b) => {
               const name = b.querySelector<HTMLElement>("[data-name]");
-              const now = vertical ? b.offsetHeight : b.offsetWidth;
-              if (!name) {
+              const now = column ? b.offsetHeight : b.offsetWidth;
+              // The stack's names open across its column, not along it.
+              if (!name || column !== vertical) {
                 return now;
               }
               const inner = name.firstElementChild as HTMLElement;
@@ -116,7 +120,7 @@ export function ModeSwitch({
             });
       const start = pad + sizes.slice(0, at).reduce((sum, size) => sum + size + gap, 0);
       setCard(
-        vertical
+        column
           ? { x: on.offsetLeft, y: start, w: on.offsetWidth, h: sizes[at] }
           : { x: start, y: on.offsetTop, w: sizes[at], h: on.offsetHeight },
       );
@@ -145,7 +149,9 @@ export function ModeSwitch({
       navigate(MODE_HOME[next]);
     }
   };
-  return (
+  // The current mode leads the stack; the others lie behind it in their order.
+  const order = stack ? [mode, ...modes.filter((m) => m !== mode)] : modes;
+  const fieldset = (
     <fieldset
       ref={box}
       aria-label={t("mode.switch")}
@@ -167,10 +173,18 @@ export function ModeSwitch({
         }
       }}
       className={cn(
-        "relative isolate flex shrink-0 gap-0.5 rounded-[14px] bg-ink/5 p-1 ring-1 ring-border-soft",
-        look === "named" ? "w-full" : "w-fit",
-        vertical && "flex-col",
-        className,
+        "relative isolate flex shrink-0 gap-0.5 rounded-[14px] p-1 ring-1 ring-border-soft",
+        // Out of the flow, the stack takes the width its names need, not the bar's room.
+        look === "named" ? "w-full" : stack ? "w-max" : "w-fit",
+        column && "flex-col",
+        // Open, the stack lies over the page.
+        stack
+          ? cn(
+              "absolute top-0 right-0 z-40 bg-paper-2 transition-shadow duration-300",
+              fanned && "shadow-overlay",
+            )
+          : "bg-ink/5",
+        stack ? undefined : className,
       )}
       // The height stays while names open and close.
       style={
@@ -189,12 +203,10 @@ export function ModeSwitch({
             : undefined
         }
       />
-      {modes.map((m, i) => {
+      {order.map((m, i) => {
         const Icon = MODE_ICON[m];
         const name = t(`mode.${m}`);
         const open = m === shown;
-        // How far from the current mode: the farther, the deeper in the pile.
-        const depth = Math.abs(i - modes.indexOf(mode));
         return (
           <button
             key={m}
@@ -207,27 +219,25 @@ export function ModeSwitch({
               setPointed(m);
               setFanned(true);
             }}
-            title={look === "row" ? name : undefined}
+            title={look === "row" && !stack ? name : undefined}
             className={cn(
-              "relative flex items-center rounded-[10px] transition-[color,margin,transform,background-color,box-shadow,flex-grow] duration-300 ease-out motion-reduce:transition-none",
+              "relative flex items-center rounded-[10px] transition-[color,margin,opacity,background-color,box-shadow,flex-grow] duration-300 ease-out motion-reduce:transition-none",
               open ? "text-ink" : "text-ink-3",
               vertical
                 ? "w-11 flex-col justify-center"
                 : cn("h-8 coarse:h-9", look === "row" && "px-2 coarse:px-2.5"),
               look !== "row" && "min-h-0 min-w-0 basis-0 justify-center",
-              stack && i > 0 && (piled ? "-ml-6.5" : "ml-0"),
-              piled &&
-                (m === mode
-                  ? "bg-card shadow-soft dark:ring-1 dark:ring-border-soft"
-                  : "scale-[0.8] bg-card text-ink-4 ring-1 ring-border-soft"),
+              // Closed, the others hide behind the current mode.
+              stack && i > 0 && (piled ? "-mt-[34px] opacity-0 coarse:-mt-[38px]" : "mt-0"),
+              piled && i === 0 && "bg-card shadow-soft dark:ring-1 dark:ring-border-soft",
             )}
             style={{
               flexGrow: look === "row" ? undefined : open ? OPEN_GROW[look] : 1,
-              zIndex: stack ? modes.length - depth : undefined,
+              zIndex: stack ? order.length - i : undefined,
             }}
           >
             <Icon className="size-4 shrink-0" strokeWidth={2} />
-            {look === "row" ? (
+            {look === "row" && !stack ? (
               <span className="sr-only">{name}</span>
             ) : (
               // The name opens from nothing: a grid track that grows from 0fr to 1fr.
@@ -239,7 +249,7 @@ export function ModeSwitch({
                     ? open
                       ? "grid-rows-[1fr]"
                       : "grid-rows-[0fr] opacity-0"
-                    : open
+                    : (stack ? fanned : open)
                       ? "grid-cols-[1fr]"
                       : "grid-cols-[0fr] opacity-0",
                 )}
@@ -247,7 +257,9 @@ export function ModeSwitch({
                 <span
                   className={cn(
                     "overflow-hidden whitespace-nowrap font-medium",
-                    vertical ? "pt-0.5 text-center text-[0.625rem]" : "pl-1.5 text-[0.8125rem]",
+                    vertical
+                      ? "pt-0.5 text-center text-[0.625rem]"
+                      : cn("pl-1.5 text-[0.8125rem]", stack && "pr-1.5 coarse:text-[0.875rem]"),
                   )}
                 >
                   {name}
@@ -258,5 +270,11 @@ export function ModeSwitch({
         );
       })}
     </fieldset>
+  );
+  // The stack keeps the room of one button in the bar; what opens lies over the page.
+  return stack ? (
+    <div className={cn("relative size-10 shrink-0 coarse:size-11", className)}>{fieldset}</div>
+  ) : (
+    fieldset
   );
 }
