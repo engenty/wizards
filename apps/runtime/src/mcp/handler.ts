@@ -7,7 +7,7 @@ import { withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { feature } from "../features.js";
 import { nudge } from "../live/hub.js";
-import { tenantInfo } from "../manage.js";
+import { managed, tenantInfo } from "../manage.js";
 import { prompt } from "../prompts.js";
 import { asRole } from "../services/access.js";
 import { tenantStatus } from "../tenants/control.js";
@@ -20,29 +20,37 @@ import { registerPrompts, registerTools } from "./tools.js";
 /**
  * An app the organization's model policy keeps out of its spaces (`modelPolicy.apps`): its tool
  * calls are answered with a tool error the app shows, before any tool reads the space. Calls of
- * other kinds (listing the tools) go on. Behind `modelTiers`.
+ * other kinds (listing the tools) go on. Behind `modelTiers`. Best effort: an app is told apart
+ * by the name it gives itself, and any name not known as a local app's counts as a subscription.
  */
 async function appRefusal(who: Principal, client: string, body: unknown): Promise<Response | null> {
   const calls = (Array.isArray(body) ? body : [body]).filter(
     (m): m is { id?: unknown; method?: string } =>
       Boolean(m) && typeof m === "object" && (m as { method?: string }).method === "tools/call",
   );
-  if (!calls.length) {
+  // A runtime that runs alone has no organization and no policy.
+  if (!calls.length || !managed) {
     return null;
   }
   const info = await tenantInfo(who.tenantId).catch(() => null);
+  // When the Manage-App can't say what the policy allows, the app waits.
   const policy = info && feature("modelTiers", info.features) ? info.modelPolicy : undefined;
-  if (!info || !policy) {
+  if (info && !policy) {
     return null;
   }
-  const kind = appKind(client);
-  const allowed = kind === "local" ? policy.apps.local : policy.apps.subscriptions;
-  noteChecked(who.tenantId, client, who.name ?? who.email ?? null, allowed);
+  const kind = appKind(client, who.client);
+  const allowed = policy
+    ? kind === "local"
+      ? policy.apps.local
+      : policy.apps.subscriptions
+    : false;
+  noteChecked(who.tenantId, client, who.name ?? who.email ?? null, allowed, kind);
   if (allowed) {
     return null;
   }
-  const text =
-    kind === "local"
+  const text = !info
+    ? serverText("en", "appPolicyUnavailable", { app: client })
+    : kind === "local"
       ? serverText("en", "appLocalRefused", { organization: info.name, app: client })
       : serverText("en", "appSubscriptionRefused", {
           organization: info.name,

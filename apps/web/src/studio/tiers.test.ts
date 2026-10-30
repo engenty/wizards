@@ -55,6 +55,7 @@ const tier: ModelTier = {
       chooser: false,
     },
   ],
+  choices: [{ id: "eu-private", name: "EU-Datenschutz", inPlan: true }],
 };
 
 const open: PurposePolicy = { models: null, default: null, effortCap: null, efforts: null };
@@ -105,12 +106,21 @@ describe("the model chooser", () => {
     expect(choice.itemFor("anthropic/standard", choice.items)?.id).toBe("standard");
   });
 
-  it("builds the preselection from the classes where Manage names no models", () => {
-    const older = { ...tier, models: undefined };
-    expect(preselection(older).map((i) => i.model)).toEqual([
-      "anthropic/claude-haiku-5.5",
-      "anthropic/claude-sonnet-5.5",
-      "openai/gpt-6-luna",
+  it("shows a model id way C approves as the class it runs on, approved and with its efforts", () => {
+    const choice = purposeChoice(
+      tier,
+      policy("C", {
+        models: ["openai/gpt-6-luna"],
+        efforts: { "openai/gpt-6-luna": ["low"] },
+      }),
+      "wizard",
+    );
+    // What a pick stores is a class the definition takes, never the model id.
+    expect(choice.items.map((i) => [i.id, i.model])).toEqual([
+      ["openai/standard", "openai/gpt-6-luna"],
     ]);
+    expect(choice.allowed("openai/standard")).toBe(true);
+    expect(choice.notApproved("anthropic/standard")).toBe(true);
+    expect(choice.efforts("openai/standard")).toEqual(["low"]);
   });
 });

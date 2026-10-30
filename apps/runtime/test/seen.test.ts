@@ -29,10 +29,13 @@ describe("what the AI clients did", () => {
 });
 
 describe("what kind of model an app thinks with", () => {
-  it("counts LM Studio and Goose as local, every other app as one on a subscription", async () => {
+  it("counts LM Studio as local, every other app as one on a subscription", async () => {
     const { appKind } = await import("../src/mcp/seen");
     expect(appKind("LM Studio")).toBe("local");
-    expect(appKind("goose")).toBe("local");
+    // Goose mostly thinks on a provider's model; a sign-in of another app is no local app.
+    expect(appKind("goose")).toBe("subscription");
+    expect(appKind("LM Studio", "MCP")).toBe("local");
+    expect(appKind("LM Studio", "Claude Code")).toBe("subscription");
     expect(appKind("claude-code")).toBe("subscription");
     expect(appKind("some renamed app")).toBe("subscription");
   });

@@ -44,6 +44,7 @@ import {
   approvable,
   approved,
   chooserItem,
+  isStrict,
   offered,
   pickable,
   preselection,
@@ -252,7 +253,7 @@ export function PolicySwitchCard({
 }) {
   const save = useSavePolicy();
   const shown = save.isPending && save.variables ? save.variables : policy;
-  const strict = Boolean(tier.rules.regions || tier.rules.zdr || tier.rules.noTraining);
+  const strict = isStrict(tier);
   const warn =
     strict && field === "ownKeys"
       ? t("policy.ownKeys.warn", { tier: tier.name })
@@ -782,6 +783,8 @@ export function AppsPanel({
   const seen = useQuery({
     queryKey: ["model-policy-apps"],
     queryFn: () => api.get<{ apps: CheckedApp[] }>("/api/studio/model-policy/apps"),
+    // Who used which app is for the organization's admins.
+    enabled: canEdit,
     refetchInterval: 30_000,
   });
   const apps = seen.data?.apps ?? [];

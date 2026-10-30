@@ -1,5 +1,5 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
-import type { ModelPolicy, ModelTier } from "@engenty/wizards-shared/tiers";
+import type { ModelPolicy, ModelPolicyInput, ModelTier } from "@engenty/wizards-shared/tiers";
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from "jose";
 import { currentImpersonator, refusedWhileImpersonating } from "./auth/impersonation.js";
 import { env } from "./env.js";
@@ -472,7 +472,7 @@ export function forgetTenant(id: string) {
 export async function saveModelPolicy(
   tenantId: string,
   actorId: string,
-  modelPolicy: ModelPolicy,
+  modelPolicy: ModelPolicyInput,
 ): Promise<ModelPolicy> {
   const saved = await call<{ modelPolicy: ModelPolicy }>(
     "PUT",

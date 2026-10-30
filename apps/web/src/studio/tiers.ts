@@ -14,6 +14,8 @@ import {
   type ModelTier,
   type Purpose,
   type PurposePolicy,
+  pickClassOf,
+  policyEntry,
   splitClassId,
   type TierClass,
   type TierModel,
@@ -44,7 +46,7 @@ export function withTierNames<T extends { tier?: ModelTier | null }>(data: T): T
         tier: {
           ...tier,
           name: tierName(tier.id, tier.name),
-          choices: tier.choices?.map((c) => ({ ...c, name: tierName(c.id, c.name) })),
+          choices: tier.choices.map((c) => ({ ...c, name: tierName(c.id, c.name) })),
         },
       }
     : data;
@@ -65,10 +67,9 @@ export function useModelTiers(): { tier: ModelTier | null; modelPolicy: ModelPol
     : { tier: null, modelPolicy: null };
 }
 
-/** The organization's model tier; null without one or while `modelTiers` is off. */
-export function useTier(): ModelTier | null {
-  return useModelTiers().tier;
-}
+/** A tier with any rule (regions, no retention, no training): own keys and subscriptions are the organization's own responsibility there. */
+export const isStrict = (tier: ModelTier | null): boolean =>
+  Boolean(tier && (tier.rules.regions || tier.rules.zdr || tier.rules.noTraining));
 
 export const offered = (cls: TierClass | undefined): cls is Extract<TierClass, { model: string }> =>
   Boolean(cls?.model);
@@ -111,7 +112,7 @@ export function approved(tier: ModelTier, purpose: PurposePolicy): string[] {
 
 /** One line of a model chooser: what a pick asks for, and the model it runs on now. */
 export interface ChooserItem {
-  /** A class (`anthropic/standard`, `high`) or, approved in way C, a model id. */
+  /** The class a pick asks for: `anthropic/standard`, `high`. */
   id: string;
   /** The catalog id of the model it runs on. */
   model: string;
@@ -122,50 +123,20 @@ export interface ChooserItem {
   efforts: Effort[];
 }
 
-const LEVELS = ["low", "standard", "high", "highest"];
-
-/** The class a pick of a model asks for: a maker class first, so it follows the tier's binding. */
-function pickClassOf(classes: string[]): string | null {
-  const picked = classes.filter((id) => LEVELS.includes(splitClassId(id).cls));
-  return picked.find((id) => splitClassId(id).maker) ?? picked[0] ?? null;
+function hintOf(id: string): string {
+  return t(`chooser.hint.${splitClassId(id).cls}` as Key);
 }
 
-function hintOf(id: string | null): string {
-  const cls = id ? splitClassId(id).cls : "";
-  return LEVELS.includes(cls) ? t(`chooser.hint.${cls}` as Key) : "";
-}
-
-/** The tier's text models: `tier.models`, or its classes where an older Manage-App names none. */
+/** The tier's text models. */
 function textModels(tier: ModelTier): TierModel[] {
-  if (tier.models) {
-    return tier.models.filter((m) => m.kind === "text");
-  }
-  const byModel = new Map<string, TierModel>();
-  for (const id of pickable(tier)) {
-    const cls = tier.classes[id];
-    if (!offered(cls)) {
-      continue;
-    }
-    const model = byModel.get(cls.model) ?? {
-      id: cls.model,
-      name: cls.name,
-      maker: splitClassId(id).maker ?? "",
-      kind: "text" as const,
-      classes: [],
-      efforts: [...EFFORTS],
-      chooser: true,
-    };
-    model.classes.push(id);
-    byModel.set(cls.model, model);
-  }
-  return [...byModel.values()];
+  return tier.models.filter((m) => m.kind === "text");
 }
 
 const itemOf = (model: TierModel, id: string): ChooserItem => ({
   id,
   model: model.id,
   name: model.name,
-  hint: hintOf(LEVELS.includes(splitClassId(id).cls) ? id : pickClassOf(model.classes)),
+  hint: hintOf(id),
   efforts: model.efforts,
 });
 
@@ -190,12 +161,16 @@ export function approvable(tier: ModelTier): ChooserItem[] {
   return [...preselection(tier), ...offPreselection(tier)];
 }
 
-/** A class or model id as a chooser line; null where the tier doesn't offer it. */
+/**
+ * A class or model id as a chooser line; null where the tier doesn't offer it. A model id (way
+ * C's list may approve one) shows as the class a pick of it asks for.
+ */
 export function chooserItem(tier: ModelTier, entry: string): ChooserItem | null {
   const cls = tier.classes[entry];
-  const id = offered(cls) ? cls.model : cls ? null : entry;
-  const model = id ? textModels(tier).find((m) => m.id === id) : undefined;
-  return model ? itemOf(model, entry) : null;
+  const runs = offered(cls) ? cls.model : cls ? null : entry;
+  const model = runs ? textModels(tier).find((m) => m.id === runs) : undefined;
+  const id = model ? (cls ? entry : pickClassOf(model.classes)) : null;
+  return model && id ? itemOf(model, id) : null;
 }
 
 /** One line per model: the first entry that runs on it wins. */
@@ -218,19 +193,21 @@ export function purposeChoice(tier: ModelTier, policy: ModelPolicy | null, purpo
   const own = policy?.purposes[purpose] ?? null;
   const list = policy?.way === "C" && own ? approved(tier, own) : null;
   const cap = policy?.way === "B" ? (own?.effortCap ?? null) : null;
+  // A class is on way C's list as itself or, where the list approves a model, as the class it runs.
+  const entry = (id: string) => policyEntry(tier, policy, purpose, id);
   return {
     way: policy?.way ?? "A",
     /** Offered in the tier and, in way C, on the admins' list. */
-    allowed: (id: string) => offered(tier.classes[id]) && (!list || list.includes(id)),
+    allowed: (id: string) => offered(tier.classes[id]) && (!list || list.includes(entry(id))),
     /** Offered in the tier, but not on way C's list. */
-    notApproved: (id: string) => offered(tier.classes[id]) && Boolean(list) && !list?.includes(id),
+    notApproved: (id: string) =>
+      offered(tier.classes[id]) && Boolean(list) && !list?.includes(entry(id)),
     efforts: (id: string): Effort[] =>
       list
-        ? (own?.efforts?.[id] ?? [...EFFORTS])
+        ? (own?.efforts?.[entry(id)] ?? [...EFFORTS])
         : cap
           ? EFFORTS.slice(0, EFFORTS.indexOf(cap) + 1)
           : [...EFFORTS],
-    choices: list ?? pickable(tier).filter((id) => offered(tier.classes[id])),
     /**
      * The chooser's lines after Auto: the preselection, or way C's list. Way C offers no Auto:
      * a pick without a model takes the admins' default.

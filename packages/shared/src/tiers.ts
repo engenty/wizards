@@ -5,15 +5,20 @@
  * tiers"); the runtime shows them and names the class a step asks for. Behind `modelTiers`.
  */
 import { z } from "zod";
-import { EFFORTS, type Effort, MAKERS, type Maker } from "./definition.js";
+import {
+  EFFORTS,
+  type Effort,
+  MAKER_CLASSES,
+  MAKERS,
+  type Maker,
+  type StepClass,
+} from "./definition.js";
 
 /** What a call is for: a run, the studio outside a run (Goose, the editor), a work chat. */
-export const PURPOSES = ["wizard", "assistant", "work"] as const;
-export type Purpose = (typeof PURPOSES)[number];
+export type Purpose = "wizard" | "assistant" | "work";
 
 /** Why a class is not offered in a tier. */
-export const TIER_REASONS = ["unbound", "region", "retention", "training", "maker"] as const;
-export type TierReason = (typeof TIER_REASONS)[number];
+type TierReason = "unbound" | "region" | "retention" | "training" | "maker";
 
 /** What a class (`high`, `anthropic/high`, `image`) runs on in a tier, or why it doesn't. */
 export type TierClass =
@@ -52,10 +57,10 @@ export interface ModelTier {
   };
   /** Every class the gateway knows; one missing is not offered. */
   classes: Record<string, TierClass>;
-  /** What the tier offers, the preselection first; left out by an older Manage-App. */
-  models?: TierModel[];
-  /** Every tier there is, in order, and whether the plan offers it; left out by an older Manage-App. */
-  choices?: { id: string; name: string; inPlan: boolean }[];
+  /** What the tier offers, the preselection first. */
+  models: TierModel[];
+  /** Every tier there is, in order, and whether the plan offers it. */
+  choices: { id: string; name: string; inPlan: boolean }[];
 }
 
 export interface PurposePolicy {
@@ -117,35 +122,68 @@ export function splitClassId(id: string): { maker: Maker | null; cls: string } {
     : { maker: null, cls: id };
 }
 
+const LEVELS: readonly string[] = ["low", "standard", "high", "highest"];
+
+/** The class a pick of a model asks for: a maker class first, so it follows the tier's binding. */
+export function pickClassOf(classes: string[]): string | null {
+  const picked = classes.filter((id) => LEVELS.includes(splitClassId(id).cls));
+  return picked.find((id) => splitClassId(id).maker) ?? picked[0] ?? null;
+}
+
+/**
+ * A pick of a chooser as the class a step or chat asks for: a class id as it is, a model id of
+ * `tier.models` as the class it runs on. Null where it is neither a level people pick (`low`,
+ * `standard`, `high`) nor a maker class the maker has.
+ */
+export function pickedClass(
+  tier: ModelTier,
+  id: string,
+): { maker: Maker | null; cls: StepClass } | null {
+  const model = tier.models.find((m) => m.id === id);
+  const classId = model ? pickClassOf(model.classes) : id;
+  if (!classId) {
+    return null;
+  }
+  const { maker, cls } = splitClassId(classId);
+  if (!LEVELS.includes(cls)) {
+    return null;
+  }
+  // `highest` exists only as a maker class.
+  const fits = maker ? MAKER_CLASSES[maker].includes(cls as StepClass) : cls !== "highest";
+  return fits ? { maker, cls: cls as StepClass } : null;
+}
+
+/**
+ * What a call for a tier's class asks the gateway for (docs/manage-contract.md, "Model tiers"):
+ * the class, or the model it runs on where the purpose's way-C list approves that model and not
+ * the class.
+ */
+export function policyEntry(
+  tier: ModelTier,
+  policy: ModelPolicy | null,
+  purpose: Purpose,
+  classId: string,
+): string {
+  const list = policy?.way === "C" ? policy.purposes[purpose].models : null;
+  const model = tier.classes[classId]?.model;
+  return list && !list.includes(classId) && model && list.includes(model) ? model : classId;
+}
+
 /** Why a call was refused by the gateway for the organization's tier or policy. */
 export type TierRefusalType = "outside_tier" | "not_in_policy";
 
-/**
- * The purposes as a way keeps them: way A none of the fields, way B the default and the cap, way C
- * the list, its efforts and the default.
- */
-export function purposesOfWay(policy: ModelPolicy): ModelPolicy["purposes"] {
-  const keep = (p: PurposePolicy): PurposePolicy =>
-    policy.way === "A"
-      ? { models: null, default: null, effortCap: null, efforts: null }
-      : policy.way === "B"
-        ? { ...p, models: null, efforts: null }
-        : { ...p, effortCap: null };
-  return {
-    wizard: keep(policy.purposes.wizard),
-    assistant: keep(policy.purposes.assistant),
-    work: keep(policy.purposes.work),
-  };
-}
-
 const purposePolicySchema = z.object({
-  models: z.array(z.string().min(1).max(80)).max(60).nullable(),
-  default: z.string().min(1).max(80).nullable(),
+  models: z.array(z.string().min(1).max(200)).max(100).nullable(),
+  default: z.string().min(1).max(200).nullable(),
   effortCap: z.enum(EFFORTS).nullable(),
-  efforts: z.record(z.string(), z.array(z.enum(EFFORTS))).nullable(),
+  efforts: z.record(z.string(), z.array(z.enum(EFFORTS)).min(1)).nullable(),
 });
 
-/** A policy as the studio's admins save it. */
+/**
+ * A policy as the studio's admins save it, checked for its shape only: the Manage-App checks it
+ * against the plan and the tier and keeps what the way uses. The masking fields left out stay
+ * as saved.
+ */
 export const modelPolicySchema = z.object({
   way: z.enum(["A", "B", "C"]),
   purposes: z.object({
@@ -159,9 +197,11 @@ export const modelPolicySchema = z.object({
   localModels: z.boolean(),
   apps: z.object({ local: z.boolean(), subscriptions: z.boolean() }),
   masking: z.boolean(),
-  maskInstructions: z.string().max(MAX_MASK_INSTRUCTIONS).default(""),
+  maskInstructions: z.string().max(MAX_MASK_INSTRUCTIONS).optional(),
   maskLabels: z
     .array(z.string().trim().min(1).max(MAX_MASK_LABEL_CHARS))
     .max(MAX_MASK_LABELS)
-    .default([]),
-}) satisfies z.ZodType<ModelPolicy, unknown>;
+    .optional(),
+});
+
+export type ModelPolicyInput = z.infer<typeof modelPolicySchema>;

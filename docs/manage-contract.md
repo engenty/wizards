@@ -47,7 +47,7 @@ Errors: `{ "error": string, "code": string }`.
 
 | Call | Body → answer |
 |---|---|
-| `GET /v1/tenants/:id` | → `{ id, name, slug?, pagesHost?, status: "active" \| "suspended" \| "deleted", balanceCredits, plan?: { id, name }, limits: { concurrentRuns, projects?, build?, members? }, modules?: string[], features?: { [id]: boolean }, db: { url: string } \| null }` · `db: null` means the runtime keeps the tenant's database as a file · `slug`, `pagesHost`: the organization's address (`acme`, `acme.wizards.page`), shown in the studio's "Public page" part; an older Manage-App names none · `plan`: the plan the tenant is on (Free, Pro, Team, …), shown in the studio · `limits.projects`: how many projects the tenant works with (the studio shows a project switcher above one; a project a local install synced counts); `null` for as many as it wants; left out, the runtime keeps one · `limits.build: false`: the tenant makes and changes nothing on the runtime, its studio shows what its local install synced; left out, it builds · `limits.members`: the people the plan allows (`null`: no limit), shown on the studio's organization page; the Manage-App enforces it · `modules` (optional, a list of plugin ids): the plugins of the runtime switched on for the tenant, besides the runtime's `PLUGINS_DEFAULT`; an id the runtime has no plugin for is ignored ([content/dev/plugins/shipping.md](content/dev/plugins/shipping.md)) · `features`: the plan's switches the runtime reads; one not named is off. Known: `ownKeys` — the tenant's own API keys and bindings to a provider's model in the cloud studio (`PUT /api/studio/models` refuses them with `403 { code: "plan" }` otherwise); it gates by plan, not by tier: with `modelTiers` on, a plan with `ownKeys` still has its admins choose `modelPolicy.ownKeys`, and `false` there refuses them with `403 { code: "tier" }` · `checks`: `{ guests: boolean }`, whether the runtime checks what guests make ([plans/guest-content-guards.md](plans/guest-content-guards.md)); an admin switches it on the Abuse checks page; left out or unreachable: checked · `holds`: `{ page: { reason } \| null, wizards: [{ id, reason }] }`, what an admin held; a held wizard's run page starts no new run (`wizardPaused`) · `tier`, `modelPolicy`: the organization's model tier and how it manages its models ([Model tiers](#model-tiers)); left out, the organization has none and every class runs as before |
+| `GET /v1/tenants/:id` | → `{ id, name, slug?, pagesHost?, status: "active" \| "suspended" \| "deleted", balanceCredits, plan?: { id, name }, limits: { concurrentRuns, projects?, build?, members? }, modules?: string[], features?: { [id]: boolean }, db: { url: string } \| null }` · `db: null` means the runtime keeps the tenant's database as a file · `slug`, `pagesHost`: the organization's address (`acme`, `acme.wizards.page`), shown in the studio's "Public page" part; an older Manage-App names none · `plan`: the plan the tenant is on (Free, Pro, Team, …), shown in the studio · `limits.projects`: how many projects the tenant works with (the studio shows a project switcher above one; a project a local install synced counts); `null` for as many as it wants; left out, the runtime keeps one · `limits.build: false`: the tenant makes and changes nothing on the runtime, its studio shows what its local install synced; left out, it builds · `limits.members`: the people the plan allows (`null`: no limit), shown on the studio's organization page; the Manage-App enforces it · `modules` (optional, a list of plugin ids): the plugins of the runtime switched on for the tenant, besides the runtime's `PLUGINS_DEFAULT`; an id the runtime has no plugin for is ignored ([content/dev/plugins/shipping.md](content/dev/plugins/shipping.md)) · `features`: the plan's switches the runtime reads; one not named is off. Known: `ownKeys` — the tenant's own API keys and bindings to a provider's model in the cloud studio (`PUT /api/studio/models` refuses them with `403 { code: "plan" }` otherwise); it gates by plan, not by tier: with `modelTiers` on, a plan with `ownKeys` still has its admins choose `modelPolicy.ownKeys`, and `false` there refuses them with `403 { code: "tier" }`; while either says no, saved keys and bindings stay but every call runs on the credits, and so it does while the Manage-App can't say · `checks`: `{ guests: boolean }`, whether the runtime checks what guests make ([plans/guest-content-guards.md](plans/guest-content-guards.md)); an admin switches it on the Abuse checks page; left out or unreachable: checked · `holds`: `{ page: { reason } \| null, wizards: [{ id, reason }] }`, what an admin held; a held wizard's run page starts no new run (`wizardPaused`) · `tier`, `modelPolicy`: the organization's model tier and how it manages its models ([Model tiers](#model-tiers)); left out, the organization has none and every class runs as before |
 | `GET /v1/tenants/:id/members` | → `{ members: [{ userId, name, email, image, role, joinedAt }], invitations: [{ id, email, role, expiresAt }], seats: { limit: number \| null, taken } }` · the people of the tenant and who is invited, for the studio's organization page; they are invited, given roles and removed with the calls below · `seats.taken` counts members and open invitations |
 | `POST /v1/tenants/:id/invitations` | `{ actorId, email, role, lang: "de" \| "en" }` → `{ invitation: { id, email, role, expiresAt } }` · invites for the person signed in to the studio (`actorId`), whose role the Manage-App checks in its own records: owners and admins invite (on plans other than Team only the owner), only an owner invites an owner · mails the invitation in `lang`; an open invitation to the same address is replaced · refusals: `403` `forbidden`, `PLAN_SEATS` (with `limit`), `PLAN_ROLES`, `not_member`; `409` `already_member` |
 | `DELETE /v1/tenants/:id/invitations/:invitationId` | `{ actorId }` → `{ ok: true }` · withdraws an open invitation; owners and admins, an owner's invitation only an owner |
@@ -433,7 +433,7 @@ tier?: {
     regions: string[] | null; // where calls may run, lower case ("eu"); null: anywhere
     zdr: boolean;             // providers keep no data
     noTraining: boolean;      // providers don't train on the calls
-    search: boolean;          // web search is allowed
+    search: boolean;          // web search is allowed; the runtime leaves it out while it can't read the tier
     decisions: boolean;       // an evaluation model may answer decisions (`/v4/ai/systemone`)
   };
   classes: {
@@ -442,7 +442,7 @@ tier?: {
       | { model: string; name: string; route: string | null; region: string | null }
       | { model: null; name: string | null; reason: "unbound" | "region" | "retention" | "training" | "maker" };
   };
-  models?: {
+  models: {
     id: string;            // the catalog id: "anthropic/claude-sonnet-5.5"
     name: string;          // "Claude Sonnet 5.5"
     maker: string;         // "anthropic", "google", …
@@ -451,7 +451,7 @@ tier?: {
     efforts: ("low" | "medium" | "high")[]; // the efforts it takes; [] for none
     chooser: boolean;      // in the tier's preselection, what people pick from
   }[];
-  choices?: {
+  choices: {
     id: string;            // every tier there is, in order: "general", "eu-private", …
     name: string;
     inPlan: boolean;       // the organization's plan offers it
@@ -472,8 +472,7 @@ tier?: {
   `standard`, `high`, a maker class), later what an admin curates per tier. A model off the
   preselection is one an organization's admins can still approve in way C. A step or chat that
   picks a model asks for one of its `classes`, a maker class first, so the pick follows the
-  tier when a class is bound to a newer model. Left out by an older Manage-App: the studio
-  builds the preselection from `classes`.
+  tier when a class is bound to a newer model.
 - The studio lists the makers that have at least one class bound in the tier.
 - `choices` are the tiers an organization could be on. Unless `locked`, its admins move it to
   one with `inPlan` with `PUT /v1/tenants/:id/model-tier`. The studio names the tiers by their
@@ -495,7 +494,8 @@ modelPolicy?: {
   ownKeys: boolean;        // the organization's own API keys
   subscriptions: boolean;  // a member's AI client on their own subscription (Goose only)
   localModels: boolean;    // a model on a member's computer (Goose only)
-  apps: { local: boolean; subscriptions: boolean }; // apps connected to a space over MCP
+  apps: { local: boolean; subscriptions: boolean }; // apps connected to a space over MCP; told
+                           // apart by the names they give; refused while the Manage-App can't say
   masking: boolean;        // the gateway masks personal data before a call leaves it
   maskInstructions: string; // what else to mask, in the admins' words (≤ 1,000 characters)
   maskLabels: string[];     // what the detector looks for besides personal data, from the
@@ -511,7 +511,10 @@ type PurposePolicy = {
 ```
 
 Entries of `models` and `default` are class ids as in a model id without `wizards/`
-(`standard`, `anthropic/high`) or model ids the catalog enables. Way A leaves `models`,
+(`standard`, `anthropic/high`) or model ids the catalog enables. A step or chat stores a class,
+never a model id: a pick of an approved model id stores the class it runs on, and a call for a
+class that way C's list approves only by its model asks for that model id instead of
+`wizards/<class>`. Way A leaves `models`,
 `default`, `effortCap` and `efforts` null; way B leaves `models` and `efforts` null; way C
 leaves `effortCap` null.
 

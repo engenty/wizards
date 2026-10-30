@@ -9,7 +9,7 @@ import {
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
 import type { RunEstimate } from "@engenty/wizards-shared/run";
-import { type ModelTier, splitClassId } from "@engenty/wizards-shared/tiers";
+import { type ModelTier, pickedClass } from "@engenty/wizards-shared/tiers";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, ShieldCheck } from "lucide-react";
 import { type KeyboardEvent, useRef } from "react";
@@ -157,12 +157,8 @@ function TierModelControl({
   const picked = auto ? null : choice.itemFor(id, choice.items);
   const current = tier.classes[id];
   const pick = (next: string | null) => {
-    if (!next) {
-      onChange({ model: undefined, maker: undefined });
-      return;
-    }
-    const { maker: by, cls } = splitClassId(next);
-    onChange({ model: cls as StepClass, maker: by ?? undefined });
+    const picked = next ? pickedClass(tier, next) : null;
+    onChange({ model: picked?.cls, maker: picked?.maker ?? undefined });
   };
   return (
     <>

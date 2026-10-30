@@ -34,11 +34,12 @@ import {
 } from "@engenty/wizards-shared/providers";
 import type { RunNote, RunNoteCode, Said } from "@engenty/wizards-shared/run";
 import { note, saidText } from "@engenty/wizards-shared/run";
-import type {
-  ModelPolicy,
-  ModelTier,
-  Purpose,
-  TierRefusalType,
+import {
+  type ModelPolicy,
+  type ModelTier,
+  type Purpose,
+  policyEntry,
+  type TierRefusalType,
 } from "@engenty/wizards-shared/tiers";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import {
@@ -293,12 +294,46 @@ async function tenantConfig(tenant: string): Promise<ModelConfig> {
   return value;
 }
 
-async function config(): Promise<ModelConfig> {
+/** What an organization saved: its keys and bindings as they are, used or not. */
+async function storedConfig(): Promise<ModelConfig> {
   if (!managed) {
     return local;
   }
   const tenant = currentTenantOrNull();
   return tenant ? tenantConfig(tenant) : { settings: organizationSettings({}), keys: {} };
+}
+
+/**
+ * Whether the organization thinks on its own keys now: its plan has them and, while `modelTiers`
+ * is on, its admins' policy allows them. When the Manage-App can't say, it doesn't.
+ */
+async function ownKeysAllowed(tenant: string): Promise<boolean> {
+  const info = await tenantInfo(tenant).catch(() => null);
+  return Boolean(
+    info &&
+      feature("ownKeys", info.features) &&
+      !(feature("modelTiers", info.features) && info.modelPolicy?.ownKeys === false),
+  );
+}
+
+/**
+ * What a call runs on. An organization whose plan or policy leaves out own keys keeps them saved,
+ * but every class goes to the credits: its keys and the bindings to a provider's model don't count.
+ */
+async function config(): Promise<ModelConfig> {
+  const cfg = await storedConfig();
+  const tenant = managed ? currentTenantOrNull() : null;
+  if (!tenant || (await ownKeysAllowed(tenant))) {
+    return cfg;
+  }
+  return {
+    settings: organizationSettings(
+      Object.fromEntries(
+        Object.entries(cfg.settings.bindings).filter(([, ref]) => isCreditsRef(ref)),
+      ),
+    ),
+    keys: {},
+  };
 }
 
 function mergeBindings(
@@ -382,7 +417,7 @@ export async function saveModels(input: ModelSettingsInput) {
 
 /** A stored key, for a check of the key itself; never sent to the studio. */
 export async function storedKey(name: LocalKey): Promise<string | undefined> {
-  return (await config()).keys[name];
+  return (await storedConfig()).keys[name];
 }
 
 // --- where a class runs -------------------------------------------------------------
@@ -571,10 +606,11 @@ async function tiersOn(): Promise<boolean> {
 }
 
 /** What a call is for, as the gateway checks it against the organization's policy. */
+const purposeOf = (meta: CallMeta): Purpose =>
+  meta.purpose ?? (meta.runId ? "wizard" : "assistant");
+
 function purposeHeader(meta: CallMeta, tiers: boolean): Record<string, string> {
-  return tiers
-    ? { "x-wizards-purpose": meta.purpose ?? (meta.runId ? "wizard" : "assistant") }
-    : {};
+  return tiers ? { "x-wizards-purpose": purposeOf(meta) } : {};
 }
 
 /**
@@ -640,14 +676,18 @@ function gatewayClient(access: GatewayAccess, meta: CallMeta, tiers: boolean) {
  * The organization's model tier and its admins' policy, while `modelTiers` is on; null where it
  * has none.
  */
-export async function currentTiers(): Promise<{
+interface Tiers {
   tier: ModelTier | null;
   modelPolicy: ModelPolicy | null;
-}> {
+}
+
+const NO_TIER: Tiers = { tier: null, modelPolicy: null };
+
+export async function currentTiers(): Promise<Tiers> {
   const tenant = managed ? currentTenantOrNull() : null;
   const info = tenant ? await tenantInfo(tenant).catch(() => null) : null;
   if (!info || !feature("modelTiers", info.features)) {
-    return { tier: null, modelPolicy: null };
+    return NO_TIER;
   }
   return { tier: info.tier ?? null, modelPolicy: info.modelPolicy ?? null };
 }
@@ -657,14 +697,20 @@ export async function currentTier(): Promise<ModelTier | null> {
   return (await currentTiers()).tier;
 }
 
-/** Whether the organization's tier allows web search; true without a tier. */
+/**
+ * Whether the organization's tier allows web search; true without a tier. When the Manage-App
+ * can't say, an organization's search waits: a tier that rules it out may be the reason.
+ */
 export async function searchAllowed(): Promise<boolean> {
-  return (await currentTier())?.rules.search ?? true;
-}
-
-/** The model a class runs on in the organization's tier; null where the runtime can't tell. */
-async function tierModel(cls: string): Promise<string | null> {
-  return (await currentTier())?.classes[cls]?.model ?? null;
+  const tenant = managed ? currentTenantOrNull() : null;
+  if (!tenant) {
+    return true;
+  }
+  const info = await tenantInfo(tenant).catch(() => null);
+  if (!info) {
+    return false;
+  }
+  return !feature("modelTiers", info.features) || (info.tier?.rules.search ?? true);
 }
 
 export interface ClassPrice {
@@ -733,13 +779,18 @@ async function viaCredits<M>(
 ): Promise<ResolvedModel<M>> {
   const tiers = await tiersOn();
   const asked = tiers && meta.makerClass ? meta.makerClass : null;
+  // Where way C's list approves the model a class runs on and not the class, the call asks for it.
+  const { tier, modelPolicy } = tiers && !route.model ? await currentTiers() : NO_TIER;
+  const entry = tier ? policyEntry(tier, modelPolicy, purposeOf(meta), asked ?? cls) : null;
+  const byModel = entry && entry !== (asked ?? cls) ? entry : null;
+  const makerModel = asked ? (tier?.classes[asked]?.model ?? null) : null;
   const bound =
-    route.model ??
-    (asked ? await tierModel(asked) : null) ??
-    (await classCatalog())?.classes[cls]?.model ??
-    "";
+    route.model ?? byModel ?? makerModel ?? (await classCatalog())?.classes[cls]?.model ?? "";
   return {
-    model: pick(gatewayClient(route.access, meta, tiers), route.model ?? `wizards/${asked ?? cls}`),
+    model: pick(
+      gatewayClient(route.access, meta, tiers),
+      route.model ?? byModel ?? `wizards/${asked ?? cls}`,
+    ),
     ref: bound,
     vendor: vendorOf(bound.replace(/^[a-z]+:/, "")),
     gateway: true,
@@ -1771,18 +1822,21 @@ export function waysIn(ways: Record<ModelClass, ClassWay>, lang: Lang) {
 /** What the settings page shows: the choices, which keys are there (never the keys), and the ways. */
 export async function modelSettings(lang: Lang = "en") {
   const cfg = await config();
+  const stored = await storedConfig();
   const ways = await classWays();
   return {
     source: cfg.settings.source,
-    bindings: cfg.settings.bindings,
+    bindings: stored.settings.bindings,
     ollamaUrl: cfg.settings.ollamaUrl ?? env.ollamaUrl,
     creditFallback: cfg.settings.creditFallback !== false,
-    keys: Object.fromEntries(LOCAL_KEYS.map((k) => [k, Boolean(cfg.keys[k])])) as Record<
+    keys: Object.fromEntries(LOCAL_KEYS.map((k) => [k, Boolean(stored.keys[k])])) as Record<
       LocalKey,
       boolean
     >,
     /** Each key there is, masked, and the environment variable it came from. */
-    keyHints: await keyHints(cfg),
+    keyHints: await keyHints(stored),
+    /** Saved keys and provider bindings the plan or the admins' policy leaves unused for now. */
+    ownKeysUnused: cfg !== stored,
     ways: waysIn(ways, lang),
     /** Who answers decisions; where no decision model does, the classifier class's way. */
     decision: await decisionSettings(cfg),

@@ -110,12 +110,6 @@ const de: Record<Key, Line> = {
   "class.effort.high": "Hoch",
   "class.highest": "Highest",
   "class.highest.hint": "Das stärkste Modell des Herstellers. Kostet ein Vielfaches von High.",
-  "maker.label": "Hersteller",
-  "maker.any": "Beliebiger Hersteller",
-  "maker.anthropic": "Anthropic",
-  "maker.openai": "OpenAI",
-  "maker.google": "Google",
-  "maker.mistral": "Mistral",
   "maker.family.anthropic": "Claude",
   "maker.family.openai": "GPT",
   "maker.family.google": "Gemini",
@@ -181,7 +175,6 @@ const de: Record<Key, Line> = {
   "policy.masking": "Persönliche Daten maskieren",
   "policy.recommendedOn": "empfohlen für {tier}",
   "policy.notApproved": "In deiner Organisation nicht freigegeben.",
-  "policy.notApprovedShort": "nicht freigegeben",
   "policy.masking.hint":
     "Namen, E-Mail-Adressen, Telefonnummern, IBANs und Ausweisnummern werden zu Platzhaltern, bevor ein Aufruf engenty verlässt, und kommen in der Antwort zurück. Berechnet je Aufruf, in dem etwas zu maskieren war.",
   "policy.maskWhat": "Was noch maskiert wird",
@@ -217,7 +210,6 @@ const de: Record<Key, Line> = {
   "policy.col.cap": "Höchster Aufwand, den alle wählen dürfen",
   "policy.anyMaker": "engenty wählt den Hersteller",
   "policy.isDefault": "Vorgabe",
-  "policy.notInTier": "Nicht in {tier}: {why}",
   "policy.approvedFoot":
     "Wer Wizards baut, wählt im Inspector aus dieser Liste; Läufe öffentlicher Wizards nutzen sie auch. Entscheidungen, Bilder, Sprachausgabe und Sprachnotizen bleiben, wie die Stufe sie festlegt; ihre Zeilen in diesem Menü zeigen das Modell.",
   "policy.defaults": "Vorgaben",
@@ -257,8 +249,6 @@ const de: Record<Key, Line> = {
   "tier.searchOff":
     "In {tier} aus. Schritte, die im Web suchen, laufen ohne sie; der Builder sagt es.",
   "tier.searchOn": "In {tier} an.",
-  "tier.follows":
-    "Wenn engenty {class} auf ein neueres Modell umstellt, folgt dieser Schritt. Jeder Lauf hält fest, welches Modell er genutzt hat.",
   "estimate.step": "≈ {n} Credits, selten mehr als {high}",
   "estimate.measured": "gemessen aus den letzten Läufen",
   "estimate.formula": "geschätzt, wird nach fünf Läufen genauer",
@@ -627,6 +617,8 @@ const de: Record<Key, Line> = {
   "overview.keys.stored": "{n} hinterlegt",
   "overview.keys.plan": "Aufrufe über deine eigenen Keys statt über Guthaben. Gibt es ab Pro.",
   "overview.keys.admin": "Aufrufe über Keys, die du hinterlegst, statt über Guthaben.",
+  "overview.keysUnused":
+    "Die gespeicherten API-Keys ruhen gerade: Das Paket oder die Admins erlauben keine eigenen Keys, alles läuft über das Guthaben.",
   "overview.keysLead":
     "Deine Keys bei den Anbietern. Was über einen Key läuft, kostet kein Guthaben.",
   "overview.subs": "KI-Apps im Studio-Chat",
@@ -1590,7 +1582,6 @@ const de: Record<Key, Line> = {
   "chooser.leadOwn":
     "Die Liste der Admins deiner Organisation im Expertenmodus. Neue Modelle kommen erst dazu, wenn sie sie freigeben.",
   "chooser.notInPreselection": "nicht in der Vorauswahl",
-  "chooser.add": "Modell hinzufügen",
   "chooser.noEffort": "Mit {model} nicht möglich.",
   "composer.extraCap": "Deine Organisation erlaubt in Goose höchstens {effort}.",
   "composer.extraHint": "Intelligenteres Modell für anspruchsvolle Aufgaben",
@@ -3342,12 +3333,6 @@ const en = {
   "class.effort.high": "High",
   "class.highest": "Highest",
   "class.highest.hint": "The maker’s strongest model. Several times the cost of High.",
-  "maker.label": "Maker",
-  "maker.any": "Any maker",
-  "maker.anthropic": "Anthropic",
-  "maker.openai": "OpenAI",
-  "maker.google": "Google",
-  "maker.mistral": "Mistral",
   "maker.family.anthropic": "Claude",
   "maker.family.openai": "GPT",
   "maker.family.google": "Gemini",
@@ -3413,7 +3398,6 @@ const en = {
   "policy.masking": "Mask personal data",
   "policy.recommendedOn": "recommended on {tier}",
   "policy.notApproved": "Not approved in your organization.",
-  "policy.notApprovedShort": "not approved",
   "policy.masking.hint":
     "Names, e-mail addresses, phone numbers, IBANs and IDs become placeholders before a call leaves engenty, and come back in the answer. Billed per call that had something to mask.",
   "policy.maskWhat": "What else to mask",
@@ -3448,7 +3432,6 @@ const en = {
   "policy.col.cap": "Highest effort people may set",
   "policy.anyMaker": "engenty picks the maker",
   "policy.isDefault": "default",
-  "policy.notInTier": "Not in {tier}: {why}",
   "policy.approvedFoot":
     "Builders pick from this list in the Inspector; visitors’ runs of public wizards use it too. Decisions, images, voice and voice notes stay as the tier binds them; their rows in this menu show the model.",
   "policy.defaults": "Defaults",
@@ -3486,8 +3469,6 @@ const en = {
   "tier.search": "Web search",
   "tier.searchOff": "Off in {tier}. Steps that search the web run without it; the builder says so.",
   "tier.searchOn": "On in {tier}.",
-  "tier.follows":
-    "When engenty moves {class} to a newer model, this step follows. Each run records the model it used.",
   "estimate.step": "≈ {n} credits, rarely more than {high}",
   "estimate.measured": "measured from the latest runs",
   "estimate.formula": "estimated – more accurate after five runs",
@@ -3848,6 +3829,8 @@ const en = {
   "overview.keys.stored": "{n} stored",
   "overview.keys.plan": "Calls on your own keys instead of credits. From Pro.",
   "overview.keys.admin": "Calls on keys you store, instead of credits.",
+  "overview.keysUnused":
+    "Your saved API keys are resting: the plan or the admins allow no own keys, so everything runs on the credits.",
   "overview.keysLead": "Your keys at the providers. What runs on a key costs no credits.",
   "overview.subs": "AI apps in the studio chat",
   "overview.subs.desc":
@@ -4786,7 +4769,6 @@ const en = {
   "chooser.leadOwn":
     "Your admins’ list in expert mode. New models join only when they approve them.",
   "chooser.notInPreselection": "not in the preselection",
-  "chooser.add": "Add a model",
   "chooser.noEffort": "Not possible with {model}.",
   "composer.extraCap": "Your organization allows up to {effort} in Goose.",
   "composer.extraHint": "A smarter model for demanding tasks",

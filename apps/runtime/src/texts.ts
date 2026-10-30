@@ -128,6 +128,8 @@ const EN = {
   appLocalRefused:
     "{organization} doesn’t let apps with a local model read its spaces, {app} included. Use the studio, or ask an admin.",
   appYourTier: "your organization’s tier",
+  appPolicyUnavailable:
+    "The organization’s model policy can’t be checked right now, so {app} can’t read its spaces. Try again in a moment.",
   planUnavailable: "The organization’s plan can’t be checked right now. Try again later.",
   shareEmailName: "Email",
   shareEmailDescription: "As attachments to one or more addresses",
@@ -351,11 +353,6 @@ const DE: Partial<Record<ServerKey, Line>> = {
   ownKeysNotInPlan: "Eigene API-Keys gibt es nicht im Paket {plan}.",
   ownKeysNotInOrganizationPlan: "Eigene API-Keys gibt es nicht im Paket der Organisation.",
   ownKeysNotInPolicy: "Die Admins deiner Organisation erlauben keine eigenen API-Keys.",
-  appSubscriptionRefused:
-    "{organization} lässt {app} diesen Space nicht lesen: Es denkt mit deinem eigenen Abo, außerhalb von {tier}. Nimm das Studio, eine App mit lokalem Modell, oder frag die Admins.",
-  appLocalRefused:
-    "{organization} lässt Apps mit lokalem Modell ihre Spaces nicht lesen, auch {app} nicht. Nimm das Studio oder frag die Admins.",
-  appYourTier: "der Modellstufe deiner Organisation",
   planUnavailable:
     "Das Paket der Organisation lässt sich gerade nicht prüfen. Versuch es später noch einmal.",
   shareEmailName: "E-Mail",
