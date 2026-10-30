@@ -9,7 +9,7 @@ same day after review. Behind a new switch `capabilities`, off by default. Mocku
 - **Fähigkeiten / Capabilities**, a place in the app bar: after Quellen in Studio, after Daten
   in Work, none in Client. Renamed from „Fähigkeiten“ on review. The glossary gets a row for the
   place; „Fähigkeit“ stays ruled out as a word for one skill.
-- It holds **Skills** and **Connectors**, each with „Meine“ and „Entdecken“. An MCP server is a
+- It holds **Skills** and **Connectors**, each with „Im Space“ and „Entdecken“. An MCP server is a
   kind of connector.
 - Built-in connectors (Gmail, Drive, Slack, GitHub …) show as a quiet list of names until
   someone connects one.
