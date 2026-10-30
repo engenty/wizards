@@ -2,7 +2,7 @@
 
 Status: plan, nothing built. Written on 2026-10-30 against `feat/work-mode` (v0.13.x), revised the
 same day after review. Behind a new switch `capabilities`, off by default. Mockups: the artifact
-“Fähigkeiten in the Studio” (claude.ai/artifact/SLU1E9iwxQ8SjNAeHVg5qT). The account model,
+“Fähigkeiten in the Studio” (claude.ai/artifact/SLU1E9iwxQ8SjNAeHVg5qT). The connection model,
 the three allowances, fixed steps and the broker come from the connections plan (artifact
 “Verbindungen in Quellen”, claude.ai/artifact/GUtiTfPMVvoe1EcgRes3fh); this plan gives them
 their place.
@@ -13,67 +13,80 @@ their place.
   „Werkzeuge“ on review. The glossary gets a row for the place; „Fähigkeit“ stays ruled out as
   a word for one skill.
 - Only the Studio shows it; Client shows none. A space can open the Studio to all its members,
-  with less: they build, write skills and add knowledge, but connect no account for others.
+  with less: they build, write skills and add knowledge, but set up no connection.
 - It holds **Skills** and **Connectors**, each with „Im Space“ and „Entdecken“. An MCP server is
   a kind of connector.
 - Built-in connectors (Gmail, Drive, Slack, GitHub …) show as a quiet list of names until
   someone connects one.
-- Connectors hold the **space's accounts**. A person's own accounts are not here; they sit in
-  the person's menu under „Verbindungen“.
+- Connectors hold the space's **connections**. Admins set them up and choose how each signs in:
+  as the space, or each person for themselves. A person's own sign-ins sit in their menu.
 - Settings › Connectors moves here. Plugins move later (roadmap).
 - Held calls stay where they wait today: the bell in Work, the run's page in a wizard.
 - On a phone Fähigkeiten sits in the „⋯“ menu, as Skills does now.
 - A skill's page keeps today's two columns (instructions left, settings right). Dateien moves
   to the top of the right column, above „Wann gilt er“ and „Skripte“.
 
-## Two kinds of account
+## Connections
 
-| | Space account | Personal account |
-|---|---|---|
-| Belongs to | the space, under a name („HubSpot · Vertrieb“, „Gmail · Bestellungen“) | one person |
-| Connected | once per space, in Fähigkeiten | once per person, in their menu, for every space |
-| Owner | whoever connected it; an owner of the organization can take it over | the person |
-| Used by | wizard steps, Work chats (the space's AI), unattended runs | only that person's Goose, live, never unattended |
-| Rules | set by its owner: per action, and who may use it | the person is asked before a write |
+A connection belongs to the **space**. Admins set it up in Fähigkeiten, and the page records who
+did („eingerichtet von Matthias, 12. Okt.“). Nobody owns it: admins change its rules, sign it in
+again or remove it, and it survives the person who set it up leaving. Members with the Studio use
+connections but set none up.
 
-Several accounts per service in one space are fine (Gmail · Bestellungen, Gmail · Anna).
+When an admin sets one up, they choose how it signs in:
 
-**The owner** of a space account is the person who connected it: it is their login and their
-token. They set its rules and its audience (*nur ich / Mitglieder / alle*), „Mit Freigabe“ asks
-them, and they hear when the sign-in runs out. An owner of the organization can change the rules
-or take the account over, e.g. when the person leaves.
+| | As the space | Each person signs in | Through the company sign-in (later) |
+|---|---|---|---|
+| Identity | an API key, an app token, or a team login (bestellung@) | each member's own account | each member, through the organization's SSO |
+| Sign-in | once, by the admin | each person once, in their menu under „Verbindungen“ | none: the company grants access |
+| Acts as | the space | the person | the person |
+| Runs with nobody watching | yes | no | no |
+| Used by | wizard steps, Work chats | that person's chats, runs and Goose | the same |
+| Writes | fixed steps or confirmed actions, „Mit Freigabe“ asks the admins | asks that person | asks that person |
+| Plans | every plan | Team | Enterprise, with SSO |
+
+The third way is MCP's Enterprise-Managed Authorization: the company's identity provider grants an
+MCP server to a person (an ID-JAG), with no sign-in per server, and the company revokes it there.
+It needs SSO and servers that support the extension, so it stays on the roadmap.
+
+Several connections per service in one space are fine (Gmail · Bestellungen, Gmail · Support).
 
 **Per space, not per organization.** Spaces keep data apart, e.g. one space per client of an
-agency. A later admin action may offer one connection to several spaces („Auch in: …“), each
-space switching it on. With one space on your computer the question doesn't come up.
+agency. A later admin action may offer one connection to several spaces („Auch in: …“). With one
+space on your computer the question doesn't come up.
 
-Today an account belongs to one wizard and one person (`store_secret`, slot `connection:<id>`);
-plugins keep N per space (`plugin_connection`). Space accounts take `plugin_connection`'s table,
-personal accounts become one per person. Existing rows move once by command.
+Today a sign-in belongs to one wizard and one person (`store_secret`, slot `connection:<id>`);
+plugins keep N per space (`plugin_connection`). Connections take `plugin_connection`'s table; a
+person's sign-in becomes one per person and connection. Existing rows move once by command.
+
+How others do it: Claude Team/Enterprise and ChatGPT Enterprise let an owner or admin add a
+connector for everyone, and each member signs in; Copilot Studio asks per tool for the end user's
+or the maker's credentials and warns that the maker's overshare; Zapier Enterprise has managed
+connections the company owns; Slack and GitHub install an app that acts as itself.
 
 ## The rules (from the connections plan)
 
 A call goes through only when three allowances say yes:
 
 - **The wizard**, frozen at publishing: what its AI steps may read, what its fixed steps do.
-- **The account**, set by its owner: per action *Erlaubt / Mit Freigabe / Nie*, and who may use
-  it.
+- **The connection**, set by the space's admins: per action *Erlaubt / Mit Freigabe / Nie*, and
+  who may use it (*Admins / Mitglieder / alle*).
 - **The person's role** in the organization.
 
-On a space account the AI only reads. Writing (sending, creating, saving) is a fixed step, or in
+On a connection that signs in as the space, the AI only reads. Writing (sending, creating, saving) is a fixed step, or in
 a Work chat an action the AI fills in and the person confirms; with „Mit Freigabe“ it then waits
-for the account's owner. Every call goes through the broker, which logs it.
+for an admin of the space. Every call goes through the broker, which logs it.
 
 ## Who sees what
 
 | | Wizard step | Work chat | Goose |
 |---|---|---|---|
 | Skills | by mode; scripts in the run's sandbox | by mode; scripts in the chat's sandbox | reads, runs no scripts |
-| Space accounts | read in AI steps, write in fixed steps | **new:** read; write as a confirmed action | no |
-| Personal accounts | only „Wer den Wizard nutzt“ | no | **new:** its person's own, asks before a write |
+| As the space | read in AI steps, write in fixed steps | **new:** read; write as a confirmed action | no |
+| Each person signs in | as the person running it | **new:** as the person; asks before a write | **new:** as its person; asks before a write |
 
-Goose is a personal copilot: it works with its person's own accounts and the space's skills,
-never with the space's accounts.
+Goose is a personal copilot: it works with its person's own sign-ins and the space's skills,
+never with a connection that signs in as the space.
 
 ## Who sees the place
 
@@ -85,11 +98,11 @@ members of the space; there is no switch per person.
 | Studio | yes | yes, in spaces that open it to members | no, Work only |
 | Wizards | build, publish | build, test | run |
 | Skills, Wissen, Daten | add, change | add, change | none |
-| Space accounts | connect for others, set rules and audience | use the ones open to members; rules locked | their chats use them |
-| Own accounts | in their menu | in their menu, and „nur ich“ accounts in the space | in their menu |
+| Connections | set up, choose how they sign in, set rules and audience | use the ones open to members; rules locked | their chats use them |
+| Own sign-ins | in their menu | in their menu | in their menu |
 
-A member with Studio can't connect an account for others or change the rules of an account they
-don't own. Freigaben for a space account go to its owner.
+A member with Studio can't set up a connection or change its rules. Freigaben go to the space's
+admins.
 
 ## Addresses
 
@@ -98,16 +111,16 @@ don't own. Freigaben for a space account go to its owner.
 
 ## Order of PRs
 
-All behind `capabilities`, off by default. The connections plan's phases deliver the account
+All behind `capabilities`, off by default. The connections plan's phases deliver the connection
 model; these PRs give it the place.
 
 1. `feat(studio): Fähigkeiten in the app bar` — Skills move in, `/skills` redirects.
 2. `feat(studio): connectors move to Fähigkeiten` — list, page, built-ins as names;
    `/settings/connectors` redirects.
-3. `feat(runtime): space accounts with an owner` — named, several per service, audience and
-   rules per action (connections plan, phase 1).
-4. `feat(studio): personal accounts in the person's menu` — once per person, for Goose.
-5. `feat(work): Work chats read the space's accounts` — writes as confirmed actions.
+3. `feat(runtime): connections owned by the space` — named, several per service, signing in as
+   the space, audience and rules per action (connections plan, phase 1).
+4. `feat(studio): each person signs in` — the second way, sign-ins in the person's menu.
+5. `feat(work): Work chats and Goose use connections` — writes as confirmed actions.
 6. `feat(studio): members in the Studio per space` — one rule per space, the reduced set.
 7. `feat(studio): Entdecken` — one search over skills.sh and integrations.sh.
 8. `feat: Fähigkeiten on by default` — switch, docs, glossary.
@@ -116,8 +129,9 @@ model; these PRs give it the place.
 
 - Plugins move to Fähigkeiten, with their settings; `/settings/plugins` redirects.
 - One connection offered to several spaces.
+- Through the company sign-in: MCP Enterprise-Managed Authorization, for Enterprise with SSO.
 
 ## Open
 
-- Does a member in Work ever need to see the space's accounts and rules, or is the menu enough?
+- Does a member in Work ever need to see the space's connections and rules, or is the menu enough?
 - May a member with Studio publish a wizard to people outside the space, or only an admin?
