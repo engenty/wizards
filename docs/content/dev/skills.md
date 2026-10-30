@@ -1,11 +1,11 @@
 ---
 title: Skills
 description: The skills of a space – the SKILL.md engenty wizards reads, its limits, the studio’s routes, the two tools a step reads skills with and how their scripts run in the sandbox.
-version: 0.11.6
+version: 0.13.0
 ---
 
 A space’s skills are instructions in the Agent Skills format that its AI steps follow. They sit
-behind the `skills` switch, which is off by default. While it is off, every route below answers
+behind the `skills` switch, which is on by default. While it is off, every route below answers
 404 and no step sees a skill.
 
 ## The format

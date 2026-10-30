@@ -821,10 +821,10 @@ function traced(
   }
 }
 
-/** The part of the space page a route stands on. */
+/** The part of the space page a route stands on; Skills have their own address. */
 function partOf(route: string): string | null {
-  const m = route.match(/^\/space\/(info|brand|knowledge|data|results|skills)/);
-  return m ? m[1] : route === "/space" ? "info" : null;
+  const m = route.match(/^\/space\/(info|brand|knowledge|data|results)/);
+  return m ? m[1] : route === "/space" ? "info" : route.startsWith("/skills") ? "skills" : null;
 }
 
 /** How large each tool is in the prompt: its description and its schema, in characters. */

@@ -150,6 +150,7 @@ function useRoutes(): () => string[] {
     "/edit/:id",
     "/space",
     "/space/:group",
+    "/skills",
     "/settings",
     ...settingsSections(me.data, plugins).map((s) => `/settings/${s.id}`),
     ...plugins.pages.map((p) => p.path),

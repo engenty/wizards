@@ -33,14 +33,14 @@ and skills.sh lists thousands of them.
   offered when the hash differs, shown before it is taken.
 - **A skill from skills.sh is read only**: copied to be changed.
 - **Goose** gets `skill_load` and `skill_read` and a list of the space's skills; it changes none.
-- **Docs** are written now and left out of the docs' navigation until the switch flips.
+- **Docs** are written now and left out of the docs' navigation until the switch flips (flipped 2026-10-30: in the navigation).
 
 ## Where
 
 - `packages/shared/src/skills.ts`: the format, the parser, limits, the official owners.
 - `apps/runtime/src/services/skills.ts`, `skills-registry.ts`, `routes/skills.ts`.
 - `apps/runtime/src/tools/skills.ts`: the prompt block and the two tools.
-- `apps/web/src/studio/project/Skills.tsx`, `SkillEditor.tsx`: Sources › Skills.
+- `apps/web/src/studio/project/Skills.tsx`, `SkillEditor.tsx`: Skills, a place of their own in the app bar at `/skills` since 2026-10-30, on by default.
 - Mockups: the canvas “Skills in Sources” (claude.ai/artifact/TyD1PY8yRXWkh5R4rmVaTW).
 
 ## Later
