@@ -127,6 +127,8 @@ interface ModelsState {
   ollamaUrl: string;
   creditFallback: boolean;
   keys: Record<ProviderId, boolean>;
+  /** Each key there is, masked, and the environment variable it came from (null: kept here). */
+  keyHints?: Partial<Record<ProviderId, KeyHint>>;
   ways: Record<ModelClass, ClassWay>;
   /** Per text class, what of its minimums (`CLASS_NEEDS`) its model lacks; null: not checked. */
   fit: Record<TextClass, ModelNeed[] | null>;
@@ -140,6 +142,18 @@ interface ModelsState {
   /** The organization's model tier and its admins' policy; null without one (`modelTiers`). */
   tier?: ModelTier | null;
   modelPolicy?: ModelPolicy | null;
+}
+
+interface KeyHint {
+  masked: string;
+  env: string | null;
+}
+
+/** Where a key comes from, in a sentence: an environment variable of this machine, or kept here. */
+function keySource(hint: KeyHint | undefined, place: Place): string {
+  return hint?.env
+    ? t("overview.keys.fromEnv", { env: hint.env })
+    : t(place.cloud ? "overview.keys.keptCloud" : "overview.keys.kept");
 }
 
 /** The ways to an embedding model, in the order `auto` tries them. */
@@ -467,10 +481,12 @@ function Option({
 function KeyField({
   provider,
   stored,
+  hint,
   place,
 }: {
   provider: ProviderInfo;
   stored: boolean;
+  hint?: KeyHint;
   place: Place;
 }) {
   const save = useSave();
@@ -535,7 +551,9 @@ function KeyField({
       ) : (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className="flex items-center gap-2 text-[0.875rem] text-ink-2">
-            <KeyRound className="size-4 text-moss" /> {t("models.keyStored")}
+            <KeyRound className="size-4 text-moss" />
+            {hint ? <code className="font-mono text-[0.8125rem]">{hint.masked}</code> : null}
+            <span className="text-ink-3">{keySource(hint, place)}</span>
           </span>
           <Button
             size="sm"
@@ -1690,7 +1708,12 @@ function ProviderPanel({
       />
       <Card className="flex flex-col gap-6 p-3.5 sm:p-5 sm:p-6">
         <Part title={t("models.key")}>
-          <KeyField provider={provider} stored={stored} place={place} />
+          <KeyField
+            provider={provider}
+            stored={stored}
+            hint={state.keyHints?.[provider.id]}
+            place={place}
+          />
         </Part>
         <Part title={t("models.uses")}>
           <ul className="flex flex-col divide-y divide-border-soft">
@@ -2964,7 +2987,10 @@ function KeysPanel({ s }: { s: Situation }) {
             id: p.id,
             name: p.name,
             desc: providerText(p.about, lang),
-            status: state.keys[p.id] ? t("models.noteKey") : null,
+            note: state.keys[p.id] ? keySource(state.keyHints?.[p.id], place) : null,
+            status: state.keys[p.id]
+              ? (state.keyHints?.[p.id]?.masked ?? t("models.noteKey"))
+              : null,
             button: state.keys[p.id]
               ? null
               : {
