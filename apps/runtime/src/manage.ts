@@ -205,6 +205,11 @@ export interface TenantInfo {
   /** The plan's feature switches; a feature that is not named is off. `ownKeys`: own API keys here. */
   features?: Record<string, boolean>;
   db: { url: string } | null;
+  /**
+   * The admins' abuse checks: `guests` false, the runtime does not check what guests make
+   * (safety.ts). Left out by an older Manage-App: checked.
+   */
+  checks?: { guests: boolean };
   /** What an admin held: a held wizard starts no new run, a held page shows none. */
   holds?: { page: { reason: string } | null; wizards: { id: string; reason: string }[] };
 }
