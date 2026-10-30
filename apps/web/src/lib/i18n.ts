@@ -179,7 +179,8 @@ const de: Record<Key, Line> = {
     "Ollama und Apples Modelle auf dem Gerät, nur für Goose. Nichts verlässt den Computer.",
   "policy.ownKeys": "Eigene API-Keys",
   "policy.ownKeys.hint": "Anbieter, die die Stufe erlaubt. Aufrufe gehen trotzdem über engenty.",
-  "policy.ownResponsibility": "In eurer Verantwortung.",
+  "policy.ownKeys.warn": "Was der Anbieter mit den Daten macht, regelt euer Vertrag mit ihm, nicht {tier}.",
+  "policy.subscriptions.warn": "Was der Chat liest, geht an den Anbieter des Abos, zu dessen Bedingungen.",
   "policy.subscriptions": "Abos der Mitglieder",
   "policy.subscriptions.hint":
     "Claude Code und Codex auf dem Computer eines Mitglieds behalten Daten zu dessen eigenen Bedingungen.",
@@ -3277,7 +3278,8 @@ const en = {
     "Ollama and Apple’s on-device models, for Goose only. Nothing leaves the computer.",
   "policy.ownKeys": "Your own API keys",
   "policy.ownKeys.hint": "Providers the tier allows. Calls still go through engenty.",
-  "policy.ownResponsibility": "Your own responsibility.",
+  "policy.ownKeys.warn": "What the provider does with the data is up to your contract with them, not {tier}.",
+  "policy.subscriptions.warn": "What the chat reads goes to the subscription’s provider, under its terms.",
   "policy.subscriptions": "Members’ subscriptions",
   "policy.subscriptions.hint":
     "Claude Code, Codex on a member’s computer keep data under the member’s own terms.",

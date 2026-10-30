@@ -113,7 +113,7 @@ function PolicyRow({
   locked?: string | null;
   /** A word beside the title: "recommended on EU Private". */
   note?: string | null;
-  /** A sentence after the hint, highlighted: "Your own responsibility." */
+  /** A sentence after the hint, highlighted: where the data goes when this is on. */
   warn?: string | null;
   disabled?: boolean;
   onChange: (on: boolean) => void;
@@ -168,9 +168,9 @@ export function WayPanel({
   const save = useSavePolicy();
   const shown = save.isPending && save.variables ? save.variables : policy;
   const set = (patch: Partial<ModelPolicy>) => save.mutate({ ...shown, ...patch });
-  // On a strict tier, own keys and subscriptions stay the admins' choice, in their responsibility.
+  // On a strict tier, own keys and subscriptions stay the admins' choice; each says where the data
+  // goes then, outside the tier's promises.
   const strict = Boolean(tier.rules.regions || tier.rules.zdr || tier.rules.noTraining);
-  const responsibility = strict ? t("policy.ownResponsibility") : null;
   return (
     <div className="flex flex-col gap-6">
       <PanelHead
@@ -245,7 +245,7 @@ export function WayPanel({
               title={t("policy.ownKeys")}
               hint={t("policy.ownKeys.hint")}
               checked={shown.ownKeys}
-              warn={responsibility}
+              warn={strict ? t("policy.ownKeys.warn", { tier: tier.name }) : null}
               disabled={!canEdit}
               onChange={(ownKeys) => set({ ownKeys })}
             />
@@ -254,7 +254,7 @@ export function WayPanel({
               title={t("policy.subscriptions")}
               hint={t("policy.subscriptions.hint")}
               checked={shown.subscriptions}
-              warn={responsibility}
+              warn={strict ? t("policy.subscriptions.warn") : null}
               disabled={!canEdit}
               onChange={(subscriptions) => set({ subscriptions })}
             />
