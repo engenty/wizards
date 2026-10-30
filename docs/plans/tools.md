@@ -19,6 +19,8 @@ same day after review. Behind a new switch `tools`, off by default. Mockups: the
 - Settings › Connectors moves here. Plugins move later (roadmap).
 - Held calls stay where they wait today: the bell in Work, the run's page in a wizard.
 - On a phone Werkzeuge sits in the „⋯“ menu, as Skills does now.
+- A skill's page keeps today's two columns (instructions left, settings right). Dateien moves
+  to the top of the right column, above „Wann gilt er“ and „Skripte“.
 
 ## Accounts
 
