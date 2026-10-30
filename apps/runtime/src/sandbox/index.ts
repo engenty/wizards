@@ -42,7 +42,34 @@ export function pickEngine(
   return engines.find((e) => e.ready()) ?? null;
 }
 
+/**
+ * The engine for a guest's run, from `SANDBOX_GUESTS`: `off` (the default): none. `agentos`: that
+ * engine when it is ready here, else none. Never Docker: a guest's step there could install and
+ * send anything (docs/plans/capabilities.md, A1). Anything else is said once and means off.
+ */
+export function pickGuestEngine(
+  engines: readonly SandboxEngine[],
+  requested: string,
+): SandboxEngine | null {
+  if (!requested || requested === "off") {
+    return null;
+  }
+  if (requested !== "agentos") {
+    console.warn(`SANDBOX_GUESTS=${requested} is no engine for guests (agentos or off): off.`);
+    return null;
+  }
+  const engine = engines.find((e) => e.name === requested) ?? null;
+  if (!engine?.ready()) {
+    console.warn(
+      "SANDBOX_GUESTS=agentos, but agentOS is not installed here: guests get no sandbox.",
+    );
+    return null;
+  }
+  return engine;
+}
+
 let picked: { engine: SandboxEngine | null } | null = null;
+let pickedForGuests: { engine: SandboxEngine | null } | null = null;
 
 /** The engine of this server, picked once at the first question. */
 export function sandboxEngine(): SandboxEngine | null {
@@ -50,11 +77,18 @@ export function sandboxEngine(): SandboxEngine | null {
   return picked.engine;
 }
 
+/** The engine of a guest's runs on this server, picked once at the first question. */
+export function guestSandboxEngine(): SandboxEngine | null {
+  pickedForGuests ??= { engine: pickGuestEngine(ENGINES, env.sandboxGuests) };
+  return pickedForGuests.engine;
+}
+
 /** What this server's sandbox runs, or null when it is switched off. */
 export function sandboxCapabilities(): SandboxCapabilities | null {
   return sandboxEngine()?.capabilities() ?? null;
 }
 
+/** A Work chat's sandbox, on the server's engine. A run's goes through its RunResources. */
 export function createSandbox(runId: string): Sandbox {
   const engine = sandboxEngine();
   if (!engine) {

@@ -11,7 +11,7 @@ import { markMedia } from "../media/marking.js";
 import { gatewayTools, isHarnessVendor, type ResolvedModel, searchAllowed } from "../models.js";
 import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
-import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../sandbox/index.js";
+import { type ExecResult, shellToolDescription } from "../sandbox/index.js";
 import { snapshotFile } from "../services/files.js";
 import { hasStoreFiles } from "../store/index.js";
 import { browserTools } from "./browser.js";
@@ -192,7 +192,8 @@ export async function buildStepTools(
     Object.assign(tools, storeTools(ctx, uploads, files));
   }
   Object.assign(tools, await spaceTools(ctx));
-  const sandbox = allowed.has("sandbox") ? sandboxCapabilities() : null;
+  // The run's sandbox: a guest's run has none unless SANDBOX_GUESTS says so (engine/resources.ts).
+  const sandbox = allowed.has("sandbox") ? ctx.resources.sandboxCapabilities() : null;
   Object.assign(
     tools,
     await skillTools(

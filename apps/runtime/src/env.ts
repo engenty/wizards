@@ -239,6 +239,11 @@ export const env = {
    * or empty for the first one that is ready here.
    */
   sandbox: str("SANDBOX_ENABLED", "1") === "1" ? str("SANDBOX").toLowerCase() : "off",
+  /**
+   * The engine for a guest's run (a visitor's, a channel's): `off` or `agentos`, never Docker;
+   * `agentos` only when it is ready here (sandbox/index.ts, pickGuestEngine).
+   */
+  sandboxGuests: str("SANDBOX_GUESTS", "off").toLowerCase(),
   sandboxImage,
   /** Where `wizards sandbox add` installs the engines that aren't part of the runtime. */
   sandboxEngines: enginesDir(),

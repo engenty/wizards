@@ -58,7 +58,6 @@ import {
 import { runMotionGraphicsStep } from "../motion-graphics/step.js";
 import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
-import { sandboxCapabilities } from "../sandbox/index.js";
 import { knowledgeBlock } from "../services/knowledge.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
@@ -593,6 +592,10 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
   });
   const uploads = await personUploads(ctx);
   const { tools, assets, instructions } = await buildStepTools(step, ctx, resolved, uploads);
+  // A step written for the sandbox on a run without one works on in text: said in the run's log.
+  if (step.tools.includes("sandbox") && !ctx.resources.sandboxCapabilities()) {
+    await ctx.emit("info", { code: "noSandbox" });
+  }
   // A step without tools of its own and without uploads: the run's device may answer it alone.
   attachTools(resolved, tools, step.tools.length === 0 && uploads.length === 0);
   const photos = await seenPhotos(step, ctx, resolved, uploads);
@@ -616,7 +619,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     // Skills: always on whole, on demand by name and description (docs/plans/skills.md).
     skillsBlock(await skillsOf(ctx), {
       tools: takesTools(resolved),
-      sandbox: step.tools.includes("sandbox") && sandboxCapabilities() !== null,
+      sandbox: step.tools.includes("sandbox") && ctx.resources.sandboxCapabilities() !== null,
     }),
     // What the space's plugins hold for its wizards: a wiki, questions and answers.
     ...(await spaceContextOf(ctx)).blocks,
