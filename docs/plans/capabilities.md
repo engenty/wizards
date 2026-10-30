@@ -103,6 +103,46 @@ Model calls take a separate path, the model gateway (model tiers, masking). In p
 is a function in the runtime with plain rules; later it can read Cedar policies or run as its own
 process with agentgateway in front.
 
+### Runner and broker
+
+Two things. The **runner** runs a wizard: its steps, model calls, pages and waiting
+(`engine/runner.ts`, its own process role). The **broker** decides whether a tool or data call may
+go through, holds the secrets and runs the call. The runner asks; the broker decides. Work chats
+and Goose run in the studio process and ask the same broker.
+
+### Guests and the team
+
+Open question: do guests' runs (the public link, chat, voice, WhatsApp, SMS) and the team's work
+(test runs, Work chats, Goose) go through the same broker?
+
+Today, on `feat/work-mode`:
+
+- Three processes from one image (`RUNTIME_ROLE`, `env.ts:64`): studio (studio API, Work chats,
+  Goose), doors (guests' entry, never runs a step), runner (runs every wizard run with one
+  `drive()`, `engine/runner.ts:776`, guest and test runs alike).
+- A guest is an anonymous visitor id (`wz_vid`, `routes/runs.ts:127`); a channel uses a hash of
+  its id. Guest runs get Turnstile, 6 runs per hour, a guest budget and content checks.
+- One database per tenant on one shared volume, chosen per request (`db/client.ts:223`): one
+  runner process can reach every tenant's data and secrets.
+- No single gate. Five places run an action or read a secret: wizard-step tools
+  (`tools/connector.ts:181`, ask before writes), mail tools (`tools/mail.ts:30`), share targets
+  (`sharing/targets/slack.ts:44`), plugin connections (`plugin-connections.ts:431`, no ask and no
+  holder, reached by guest runs through plugin tools), the browser session
+  (`engine/resources.ts:48`).
+- The sandbox is off in the cloud compose; the Docker sandbox has open network. That is the
+  current state, not a decision.
+
+The proposal on the table, in two steps:
+
+1. **One library, logical separation.** The broker library runs in every process. Each call
+   carries who calls (visitor, member, admin, Goose) and the run's grant, fixed at start. This
+   replaces the five call sites and closes today's gaps, but every process can still open every
+   secret.
+2. **Isolated instances.** Guest runs move to runner processes of their own; secrets live only
+   with the broker, in its own process; the guest side gets its own broker instance that opens
+   only connections with the audience „alle“, never a person's own sign-in. This is the
+   connections plan's appliance phase.
+
 ## Who sees what
 
 | | Wizard step | Work chat | Goose |
@@ -161,3 +201,5 @@ model; these PRs give it the place.
 
 - Does a member in Work ever need to see the space's connections and rules, or is the menu enough?
 - Later: may a member with Studio publish a wizard to people outside the space, or only an admin?
+- Guests and the team on one broker: logical separation only, or isolated instances (see „Guests
+  and the team“)?
