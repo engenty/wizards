@@ -844,7 +844,9 @@ function EffortBox({ effort }: { effort: ComposerEffort }) {
           <span className={cn("text-[0.875rem]", effort.disabled && "text-ink-3")}>
             {t("composer.extra")}
           </span>
-          <span className="text-[0.75rem] text-ink-3">{effort.hint ?? t("composer.extraHint")}</span>
+          <span className="text-[0.75rem] text-ink-3">
+            {effort.hint ?? t("composer.extraHint")}
+          </span>
         </span>
       </button>
     </>
