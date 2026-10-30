@@ -13,7 +13,14 @@ import { prompt } from "./prompts.js";
  * where there is none. A check that cannot run stops the generation: nothing is made unchecked.
  */
 
-export type ContentKind = "image" | "video" | "speech";
+export type ContentKind = "image" | "video" | "speech" | "text" | "input" | "injection";
+
+/**
+ * A run of someone without an account: a guest on a public wizard. What it makes is checked
+ * against the rules before it is kept, and stays private (docs/plans/guest-content-guards.md).
+ */
+export const guestRun = (run: { mode: string; userId: string | null }) =>
+  run.mode === "live" && !run.userId;
 
 /** A request the content rules stop. */
 export class ContentBlockedError extends NotedError {
@@ -27,37 +34,89 @@ export function contentPolicy(): string {
   return prompt("safety", "policy");
 }
 
-/** Throws ContentBlockedError when the request breaks a content rule. */
-export async function checkContent(input: {
-  kind: ContentKind;
-  text: string;
-  call?: CallMeta;
-  signal?: AbortSignal;
-}): Promise<void> {
-  let breaks: boolean;
+/**
+ * Asks the decision model the questions about a text; the first one answered yes (or not at all)
+ * names what stops it. Throws ContentBlockedError then, NotedError when no check could run.
+ */
+async function ask(
+  state: Record<string, unknown>,
+  questions: Partial<Record<ContentKind, string>>,
+  meta: { call?: CallMeta; signal?: AbortSignal },
+): Promise<void> {
+  let stopped: ContentKind | undefined;
   try {
     const decision = await decide({
-      state: { kind: input.kind, request: input.text },
-      questions: {
-        breaks: {
-          type: "noul",
-          instructions: prompt("safety", "check", { policy: contentPolicy() }),
-        },
-      },
-      call: input.call,
-      signal: input.signal,
+      state,
+      questions: Object.fromEntries(
+        Object.entries(questions).map(([kind, instructions]) => [
+          kind,
+          { type: "noul" as const, instructions: instructions ?? "" },
+        ]),
+      ),
+      call: meta.call,
+      signal: meta.signal,
     });
-    const answer = decision.answers.breaks;
     // No usable answer counts as a yes: nothing is made unchecked.
-    breaks = answer?.type === "noul" ? answer.noul >= 0.5 : true;
+    stopped = (Object.keys(questions) as ContentKind[]).find((kind) => {
+      const answer = decision.answers[kind];
+      return answer?.type === "noul" ? answer.noul >= 0.5 : true;
+    });
   } catch (err) {
-    if (input.signal?.aborted) throw err;
+    if (meta.signal?.aborted) throw err;
     throw new NotedError(
       note("contentCheckFailed", { detail: (err as Error).message || String(err) }),
     );
   }
-  if (breaks) {
-    console.warn(`[safety] ${input.kind} stopped`);
-    throw new ContentBlockedError(input.kind);
+  if (stopped) {
+    console.warn(`[safety] ${stopped} stopped`);
+    throw new ContentBlockedError(stopped);
   }
+}
+
+/** Throws ContentBlockedError when an image, video or speech request breaks a content rule. */
+export async function checkContent(input: {
+  kind: "image" | "video" | "speech";
+  text: string;
+  call?: CallMeta;
+  signal?: AbortSignal;
+}): Promise<void> {
+  await ask(
+    { kind: input.kind, request: input.text },
+    { [input.kind]: prompt("safety", "check", { policy: contentPolicy() }) },
+    input,
+  );
+}
+
+/** Throws ContentBlockedError when what an AI step wrote for a guest breaks a content rule. */
+export async function checkGuestText(input: {
+  text: string;
+  call?: CallMeta;
+  signal?: AbortSignal;
+}): Promise<void> {
+  if (!input.text.trim()) return;
+  await ask(
+    { text: input.text.slice(0, 20_000) },
+    { text: prompt("safety", "check_text", { policy: contentPolicy() }) },
+    input,
+  );
+}
+
+/**
+ * Throws ContentBlockedError when a guest's answers ask for what the rules forbid (`input`) or
+ * try to change what the AI is told to do (`injection`). One call for both.
+ */
+export async function checkGuestInput(input: {
+  text: string;
+  call?: CallMeta;
+  signal?: AbortSignal;
+}): Promise<void> {
+  if (!input.text.trim()) return;
+  await ask(
+    { answers: input.text.slice(0, 20_000) },
+    {
+      input: prompt("safety", "check_input.rules", { policy: contentPolicy() }),
+      injection: prompt("safety", "check_input.override"),
+    },
+    input,
+  );
 }
