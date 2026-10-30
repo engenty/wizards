@@ -1,5 +1,5 @@
 import { Eye, type LucideIcon, MessageSquare, PenLine } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import type { EngentyKind } from "../engenty/colors";
 import { t } from "../lib/i18n";
@@ -22,20 +22,30 @@ export const MODE_ENGENTY: Record<Mode, EngentyKind> = {
 };
 
 /**
- * The switch between the modes, always in sight: in the app bar right under the engenty, and on
- * a phone in the top bar. Compact: each mode is its glyph, and a card under the one the person
- * is in carries its name; pointing at another slides the card and the name over to it. `named` lies along
- * the wordmark of a bar that names its places, `stacked` stands in a narrow bar with the name
- * under the glyph, `row` is glyphs alone, for a bar along the top or bottom and on a phone.
- * Someone with one mode gets none.
+ * How much more room the shown mode takes than each of the others, in a switch whose size stays
+ * put: `named` fills the bar's width, `stacked` has a fixed height in which the shown mode is a
+ * square of 2.75rem, as wide as the bar's buttons, and each other one 2.125rem high.
+ */
+const OPEN_GROW = { named: 2, stacked: 2.75 / 2.125 } as const;
+
+/**
+ * The switch between the modes, always in sight: in the app bar right under the space, and on a
+ * phone in the top bar. Compact: each mode is its glyph, and a card under the one the person is
+ * in carries its name; pointing at another slides the card and the name over to it. `named`
+ * lies along the wordmark of a bar that names its places, `stacked` stands in a narrow bar with
+ * the name under the glyph, `row` is glyphs alone, for a bar along the top or bottom and on a
+ * phone. `stack` (the phone's top bar) lays the other modes behind the current one, overlapping;
+ * pointing at the stack or tapping it fans them out. Someone with one mode gets none.
  */
 export function ModeSwitch({
   me,
   look,
+  stack,
   className,
 }: {
   me: Me;
   look: "named" | "stacked" | "row";
+  stack?: boolean;
   className?: string;
 }) {
   const mode = useMode(me);
@@ -47,7 +57,24 @@ export function ModeSwitch({
   const shown = pointed ?? mode;
   const [card, setCard] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const vertical = look === "stacked";
-  // The card follows the button of the current mode, also while names open and close around it.
+  const [fanned, setFanned] = useState(false);
+  const piled = Boolean(stack) && !fanned;
+  // A tap outside folds the fanned stack again.
+  useEffect(() => {
+    if (!(stack && fanned)) {
+      return;
+    }
+    const fold = (e: PointerEvent) => {
+      if (!box.current?.contains(e.target as Node)) {
+        setFanned(false);
+        setPointed(null);
+      }
+    };
+    document.addEventListener("pointerdown", fold);
+    return () => document.removeEventListener("pointerdown", fold);
+  }, [stack, fanned]);
+  // The card goes straight to where the shown mode's button ends up once the names have opened
+  // and closed, not after the button as it grows.
   // biome-ignore lint/correctness/useExhaustiveDependencies: another mode moves the card; a second mode makes the switch appear.
   useLayoutEffect(() => {
     const el = box.current;
@@ -55,9 +82,43 @@ export function ModeSwitch({
       return;
     }
     const place = () => {
-      const on = el.querySelector<HTMLElement>("[data-shown]");
+      const buttons = Array.from(el.querySelectorAll<HTMLElement>(":scope > button"));
+      const at = buttons.findIndex((b) => b.hasAttribute("data-shown"));
+      const on = buttons[at];
+      if (!on) {
+        setCard(null);
+        return;
+      }
+      const style = getComputedStyle(el);
+      const pad = Number.parseFloat(vertical ? style.paddingTop : style.paddingLeft);
+      const gap = Number.parseFloat(style.gap) || 0;
+      const sizes =
+        look !== "row"
+          ? (() => {
+              // The buttons share the switch by their grow.
+              const grow = OPEN_GROW[look];
+              const room =
+                (vertical ? el.clientHeight : el.clientWidth) -
+                2 * pad -
+                gap * (buttons.length - 1);
+              const total = buttons.length - 1 + grow;
+              return buttons.map((b) => (room * (b === on ? grow : 1)) / total);
+            })()
+          : buttons.map((b) => {
+              const name = b.querySelector<HTMLElement>("[data-name]");
+              const now = vertical ? b.offsetHeight : b.offsetWidth;
+              if (!name) {
+                return now;
+              }
+              const inner = name.firstElementChild as HTMLElement;
+              const open = b === on ? (vertical ? inner.scrollHeight : inner.scrollWidth) : 0;
+              return now - (vertical ? name.offsetHeight : name.offsetWidth) + open;
+            });
+      const start = pad + sizes.slice(0, at).reduce((sum, size) => sum + size + gap, 0);
       setCard(
-        on ? { x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight } : null,
+        vertical
+          ? { x: on.offsetLeft, y: start, w: on.offsetWidth, h: sizes[at] }
+          : { x: start, y: on.offsetTop, w: sizes[at], h: on.offsetHeight },
       );
     };
     place();
@@ -67,11 +128,18 @@ export function ModeSwitch({
       watch.observe(child);
     }
     return () => watch.disconnect();
-  }, [shown, modes.length]);
+  }, [shown, modes.length, piled]);
   if (modes.length < 2) {
     return null;
   }
   const pick = (next: Mode) => {
+    // On a piled stack the first tap only fans it out.
+    if (piled) {
+      setFanned(true);
+      return;
+    }
+    setFanned(false);
+    setPointed(null);
     if (next !== mode) {
       setMode(me, next);
       navigate(MODE_HOME[next]);
@@ -81,23 +149,39 @@ export function ModeSwitch({
     <fieldset
       ref={box}
       aria-label={t("mode.switch")}
-      onMouseLeave={() => setPointed(null)}
+      onPointerEnter={(e) => {
+        if (e.pointerType === "mouse") {
+          setFanned(true);
+        }
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === "mouse") {
+          setPointed(null);
+          setFanned(false);
+        }
+      }}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) {
           setPointed(null);
+          setFanned(false);
         }
       }}
       className={cn(
-        "relative flex w-fit shrink-0 gap-0.5 rounded-[14px] bg-ink/5 p-1 ring-1 ring-border-soft",
+        "relative isolate flex shrink-0 gap-0.5 rounded-[14px] bg-ink/5 p-1 ring-1 ring-border-soft",
+        look === "named" ? "w-full" : "w-fit",
         vertical && "flex-col",
         className,
       )}
+      // The height stays while names open and close.
+      style={
+        vertical ? { height: `calc(2.75rem + ${modes.length - 1} * 2.25rem + 0.5rem)` } : undefined
+      }
     >
       <span
         aria-hidden="true"
         className={cn(
           "absolute top-0 left-0 rounded-[10px] bg-card shadow-soft transition-[transform,width,height,opacity] duration-300 ease-out motion-reduce:transition-none dark:ring-1 dark:ring-border-soft",
-          card ? "opacity-100" : "opacity-0",
+          card && !piled ? "opacity-100" : "opacity-0",
         )}
         style={
           card
@@ -105,10 +189,12 @@ export function ModeSwitch({
             : undefined
         }
       />
-      {modes.map((m) => {
+      {modes.map((m, i) => {
         const Icon = MODE_ICON[m];
         const name = t(`mode.${m}`);
         const open = m === shown;
+        // How far from the current mode: the farther, the deeper in the pile.
+        const depth = Math.abs(i - modes.indexOf(mode));
         return (
           <button
             key={m}
@@ -117,15 +203,28 @@ export function ModeSwitch({
             data-shown={open || undefined}
             onClick={() => pick(m)}
             onMouseEnter={() => setPointed(m)}
-            onFocus={() => setPointed(m)}
+            onFocus={() => {
+              setPointed(m);
+              setFanned(true);
+            }}
             title={look === "row" ? name : undefined}
             className={cn(
-              "relative flex items-center rounded-[10px] transition-colors",
+              "relative flex items-center rounded-[10px] transition-[color,margin,transform,background-color,box-shadow,flex-grow] duration-300 ease-out motion-reduce:transition-none",
               open ? "text-ink" : "text-ink-3",
               vertical
-                ? "w-11 flex-col justify-center py-2 coarse:py-2.5"
-                : "h-8 px-2 coarse:h-9 coarse:px-2.5",
+                ? "w-11 flex-col justify-center"
+                : cn("h-8 coarse:h-9", look === "row" && "px-2 coarse:px-2.5"),
+              look !== "row" && "min-h-0 min-w-0 basis-0 justify-center",
+              stack && i > 0 && (piled ? "-ml-6.5" : "ml-0"),
+              piled &&
+                (m === mode
+                  ? "bg-card shadow-soft dark:ring-1 dark:ring-border-soft"
+                  : "scale-[0.8] bg-card text-ink-4 ring-1 ring-border-soft"),
             )}
+            style={{
+              flexGrow: look === "row" ? undefined : open ? OPEN_GROW[look] : 1,
+              zIndex: stack ? modes.length - depth : undefined,
+            }}
           >
             <Icon className="size-4 shrink-0" strokeWidth={2} />
             {look === "row" ? (
@@ -133,6 +232,7 @@ export function ModeSwitch({
             ) : (
               // The name opens from nothing: a grid track that grows from 0fr to 1fr.
               <span
+                data-name
                 className={cn(
                   "grid transition-[grid-template-columns,grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
                   vertical

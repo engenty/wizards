@@ -891,7 +891,7 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
         {children}
       </div>
       {/* A phone has no app bar beside the page: the switch between the modes stands up here. */}
-      {personal || !phone ? null : <ModeSwitch me={me} look="row" />}
+      {personal || !phone ? null : <ModeSwitch me={me} look="row" stack />}
       {/* A phone's bar keeps the places: the person stands up here. */}
       {phone ? <UserMenu me={me} /> : null}
     </header>
