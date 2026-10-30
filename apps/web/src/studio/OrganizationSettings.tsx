@@ -3,6 +3,7 @@ import {
   Check,
   Contact,
   Copy,
+  ExternalLink,
   Globe,
   KeyRound,
   MailPlus,
@@ -17,6 +18,7 @@ import { type Key, t } from "../lib/i18n";
 import { initialsOf, type Me } from "../lib/session";
 import { useStudioPlugins } from "../plugins/host";
 import { Button, Chip, IconButton, Input, Select, Spinner, useAutosave } from "../ui";
+import { billingUrl } from "./AppFrame";
 import { Section } from "./project/Section";
 
 type Role = "owner" | "admin" | "member";
@@ -99,7 +101,7 @@ function CopyRow({ label, text }: { label: string; text: string }) {
 
 /**
  * Settings › Allgemein: the organization's name, saved as it is typed (owners and admins), its
- * addresses, and leaving it.
+ * plan, its addresses, and leaving it.
  */
 export function OrganizationGeneral({ me }: { me: Me }) {
   const qc = useQueryClient();
@@ -118,6 +120,7 @@ export function OrganizationGeneral({ me }: { me: Me }) {
     onSuccess: () => window.location.assign("/api/auth/login"),
   });
   const studioUrl = me.tenant.slug ? `${window.location.origin}/studio/${me.tenant.slug}/` : null;
+  const billing = billingUrl(me);
   return (
     <div className="flex flex-col gap-9">
       <Section
@@ -133,6 +136,25 @@ export function OrganizationGeneral({ me }: { me: Me }) {
           onChange={(e) => setName(e.target.value)}
         />
       </Section>
+      {me.tenant.plan ? (
+        <Section title={t("orgSettings.plan")} hint={t("orgSettings.planHint")}>
+          <div className="flex flex-wrap items-center gap-3">
+            <b className="min-w-0 flex-1 font-display font-semibold text-[1.125rem]">
+              {me.tenant.plan.name}
+            </b>
+            {admin && billing ? (
+              <a
+                href={billing}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-[0.8125rem] text-ember-strong hover:underline"
+              >
+                {t("orgSettings.planChange")} <ExternalLink className="size-3" />
+              </a>
+            ) : null}
+          </div>
+        </Section>
+      ) : null}
       <AddressSection me={me} studioUrl={studioUrl} />
       {admin ? <DomainsSection me={me} /> : null}
       <Section title={t("orgSettings.leave")} hint={t("orgSettings.leaveHint")}>
