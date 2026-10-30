@@ -45,8 +45,9 @@ import {
   useMayCreate,
 } from "../lib/session";
 import { openReport } from "../report/ReportDialog";
-import { Button, cn, Dialog, Input } from "../ui";
+import { Button, cn, Dialog, Input, Switch } from "../ui";
 import { AppRail, PhoneBar } from "./AppRail";
+import { setDockPrefs, useDockPrefs } from "./assistant/dock";
 import {
   AssistantDock,
   AssistantSidebar,
@@ -690,6 +691,7 @@ export function UserMenu({
   const installPrompt = useInstallPrompt();
   const [installOpen, setInstallOpen] = useState(false);
   const initials = initialsOf(me.user.name);
+  const dev = useDockPrefs().dev;
   const account = useFeature("account");
   const state = accountState(me, account);
   // The person's own settings are behind the avatar where the organization has its own.
@@ -848,6 +850,18 @@ export function UserMenu({
             {t("nav.language")}
             <LangSwitch tone="surface" />
           </div>
+          {/* Where the runtime offers it (ASSISTANT_DEV; platform admins when managed): Goose's
+              and the Work chats' steps, tools, prompt and turns. */}
+          {me.assistantDev ? (
+            <div className="flex items-center justify-between gap-3 px-3 py-2 text-[0.875rem] text-ink-2">
+              {t("assistant.dev")}
+              <Switch
+                checked={dev}
+                onChange={(on) => setDockPrefs({ dev: on })}
+                label={t("assistant.dev")}
+              />
+            </div>
+          ) : null}
           {me.mode === "managed" ? (
             <button
               type="button"

@@ -5,19 +5,18 @@ import { t } from "../../lib/i18n";
 import { useMe } from "../../lib/session";
 import { IconButton } from "../../ui";
 import type { DevTurn } from "../assistant/chat";
-import { CopyThread, DevSwitch, TurnsDialog } from "../assistant/dev";
-import { setDockPrefs, useDockPrefs } from "../assistant/dock";
+import { CopyThread, TurnsDialog } from "../assistant/dev";
+import { useDockPrefs } from "../assistant/dock";
 import type { ChatMessage, TurnTap } from "./chats";
 
 /**
- * A Work chat's developer mode, with Goose's pieces (assistant/dev.tsx): the same switch, on or
- * off per browser for both, and the turns to look at, copy and download. While it is on, the
+ * A Work chat's developer mode, with Goose's pieces (assistant/dev.tsx): on or off per browser for
+ * both, switched in the person's menu, and the turns to look at, copy and download. While it is on, the
  * browser records each turn's stream as it comes: its tool calls, and the prompt and each step's
  * model, tokens and time, which the runtime sends to a person it offers the mode to.
  */
 
 export interface WorkDev {
-  offered: boolean;
   on: boolean;
   turns: DevTurn[];
   /** Hears the turns' streams while the mode is on (`useAiTurn`). */
@@ -98,40 +97,30 @@ export function useWorkDev(chatId: string): WorkDev {
         },
       }
     : null;
-  return { offered, on, turns: shown.chat === chatId ? shown.turns : [], tap };
+  return { on, turns: shown.chat === chatId ? shown.turns : [], tap };
 }
 
 /**
- * In a Work chat's composer, where the runtime offers the developer mode: its switch and, while
- * it is on, the turns of the chat.
+ * In a Work chat's composer, while the developer mode is on: the turns of the chat.
  */
 export function DevButtons({ dev, messages }: { dev: WorkDev; messages: ChatMessage[] }) {
   const [open, setOpen] = useState(false);
-  if (!dev.offered) {
+  if (!dev.on) {
     return null;
   }
   return (
     <span className="flex h-9 shrink-0 items-center gap-0.5 px-1 coarse:h-11">
-      <DevSwitch on={dev.on} set={(next) => setDockPrefs({ dev: next })} />
-      {dev.on ? (
-        <>
-          <IconButton
-            label={t("assistant.inspect")}
-            onClick={() => setOpen(true)}
-            className="size-8"
-          >
-            <Activity className="size-4" />
-          </IconButton>
-          {messages.length ? <CopyThread messages={messages} turns={dev.turns} /> : null}
-          <TurnsDialog
-            open={open}
-            onClose={() => setOpen(false)}
-            turns={dev.turns}
-            messages={messages}
-            file="work"
-          />
-        </>
-      ) : null}
+      <IconButton label={t("assistant.inspect")} onClick={() => setOpen(true)} className="size-8">
+        <Activity className="size-4" />
+      </IconButton>
+      {messages.length ? <CopyThread messages={messages} turns={dev.turns} /> : null}
+      <TurnsDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        turns={dev.turns}
+        messages={messages}
+        file="work"
+      />
     </span>
   );
 }

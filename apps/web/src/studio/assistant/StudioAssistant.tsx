@@ -48,7 +48,7 @@ import { scrollRoot, useDismiss, useTrail } from "../AppFrame";
 import { type ChatCard, type ChatToolCall, Messages, Working } from "../editor/ChatPanel";
 import { purposeChoice, useModelTiers } from "../tiers";
 import { type AssistantState, useAssistant, useEarlierChats, useStoredChat } from "./chat";
-import { CopyThread, DevSwitch, StepLines, ToolDetails, TurnsDialog, UsageMeter } from "./dev";
+import { CopyThread, StepLines, ToolDetails, TurnsDialog, UsageMeter } from "./dev";
 import {
   type DockPlace,
   type DockZone,
@@ -584,7 +584,7 @@ function Header({
       ) : where !== "sidebar" ? null : (
         <Mascot kind="round" size={26} helmet interactive={false} />
       )}
-      {/* Never narrower than the name and the developer switch. */}
+      {/* Never narrower than the name. */}
       <div className="mr-1 ml-1.5 min-w-[8.5rem] flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
           {state.view.kind === "chat" ? (
@@ -594,9 +594,6 @@ function Header({
               {t("assistant.earlier")}
             </span>
           )}
-          {state.dev.offered && state.view.kind === "chat" ? (
-            <DevSwitch on={state.dev.on} set={state.dev.set} />
-          ) : null}
           {/* On the name's line: live, or what Goose sees, shortened where the row ends. */}
           {live.state !== "off" ? (
             <span className="flex shrink-0 items-center gap-1.5 text-[0.75rem] text-ember-strong">

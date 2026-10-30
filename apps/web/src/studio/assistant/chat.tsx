@@ -24,7 +24,7 @@ import { useStudioPlugins } from "../../plugins/host";
 import type { Chat, ChatCard, ChatMessage, ChatToolCall } from "../editor/ChatPanel";
 import { previewsOf } from "../editor/ChatPanel";
 import { settingsSections } from "../settings-sections";
-import { setDockPrefs, useDockPrefs } from "./dock";
+import { useDockPrefs } from "./dock";
 import { type LiveChat, useLiveChat } from "./live";
 import { pageChanged, pageSnapshot } from "./page";
 import { bindNavigation, browserTools, runBrowserTool, setHighlight } from "./tools";
@@ -130,7 +130,7 @@ export interface AssistantState {
   /** The live chat: it goes on while the person, or the assistant, moves between pages. */
   live: LiveChat;
   /** The developer mode: offered by the runtime, switched on per browser. */
-  dev: { offered: boolean; on: boolean; set: (on: boolean) => void; turns: DevTurn[] };
+  dev: { on: boolean; turns: DevTurn[] };
 }
 
 const Context = createContext<AssistantState | null>(null);
@@ -638,7 +638,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     [messages, phase, activity, startedAt, error, chatSend],
   );
   const live = useLiveChat(chat);
-  const setDev = useCallback((on: boolean) => setDockPrefs({ dev: on }), []);
   const value = useMemo<AssistantState>(
     () => ({
       chat,
@@ -663,7 +662,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       view,
       setView,
       live,
-      dev: { offered: devOffered, on: devOn, set: setDev, turns },
+      dev: { on: devOn, turns },
     }),
     [
       chat,
@@ -685,9 +684,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       open,
       view,
       live,
-      devOffered,
       devOn,
-      setDev,
       turns,
     ],
   );
