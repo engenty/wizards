@@ -64,7 +64,8 @@ them. A file for scripts answers that it isn’t text to read.
 A step that writes HTML (a document, a dashboard) gets the skills always on, without tools. A
 model that runs no tools (an on-device model) gets the skills always on alone. The run shows
 “Reading the skill …” for each read. Goose gets the same two tools and a list of the space’s
-skills.
+skills. So does the space’s AI in a Work chat: the skills always on in its instructions, the ones
+on demand by name, and the chat shows “Read the skill …” for each read.
 
 ## Scripts in the sandbox
 
@@ -86,6 +87,12 @@ A step whose `tools` include `sandbox`, on a server where the sandbox is on, the
 If the folder can’t be written, `skill_load` still answers the instructions, and the note says
 the scripts can’t run in this step. A skill with `run_scripts` off, a step without the sandbox,
 and Goose get the text alone. The code is in `apps/runtime/src/tools/skills.ts`.
+
+A Work chat has a sandbox of its own where the server has one: `run_command` runs there, and
+`skill_load` writes a skill’s folder there the same way. One sandbox per chat, made on its first
+command and kept while the chat is used, so a file one turn writes is there for the next; it is
+gone after 30 minutes without a command, when the chat is deleted, or when the runtime stops
+(`apps/runtime/src/services/work-sandbox.ts`).
 
 ## Routes
 

@@ -8,10 +8,12 @@ import {
   ListChecks,
   type LucideIcon,
   Puzzle,
+  ScrollText,
   Search,
   ShieldCheck,
   ShieldQuestion,
   ShieldX,
+  SquareTerminal,
   Table2,
   Tag,
   Wrench,
@@ -246,6 +248,49 @@ function toolView(
         (phase === "done" && found.length ? t("work.step.sources", { count: found.length }) : null),
       body: found.length ? <SourceChips list={found} /> : errorBody,
       raw: found.length || error ? { input: part.input, output: output ?? error } : null,
+    };
+  }
+  if (name === "skill_load" || name === "skill_read") {
+    const skill = typeof input.name === "string" ? input.name : "";
+    const file = name === "skill_read" && typeof input.path === "string" ? input.path : "";
+    return {
+      ...base,
+      icon: ScrollText,
+      title: t(phase === "running" ? "work.step.readingSkill" : "work.step.readSkill", {
+        name: file ? `${skill}/${file}` : skill,
+      }),
+      detail: said,
+      body: errorBody,
+      raw: { input: part.input, output: output ?? error ?? undefined },
+    };
+  }
+  if (name === "run_command") {
+    const command = typeof input.command === "string" ? input.command : "";
+    const ran = (output ?? {}) as { exitCode?: number; stdout?: string; stderr?: string };
+    const shown = [ran.stdout, ran.stderr].filter(Boolean).join("\n").trim();
+    return {
+      ...base,
+      icon: SquareTerminal,
+      title: t(phase === "running" ? "work.step.runningCommand" : "work.step.ranCommand"),
+      detail:
+        said ??
+        (phase === "done" && typeof ran.exitCode === "number" && ran.exitCode !== 0
+          ? t("work.step.exitCode", { code: ran.exitCode })
+          : null),
+      body: (
+        <div className="flex flex-col gap-1.5">
+          <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-ink/5 px-2.5 py-1.5 font-mono text-[0.75rem]">
+            {command}
+          </pre>
+          {shown ? (
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap px-2.5 font-mono text-[0.75rem] text-ink-3">
+              {shown}
+            </pre>
+          ) : null}
+          {errorBody}
+        </div>
+      ),
+      raw: { input: part.input, output: output ?? error ?? undefined },
     };
   }
   return {

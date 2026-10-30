@@ -28,6 +28,7 @@ import {
 import { approvalsOf, noteOutcome, takeDecision, waitingFor } from "./work-approvals.js";
 import { type ChatFile, chatFiles, fileKind, messageContents, viewParts } from "./work-files.js";
 import { LAST_MESSAGES, workMastra } from "./work-mastra.js";
+import { dropChatSandbox } from "./work-sandbox.js";
 
 /**
  * Work's chats (behind `workMode`): chats of a space with members, in sections of the space's
@@ -332,6 +333,7 @@ export async function deleteChat(user: SessionUser, id: string) {
   const { memory } = await workMastra();
   for (const threadId of threads) {
     await memory.deleteThread(threadId);
+    dropChatSandbox(threadId);
   }
   await db.delete(schema.chat).where(eq(schema.chat.id, chat.id));
 }

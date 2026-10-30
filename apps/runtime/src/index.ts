@@ -25,6 +25,7 @@ import { clearRunning, writeRunning } from "./running.js";
 import { reportAllWizards } from "./services/manage-reports.js";
 import { syncMarketplace } from "./services/marketplace.js";
 import { purgeExpiredRuns } from "./services/shares.js";
+import { dropChatSandboxes } from "./services/work-sandbox.js";
 import { purgeUnusedStores } from "./store/index.js";
 import { compactLog } from "./sync/log.js";
 import { forgetRunner, registerRunner } from "./tenants/control.js";
@@ -161,6 +162,7 @@ async function shutdown(code = 0) {
     await forgetRunner().catch(() => undefined);
   }
   await closeBrowser();
+  await dropChatSandboxes();
   process.exit(code);
 }
 // A process that hangs (docs/plans/health-and-status.md) ends, after saying what hangs; the

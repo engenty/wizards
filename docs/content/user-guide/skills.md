@@ -24,7 +24,8 @@ Each skill has one of three settings:
 - **Off.** The skill stays in the space, and no wizard sees it.
 
 A wizard reads a file of a skill when the skill’s instructions point to it. Goose sees the
-space’s skills too and reads them when they help.
+space’s skills too and reads them when they help, and so does the space’s AI in a Work chat. In a
+Work chat a skill’s scripts run too, once you switched them on for the skill.
 
 ## Add a skill
 

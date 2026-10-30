@@ -4,16 +4,22 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { sortedTools } from "../agents/space-agent.js";
 import { chatTurnWay } from "../agents/subscription.js";
+import { currentFeatures } from "../features.js";
 import { HarnessModel } from "../harness/index.js";
 import { managed } from "../manage.js";
 import { attachTools, chatModel, gatewayTools, type ResolvedModel } from "../models.js";
 import { pluginsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
+import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../sandbox/index.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { assistantToolPlugin, assistantToolRisk, assistantToolsOf } from "../tools/plugin.js";
+import { clip } from "../tools/shared.js";
+import { skillsBlock, skillToolsOf } from "../tools/skills.js";
 import { ClientSteps } from "./client-steps.js";
+import { activeSkills } from "./skills.js";
 import { searchKnowledge } from "./space-index.js";
 import { holdCall } from "./work-approvals.js";
+import { chatSandbox } from "./work-sandbox.js";
 
 /**
  * What the space's AI gets for one turn of a Work chat (docs/plans/work-chats.md): the model of
@@ -44,13 +50,58 @@ export interface WorkTurn {
   instructions: string;
 }
 
-const instructionsFor = (space: string) =>
+const instructionsFor = (space: string, skills: string) =>
   [
     `You are the AI of the space "${space}" in engenty wizards. The team of the space talks with you and with each other in this chat.`,
     'Each message of a person comes as <user name="…">; answer the person who asked you, in their language, and call them by their name only when it helps.',
     "Before you answer about the space (its clients, matters, files, data), look it up with search_space; say where you found it. When you can't find it, say so.",
     "Write short, plain answers. Use lists or a table where they help. Rows, figures, a comparison or a few questions to the team can be a view instead: show_view.",
-  ].join("\n\n");
+    skills,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+/** The space's skills that count, while the `skills` switch is on. */
+async function spaceSkills(spaceId: string) {
+  return (await currentFeatures()).skills === true ? activeSkills(spaceId) : null;
+}
+
+/**
+ * The chat's sandbox (work-sandbox.ts) as the tools see it: `run_command`, and the skills whose
+ * scripts may run written into it. None without a chat (an approved call runs alone) or where
+ * this server has no sandbox.
+ */
+function sandboxTools(chatId: string | null): {
+  tools: Record<string, unknown>;
+  skill: { handle: () => ReturnType<typeof chatSandbox>; workdir: string } | null;
+} {
+  const caps = chatId ? sandboxCapabilities() : null;
+  if (!(caps && chatId)) {
+    return { tools: {}, skill: null };
+  }
+  const handle = () => chatSandbox(chatId);
+  const report = (result: ExecResult) => ({
+    exitCode: result.exitCode,
+    stdout: clip(result.stdout, 8000),
+    stderr: clip(result.stderr, 4000),
+  });
+  return {
+    skill: { handle, workdir: caps.workdir },
+    tools: {
+      run_command: createTool({
+        id: "run_command",
+        description: shellToolDescription(caps),
+        inputSchema: z.object({ command: z.string(), timeoutSeconds: z.number().optional() }),
+        execute: async ({ command, timeoutSeconds }) =>
+          report(
+            await handle().exec(command, {
+              timeoutMs: Math.min((timeoutSeconds ?? 120) * 1000, 600_000),
+            }),
+          ),
+      }),
+    },
+  };
+}
 
 /** A view stays this small: what a chat shows at a glance, not a data dump. */
 export const VIEW_MAX_BYTES = 64_000;
@@ -98,8 +149,8 @@ const searches = (resolved: ResolvedModel<unknown>) =>
   resolved.vendor === "anthropic" || resolved.gateway;
 
 /**
- * The space's tools for a turn: its knowledge, the plugins' tools, the web; the plugins and the
- * web the person turned off (`choice`) left out.
+ * The space's tools for a turn: its knowledge, its skills, the chat's sandbox, the plugins'
+ * tools, the web; the plugins and the web the person turned off (`choice`) left out.
  */
 async function toolsFor(
   resolved: ResolvedModel<unknown> | null,
@@ -107,7 +158,10 @@ async function toolsFor(
   userId: string,
   signal: AbortSignal,
   choice: TurnChoice = {},
+  chatId: string | null = null,
 ): Promise<Record<string, unknown>> {
+  const sandbox = sandboxTools(chatId);
+  const skills = await spaceSkills(space.id);
   const tools: Record<string, unknown> = {
     search_space: createTool({
       id: "search_space",
@@ -120,6 +174,8 @@ async function toolsFor(
       },
     }),
     show_view: showView(),
+    ...sandbox.tools,
+    ...(skills ? skillToolsOf(skills, () => {}, sandbox.skill) : {}),
     ...(await assistantToolsOf({
       tenantId: currentTenant(),
       space,
@@ -245,10 +301,17 @@ export async function workTurn(
   choice: TurnChoice = {},
 ): Promise<WorkTurn> {
   const resolved = await chatModel(await chatTurnWay(managed), choice.extra ? "high" : "standard");
-  const made = gated(await toolsFor(resolved, turn.space, turn.userId, signal, choice), turn);
+  const made = gated(
+    await toolsFor(resolved, turn.space, turn.userId, signal, choice, turn.chatId),
+    turn,
+  );
   const tools = resolved.model instanceof HarnessModel ? steps.wrap(made) : made;
   attachTools(resolved, tools);
-  return { resolved, tools, instructions: instructionsFor(turn.space.name) };
+  const skills = await spaceSkills(turn.space.id);
+  const block = skills
+    ? skillsBlock(skills, { tools: true, sandbox: sandboxCapabilities() !== null })
+    : "";
+  return { resolved, tools, instructions: instructionsFor(turn.space.name, block) };
 }
 
 /** A turn made on its first use, and the signal that ends it TURN_MS after that. */
