@@ -251,8 +251,8 @@ export function MenuGroup({
   );
 }
 
-/** How a row stands, as a dot at its end: works, runs on credits, in progress, missing. */
-export type MenuTone = "done" | "credits" | "on" | "off";
+/** How a row stands, as a dot at its end: works, runs on credits, in progress, missing, off. */
+export type MenuTone = "done" | "credits" | "on" | "miss" | "off";
 
 /** A row of a section's menu: an icon, the name, at most a badge and a dot; the rest is the page's. */
 export function MenuRow({
@@ -311,6 +311,7 @@ export function MenuRow({
               tone === "done" && "bg-moss",
               tone === "credits" && "bg-amber",
               tone === "on" && "bg-ember",
+              tone === "miss" && "bg-amber",
               tone === "off" && "ring-1 ring-ink-4 ring-inset",
             )}
           />

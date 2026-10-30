@@ -21,21 +21,23 @@ import {
   providerOfRef,
   providerText,
 } from "@engenty/wizards-shared/providers";
-import type { ModelPolicy, ModelTier } from "@engenty/wizards-shared/tiers";
+import type { ModelPolicy, ModelTier, TierClass } from "@engenty/wizards-shared/tiers";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
+  ChartColumn,
   Check,
   CircleAlert,
   Clapperboard,
   Coins,
   Ear,
   ExternalLink,
+  EyeOff,
   HardDrive,
   ImageIcon,
   KeyRound,
   Laptop,
-  ListChecks,
+  LayoutGrid,
   type LucideIcon,
   MessageCircle,
   PenLine,
@@ -43,11 +45,12 @@ import {
   Search,
   ShieldCheck,
   Split,
+  TerminalSquare,
   Users,
   Volume2,
 } from "lucide-react";
-import { Fragment, type ReactNode, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { type ReactNode, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { lang, t } from "../lib/i18n";
@@ -65,16 +68,31 @@ import { HarnessPanel } from "./Harness";
 import { LocalModels, useLocalModels } from "./LocalModels";
 import { openExternal } from "./LocalRuntime";
 import {
+  AccessList,
+  type AccessRow,
+  type Helper,
+  type Hero,
+  HeroCard,
+  JobsBox,
+  type Job as OverviewJob,
+  OverviewSection,
+  ScopeCards,
+  type ScopeOption,
+  type Where,
+} from "./ModelsOverview";
+import {
   ApprovedPanel,
   AppsPanel,
   appsShort,
+  ChoicePanel,
   DEFAULT_POLICY,
   DefaultsPanel,
-  usePurposes,
-  WayPanel,
+  MaskingPanel,
+  PolicySwitchCard,
+  useSavePolicy,
   wayShort,
 } from "./ModelsPolicy";
-import { TierPanel } from "./ModelsTier";
+import { TierChooser, TierPanel } from "./ModelsTier";
 import { Hint, PanelHead, Part, Status } from "./models-parts";
 import {
   MenuGroup,
@@ -84,7 +102,7 @@ import {
   useDetail,
   useSettingsMenu,
 } from "./settings-menu";
-import { approved } from "./tiers";
+import { offered, withTierNames } from "./tiers";
 
 /** How a class runs right now, as the runtime resolves it (`classWays`). */
 interface ClassWay {
@@ -373,6 +391,7 @@ function useModels() {
   return useQuery({
     queryKey: ["models"],
     queryFn: () => api.get<ModelsState>("/api/studio/models"),
+    select: withTierNames,
   });
 }
 
@@ -1283,7 +1302,7 @@ function OllamaPart({
     <Part
       title={t("models.optLocal")}
       aside={
-        <Button variant="secondary" size="sm" onClick={() => onOpen({ type: "ollama" })}>
+        <Button variant="secondary" size="sm" onClick={() => onOpen({ type: "local" })}>
           {t("models.ollamaOpen")}
           <ArrowRight className="size-4" />
         </Button>
@@ -2266,37 +2285,46 @@ function SearchPanel({
 // --- the page ----------------------------------------------------------------------
 
 type Target =
-  | { type: "tier" }
-  | { type: "way" }
-  | { type: "list" }
-  | { type: "apps" }
+  | { type: "overview" }
   | { type: "chat" }
-  | { type: "decision" }
-  | { type: "search" }
   | { type: "cap"; id: ModelCapability }
+  | { type: "credits" }
+  | { type: "subs" }
+  | { type: "local" }
+  | { type: "keys" }
+  | { type: "masking" }
+  | { type: "scope" }
+  | { type: "choice" }
+  | { type: "apps" }
   | { type: "provider"; id: ProviderId }
-  | { type: "client"; id: HarnessId }
-  | { type: "ollama" }
-  | { type: "credits" };
+  | { type: "client"; id: HarnessId };
+
+const PAGES = [
+  "chat",
+  "credits",
+  "subs",
+  "local",
+  "keys",
+  "masking",
+  "scope",
+  "choice",
+  "apps",
+] as const;
+const HARNESS_IDS: readonly string[] = ["claude", "codex", "antigravity", "cursor"];
 
 function targetOf(show: string | null): Target {
   if (!show) {
+    return { type: "overview" };
+  }
+  if ((PAGES as readonly string[]).includes(show)) {
+    return { type: show as (typeof PAGES)[number] };
+  }
+  // Decisions and the knowledge search are part of Text & reasoning; Ollama of Local models.
+  if (show === "decision" || show === "search") {
     return { type: "cap", id: "text" };
   }
-  if (show === "credits") {
-    return { type: "credits" };
-  }
-  if (
-    show === "tier" ||
-    show === "way" ||
-    show === "list" ||
-    show === "apps" ||
-    show === "chat" ||
-    show === "decision" ||
-    show === "search" ||
-    show === "ollama"
-  ) {
-    return { type: show };
+  if (show === "ollama") {
+    return { type: "local" };
   }
   if ((MODEL_CAPABILITIES as readonly string[]).includes(show)) {
     return { type: "cap", id: show as ModelCapability };
@@ -2304,21 +2332,32 @@ function targetOf(show: string | null): Target {
   if (providerInfo(show)) {
     return { type: "provider", id: show as ProviderId };
   }
-  return { type: "client", id: show as HarnessId };
+  return HARNESS_IDS.includes(show)
+    ? { type: "client", id: show as HarnessId }
+    : { type: "overview" };
 }
 
-const showOf = (target: Target) =>
-  target.type === "tier" ||
-  target.type === "way" ||
-  target.type === "list" ||
-  target.type === "apps" ||
-  target.type === "credits" ||
-  target.type === "chat" ||
-  target.type === "decision" ||
-  target.type === "search" ||
-  target.type === "ollama"
-    ? target.type
-    : target.id;
+const showOf = (target: Target): string | null =>
+  target.type === "overview"
+    ? null
+    : target.type === "cap" || target.type === "provider" || target.type === "client"
+      ? target.id
+      : target.type;
+
+/** The jobs of the menu and the overview: images and video are one, voice and voice notes too. */
+type Job = "text" | "media" | "voice";
+const JOB_CAPS: Record<Job, ModelCapability[]> = {
+  text: ["text"],
+  media: ["image", "video"],
+  voice: ["speech", "listening"],
+};
+const JOB_CLASSES: Record<Job, ModelClass[]> = {
+  text: ["standard"],
+  media: ["image", "video"],
+  voice: ["speech", "audio"],
+};
+const jobOf = (cap: ModelCapability): Job =>
+  cap === "text" ? "text" : cap === "image" || cap === "video" ? "media" : "voice";
 
 /** In development the page can be looked at as the local install, with an account, or in the cloud. */
 function Preview({ view, onView }: { view: View; onView: (v: View) => void }) {
@@ -2346,52 +2385,682 @@ function Preview({ view, onView }: { view: View; onView: (v: View) => void }) {
   );
 }
 
-/** How a capability stands, as the menu's dot. */
-function capTone(way: ClassWay): MenuTone {
-  return way.kind === "none" ? "off" : way.kind === "credits" ? "credits" : "done";
-}
-
 /** What the page shows, for the trail in the top bar. */
-function targetLabel(
-  target: Target,
-  me: Me | null | undefined,
-  tier: ModelTier | null | undefined,
-  way: ModelPolicy["way"],
-): string {
+function targetLabel(target: Target, me: Me | null | undefined): string {
   switch (target.type) {
-    case "tier":
-      return tier?.name ?? t("tier.group");
-    case "way":
-      return t("policy.way");
-    case "list":
-      return t(way === "B" ? "policy.defaults" : "policy.approved");
-    case "apps":
-      return t("policy.apps");
+    case "overview":
+      return t("overview.nav");
     case "chat":
       return t("models.cap.chat");
-    case "decision":
-      return t("models.cap.decision");
-    case "search":
-      return t("models.cap.search");
     case "cap":
-      return t(`models.cap.${target.id}`);
+      return t(`overview.job.${jobOf(target.id)}`);
+    case "subs":
+      return t("overview.menu.subs");
+    case "local":
+      return t("overview.menu.local");
+    case "keys":
+      return t("overview.menu.keys");
+    case "masking":
+      return t("overview.menu.masking");
+    case "scope":
+      return t("overview.scope");
+    case "choice":
+      return t("policy.way");
+    case "apps":
+      return t("policy.apps");
     case "provider":
       return providerInfo(target.id)?.name ?? target.id;
     case "client":
       return me?.harnesses.find((h) => h.id === target.id)?.name ?? target.id;
-    case "ollama":
-      return "Ollama";
     default:
       return me?.mode === "managed" ? t("models.creditsOrganization") : t("models.creditsName");
   }
 }
 
+/** Where a way runs: a client or a local model on this computer, the rest in the cloud. */
+function whereOf(kind: ClassWay["kind"] | "pc" | "cloud", place: Place): Where {
+  if (place.cloud) {
+    return "cloud";
+  }
+  return kind === "client" || kind === "local" || kind === "pc" ? "pc" : "cloud";
+}
+
+/** The model a job runs on, as a row shows it: the tier's, the bound one, or Auto. */
+function modelText(way: ClassWay, tierClass: TierClass | undefined): string {
+  if (tierClass && offered(tierClass)) {
+    return tierClass.name;
+  }
+  if (way.kind === "credits" || !way.ref) {
+    return way.ref && !isCreditsRef(way.ref) ? modelLabel(way.ref) : t("chooser.auto");
+  }
+  // An AI client's model by its family: "claude/opus" → "Opus".
+  if (way.kind === "client") {
+    const family = way.ref.split("/")[1] ?? way.ref;
+    return family.charAt(0).toUpperCase() + family.slice(1);
+  }
+  return modelLabel(way.ref);
+}
+
+/** Who answers decisions, by the access it goes through: "Ollama", "Guthaben", a provider. */
+function decisionAccess(state: ModelsState, place: Place): { name: string; where: Where } | null {
+  const { way } = state.decision;
+  if (!way) {
+    return null;
+  }
+  return way === "local"
+    ? { name: "Ollama", where: whereOf("pc", place) }
+    : way === "credits"
+      ? { name: t("models.creditsName"), where: "cloud" }
+      : { name: decisionName(way, place).split(" · ").pop() ?? way, where: "cloud" };
+}
+
+/** Who embeds knowledge for the search, by the access it goes through. */
+function embeddingAccess(state: ModelsState, place: Place): { name: string; where: Where } | null {
+  const { way } = state.embedding;
+  if (!way) {
+    return null;
+  }
+  return way === "local"
+    ? { name: "Ollama", where: whereOf("pc", place) }
+    : way === "credits"
+      ? { name: t("models.creditsName"), where: "cloud" }
+      : { name: providerInfo(way)?.name ?? way, where: "cloud" };
+}
+
+const credits = (n: number) => t("nav.credits", { n: Math.floor(n).toLocaleString(lang) });
+
+/** The organization's plan as the page tells Pro and Team apart; null alone or on Free. */
+function planOf(me: Me): "pro" | "team" | null {
+  const id = me.tenant.plan?.id ?? "";
+  return id.startsWith("team") ? "team" : id.startsWith("pro") ? "pro" : null;
+}
+
+interface Situation {
+  me: Me;
+  state: ModelsState;
+  place: Place;
+  tier: ModelTier | null;
+  policy: ModelPolicy;
+  /** The organization's admins, in the cloud, on a tier: its scope, its choice and its switches. */
+  admin: boolean;
+  /** Ollama on this computer; null in the cloud. */
+  ollama: { running: boolean; models: string[] } | null;
+  open: (target: Target) => void;
+  savePolicy: (policy: ModelPolicy) => void;
+}
+
+/** What a tier promises, in a line; empty for a tier the studio has no words for. */
+function scopeDesc(id: string): string {
+  return id === "general" || id === "eu-private" || id === "eu-sovereign"
+    ? t(`overview.scope.${id}`)
+    : "";
+}
+
+/** A job of the overview: how it stands, through which access, on which model. */
+function jobRow(job: Job, s: Situation): OverviewJob {
+  const { state, place, tier } = s;
+  const classes = JOB_CLASSES[job];
+  const base = {
+    id: job,
+    name: t(`overview.job.${job}`),
+    purpose: t(`overview.purpose.${job}`),
+    onOpen: () => s.open({ type: "cap", id: JOB_CAPS[job][0] }),
+  };
+  if (tier && classes.every((c) => !offered(tier.classes[c]))) {
+    return {
+      ...base,
+      state: "na",
+      where: null,
+      access: "",
+      model: "",
+      naText: t("policy.notIn", { tier: tier.name }),
+    };
+  }
+  if (classes.some((c) => state.ways[c].kind === "none")) {
+    return { ...base, state: "miss", where: null, access: "", model: "" };
+  }
+  const way = state.ways[classes[0]];
+  return {
+    ...base,
+    state: "ok",
+    where: whereOf(way.kind, place),
+    access: way.kind === "credits" ? t("overview.credits") : wayText(way, place).text,
+    model: modelText(way, tier?.classes[classes[0]]),
+  };
+}
+
+/** The studio chat (Goose) as a row of the overview. */
+function chatRow(s: Situation): OverviewJob {
+  const { me, place, tier } = s;
+  const engine = me.chatEngine;
+  const listed = me.chatModels.ways[engine];
+  const picked = me.chatModels.chosen[engine]?.normal ?? listed?.normal;
+  const text = jobRow("text", s);
+  return {
+    id: "chat",
+    name: t("models.cap.chat"),
+    purpose: t("overview.purpose.chat"),
+    onOpen: () => s.open({ type: "chat" }),
+    state: me.chatWays.includes(engine) ? "ok" : "miss",
+    where:
+      engine === "models"
+        ? text.where
+        : whereOf(HARNESS_IDS.includes(engine) ? "pc" : "cloud", place),
+    access:
+      place.cloud || engine === "account"
+        ? t("overview.credits")
+        : engine === "models"
+          ? text.access
+          : chatWayName(engine, me, place),
+    model:
+      engine === "models"
+        ? text.model
+        : listed
+          ? (listed.models.find((m) => m.id === picked)?.label ?? picked ?? "")
+          : tier && offered(tier.classes.standard)
+            ? tier.classes.standard.name
+            : t("chooser.auto"),
+  };
+}
+
+/** "Läuft mit": the access most of the work runs on, and who helps it. */
+function heroOf(s: Situation, jobs: OverviewJob[]): Hero {
+  const { me, state, place, tier, policy } = s;
+  const missing = jobs.filter((j) => j.state === "miss").length;
+  if (place.cloud) {
+    const strict = Boolean(tier && (tier.rules.regions || tier.rules.zdr || tier.rules.noTraining));
+    return {
+      name:
+        planOf(me) === "team" && me.tenant.name
+          ? t("overview.hero.orgCredits", { organization: me.tenant.name })
+          : t("models.creditsName"),
+      sub:
+        tier && strict
+          ? t("overview.hero.cloudStrict", { tier: tier.name })
+          : t("overview.hero.cloudAll"),
+      where: "cloud",
+      missing,
+      helpers:
+        tier && policy.masking
+          ? [{ name: t("overview.menu.masking"), jobs: t("overview.maskingJobs"), where: null }]
+          : [],
+    };
+  }
+  const way = state.ways.standard;
+  const main = way.kind === "none" ? null : wayText(way, place).text;
+  const client = way.kind === "client" ? place.harnesses.find((h) => h.id === way.by) : null;
+  const helpers = new Map<string, Helper>();
+  const help = (name: string, job: string, where: Where) => {
+    if (name === main) {
+      return;
+    }
+    const known = helpers.get(name);
+    helpers.set(name, { name, where, jobs: known ? `${known.jobs}, ${job}` : job });
+  };
+  const decision = decisionAccess(state, place);
+  if (decision) {
+    help(decision.name, t("models.cap.decision"), decision.where);
+  }
+  const embedding = embeddingAccess(state, place);
+  if (embedding) {
+    help(embedding.name, t("overview.knowledge"), embedding.where);
+  }
+  for (const job of jobs.filter((j) => j.id === "media" || j.id === "voice")) {
+    if (job.state === "ok") {
+      help(job.access, job.name, job.where);
+    }
+  }
+  return {
+    name: main ?? t("overview.hero.none"),
+    sub: client
+      ? t("overview.hero.client", { sub: t(`harness.sub.${client.id}`) })
+      : way.kind === "key"
+        ? t("overview.hero.key")
+        : way.kind === "local"
+          ? t("overview.hero.local")
+          : way.kind === "credits"
+            ? t("overview.hero.credits")
+            : t("overview.hero.noneSub"),
+    where: way.kind === "client" || way.kind === "local" || way.kind === "none" ? "pc" : "cloud",
+    missing,
+    helpers: [...helpers.values()],
+  };
+}
+
+/** "Zugänge": what the page's person can use, or what the organization's admins allow. */
+function accessRows(s: Situation, save: ReturnType<typeof useSave>): AccessRow[] {
+  const { me, state, place, tier, policy, admin, ollama, open } = s;
+  const keyed = PROVIDERS.filter((p) => state.keys[p.id]);
+  const rows: AccessRow[] = [];
+  const organization = me.tenant.name ?? t("policy.yourOrganization");
+  if (place.cloud) {
+    rows.push({
+      kind: "row",
+      id: "credits",
+      name: t("overview.credits"),
+      desc:
+        planOf(me) === "team"
+          ? t("overview.credits.team", { organization, n: credits(place.balance ?? 0) })
+          : t("overview.credits.plan", {
+              plan: me.tenant.plan?.name ?? "",
+              n: credits(place.balance ?? 0),
+            }),
+      button: place.topUp
+        ? { label: t("overview.topUp"), onClick: () => openExternal(place.topUp as string) }
+        : null,
+      onOpen: () => open({ type: "credits" }),
+    });
+    if (!place.ownKeys) {
+      rows.push({
+        kind: "row",
+        id: "keys",
+        name: t("policy.ownKeys"),
+        desc: t("overview.keys.plan"),
+        status: t("overview.fromPro"),
+        muted: true,
+      });
+    }
+    if (!tier) {
+      return rows;
+    }
+    if (!admin) {
+      return [
+        ...rows,
+        {
+          kind: "row",
+          id: "scope",
+          name: t("overview.scope"),
+          desc: scopeDesc(tier.id),
+          value: tier.name,
+          onOpen: () => open({ type: "scope" }),
+        },
+      ];
+    }
+    const strict = Boolean(tier.rules.regions || tier.rules.zdr || tier.rules.noTraining);
+    const savePolicy = (patch: Partial<ModelPolicy>) => s.savePolicy({ ...policy, ...patch });
+    rows.push(
+      ...(place.ownKeys
+        ? [
+            {
+              kind: "row" as const,
+              id: "keys",
+              name: t("policy.ownKeys"),
+              desc: t("overview.keys.admin"),
+              note: strict && policy.ownKeys ? t("policy.ownKeys.warn", { tier: tier.name }) : null,
+              toggle: {
+                on: policy.ownKeys,
+                onChange: (ownKeys: boolean) => savePolicy({ ownKeys }),
+              },
+              onOpen: () => open({ type: "keys" }),
+            },
+          ]
+        : []),
+      {
+        kind: "row",
+        id: "subs",
+        name: t("overview.subs"),
+        desc: t("overview.subs.desc"),
+        note: strict && policy.subscriptions ? t("policy.subscriptions.warn") : null,
+        toggle: {
+          on: policy.subscriptions,
+          onChange: (subscriptions) => savePolicy({ subscriptions }),
+        },
+        onOpen: () => open({ type: "subs" }),
+      },
+      {
+        kind: "row",
+        id: "local",
+        name: t("overview.localModels"),
+        desc: t("overview.localModels.desc"),
+        toggle: { on: policy.localModels, onChange: (localModels) => savePolicy({ localModels }) },
+        onOpen: () => open({ type: "local" }),
+      },
+      {
+        kind: "row",
+        id: "masking",
+        name: t("policy.masking"),
+        desc: policy.maskLabels.length
+          ? t("overview.masking.descLabels", { labels: policy.maskLabels.join(", ") })
+          : t("overview.masking.desc"),
+        toggle: { on: policy.masking, onChange: (masking) => savePolicy({ masking }) },
+        onOpen: () => open({ type: "masking" }),
+      },
+      {
+        kind: "row",
+        id: "choice",
+        name: t("policy.way"),
+        desc: t("overview.choice"),
+        value: wayShort(policy.way),
+        onOpen: () => open({ type: "choice" }),
+      },
+    );
+    return rows;
+  }
+  // On this computer: the credits first, then what is here.
+  rows.push(
+    place.account
+      ? {
+          kind: "row",
+          id: "credits",
+          name: t("overview.credits"),
+          desc: t("overview.credits.linked"),
+          status: place.balance !== null ? credits(place.balance) : null,
+          onOpen: () => open({ type: "credits" }),
+        }
+      : {
+          kind: "row",
+          id: "credits",
+          name: t("overview.credits"),
+          desc: t("overview.credits.local"),
+          button: {
+            label: t("models.creditsConnect"),
+            primary: true,
+            onClick: () => open({ type: "credits" }),
+          },
+          onOpen: () => open({ type: "credits" }),
+        },
+  );
+  if (place.account) {
+    rows.push({
+      kind: "row",
+      id: "fallback",
+      name: t("models.creditsFallback"),
+      desc: t("overview.credits.fallback"),
+      toggle: {
+        on: state.creditFallback,
+        disabled: !place.canEdit,
+        onChange: (creditFallback) => save.mutate({ creditFallback }),
+      },
+    });
+  }
+  rows.push({ kind: "label", label: t("overview.onComputer") });
+  for (const h of place.harnesses.filter((h) => h.version !== null)) {
+    const signedIn = h.auth !== "none";
+    rows.push({
+      kind: "row",
+      id: h.id,
+      name: h.name,
+      desc: t("overview.client.desc", { sub: t(`harness.sub.${h.id}`) }),
+      status: signedIn
+        ? t(h.auth === "api_key" ? "overview.client.key" : "overview.client.in")
+        : null,
+      button: signedIn
+        ? null
+        : { label: t("overview.client.signIn"), onClick: () => open({ type: "client", id: h.id }) },
+      onOpen: () => open({ type: "client", id: h.id }),
+    });
+  }
+  if (state.apple?.supported) {
+    rows.push({
+      kind: "row",
+      id: "apple",
+      name: t("models.optApple"),
+      desc: t("overview.apple.desc"),
+      status: t(state.apple.available ? "overview.ready" : "overview.off"),
+      muted: !state.apple.available,
+      onOpen: () => open({ type: "cap", id: "text" }),
+    });
+  }
+  rows.push({
+    kind: "row",
+    id: "ollama",
+    name: "Ollama",
+    desc: ollama?.models.length ? ollama.models.join(", ") : t("overview.ollama.desc"),
+    status:
+      ollama?.running && ollama.models.length
+        ? t(ollama.models.length === 1 ? "overview.ollama.one" : "overview.ollama.n", {
+            n: ollama.models.length,
+          })
+        : null,
+    button:
+      ollama?.running && ollama.models.length
+        ? null
+        : { label: t("overview.setUp"), onClick: () => open({ type: "local" }) },
+    onOpen: () => open({ type: "local" }),
+  });
+  rows.push({
+    kind: "row",
+    id: "keys",
+    name: t("policy.ownKeys"),
+    desc: keyed.length
+      ? keyed.map((p) => p.name).join(", ")
+      : PROVIDERS.slice(0, 5)
+          .map((p) => p.name)
+          .join(", "),
+    status: keyed.length ? t("overview.keys.stored", { n: keyed.length }) : null,
+    button: { label: t("overview.keys.add"), onClick: () => open({ type: "keys" }) },
+    onOpen: () => open({ type: "keys" }),
+  });
+  return rows;
+}
+
+/** The tiers to pick from, for the organization's admins: three cards. */
+function useScope(tier: ModelTier | null) {
+  const qc = useQueryClient();
+  const save = useMutation({
+    mutationFn: (id: string) => api.put<ModelsState>("/api/studio/model-tier", { tier: id }),
+    onSuccess: (state) => qc.setQueryData(["models"], state),
+  });
+  const choices = tier?.choices ?? [];
+  const all = choices.every((c) => c.inPlan);
+  const options: ScopeOption[] = choices.map((c) => ({
+    id: c.id,
+    name: c.name,
+    desc: scopeDesc(c.id),
+    tag: !c.inPlan
+      ? t(c.id === "eu-sovereign" ? "overview.fromTeam" : "overview.fromPro")
+      : all && c.id === "eu-private"
+        ? t("overview.recommended")
+        : null,
+    on: c.id === (save.isPending ? save.variables : tier?.id),
+    disabled: !c.inPlan,
+  }));
+  return { options, save };
+}
+
+function ScopePart({ tier, canEdit }: { tier: ModelTier; canEdit: boolean }) {
+  const { options, save } = useScope(tier);
+  if (!options.length) {
+    return null;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <ScopeCards
+        options={options}
+        locked={tier.locked}
+        disabled={!canEdit || save.isPending}
+        onPick={(id) => save.mutate(id)}
+      />
+      {save.isError ? (
+        <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Übersicht: what everything runs with, which model does which job, and the accesses. */
+function OverviewPanel({ s }: { s: Situation }) {
+  const save = useSave();
+  const { me, place, tier } = s;
+  const studio = [chatRow(s)];
+  const runs = (["text", "media", "voice"] as const).map((job) => jobRow(job, s));
+  const organization = me.tenant.name ?? t("policy.yourOrganization");
+  return (
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3.5">
+        <h1 className="font-display font-semibold text-[1.625rem] leading-tight tracking-tight">
+          {t("overview.title")}
+        </h1>
+        <HeroCard hero={heroOf(s, [...studio, ...runs])} />
+      </div>
+      {s.admin && tier?.choices?.length ? (
+        <OverviewSection
+          title={t("overview.scope")}
+          lead={t("overview.scopeLead", { organization })}
+        >
+          <ScopePart tier={tier} canEdit={place.canEdit} />
+        </OverviewSection>
+      ) : null}
+      <OverviewSection
+        title={t("overview.jobs")}
+        lead={
+          place.cloud && tier && !place.canEdit
+            ? t("overview.jobsLead.member", { organization })
+            : s.admin && planOf(me) === "team"
+              ? t("overview.jobsLead.team", { organization })
+              : t("overview.jobsLead")
+        }
+      >
+        <JobsBox
+          title={t("models.groupStudio")}
+          desc={t(place.cloud ? "overview.studioDesc.cloud" : "overview.studioDesc")}
+          jobs={studio}
+        />
+        <JobsBox
+          title={t("models.groupRuns")}
+          desc={t(
+            place.cloud
+              ? "overview.runsDesc.cloud"
+              : place.account
+                ? "overview.runsDesc.linked"
+                : "overview.runsDesc",
+          )}
+          jobs={runs}
+        />
+      </OverviewSection>
+      <OverviewSection
+        title={t("models.groupAccess")}
+        lead={
+          s.admin
+            ? t("overview.accessLead.admin", { organization })
+            : t(place.cloud ? "overview.accessLead.member" : "overview.accessLead")
+        }
+      >
+        <AccessList rows={accessRows(s, save)} />
+        {save.isError ? (
+          <p className="text-[0.8125rem] text-rose">{(save.error as Error).message}</p>
+        ) : null}
+      </OverviewSection>
+    </div>
+  );
+}
+
+/** API-Keys: every provider, the ones with a key first; each opens its page. */
+function KeysPanel({ s }: { s: Situation }) {
+  const { state, place, tier, policy, admin } = s;
+  const providers = [...PROVIDERS].sort(
+    (a, b) => Number(Boolean(state.keys[b.id])) - Number(Boolean(state.keys[a.id])),
+  );
+  return (
+    <div className="flex flex-col gap-5">
+      <PanelHead icon={KeyRound} title={t("overview.menu.keys")} lead={t("overview.keysLead")} />
+      {admin && tier ? (
+        <PolicySwitchCard tier={tier} policy={policy} field="ownKeys" canEdit={place.canEdit} />
+      ) : null}
+      {place.ownKeys ? (
+        <AccessList
+          rows={providers.map((p) => ({
+            kind: "row",
+            id: p.id,
+            name: p.name,
+            desc: providerText(p.about, lang),
+            status: state.keys[p.id] ? t("models.noteKey") : null,
+            button: state.keys[p.id]
+              ? null
+              : {
+                  label: t("overview.keys.add"),
+                  onClick: () => s.open({ type: "provider", id: p.id }),
+                },
+            onOpen: () => s.open({ type: "provider", id: p.id }),
+          }))}
+        />
+      ) : (
+        <Card className="p-5 sm:p-6">
+          <Hint>{t("overview.keys.plan")}</Hint>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/** Abos: the AI clients on this computer; in the cloud, whether members may use theirs. */
+function SubsPanel({ s }: { s: Situation }) {
+  const { me, state, place, tier, policy, admin } = s;
+  if (place.cloud) {
+    return (
+      <div className="flex flex-col gap-5">
+        <PanelHead
+          icon={Laptop}
+          title={t("overview.menu.subs")}
+          lead={t("overview.subsLead.cloud")}
+        />
+        {admin && tier ? (
+          <PolicySwitchCard
+            tier={tier}
+            policy={policy}
+            field="subscriptions"
+            canEdit={place.canEdit}
+          />
+        ) : (
+          <Card className="p-5 sm:p-6">
+            <Hint>
+              {t(policy.subscriptions ? "overview.subs.allowed" : "overview.subs.refused")}
+            </Hint>
+          </Card>
+        )}
+      </div>
+    );
+  }
+  const installed = place.harnesses.filter((h) => h.version !== null);
+  const shown = installed.length
+    ? installed
+    : place.harnesses.filter((h) => h.id === "claude" || h.id === "codex");
+  return (
+    <div className="flex flex-col gap-8">
+      {shown.map((h) => (
+        <ClientPanel key={h.id} me={me} id={h.id} state={state} place={place} />
+      ))}
+    </div>
+  );
+}
+
+/** Lokale Modelle: Ollama on this computer; in the cloud, whether members may use theirs. */
+function LocalPanel({ s }: { s: Situation }) {
+  const { state, place, tier, policy, admin } = s;
+  if (place.cloud) {
+    return (
+      <div className="flex flex-col gap-5">
+        <PanelHead
+          icon={HardDrive}
+          title={t("overview.menu.local")}
+          lead={t("overview.localLead.cloud")}
+        />
+        {admin && tier ? (
+          <PolicySwitchCard
+            tier={tier}
+            policy={policy}
+            field="localModels"
+            canEdit={place.canEdit}
+          />
+        ) : (
+          <Card className="p-5 sm:p-6">
+            <Hint>
+              {t(policy.localModels ? "overview.local.allowed" : "overview.local.refused")}
+            </Hint>
+          </Card>
+        )}
+      </div>
+    );
+  }
+  return <OllamaAccessPanel state={state} place={place} />;
+}
+
 /**
- * Settings → Models: what the wizards can do (text, images, video, voice, voice notes), and for
- * each who does it — an AI subscription on this machine, an own API key, a local model, or the
- * credits, which step in where nothing of one's own is set up. The menu goes one level down in
- * the settings' left container; this is the page beside it. The same page alone and in the
- * cloud; what differs is decided by `Place`.
+ * Settings → Models: an overview of what the studio and the wizards run with, a page per job
+ * (the studio chat, text and reasoning, images and video, voice), the accesses (credits,
+ * subscriptions, local models, keys) and, for an organization's admins, its tier and how it
+ * shares out models. The menu goes one level down in the settings' left container; this is the
+ * page beside it. The same page alone and in the cloud; what differs is decided by `Place`.
  */
 export function Models() {
   const me = useMe();
@@ -2399,228 +3068,186 @@ export function Models() {
   // Ollama's row in the menu; a runtime of a Manage-App has none.
   const local = useLocalModels(Boolean(me.data) && me.data?.mode !== "managed");
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const [view, setView] = useState<View>("auto");
   const { narrow } = useSettingsMenu();
+  const savePolicy = useSavePolicy();
   const show = params.get("show");
   const target = targetOf(show);
   const tiers = useFeature("modelTiers");
   const tier = tiers ? (models.data?.tier ?? null) : null;
   const policy = models.data?.modelPolicy ?? DEFAULT_POLICY;
-  const purposes = usePurposes();
-  useDetail(show || !narrow ? targetLabel(target, me.data, tier, policy.way) : null);
+  useDetail(show || !narrow ? targetLabel(target, me.data) : null);
   if (!me.data || !models.data) {
     return models.isError ? (
       <p className="text-[0.875rem] text-rose">{(models.error as Error).message}</p>
     ) : null;
   }
   const state = models.data;
-  const place = placeOf(me.data, view);
-  const open = (next: Target) => setParams({ show: showOf(next) }, { replace: !narrow });
+  const person = me.data;
+  const place = placeOf(person, view);
+  const open = (next: Target) =>
+    setParams(showOf(next) ? { show: showOf(next) as string } : {}, { replace: !narrow });
   // On a phone the menu marks nothing: a row opens the page.
-  const isOpen = (next: Target) => Boolean(show || !narrow) && showOf(next) === showOf(target);
-  const installed = place.harnesses.filter((h) => h.version !== null || state.source === h.id);
-  const keyed = PROVIDERS.filter((p) => state.keys[p.id]);
-  const others = PROVIDERS.filter((p) => !state.keys[p.id]);
-  /** What a class runs on in the tier, as a row's status; undefined without a tier. */
-  const inTier = (cls: string) => {
-    const bound = tier?.classes[cls];
-    return tier ? (bound?.model ? bound.name : t("tier.notOffered").toLowerCase()) : undefined;
+  const page = (x: Target) =>
+    x.type === "cap"
+      ? jobOf(x.id)
+      : x.type === "provider"
+        ? "keys"
+        : x.type === "client"
+          ? "subs"
+          : x.type;
+  const isOpen = (next: Target) => Boolean(show || !narrow) && page(next) === page(target);
+  const s: Situation = {
+    me: me.data,
+    state,
+    place,
+    tier,
+    policy,
+    admin: place.cloud && place.canEdit && Boolean(tier),
+    ollama: place.cloud
+      ? null
+      : {
+          running: Boolean(local.data?.ollama.version),
+          models: local.data?.installed.map((m) => m.name.replace(/:latest$/, "")) ?? [],
+        },
+    open,
+    savePolicy: (next) => savePolicy.mutate(next),
   };
-  const tierTone = (cls: string): MenuTone => (tier?.classes[cls]?.model ? "credits" : "off");
+  const studio = chatRow(s);
+  const runs = (["text", "media", "voice"] as const).map((job) => jobRow(job, s));
+  const tone = (j: OverviewJob): MenuTone =>
+    j.state === "ok" ? "done" : j.state === "miss" ? "miss" : "off";
+  const toneLabel = (j: OverviewJob) =>
+    j.state === "ok" ? j.access : j.state === "miss" ? t("overview.missingWord") : (j.naText ?? "");
+  const hint = (text: string | null) =>
+    text ? <span className="text-[0.75rem] text-ink-3 tabular-nums">{text}</span> : null;
+  const onOff = (on: boolean) => t(on ? "overview.on" : "overview.off");
+  const keyed = PROVIDERS.filter((p) => state.keys[p.id]).length;
+  const signedIn = place.harnesses.filter((h) => h.version !== null && h.auth !== "none").length;
+  const localCount =
+    (s.ollama?.running ? s.ollama.models.length : 0) + (state.apple?.available ? 1 : 0);
+  const usage = me.data.mode === "managed" && featureOn(me.data.features, "organizationSettings");
 
   return (
     <>
       <SubMenu>
-        {tier ? (
-          <MenuGroup label={t("tier.group")}>
-            <MenuRow
-              icon={ShieldCheck}
-              label={tier.name}
-              badge={
-                tier.locked ? (
-                  <span className="text-[0.75rem] text-ink-3">{t("tier.lockedShort")}</span>
-                ) : null
-              }
-              selected={isOpen({ type: "tier" })}
-              onPick={() => open({ type: "tier" })}
-            />
-            <MenuRow
-              icon={Users}
-              label={t("policy.way")}
-              badge={<span className="text-[0.75rem] text-ink-3">{wayShort(policy.way)}</span>}
-              selected={isOpen({ type: "way" })}
-              onPick={() => open({ type: "way" })}
-            />
-            {policy.way === "A" ? null : (
-              <MenuRow
-                icon={ListChecks}
-                label={t(policy.way === "C" ? "policy.approved" : "policy.defaults")}
-                badge={
-                  <span className="text-[0.75rem] text-ink-3">
-                    {policy.way === "C"
-                      ? t("policy.approvedShort", {
-                          n: approved(tier, policy.purposes.wizard).length,
-                        })
-                      : t("policy.defaultsShort", { n: purposes.length })}
-                  </span>
-                }
-                selected={isOpen({ type: "list" })}
-                onPick={() => open({ type: "list" })}
-              />
-            )}
-            <MenuRow
-              icon={Plug}
-              label={t("policy.apps")}
-              badge={<span className="text-[0.75rem] text-ink-3">{appsShort(policy.apps)}</span>}
-              selected={isOpen({ type: "apps" })}
-              onPick={() => open({ type: "apps" })}
-            />
-          </MenuGroup>
-        ) : null}
+        <ul className="mb-1 flex flex-col gap-0.5">
+          <MenuRow
+            icon={LayoutGrid}
+            label={t("overview.nav")}
+            selected={isOpen({ type: "overview" })}
+            onPick={() => open({ type: "overview" })}
+          />
+        </ul>
         <MenuGroup label={t("models.groupStudio")}>
           <MenuRow
             icon={MessageCircle}
             label={t("models.cap.chat")}
-            tone={me.data.chatWays.includes(me.data.chatEngine) ? "done" : "off"}
-            toneLabel={chatWayName(me.data.chatEngine, me.data, place)}
+            tone={tone(studio)}
+            toneLabel={toneLabel(studio)}
             selected={isOpen({ type: "chat" })}
             onPick={() => open({ type: "chat" })}
           />
         </MenuGroup>
         <MenuGroup label={t("models.groupRuns")}>
-          {MODEL_CAPABILITIES.map((cap) => {
-            const way = state.ways[LEAD_CLASS[cap]];
-            return (
-              <Fragment key={cap}>
-                <MenuRow
-                  icon={CAP_ICON[cap]}
-                  label={t(`models.cap.${cap}`)}
-                  tone={tier ? (isText(cap) ? "credits" : tierTone(LEAD_CLASS[cap])) : capTone(way)}
-                  toneLabel={
-                    tier
-                      ? isText(cap)
-                        ? t("tier.bySteps")
-                        : inTier(LEAD_CLASS[cap])
-                      : wayText(way, place).text
-                  }
-                  selected={isOpen({ type: "cap", id: cap })}
-                  onPick={() => open({ type: "cap", id: cap })}
-                />
-                {isText(cap) ? (
-                  <MenuRow
-                    icon={Split}
-                    label={t("models.cap.decision")}
-                    tone={
-                      tier
-                        ? tierTone("classifier")
-                        : state.decision.way
-                          ? state.decision.way === "credits"
-                            ? "credits"
-                            : "done"
-                          : capTone(state.ways.classifier)
-                    }
-                    toneLabel={inTier("classifier") ?? decisionText(state, place).text}
-                    selected={isOpen({ type: "decision" })}
-                    onPick={() => open({ type: "decision" })}
-                  />
-                ) : null}
-                {isText(cap) ? (
-                  <MenuRow
-                    icon={Search}
-                    label={t("models.cap.search")}
-                    tone={
-                      tier
-                        ? tierTone("embedding")
-                        : state.embedding.way
-                          ? state.embedding.way === "credits"
-                            ? "credits"
-                            : "done"
-                          : "off"
-                    }
-                    toneLabel={inTier("embedding") ?? embeddingText(state, place).text}
-                    selected={isOpen({ type: "search" })}
-                    onPick={() => open({ type: "search" })}
-                  />
-                ) : null}
-              </Fragment>
-            );
-          })}
+          {runs.map((job) => (
+            <MenuRow
+              key={job.id}
+              icon={JOB_ICON[job.id as Job]}
+              label={job.name}
+              tone={tone(job)}
+              toneLabel={toneLabel(job)}
+              selected={isOpen({ type: "cap", id: JOB_CAPS[job.id as Job][0] })}
+              onPick={job.onOpen}
+            />
+          ))}
         </MenuGroup>
         <MenuGroup label={t("models.groupAccess")}>
           <MenuRow
             icon={Coins}
-            label={place.cloud ? t("models.creditsOrganization") : t("models.creditsName")}
-            badge={
-              place.balance !== null ? (
-                <span className="text-[0.75rem] text-ink-3 tabular-nums">
-                  {Math.floor(place.balance).toLocaleString(lang)}
-                </span>
-              ) : null
-            }
-            tone={place.credits ? undefined : "off"}
-            toneLabel={place.credits ? undefined : t("models.noteNeedsAccount")}
+            label={t("overview.credits")}
+            badge={hint(
+              place.balance !== null
+                ? Math.floor(place.balance).toLocaleString(lang)
+                : place.credits
+                  ? null
+                  : t("overview.missingWord"),
+            )}
             selected={isOpen({ type: "credits" })}
             onPick={() => open({ type: "credits" })}
           />
-          {installed.map((h) => (
+          {place.cloud && !s.admin ? null : (
             <MenuRow
-              key={h.id}
-              icon={Laptop}
-              label={h.name}
-              tone={
-                h.version !== null && h.auth === "subscription"
-                  ? "done"
-                  : h.auth === "api_key"
-                    ? "on"
-                    : "off"
-              }
-              toneLabel={clientNote(h).note}
-              selected={isOpen({ type: "client", id: h.id })}
-              onPick={() => open({ type: "client", id: h.id })}
-            />
-          ))}
-          {place.cloud ? null : (
-            <MenuRow
-              icon={HardDrive}
-              label="Ollama"
-              tone={local.data?.ollama.version ? "done" : "off"}
-              toneLabel={
-                local.data?.ollama.version
-                  ? t("models.ollamaRuns", { version: local.data.ollama.version })
-                  : t("models.ollamaStoppedShort")
-              }
-              selected={isOpen({ type: "ollama" })}
-              onPick={() => open({ type: "ollama" })}
+              icon={TerminalSquare}
+              label={t("overview.menu.subs")}
+              badge={hint(place.cloud ? onOff(policy.subscriptions) : String(signedIn))}
+              selected={isOpen({ type: "subs" })}
+              onPick={() => open({ type: "subs" })}
             />
           )}
-          {keyed.map((p) => (
+          {place.cloud && !s.admin ? null : (
             <MenuRow
-              key={p.id}
-              icon={KeyRound}
-              label={p.name}
-              tone="done"
-              toneLabel={t("models.noteKey")}
-              selected={isOpen({ type: "provider", id: p.id })}
-              onPick={() => open({ type: "provider", id: p.id })}
+              icon={HardDrive}
+              label={t("overview.menu.local")}
+              badge={hint(place.cloud ? onOff(policy.localModels) : String(localCount))}
+              selected={isOpen({ type: "local" })}
+              onPick={() => open({ type: "local" })}
             />
-          ))}
+          )}
+          <MenuRow
+            icon={KeyRound}
+            label={t("overview.menu.keys")}
+            badge={hint(
+              !place.ownKeys
+                ? t("overview.fromPro")
+                : s.admin && !policy.ownKeys
+                  ? onOff(false)
+                  : String(keyed),
+            )}
+            selected={isOpen({ type: "keys" })}
+            onPick={() => open({ type: "keys" })}
+          />
+          {s.admin ? (
+            <MenuRow
+              icon={EyeOff}
+              label={t("overview.menu.masking")}
+              badge={hint(onOff(policy.masking))}
+              selected={isOpen({ type: "masking" })}
+              onPick={() => open({ type: "masking" })}
+            />
+          ) : null}
         </MenuGroup>
-        {others.length ? (
-          <MenuGroup
-            label={t("models.groupMore")}
-            collapsible
-            open={others.some((p) => isOpen({ type: "provider", id: p.id }))}
-            count={others.length}
-          >
-            {others.map((p) => (
+        {s.admin && tier ? (
+          <MenuGroup label={t("tier.group")}>
+            <MenuRow
+              icon={ShieldCheck}
+              label={t("overview.scope")}
+              selected={isOpen({ type: "scope" })}
+              onPick={() => open({ type: "scope" })}
+            />
+            <MenuRow
+              icon={Users}
+              label={t("policy.way")}
+              badge={hint(wayShort(policy.way))}
+              selected={isOpen({ type: "choice" })}
+              onPick={() => open({ type: "choice" })}
+            />
+            <MenuRow
+              icon={Plug}
+              label={t("policy.apps")}
+              badge={hint(appsShort(policy.apps))}
+              selected={isOpen({ type: "apps" })}
+              onPick={() => open({ type: "apps" })}
+            />
+            {usage ? (
               <MenuRow
-                key={p.id}
-                icon={KeyRound}
-                label={p.name}
-                selected={isOpen({ type: "provider", id: p.id })}
-                onPick={() => open({ type: "provider", id: p.id })}
+                icon={ChartColumn}
+                label={t("credits.usage")}
+                selected={false}
+                onPick={() => navigate("/settings/usage")}
               />
-            ))}
+            ) : null}
           </MenuGroup>
         ) : null}
         <Preview view={view} onView={setView} />
@@ -2630,40 +3257,68 @@ export function Models() {
           {t("models.readOnly")}
         </p>
       )}
-      {target.type === "way" && tier ? (
-        <WayPanel
-          tier={tier}
-          policy={policy}
-          organization={me.data.tenant.name}
-          canEdit={place.canEdit}
-        />
-      ) : target.type === "list" && tier && policy.way === "C" ? (
-        <ApprovedPanel tier={tier} policy={policy} canEdit={place.canEdit} />
-      ) : target.type === "list" && tier && policy.way === "B" ? (
-        <DefaultsPanel tier={tier} policy={policy} canEdit={place.canEdit} />
+      {target.type === "overview" ? (
+        <OverviewPanel s={s} />
+      ) : target.type === "choice" && tier ? (
+        <div className="flex flex-col gap-8">
+          <ChoicePanel
+            tier={tier}
+            policy={policy}
+            organization={me.data.tenant.name}
+            canEdit={place.canEdit}
+          />
+          {policy.way === "C" ? (
+            <ApprovedPanel tier={tier} policy={policy} canEdit={place.canEdit} />
+          ) : policy.way === "B" ? (
+            <DefaultsPanel tier={tier} policy={policy} canEdit={place.canEdit} />
+          ) : null}
+        </div>
       ) : target.type === "apps" && tier ? (
         <AppsPanel tier={tier} policy={policy} canEdit={place.canEdit} />
-      ) : target.type === "tier" && tier ? (
+      ) : target.type === "masking" && tier ? (
+        <MaskingPanel tier={tier} policy={policy} canEdit={place.canEdit} />
+      ) : target.type === "scope" && tier ? (
         <TierPanel
           tier={tier}
           modelPolicy={state.modelPolicy ?? null}
           organization={me.data.tenant.name}
-        />
+        >
+          {s.admin ? <ScopePart tier={tier} canEdit={place.canEdit} /> : null}
+        </TierPanel>
       ) : target.type === "chat" ? (
         <ChatPanel me={me.data} state={state} place={place} onOpen={open} />
-      ) : target.type === "decision" ? (
-        <DecisionPanel state={state} place={place} onOpen={open} />
-      ) : target.type === "search" ? (
-        <SearchPanel state={state} place={place} onOpen={open} />
       ) : target.type === "cap" ? (
-        <CapabilityPanel
-          key={target.id}
-          cap={target.id}
-          state={state}
-          place={place}
-          me={me.data}
-          onOpen={open}
-        />
+        <div className="flex flex-col gap-8">
+          {JOB_CAPS[jobOf(target.id)].map((cap) => (
+            <CapabilityPanel
+              key={cap}
+              cap={cap}
+              state={state}
+              place={place}
+              me={person}
+              onOpen={open}
+            />
+          ))}
+          {jobOf(target.id) === "text" ? (
+            <>
+              {tier ? (
+                <Card className="flex flex-col gap-3 p-5 sm:p-6">
+                  <Part title={t("chooser.title")}>
+                    <TierChooser tier={tier} modelPolicy={state.modelPolicy ?? null} />
+                  </Part>
+                </Card>
+              ) : null}
+              <DecisionPanel state={state} place={place} onOpen={open} />
+              <SearchPanel state={state} place={place} onOpen={open} />
+            </>
+          ) : null}
+        </div>
+      ) : target.type === "keys" ? (
+        <KeysPanel s={s} />
+      ) : target.type === "subs" ? (
+        <SubsPanel s={s} />
+      ) : target.type === "local" ? (
+        <LocalPanel s={s} />
       ) : target.type === "provider" && providerInfo(target.id) ? (
         <ProviderPanel
           key={target.id}
@@ -2672,8 +3327,6 @@ export function Models() {
           place={place}
           onOpen={open}
         />
-      ) : target.type === "ollama" ? (
-        <OllamaAccessPanel state={state} place={place} />
       ) : target.type === "client" ? (
         <ClientPanel key={target.id} me={me.data} id={target.id} state={state} place={place} />
       ) : (
@@ -2682,3 +3335,5 @@ export function Models() {
     </>
   );
 }
+
+const JOB_ICON: Record<Job, LucideIcon> = { text: PenLine, media: ImageIcon, voice: Volume2 };

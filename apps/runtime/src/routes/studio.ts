@@ -105,6 +105,7 @@ import {
   managed,
   renameTenant,
   saveModelPolicy,
+  saveModelTier,
   saveOrganizationProfile,
   tenantInfo,
   tenantMembers,
@@ -1921,6 +1922,30 @@ export const studio = new Hono<Vars>()
       await saveModelPolicy(user.tenantId, user.id, allowed);
     } catch (err) {
       if (err instanceof ManageError && (err.status < 500 || MASKING_CODES.has(err.code))) {
+        return c.json({ error: err.message, code: err.code }, err.status as 400);
+      }
+      throw err;
+    }
+    return c.json(await modelSettings(requestLang(c)));
+  })
+  // The organization's tier, picked by its admins among those the plan offers. Behind `modelTiers`.
+  .put("/model-tier", async (c) => {
+    const user = c.get("user");
+    if (!managed || !mayChangeModels(user)) {
+      return c.json({ error: say(c, "onlyOrganizationAdminsChange"), code: "forbidden" }, 403);
+    }
+    const info = await tenantInfo(user.tenantId).catch(() => null);
+    if (!info) {
+      return c.json({ error: say(c, "planUnavailable"), code: "manage_unavailable" }, 503);
+    }
+    if (!feature("modelTiers", info.features) || !info.tier) {
+      return c.notFound();
+    }
+    const { tier } = z.object({ tier: z.string().min(1).max(40) }).parse(await c.req.json());
+    try {
+      await saveModelTier(user.tenantId, user.id, tier);
+    } catch (err) {
+      if (err instanceof ManageError && err.status < 500) {
         return c.json({ error: err.message, code: err.code }, err.status as 400);
       }
       throw err;

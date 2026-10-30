@@ -75,6 +75,7 @@ Errors: `{ "error": string, "code": string }`.
 | `PATCH /v1/tenants/:id` | `{ name }` → the same answer as `GET /v1/tenants/:id` · renames the organization; the studio's first visit asks for the name ([content/user-guide/create-account.md](content/user-guide/create-account.md)) · `name` 1–80 characters |
 | `PUT /v1/tenants/:id/profile` | `{ userId, lang, kind: "personal" \| "club" \| "small" \| "corp", size?, sector?, role?, need?, phone?, website?, links?: string[], questions? }` → `{ ok }` · what the studio's first visit learned about the organization, for the admin app's list of people · `links`: the addresses the person ticked or added (≤ 10) · `questions`: “Wünsche oder Fragen”; a new one is mailed to the platform's people · `403 not_member` |
 | `PUT /v1/tenants/:id/model-policy` | `{ actorId, way, purposes, credits, ownKeys, subscriptions, localModels, apps, masking, maskInstructions?, maskLabels? }` → `{ modelPolicy }` · the organization's model policy ([Model tiers](#model-tiers)) as an owner or admin (`actorId`) saves it in the studio; the fields as in `modelPolicy`, all of them but the two masking fields, which stay as saved when left out · changed `maskInstructions` are turned into labels by one model call in the EU, and those replace the `maskLabels` sent; unchanged ones keep the `maskLabels` sent · the answer is the policy as `GET /v1/tenants/:id` serves it from then on · refusals: `403` `forbidden`, `not_member`, `plan` (the plan doesn't offer the way), `outside_tier` (an entry the tier doesn't offer, or a switch the tier keeps off); `409` `no_tier` (the organization has no tier, or `modelTiers` is off); `502` `labels_unavailable` (the instructions couldn't be turned into labels; nothing was saved) |
+| `PUT /v1/tenants/:id/model-tier` | `{ actorId, tier }` → `{ tier, modelPolicy }` · an owner or admin (`actorId`) puts the organization on another tier its plan offers (`tier.choices` with `inPlan`), from the studio's Settings › Models › "Welche Modelle"; the answer is the tier and the policy as `GET /v1/tenants/:id` serves them from then on · refusals: `403` `forbidden`, `not_member`, `plan` (the plan doesn't offer the tier); `409` `no_tier` (the organization has no tier, or `modelTiers` is off), `locked` (a contract set the tier) |
 | `POST /v1/tenants/:id/model-policy/try` | `{ actorId, text, maskLabels? }` → `{ text, counts }` · "Try a sentence" under the masking instructions: `text` (≤ 2,000 characters) as a model would see it with masking on, the placeholders in it, and the count per kind as in `x-wizards-masked`; with `maskLabels` (unsaved) or else the saved ones · nothing is kept or booked · `403` `forbidden`, `not_member`; `503` `masking_unavailable` (the detector doesn't answer or isn't set) |
 | `POST /v1/install-mail` | `{ email, lang: "de" \| "en" }` → `{ ok: true }` · the Manage-App mails its install mail (the command and the first steps) to `email`, which must belong to a person of a tenant this runtime serves (`404` otherwise); 3 a day per address (`429`) · "Mail me the command" on the cloud studio's start page |
 | `GET /v1/users/:id` | → `{ id, name, email, image, features, admin, tenants: [{ id, name, slug, role, personal, plan: { id, name } \| null, invitedBy: { name } \| null }] }` · `features`: the person's own switches, laid over the organization's · `admin`: the person runs the platform; the studio offers them the assistant's developer mode and “Organisation erstellen” · `tenants`: the person's organizations, their own first; the studio's switcher lists them (an older Manage-App sends none) · `invitedBy`: who invited the person into it, for the studio's welcome page; null for their own |
@@ -450,6 +451,11 @@ tier?: {
     efforts: ("low" | "medium" | "high")[]; // the efforts it takes; [] for none
     chooser: boolean;      // in the tier's preselection, what people pick from
   }[];
+  choices?: {
+    id: string;            // every tier there is, in order: "general", "eu-private", …
+    name: string;
+    inPlan: boolean;       // the organization's plan offers it
+  }[];
 }
 ```
 
@@ -469,6 +475,10 @@ tier?: {
   tier when a class is bound to a newer model. Left out by an older Manage-App: the studio
   builds the preselection from `classes`.
 - The studio lists the makers that have at least one class bound in the tier.
+- `choices` are the tiers an organization could be on. Unless `locked`, its admins move it to
+  one with `inPlan` with `PUT /v1/tenants/:id/model-tier`. The studio names the tiers by their
+  id (`general`: "Alle Modelle", `eu-private`: "EU-Datenschutz", `eu-sovereign`: "EU-Souverän")
+  and falls back to `name` for any other.
 
 **`modelPolicy`** in `GET /v1/tenants/:id`: how the organization's admins share out the
 tier's models.

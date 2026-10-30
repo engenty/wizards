@@ -23,6 +23,33 @@ import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { type Key, t } from "../lib/i18n";
 
+const TIER_NAMES: Record<string, Key> = {
+  general: "tier.name.general",
+  "eu-private": "tier.name.eu-private",
+  "eu-sovereign": "tier.name.eu-sovereign",
+};
+
+/** A tier as people read it: "EU-Datenschutz" for `eu-private`; the Manage-App's name for others. */
+export function tierName(id: string, name: string): string {
+  const key = TIER_NAMES[id];
+  return key ? t(key) : name;
+}
+
+/** The models endpoint's answer with the tiers named as people read them. */
+export function withTierNames<T extends { tier?: ModelTier | null }>(data: T): T {
+  const { tier } = data;
+  return tier
+    ? {
+        ...data,
+        tier: {
+          ...tier,
+          name: tierName(tier.id, tier.name),
+          choices: tier.choices?.map((c) => ({ ...c, name: tierName(c.id, c.name) })),
+        },
+      }
+    : data;
+}
+
 /** The tier and the policy; both null without a tier or while `modelTiers` is off. */
 export function useModelTiers(): { tier: ModelTier | null; modelPolicy: ModelPolicy | null } {
   const on = useFeature("modelTiers");
@@ -30,6 +57,7 @@ export function useModelTiers(): { tier: ModelTier | null; modelPolicy: ModelPol
     queryKey: ["models"],
     queryFn: () =>
       api.get<{ tier?: ModelTier | null; modelPolicy?: ModelPolicy | null }>("/api/studio/models"),
+    select: withTierNames,
     enabled: on,
   });
   return on
