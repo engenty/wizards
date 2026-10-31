@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 456" style="--w:680px" aria-hidden="true">
+<rect x="350" y="128" width="310" height="280" rx="14" class="d-zone"/>
+<rect x="20" y="128" width="310" height="280" rx="14" class="d-zone"/>
+<path class="d-box" d="M20,25 A320.0,9 0 0 1 660,25 V91 A320.0,9 0 0 1 20,91 Z"/><path class="d-box" d="M20,25 A320.0,9 0 0 0 660,25"/>
+<path class="d-box" d="M36,169 A67.0,9 0 0 1 170,169 V255 A67.0,9 0 0 1 36,255 Z"/><path class="d-box" d="M36,169 A67.0,9 0 0 0 170,169"/>
+<rect x="180" y="160" width="134" height="104" rx="10" class="d-box"/>
+<rect x="36" y="296" width="126" height="60" rx="10" class="d-key"/>
+<rect x="188" y="296" width="126" height="60" rx="10" class="d-key"/>
+<path d="M175,286 V366" class="d-line d-hot"/>
+<path class="d-box" d="M366,169 A67.0,9 0 0 1 500,169 V255 A67.0,9 0 0 1 366,255 Z"/><path class="d-box" d="M366,169 A67.0,9 0 0 0 500,169"/>
+<rect x="510" y="160" width="134" height="104" rx="10" class="d-box"/>
+<rect x="366" y="296" width="126" height="60" rx="10" class="d-key"/>
+<rect x="518" y="296" width="126" height="60" rx="10" class="d-key"/>
+<path d="M505,286 V366" class="d-line d-hot"/>
+<text x="340.0" y="50.5" class="d-t" text-anchor="middle">Control database · one per runtime</text>
+<text x="340.0" y="67.0" class="d-m" text-anchor="middle">DATABASE_URL, or control.db in the data folder</text>
+<text x="340.0" y="83.0" class="d-s" text-anchor="middle">links, the index of runs, sessions, settings</text>
+<text x="34" y="148" class="d-zl" text-anchor="start">Tenant · an organization</text>
+<text x="103.0" y="196.5" class="d-t" text-anchor="middle">Its database</text>
+<text x="103.0" y="213.0" class="d-m" text-anchor="middle">Manage-App URL or</text>
+<text x="103.0" y="229.0" class="d-m" text-anchor="middle">tenants/&lt;id&gt;.db</text>
+<text x="103.0" y="245.0" class="d-s" text-anchor="middle">libSQL</text>
+<text x="247.0" y="200.0" class="d-t" text-anchor="middle">Its files</text>
+<text x="247.0" y="216.5" class="d-m" text-anchor="middle">t/&lt;tenant&gt;/…</text>
+<text x="247.0" y="232.5" class="d-s" text-anchor="middle">data folder or S3</text>
+<text x="99.0" y="322.0" class="d-t" text-anchor="middle">Space</text>
+<text x="99.0" y="338.5" class="d-s" text-anchor="middle">its wizards, data</text>
+<text x="251.0" y="322.0" class="d-t" text-anchor="middle">Space</text>
+<text x="251.0" y="338.5" class="d-s" text-anchor="middle">its wizards, data</text>
+<text x="175" y="388" class="d-el" text-anchor="middle">the broker’s RWX rules</text>
+<text x="364" y="148" class="d-zl" text-anchor="start">Another tenant</text>
+<text x="433.0" y="196.5" class="d-t" text-anchor="middle">Its database</text>
+<text x="433.0" y="213.0" class="d-m" text-anchor="middle">Manage-App URL or</text>
+<text x="433.0" y="229.0" class="d-m" text-anchor="middle">tenants/&lt;id&gt;.db</text>
+<text x="433.0" y="245.0" class="d-s" text-anchor="middle">libSQL</text>
+<text x="577.0" y="200.0" class="d-t" text-anchor="middle">Its files</text>
+<text x="577.0" y="216.5" class="d-m" text-anchor="middle">t/&lt;tenant&gt;/…</text>
+<text x="577.0" y="232.5" class="d-s" text-anchor="middle">data folder or S3</text>
+<text x="429.0" y="322.0" class="d-t" text-anchor="middle">Space</text>
+<text x="429.0" y="338.5" class="d-s" text-anchor="middle">its wizards, data</text>
+<text x="581.0" y="322.0" class="d-t" text-anchor="middle">Space</text>
+<text x="581.0" y="338.5" class="d-s" text-anchor="middle">its wizards, data</text>
+<text x="505" y="388" class="d-el" text-anchor="middle">the broker’s RWX rules</text>
+<text x="340" y="436" class="d-s" text-anchor="middle">Code reaches one tenant’s tables at a time, inside inTenant().</text>
+</svg>

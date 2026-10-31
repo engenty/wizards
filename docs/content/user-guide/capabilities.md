@@ -65,6 +65,8 @@ its link. A guest’s run never uses a connection that is only for members or ad
 Allowed, With approval or Never. A new connection reads freely, asks for approval before a change
 or a send, and never deletes.
 
+![A call to a connection meets its rule: Allowed runs, With approval waits for a yes, Never doesn’t run, and the Log keeps every call](../../assets/diagrams/capabilities-call.svg)
+
 With approval on a connection that signs in as the space asks the space’s admins. The call waits
 under the bell in Work until one of them agrees. Where each person signs in, With approval asks
 that person.

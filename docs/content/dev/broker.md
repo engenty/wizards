@@ -112,6 +112,8 @@ brokerCall({ who, where, connection, action: { id, kind? }, input, ctx?, handler
   → { ok: true, result, account } | { ok: false, refused, reason }
 ```
 
+![brokerCall reads the account, checks the grant, decides, checks a guest’s send and asks where it must, then runs the action. Each check can refuse, and every call goes to broker_log](../../assets/diagrams/broker-order.svg)
+
 In order, it:
 
 1. reads the account. A sign-in that ran out and can’t be renewed is logged as `sign_in_failed`

@@ -5,6 +5,7 @@
   "icon": "SquareTerminal",
   "pages": [
     "index",
+    "architecture",
     "wizard-format",
     "integration",
     "plugins",

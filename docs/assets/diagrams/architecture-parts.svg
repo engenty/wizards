@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 556" style="--w:700px" aria-hidden="true">
+<rect x="20" y="264" width="490" height="116" rx="14" class="d-zone"/>
+<rect x="20" y="124" width="660" height="112" rx="14" class="d-zone"/>
+<rect x="40" y="36" width="120" height="60" rx="10" class="d-box"/>
+<rect x="180" y="36" width="120" height="60" rx="10" class="d-box"/>
+<rect x="340" y="36" width="170" height="60" rx="10" class="d-box"/>
+<path d="M170,30 V100" class="d-line d-dash"/>
+<rect x="40" y="156" width="260" height="60" rx="10" class="d-box"/>
+<rect x="340" y="156" width="170" height="60" rx="10" class="d-box"/>
+<rect x="530" y="156" width="130" height="60" rx="10" class="d-key"/>
+<path d="M100,96 L100.0,150.0" class="d-line"/>
+<path d="M240,96 L240.0,150.0" class="d-line"/>
+<path d="M425,96 L425.0,150.0" class="d-line"/>
+<path d="M320,30 V244" class="d-line d-hot"/>
+<path class="d-box" d="M36,305 A73.0,9 0 0 1 182,305 V359 A73.0,9 0 0 1 36,359 Z"/><path class="d-box" d="M36,305 A73.0,9 0 0 0 182,305"/>
+<path class="d-box" d="M192,305 A73.0,9 0 0 1 338,305 V359 A73.0,9 0 0 1 192,359 Z"/><path class="d-box" d="M192,305 A73.0,9 0 0 0 338,305"/>
+<path class="d-box" d="M348,305 A73.0,9 0 0 1 494,305 V359 A73.0,9 0 0 1 348,359 Z"/><path class="d-box" d="M348,305 A73.0,9 0 0 0 494,305"/>
+<path d="M170,216 L170.0,258.0" class="d-line"/>
+<path d="M425,216 L425.0,258.0" class="d-line"/>
+<rect x="530" y="264" width="150" height="116" rx="10" class="d-key"/>
+<path d="M595,216 L595.0,258.0" class="d-line"/>
+<path d="M530,322 L516.0,322.0" class="d-line"/>
+<rect x="340" y="428" width="170" height="60" rx="10" class="d-box"/>
+<rect x="530" y="428" width="150" height="60" rx="10" class="d-key"/>
+<path d="M560,380 L560,404 L425,404 L425.0,422.0" class="d-line"/>
+<path d="M640,380 L640.0,422.0" class="d-line"/>
+<rect x="530" y="508" width="150" height="40" rx="10" class="d-no"/>
+<path d="M605,488 L605.0,502.0" class="d-line"/>
+<text x="170" y="22" class="d-el" text-anchor="middle">per person: allowedModes</text>
+<text x="100.0" y="62.0" class="d-t" text-anchor="middle">Studio</text>
+<text x="100.0" y="78.5" class="d-s" text-anchor="middle">build wizards</text>
+<text x="240.0" y="62.0" class="d-t" text-anchor="middle">Work</text>
+<text x="240.0" y="78.5" class="d-s" text-anchor="middle">chats in a space</text>
+<text x="425.0" y="62.0" class="d-t" text-anchor="middle">Published Wizards</text>
+<text x="425.0" y="78.5" class="d-s" text-anchor="middle">(durable Agents)</text>
+<text x="34" y="144" class="d-zl" text-anchor="start">Runtime · RUNTIME_ROLE</text>
+<text x="170.0" y="182.0" class="d-t" text-anchor="middle">studio</text>
+<text x="170.0" y="198.5" class="d-s" text-anchor="middle">the makers’ half: /api/studio</text>
+<text x="425.0" y="182.0" class="d-t" text-anchor="middle">doors</text>
+<text x="425.0" y="198.5" class="d-s" text-anchor="middle">/w/…, public routes</text>
+<text x="595.0" y="182.0" class="d-t" text-anchor="middle">runner</text>
+<text x="595.0" y="198.5" class="d-s" text-anchor="middle">runs in line</text>
+<polygon points="100,156 95.5,147.0 104.5,147.0" class="d-head"/>
+<polygon points="240,156 235.5,147.0 244.5,147.0" class="d-head"/>
+<polygon points="425,156 420.5,147.0 429.5,147.0" class="d-head"/>
+<text x="312" y="257" class="d-el" text-anchor="end">signed in</text>
+<text x="328" y="257" class="d-el" text-anchor="start">guests</text>
+<text x="34" y="284" class="d-zl" text-anchor="start">Data · libSQL and a file store</text>
+<text x="109.0" y="332.5" class="d-t" text-anchor="middle">Control</text>
+<text x="109.0" y="349.0" class="d-s" text-anchor="middle">one per runtime</text>
+<text x="265.0" y="332.5" class="d-t" text-anchor="middle">Tenants</text>
+<text x="265.0" y="349.0" class="d-s" text-anchor="middle">a libSQL DB each</text>
+<text x="421.0" y="332.5" class="d-t" text-anchor="middle">Files</text>
+<text x="421.0" y="349.0" class="d-m" text-anchor="middle">t/&lt;tenant&gt;/…</text>
+<polygon points="170,264 165.5,255.0 174.5,255.0" class="d-head"/>
+<polygon points="425,264 420.5,255.0 429.5,255.0" class="d-head"/>
+<text x="605.0" y="310.0" class="d-t" text-anchor="middle">Engine</text>
+<text x="605.0" y="326.5" class="d-s" text-anchor="middle">steps and agents,</text>
+<text x="605.0" y="342.5" class="d-s" text-anchor="middle">sandbox, browser</text>
+<polygon points="595,264 590.5,255.0 599.5,255.0" class="d-head"/>
+<polygon points="510,322 519.0,317.5 519.0,326.5" class="d-head"/>
+<text x="425.0" y="454.0" class="d-t" text-anchor="middle">Models</text>
+<text x="425.0" y="470.5" class="d-s" text-anchor="middle">a model class per step</text>
+<text x="605.0" y="454.0" class="d-t" text-anchor="middle">Broker</text>
+<text x="605.0" y="470.5" class="d-s" text-anchor="middle">every call to a service</text>
+<polygon points="425,428 420.5,419.0 429.5,419.0" class="d-head"/>
+<polygon points="640,428 635.5,419.0 644.5,419.0" class="d-head"/>
+<text x="605.0" y="532.0" class="d-c" text-anchor="middle">Connected services</text>
+<polygon points="605,508 600.5,499.0 609.5,499.0" class="d-head"/>
+<text x="40" y="446" class="d-s" text-anchor="start">On your computer, one process</text>
+<text x="40" y="462" class="d-s" text-anchor="start">(role all) is all three.</text>
+</svg>

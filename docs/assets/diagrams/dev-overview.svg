@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 260" style="--w:680px" aria-hidden="true">
+<rect x="20" y="66" width="170" height="56" rx="10" class="d-box"/>
+<rect x="20" y="138" width="170" height="56" rx="10" class="d-box"/>
+<rect x="250" y="66" width="170" height="128" rx="10" class="d-key"/>
+<path d="M190,94 L244.0,94.0" class="d-line"/>
+<path d="M190,166 L244.0,166.0" class="d-line"/>
+<rect x="490" y="20" width="170" height="36" rx="8" class="d-box"/>
+<path d="M455,38 L484.0,38.0" class="d-line"/>
+<rect x="490" y="66" width="170" height="36" rx="8" class="d-box"/>
+<path d="M455,84 L484.0,84.0" class="d-line"/>
+<rect x="490" y="112" width="170" height="36" rx="8" class="d-box"/>
+<path d="M455,130 L484.0,130.0" class="d-line"/>
+<rect x="490" y="158" width="170" height="36" rx="8" class="d-box"/>
+<path d="M455,176 L484.0,176.0" class="d-line"/>
+<rect x="490" y="204" width="170" height="36" rx="8" class="d-box"/>
+<path d="M455,222 L484.0,222.0" class="d-line"/>
+<path d="M420,130 L455,130 M455,38 L455,222" class="d-line"/>
+<text x="105.0" y="90.0" class="d-t" text-anchor="middle">A wizard</text>
+<text x="105.0" y="106.5" class="d-m" text-anchor="middle">JSON, a .wizard file</text>
+<text x="105.0" y="162.0" class="d-t" text-anchor="middle">Plugins</text>
+<text x="105.0" y="178.5" class="d-s" text-anchor="middle">tools, routes, pages</text>
+<text x="335.0" y="118.0" class="d-t" text-anchor="middle">The runtime</text>
+<text x="335.0" y="134.5" class="d-s" text-anchor="middle">studio, engine,</text>
+<text x="335.0" y="150.5" class="d-s" text-anchor="middle">broker</text>
+<polygon points="250,94 241.0,98.5 241.0,89.5" class="d-head"/>
+<polygon points="250,166 241.0,170.5 241.0,161.5" class="d-head"/>
+<text x="575.0" y="42.0" class="d-c" text-anchor="middle">Its own page, QR code</text>
+<polygon points="490,38 481.0,42.5 481.0,33.5" class="d-head"/>
+<text x="575.0" y="88.0" class="d-c" text-anchor="middle">Your website</text>
+<polygon points="490,84 481.0,88.5 481.0,79.5" class="d-head"/>
+<text x="575.0" y="134.0" class="d-c" text-anchor="middle">AI apps over MCP</text>
+<polygon points="490,130 481.0,134.5 481.0,125.5" class="d-head"/>
+<text x="575.0" y="180.0" class="d-c" text-anchor="middle">Your own UI</text>
+<polygon points="490,176 481.0,180.5 481.0,171.5" class="d-head"/>
+<text x="575.0" y="226.0" class="d-c" text-anchor="middle">Services, via the broker</text>
+<polygon points="490,222 481.0,226.5 481.0,217.5" class="d-head"/>
+</svg>

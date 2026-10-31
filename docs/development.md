@@ -157,7 +157,11 @@ pnpm build:docs   # what CI runs; `pnpm build` leaves the site out
 - **Public.** The site and the studio assistant show these pages to everyone: the open product
   and the plugin SDK only. The Manage-App's side, Pro modules and engenty's closed plugins are
   documented outside `docs/content` (`docs/manage-contract.md`, `docs/pro-modules.md`).
-- **Diagrams** are fenced `mermaid` blocks.
+- **Diagrams** are SVG files in `docs/assets/diagrams`, linked as images:
+  `![What it shows](../../assets/diagrams/name.svg)`. The site draws them inline
+  (`apps/docs/lib/remark-diagrams.ts`), so their classes (`d-box`, `d-key`, `d-zone`, `d-t`,
+  `d-s`, `d-line`, … in `apps/docs/app/global.css`) take the theme's colours in light and dark.
+  The alt text says what the diagram shows. Fenced `mermaid` blocks still work for quick sketches.
 - **Below `/docs`.** The site's pages, files and search all live below that path (`basePath` in
   `apps/docs/next.config.mjs`), so a proxy can send `/docs` to it and the rest of a host
   elsewhere. `NEXT_PUBLIC_DOCS_SITE_URL` is the address it is published at, for link previews.

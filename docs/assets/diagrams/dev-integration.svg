@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 330" style="--w:760px" aria-hidden="true">
+<rect x="240" y="240" width="500" height="86" rx="14" class="d-zone"/>
+<rect x="240" y="104" width="500" height="132" rx="14" class="d-zone"/>
+<rect x="240" y="16" width="500" height="86" rx="14" class="d-zone"/>
+<rect x="20" y="130" width="160" height="64" rx="10" class="d-key"/>
+<rect x="256" y="48" width="156" height="36" rx="8" class="d-box"/>
+<rect x="424" y="48" width="136" height="36" rx="8" class="d-box"/>
+<rect x="572" y="48" width="136" height="36" rx="8" class="d-box"/>
+<path d="M210,59.0 L234.0,59.0" class="d-line"/>
+<rect x="256" y="136" width="136" height="36" rx="8" class="d-box"/>
+<rect x="404" y="136" width="136" height="36" rx="8" class="d-box"/>
+<rect x="552" y="136" width="172" height="36" rx="8" class="d-box"/>
+<rect x="256" y="182" width="136" height="36" rx="8" class="d-box"/>
+<rect x="404" y="182" width="136" height="36" rx="8" class="d-box"/>
+<path d="M210,170.0 L234.0,170.0" class="d-line"/>
+<rect x="256" y="272" width="136" height="36" rx="8" class="d-box"/>
+<rect x="404" y="272" width="212" height="36" rx="8" class="d-box"/>
+<path d="M210,283.0 L234.0,283.0" class="d-line"/>
+<path d="M180,162 L210,162 M210,58 L210,277" class="d-line"/>
+<text x="100.0" y="166.0" class="d-t" text-anchor="middle">A published wizard</text>
+<text x="254" y="36" class="d-zl" text-anchor="start">For people</text>
+<text x="334.0" y="70.0" class="d-c" text-anchor="middle">Link and QR code</text>
+<text x="492.0" y="70.0" class="d-c" text-anchor="middle">Embed</text>
+<text x="640.0" y="70.0" class="d-c" text-anchor="middle">Channels</text>
+<polygon points="240,59.0 231.0,63.5 231.0,54.5" class="d-head"/>
+<text x="254" y="124" class="d-zl" text-anchor="start">For AI apps</text>
+<text x="324.0" y="158.0" class="d-c" text-anchor="middle">MCP</text>
+<text x="472.0" y="158.0" class="d-c" text-anchor="middle">MCP Apps</text>
+<text x="638.0" y="158.0" class="d-c" text-anchor="middle">Claude Code plugin</text>
+<text x="324.0" y="204.0" class="d-c" text-anchor="middle">Marketplaces</text>
+<text x="472.0" y="204.0" class="d-c" text-anchor="middle">OpenUI</text>
+<polygon points="240,170.0 231.0,174.5 231.0,165.5" class="d-head"/>
+<text x="254" y="260" class="d-zl" text-anchor="start">For your code</text>
+<text x="324.0" y="294.0" class="d-c" text-anchor="middle">Your own UI</text>
+<text x="510.0" y="294.0" class="d-c" text-anchor="middle">Results to your systems</text>
+<polygon points="240,283.0 231.0,287.5 231.0,278.5" class="d-head"/>
+</svg>

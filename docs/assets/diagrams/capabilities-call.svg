@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 290" style="--w:680px" aria-hidden="true">
+<rect x="20" y="86" width="160" height="64" rx="10" class="d-no"/>
+<rect x="210" y="78" width="150" height="80" rx="10" class="d-key"/>
+<path d="M180,118 L204.0,118.0" class="d-line"/>
+<rect x="500" y="20" width="160" height="44" rx="10" class="d-box"/>
+<rect x="500" y="96" width="160" height="44" rx="10" class="d-box"/>
+<rect x="500" y="172" width="160" height="44" rx="10" class="d-no"/>
+<path d="M360,118 L385,118 L385,42 L494.0,42.0" class="d-line"/>
+<path d="M385,118 L494.0,118.0" class="d-line"/>
+<path d="M385,118 L385,194 L494.0,194.0" class="d-line"/>
+<path d="M580,96 L580.0,70.0" class="d-line"/>
+<path d="M580,140 L580.0,166.0" class="d-line"/>
+<path class="d-box" d="M210,209 A75.0,9 0 0 1 360,209 V261 A75.0,9 0 0 1 210,261 Z"/><path class="d-box" d="M210,209 A75.0,9 0 0 0 360,209"/>
+<path d="M285,158 L285.0,194.0" class="d-line"/>
+<text x="100.0" y="105.0" class="d-t" text-anchor="middle">A wizard, a chat</text>
+<text x="100.0" y="123.0" class="d-t" text-anchor="middle">or Goose</text>
+<text x="100.0" y="139.5" class="d-s" text-anchor="middle">calls a connection</text>
+<text x="285.0" y="106.0" class="d-t" text-anchor="middle">The rule</text>
+<text x="285.0" y="122.5" class="d-s" text-anchor="middle">for Read, Change,</text>
+<text x="285.0" y="138.5" class="d-s" text-anchor="middle">Delete or Send</text>
+<polygon points="210,118 201.0,122.5 201.0,113.5" class="d-head"/>
+<text x="580.0" y="46.0" class="d-t" text-anchor="middle">Runs</text>
+<text x="580.0" y="122.0" class="d-t" text-anchor="middle">Waits for a yes</text>
+<text x="580.0" y="198.0" class="d-t" text-anchor="middle">Doesn’t run</text>
+<polygon points="500,42 491.0,46.5 491.0,37.5" class="d-head"/>
+<text x="442" y="35" class="d-el" text-anchor="middle">Allowed</text>
+<polygon points="500,118 491.0,122.5 491.0,113.5" class="d-head"/>
+<text x="442" y="111" class="d-el" text-anchor="middle">With approval</text>
+<polygon points="500,194 491.0,198.5 491.0,189.5" class="d-head"/>
+<text x="442" y="187" class="d-el" text-anchor="middle">Never</text>
+<polygon points="580,64 584.5,73.0 575.5,73.0" class="d-head"/>
+<text x="588" y="84" class="d-el" text-anchor="start">yes</text>
+<polygon points="580,172 575.5,163.0 584.5,163.0" class="d-head"/>
+<text x="588" y="160" class="d-el" text-anchor="start">no</text>
+<text x="285.0" y="235.5" class="d-t" text-anchor="middle">Log</text>
+<text x="285.0" y="252.0" class="d-s" text-anchor="middle">every call, one line</text>
+<polygon points="285,200 280.5,191.0 289.5,191.0" class="d-head"/>
+</svg>

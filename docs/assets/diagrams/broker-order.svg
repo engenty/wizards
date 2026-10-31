@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 470" style="--w:600px" aria-hidden="true">
+<rect x="40" y="20" width="320" height="44" rx="10" class="d-box"/>
+<path d="M360,42 L434.0,42.0" class="d-line"/>
+<path d="M200,64 L200.0,74.0" class="d-line"/>
+<rect x="40" y="80" width="320" height="44" rx="10" class="d-box"/>
+<path d="M360,102 L434.0,102.0" class="d-line"/>
+<path d="M200,124 L200.0,134.0" class="d-line"/>
+<rect x="40" y="140" width="320" height="44" rx="10" class="d-box"/>
+<path d="M360,162 L434.0,162.0" class="d-line"/>
+<path d="M200,184 L200.0,194.0" class="d-line"/>
+<rect x="40" y="200" width="320" height="44" rx="10" class="d-box"/>
+<path d="M360,222 L434.0,222.0" class="d-line"/>
+<path d="M200,244 L200.0,254.0" class="d-line"/>
+<rect x="40" y="260" width="320" height="44" rx="10" class="d-box"/>
+<path d="M360,282 L434.0,282.0" class="d-line"/>
+<rect x="40" y="320" width="320" height="44" rx="10" class="d-key"/>
+<path d="M200,304 L200.0,314.0" class="d-line"/>
+<rect x="440" y="20" width="140" height="284" rx="10" class="d-no"/>
+<path class="d-box" d="M40,405 A270.0,9 0 0 1 580,405 V447 A270.0,9 0 0 1 40,447 Z"/><path class="d-box" d="M40,405 A270.0,9 0 0 0 580,405"/>
+<path d="M200,364 L200.0,390.0" class="d-line"/>
+<path d="M510,304 L510.0,390.0" class="d-line"/>
+<text x="200.0" y="38.0" class="d-t" text-anchor="middle">Reads the account</text>
+<text x="200.0" y="54.5" class="d-s" text-anchor="middle">and knows the action</text>
+<circle cx="40" cy="20" r="9" class="d-n"/><text x="40" y="24" class="d-nt" text-anchor="middle">1</text>
+<polygon points="440,42 431.0,46.5 431.0,37.5" class="d-head"/>
+<text x="400" y="35" class="d-el" text-anchor="middle">not signed in</text>
+<polygon points="200,80 195.5,71.0 204.5,71.0" class="d-head"/>
+<text x="200.0" y="98.0" class="d-t" text-anchor="middle">The run’s grant</text>
+<text x="200.0" y="114.5" class="d-s" text-anchor="middle">for a wizard’s own connection</text>
+<circle cx="40" cy="80" r="9" class="d-n"/><text x="40" y="84" class="d-nt" text-anchor="middle">2</text>
+<polygon points="440,102 431.0,106.5 431.0,97.5" class="d-head"/>
+<text x="400" y="95" class="d-el" text-anchor="middle">outside</text>
+<polygon points="200,140 195.5,131.0 204.5,131.0" class="d-head"/>
+<text x="200.0" y="158.0" class="d-t" text-anchor="middle">decide</text>
+<text x="200.0" y="174.5" class="d-s" text-anchor="middle">audience, actions, rule for the kind</text>
+<circle cx="40" cy="140" r="9" class="d-n"/><text x="40" y="144" class="d-nt" text-anchor="middle">3</text>
+<polygon points="440,162 431.0,166.5 431.0,157.5" class="d-head"/>
+<text x="400" y="155" class="d-el" text-anchor="middle">deny</text>
+<polygon points="200,200 195.5,191.0 204.5,191.0" class="d-head"/>
+<text x="200.0" y="218.0" class="d-t" text-anchor="middle">A guest’s send</text>
+<text x="200.0" y="234.5" class="d-s" text-anchor="middle">recipient and limits</text>
+<circle cx="40" cy="200" r="9" class="d-n"/><text x="40" y="204" class="d-nt" text-anchor="middle">4</text>
+<polygon points="440,222 431.0,226.5 431.0,217.5" class="d-head"/>
+<text x="400" y="215" class="d-el" text-anchor="middle">too many</text>
+<polygon points="200,260 195.5,251.0 204.5,251.0" class="d-head"/>
+<text x="200.0" y="278.0" class="d-t" text-anchor="middle">Asks</text>
+<text x="200.0" y="294.5" class="d-s" text-anchor="middle">the admins, or the person</text>
+<circle cx="40" cy="260" r="9" class="d-n"/><text x="40" y="264" class="d-nt" text-anchor="middle">5</text>
+<polygon points="440,282 431.0,286.5 431.0,277.5" class="d-head"/>
+<text x="400" y="275" class="d-el" text-anchor="middle">no</text>
+<text x="200.0" y="338.0" class="d-t" text-anchor="middle">Runs the action</text>
+<text x="200.0" y="354.5" class="d-s" text-anchor="middle">on the connected service</text>
+<circle cx="40" cy="320" r="9" class="d-n"/><text x="40" y="324" class="d-nt" text-anchor="middle">6</text>
+<polygon points="200,320 195.5,311.0 204.5,311.0" class="d-head"/>
+<text x="510.0" y="142.0" class="d-t" text-anchor="middle">Refused</text>
+<text x="510.0" y="158.5" class="d-s" text-anchor="middle">with a reason</text>
+<text x="510.0" y="174.5" class="d-s" text-anchor="middle">from</text>
+<text x="510.0" y="190.5" class="d-s" text-anchor="middle">BROKER_REFUSALS</text>
+<text x="310.0" y="426.5" class="d-t" text-anchor="middle">broker_log</text>
+<text x="310.0" y="443.0" class="d-s" text-anchor="middle">one line for every call</text>
+<polygon points="200,396 195.5,387.0 204.5,387.0" class="d-head"/>
+<polygon points="510,396 505.5,387.0 514.5,387.0" class="d-head"/>
+</svg>

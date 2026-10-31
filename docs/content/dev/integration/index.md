@@ -7,6 +7,8 @@ version: 0.7.4
 A published wizard runs wherever a person can reach it. These pages show how to bring it into
 other systems, from a plain link to a chat that starts the wizard by itself.
 
+![A published wizard reaches people by link, embed and channels, AI apps by MCP, MCP Apps, the Claude Code plugin, marketplaces and OpenUI, and your code through your own UI and results](../../../assets/diagrams/dev-integration.svg)
+
 ## For people
 
 | | |

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 330" style="--w:680px" aria-hidden="true">
+<rect x="20" y="40" width="220" height="80" rx="10" class="d-box"/>
+<rect x="440" y="40" width="220" height="80" rx="10" class="d-box"/>
+<path d="M246.0,80.0 L434.0,80.0" class="d-line"/>
+<rect x="240" y="180" width="200" height="64" rx="10" class="d-key"/>
+<path d="M130,120 L130,212 L234.0,212.0" class="d-line"/>
+<path d="M550,120 L550,212 L446.0,212.0" class="d-line"/>
+<rect x="265" y="276" width="150" height="40" rx="10" class="d-box"/>
+<path d="M340,276 L340.0,250.0" class="d-line"/>
+<text x="130.0" y="68.0" class="d-t" text-anchor="middle">engenty wizards</text>
+<text x="130.0" y="84.5" class="d-s" text-anchor="middle">on your computer, with your</text>
+<text x="130.0" y="100.5" class="d-s" text-anchor="middle">AI apps, keys, local models</text>
+<text x="550.0" y="68.0" class="d-t" text-anchor="middle">Your organization</text>
+<text x="550.0" y="84.5" class="d-s" text-anchor="middle">at engenty.ai: the studio</text>
+<text x="550.0" y="100.5" class="d-s" text-anchor="middle">in the browser</text>
+<polygon points="440,80 431.0,84.5 431.0,75.5" class="d-head"/>
+<polygon points="240,80 249.0,75.5 249.0,84.5" class="d-head"/>
+<text x="340" y="72" class="d-el" text-anchor="middle">spaces stay the same</text>
+<text x="340.0" y="200.0" class="d-t" text-anchor="middle">Links</text>
+<text x="340.0" y="216.5" class="d-s" text-anchor="middle">run day and night, on</text>
+<text x="340.0" y="232.5" class="d-s" text-anchor="middle">the organization’s credits</text>
+<polygon points="240,212 231.0,216.5 231.0,207.5" class="d-head"/>
+<text x="185" y="205" class="d-el" text-anchor="middle">publish</text>
+<polygon points="440,212 449.0,207.5 449.0,216.5" class="d-head"/>
+<text x="495" y="205" class="d-el" text-anchor="middle">publish</text>
+<text x="340.0" y="300.0" class="d-c" text-anchor="middle">People</text>
+<polygon points="340,244 344.5,253.0 335.5,253.0" class="d-head"/>
+</svg>

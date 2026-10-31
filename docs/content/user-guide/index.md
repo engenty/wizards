@@ -17,6 +17,8 @@ briefing, an invoice, a quote, a damage report.
 | **Share a link** | Anyone can run the wizard in a browser, on a phone too. Results download as PDF, Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link. |
 | **In the cloud, or on your computer** | You sign up and build in the browser, and links run on your organization’s credits. Or you install it on your computer: there it runs on Codex, Claude Code, Antigravity or Cursor Agent with your own subscription, on your own API keys or on a local model, and your files stay with you. |
 
+![You describe a wizard, the assistant builds it, you test and publish it, and people open its link, run it and get the result](../../assets/diagrams/user-how-it-works.svg)
+
 ## Where to start
 
 1. [Create an account](./create-account.md) at engenty.ai, with an invitation code.
@@ -37,6 +39,7 @@ briefing, an invoice, a quote, a damage report.
 | Step | One part of the flow: a page, an AI step, a review, the result |
 | Run | One person going through a wizard once |
 | Model class | The kind of model a step needs. Which model serves a class is a setting, not part of the wizard |
+| Work mode | Chats with the space’s AI and with your team, beside Studio. Not on for everyone yet ([Work mode](./work-mode.md)) |
 | Capabilities | The place in the studio for what a space’s wizards, chats and Goose may use: skills, connections, the log and a search for more ([Capabilities](./capabilities.md)) |
 | Connection | One account at another service that a space uses, such as Gmail · Orders. The space’s admins set it up |
 | Owner, admin, member | The roles in an organization. The owner and the admins set up connections and approve what waits for approval |
@@ -51,3 +54,5 @@ the AI clients and keys on that computer, and what you publish there runs in the
 ([Test and share](./test-and-share.md#in-the-cloud)). In the cloud studio, that space is marked
 “Edited on your computer.” – you change it on your computer, not there. Without an account,
 engenty wizards stays [only on your computer](./local-only.md).
+
+![engenty wizards on your computer and your organization at engenty.ai keep the same spaces, both publish links that run day and night, and people open them](../../assets/diagrams/user-two-places.svg)

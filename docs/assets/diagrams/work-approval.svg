@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 354" style="--w:620px" aria-hidden="true">
+<rect x="35.0" y="16" width="150" height="40" rx="10" class="d-box"/>
+<line x1="110" y1="56" x2="110" y2="338" class="d-life"/>
+<rect x="245.0" y="16" width="150" height="40" rx="10" class="d-box"/>
+<line x1="320" y1="56" x2="320" y2="338" class="d-life"/>
+<rect x="455.0" y="16" width="150" height="40" rx="10" class="d-box"/>
+<line x1="530" y1="56" x2="530" y2="338" class="d-life"/>
+<path d="M110,96 L314.0,96.0" class="d-line"/>
+<rect x="230" y="123" width="180" height="30" rx="8" class="d-key"/>
+<path d="M320,180 L116.0,180.0" class="d-line d-dash"/>
+<path d="M110,222 L314.0,222.0" class="d-line d-hot"/>
+<path d="M320,264 L524.0,264.0" class="d-line"/>
+<path d="M320,306 L116.0,306.0" class="d-line d-dash"/>
+<text x="110.0" y="40.0" class="d-t" text-anchor="middle">You</text>
+<text x="320.0" y="40.0" class="d-t" text-anchor="middle">The space’s AI</text>
+<text x="530.0" y="40.0" class="d-t" text-anchor="middle">Gmail, HubSpot, …</text>
+<polygon points="320,96 311.0,100.5 311.0,91.5" class="d-head"/>
+<text x="215.0" y="89" class="d-el" text-anchor="middle">Send the offer to the client</text>
+<circle cx="14" cy="96" r="9" class="d-n"/><text x="14" y="100" class="d-nt" text-anchor="middle">1</text>
+<text x="320.0" y="141.5" class="d-s" text-anchor="middle">reads the space, writes the mail</text>
+<circle cx="14" cy="138" r="9" class="d-n"/><text x="14" y="142" class="d-nt" text-anchor="middle">2</text>
+<polygon points="110,180 119.0,175.5 119.0,184.5" class="d-head"/>
+<text x="215.0" y="173" class="d-el" text-anchor="middle">card: Approve or Deny</text>
+<circle cx="14" cy="180" r="9" class="d-n"/><text x="14" y="184" class="d-nt" text-anchor="middle">3</text>
+<polygon points="320,222 311.0,226.5 311.0,217.5" class="d-head d-hot"/>
+<text x="215.0" y="215" class="d-el" text-anchor="middle">Approve</text>
+<circle cx="14" cy="222" r="9" class="d-n"/><text x="14" y="226" class="d-nt" text-anchor="middle">4</text>
+<polygon points="530,264 521.0,268.5 521.0,259.5" class="d-head"/>
+<text x="425.0" y="257" class="d-el" text-anchor="middle">sends it, once</text>
+<circle cx="14" cy="264" r="9" class="d-n"/><text x="14" y="268" class="d-nt" text-anchor="middle">5</text>
+<polygon points="110,306 119.0,301.5 119.0,310.5" class="d-head"/>
+<text x="215.0" y="299" class="d-el" text-anchor="middle">Sent.</text>
+<circle cx="14" cy="306" r="9" class="d-n"/><text x="14" y="310" class="d-nt" text-anchor="middle">6</text>
+</svg>
