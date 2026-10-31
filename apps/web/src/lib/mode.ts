@@ -6,7 +6,7 @@ import type { Me } from "./session";
  * The studio's modes (behind `workMode`): Studio for the people who build, Work for the firm's
  * team, Client for the firm's customers. Who may use which follows the roles there are: Studio
  * for whoever makes and deletes here (`limits.create`: builds, and is no mere member), Work and a
- * look at Client for everyone. The pick is kept per person in this browser, like the app bar.
+ * look at Client (behind `pages`) for everyone. The pick is kept per person in this browser, like the app bar.
  */
 
 export const MODES = ["studio", "work", "client"] as const;
@@ -26,7 +26,9 @@ export function allowedModes(me: Me): Mode[] {
   const builds =
     me.limits.create ||
     (featureOn(me.features, "capabilities") && me.limits.build && membersStudio);
-  return builds ? ["studio", "work", "client"] : ["work", "client"];
+  // Client shows the space as its clients see it, on its public page: behind `pages`.
+  const modes: Mode[] = builds ? ["studio", "work", "client"] : ["work", "client"];
+  return featureOn(me.features, "pages") ? modes : modes.filter((m) => m !== "client");
 }
 
 /** Whether the space the studio looks at opens its Studio to members (studio/members-studio.tsx). */

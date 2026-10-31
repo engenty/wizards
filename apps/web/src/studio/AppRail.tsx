@@ -349,6 +349,9 @@ const WORK_ICON: Record<WorkPlace, LucideIcon | typeof EngentyGlyph> = {
 function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean }) {
   const bell = useWaiting().data;
   const waiting = (bell?.approvals.length ?? 0) + (bell?.unseen ?? 0);
+  // The places past the chats aren't built yet: behind `workWip`.
+  const wip = useFeature("workWip");
+  const places = wip ? WORK_PLACES : WORK_PLACES.filter((p) => p.place === "chats");
   return (
     <nav
       className={cn(
@@ -357,7 +360,7 @@ function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean
         horizontal ? "ml-1.5 flex-row gap-1.5 overflow-x-auto" : "mt-2 flex-col gap-2",
       )}
     >
-      {WORK_PLACES.map(({ place, to, label }) => {
+      {places.map(({ place, to, label }) => {
         const Icon = WORK_ICON[place];
         return (
           <NavLink

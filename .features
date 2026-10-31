@@ -51,6 +51,9 @@
 # the organization's model tier: a step's maker, what calls are for, what each class runs on (off by default)
 # modelTiers=on|off
 #
+# Work's places that aren't built yet: engenties, files, data, results and the bell (off by default)
+# workWip=on|off
+#
 # skills, a place of their own in the app bar: always on, or read by a wizard when it needs one (on by default)
 # skills=on|off
 #
