@@ -10,7 +10,7 @@ import {
 } from "@engenty/wizards-shared/connectors";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import type { GuideSpaceConnection } from "../authoring/guide.js";
@@ -159,21 +159,43 @@ export async function spaceConnectionViews(
   userId: string,
 ): Promise<SpaceConnectionView[]> {
   const rows = await listSpaceConnections(spaceId);
-  const own = rows.length
-    ? await db.query.spaceConnectionSignIn.findMany({
-        where: eq(schema.spaceConnectionSignIn.userId, userId),
-      })
+  const people = rows.some((row) => row.signIn === "person");
+  const signIns = people
+    ? await db
+        .select({
+          connectionId: schema.spaceConnectionSignIn.connectionId,
+          userId: schema.spaceConnectionSignIn.userId,
+          label: schema.spaceConnectionSignIn.label,
+          signedInAt: schema.spaceConnectionSignIn.signedInAt,
+        })
+        .from(schema.spaceConnectionSignIn)
+        .where(
+          inArray(
+            schema.spaceConnectionSignIn.connectionId,
+            rows.map((row) => row.id),
+          ),
+        )
     : [];
   return Promise.all(
     rows.map(async (row) => {
       const connector = (await resolveConnector(spaceId, row.connectorId))?.connector ?? null;
-      const mine = own.find((s) => s.connectionId === row.id);
+      const theirs =
+        row.signIn === "person" ? signIns.filter((s) => s.connectionId === row.id) : [];
+      const mine = theirs.find((s) => s.userId === userId);
       return {
         id: row.id,
         spaceId: row.spaceId,
         connectorId: row.connectorId,
         connector: connector
-          ? { id: connector.id, name: connector.name, auth: connector.auth.kind }
+          ? {
+              id: connector.id,
+              name: connector.name,
+              auth: connector.auth.kind,
+              description: connector.description,
+              ...(connector.auth.kind === "api_key"
+                ? { fields: connector.auth.apiKey.fields }
+                : {}),
+            }
           : null,
         name: row.name,
         signIn: row.signIn,
@@ -195,6 +217,7 @@ export async function spaceConnectionViews(
         setUpBy: row.setUpBy,
         setUpAt: row.setUpAt.toISOString(),
         lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+        signedIn: theirs.length,
       };
     }),
   );

@@ -1,13 +1,16 @@
 ---
 title: Connectors
 description: Services a wizard works in for the person who runs it – built in, from the registry or over MCP.
-version: 0.11.3
+version: 0.13.0
 ---
 
 Settings → Connectors lists the services the space’s wizards can work in. A wizard uses a connector
 with the account of the person who runs it: they connect their account during the run, on a page
 that asks for it. Each space has its own connectors. In the cloud, a space you publish from your
 computer shows its connectors without letting you change them: you change them on your computer.
+
+Where Capabilities is switched on, the connectors live in Capabilities › Connectors instead, and
+Settings → Connectors leads there. See [Connections in the space](#connections-in-the-space).
 
 ## Built in
 
@@ -72,6 +75,43 @@ run:
 | Reads | It runs without asking, unless the wizard says to ask |
 | Changes something | The person allows each call, or chooses “Allow for the rest of this run”. A wizard can let it run without asking |
 | Deletes | The person allows it like a change. A wizard can never let it run without asking |
+
+## Connections in the space
+
+In Capabilities › Connectors, “In this space” lists the space’s connections. A connection belongs to
+the space, not to the person who set it up: it stays when they leave. The page notes who set it up
+and when, and when it was last used. Several connections to one service are fine, for example
+Gmail · Orders and Gmail · Support.
+
+Only the space’s admins set up connections. “Add connection” starts one, and so does a built-in
+connector below the list or an imported one under “More connectors”, where you also search the
+registry. When you set one up, you choose how it signs in:
+
+| Signs in | What it means |
+|---|---|
+| As the space | An admin signs the space in once, with an API key, an app token or a team account. Everyone uses that account, even when nobody is watching. On this kind of connection the AI only reads; writing happens in fixed steps or as an action someone confirms |
+| Each person signs in | Each person signs in once with their own account, here or in their menu › Connections. The connection then acts as that person, and asks them before it changes something |
+
+You can’t change how a connection signs in later. Set up a new one instead.
+
+**Who may use it.** Admins, Members or Everyone. Everyone includes guests who start a wizard from
+its link.
+
+**What it may do.** One rule for each kind of action:
+
+| Kind | What it covers |
+|---|---|
+| Read | Searching and reading, in AI steps and chats |
+| Change | Creating and changing, only in fixed steps or as a confirmed action |
+| Delete | Removing something for good |
+| Send | Sending emails and messages to others |
+
+Each rule is Allowed, With approval or Never. A new connection reads freely, asks for approval
+before a change or a send, and never deletes. With approval asks the space’s admins, and the action
+waits until one of them agrees.
+
+Members see the connections open to them, with their rules, but change nothing. Where each person
+signs in, they sign in right there.
 
 ## Connections in your menu
 
