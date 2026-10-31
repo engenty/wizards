@@ -121,6 +121,8 @@ Decided on 2026-10-31 (roadmap page: claude.ai/artifact/LhdF8LKeqC2gcL3zNA9qC6).
 6. **The new role is `api`.** It serves `/api/mcp` and `/api/v1`; `doors` stays the guests' side.
 7. **A local install needs no linked account.** It gives a token per client, which can be revoked
    alone (today one access key opens everything).
+8. **Client spaces, one level under a space, cloud only** (B2 below). Each customer's data stays in
+   its own space under the broker, without copying the parent's setup.
 
 ## Measured against the goal
 
@@ -185,7 +187,7 @@ Studio keep their direct routes.
 - New phase 2b, **client spaces** (B2): done when a customer signed in to their client space sees
   their own results and the shared knowledge, and nothing of another client or of the space's
   setup, from the page, the run protocol and MCP alike.
-- Open: decision 8, client spaces as B2 describes them (proposal: yes, one level, cloud only).
+- Decision 8 (2026-10-31): client spaces as B2 describes them, one level under a space, cloud only.
 
 ## Risks
 
