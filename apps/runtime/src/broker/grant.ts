@@ -158,7 +158,12 @@ export function grantNote(
     const byKind = new Set<ActionKind>();
     const unknown: string[] = [];
     for (const action of actions) {
-      if (action === "read" || action === "write" || action === "destructive") {
+      if (
+        action === "read" ||
+        action === "write" ||
+        action === "send" ||
+        action === "destructive"
+      ) {
         byKind.add(action);
       } else if (known[action]) {
         byKind.add(known[action]);
@@ -171,6 +176,9 @@ export function grantNote(
     }
     if (byKind.has("write")) {
       what.push(note("grantWrites", { name }));
+    }
+    if (byKind.has("send")) {
+      what.push(note("grantSends", { name }));
     }
     if (byKind.has("destructive")) {
       what.push(note("grantDeletes", { name }));

@@ -60,7 +60,7 @@ wizard has up to 12.
 | `connector` | Instead of `kind`: a built-in connector or one imported into the space |
 | `spaceConnection` | Instead of both: a connection of the space, by its id. The space’s admins set it up and chose how it signs in, who may use it and what each kind of action may do; the wizard holds no account of its own then, and `policy` has no say. Where it signs in as the space, AI steps read and fixed steps write (below) |
 | `actions` | The connector’s actions steps may use. By default those that only read |
-| `policy` | Per action: `allow` runs it, `ask` asks the person first. By default reading is allowed and writing asks |
+| `policy` | Per action: `allow` runs it, `ask` asks the person first. By default reading is allowed, and writing and sending ask. Deleting always asks |
 
 A page field of kind `connection` asks the person to connect. The agent step lists the connection
 in `connections` and gets its actions as tools.

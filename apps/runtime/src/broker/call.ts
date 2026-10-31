@@ -165,7 +165,7 @@ export function whereOfRun(
 
 /** The rules' view of a connector action's group. */
 export function kindOf(group: ConnectorActionGroup): ActionKind {
-  return group === "destructive" ? "destructive" : group === "write" ? "write" : "read";
+  return group === "destructive" || group === "write" || group === "send" ? group : "read";
 }
 
 /** Whether this caller is in a connection's audience: Admins, Mitglieder or alle. */

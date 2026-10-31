@@ -10,7 +10,8 @@ export type ExternalSourceKind = "openapi" | "mcp";
 /** Remote MCP transports the invoke adapter can speak. */
 export type McpTransport = "streamable-http" | "sse";
 
-export type ActionClassification = "read" | "write" | "destructive";
+/** `send`: a mail, a message or a post to other people (see `groupOf` in importer/classify.ts). */
+export type ActionClassification = "read" | "write" | "send" | "destructive";
 
 /** How an action is invoked at execute time. */
 export type ActionInvoke =

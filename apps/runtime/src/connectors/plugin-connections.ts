@@ -7,7 +7,7 @@ import { DEFAULT_CONNECTION_RULES } from "@engenty/wizards-shared/connectors";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { brokerCall, currentCaller, reachesOutside } from "../broker/index.js";
+import { brokerCall, currentCaller, kindOf, reachesOutside } from "../broker/index.js";
 import { db, schema } from "../db/client.js";
 import {
   buildAuthorizationUrl,
@@ -372,7 +372,7 @@ export function pluginConnections(plugin: string): PluginConnections {
       reachesOutside(`plugin:${plugin}`, {
         connection: row.connectorId,
         action: actionId,
-        kind: action.group === "destructive" ? "destructive" : action.group,
+        kind: kindOf(action.group),
       });
       const out = await brokerCall({
         who: caller.who,

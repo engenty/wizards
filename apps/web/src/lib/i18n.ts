@@ -2591,6 +2591,7 @@ const de: Record<Key, Line> = {
   "connectors.authKey": "API-Key",
   "connectors.group.read": "liest",
   "connectors.group.write": "ändert",
+  "connectors.group.send": "sendet",
   "connectors.group.destructive": "löscht",
   // Fähigkeiten › Connectors: the connections of a space (capabilities/ConnectorsSection.tsx).
   "capabilities.connectors.hint":
@@ -6183,6 +6184,7 @@ const en = {
   "connectors.authKey": "API key",
   "connectors.group.read": "reads",
   "connectors.group.write": "changes",
+  "connectors.group.send": "sends",
   "connectors.group.destructive": "deletes",
   // Fähigkeiten › Connectors: the connections of a space (capabilities/ConnectorsSection.tsx).
   "capabilities.connectors.hint":

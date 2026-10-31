@@ -1,6 +1,7 @@
 /** Imported connectors as the studio shows them: a service of a space, with its actions. */
 
-export type ActionGroup = "read" | "write" | "destructive";
+/** What a connector action does; `send` is a mail, a message or a post to other people. */
+export type ActionGroup = "read" | "write" | "send" | "destructive";
 
 export interface ConnectorActionView {
   id: string;
