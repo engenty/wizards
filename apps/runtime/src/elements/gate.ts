@@ -1,5 +1,6 @@
 import { summarizeInput, writeLog } from "../broker/log.js";
 import { decide, ENFORCED, forbidden, type Perm, type Resource } from "../broker/rwx.js";
+import { attempt } from "../tools/shared.js";
 import type { ElementCaller } from "./caller.js";
 
 /**
@@ -102,4 +103,25 @@ export async function elementCall<T>(
     await logCall(caller, call, "allow", String(name).slice(0, 40), started);
     throw err;
   }
+}
+
+/**
+ * A tool whose every call goes through the gate: `callOf` says, from the model's input, what the
+ * call is about. A refusal comes back to the model as the tool's error.
+ */
+export function brokered<T extends object>(
+  tool: T,
+  caller: ElementCaller,
+  callOf: (input: unknown) => ElementCall,
+): T {
+  const execute = (tool as { execute?: (input: unknown, ...rest: unknown[]) => unknown }).execute;
+  if (!execute) {
+    return tool;
+  }
+  return Object.assign(Object.create(Object.getPrototypeOf(tool)), tool, {
+    execute: (input: unknown, ...rest: unknown[]) =>
+      attempt(() =>
+        elementCall(caller, callOf(input), async () => execute.call(tool, input, ...rest)),
+      ),
+  });
 }
