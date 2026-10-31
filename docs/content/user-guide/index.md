@@ -37,6 +37,7 @@ briefing, an invoice, a quote, a damage report.
 | Step | One part of the flow: a page, an AI step, a review, the result |
 | Run | One person going through a wizard once |
 | Model class | The kind of model a step needs. Which model serves a class is a setting, not part of the wizard |
+| Work mode | Chats with the space’s AI and with your team, beside Studio. Not on for everyone yet ([Work mode](./work-mode.md)) |
 | Capabilities | The place in the studio for what a space’s wizards, chats and Goose may use: skills, connections, the log and a search for more ([Capabilities](./capabilities.md)) |
 | Connection | One account at another service that a space uses, such as Gmail · Orders. The space’s admins set it up |
 | Owner, admin, member | The roles in an organization. The owner and the admins set up connections and approve what waits for approval |

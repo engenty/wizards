@@ -12,6 +12,7 @@ its own page, on a website, in a chat or in your own app.
 
 | | |
 |---|---|
+| [Architecture](./architecture.md) | The runtime and its roles, your computer and the cloud, tenants and spaces, the engine, the broker |
 | [The wizard format](./wizard-format/index.md) | A wizard as JSON: its steps, fields, templates and branches |
 | [JSON Schema](./wizard-format/validate.md) | The JSON Schema for your editor and `wizards validate` |
 | [Integration](./integration/index.md) | A published wizard for people, for AI apps and for your own code |
