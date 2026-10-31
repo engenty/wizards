@@ -1372,10 +1372,11 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const width = dockWidth(size.width);
   // On a phone, and where the column has no room for it, the chat stands in the middle.
   const place = where?.phone || !hasRight(size.width) ? "center" : prefs.place;
-  // At the top of the page: where the page has a slot, the chat stands at the bottom, and the
-  // slot is in view.
+  // At the top of the page: where the page has a slot, the chat stands at the bottom or is made
+  // small, and the slot is in view. Scrolled away, it goes back to where it stood.
   const slot = useAssistantSlot();
-  const wanted = slot && visible && where.where === "bottom" ? slot : null;
+  const wanted =
+    slot && visible && (where.where === "bottom" || where.where === "avatar") ? slot : null;
   const slotHeight = useRef(0);
   // The slot shows while the chat may stand in it.
   useLayoutEffect(() => {
@@ -1395,7 +1396,8 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const reserve = !(top || sidebar);
   // A phone's bar floats at the bottom of the window: the chat stands above it.
   const phone = Boolean(where?.phone);
-  const card = Boolean(visible) && !(small && !open);
+  // In the page's slot the chat shows, made small or not.
+  const card = Boolean(visible) && (top || !(small && !open));
   // The node the card is drawn into, moved between the slot and the dock.
   const [host] = useState(() => {
     const el = document.createElement("div");
