@@ -112,25 +112,7 @@ brokerCall({ who, where, connection, action: { id, kind? }, input, ctx?, handler
   → { ok: true, result, account } | { ok: false, refused, reason }
 ```
 
-```mermaid
-flowchart TD
-  start["brokerCall"] --> account{"Account signed in?"}
-  account -- "no" --> refuse["Refused"]
-  account -- "yes" --> grant{"In the run’s grant?"}
-  grant -- "no" --> refuse
-  grant -- "yes" --> decide{"decide"}
-  decide -- "deny" --> refuse
-  decide -- "allow" --> guest{"A guest’s send<br/>within its limits?"}
-  decide -- "ask the admins" --> held["Held under the bell<br/>until ctx.approved"]
-  decide -- "ask the person" --> person["ctx.allowed, ctx.confirmed<br/>or ctx.ask"]
-  person -- "no" --> refuse
-  person -- "yes" --> guest
-  held -- "approved" --> guest
-  guest -- "no" --> refuse
-  guest -- "yes" --> action["Runs the action"]
-  action --> log[("broker_log")]
-  refuse --> log
-```
+![brokerCall reads the account, checks the grant, decides, checks a guest’s send and asks where it must, then runs the action. Each check can refuse, and every call goes to broker_log](../../assets/diagrams/broker-order.svg)
 
 In order, it:
 

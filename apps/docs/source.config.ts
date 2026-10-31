@@ -1,6 +1,7 @@
 import { remarkMdxMermaid } from "fumadocs-core/mdx-plugins";
 import { defineConfig, defineDocs, frontmatterSchema } from "fumadocs-mdx/config";
 import { z } from "zod";
+import { remarkDiagrams } from "./lib/remark-diagrams";
 
 // The pages live in docs/content at the repo root, as in the engenty repo.
 export const docs = defineDocs({
@@ -16,7 +17,8 @@ export const docs = defineDocs({
 
 export default defineConfig({
   mdxOptions: {
-    // Run before GFM/heading so ```mermaid fences become <Mermaid /> reliably.
-    remarkPlugins: (preset) => [remarkMdxMermaid, ...preset],
+    // Run before GFM/heading so ```mermaid fences become <Mermaid /> reliably, and before the
+    // preset's image plugin so a diagram's SVG link becomes <Diagram />.
+    remarkPlugins: (preset) => [remarkMdxMermaid, remarkDiagrams, ...preset],
   },
 });

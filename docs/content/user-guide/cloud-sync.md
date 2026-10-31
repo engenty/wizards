@@ -13,12 +13,7 @@ A computer is signed in to one organization. Everything on it syncs with that or
 work in another one, sign in again and pick it (Settings → Account, or
 `wizards account sign-in` in the terminal).
 
-```mermaid
-flowchart LR
-  computer["Your computer"] -- "your changes go up" --> cloud["Your organization<br/>at engenty.ai"]
-  cloud -- "changes from the cloud<br/>come down" --> computer
-  computer -- "publish" --> live["The wizard runs in the cloud,<br/>its link stays the same"]
-```
+![Changes go up from your computer and come down from the cloud, and publishing runs the wizard in the cloud](../../assets/diagrams/cloud-sync.svg)
 
 ## What syncs
 

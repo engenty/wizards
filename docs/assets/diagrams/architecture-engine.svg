@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 520" style="--w:680px" role="img">
+<title>The engine: steps, agents and their tools</title>
+<rect x="40" y="300" width="600" height="112" rx="14" class="d-zone"/>
+<rect x="250" y="16" width="180" height="52" rx="10" class="d-box"/>
+<rect x="250" y="96" width="180" height="52" rx="10" class="d-key"/>
+<path d="M340,68 L340.0,90.0" class="d-line"/>
+<rect x="40" y="196" width="180" height="72" rx="10" class="d-box"/>
+<rect x="250" y="196" width="180" height="72" rx="10" class="d-key"/>
+<rect x="460" y="196" width="180" height="72" rx="10" class="d-box"/>
+<path d="M340,148 L340,172 L130,172 L130.0,190.0" class="d-line"/>
+<path d="M340,148 L340.0,190.0" class="d-line"/>
+<path d="M340,172 L550,172 L550.0,190.0" class="d-line"/>
+<rect x="56" y="336" width="132" height="60" rx="10" class="d-box"/>
+<rect x="200" y="336" width="132" height="60" rx="10" class="d-box"/>
+<rect x="344" y="336" width="132" height="60" rx="10" class="d-box"/>
+<rect x="488" y="336" width="136" height="60" rx="10" class="d-key"/>
+<path d="M340,268 L340.0,294.0" class="d-line"/>
+<rect x="476" y="456" width="160" height="44" rx="10" class="d-no"/>
+<path d="M556,396 L556.0,450.0" class="d-line"/>
+<text x="340.0" y="38.0" class="d-t" text-anchor="middle">Wizard definition</text>
+<text x="340.0" y="54.5" class="d-m" text-anchor="middle">JSON, a .wizard file</text>
+<text x="340.0" y="118.0" class="d-t" text-anchor="middle">Step runner</text>
+<text x="340.0" y="134.5" class="d-m" text-anchor="middle">engine/runner.ts</text>
+<polygon points="340,96 335.5,87.0 344.5,87.0" class="d-head"/>
+<text x="130.0" y="219.0" class="d-t" text-anchor="middle">page, review,</text>
+<text x="130.0" y="237.0" class="d-t" text-anchor="middle">result</text>
+<text x="130.0" y="253.5" class="d-s" text-anchor="middle">the person answers</text>
+<text x="340.0" y="220.0" class="d-t" text-anchor="middle">agent</text>
+<text x="340.0" y="236.5" class="d-s" text-anchor="middle">a Mastra agent,</text>
+<text x="340.0" y="252.5" class="d-s" text-anchor="middle">on a model class</text>
+<text x="550.0" y="219.0" class="d-t" text-anchor="middle">generate, widget,</text>
+<text x="550.0" y="237.0" class="d-t" text-anchor="middle">motion-graphics</text>
+<text x="550.0" y="253.5" class="d-s" text-anchor="middle">on a model class</text>
+<polygon points="130,196 125.5,187.0 134.5,187.0" class="d-head"/>
+<polygon points="340,196 335.5,187.0 344.5,187.0" class="d-head"/>
+<polygon points="550,196 545.5,187.0 554.5,187.0" class="d-head"/>
+<text x="54" y="320" class="d-zl" text-anchor="start">The agent’s tools</text>
+<text x="122.0" y="362.0" class="d-t" text-anchor="middle">Sandbox</text>
+<text x="122.0" y="378.5" class="d-s" text-anchor="middle">shell and code</text>
+<text x="266.0" y="362.0" class="d-t" text-anchor="middle">Browser</text>
+<text x="266.0" y="378.5" class="d-s" text-anchor="middle">pages, sign-ins</text>
+<text x="410.0" y="362.0" class="d-t" text-anchor="middle">The space</text>
+<text x="410.0" y="378.5" class="d-s" text-anchor="middle">knowledge, data, skills</text>
+<text x="556.0" y="362.0" class="d-t" text-anchor="middle">Broker</text>
+<text x="556.0" y="378.5" class="d-s" text-anchor="middle">connections</text>
+<polygon points="340,300 335.5,291.0 344.5,291.0" class="d-head"/>
+<text x="556.0" y="482.0" class="d-t" text-anchor="middle">Connected services</text>
+<polygon points="556,456 551.5,447.0 560.5,447.0" class="d-head"/>
+</svg>

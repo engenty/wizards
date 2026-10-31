@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 270" style="--w:620px" role="img">
+<title>Your computer and the cloud keep the same spaces</title>
+<rect x="20" y="30" width="200" height="90" rx="10" class="d-box"/>
+<rect x="400" y="30" width="200" height="90" rx="10" class="d-box"/>
+<path d="M220,58 L394.0,58.0" class="d-line"/>
+<path d="M400,94 L226.0,94.0" class="d-line"/>
+<rect x="400" y="180" width="200" height="64" rx="10" class="d-key"/>
+<path d="M120,120 L120,212 L394.0,212.0" class="d-line"/>
+<text x="120.0" y="71.0" class="d-t" text-anchor="middle">Your computer</text>
+<text x="120.0" y="87.5" class="d-s" text-anchor="middle">engenty wizards</text>
+<text x="500.0" y="71.0" class="d-t" text-anchor="middle">Your organization</text>
+<text x="500.0" y="87.5" class="d-s" text-anchor="middle">at engenty.ai</text>
+<polygon points="400,58 391.0,62.5 391.0,53.5" class="d-head"/>
+<text x="310" y="50" class="d-el" text-anchor="middle">your changes go up</text>
+<polygon points="220,94 229.0,89.5 229.0,98.5" class="d-head"/>
+<text x="310" y="86" class="d-el" text-anchor="middle">changes come down</text>
+<text x="500.0" y="208.0" class="d-t" text-anchor="middle">Runs in the cloud</text>
+<text x="500.0" y="224.5" class="d-s" text-anchor="middle">its link stays the same</text>
+<polygon points="400,212 391.0,216.5 391.0,207.5" class="d-head"/>
+<text x="260" y="205" class="d-el" text-anchor="middle">publish</text>
+</svg>

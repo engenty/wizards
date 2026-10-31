@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 290" style="--w:520px" role="img">
+<title>Where a feature switch gets its value</title>
+<rect x="40" y="30" width="340" height="48" rx="10" class="d-key"/>
+<rect x="40" y="94" width="340" height="48" rx="10" class="d-box"/>
+<rect x="40" y="158" width="340" height="48" rx="10" class="d-box"/>
+<rect x="40" y="222" width="340" height="48" rx="10" class="d-box"/>
+<path d="M420,246 L420.0,60.0" class="d-line d-hot"/>
+<text x="210.0" y="50.0" class="d-t" text-anchor="middle">.features</text>
+<text x="210.0" y="66.5" class="d-s" text-anchor="middle">this machine’s file</text>
+<text x="210.0" y="114.0" class="d-t" text-anchor="middle">The Manage-App</text>
+<text x="210.0" y="130.5" class="d-s" text-anchor="middle">the organization, the linked account</text>
+<text x="210.0" y="178.0" class="d-t" text-anchor="middle">FEATURES</text>
+<text x="210.0" y="194.5" class="d-s" text-anchor="middle">the environment variable</text>
+<text x="210.0" y="242.0" class="d-t" text-anchor="middle">Defaults</text>
+<text x="210.0" y="258.5" class="d-s" text-anchor="middle">the code, the plugins’ manifests</text>
+<polygon points="420,54 424.5,63.0 415.5,63.0" class="d-head d-hot"/>
+<text x="436" y="150" class="d-el" text-anchor="start">the upper</text>
+<text x="436" y="165" class="d-el" text-anchor="start">one wins</text>
+</svg>

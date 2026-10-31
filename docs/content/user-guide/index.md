@@ -17,18 +17,7 @@ briefing, an invoice, a quote, a damage report.
 | **Share a link** | Anyone can run the wizard in a browser, on a phone too. Results download as PDF, Word, HTML, Markdown, PNG, MP4, MP3, CSV, Excel or JSON, or go out as a link. |
 | **In the cloud, or on your computer** | You sign up and build in the browser, and links run on your organization’s credits. Or you install it on your computer: there it runs on Codex, Claude Code, Antigravity or Cursor Agent with your own subscription, on your own API keys or on a local model, and your files stay with you. |
 
-```mermaid
-flowchart TB
-  subgraph make["You"]
-    direction LR
-    describe["Describe it"] --> build["The assistant<br/>builds it"] --> test["Test it"] --> publish["Publish it"]
-  end
-  subgraph use["People"]
-    direction LR
-    link["Open the link, the QR code,<br/>your website or an AI app"] --> run["Run it"] --> results["Get the result: PDF, Word,<br/>images, video, data"]
-  end
-  make --> use
-```
+![You describe a wizard, the assistant builds it, you test and publish it, and people open its link, run it and get the result](../../assets/diagrams/user-how-it-works.svg)
 
 ## Where to start
 
@@ -66,10 +55,4 @@ the AI clients and keys on that computer, and what you publish there runs in the
 “Edited on your computer.” – you change it on your computer, not there. Without an account,
 engenty wizards stays [only on your computer](./local-only.md).
 
-```mermaid
-flowchart LR
-  computer["engenty wizards<br/>on your computer"] <-- "spaces stay the same" --> cloud["Your organization<br/>at engenty.ai"]
-  computer -- "publish" --> links["Links that run<br/>day and night"]
-  cloud -- "publish" --> links
-  people["People"] --> links
-```
+![engenty wizards on your computer and your organization at engenty.ai keep the same spaces, both publish links that run day and night, and people open them](../../assets/diagrams/user-two-places.svg)

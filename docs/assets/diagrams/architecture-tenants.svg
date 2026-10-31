@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 360" style="--w:680px" role="img">
+<title>Tenants and spaces</title>
+<rect x="210" y="20" width="450" height="320" rx="14" class="d-zone"/>
+<path class="d-box" d="M20,49 A85.0,9 0 0 1 190,49 V131 A85.0,9 0 0 1 20,131 Z"/><path class="d-box" d="M20,49 A85.0,9 0 0 0 190,49"/>
+<path class="d-box" d="M230,61 A100.0,9 0 0 1 430,61 V127 A100.0,9 0 0 1 230,127 Z"/><path class="d-box" d="M230,61 A100.0,9 0 0 0 430,61"/>
+<path class="d-box" d="M440,61 A100.0,9 0 0 1 640,61 V127 A100.0,9 0 0 1 440,127 Z"/><path class="d-box" d="M440,61 A100.0,9 0 0 0 640,61"/>
+<rect x="230" y="160" width="200" height="160" rx="10" class="d-key"/>
+<rect x="440" y="160" width="200" height="160" rx="10" class="d-box"/>
+<text x="105.0" y="82.5" class="d-t" text-anchor="middle">Control database</text>
+<text x="105.0" y="99.0" class="d-s" text-anchor="middle">sessions, runs in line,</text>
+<text x="105.0" y="115.0" class="d-s" text-anchor="middle">runners</text>
+<text x="105" y="164" class="d-s" text-anchor="middle">across all tenants</text>
+<text x="224" y="40" class="d-zl" text-anchor="start">Tenant · one per organization</text>
+<text x="330.0" y="94.5" class="d-t" text-anchor="middle">Tenant database</text>
+<text x="330.0" y="111.0" class="d-s" text-anchor="middle">with its live feed</text>
+<text x="540.0" y="94.5" class="d-t" text-anchor="middle">Files</text>
+<text x="540.0" y="111.0" class="d-s" text-anchor="middle">data folder or bucket</text>
+<text x="330.0" y="212.0" class="d-t" text-anchor="middle">Space</text>
+<text x="330.0" y="228.5" class="d-s" text-anchor="middle">info and brand</text>
+<text x="330.0" y="244.5" class="d-s" text-anchor="middle">knowledge, data, files</text>
+<text x="330.0" y="260.5" class="d-s" text-anchor="middle">results, skills</text>
+<text x="330.0" y="276.5" class="d-s" text-anchor="middle">connections, chats</text>
+<text x="540.0" y="236.0" class="d-t" text-anchor="middle">Another space</text>
+<text x="540.0" y="252.5" class="d-s" text-anchor="middle">the same parts</text>
+</svg>

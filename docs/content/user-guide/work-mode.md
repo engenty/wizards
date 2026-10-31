@@ -28,12 +28,7 @@ for Client.
 | **Work** | Everyone in the organization | Chats with the space’s AI, and what waits for you |
 | **Client** | A look at what your clients see | Nothing yet. “This view comes soon.” |
 
-```mermaid
-flowchart LR
-  studio["Studio<br/>build wizards"] --> space[("The space<br/>knowledge, data, files,<br/>skills, connections")]
-  work["Work<br/>chats with the space’s AI"] --> space
-  client["Client<br/>what your clients see"] --> space
-```
+![Studio, Work and Client all look at the same space](../../assets/diagrams/work-modes.svg)
 
 The owner and the admins see all three. A member sees Work and Client. Where the space’s admins
 switched on **Members can use the studio**, members get Studio as well
@@ -118,18 +113,7 @@ and **Deny**, and the AI goes on with its answer.
 An approved call runs once, with the arguments it waited with, and the AI hears how it went. A
 denied call doesn’t run.
 
-```mermaid
-sequenceDiagram
-  participant You
-  participant AI as The space’s AI
-  participant S as Gmail, HubSpot, …
-  You->>AI: Send the offer to the client
-  AI->>AI: reads the space, writes the mail
-  AI-->>You: card: Approve or Deny
-  You->>AI: Approve
-  AI->>S: sends it, once
-  AI-->>You: Sent.
-```
+![You ask the space’s AI to send an offer, it shows a card, you approve, and it sends once](../../assets/diagrams/work-approval.svg)
 
 **Waiting for you** lists the calls waiting for your approval, each leading to its chat. For the
 owner and the admins it also shows the critical lines of the space’s [Log](./protocol.md), such

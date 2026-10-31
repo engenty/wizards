@@ -8,19 +8,7 @@ engenty wizards is one server program, the **runtime**, and one web app, the **s
 serves. The same code runs on your computer and in the cloud. This page shows the parts and how
 they fit, with the folder each one lives in.
 
-```mermaid
-flowchart TB
-  studio["Studio (apps/web)"] --> web["Runtime: studio and doors"]
-  guest["A wizard's link /w/…"] --> web
-  web --> db[("Tenant database")]
-  web --> control[("Control database")]
-  runner["Runtime: runner"] --> db
-  runner --> control
-  runner --> engine["Engine: steps, agents, sandbox, browser"]
-  engine --> broker["Broker"]
-  broker --> services["Connected services"]
-  engine --> models["Models"]
-```
+![The studio and a wizard’s link reach the runtime’s studio and doors halves; the runner drives the engine, which reaches the models and, through the broker, the connected services. All of them keep their data in the tenant database, the control database and the files](../../assets/diagrams/architecture-parts.svg)
 
 ## The parts
 
@@ -51,21 +39,7 @@ Every role serves what both halves need: `/api/health`, `/api/config`, the runs�
 
 A run from a wizard’s link, in the cloud, where each role is its own process:
 
-```mermaid
-sequenceDiagram
-  participant P as Person
-  participant D as doors
-  participant C as Control DB
-  participant R as runner
-  participant T as Tenant DB
-  P->>D: starts a run
-  D->>T: run + grant
-  D->>C: in line
-  R->>C: claims it
-  R->>T: steps, results
-  T-->>D: changes
-  D-->>P: next page
-```
+![A run in the cloud: the doors write the run and put it in line, a runner claims it and writes the steps, and the doors show the person the next page](../../assets/diagrams/architecture-run.svg)
 
 The queue of runs is the control database. A runner claims a run in one statement that also
 counts the tenant’s running runs against its limit, and writes a heartbeat while it drives the
@@ -83,30 +57,7 @@ database’s `runner` table, and `RUNNER_URL` says where the web reaches one.
 | Sign-in | A one-time link the command line opens | The Manage-App’s tokens (OAuth 2.1 / OIDC), which name the person, the tenant and the role |
 | Models | An AI client on the computer (Claude Code, Codex, Antigravity, Cursor Agent), your own API keys, a local model, or a linked account’s credits | The model gateway. The runtime holds no model keys |
 
-```mermaid
-flowchart LR
-  subgraph computer["Your computer"]
-    local["Runtime, role all<br/>127.0.0.1:24368"]
-    ai["AI clients, own API keys,<br/>local models"]
-    local --> ai
-  end
-  subgraph cloud["The cloud"]
-    proxy["Proxy"]
-    studio["studio"]
-    doors["doors"]
-    runner["runner"]
-    chromium["Chromium container"]
-    proxy --> studio
-    proxy --> doors
-    runner --> chromium
-  end
-  manage["Manage-App<br/>accounts, organizations, plans, credits"]
-  gateway["Model gateway"]
-  local -- "the spaces, both ways" --> studio
-  local -. "a linked account" .-> manage
-  studio --> manage
-  runner --> gateway
-```
+![Your computer runs one process with your own AI and keeps its spaces the same as the cloud’s studio. The cloud runs studio, doors and runner behind a proxy, with the Manage-App and the model gateway beside it](../../assets/diagrams/architecture-places.svg)
 
 The **Manage-App** runs engenty’s accounts, organizations, plans and credits, and the **model
 gateway** serves the model classes in the cloud. Both are separate apps, not part of this
@@ -131,18 +82,7 @@ tenant tables carry a `space_id`, and the code says “space” throughout (`ser
 Each tenant also has a live feed (`live_change`): numbered writes to what a studio shows. An open
 studio reads it and shows what changed elsewhere without a reload (`apps/runtime/src/live/`).
 
-```mermaid
-flowchart TB
-  control[("Control database<br/>sessions, runs in line, runners")]
-  subgraph tenant["Tenant: one organization"]
-    tdb[("Tenant database<br/>and its live feed")]
-    tfiles[("Files")]
-    space1["Space"]
-    space2["Space"]
-  end
-  space1 --- holds["Info and brand, knowledge, data, files,<br/>results, skills, connections, chats"]
-  control --- tenant
-```
+![A control database across all tenants. Each tenant holds its database, its files and its spaces](../../assets/diagrams/architecture-tenants.svg)
 
 ## The engine
 
@@ -160,21 +100,7 @@ A step names a **model class** (`classifier`, `low`, `standard`, `high`, plus `i
 `audio`, `speech`), never a model. Which model serves a class is a setting outside the wizard
 (`models.ts`).
 
-```mermaid
-flowchart TB
-  def["Wizard definition"] --> stepper["Step runner"]
-  stepper --> page["page, review, result<br/>the person"]
-  stepper --> agent["agent<br/>a Mastra agent"]
-  stepper --> make["generate, widget,<br/>motion-graphics, surface"]
-  agent --> cls["Model class"]
-  make --> cls
-  agent --> tools["Tools"]
-  tools --> sandbox["Sandbox"]
-  tools --> browser["Browser"]
-  tools --> space["The space’s knowledge,<br/>data and skills"]
-  tools --> broker["Broker"]
-  broker --> services["Connected services"]
-```
+![The step runner walks the wizard definition: pages for the person, agent steps with their tools, and the steps that make media](../../assets/diagrams/architecture-engine.svg)
 
 ### Sandboxes
 
@@ -225,16 +151,7 @@ action and writes one line of the log. Model calls don’t pass it.
 [The broker](./broker.md) has the details. The studio shows all of it under
 [Capabilities](../user-guide/capabilities.md).
 
-```mermaid
-flowchart LR
-  callers["A step, a Work chat,<br/>Goose, a share target,<br/>a plugin"] --> bcall["brokerCall:<br/>grant, audience,<br/>rule for the kind"]
-  bcall -- "allow" --> run["Runs the action"]
-  bcall -- "ask" --> ask["The person, or<br/>the space’s admins"]
-  ask -- "yes" --> run
-  bcall -- "deny" --> refused["Refused"]
-  run --> log[("broker_log")]
-  refused --> log
-```
+![Every caller goes through brokerCall, which checks the grant, the audience and the rule, then runs the action, asks first or refuses, and logs every call](../../assets/diagrams/architecture-broker.svg)
 
 ## Work mode
 
@@ -248,23 +165,7 @@ itself.
 
 One turn of the space’s AI with a held call:
 
-```mermaid
-sequenceDiagram
-  participant P as Person
-  participant W as Chat
-  participant AI as Space’s AI
-  participant G as Gate
-  participant B as Broker
-  P->>W: asks
-  W->>AI: a turn
-  AI->>G: a call outside
-  G-->>AI: waits
-  G-->>W: card, bell
-  P->>W: Approve
-  W->>B: the held call, once
-  B-->>W: result
-  W->>AI: outcome, as a signal
-```
+![A call outside the space waits at the gate. After Approve the chat runs it once through the broker and tells the AI the outcome](../../assets/diagrams/architecture-work-turn.svg)
 
 Each chat gets its own sandbox on its first command. It stays while the chat is in use, so a file
 one turn writes is there for the next, and goes after 30 minutes without a command.
@@ -284,10 +185,7 @@ Parts that ship in the code but are not on for everyone yet sit behind a switch
    in a checkout, the data folder in the cloud. Same shape as `.env`: one `name=on` or
    `name=off` per line.
 
-```mermaid
-flowchart LR
-  code["Defaults"] --> envvar["FEATURES"] --> manage["Manage-App"] --> file[".features"] --> value["What counts"]
-```
+![Four layers set a switch: defaults, FEATURES, the Manage-App and the .features file, the upper one winning](../../assets/diagrams/architecture-switches.svg)
 
 The runtime reads the file on every call, so a change counts at once. `wizards features` lists
 what counts on a computer.

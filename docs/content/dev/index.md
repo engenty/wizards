@@ -8,16 +8,7 @@ These pages are for people who write wizards as files, bring them into other sys
 engenty wizards. A wizard is one JSON document. The runner shows it to people page by page, on
 its own page, on a website, in a chat or in your own app.
 
-```mermaid
-flowchart LR
-  file["A wizard as JSON<br/>.wizard file"] --> runtime["The runtime<br/>studio, engine, broker"]
-  plugins["Plugins<br/>tools, routes, pages"] --> runtime
-  runtime --> page["Its own page and QR code"]
-  runtime --> embed["Your website"]
-  runtime --> mcp["AI apps over MCP"]
-  runtime --> own["Your own UI<br/>@engenty/wizards-runner"]
-  runtime --> services["Connected services,<br/>through the broker"]
-```
+![A wizard file and plugins go into the runtime, which brings wizards to their own page, websites, AI apps, your own UI and connected services](../../assets/diagrams/dev-overview.svg)
 
 ## Start here
 
