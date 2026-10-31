@@ -7,6 +7,7 @@ import {
   AudioLines,
   Check,
   ChevronDown,
+  CircleHelp,
   GripVertical,
   History,
   Mic,
@@ -15,6 +16,7 @@ import {
   PanelRight,
   Pencil,
   PhoneOff,
+  PictureInPicture2,
   ShieldQuestion,
   SquarePen,
   Volume2,
@@ -527,6 +529,7 @@ function Header({
   phone,
   compact,
   grip,
+  floating,
 }: {
   state: AssistantState;
   where: "bottom" | "sidebar" | "avatar";
@@ -536,6 +539,8 @@ function Header({
   compact?: boolean;
   /** What moves the chat, before the name. */
   grip?: ReactNode;
+  /** Docked at the bottom: whether it floats at the lower right, where the column has room for it. */
+  floating?: { on: boolean; can: boolean };
 }) {
   const live = state.live;
   const [turnsOpen, setTurnsOpen] = useState(false);
@@ -623,6 +628,33 @@ function Header({
           <SquarePen className="size-4" />
         </IconButton>
       ) : null}
+      {/* Floating at the lower right, or back in the middle of the bottom. */}
+      {(where === "bottom" || (where === "avatar" && !compact)) && floating?.can ? (
+        <IconButton
+          label={
+            floating.on && where === "bottom"
+              ? t("assistant.layoutCenter")
+              : t("assistant.layoutFloat")
+          }
+          onClick={() => {
+            if (where === "avatar") {
+              // Opened from the engenty: it floats from now on, open.
+              setDockPrefs({ place: "right" });
+              state.setLayout("bottom");
+              state.setOpen(true);
+            } else {
+              setDockPrefs({ place: floating.on ? "center" : "right" });
+            }
+          }}
+          className="size-8"
+        >
+          {floating.on && where === "bottom" ? (
+            <PanelBottom className="size-4" />
+          ) : (
+            <PictureInPicture2 className="size-4" />
+          )}
+        </IconButton>
+      ) : null}
       {where !== "sidebar" && wide ? (
         <IconButton
           label={t("assistant.layoutSidebar")}
@@ -644,14 +676,16 @@ function Header({
           <PanelBottom className="size-4" />
         </IconButton>
       ) : null}
-      {/* Closed, Goose is the small engenty at the lower right; opened again, the chat stands where it was. */}
+      {/* Closed, Goose is the small engenty at the lower right; opened again, the chat stands where it was.
+          Closed by hand, an answer of a moment ago keeps it docked no longer. */}
       <IconButton
         label={t("assistant.close")}
         onClick={() => {
-          if (where !== "avatar") {
+          if (state.layout !== "avatar") {
             state.setLayout("avatar");
           }
           state.setOpen(false);
+          closedByHand.dispatchEvent(new Event("close"));
         }}
         className="size-8"
       >
@@ -1267,8 +1301,8 @@ const SLOT_FIRST = 240;
 
 /**
  * Where a page wants Goose's introduction at its top (the space page's parts): the page's words,
- * a line to ask Goose and a few questions. It can be closed, per page; while it is in view and
- * Goose has nothing going on, Goose itself keeps out of the way.
+ * a line to ask Goose and a few questions. Closed (per page), a small help hint stays in its
+ * place. While either is in view and Goose has nothing going on, Goose itself keeps out of the way.
  */
 export function AssistantSlot() {
   return <div ref={setAssistantSlot} className="hidden" />;
@@ -1277,7 +1311,13 @@ export function AssistantSlot() {
 /** For this long after an answer Goose counts as busy: the person may still be reading it. */
 const RECENT_MS = 10 * 60_000;
 
-/** Whether Goose answered within the last minutes; false again on its own once they pass. */
+/** Goose closed by hand: what it answered a moment ago no longer keeps it docked. */
+const closedByHand = new EventTarget();
+
+/**
+ * Whether Goose answered within the last minutes; false again on its own once they pass, or as
+ * soon as the person closes it.
+ */
 function useRecentAnswer(state: AssistantState | null): boolean {
   const phase = state?.chat.phase ?? "idle";
   const [until, setUntil] = useState(0);
@@ -1290,6 +1330,11 @@ function useRecentAnswer(state: AssistantState | null): boolean {
     was.current = phase;
   }, [phase]);
   useEffect(() => {
+    const forget = () => setUntil(0);
+    closedByHand.addEventListener("close", forget);
+    return () => closedByHand.removeEventListener("close", forget);
+  }, []);
+  useEffect(() => {
     if (!until) {
       return;
     }
@@ -1299,8 +1344,8 @@ function useRecentAnswer(state: AssistantState | null): boolean {
   return until > Date.now();
 }
 
-/** A yes kept in this browser under `key` (a page's closed introduction), and the way to set it. */
-function useStoredFlag(key: string): [boolean, () => void] {
+/** A yes kept in this browser under `key` (a page's closed introduction), and the way to change it. */
+function useStoredFlag(key: string): [boolean, (on?: boolean) => void] {
   const [on, setOn] = useState(false);
   useEffect(() => {
     try {
@@ -1309,13 +1354,75 @@ function useStoredFlag(key: string): [boolean, () => void] {
       setOn(false);
     }
   }, [key]);
-  const set = () => {
-    setOn(true);
+  const set = (next = true) => {
+    setOn(next);
     try {
-      localStorage.setItem(key, "1");
+      if (next) {
+        localStorage.setItem(key, "1");
+      } else {
+        localStorage.removeItem(key);
+      }
     } catch {}
   };
   return [on, set];
+}
+
+/**
+ * The introduction's frame at the top right of its place: as wide as the column while it is open,
+ * as small as the help hint once closed. It grows and shrinks between the two (width by
+ * `interpolate-size`, height measured), and what it holds fades in.
+ */
+function IntroFrame({ closed, children }: { closed: boolean; children: ReactNode }) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the content is swapped when it opens or closes: measured anew.
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) {
+      return;
+    }
+    const measure = () => setHeight(el.offsetHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [closed]);
+  return (
+    <div className="flex justify-end">
+      <section
+        className={cn(
+          "overflow-hidden bg-card shadow-soft ring-1 transition-[width,height,border-radius,box-shadow] duration-300 ease-out [interpolate-size:allow-keywords] motion-reduce:transition-none",
+          closed
+            ? "w-fit rounded-[1.25rem] ring-border"
+            : "w-full rounded-xl bg-linear-to-br from-ember-tint via-card to-card ring-ember-veil",
+        )}
+        style={height === null ? undefined : { height }}
+      >
+        <div
+          ref={inner}
+          key={closed ? "hint" : "intro"}
+          className="fade-in-0 animate-in duration-300"
+        >
+          {children}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** Where the introduction was closed: Goose, a word and a help icon; it opens it again. */
+function HelpHint({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex items-center gap-2 whitespace-nowrap py-1 pr-3 pl-1 text-[0.875rem] text-ink-2 transition hover:text-ink"
+    >
+      <Mascot kind="round" size={28} helmet interactive={false} />
+      {t("assistant.help")}
+      <CircleHelp className="size-4 text-ink-3" />
+    </button>
+  );
 }
 
 /**
@@ -1341,7 +1448,7 @@ function PageIntro({ state, onClose }: { state: AssistantState; onClose: () => v
     setText("");
   };
   return (
-    <section className="relative rounded-xl bg-card bg-linear-to-br from-ember-tint via-card to-card p-4 shadow-soft ring-1 ring-ember-veil sm:p-5">
+    <div className="relative p-4 sm:p-5">
       <IconButton
         label={t("assistant.intro.close")}
         onClick={onClose}
@@ -1368,7 +1475,7 @@ function PageIntro({ state, onClose }: { state: AssistantState; onClose: () => v
             ) : null}
             <button
               type="button"
-              onClick={hideHello}
+              onClick={() => hideHello()}
               className="mt-2 text-[0.75rem] text-ink-3 underline-offset-2 hover:text-ink hover:underline"
             >
               {t("assistant.intro.hideHello")}
@@ -1417,7 +1524,7 @@ function PageIntro({ state, onClose }: { state: AssistantState; onClose: () => v
           </button>
         ))}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -1494,11 +1601,25 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const width = dockWidth(size.width);
   // On a phone, and where the column has no room for it, the chat stands in the middle.
   const place = where?.phone || !hasRight(size.width) ? "center" : prefs.place;
-  // The page's introduction at its top, closed per page; `top` while it is in view.
+  const open = Boolean(state?.open);
+  const [focused, setFocused] = useState(false);
+  // Goose has something going on: it works, talks, or answered a moment ago.
+  const recent = useRecentAnswer(state);
+  const busy = state?.chat.phase !== "idle" || (state?.live.state ?? "off") !== "off" || recent;
+  const active = focused || open || busy;
+  // Made small, the chat folds into the engenty at the lower right; opened, it is the same chat
+  // as at the bottom, where it last stood. Busy, it stands docked at the bottom instead. A page
+  // with its own input keeps it small too: one place to type on a screen. A sidebar stays.
+  const sidebar = where?.where === "sidebar";
+  const ownInput = Boolean(usePageAssistant().ownInput);
+  const small = !sidebar && (where?.where === "avatar" || ownInput) && !busy;
+  // The page's introduction at its top, closed per page (a help hint stays in its place). Only
+  // while Goose is the small engenty, closed: docked, floating, in the sidebar or open, Goose
+  // stands in sight already. `top` while it is in view.
   const slot = useAssistantSlot();
   const path = useLocation().pathname;
   const [introClosed, closeIntro] = useStoredFlag(`goose.intro.closed:${path}`);
-  const introAt = slot && visible && !introClosed ? slot : null;
+  const introAt = slot && visible && small && !open ? slot : null;
   const slotHeight = useRef(0);
   useLayoutEffect(() => {
     if (slot) {
@@ -1507,18 +1628,8 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   }, [slot, introAt]);
   const away = useSlotAway(introAt, slotHeight);
   const top = Boolean(introAt) && !away;
-  const open = Boolean(state?.open);
-  const [focused, setFocused] = useState(false);
-  // Goose has something going on: it works, talks, or answered a moment ago.
-  const recent = useRecentAnswer(state);
-  const busy = state?.chat.phase !== "idle" || (state?.live.state ?? "off") !== "off" || recent;
-  const active = focused || open || busy;
-  // Made small, the chat folds into the engenty at the lower right; opened, it is the same chat
-  // as at the bottom, where it last stood. Busy, it stands docked at the bottom instead.
-  const small = where?.where === "avatar" && !busy;
-  // The introduction in view and nothing going on: Goose keeps out of the way (a sidebar stays).
-  const sidebar = where?.where === "sidebar";
-  const quiet = top && !busy && !open && !sidebar;
+  // The introduction in view: the small engenty keeps out of the way.
+  const quiet = top;
   const reserve = !(quiet || sidebar);
   // A phone's bar floats at the bottom of the window: the chat stands above it.
   const phone = Boolean(where?.phone);
@@ -1598,7 +1709,16 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     return null;
   }
   const intro = introAt
-    ? createPortal(<PageIntro state={state} onClose={closeIntro} />, introAt)
+    ? createPortal(
+        <IntroFrame closed={introClosed}>
+          {introClosed ? (
+            <HelpHint onOpen={() => closeIntro(false)} />
+          ) : (
+            <PageIntro state={state} onClose={() => closeIntro()} />
+          )}
+        </IntroFrame>,
+        introAt,
+      )
     : null;
   // The thread is as high as the handle set it, within what the column leaves.
   const maxThread = Math.max(THREAD.min, Math.min(THREAD.max, size.height - 220));
@@ -1654,6 +1774,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
                     phone={where.phone}
                     compact={where.compact}
                     grip={grip}
+                    floating={{ on: place === "right", can: hasRight(size.width) && !where.phone }}
                   />
                   {expanded ? (
                     <div

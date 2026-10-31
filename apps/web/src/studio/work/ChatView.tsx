@@ -29,6 +29,7 @@ import { cn } from "../../ui";
 import { Composer, type ComposerHandle, type PickedFile, pastedName } from "../../ui/composer";
 import { FilePreview, FileTile } from "../../ui/file-preview";
 import { useCrumbs } from "../AppFrame";
+import { useAssistantPage } from "../assistant/page";
 import {
   type Approval,
   type ChatMember,
@@ -58,6 +59,8 @@ import { ViewContext, type ViewHost } from "./View";
  */
 
 export function ChatView({ id }: { id: string }) {
+  // The chat has its own input: Goose stays small beside it.
+  useAssistantPage({ ownInput: true });
   const dev = useWorkDev(id);
   const turn = useAiTurn(id, dev.tap);
   const streaming = turn.status === "submitted" || turn.status === "streaming";

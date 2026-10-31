@@ -22,6 +22,7 @@ import {
 import { useDictation, useDictationSettings } from "../lib/speech";
 import { Button, Chip, cn, DictationButton, pastedName, Textarea, workspaceFile } from "../ui";
 import { FilePreview, FileTile } from "../ui/file-preview";
+import { useAssistantPage } from "./assistant/page";
 import { ImportWizard } from "./ImportWizard";
 import {
   EntryDialog,
@@ -190,6 +191,8 @@ function Similar({
 }
 
 export function NewWizardPage() {
+  // The wish is typed here: Goose stays small beside it.
+  useAssistantPage({ ownInput: true });
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { space } = useCurrentSpace();

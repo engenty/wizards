@@ -30,6 +30,8 @@ export interface PageAssistant
   suggestions?: AssistantSuggestion[];
   /** A page of full-height tables: the assistant starts small here unless opened. */
   compact?: boolean;
+  /** The page has its own input (a new wizard's wish, a Work chat): Goose stays small there. */
+  ownInput?: boolean;
   /** The assistant changed the space or the plugin's data: read the page's data again. */
   onChanged?: () => void;
 }
@@ -115,6 +117,7 @@ export function pageSnapshot(): AssistantPage {
     placeholder: _placeholder,
     suggestions: _suggestions,
     compact: _compact,
+    ownInput: _ownInput,
     onChanged: _onChanged,
     ...shown
   } = merged;
