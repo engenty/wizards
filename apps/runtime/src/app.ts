@@ -25,6 +25,7 @@ import { MCP_RESOURCE, SCOPES } from "./mcp/scopes.js";
 import { openCommand } from "./open-command.js";
 import { PLUGIN_NAME, pluginArchive, pluginMarketplace } from "./plugin.js";
 import { apiRoutes } from "./routes/api.js";
+import { brokerRoutes } from "./routes/broker.js";
 import { connectionRoutes } from "./routes/connections.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
 import { internalRoutes } from "./routes/internal.js";
@@ -47,6 +48,7 @@ import { runTicketValid } from "./secrets/signing.js";
 import { asRole } from "./services/access.js";
 import { ServiceError } from "./services/errors.js";
 import { servePageRunner } from "./services/runners.js";
+import { markSeen } from "./services/seen.js";
 import { afterStudioWrite, beforeStudioLoad } from "./sync/client.js";
 import { tenantOfLink, tenantStatus } from "./tenants/control.js";
 
@@ -281,6 +283,8 @@ if (serves.studio) {
       );
     }
     c.set("user", user);
+    // The person is here: the hourly mail of the broker's lines waits (services/seen.ts).
+    void withTenant(user.tenantId, () => markSeen(user.id)).catch(() => undefined);
     // A save: open studios hear of it now, not at the next tick (live/hub.ts).
     const writes = c.req.method !== "GET";
     if (managed) {
@@ -350,6 +354,7 @@ if (serves.studio) {
   app.route("/api/studio", skillRoutes);
   app.route("/api/studio", ruleRoutes);
   app.route("/api/studio", connectionRoutes);
+  app.route("/api/studio", brokerRoutes);
   app.route("/api/studio/runtime", runtimeSettingsRoutes);
   app.route("/api/studio/work", workRoutes);
   app.route("/api/studio", studio);

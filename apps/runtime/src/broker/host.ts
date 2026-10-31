@@ -42,10 +42,10 @@ export async function brokerHost<T>(call: {
       // The path without its query: a query may carry a key.
       inputSummary: summarizeInput({ method: call.method, host, path: url.pathname }),
       outcome,
+      rule: "grant",
       reason,
       result,
       resultSize: null,
-      critical: outcome === "deny",
     });
 
   const bound = where.guest || (await brokerOn());

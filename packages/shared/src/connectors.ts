@@ -92,6 +92,18 @@ export type ConnectionSignIn = (typeof CONNECTION_SIGN_INS)[number];
 export const CONNECTION_AUDIENCES = ["admins", "members", "all"] as const;
 export type ConnectionAudience = (typeof CONNECTION_AUDIENCES)[number];
 
+/** What the broker's admins hear of (docs/plans/broker.md, "Notifications"); decided in the runtime's broker/log.ts. */
+export const CRITICAL_KINDS = [
+  "refused_write",
+  "outside_audience",
+  "host_not_in_grant",
+  "limit_reached",
+  "sign_in_failed",
+  "first_use",
+  "rule_changed",
+] as const;
+export type CriticalKind = (typeof CRITICAL_KINDS)[number];
+
 /** What an action does, as the rules see it. */
 export const CONNECTION_ACTION_KINDS = ["read", "write", "destructive", "send"] as const;
 export type ConnectionActionKind = (typeof CONNECTION_ACTION_KINDS)[number];

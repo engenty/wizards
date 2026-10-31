@@ -15,6 +15,7 @@ import {
   FONT_WEIGHTS,
   GRADIENT_TYPES,
   type LogoSection,
+  NOTIFY_MAIL,
   orderColors,
   PAGE_LANGS,
   PAGE_LIMITS,
@@ -192,6 +193,8 @@ export const spacePatchSchema = z.object({
     )
     .max(20)
     .optional(),
+  /** How the admins hear of the broker's critical lines (docs/plans/broker.md, "Notifications"). */
+  notify: z.object({ bell: z.boolean(), mail: z.enum(NOTIFY_MAIL) }).optional(),
 });
 
 /**
@@ -354,6 +357,7 @@ export async function updateSpace(
       ...(patch.brand ? { brand: brandAfter(p.brand, patch.brand) } : {}),
       ...(patch.facts ? { facts: patch.facts } : {}),
       ...(patch.mailDomains ? { mailDomains: [...new Set(patch.mailDomains)] } : {}),
+      ...(patch.notify ? { notify: patch.notify } : {}),
       ...(page ? { page } : {}),
       updatedAt: new Date(),
     })

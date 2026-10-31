@@ -36,6 +36,21 @@ const EN = {
   newWizardDone: "Done",
   templateSetUp:
     "I have set up the template “{title}” for you. Test it at the top right – or tell me what should be different.",
+  criticalMailSubject: {
+    one: "{space}: one line from the wizards’ connections to look at",
+    other: "{space}: {count} lines from the wizards’ connections to look at",
+  },
+  criticalMailIntro:
+    "In the last hour the wizards’ connections in {space} saw these lines. None of the admins was in the studio, so they come by mail.",
+  criticalMailMore: { one: "… and one more line.", other: "… and {count} more lines." },
+  criticalMailOutro: "The bell in Work shows them, and what to do: {url}",
+  "criticalKind.refused_write": "Refused: a write, a delete or a send",
+  "criticalKind.outside_audience": "A guest reached a connection that is not for guests",
+  "criticalKind.host_not_in_grant": "A request to a host the run may not reach",
+  "criticalKind.limit_reached": "A limit was reached",
+  "criticalKind.sign_in_failed": "A sign-in ran out or was refused",
+  "criticalKind.first_use": "A connection was used for the first time",
+  "criticalKind.rule_changed": "A rule was changed",
   imapHint:
     "Gmail, iCloud, GMX and web.de need an app password (in your account’s security settings), not your normal password.",
   doingSaveLogo: "Fetching the logo…",
@@ -238,6 +253,21 @@ const EN = {
 export type ServerKey = keyof typeof EN;
 
 const DE: Partial<Record<ServerKey, Line>> = {
+  criticalMailSubject: {
+    one: "{space}: eine Zeile aus den Verbindungen der Wizards zum Nachsehen",
+    other: "{space}: {count} Zeilen aus den Verbindungen der Wizards zum Nachsehen",
+  },
+  criticalMailIntro:
+    "In der letzten Stunde gab es in den Verbindungen der Wizards in {space} diese Zeilen. Keiner der Admins war im Studio, darum kommen sie per E-Mail.",
+  criticalMailMore: { one: "… und eine weitere Zeile.", other: "… und {count} weitere Zeilen." },
+  criticalMailOutro: "Die Glocke in Work zeigt sie und was du tun kannst: {url}",
+  "criticalKind.refused_write": "Abgelehnt: ein Schreiben, Löschen oder Senden",
+  "criticalKind.outside_audience": "Ein Gast hat eine Verbindung erreicht, die nicht für Gäste ist",
+  "criticalKind.host_not_in_grant": "Eine Anfrage an einen Host, den der Lauf nicht erreichen darf",
+  "criticalKind.limit_reached": "Ein Limit ist erreicht",
+  "criticalKind.sign_in_failed": "Eine Anmeldung ist abgelaufen oder wurde abgelehnt",
+  "criticalKind.first_use": "Eine Verbindung wurde zum ersten Mal verwendet",
+  "criticalKind.rule_changed": "Eine Regel wurde geändert",
   keyUnknown: "Der Anbieter kennt diesen API-Key nicht.",
   providerError: "Der Anbieter antwortet mit Fehler {status}.",
   providerUnreachable: "Der Anbieter ist gerade nicht erreichbar.",

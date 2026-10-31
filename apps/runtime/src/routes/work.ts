@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
 import { feature, remoteFeatures } from "../features.js";
 import { reverseGeocode } from "../geocode.js";
+import { bellOpened, criticalsFor } from "../services/broker-bell.js";
 import { ServiceError } from "../services/errors.js";
 import { composerTools } from "../services/work-ai.js";
 import {
@@ -197,7 +198,16 @@ export const workRoutes = new Hono<Vars>()
   })
   // What the composer offers for the space's AI's turns: web search, the plugins with tools.
   .get("/composer", async (c) => c.json(await composerTools()))
-  .get("/approvals", async (c) => c.json({ approvals: await waitingApprovals(c.get("user")) }))
+  // The bell: the calls held for the person, and for an admin the broker's critical lines too.
+  .get("/approvals", async (c) => {
+    const user = c.get("user");
+    const [approvals, criticals] = await Promise.all([waitingApprovals(user), criticalsFor(user)]);
+    return c.json({ approvals, ...criticals });
+  })
+  .post("/approvals/seen", async (c) => {
+    await bellOpened(c.get("user"));
+    return c.json({ ok: true });
+  })
   .post("/chats/:id/stop", async (c) =>
     c.json({ stopped: await stopTurn(c.get("user"), c.req.param("id")) }),
   )

@@ -12,6 +12,7 @@ import { db, schema } from "../db/client.js";
 import { managed, tenantMembers } from "../manage.js";
 import { contextWindowOf, costOf, usageOf } from "../models.js";
 import { assistantToolLabels } from "../tools/plugin.js";
+import { isAdminRole } from "./access.js";
 import { type ClientStep, ClientSteps, stepChunk, stepParts } from "./client-steps.js";
 import { ServiceError } from "./errors.js";
 import { userProfile } from "./profile.js";
@@ -133,6 +134,22 @@ async function visibleChat(user: SessionUser, id: string): Promise<ChatRow> {
     throw new ServiceError("not_found", "chat not found");
   }
   return found;
+}
+
+/**
+ * The chat a held call is decided in: one the person sees; for an owner or admin any chat of the
+ * organization, since the bell shows them every held call (work-approvals.ts `waitingFor`).
+ */
+async function decidableChat(user: SessionUser, id: string): Promise<ChatRow> {
+  if (isAdminRole(user.role)) {
+    const found = await db.query.chat.findFirst({
+      where: and(eq(schema.chat.id, id), eq(schema.chat.tenantId, user.tenantId)),
+    });
+    if (found) {
+      return found;
+    }
+  }
+  return visibleChat(user, id);
 }
 
 /** A space of the person's tenant. */
@@ -1002,7 +1019,7 @@ export async function decideApproval(
   approvalId: string,
   approve: boolean,
 ): Promise<Sent> {
-  const chat = await visibleChat(user, chatId);
+  const chat = await decidableChat(user, chatId);
   const taken = await takeDecision(user, chat.id, approvalId, approve);
   const name = (await userProfile(user)).name;
   const { turn, streamOptions } = await turnFor(chat, taken.askedBy);

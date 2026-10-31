@@ -20,6 +20,7 @@ import { currentRole, isAdminRole, MEMBERS_EDIT_ONLY, roleOf } from "../services
 import { notFound, ServiceError } from "../services/errors.js";
 import { ownedSpace } from "../services/spaces.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { logRuleChange } from "./log.js";
 
 /**
  * The broker's first part (docs/plans/broker.md, "First: RWX"): one table of permissions per
@@ -404,6 +405,13 @@ export async function putRules(
       await tx.insert(schema.rwxRule).values(rules.map((r) => row(space.id, r, userId)));
     }
   });
+  await logRuleChange({
+    userId,
+    spaceId: space.id,
+    connectionId: "rwx",
+    summary: { rules: rules.length },
+    reason: `The RWX rules were replaced: ${rules.length} now.`,
+  });
   return (await rulesOf(space.id)).map(view);
 }
 
@@ -418,4 +426,11 @@ export async function deleteRule(userId: string, spaceId: string, ruleId: string
   if (!gone.length) {
     throw notFound();
   }
+  await logRuleChange({
+    userId,
+    spaceId: space.id,
+    connectionId: "rwx",
+    summary: { deleted: ruleId },
+    reason: "An RWX rule was deleted.",
+  });
 }

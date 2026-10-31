@@ -211,10 +211,10 @@ export async function brokerSend<T>(call: {
       kind: "send",
       inputSummary: summarizeInput(call.input),
       outcome,
+      rule: "guest_send",
       reason,
       result,
       resultSize: null,
-      critical: outcome === "deny",
     });
   let reason = "The server's address sends for members.";
   if (where.guest) {

@@ -290,10 +290,12 @@ const WORK_ICON: Record<WorkPlace, LucideIcon | typeof EngentyGlyph> = {
 
 /**
  * Work's places in the bar: Chats, Engenties, Files, Data, Results, then the bell with what waits
- * for the person (the calls held for their approval; its count shows from one on).
+ * for the person (the calls held for their approval, and for an admin the broker's critical lines
+ * they have not seen; its count shows from one on).
  */
 function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean }) {
-  const waiting = useWaiting().data?.approvals.length ?? 0;
+  const bell = useWaiting().data;
+  const waiting = (bell?.approvals.length ?? 0) + (bell?.unseen ?? 0);
   return (
     <nav
       className={cn(

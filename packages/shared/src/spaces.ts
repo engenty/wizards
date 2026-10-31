@@ -16,6 +16,15 @@ export const FACT_TYPES = [
 ] as const;
 export type FactType = (typeof FACT_TYPES)[number];
 
+/** How a space's admins hear of the broker's critical lines: the bell in Work, a mail once an hour. */
+export const NOTIFY_MAIL = ["hourly", "off"] as const;
+export type NotifyMail = (typeof NOTIFY_MAIL)[number];
+export interface SpaceNotify {
+  bell: boolean;
+  mail: NotifyMail;
+}
+export const DEFAULT_SPACE_NOTIFY: SpaceNotify = { bell: true, mail: "hourly" };
+
 export interface SpaceFact {
   /** How templates name it: `{{facts.<key>}}`. Made from the label, stable afterwards. */
   key: string;
