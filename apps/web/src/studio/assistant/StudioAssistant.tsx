@@ -1628,8 +1628,9 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   }, [slot, introAt]);
   const away = useSlotAway(introAt, slotHeight);
   const top = Boolean(introAt) && !away;
-  // The introduction in view: the small engenty keeps out of the way.
-  const quiet = top;
+  // The introduction in view, or a page with its own input: the small engenty keeps out of the
+  // way. One place to ask on a screen; Goose comes back once it works or is opened.
+  const quiet = top || (ownInput && !busy && !open && !sidebar);
   const reserve = !(quiet || sidebar);
   // A phone's bar floats at the bottom of the window: the chat stands above it.
   const phone = Boolean(where?.phone);
