@@ -2794,6 +2794,7 @@ const de: Record<Key, Line> = {
   "skills.hint":
     "Anleitungen, nach denen deine Wizards arbeiten. Einem Skill, der immer an ist, folgt jeder Wizard. Bei Bedarf liest ein Wizard ihn, wenn er zur Aufgabe passt.",
   "nav.capabilities": "Fähigkeiten",
+  "space.menuSearch": "Im Menü suchen",
   "capabilities.inSpace": "Im Space",
   "capabilities.connectors": "Connectors",
   "capabilities.protocol": "Audit",
@@ -6402,6 +6403,7 @@ const en = {
   "skills.hint":
     "Instructions your wizards work by. Every wizard follows a skill that is always on. A wizard reads one on demand when it fits the task.",
   "nav.capabilities": "Capabilities",
+  "space.menuSearch": "Search the menu",
   "capabilities.inSpace": "In this space",
   "capabilities.connectors": "Connectors",
   "capabilities.protocol": "Audit",
