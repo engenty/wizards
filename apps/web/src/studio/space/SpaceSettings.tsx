@@ -142,7 +142,7 @@ function Identity({ space, save }: { space: Space; save: (patch: Patch) => Promi
       locked={space.readOnly}
     >
       {/* One field per row, label beside its value, as the facts stand. */}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col divide-y divide-border-soft">
         {[
           {
             id: "brand-name",
@@ -174,7 +174,7 @@ function Identity({ space, save }: { space: Space; save: (patch: Patch) => Promi
         ].map((row) => (
           <div
             key={row.id}
-            className="grid items-start gap-x-2 gap-y-1.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+            className="grid items-start gap-x-6 gap-y-2 py-4 first:pt-0 last:pb-0 sm:grid-cols-[15rem_minmax(0,1fr)]"
           >
             <div className="sm:pt-2.5">
               <label htmlFor={row.id} className="font-medium text-[0.9375rem]">

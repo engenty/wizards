@@ -2,9 +2,17 @@ import { type BrandRule, SPACE_LIMITS, type VoiceBlock } from "@engenty/wizards-
 import { ListChecks, Plus, TextQuote, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { type Key, t } from "../../lib/i18n";
-import { Button, IconButton, Input, Textarea } from "../../ui";
+import { Button, IconButton, Textarea } from "../../ui";
 import { useAutosave } from "./data";
-import { type AddEntry, AddMenu, newId, RuleRows, Section, useRuleRows } from "./Section";
+import {
+  type AddEntry,
+  AddMenu,
+  InlineText,
+  newId,
+  RuleRows,
+  Section,
+  useRuleRows,
+} from "./Section";
 
 /** The blocks most brands write down, offered by name; any other is the brand's own. */
 const PRESETS: { title: Key; hint: Key }[] = [
@@ -84,9 +92,9 @@ export function Voice({
       action={readOnly || !entries.length ? null : <AddMenu entries={entries} />}
     >
       <div className="flex flex-col gap-7">
-        {/* One block per row: its title on the left, its words on the right, as the facts stand. */}
+        {/* One block per row: its title on the left, its words on the right, as Name und Claim. */}
         {blocks.length ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col divide-y divide-border-soft">
             {blocks.map((b) => {
               const hint = hintOf(b.title);
               const remove = () => {
@@ -104,27 +112,36 @@ export function Voice({
               return (
                 <div
                   key={b.id}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1 gap-y-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)_auto]"
+                  className="group/row grid gap-x-6 gap-y-2 py-4 first:pt-0 last:pb-0 sm:grid-cols-[15rem_minmax(0,1fr)]"
                 >
+                  <div className="flex min-w-0 items-start gap-1 sm:pt-2">
+                    {readOnly ? (
+                      <p className="min-w-0 flex-1 font-medium text-[0.9375rem]">{b.title}</p>
+                    ) : (
+                      <div className="min-w-0 flex-1">
+                        <InlineText
+                          value={b.title}
+                          label={t("space.voice.title")}
+                          placeholder={t("space.voice.title")}
+                          maxLength={80}
+                          autoFocus={titleFor === b.id}
+                          onChange={(v) => set(b.id, { title: v })}
+                          className="font-medium text-[0.9375rem]"
+                        />
+                      </div>
+                    )}
+                    {readOnly ? null : (
+                      <IconButton
+                        label={t("space.remove")}
+                        onClick={remove}
+                        className="-mt-1 size-8 shrink-0 rounded-lg opacity-0 transition hover:text-rose focus-visible:opacity-100 group-hover/row:opacity-100 max-sm:opacity-100"
+                      >
+                        <Trash2 className="size-4" />
+                      </IconButton>
+                    )}
+                  </div>
                   {readOnly ? (
-                    <p className="font-medium text-[0.9375rem] sm:pt-2.5">{b.title}</p>
-                  ) : (
-                    <Input
-                      ref={(el) => {
-                        if (el && titleFor === b.id) {
-                          setTitleFor(null);
-                          el.focus();
-                        }
-                      }}
-                      value={b.title}
-                      maxLength={80}
-                      placeholder={t("space.voice.title")}
-                      onChange={(e) => set(b.id, { title: e.target.value })}
-                      className="font-medium sm:mr-1"
-                    />
-                  )}
-                  {readOnly ? (
-                    <p className="whitespace-pre-wrap text-[0.9375rem] text-ink-2 leading-relaxed max-sm:col-span-2 sm:pt-2.5">
+                    <p className="whitespace-pre-wrap text-[0.9375rem] text-ink-2 leading-relaxed sm:pt-2">
                       {b.text}
                     </p>
                   ) : (
@@ -142,17 +159,7 @@ export function Voice({
                       value={b.text}
                       placeholder={hint ? t(hint) : t("space.voice.textPlaceholder")}
                       onChange={(e) => set(b.id, { text: e.target.value })}
-                      className="max-sm:col-span-2 max-sm:row-start-2"
                     />
-                  )}
-                  {readOnly ? null : (
-                    <IconButton
-                      label={t("space.remove")}
-                      onClick={remove}
-                      className="size-11 rounded-lg hover:text-rose max-sm:col-start-2 max-sm:row-start-1"
-                    >
-                      <Trash2 className="size-4" />
-                    </IconButton>
                   )}
                 </div>
               );
