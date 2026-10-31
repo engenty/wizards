@@ -15,6 +15,7 @@ import {
   PanelRight,
   Pencil,
   PhoneOff,
+  PictureInPicture2,
   ShieldQuestion,
   SquarePen,
   Volume2,
@@ -527,6 +528,7 @@ function Header({
   phone,
   compact,
   grip,
+  floating,
 }: {
   state: AssistantState;
   where: "bottom" | "sidebar" | "avatar";
@@ -536,6 +538,8 @@ function Header({
   compact?: boolean;
   /** What moves the chat, before the name. */
   grip?: ReactNode;
+  /** Docked at the bottom: whether it floats at the lower right, where the column has room for it. */
+  floating?: { on: boolean; can: boolean };
 }) {
   const live = state.live;
   const [turnsOpen, setTurnsOpen] = useState(false);
@@ -623,6 +627,33 @@ function Header({
           <SquarePen className="size-4" />
         </IconButton>
       ) : null}
+      {/* Floating at the lower right, or back in the middle of the bottom. */}
+      {(where === "bottom" || (where === "avatar" && !compact)) && floating?.can ? (
+        <IconButton
+          label={
+            floating.on && where === "bottom"
+              ? t("assistant.layoutCenter")
+              : t("assistant.layoutFloat")
+          }
+          onClick={() => {
+            if (where === "avatar") {
+              // Opened from the engenty: it floats from now on, open.
+              setDockPrefs({ place: "right" });
+              state.setLayout("bottom");
+              state.setOpen(true);
+            } else {
+              setDockPrefs({ place: floating.on ? "center" : "right" });
+            }
+          }}
+          className="size-8"
+        >
+          {floating.on && where === "bottom" ? (
+            <PanelBottom className="size-4" />
+          ) : (
+            <PictureInPicture2 className="size-4" />
+          )}
+        </IconButton>
+      ) : null}
       {where !== "sidebar" && wide ? (
         <IconButton
           label={t("assistant.layoutSidebar")}
@@ -644,14 +675,16 @@ function Header({
           <PanelBottom className="size-4" />
         </IconButton>
       ) : null}
-      {/* Closed, Goose is the small engenty at the lower right; opened again, the chat stands where it was. */}
+      {/* Closed, Goose is the small engenty at the lower right; opened again, the chat stands where it was.
+          Closed by hand, an answer of a moment ago keeps it docked no longer. */}
       <IconButton
         label={t("assistant.close")}
         onClick={() => {
-          if (where !== "avatar") {
+          if (state.layout !== "avatar") {
             state.setLayout("avatar");
           }
           state.setOpen(false);
+          closedByHand.dispatchEvent(new Event("close"));
         }}
         className="size-8"
       >
@@ -1277,7 +1310,13 @@ export function AssistantSlot() {
 /** For this long after an answer Goose counts as busy: the person may still be reading it. */
 const RECENT_MS = 10 * 60_000;
 
-/** Whether Goose answered within the last minutes; false again on its own once they pass. */
+/** Goose closed by hand: what it answered a moment ago no longer keeps it docked. */
+const closedByHand = new EventTarget();
+
+/**
+ * Whether Goose answered within the last minutes; false again on its own once they pass, or as
+ * soon as the person closes it.
+ */
 function useRecentAnswer(state: AssistantState | null): boolean {
   const phase = state?.chat.phase ?? "idle";
   const [until, setUntil] = useState(0);
@@ -1289,6 +1328,11 @@ function useRecentAnswer(state: AssistantState | null): boolean {
     }
     was.current = phase;
   }, [phase]);
+  useEffect(() => {
+    const forget = () => setUntil(0);
+    closedByHand.addEventListener("close", forget);
+    return () => closedByHand.removeEventListener("close", forget);
+  }, []);
   useEffect(() => {
     if (!until) {
       return;
@@ -1654,6 +1698,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
                     phone={where.phone}
                     compact={where.compact}
                     grip={grip}
+                    floating={{ on: place === "right", can: hasRight(size.width) && !where.phone }}
                   />
                   {expanded ? (
                     <div
