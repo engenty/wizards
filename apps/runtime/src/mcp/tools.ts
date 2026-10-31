@@ -138,6 +138,11 @@ function presentNote(people: [string, string | null][]): string {
 }
 
 export function registerTools(server: McpServer, who: Principal) {
+  // A client of the organization authors nothing: only the elements of their client spaces
+  // (mcp/elements.ts, docs/plans/client-spaces.md).
+  if (who.role === "client") {
+    return;
+  }
   const writer: Writer = { source: "mcp", client: who.client };
   /** This client, for this person: how the studio shows it among who is in a wizard. */
   const agent = {

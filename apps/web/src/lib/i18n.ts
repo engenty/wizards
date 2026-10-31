@@ -3542,12 +3542,15 @@ const de: Record<Key, Line> = {
   "clients.roleClient": "Kund:in",
   "clients.roleMember": "Team",
   "clients.noPeople":
-    "Noch niemand. Kund:innen melden sich mit einem eigenen Konto an, sobald die Anmeldung für sie da ist.",
+    "Noch niemand. Lade Kund:innen mit ihrer E-Mail-Adresse ein: Sie melden sich mit einem eigenen Konto an und sehen nur diesen Space.",
   "clients.wizards": "Wizards für Kund:innen",
   "clients.wizardsHint":
     "Welche veröffentlichten Wizards Kund:innen in ihrem Space starten dürfen. Alle anderen bleiben beim Team.",
   "clients.noWizards": "Noch kein veröffentlichter Wizard.",
   "clients.openTitle": "Für Kund:innen sichtbar",
+  "clients.invite": "Einladen",
+  "clients.invitePlaceholder": "E-Mail-Adresse, z. B. wagner@firma.at",
+  "clients.invited": "eingeladen",
   "clients.openOn": "Kund:innen lesen das in ihrem Space.",
   "clients.openOff": "Nur das Team sieht das.",
   "space.factAdd": "Eintrag",
@@ -7211,12 +7214,15 @@ const en = {
   "clients.roleClient": "Client",
   "clients.roleMember": "Team",
   "clients.noPeople":
-    "Nobody yet. Clients sign in with an account of their own once sign-in for clients is there.",
+    "Nobody yet. Invite clients by their email address: they sign in with an account of their own and see only this client space.",
   "clients.wizards": "Wizards for clients",
   "clients.wizardsHint":
     "Which published wizards clients may start in their client space. All others stay with the team.",
   "clients.noWizards": "No published wizard yet.",
   "clients.openTitle": "Visible to clients",
+  "clients.invite": "Invite",
+  "clients.invitePlaceholder": "The client’s email address",
+  "clients.invited": "invited",
   "clients.openOn": "Clients read this in their client space.",
   "clients.openOff": "Only the team sees this.",
   "space.factAdd": "Entry",

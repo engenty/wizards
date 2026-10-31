@@ -302,6 +302,13 @@
       "when": 1793483673049,
       "tag": "0042_client_spaces",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1793484500603,
+      "tag": "0043_space_member_invite",
+      "breakpoints": true
     }
   ]
 }

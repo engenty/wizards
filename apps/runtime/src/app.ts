@@ -262,6 +262,9 @@ if (serves.doors) {
   });
 }
 
+/** What a client of the organization may ask the studio's routes for: who they are, their client spaces. */
+const CLIENT_OPEN = /\/api\/studio\/(me|spaces)$/;
+
 /** The studio's requests that open an item: a wizard, a page, a table, a skill, a space. */
 const STUDIO_LOADS =
   /\/api\/studio\/(wizards\/[^/]+|pages\/[^/]+|tables\/[^/]+|skills\/[^/]+|spaces(\/[^/]+(\/(data|knowledge|files|wizards|page|skills))?)?)$/;
@@ -324,6 +327,15 @@ if (serves.studio) {
 
   // A member reaches a space's studio only where its admins opened it (behind `capabilities`).
   app.use("/api/studio/*", membersStudioGate);
+  // A client of the organization reaches no Studio and no Work (docs/plans/client-spaces.md):
+  // who they are and their own client spaces, until the client portal brings its own routes.
+  app.use("/api/studio/*", async (c, next) => {
+    const user = c.get("user") as { role?: string } | undefined;
+    if (user?.role !== "client" || (c.req.method === "GET" && CLIENT_OPEN.test(c.req.path))) {
+      return next();
+    }
+    return c.json({ error: say(c, "clientsNotHere"), code: "forbidden" }, 403);
+  });
 }
 if (serves.api) {
   // Outside clients: MCP and the API (docs/plans/modular.md), the space's elements among them.

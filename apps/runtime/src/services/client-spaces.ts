@@ -1,8 +1,10 @@
-import { and, count, eq, inArray } from "drizzle-orm";
+import { note } from "@engenty/wizards-shared/run";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { openToClients } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { currentFeatures } from "../features.js";
+import { inviteMember, managed } from "../manage.js";
 import { spaceChanged } from "../plugins/events.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { currentRole, requireAdmin, requireBuild } from "./access.js";
@@ -114,7 +116,12 @@ export async function listSpaceMembers(userId: string, spaceId: string) {
     where: eq(schema.spaceMember.spaceId, space.id),
     orderBy: (m, { asc }) => [asc(m.createdAt)],
   });
-  return rows.map((m) => ({ userId: m.userId, role: m.role, addedAt: m.createdAt.toISOString() }));
+  return rows.map((m) => ({
+    userId: m.userId,
+    email: m.email,
+    role: m.role,
+    addedAt: m.createdAt.toISOString(),
+  }));
 }
 
 /** Puts a person of the organization into a client space, as a client or as the firm's. */
@@ -161,4 +168,65 @@ export async function clientOpenOf(userId: string, spaceId: string) {
   await requireClientSpaces();
   const space = await firmSpace(userId, spaceId);
   return openToClients(space.id);
+}
+
+/**
+ * Invites a client into a client space by their address: the Manage-App invites them into the
+ * organization as a `client` (taking no seat), and the client space keeps the address until they
+ * sign in for the first time (`claimClientInvites`). Cloud only: a local install has no accounts.
+ */
+export async function inviteClient(
+  userId: string,
+  spaceId: string,
+  input: { email: string; lang: "de" | "en" },
+): Promise<void> {
+  await requireClientSpaces();
+  await requireAdmin();
+  const space = await clientSpace(userId, spaceId);
+  if (!managed) {
+    throw new ServiceError("refused", note("clientsInCloud"));
+  }
+  const email = input.email.trim().toLowerCase();
+  await inviteMember(currentTenant(), { actorId: userId, email, role: "client", lang: input.lang });
+  await db.insert(schema.spaceMember).values({
+    id: nanoid(12),
+    tenantId: currentTenant(),
+    spaceId: space.id,
+    userId: null,
+    email,
+    role: "client",
+    addedBy: userId,
+  });
+}
+
+/**
+ * A person's first sign-in: the client spaces that invited their address take them in. Called
+ * where the runtime signs a person in.
+ */
+export async function claimClientInvites(userId: string, email: string): Promise<void> {
+  const address = email.trim().toLowerCase();
+  if (!address) {
+    return;
+  }
+  const pending = await db.query.spaceMember.findMany({
+    where: and(
+      eq(schema.spaceMember.tenantId, currentTenant()),
+      eq(schema.spaceMember.email, address),
+      isNull(schema.spaceMember.userId),
+    ),
+  });
+  for (const row of pending) {
+    const already = await db.query.spaceMember.findFirst({
+      columns: { id: true },
+      where: and(
+        eq(schema.spaceMember.spaceId, row.spaceId),
+        eq(schema.spaceMember.userId, userId),
+      ),
+    });
+    if (already) {
+      await db.delete(schema.spaceMember).where(eq(schema.spaceMember.id, row.id));
+    } else {
+      await db.update(schema.spaceMember).set({ userId }).where(eq(schema.spaceMember.id, row.id));
+    }
+  }
 }

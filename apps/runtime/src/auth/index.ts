@@ -18,6 +18,7 @@ import {
 import { refreshPro } from "../plugins/pro.js";
 import { requestLang, say } from "../routes/lang.js";
 import { seal, unseal } from "../secrets/crypto.js";
+import { claimClientInvites } from "../services/client-spaces.js";
 import { LOCAL_TENANT } from "../tenants/tenant.js";
 import { finishLink } from "./account.js";
 import { localTicketExpiry } from "./local-ticket.js";
@@ -474,6 +475,12 @@ export const authRoutes = new Hono()
         impersonatedBy: admin?.id ?? null,
         impersonatorEmail: admin?.email ?? null,
       });
+      // A client's first sign-in: the client spaces that invited their address take them in.
+      if (claims.role === "client" && !admin) {
+        await withTenant(claims.tenantId, () =>
+          claimClientInvites(claims.userId, claims.email),
+        ).catch((err) => console.error("[clients] claiming invitations:", err));
+      }
       if (state.desktop) {
         // The session belongs to the app's window, not to this browser.
         const code = seal({

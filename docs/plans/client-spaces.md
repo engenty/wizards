@@ -1,6 +1,6 @@
 # Plan: client spaces
 
-Status: decided on 2026-10-31, building. Phase 2b of `docs/plans/modular.md` (decision 8). The
+Status: decided on 2026-10-31. Step 1 built (#411), inviting clients built; the rest of steps 2 and 3 open. Phase 2b of `docs/plans/modular.md` (decision 8). The
 proposal and its mockups: the artifact "How a Space Works", question 8
 (claude.ai/artifact/RwejkjT7hj7BwuWYcooVsw).
 
@@ -47,9 +47,12 @@ parent's Knowledge marked for clients when a client asks.
    "for clients" as a rule, wizards a client may start as a rule. Behind `clientSpaces`.
 2. **The firm's side**: the space's "Clients" part in Studio (list, new, people, wizards for
    clients), the mark in Knowledge, the group in Work's chat sidebar, View as in Client mode.
-3. **Clients**: the `client` role in the Manage-App and its invitation, the client portal (For
-   you, Chats, Files, Results, phone), runs a client starts writing into their client space,
-   results shared with the client on purpose.
+3. **Clients**: the `client` role in the Manage-App and its invitation (built: a client takes no
+   seat, is invited only where `clientSpaces` is on, and is taken into the client space that
+   invited their address at the first sign-in; until the portal, a client's session and token
+   reach only who they are, their client spaces and their elements), the client portal (For you,
+   Chats, Files, Results, phone), runs a client starts writing into their client space, results
+   shared with the client on purpose.
 
 ## Open
 

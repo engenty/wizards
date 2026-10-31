@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Trash2, UsersRound } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { api } from "../../lib/api";
-import { t } from "../../lib/i18n";
+import { lang, t } from "../../lib/i18n";
 import type { Space, WizardSummary } from "../../lib/session";
 import { Button, cn, IconButton, Input, Switch } from "../../ui";
 import { Section } from "./Section";
@@ -22,8 +22,49 @@ interface ClientSpaceRow {
 }
 
 interface Member {
-  userId: string;
+  /** Null while the person is invited and has not signed in yet. */
+  userId: string | null;
+  email: string | null;
   role: "member" | "client";
+}
+
+/** Invites a client into the client space by their address; they sign in with their own account. */
+function InviteClient({ spaceId, onDone }: { spaceId: string; onDone: () => void }) {
+  const [email, setEmail] = useState("");
+  const invite = useMutation({
+    mutationFn: (address: string) =>
+      api.post(`/api/studio/spaces/${spaceId}/invite`, { email: address, lang }),
+    onSuccess: () => {
+      setEmail("");
+      onDone();
+    },
+  });
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (email.trim()) {
+      invite.mutate(email.trim());
+    }
+  };
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-1">
+      <div className="flex gap-2">
+        <Input
+          id={`invite-${spaceId}`}
+          type="email"
+          value={email}
+          maxLength={254}
+          placeholder={t("clients.invitePlaceholder")}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <Button type="submit" variant="secondary" disabled={!email.trim() || invite.isPending}>
+          {t("clients.invite")}
+        </Button>
+      </div>
+      {invite.error ? (
+        <p className="text-[0.8125rem] text-danger">{(invite.error as Error).message}</p>
+      ) : null}
+    </form>
+  );
 }
 
 type Open = Record<"document" | "table" | "page" | "wizard", string[]>;
@@ -131,19 +172,21 @@ function ClientRow({ spaceId, client }: { spaceId: string; client: ClientSpaceRo
         </IconButton>
       </div>
       {open ? (
-        <div className="mt-2 ml-8 flex flex-col gap-1 text-[0.875rem]">
+        <div className="mt-2 ml-8 flex flex-col gap-2 text-[0.875rem]">
           {members.data?.members.length ? (
             members.data.members.map((m) => (
-              <div key={m.userId} className="flex items-center gap-2 text-ink-2">
-                <span className="truncate">{m.userId}</span>
+              <div key={m.userId ?? m.email} className="flex items-center gap-2 text-ink-2">
+                <span className="truncate">{m.email ?? m.userId}</span>
                 <span className="text-ink-4">
                   {m.role === "client" ? t("clients.roleClient") : t("clients.roleMember")}
+                  {m.userId ? null : ` · ${t("clients.invited")}`}
                 </span>
               </div>
             ))
           ) : (
             <p className="text-ink-3">{t("clients.noPeople")}</p>
           )}
+          <InviteClient spaceId={client.id} onDone={() => members.refetch()} />
         </div>
       ) : null}
     </li>

@@ -31,7 +31,7 @@ const callBody = z.object({ input: z.record(z.string(), z.unknown()).default({})
 
 export const elementRoutes = new Hono()
   .get("/spaces/:spaceId/elements", async (c) => {
-    const who = await caller(c, []);
+    const who = await caller(c, [], { clients: true });
     if (who instanceof Response) {
       return who;
     }
@@ -45,7 +45,7 @@ export const elementRoutes = new Hono()
     });
   })
   .post("/spaces/:spaceId/elements/:name", async (c) => {
-    const who = await caller(c, []);
+    const who = await caller(c, [], { clients: true });
     if (who instanceof Response) {
       return who;
     }

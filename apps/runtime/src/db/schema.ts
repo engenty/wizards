@@ -166,7 +166,10 @@ export const spaceMember = sqliteTable(
     spaceId: text("space_id")
       .notNull()
       .references(() => space.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
+    /** Null while the person is invited and has not signed in yet. */
+    userId: text("user_id"),
+    /** The address an invitation went to: the person is found by it on their first sign-in. */
+    email: text("email"),
     role: text("role", { enum: ["member", "client"] }).notNull(),
     addedBy: text("added_by").notNull(),
     createdAt: createdAt(),

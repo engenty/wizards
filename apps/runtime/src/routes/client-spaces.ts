@@ -7,6 +7,7 @@ import {
   clientOpenOf,
   createClientSpace,
   deleteClientSpace,
+  inviteClient,
   listClientSpaces,
   listSpaceMembers,
   removeSpaceMember,
@@ -44,6 +45,16 @@ export const clientSpaceRoutes = new Hono<Vars>()
       userId: c.req.param("userId"),
       role,
     });
+    return c.json({ ok: true });
+  })
+  .post("/spaces/:id/invite", async (c) => {
+    const { email, lang } = z
+      .object({
+        email: z.string().trim().email().max(254),
+        lang: z.enum(["de", "en"]).default("de"),
+      })
+      .parse(await c.req.json());
+    await inviteClient(c.get("user").id, c.req.param("id"), { email, lang });
     return c.json({ ok: true });
   })
   .delete("/spaces/:id/members/:userId", async (c) => {
