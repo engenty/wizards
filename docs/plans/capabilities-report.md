@@ -29,6 +29,8 @@ All PRs into `feat/work-mode`, squash-merged, each behind a switch where it chan
 | B2 | #370 | Connectors section: list, setup, one connection with sign-in, audience, rules, `?setup=` and `?show=`; `/settings/connectors` redirects. |
 | B5 | #371 | Protokoll: log with filters and cursor, line detail with the run's grant, „Was darf …?", notification switches; `BROKER_REFUSALS` in `packages/shared` so every refusal has words. |
 | B7 | #372 | `capabilities` on by default; user guide `user-guide/capabilities.md`, glossary rows in `docs/copy-style.md`, developer page `dev/broker.md`; two runtime tests now set the switch off explicitly. `broker` stays off. |
+| fix | #375 | Members reach a closed space through no side door: MCP, `/api/v1`, the live stream and Goose use B4's gate, each with a test. |
+| B8 | #376 | `broker` on by default; a plugin's document read runs as whoever it serves plus the plugin; a plugin's scheduled job reads as the runtime's own `SYSTEM` subject (allowed, not nameable in a rule, not derivable from a request; "no subject" is still a no). |
 | fix | #373 | `send` is a connector action group: SMTP, Gmail and Outlook `send_message` and Slack `post_message` are sends; imported definitions are classified by name (`importer/classify.ts`); a guest's send over a connection now meets the recipient rule and the caps. |
 
 Tenant migrations 0032–0039 apply in order on a fresh data folder (seen in the run).
@@ -108,14 +110,14 @@ computed opacity is 1. Not a product defect.
   covered by runtime tests only.
 - The hourly mail to admins and the report to Manage: Manage has no `POST /v1/broker/:tenant`
   yet (A7a).
-- B4's note: Goose tools, MCP, `/api/v1` and the live stream still reach a space closed to
-  members.
+- The shop plugin (the only plugin reading documents) was not run end to end after #376; a
+  plugin's `readPages` and the counts in the steps' Knowledge prompt stay outside RWX.
 - Per-person sign-in is not gated to the Team plan (B2); the Work bell's run link
   `/wizards/:id?run=` is not a route, the Protokoll uses `/edit/:id?run=` (B5).
 
 ## Status
 
-Everything in Part A and Part B of the plan is merged on `feat/work-mode` (`98a88b30`);
+Everything in Part A and Part B of the plan is merged on `feat/work-mode` (`ff6b08ac`);
 `capabilities` and `broker` (RWX enforcement) are on by default (B8). F1 is fixed by #373 and
 re-checked on the final branch: the connection page lists `send_message` under „Senden", and
 `broker/ask` answers an admin's send in a chat with `ask` by `rules.send` and a guest's send in a
