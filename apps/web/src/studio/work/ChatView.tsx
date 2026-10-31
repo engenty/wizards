@@ -130,7 +130,7 @@ export function ChatView({ id }: { id: string }) {
   ];
   const approvals = {
     approvals: new Map(data.approvals.map((a) => [a.id, a])),
-    may: (a: Approval) => a.askedBy === me || role !== "member",
+    may: (a: Approval) => role !== "member" || (a.heldFor === "asker" && a.askedBy === me),
     decide: (approvalId: string, approve: boolean) => decide.mutate({ id: approvalId, approve }),
     busy: decide.isPending,
     tools: data.tools ?? {},

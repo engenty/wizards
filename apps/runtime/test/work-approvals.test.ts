@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 // Approvals in a Work chat: a plugin's tool that reaches past the space (or isn't marked) is held
 // when the AI calls it; Approve runs the stored call once and the AI goes on with its result;
@@ -69,6 +70,37 @@ export default definePlugin(({ server }) => {
 `,
 );
 const mails = () => ((globalThis as any).__mails ?? []) as { to: string }[];
+
+// A connection of the space (A7): HubSpot, played by a stub with a read and a write.
+const hubspot: { action: string; input: unknown; token: string }[] = [];
+vi.mock("../src/engenty/connections-hubspot/connector", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../src/engenty/connections-hubspot/connector")>();
+  const action = (id: string, group: "read" | "write", summary: string) => ({
+    id,
+    group,
+    summary,
+    description: summary,
+    inputSchema: z.object({ email: z.string().optional() }),
+    handler: async (input: unknown, ctx: { accessToken: string }) => {
+      hubspot.push({ action: id, input, token: ctx.accessToken });
+      return { done: id, contacts: [{ id: "7" }] };
+    },
+  });
+  return {
+    ...mod,
+    hubspotConnector: {
+      ...mod.hubspotConnector,
+      auth: {
+        kind: "api_key",
+        apiKey: {
+          fields: [{ key: "access_token", label: "Token", secret: true }],
+          verify: async () => ({ label: "HubSpot" }),
+        },
+      },
+      actions: [action("list_contacts", "read", "List contacts"), action("create_contact", "write", "Create a contact")],
+    },
+  };
+});
 const contexts = () => ((globalThis as any).__ctx ?? []) as Record<string, unknown>[];
 
 const usage = { inputTokens: { total: 120, noCache: 120 }, outputTokens: { total: 8, text: 8 } };
@@ -245,5 +277,102 @@ describe("approvals in a Work chat", () => {
     // never a call without a result. The person's message stays.
     expect(calls.filter((c) => !results.includes(c))).toEqual([]);
     expect(prompts.at(-1)).toContain("Dauert.");
+  });
+});
+
+describe("a connection of the space in a Work chat (A7)", () => {
+  let connection = "";
+  const RULES = { read: "allow", write: "ask", destructive: "deny", send: "ask" } as const;
+
+  beforeAll(async () => {
+    const client = await import("../src/db/client");
+    const service = await import("../src/connectors/space-connections");
+    const row = await client.withTenant("local", () =>
+      service.createSpaceConnection("local", spaceId, {
+        connectorId: "hubspot",
+        name: "Vertrieb",
+        signIn: "space",
+        audience: "members",
+        rules: RULES,
+        actions: [],
+      }),
+    );
+    connection = row.id;
+    await client.withTenant("local", () =>
+      service.signInWithCredentials(connection, { as: "space" }, { access_token: "pat-local-1" }),
+    );
+  });
+
+  it("reads through it at once, as the person in the chat", async () => {
+    const id = await newChat();
+    script.push(callTool(`hubspot_${connection}_list_contacts`, {}), say("Sieben Kontakte."));
+    const seen = await chunks(await send("POST", `/chats/${id}/messages`, { text: "Wie viele Kontakte?", ask: true }));
+    const output = seen.find((c) => c.type === "tool-output-available")?.output as { result: string };
+    expect(output.result).toContain("contacts");
+    expect(hubspot.at(-1)).toMatchObject({ action: "list_contacts", token: expect.stringContaining("pat-local-1") });
+    const read = await json(send("GET", `/chats/${id}`));
+    expect(read.tools[`hubspot_${connection}_create_contact`]).toEqual({ plugin: "Vertrieb", tool: "Create a contact", label: null });
+  });
+
+  it("holds a write as a confirmed action, then again for the admins, and an admin's yes runs it", async () => {
+    hubspot.length = 0;
+    const id = await newChat();
+    const first = await held(id, `hubspot_${connection}_create_contact`, { email: "neu@example.com" });
+    expect(first.status).toBe("waiting");
+    expect(hubspot).toEqual([]);
+    const read = await json(send("GET", `/chats/${id}`));
+    expect(read.approvals).toEqual([
+      expect.objectContaining({ id: first.approval, heldFor: "asker", state: "pending", input: { email: "neu@example.com" } }),
+    ]);
+
+    // The person confirms: the rule says „Mit Freigabe“, so the call waits for the admins.
+    script.push(say("Die Admins müssen noch freigeben."));
+    await chunks(await send("POST", `/chats/${id}/approvals/${first.approval}`, { approve: true }));
+    expect(hubspot).toEqual([]);
+    expect(prompts.at(-1)).toContain("waits for them");
+    const after = await json(send("GET", `/chats/${id}`));
+    const second = after.approvals.find((a: any) => a.id !== first.approval);
+    expect(after.approvals.find((a: any) => a.id === first.approval)).toMatchObject({
+      state: "approved",
+      output: { approval: second.id, status: "waiting" },
+    });
+    expect(second).toMatchObject({
+      toolName: `hubspot_${connection}_create_contact`,
+      heldFor: "admins",
+      state: "pending",
+      askedBy: "local",
+      input: { email: "neu@example.com" },
+    });
+    expect((await json(send("GET", "/approvals"))).approvals.map((a: any) => a.id)).toContain(second.id);
+
+    // The owner approves: it runs once, as the person who asked.
+    script.push(say("Angelegt."));
+    await chunks(await send("POST", `/chats/${id}/approvals/${second.id}`, { approve: true }));
+    expect(hubspot).toEqual([{ action: "create_contact", input: { email: "neu@example.com" }, token: expect.stringContaining("pat-local-1") }]);
+    expect(prompts.at(-1)).toContain("ran once");
+    const done = await json(send("GET", `/chats/${id}`));
+    expect(done.approvals.find((a: any) => a.id === second.id)).toMatchObject({
+      state: "approved",
+      output: { result: expect.stringContaining("create_contact") },
+    });
+  });
+
+  it("marks a confirmed action the rule denies as failed, with the reason", async () => {
+    hubspot.length = 0;
+    const client = await import("../src/db/client");
+    const service = await import("../src/connectors/space-connections");
+    await client.withTenant("local", () =>
+      service.updateSpaceConnection("local", connection, { rules: { ...RULES, write: "deny" } }),
+    );
+    const id = await newChat();
+    const first = await held(id, `hubspot_${connection}_create_contact`, { email: "nein@example.com" });
+    script.push(say("Das darf ich hier nicht."));
+    await chunks(await send("POST", `/chats/${id}/approvals/${first.approval}`, { approve: true }));
+    expect(hubspot).toEqual([]);
+    expect(prompts.at(-1)).toContain("but it failed");
+    expect((await json(send("GET", `/chats/${id}`))).approvals[0]).toMatchObject({
+      state: "failed",
+      output: { error: expect.stringContaining("do not allow this action") },
+    });
   });
 });

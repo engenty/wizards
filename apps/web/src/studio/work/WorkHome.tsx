@@ -125,7 +125,10 @@ export function WorkHome() {
                   key={a.id}
                   approval={a}
                   chat={titles.get(a.chatId) ?? t("work.untitled")}
-                  may={a.askedBy === me?.user.id || me?.tenant.role !== "member"}
+                  may={
+                    me?.tenant.role !== "member" ||
+                    (a.heldFor === "asker" && a.askedBy === me?.user.id)
+                  }
                 />
               ))}
               {unread.map((c) => (
@@ -220,7 +223,12 @@ function ApprovalCard({ approval, chat, may }: { approval: Approval; chat: strin
         <div className="grid min-w-0 gap-0.5">
           <p className="truncate text-[0.75rem] text-ink-3">{chat}</p>
           <p className="font-medium text-[0.9375rem] text-ink">
-            {t("work.approval.waiting", { name: approval.toolName })}
+            {t(
+              approval.heldFor === "admins"
+                ? "work.approval.waitingAdmins"
+                : "work.approval.waiting",
+              { name: approval.toolName },
+            )}
           </p>
         </div>
       </div>

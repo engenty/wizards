@@ -435,10 +435,20 @@ describe("a wizard's connection, as the person running it", () => {
       } as never,
       connector: {} as never,
     };
+    // A guest's AI step: a write as the space is denied before any rule (A4).
     expect(
-      broker.decide({ who: guest, where: { guest: true }, connection: plugin, actionId: "x", kind: "write" })
-        .outcome,
+      broker.decide({
+        who: guest,
+        where: { guest: true, runId: "run-g" },
+        connection: plugin,
+        actionId: "x",
+        kind: "write",
+      }).outcome,
     ).toBe("deny");
+    // In a Work chat the same write is a confirmed action: „Mit Freigabe“ asks the admins (A7).
+    expect(
+      broker.decide({ who: { kind: "person", id: "m" }, where: { chatId: "c" }, connection: plugin, actionId: "x", kind: "write" }),
+    ).toMatchObject({ outcome: "ask", admins: true });
     expect(
       broker.decide({ who: guest, where: { guest: true }, connection: plugin, actionId: "x", kind: "read" })
         .outcome,

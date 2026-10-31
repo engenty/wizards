@@ -938,6 +938,13 @@ export const chatApproval = sqliteTable(
     input: text("input", { mode: "json" }).$type<unknown>(),
     /** Who the turn was for: the call runs with their access, and they may decide. */
     askedBy: text("asked_by").notNull(),
+    /**
+     * Whose decision it waits for: the asker's (a confirmed action, a plugin's tool), or the
+     * space's admins' („Mit Freigabe“ on a connection that signs in as the space, A7).
+     */
+    heldFor: text("held_for", { enum: ["asker", "admins"] })
+      .notNull()
+      .default("asker"),
     state: text("state", { enum: ["pending", "approved", "denied", "failed"] })
       .notNull()
       .default("pending"),

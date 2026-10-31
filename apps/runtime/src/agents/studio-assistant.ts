@@ -6,6 +6,7 @@ import type {
   AssistantStep,
   BrowserTool,
 } from "@engenty/wizards-shared/assistant";
+import { CONFIRM_ACTION_TOOL } from "@engenty/wizards-shared/assistant";
 import { type Lang, textClassOf } from "@engenty/wizards-shared/definition";
 import {
   cleanAssetSections,
@@ -61,6 +62,7 @@ import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
 import { skillToolsOf } from "../tools/skills.js";
+import { gooseConnectionTools } from "./goose-connections.js";
 import { spaceAgent } from "./space-agent.js";
 import { chatTurnWay } from "./subscription.js";
 import { readWebsite } from "./website.js";
@@ -946,6 +948,9 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
       }),
     );
   }
+  // The person's own sign-ins to the spaces' connections (goose-connections.ts): reads run, a
+  // write asks them on a card. Never a connection that signs in as the space.
+  Object.assign(tools, await gooseConnectionTools(input));
   // The space's skills (docs/plans/skills.md): Goose reads them as a step does.
   const skills = space && switches.skills === true ? await activeSkills(space.id) : null;
   const allSkills = space && switches.skills === true ? await skillList(space.id) : [];
@@ -958,7 +963,8 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     );
   }
   for (const spec of input.browserTools) {
-    if (tools[spec.name]) {
+    // The confirm card is the runtime's to show, never the model's to call.
+    if (tools[spec.name] || spec.name === CONFIRM_ACTION_TOOL) {
       continue;
     }
     const tool = browserTool(input, spec);

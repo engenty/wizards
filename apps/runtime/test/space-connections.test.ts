@@ -83,6 +83,8 @@ const admin = { kind: "admin" as const, id: "user-a" };
 const member = { kind: "person" as const, id: "user-m" };
 const guest = { kind: "guest" as const, id: "visitor-1" };
 const memberRun = { runId: "run-m", spaceId: "", mode: "live" as const, guest: false };
+/** A Work chat: no run, so a write is a confirmed action, not an AI step's (A7). */
+const memberChat = { chatId: "chat-m", spaceId: "" };
 const guestRun = { runId: "run-g", spaceId: "", mode: "live" as const, guest: true };
 
 const RULES = { read: "allow", write: "ask", destructive: "deny", send: "ask" } as const;
@@ -106,6 +108,7 @@ beforeAll(async () => {
   const spaces = await import("../src/services/spaces");
   space = (await inTenant(() => spaces.createSpace("user-a", "Vertrieb"))).id;
   memberRun.spaceId = space;
+  memberChat.spaceId = space;
   guestRun.spaceId = space;
 }, 60_000);
 
@@ -176,7 +179,7 @@ describe("a connection that signs in as the space", () => {
 
   const call = (
     who: typeof admin | typeof member | typeof guest,
-    where: typeof memberRun,
+    where: typeof memberRun | typeof memberChat,
     action: string,
     ctx?: Parameters<typeof broker.brokerCall>[0]["ctx"],
   ) =>
@@ -243,18 +246,28 @@ describe("a connection that signs in as the space", () => {
     expect((await logOf(id)).at(-1)).toMatchObject({ whoKind: "guest", outcome: "deny" });
   });
 
-  it("holds a write for the admins, which nothing does yet: needs_approval", async () => {
+  it("asks the admins before a write („Mit Freigabe“): the caller holds it, an admin's yes runs it", async () => {
     calls.length = 0;
     const ask = vi.fn();
-    const out = await call(member, memberRun, "create_contact", { ask });
+    const out = await call(member, memberChat, "create_contact", { ask, confirmed: true });
     expect(out).toMatchObject({ ok: false, refused: "needs_approval" });
+    expect(out.ok || out.reason).toMatch(/asks the space's admins/);
+    // The person's own yes does not stand in for the admins', and nobody else is asked.
     expect(ask).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
     expect((await logOf(id)).at(-1)).toMatchObject({
       kind: "write",
-      outcome: "deny",
+      outcome: "ask",
       result: "needs_approval",
-      critical: true,
+      critical: false,
+    });
+    const approved = await call(member, memberChat, "create_contact", { approved: true });
+    expect(approved.ok).toBe(true);
+    expect(calls.map((c) => c.action)).toEqual(["create_contact"]);
+    expect((await logOf(id)).at(-1)).toMatchObject({
+      outcome: "ask",
+      reason: "An admin of the space approved it.",
+      result: "ok",
     });
   });
 
@@ -264,10 +277,11 @@ describe("a connection that signs in as the space", () => {
         rules: { ...RULES, write: "allow" },
       }),
     );
-    const written = await call(member, memberRun, "create_contact");
+    // In a Work chat (A7): an AI step never writes as the space (A4).
+    const written = await call(member, memberChat, "create_contact");
     expect(written.ok).toBe(true);
     expect(calls.at(-1)?.action).toBe("create_contact");
-    const deleted = await call(admin, memberRun, "delete_contact", {
+    const deleted = await call(admin, memberChat, "delete_contact", {
       ask: async () => ({ type: "done" as const }),
     });
     expect(deleted).toMatchObject({ ok: false, refused: "denied" });
@@ -283,8 +297,8 @@ describe("a connection that signs in as the space", () => {
     const out = await call(guest, guestRun, "create_contact", {
       ask: async () => ({ type: "done" as const }),
     });
-    expect(out).toMatchObject({ ok: false, refused: "denied" });
-    expect(out.ok || out.reason).toMatch(/guest's run only reads/);
+    expect(out).toMatchObject({ ok: false, refused: "ai_step_writes" });
+    expect(out.ok || out.reason).toMatch(/AI step only reads/);
     expect(calls.map((c) => c.action)).toEqual(["list_contacts"]);
   });
 
@@ -301,8 +315,8 @@ describe("a connection that signs in as the space", () => {
       broker.decide({ who: member, where: memberRun, connection, actionId: "x", kind: "read" }),
     ).toMatchObject({ outcome: "deny" });
     expect(
-      broker.decide({ who: admin, where: memberRun, connection, actionId: "x", kind: "send" }),
-    ).toMatchObject({ outcome: "deny", refused: "needs_approval" });
+      broker.decide({ who: admin, where: memberChat, connection, actionId: "x", kind: "send" }),
+    ).toMatchObject({ outcome: "ask", admins: true });
     await inTenant(() => service.removeSpaceConnection("user-a", id));
     await expect(inTenant(() => service.spaceConnectionById(id))).rejects.toMatchObject({
       code: "not_found",

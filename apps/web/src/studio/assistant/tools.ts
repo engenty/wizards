@@ -1,4 +1,4 @@
-import type { BrowserTool } from "@engenty/wizards-shared/assistant";
+import { type BrowserTool, CONFIRM_ACTION_TOOL } from "@engenty/wizards-shared/assistant";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { SCROLL_ROOT_ID } from "../AppFrame";
 
@@ -234,6 +234,45 @@ export function useHighlight(): Highlight | null {
   );
 }
 
+// --- a confirmed action ----------------------------------------------------------------------
+
+/** A change Goose is about to make through one of the person's connections, waiting for their yes. */
+export interface Confirmation {
+  id: number;
+  service: string;
+  action: string;
+  destructive: boolean;
+  /** What would be sent, as readable JSON. */
+  input: string;
+  answer: (confirmed: boolean) => void;
+}
+
+let confirmation: Confirmation | null = null;
+let confirmations = 0;
+const confirmationListeners = new Set<() => void>();
+
+function setConfirmation(next: Confirmation | null) {
+  confirmation = next;
+  for (const listener of confirmationListeners) {
+    listener();
+  }
+}
+
+export function useConfirmation(): Confirmation | null {
+  return useSyncExternalStore(
+    (listener) => {
+      confirmationListeners.add(listener);
+      return () => confirmationListeners.delete(listener);
+    },
+    () => confirmation,
+  );
+}
+
+/** The turn ended without an answer (Stop, the page gone): the card goes, and the runtime hears no. */
+export function dropConfirmation() {
+  confirmation?.answer(false);
+}
+
 // --- navigation ----------------------------------------------------------------------------
 
 let go: ((to: string) => void) | null = null;
@@ -353,6 +392,38 @@ const BUILT_IN: Registered[] = [
       });
       return { shown: labelOf(el) };
     },
+  },
+  {
+    // The runtime calls this one before a write through a connection; the model never sees it.
+    name: CONFIRM_ACTION_TOOL,
+    description:
+      "Shows the person a change about to be made through one of their connections and waits for their yes.",
+    parameters: {
+      type: "object",
+      properties: {
+        service: { type: "string" },
+        action: { type: "string" },
+        destructive: { type: "boolean" },
+        input: { type: "string" },
+      },
+      required: ["service", "action", "input"],
+    },
+    run: ({ service, action, destructive, input }) =>
+      new Promise<{ confirmed: boolean }>((resolve) => {
+        confirmation?.answer(false);
+        confirmations += 1;
+        setConfirmation({
+          id: confirmations,
+          service: String(service ?? ""),
+          action: String(action ?? ""),
+          destructive: destructive === true,
+          input: String(input ?? ""),
+          answer: (confirmed) => {
+            setConfirmation(null);
+            resolve({ confirmed });
+          },
+        });
+      }),
   },
   {
     name: "look_at_page",

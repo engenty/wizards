@@ -21,6 +21,7 @@ import { ClientSteps } from "./client-steps.js";
 import { activeSkills } from "./skills.js";
 import { searchKnowledge } from "./space-index.js";
 import { holdCall } from "./work-approvals.js";
+import { workConnectionTools } from "./work-connections.js";
 import { chatSandbox } from "./work-sandbox.js";
 
 /**
@@ -150,9 +151,16 @@ export const showView = () =>
 const searches = (resolved: ResolvedModel<unknown>) =>
   resolved.vendor === "anthropic" || resolved.gateway;
 
+/** An approved call runs for its chat, and knows whether an admin approved it („Mit Freigabe“ met). */
+export interface ApprovedRun {
+  chatId: string;
+  byAdmin: boolean;
+}
+
 /**
- * The space's tools for a turn: its knowledge, its skills, the chat's sandbox, the plugins'
- * tools, the web; the plugins and the web the person turned off (`choice`) left out.
+ * The space's tools for a turn: its knowledge, its skills, the chat's sandbox, the space's
+ * connections open to the person (work-connections.ts), the plugins' tools, the web; the plugins
+ * and the web the person turned off (`choice`) left out.
  */
 async function toolsFor(
   resolved: ResolvedModel<unknown> | null,
@@ -161,8 +169,15 @@ async function toolsFor(
   signal: AbortSignal,
   choice: TurnChoice = {},
   chatId: string | null = null,
+  approved: ApprovedRun | null = null,
 ): Promise<Record<string, unknown>> {
   const sandbox = sandboxTools(chatId);
+  const connections = await workConnectionTools({
+    space,
+    userId,
+    chatId: chatId ?? approved?.chatId ?? null,
+    byAdmin: approved?.byAdmin,
+  });
   const skills = await spaceSkills(space.id);
   // The turn reads as the person who asked: what they may not read, the AI does not find.
   const who = subjectsOfPerson(userId, await roleOf(userId));
@@ -180,6 +195,7 @@ async function toolsFor(
     show_view: showView(),
     ...sandbox.tools,
     ...(skills ? skillToolsOf(skills, () => {}, sandbox.skill) : {}),
+    ...connections.tools,
     ...(await assistantToolsOf({
       tenantId: currentTenant(),
       space,
@@ -221,8 +237,8 @@ export async function composerTools(): Promise<{
 
 /**
  * Whether a call of the tool waits for a person's approval: a plugin's tool marked `outside`
- * does, and so does one without a mark (decided: "risk per tool", the safe side). The space's
- * own tools only read.
+ * does, and so does one without a mark (decided: "risk per tool", the safe side); a connection's
+ * write, send or delete is marked so too (a confirmed action). The space's own tools only read.
  */
 const UNMARKED_ASKS = true;
 
@@ -275,8 +291,9 @@ export async function toolToRun(
   userId: string,
   name: string,
   signal: AbortSignal,
+  approved: ApprovedRun,
 ): Promise<ToolToRun | null> {
-  const tools = await toolsFor(null, space, userId, signal);
+  const tools = await toolsFor(null, space, userId, signal, {}, null, approved);
   return (tools[name] as ToolToRun) ?? null;
 }
 

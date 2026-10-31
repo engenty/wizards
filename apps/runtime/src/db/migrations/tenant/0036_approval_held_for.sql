@@ -1,0 +1,1 @@
+ALTER TABLE `chat_approval` ADD `held_for` text DEFAULT 'asker' NOT NULL;
