@@ -9,7 +9,7 @@ serves. The same code runs on your computer and in the cloud. This page shows th
 they fit, with the folder each one lives in.
 
 ```mermaid
-flowchart LR
+flowchart TB
   studio["Studio (apps/web)"] --> web["Runtime: studio and doors"]
   guest["A wizard's link /w/…"] --> web
   web --> db[("Tenant database")]
@@ -49,6 +49,24 @@ and whether it takes runs.
 Every role serves what both halves need: `/api/health`, `/api/config`, the runs’ API
 (`/api/runs`) and the OAuth callback (`/api/connect`).
 
+A run from a wizard’s link, in the cloud, where each role is its own process:
+
+```mermaid
+sequenceDiagram
+  participant P as Person
+  participant D as doors
+  participant C as Control DB
+  participant R as runner
+  participant T as Tenant DB
+  P->>D: starts a run
+  D->>T: run + grant
+  D->>C: in line
+  R->>C: claims it
+  R->>T: steps, results
+  T-->>D: changes
+  D-->>P: next page
+```
+
 The queue of runs is the control database. A runner claims a run in one statement that also
 counts the tenant’s running runs against its limit, and writes a heartbeat while it drives the
 run. When a runner falls silent, another takes its runs over. Runners register in the control
@@ -64,6 +82,31 @@ database’s `runner` table, and `RUNNER_URL` says where the web reaches one.
 | Files | `objects/` in the data folder | An S3-compatible bucket |
 | Sign-in | A one-time link the command line opens | The Manage-App’s tokens (OAuth 2.1 / OIDC), which name the person, the tenant and the role |
 | Models | An AI client on the computer (Claude Code, Codex, Antigravity, Cursor Agent), your own API keys, a local model, or a linked account’s credits | The model gateway. The runtime holds no model keys |
+
+```mermaid
+flowchart LR
+  subgraph computer["Your computer"]
+    local["Runtime, role all<br/>127.0.0.1:24368"]
+    ai["AI clients, own API keys,<br/>local models"]
+    local --> ai
+  end
+  subgraph cloud["The cloud"]
+    proxy["Proxy"]
+    studio["studio"]
+    doors["doors"]
+    runner["runner"]
+    chromium["Chromium container"]
+    proxy --> studio
+    proxy --> doors
+    runner --> chromium
+  end
+  manage["Manage-App<br/>accounts, organizations, plans, credits"]
+  gateway["Model gateway"]
+  local -- "the spaces, both ways" --> studio
+  local -. "a linked account" .-> manage
+  studio --> manage
+  runner --> gateway
+```
 
 The **Manage-App** runs engenty’s accounts, organizations, plans and credits, and the **model
 gateway** serves the model classes in the cloud. Both are separate apps, not part of this
@@ -88,6 +131,19 @@ tenant tables carry a `space_id`, and the code says “space” throughout (`ser
 Each tenant also has a live feed (`live_change`): numbered writes to what a studio shows. An open
 studio reads it and shows what changed elsewhere without a reload (`apps/runtime/src/live/`).
 
+```mermaid
+flowchart TB
+  control[("Control database<br/>sessions, runs in line, runners")]
+  subgraph tenant["Tenant: one organization"]
+    tdb[("Tenant database<br/>and its live feed")]
+    tfiles[("Files")]
+    space1["Space"]
+    space2["Space"]
+  end
+  space1 --- holds["Info and brand, knowledge, data, files,<br/>results, skills, connections, chats"]
+  control --- tenant
+```
+
 ## The engine
 
 A wizard is one JSON document ([The wizard format](./wizard-format/index.md)). The step runner
@@ -103,6 +159,22 @@ step again and follows branches.
 A step names a **model class** (`classifier`, `low`, `standard`, `high`, plus `image`, `video`,
 `audio`, `speech`), never a model. Which model serves a class is a setting outside the wizard
 (`models.ts`).
+
+```mermaid
+flowchart TB
+  def["Wizard definition"] --> stepper["Step runner"]
+  stepper --> page["page, review, result<br/>the person"]
+  stepper --> agent["agent<br/>a Mastra agent"]
+  stepper --> make["generate, widget,<br/>motion-graphics, surface"]
+  agent --> cls["Model class"]
+  make --> cls
+  agent --> tools["Tools"]
+  tools --> sandbox["Sandbox"]
+  tools --> browser["Browser"]
+  tools --> space["The space’s knowledge,<br/>data and skills"]
+  tools --> broker["Broker"]
+  broker --> services["Connected services"]
+```
 
 ### Sandboxes
 
@@ -153,6 +225,17 @@ action and writes one line of the log. Model calls don’t pass it.
 [The broker](./broker.md) has the details. The studio shows all of it under
 [Capabilities](../user-guide/capabilities.md).
 
+```mermaid
+flowchart LR
+  callers["A step, a Work chat,<br/>Goose, a share target,<br/>a plugin"] --> bcall["brokerCall:<br/>grant, audience,<br/>rule for the kind"]
+  bcall -- "allow" --> run["Runs the action"]
+  bcall -- "ask" --> ask["The person, or<br/>the space’s admins"]
+  ask -- "yes" --> run
+  bcall -- "deny" --> refused["Refused"]
+  run --> log[("broker_log")]
+  refused --> log
+```
+
 ## Work mode
 
 Work mode has chats with the space’s AI (`services/work-chats.ts`, `services/work-ai.ts`,
@@ -162,6 +245,26 @@ its knowledge, its skills, the chat’s sandbox, the connections open to the per
 plugins’ tools and the web. A tool that acts outside the space doesn’t run when it is called. The
 call is held until a person approves it, on every model, also on an AI client that runs the tools
 itself.
+
+One turn of the space’s AI with a held call:
+
+```mermaid
+sequenceDiagram
+  participant P as Person
+  participant W as Chat
+  participant AI as Space’s AI
+  participant G as Gate
+  participant B as Broker
+  P->>W: asks
+  W->>AI: a turn
+  AI->>G: a call outside
+  G-->>AI: waits
+  G-->>W: card, bell
+  P->>W: Approve
+  W->>B: the held call, once
+  B-->>W: result
+  W->>AI: outcome, as a signal
+```
 
 Each chat gets its own sandbox on its first command. It stays while the chat is in use, so a file
 one turn writes is there for the next, and goes after 30 minutes without a command.
@@ -180,6 +283,11 @@ Parts that ship in the code but are not on for everyone yet sit behind a switch
 4. The `.features` file: `~/.engenty/wizards/.features` on your computer, the repository’s root
    in a checkout, the data folder in the cloud. Same shape as `.env`: one `name=on` or
    `name=off` per line.
+
+```mermaid
+flowchart LR
+  code["Defaults"] --> envvar["FEATURES"] --> manage["Manage-App"] --> file[".features"] --> value["What counts"]
+```
 
 The runtime reads the file on every call, so a change counts at once. `wizards features` lists
 what counts on a computer.

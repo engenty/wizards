@@ -55,6 +55,17 @@ its link. A guest’s run never uses a connection that is only for members or ad
 Allowed, With approval or Never. A new connection reads freely, asks for approval before a change
 or a send, and never deletes.
 
+```mermaid
+flowchart LR
+  call["A wizard, a Work chat<br/>or Goose calls<br/>a connection"] --> rule["The rule for<br/>its kind of action"]
+  rule -- "Allowed" --> runs["Runs"]
+  rule -- "With approval" --> wait["Waits for a yes"]
+  wait --> runs
+  rule -- "Never" --> no["Doesn’t run"]
+  runs --> log[("Log")]
+  no --> log
+```
+
 With approval on a connection that signs in as the space asks the space’s admins. The call waits
 under the bell in Work until one of them agrees. Where each person signs in, With approval asks
 that person.

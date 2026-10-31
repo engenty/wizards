@@ -7,6 +7,17 @@ version: 0.7.4
 A published wizard runs wherever a person can reach it. These pages show how to bring it into
 other systems, from a plain link to a chat that starts the wizard by itself.
 
+```mermaid
+flowchart LR
+  wizard["A published wizard"] --> link["Link and QR code"]
+  wizard --> embed["Embed on a website"]
+  wizard --> channels["Chat and other channels"]
+  wizard --> mcp["MCP and MCP Apps"]
+  wizard --> openui["OpenUI chats"]
+  wizard --> ownui["Your own UI"]
+  ownui --> results["Results to your systems"]
+```
+
 ## For people
 
 | | |
