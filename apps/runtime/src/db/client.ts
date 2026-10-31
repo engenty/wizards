@@ -128,10 +128,22 @@ export function openingTenants(): { id: string; since: number }[] {
   return [...opening].map(([id, since]) => ({ id, since }));
 }
 
+/** Tenant databases whose last opening failed, with when and why; one that opens is forgotten. */
+const failed = new Map<string, { at: number; error: string }>();
+
+export function failingTenants(): { id: string; at: number; error: string }[] {
+  return [...failed].map(([id, f]) => ({ id, ...f }));
+}
+
 async function openTenant(id: string): Promise<Db> {
   opening.set(id, Date.now());
   try {
-    return await openTenantNow(id);
+    const db = await openTenantNow(id);
+    failed.delete(id);
+    return db;
+  } catch (err) {
+    failed.set(id, { at: Date.now(), error: String((err as Error)?.message ?? err).slice(0, 300) });
+    throw err;
   } finally {
     opening.delete(id);
   }
