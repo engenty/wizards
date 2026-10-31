@@ -394,6 +394,10 @@ export async function readsEverything(spaceId: string, subjects: Subject[]): Pro
  */
 export async function seedRwx(spaceId: string): Promise<void> {
   const seeded: RwxRuleInput[] = [];
+  const space = await db.query.space.findFirst({
+    columns: { kind: true },
+    where: eq(schema.space.id, spaceId),
+  });
   for (const kind of ENFORCED) {
     for (const role of ["admin", "owner"] as const) {
       seeded.push(rule("role", role, kind, { r: "allow", w: "allow", x: "allow" }));
@@ -402,6 +406,12 @@ export async function seedRwx(spaceId: string): Promise<void> {
     const guest = GUEST_SEED[kind];
     if (guest) {
       seeded.push(rule("guest", null, kind, guest));
+    }
+    // A client space's clients work with their own data, and run what the space lets them. A
+    // space gets no rule for clients: what of it a client reads, a rule opens item by item.
+    const client = space?.kind === "client" ? CLIENT_SEED[kind] : undefined;
+    if (client) {
+      seeded.push(rule("role", "client", kind, client));
     }
   }
   await db
@@ -419,6 +429,18 @@ type Flags = Pick<RwxRuleInput, "r" | "w" | "x">;
  */
 const MEMBER_DATA: Flags = { r: "allow", w: "allow", x: null };
 const MEMBER_SEED: Partial<Record<RwxResourceKind, Flags>> = {
+  wizard: { r: "allow", w: null, x: "allow" },
+  skill: { r: "allow", w: null, x: "allow" },
+};
+
+/**
+ * A client's seed in their client space (docs/plans/client-spaces.md): its data read and written,
+ * wizards and skills read and run; never its setup.
+ */
+const CLIENT_SEED: Partial<Record<RwxResourceKind, Flags>> = {
+  document: { r: "allow", w: "allow", x: null },
+  table: { r: "allow", w: "allow", x: null },
+  page: { r: "allow", w: "allow", x: null },
   wizard: { r: "allow", w: null, x: "allow" },
   skill: { r: "allow", w: null, x: "allow" },
 };
@@ -562,4 +584,71 @@ export async function deleteRule(userId: string, spaceId: string, ruleId: string
     summary: { deleted: ruleId },
     reason: "An RWX rule was deleted.",
   });
+}
+
+// --- open to clients ---------------------------------------------------------------------------
+
+/** What of a space its clients may reach: an item of its Knowledge read, a wizard run too. */
+export type ClientOpenKind = "document" | "table" | "page" | "wizard";
+
+/**
+ * Opens one item of a space to the clients of its client spaces, or closes it again
+ * (docs/plans/client-spaces.md): a rule for the role `client` on that item, read (and run for a
+ * wizard). Its admins decide; the change is a line of the log.
+ */
+export async function setOpenToClients(
+  userId: string,
+  spaceId: string,
+  resource: { kind: ClientOpenKind; id: string },
+  open: boolean,
+): Promise<void> {
+  const space = await ownedSpace(userId, spaceId);
+  await requireBroker();
+  requireRuleAdmin();
+  await rulesOf(space.id);
+  const where = and(
+    eq(schema.rwxRule.spaceId, space.id),
+    eq(schema.rwxRule.subjectKind, "role"),
+    eq(schema.rwxRule.subjectId, "client"),
+    eq(schema.rwxRule.resourceKind, resource.kind),
+    eq(schema.rwxRule.resourceId, resource.id),
+  );
+  await db.delete(schema.rwxRule).where(where);
+  if (open) {
+    const opened: RwxRuleInput = {
+      subjectKind: "role",
+      subjectId: "client",
+      resourceKind: resource.kind,
+      resourceId: resource.id,
+      r: "allow",
+      w: null,
+      x: resource.kind === "wizard" ? "allow" : null,
+    };
+    await db.insert(schema.rwxRule).values(row(space.id, opened, userId));
+  }
+  await logRuleChange({
+    userId,
+    spaceId: space.id,
+    connectionId: "rwx",
+    summary: { [resource.kind]: resource.id, clients: open },
+    reason: `${resource.kind} ${resource.id} ${open ? "opened to" : "closed to"} the space's clients.`,
+  });
+}
+
+/** The ids of each kind a space opened to its clients. */
+export async function openToClients(spaceId: string): Promise<Record<ClientOpenKind, string[]>> {
+  const rows = await db.query.rwxRule.findMany({
+    where: and(
+      eq(schema.rwxRule.spaceId, spaceId),
+      eq(schema.rwxRule.subjectKind, "role"),
+      eq(schema.rwxRule.subjectId, "client"),
+    ),
+  });
+  const out: Record<ClientOpenKind, string[]> = { document: [], table: [], page: [], wizard: [] };
+  for (const r of rows) {
+    if (r.resourceKind in out && r.resourceId !== RWX_ALL && r.r === "allow") {
+      out[r.resourceKind as ClientOpenKind].push(r.resourceId);
+    }
+  }
+  return out;
 }

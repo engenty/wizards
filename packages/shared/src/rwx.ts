@@ -30,7 +30,8 @@ export type RwxPerm = (typeof RWX_PERMS)[number];
 export const RWX_FLAGS = ["allow", "deny"] as const;
 export type RwxFlag = (typeof RWX_FLAGS)[number];
 
-export const RWX_ROLES = ["member", "admin", "owner"] as const;
+/** `client`: a client of the organization, who sees only their client spaces (docs/plans/client-spaces.md). */
+export const RWX_ROLES = ["member", "admin", "owner", "client"] as const;
 
 /** Every resource of a kind. */
 export const RWX_ALL = "*";

@@ -135,10 +135,44 @@ export const space = sqliteTable(
      */
     origin: text("origin", { enum: ["local"] }),
     syncedAt: integer("synced_at", { mode: "timestamp_ms" }),
+    /**
+     * `client`: a client space under `parentId` (docs/plans/client-spaces.md): one client's data,
+     * results and chats, reading the parent's setup. `space`: a space of the organization.
+     */
+    kind: text("kind", { enum: ["space", "client"] }).notNull().default("space"),
+    /** The space a client space belongs to; null for a space. Two levels, never more. */
+    parentId: text("parent_id").references((): AnySQLiteColumn => space.id, {
+      onDelete: "cascade",
+    }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("space_tenant").on(t.tenantId)],
+  (t) => [index("space_tenant").on(t.tenantId), index("space_parent").on(t.parentId)],
+);
+
+/**
+ * Who of the organization is in a client space (docs/plans/client-spaces.md): `client`, the
+ * client's own people, who see only the client spaces they are in; `member`, the firm's people
+ * assigned to it. The firm's members see every client space of their space all the same until a
+ * space turns "assigned only" on.
+ */
+export const spaceMember = sqliteTable(
+  "space_member",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    role: text("role", { enum: ["member", "client"] }).notNull(),
+    addedBy: text("added_by").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("space_member_key").on(t.spaceId, t.userId),
+    index("space_member_user").on(t.userId),
+  ],
 );
 
 export const wizard = sqliteTable(

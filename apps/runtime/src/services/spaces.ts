@@ -39,7 +39,7 @@ import { cloudSpaceLimit, twoWayActive } from "../sync/state.js";
 import { putLink } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
-import { mayBuild, requireAdmin, requireBuild, requireWritable } from "./access.js";
+import { currentRole, mayBuild, requireAdmin, requireBuild, requireWritable } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
 import { forgetWizardLinks } from "./links.js";
 import { pushPages } from "./pages.js";
@@ -253,14 +253,28 @@ export async function spaceLimitOrNull(): Promise<number | null> {
   return Number.isFinite(limit) ? limit : null;
 }
 
-export async function ownedSpace(_userId: string, spaceId: string): Promise<SpaceRow> {
+export async function ownedSpace(userId: string, spaceId: string): Promise<SpaceRow> {
   const p = await db.query.space.findFirst({
     where: and(eq(schema.space.id, spaceId), eq(schema.space.tenantId, currentTenant())),
   });
   if (!p) {
     throw notFound();
   }
+  // A client of the organization reaches only the client spaces they are in
+  // (docs/plans/client-spaces.md); every other space is not there for them.
+  if (currentRole() === "client" && !(p.kind === "client" && (await inSpace(userId, p.id)))) {
+    throw notFound();
+  }
   return p;
+}
+
+/** Whether the person is a member of the space, as a client or as the firm's (`space_member`). */
+async function inSpace(userId: string, spaceId: string): Promise<boolean> {
+  const row = await db.query.spaceMember.findFirst({
+    columns: { id: true },
+    where: and(eq(schema.spaceMember.spaceId, spaceId), eq(schema.spaceMember.userId, userId)),
+  });
+  return Boolean(row);
 }
 
 /** The tenant's spaces that were made here, not synced from a local install. */
@@ -294,13 +308,20 @@ async function ensureSpace(lang: Lang = "en"): Promise<void> {
  * The space a caller means when it names none: the oldest one made here, where a wizard
  * lands; for a tenant that builds nothing here, the one its local install synced.
  */
-export async function defaultSpace(_userId: string): Promise<SpaceRow> {
+export async function defaultSpace(userId: string): Promise<SpaceRow> {
+  if (currentRole() === "client") {
+    const [first] = await clientSpacesOf(userId);
+    if (!first) {
+      throw notFound();
+    }
+    return first;
+  }
   const build = await mayBuild();
   if (build) {
     await ensureSpace();
   }
   const p = await db.query.space.findFirst({
-    where: build ? madeHere() : synced(),
+    where: and(build ? madeHere() : synced(), eq(schema.space.kind, "space")),
     orderBy: [schema.space.createdAt],
   });
   if (!p) {
@@ -313,15 +334,23 @@ export async function defaultSpace(_userId: string): Promise<SpaceRow> {
  * The spaces the studio shows. A tenant that builds here: its own and the synced ones, up to
  * its number. One that does not: only what its local install synced — possibly nothing yet.
  */
-export async function listSpaces(_userId: string, lang?: Lang) {
+export async function listSpaces(userId: string, lang?: Lang) {
+  // A client sees the client spaces they are in, nothing else (docs/plans/client-spaces.md).
+  if (currentRole() === "client") {
+    return clientSpacesOf(userId);
+  }
   const build = await mayBuild();
   if (build) {
     await ensureSpace(lang);
   }
-  // The oldest come first: with a limit of one, that is the space everything lands in.
+  // The oldest come first: with a limit of one, that is the space everything lands in. Client
+  // spaces stay out: they are a part of their space, never a space of the menu.
   const limit = await spaceLimit();
   const spaces = await db.query.space.findMany({
-    where: build ? eq(schema.space.tenantId, currentTenant()) : synced(),
+    where: and(
+      build ? eq(schema.space.tenantId, currentTenant()) : synced(),
+      eq(schema.space.kind, "space"),
+    ),
     orderBy: [schema.space.createdAt],
     ...(Number.isFinite(limit) ? { limit } : {}),
   });
@@ -336,13 +365,30 @@ export async function listSpaces(_userId: string, lang?: Lang) {
   }));
 }
 
+/** The client spaces a client is in, as the space list shows them. */
+async function clientSpacesOf(userId: string) {
+  const rows = await db
+    .select({ space: schema.space })
+    .from(schema.spaceMember)
+    .innerJoin(schema.space, eq(schema.space.id, schema.spaceMember.spaceId))
+    .where(
+      and(
+        eq(schema.spaceMember.userId, userId),
+        eq(schema.space.tenantId, currentTenant()),
+        eq(schema.space.kind, "client"),
+      ),
+    );
+  return rows.map((r) => ({ ...r.space, wizardCount: 0 }));
+}
+
 export async function createSpace(_userId: string, name: string): Promise<{ id: string }> {
   await requireBuild();
   await requireAdmin();
+  // Client spaces do not count as spaces of the plan.
   const [{ n }] = await db
     .select({ n: count() })
     .from(schema.space)
-    .where(eq(schema.space.tenantId, currentTenant()));
+    .where(and(eq(schema.space.tenantId, currentTenant()), eq(schema.space.kind, "space")));
   const limit = await spaceLimit();
   if (n >= limit) {
     throw new ServiceError(
@@ -648,15 +694,24 @@ export function spaceProfile(p: SpaceRow): SpaceProfile {
 export async function deleteSpace(userId: string, spaceId: string) {
   await requireWritable(await ownedSpace(userId, spaceId));
   await requireAdmin();
-  const all = await db.query.space.findMany({ where: madeHere() });
+  const all = await db.query.space.findMany({
+    where: and(madeHere(), eq(schema.space.kind, "space")),
+  });
   if (all.length <= 1) {
     throw new ServiceError("refused", note("notDeleteLastSpace"));
   }
   await removeSpace(spaceId);
 }
 
-/** Takes a space away with its wizards' links and its files. */
+/** Takes a space away with its wizards' links and its files, and its client spaces first. */
 export async function removeSpace(spaceId: string) {
+  const clients = await db
+    .select({ id: schema.space.id })
+    .from(schema.space)
+    .where(and(eq(schema.space.parentId, spaceId), eq(schema.space.tenantId, currentTenant())));
+  for (const c of clients) {
+    await removeSpace(c.id);
+  }
   const wizards = await db
     .select({ id: schema.wizard.id })
     .from(schema.wizard)

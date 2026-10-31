@@ -1,5 +1,7 @@
 import { createTool } from "@mastra/core/tools";
+import { eq } from "drizzle-orm";
 import { readableIds } from "../broker/rwx.js";
+import { db, schema } from "../db/client.js";
 import { runReport, startRun } from "../services/runs.js";
 import { listWizards } from "../services/wizards.js";
 import { attempt } from "../tools/shared.js";
@@ -25,7 +27,15 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
   if (!userId) {
     return {};
   }
-  const spaceId = caller.space.id;
+  // A client space runs the wizards of its space (docs/plans/client-spaces.md): they are listed
+  // from there, by the space's rules. Running one in a client space waits for its runs to belong
+  // to the client space (step 3).
+  const space = await db.query.space.findFirst({
+    columns: { kind: true, parentId: true },
+    where: eq(schema.space.id, caller.space.id),
+  });
+  const inClientSpace = space?.kind === "client" && Boolean(space.parentId);
+  const spaceId = inClientSpace && space?.parentId ? space.parentId : caller.space.id;
   return {
     wizard_list: createTool({
       id: "wizard_list",
@@ -70,6 +80,9 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
               input,
             },
             async () => {
+              if (inClientSpace) {
+                throw new Error("Running a wizard in a client space is not possible yet.");
+              }
               const published = (await listWizards(userId, spaceId)).find(
                 (w) => w.id === input.wizardId && w.published,
               );

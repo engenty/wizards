@@ -161,6 +161,12 @@ export const FEATURES = {
     label: "Capabilities",
     hint: "One place in the app bar for Skills and Verbindungen: the space's connections with sign-in, audience and rules, each person's own sign-ins, the broker's Protokoll, Entdecken.",
   },
+  clientSpaces: {
+    kind: "release",
+    default: false,
+    label: "Client spaces",
+    hint: "A space's clients, each in a client space under it: their own data, results and chats, the firm's setup read from the space (docs/plans/client-spaces.md).",
+  },
   ownKeys: {
     kind: "plan",
     default: true,
