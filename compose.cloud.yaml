@@ -101,6 +101,35 @@ services:
       retries: 3
       start_period: 60s
 
+  # Outside clients: the MCP server and the API (docs/plans/modular.md), so AI apps and programs
+  # scale and fail apart from the studio. The proxy sends it /api/mcp, /api/v1 and
+  # /.well-known/oauth-protected-resource; until those routes are set, the studio answers them.
+  api:
+    image: ghcr.io/engenty/engenty-wizards-runtime:${IMAGE_TAG:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      APP_URL: ${APP_URL:?the public https origin}
+      MANAGE_URL: ${MANAGE_URL:?the Manage-App}
+      GATEWAY_URL: ${GATEWAY_URL:?the model-gateway}
+      API_HOST: 0.0.0.0
+      RUNTIME_ROLE: api
+      HEALTH_WATCHDOG: "1"
+      SANDBOX: "off"
+    volumes:
+      - runtime-cache:/data
+    labels:
+      - traefik.docker.network=coolify
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8891/api/health/ready',{signal:AbortSignal.timeout(4000)}).then((r) => r.json()).then((b) => process.exit(b.checks.process === 'down' ? 1 : 0), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
   # Executes the runs the web puts in line (docs/plans/runner-process.md). Not reachable from
   # outside; the web asks it for a run's browser screen under RUNNER_URL.
   runner:
