@@ -9,6 +9,7 @@ import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { Mascot } from "../brand";
 import { api } from "../lib/api";
 import { withBase } from "../lib/base";
+import { useFeature } from "../lib/features";
 import { lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import {
@@ -197,6 +198,7 @@ export function NewWizardPage() {
   const qc = useQueryClient();
   const { space } = useCurrentSpace();
   const build = useMayCreate();
+  const workMode = useFeature("workMode");
   const me = useMe();
   // The templates that fit the organization first, the full browser a click away.
   const fit = useFit();
@@ -318,6 +320,12 @@ export function NewWizardPage() {
           <h1 className="mt-1 font-display font-semibold text-[1.5rem] leading-tight tracking-tight md:mt-2 md:text-[2.375rem]">
             {t("new.title")}
           </h1>
+          {/* With Work on, where the Studio stands: here is set up what others use. */}
+          {workMode ? (
+            <p className="mt-2 max-w-lg text-[0.9375rem] text-ink-3 leading-relaxed">
+              {t("new.studioHint")}
+            </p>
+          ) : null}
         </div>
 
         <ChannelPicker
