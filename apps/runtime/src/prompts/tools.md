@@ -23,10 +23,13 @@ An image, not a page: the address works. Its bytes are not text and are not show
 Not a text page: its bytes are not shown.
 
 <!-- section: tool.http_request -->
-Call a public HTTP API. Use for REST endpoints the instructions name.
+Call a public HTTP API. Use for REST endpoints the instructions name. A host the wizard does not list may be refused; do not try another host then.
 
 <!-- section: note.net_private -->
 Private addresses are not reachable from a wizard.
+
+<!-- section: note.host_not_in_grant -->
+This run may not call ${host}: the wizard does not list it. Do not try another address; say in your result that the call was not made.
 
 <!-- section: note.net_scheme -->
 Only http and https URLs are allowed.

@@ -30,6 +30,7 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { asImpersonator } from "../auth/impersonation.js";
 import { principalOf } from "../auth/index.js";
+import { keptStepIds } from "../broker/index.js";
 import { MARK_FOCUSED_PERSONAL } from "../browser/snapshot.js";
 import { clientOf, clientRefused } from "../clients.js";
 import {
@@ -87,7 +88,14 @@ import { runTicketValid, verifySignedUrl } from "../secrets/signing.js";
 import { brandView } from "../services/brand.js";
 import { ServiceError } from "../services/errors.js";
 import { publicRunners, servePageRunner } from "../services/runners.js";
-import { sharedRun, shareImage, shareRun, shareView, unshareRun } from "../services/shares.js";
+import {
+  sharedRun,
+  sharedStepIds,
+  shareImage,
+  shareRun,
+  shareView,
+  unshareRun,
+} from "../services/shares.js";
 import { shippedFontCss, shippedFontFile } from "../services/shipped-fonts.js";
 import {
   isLangCode,
@@ -226,9 +234,26 @@ async function accessibleRun(c: Context, runId: string, opts: { signed?: boolean
   return null;
 }
 
-async function viewOf(run: NonNullable<Awaited<ReturnType<typeof accessibleRun>>>) {
+/** Whether a signed-in member of the run's organization is looking, not the guest who ran it. */
+async function memberViewing(c: Context, run: RunRow): Promise<boolean> {
+  const user = await principalOf(c);
+  return !!user && user.tenantId === run.tenantId;
+}
+
+/**
+ * What a step of a guest's run made from a connection the space keeps for its members stays in
+ * the space: the guest's page says so; a member looking at the run (Ergebnisse) sees it.
+ */
+async function hiddenFrom(c: Context, run: RunRow): Promise<Set<string>> {
+  return (await memberViewing(c, run)) ? new Set() : keptStepIds(run);
+}
+
+async function viewOf(
+  run: NonNullable<Awaited<ReturnType<typeof accessibleRun>>>,
+  hide: ReadonlySet<string> = new Set(),
+) {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
-  return runView(run, await brandView(w?.spaceId ?? "", run.definition.themes));
+  return runView(run, await brandView(w?.spaceId ?? "", run.definition.themes), hide);
 }
 
 function commandError(c: Context, err: unknown) {
@@ -708,7 +733,7 @@ export const runRoutes = new Hono()
     if (!run) {
       return c.json(notFoundAnswer(c), 404);
     }
-    return c.json(await viewOf(run));
+    return c.json(await viewOf(run, await hiddenFrom(c, run)));
   })
   .get("/:id/stream", async (c) => {
     const id = c.req.param("id");
@@ -716,6 +741,7 @@ export const runRoutes = new Hono()
     if (!first) {
       return c.json(notFoundAnswer(c), 404);
     }
+    const member = await memberViewing(c, first);
     return streamSSE(c, async (stream) => {
       let pending = false;
       let closed = false;
@@ -728,7 +754,8 @@ export const runRoutes = new Hono()
         pending = false;
         const run = await db.query.run.findFirst({ where: eq(schema.run.id, id) });
         if (run && !closed) {
-          await stream.writeSSE({ event: "view", data: JSON.stringify(await viewOf(run)) });
+          const hide = member ? new Set<string>() : await keptStepIds(run);
+          await stream.writeSSE({ event: "view", data: JSON.stringify(await viewOf(run, hide)) });
         }
       };
       // Calls the runner put to the device the run is watched from, each sent once per stream.
@@ -751,7 +778,10 @@ export const runRoutes = new Hono()
         closed = true;
         unsubscribe();
       });
-      await stream.writeSSE({ event: "view", data: JSON.stringify(await viewOf(first)) });
+      await stream.writeSSE({
+        event: "view",
+        data: JSON.stringify(await viewOf(first, member ? new Set() : await keptStepIds(first))),
+      });
       await sendDeviceCalls();
       while (!closed) {
         await stream.sleep(20_000);
@@ -1100,14 +1130,20 @@ export const runRoutes = new Hono()
     if (!run) {
       return c.notFound();
     }
-    return serveAsset(c, run, c.req.param("assetId"));
+    const assetId = c.req.param("assetId");
+    // The files of a step whose output stays in the space are not the guest's to open.
+    const hidden = [...(await hiddenFrom(c, run))].some((id) =>
+      run.state.outputs[id]?.assets?.some((a) => a.id === assetId),
+    );
+    return hidden ? c.notFound() : serveAsset(c, run, assetId);
   })
   .get("/:id/steps/:stepId/download", async (c) => {
     const run = await accessibleRun(c, c.req.param("id"), { signed: true });
-    if (!run) {
+    const stepId = c.req.param("stepId");
+    if (!run || (await hiddenFrom(c, run)).has(stepId)) {
       return c.notFound();
     }
-    return serveDownload(c, run, c.req.param("stepId"), c.req.query("format"));
+    return serveDownload(c, run, stepId, c.req.query("format"));
   })
   // --- a running step waits for the person ------------------------------------
   .post("/:id/ask/:askId", async (c) => {
@@ -1788,15 +1824,6 @@ async function serveDownload(c: Context, run: RunRow, stepId: string, rawFormat?
   return sendDownload(c, download);
 }
 
-/** Steps a shared link shows: the result's deliverables — never uploads or in-between steps. */
-function sharedStepIds(run: RunRow): Set<string> {
-  return new Set(
-    run.definition.steps.flatMap((s) =>
-      s.type === "result" ? s.deliverables.map((d) => d.from) : [],
-    ),
-  );
-}
-
 /** `/api/shares/:token` — a shared result, readable by anyone holding the link until it expires. */
 export const shareRoutes = new Hono()
   // What a shared link shows is someone's result: never in a search engine.
@@ -1830,7 +1857,7 @@ export const shareRoutes = new Hono()
       return c.notFound();
     }
     const assetId = c.req.param("assetId");
-    const allowed = [...sharedStepIds(run)].some((id) =>
+    const allowed = [...(await sharedStepIds(run))].some((id) =>
       run.state.outputs[id]?.assets?.some((a) => a.id === assetId),
     );
     return allowed ? serveAsset(c, run, assetId) : c.notFound();
@@ -1838,7 +1865,7 @@ export const shareRoutes = new Hono()
   .get("/:token/steps/:stepId/download", async (c) => {
     const run = await sharedRun(c.req.param("token"));
     const stepId = c.req.param("stepId");
-    if (!run || !sharedStepIds(run).has(stepId)) {
+    if (!run || !(await sharedStepIds(run)).has(stepId)) {
       return c.notFound();
     }
     return serveDownload(c, run, stepId, c.req.query("format"));

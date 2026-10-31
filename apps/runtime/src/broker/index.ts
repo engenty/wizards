@@ -27,6 +27,26 @@ export {
   whoOf,
 } from "./call.js";
 export { type Caller, currentCaller, withCaller } from "./caller.js";
-export { type Grant, grantNote, grantOf, inGrant, type KnownConnector, runGrant } from "./grant.js";
+export {
+  type Grant,
+  grantNote,
+  grantOf,
+  hostInGrant,
+  inGrant,
+  type KnownConnector,
+  runGrant,
+} from "./grant.js";
+export { brokerHost, type HostResult } from "./host.js";
+export { keptStepIds } from "./kept.js";
 export { lastUseOf, summarizeInput } from "./log.js";
 export { type OutsideReach, outsideReaches, reachesOutside } from "./registry.js";
+export {
+  brokerSend,
+  GUEST_MAILS_PER_RUN,
+  guestSendCheck,
+  recipientsOf,
+  runAddresses,
+  type SendCheck,
+  type SendRefusal,
+  type SendResult,
+} from "./send.js";

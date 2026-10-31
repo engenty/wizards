@@ -688,6 +688,10 @@ export const pageStepSchema = z.object({
   cta: z.string().optional(),
 });
 
+/** A host name a step may list in `hosts`: labels of letters, digits and dashes, or `*.` before them. */
+export const HOST_PATTERN =
+  /^(\*\.)?([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/i;
+
 /** A plugin's tool as a step names it: `<plugin>.<tool>`. */
 const pluginToolIdSchema = z.templateLiteral([
   z.string().regex(PLUGIN_ID),
@@ -726,6 +730,12 @@ export const agentStepSchema = z.object({
   tools: z.array(z.union([z.enum(TOOL_IDS), pluginToolIdSchema])).default([]),
   /** Ids of wizard connections (the person's accounts) this step may use. */
   connections: z.array(z.string()).optional(),
+  /**
+   * Hosts `http_request` may reach, as names: `api.example.com`, or `*.example.org` for every
+   * host below example.org. A guest's run reaches no other host; a member's run every public one
+   * until the space's broker switch is on. Part of the run's grant, fixed when it starts.
+   */
+  hosts: z.array(z.string().regex(HOST_PATTERN).max(253)).max(20).optional(),
   output: z
     .object({
       format: z.enum(["text", "markdown", "json"]),

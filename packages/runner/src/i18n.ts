@@ -56,6 +56,11 @@ export function runnerTable(): RunnerTable | null {
   return table;
 }
 
+/** A note of the run's table, in the language the person reads. */
+export function noteLine(note: RunNote): string {
+  return noteText(note, runnerLangCode(), table?.notes);
+}
+
 /** The language the person reads, by its code: the translated one, else `lang`. */
 export function runnerLangCode(): string {
   return table?.lang ?? lang;

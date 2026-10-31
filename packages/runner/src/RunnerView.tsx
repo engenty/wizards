@@ -7,7 +7,7 @@ import {
   shownFields,
   stepShape,
 } from "@engenty/wizards-shared/definition";
-import type { RunView, StepOutput } from "@engenty/wizards-shared/run";
+import { note, type RunView, type StepOutput } from "@engenty/wizards-shared/run";
 import {
   ArrowLeft,
   ArrowRight,
@@ -33,7 +33,7 @@ import {
 } from "./device";
 import { api, runBase, runnerEnv, withBase } from "./env.js";
 import { FieldInput, type Values } from "./fields";
-import { eventText, setChoiceLabels, t } from "./i18n.js";
+import { eventText, noteLine, setChoiceLabels, t } from "./i18n.js";
 import { DownloadButtons, OutputView } from "./outputs";
 import { ListCheck, ListDownloads, ListTable, StoreButton } from "./store";
 import { Button, Card, cn, LinkedText, Spinner, Textarea } from "./ui.js";
@@ -462,6 +462,11 @@ function Review({
       <div className="flex flex-col gap-6">
         {/* A step the run skipped (a branch) has nothing to review. */}
         {view.shown
+          .filter((x) => x.kept)
+          .map(({ step: s, label }) => (
+            <KeptCard key={s.id} title={label ?? s.title} />
+          ))}
+        {view.shown
           .filter((x) => x.output)
           .map(({ step: s, output }) => {
             // A json step's data is edited by its schema, a written one as its text.
@@ -681,6 +686,12 @@ function Result({
         ) : null}
       </div>
       <div className="flex flex-col gap-6">
+        {/* What a step made from the space's own connections stays with the team: the page says so. */}
+        {view.shown
+          .filter((x) => x.kept)
+          .map(({ step: s, label }) => (
+            <KeptCard key={s.id} title={label ?? s.title} />
+          ))}
         {/* A step the run skipped (a branch) has made nothing to hand over. */}
         {made.map(({ step: s, output, formats, label }) => {
           const heading = (menu: React.ReactNode) => (
@@ -932,5 +943,17 @@ export function RunnerBody({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** A result that stays in the space (`ShownStep.kept`): its title and the note in its place. */
+export function KeptCard({ title }: { title: string }) {
+  return (
+    <Card className="p-4 sm:p-5">
+      <h3 className="mb-2 font-display font-semibold text-[1.0625rem]">{title}</h3>
+      <p className="text-[0.9375rem] text-ink-3 leading-relaxed">
+        {noteLine(note("resultKeptInSpace"))}
+      </p>
+    </Card>
   );
 }

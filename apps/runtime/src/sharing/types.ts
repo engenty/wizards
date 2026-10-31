@@ -131,6 +131,15 @@ export interface ShareContext extends TargetScope {
     input: unknown,
     run?: (account: Account) => Promise<T>,
   ): Promise<T>;
+  /**
+   * Sends from the server's own address, which no account holds, through the broker: a guest's
+   * run reaches only its own address or the space's domains, a few times per run and day.
+   */
+  sendFromServer<T = unknown>(
+    recipients: string[],
+    input: unknown,
+    run: () => Promise<T>,
+  ): Promise<T>;
   /** The link to the result page, if people elsewhere can open it; shares the run if needed. */
   link(): Promise<string | null>;
   /** What an agent works with: the run's browser, store and asks. For targets with `agent`. */

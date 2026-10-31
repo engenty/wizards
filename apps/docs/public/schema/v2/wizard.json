@@ -520,6 +520,10 @@
           "connector": {
             "type": "string"
           },
+          "spaceConnection": {
+            "type": "string",
+            "maxLength": 40
+          },
           "actions": {
             "maxItems": 200,
             "type": "array",
@@ -1184,25 +1188,56 @@
                 "type": "string"
               },
               "call": {
-                "type": "object",
-                "properties": {
-                  "tool": {
-                    "type": "string",
-                    "pattern": "^[a-z][a-z0-9-]{0,39}\\.[a-z][a-z0-9_]{0,39}$"
-                  },
-                  "input": {
-                    "default": {},
+                "anyOf": [
+                  {
                     "type": "object",
-                    "propertyNames": {
-                      "type": "string"
+                    "properties": {
+                      "tool": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,39}\\.[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "input": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
                     },
-                    "additionalProperties": {}
+                    "required": [
+                      "tool"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "connection": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,40}$"
+                      },
+                      "action": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "input": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "connection",
+                      "action"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "tool"
-                ],
-                "additionalProperties": false
+                ]
               },
               "tools": {
                 "default": [],
@@ -1233,6 +1268,15 @@
                 "type": "array",
                 "items": {
                   "type": "string"
+                }
+              },
+              "hosts": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 253,
+                  "pattern": "^(\\*\\.)?([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$"
                 }
               },
               "output": {

@@ -20,7 +20,11 @@ export interface Grant {
    * connection.
    */
   connections: Record<string, string[]>;
-  /** Hosts `http_request` may reach. Empty until A6: today it reaches any public host. */
+  /**
+   * Hosts `http_request` may reach, as the steps list them: names, or `*.example.org` for every
+   * host below. A guest's run reaches no other host; a member's every public one until the
+   * `broker` switch is on (A6).
+   */
   hosts: string[];
   /** The tools any step of the run names. */
   tools: string[];
@@ -30,6 +34,7 @@ export interface Grant {
 export function grantOf(definition: WizardDefinition): Grant {
   const connections: Record<string, string[]> = {};
   const tools = new Set<string>();
+  const hosts = new Set<string>();
   const defs = new Map((definition.connections ?? []).map((c) => [c.id, c]));
   for (const step of definition.steps) {
     if (step.type !== "agent") {
@@ -43,6 +48,9 @@ export function grantOf(definition: WizardDefinition): Grant {
       have.add(step.call.action);
       connections[step.call.connection] = [...have].sort();
     }
+    for (const host of step.hosts ?? []) {
+      hosts.add(host.trim().toLowerCase());
+    }
     for (const id of step.connections ?? []) {
       const def = defs.get(id);
       if (!def) {
@@ -55,7 +63,23 @@ export function grantOf(definition: WizardDefinition): Grant {
       connections[id] = [...have].sort();
     }
   }
-  return { connections, hosts: [], tools: [...tools].sort() };
+  return { connections, hosts: [...hosts].sort(), tools: [...tools].sort() };
+}
+
+/**
+ * Whether the grant lets `http_request` reach this host: named as it is, or below a `*.` entry
+ * (`*.example.org` takes `api.example.org`, not `example.org` itself).
+ */
+export function hostInGrant(grant: Grant, hostname: string): boolean {
+  const host = hostname
+    .replace(/^\[|\]$/g, "")
+    .toLowerCase()
+    .replace(/\.$/, "");
+  return grant.hosts.some((entry) =>
+    entry.startsWith("*.")
+      ? host.endsWith(entry.slice(1)) && host.length > entry.length - 1
+      : entry === host,
+  );
 }
 
 /**
@@ -157,7 +181,12 @@ export function grantNote(
   }
   for (const [tool, own] of Object.entries(TOOL_NOTES)) {
     if (grant.tools.includes(tool) && !what.some((w) => w.code === own.code)) {
-      what.push(own);
+      // With hosts listed the run calls those, not "APIs on the web".
+      what.push(
+        tool === "http" && grant.hosts.length
+          ? note("grantCallsHosts", { hosts: grant.hosts })
+          : own,
+      );
     }
   }
   const plugins = new Set(

@@ -6,7 +6,15 @@ import type {
   ShareRequest,
 } from "@engenty/wizards-shared/sharing";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
-import { brokerCall, brokerConnected, whereOfRun, whoOf } from "../broker/index.js";
+import {
+  brokerCall,
+  brokerConnected,
+  brokerSend,
+  GUEST_MAILS_PER_RUN,
+  type Refusal,
+  whereOfRun,
+  whoOf,
+} from "../broker/index.js";
 import { askPerson } from "../engine/asks.js";
 import { signalChanged } from "../engine/events.js";
 import { releaseResources } from "../engine/resources.js";
@@ -103,8 +111,23 @@ function contextOf(
       });
       if (!out.ok) {
         throw new ShareError(
-          out.refused === "not_connected" ? line("shareConnectFirst", { name }) : out.reason,
+          out.refused === "not_connected"
+            ? line("shareConnectFirst", { name })
+            : (refusalLine(out.refused) ?? out.reason),
         );
+      }
+      return out.result as never;
+    },
+    sendFromServer: async (recipients, input, handler) => {
+      const out = await brokerSend({
+        who: whoOf(holderOf(run)),
+        where: whereOfRun(run, holderOf(run), spaceId),
+        recipients,
+        input,
+        handler,
+      });
+      if (!out.ok) {
+        throw new ShareError(refusalLine(out.refused) ?? out.reason);
       }
       return out.result as never;
     },
@@ -117,6 +140,20 @@ function contextOf(
         ask,
       }),
   };
+}
+
+/** What the person reads when the broker refuses a guest's send; null for the other refusals. */
+function refusalLine(refused: Refusal): Said | null {
+  switch (refused) {
+    case "not_allowed_recipient":
+      return line("shareGuestRecipient");
+    case "run_limit":
+      return line("shareGuestRunMails", { mails: GUEST_MAILS_PER_RUN });
+    case "day_limit":
+      return line("shareGuestDayMails");
+    default:
+      return null;
+  }
 }
 
 async function entryOf(run: RunRow, spaceId: string, key: string, member: boolean) {

@@ -27,9 +27,24 @@ output.
 |---|---|
 | `tools` | Built-in tools: `web_search`, `web_fetch`, `browser`, `sandbox`, `image`, `http`, `pages`, `code`. A plugin’s tool by its full id, `<plugin>.<tool>` |
 | `connections` | Ids of the wizard’s connections. See [Lists and connections](./lists-and-connections.md) |
+| `hosts` | Hosts `http_request` may call, up to 20: `api.example.com`, or `*.example.org` for every host below it |
 
 A wizard that names a plugin’s tool runs only where that plugin is installed. See
 [Tools](../plugins/tools.md).
+
+```json
+{
+  "id": "prices", "type": "agent", "title": "Get the prices",
+  "instructions": "Read today’s prices from https://api.example.com/v1/prices.",
+  "tools": ["http"],
+  "hosts": ["api.example.com"]
+}
+```
+
+`hosts` is part of what the run may reach, fixed when it starts. A run someone starts at the
+wizard’s link, without an account, calls only these hosts; a request to any other is refused and
+logged. A member’s run calls any public host until the space switches the broker on, then the
+same rule holds. `*.example.org` takes `api.example.org`, not `example.org` itself.
 
 Every agent step also has a few tools without listing them: it reads and writes the wizard’s
 lists, reads uploads and documents, and searches the space’s Knowledge.

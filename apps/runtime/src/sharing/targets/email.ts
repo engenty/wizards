@@ -11,8 +11,7 @@ import { line, ShareError, type ShareTarget } from "../types.js";
 
 /** What mail providers take in one message, with room for the encoding. */
 const ATTACH_LIMIT = 18_000_000;
-/** From the server's own address, people without an account send this much per run. */
-const VISITOR_MAILS = 3;
+/** From the server's own address, one of a visitor's mails goes to this many addresses at most. */
 const VISITOR_RECIPIENTS = 3;
 const RECIPIENTS = 20;
 
@@ -99,14 +98,17 @@ export const emailTarget: ShareTarget = {
         throw err;
       }
     } else if (serverSender()) {
-      // The server's address is everyone's to send from: a visitor gets a few mails per run.
-      if (!ctx.member && (ctx.sentBefore >= VISITOR_MAILS || to.length > VISITOR_RECIPIENTS)) {
-        throw new ShareError(
-          line("shareVisitorMails", { mails: VISITOR_MAILS, recipients: VISITOR_RECIPIENTS }),
-        );
+      // The server's address is everyone's to send from. A visitor's mail goes to a few addresses,
+      // and the broker holds a guest's run to its own address or the space's, a few per run and day.
+      if (!ctx.member && to.length > VISITOR_RECIPIENTS) {
+        throw new ShareError(line("shareVisitorRecipients", { recipients: VISITOR_RECIPIENTS }));
       }
       await ctx.emit(line("shareSendingFrom", { account: serverSender() ?? "" }));
-      await sendFromServer(message);
+      await ctx.sendFromServer(
+        to,
+        { to: message.to, subject: message.subject, attachments: message.attachments.length },
+        () => sendFromServer(message),
+      );
     } else {
       throw new ShareError(line("shareConnectMailbox"));
     }
