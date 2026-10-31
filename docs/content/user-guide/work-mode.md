@@ -116,7 +116,7 @@ denied call doesn’t run.
 ![You ask the space’s AI to send an offer, it shows a card, you approve, and it sends once](../../assets/diagrams/work-approval.svg)
 
 **Waiting for you** lists the calls waiting for your approval, each leading to its chat. For the
-owner and the admins it also shows the critical lines of the space’s [Log](./protocol.md), such
+owner and the admins it also shows the critical lines of the space’s [Audit](./protocol.md), such
 as a refused change or a connection used for the first time. Opening it marks them seen.
 
 ## Client

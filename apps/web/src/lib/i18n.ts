@@ -2796,7 +2796,7 @@ const de: Record<Key, Line> = {
   "nav.capabilities": "Fähigkeiten",
   "capabilities.inSpace": "Im Space",
   "capabilities.connectors": "Connectors",
-  "capabilities.protocol": "Protokoll",
+  "capabilities.protocol": "Audit",
   "capabilities.discover": "Entdecken",
   "capabilities.overview": "Übersicht",
   "capabilities.overview.hint":
@@ -6399,7 +6399,7 @@ const en = {
   "nav.capabilities": "Capabilities",
   "capabilities.inSpace": "In this space",
   "capabilities.connectors": "Connectors",
-  "capabilities.protocol": "Log",
+  "capabilities.protocol": "Audit",
   "capabilities.discover": "Discover",
   "capabilities.overview": "Overview",
   "capabilities.overview.hint": "What your wizards, your chats and Goose may use in this space.",

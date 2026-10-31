@@ -1,6 +1,6 @@
 ---
 title: Capabilities
-description: One place for what your wizards, Work chats and Goose may use – skills, the space’s connections to other services, the log of every call, and a search for more.
+description: One place for what your wizards, Work chats and Goose may use – skills, the space’s connections to other services, the audit of every call, and a search for more.
 version: 0.13.0
 ---
 
@@ -16,7 +16,7 @@ the list of sections stays beside the page.
 | **Overview** | The skills that count, the space’s connections and the built-in connectors nobody connected yet, on one page, with a search over them. Its second tab, **Discover**, searches skills.sh and integrations.sh | Everyone who uses the studio. Only admins set up a connector from Discover |
 | **Skills** | Instructions your wizards work by. See [Skills](./skills.md) | Everyone who uses the studio |
 | **Connectors** | The space’s connections to other services, the built-in connectors and the ones from the registry | Everyone who uses the studio. Members see the connections open to them |
-| **Log** | Every call to a connection, allowed or not. See [Log](./protocol.md) | The owner and the admins |
+| **Audit** | Every call to a connection, allowed or not. See [Audit](./protocol.md) | The owner and the admins |
 
 The old addresses still work: `/skills` opens Capabilities › Skills, the connectors’ old address
 in the settings opens Capabilities › Connectors, and `/capabilities/discover` opens the Overview’s
@@ -88,12 +88,12 @@ connections open to you:
 
 You set up no connection there. That stays with the space’s admins.
 
-## Log
+## Audit
 
-The Log shows every call your space’s wizards, Work chats and Goose made to a connection, one line
+The Audit shows every call your space’s wizards, Work chats and Goose made to a connection, one line
 each, whether it ran or not. Critical lines, such as a refused change, reach the admins under the
 bell in Work. **Who may do what?** tries a rule before anything runs. Only the owner and the admins
-see the Log. [Log](./protocol.md) explains each line, the filters and what counts as critical.
+see the Audit. [Audit](./protocol.md) explains each line, the filters and what counts as critical.
 
 ## Discover
 
@@ -113,7 +113,7 @@ space. There is no switch for one person.
 | Wizards | Build, test, publish and share | Build and test | Run them in Work |
 | Skills, knowledge, data | Add and change | Add and change | – |
 | Connections | Set up, choose how they sign in, set the rules and who may use them | Use the ones open to members. The rules are locked | Their Work chats use the ones open to them |
-| Log | Yes | No | No |
+| Audit | Yes | No | No |
 | Own sign-ins | In their menu | In their menu | In their menu |
 
 Approvals always go to the space’s admins, never to a member. On your computer you are the only

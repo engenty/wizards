@@ -1,5 +1,5 @@
 import type { FeatureName } from "@engenty/wizards-shared/features";
-import { History, LayoutGrid, type LucideIcon, Plug, ScrollText } from "lucide-react";
+import { LayoutGrid, type LucideIcon, Plug, ScrollText, ShieldCheck } from "lucide-react";
 import type { ComponentType } from "react";
 import type { Key } from "../../lib/i18n";
 import { ConnectorsSection } from "./ConnectorsSection";
@@ -53,9 +53,11 @@ export const CAPABILITY_SECTIONS: CapabilitySection[] = [
   {
     id: "protocol",
     label: "capabilities.protocol",
-    icon: History,
+    icon: ShieldCheck,
     element: ProtocolSection,
     admins: true,
+    // „Was darf …?“ and the notifications open from its header.
+    menu: false,
   },
 ];
 

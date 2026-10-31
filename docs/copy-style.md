@@ -67,14 +67,14 @@ One word per thing, in both languages. Keys in the code may keep old names; the 
 | documents the AI looks things up in | knowledge | Wissen | |
 | tables and pages wizards keep | data | Daten | |
 | instructions in the Agent Skills format the wizards follow | skill; always on, on demand, off | der Skill, die Skills; immer an, bei Bedarf, aus | Fähigkeit, Fertigkeit |
-| a space's place for its skills, connectors, log and search | Capabilities (the place only) | Fähigkeiten (the place only) | Werkzeuge, Tools; Fähigkeit for one skill |
-| a space's sections of Capabilities | Skills, Connectors, Log, Discover; In this space | Skills, Connectors, Protokoll, Entdecken; Im Space | |
+| a space's place for its skills, connectors, audit and search | Capabilities (the place only) | Fähigkeiten (the place only) | Werkzeuge, Tools; Fähigkeit for one skill |
+| a space's sections of Capabilities | Overview, Skills, Connectors, Audit; the Overview's tabs In this space, Discover | Übersicht, Skills, Connectors, Audit; die Tabs Im Space, Entdecken | Log, Protokoll (for the audit) |
 | one account at a service a space uses, set up by its admins | connection | die Verbindung | account, Zugang (for the connection itself) |
 | how a connection signs in | As the space; Each person signs in | Als Space; Jede Person meldet sich an | shared login, as the organization |
 | who may use a connection | Admins, Members, Everyone | Admins, Mitglieder, Alle | |
 | a connection's rule per kind of action (Read, Change, Delete, Send) | Allowed, With approval, Never | Erlaubt, Mit Freigabe, Nie | Genehmigung, permission |
 | an admin's yes to a call that waits | approval; approve | die Freigabe; freigeben | Genehmigung, sign-off |
-| every call to a connection, one line each | the log; a critical line | das Protokoll; eine kritische Zeile | audit log, Verlauf |
+| every call to a connection, one line each | the audit; a critical line | das Audit; eine kritische Zeile | log, audit log, Protokoll, Verlauf |
 | what a run may reach, fixed when it starts | the run's grant | was der Lauf darf | Freigabe (that is an admin's yes), permissions |
 | the one gate every connector call passes (developers' word, not in the app) | the broker | der Broker | gatekeeper, Türsteher (in text) |
 | a space's table of who may read, write or run what (developers' word, behind `broker`) | RWX rule | RWX-Regel | ACL |
