@@ -173,13 +173,20 @@ describe("the cloud's sync calls", () => {
   });
 
   it("lets a member change a wizard but not make one or a space", async () => {
-    const made = await v1("POST", `/sync/spaces/${SPACE}/changes`, member, {
-      schema: schemaTag,
-      items: [
-        { kind: "wizard", item: "wizardOfAMember", base: 0, record: { spaceId: SPACE, title: "Mine", draft: definition, files: [] } },
-        { kind: "space", item: SPACE, base: 999_999, record: { name: "Renamed by a member" } },
-      ],
-    });
+    const push = () =>
+      v1("POST", `/sync/spaces/${SPACE}/changes`, member, {
+        schema: schemaTag,
+        items: [
+          { kind: "wizard", item: "wizardOfAMember", base: 0, record: { spaceId: SPACE, title: "Mine", draft: definition, files: [] } },
+          { kind: "space", item: SPACE, base: 999_999, record: { name: "Renamed by a member" } },
+        ],
+      });
+    // A space whose Studio is closed to members takes nothing of theirs (services/members-studio.ts).
+    expect((await push()).status).toBe(403);
+    const { db, schema, withTenant } = await import("../src/db/client");
+    const { eq } = await import("drizzle-orm");
+    await withTenant("org", () => db.update(schema.space).set({ membersStudio: true }).where(eq(schema.space.id, SPACE)));
+    const made = await push();
     expect(made.body.results.map((r: any) => [r.status, r.reason])).toEqual([
       ["refused", "forbidden"],
       ["refused", "forbidden"],

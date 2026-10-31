@@ -12,6 +12,7 @@ import { publishAndSync, pushSharing } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
 import { marketplaceWizard, searchMarketplace } from "../services/marketplace.js";
+import { requireStudio } from "../services/members-studio.js";
 import { markAgent, presentIn } from "../services/presence.js";
 import {
   answerRunAsk,
@@ -104,7 +105,22 @@ type ToolConfig<S extends z.ZodObject> = {
   readOnly?: boolean;
   destructive?: boolean;
   openWorld?: boolean;
+  /**
+   * Works in the Studio of the wizard's space (or the test run's): refused where that Studio is
+   * closed to the person, as the studio API refuses it (services/members-studio.ts).
+   */
+  studio?: boolean;
 };
+
+/** A Studio tool's item: the wizard or the test run it names. */
+async function requireStudioOf(args: unknown): Promise<void> {
+  const { wizardId, runId } = (args ?? {}) as { wizardId?: unknown; runId?: unknown };
+  if (typeof wizardId === "string") {
+    await requireStudio("wizards", wizardId);
+  } else if (typeof runId === "string") {
+    await requireStudio("runs", runId);
+  }
+}
 
 function annotationsOf(config: { readOnly?: boolean; destructive?: boolean; openWorld?: boolean }) {
   const readOnly = config.readOnly ?? false;
@@ -168,6 +184,12 @@ export function registerTools(server: McpServer, who: Principal) {
       return result;
     }
   };
+  /** The space a Studio tool works in: the one named, or the person's first; refused where closed. */
+  const studioSpace = async (spaceId: string | undefined) => {
+    const space = spaceId ? await ownedSpace(who.userId, spaceId) : await defaultSpace(who.userId);
+    await requireStudio("spaces", space.id);
+    return space;
+  };
   const tool = <S extends z.ZodObject>(
     name: string,
     scope: Scope,
@@ -188,6 +210,9 @@ export function registerTools(server: McpServer, who: Principal) {
       // The SDK has parsed `args` with `input` before this runs.
       (async (args: z.infer<S>) => {
         try {
+          if (config.studio) {
+            await requireStudioOf(args);
+          }
           return ok(await withPresence(args, config.readOnly ?? false, await run(args)));
         } catch (err) {
           return failure(err);
@@ -217,6 +242,9 @@ export function registerTools(server: McpServer, who: Principal) {
       },
       (async (args: z.infer<S>) => {
         try {
+          if (config.studio) {
+            await requireStudioOf(args);
+          }
           const { result: plain, view } = await run(args);
           const result = (await withPresence(args, config.readOnly ?? false, plain)) as Record<
             string,
@@ -247,9 +275,7 @@ export function registerTools(server: McpServer, who: Principal) {
       readOnly: true,
     },
     async ({ spaceId }) => {
-      const space = spaceId
-        ? await ownedSpace(who.userId, spaceId)
-        : await defaultSpace(who.userId);
+      const space = await studioSpace(spaceId);
       return authoringGuide(
         await listConnectors(space.id),
         await pluginToolsOf(who.tenantId),
@@ -301,9 +327,7 @@ export function registerTools(server: McpServer, who: Principal) {
       }),
     },
     async ({ spaceId, domain, kind }) => {
-      const space = spaceId
-        ? await ownedSpace(who.userId, spaceId)
-        : await defaultSpace(who.userId);
+      const space = await studioSpace(spaceId);
       return importFromRegistry(who.userId, space.id, { domain, kind });
     },
   );
@@ -405,6 +429,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description: prompt("mcp", "tool.get_wizard"),
       input: z.object({ wizardId: z.string() }),
       readOnly: true,
+      studio: true,
     },
     async ({ wizardId }) => {
       const s = await wizardState(await ownedWizard(who.userId, wizardId));
@@ -438,9 +463,7 @@ export function registerTools(server: McpServer, who: Principal) {
     },
     async (args) => {
       try {
-        const space = args.spaceId
-          ? await ownedSpace(who.userId, args.spaceId)
-          : await defaultSpace(who.userId);
+        const space = await studioSpace(args.spaceId);
         const { draft } = parseDraft(authored(args.definition));
         const issues = await checkDraft(space.id, draft);
         return { ok: issues.length === 0, issues };
@@ -495,6 +518,7 @@ export function registerTools(server: McpServer, who: Principal) {
         note,
       }),
       destructive: true,
+      studio: true,
     },
     async ({ wizardId, ...input }) => {
       const { revision, issues } = await editWizard(who.userId, wizardId, input, writer);
@@ -510,6 +534,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description: prompt("mcp", "tool.replace_wizard"),
       input: z.object({ wizardId: z.string(), baseRevision, definition, note }),
       destructive: true,
+      studio: true,
     },
     async ({ wizardId, ...input }) => {
       const { revision, issues } = await writeDraft(
@@ -532,6 +557,7 @@ export function registerTools(server: McpServer, who: Principal) {
       input: z.object({ wizardId: z.string() }),
       destructive: true,
       openWorld: true,
+      studio: true,
     },
     async ({ wizardId }) => publishAndSync(who.userId, wizardId),
   );
@@ -549,6 +575,7 @@ export function registerTools(server: McpServer, who: Principal) {
       }),
       destructive: true,
       openWorld: true,
+      studio: true,
     },
     async ({ wizardId, enabled, dailyRunLimit }) => {
       const w = await updateWizardSettings(who.userId, wizardId, {
@@ -582,6 +609,7 @@ export function registerTools(server: McpServer, who: Principal) {
         acceptReviews: z.boolean().default(true),
       }),
       openWorld: true,
+      studio: true,
     },
     async ({ wizardId, answers, acceptReviews }) => {
       const { runId } = await startTestRun(who.userId, wizardId, { answers, acceptReviews });
@@ -610,6 +638,7 @@ export function registerTools(server: McpServer, who: Principal) {
           .describe("Wait up to this long while the run is still working."),
       }),
       readOnly: true,
+      studio: true,
     },
     async ({ runId, waitSeconds }) => testRunReport(who.userId, runId, waitSeconds),
   );
@@ -629,6 +658,10 @@ export function registerTools(server: McpServer, who: Principal) {
     },
     async ({ wizardId, version }) => {
       const view = await flowView(who.userId, wizardId, { shows: version });
+      // The draft is the Studio's; the published wizard is everyone's to run.
+      if (view.wizard.shows === "draft") {
+        await requireStudio("wizards", wizardId);
+      }
       return {
         result: {
           wizardId,
@@ -788,6 +821,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description: prompt("mcp", "tool.list_files"),
       input: z.object({ wizardId: z.string() }),
       readOnly: true,
+      studio: true,
     },
     async ({ wizardId }) =>
       (await listFiles(who.userId, wizardId)).map(({ path, mime, size }) => ({ path, mime, size })),
@@ -801,6 +835,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description: prompt("mcp", "tool.read_file"),
       input: z.object({ wizardId: z.string(), path: z.string() }),
       readOnly: true,
+      studio: true,
     },
     async ({ wizardId, path }) => readFileText(who.userId, wizardId, path),
   );
@@ -819,6 +854,7 @@ export function registerTools(server: McpServer, who: Principal) {
         mime: z.string().optional(),
       }),
       destructive: true,
+      studio: true,
     },
     async ({ wizardId, path, content, base64, mime }) => {
       if ((content === undefined) === (base64 === undefined)) {
@@ -842,6 +878,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description: prompt("mcp", "tool.delete_file"),
       input: z.object({ wizardId: z.string(), path: z.string() }),
       destructive: true,
+      studio: true,
     },
     async ({ wizardId, path }) => {
       await deleteFile(who.userId, wizardId, path);
@@ -868,6 +905,7 @@ export function registerTools(server: McpServer, who: Principal) {
       },
       (async ({ wizardId, stepId, data }: z.infer<typeof input>) => {
         try {
+          await requireStudio("wizards", wizardId);
           const r = await checkDraftWidget(who.userId, wizardId, stepId, data);
           return {
             content: [

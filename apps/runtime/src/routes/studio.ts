@@ -184,6 +184,7 @@ import {
   valueContents,
 } from "../services/knowledge.js";
 import { writeSummary } from "../services/knowledge-model.js";
+import { closedToMe } from "../services/members-studio.js";
 import {
   applyAddresses,
   finishOnboarding,
@@ -778,7 +779,9 @@ export const studio = new Hono<Vars>()
     if (!(await canSpend())) {
       throw new ServiceError("no_credits", note("creditsUsedUp"));
     }
-    const space = body.spaceId ? await ownedSpace(user.id, body.spaceId) : null;
+    // A space whose Studio is closed to a member is none of Goose's: no knowledge, skills or tools of it.
+    const opened = body.spaceId ? await ownedSpace(user.id, body.spaceId) : null;
+    const space = opened && !(await closedToMe(opened.id)) ? opened : null;
     const writable = space ? await spaceWritable(space) : false;
     // The page's snapshot is cut, not refused: a page that says too much still gets an answer.
     const page =

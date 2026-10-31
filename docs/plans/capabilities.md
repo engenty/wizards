@@ -394,8 +394,11 @@ Not built or not verified, as the sessions reported:
 
 - The Manage-App's receiving endpoint `POST /v1/broker/:tenant` for the broker's report (A7a): the
   runtime posts, nobody receives.
-- Members still reach closed spaces through Goose's tools, MCP, `/api/v1` and the live stream (B4):
-  the rule guards the studio API only.
+- A member's Goose in a closed space has no space: no Wissen, skills, space tools or own sign-ins
+  there; this turn of the assistant (`/assistant/turn`) has no test, only Goose's sign-ins do.
+- The live stream still names a closed space's changed items to a member (ids, no views), and
+  `/api/v1/sync` and `/sync/live` still list closed spaces; MCP's `run_wizard` and `get_run`
+  stay open, as Work runs wizards in every space.
 - Signing in as each person is not gated to the Team plan (B2, B3).
 - The Work bell's link to a run, `/wizards/:id?run=`, is no route; the Protokoll uses
   `/edit/:id?run=` (B5).

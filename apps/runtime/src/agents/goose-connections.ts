@@ -7,6 +7,7 @@ import { db, schema } from "../db/client.js";
 import type { AskResult } from "../engine/asks.js";
 import { prompt } from "../prompts.js";
 import { isAdminRole } from "../services/access.js";
+import { closedToMe } from "../services/members-studio.js";
 import {
   type ConnectionTool,
   callConnection,
@@ -87,7 +88,14 @@ export async function gooseConnectionTools(
 ): Promise<Record<string, unknown>> {
   const userId = input.user.id;
   const who: Who = { kind: "goose", id: userId, admin: isAdminRole(input.user.role) };
-  const tools = connectionToolsOf(await usableConnections(await signedInConnections(userId), who));
+  // Not in a space whose Studio is closed to a member: Goose is the Studio's.
+  const signedIn = [];
+  for (const row of await signedInConnections(userId)) {
+    if (!(await closedToMe(row.spaceId))) {
+      signedIn.push(row);
+    }
+  }
+  const tools = connectionToolsOf(await usableConnections(signedIn, who));
   if (!tools.length) {
     return {};
   }

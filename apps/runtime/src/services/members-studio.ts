@@ -72,12 +72,11 @@ const PUBLISHING: [string, RegExp][] = [
   ["DELETE", /^\/wizards\/[^/]+\/translations\/[^/]+$/],
 ];
 
-/** The space a studio request is about, from its address: an id, or an item of the space. */
-async function spaceOf(path: string): Promise<string | null> {
-  const [, kind, id, sub] = path.split("/");
-  if (!id) {
-    return null;
-  }
+/**
+ * The space of an item, by the kind and id the studio's addresses name it with
+ * (`/spaces/:id`, `/wizards/:id`, …; `runs` for a run's wizard), and what follows them.
+ */
+async function spaceOfItem(kind: string, id: string, sub?: string): Promise<string | null> {
   const one = async <T extends { spaceId: string }>(found: Promise<T | undefined>) =>
     (await found)?.spaceId ?? null;
   const tenant = currentTenant();
@@ -91,6 +90,13 @@ async function spaceOf(path: string): Promise<string | null> {
           columns: { spaceId: true },
         }),
       );
+    case "runs": {
+      const run = await db.query.run.findFirst({
+        where: and(eq(schema.run.id, id), eq(schema.run.tenantId, tenant)),
+        columns: { wizardId: true },
+      });
+      return run ? spaceOfItem("wizards", run.wizardId) : null;
+    }
     case "tables":
       return one(
         db.query.spaceTable.findFirst({
@@ -117,7 +123,7 @@ async function spaceOf(path: string): Promise<string | null> {
         where: eq(schema.spaceCategoryValue.id, id),
         columns: { categoryId: true },
       });
-      return value ? spaceOf(`/categories/${value.categoryId}`) : null;
+      return value ? spaceOfItem("categories", value.categoryId) : null;
     }
     case "skills":
       return one(
@@ -142,6 +148,29 @@ async function spaceOf(path: string): Promise<string | null> {
 }
 
 /**
+ * Whether this space's Studio is closed to the person at hand: a member, where its admins did not
+ * open it. What a list leaves out for them.
+ */
+export async function closedToMe(spaceId: string): Promise<boolean> {
+  return (await ruledMember()) && !(await openToMembers(spaceId));
+}
+
+/**
+ * The studio's „closed“ answer for an item of a space closed to the person at hand: the same 403
+ * through every door (the studio API, MCP, `/api/v1`, Goose). `kind` as the studio's addresses
+ * name it: `spaces`, `wizards`, `runs`, `tables`, `pages`, `skills`, `connections`, ….
+ */
+export async function requireStudio(kind: string, id: string, sub?: string): Promise<void> {
+  if (!(await ruledMember())) {
+    return;
+  }
+  const spaceId = await spaceOfItem(kind, id, sub);
+  if (spaceId && !(await openToMembers(spaceId))) {
+    throw CLOSED();
+  }
+}
+
+/**
  * The studio API for a member, after the guard in app.ts set who they are: refuses a space whose
  * Studio is closed to members, and publishing anywhere. Admins and owners pass untouched.
  */
@@ -157,9 +186,9 @@ export async function membersStudioGate(c: Context, next: Next): Promise<void> {
   if (method === "GET" && WORK_READS.test(path)) {
     return next();
   }
-  const spaceId = await spaceOf(path);
-  if (spaceId && !(await openToMembers(spaceId))) {
-    throw CLOSED();
+  const [, kind = "", id, sub] = path.split("/");
+  if (id) {
+    await requireStudio(kind, id, sub);
   }
   return next();
 }
