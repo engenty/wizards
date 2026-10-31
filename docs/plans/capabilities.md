@@ -329,7 +329,7 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    asks them on a card in Goose's chat (the browser's `confirm_action`), with no hold for the
    admins; never a connection that signs in as the space. Every call is in `broker_log` with the
    chat. A run still gets the `needs_approval` refusal.
-7a. `feat(runtime): the broker is heard` — **built** (#PR_NUMBER) — the critical kinds, decided
+7a. `feat(runtime): the broker is heard` — **built** (#366) — the critical kinds, decided
    in one function (`broker/log.ts` `criticalOf`, the kinds in `CRITICAL_KINDS`): a refused
    write, delete or send; a guest outside a connection's audience; a host not in the grant; a
    limit reached; a sign-in that ran out or was refused; a connection's first use; a changed
