@@ -239,9 +239,9 @@ registering. A new tool that calls a service registers there.
 - Readers ask today for `document`, `table` and `page` (`ENFORCED`): the knowledge readers, and
   search filters its hits by `r`. The other resource kinds wait for their reader.
 
-All of this is behind the `broker` switch, off by default. With it off, `decide`, `readable` and
+All of this is behind the `broker` switch, on by default. With it off, `decide`, `readable` and
 `assertRwx` in `rwx.ts` say yes to everything, the rules routes answer 404, and a member’s
-`http_request` reaches any public host. Turning it on with the seed changes nothing until an admin
+`http_request` reaches any public host. On, the seed changes nothing until an admin
 writes a deny. No studio page draws the rules yet.
 
 The `capabilities` switch is on by default. It shows the studio’s Capabilities place, opens

@@ -60,7 +60,7 @@
 # own API keys in the cloud studio (a plan's switch; on alone)
 # ownKeys=on|off
 #
-# RWX rules per space, enforced at every reader (off by default)
+# RWX rules per space, enforced at every reader (on by default)
 # broker=on|off
 #
 # Fähigkeiten: one place in the app bar for Skills and Verbindungen, the Protokoll and Entdecken (on by default)

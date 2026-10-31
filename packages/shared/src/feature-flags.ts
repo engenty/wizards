@@ -145,7 +145,7 @@ export const FEATURES = {
   },
   broker: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Broker",
     hint: "RWX rules per space: who may read, write and execute what; enforced at every reader.",
   },
