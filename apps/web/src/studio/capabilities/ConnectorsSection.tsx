@@ -40,6 +40,36 @@ interface ConnectionsList {
   connections: SpaceConnectionView[];
 }
 
+/** The space's connections, the ones open to this person. */
+export function useSpaceConnections(spaceId: string) {
+  return useQuery({
+    enabled: Boolean(spaceId),
+    queryKey: connectionsKey(spaceId),
+    queryFn: () => api.get<ConnectionsList>(`/api/studio/spaces/${spaceId}/connections`),
+  });
+}
+
+/** The connectors a connection can be set up with: built in and imported. */
+export function useConnectors(spaceId: string) {
+  return useQuery({
+    enabled: Boolean(spaceId),
+    queryKey: keys.connectors(spaceId),
+    queryFn: () => api.get<ConnectorView[]>(`/api/studio/spaces/${spaceId}/connectors`),
+  });
+}
+
+/** The built-in connectors no connection of the space uses yet: a quiet line of names. */
+export function unusedBuiltins(
+  connectors: ConnectorView[],
+  connections: SpaceConnectionView[],
+  unsetConnectors: boolean,
+): ConnectorView[] {
+  const used = new Set(connections.map((c) => c.connectorId));
+  return connectors.filter(
+    (c) => c.sourceKind === "builtin" && !used.has(c.id) && (c.usable || unsetConnectors),
+  );
+}
+
 const AUDIENCE_LABEL: Record<ConnectionAudience, Key> = {
   admins: "connection.audience.admins",
   members: "connection.audience.members",
@@ -190,16 +220,8 @@ export function ConnectorsSection() {
   const show = params.get("show");
   const setup = params.get("setup");
   const writable = admin && !space?.readOnly;
-  const connections = useQuery({
-    enabled: Boolean(spaceId),
-    queryKey: connectionsKey(spaceId),
-    queryFn: () => api.get<ConnectionsList>(`/api/studio/spaces/${spaceId}/connections`),
-  });
-  const connectors = useQuery({
-    enabled: Boolean(spaceId),
-    queryKey: keys.connectors(spaceId),
-    queryFn: () => api.get<ConnectorView[]>(`/api/studio/spaces/${spaceId}/connectors`),
-  });
+  const connections = useSpaceConnections(spaceId);
+  const connectors = useConnectors(spaceId);
   const list = connections.data?.connections ?? [];
   const picked = list.find((c) => c.id === show) ?? null;
   useDetail(picked ? titleOf(picked) : null);
@@ -324,10 +346,7 @@ function Overview({
       more.current?.scrollIntoView({ block: "start", behavior: "smooth" });
     }
   }, [domain]);
-  const used = new Set(connections.map((c) => c.connectorId));
-  const builtin = connectors.filter(
-    (c) => c.sourceKind === "builtin" && !used.has(c.id) && (c.usable || unsetConnectors),
-  );
+  const builtin = unusedBuiltins(connectors, connections, unsetConnectors);
   return (
     <>
       <Section
@@ -431,7 +450,7 @@ function Overview({
 }
 
 /** A connection in the list: what it is, how it signs in, who may use it; a member's own sign-in. */
-function ConnectionRow({
+export function ConnectionRow({
   connection: c,
   onOpen,
 }: {

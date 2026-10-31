@@ -1,9 +1,10 @@
 import type { FeatureName } from "@engenty/wizards-shared/features";
-import { Compass, History, type LucideIcon, Plug, ScrollText } from "lucide-react";
+import { Compass, History, LayoutGrid, type LucideIcon, Plug, ScrollText } from "lucide-react";
 import type { ComponentType } from "react";
 import type { Key } from "../../lib/i18n";
 import { ConnectorsSection } from "./ConnectorsSection";
 import { DiscoverSection } from "./DiscoverSection";
+import { OverviewSection } from "./OverviewSection";
 import { ProtocolSection } from "./ProtocolSection";
 import { SkillsSection } from "./SkillsSection";
 
@@ -21,9 +22,18 @@ export interface CapabilitySection {
   feature?: FeatureName;
   /** For the owners and admins alone: a member's menu leaves it out. */
   admins?: boolean;
+  /** Without a menu of its own: the list of sections stays beside its page. */
+  menu?: false;
 }
 
 export const CAPABILITY_SECTIONS: CapabilitySection[] = [
+  {
+    id: "overview",
+    label: "capabilities.overview",
+    icon: LayoutGrid,
+    element: OverviewSection,
+    menu: false,
+  },
   {
     id: "skills",
     label: "space.skills",
