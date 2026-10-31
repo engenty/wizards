@@ -57,7 +57,16 @@ export function ModeSwitch({
   // The mode pointed at (or focused), else the current one: it has the card and the name.
   const [pointed, setPointed] = useState<Mode | null>(null);
   const shown = pointed ?? mode;
-  const [card, setCard] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  // `still`: placed for a switch that changed its own size (the bar opening or closing, another
+  // look), not for another mode: the card follows at once instead of sliding after it.
+  const [card, setCard] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    still: boolean;
+  } | null>(null);
+  const placedFor = useRef({ look, w: 0, h: 0 });
   const vertical = look === "stacked";
   // The stack opens downward: its modes stand in a column too.
   const column = vertical || Boolean(stack);
@@ -79,13 +88,19 @@ export function ModeSwitch({
   }, [stack, fanned]);
   // The card goes straight to where the shown mode's button ends up once the names have opened
   // and closed, not after the button as it grows.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: another mode moves the card; a second mode makes the switch appear.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another mode moves the card; a second mode makes the switch appear; another look places it anew.
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) {
       return;
     }
     const place = () => {
+      // The switch itself changed size or look since the card was last placed.
+      const was = placedFor.current;
+      // A row grows with the name it opens: there only another look counts.
+      const resized = look !== "row" && (was.w !== el.clientWidth || was.h !== el.clientHeight);
+      const still = was.look !== look || resized;
+      placedFor.current = { look, w: el.clientWidth, h: el.clientHeight };
       const buttons = Array.from(el.querySelectorAll<HTMLElement>(":scope > button"));
       const at = buttons.findIndex((b) => b.hasAttribute("data-shown"));
       const on = buttons[at];
@@ -122,8 +137,8 @@ export function ModeSwitch({
       const start = pad + sizes.slice(0, at).reduce((sum, size) => sum + size + gap, 0);
       setCard(
         column
-          ? { x: on.offsetLeft, y: start, w: on.offsetWidth, h: sizes[at] }
-          : { x: start, y: on.offsetTop, w: sizes[at], h: on.offsetHeight },
+          ? { x: on.offsetLeft, y: start, w: on.offsetWidth, h: sizes[at], still }
+          : { x: start, y: on.offsetTop, w: sizes[at], h: on.offsetHeight, still },
       );
     };
     place();
@@ -133,7 +148,7 @@ export function ModeSwitch({
       watch.observe(child);
     }
     return () => watch.disconnect();
-  }, [shown, modes.length, piled]);
+  }, [shown, modes.length, piled, look]);
   if (modes.length < 2) {
     return null;
   }
@@ -200,7 +215,12 @@ export function ModeSwitch({
         )}
         style={
           card
-            ? { transform: `translate(${card.x}px, ${card.y}px)`, width: card.w, height: card.h }
+            ? {
+                transform: `translate(${card.x}px, ${card.y}px)`,
+                width: card.w,
+                height: card.h,
+                transition: card.still ? "none" : undefined,
+              }
             : undefined
         }
       />

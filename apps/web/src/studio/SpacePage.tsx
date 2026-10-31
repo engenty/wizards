@@ -195,12 +195,6 @@ export function SpacePage({ place }: { place?: "skills" }) {
         ? skillsEntry
         : entries.find((e) => e.id === open);
   const show = params.get("show");
-  // A phone: 0 the parts, 1 the part's menu, 2 the page.
-  // Results have no menu: the page at once, the wizard picked above the list.
-  const phone = group === "results" ? 2 : !open ? 0 : show ? 2 : 1;
-  const level = own ? 1 : narrow ? Math.min(phone, 1) : open && upAt !== open && !atParts ? 1 : 0;
-  const levelStep = useStepDirection(level);
-  const pageStep = useStepDirection(phone);
   const menu = useMemo(() => ({ slot, narrow, setDetail }), [slot, narrow]);
   const title = space ? space.brand.name?.trim() || space.name : t("nav.space");
 
@@ -245,6 +239,28 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const pickedCategory = knowledge.data?.categories.find(
     (c) => c.id === (picked?.startsWith("c:") ? picked.slice(2) : pickedValue.data?.category.id),
   );
+  // A phone: 0 the parts, 1 the part's menu, 2 the page.
+  // Results have no menu: the page at once, the wizard picked above the list.
+  // A part whose menu would only jump to its headings keeps the parts beside its page, as
+  // Fähigkeiten does. Knowledge and Data slide to their menu where it lists something: categories,
+  // tables and pages, a plugin's sections. A plugin's part says its own menu.
+  const listed =
+    added.length > 0 ||
+    (group === "knowledge" && Boolean(knowledge.data?.categories.length)) ||
+    (group === "data" &&
+      Boolean(spaceData.data && dataGroups(spaceData.data).some((g) => g.items.length)));
+  const listOnly =
+    Boolean(group) && !own && !((group === "data" || group === "knowledge") && listed);
+  const phone = group === "results" ? 2 : !open ? 0 : show || listOnly ? 2 : 1;
+  const level = own
+    ? 1
+    : narrow
+      ? Math.min(phone, 1)
+      : open && !listOnly && upAt !== open && !atParts
+        ? 1
+        : 0;
+  const levelStep = useStepDirection(level);
+  const pageStep = useStepDirection(phone);
   const pickedTitle =
     group === "skills"
       ? skills.data?.skills.find((k) => `k:${k.id}` === skillPick)?.name
@@ -419,8 +435,6 @@ export function SpacePage({ place }: { place?: "skills" }) {
         root={{
           icon: Layers,
           label: t("nav.sources"),
-          backLabel: t("nav.wizards"),
-          onBack: () => navigate("/"),
         }}
       />
       <div key={level} className={cn(stepClass(levelStep))}>
@@ -428,7 +442,14 @@ export function SpacePage({ place }: { place?: "skills" }) {
           <LevelList
             entries={entries}
             current={narrow ? undefined : entry}
-            onPick={() => setUpAt(null)}
+            onPick={() => {
+              setUpAt(null);
+              // Picked again: the part's page from its top.
+              if (listOnly && entry) {
+                navigate(entry.to);
+                scrollRoot().scrollTo({ top: 0, behavior: "smooth" });
+              }
+            }}
           />
         ) : (
           <div ref={setSlot} />

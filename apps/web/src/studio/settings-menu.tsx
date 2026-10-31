@@ -81,8 +81,8 @@ export interface LevelEntry {
 
 /**
  * The left container's top row: the back arrow and the level's name — `title` above, the entry
- * that is open one level down. `root`: the upper level has a name and a way back of its own too,
- * and shows them as one level down does.
+ * that is open one level down. `root`: the upper level's name and icon. The upper level has no way
+ * back: the app bar leads everywhere else.
  */
 export function LevelHead({
   title,
@@ -94,10 +94,10 @@ export function LevelHead({
   open: LevelEntry | null;
   /** Back up from the open entry; without it the open entry stands alone, with no way up. */
   onBack?: () => void;
-  root?: { icon: Icon; label: string; backLabel: string; onBack: () => void };
+  root?: { icon: Icon; label: string };
 }) {
   const shown = open ?? root ?? null;
-  const back = open ? onBack : root?.onBack;
+  const back = open ? onBack : undefined;
   return (
     <div className="mb-2 flex h-9 min-w-0 items-center px-1">
       <div
@@ -111,7 +111,7 @@ export function LevelHead({
           onClick={back}
           aria-hidden={!(shown && back)}
           tabIndex={shown && back ? undefined : -1}
-          aria-label={open ? title : root?.backLabel}
+          aria-label={title}
           className="grid size-8 place-items-center rounded-lg text-ink-3 transition hover:bg-accent hover:text-ink"
         >
           <ArrowLeft className="size-4" />
