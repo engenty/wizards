@@ -15,10 +15,13 @@
   --raw-sidebar: var(--paper-2);
 }
 
-/* The studio's page in light: nearly white, so it stands clear of the app bar and of the grey of
-   a picked row or a field. A wizard's own page keeps the base paper. */
+/* The studio in light: a white page with the cards a step below it, in the paper's tone at half
+   its warmth, and a softer contrast for the grey steps, inks and lines. A wizard's own page keeps
+   the base paper and cards. */
 html[data-studio]:not(.dark) {
-  --paper: oklch(from var(--raw-background) 0.995 calc(c * 0.5) h);
+  --contrast: 0.85;
+  --paper: oklch(1 0 0);
+  --card: oklch(from var(--raw-background) 0.975 calc(c * 0.5) h);
 }
 
 /* Dark comes two ways, picked by the visitor. Branded (`.branded` on the root) is not the
