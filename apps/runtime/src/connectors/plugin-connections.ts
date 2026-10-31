@@ -3,6 +3,7 @@ import type {
   PluginConnections,
   PluginConnectorOffer,
 } from "@engenty/wizards/plugin";
+import { DEFAULT_CONNECTION_RULES } from "@engenty/wizards-shared/connectors";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -19,12 +20,19 @@ import { seal, unseal } from "../secrets/crypto.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { builtinConnector, connectorFetch, resolveEnv, usable, viaAccount } from "./builtin.js";
 import { connectRedirectUri as redirectUri } from "./index.js";
+import {
+  keepSpaceSignIn,
+  type SpaceConnectionRow,
+  type StoredTokens,
+} from "./space-connections.js";
 import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
 /*
  * Accounts a plugin connects for a space (`server.connections`, docs/content/dev/plugins): the
- * runtime's built-in OAuth connectors, signed in through the same callback as a wizard's
- * connections, kept in `plugin_connection` rather than in a wizard's store.
+ * runtime's built-in connectors, signed in through the same callback as a wizard's connections.
+ * They are connections of the space (`space_connection`, docs/plans/capabilities.md) that sign
+ * in as the space, open to everyone, with the default rules; the plugin that set one up is
+ * noted on the row and sees only its own.
  */
 
 /** Carried through the provider as `state`, sealed. `plugin` tells it from a wizard's state. */
@@ -40,17 +48,7 @@ interface PluginOAuthState {
   lang?: Lang;
 }
 
-/** What is sealed in `data`; the broker's reader (`broker/account.ts`) alone unseals it. */
-export interface StoredTokens {
-  accessToken: string;
-  refreshToken: string | null;
-  expiresAt: string | null;
-  scopes: string[];
-  via?: "account";
-}
-
-export type PluginConnectionRow = typeof schema.pluginConnection.$inferSelect;
-type Row = PluginConnectionRow;
+type Row = SpaceConnectionRow;
 
 function oauthConnector(id: string): ConnectorDefinition {
   const connector = builtinConnector(id);
@@ -98,32 +96,39 @@ async function keep(input: {
   actions: string[];
   stored: StoredTokens;
 }): Promise<Row> {
-  const same = await db.query.pluginConnection.findFirst({
+  const same = await db.query.spaceConnection.findFirst({
     where: and(
-      eq(schema.pluginConnection.plugin, input.plugin),
-      eq(schema.pluginConnection.spaceId, input.spaceId),
-      eq(schema.pluginConnection.connector, input.connector),
-      eq(schema.pluginConnection.label, input.label),
+      eq(schema.spaceConnection.plugin, input.plugin),
+      eq(schema.spaceConnection.spaceId, input.spaceId),
+      eq(schema.spaceConnection.connectorId, input.connector),
+      eq(schema.spaceConnection.label, input.label),
     ),
   });
   if (same) {
-    const [row] = await db
-      .update(schema.pluginConnection)
-      .set({ actions: input.actions, data: seal(input.stored), updatedAt: new Date() })
-      .where(eq(schema.pluginConnection.id, same.id))
-      .returning();
-    return row;
+    await db
+      .update(schema.spaceConnection)
+      .set({ actions: input.actions, updatedAt: new Date() })
+      .where(eq(schema.spaceConnection.id, same.id));
+    await keepSpaceSignIn(same, input.label, input.stored);
+    return (await db.query.spaceConnection.findFirst({
+      where: eq(schema.spaceConnection.id, same.id),
+    })) as Row;
   }
   const [row] = await db
-    .insert(schema.pluginConnection)
+    .insert(schema.spaceConnection)
     .values({
       id: nanoid(14),
-      plugin: input.plugin,
       spaceId: input.spaceId,
-      connector: input.connector,
+      connectorId: input.connector,
+      plugin: input.plugin,
+      name: input.label,
       label: input.label,
+      signIn: "space",
+      audience: "all",
+      rules: DEFAULT_CONNECTION_RULES,
       actions: input.actions,
-      data: seal(input.stored),
+      secret: seal(input.stored),
+      setUpBy: null,
     })
     .returning();
   return row;
@@ -147,10 +152,10 @@ function scopesOf(connector: ConnectorDefinition, actions: string[]): string[] {
 const view = (row: Row): PluginConnection => ({
   id: row.id,
   space: row.spaceId,
-  connector: row.connector,
-  label: row.label,
+  connector: row.connectorId,
+  label: row.label ?? row.name,
   actions: row.actions,
-  createdAt: row.createdAt.toISOString(),
+  createdAt: row.setUpAt.toISOString(),
 });
 
 /** A state the callback can tell is a plugin's: the tenant to finish it in, or null. */
@@ -209,8 +214,8 @@ export async function finishPluginOAuth(
 /** `server.connections` of one plugin; every call runs inside the current tenant. */
 export function pluginConnections(plugin: string): PluginConnections {
   const own = (id: string) =>
-    db.query.pluginConnection.findFirst({
-      where: and(eq(schema.pluginConnection.id, id), eq(schema.pluginConnection.plugin, plugin)),
+    db.query.spaceConnection.findFirst({
+      where: and(eq(schema.spaceConnection.id, id), eq(schema.spaceConnection.plugin, plugin)),
     });
 
   return {
@@ -331,12 +336,12 @@ export function pluginConnections(plugin: string): PluginConnections {
     },
 
     async list(space) {
-      const rows = await db.query.pluginConnection.findMany({
+      const rows = await db.query.spaceConnection.findMany({
         where: and(
-          eq(schema.pluginConnection.plugin, plugin),
-          eq(schema.pluginConnection.spaceId, space),
+          eq(schema.spaceConnection.plugin, plugin),
+          eq(schema.spaceConnection.spaceId, space),
         ),
-        orderBy: [desc(schema.pluginConnection.createdAt)],
+        orderBy: [desc(schema.spaceConnection.setUpAt)],
       });
       return rows.map(view);
     },
@@ -351,10 +356,10 @@ export function pluginConnections(plugin: string): PluginConnections {
       if (!row) {
         throw new Error(`There is no connection "${id}".`);
       }
-      if (!row.actions.includes(actionId)) {
+      if (row.actions.length && !row.actions.includes(actionId)) {
         throw new Error(`The connection was not made for "${actionId}". Connect it again.`);
       }
-      const connector = connectorOf(row.connector);
+      const connector = connectorOf(row.connectorId);
       const action = connector.actions.find((a) => a.id === actionId);
       if (!action) {
         throw new Error(`${connector.name} has no action "${actionId}".`);
@@ -365,14 +370,14 @@ export function pluginConnections(plugin: string): PluginConnections {
         where: { spaceId: row.spaceId },
       };
       reachesOutside(`plugin:${plugin}`, {
-        connection: row.connector,
+        connection: row.connectorId,
         action: actionId,
         kind: action.group === "destructive" ? "destructive" : action.group,
       });
       const out = await brokerCall({
         who: caller.who,
         where: { ...caller.where, spaceId: caller.where.spaceId ?? row.spaceId },
-        connection: { kind: "plugin_connection", row, connector },
+        connection: { kind: "space_connection", row, connector },
         action: { id: actionId },
         input: action.inputSchema.parse(input),
       });
@@ -384,8 +389,8 @@ export function pluginConnections(plugin: string): PluginConnections {
 
     async remove(id) {
       await db
-        .delete(schema.pluginConnection)
-        .where(and(eq(schema.pluginConnection.id, id), eq(schema.pluginConnection.plugin, plugin)));
+        .delete(schema.spaceConnection)
+        .where(and(eq(schema.spaceConnection.id, id), eq(schema.spaceConnection.plugin, plugin)));
     },
   };
 }

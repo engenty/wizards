@@ -1,5 +1,5 @@
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { connectorFetch, resolveEnv } from "../connectors/builtin.js";
 import {
   candidates,
@@ -8,7 +8,7 @@ import {
   type StoredConnection,
   slot,
 } from "../connectors/index.js";
-import type { PluginConnectionRow, StoredTokens } from "../connectors/plugin-connections.js";
+import type { SpaceConnectionRow, StoredTokens } from "../connectors/space-connections.js";
 import { refreshThroughAccount } from "../connectors/via-account.js";
 import { db, schema } from "../db/client.js";
 import { refreshAccessToken } from "../engenty/connections-sdk/oauth2.js";
@@ -19,6 +19,7 @@ import type {
 import { seal, unseal } from "../secrets/crypto.js";
 import { getSecret, putSecret, type StoredSecret, type StoreScope } from "../store/index.js";
 import { currentTenant } from "../tenants/tenant.js";
+import type { Who } from "./call.js";
 
 /*
  * The one reader of a connection's secret (docs/plans/broker.md, "One reader"). Nothing outside
@@ -51,28 +52,9 @@ export async function wizardAccount(
   }
   const connector = await connectorFor(connection, stored.provider, spaceId);
   let data = stored.data;
-  const expires = data.expiresAt ? Date.parse(data.expiresAt) : null;
-  if (
-    connector.auth.kind === "oauth2" &&
-    data.refreshToken &&
-    expires !== null &&
-    expires - Date.now() < 5 * 60_000
-  ) {
-    const tokens =
-      data.via === "account"
-        ? await refreshThroughAccount(data.refreshToken)
-        : await refreshAccessToken({
-            config: connector.auth.oauth2,
-            refreshToken: data.refreshToken,
-            resolveEnv,
-          });
-    data = {
-      ...(data.via ? { via: data.via } : {}),
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken ?? data.refreshToken,
-      expiresAt: tokens.expiresAt?.toISOString() ?? null,
-      scopes: tokens.grantedScopes.length ? tokens.grantedScopes : data.scopes,
-    };
+  const fresh = await refreshed(connector, data);
+  if (fresh) {
+    data = fresh;
     await putSecret(scope, slot(connection.id), connector.id, stored.label, data);
   }
   return {
@@ -113,44 +95,102 @@ function actionContext(
   };
 }
 
-/**
- * The account a plugin connected for a space (`plugin_connection`), its tokens refreshed when
- * they run out within five minutes.
- */
-export async function pluginAccount(
-  row: PluginConnectionRow,
+/** Fresh tokens where the ones kept run out within five minutes; the same ones else. */
+async function refreshed(
   connector: ConnectorDefinition,
-): Promise<Account> {
-  let data = unseal<StoredTokens>(row.data);
-  if (!data) {
-    throw new Error("The connection's keys cannot be read here. Connect the account again.");
-  }
+  data: StoredTokens,
+): Promise<StoredTokens | null> {
   const expires = data.expiresAt ? Date.parse(data.expiresAt) : null;
   if (
-    connector.auth.kind === "oauth2" &&
-    data.refreshToken &&
-    expires !== null &&
-    expires - Date.now() < 5 * 60_000
+    connector.auth.kind !== "oauth2" ||
+    !data.refreshToken ||
+    expires === null ||
+    expires - Date.now() >= 5 * 60_000
   ) {
-    const tokens =
-      data.via === "account"
-        ? await refreshThroughAccount(data.refreshToken)
-        : await refreshAccessToken({
-            config: connector.auth.oauth2,
-            refreshToken: data.refreshToken,
-            resolveEnv,
-          });
-    data = {
-      ...(data.via ? { via: data.via } : {}),
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken ?? data.refreshToken,
-      expiresAt: tokens.expiresAt?.toISOString() ?? null,
-      scopes: tokens.grantedScopes.length ? tokens.grantedScopes : data.scopes,
-    };
-    await db
-      .update(schema.pluginConnection)
-      .set({ data: seal(data), updatedAt: new Date() })
-      .where(eq(schema.pluginConnection.id, row.id));
+    return null;
+  }
+  const tokens =
+    data.via === "account"
+      ? await refreshThroughAccount(data.refreshToken)
+      : await refreshAccessToken({
+          config: connector.auth.oauth2,
+          refreshToken: data.refreshToken,
+          resolveEnv,
+        });
+  return {
+    ...(data.via ? { via: data.via } : {}),
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken ?? data.refreshToken,
+    expiresAt: tokens.expiresAt?.toISOString() ?? null,
+    scopes: tokens.grantedScopes.length ? tokens.grantedScopes : data.scopes,
+  };
+}
+
+/** Whose sign-in a `person` connection opens for: a person, an admin, or Goose for its person. */
+const signsInThemselves = (who: Who): who is Who & { id: string } =>
+  (who.kind === "person" || who.kind === "admin" || who.kind === "goose") && Boolean(who.id);
+
+/**
+ * The account a connection of the space holds for this caller: the space's own sign-in, or the
+ * caller's where each person signs in. `null` when nobody has signed in yet. Tokens that run out
+ * within five minutes are refreshed and written back.
+ */
+export async function spaceAccount(
+  row: SpaceConnectionRow,
+  connector: ConnectorDefinition,
+  who: Who,
+): Promise<Account | null> {
+  let sealed: string | null;
+  let label: string;
+  let signedInAt: Date;
+  let write: (secret: string) => Promise<unknown>;
+  if (row.signIn === "space") {
+    sealed = row.secret;
+    label = row.label ?? connector.name;
+    signedInAt = row.setUpAt;
+    write = (secret) =>
+      db
+        .update(schema.spaceConnection)
+        .set({ secret, updatedAt: new Date() })
+        .where(eq(schema.spaceConnection.id, row.id));
+  } else {
+    if (!signsInThemselves(who)) {
+      return null;
+    }
+    const own = await db.query.spaceConnectionSignIn.findFirst({
+      where: and(
+        eq(schema.spaceConnectionSignIn.connectionId, row.id),
+        eq(schema.spaceConnectionSignIn.userId, who.id),
+      ),
+    });
+    if (!own) {
+      return null;
+    }
+    sealed = own.secret;
+    label = own.label;
+    signedInAt = own.signedInAt;
+    write = (secret) =>
+      db
+        .update(schema.spaceConnectionSignIn)
+        .set({ secret, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.spaceConnectionSignIn.connectionId, row.id),
+            eq(schema.spaceConnectionSignIn.userId, own.userId),
+          ),
+        );
+  }
+  if (!sealed) {
+    return null;
+  }
+  let data = unseal<StoredTokens>(sealed);
+  if (!data) {
+    throw new Error("The connection's keys cannot be read here. Sign in again.");
+  }
+  const fresh = await refreshed(connector, data);
+  if (fresh) {
+    data = fresh;
+    await write(seal(data));
   }
   const ctx: ConnectorActionContext = {
     accessToken: data.accessToken,
@@ -161,11 +201,11 @@ export async function pluginAccount(
       connector_id: connector.id,
       auth_kind: connector.auth.kind,
       autonomous_mode: "read_only",
-      connected_by: row.createdBy,
-      created_at: row.createdAt.toISOString(),
-      display_name: row.label,
+      connected_by: row.setUpBy,
+      created_at: signedInAt.toISOString(),
+      display_name: row.name,
       error_message: null,
-      external_account: row.label,
+      external_account: label,
       granted_scopes: data.scopes,
       owner_user_id: null,
       space_id: row.spaceId,
@@ -173,7 +213,15 @@ export async function pluginAccount(
       tenant_id: currentTenant(),
     },
   };
-  return { connector, ctx, label: row.label };
+  return { connector, ctx, label };
+}
+
+/** „Letzte Nutzung“: the connection was just used. */
+export async function markUsed(row: SpaceConnectionRow): Promise<void> {
+  await db
+    .update(schema.spaceConnection)
+    .set({ lastUsedAt: new Date() })
+    .where(eq(schema.spaceConnection.id, row.id));
 }
 
 /** A secret of a store that is no connection: the browser's kept sign-ins. */

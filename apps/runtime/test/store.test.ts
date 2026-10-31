@@ -141,8 +141,8 @@ describe("lists and connections in a wizard", () => {
     withConnector.connections.push({ id: "neither" });
     const broken = parseWizard(withConnector);
     const messages = broken.ok ? broken.issues.map((i) => i.message) : [];
-    expect(messages).toContain('Connection "both" needs either "kind" or "connector", not both.');
-    expect(messages).toContain('Connection "neither" needs either "kind" or "connector", not both.');
+    expect(messages).toContain('Connection "both" needs one of "kind", "connector" or "spaceConnection".');
+    expect(messages).toContain('Connection "neither" needs one of "kind", "connector" or "spaceConnection".');
   });
 
   it("refuses a list column the data-table schema does not know", () => {

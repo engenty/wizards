@@ -16,6 +16,7 @@ export {
   type Decision,
   decide,
   grantBinds,
+  inAudience,
   kindOf,
   type Refusal,
   type Where,

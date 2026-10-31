@@ -33,7 +33,7 @@ const { events } = await server.connections.call<{ events: unknown[] }>(account.
 | `start({ space, connector, actions, lang? })` | Returns the provider’s sign-in page of an OAuth connector. The provider asks only for the rights that `actions` need. `lang` (`"en"` or `"de"`) is the language of the page the person comes back to; without it, the page follows their browser |
 | `connect({ space, connector, actions, credentials })` | Connects a connector that takes keys. `credentials` holds the keys by field key. The runtime tries them once at the provider and then keeps them sealed. Keys the provider refuses throw an error with the status `400` and the code `credentials`, whose message says what was wrong. Returns the connection |
 | `list(space)`, `get(id)` | Return what is connected: `{ id, space, connector, label, actions, createdAt }`, the newest first. `label` is the account as the provider names it, often an email address |
-| `call(id, action, input)` | Runs one of the connector’s actions with the account, through the runtime’s broker. When the token has run out, the runtime fetches a fresh one first. The call carries the run or chat it is made in: from a guest’s run (a wizard at its link, nobody signed in) only actions that read go through; a write or delete throws, and the refusal is logged. A plugin’s own job (a sync, a timer) runs every action the connection was made for |
+| `call(id, action, input)` | Runs one of the connector’s actions with the account, through the runtime’s broker. When the token has run out, the runtime fetches a fresh one first. The call carries the run or chat it is made in, and the connection’s rules decide: who may use it, and per kind of action whether it runs, waits for the space’s admins or never runs. From a guest’s run (a wizard at its link, nobody signed in) only actions that read go through; a write or delete throws, and the refusal is logged. A plugin’s own job (a sync, a timer) runs every action the connection was made for |
 | `remove(id)` | Forgets the connection and its tokens |
 
 ## Signing in
@@ -69,6 +69,9 @@ window.addEventListener("message", (event) => {
 
 ## Where it is kept
 
-The connections are kept in the table `plugin_connection` of the tenant’s database, by plugin
-and space. A plugin sees only its own connections. Deleting a space deletes them. Unloading or
-removing the plugin leaves them in place.
+A connection a plugin makes is a connection of the space (the table `space_connection` of the
+tenant’s database): it signs in as the space, is open to everyone and starts with the space’s
+default rules (reading runs, a change or a mail waits for the admins’ approval, deleting never).
+The row notes which plugin set it up, and a plugin sees only its own. The space’s admins see it
+with the other connections and may change its name, who may use it and its rules. Deleting a
+space deletes it. Unloading or removing the plugin leaves it in place.

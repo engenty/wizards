@@ -171,7 +171,7 @@ describe("a plugin's connection", () => {
     ).id;
   });
 
-  it("refuses a write from a guest's run, and logs the refusal as critical", async () => {
+  it("refuses a write from a guest's run (the space's sign-in never writes for a guest), and logs it as critical", async () => {
     const guest = {
       who: { kind: "guest" as const, id: "visitor-1" },
       where: { runId: "run-g", wizardId, spaceId: space, mode: "live" as const, guest: true },
@@ -424,8 +424,14 @@ describe("a wizard's connection, as the person running it", () => {
   it("decides the same with no side effect", () => {
     const guest = { kind: "guest" as const, id: "v" };
     const plugin = {
-      kind: "plugin_connection" as const,
-      row: { id: "p1" } as never,
+      kind: "space_connection" as const,
+      row: {
+        id: "p1",
+        plugin: "shop",
+        signIn: "space",
+        audience: "all",
+        rules: { read: "allow", write: "ask", destructive: "deny", send: "ask" },
+      } as never,
       connector: {} as never,
     };
     expect(

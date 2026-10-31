@@ -1,7 +1,7 @@
 ---
 title: Lists and connections
 description: Tables a wizard keeps between runs, and accounts the person connects.
-version: 0.7.10
+version: 0.13.0
 ---
 
 ## Lists
@@ -58,6 +58,7 @@ wizard has up to 12.
 |---|---|
 | `kind` | `mail`: any mailbox, over Gmail, Outlook or IMAP. Steps only read it |
 | `connector` | Instead of `kind`: a built-in connector or one imported into the space |
+| `spaceConnection` | Instead of both: a connection of the space, by its id. The space’s admins set it up and chose how it signs in, who may use it and what each kind of action may do; the wizard holds no account of its own then, and `policy` has no say |
 | `actions` | The connector’s actions steps may use. By default those that only read |
 | `policy` | Per action: `allow` runs it, `ask` asks the person first. By default reading is allowed and writing asks |
 

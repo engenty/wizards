@@ -79,3 +79,64 @@ export interface ImportRequest {
   oauthClientId?: string;
   oauthClientSecret?: string;
 }
+
+// --- connections of a space (docs/plans/capabilities.md, "Connections") ---------------------
+// A connection belongs to the space: its admins set it up and choose how it signs in. The runtime
+// decides calls by these words in apps/runtime/src/broker/call.ts; the studio will draw them.
+
+/** How a connection signs in: once as the space (a key, an app token, a team login), or each person themselves. */
+export const CONNECTION_SIGN_INS = ["space", "person"] as const;
+export type ConnectionSignIn = (typeof CONNECTION_SIGN_INS)[number];
+
+/** Who may use a connection: the space's admins, its members, or everyone, guests at a wizard's link too. */
+export const CONNECTION_AUDIENCES = ["admins", "members", "all"] as const;
+export type ConnectionAudience = (typeof CONNECTION_AUDIENCES)[number];
+
+/** What an action does, as the rules see it. */
+export const CONNECTION_ACTION_KINDS = ["read", "write", "destructive", "send"] as const;
+export type ConnectionActionKind = (typeof CONNECTION_ACTION_KINDS)[number];
+
+/** A rule's outcome: Erlaubt, Mit Freigabe, Nie. */
+export const CONNECTION_OUTCOMES = ["allow", "ask", "deny"] as const;
+export type ConnectionOutcome = (typeof CONNECTION_OUTCOMES)[number];
+
+export type ConnectionRules = Record<ConnectionActionKind, ConnectionOutcome>;
+
+/** What a connection starts with: reading runs, a change or a mail waits for approval, deleting never. */
+export const DEFAULT_CONNECTION_RULES: ConnectionRules = {
+  read: "allow",
+  write: "ask",
+  destructive: "deny",
+  send: "ask",
+};
+
+export const CONNECTION_LIMITS = {
+  /** Characters of a connection's name. */
+  name: 80,
+  /** Connections one space may hold. */
+  perSpace: 200,
+};
+
+/** A connection of a space as the studio lists it; never a secret. */
+export interface SpaceConnectionView {
+  id: string;
+  spaceId: string;
+  connectorId: string;
+  /** The connector behind it, where this runtime knows it. */
+  connector: { id: string; name: string; auth: "oauth2" | "api_key" | "browser" } | null;
+  name: string;
+  signIn: ConnectionSignIn;
+  audience: ConnectionAudience;
+  rules: ConnectionRules;
+  /** The connector's actions it is made for; empty: every action. */
+  actions: string[];
+  /** The plugin that set it up, where one did. */
+  plugin: string | null;
+  /** A `space` sign-in: the account as the provider names it; null until an admin signed in. */
+  account: { label: string; signedInAt: string } | null;
+  /** A `person` sign-in: the asking person's own; null until they signed in. */
+  mySignIn: { label: string; signedInAt: string } | null;
+  setUpBy: string | null;
+  setUpAt: string;
+  lastUsedAt: string | null;
+}

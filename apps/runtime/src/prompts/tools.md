@@ -223,6 +223,9 @@ The person did not allow this change. Do not try it again; say in your result th
 <!-- section: note.connector_refused -->
 The rules of ${service} do not allow this action here. Do not try it again or another way; say in your result that it was not done.
 
+<!-- section: note.connector_needs_approval -->
+This action on ${service} needs the approval of the space's admins, which cannot be asked for here. Do not try it again or another way; say in your result that it waits for them.
+
 <!-- The browser (tools/browser.ts) -->
 
 <!-- section: tool.browser_open -->

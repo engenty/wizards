@@ -1048,8 +1048,10 @@ export const connectionSchema = z.object({
   id,
   /** A built-in kind of account … */
   kind: z.enum(CONNECTION_KINDS).optional(),
-  /** … or the id of one of the space's imported connectors. */
+  /** … or the id of one of the space's imported connectors … */
   connector: z.string().optional(),
+  /** … or a connection of the space, by id: its audience and rules decide, `policy` has no say. */
+  spaceConnection: z.string().max(40).optional(),
   /** Imported connectors: the actions steps may call. Default: every action that only reads. */
   actions: z.array(z.string()).max(200).optional(),
   /** Imported connectors, per action: "allow" runs it without asking, "ask" asks the person first. */
@@ -1282,9 +1284,12 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       issues.push({ message: `Duplicate connection id "${connection.id}".` });
     }
     connectionIds.add(connection.id);
-    if (Boolean(connection.kind) === Boolean(connection.connector)) {
+    const ways = [connection.kind, connection.connector, connection.spaceConnection].filter(
+      Boolean,
+    ).length;
+    if (ways !== 1) {
       issues.push({
-        message: `Connection "${connection.id}" needs either "kind" or "connector", not both.`,
+        message: `Connection "${connection.id}" needs one of "kind", "connector" or "spaceConnection".`,
       });
     }
   }
