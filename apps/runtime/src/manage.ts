@@ -191,7 +191,8 @@ export interface TenantInfo {
   /** The plan the tenant is on (Free, Pro, Team, …); an older Manage-App names none. */
   plan?: { id: string; name: string };
   /**
-   * `projects`: how many projects the tenant works with, null for as many as it wants.
+   * `projects`: how many spaces the tenant works with, null for as many as it wants (the
+   * Manage-App's name for them).
    * `build: false`: the tenant makes and changes nothing here; its studio shows what its local
    * install synced. `members`: the people its plan allows, null for no limit.
    */
@@ -741,6 +742,14 @@ export function putWizards(tenantId: string, data: unknown) {
 /** A run's turn – started, waiting, finished, failed, cancelled – for the admin app. */
 export function postRunReport(tenantId: string, data: unknown) {
   return call<{ ok: boolean }>("POST", `/v1/runs/${encodeURIComponent(tenantId)}`, data);
+}
+
+/**
+ * The broker's critical lines (docs/plans/broker.md, "Notifications"): a guest's at once, the
+ * rest once a day. The admin app's Diagnose page and Abuse checks read them.
+ */
+export function postBrokerReport(tenantId: string, data: unknown) {
+  return call<{ ok: boolean }>("POST", `/v1/broker/${encodeURIComponent(tenantId)}`, data);
 }
 
 /** What a person said at the end of a run. */

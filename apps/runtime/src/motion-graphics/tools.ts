@@ -78,7 +78,7 @@ export interface CliResult {
   out: string;
 }
 
-/** Runs `hyperframes <args>` in a project folder and returns what it printed (the tail). */
+/** Runs `hyperframes <args>` in a space folder and returns what it printed (the tail). */
 export async function runHyperframes(
   args: string[],
   opts: { cwd: string; signal?: AbortSignal; timeoutMs?: number },

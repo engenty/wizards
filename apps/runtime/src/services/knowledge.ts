@@ -9,11 +9,11 @@ import {
   type WhereValue,
 } from "@engenty/wizards-shared/knowledge";
 import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { assertRwx, pageResources, readable, type Subject, tableResources } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { embeddingModel, systemOneAccess } from "../models.js";
 import { prompt } from "../prompts.js";
 import { notFound, ServiceError } from "./errors.js";
-import { ownedProject } from "./projects.js";
 import {
   categoryLines,
   categoryRows,
@@ -23,6 +23,7 @@ import {
   listCategories,
   numberOf,
 } from "./space-categories.js";
+import { ownedSpace } from "./spaces.js";
 
 /**
  * Knowledge: the space's own pages (with their sub-pages), tables and files, as the studio lists
@@ -79,7 +80,7 @@ async function slugsFor<T extends { id: string; slug: string | null; title: stri
 
 /** A slug for a new page among its siblings, or a new table among the space's tables. */
 export async function freeSlug(
-  projectId: string,
+  spaceId: string,
   title: string,
   of: { parentId: string | null } | "table",
   except?: string,
@@ -87,15 +88,12 @@ export async function freeSlug(
   const rows =
     of === "table"
       ? await db.query.spaceTable.findMany({
-          where: and(
-            eq(schema.spaceTable.projectId, projectId),
-            isNull(schema.spaceTable.wizardId),
-          ),
+          where: and(eq(schema.spaceTable.spaceId, spaceId), isNull(schema.spaceTable.wizardId)),
           columns: { id: true, slug: true },
         })
       : await db.query.spacePage.findMany({
           where: and(
-            eq(schema.spacePage.projectId, projectId),
+            eq(schema.spacePage.spaceId, spaceId),
             isNull(schema.spacePage.wizardId),
             of.parentId
               ? eq(schema.spacePage.parentId, of.parentId)
@@ -113,9 +111,9 @@ export async function freeSlug(
 }
 
 /** The space's own pages with their paths, by id. */
-export async function pageTree(projectId: string): Promise<Map<string, PageNode>> {
+export async function pageTree(spaceId: string): Promise<Map<string, PageNode>> {
   const rows = await db.query.spacePage.findMany({
-    where: and(eq(schema.spacePage.projectId, projectId), isNull(schema.spacePage.wizardId)),
+    where: and(eq(schema.spacePage.spaceId, spaceId), isNull(schema.spacePage.wizardId)),
     columns: { id: true, parentId: true, title: true, slug: true, position: true },
     orderBy: [asc(schema.spacePage.position), asc(schema.spacePage.title)],
   });
@@ -157,9 +155,9 @@ export async function pageTree(projectId: string): Promise<Map<string, PageNode>
 }
 
 /** The space's own tables with their paths, by id. */
-export async function tablePaths(projectId: string): Promise<Map<string, string>> {
+export async function tablePaths(spaceId: string): Promise<Map<string, string>> {
   const rows = await db.query.spaceTable.findMany({
-    where: and(eq(schema.spaceTable.projectId, projectId), isNull(schema.spaceTable.wizardId)),
+    where: and(eq(schema.spaceTable.spaceId, spaceId), isNull(schema.spaceTable.wizardId)),
     columns: { id: true, slug: true, title: true },
     orderBy: [asc(schema.spaceTable.createdAt)],
   });
@@ -172,14 +170,11 @@ export async function tablePaths(projectId: string): Promise<Map<string, string>
 }
 
 /** The space's documents with their paths, by id: their names, made unique. */
-export async function filePaths(projectId: string): Promise<Map<string, string>> {
-  const rows = await db.query.projectFile.findMany({
-    where: and(
-      eq(schema.projectFile.projectId, projectId),
-      eq(schema.projectFile.kind, "document"),
-    ),
+export async function filePaths(spaceId: string): Promise<Map<string, string>> {
+  const rows = await db.query.spaceFile.findMany({
+    where: and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.kind, "document")),
     columns: { id: true, name: true },
-    orderBy: [asc(schema.projectFile.createdAt)],
+    orderBy: [asc(schema.spaceFile.createdAt)],
   });
   const taken = new Set<string>();
   const out = new Map<string, string>();
@@ -205,24 +200,24 @@ const cleanPath = (path: string) =>
 
 /** What a path names; null when nothing in the space has it. */
 export async function resolvePath(
-  projectId: string,
+  spaceId: string,
   path: string,
 ): Promise<{ kind: "page" | "table" | "file"; id: string; path: string } | null> {
   const want = cleanPath(path);
   if (want.startsWith("pages/")) {
-    for (const node of (await pageTree(projectId)).values()) {
+    for (const node of (await pageTree(spaceId)).values()) {
       if (node.path === want) {
         return { kind: "page", id: node.id, path: node.path };
       }
     }
   } else if (want.startsWith("tables/")) {
-    for (const [id, p] of await tablePaths(projectId)) {
+    for (const [id, p] of await tablePaths(spaceId)) {
       if (p === want) {
         return { kind: "table", id, path: p };
       }
     }
   } else if (want.startsWith("files/")) {
-    for (const [id, p] of await filePaths(projectId)) {
+    for (const [id, p] of await filePaths(spaceId)) {
       if (p.toLowerCase() === want) {
         return { kind: "file", id, path: p };
       }
@@ -234,43 +229,65 @@ export async function resolvePath(
 // --- what the studio lists ---------------------------------------------------------
 
 /** Files a page or a table was read from: they stand behind it, not on their own. */
-async function convertedFiles(projectId: string): Promise<Set<string>> {
+async function convertedFiles(spaceId: string): Promise<Set<string>> {
   const [pages, tables] = await Promise.all([
     db
       .selectDistinct({ id: schema.spacePage.fileId })
       .from(schema.spacePage)
-      .where(and(eq(schema.spacePage.projectId, projectId), isNotNull(schema.spacePage.fileId))),
+      .where(and(eq(schema.spacePage.spaceId, spaceId), isNotNull(schema.spacePage.fileId))),
     db
       .selectDistinct({ id: schema.spaceTable.fileId })
       .from(schema.spaceTable)
-      .where(and(eq(schema.spaceTable.projectId, projectId), isNotNull(schema.spaceTable.fileId))),
+      .where(and(eq(schema.spaceTable.spaceId, spaceId), isNotNull(schema.spaceTable.fileId))),
   ]);
   return new Set([...pages, ...tables].map((r) => r.id as string));
 }
 
-/** Everything Knowledge holds: pages (sub-pages counted under them), tables, files, categories. */
-export async function listKnowledge(userId: string, projectId: string): Promise<Knowledge> {
-  const project = await ownedProject(userId, projectId);
+/** The items among these the subjects may read, each with the document it was made from. */
+async function readableItems<T extends KnowledgeItem>(
+  spaceId: string,
+  who: Subject[],
+  items: T[],
+): Promise<T[]> {
+  const ok = await readable(
+    spaceId,
+    who,
+    items.map((i) =>
+      i.kind === "file"
+        ? { kind: "document", id: i.id }
+        : { kind: i.kind, id: i.id, fileId: i.fileId },
+    ),
+  );
+  return items.filter((i) => ok.has(i.id));
+}
+
+/**
+ * Everything Knowledge holds that `who` may read: pages (sub-pages counted under them), tables,
+ * files, categories.
+ */
+export async function listKnowledge(
+  userId: string,
+  spaceId: string,
+  who: Subject[],
+): Promise<Knowledge> {
+  const space = await ownedSpace(userId, spaceId);
   const [tree, tables, rowCounts, files, converted, categories, embeddings, checker] =
     await Promise.all([
-      pageTree(project.id),
+      pageTree(space.id),
       db.query.spaceTable.findMany({
-        where: and(eq(schema.spaceTable.projectId, project.id), isNull(schema.spaceTable.wizardId)),
+        where: and(eq(schema.spaceTable.spaceId, space.id), isNull(schema.spaceTable.wizardId)),
       }),
       db
         .select({ tableId: schema.spaceTableRow.tableId, n: count() })
         .from(schema.spaceTableRow)
         .innerJoin(schema.spaceTable, eq(schema.spaceTable.id, schema.spaceTableRow.tableId))
-        .where(and(eq(schema.spaceTable.projectId, project.id), isNull(schema.spaceTable.wizardId)))
+        .where(and(eq(schema.spaceTable.spaceId, space.id), isNull(schema.spaceTable.wizardId)))
         .groupBy(schema.spaceTableRow.tableId),
-      db.query.projectFile.findMany({
-        where: and(
-          eq(schema.projectFile.projectId, project.id),
-          eq(schema.projectFile.kind, "document"),
-        ),
+      db.query.spaceFile.findMany({
+        where: and(eq(schema.spaceFile.spaceId, space.id), eq(schema.spaceFile.kind, "document")),
       }),
-      convertedFiles(project.id),
-      listCategories(project.id),
+      convertedFiles(space.id),
+      listCategories(space.id),
       embeddingModel()
         .then(Boolean)
         .catch(() => false),
@@ -278,11 +295,11 @@ export async function listKnowledge(userId: string, projectId: string): Promise<
         .then(Boolean)
         .catch(() => false),
     ]);
-  const tPaths = await tablePaths(project.id);
-  const fPaths = await filePaths(project.id);
+  const tPaths = await tablePaths(space.id);
+  const fPaths = await filePaths(space.id);
   const pages = await db.query.spacePage.findMany({
     where: and(
-      eq(schema.spacePage.projectId, project.id),
+      eq(schema.spacePage.spaceId, space.id),
       isNull(schema.spacePage.wizardId),
       isNull(schema.spacePage.parentId),
     ),
@@ -366,11 +383,20 @@ export async function listKnowledge(userId: string, projectId: string): Promise<
     ),
   ];
   items.sort((a, b) => a.title.localeCompare(b.title, "de"));
-  return { items, categories, embeddings, checked: checker };
+  return {
+    items: await readableItems(space.id, who, items),
+    categories,
+    embeddings,
+    checked: checker,
+  };
 }
 
 /** A value opened in the studio: its summary, and the items and rows that have it. */
-export async function valueContents(userId: string, valueId: string): Promise<KnowledgeValue> {
+export async function valueContents(
+  userId: string,
+  valueId: string,
+  who: Subject[],
+): Promise<KnowledgeValue> {
   const value = await db.query.spaceCategoryValue.findFirst({
     where: eq(schema.spaceCategoryValue.id, valueId),
   });
@@ -382,7 +408,7 @@ export async function valueContents(userId: string, valueId: string): Promise<Kn
   if (!(value && category)) {
     throw notFound();
   }
-  const project = await ownedProject(userId, category.projectId);
+  const space = await ownedSpace(userId, category.spaceId);
   const having = await db.query.spaceItemCategory.findMany({
     where: eq(schema.spaceItemCategory.valueId, value.id),
   });
@@ -392,38 +418,42 @@ export async function valueContents(userId: string, valueId: string): Promise<Kn
     category: { id: category.id, name: category.name },
     summary: value.summary,
     summaryAt: value.summaryAt?.toISOString() ?? null,
-    ...(await itemsHaving(userId, project.id, having)),
+    ...(await itemsHaving(userId, space.id, having, who)),
   };
 }
 
 /** Everything that has a category, whatever its value: what the category's page lists. */
-export async function categoryContents(userId: string, categoryId: string) {
+export async function categoryContents(userId: string, categoryId: string, who: Subject[]) {
   const category = await db.query.spaceCategory.findFirst({
     where: eq(schema.spaceCategory.id, categoryId),
   });
   if (!category) {
     throw notFound();
   }
-  const project = await ownedProject(userId, category.projectId);
+  const space = await ownedSpace(userId, category.spaceId);
   const having = await db.query.spaceItemCategory.findMany({
     where: eq(schema.spaceItemCategory.categoryId, category.id),
   });
-  return itemsHaving(userId, project.id, having);
+  return itemsHaving(userId, space.id, having, who);
 }
 
-/** The items rows of `space_item_category` name, as the studio lists them, and rows by table. */
+/**
+ * The items rows of `space_item_category` name, as the studio lists them, and rows by table;
+ * only what `who` may read.
+ */
 async function itemsHaving(
   userId: string,
-  projectId: string,
+  spaceId: string,
   having: (typeof schema.spaceItemCategory.$inferSelect)[],
+  who: Subject[],
 ): Promise<Pick<KnowledgeValue, "items" | "rows">> {
-  const project = { id: projectId };
+  const space = { id: spaceId };
   const pageIds = having.flatMap((h) => (h.pageId ? [h.pageId] : []));
   const tableIds = having.flatMap((h) => (h.tableId ? [h.tableId] : []));
   const fileIds = having.flatMap((h) => (h.fileId ? [h.fileId] : []));
   const rowIds = having.flatMap((h) => (h.rowId ? [h.rowId] : []));
-  const all = await listKnowledge(userId, project.id);
-  const tree = await pageTree(project.id);
+  const all = await listKnowledge(userId, space.id, who);
+  const tree = await pageTree(space.id);
   const subPages = pageIds.filter((id) => !all.items.some((i) => i.key === `p:${id}`));
   const subItems: KnowledgeItem[] = [];
   if (subPages.length) {
@@ -461,6 +491,13 @@ async function itemsHaving(
       rowTables.set(r.tableId, (rowTables.get(r.tableId) ?? 0) + 1);
     }
   }
+  // A row is read as its table is.
+  const readTables = await readable(space.id, who, await tableResources([...rowTables.keys()]));
+  for (const tableId of [...rowTables.keys()]) {
+    if (!readTables.has(tableId)) {
+      rowTables.delete(tableId);
+    }
+  }
   return {
     items: [
       ...all.items.filter(
@@ -469,7 +506,7 @@ async function itemsHaving(
           (i.kind === "table" && tableIds.includes(i.id)) ||
           (i.kind === "file" && fileIds.includes(i.id)),
       ),
-      ...subItems,
+      ...(await readableItems(space.id, who, subItems)),
     ],
     rows: [...rowTables].map(([tableId, n]) => ({
       tableId,
@@ -481,7 +518,7 @@ async function itemsHaving(
 
 /** What the studio shows around a page of Knowledge: where it stands, its sub-pages, its origin. */
 export async function knowledgePage(page: PageRow): Promise<KnowledgePage> {
-  const tree = await pageTree(page.projectId);
+  const tree = await pageTree(page.spaceId);
   const node = tree.get(page.id);
   const parents: { id: string; title: string }[] = [];
   for (let at = node?.parentId ? tree.get(node.parentId) : undefined; at; ) {
@@ -493,8 +530,8 @@ export async function knowledgePage(page: PageRow): Promise<KnowledgePage> {
     .sort((a, b) => a.position - b.position || a.title.localeCompare(b.title, "de"))
     .map((n) => ({ id: n.id, title: n.title, path: n.path }));
   const file = page.fileId
-    ? await db.query.projectFile.findFirst({
-        where: eq(schema.projectFile.id, page.fileId),
+    ? await db.query.spaceFile.findFirst({
+        where: eq(schema.spaceFile.id, page.fileId),
         columns: { id: true, name: true, mime: true },
       })
     : undefined;
@@ -555,24 +592,26 @@ function sectionOf(markdown: string, wanted: string): string | null {
  * parts: `from` continues where the last part ended.
  */
 export async function readPage(
-  projectId: string,
+  spaceId: string,
   path: string,
-  opts: { section?: string; from?: number } = {},
+  opts: { section?: string; from?: number },
+  who: Subject[],
 ) {
-  const found = await resolvePath(projectId, path);
+  const found = await resolvePath(spaceId, path);
   if (found?.kind !== "page") {
     throw new ServiceError(
       "not_found",
-      `No page "${path}". project_list or project_search name the pages there are.`,
+      `No page "${path}". space_list or space_search name the pages there are.`,
     );
   }
   const page = await db.query.spacePage.findFirst({ where: eq(schema.spacePage.id, found.id) });
   if (!page) {
     throw notFound();
   }
-  const tree = await pageTree(projectId);
+  await assertRwx(spaceId, who, { kind: "page", id: page.id, fileId: page.fileId }, "r");
+  const tree = await pageTree(spaceId);
   const node = tree.get(page.id);
-  const categories = await categoryRows(projectId);
+  const categories = await categoryRows(spaceId);
   const lines = categoryLines(
     categories,
     (await itemCategoriesOf([{ pageId: page.id }])).get(`p:${page.id}`),
@@ -581,7 +620,7 @@ export async function readPage(
     .filter((n) => n.parentId === page.id)
     .sort((a, b) => a.position - b.position)
     .map((n) => n.path);
-  const original = page.fileId ? (await filePaths(projectId)).get(page.fileId) : undefined;
+  const original = page.fileId ? (await filePaths(spaceId)).get(page.fileId) : undefined;
   const front = [
     "---",
     `title: ${yamlValue(page.title)}`,
@@ -599,7 +638,7 @@ export async function readPage(
     ...(page.originLabel ? [`source: ${yamlValue(page.originLabel)}`] : []),
     ...(original ? [`original: ${original}`] : []),
     ...(children.length ? ["sub-pages:", ...children.slice(0, 200).map((c) => `  - ${c}`)] : []),
-    ...(children.length > 200 ? [`  # … ${children.length - 200} more, see project_list`] : []),
+    ...(children.length > 200 ? [`  # … ${children.length - 200} more, see space_list`] : []),
     "---",
   ].join("\n");
   let text = page.markdown;
@@ -668,21 +707,23 @@ const csvCell = (value: string) =>
  * hundred at a time.
  */
 export async function readTable(
-  projectId: string,
+  spaceId: string,
   path: string,
-  opts: { where?: Where; columns?: string[]; limit?: number; offset?: number } = {},
+  opts: { where?: Where; columns?: string[]; limit?: number; offset?: number },
+  who: Subject[],
 ) {
-  const found = await resolvePath(projectId, path);
+  const found = await resolvePath(spaceId, path);
   if (found?.kind !== "table") {
     throw new ServiceError(
       "not_found",
-      `No table "${path}". project_list or project_search name the tables there are.`,
+      `No table "${path}". space_list or space_search name the tables there are.`,
     );
   }
   const table = await db.query.spaceTable.findFirst({ where: eq(schema.spaceTable.id, found.id) });
   if (!table) {
     throw notFound();
   }
+  await assertRwx(spaceId, who, { kind: "table", id: table.id, fileId: table.fileId }, "r");
   const byName = (name: string) =>
     table.columns.find(
       (c) => c.name.toLowerCase() === name.trim().toLowerCase() || c.id === name.trim(),
@@ -734,11 +775,11 @@ export async function readTable(
 }
 
 /**
- * For project_list: without a filter, the categories with their values and how many items each
- * has; with one, the items it leaves, with their paths and categories.
+ * For space_list: without a filter, the categories with their values and how many items each
+ * has; with one, the items it leaves that `who` may read, with their paths and categories.
  */
-export async function listForStep(projectId: string, where: Where | undefined) {
-  const categories = await listCategories(projectId);
+export async function listForStep(spaceId: string, where: Where | undefined, who: Subject[]) {
+  const categories = await listCategories(spaceId);
   const taken = categories.filter((c) => !c.proposed);
   if (!Object.keys(where ?? {}).length) {
     return {
@@ -755,16 +796,24 @@ export async function listForStep(projectId: string, where: Where | undefined) {
       hint: 'Pass `where` to list the items of values, e.g. { "Baustelle": "Graz Süd" }.',
     };
   }
-  const filtered = await filterItems(projectId, where);
+  const filtered = await filterItems(spaceId, where);
   const [tree, tPaths, fPaths] = await Promise.all([
-    pageTree(projectId),
-    tablePaths(projectId),
-    filePaths(projectId),
+    pageTree(spaceId),
+    tablePaths(spaceId),
+    filePaths(spaceId),
   ]);
+  const okPages = await readable(spaceId, who, await pageResources([...(filtered?.pages ?? [])]));
+  const okFiles = await readable(
+    spaceId,
+    who,
+    [...(filtered?.files ?? [])].map((id) => ({ kind: "document", id })),
+  );
+  const pages = [...(filtered?.pages ?? [])].filter((id) => okPages.has(id));
+  const files = [...(filtered?.files ?? [])].filter((id) => okFiles.has(id));
   const refs = [
-    ...[...(filtered?.pages ?? [])].map((pageId) => ({ pageId })),
+    ...pages.map((pageId) => ({ pageId })),
     ...[...(filtered?.tables ?? [])].map((tableId) => ({ tableId })),
-    ...[...(filtered?.files ?? [])].map((fileId) => ({ fileId })),
+    ...files.map((fileId) => ({ fileId })),
   ];
   const cats = await itemCategoriesOf(refs);
   // Rows whose table is not left as a whole: by their table, with how many.
@@ -780,8 +829,15 @@ export async function listForStep(projectId: string, where: Where | undefined) {
       }
     }
   }
+  // A table, and the rows of one, as its holder may read it.
+  const okTables = await readable(
+    spaceId,
+    who,
+    await tableResources([...(filtered?.tables ?? []), ...rowTables.keys()]),
+  );
+  const tables = [...(filtered?.tables ?? [])].filter((id) => okTables.has(id));
   const items = [
-    ...[...(filtered?.pages ?? [])]
+    ...pages
       .map((id) => tree.get(id))
       .filter((n): n is PageNode => Boolean(n))
       .sort((a, b) => a.path.localeCompare(b.path))
@@ -790,17 +846,19 @@ export async function listForStep(projectId: string, where: Where | undefined) {
         title: n.title,
         categories: categoryLines(taken, cats.get(`p:${n.id}`)),
       })),
-    ...[...(filtered?.tables ?? [])].map((id) => ({
+    ...tables.map((id) => ({
       path: tPaths.get(id) ?? "",
       title: "",
       categories: categoryLines(taken, cats.get(`t:${id}`)),
     })),
-    ...[...rowTables].map(([id, n]) => ({
-      path: tPaths.get(id) ?? "",
-      title: `${n} rows match: read them with table_read and the same values as its columns`,
-      categories: [],
-    })),
-    ...[...(filtered?.files ?? [])].map((id) => ({
+    ...[...rowTables]
+      .filter(([id]) => okTables.has(id))
+      .map(([id, n]) => ({
+        path: tPaths.get(id) ?? "",
+        title: `${n} rows match: read them with table_read and the same values as its columns`,
+        categories: [],
+      })),
+    ...files.map((id) => ({
       path: fPaths.get(id) ?? "",
       title: "",
       categories: categoryLines(taken, cats.get(`f:${id}`)),
@@ -810,22 +868,20 @@ export async function listForStep(projectId: string, where: Where | undefined) {
 }
 
 /** How much Knowledge a space holds: what the block of the steps' instructions says. */
-export async function knowledgeCounts(projectId: string) {
+export async function knowledgeCounts(spaceId: string) {
   const [pages, tables, files] = await Promise.all([
     db
       .select({ n: count() })
       .from(schema.spacePage)
-      .where(and(eq(schema.spacePage.projectId, projectId), isNull(schema.spacePage.wizardId))),
+      .where(and(eq(schema.spacePage.spaceId, spaceId), isNull(schema.spacePage.wizardId))),
     db
       .select({ n: count() })
       .from(schema.spaceTable)
-      .where(and(eq(schema.spaceTable.projectId, projectId), isNull(schema.spaceTable.wizardId))),
+      .where(and(eq(schema.spaceTable.spaceId, spaceId), isNull(schema.spaceTable.wizardId))),
     db
       .select({ n: count() })
-      .from(schema.projectFile)
-      .where(
-        and(eq(schema.projectFile.projectId, projectId), eq(schema.projectFile.kind, "document")),
-      ),
+      .from(schema.spaceFile)
+      .where(and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.kind, "document"))),
   ]);
   return { pages: pages[0].n, tables: tables[0].n, files: files[0].n };
 }
@@ -834,12 +890,12 @@ export async function knowledgeCounts(projectId: string) {
  * What every step of the space is told about Knowledge: how much there is, the categories to filter
  * by, the tools to find and read. Empty when Knowledge is.
  */
-export async function knowledgeBlock(projectId: string): Promise<string> {
-  const counts = await knowledgeCounts(projectId);
+export async function knowledgeBlock(spaceId: string): Promise<string> {
+  const counts = await knowledgeCounts(spaceId);
   if (!(counts.pages || counts.tables || counts.files)) {
     return "";
   }
-  const categories = (await listCategories(projectId)).filter((c) => !c.proposed && c.count);
+  const categories = (await listCategories(spaceId)).filter((c) => !c.proposed && c.count);
   const what = [
     counts.pages ? `${counts.pages} pages` : "",
     counts.tables ? `${counts.tables} tables` : "",

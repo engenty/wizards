@@ -257,7 +257,7 @@ export function useArchitectChat(
   return { messages, phase, activity, thought, startedAt, error, send, fileUrl, extra, setExtra };
 }
 
-/** What the panel shows and sends; the architect's chat and the project assistant both are one. */
+/** What the panel shows and sends; the architect's chat and the space assistant both are one. */
 export type Chat = Pick<
   ReturnType<typeof useArchitectChat>,
   "messages" | "phase" | "activity" | "startedAt" | "error" | "send"

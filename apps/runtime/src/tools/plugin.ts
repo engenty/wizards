@@ -2,6 +2,7 @@ import type { PluginSpace, PluginTool } from "@engenty/wizards/plugin";
 import { type AgentStep, pluginToolOf } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import { createTool } from "@mastra/core/tools";
+import { type Caller, type Who, whereOf, whoOf, withCaller } from "../broker/index.js";
 import { type StepContext, StepError } from "../engine/types.js";
 import { loadedPlugin, pluginIdsOf, pluginsOf } from "../plugins/registry.js";
 import { attempt, clip } from "./shared.js";
@@ -13,13 +14,12 @@ export function pluginToolName(plugin: string, tool: string): string {
 
 /** What a plugin's tool learns of the step that calls it. */
 function toolContext(ctx: StepContext) {
-  const space = { id: ctx.project.id, name: ctx.project.name };
+  const space = { id: ctx.space.id, name: ctx.space.name };
   return {
     runId: ctx.runId,
     stepId: ctx.stepId,
     tenantId: ctx.tenantId,
     space,
-    project: space,
     wizard: { id: ctx.store.wizardId, title: ctx.def.title },
     mode: ctx.test ? ("test" as const) : ("live" as const),
     signal: ctx.signal,
@@ -27,13 +27,27 @@ function toolContext(ctx: StepContext) {
   };
 }
 
+/** Who an AI step calls as: the person running the wizard, an admin where their role says so. */
+export function holderWho(ctx: StepContext): Who {
+  return whoOf(ctx.store.holder, ctx.holder.kind === "person" ? ctx.holder.role : undefined);
+}
+
+/** Who a fixed step calls as: the step itself, for the person running the wizard. The broker hears it. */
+export function stepWho(ctx: StepContext): Who {
+  return { kind: "step", id: ctx.stepId, for: holderWho(ctx) };
+}
+
+/** Who a step's plugin tool calls for: the person running the wizard, in this run. The broker hears it. */
+const callerOf = (ctx: StepContext): Caller => ({ who: holderWho(ctx), where: whereOf(ctx) });
+
 /** A plugin's tool as an agent step calls it. */
 function stepTool(plugin: string, tool: PluginTool, ctx: StepContext) {
   return createTool({
     id: pluginToolName(plugin, tool.name),
     description: tool.description,
     inputSchema: tool.inputSchema,
-    execute: (input) => attempt(async () => tool.execute(input, toolContext(ctx))),
+    execute: (input) =>
+      attempt(() => withCaller(callerOf(ctx), async () => tool.execute(input, toolContext(ctx)))),
   });
 }
 
@@ -68,7 +82,10 @@ export async function callPluginTool(id: string, input: unknown, ctx: StepContex
     );
   }
   try {
-    return await tool.execute(parsed.data, toolContext(ctx));
+    // A fixed step calls as the step, for the person running it.
+    return await withCaller({ who: stepWho(ctx), where: whereOf(ctx) }, async () =>
+      tool.execute(parsed.data, toolContext(ctx)),
+    );
   } catch (err) {
     throw new StepError(String((err as Error)?.message ?? err).slice(0, 400));
   }
@@ -116,7 +133,7 @@ export function spaceContextOf(ctx: StepContext): Promise<SpaceContext> {
 }
 
 async function gather(ctx: StepContext): Promise<SpaceContext> {
-  const space: PluginSpace = { id: ctx.project.id, name: ctx.project.name };
+  const space: PluginSpace = { id: ctx.space.id, name: ctx.space.name };
   const result: SpaceContext = { blocks: [], html: [], tools: {} };
   for (const plugin of await pluginsOf(ctx.tenantId)) {
     for (const context of plugin.contexts) {
@@ -161,6 +178,12 @@ export interface AssistantTurn {
   card(card: { plugin: string; tool: string; data: unknown }): void;
 }
 
+/** What a plugin's assistant tool says it does (`risk`), by the tool made of it; null: unmarked. */
+export const assistantToolRisk = new WeakMap<object, "read" | "space" | "outside" | null>();
+
+/** Which plugin a tool of the space assistant comes from, by the tool made of it. */
+export const assistantToolPlugin = new WeakMap<object, string>();
+
 /** The tenant's plugins' tools of the space assistant (`registerAssistantTool`). */
 export async function assistantToolsOf(turn: AssistantTurn): Promise<Record<string, any>> {
   const tools: Record<string, any> = {};
@@ -173,23 +196,57 @@ export async function assistantToolsOf(turn: AssistantTurn): Promise<Record<stri
         inputSchema: tool.inputSchema,
         execute: (input) =>
           attempt(async () => {
-            const result = await tool.execute(input, {
-              tenantId: turn.tenantId,
-              space: turn.space,
-              userId: turn.userId,
-              signal: turn.signal,
-              emit: turn.emit,
-              changed: turn.changed,
-            });
+            // A Work chat's tool calls as the person in the chat.
+            const caller: Caller = {
+              who: { kind: "person", id: turn.userId },
+              where: { spaceId: turn.space.id },
+            };
+            const result = await withCaller(caller, async () =>
+              tool.execute(input, {
+                tenantId: turn.tenantId,
+                space: turn.space,
+                userId: turn.userId,
+                signal: turn.signal,
+                emit: turn.emit,
+                changed: turn.changed,
+              }),
+            );
             if (tool.card) {
               turn.card({ plugin: plugin.source.id, tool: tool.name, data: result ?? null });
             }
             return result;
           }),
       });
+      assistantToolRisk.set(tools[id], tool.risk ?? null);
+      assistantToolPlugin.set(tools[id], plugin.source.id);
     }
   }
   return tools;
+}
+
+export interface AssistantToolLabel {
+  /** The plugin's name. */
+  plugin: string;
+  /** The tool's own name, without the plugin's. */
+  tool: string;
+  label: { de: string; en: string } | null;
+}
+
+/** How a Work chat names the plugins' assistant tools in its step lines, by the model's name. */
+export async function assistantToolLabels(
+  tenantId: string,
+): Promise<Record<string, AssistantToolLabel>> {
+  const labels: Record<string, AssistantToolLabel> = {};
+  for (const plugin of await pluginsOf(tenantId)) {
+    for (const tool of plugin.assistantTools.values()) {
+      labels[pluginToolName(plugin.source.id, tool.name)] = {
+        plugin: plugin.source.manifest.name,
+        tool: tool.name,
+        label: tool.label ?? null,
+      };
+    }
+  }
+  return labels;
 }
 
 /**

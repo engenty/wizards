@@ -5,17 +5,26 @@ import type {
   ShareLang,
   ShareRequest,
 } from "@engenty/wizards-shared/sharing";
-import { connectionContext } from "../connectors/index.js";
+import type { ConnectionDef } from "@engenty/wizards-shared/store";
+import {
+  brokerCall,
+  brokerConnected,
+  brokerSend,
+  GUEST_MAILS_PER_RUN,
+  type Refusal,
+  whereOfRun,
+  whoOf,
+} from "../broker/index.js";
 import { askPerson } from "../engine/asks.js";
 import { signalChanged } from "../engine/events.js";
 import { releaseResources } from "../engine/resources.js";
-import { loadProject, makeContext, projectIdOf } from "../engine/runner.js";
+import { loadSpace, makeContext, spaceIdOf } from "../engine/runner.js";
 import type { RunRow } from "../engine/types.js";
 import { env } from "../env.js";
 import { errorText } from "../model-errors.js";
 import { ServiceError } from "../services/errors.js";
 import { shareRun } from "../services/shares.js";
-import { scopeOf } from "../store/index.js";
+import { holderOf, scopeOf } from "../store/index.js";
 import { serverText } from "../texts.js";
 import { SHARE_STEP } from "./agent.js";
 import { shareFiles } from "./files.js";
@@ -30,7 +39,7 @@ import {
   workingJob,
 } from "./state.js";
 import { parseRecipients } from "./targets/email.js";
-import { type Said, type ShareContext, ShareError, sayIn } from "./types.js";
+import { line, type Said, type ShareContext, ShareError, sayIn } from "./types.js";
 
 /** What the person filled in does not do: per field, what is wrong. `_files` and `_account` name the other steps. */
 export class ShareInputError extends Error {
@@ -57,9 +66,13 @@ function publicOrigin(): boolean {
   );
 }
 
+/** A share target's account, held by the run's store like a wizard's connections. */
+const heldBy = (run: RunRow, def: ConnectionDef, spaceId: string) =>
+  ({ kind: "store_secret", def, scope: scopeOf(run), spaceId }) as const;
+
 function contextOf(
   run: RunRow,
-  projectId: string,
+  spaceId: string,
   entry: OfferedTarget,
   who: { member: boolean; lang: ShareLang },
   job: { id: string; signal: AbortSignal; sentBefore: number } | null,
@@ -73,17 +86,54 @@ function contextOf(
       ? Promise.resolve(null)
       : askPerson(run.id, { ...question, stepId: SHARE_STEP }, signal);
   return {
-    ...targetScope(run, projectId, who.lang),
+    ...targetScope(run, spaceId, who.lang),
     signal,
     member: who.member,
     sentBefore: job?.sentBefore ?? 0,
     emit,
     ask,
-    account: () =>
-      connection ? connectionContext(scopeOf(run), connection, projectId) : Promise.resolve(null),
+    connected: () =>
+      connection ? brokerConnected(heldBy(run, connection, spaceId)) : Promise.resolve(null),
+    call: async (action, input, handler) => {
+      const name = sayIn(who.lang, entry.target.name);
+      if (!connection) {
+        throw new ShareError(line("shareConnectFirst", { name }));
+      }
+      // The person filled the form and sent it: a write is theirs, nothing asks again.
+      const out = await brokerCall({
+        who: whoOf(holderOf(run)),
+        where: whereOfRun(run, holderOf(run), spaceId),
+        connection: heldBy(run, connection, spaceId),
+        action,
+        input,
+        ctx: { ask, confirmed: true },
+        handler,
+      });
+      if (!out.ok) {
+        throw new ShareError(
+          out.refused === "not_connected"
+            ? line("shareConnectFirst", { name })
+            : (refusalLine(out.refused) ?? out.reason),
+        );
+      }
+      return out.result as never;
+    },
+    sendFromServer: async (recipients, input, handler) => {
+      const out = await brokerSend({
+        who: whoOf(holderOf(run)),
+        where: whereOfRun(run, holderOf(run), spaceId),
+        recipients,
+        input,
+        handler,
+      });
+      if (!out.ok) {
+        throw new ShareError(refusalLine(out.refused) ?? out.reason);
+      }
+      return out.result as never;
+    },
     link: async () => (publicOrigin() ? (await shareRun(run)).url : null),
     step: async () =>
-      makeContext(run, await loadProject(run), structuredClone(run.state), signal, {
+      makeContext(run, await loadSpace(run), structuredClone(run.state), signal, {
         stepId: SHARE_STEP,
         emit: (_type, message) =>
           emit(typeof message === "string" ? message : noteText(message, who.lang)),
@@ -92,8 +142,22 @@ function contextOf(
   };
 }
 
-async function entryOf(run: RunRow, projectId: string, key: string, member: boolean) {
-  const entry = (await offeredTargets(run, projectId, member)).find((e) => e.key === key);
+/** What the person reads when the broker refuses a guest's send; null for the other refusals. */
+function refusalLine(refused: Refusal): Said | null {
+  switch (refused) {
+    case "not_allowed_recipient":
+      return line("shareGuestRecipient");
+    case "run_limit":
+      return line("shareGuestRunMails", { mails: GUEST_MAILS_PER_RUN });
+    case "day_limit":
+      return line("shareGuestDayMails");
+    default:
+      return null;
+  }
+}
+
+async function entryOf(run: RunRow, spaceId: string, key: string, member: boolean) {
+  const entry = (await offeredTargets(run, spaceId, member)).find((e) => e.key === key);
   if (!entry) {
     throw new ServiceError("not_found", { server: "shareTargetUnknown" });
   }
@@ -120,8 +184,8 @@ export async function startShare(
     throw new ServiceError("refused", { server: "shareTooOften" });
   }
   const lang = request.lang ?? "en";
-  const projectId = await projectIdOf(run);
-  const entry = await entryOf(run, projectId, request.target, who.member);
+  const spaceId = await spaceIdOf(run);
+  const entry = await entryOf(run, spaceId, request.target, who.member);
   const { target } = entry;
 
   const values: Record<string, string> = {};
@@ -153,7 +217,7 @@ export async function startShare(
     errors._files = serverText(lang, "sharePickFile");
   }
   const connection = target.connection?.() ?? null;
-  if (connection && !(await connectionContext(scopeOf(run), connection, projectId))) {
+  if (connection && !(await brokerConnected(heldBy(run, connection, spaceId)))) {
     errors._account = serverText(lang, "shareConnectAccount");
   }
   if (Object.keys(errors).length) {
@@ -171,7 +235,7 @@ export async function startShare(
   setWorking(run.id, { jobId: job.id, abort });
   const ctx = contextOf(
     run,
-    projectId,
+    spaceId,
     entry,
     { member: who.member, lang },
     { id: job.id, signal: abort.signal, sentBefore: await sentCount(run.id, target.id) },
@@ -239,10 +303,10 @@ export async function shareChoices(
   field: string,
   who: { member: boolean; lang: ShareLang },
 ): Promise<ShareChoice[]> {
-  const projectId = await projectIdOf(run);
-  const entry = await entryOf(run, projectId, key, who.member);
+  const spaceId = await spaceIdOf(run);
+  const entry = await entryOf(run, spaceId, key, who.member);
   if (!entry.target.choices) {
     return [];
   }
-  return entry.target.choices(field, contextOf(run, projectId, entry, who, null));
+  return entry.target.choices(field, contextOf(run, spaceId, entry, who, null));
 }

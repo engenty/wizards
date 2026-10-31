@@ -15,21 +15,21 @@ Use one: list_wizards, then run_wizard straight away — its widget shows the wi
 Build one: get_authoring_guide (schema + design rules), a close starter with get_starter, create_wizard, edit_wizard until "issues" is empty, check with start_test_run + get_test_run. Publish only when the person asks.
 A result on a wizard may list "present": people and other agents in that wizard now. Nobody is locked out; when people are editing, tell your user before larger changes.
 When a run needs the browser, hand over its browserUrl, the wizard's own run page. The studioUrl is for building only: never send someone who uses a wizard to the studio.
-Projects are called spaces in the studio. Ids are for the tools only: name wizards and spaces by their titles and names, and where two spaces share a name, by where each comes from.
+Ids are for the tools only: name wizards and spaces by their titles and names, and where two spaces share a name, by where each comes from.
 
 <!-- Technical: engineering owns everything below. -->
 
 <!-- section: tool.get_authoring_guide -->
-Read this before writing a wizard: the JSON schema, field kinds, step types and tools, templates, design rules, and the MCP servers of the project.
+Read this before writing a wizard: the JSON schema, field kinds, step types and tools, templates, design rules, and the MCP servers of the space.
 
 <!-- section: tool.find_connectors -->
 Search the integrations registry for a service that can be imported as a connector, from its OpenAPI spec or its MCP server. Returns domains with a short description.
 
 <!-- section: tool.list_connectors -->
-The connectors a project has imported, each with its actions.
+The connectors a space has imported, each with its actions.
 
 <!-- section: tool.import_connector -->
-Import a registry service into a project as a connector. Returns its id, tool prefix, how people connect (OAuth, API key, none) and its actions with their marks (read / write / destructive). Importing again returns the existing one. A wizard uses it through a connection { id, connector }.
+Import a registry service into a space as a connector. Returns its id, tool prefix, how people connect (OAuth, API key, none) and its actions with their marks (read / write / send / destructive). Importing again returns the existing one. A wizard uses it through a connection { id, connector }.
 
 <!-- section: tool.list_starters -->
 Ready-made wizards to start from: first those the space's plugins bring (marked with the plugin), then the marketplace's (tweet with image, video ad, research briefing, dashboard, invoice, offer …), with what each makes and needs. Give a query to search them; without one you get the starters.
@@ -37,8 +37,8 @@ Ready-made wizards to start from: first those the space's plugins bring (marked 
 <!-- section: tool.get_starter -->
 A starter's complete wizard JSON — the best example to copy from.
 
-<!-- section: tool.list_projects -->
-The person's projects, called spaces in the studio. Each holds wizards, a brand and MCP servers. Name a space by its name; where two share one, add where it comes from (`from`). Ids are for the tools: never show them to the person.
+<!-- section: tool.list_spaces -->
+The person's spaces. Each holds wizards, a brand and MCP servers. Name a space by its name; where two share one, add where it comes from (`from`). Ids are for the tools: never show them to the person.
 
 <!-- section: tool.list_wizards -->
 The person's wizards, newest first, each with its space's name and where that space comes from. Ids are for the tools: never show them to the person.

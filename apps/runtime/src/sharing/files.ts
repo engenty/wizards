@@ -8,6 +8,7 @@ import {
 } from "@engenty/wizards-shared/definition";
 import type { RunState } from "@engenty/wizards-shared/run";
 import type { ShareItem } from "@engenty/wizards-shared/sharing";
+import { runHolder, type Subject, subjectsOf } from "../broker/rwx.js";
 import type { RunRow } from "../engine/types.js";
 import { type Download, listDownload, renderDownload } from "../render/downloads.js";
 import { listRows, type StoreScope, scopeOf } from "../store/index.js";
@@ -22,13 +23,16 @@ export function resultStepOf(run: RunRow): ResultStep | null {
   return step?.type === "result" ? step : null;
 }
 
-/** One output of a run as a file: a step's output or a stored list, in one format. */
+/**
+ * One output of a run as a file: a step's output or a stored list, in one format. `who` reads a
+ * shared list: the run's holder and wizard.
+ */
 export async function resultFile(
-  source: { def: WizardDefinition; state: RunState; store: StoreScope },
+  source: { def: WizardDefinition; state: RunState; store: StoreScope; who: Subject[] },
   from: string,
   format: Format,
 ): Promise<{ download: Download; label: string } | null> {
-  const { def, state, store } = source;
+  const { def, state, store, who } = source;
   const deliverable = def.steps
     .flatMap((s) => (s.type === "result" ? s.deliverables : []))
     .find((d) => d.from === from);
@@ -41,7 +45,7 @@ export async function resultFile(
     const label = deliverable?.label ?? listDef.title;
     const download = await listDownload(
       listDef,
-      await listRows(store, listDef),
+      await listRows(store, listDef, who),
       format,
       `${def.title} ${label}`,
     );
@@ -76,7 +80,13 @@ function bytes(data: Uint8Array | string): Uint8Array {
  */
 export async function shareFiles(run: RunRow, items: ShareItem[]): Promise<ShareFile[]> {
   const result = resultStepOf(run);
-  const source = { def: run.definition, state: run.state, store: scopeOf(run) };
+  const store = scopeOf(run);
+  const source = {
+    def: run.definition,
+    state: run.state,
+    store,
+    who: subjectsOf({ holder: await runHolder(run), store }),
+  };
   const files: ShareFile[] = [];
   const names = new Set<string>();
   for (const item of items) {

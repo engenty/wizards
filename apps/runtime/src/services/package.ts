@@ -13,19 +13,19 @@ import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { getBlob } from "../files/blobs.js";
 import { serverText } from "../texts.js";
-import { requireAdmin } from "./access.js";
 import { draftFiles, writeFile } from "./files.js";
 import { pageTree } from "./knowledge.js";
+import { requireMaker } from "./members-studio.js";
 import { readPackage } from "./package-file.js";
-import { ownedProject } from "./projects.js";
+import { ownedSpace } from "./spaces.js";
 import { importThemes, themesOf } from "./themes.js";
 import { createWizard, deleteWizard, draftIssues, ownedWizard, parseDraft } from "./wizards.js";
 
 /** A wizard as a file — the format is `@engenty/wizards-shared/wizard-package`'s. */
 
-/** Where the project's pages go in a package, as Markdown the standalone runner reads inline. */
+/** Where the space's pages go in a package, as Markdown the standalone runner reads inline. */
 export const KNOWLEDGE_DIR = "knowledge/";
-/** How much of the project's knowledge a package takes along: enough pages, never the whole space. */
+/** How much of the space's knowledge a package takes along: enough pages, never the whole space. */
 export const KNOWLEDGE_MAX_CHARS = 2_000_000;
 /** What one page may hold in the package (the plugin hands a file to the model up to there). */
 export const KNOWLEDGE_PAGE_CHARS = 60_000;
@@ -64,7 +64,7 @@ export async function exportWizard(
     return null;
   }
   const definition = live ? live.definition : w.draft;
-  const project = await ownedProject(userId, w.projectId);
+  const space = await ownedSpace(userId, w.spaceId);
   const named = new Set((definition.connections ?? []).map((c) => c.connector));
   const manifest: Manifest = {
     $schema: PACKAGE_SCHEMA_URL,
@@ -72,7 +72,7 @@ export async function exportWizard(
     version: 1,
     exportedAt: new Date().toISOString(),
     definition,
-    connectors: (await listConnectors(project.id))
+    connectors: (await listConnectors(space.id))
       .filter((c) => c.sourceKind !== "builtin" && named.has(c.id))
       .map((c) => ({
         id: c.id,
@@ -80,14 +80,14 @@ export async function exportWizard(
         domain: c.domain,
         sourceKind: c.sourceKind as "openapi" | "mcp",
       })),
-    themes: themesOf(definition.themes, project.themes),
+    themes: themesOf(definition.themes, space.themes),
   };
   const entries: Record<string, Uint8Array> = {};
   for (const f of live ? live.files : await draftFiles(w.id)) {
     entries[PACKAGE_FILES + f.path] = new Uint8Array(await getBlob(f.hash));
   }
   if (options.knowledge) {
-    const snapshot = await knowledgeSnapshot(project.id);
+    const snapshot = await knowledgeSnapshot(space.id);
     manifest.knowledge = { pages: snapshot.pages.length, truncated: snapshot.truncated };
     for (const page of snapshot.pages) {
       entries[PACKAGE_FILES + KNOWLEDGE_DIR + page.path] = strToU8(page.text);
@@ -98,17 +98,17 @@ export async function exportWizard(
 }
 
 /**
- * The project's pages as Markdown files, one per page at its path (`pages/<a>/<b>` becomes
+ * The space's pages as Markdown files, one per page at its path (`pages/<a>/<b>` becomes
  * `a/b.md`), each with its title in front: what a wizard that ran with `pages` reads inline on
  * a site without the space. Opt-in, and capped: a page is cut at its own limit, and the pages
  * stop where the whole would pass the snapshot's; `truncated` says so.
  */
 export async function knowledgeSnapshot(
-  projectId: string,
+  spaceId: string,
 ): Promise<{ pages: { path: string; text: string }[]; truncated: boolean }> {
-  const tree = await pageTree(projectId);
+  const tree = await pageTree(spaceId);
   const rows = await db.query.spacePage.findMany({
-    where: and(eq(schema.spacePage.projectId, projectId), isNull(schema.spacePage.wizardId)),
+    where: and(eq(schema.spacePage.spaceId, spaceId), isNull(schema.spacePage.wizardId)),
     columns: { id: true, markdown: true },
   });
   const markdown = new Map(rows.map((r) => [r.id, r.markdown]));
@@ -139,15 +139,15 @@ function yamlValue(s: string): string {
   return JSON.stringify(s);
 }
 
-/** What the wizard names that the project does not have, in words for the chat. */
+/** What the wizard names that the space does not have, in words for the chat. */
 async function missing(
   userId: string,
-  projectId: string,
+  spaceId: string,
   draft: WizardDefinition,
   manifest: Manifest,
 ) {
-  const project = await ownedProject(userId, projectId);
-  const connectors = await listConnectors(project.id);
+  const space = await ownedSpace(userId, spaceId);
+  const connectors = await listConnectors(space.id);
   const wanted = [...new Set((draft.connections ?? []).flatMap((c) => c.connector ?? []))];
   return [
     ...wanted
@@ -159,25 +159,25 @@ async function missing(
   ];
 }
 
-/** Makes a new wizard of a package in the project: the draft and its workspace, not published. */
+/** Makes a new wizard of a package in the space: the draft and its workspace, not published. */
 export async function importWizard(
   userId: string,
-  projectId: string,
+  spaceId: string,
   data: Uint8Array,
   name?: string,
   /** The language the admin reads the import's note in. */
   lang: Lang = "en",
 ) {
-  await requireAdmin();
+  await requireMaker(async () => spaceId);
   const { manifest, files } = readPackage(data);
   // The shape is checked before anything is written; a wrong one leaves no wizard behind.
   const { draft } = parseDraft(
     manifest.definition,
     files.map((f) => f.path),
   );
-  const lacks = await missing(userId, projectId, draft, manifest);
+  const lacks = await missing(userId, spaceId, draft, manifest);
   // The wizard's looks come into the space; one whose id is taken by another look is renamed.
-  const renamed = await importThemes(projectId, manifest.themes);
+  const renamed = await importThemes(spaceId, manifest.themes);
   if (draft.themes) {
     draft.themes = draft.themes.map((id) => renamed[id] ?? id);
   }
@@ -192,7 +192,7 @@ export async function importWizard(
   ]
     .filter(Boolean)
     .join("\n\n");
-  const { id } = await createWizard(userId, { projectId, definition: draft, note });
+  const { id } = await createWizard(userId, { spaceId, definition: draft, note });
   try {
     for (const file of files) {
       await writeFile(userId, id, file.path, file.data);

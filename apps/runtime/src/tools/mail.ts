@@ -1,12 +1,19 @@
 import type { AgentStep } from "@engenty/wizards-shared/definition";
+import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { connectionContext } from "../connectors/index.js";
+import {
+  type BrokerConnection,
+  brokerCall,
+  brokerConnected,
+  reachesOutside,
+  whereOf,
+  whoOf,
+} from "../broker/index.js";
 import {
   type MailAttachment,
   type MailMessage,
   type MailSummary,
-  mailAction,
   mailSearchInput,
 } from "../connectors/mail.js";
 import type { StepContext } from "../engine/types.js";
@@ -15,9 +22,17 @@ import { escapeHtml, htmlToPdf } from "../render/convert.js";
 import { guardHtml } from "../render/guard.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
 
+reachesOutside("mail_search", { connection: "mail", action: "search", kind: "read" });
+reachesOutside("mail_read", { connection: "mail", action: "read", kind: "read" });
+reachesOutside("mail_save", [
+  { connection: "mail", action: "read", kind: "read" },
+  { connection: "mail", action: "get_attachment", kind: "read" },
+]);
+
 /**
  * Read-only mail for a step that names a mail connection. The tools are the same whichever
  * provider the person connected; attachments never pass through the model — they are saved.
+ * Every read goes through the broker, which holds the mailbox's account.
  */
 export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) {
   const connection = (ctx.def.connections ?? []).find(
@@ -26,12 +41,34 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
   if (!connection) {
     return {};
   }
+  const held = (def: ConnectionDef): BrokerConnection => ({
+    kind: "store_secret",
+    def,
+    scope: ctx.store,
+    spaceId: ctx.space.id,
+  });
+  /** The mailbox's label, or the note that nothing is connected. */
   const open = async () => {
-    const found = await connectionContext(ctx.store, connection, ctx.project.id);
+    const found = await brokerConnected(held(connection));
     if (!found) {
       throw new Error(prompt("tools", "note.mail_not_connected"));
     }
-    return found;
+    return found.label;
+  };
+  const read = async <T>(action: "search" | "read" | "get_attachment", input: unknown) => {
+    const out = await brokerCall<T>({
+      who: whoOf(ctx.store.holder),
+      where: whereOf(ctx),
+      connection: held(connection),
+      action: { id: action, kind: "read" },
+      input,
+    });
+    if (!out.ok) {
+      throw new Error(
+        out.refused === "not_connected" ? prompt("tools", "note.mail_not_connected") : out.reason,
+      );
+    }
+    return out.result;
   };
   const tools: Record<string, any> = {};
 
@@ -41,14 +78,9 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
     inputSchema: mailSearchInput,
     execute: (input) =>
       attempt(async () => {
-        const { connector, ctx: actionCtx, label } = await open();
+        const label = await open();
         await ctx.emit("tool", { code: "searchesMail", params: { label } });
-        const { mails } = await mailAction<{ mails: MailSummary[] }>(
-          connector,
-          "search",
-          input,
-          actionCtx,
-        );
+        const { mails } = await read<{ mails: MailSummary[] }>("search", input);
         return {
           mailbox: label,
           total: mails.length,
@@ -63,8 +95,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
     inputSchema: z.object({ id: z.string() }),
     execute: ({ id }) =>
       attempt(async () => {
-        const { connector, ctx: actionCtx } = await open();
-        const mail = await mailAction<MailMessage>(connector, "read", { id }, actionCtx);
+        const mail = await read<MailMessage>("read", { id });
         const { html: _html, ...rest } = mail;
         return { ...rest, text: clip(mail.text, 6000) };
       }),
@@ -87,7 +118,7 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
     }),
     execute: ({ items }) =>
       attempt(async () => {
-        const { connector, ctx: actionCtx, label } = await open();
+        const label = await open();
         await ctx.emit("tool", {
           code: "savesReceipts",
           params: { count: items.length, label },
@@ -96,24 +127,17 @@ export function mailTools(step: AgentStep, ctx: StepContext, files: FileKeeper) 
         for (const item of items) {
           try {
             if (item.attachment_id) {
-              const a = await mailAction<MailAttachment>(
-                connector,
-                "get_attachment",
-                { id: item.id, attachment_id: item.attachment_id },
-                actionCtx,
-              );
+              const a = await read<MailAttachment>("get_attachment", {
+                id: item.id,
+                attachment_id: item.attachment_id,
+              });
               const kept = await files.keep(item.path, Buffer.from(a.data_base64, "base64"), {
                 mime: a.mime,
                 source: `E-Mail-Anhang „${a.name}“ aus ${label}`,
               });
               saved.push({ id: item.id, saved: kept.path, size: kept.size });
             } else {
-              const mail = await mailAction<MailMessage>(
-                connector,
-                "read",
-                { id: item.id },
-                actionCtx,
-              );
+              const mail = await read<MailMessage>("read", { id: item.id });
               const page =
                 mail.html ??
                 `<pre style="white-space:pre-wrap;font:14px system-ui">${escapeHtml(mail.text)}</pre>`;

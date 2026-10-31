@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authoringGuide } from "../authoring/guide.js";
 import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
+import { guideSpaceConnections } from "../connectors/space-connections.js";
 import { RunConflict } from "../engine/runner.js";
 import { pluginToolsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
@@ -11,8 +12,8 @@ import { publishAndSync, pushSharing } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
 import { deleteFile, listFiles, readFileText, writeFile } from "../services/files.js";
 import { marketplaceWizard, searchMarketplace } from "../services/marketplace.js";
+import { requireStudio } from "../services/members-studio.js";
 import { markAgent, presentIn } from "../services/presence.js";
-import { defaultProject, listProjects, ownedProject } from "../services/projects.js";
 import {
   answerRunAsk,
   answerRunPage,
@@ -23,8 +24,10 @@ import {
   startTestRun,
   testRunReport,
 } from "../services/runs.js";
+import { defaultSpace, listSpaces, ownedSpace } from "../services/spaces.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import {
+  checkDraft,
   createWizard,
   editWizard,
   listWizards,
@@ -102,7 +105,22 @@ type ToolConfig<S extends z.ZodObject> = {
   readOnly?: boolean;
   destructive?: boolean;
   openWorld?: boolean;
+  /**
+   * Works in the Studio of the wizard's space (or the test run's): refused where that Studio is
+   * closed to the person, as the studio API refuses it (services/members-studio.ts).
+   */
+  studio?: boolean;
 };
+
+/** A Studio tool's item: the wizard or the test run it names. */
+async function requireStudioOf(args: unknown): Promise<void> {
+  const { wizardId, runId } = (args ?? {}) as { wizardId?: unknown; runId?: unknown };
+  if (typeof wizardId === "string") {
+    await requireStudio("wizards", wizardId);
+  } else if (typeof runId === "string") {
+    await requireStudio("runs", runId);
+  }
+}
 
 function annotationsOf(config: { readOnly?: boolean; destructive?: boolean; openWorld?: boolean }) {
   const readOnly = config.readOnly ?? false;
@@ -166,6 +184,12 @@ export function registerTools(server: McpServer, who: Principal) {
       return result;
     }
   };
+  /** The space a Studio tool works in: the one named, or the person's first; refused where closed. */
+  const studioSpace = async (spaceId: string | undefined) => {
+    const space = spaceId ? await ownedSpace(who.userId, spaceId) : await defaultSpace(who.userId);
+    await requireStudio("spaces", space.id);
+    return space;
+  };
   const tool = <S extends z.ZodObject>(
     name: string,
     scope: Scope,
@@ -186,6 +210,9 @@ export function registerTools(server: McpServer, who: Principal) {
       // The SDK has parsed `args` with `input` before this runs.
       (async (args: z.infer<S>) => {
         try {
+          if (config.studio) {
+            await requireStudioOf(args);
+          }
           return ok(await withPresence(args, config.readOnly ?? false, await run(args)));
         } catch (err) {
           return failure(err);
@@ -215,6 +242,9 @@ export function registerTools(server: McpServer, who: Principal) {
       },
       (async (args: z.infer<S>) => {
         try {
+          if (config.studio) {
+            await requireStudioOf(args);
+          }
           const { result: plain, view } = await run(args);
           const result = (await withPresence(args, config.readOnly ?? false, plain)) as Record<
             string,
@@ -240,15 +270,17 @@ export function registerTools(server: McpServer, who: Principal) {
       title: "Authoring guide",
       description: prompt("mcp", "tool.get_authoring_guide"),
       input: z.object({
-        projectId: z.string().optional().describe("Defaults to the person's first project."),
+        spaceId: z.string().optional().describe("Defaults to the person's first space."),
       }),
       readOnly: true,
     },
-    async ({ projectId }) => {
-      const project = projectId
-        ? await ownedProject(who.userId, projectId)
-        : await defaultProject(who.userId);
-      return authoringGuide(await listConnectors(project.id), await pluginToolsOf(who.tenantId));
+    async ({ spaceId }) => {
+      const space = await studioSpace(spaceId);
+      return authoringGuide(
+        await listConnectors(space.id),
+        await pluginToolsOf(who.tenantId),
+        await guideSpaceConnections(space.id),
+      );
     },
   );
 
@@ -271,14 +303,14 @@ export function registerTools(server: McpServer, who: Principal) {
     {
       title: "List connectors",
       description: prompt("mcp", "tool.list_connectors"),
-      input: z.object({ projectId: z.string().optional() }),
+      input: z.object({ spaceId: z.string().optional() }),
       readOnly: true,
     },
-    async ({ projectId }) => {
-      const project = projectId
-        ? await ownedProject(who.userId, projectId)
-        : await defaultProject(who.userId);
-      return { projectId: project.id, connectors: await listConnectors(project.id) };
+    async ({ spaceId }) => {
+      const space = spaceId
+        ? await ownedSpace(who.userId, spaceId)
+        : await defaultSpace(who.userId);
+      return { spaceId: space.id, connectors: await listConnectors(space.id) };
     },
   );
 
@@ -289,16 +321,14 @@ export function registerTools(server: McpServer, who: Principal) {
       title: "Import connector",
       description: prompt("mcp", "tool.import_connector"),
       input: z.object({
-        projectId: z.string().optional(),
+        spaceId: z.string().optional(),
         domain: z.string().describe("A domain from find_connectors, e.g. notion.com"),
         kind: z.enum(["mcp", "openapi"]).optional(),
       }),
     },
-    async ({ projectId, domain, kind }) => {
-      const project = projectId
-        ? await ownedProject(who.userId, projectId)
-        : await defaultProject(who.userId);
-      return importFromRegistry(who.userId, project.id, { domain, kind });
+    async ({ spaceId, domain, kind }) => {
+      const space = await studioSpace(spaceId);
+      return importFromRegistry(who.userId, space.id, { domain, kind });
     },
   );
 
@@ -346,16 +376,16 @@ export function registerTools(server: McpServer, who: Principal) {
   );
 
   tool(
-    "list_projects",
+    "list_spaces",
     "wizards:read",
     {
-      title: "List projects",
-      description: prompt("mcp", "tool.list_projects"),
+      title: "List spaces",
+      description: prompt("mcp", "tool.list_spaces"),
       input: z.object({}),
       readOnly: true,
     },
     async () =>
-      (await listProjects(who.userId)).map((p) => ({
+      (await listSpaces(who.userId)).map((p) => ({
         id: p.id,
         name: p.name,
         from: spaceFrom(p),
@@ -369,16 +399,16 @@ export function registerTools(server: McpServer, who: Principal) {
     {
       title: "List wizards",
       description: prompt("mcp", "tool.list_wizards"),
-      input: z.object({ projectId: z.string().optional() }),
+      input: z.object({ spaceId: z.string().optional() }),
       readOnly: true,
     },
-    async ({ projectId }) => {
-      const spaces = new Map((await listProjects(who.userId)).map((p) => [p.id, p]));
-      return (await listWizards(who.userId, projectId)).map((w) => {
-        const space = spaces.get(w.projectId);
+    async ({ spaceId }) => {
+      const spaces = new Map((await listSpaces(who.userId)).map((p) => [p.id, p]));
+      return (await listWizards(who.userId, spaceId)).map((w) => {
+        const space = spaces.get(w.spaceId);
         return {
           id: w.id,
-          projectId: w.projectId,
+          spaceId: w.spaceId,
           space: space?.name ?? null,
           spaceFrom: space ? spaceFrom(space) : null,
           title: w.title,
@@ -399,12 +429,13 @@ export function registerTools(server: McpServer, who: Principal) {
       description: prompt("mcp", "tool.get_wizard"),
       input: z.object({ wizardId: z.string() }),
       readOnly: true,
+      studio: true,
     },
     async ({ wizardId }) => {
       const s = await wizardState(await ownedWizard(who.userId, wizardId));
       return {
         wizardId: s.id,
-        projectId: s.projectId,
+        spaceId: s.spaceId,
         revision: s.revision,
         draft: s.draft,
         issues: s.issues,
@@ -424,12 +455,17 @@ export function registerTools(server: McpServer, who: Principal) {
     {
       title: "Validate wizard",
       description: prompt("mcp", "tool.validate_wizard"),
-      input: z.object({ definition }),
+      input: z.object({
+        definition,
+        spaceId: z.string().optional().describe("Defaults to the person's first space."),
+      }),
       readOnly: true,
     },
     async (args) => {
       try {
-        const { issues } = parseDraft(authored(args.definition));
+        const space = await studioSpace(args.spaceId);
+        const { draft } = parseDraft(authored(args.definition));
+        const issues = await checkDraft(space.id, draft);
         return { ok: issues.length === 0, issues };
       } catch (err) {
         if (err instanceof ServiceError && err.code === "invalid") {
@@ -448,7 +484,7 @@ export function registerTools(server: McpServer, who: Principal) {
       title: "Create wizard",
       description: prompt("mcp", "tool.create_wizard"),
       input: z.object({
-        projectId: z.string().optional().describe("Defaults to the person's first project."),
+        spaceId: z.string().optional().describe("Defaults to the person's first space."),
         definition: definition.optional(),
         starterId: z.string().optional().describe("Copy this starter instead of sending JSON."),
         note,
@@ -482,6 +518,7 @@ export function registerTools(server: McpServer, who: Principal) {
         note,
       }),
       destructive: true,
+      studio: true,
     },
     async ({ wizardId, ...input }) => {
       const { revision, issues } = await editWizard(who.userId, wizardId, input, writer);
@@ -497,6 +534,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description: prompt("mcp", "tool.replace_wizard"),
       input: z.object({ wizardId: z.string(), baseRevision, definition, note }),
       destructive: true,
+      studio: true,
     },
     async ({ wizardId, ...input }) => {
       const { revision, issues } = await writeDraft(
@@ -519,6 +557,7 @@ export function registerTools(server: McpServer, who: Principal) {
       input: z.object({ wizardId: z.string() }),
       destructive: true,
       openWorld: true,
+      studio: true,
     },
     async ({ wizardId }) => publishAndSync(who.userId, wizardId),
   );
@@ -536,6 +575,7 @@ export function registerTools(server: McpServer, who: Principal) {
       }),
       destructive: true,
       openWorld: true,
+      studio: true,
     },
     async ({ wizardId, enabled, dailyRunLimit }) => {
       const w = await updateWizardSettings(who.userId, wizardId, {
@@ -569,6 +609,7 @@ export function registerTools(server: McpServer, who: Principal) {
         acceptReviews: z.boolean().default(true),
       }),
       openWorld: true,
+      studio: true,
     },
     async ({ wizardId, answers, acceptReviews }) => {
       const { runId } = await startTestRun(who.userId, wizardId, { answers, acceptReviews });
@@ -597,6 +638,7 @@ export function registerTools(server: McpServer, who: Principal) {
           .describe("Wait up to this long while the run is still working."),
       }),
       readOnly: true,
+      studio: true,
     },
     async ({ runId, waitSeconds }) => testRunReport(who.userId, runId, waitSeconds),
   );
@@ -616,6 +658,10 @@ export function registerTools(server: McpServer, who: Principal) {
     },
     async ({ wizardId, version }) => {
       const view = await flowView(who.userId, wizardId, { shows: version });
+      // The draft is the Studio's; the published wizard is everyone's to run.
+      if (view.wizard.shows === "draft") {
+        await requireStudio("wizards", wizardId);
+      }
       return {
         result: {
           wizardId,
@@ -775,6 +821,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description: prompt("mcp", "tool.list_files"),
       input: z.object({ wizardId: z.string() }),
       readOnly: true,
+      studio: true,
     },
     async ({ wizardId }) =>
       (await listFiles(who.userId, wizardId)).map(({ path, mime, size }) => ({ path, mime, size })),
@@ -788,6 +835,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description: prompt("mcp", "tool.read_file"),
       input: z.object({ wizardId: z.string(), path: z.string() }),
       readOnly: true,
+      studio: true,
     },
     async ({ wizardId, path }) => readFileText(who.userId, wizardId, path),
   );
@@ -806,6 +854,7 @@ export function registerTools(server: McpServer, who: Principal) {
         mime: z.string().optional(),
       }),
       destructive: true,
+      studio: true,
     },
     async ({ wizardId, path, content, base64, mime }) => {
       if ((content === undefined) === (base64 === undefined)) {
@@ -829,6 +878,7 @@ export function registerTools(server: McpServer, who: Principal) {
       description: prompt("mcp", "tool.delete_file"),
       input: z.object({ wizardId: z.string(), path: z.string() }),
       destructive: true,
+      studio: true,
     },
     async ({ wizardId, path }) => {
       await deleteFile(who.userId, wizardId, path);
@@ -855,6 +905,7 @@ export function registerTools(server: McpServer, who: Principal) {
       },
       (async ({ wizardId, stepId, data }: z.infer<typeof input>) => {
         try {
+          await requireStudio("wizards", wizardId);
           const r = await checkDraftWidget(who.userId, wizardId, stepId, data);
           return {
             content: [

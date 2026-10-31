@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { SessionUser } from "../auth/index.js";
+import { subjectsOfPerson } from "../broker/rwx.js";
 import { feature, remoteFeatures } from "../features.js";
 import { type LiveEvent, openStreams, subscribe } from "../live/hub.js";
 import { itemView } from "../live/views.js";
 import { asRole } from "../services/access.js";
+import { chatChangesFor } from "../services/work-chats.js";
 import { requestLang, say } from "./lang.js";
 
 type Vars = { Variables: { user: SessionUser } };
@@ -52,6 +54,10 @@ export const liveRoutes = new Hono<Vars>().get("/", async (c) => {
         if (!next || closed) {
           return;
         }
+        // A private chat's changes go to its members only (Work's chats).
+        if (next.event === "changes" && next.items.some((i) => i.kind === "chat")) {
+          next.items = await chatChangesFor(user, next.items);
+        }
         const { event, ...data } = next;
         await stream.writeSSE({
           event,
@@ -60,7 +66,11 @@ export const liveRoutes = new Hono<Vars>().get("/", async (c) => {
         });
       });
     };
-    const reader = { userId: user.id, lang: requestLang(c) };
+    const reader = {
+      userId: user.id,
+      lang: requestLang(c),
+      who: subjectsOfPerson(user.id, user.role),
+    };
     const unsubscribe = await subscribe(user.tenantId, since, send, {
       key: `${user.role}|${reader.lang}`,
       read: (x) => asRole(user.role, () => itemView(reader, x)),

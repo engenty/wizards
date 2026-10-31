@@ -23,10 +23,13 @@ An image, not a page: the address works. Its bytes are not text and are not show
 Not a text page: its bytes are not shown.
 
 <!-- section: tool.http_request -->
-Call a public HTTP API. Use for REST endpoints the instructions name.
+Call a public HTTP API. Use for REST endpoints the instructions name. A host the wizard does not list may be refused; do not try another host then.
 
 <!-- section: note.net_private -->
 Private addresses are not reachable from a wizard.
+
+<!-- section: note.host_not_in_grant -->
+This run may not call ${host}: the wizard does not list it. Do not try another address; say in your result that the call was not made.
 
 <!-- section: note.net_scheme -->
 Only http and https URLs are allowed.
@@ -109,26 +112,26 @@ Read a page: one this wizard wrote, by its title, or a page of Knowledge, by its
 <!-- section: tool.page_write -->
 Write a page of this wizard in Markdown, kept for every later run and shown to the admin in the studio. A page with the same title is replaced — or added to with append: true (a log, a list that grows). Pages of Knowledge are read-only.
 
-<!-- Knowledge (tools/project.ts) -->
+<!-- Knowledge (tools/space.ts) -->
 
-<!-- section: tool.project_search -->
+<!-- section: tool.space_search -->
 Search the space's Knowledge: its pages, tables and files, its images, videos and sounds by their description, and what its plugins keep (wiki pages, questions and answers). Gives items with their path, categories and best section, each checked for relevance. Ask in their language, with the words they would use; filter with `where` when the task names a category's value. Then read the items you need whole with page_read or table_read.
 
-<!-- The `where` input of project_search and project_list. -->
-<!-- section: tool.project.where -->
-Filter by categories before searching, by their names: a value ("Baustelle": "Graz Süd"), a list of values, a range of numbers ({ "gte": 20000 }) or of days ({ "after": "2026-03-01", "before": "2026-03-31" }), { "contains": "…" } for a text, true/false. project_list without arguments names the categories and their values.
+<!-- The `where` input of space_search and space_list. -->
+<!-- section: tool.space.where -->
+Filter by categories before searching, by their names: a value ("Baustelle": "Graz Süd"), a list of values, a range of numbers ({ "gte": 20000 }) or of days ({ "after": "2026-03-01", "before": "2026-03-31" }), { "contains": "…" } for a text, true/false. space_list without arguments names the categories and their values.
 
-<!-- section: tool.project_list -->
-List Knowledge by its categories. Without `where`: the categories with their values and how many items each has. With `where`: the items it leaves, with their paths — all of them, where project_search gives the best few.
+<!-- section: tool.space_list -->
+List Knowledge by its categories. Without `where`: the categories with their values and how many items each has. With `where`: the items it leaves, with their paths — all of them, where space_search gives the best few.
 
 <!-- page_read when the step does not list "pages". -->
 <!-- section: tool.page_read.knowledge -->
 Read a page of Knowledge whole by its path: front matter (title, categories, its source and original, its parent and sub-pages) and its Markdown. Long pages come in parts: pass `from` to continue. `section` reads one section.
 
 <!-- section: tool.table_read -->
-Read a table of Knowledge by its path: its rows as CSV, filtered by its columns (by their names, like `where` of project_search). A few hundred rows at a time: pass `offset` to continue.
+Read a table of Knowledge by its path: its rows as CSV, filtered by its columns (by their names, like `where` of space_search). A few hundred rows at a time: pass `offset` to continue.
 
-<!-- section: tool.project_document -->
+<!-- section: tool.space_document -->
 Read a file of Knowledge as text by its path (files/…): a file that is not a page, or the original a page was read from. Long files come in parts: pass `from` to continue.
 
 <!-- Skills of the space (tools/skills.ts); Goose gets the same tools. `names` joined with ", ". -->
@@ -219,6 +222,32 @@ Nobody is there to allow this change, so it was not made. Report it as open in y
 
 <!-- section: note.connector_declined -->
 The person did not allow this change. Do not try it again; say in your result that it was not made.
+
+<!-- section: note.connector_refused -->
+The rules of ${service} do not allow this action here. Do not try it again or another way; say in your result that it was not done.
+
+<!-- section: note.connector_needs_approval -->
+This action on ${service} needs the approval of the space's admins, which cannot be asked for here. Do not try it again or another way; say in your result that it waits for them.
+
+<!-- section: note.connector_ai_step_writes -->
+An AI step only reads ${service}, which signs in as the space. A change there is a fixed step of the wizard, not yours; do not try it another way. Say in your result what should change.
+
+<!-- The connections of a space in a chat (tools/connections.ts): a Work chat's AI and Goose. Each tool is
+     "<connection> (<connector>): <the action's own description>", then one of these for a write. -->
+<!-- section: connection.confirms -->
+A confirmed action: fill in its fields, and the chat shows them to the person, who confirms before it runs. Don't ask them in words as well.
+
+<!-- section: connection.confirms_admins -->
+A confirmed action: fill in its fields, and the chat shows them to the person, who confirms. The space's admins approve it after them, since the connection signs in as the space. Don't ask anyone in words as well.
+
+<!-- section: connection.asks_person -->
+The person is asked before this runs: a card shows them what you filled in.
+
+<!-- section: note.connection_nobody -->
+Nobody can confirm this change here, so it was not made. Say so.
+
+<!-- section: note.connection_waits_admins -->
+Held for the space's admins. Don't call it again: the chat tells you once they decided.
 
 <!-- The browser (tools/browser.ts) -->
 

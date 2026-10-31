@@ -85,7 +85,7 @@ export interface SyncOverview {
   tenantId: string;
   schema: string;
   role: string;
-  limits: { projects: number | null };
+  limits: { spaces: number | null };
   spaces: { id: string; name: string; seq: number }[];
 }
 

@@ -157,7 +157,8 @@ describe("Google on a local install without its own Google client", () => {
         via: "account",
       }),
     );
-    const ctx = await local(() => connectors.connectionContext(scope, connection, "p"));
+    const { wizardAccount } = await import("../src/broker/account");
+    const ctx = await local(() => wizardAccount(scope, connection, "p"));
     expect(ctx?.ctx.accessToken).toBe("ya29.second");
     expect(seen.at(-1)?.path).toBe("/v1/connect/google/refresh");
 

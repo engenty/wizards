@@ -25,7 +25,10 @@ import { MCP_RESOURCE, SCOPES } from "./mcp/scopes.js";
 import { openCommand } from "./open-command.js";
 import { PLUGIN_NAME, pluginArchive, pluginMarketplace } from "./plugin.js";
 import { apiRoutes } from "./routes/api.js";
+import { brokerRoutes } from "./routes/broker.js";
+import { connectionRoutes } from "./routes/connections.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
+import { discoverRoutes } from "./routes/discover.js";
 import { internalRoutes } from "./routes/internal.js";
 import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
 import { liveRoutes } from "./routes/live.js";
@@ -35,15 +38,19 @@ import { personRoutes } from "./routes/person.js";
 import { publicPluginRoutes } from "./routes/plugin-public.js";
 import { pluginRoutes } from "./routes/plugins.js";
 import { reportRoutes } from "./routes/reports.js";
+import { ruleRoutes } from "./routes/rules.js";
 import { clientIp, connectCallback, publicRoutes, runRoutes, shareRoutes } from "./routes/runs.js";
 import { runtimeSettingsRoutes } from "./routes/runtime-settings.js";
 import { skillRoutes } from "./routes/skills.js";
 import { studio } from "./routes/studio.js";
 import { wizardStream } from "./routes/wizard-stream.js";
+import { workRoutes } from "./routes/work.js";
 import { runTicketValid } from "./secrets/signing.js";
 import { asRole } from "./services/access.js";
 import { ServiceError } from "./services/errors.js";
+import { membersStudioGate } from "./services/members-studio.js";
 import { servePageRunner } from "./services/runners.js";
+import { markSeen } from "./services/seen.js";
 import { afterStudioWrite, beforeStudioLoad } from "./sync/client.js";
 import { tenantOfLink, tenantStatus } from "./tenants/control.js";
 
@@ -253,7 +260,7 @@ if (serves.doors) {
 
 /** The studio's requests that open an item: a wizard, a page, a table, a skill, a space. */
 const STUDIO_LOADS =
-  /\/api\/studio\/(wizards\/[^/]+|pages\/[^/]+|tables\/[^/]+|skills\/[^/]+|projects(\/[^/]+(\/(data|knowledge|files|wizards|page|skills))?)?)$/;
+  /\/api\/studio\/(wizards\/[^/]+|pages\/[^/]+|tables\/[^/]+|skills\/[^/]+|spaces(\/[^/]+(\/(data|knowledge|files|wizards|page|skills))?)?)$/;
 
 if (serves.studio) {
   /** Studio requests act as the signed-in person, inside that person's tenant. */
@@ -278,6 +285,8 @@ if (serves.studio) {
       );
     }
     c.set("user", user);
+    // The person is here: the hourly mail of the broker's lines waits (services/seen.ts).
+    void withTenant(user.tenantId, () => markSeen(user.id)).catch(() => undefined);
     // A save: open studios hear of it now, not at the next tick (live/hub.ts).
     const writes = c.req.method !== "GET";
     if (managed) {
@@ -308,6 +317,9 @@ if (serves.studio) {
       }
     });
   });
+
+  // A member reaches a space's studio only where its admins opened it (behind `capabilities`).
+  app.use("/api/studio/*", membersStudioGate);
 
   const mcp = mcpHandler();
   app.on(["GET", "POST", "DELETE"], "/api/mcp", (c) => mcp(c.req.raw));
@@ -345,7 +357,12 @@ if (serves.studio) {
   app.route("/api/studio/organization", organizationRoutes);
   app.route("/api/studio/person", personRoutes);
   app.route("/api/studio", skillRoutes);
+  app.route("/api/studio", discoverRoutes);
+  app.route("/api/studio", ruleRoutes);
+  app.route("/api/studio", connectionRoutes);
+  app.route("/api/studio", brokerRoutes);
   app.route("/api/studio/runtime", runtimeSettingsRoutes);
+  app.route("/api/studio/work", workRoutes);
   app.route("/api/studio", studio);
   app.route("/api/v1", apiRoutes);
   app.route("/api/local/debug", localDebugRoutes);

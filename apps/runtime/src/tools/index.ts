@@ -4,6 +4,7 @@ import type { AssetRef } from "@engenty/wizards-shared/run";
 import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import { brokerHost, reachesOutside, whereOf, whoOf } from "../broker/index.js";
 import { documentMime, parseDocument } from "../documents/parse.js";
 import type { StepContext } from "../engine/types.js";
 import { generateImageMedia } from "../media/generate.js";
@@ -11,7 +12,7 @@ import { markMedia } from "../media/marking.js";
 import { gatewayTools, isHarnessVendor, type ResolvedModel, searchAllowed } from "../models.js";
 import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
-import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../sandbox/index.js";
+import { type ExecResult, shellToolDescription } from "../sandbox/index.js";
 import { snapshotFile } from "../services/files.js";
 import { hasStoreFiles } from "../store/index.js";
 import { browserTools } from "./browser.js";
@@ -21,10 +22,13 @@ import { mailTools } from "./mail.js";
 import { assertPublicUrl, safeFetch } from "./net-guard.js";
 import { pageTools } from "./pages.js";
 import { pluginTools, spaceContextOf } from "./plugin.js";
-import { projectTools } from "./project.js";
 import { clip, FileKeeper } from "./shared.js";
 import { skillTools } from "./skills.js";
+import { spaceTools } from "./space.js";
 import { storeTools, type UploadRef } from "./store.js";
+
+// A request to a host is a send to that host; the broker holds a guest's run to the hosts in its grant.
+reachesOutside("http_request", { connection: "host", action: "http_request", kind: "send" });
 
 export interface StepTools {
   tools: Record<string, any>;
@@ -159,17 +163,28 @@ export async function buildStepTools(
       }),
       execute: async ({ method, url, headers, json }) => {
         const safe = await assertPublicUrl(url);
-        await ctx.emit("tool", `${method} ${safe.hostname}${safe.pathname}`);
-        const res = await safeFetch(safe.toString(), {
+        const out = await brokerHost({
+          who: whoOf(ctx.store.holder, ctx.holder.kind === "person" ? ctx.holder.role : undefined),
+          where: whereOf(ctx),
+          url: safe,
           method,
-          signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(30_000)]),
-          headers: {
-            ...(json !== undefined ? { "content-type": "application/json" } : {}),
-            ...headers,
+          handler: async () => {
+            await ctx.emit("tool", `${method} ${safe.hostname}${safe.pathname}`);
+            const res = await safeFetch(safe.toString(), {
+              method,
+              signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(30_000)]),
+              headers: {
+                ...(json !== undefined ? { "content-type": "application/json" } : {}),
+                ...headers,
+              },
+              body: json !== undefined ? JSON.stringify(json) : undefined,
+            });
+            return { status: res.status, body: clip(await res.text(), 8000) };
           },
-          body: json !== undefined ? JSON.stringify(json) : undefined,
         });
-        return { status: res.status, body: clip(await res.text(), 8000) };
+        return out.ok
+          ? out.result
+          : { error: prompt("tools", "note.host_not_in_grant", { host: safe.hostname }) };
       },
     });
   }
@@ -180,7 +195,7 @@ export async function buildStepTools(
   const browser = allowed.has("browser") ? await browserTools(ctx, assets, files) : {};
   Object.assign(tools, browser);
 
-  // The wizard's lists and files, the documents the person gave and the project's documents are
+  // The wizard's lists and files, the documents the person gave and the space's documents are
   // always at hand. An installed client gets tools over an MCP bridge its CLI starts for every
   // call, seconds of its own: a step with no use for the store goes without its tools, and
   // without others (Knowledge, a workspace file) the client answers without the bridge.
@@ -191,8 +206,9 @@ export async function buildStepTools(
   if (!idle) {
     Object.assign(tools, storeTools(ctx, uploads, files));
   }
-  Object.assign(tools, await projectTools(ctx));
-  const sandbox = allowed.has("sandbox") ? sandboxCapabilities() : null;
+  Object.assign(tools, await spaceTools(ctx));
+  // The run's sandbox: a guest's run has none unless SANDBOX_GUESTS says so (engine/resources.ts).
+  const sandbox = allowed.has("sandbox") ? ctx.resources.sandboxCapabilities() : null;
   Object.assign(
     tools,
     await skillTools(

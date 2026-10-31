@@ -38,8 +38,13 @@ const send = (method: string, path: string, body?: unknown) =>
   );
 const json = async (res: Response | Promise<Response>) => (await res).json() as Promise<any>;
 const local = <T>(fn: () => T | Promise<T>) => client.withTenant("local", fn);
+/** The studio's one person, the owner: the search reads as them (broker/rwx.ts). */
+const who = [
+  { kind: "person" as const, id: "local" },
+  { kind: "role" as const, id: "owner" },
+];
 const flush = async () => {
-  const { flushIndex } = await import("../src/services/project-index");
+  const { flushIndex } = await import("../src/services/space-index");
   await flushIndex();
 };
 
@@ -70,8 +75,8 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request(url("/api/local/enter?k=test-key")));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
-  const projects = await import("../src/services/projects");
-  spaceId = (await local(() => projects.defaultProject("local"))).id;
+  const spaces = await import("../src/services/spaces");
+  spaceId = (await local(() => spaces.defaultSpace("local"))).id;
 }, 60_000);
 
 afterAll(() => {
@@ -90,15 +95,15 @@ describe("Categories", () => {
       { name: "Mängel festgestellt", type: "boolean" },
       { name: "Wichtigkeit", type: "choice", ordered: true, values: ["niedrig", "mittel", "hoch"] },
     ]) {
-      const res = await send("POST", `/api/studio/projects/${spaceId}/categories`, c);
+      const res = await send("POST", `/api/studio/spaces/${spaceId}/categories`, c);
       expect(res.status).toBe(200);
       ids[c.name] = (await res.json()).id;
     }
     const again = await json(
-      send("POST", `/api/studio/projects/${spaceId}/categories`, { name: "baustelle", type: "choice" }),
+      send("POST", `/api/studio/spaces/${spaceId}/categories`, { name: "baustelle", type: "choice" }),
     );
     expect(again.id).toBe(ids.Baustelle);
-    const { categories } = await json(send("GET", `/api/studio/projects/${spaceId}/knowledge`));
+    const { categories } = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
     expect(categories.map((c: any) => [c.name, c.type])).toEqual([
       ["Baustelle", "choice"],
       ["Berichtsdatum", "date"],
@@ -117,7 +122,7 @@ describe("Categories", () => {
     ];
     for (const r of reports) {
       const { id } = await json(
-        send("POST", `/api/studio/projects/${spaceId}/pages`, {
+        send("POST", `/api/studio/spaces/${spaceId}/pages`, {
           title: r.title,
           markdown: `# ${r.title}\n\nBetonarbeiten am Fundament. Bewehrung geprüft.\n\n## Mängel\n\nRiss in der Schalung.`,
         }),
@@ -132,14 +137,14 @@ describe("Categories", () => {
       ] as const) {
         const res = await send(
           "PUT",
-          `/api/studio/projects/${spaceId}/items/p:${id}/categories/${ids[name]}`,
+          `/api/studio/spaces/${spaceId}/items/p:${id}/categories/${ids[name]}`,
           { values: [value] },
         );
         expect(res.status).toBe(200);
       }
     }
     const sub = await json(
-      send("POST", `/api/studio/projects/${spaceId}/pages`, {
+      send("POST", `/api/studio/spaces/${spaceId}/pages`, {
         title: "Fotos",
         parentId: pages["Tagesbericht 14.03.2026"],
         markdown: "Drei Fotos der Bewehrung.",
@@ -151,7 +156,7 @@ describe("Categories", () => {
       path: "pages/tagesbericht-14-03-2026/fotos",
       parents: [{ id: pages["Tagesbericht 14.03.2026"], title: "Tagesbericht 14.03.2026" }],
     });
-    const knowledge = await json(send("GET", `/api/studio/projects/${spaceId}/knowledge`));
+    const knowledge = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
     const first = knowledge.items.find((i: any) => i.id === pages["Tagesbericht 14.03.2026"]);
     expect(first).toMatchObject({ children: 1 });
     const byName = (name: string) => first.categories.find((c: any) => c.categoryId === ids[name]);
@@ -185,13 +190,13 @@ describe("Categories", () => {
   });
 
   it("merge two spellings of a value into one", async () => {
-    const knowledge = await json(send("GET", `/api/studio/projects/${spaceId}/knowledge`));
+    const knowledge = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
     const site = knowledge.categories.find((c: any) => c.name === "Baustelle");
     const [a, b] = site.alike[0];
     const from = site.values.find((v: any) => v.id === a).value === "Graz-Süd" ? a : b;
     const into = from === a ? b : a;
     expect((await send("POST", `/api/studio/values/${from}/merge`, { into })).status).toBe(200);
-    const after = await json(send("GET", `/api/studio/projects/${spaceId}/knowledge`));
+    const after = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
     const merged = after.categories.find((c: any) => c.name === "Baustelle");
     expect(merged.values.map((v: any) => [v.value, v.count])).toEqual([
       ["Graz Süd", 2],
@@ -209,7 +214,7 @@ describe("the search", () => {
   it("indexes a page by its sections, with its path and categories in front", async () => {
     await flush();
     const rows = await local(() =>
-      client.db.query.projectChunk.findMany({
+      client.db.query.spaceChunk.findMany({
         where: (c, { isNotNull }) => isNotNull(c.pageId),
       }),
     );
@@ -219,11 +224,11 @@ describe("the search", () => {
   });
 
   it("filters before it searches, and the classifier cuts and ranks", async () => {
-    const { searchKnowledge } = await import("../src/services/project-index");
+    const { searchKnowledge } = await import("../src/services/space-index");
     relevant = (c) => (c.text.includes("Riss") ? 0.92 : 0.2);
     const before = asked;
     const found = await local(() =>
-      searchKnowledge(spaceId, "Riss Schalung", { where: { Baustelle: "Graz Süd" } }),
+      searchKnowledge(spaceId, "Riss Schalung", { where: { Baustelle: "Graz Süd" }, who }),
     );
     expect(asked).toBe(before + 1);
     expect(found.checked).toBe(true);
@@ -234,31 +239,31 @@ describe("the search", () => {
     ]);
     expect(found.hits.every((h) => h.relevance === 0.92 && h.heading?.endsWith("Mängel"))).toBe(true);
     relevant = () => 0.1;
-    const none = await local(() => searchKnowledge(spaceId, "Riss Schalung"));
+    const none = await local(() => searchKnowledge(spaceId, "Riss Schalung", { who }));
     expect(none.hits).toEqual([]);
     expect(none.candidates).toBeGreaterThan(0);
     relevant = () => 0.9;
   });
 
   it("finds parts of compounds and codes by their trigrams", async () => {
-    await send("POST", `/api/studio/projects/${spaceId}/pages`, {
+    await send("POST", `/api/studio/spaces/${spaceId}/pages`, {
       title: "Cyber-Sicher",
       markdown: "Die Höchstförderhöhe beträgt 30.000 €. Artikel WIN 6 400 I AW-KHSW.",
     });
     await flush();
-    const { searchKnowledge } = await import("../src/services/project-index");
-    const compound = await local(() => searchKnowledge(spaceId, "förderhöhe", { check: false }));
+    const { searchKnowledge } = await import("../src/services/space-index");
+    const compound = await local(() => searchKnowledge(spaceId, "förderhöhe", { check: false, who }));
     expect(compound.hits[0]?.title).toBe("Cyber-Sicher");
     expect(compound.checked).toBe(false);
-    const code = await local(() => searchKnowledge(spaceId, "khsw", { check: false }));
+    const code = await local(() => searchKnowledge(spaceId, "khsw", { check: false, who }));
     expect(code.hits[0]?.title).toBe("Cyber-Sicher");
   });
 });
 
 describe("assets", () => {
   it("are found by their name and description; a new description is found again", async () => {
-    const { addProjectFile, updateProjectFile } = await import("../src/services/project-files");
-    const { searchKnowledge } = await import("../src/services/project-index");
+    const { addSpaceFile, updateSpaceFile } = await import("../src/services/space-files");
+    const { searchKnowledge } = await import("../src/services/space-index");
     const png = Uint8Array.from(
       Buffer.from(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==",
@@ -266,7 +271,7 @@ describe("assets", () => {
       ),
     );
     const row = await local(() =>
-      addProjectFile(spaceId, {
+      addSpaceFile(spaceId, {
         kind: "asset",
         name: "karton.png",
         mime: "image/png",
@@ -275,16 +280,16 @@ describe("assets", () => {
       }),
     );
     await flush();
-    const found = await local(() => searchKnowledge(spaceId, "Versandkarton", { check: false }));
+    const found = await local(() => searchKnowledge(spaceId, "Versandkarton", { check: false, who }));
     expect(found.hits[0]).toMatchObject({ kind: "file", open: `f:${row.id}`, title: "karton.png" });
     expect(found.hits[0]?.text).toContain("image asset");
     await local(() =>
-      updateProjectFile(spaceId, row.id, { description: "Palette mit Schrumpffolie" }),
+      updateSpaceFile(spaceId, row.id, { description: "Palette mit Schrumpffolie" }),
     );
     await flush();
-    const again = await local(() => searchKnowledge(spaceId, "Schrumpffolie", { check: false }));
+    const again = await local(() => searchKnowledge(spaceId, "Schrumpffolie", { check: false, who }));
     expect(again.hits[0]?.open).toBe(`f:${row.id}`);
-    const old = await local(() => searchKnowledge(spaceId, "Versandkarton", { check: false }));
+    const old = await local(() => searchKnowledge(spaceId, "Versandkarton", { check: false, who }));
     expect(old.hits.some((h) => h.open === `f:${row.id}`)).toBe(false);
   });
 });
@@ -341,9 +346,9 @@ describe("what a plugin writes", () => {
       ]);
     });
     await flush();
-    const { searchKnowledge } = await import("../src/services/project-index");
+    const { searchKnowledge } = await import("../src/services/space-index");
     const heavy = await local(() =>
-      searchKnowledge(spaceId, "WIN Kette", { where: { WLL: { gte: 1500 } }, check: false }),
+      searchKnowledge(spaceId, "WIN Kette", { where: { WLL: { gte: 1500 } }, check: false, who }),
     );
     expect(heavy.hits.map((h) => h.text)).toEqual([expect.stringContaining("Code: WIN 8")]);
   });
@@ -411,7 +416,7 @@ describe("documents read into Knowledge", () => {
     const form = new FormData();
     form.append("file", new File([text], name, { type: mime }));
     const res = await app.fetch(
-      new Request(url(`/api/studio/projects/${spaceId}/files?kind=document`), {
+      new Request(url(`/api/studio/spaces/${spaceId}/files?kind=document`), {
         method: "POST",
         headers: { cookie, origin: "http://localhost:5181" },
         body: form,
@@ -420,7 +425,7 @@ describe("documents read into Knowledge", () => {
     expect(res.status).toBe(200);
     const file = await res.json();
     for (let i = 0; i < 100; i++) {
-      const { files } = await json(send("GET", `/api/studio/projects/${spaceId}/files`));
+      const { files } = await json(send("GET", `/api/studio/spaces/${spaceId}/files`));
       if (files.find((f: any) => f.id === file.id)?.status !== "pending") {
         break;
       }
@@ -436,7 +441,7 @@ describe("documents read into Knowledge", () => {
       ...Array.from({ length: 10 }, (_, i) => `WIN ${i + 6};${1000 + i * 100};${(1.5 + i / 10).toFixed(1).replace(".", ",")};0${(i % 9) + 1}.03.2026`),
     ].join("\n");
     const fileId = await upload("kettenprogramm.csv", "text/csv", csv);
-    const { items } = await json(send("GET", `/api/studio/projects/${spaceId}/knowledge`));
+    const { items } = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
     const table = items.find((i: any) => i.fileId === fileId);
     expect(table).toMatchObject({ kind: "table", title: "kettenprogramm", rows: 10, path: "tables/kettenprogramm" });
     expect(items.some((i: any) => i.kind === "file" && i.id === fileId)).toBe(false);
@@ -456,7 +461,7 @@ describe("documents read into Knowledge", () => {
       return `§ ${n} Pflicht ${n}\n\n${"Der Schuldner hat den Schaden zu ersetzen. ".repeat(120)}Siehe § ${n === 285 ? 280 : n + 1}.`;
     }).join("\n\n");
     const fileId = await upload("bgb-auszug.txt", "text/plain", `# BGB Auszug\n\n${paragraphs}`);
-    const { items } = await json(send("GET", `/api/studio/projects/${spaceId}/knowledge`));
+    const { items } = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
     const law = items.find((i: any) => i.fileId === fileId && i.kind === "page");
     expect(law).toMatchObject({ title: "BGB Auszug", children: 6, path: "pages/bgb-auszug" });
     const page = await json(send("GET", `/api/studio/pages/${law.id}`));
@@ -476,25 +481,27 @@ describe("documents read into Knowledge", () => {
 
 describe("the tools of a step", () => {
   it("search with where, list by categories, read a page's section and a table's rows", async () => {
-    const { projectTools } = await import("../src/tools/project");
+    const { spaceTools } = await import("../src/tools/space");
     const emitted: any[] = [];
     const ctx = {
-      project: { id: spaceId },
+      space: { id: spaceId },
+      holder: { kind: "person", id: "local", role: "owner" },
+      store: { wizardId: "w", holder: "u:local" },
       signal: new AbortController().signal,
       emit: async (_type: string, message: unknown) => {
         emitted.push(message);
       },
     } as never;
     await local(async () => {
-      const tools = await projectTools(ctx);
+      const tools = await spaceTools(ctx);
       expect(Object.keys(tools)).toEqual([
-        "project_search",
-        "project_list",
+        "space_search",
+        "space_list",
         "page_read",
         "table_read",
-        "project_document",
+        "space_document",
       ]);
-      const found = await tools.project_search.execute({
+      const found = await tools.space_search.execute({
         query: "Riss Schalung",
         where: { Baustelle: "Graz Süd" },
       });
@@ -505,12 +512,12 @@ describe("the tools of a step", () => {
         section: expect.stringContaining("Mängel"),
         relevance: 0.9,
       });
-      const tree = await tools.project_list.execute({});
+      const tree = await tools.space_list.execute({});
       expect(tree.categories.find((k: any) => k.name === "Baustelle")).toMatchObject({
         type: "choice",
         values: ["Graz Süd (2)", "Linz Hafen (1)"],
       });
-      const listed = await tools.project_list.execute({ where: { Berichtsdatum: { after: "2026-04-01" } } });
+      const listed = await tools.space_list.execute({ where: { Berichtsdatum: { after: "2026-04-01" } } });
       expect(listed.items.map((i: any) => i.path)).toEqual(["pages/tagesbericht-02-04-2026"]);
       const section = await tools.page_read.execute({ path: "pages/tagesbericht-14-03-2026", section: "Mängel" });
       expect(section.page).toContain("categories:\n  Baustelle: Graz Süd");

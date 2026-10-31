@@ -1,12 +1,16 @@
 import {
+  Bell,
   Check,
   ChevronsUpDown,
+  Database,
   Ellipsis,
+  Folder,
   Home,
   Inbox,
   Info,
   Layers,
   type LucideIcon,
+  MessageSquare,
   Monitor,
   Moon,
   Palette,
@@ -16,8 +20,10 @@ import {
   PanelRight,
   PanelTop,
   Plus,
+  ScrollText,
   Settings,
   Sun,
+  Toolbox,
 } from "lucide-react";
 import {
   lazy,
@@ -38,14 +44,19 @@ import {
   setAppBar,
   useAppBar,
 } from "../lib/appbar";
+import { useFeature } from "../lib/features";
 import { type Key, t } from "../lib/i18n";
-import { type Me, useCurrentProject, useMayCreate } from "../lib/session";
+import { useMode } from "../lib/mode";
+import { type Me, useCurrentSpace, useMayCreate } from "../lib/session";
 import { setTheme, type ThemeMode, useThemePick } from "../lib/theme";
 import { PluginFrame, useStudioPlugins } from "../plugins/host";
 import { cn } from "../ui";
 import { SpaceFace, SpaceMenu, UserMenu, useDismiss, useOneSpace } from "./AppFrame";
 import { EngentyMenu } from "./EngentyMenu";
+import { ModeSwitch } from "./ModeSwitch";
 import { type PrimaryAction, useCurrentPrimaryAction } from "./primary-action";
+import { useWaiting } from "./work/chats";
+import { EngentyGlyph, WORK_PLACES, type WorkPlace } from "./work/WorkPages";
 
 const AboutDialog = lazy(() =>
   import("../about/AboutDialog").then((m) => ({ default: m.AboutDialog })),
@@ -53,8 +64,8 @@ const AboutDialog = lazy(() =>
 
 /**
  * The app bar at an edge of the window: the engenty in the corner (its menu holds what belongs to
- * the app itself), the space (it switches between spaces), its home (the wizards), its sources
- * (Info, Brand, Knowledge, Data), its results, the apps the plugins added, and at its end the
+ * the app itself), the switch between the modes under it, the space (it switches between spaces), its home (the wizards), its sources
+ * (Info, Brand, Knowledge, Data), its skills, its results, the apps the plugins added, and at its end the
  * settings and the person. A place is a filled tile, a tool a line glyph; the one that is open is
  * cut from the page's own paper. On a wide window a bar at a side names its places beside
  * their glyphs, unless another sidebar stands beside the page. A right click on the bar, or a
@@ -84,14 +95,14 @@ function Label({ children }: { children: string }) {
  * bar that names its places, the space's name stands beside it.
  */
 export function SpaceTile({ me, labels }: { me: Me; labels?: boolean }) {
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   const one = useOneSpace(me);
   const name = one ? (me.tenant.name ?? undefined) : undefined;
   return (
     <SpaceMenu
       me={me}
       placement="bar-start"
-      label={project?.name ?? t("nav.space")}
+      label={space?.name ?? t("nav.space")}
       className={(open) =>
         labels
           ? cn(
@@ -105,11 +116,11 @@ export function SpaceTile({ me, labels }: { me: Me; labels?: boolean }) {
       }
     >
       {/* One space: the tile stands for the organization. */}
-      <SpaceFace project={project} name={name} />
+      <SpaceFace space={space} name={name} />
       {labels ? (
         <>
           <span className="min-w-0 flex-1 truncate font-semibold text-[0.875rem] text-ink">
-            {name ?? project?.name ?? t("nav.space")}
+            {name ?? space?.name ?? t("nav.space")}
           </span>
           {one ? null : <ChevronsUpDown className="size-4 shrink-0 text-ink-4" />}
         </>
@@ -233,14 +244,31 @@ function BarMenu({
   );
 }
 
-/** The place in the bar a page belongs to: Home (the wizards), the space's sources, its results. */
-function usePlace(): "home" | "new" | "space" | "results" | "settings" | null {
+/**
+ * The place in the bar a page belongs to: Home (the wizards), the space's sources, its skills (or
+ * Fähigkeiten, which holds them), its results.
+ */
+function usePlace():
+  | "home"
+  | "new"
+  | "space"
+  | "skills"
+  | "capabilities"
+  | "results"
+  | "settings"
+  | null {
   const { pathname } = useLocation();
   if (pathname === "/new") {
     return "new";
   }
   if (pathname === "/" || pathname.startsWith("/edit/")) {
     return "home";
+  }
+  if (pathname === "/skills") {
+    return "skills";
+  }
+  if (pathname === "/capabilities" || pathname.startsWith("/capabilities/")) {
+    return "capabilities";
   }
   if (pathname === "/space/results" || pathname.startsWith("/space/results/")) {
     return "results";
@@ -251,15 +279,68 @@ function usePlace(): "home" | "new" | "space" | "results" | "settings" | null {
   return pathname === "/space" || pathname.startsWith("/space/") ? "space" : null;
 }
 
+const WORK_ICON: Record<WorkPlace, LucideIcon | typeof EngentyGlyph> = {
+  chats: MessageSquare,
+  engenties: EngentyGlyph,
+  files: Folder,
+  data: Database,
+  results: Inbox,
+  waiting: Bell,
+};
+
+/**
+ * Work's places in the bar: Chats, Engenties, Files, Data, Results, then the bell with what waits
+ * for the person (the calls held for their approval, and for an admin the broker's critical lines
+ * they have not seen; its count shows from one on).
+ */
+function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean }) {
+  const bell = useWaiting().data;
+  const waiting = (bell?.approvals.length ?? 0) + (bell?.unseen ?? 0);
+  return (
+    <nav
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1",
+        labels ? "items-stretch" : "items-center",
+        horizontal ? "ml-1.5 flex-row gap-1.5 overflow-x-auto" : "mt-2 flex-col gap-2",
+      )}
+    >
+      {WORK_PLACES.map(({ place, to, label }) => {
+        const Icon = WORK_ICON[place];
+        return (
+          <NavLink
+            key={place}
+            to={to}
+            end
+            title={t(label)}
+            aria-label={t(label)}
+            className={({ isActive }) => cn(glyph(isActive, labels), "relative")}
+          >
+            <Icon className="size-5 shrink-0" />
+            {labels ? <Label>{t(label)}</Label> : null}
+            {place === "waiting" && waiting > 0 ? (
+              <span className="absolute top-0.5 left-6 grid h-4 min-w-4 place-items-center rounded-full bg-ember px-1 font-bold text-[0.625rem] text-white">
+                {waiting}
+              </span>
+            ) : null}
+          </NavLink>
+        );
+      })}
+    </nav>
+  );
+}
+
 /**
  * `labels`: the bar names its places now (`useAppBarLabels`); `room`: it could, so the menu
  * offers it.
  */
 export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: boolean }) {
   const plugins = useStudioPlugins();
+  const skillsOn = useFeature("skills");
+  const capabilitiesOn = useFeature("capabilities");
   const { position } = useAppBar();
   const horizontal = isHorizontal(position);
   const place = usePlace();
+  const mode = useMode(me);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
@@ -337,74 +418,116 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
       {/* Beside the page, the engenty's row is as tall as the page's top bar, so the two sit on
           one line. */}
       <EngentyMenu me={me} position={position} horizontal={horizontal} labels={labels} />
-      <div className={horizontal ? "ml-1" : "mt-2"}>
+      <div className={horizontal ? "ml-1" : "mt-1"}>
         <SpaceTile me={me} labels={labels} />
       </div>
-      <Link
-        to="/"
-        title={t("nav.home")}
-        aria-label={t("nav.home")}
-        aria-current={place === "home" || place === "new" ? "page" : undefined}
-        className={cn(
-          glyph(place === "home" || place === "new", labels),
-          horizontal ? "ml-1.5" : "mt-2",
-        )}
-      >
-        <Home className="size-5 shrink-0" />
-        {labels ? <Label>{t("nav.home")}</Label> : null}
-      </Link>
-      {/* The space's sources: Info, Brand, Knowledge and Data. */}
-      <Link
-        to="/space"
-        title={t("nav.sources")}
-        aria-label={t("nav.sources")}
-        aria-current={place === "space" ? "page" : undefined}
-        className={cn(glyph(place === "space", labels), horizontal ? "ml-1.5" : "mt-2")}
-      >
-        <Layers className="size-5 shrink-0" />
-        {labels ? <Label>{t("nav.sources")}</Label> : null}
-      </Link>
-      {/* What the space's wizards made. */}
-      <Link
-        to="/space/results"
-        title={t("space.results")}
-        aria-label={t("space.results")}
-        aria-current={place === "results" ? "page" : undefined}
-        className={cn(glyph(place === "results", labels), horizontal ? "ml-1.5" : "mt-2")}
-      >
-        <Inbox className="size-5 shrink-0" />
-        {labels ? <Label>{t("space.results")}</Label> : null}
-      </Link>
-      {/* The pages plugins added, each behind its icon, after a divider. */}
-      {plugins.nav.length ? (
-        <div
-          className={cn(
-            "shrink-0 bg-border",
-            horizontal ? "mx-2 h-7 w-px" : cn("my-3 h-px", labels ? "mx-2.5" : "w-7"),
-          )}
-        />
-      ) : null}
-      <nav
-        className={cn(
-          "flex min-h-0 min-w-0 flex-1 gap-1.5",
-          labels ? "items-stretch" : "items-center",
-          horizontal ? "flex-row overflow-x-auto" : "flex-col overflow-y-auto",
-        )}
-      >
-        {plugins.nav.map((entry) => (
-          <PluginFrame key={entry.serial} of={entry}>
-            <NavLink
-              to={entry.to}
-              title={entry.label()}
-              aria-label={entry.label()}
-              className={({ isActive }) => glyph(isActive, labels)}
+      {/* The mode, always in sight: under the space, near the engenty that wears it. */}
+      <ModeSwitch
+        me={me}
+        look={horizontal ? "row" : labels ? "named" : "stacked"}
+        className={horizontal ? "ml-1" : "mt-2"}
+      />
+      {mode === "work" ? (
+        <WorkRail labels={labels} horizontal={horizontal} />
+      ) : mode === "client" ? (
+        <div className="min-h-0 min-w-0 flex-1" />
+      ) : (
+        <>
+          <Link
+            to="/"
+            title={t("nav.home")}
+            aria-label={t("nav.home")}
+            aria-current={place === "home" || place === "new" ? "page" : undefined}
+            className={cn(
+              glyph(place === "home" || place === "new", labels),
+              horizontal ? "ml-1.5" : "mt-2",
+            )}
+          >
+            <Home className="size-5 shrink-0" />
+            {labels ? <Label>{t("nav.home")}</Label> : null}
+          </Link>
+          {/* The space's sources: Info, Brand, Knowledge and Data. */}
+          <Link
+            to="/space"
+            title={t("nav.sources")}
+            aria-label={t("nav.sources")}
+            aria-current={place === "space" ? "page" : undefined}
+            className={cn(glyph(place === "space", labels), horizontal ? "ml-1.5" : "mt-2")}
+          >
+            <Layers className="size-5 shrink-0" />
+            {labels ? <Label>{t("nav.sources")}</Label> : null}
+          </Link>
+          {/* What the space's wizards, chats and Goose may use: Fähigkeiten, behind its switch; else
+              the skills the space's wizards work by, behind theirs. */}
+          {capabilitiesOn ? (
+            <Link
+              to="/capabilities"
+              title={t("nav.capabilities")}
+              aria-label={t("nav.capabilities")}
+              aria-current={place === "capabilities" ? "page" : undefined}
+              className={cn(
+                glyph(place === "capabilities", labels),
+                horizontal ? "ml-1.5" : "mt-2",
+              )}
             >
-              <entry.icon className="size-5 shrink-0" />
-              {labels ? <Label>{entry.label()}</Label> : null}
-            </NavLink>
-          </PluginFrame>
-        ))}
-      </nav>
+              <Toolbox className="size-5 shrink-0" />
+              {labels ? <Label>{t("nav.capabilities")}</Label> : null}
+            </Link>
+          ) : skillsOn ? (
+            <Link
+              to="/skills"
+              title={t("space.skills")}
+              aria-label={t("space.skills")}
+              aria-current={place === "skills" ? "page" : undefined}
+              className={cn(glyph(place === "skills", labels), horizontal ? "ml-1.5" : "mt-2")}
+            >
+              <ScrollText className="size-5 shrink-0" />
+              {labels ? <Label>{t("space.skills")}</Label> : null}
+            </Link>
+          ) : null}
+          {/* What the space's wizards made. */}
+          <Link
+            to="/space/results"
+            title={t("space.results")}
+            aria-label={t("space.results")}
+            aria-current={place === "results" ? "page" : undefined}
+            className={cn(glyph(place === "results", labels), horizontal ? "ml-1.5" : "mt-2")}
+          >
+            <Inbox className="size-5 shrink-0" />
+            {labels ? <Label>{t("space.results")}</Label> : null}
+          </Link>
+          {/* The pages plugins added, each behind its icon, after a divider. */}
+          {plugins.nav.length ? (
+            <div
+              className={cn(
+                "shrink-0 bg-border",
+                horizontal ? "mx-2 h-7 w-px" : cn("my-3 h-px", labels ? "mx-2.5" : "w-7"),
+              )}
+            />
+          ) : null}
+          <nav
+            className={cn(
+              "flex min-h-0 min-w-0 flex-1 gap-1.5",
+              labels ? "items-stretch" : "items-center",
+              horizontal ? "flex-row overflow-x-auto" : "flex-col overflow-y-auto",
+            )}
+          >
+            {plugins.nav.map((entry) => (
+              <PluginFrame key={entry.serial} of={entry}>
+                <NavLink
+                  to={entry.to}
+                  title={entry.label()}
+                  aria-label={entry.label()}
+                  className={({ isActive }) => glyph(isActive, labels)}
+                >
+                  <entry.icon className="size-5 shrink-0" />
+                  {labels ? <Label>{entry.label()}</Label> : null}
+                </NavLink>
+              </PluginFrame>
+            ))}
+          </nav>
+        </>
+      )}
       <div
         className={cn(
           "flex shrink-0 gap-2",
@@ -430,7 +553,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
 
 /**
  * A phone's bar: always along the bottom, floating over the page as glass. It holds the space and
- * its two places to go every day, Home and the space's sources; "⋯" holds the rest (results, the
+ * its two places to go every day, Home and the space's sources; "⋯" holds the rest (skills or Fähigkeiten, results, the
  * plugins' apps, then what the engenty's menu holds, the settings among it). The person sits at the top.
  */
 /**
@@ -494,12 +617,14 @@ function Capsule({ index }: { index: number | null }) {
 /**
  * A phone's bar: always along the bottom, a capsule of glass floating over the page. Three tabs:
  * the space's two places to go every day, Home and its sources, and "More" with the rest in a menu:
- * Results, the settings, the plugins' apps, then About (in a dialog). Beside it, on glass of its
+ * Skills (or Fähigkeiten), Results, the settings, the plugins' apps, then About (in a dialog). Beside it, on glass of its
  * own, the page's main action (`usePrimaryAction`), else a new wizard. The space and the person
  * sit in the top bar.
  */
 export function PhoneBar({ me }: { me: Me }) {
   const plugins = useStudioPlugins();
+  const skillsOn = useFeature("skills");
+  const capabilitiesOn = useFeature("capabilities");
   const place = usePlace();
   const [open, setOpen] = useState(false);
   const [about, setAbout] = useState(false);
@@ -507,11 +632,11 @@ export function PhoneBar({ me }: { me: Me }) {
   const ref = useRef<HTMLElement>(null);
   const named = useCurrentPrimaryAction();
   const mayCreate = useMayCreate();
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   // The round button: what the page names, else a new wizard (not where one is being made).
   const action: PrimaryAction | null =
     named ??
-    (mayCreate && !project?.readOnly && place !== "new"
+    (mayCreate && !space?.readOnly && place !== "new"
       ? { icon: Plus, label: t("home.new"), run: () => navigate("/new") }
       : null);
   useDismiss(ref, open, () => setOpen(false));
@@ -527,7 +652,10 @@ export function PhoneBar({ me }: { me: Me }) {
       ? 0
       : place === "space"
         ? 1
-        : place === "results" || place === "settings"
+        : place === "skills" ||
+            place === "capabilities" ||
+            place === "results" ||
+            place === "settings"
           ? 2
           : null;
   const go = (to: string) => {
@@ -571,7 +699,13 @@ export function PhoneBar({ me }: { me: Me }) {
           aria-expanded={open}
           aria-haspopup="menu"
           onClick={() => setOpen((o) => !o)}
-          className={tab(open || place === "results" || place === "settings")}
+          className={tab(
+            open ||
+              place === "skills" ||
+              place === "capabilities" ||
+              place === "results" ||
+              place === "settings",
+          )}
         >
           <Ellipsis className="size-[1.375rem]" />
         </button>
@@ -582,6 +716,27 @@ export function PhoneBar({ me }: { me: Me }) {
             role="menu"
             className="absolute right-0 bottom-full mb-3 flex w-60 animate-rise flex-col rounded-2xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft"
           >
+            {capabilitiesOn ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={row(place === "capabilities")}
+                onClick={() => go("/capabilities")}
+              >
+                <Toolbox className="size-[1.125rem] shrink-0 text-ink-3" />
+                <span className="min-w-0 flex-1 truncate">{t("nav.capabilities")}</span>
+              </button>
+            ) : skillsOn ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={row(place === "skills")}
+                onClick={() => go("/skills")}
+              >
+                <ScrollText className="size-[1.125rem] shrink-0 text-ink-3" />
+                <span className="min-w-0 flex-1 truncate">{t("space.skills")}</span>
+              </button>
+            ) : null}
             <button
               type="button"
               role="menuitem"

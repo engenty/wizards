@@ -4,12 +4,12 @@ import {
   type WidgetStep,
   widgetSize,
 } from "@engenty/wizards-shared/definition";
-import { runTheme } from "@engenty/wizards-shared/projects";
 import type { StepOutput } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
+import { runTheme } from "@engenty/wizards-shared/spaces";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { resolveRef } from "../engine/template.js";
-import { type ProjectRow, type StepContext, StepError } from "../engine/types.js";
+import { type SpaceRow, type StepContext, StepError } from "../engine/types.js";
 import { extFor, inlineAssetRefs, loadAsset } from "../files/storage.js";
 import { snapshotDataImages } from "../files/web-images.js";
 import { type AiOrigin, markMedia } from "../media/marking.js";
@@ -18,19 +18,19 @@ import { snapshotFile } from "../services/files.js";
 import { bundleWidget, type WidgetBrand } from "./bundle.js";
 import { MOTION_MEDIA_ORIGIN, type MotionMedia, probeWidget, renderMotion } from "./render.js";
 
-export async function widgetBrand(project: ProjectRow): Promise<WidgetBrand> {
-  const logoId = await mainLogoId(project.id);
+export async function widgetBrand(space: SpaceRow): Promise<WidgetBrand> {
+  const logoId = await mainLogoId(space.id);
   const logo = logoId ? await loadAsset(logoId) : null;
-  const colors = project.brand.colors ?? [];
+  const colors = space.brand.colors ?? [];
   return {
-    name: project.brand.name ?? "",
+    name: space.brand.name ?? "",
     accent: colors[0]?.value ?? null,
     logo: logo ? `data:${logo.row.mime};base64,${logo.data.toString("base64")}` : null,
     colors,
     facts: Object.fromEntries(
-      project.facts.filter((f) => f.value.trim()).map((f) => [f.key, f.value]),
+      space.facts.filter((f) => f.value.trim()).map((f) => [f.key, f.value]),
     ),
-    theme: runTheme(project.brand),
+    theme: runTheme(space.brand),
   };
 }
 
@@ -178,7 +178,7 @@ export async function runWidgetStep(step: WidgetStep, ctx: StepContext): Promise
     entry: step.entry,
     files: ctx.files,
     data,
-    brand: await widgetBrand(ctx.project),
+    brand: await widgetBrand(ctx.space),
     media: step.video ? MOTION_MEDIA_ORIGIN : undefined,
     ai: origin,
   });
@@ -231,7 +231,7 @@ export async function runWidgetStep(step: WidgetStep, ctx: StepContext): Promise
 export async function widgetPreviewHtml(
   step: WidgetStep,
   files: WorkspaceFile[],
-  project: ProjectRow,
+  space: SpaceRow,
   data?: unknown,
 ): Promise<string> {
   let sample: unknown = data ?? {};
@@ -249,6 +249,6 @@ export async function widgetPreviewHtml(
     entry: step.entry,
     files,
     data: sample,
-    brand: await widgetBrand(project),
+    brand: await widgetBrand(space),
   });
 }

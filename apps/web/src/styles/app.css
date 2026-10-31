@@ -1,6 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 @import "@xyflow/react/dist/base.css";
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "./shadcn-tailwind.css";
 @import "@engenty/wizards-runner/theme.css";
 @import "./shadcn-ember.css";
 
@@ -375,7 +377,7 @@ a,
   animation: unfold 0.2s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
 }
 
-/* The project assistant, once its card is scrolled away: it comes in from the lower edge. */
+/* The space assistant, once its card is scrolled away: it comes in from the lower edge. */
 @keyframes dock {
   from {
     opacity: 0;

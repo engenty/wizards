@@ -233,8 +233,11 @@ export function UsageMeter({ messages, narrow }: { messages: ChatMessage[]; narr
   );
 }
 
+/** A chat's messages as the thread's JSON takes them: Goose's, or a Work chat's. */
+type ThreadMessage = object & { previews?: unknown };
+
 /** The thread with the recorded turns, as JSON. */
-export function threadJson(messages: ChatMessage[], turns: DevTurn[]): string {
+export function threadJson(messages: ThreadMessage[], turns: DevTurn[]): string {
   return JSON.stringify(
     {
       messages: messages.map(({ previews: _, ...m }) => m),
@@ -245,7 +248,7 @@ export function threadJson(messages: ChatMessage[], turns: DevTurn[]): string {
   );
 }
 
-export function CopyThread({ messages, turns }: { messages: ChatMessage[]; turns: DevTurn[] }) {
+export function CopyThread({ messages, turns }: { messages: ThreadMessage[]; turns: DevTurn[] }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) {
@@ -396,11 +399,14 @@ export function TurnsDialog({
   onClose,
   turns,
   messages,
+  file = "goose",
 }: {
   open: boolean;
   onClose: () => void;
+  /** The start of the download's name. */
+  file?: string;
   turns: DevTurn[];
-  messages: ChatMessage[];
+  messages: ThreadMessage[];
 }) {
   const [tab, setTab] = useState<"timeline" | "prompt" | "events">("timeline");
   const last = turns.at(-1);
@@ -411,7 +417,7 @@ export function TurnsDialog({
     const blob = new Blob([`${lines.join("\n")}\n`], { type: "application/x-ndjson" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `goose-${new Date().toISOString().slice(0, 19)}.jsonl`;
+    a.download = `${file}-${new Date().toISOString().slice(0, 19)}.jsonl`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };

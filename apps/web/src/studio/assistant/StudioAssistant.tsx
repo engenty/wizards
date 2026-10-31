@@ -14,6 +14,7 @@ import {
   PanelRight,
   Pencil,
   PhoneOff,
+  ShieldQuestion,
   SquarePen,
   Volume2,
   X,
@@ -65,7 +66,13 @@ import {
 } from "./dock";
 import { canLive } from "./live";
 import { type AssistantSuggestion, usePageAssistant } from "./page";
-import { openStudioLink, setHighlight, useHighlight } from "./tools";
+import {
+  dropConfirmation,
+  openStudioLink,
+  setHighlight,
+  useConfirmation,
+  useHighlight,
+} from "./tools";
 
 // The gallery's cards come with the gallery's code, loaded when an answer shows templates.
 const MarketplaceCards = lazy(() =>
@@ -399,7 +406,7 @@ function ReadChat({ id }: { id: string }) {
           send: async () => false,
         }}
         avatar="round"
-        changedLabel={t("project.assistantChanged")}
+        changedLabel={t("space.assistantChanged")}
         // Its cards show again with what their tools returned; nothing is sent from here.
         card={(card) => <AnswerCard card={card} send={() => undefined} />}
         calls={(m) => <Calls calls={m.toolCalls} />}
@@ -460,7 +467,7 @@ function Thread({
         <Messages
           chat={chat}
           avatar="round"
-          changedLabel={t("project.assistantChanged")}
+          changedLabel={t("space.assistantChanged")}
           card={(card) => <AnswerCard card={card} send={(message) => void chat.send(message)} />}
           calls={(m) =>
             state.dev.on ? <ToolDetails calls={m.toolCalls} /> : <Calls calls={m.toolCalls} />
@@ -538,30 +545,6 @@ function ChatMenu({ state }: { state: AssistantState }) {
   );
 }
 
-/** The developer mode's switch beside the name, where the runtime offers it. */
-function DevSwitch({ state }: { state: AssistantState }) {
-  const on = state.dev.on;
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={t("assistant.dev")}
-      title={on ? t("assistant.devOn") : t("assistant.devOff")}
-      onClick={() => state.dev.set(!on)}
-      className={cn(
-        "inline-flex h-5 shrink-0 items-center gap-1 rounded-full font-mono font-semibold text-[0.625rem] uppercase tracking-wide transition",
-        on
-          ? "bg-ember pr-0.5 pl-2 text-white"
-          : "flex-row-reverse bg-paper-3 pr-2 pl-0.5 text-ink-3",
-      )}
-    >
-      dev
-      <span className="size-4 rounded-full bg-white shadow-sm" />
-    </button>
-  );
-}
-
 function Header({
   state,
   where,
@@ -608,7 +591,7 @@ function Header({
       ) : where !== "sidebar" ? null : (
         <Mascot kind="round" size={26} helmet interactive={false} />
       )}
-      {/* Never narrower than the name and the developer switch. */}
+      {/* Never narrower than the name. */}
       <div className="mr-1 ml-1.5 min-w-[8.5rem] flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
           {state.view.kind === "chat" ? (
@@ -618,7 +601,6 @@ function Header({
               {t("assistant.earlier")}
             </span>
           )}
-          {state.dev.offered && state.view.kind === "chat" ? <DevSwitch state={state} /> : null}
           {/* On the name's line: live, or what Goose sees, shortened where the row ends. */}
           {live.state !== "off" ? (
             <span className="flex shrink-0 items-center gap-1.5 text-[0.75rem] text-ember-strong">
@@ -782,6 +764,55 @@ function CallStrip({ state }: { state: AssistantState }) {
 }
 
 /** What the person wrote while Goose works: into its next step, or after the answer. */
+/**
+ * A change Goose is about to make through one of the person's connections: the connection, the
+ * action, what would be sent, and their yes or no. The turn waits for it; Stop answers no.
+ */
+function ConfirmationCard({ state }: { state: AssistantState }) {
+  const confirmation = useConfirmation();
+  const idle = state.chat.phase === "idle";
+  useEffect(() => {
+    if (idle) {
+      dropConfirmation();
+    }
+  }, [idle]);
+  if (!confirmation) {
+    return null;
+  }
+  return (
+    <div className="mb-2 grid gap-2.5 rounded-xl border border-ember/40 bg-card p-3 text-[0.8125rem]">
+      <p className="flex items-center gap-2 font-medium text-ink">
+        <ShieldQuestion className="size-4 shrink-0 text-ember" />
+        {t(confirmation.destructive ? "assistant.confirm.delete" : "assistant.confirm.change", {
+          service: confirmation.service,
+        })}
+      </p>
+      <p className="text-ink-2">{confirmation.action}</p>
+      {confirmation.input && confirmation.input !== "{}" ? (
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-ink/5 px-3 py-2 text-[0.75rem] text-ink">
+          {confirmation.input}
+        </pre>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => confirmation.answer(true)}
+          className="inline-flex h-8 items-center rounded-full bg-primary px-3 font-medium text-[0.8125rem] text-primary-foreground"
+        >
+          {t("assistant.confirm.yes")}
+        </button>
+        <button
+          type="button"
+          onClick={() => confirmation.answer(false)}
+          className="inline-flex h-8 items-center rounded-full px-3 text-ink-2 ring-1 ring-border hover:bg-paper-2"
+        >
+          {t("assistant.confirm.no")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Pending({
   state,
   composer,
@@ -932,6 +963,7 @@ function Bottom({
         <CallStrip state={state} />
       ) : (
         <>
+          <ConfirmationCard state={state} />
           <Pending state={state} composer={composer} />
           <Composer
             ref={composer}

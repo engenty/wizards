@@ -5,8 +5,8 @@ import { MAX_WIZARD_THEMES, themeSchema } from "./theme.js";
 
 /**
  * A wizard as a file, `<title>.wizard`: a zip with `wizard.json` — the definition and what it
- * needs from its project, with the space's themes it names — and the workspace under `files/`. What belongs to people (runs, lists, connected
- * accounts) and to the project (brand, credentials) stays where it is.
+ * needs from its space, with the space's themes it names — and the workspace under `files/`. What belongs to people (runs, lists, connected
+ * accounts) and to the space (brand, credentials) stays where it is.
  */
 
 export const PACKAGE_FORMAT = "engenty-wizard";
@@ -51,7 +51,7 @@ export const manifestSchema = z.object({
     .default([]),
   /** The space's themes the wizard names: a wizard file ships its looks with it. */
   themes: z.array(themeSchema).max(MAX_WIZARD_THEMES).default([]),
-  /** The project's pages under `files/knowledge/`, when they were asked for: how many, and whether the cap cut some. */
+  /** The space's pages under `files/knowledge/`, when they were asked for: how many, and whether the cap cut some. */
   knowledge: z.object({ pages: z.number().int(), truncated: z.boolean() }).optional(),
 });
 

@@ -2,7 +2,7 @@
 The authoring guide: how a wizard is written down and what makes a good one. Read by
 authoring/guide.ts. authoringGuide() (section guide) is what MCP clients get from
 get_authoring_guide and what Goose knows; the architect (agents/architect.ts) builds its own
-system prompt from schema, principles, widgets, surfaces and the line.* sections (projectLines()).
+system prompt from schema, principles, widgets, surfaces and the line.* sections (spaceLines()).
 engine/steps.ts reads surfaces too.
 -->
 
@@ -37,6 +37,7 @@ ${sandbox}
 - Collecting from everyone who runs the wizard (requests, leads, sign-ups, feedback): a list with "shared": true, saved with list_write. It is the admin's, under Space → Data; never show one person's rows to another. Longer text for every run (a running summary, a log): the "pages" tool.
 - The person's mail: one connection of kind "mail", a page field of kind "connection" early in the wizard, and the agent step lists it in "connections". Do not ask for the provider or the address in other fields — the connect field does that.
 - Working in a service for the person (read their Notion, create an issue, look up a customer): import the service as a connector, declare a connection with "connector", put a page field of kind "connection" before the step, and list the connection in the step's "connections". Prefer a connector over the browser whenever the service has one.
+- Working in the space's own account (its CRM, its calendar, its mailbox — set up by the admins, listed below as connections of the space): declare a connection with "spaceConnection", no connect field. AI steps READ there; every WRITE (create, update, send, delete) is a fixed step: "call" with the connection, the action and fixed input fields from the run's values — the AI never writes as the space, and the person running is never asked for it. Example: an agent step reads the request and extracts the fields; then { "type": "agent", "call": { "connection": "crm", "action": "create_contact", "input": { "email": "{{email}}", "note": "{{steps.read.summary}}" } }, "output": { "format": "json" } }.
 - Logins on websites: never ask for passwords in page fields. An agent step with the browser tool asks the person at the moment it meets the login (browser_request_credentials); write that into its instructions, and that it must go on without the site when the person skips.
 - Most people open a wizard on their phone. Keep pages short, and let the phone do the typing: photos with an "image" field (multiple) instead of descriptions, the place with a "location" field instead of an address form, what happened as an "audio" field instead of a long textarea (keep an optional textarea beside it), a sign-off as a "signature" field, a serial or ticket number as a "text" field with scan. Typical: damage report, handover protocol, site inspection, delivery note.
 - How it runs: the first message may name the channels ("Läuft als: …" / "Runs as: …"); they are set already, never ask about them. A call, an SMS or WhatsApp asks by voice or text only: where one of them is named, keep each answer to text, a choice, a number or a date, and leave photos, files, signatures and maps to pages that only the browser shows (a call hands over a link by SMS).
@@ -58,7 +59,7 @@ ${sandbox}
 <!-- Technical: engineering owns everything below. -->
 
 <!-- section: guide -->
-<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; project_tools is projectLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON. -->
+<!-- authoringGuide(): the whole guide. schema, principles, widgets and surfaces are the sections below; space_tools is spaceLines(): the line.* sections below, joined by blank lines; example is the example wizard as JSON. -->
 engenty wizards: a wizard is a page-by-page flow an end user walks through on a shared link. Pages ask questions; AI steps research, write, draw images, render video, build documents and dashboards, or write into other systems. You author the wizard as JSON; the person who asked you is the ADMIN, the people who later open the link are END USERS.
 
 ${schema}
@@ -70,7 +71,7 @@ ${widgets}
 Surface catalog (for surface steps and output.surface):
 ${surfaces}
 
-${project_tools}
+${space_tools}
 
 Models: a step names the KIND of model it needs, never a model. Pick the cheapest class that does the job:
 - "classifier": routing, yes/no, picking from options, pulling a few values out of text.
@@ -131,9 +132,14 @@ type List = {
 type Connection =
   | { id, kind: "mail", title?, description? }
       // the person picks how to connect (Gmail, Outlook, or any mailbox over IMAP); steps only ever READ it
+  | { id, spaceConnection: spaceConnectionId, actions?: actionId[], title?, description? }
+      // a connection of the SPACE (listed below), set up by its admins, who chose how it signs in, who may use it and
+      //   what each kind of action may do; the wizard holds no account and "policy" has no say. Where it signs in as
+      //   the space, an agent step that lists it gets its READ actions only: a write is a fixed step with "call"
+      //   (connection + action + fixed input), never the model's. Where each person signs in, it works like "connector".
   | { id, connector: connectorId, actions?: actionId[], policy?: { [actionId]: "allow"|"ask" }, title?, description? }
       // connector = a service the wizard works in for the person: a built-in one (Gmail, Google Drive, Calendar and
-      //   Contacts, Outlook, OneDrive, Slack, GitHub, HubSpot, S3) or one imported into the project from the
+      //   Contacts, Outlook, OneDrive, Slack, GitHub, HubSpot, S3) or one imported into the space from the
       //   integrations registry. The person connects their own account (OAuth or API key) on a page.
       //   kind "mail" reads any mailbox the same way and keeps attachments as files; use the gmail / outlook
       //   connectors only for what it cannot do (drafts, sending, labels, calendar).
@@ -237,10 +243,14 @@ type AgentStep = {
   type: "agent"
   instructions: string          // the task, with {{templates}} ("" with call)
   call?: { tool: "<plugin>.<tool>", input: { … } }
-                                // NO MODEL: one plugin tool called once with this input; its answer IS the json output
-                                //   (fields name the keys later steps read). Use it where a model would only fetch and copy
-                                //   data (free appointment times) — it answers in a second instead of half a minute.
-                                //   String inputs are templates; a filled-in whole number or true/false is passed as one.
+       | { connection: connectionId, action: actionId, input: { … } }
+                                // NO MODEL: one plugin tool, or one action of a connection, called once with this input; its
+                                //   answer IS the json output (fields name the keys later steps read). Use it where a model
+                                //   would only fetch and copy data (free appointment times) — it answers in a second instead
+                                //   of half a minute — and for EVERY write through a connection that signs in as the space.
+                                //   String inputs are templates ("{{email}}", "{{steps.read.summary}}"); a filled-in whole
+                                //   number or true/false is passed as one, an empty one is left out. On the person's own
+                                //   connection a write still asks them first.
   tools: ("web_search"|"web_fetch"|"browser"|"sandbox"|"image"|"http"|"pages"|"code")[]
   connections?: string[]        // ids of wizard connections this step may read (mail → mail_search, mail_read, mail_save)
   output: { format: "text"|"markdown"|"json", fields?: { id, kind: "text"|"number"|"list"|"table"|"yesno"|"choice"|"score", description, columns?: string[], options?: string[] }[], schema?: Schema, surface?: SurfaceComponent[] | true }
@@ -259,8 +269,8 @@ type AgentStep = {
 // Every agent step also has, without listing them: list_read / list_write (the wizard's lists), files_list,
 //   read_document (PDF, scans and photos, Word, Excel, CSV, saved mails) and scan_documents (invoice / receipt fields, many at once)
 //   — on an installed client only where there is something to read: tools or connections, uploads, lists or kept files;
-//   and where the space has Knowledge: project_search (a question, "where" on its typed categories, hits checked for relevance),
-//   project_list (by categories), page_read / table_read / project_document (an item whole, by its path).
+//   and where the space has Knowledge: space_search (a question, "where" on its typed categories, hits checked for relevance),
+//   space_list (by categories), page_read / table_read / space_document (an item whole, by its path).
 // "pages" brings: page_read / page_write — Markdown pages of the space the wizard keeps for every run (notes, a log
 //   that grows with append), shown to the admin under Space → Data; page_read also reads Knowledge by path.
 // "code" brings: execute_typescript — the model writes one program that calls the step's other tools (not the browser) as
@@ -411,7 +421,7 @@ type ResultStep = { type: "result", message?: string, deliverables: { from: step
 
 Templates (in instructions/prompt): {{fieldId}} · {{steps.stepId}} (whole output) · {{steps.stepId.key}} (json key)
   · {{itemsField}} (line items as a table WITH computed net/VAT/total) · {{itemsField.net|vat|gross}} · {{today}}
-  · the project (its settings): {{brand.name}} {{brand.about}} {{brand.colors}} · {{facts.key}} (one fact: address, VAT ID, …) · {{facts}} (all facts)
+  · the space (its settings): {{brand.name}} {{brand.about}} {{brand.colors}} · {{facts.key}} (one fact: address, VAT ID, …) · {{facts}} (all facts)
     — every AI step already knows them, name one only where the text must carry it; agent steps also search the space's Knowledge
       and are told its categories: say in a step's instructions which category to filter by when the task names one
   · {{lists.listId}} (the stored list as a table, as it is when the step starts) · {{fileField}} (the names of the uploads, for read_document)
@@ -481,13 +491,32 @@ Components and props (a prop may be a literal or {"path": "/key/..."} into the d
 - Steps { items, textKey?, minutesKey? } — ordered work, numbered, with times
 - Link { title, subtitle?, eyebrow?, meta?, look?: "row"|"card", items: {"path": "/recipes"}, key?: "id", value: {"path": "recipe_id"}, view: id } — opens the entry of items whose key is value in a sheet, drawn by view; title, subtitle and meta read that entry, eyebrow the row the Link sits in
 - Callout { text, title?, tone?: "tip"|"note"|"warning" }
+- Markdown { text } — formatted text: bold, lists, links; Text for one plain line
+- Sources { items: [{ title, url? }] or {"path": ...}, titleKey?, urlKey? } — where it was found, as small chips
+- File { file: an asset id or {"path": ...}, name, mime?, preview?: false } — a file with its name and Open; a PDF or picture shows itself unless preview is false
+- Video { src, poster? } / Audio { src, title? } — a clip or a recording, an asset id or {"path": ...}
+- Gallery { items: [asset ids] or {"path": ...}, srcKey?, captionKey? } — pictures side by side; srcKey / captionKey: the keys of entries that are objects
 A path may put its value into words: {"path": "in_fridge", "map": {"true": "da", "false": "einkaufen"}}, {"path": "minutes", "format": "{} Min"}.
 Design it like an app, not a report: lead with a headline, the key figure or the chips; one Card per thing, never a Table of things; ordered work is Steps, things to get are a Checklist, sets are grouped by their key. A Table only for figures people compare across columns.
 Keep it small: what the person needs to see first, then the details. Never invent numbers: bind them by path.
 
+<!-- section: surfaces.chat -->
+<!-- What a view in a Work chat adds to the surfaces section above: show_view in services/work-ai.ts reads both. -->
+In a chat, show_view draws the view in the chat for everyone in it. The data is what you found: put the rows and figures into "data" and bind them by path; never type numbers into the components.
+In a chat a view may also:
+- ask the AI: Button { label, action: "ask", prompt? } — the person who taps it says the prompt (else the label) in the chat, and you answer it
+- open a file: Button { label, action: "open", target: a file id }
+- point to a thing of the space: Ref { title, open, subtitle?, meta? } — open is what search_space gave as "open" ("p:…", "t:…", "f:…"), or "chat:<id>", "wizard:<id>"
+- ask for answers: one Form { title?, submit, children: [Field ids] } with Field { name, kind, label, required?, options?, value?, placeholder?, help?, multiple? }
+  kind: text, textarea, number, select, multiselect (both need options: [texts]), date, email, url, toggle, color, image (a picture or the camera), file, location (where the person is), audio (a recording), signature
+  value prefills what you already know from the chat; the person still checks it. The answers come back as that person's message; once someone sent them, the form shows them.
+A file id is the space's file: what search_space gave after "f:", or a file in a message. Media and files come from the space only, never from an address on the web.
+Never ask for passwords, card numbers or other secrets in a Form.
+Use a view when rows, figures, a comparison or a few questions answer better than text: write one short sentence around it, not the same content again. For a short answer, write text.
+
 <!-- section: line.connectors -->
 <!-- connectors: one "- id — name, tools prefix_*: actions" line per connector -->
-Connectors a wizard of this project can use (built in, or imported from the integrations registry; find more with find_connectors + import_connector):
+Connectors a wizard of this space can use (built in, or imported from the integrations registry; find more with find_connectors + import_connector):
 ${connectors}
 
 <!-- section: line.connectors.not_set_up -->
@@ -496,6 +525,11 @@ NOT SET UP on this server: tell the admin before you build on it
 
 <!-- section: line.connectors.no_actions -->
 actions appear once an account is connected
+
+<!-- section: line.space_connections -->
+<!-- Only where the space has connections; connections: one "- id — name (connector), signs in as …, actions: …" line each. -->
+Connections of this space, set up by its admins (a wizard uses one with { "spaceConnection": id }; where it signs in as the space, agent steps read and a step with "call" writes):
+${connections}
 
 <!-- section: line.plugin_tools -->
 <!-- Only when the app's plugins add tools; tools: one "- id — description" line per tool. -->

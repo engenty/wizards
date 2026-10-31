@@ -62,7 +62,7 @@ listeners are done.
 | `run.id`, `run.wizardId` | The run and its wizard |
 | `run.mode` | `"live"`: a real run, over the wizard’s link or from an AI app. `"test"`: a test run |
 | `run.status` | `"done"`, `"failed"` or `"cancelled"` |
-| `wizard` | `{ id, title, projectId }` |
+| `wizard` | `{ id, title, spaceId }` |
 | `values` | What the person answered, by field id |
 
 `values` holds the answers as the wizard asked for them. Which fields exist depends on the

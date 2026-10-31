@@ -54,8 +54,8 @@ export async function followFor(
     if (e.event === "changes") {
       const spaces = new Set<string>();
       for (const x of e.items) {
-        if (x.projectId && !(x.seq !== undefined && pushedBy(tenantId, install, x.seq))) {
-          spaces.add(x.projectId);
+        if (x.spaceId && !(x.seq !== undefined && pushedBy(tenantId, install, x.seq))) {
+          spaces.add(x.spaceId);
         }
       }
       // Its own push only: the number moves on, nothing to pull.

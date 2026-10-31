@@ -47,7 +47,7 @@ export function runEnded(runId: string, status: PluginRunEvent["run"]["status"])
     }
     return {
       run: { id: run.id, wizardId: run.wizardId, mode: run.mode, status },
-      wizard: { id: wizard.id, title: run.definition.title, projectId: wizard.projectId },
+      wizard: { id: wizard.id, title: run.definition.title, spaceId: wizard.spaceId },
       values: run.state.values,
     };
   });
@@ -69,14 +69,14 @@ export function spaceFileChanged(
   event: "space.file.ready" | "space.file.removed",
   file: {
     id: string;
-    projectId: string;
+    spaceId: string;
     name: string;
     kind: PluginSpaceFileEvent["file"]["kind"];
     mime: string;
   },
 ) {
   void emitPluginEvent(event, {
-    space: { id: file.projectId },
+    space: { id: file.spaceId },
     file: { id: file.id, name: file.name, kind: file.kind, mime: file.mime },
   });
 }

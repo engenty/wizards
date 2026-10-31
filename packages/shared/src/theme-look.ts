@@ -1,5 +1,5 @@
-import { luminance } from "./projects.js";
 import type { RunFontFace, RunTheme } from "./run.js";
+import { luminance } from "./spaces.js";
 import {
   BUILT_IN_THEMES,
   type BuiltInTheme,

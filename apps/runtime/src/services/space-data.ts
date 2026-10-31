@@ -17,16 +17,17 @@ import {
 import { rowKey } from "@engenty/wizards-shared/store";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { assertRwx, pageResources, readable, type Subject, tableResources } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { saidOf } from "../model-errors.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
-import { projectWritable, requireWritableProject } from "./access.js";
+import { requireWritableSpace, spaceWritable } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
 import { filePaths, freeSlug, knowledgePage, pageTree, tablePaths } from "./knowledge.js";
-import { queueIndex } from "./project-index.js";
-import { ownedProject } from "./projects.js";
 import { itemCategoriesOf, setItemCategories, syncTableRowCategories } from "./space-categories.js";
+import { queueIndex } from "./space-index.js";
+import { ownedSpace } from "./spaces.js";
 
 /**
  * The tables and pages a space keeps: its own — Knowledge, written by people and by plugins — or
@@ -39,12 +40,12 @@ type TableRow = typeof schema.spaceTable.$inferSelect;
 type PageRow = typeof schema.spacePage.$inferSelect;
 
 /** A wizard of the space, or null for the space's own. */
-async function ownerOf(projectId: string, wizardId: string | null | undefined) {
+async function ownerOf(spaceId: string, wizardId: string | null | undefined) {
   if (!wizardId) {
     return null;
   }
   const w = await db.query.wizard.findFirst({
-    where: and(eq(schema.wizard.id, wizardId), eq(schema.wizard.projectId, projectId)),
+    where: and(eq(schema.wizard.id, wizardId), eq(schema.wizard.spaceId, spaceId)),
     columns: { id: true },
   });
   if (!w) {
@@ -68,15 +69,19 @@ export function checkColumns(columns: unknown): TableColumn[] {
   return parsed.data;
 }
 
-/** Data: the tables and pages the space's wizards keep, and the wizards to name whose they are. */
-export async function listSpaceData(userId: string, projectId: string): Promise<SpaceData> {
-  const project = await ownedProject(userId, projectId);
+/**
+ * Data: the tables and pages the space's wizards keep that `who` may read, and the wizards to
+ * name whose they are.
+ */
+export async function listSpaceData(
+  userId: string,
+  spaceId: string,
+  who: Subject[],
+): Promise<SpaceData> {
+  const space = await ownedSpace(userId, spaceId);
   const [tables, rows, pages, wizards] = await Promise.all([
     db.query.spaceTable.findMany({
-      where: and(
-        eq(schema.spaceTable.projectId, project.id),
-        isNotNull(schema.spaceTable.wizardId),
-      ),
+      where: and(eq(schema.spaceTable.spaceId, space.id), isNotNull(schema.spaceTable.wizardId)),
       orderBy: [asc(schema.spaceTable.title)],
       columns: { id: true, wizardId: true, list: true, title: true, updatedAt: true },
     }),
@@ -84,26 +89,34 @@ export async function listSpaceData(userId: string, projectId: string): Promise<
       .select({ tableId: schema.spaceTableRow.tableId, n: count() })
       .from(schema.spaceTableRow)
       .innerJoin(schema.spaceTable, eq(schema.spaceTable.id, schema.spaceTableRow.tableId))
-      .where(eq(schema.spaceTable.projectId, project.id))
+      .where(eq(schema.spaceTable.spaceId, space.id))
       .groupBy(schema.spaceTableRow.tableId),
     db.query.spacePage.findMany({
-      where: and(eq(schema.spacePage.projectId, project.id), isNotNull(schema.spacePage.wizardId)),
+      where: and(eq(schema.spacePage.spaceId, space.id), isNotNull(schema.spacePage.wizardId)),
       orderBy: [asc(schema.spacePage.title)],
       columns: { id: true, wizardId: true, title: true, updatedAt: true },
     }),
     db.query.wizard.findMany({
-      where: eq(schema.wizard.projectId, project.id),
+      where: eq(schema.wizard.spaceId, space.id),
       orderBy: [desc(schema.wizard.updatedAt)],
       columns: { id: true, title: true },
     }),
   ]);
+  const [okTables, okPages] = await Promise.all([
+    readable(space.id, who, await tableResources(tables.map((t) => t.id))),
+    readable(space.id, who, await pageResources(pages.map((p) => p.id))),
+  ]);
   return {
-    tables: tables.map((t) => ({
-      ...t,
-      rows: rows.find((r) => r.tableId === t.id)?.n ?? 0,
-      updatedAt: t.updatedAt.toISOString(),
-    })),
-    pages: pages.map((p) => ({ ...p, updatedAt: p.updatedAt.toISOString() })),
+    tables: tables
+      .filter((t) => okTables.has(t.id))
+      .map((t) => ({
+        ...t,
+        rows: rows.find((r) => r.tableId === t.id)?.n ?? 0,
+        updatedAt: t.updatedAt.toISOString(),
+      })),
+    pages: pages
+      .filter((p) => okPages.has(p.id))
+      .map((p) => ({ ...p, updatedAt: p.updatedAt.toISOString() })),
     wizards,
   };
 }
@@ -122,7 +135,7 @@ async function tableRow(tableId: string): Promise<TableRow> {
 
 async function writableTable(tableId: string): Promise<TableRow> {
   const table = await tableRow(tableId);
-  await requireWritableProject(table.projectId);
+  await requireWritableSpace(table.spaceId);
   return table;
 }
 
@@ -134,11 +147,11 @@ async function touchTable(table: TableRow) {
     .where(eq(schema.spaceTable.id, table.id));
 }
 
-async function tableCount(projectId: string) {
+async function tableCount(spaceId: string) {
   const [{ n }] = await db
     .select({ n: count() })
     .from(schema.spaceTable)
-    .where(eq(schema.spaceTable.projectId, projectId));
+    .where(eq(schema.spaceTable.spaceId, spaceId));
   if (n >= SPACE_DATA_LIMITS.tables) {
     throw new ServiceError("refused", note("spaceMostTables", { count: SPACE_DATA_LIMITS.tables }));
   }
@@ -146,13 +159,13 @@ async function tableCount(projectId: string) {
 
 export async function createTable(
   userId: string,
-  projectId: string,
+  spaceId: string,
   input: { title: string; wizardId?: string | null; columns?: unknown; format?: "faq" | null },
   lang: Lang = "en",
 ) {
-  const project = await ownedProject(userId, projectId);
-  await requireWritableProject(project.id);
-  await tableCount(project.id);
+  const space = await ownedSpace(userId, spaceId);
+  await requireWritableSpace(space.id);
+  await tableCount(space.id);
   const columns = input.columns
     ? checkColumns(input.columns)
     : input.format === "faq"
@@ -167,15 +180,15 @@ export async function createTable(
         ]
       : [{ id: "name", name: "Name", type: "text" as const }];
   const id = nanoid(12);
-  const wizardId = await ownerOf(project.id, input.wizardId);
+  const wizardId = await ownerOf(space.id, input.wizardId);
   const title = input.title.trim() || serverText(lang, "tableTitle");
   await db.insert(schema.spaceTable).values({
     id,
     tenantId: currentTenant(),
-    projectId: project.id,
+    spaceId: space.id,
     wizardId,
     title,
-    slug: wizardId ? null : await freeSlug(project.id, title, "table"),
+    slug: wizardId ? null : await freeSlug(space.id, title, "table"),
     format: input.format ?? null,
     columns,
   });
@@ -187,13 +200,13 @@ async function tableKnowledge(table: TableRow): Promise<SpaceTable["knowledge"]>
     return null;
   }
   const file = table.fileId
-    ? await db.query.projectFile.findFirst({
-        where: eq(schema.projectFile.id, table.fileId),
+    ? await db.query.spaceFile.findFirst({
+        where: eq(schema.spaceFile.id, table.fileId),
         columns: { id: true, name: true, mime: true },
       })
     : undefined;
   return {
-    path: (await tablePaths(table.projectId)).get(table.id) ?? "",
+    path: (await tablePaths(table.spaceId)).get(table.id) ?? "",
     categories: (await itemCategoriesOf([{ tableId: table.id }])).get(`t:${table.id}`) ?? [],
     origin: table.origin,
     originLabel: table.originLabel,
@@ -203,8 +216,12 @@ async function tableKnowledge(table: TableRow): Promise<SpaceTable["knowledge"]>
   };
 }
 
-export async function getTable(userId: string, tableId: string): Promise<SpaceTable> {
-  const header = await getTableHeader(userId, tableId);
+export async function getTable(
+  userId: string,
+  tableId: string,
+  who: Subject[],
+): Promise<SpaceTable> {
+  const header = await getTableHeader(userId, tableId, who);
   const rows = await db.query.spaceTableRow.findMany({
     where: eq(schema.spaceTableRow.tableId, header.id),
     orderBy: [asc(schema.spaceTableRow.createdAt), asc(schema.spaceTableRow.id)],
@@ -216,18 +233,20 @@ export async function getTable(userId: string, tableId: string): Promise<SpaceTa
 export async function getTableHeader(
   userId: string,
   tableId: string,
+  who: Subject[],
 ): Promise<Omit<SpaceTable, "rows">> {
   const table = await tableRow(tableId);
-  const project = await ownedProject(userId, table.projectId);
+  const space = await ownedSpace(userId, table.spaceId);
+  await assertRwx(space.id, who, { kind: "table", id: table.id, fileId: table.fileId }, "r");
   return {
     id: table.id,
-    projectId: table.projectId,
+    spaceId: table.spaceId,
     wizardId: table.wizardId,
     list: table.list,
     title: table.title,
     format: table.format,
     columns: table.columns,
-    readOnly: !(await projectWritable(project)),
+    readOnly: !(await spaceWritable(space)),
     knowledge: await tableKnowledge(table),
   };
 }
@@ -237,8 +256,10 @@ export async function getRow(
   _userId: string,
   tableId: string,
   rowId: string,
+  who: Subject[],
 ): Promise<SpaceTableRow | null> {
-  await tableRow(tableId);
+  const table = await tableRow(tableId);
+  await assertRwx(table.spaceId, who, { kind: "table", id: table.id, fileId: table.fileId }, "r");
   const row = await db.query.spaceTableRow.findFirst({
     where: and(eq(schema.spaceTableRow.id, rowId), eq(schema.spaceTableRow.tableId, tableId)),
   });
@@ -272,7 +293,7 @@ export async function updateTable(
   }
   const title = patch.title !== undefined ? patch.title.trim() || table.title : table.title;
   const wizardId =
-    patch.wizardId !== undefined ? await ownerOf(table.projectId, patch.wizardId) : table.wizardId;
+    patch.wizardId !== undefined ? await ownerOf(table.spaceId, patch.wizardId) : table.wizardId;
   const changed =
     title !== table.title || patch.columns !== undefined || patch.format !== undefined;
   await db
@@ -281,7 +302,7 @@ export async function updateTable(
       title,
       wizardId,
       ...(title !== table.title || wizardId !== table.wizardId
-        ? { slug: wizardId ? null : await freeSlug(table.projectId, title, "table", table.id) }
+        ? { slug: wizardId ? null : await freeSlug(table.spaceId, title, "table", table.id) }
         : {}),
       ...(patch.columns !== undefined ? { columns: checkColumns(patch.columns) } : {}),
       ...(patch.format !== undefined ? { format: patch.format } : {}),
@@ -299,7 +320,7 @@ export async function updateTable(
 async function dropOriginal(item: {
   fileId: string | null;
   originKey: string | null;
-  projectId: string;
+  spaceId: string;
 }) {
   if (!item.fileId || item.originKey) {
     return;
@@ -314,8 +335,8 @@ async function dropOriginal(item: {
       columns: { id: true },
     }));
   if (!used) {
-    const { removeProjectFile } = await import("./project-files.js");
-    await removeProjectFile(item.projectId, item.fileId).catch(() => undefined);
+    const { removeSpaceFile } = await import("./space-files.js");
+    await removeSpaceFile(item.spaceId, item.fileId).catch(() => undefined);
   }
 }
 
@@ -459,23 +480,23 @@ function checkMarkdown(markdown: string) {
   return markdown;
 }
 
-async function pageCount(projectId: string, more = 1) {
+async function pageCount(spaceId: string, more = 1) {
   const [{ n }] = await db
     .select({ n: count() })
     .from(schema.spacePage)
-    .where(eq(schema.spacePage.projectId, projectId));
+    .where(eq(schema.spacePage.spaceId, spaceId));
   if (n + more > SPACE_DATA_LIMITS.pages) {
     throw new ServiceError("refused", note("spaceMostPages", { count: SPACE_DATA_LIMITS.pages }));
   }
 }
 
 /** A page of the space's own that a sub-page may stand under: never one of its own sub-pages. */
-async function parentOf(projectId: string, parentId: string | null | undefined, pageId?: string) {
+async function parentOf(spaceId: string, parentId: string | null | undefined, pageId?: string) {
   if (!parentId) {
     return null;
   }
   const parent = await db.query.spacePage.findFirst({
-    where: and(eq(schema.spacePage.id, parentId), eq(schema.spacePage.projectId, projectId)),
+    where: and(eq(schema.spacePage.id, parentId), eq(schema.spacePage.spaceId, spaceId)),
     columns: { id: true, wizardId: true, parentId: true },
   });
   if (!parent || parent.wizardId) {
@@ -494,13 +515,13 @@ async function parentOf(projectId: string, parentId: string | null | undefined, 
   return parent.id;
 }
 
-async function nextPosition(projectId: string, parentId: string | null) {
+async function nextPosition(spaceId: string, parentId: string | null) {
   const [{ last }] = await db
     .select({ last: max(schema.spacePage.position) })
     .from(schema.spacePage)
     .where(
       and(
-        eq(schema.spacePage.projectId, projectId),
+        eq(schema.spacePage.spaceId, spaceId),
         isNull(schema.spacePage.wizardId),
         parentId ? eq(schema.spacePage.parentId, parentId) : isNull(schema.spacePage.parentId),
       ),
@@ -510,25 +531,25 @@ async function nextPosition(projectId: string, parentId: string | null) {
 
 export async function createPage(
   userId: string,
-  projectId: string,
+  spaceId: string,
   input: { title: string; wizardId?: string | null; parentId?: string | null; markdown?: string },
 ) {
-  const project = await ownedProject(userId, projectId);
-  await requireWritableProject(project.id);
-  await pageCount(project.id);
+  const space = await ownedSpace(userId, spaceId);
+  await requireWritableSpace(space.id);
+  await pageCount(space.id);
   const id = nanoid(12);
-  const wizardId = await ownerOf(project.id, input.wizardId);
-  const parentId = wizardId ? null : await parentOf(project.id, input.parentId);
+  const wizardId = await ownerOf(space.id, input.wizardId);
+  const parentId = wizardId ? null : await parentOf(space.id, input.parentId);
   const title = input.title.trim() || "Seite";
   await db.insert(schema.spacePage).values({
     id,
     tenantId: currentTenant(),
-    projectId: project.id,
+    spaceId: space.id,
     wizardId,
     parentId,
-    position: wizardId ? 0 : await nextPosition(project.id, parentId),
+    position: wizardId ? 0 : await nextPosition(space.id, parentId),
     title,
-    slug: wizardId ? null : await freeSlug(project.id, title, { parentId }),
+    slug: wizardId ? null : await freeSlug(space.id, title, { parentId }),
     markdown: checkMarkdown(input.markdown ?? ""),
   });
   if (!wizardId) {
@@ -537,17 +558,23 @@ export async function createPage(
   return { id };
 }
 
-export async function getPage(userId: string, pageId: string): Promise<SpacePage> {
+export async function getPage(userId: string, pageId: string, who: Subject[]): Promise<SpacePage> {
   const page = await pageRow(pageId);
-  const project = await ownedProject(userId, page.projectId);
+  const space = await ownedSpace(userId, page.spaceId);
+  await assertRwx(space.id, who, { kind: "page", id: page.id, fileId: page.fileId }, "r");
+  return pageView(page, space);
+}
+
+/** A page as the studio shows it, for one that was just read or written. */
+async function pageView(page: PageRow, space: { origin: string | null }): Promise<SpacePage> {
   return {
     id: page.id,
-    projectId: page.projectId,
+    spaceId: page.spaceId,
     wizardId: page.wizardId,
     title: page.title,
     markdown: page.markdown,
     updatedAt: page.updatedAt.toISOString(),
-    readOnly: !(await projectWritable(project)),
+    readOnly: !(await spaceWritable(space)),
     knowledge: page.wizardId ? null : await knowledgePage(page),
   };
 }
@@ -570,20 +597,20 @@ export async function updatePage(
   },
 ) {
   const page = await pageRow(pageId);
-  await requireWritableProject(page.projectId);
+  await requireWritableSpace(page.spaceId);
   if (patch.baseUpdatedAt && page.updatedAt.getTime() > Date.parse(patch.baseUpdatedAt)) {
     throw new ServiceError("revision_conflict", note("itemChangedMeantime"), {
-      page: await getPage(_userId, pageId),
+      page: await pageView(page, await ownedSpace(_userId, page.spaceId)),
     });
   }
   const title = patch.title !== undefined ? patch.title.trim() || page.title : page.title;
   const wizardId =
-    patch.wizardId !== undefined ? await ownerOf(page.projectId, patch.wizardId) : page.wizardId;
+    patch.wizardId !== undefined ? await ownerOf(page.spaceId, patch.wizardId) : page.wizardId;
   const parentId =
     wizardId !== null
       ? null
       : patch.parentId !== undefined
-        ? await parentOf(page.projectId, patch.parentId, page.id)
+        ? await parentOf(page.spaceId, patch.parentId, page.id)
         : page.parentId;
   const moved = title !== page.title || wizardId !== page.wizardId || parentId !== page.parentId;
   const edited = moved || (patch.markdown !== undefined && patch.markdown !== page.markdown);
@@ -596,9 +623,9 @@ export async function updatePage(
       parentId,
       ...(moved
         ? {
-            slug: wizardId ? null : await freeSlug(page.projectId, title, { parentId }, page.id),
+            slug: wizardId ? null : await freeSlug(page.spaceId, title, { parentId }, page.id),
             ...(parentId !== page.parentId
-              ? { position: await nextPosition(page.projectId, parentId) }
+              ? { position: await nextPosition(page.spaceId, parentId) }
               : {}),
           }
         : {}),
@@ -618,7 +645,7 @@ export async function updatePage(
 
 export async function deletePage(_userId: string, pageId: string) {
   const page = await pageRow(pageId);
-  await requireWritableProject(page.projectId);
+  await requireWritableSpace(page.spaceId);
   await db.delete(schema.spacePage).where(eq(schema.spacePage.id, page.id));
   await dropOriginal(page);
 }
@@ -626,7 +653,7 @@ export async function deletePage(_userId: string, pageId: string) {
 /** Puts a page's sub-pages into the order of `ids`. */
 export async function orderSubPages(_userId: string, pageId: string, ids: string[]) {
   const page = await pageRow(pageId);
-  await requireWritableProject(page.projectId);
+  await requireWritableSpace(page.spaceId);
   for (const [position, id] of ids.entries()) {
     await db
       .update(schema.spacePage)
@@ -641,9 +668,9 @@ export async function orderSubPages(_userId: string, pageId: string, ids: string
 // reads its wizard's pages; the space's own are Knowledge, read by path.
 
 /** The pages of a run's wizard. */
-export async function runPages(projectId: string, wizardId: string) {
+export async function runPages(spaceId: string, wizardId: string) {
   return db.query.spacePage.findMany({
-    where: and(eq(schema.spacePage.projectId, projectId), eq(schema.spacePage.wizardId, wizardId)),
+    where: and(eq(schema.spacePage.spaceId, spaceId), eq(schema.spacePage.wizardId, wizardId)),
     columns: { id: true, wizardId: true, title: true, markdown: true, updatedAt: true },
     orderBy: [asc(schema.spacePage.title)],
   });
@@ -651,7 +678,7 @@ export async function runPages(projectId: string, wizardId: string) {
 
 /** Writes a page of the run's wizard: a new one, or the one with this title, replaced or added to. */
 export async function writeRunPage(
-  projectId: string,
+  spaceId: string,
   wizardId: string,
   input: { title: string; markdown: string; append?: boolean },
 ) {
@@ -661,10 +688,7 @@ export async function writeRunPage(
   }
   const existing = (
     await db.query.spacePage.findMany({
-      where: and(
-        eq(schema.spacePage.projectId, projectId),
-        eq(schema.spacePage.wizardId, wizardId),
-      ),
+      where: and(eq(schema.spacePage.spaceId, spaceId), eq(schema.spacePage.wizardId, wizardId)),
     })
   ).find((p) => p.title.toLowerCase() === title.toLowerCase());
   const markdown =
@@ -682,7 +706,7 @@ export async function writeRunPage(
   const [{ n }] = await db
     .select({ n: count() })
     .from(schema.spacePage)
-    .where(eq(schema.spacePage.projectId, projectId));
+    .where(eq(schema.spacePage.spaceId, spaceId));
   if (n >= SPACE_DATA_LIMITS.pages) {
     throw new ServiceError("refused", note("spaceMostPages", { count: SPACE_DATA_LIMITS.pages }));
   }
@@ -690,7 +714,7 @@ export async function writeRunPage(
   await db.insert(schema.spacePage).values({
     id,
     tenantId: currentTenant(),
-    projectId,
+    spaceId,
     wizardId,
     title: title.slice(0, 200),
     markdown,
@@ -720,29 +744,29 @@ export interface OriginPageInput {
 }
 
 async function originSpace(space: string) {
-  const project = await db.query.project.findFirst({
-    where: and(eq(schema.project.id, space), eq(schema.project.tenantId, currentTenant())),
+  const row = await db.query.space.findFirst({
+    where: and(eq(schema.space.id, space), eq(schema.space.tenantId, currentTenant())),
     columns: { id: true },
   });
-  if (!project) {
+  if (!row) {
     throw new ServiceError("not_found", note("unknownSpace", { space }));
   }
-  await requireWritableProject(project.id);
-  return project.id;
+  await requireWritableSpace(row.id);
+  return row.id;
 }
 
 /** Keeps the original of what a plugin wrote: a document of the space under the same key. */
 async function originalFile(
   origin: string,
-  projectId: string,
+  spaceId: string,
   key: string,
   label: string | null,
   original: NonNullable<OriginPageInput["original"]>,
   text: string,
 ) {
-  const { putOriginFile } = await import("./project-files.js");
+  const { putOriginFile } = await import("./space-files.js");
   return putOriginFile(origin, {
-    space: projectId,
+    space: spaceId,
     key,
     label,
     name: original.name,
@@ -756,11 +780,11 @@ export async function putOriginPage(
   origin: string,
   input: OriginPageInput,
 ): Promise<{ id: string; state: OriginState }> {
-  const projectId = await originSpace(input.space);
+  const spaceId = await originSpace(input.space);
   const key = input.key.trim().slice(0, 300);
   const existing = await db.query.spacePage.findFirst({
     where: and(
-      eq(schema.spacePage.projectId, projectId),
+      eq(schema.spacePage.spaceId, spaceId),
       eq(schema.spacePage.origin, origin),
       eq(schema.spacePage.originKey, key),
     ),
@@ -771,7 +795,7 @@ export async function putOriginPage(
   const parent = input.parent
     ? await db.query.spacePage.findFirst({
         where: and(
-          eq(schema.spacePage.projectId, projectId),
+          eq(schema.spacePage.spaceId, spaceId),
           eq(schema.spacePage.origin, origin),
           eq(schema.spacePage.originKey, input.parent),
         ),
@@ -786,10 +810,9 @@ export async function putOriginPage(
   const label = input.label?.trim().slice(0, 120) || null;
   const parentId = parent?.id ?? null;
   const fileId = input.original
-    ? await originalFile(origin, projectId, key, label, input.original, markdown)
+    ? await originalFile(origin, spaceId, key, label, input.original, markdown)
     : (existing?.fileId ?? null);
-  const position =
-    input.position ?? existing?.position ?? (await nextPosition(projectId, parentId));
+  const position = input.position ?? existing?.position ?? (await nextPosition(spaceId, parentId));
   let id = existing?.id;
   const moved = !existing || existing.title !== title || existing.parentId !== parentId;
   if (existing) {
@@ -803,21 +826,21 @@ export async function putOriginPage(
         originLabel: label,
         fileId,
         review: input.review ?? null,
-        ...(moved ? { slug: await freeSlug(projectId, title, { parentId }, existing.id) } : {}),
+        ...(moved ? { slug: await freeSlug(spaceId, title, { parentId }, existing.id) } : {}),
         updatedAt: new Date(),
       })
       .where(eq(schema.spacePage.id, existing.id));
   } else {
-    await pageCount(projectId);
+    await pageCount(spaceId);
     id = nanoid(12);
     await db.insert(schema.spacePage).values({
       id,
       tenantId: currentTenant(),
-      projectId,
+      spaceId,
       parentId,
       position,
       title,
-      slug: await freeSlug(projectId, title, { parentId }),
+      slug: await freeSlug(spaceId, title, { parentId }),
       markdown,
       origin,
       originKey: key,
@@ -827,7 +850,7 @@ export async function putOriginPage(
     });
   }
   const set = input.categories
-    ? await setItemCategories(projectId, { pageId: id as string }, input.categories, "origin")
+    ? await setItemCategories(spaceId, { pageId: id as string }, input.categories, "origin")
     : { changed: false };
   queueIndex(`${moved || set.changed ? "P" : "p"}:${id}`);
   return { id: id as string, state: "written" };
@@ -851,11 +874,11 @@ export async function putOriginTable(
   origin: string,
   input: OriginTableInput,
 ): Promise<{ id: string; state: OriginState }> {
-  const projectId = await originSpace(input.space);
+  const spaceId = await originSpace(input.space);
   const key = input.key.trim().slice(0, 300);
   const existing = await db.query.spaceTable.findFirst({
     where: and(
-      eq(schema.spaceTable.projectId, projectId),
+      eq(schema.spaceTable.spaceId, spaceId),
       eq(schema.spaceTable.origin, origin),
       eq(schema.spaceTable.originKey, key),
     ),
@@ -883,7 +906,7 @@ export async function putOriginTable(
     ...cells.map((r) => columns.map((c) => String(r[c.id] ?? "")).join(",")),
   ].join("\n");
   const fileId = input.original
-    ? await originalFile(origin, projectId, key, label, input.original, csv)
+    ? await originalFile(origin, spaceId, key, label, input.original, csv)
     : (existing?.fileId ?? null);
   let id = existing?.id;
   if (existing) {
@@ -897,21 +920,21 @@ export async function putOriginTable(
         fileId,
         review: input.review ?? null,
         ...(existing.title !== title
-          ? { slug: await freeSlug(projectId, title, "table", existing.id) }
+          ? { slug: await freeSlug(spaceId, title, "table", existing.id) }
           : {}),
         updatedAt: new Date(),
       })
       .where(eq(schema.spaceTable.id, existing.id));
     await db.delete(schema.spaceTableRow).where(eq(schema.spaceTableRow.tableId, existing.id));
   } else {
-    await tableCount(projectId);
+    await tableCount(spaceId);
     id = nanoid(12);
     await db.insert(schema.spaceTable).values({
       id,
       tenantId: currentTenant(),
-      projectId,
+      spaceId,
       title,
-      slug: await freeSlug(projectId, title, "table"),
+      slug: await freeSlug(spaceId, title, "table"),
       format: input.format ?? null,
       columns,
       origin,
@@ -934,7 +957,7 @@ export async function putOriginTable(
     );
   }
   if (input.categories) {
-    await setItemCategories(projectId, { tableId: id as string }, input.categories, "origin");
+    await setItemCategories(spaceId, { tableId: id as string }, input.categories, "origin");
   }
   await syncTableRowCategories(id as string);
   queueIndex(`t:${id}`);
@@ -943,12 +966,12 @@ export async function putOriginTable(
 
 /** What a plugin wrote into a space, by its keys. */
 export async function listOrigin(origin: string, space: string) {
-  const projectId = await originSpace(space);
+  const spaceId = await originSpace(space);
   const [pages, tables, files] = await Promise.all([
     // What a document of the plugin was read into stands behind the document, not on its own.
     db.query.spacePage.findMany({
       where: and(
-        eq(schema.spacePage.projectId, projectId),
+        eq(schema.spacePage.spaceId, spaceId),
         eq(schema.spacePage.origin, origin),
         isNotNull(schema.spacePage.originKey),
       ),
@@ -963,7 +986,7 @@ export async function listOrigin(origin: string, space: string) {
     }),
     db.query.spaceTable.findMany({
       where: and(
-        eq(schema.spaceTable.projectId, projectId),
+        eq(schema.spaceTable.spaceId, spaceId),
         eq(schema.spaceTable.origin, origin),
         isNotNull(schema.spaceTable.originKey),
       ),
@@ -976,18 +999,15 @@ export async function listOrigin(origin: string, space: string) {
         updatedAt: true,
       },
     }),
-    db.query.projectFile.findMany({
-      where: and(
-        eq(schema.projectFile.projectId, projectId),
-        eq(schema.projectFile.origin, origin),
-      ),
+    db.query.spaceFile.findMany({
+      where: and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.origin, origin)),
       columns: { id: true, originKey: true, name: true, updatedAt: true },
     }),
   ]);
   const [tree, tPaths, fPaths] = await Promise.all([
-    pageTree(projectId),
-    tablePaths(projectId),
-    filePaths(projectId),
+    pageTree(spaceId),
+    tablePaths(spaceId),
+    filePaths(spaceId),
   ]);
   return [
     ...pages.map((p) => ({
@@ -1028,12 +1048,12 @@ export async function listOrigin(origin: string, space: string) {
  * space. What a person changed since stays. Returns how many items went.
  */
 export async function removeOrigin(origin: string, space: string, key?: string) {
-  const projectId = await originSpace(space);
+  const spaceId = await originSpace(space);
   const pages = await db
     .delete(schema.spacePage)
     .where(
       and(
-        eq(schema.spacePage.projectId, projectId),
+        eq(schema.spacePage.spaceId, spaceId),
         eq(schema.spacePage.origin, origin),
         eq(schema.spacePage.kept, false),
         key === undefined ? undefined : eq(schema.spacePage.originKey, key),
@@ -1044,14 +1064,14 @@ export async function removeOrigin(origin: string, space: string, key?: string) 
     .delete(schema.spaceTable)
     .where(
       and(
-        eq(schema.spaceTable.projectId, projectId),
+        eq(schema.spaceTable.spaceId, spaceId),
         eq(schema.spaceTable.origin, origin),
         eq(schema.spaceTable.kept, false),
         key === undefined ? undefined : eq(schema.spaceTable.originKey, key),
       ),
     )
     .returning({ id: schema.spaceTable.id });
-  const { removeOriginFiles } = await import("./project-files.js");
-  const files = await removeOriginFiles(origin, projectId, key);
+  const { removeOriginFiles } = await import("./space-files.js");
+  const files = await removeOriginFiles(origin, spaceId, key);
   return pages.length + tables.length + files;
 }

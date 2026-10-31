@@ -1,7 +1,7 @@
 ---
 title: Developer
 description: The wizard format, wizards in other systems and the runner, and plugins that extend engenty wizards.
-version: 0.7.10
+version: 0.13.0
 ---
 
 These pages are for people who write wizards as files, bring them into other systems or extend
@@ -18,6 +18,7 @@ its own page, on a website, in a chat or in your own app.
 | [Your own UI](./integration/own-ui.md) | Your app draws the run with `@engenty/wizards-runner` |
 | [Plugins](./plugins/index.md) | Tools for AI steps, routes with their own tables, pages in the studio |
 | [The API](./api.md) | What a program may rely on, what is private, and how a client names itself |
+| [The broker](./broker.md) | The one path every connector call takes: who calls, what decides, what is logged |
 | [Licensing](./licensing.md) | The wizard format and the runner are MIT, the rest is FSL-1.1-MIT |
 
 ## Wizards as files

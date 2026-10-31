@@ -43,7 +43,7 @@ export interface SpaceTableRow {
 
 export interface SpaceTable {
   id: string;
-  projectId: string;
+  spaceId: string;
   wizardId: string | null;
   list: string | null;
   title: string;
@@ -67,7 +67,7 @@ export interface SpaceTable {
 
 export interface SpacePage {
   id: string;
-  projectId: string;
+  spaceId: string;
   wizardId: string | null;
   title: string;
   markdown: string;

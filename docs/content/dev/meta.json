@@ -8,7 +8,9 @@
     "wizard-format",
     "integration",
     "plugins",
+    "skills",
     "api",
+    "broker",
     "licensing"
   ]
 }

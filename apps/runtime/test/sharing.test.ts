@@ -184,6 +184,12 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request(`${ORIGIN}/api/local/enter?k=test-key`));
   member = entered.headers.get("set-cookie")?.split(";")[0] ?? "";
+  // A guest's run mails only its own address or the space's domains: example.com is the space's here.
+  const spaces = await import("../src/services/spaces");
+  await client.withTenant(TENANT, async () => {
+    const space = await spaces.defaultSpace("local");
+    await spaces.updateSpace("local", space.id, { mailDomains: ["example.com"] });
+  });
 }, 60_000);
 
 afterAll(() => {
@@ -483,7 +489,7 @@ describe("the editor's preview of a result", () => {
     const email = body.targets[0];
     expect(email.name).toBe("An mich");
     expect(email.fields.find((f) => f.id === "to")?.value).toBe("kundin@example.com");
-    // The project has no name yet: the placeholder comes out empty, and the preview says which.
+    // The space has no name yet: the placeholder comes out empty, and the preview says which.
     expect(email.empty).toEqual(["brand.name"]);
     // Drive has no OAuth client here: nobody gets it.
     expect(body.left.map((l) => l.why)).toEqual(["setup"]);

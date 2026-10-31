@@ -22,13 +22,7 @@ import { useFeature } from "../lib/features";
 import { eventText, type Key, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import { useMediaQuery } from "../lib/media";
-import {
-  type PublishResult,
-  useCloud,
-  useMe,
-  useProjects,
-  type WizardDetail,
-} from "../lib/session";
+import { type PublishResult, useCloud, useMe, useSpaces, type WizardDetail } from "../lib/session";
 import { Button, Chip, cn, IconButton, LinkedText, Spinner } from "../ui";
 import { SyncNotice } from "./CloudSync";
 import {
@@ -54,7 +48,8 @@ import { ResultPageOpener } from "./editor/share";
 import { LiveChip, useLiveDraft } from "./live";
 import { PresenceStack, useAlsoHere } from "./live/PresenceStack";
 import { useReportPresence } from "./live/presence";
-import { pageAddress, pageUrl } from "./project/page-address";
+import { useMemberStudio } from "./members-studio";
+import { pageAddress, pageUrl } from "./space/page-address";
 import { tierClassLabel } from "./tiers";
 import { WizardMenu } from "./WizardMenu";
 import { WhereChip, whereItRuns } from "./where";
@@ -376,6 +371,8 @@ function Editor() {
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
+  // A member in the Studio builds and tests; publishing and sharing stay with the admins.
+  const publishes = !useMemberStudio();
   /** The test run the preview shows. */
   const [drawerRun, setDrawerRun] = useState<string | null>(null);
   /** The preview shows the open test run, not the step chosen. */
@@ -443,7 +440,7 @@ function Editor() {
     },
     [saveDraft],
   );
-  const projects = useProjects();
+  const spaces = useSpaces();
 
   const chat = useArchitectChat(wizard.data, (draft, revision) => {
     qc.setQueryData<WizardDetail>(keys.wizard(id), (old) =>
@@ -473,7 +470,7 @@ function Editor() {
   const cloudLinked = me.data?.mode === "local" && Boolean(me.data.account);
   // The organization's public page, where the wizard stands on it: one more place it runs.
   const pagesHost = me.data?.tenant.pagesHost ?? null;
-  const spacePage = projects.data?.find((p) => p.id === wizard.data?.projectId)?.page;
+  const spacePage = spaces.data?.find((p) => p.id === wizard.data?.spaceId)?.page;
   const onPage =
     pagesHost && spacePage?.on && wizard.data && spacePage.wizards.includes(wizard.data.id)
       ? spacePage
@@ -494,6 +491,22 @@ function Editor() {
     setRunView(null);
     setShowRun(false);
   };
+  // `?run=<id>` opens that run (the bell's critical lines lead here), then leaves the address.
+  const wantedRun = params.get("run");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the address alone says when to open; openRun is made anew each render.
+  useEffect(() => {
+    if (!wantedRun) {
+      return;
+    }
+    openRun(wantedRun);
+    setParams(
+      (p) => {
+        p.delete("run");
+        return p;
+      },
+      { replace: true },
+    );
+  }, [wantedRun]);
   const testRun = useMutation({
     mutationFn: () => api.post<{ runId: string }>(`/api/studio/wizards/${id}/test-runs`),
     onSuccess: ({ runId }) => openRun(runId),
@@ -568,12 +581,10 @@ function Editor() {
     );
   };
   // Read-only for one of two reasons: the wizard is a local install's, or nothing is built here.
-  // Its project says which. A project that is not in the list was made here by a tenant that
+  // Its space says which. A space that is not in the list was made here by a tenant that
   // builds nothing here any more.
-  const project = projects.data?.find((p) => p.id === w.projectId);
-  const fromLocal = project
-    ? project.origin === "local"
-    : me.data.limits.build || projects.isLoading;
+  const space = spaces.data?.find((p) => p.id === w.spaceId);
+  const fromLocal = space ? space.origin === "local" : me.data.limits.build || spaces.isLoading;
   const readOnlyNote = w.readOnly ? t(fromLocal ? "readonly.wizard" : "readonly.server") : null;
   /**
    * What the account's credits would do for the models that are missing — text, images, videos:
@@ -698,7 +709,7 @@ function Editor() {
             issues={w.issues}
             files={w.files}
             wizardId={w.id}
-            projectId={w.projectId}
+            spaceId={w.spaceId}
             readOnly={w.readOnly}
             decisions={shownDecisions}
             branchFocus={branchFocus}
@@ -1024,14 +1035,14 @@ function Editor() {
             </a>
           ) : null}
           {/* The first version goes live by sharing; every later one by its own dialog. */}
-          {w.published && w.dirty && !w.readOnly ? (
+          {w.published && w.dirty && !w.readOnly && publishes ? (
             <Button variant="secondary" size="sm" onClick={() => setLiveOpen(true)}>
               <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
               <span className="max-sm:hidden">{t("live.open")}</span>
               <span className="sm:hidden">{t("live.openShort")}</span>
             </Button>
           ) : null}
-          {shareButton}
+          {publishes ? shareButton : null}
           {/* At the very right: a copy, the package to keep, deleting it. */}
           <WizardMenu
             wizard={{ id: w.id, title: def.title, published: w.published }}
@@ -1191,7 +1202,7 @@ function Editor() {
                 ) : shownView === "memory" ? (
                   <MemoryPanel
                     wizardId={w.id}
-                    projectId={w.projectId}
+                    spaceId={w.spaceId}
                     def={def}
                     readOnly={w.readOnly}
                   />
@@ -1284,7 +1295,7 @@ function Editor() {
 
       <ShareDialog
         wizard={w}
-        open={shareOpen}
+        open={shareOpen && publishes}
         onClose={() => setShareOpen(false)}
         publish={
           w.readOnly
@@ -1301,7 +1312,7 @@ function Editor() {
               }
         }
       />
-      {w.readOnly ? null : (
+      {w.readOnly || !publishes ? null : (
         <LiveDialog
           wizard={w}
           open={liveOpen}

@@ -38,8 +38,8 @@ export type { ShareContext, ShareTarget } from "./types.js";
  */
 const FIXED: readonly ShareTarget[] = [emailTarget, slackTarget, browserTarget];
 
-/** A share target by its id; null when this project has none of that name. */
-export async function shareTarget(projectId: string, id: string): Promise<ShareTarget | null> {
+/** A share target by its id; null when this space has none of that name. */
+export async function shareTarget(spaceId: string, id: string): Promise<ShareTarget | null> {
   const fixed = FIXED.find((t) => t.id === id);
   if (fixed) {
     return fixed;
@@ -51,7 +51,7 @@ export async function shareTarget(projectId: string, id: string): Promise<ShareT
     return connector ? storageTarget(connector) : null;
   }
   if (kind === "connector") {
-    const found = await resolveConnector(projectId, connectorId);
+    const found = await resolveConnector(spaceId, connectorId);
     return found && canPublish(found.connector)
       ? connectorTarget(found.connector, found.imported)
       : null;
@@ -59,12 +59,10 @@ export async function shareTarget(projectId: string, id: string): Promise<ShareT
   return null;
 }
 
-/** Every target of a project, in the order a result shows them. */
-async function projectTargets(projectId: string): Promise<ShareTarget[]> {
-  const imported = (await listConnectors(projectId)).filter((c) => c.sourceKind !== "builtin");
-  const through = await Promise.all(
-    imported.map((c) => shareTarget(projectId, `connector:${c.id}`)),
-  );
+/** Every target of a space, in the order a result shows them. */
+async function spaceTargets(spaceId: string): Promise<ShareTarget[]> {
+  const imported = (await listConnectors(spaceId)).filter((c) => c.sourceKind !== "builtin");
+  const through = await Promise.all(imported.map((c) => shareTarget(spaceId, `connector:${c.id}`)));
   return [
     emailTarget,
     ...storageConnectors().flatMap((c) => storageTarget(c) ?? []),
@@ -75,17 +73,17 @@ async function projectTargets(projectId: string): Promise<ShareTarget[]> {
 }
 
 /**
- * Every target a wizard of the project can name on its result, for the editor and for whoever
+ * Every target a wizard of the space can name on its result, for the editor and for whoever
  * authors a wizard: the default ones, and one for each built-in connector that can write.
  */
-export async function projectShareTargets(
-  projectId: string,
+export async function spaceShareTargets(
+  spaceId: string,
   lang: ShareLang,
 ): Promise<ShareTargetInfo[]> {
-  const targets = await projectTargets(projectId);
-  const builtin = (await listConnectors(projectId)).filter((c) => c.sourceKind === "builtin");
+  const targets = await spaceTargets(spaceId);
+  const builtin = (await listConnectors(spaceId)).filter((c) => c.sourceKind === "builtin");
   for (const connector of builtin) {
-    const target = await shareTarget(projectId, `connector:${connector.id}`);
+    const target = await shareTarget(spaceId, `connector:${connector.id}`);
     if (target) {
       targets.push(target);
     }
@@ -97,7 +95,7 @@ export async function projectShareTargets(
       description: sayIn(lang, target.description),
       icon: target.icon,
       agent: Boolean(target.agent),
-      usable: await offerable(target, projectId),
+      usable: await offerable(target, spaceId),
       byDefault: target.byDefault !== false,
       fields: target.fields.map((f) => ({ id: f.id, label: sayIn(lang, f.label), kind: f.kind })),
     })),
@@ -105,12 +103,12 @@ export async function projectShareTargets(
 }
 
 /** Whether a target can work here right now: what it drives is there, its account can be connected. */
-async function offerable(target: ShareTarget, projectId: string): Promise<boolean> {
+async function offerable(target: ShareTarget, spaceId: string): Promise<boolean> {
   if (target.available && !(await target.available())) {
     return false;
   }
   const connection = target.connection?.();
-  return !connection || (await connectorOptions(connection, projectId)).length > 0;
+  return !connection || (await connectorOptions(connection, spaceId)).length > 0;
 }
 
 /** A target as one result offers it: under its own name, with what the wizard prefills. */
@@ -122,19 +120,19 @@ export interface OfferedTarget {
 }
 
 /**
- * The targets a result names: its own list, else every target of the project a result offers
- * by default. `missing` names listed targets this project does not have.
+ * The targets a result names: its own list, else every target of the space a result offers
+ * by default. `missing` names listed targets this space does not have.
  */
 async function namedTargets(
   run: RunRow,
-  projectId: string,
+  spaceId: string,
 ): Promise<{ entries: OfferedTarget[]; listed: boolean; missing: string[] }> {
   const result = resultStepOf(run);
   if (!result) {
     return { entries: [], listed: true, missing: [] };
   }
   if (!result.share) {
-    const entries = (await projectTargets(projectId))
+    const entries = (await spaceTargets(spaceId))
       .filter((target) => target.byDefault !== false)
       .map((target) => ({ key: target.id, target, values: {} }));
     return { entries, listed: false, missing: [] };
@@ -142,7 +140,7 @@ async function namedTargets(
   const entries: OfferedTarget[] = [];
   const missing: string[] = [];
   for (const [i, option] of result.share.entries()) {
-    const target = await shareTarget(projectId, option.target);
+    const target = await shareTarget(spaceId, option.target);
     if (target) {
       entries.push({
         key: `${i}:${option.target}`,
@@ -164,20 +162,20 @@ async function namedTargets(
  */
 export async function offeredTargets(
   run: RunRow,
-  projectId: string,
+  spaceId: string,
   member: boolean,
 ): Promise<OfferedTarget[]> {
-  const { entries, listed } = await namedTargets(run, projectId);
+  const { entries, listed } = await namedTargets(run, spaceId);
   const asked = entries.filter((e) => listed || !e.target.agent || member);
-  const usable = await Promise.all(asked.map((e) => offerable(e.target, projectId)));
+  const usable = await Promise.all(asked.map((e) => offerable(e.target, spaceId)));
   return asked.filter((_, i) => usable[i]);
 }
 
-export function targetScope(run: RunRow, projectId: string, lang: ShareLang): TargetScope {
+export function targetScope(run: RunRow, spaceId: string, lang: ShareLang): TargetScope {
   const result = resultStepOf(run);
   return {
     run,
-    projectId,
+    spaceId,
     lang,
     title: [result?.title, run.definition.title].filter(Boolean).join(" · "),
     message: result?.message ?? null,
@@ -185,12 +183,12 @@ export function targetScope(run: RunRow, projectId: string, lang: ShareLang): Ta
   };
 }
 
-async function templateScope(run: RunRow, projectId: string): Promise<TemplateScope> {
-  const project = await db.query.project.findFirst({ where: eq(schema.project.id, projectId) });
+async function templateScope(run: RunRow, spaceId: string): Promise<TemplateScope> {
+  const space = await db.query.space.findFirst({ where: eq(schema.space.id, spaceId) });
   return {
     def: run.definition,
     state: run.state,
-    brand: project?.brand ?? {},
+    brand: space?.brand ?? {},
   };
 }
 
@@ -203,7 +201,7 @@ async function targetView(
   const { lang } = scope;
   const connection = target.connection?.() ?? null;
   const [account] = connection
-    ? await connectionViews([connection], scopeOf(scope.run), scope.projectId, lang)
+    ? await connectionViews([connection], scopeOf(scope.run), scope.spaceId, lang)
     : [null];
   const defaults = (await target.defaults?.(scope)) ?? {};
   return {
@@ -235,13 +233,13 @@ async function targetView(
 /** What the share sheet shows: the targets of this result and what was sent before. */
 export async function shareOverview(
   run: RunRow,
-  projectId: string,
+  spaceId: string,
   member: boolean,
   lang: ShareLang,
 ): Promise<ShareOverview> {
-  const scope = targetScope(run, projectId, lang);
-  const templates = await templateScope(run, projectId);
-  const offered = await offeredTargets(run, projectId, member);
+  const scope = targetScope(run, spaceId, lang);
+  const templates = await templateScope(run, spaceId);
+  const offered = await offeredTargets(run, spaceId, member);
   const jobs: ShareJobView[] = await shareJobs(run.id);
   return {
     targets: await Promise.all(offered.map((entry) => targetView(entry, scope, templates))),
@@ -276,6 +274,7 @@ function standIn(wizard: WizardRow, userId: string): RunRow {
     tenantId: wizard.tenantId,
     definition: wizard.draft,
     files: [],
+    grant: null,
     version: null,
     mode: "test",
     runner: null,
@@ -330,16 +329,16 @@ export async function sharePreview(
     definition: wizard.draft,
     cursor: resultId,
   };
-  const scope = targetScope(run, wizard.projectId, lang);
-  const templates = await templateScope(run, wizard.projectId);
-  const { entries, listed, missing } = await namedTargets(run, wizard.projectId);
+  const scope = targetScope(run, wizard.spaceId, lang);
+  const templates = await templateScope(run, wizard.spaceId);
+  const { entries, listed, missing } = await namedTargets(run, wizard.spaceId);
   const targets: SharePreviewTarget[] = [];
   const left: SharePreview["left"] = missing.map((name) => ({ name, why: "setup" }));
   for (const entry of entries) {
     const name = entry.label ?? sayIn(lang, entry.target.name);
     if (!listed && entry.target.agent && !member) {
       left.push({ name, why: "agent" });
-    } else if (!(await offerable(entry.target, wizard.projectId))) {
+    } else if (!(await offerable(entry.target, wizard.spaceId))) {
       left.push({ name, why: "setup" });
     } else {
       targets.push({
@@ -364,10 +363,10 @@ export async function sharePreview(
 }
 
 // The account a target sends with is a connection of its own, kept like the wizard's connections.
-registerConnectionSource(async (_run, connectionId, projectId) => {
+registerConnectionSource(async (_run, connectionId, spaceId) => {
   if (!connectionId.startsWith("share:")) {
     return null;
   }
-  const target = await shareTarget(projectId, connectionId.slice("share:".length));
+  const target = await shareTarget(spaceId, connectionId.slice("share:".length));
   return target?.connection?.() ?? null;
 });

@@ -16,13 +16,14 @@ import { wizardUnavailable } from "../limits.js";
 import { codeOf } from "../tenants/control.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
-import { mayBuild, projectWritable, READ_ONLY_TENANT } from "./access.js";
+import { mayBuild, READ_ONLY_TENANT, spaceWritable } from "./access.js";
 import { mainLogoId } from "./brand.js";
 import { notFound, ServiceError } from "./errors.js";
 import { knowledgeCounts } from "./knowledge.js";
-import { listProjects, ownedProject } from "./projects.js";
+import { closedToMe, requireStudio } from "./members-studio.js";
 import { runReport } from "./runs.js";
 import { shareUrlFor } from "./shares.js";
+import { listSpaces, ownedSpace } from "./spaces.js";
 import { shareUrl, studioUrl } from "./wizards.js";
 
 /*
@@ -34,24 +35,35 @@ type RunRow = typeof schema.run.$inferSelect;
 
 /** The spaces the caller works with, as the studio lists them, and whether each may change here. */
 export async function apiSpaces(userId: string) {
-  const projects = await listProjects(userId);
+  const spaces = await listSpaces(userId);
   return Promise.all(
-    projects.map(async (p) => ({
+    spaces.map(async (p) => ({
       id: p.id,
       name: p.name,
       title: p.brand.name ?? "",
       wizards: p.wizardCount,
-      writable: await projectWritable(p),
+      writable: await spaceWritable(p),
     })),
   );
 }
 
-/** The space a call names, or the one a caller means when it names none: the first one listed. */
+/**
+ * The space a call names, or the one a caller means when it names none: the first one listed
+ * whose Studio is open to them. A member is refused a space closed to them (services/members-studio.ts).
+ */
 export async function apiSpace(userId: string, spaceId?: string | null) {
   if (spaceId) {
-    return ownedProject(userId, spaceId);
+    const space = await ownedSpace(userId, spaceId);
+    await requireStudio("spaces", space.id);
+    return space;
   }
-  const [first] = await listProjects(userId);
+  const spaces = await listSpaces(userId);
+  for (const p of spaces) {
+    if (!(await closedToMe(p.id))) {
+      return p;
+    }
+  }
+  const [first] = spaces;
   if (!first) {
     // A plan that builds nothing here has a space only once its local install synced one.
     if (!(await mayBuild())) {
@@ -59,6 +71,8 @@ export async function apiSpace(userId: string, spaceId?: string | null) {
     }
     throw notFound();
   }
+  // Every space is closed to them: the studio's answer.
+  await requireStudio("spaces", first.id);
   return first;
 }
 
@@ -75,7 +89,7 @@ export async function apiSpaceDetails(userId: string, spaceId?: string | null) {
     facts: p.facts.map(({ label, value }) => ({ label, value })),
     logoUrl: logo ? `${env.publicUrl}/api/public/logos/${logo}` : null,
     knowledge: await knowledgeCounts(p.id),
-    writable: await projectWritable(p),
+    writable: await spaceWritable(p),
     studioUrl: `${env.appUrl}/studio/space`,
   };
 }
@@ -85,7 +99,7 @@ export async function apiSpaceDetails(userId: string, spaceId?: string | null) {
  * embeds it with: its link's token and the ID the mobile app takes.
  */
 export async function apiWizards(userId: string, spaceId?: string | null) {
-  const spaces = (await listProjects(userId)).filter((p) => !spaceId || p.id === spaceId);
+  const spaces = (await listSpaces(userId)).filter((p) => !spaceId || p.id === spaceId);
   if (!spaces.length) {
     return [];
   }
@@ -93,7 +107,7 @@ export async function apiWizards(userId: string, spaceId?: string | null) {
     where: and(
       eq(schema.wizard.tenantId, currentTenant()),
       inArray(
-        schema.wizard.projectId,
+        schema.wizard.spaceId,
         spaces.map((p) => p.id),
       ),
     ),
@@ -120,7 +134,7 @@ export async function apiWizards(userId: string, spaceId?: string | null) {
       const reason = live ? await wizardUnavailable(w) : null;
       return {
         id: w.id,
-        spaceId: w.projectId,
+        spaceId: w.spaceId,
         title: def.title,
         description: def.description ?? "",
         avatar: def.avatar ?? null,
@@ -216,7 +230,17 @@ const PAGE = 50;
 /** The live runs of the caller's wizards, newest first, by pages of 50: what visitors left. */
 export async function apiRuns(userId: string, filter: ApiRunsFilter = {}) {
   const wizards = await apiWizards(userId, filter.spaceId);
-  const ids = wizards.map((w) => w.id).filter((id) => !filter.wizardId || id === filter.wizardId);
+  // What visitors left is the Studio's: none of a space closed to the person.
+  const closed = new Set<string>();
+  for (const spaceId of new Set(wizards.map((w) => w.spaceId))) {
+    if (await closedToMe(spaceId)) {
+      closed.add(spaceId);
+    }
+  }
+  const ids = wizards
+    .filter((w) => !closed.has(w.spaceId))
+    .map((w) => w.id)
+    .filter((id) => !filter.wizardId || id === filter.wizardId);
   const page = Math.max(1, filter.page ?? 1);
   if (!ids.length) {
     return { runs: [], page, pages: 0, total: 0 };
@@ -295,6 +319,7 @@ export async function apiRuns(userId: string, filter: ApiRunsFilter = {}) {
 
 /** One run with everything a reader of the result needs: the answers, the outputs, the downloads. */
 export async function apiRun(userId: string, runId: string) {
+  await requireStudio("runs", runId);
   // Refuses what is no live run of the tenant.
   const report = await runReport(userId, runId, 0, "live");
   const run = await db.query.run.findFirst({

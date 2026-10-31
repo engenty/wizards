@@ -1,15 +1,17 @@
 import type { PluginSpaceData } from "@engenty/wizards/plugin";
 import type { CategoryInput } from "@engenty/wizards-shared/knowledge";
 import { and, desc, eq, isNull } from "drizzle-orm";
+import { currentCaller } from "../broker/caller.js";
+import { currentReader, type Subject, subjectsOfCaller } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { UnreadableDocument } from "../documents/parse.js";
 import { ServiceError } from "./errors.js";
 import { filePaths, pageTree, tablePaths } from "./knowledge.js";
 import { convertDocument, fillCategories, summarizeValues } from "./knowledge-model.js";
-import { projectFileContent, putOriginFile } from "./project-files.js";
-import { queueIndex } from "./project-index.js";
 import { putCategory, setItemCategories } from "./space-categories.js";
 import { listOrigin, putOriginPage, putOriginTable, removeOrigin } from "./space-data.js";
+import { putOriginFile, spaceFileContent } from "./space-files.js";
+import { queueIndex } from "./space-index.js";
 
 /**
  * `server.spaceData` of a plugin: Knowledge it writes under keys of its own, with categories. The
@@ -23,7 +25,7 @@ export function originData(origin: string): PluginSpaceData {
         if (c.column) {
           const table = await db.query.spaceTable.findFirst({
             where: and(
-              eq(schema.spaceTable.projectId, space),
+              eq(schema.spaceTable.spaceId, space),
               eq(schema.spaceTable.origin, origin),
               eq(schema.spaceTable.originKey, c.column.table),
             ),
@@ -91,7 +93,7 @@ export function originData(origin: string): PluginSpaceData {
     },
     async putDocument(input) {
       const id = await putOriginFile(origin, { ...input, categories: undefined });
-      const file = await db.query.projectFile.findFirst({ where: eq(schema.projectFile.id, id) });
+      const file = await db.query.spaceFile.findFirst({ where: eq(schema.spaceFile.id, id) });
       if (!file) {
         throw new ServiceError("not_found", "The document was removed while it was being read.");
       }
@@ -119,14 +121,14 @@ export function originData(origin: string): PluginSpaceData {
         throw err;
       }
       await db
-        .update(schema.projectFile)
+        .update(schema.spaceFile)
         .set({
           textHash: converted.textHash,
           pages: converted.pages,
           chars: converted.chars,
           updatedAt: new Date(),
         })
-        .where(eq(schema.projectFile.id, id));
+        .where(eq(schema.spaceFile.id, id));
       const [tree, tables] = await Promise.all([pageTree(input.space), tablePaths(input.space)]);
       const items = await Promise.all(
         converted.items.map(async (key) => {
@@ -185,7 +187,7 @@ export function originData(origin: string): PluginSpaceData {
       const tree = await pageTree(space);
       const rows = await db.query.spacePage.findMany({
         where: and(
-          eq(schema.spacePage.projectId, space),
+          eq(schema.spacePage.spaceId, space),
           isNull(schema.spacePage.wizardId),
           opts?.parent ? eq(schema.spacePage.parentId, opts.parent) : undefined,
         ),
@@ -203,13 +205,13 @@ export function originData(origin: string): PluginSpaceData {
       }));
     },
     async files(space, kind = "document") {
-      const rows = await db.query.projectFile.findMany({
+      const rows = await db.query.spaceFile.findMany({
         where: and(
-          eq(schema.projectFile.projectId, space),
-          eq(schema.projectFile.kind, kind),
-          eq(schema.projectFile.status, "ready"),
+          eq(schema.spaceFile.spaceId, space),
+          eq(schema.spaceFile.kind, kind),
+          eq(schema.spaceFile.status, "ready"),
         ),
-        orderBy: [desc(schema.projectFile.updatedAt)],
+        orderBy: [desc(schema.spaceFile.updatedAt)],
       });
       return rows.map((r) => ({
         id: r.id,
@@ -221,7 +223,13 @@ export function originData(origin: string): PluginSpaceData {
       }));
     },
     async readFile(space, fileId) {
-      const { row, data } = await projectFileContent(space, fileId);
+      // As whom the plugin was called for, and as itself: a tool in a step or a Work chat as its
+      // caller, an HTTP route as the person it answers, a job as the runtime itself (readingAs).
+      // Anything else reads as the plugin alone, which no seed allows. A deny for it always wins.
+      const caller = currentCaller();
+      const plugin: Subject = { kind: "plugin", id: origin };
+      const who = [...(caller ? await subjectsOfCaller(caller) : currentReader()), plugin];
+      const { row, data } = await spaceFileContent(space, fileId, who);
       return {
         id: row.id,
         name: row.name,

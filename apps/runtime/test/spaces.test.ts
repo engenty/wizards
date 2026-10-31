@@ -13,7 +13,7 @@ const jwk = { ...(await exportJWK(publicKey)), kid: "k1", alg: "ES256", use: "si
 
 const RUNTIME = "http://localhost:5181";
 const SERVICE_KEY = "wzr_test_service_key";
-const LIMITS: Record<string, { concurrentRuns: number; projects: number; build: boolean }> = {
+const LIMITS: Record<string, { concurrentRuns: number; spaces: number; build: boolean }> = {
   free: { concurrentRuns: 2, projects: 1, build: false },
   builder: { concurrentRuns: 2, projects: 2, build: true },
 };
@@ -203,9 +203,9 @@ describe("a tenant that builds nothing here (the free tier)", () => {
   it("has an empty studio that makes nothing", async () => {
     free = await signIn("free");
     const me = await studio("GET", "/me", free);
-    expect(me.body.limits).toEqual({ projects: 1, build: false, create: false, members: null });
-    expect((await studio("GET", "/projects", free)).body).toEqual([]);
-    const refused = await studio("POST", "/projects", free, { name: "Neu" });
+    expect(me.body.limits).toEqual({ spaces: 1, build: false, create: false, members: null });
+    expect((await studio("GET", "/spaces", free)).body).toEqual([]);
+    const refused = await studio("POST", "/spaces", free, { name: "Neu" });
     expect(refused.status).toBe(403);
     expect(refused.body.code).toBe("read_only");
     // Not through the API of a tenant that builds either.
@@ -232,8 +232,8 @@ describe("a tenant that builds nothing here (the free tier)", () => {
     shareUrl = res.body.shareUrl;
     expect(shareUrl).toMatch(new RegExp(`^${RUNTIME}/w/[A-Za-z0-9_-]{14}$`));
 
-    const [project] = (await studio("GET", "/projects", free)).body;
-    expect(project).toMatchObject({
+    const [space] = (await studio("GET", "/spaces", free)).body;
+    expect(space).toMatchObject({
       id: SPACE_ID,
       name: "Mein Projekt",
       brand: { name: "Tischlerei Holz" },
@@ -255,7 +255,7 @@ describe("a tenant that builds nothing here (the free tier)", () => {
     expect(await page.json()).toMatchObject({ title: "Angebot" });
   });
 
-  it("shows the synced project and changes nothing of it", async () => {
+  it("shows the synced space and changes nothing of it", async () => {
     const current = (await studio("GET", `/wizards/${WIZARD_ID}`, free)).body;
     const tries = [
       studio("PUT", `/wizards/${WIZARD_ID}/draft`, free, {
@@ -267,8 +267,8 @@ describe("a tenant that builds nothing here (the free tier)", () => {
       studio("POST", `/wizards/${WIZARD_ID}/duplicate`, free),
       studio("POST", `/wizards/${WIZARD_ID}/rotate-link`, free),
       studio("DELETE", `/wizards/${WIZARD_ID}`, free),
-      studio("PATCH", `/projects/${SPACE_ID}`, free, { name: "Anders" }),
-      studio("POST", "/wizards", free, { projectId: SPACE_ID }),
+      studio("PATCH", `/spaces/${SPACE_ID}`, free, { name: "Anders" }),
+      studio("POST", "/wizards", free, { spaceId: SPACE_ID }),
       studio("POST", `/wizards/${WIZARD_ID}/chat`, free, { message: "Mach es blau" }),
     ];
     for (const res of await Promise.all(tries)) {
@@ -315,7 +315,7 @@ describe("a tenant that builds nothing here (the free tier)", () => {
     const put = vi.spyOn(objects, "put").mockRejectedValueOnce(new TypeError("fetch failed"));
     const early = await sync("free", SPACE_ID, "localwizard02", body);
     expect(early.status).toBe(500);
-    // It goes out of reach at the logo, after the project, the wizard and its files were written:
+    // It goes out of reach at the logo, after the space, the wizard and its files were written:
     // the transaction takes all of it back.
     put
       .mockImplementationOnce(() => Promise.resolve())
@@ -323,7 +323,7 @@ describe("a tenant that builds nothing here (the free tier)", () => {
       .mockRejectedValueOnce(new TypeError("fetch failed"));
     const late = await sync("free", SPACE_ID, "localwizard02", body);
     expect(late.status).toBe(500);
-    // Not a half-written wizard without its files: no wizard at all, and the project as before.
+    // Not a half-written wizard without its files: no wizard at all, and the space as before.
     expect((await studio("GET", "/wizards/localwizard02", free)).status).toBe(404);
     const spaces = (await api("GET", "/spaces", "free")).body.spaces;
     expect(spaces).toMatchObject([{ id: SPACE_ID, name: "Mein Projekt" }]);
@@ -337,7 +337,7 @@ describe("a tenant that builds nothing here (the free tier)", () => {
     ).toEqual(["film/film.css", "film/tour.html"]);
     expect((await api("GET", "/spaces", "free")).body.spaces[0].name).toBe("Mein Projekt, umbenannt");
     put.mockRestore();
-    // Back to how the other cases know the project.
+    // Back to how the other cases know the space.
     expect((await sync("free", SPACE_ID, "localwizard02", { ...body, space: SPACE })).status).toBe(200);
     expect((await api("DELETE", `/spaces/${SPACE_ID}/wizards/localwizard02`, "free")).status).toBe(
       200,
@@ -418,7 +418,7 @@ describe("a tenant that builds nothing here (the free tier)", () => {
     expect(other.status).toBe(404);
   });
 
-  it("has room for one project: another install's is refused until the first goes", async () => {
+  it("has room for one space: another install's is refused until the first goes", async () => {
     const second = await sync("free", "otherspace002", "otherwizard2", {
       version: 1,
       definition: definition("Vom zweiten Rechner"),
@@ -443,7 +443,7 @@ describe("a tenant that builds nothing here (the free tier)", () => {
       definition: definition("Vom zweiten Rechner"),
     });
     expect(again.status).toBe(200);
-    expect((await studio("GET", "/projects", free)).body).toMatchObject([{ id: "otherspace002" }]);
+    expect((await studio("GET", "/spaces", free)).body).toMatchObject([{ id: "otherspace002" }]);
   });
 
   it("keeps only so many wizards of an install", async () => {
@@ -500,15 +500,15 @@ describe("a tenant that builds nothing here (the free tier)", () => {
 describe("a tenant that builds here", () => {
   let builder = "";
 
-  it("keeps its own project writable beside a synced one, within its number", async () => {
+  it("keeps its own space writable beside a synced one, within its number", async () => {
     builder = await signIn("builder");
     expect((await studio("GET", "/me", builder)).body.limits).toEqual({
-      projects: 2,
+      spaces: 2,
       build: true,
       create: true,
       members: null,
     });
-    const [own] = (await studio("GET", "/projects", builder)).body;
+    const [own] = (await studio("GET", "/spaces", builder)).body;
     expect(own).toMatchObject({ origin: null, readOnly: false });
 
     // The same ids as the other tenant's install: each tenant has its own.
@@ -517,29 +517,29 @@ describe("a tenant that builds here", () => {
       definition: definition("Vom Laptop"),
     });
     expect(res.status).toBe(200);
-    const projects = (await studio("GET", "/projects", builder)).body;
-    expect(projects.map((p: any) => [p.id === SPACE_ID, p.readOnly])).toEqual([
+    const spaces = (await studio("GET", "/spaces", builder)).body;
+    expect(spaces.map((p: any) => [p.id === SPACE_ID, p.readOnly])).toEqual([
       [false, false],
       [true, true],
     ]);
 
-    const made = await studio("POST", "/wizards", builder, { projectId: own.id });
+    const made = await studio("POST", "/wizards", builder, { spaceId: own.id });
     expect(made.status).toBe(200);
-    const intoSynced = await studio("POST", "/wizards", builder, { projectId: SPACE_ID });
+    const intoSynced = await studio("POST", "/wizards", builder, { spaceId: SPACE_ID });
     expect(intoSynced.status).toBe(403);
-    // A wizard made here does not move into the synced project.
+    // A wizard made here does not move into the synced space.
     const moved = await studio("PATCH", `/wizards/${made.body.id}`, builder, {
-      projectId: SPACE_ID,
+      spaceId: SPACE_ID,
     });
     expect(moved.status).toBe(403);
 
-    // Two projects is this tenant's number: a third, synced or made here, is refused.
+    // Two spaces is this tenant's number: a third, synced or made here, is refused.
     const third = await sync("builder", "thirdspace003", "thirdwizard03", {
       version: 1,
       definition: definition("Zu viel"),
     });
     expect(third.body).toMatchObject({ reason: "space_limit" });
-    expect((await studio("POST", "/projects", builder, { name: "Noch eins" })).status).toBe(400);
+    expect((await studio("POST", "/spaces", builder, { name: "Noch eins" })).status).toBe(400);
   });
 });
 

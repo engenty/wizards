@@ -15,7 +15,7 @@ import { EngentyLogoMark } from "../engenty/logo";
 import { api } from "../lib/api";
 import { type Key, lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
-import { initialsOf, pendingWish, useCurrentProject, useMe, useProjects } from "../lib/session";
+import { initialsOf, pendingWish, useCurrentSpace, useMe, useSpaces } from "../lib/session";
 import { useDictation, useDictationSettings } from "../lib/speech";
 import { useGround } from "../lib/theme";
 import { cn } from "../ui";
@@ -351,7 +351,7 @@ function Questions() {
   const me = useMe();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   const user = me.data?.user.id ?? "";
   /** Known to the studio: the organization's questions alone, no greeting and no space page. */
   const known = me.data?.onboarding === "organization";
@@ -466,7 +466,7 @@ function Questions() {
   };
   const read = useMutation({
     mutationFn: (urls: string[]) =>
-      api.post<Outcome | null>(`/api/studio/projects/${project?.id}/website`, { urls, lang }),
+      api.post<Outcome | null>(`/api/studio/spaces/${space?.id}/website`, { urls, lang }),
     onSuccess: async (result) => {
       // The sector the site points to stands chosen; the person changes it on the next page.
       const sector = result?.sectors?.[0];
@@ -481,7 +481,7 @@ function Questions() {
   });
   const about = useMutation({
     mutationFn: (text: string) =>
-      api.patch(`/api/studio/projects/${project?.id}`, { brand: { about: text } }),
+      api.patch(`/api/studio/spaces/${space?.id}`, { brand: { about: text } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.spaces() }),
   });
   const finish = useMutation({
@@ -508,13 +508,13 @@ function Questions() {
   ) => (title && !personal ? t(key, { organization: title }) : t(plain));
 
   const addFiles = async (files: FileList | null) => {
-    if (!files || !project) {
+    if (!files || !space) {
       return;
     }
     for (const file of Array.from(files)) {
       setUploads((u) => [...u, { name: file.name, state: "uploading" }]);
       try {
-        await api.upload(`/api/studio/projects/${project.id}/files?kind=document`, file);
+        await api.upload(`/api/studio/spaces/${space.id}/files?kind=document`, file);
         setUploads((u) => u.map((x) => (x.name === file.name ? { ...x, state: "done" } : x)));
       } catch {
         setUploads((u) => u.map((x) => (x.name === file.name ? { ...x, state: "failed" } : x)));
@@ -1033,7 +1033,7 @@ function Questions() {
                   ? t("onboard.spaceNamed", { organization: title })
                   : t("onboard.space")}
               </Title>
-              <Lead>{t("onboard.spaceSub", { space: project?.name ?? "" })}</Lead>
+              <Lead>{t("onboard.spaceSub", { space: space?.name ?? "" })}</Lead>
               <div className="grid gap-3 sm:grid-cols-2">
                 {(
                   [
@@ -1214,7 +1214,7 @@ function Welcome() {
   const me = useMe();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const projects = useProjects();
+  const spaces = useSpaces();
   const tenant = me.data?.tenant;
   const members = useQuery({
     queryKey: ["organization", tenant?.id],
@@ -1287,8 +1287,8 @@ function Welcome() {
                 {t(`organization.role.${tenant.role}` as Key)}
               </span>
             </div>
-            {projects.data?.some((p) => p.wizardCount > 0) ? (
-              projects.data.map((p) => (
+            {spaces.data?.some((p) => p.wizardCount > 0) ? (
+              spaces.data.map((p) => (
                 <div
                   key={p.id}
                   className="flex justify-between gap-3 border-white/15 border-t px-4.5 py-2.5 text-[0.9375rem]"

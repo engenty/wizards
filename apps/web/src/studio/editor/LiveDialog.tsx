@@ -15,9 +15,9 @@ import {
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { type Key, lang, t } from "../../lib/i18n";
-import { type PublishResult, useMe, useProjects, type WizardDetail } from "../../lib/session";
+import { type PublishResult, useMe, useSpaces, type WizardDetail } from "../../lib/session";
 import { Button, cn, Dialog, Spinner } from "../../ui";
-import { pageAddress, pageUrl } from "../project/page-address";
+import { pageAddress, pageUrl } from "../space/page-address";
 
 /**
  * "Änderungen live schalten": the draft becomes the version people run, from a dialog that
@@ -164,8 +164,8 @@ function LivePanel({
   // The organization's public page, where the wizard stands on it: it shows the new version too.
   const me = useMe();
   const host = me.data?.tenant.pagesHost ?? null;
-  const projects = useProjects(Boolean(host));
-  const page = projects.data?.find((p) => p.id === wizard.projectId)?.page;
+  const spaces = useSpaces(Boolean(host));
+  const page = spaces.data?.find((p) => p.id === wizard.spaceId)?.page;
   const onPage = host && page?.on && page.wizards.includes(wizard.id) ? page : null;
 
   if (done) {

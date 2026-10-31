@@ -11,7 +11,7 @@ import {
   type AppleStatus,
   type HarnessStatus,
   type LocalModels,
-  useCurrentProject,
+  useCurrentSpace,
   useMe,
   withoutApple,
 } from "../lib/session";
@@ -408,7 +408,7 @@ export function SetupPage() {
   const navigate = useNavigate();
   const config = useConfig();
   const accountOn = useFeature("account");
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   // The account: signed in during the install, or here; its credits are a way to think too.
   const linking = useAccountLink(Boolean(me.data?.account?.signedIn));
   const [picked, setPicked] = useState(ownPicked);
@@ -835,7 +835,7 @@ export function SetupPage() {
           engenty ·{" "}
           {me.data.account?.signedIn
             ? t("setup.thisComputer", {
-                space: project?.name ?? "",
+                space: space?.name ?? "",
                 organization: me.data.account.organization ?? me.data.account.name,
               })
             : t("setup.local")}

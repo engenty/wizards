@@ -6,14 +6,13 @@ version: 0.5.0
 
 A space holds what all its wizards share: a name, its brand (logos, colours, fonts), facts, and
 Knowledge – pages, tables and files with their categories. A plugin can write Knowledge and add to
-what the space’s AI steps know, to what its search finds and to what its assistant can do. The
-runtime’s own tables call a space a project: `wizard.projectId` in a [run event](./events.md) is
-a space’s id.
+what the space’s AI steps know, to what its search finds and to what its assistant can do.
+`wizard.spaceId` in a [run event](./events.md) is a space’s id.
 
 ## Knowledge a plugin writes
 
 `server.spaceData` writes pages, tables and files into a space’s Knowledge under keys of the
-plugin’s own, with their categories. Every write is indexed: `project_search` finds it a moment
+plugin’s own, with their categories. Every write is indexed: `space_search` finds it a moment
 later, filtered by its categories and checked like everything else in Knowledge. `space` is the
 space’s id.
 
@@ -114,7 +113,7 @@ const brand = await server.spaces.brand(space.id);
 
 ## The search index
 
-Every agent step can search the space with `project_search`. It finds Knowledge, written by
+Every agent step can search the space with `space_search`. It finds Knowledge, written by
 people and by `server.spaceData`, and the texts plugins put in themselves, outside Knowledge:
 
 ```ts
@@ -137,7 +136,7 @@ await server.index.remove(space.id); // every text of the plugin in the space
   model set up, it also searches by meaning. A classifier then judges each candidate.
 - Such a text has no categories, so a search with a filter leaves it out. Write Knowledge with
   `server.spaceData` when it should be filtered.
-- A step gets `project_search` as soon as the space has Knowledge or a plugin’s text.
+- A step gets `space_search` as soon as the space has Knowledge or a plugin’s text.
 - A tenant without the plugin does not find its texts. They are deleted with the space.
 
 ## Tools of the space assistant
@@ -174,6 +173,17 @@ server.registerAssistantTool({
 - The model sees the tool as `<plugin>_<name>`, beside the assistant’s own tools.
 - The assistant doesn’t keep a tool’s result from one message to the next. Keep what a later
   message needs in the plugin’s tables.
+
+### What a tool does
+
+`risk` says what a call does: `read` only reads, `space` changes the space’s own data,
+`outside` reaches past the space (sends, books, cancels with someone, publishes, deletes on a
+connected service). In a Work chat, a call of an `outside` tool, or of a tool without `risk`,
+doesn’t run when the AI makes it: a person approves or denies it first, and an approved call runs
+once.
+
+`label` is what a call does, in a few words, as a Work chat’s step line and its approval say it:
+`{ de: "Mail senden", en: "Send a mail" }`. Without it they show the plugin’s name and the tool’s.
 
 ### A card in the chat
 

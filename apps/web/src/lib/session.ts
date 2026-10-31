@@ -4,6 +4,7 @@ import {
   TEXT_CLASSES,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
+import { featureOn } from "@engenty/wizards-shared/features";
 import type {
   AssetSection,
   BrandColor,
@@ -13,10 +14,11 @@ import type {
   BrandRule,
   ColorSection,
   LogoSection,
-  ProjectFact,
-  ProjectPage,
+  SpaceFact,
+  SpaceNotify,
+  SpacePage,
   TextStyle,
-} from "@engenty/wizards-shared/projects";
+} from "@engenty/wizards-shared/spaces";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
@@ -211,12 +213,12 @@ export interface Me {
   /** Where an admin's own MCP client (Claude Code, Cursor, Codex) connects. */
   mcpUrl: string;
   /**
-   * `projects`: how many projects the tenant works with, null for as many as wanted. `build:
+   * `spaces`: how many spaces the tenant works with, null for as many as wanted. `build:
    * false`: nothing is made or changed on this runtime; the studio shows what the person's
    * local install published. `create`: this person makes and deletes here (builds, and is no
    * mere member). `members`: the people the plan allows, null for no limit.
    */
-  limits: { projects: number | null; build: boolean; create: boolean; members: number | null };
+  limits: { spaces: number | null; build: boolean; create: boolean; members: number | null };
 }
 
 /** A part of the account's credits that ends on a date. */
@@ -226,20 +228,28 @@ export interface ExpiringCredits {
   expiresAt: string;
 }
 
-/** Whether the studio deals with several projects at all: with one, there is nothing to switch. */
-export function useManyProjects(): boolean {
-  const projects = useMe().data?.limits.projects;
-  return projects === null || (projects ?? 1) > 1;
+/** Whether the studio deals with several spaces at all: with one, there is nothing to switch. */
+export function useManySpaces(): boolean {
+  const spaces = useMe().data?.limits.spaces;
+  return spaces === null || (spaces ?? 1) > 1;
 }
 
-/** Whether wizards and projects are made and changed on this runtime at all. */
+/** Whether wizards and spaces are made and changed on this runtime at all. */
 export function useMayBuild(): boolean {
   return useMe().data?.limits.build ?? true;
 }
 
-/** Whether this person makes and deletes here: builds at all, and is no mere member of the organization. */
+/**
+ * Whether this person makes wizards here: builds at all, and is no mere member of the organization
+ * — or, behind `capabilities`, a member in a space that opens its Studio to members.
+ */
 export function useMayCreate(): boolean {
-  return useMe().data?.limits.create ?? true;
+  const me = useMe().data;
+  const open = useCurrentSpace().space?.studio ?? false;
+  if (!me) {
+    return true;
+  }
+  return me.limits.create || (featureOn(me.features, "capabilities") && me.limits.build && open);
 }
 
 /** Whether this person manages the organization: its owner or an admin, or alone. */
@@ -297,7 +307,7 @@ export function useMe() {
   });
 }
 
-export interface Project {
+export interface Space {
   id: string;
   name: string;
   brand: {
@@ -315,26 +325,32 @@ export interface Project {
     typeRules?: BrandRule[];
     logoRules?: BrandRule[];
   };
-  facts: ProjectFact[];
+  facts: SpaceFact[];
   /** The space's public page; null until it is set up. */
-  page: ProjectPage | null;
+  page: SpacePage | null;
   wizardCount: number;
   /** `local`: sent here by a local install, where it is changed. */
   origin: "local" | null;
   syncedAt: string | null;
-  /** Shown here, changed elsewhere: a local install's project, or nothing is built on this runtime. */
+  /** Shown here, changed elsewhere: a local install's space, or nothing is built on this runtime. */
   readOnly: boolean;
+  /** „Mitglieder dürfen ins Studio“: the organization's members build here too. */
+  membersStudio: boolean;
+  /** Whether this person reaches the space's Studio: a member only by the rule above. */
+  studio: boolean;
+  /** How the admins hear of the broker's critical lines: Work's bell, the hourly mail. */
+  notify: SpaceNotify;
 }
 
-export function useProjects(enabled = true) {
+export function useSpaces(enabled = true) {
   return useQuery({
     queryKey: keys.spaces(),
-    queryFn: () => api.get<Project[]>("/api/studio/projects"),
+    queryFn: () => api.get<Space[]>("/api/studio/spaces"),
     enabled,
   });
 }
 
-const KEY = "wz.project";
+const KEY = "wz.space";
 
 function readStored(): string | null {
   try {
@@ -360,9 +376,9 @@ function pick(next: string) {
   }
 }
 
-/** The project the studio is looking at; remembered per browser. */
-export function useCurrentProject() {
-  const projects = useProjects();
+/** The space the studio is looking at; remembered per browser. */
+export function useCurrentSpace() {
+  const spaces = useSpaces();
   const id = useSyncExternalStore(
     (listener) => {
       listeners.add(listener);
@@ -370,15 +386,15 @@ export function useCurrentProject() {
     },
     () => picked,
   );
-  const list = projects.data ?? [];
-  // A pick that is gone (deleted, another tenant) falls back to the first project.
+  const list = spaces.data ?? [];
+  // A pick that is gone (deleted, another tenant) falls back to the first space.
   const current = list.find((p) => p.id === id) ?? list[0] ?? null;
-  return { project: current, projects: list, select: pick, loading: projects.isLoading };
+  return { space: current, spaces: list, select: pick, loading: spaces.isLoading };
 }
 
 export interface WizardSummary {
   id: string;
-  projectId: string;
+  spaceId: string;
   title: string;
   description: string;
   avatar: string;
@@ -408,7 +424,7 @@ export interface WizardDetail extends WizardSummary {
   issues: { stepId?: string; message: string }[];
   blank: boolean;
   dirty: boolean;
-  /** Shown and run here, changed elsewhere: its project is read-only. */
+  /** Shown and run here, changed elsewhere: its space is read-only. */
   readOnly: boolean;
   messages: {
     id: string;

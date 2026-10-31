@@ -9,6 +9,7 @@ import {
   Cpu,
   Info,
   KeyRound,
+  Link2,
   type LucideIcon,
   Plug,
   Receipt,
@@ -44,6 +45,12 @@ export function settingsSections(
   // In the cloud with organizationSettings on, the organization's settings come first, under their
   // heading, and the studio's own under theirs.
   const ownSettings = me?.mode === "managed" && featureOn(me.features, "organizationSettings");
+  // Behind `capabilities`, a member's Studio holds none of the organization's settings.
+  const organizationShown = !(
+    me?.mode === "managed" &&
+    me.tenant.role === "member" &&
+    featureOn(me.features, "capabilities")
+  );
   const organization = t("settings.groupOrganization");
   const studio = ownSettings ? t("settings.groupStudio") : undefined;
   const inStudio = (section: SettingsSection): SettingsSection =>
@@ -53,7 +60,7 @@ export function settingsSections(
     ...(ownSettings
       ? []
       : [{ id: "account", label: t("account.title"), icon: UserRound, menu: true }]),
-    ...(ownSettings
+    ...(ownSettings && organizationShown
       ? [
           {
             id: "general",
@@ -99,14 +106,17 @@ export function settingsSections(
           },
         ]
       : // In the cloud the studio is an organization's: who is in it, and its plan — once teamPlans is on.
-        me?.mode === "managed" && featureOn(me.features, "teamPlans")
+        me?.mode === "managed" && featureOn(me.features, "teamPlans") && organizationShown
         ? [{ id: "organization", label: t("organization.title"), icon: Users, menu: true }]
         : []),
     // This computer's spaces kept the same as the organization's in the cloud, both ways.
     ...(cloudSyncOn(me)
       ? [inStudio({ id: "cloud", label: t("cloudSync.title"), icon: CloudCog, menu: false })]
       : []),
-    inStudio({ id: "connectors", label: t("connectors.title"), icon: Plug, menu: true }),
+    // With Fähigkeiten on, the connectors live there (/settings/connectors leads to it).
+    ...(featureOn(me?.features, "capabilities")
+      ? []
+      : [inStudio({ id: "connectors", label: t("connectors.title"), icon: Plug, menu: true })]),
     // Alone for this machine; in the cloud for the organization, on its credits unless it brings keys.
     inStudio({ id: "models", label: t("local.title"), icon: Cpu, menu: true }),
     inStudio({ id: "integrate", label: t("integrate.nav"), icon: Cable, menu: true }),
@@ -128,9 +138,13 @@ export function settingsSections(
 }
 
 /** The person's Konto behind the avatar: theirs in every organization, so it names none. */
-export function accountSections(): SettingsSection[] {
+export function accountSections(features?: Record<string, boolean>): SettingsSection[] {
   return [
     { id: "profile", label: t("konto.profile"), icon: UserRound, menu: true },
+    // The person's own sign-ins to their spaces' connections (docs/plans/capabilities.md).
+    ...(featureOn(features, "capabilities")
+      ? [{ id: "connections", label: t("konto.connections"), icon: Link2, menu: true }]
+      : []),
     { id: "orgs", label: t("konto.organizations"), icon: Building2, menu: false },
     { id: "apps", label: t("konto.apps"), icon: Plug, menu: false },
   ];

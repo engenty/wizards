@@ -1,12 +1,12 @@
 ---
 title: Skills
 description: Instructions your wizards work by – always, or when a wizard needs one. Add them from skills.sh, upload them or write your own.
-version: 0.11.6
+version: 0.13.0
 ---
 
 A skill is a set of instructions your wizards work by: how you write, what a quote must hold, how
-to handle a PDF. You find them under **Sources › Skills**. Skills are not switched on for
-everyone yet.
+to handle a PDF. You find them under **[Capabilities](./capabilities.md) › Skills** in the app bar,
+after Sources.
 
 A skill is a folder in the open Agent Skills format: a `SKILL.md` with a name, a description and
 the instructions, and any text files the instructions point to. The same skill works in Claude,
@@ -25,7 +25,8 @@ Each skill has one of three settings:
 - **Off.** The skill stays in the space, and no wizard sees it.
 
 A wizard reads a file of a skill when the skill’s instructions point to it. Goose sees the
-space’s skills too and reads them when they help.
+space’s skills too and reads them when they help, and so does the space’s AI in a Work chat. In a
+Work chat a skill’s scripts run too, once you switched them on for the skill.
 
 ## Add a skill
 
@@ -45,6 +46,9 @@ A wizard reads a skill’s text files: instructions, references, examples, scrip
 such as fonts, templates or pictures, come along for the skill’s scripts, and the page shows them
 as “for scripts”. skills.sh hands out text files only, so a skill that needs fonts or templates
 comes as a zip upload.
+
+**Capabilities › Discover** searches skills.sh and integrations.sh at once: you view or add a
+skill right in the results, marked “In this space” once the space has it.
 
 ## Run a skill’s scripts
 

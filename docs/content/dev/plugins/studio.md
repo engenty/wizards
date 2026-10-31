@@ -171,7 +171,7 @@ studio.registerSpaceSection({
   hold of the look: `name`, `colors` (`{ name, value }`, the first is the accent) and `fonts`
   (`{ family, role, weights }`).
 - Every wizard belongs to a space: a [run event](./events.md) names it as
-  `wizard.projectId`. Keep it with what the plugin stores to show a space’s part of it.
+  `wizard.spaceId`. Keep it with what the plugin stores to show a space’s part of it.
 
 ### A part of the plugin’s own
 

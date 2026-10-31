@@ -56,6 +56,7 @@ keeps a line for every run that ended and shows them in the studio.
 | `engenty.plugin.json` | A manifest |
 | `migrations/0001_init.sql` | A table, `run_log_entry`, with an index |
 | `migrations/0002_space.sql` | A column added later: the space of each line |
+| `migrations/0003_space_id.sql` | A column renamed, with its index |
 | `src/schema.ts` | The same table for Drizzle |
 | `src/plugin.ts` | A listener on the three run events (`run.done`, `run.failed`, `run.cancelled`), two routes (one for admins only, one that filters by space) and a tool, `run-log.recent` |
 | `ui/messages.ts` | Its texts in English and German |

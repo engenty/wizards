@@ -6,12 +6,12 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "wizards-package-"));
 process.env.APP_URL = "http://localhost:5181";
-process.env.LIMIT_PROJECTS = "5";
+process.env.LIMIT_SPACES = "5";
 
 let client: typeof import("../src/db/client");
 let wizards: typeof import("../src/services/wizards");
 let files: typeof import("../src/services/files");
-let projects: typeof import("../src/services/projects");
+let spaces: typeof import("../src/services/spaces");
 let pkg: typeof import("../src/services/package");
 
 const TENANT = "tenant-p";
@@ -43,21 +43,21 @@ const manifest = (def: unknown, extra: Record<string, unknown> = {}) =>
   strToU8(JSON.stringify({ format: "engenty-wizard", version: 1, definition: def, ...extra }));
 
 let sourceId: string;
-let otherProject: string;
+let otherSpace: string;
 
 beforeAll(async () => {
   client = await import("../src/db/client");
   await client.migrateControlDb();
   wizards = await import("../src/services/wizards");
   files = await import("../src/services/files");
-  projects = await import("../src/services/projects");
+  spaces = await import("../src/services/spaces");
   pkg = await import("../src/services/package");
   await inTenant(async () => {
     sourceId = (await wizards.createWizard(USER, { definition })).id;
     await files.writeFile(USER, sourceId, "map/index.html", "<h1>Karte</h1>");
     await files.writeFile(USER, sourceId, "map/sample.json", '{"lake":"Attersee"}');
     await files.writeFile(USER, sourceId, "img/pin.png", PNG);
-    otherProject = (await projects.createProject(USER, "Zweites Projekt")).id;
+    otherSpace = (await spaces.createSpace(USER, "Zweites Projekt")).id;
   });
 }, 60_000);
 
@@ -78,13 +78,13 @@ describe("wizard packages", () => {
     expect(told.definition.title).toBe("Wetter für Köche");
   });
 
-  it("takes the project's pages along as Markdown files when asked, within the cap", async () => {
+  it("takes the space's pages along as Markdown files when asked, within the cap", async () => {
     await inTenant(async () => {
-      const projectId = (await wizards.ownedWizard(USER, sourceId)).projectId;
+      const spaceId = (await wizards.ownedWizard(USER, sourceId)).spaceId;
       const page = (id: string, title: string, markdown: string, parentId: string | null = null) => ({
         id,
         tenantId: TENANT,
-        projectId,
+        spaceId,
         parentId,
         title,
         markdown,
@@ -118,14 +118,14 @@ describe("wizard packages", () => {
     });
   });
 
-  it("imports a package as a new, unpublished wizard of another project", async () => {
+  it("imports a package as a new, unpublished wizard of another space", async () => {
     await inTenant(async () => {
       const { zip } = await pkg.exportWizard(USER, sourceId);
-      const { id, issues } = await pkg.importWizard(USER, otherProject, zip, "wetter.wizard");
+      const { id, issues } = await pkg.importWizard(USER, otherSpace, zip, "wetter.wizard");
       expect(issues).toEqual([]);
       expect(id).not.toBe(sourceId);
       const [source, copy] = [await wizards.ownedWizard(USER, sourceId), await wizards.ownedWizard(USER, id)];
-      expect(copy.projectId).toBe(otherProject);
+      expect(copy.spaceId).toBe(otherSpace);
       expect(copy.draft).toEqual(source.draft);
       expect(copy.publishedVersion).toBeNull();
       expect(copy.shareToken).not.toBe(source.shareToken);
@@ -145,7 +145,7 @@ describe("wizard packages", () => {
         "wetter/.DS_Store": strToU8("x"),
         "__MACOSX/wetter/._wizard.json": strToU8("x"),
       });
-      const { id, issues } = await pkg.importWizard(USER, otherProject, zip);
+      const { id, issues } = await pkg.importWizard(USER, otherSpace, zip);
       expect(issues).toEqual([]);
       expect((await files.draftFiles(id)).map((f) => f.path)).toEqual(["map/index.html", "map/sample.json"]);
     });
@@ -154,13 +154,13 @@ describe("wizard packages", () => {
   it("takes a bare definition as JSON", async () => {
     await inTenant(async () => {
       const bare = { ...definition, steps: [definition.steps[0], definition.steps[2]] };
-      const { id, issues } = await pkg.importWizard(USER, otherProject, strToU8(JSON.stringify(bare)));
+      const { id, issues } = await pkg.importWizard(USER, otherSpace, strToU8(JSON.stringify(bare)));
       expect(issues).toEqual([]);
       expect((await wizards.ownedWizard(USER, id)).title).toBe("Wetter für Köche");
     });
   });
 
-  it("says what the project lacks", async () => {
+  it("says what the space lacks", async () => {
     await inTenant(async () => {
       const def = {
         ...definition,
@@ -184,7 +184,7 @@ describe("wizard packages", () => {
           connectors: [{ id: "notion", name: "Notion", domain: "notion.com", sourceKind: "mcp" }],
         }),
       });
-      const { id, issues } = await pkg.importWizard(USER, otherProject, zip);
+      const { id, issues } = await pkg.importWizard(USER, otherSpace, zip);
       expect(issues.map((i) => i.message).join()).toContain('connector "notion"');
       const [note] = await wizards.wizardMessages(id);
       expect(note.content).toContain("Connector „Notion“ (notion.com)");
@@ -193,9 +193,9 @@ describe("wizard packages", () => {
 
   it("refuses what is not a package and leaves no wizard behind", async () => {
     await inTenant(async () => {
-      const before = (await wizards.listWizards(USER, otherProject)).length;
+      const before = (await wizards.listWizards(USER, otherSpace)).length;
       const refused = async (data: Uint8Array, message: RegExp) =>
-        expect(pkg.importWizard(USER, otherProject, data)).rejects.toThrow(message);
+        expect(pkg.importWizard(USER, otherSpace, data)).rejects.toThrow(message);
       await refused(zipSync({ "readme.txt": strToU8("hi") }), /wizard\.json is missing/);
       await refused(strToU8("PK not a zip"), /can’t be opened/);
       await refused(strToU8("hello"), /wizard\.json can’t be read/);
@@ -212,7 +212,7 @@ describe("wizard packages", () => {
         zipSync({ "wizard.json": manifest(definition), "files/big.bin": new Uint8Array(5_000_001) }),
         /larger than 5 MB/,
       );
-      expect((await wizards.listWizards(USER, otherProject)).length).toBe(before);
+      expect((await wizards.listWizards(USER, otherSpace)).length).toBe(before);
     });
   });
 });

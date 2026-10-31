@@ -45,6 +45,9 @@ import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
+import { grantNote, grantOf, type KnownConnector, kindOf } from "../broker/index.js";
+import { runHolder, subjectsOf } from "../broker/rwx.js";
+import { resolveConnector } from "../connectors/external.js";
 import { connectionViews } from "../connectors/index.js";
 import {
   addLocalCost,
@@ -78,9 +81,9 @@ import {
   guestRun,
 } from "../safety.js";
 import { reportRun } from "../services/manage-reports.js";
-import { projectFiles } from "../services/project-files.js";
-import { projectProfile } from "../services/projects.js";
 import { switchedOffRunners } from "../services/runners.js";
+import { spaceFiles } from "../services/space-files.js";
+import { spaceProfile } from "../services/spaces.js";
 import { storedTranslation } from "../services/translations.js";
 import { latestShareJob } from "../sharing/state.js";
 import { listRows, listSecrets, scopeOf } from "../store/index.js";
@@ -113,7 +116,7 @@ import {
 import { releaseResources, resourcesFor } from "./resources.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
 import { answersAsText, resolveRef } from "./template.js";
-import type { ProjectRow, RunRow, StepContext } from "./types.js";
+import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
 import { StepError } from "./types.js";
 
 /** A command the run cannot take in its current state; a note where the person may read it. */
@@ -165,17 +168,17 @@ async function loadRun(runId: string): Promise<RunRow | undefined> {
   return db.query.run.findFirst({ where: eq(schema.run.id, runId) });
 }
 
-/** The project a run's wizard belongs to — where its imported connectors live. */
-export async function projectIdOf(run: RunRow): Promise<string> {
+/** The space a run's wizard belongs to — where its imported connectors live. */
+export async function spaceIdOf(run: Pick<RunRow, "wizardId">): Promise<string> {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
-  return w?.projectId ?? "";
+  return w?.spaceId ?? "";
 }
 
-export async function loadProject(run: RunRow): Promise<ProjectRow> {
+export async function loadSpace(run: RunRow): Promise<SpaceRow> {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
-  const p = w && (await db.query.project.findFirst({ where: eq(schema.project.id, w.projectId) }));
+  const p = w && (await db.query.space.findFirst({ where: eq(schema.space.id, w.spaceId) }));
   if (!p) {
-    throw new Error("project missing");
+    throw new Error("space missing");
   }
   return p;
 }
@@ -312,12 +315,15 @@ export async function createRun(input: {
   if (!held) {
     throw new NoCreditsError();
   }
+  // What the run may reach outside, from the definition it starts on: fixed here, never widened.
+  const grant = grantOf(input.definition);
   await db.insert(schema.run).values({
     id,
     wizardId: input.wizardId,
     tenantId: currentTenant(),
     definition: input.definition,
     files: input.files,
+    grant,
     version: input.version,
     mode: input.mode,
     runner: input.runner ?? null,
@@ -338,12 +344,49 @@ export async function createRun(input: {
         ? new Date(Date.now() + env.limits.resultTtlDays * 24 * 60 * 60 * 1000)
         : null,
   });
+  const may = grantNote(
+    grant,
+    input.definition,
+    await grantConnectors(input.wizardId, input.definition),
+  );
+  if (may) {
+    await emitEvent(id, first.id, "info", may);
+  }
   await indexRun({ runId: id, visitorId: input.visitorId, ipHash: input.ipHash });
   reportRun(id, first.type === "page" ? "waiting_input" : "running");
   if (first.type !== "page") {
     kick(id);
   }
   return id;
+}
+
+/**
+ * The wizard's connectors as the space has them, by connection id, for the line that says what
+ * the run may do: their names, and what kind each action is. A connector the space does not have
+ * is left out; the line then names the connection as the definition does.
+ */
+async function grantConnectors(
+  wizardId: string,
+  definition: WizardDefinition,
+): Promise<Record<string, KnownConnector>> {
+  const out: Record<string, KnownConnector> = {};
+  const imported = (definition.connections ?? []).filter((c) => c.connector);
+  if (!imported.length) {
+    return out;
+  }
+  const spaceId = await spaceIdOf({ wizardId });
+  for (const c of imported) {
+    const resolved = await resolveConnector(spaceId, c.connector as string).catch(() => null);
+    if (resolved) {
+      out[c.id] = {
+        name: resolved.connector.name,
+        kinds: Object.fromEntries(
+          resolved.connector.actions.map((a) => [a.id, kindOf(a.group)] as const),
+        ),
+      };
+    }
+  }
+  return out;
 }
 
 /**
@@ -540,14 +583,16 @@ function viewContext(
   return { known: ctx.known, options: ctx.options, cards: ctx.cards, decidedFields: ctx.decided };
 }
 
-/** The wizard's lists with the person's rows, by list id. */
+/** The wizard's lists with the person's rows, by list id; a shared list's as its holder may read them. */
 async function storedLists(
   run: RunRow,
+  holder?: RunHolder,
 ): Promise<Record<string, { def: ListDef; rows: ListRow[] }>> {
   const scope = scopeOf(run);
+  const who = subjectsOf({ holder: holder ?? (await runHolder(run)), store: scope });
   const out: Record<string, { def: ListDef; rows: ListRow[] }> = {};
   for (const def of run.definition.lists ?? []) {
-    out[def.id] = { def, rows: await listRows(scope, def) };
+    out[def.id] = { def, rows: await listRows(scope, def, who) };
   }
   return out;
 }
@@ -558,20 +603,22 @@ async function storedLists(
  */
 export async function makeContext(
   run: RunRow,
-  project: ProjectRow,
+  space: SpaceRow,
   state: RunState,
   signal: AbortSignal,
   own: Partial<Pick<StepContext, "stepId" | "emit" | "ask">> = {},
 ): Promise<StepContext> {
   const store = scopeOf(run);
   const resources = resourcesFor(run.id);
-  resources.bind(store);
+  resources.bind(store, run);
   const stepId = own.stepId ?? run.cursor ?? "";
+  const holder = await runHolder(run);
   return {
     runId: run.id,
     tenantId: run.tenantId,
     test: run.mode === "test",
     stepId,
+    holder,
     store,
     def: run.definition,
     lang: run.lang,
@@ -580,11 +627,11 @@ export async function makeContext(
     scope: {
       def: run.definition,
       state,
-      brand: projectProfile(project),
-      lists: await storedLists(run),
+      brand: spaceProfile(space),
+      lists: await storedLists(run, holder),
     },
-    project,
-    projectFiles: (await projectFiles(project.id)).filter((f) => f.status === "ready"),
+    space,
+    spaceFiles: (await spaceFiles(space.id)).filter((f) => f.status === "ready"),
     signal,
     resources,
     ask:
@@ -848,10 +895,10 @@ async function drive(runId: string, signal: AbortSignal) {
       return;
     }
     await emitEvent(runId, step.id, "step_started", step.working ?? step.title);
-    const project = await loadProject(run);
+    const space = await loadSpace(run);
     const state = structuredClone(run.state);
     try {
-      const ctx = await makeContext(run, project, state, signal);
+      const ctx = await makeContext(run, space, state, signal);
       // A guest's answers are checked once before any model works on them, and what a step
       // wrote for a guest before it is kept (docs/plans/guest-content-guards.md).
       const guest = guestRun(run) && (await guestChecksOn());
@@ -941,7 +988,7 @@ export async function submitPage(runId: string, stepId: string, input: Record<st
     ? await connectionViews(
         run.definition.connections ?? [],
         scopeOf(run),
-        await projectIdOf(run),
+        await spaceIdOf(run),
         textLang(wizardLang(run.definition)),
       )
     : [];
@@ -1190,7 +1237,15 @@ export async function talkAllowed(run: RunRow): Promise<boolean> {
   return enabled.some((id) => CONVERSATION_RUNNERS.includes(id) && !off.has(id));
 }
 
-export async function runView(run: RunRow, brand: RunView["brand"]): Promise<RunView> {
+/**
+ * The run as the viewer sees it. `hide`: steps whose output stays in the space (broker/kept.ts):
+ * shown with no output and `kept`, left out of `outputs`; empty for a member, or a member's run.
+ */
+export async function runView(
+  run: RunRow,
+  brand: RunView["brand"],
+  hide: ReadonlySet<string> = new Set(),
+): Promise<RunView> {
   // In the viewer's language every text of the view is the translation; ids and values stay.
   const memory = run.lang ? await storedTranslation(run.wizardId, run.lang) : null;
   const translated = memory ? translateDefinition(run.definition, memory) : null;
@@ -1235,6 +1290,15 @@ export async function runView(run: RunRow, brand: RunView["brand"]): Promise<Run
       .map(async (s) => {
         const deliverable =
           step?.type === "result" ? step.deliverables.find((d) => d.from === s.id) : undefined;
+        if (hide.has(s.id) && run.state.outputs[s.id]) {
+          return {
+            step: s,
+            output: null,
+            formats: [],
+            label: deliverable?.label ?? null,
+            kept: true,
+          };
+        }
         return {
           step: s,
           output: run.state.outputs[s.id] ?? null,
@@ -1282,7 +1346,10 @@ export async function runView(run: RunRow, brand: RunView["brand"]): Promise<Run
       : {}),
     closed,
     outputs: Object.fromEntries(
-      shownIds.map((id) => [id, run.state.outputs[id]]).filter(([, o]) => o),
+      shownIds
+        .filter((id) => !hide.has(id))
+        .map((id) => [id, run.state.outputs[id]])
+        .filter(([, o]) => o),
     ),
     shown,
     progress: { done: run.status === "done" ? def.steps.length : index, total: def.steps.length },
@@ -1300,7 +1367,7 @@ export async function runView(run: RunRow, brand: RunView["brand"]): Promise<Run
         ? await connectionViews(
             def.connections ?? [],
             scopeOf(run),
-            await projectIdOf(run),
+            await spaceIdOf(run),
             textLang(wizardLang(def)),
           )
         : [],

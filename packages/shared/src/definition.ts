@@ -688,6 +688,10 @@ export const pageStepSchema = z.object({
   cta: z.string().optional(),
 });
 
+/** A host name a step may list in `hosts`: labels of letters, digits and dashes, or `*.` before them. */
+export const HOST_PATTERN =
+  /^(\*\.)?([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/i;
+
 /** A plugin's tool as a step names it: `<plugin>.<tool>`. */
 const pluginToolIdSchema = z.templateLiteral([
   z.string().regex(PLUGIN_ID),
@@ -701,20 +705,37 @@ export const agentStepSchema = z.object({
   /** What the agent does. A template: {{field}}, {{steps.id}}, {{brand.name}}. Empty with `call`. */
   instructions: z.string().default(""),
   /**
-   * One tool of a plugin, called once with these inputs and no model: its answer is the step's
-   * json output, as it is. For data a later page shows unchanged (free appointment times), where
-   * a model would only copy it. String inputs are templates; a filled-in whole number or
-   * true/false is passed as one, an empty one is left out.
+   * A fixed step: one tool of a plugin, or one action of a connection of the wizard, called once
+   * with these inputs and no model; its answer is the step's json output, as it is. For data a
+   * later page shows unchanged (free appointment times), where a model would only copy it, and
+   * for every write through a connection that signs in as the space: the fields are the wizard's,
+   * so nothing a person typed can steer the call. String inputs are templates; a filled-in whole
+   * number or true/false is passed as one, an empty one is left out.
    */
   call: z
-    .object({
-      tool: pluginToolIdSchema,
-      input: z.record(z.string(), z.unknown()).default({}),
-    })
+    .union([
+      z.object({
+        tool: pluginToolIdSchema,
+        input: z.record(z.string(), z.unknown()).default({}),
+      }),
+      z.object({
+        /** A connection of the wizard, by id. */
+        connection: id,
+        /** The connector's action to run. */
+        action: z.string().min(1).max(120),
+        input: z.record(z.string(), z.unknown()).default({}),
+      }),
+    ])
     .optional(),
   tools: z.array(z.union([z.enum(TOOL_IDS), pluginToolIdSchema])).default([]),
   /** Ids of wizard connections (the person's accounts) this step may use. */
   connections: z.array(z.string()).optional(),
+  /**
+   * Hosts `http_request` may reach, as names: `api.example.com`, or `*.example.org` for every
+   * host below example.org. A guest's run reaches no other host; a member's run every public one
+   * until the space's broker switch is on. Part of the run's grant, fixed when it starts.
+   */
+  hosts: z.array(z.string().regex(HOST_PATTERN).max(253)).max(20).optional(),
   output: z
     .object({
       format: z.enum(["text", "markdown", "json"]),
@@ -1048,8 +1069,10 @@ export const connectionSchema = z.object({
   id,
   /** A built-in kind of account … */
   kind: z.enum(CONNECTION_KINDS).optional(),
-  /** … or the id of one of the project's imported connectors. */
+  /** … or the id of one of the space's imported connectors … */
   connector: z.string().optional(),
+  /** … or a connection of the space, by id: its audience and rules decide, `policy` has no say. */
+  spaceConnection: z.string().max(40).optional(),
   /** Imported connectors: the actions steps may call. Default: every action that only reads. */
   actions: z.array(z.string()).max(200).optional(),
   /** Imported connectors, per action: "allow" runs it without asking, "ask" asks the person first. */
@@ -1282,9 +1305,12 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
       issues.push({ message: `Duplicate connection id "${connection.id}".` });
     }
     connectionIds.add(connection.id);
-    if (Boolean(connection.kind) === Boolean(connection.connector)) {
+    const ways = [connection.kind, connection.connector, connection.spaceConnection].filter(
+      Boolean,
+    ).length;
+    if (ways !== 1) {
       issues.push({
-        message: `Connection "${connection.id}" needs either "kind" or "connector", not both.`,
+        message: `Connection "${connection.id}" needs one of "kind", "connector" or "spaceConnection".`,
       });
     }
   }
@@ -1603,6 +1629,18 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         for (const c of step.connections ?? []) {
           if (!connectionIds.has(c)) {
             issues.push({ stepId: step.id, message: `Step uses unknown connection "${c}".` });
+          }
+        }
+        if (step.call && "connection" in step.call) {
+          const called = step.call.connection;
+          const named = (def.connections ?? []).find((c) => c.id === called);
+          if (!named) {
+            issues.push({ stepId: step.id, message: `Step calls unknown connection "${called}".` });
+          } else if (named.kind) {
+            issues.push({
+              stepId: step.id,
+              message: `A "call" names an action of a connector: connection "${called}" is of kind "${named.kind}".`,
+            });
           }
         }
         if (step.output.surface && step.output.format !== "json") {

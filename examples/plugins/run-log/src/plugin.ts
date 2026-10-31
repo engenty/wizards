@@ -18,7 +18,7 @@ export default definePlugin((wizards) => {
     await db().insert(entry).values({
       runId: run.id,
       wizardId: wizard.id,
-      projectId: wizard.projectId,
+      spaceId: wizard.spaceId,
       title: wizard.title,
       mode: run.mode,
       status: run.status,
@@ -34,7 +34,7 @@ export default definePlugin((wizards) => {
     db()
       .select()
       .from(entry)
-      .where(space ? eq(entry.projectId, space) : undefined)
+      .where(space ? eq(entry.spaceId, space) : undefined)
       .orderBy(desc(entry.endedAt), desc(entry.id))
       .limit(limit);
 
@@ -47,7 +47,7 @@ export default definePlugin((wizards) => {
       const [{ total }] = await db()
         .select({ total: count() })
         .from(entry)
-        .where(space ? eq(entry.projectId, space) : undefined);
+        .where(space ? eq(entry.spaceId, space) : undefined);
       return { total, entries: await recent(space ? 5 : 100, space) };
     },
   });

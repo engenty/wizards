@@ -12,7 +12,7 @@ import { strFromU8, unzipSync } from "fflate";
 import { ServiceError } from "./errors.js";
 
 /**
- * Reading a `.wizard` package, with nothing of a project or a database: the studio's import and
+ * Reading a `.wizard` package, with nothing of a space or a database: the studio's import and
  * `wizards validate` both start here.
  */
 

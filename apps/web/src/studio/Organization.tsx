@@ -5,7 +5,7 @@ import { t } from "../lib/i18n";
 import { initialsOf, type Me } from "../lib/session";
 import { Button, Chip, Spinner } from "../ui";
 import { openExternal } from "./LocalRuntime";
-import { Section } from "./project/Section";
+import { Section } from "./space/Section";
 
 type Role = "owner" | "admin" | "member";
 

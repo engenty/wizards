@@ -16,11 +16,11 @@ import { Link } from "react-router";
 import { ApiError, api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { type Key, lang, t } from "../lib/i18n";
-import { initialsOf, type Me, useProjects } from "../lib/session";
+import { initialsOf, type Me, useSpaces } from "../lib/session";
 import { useStudioPlugins } from "../plugins/host";
 import { Button, Chip, IconButton, Input, Select, Spinner, useAutosave } from "../ui";
 import { billingUrl } from "./AppFrame";
-import { Section } from "./project/Section";
+import { Section } from "./space/Section";
 import { useModelTiers } from "./tiers";
 
 type Role = "owner" | "admin" | "member";
@@ -124,7 +124,7 @@ const ofLimit = (n: number, limit: number | null) =>
  */
 function PlanSection({ me, billing, admin }: { me: Me; billing: string | null; admin: boolean }) {
   const org = useOrganization(me);
-  const projects = useProjects();
+  const spaces = useSpaces();
   const { tier } = useModelTiers();
   const offered = (tier?.choices ?? []).filter((c) => c.inPlan).map((c) => c.name);
   return (
@@ -148,7 +148,7 @@ function PlanSection({ me, billing, admin }: { me: Me; billing: string | null; a
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <PlanFact
             label={t("orgSettings.planSpaces")}
-            value={projects.data ? ofLimit(projects.data.length, me.limits.projects) : "–"}
+            value={spaces.data ? ofLimit(spaces.data.length, me.limits.spaces) : "–"}
           />
           <PlanFact
             label={t("orgSettings.planMembers")}

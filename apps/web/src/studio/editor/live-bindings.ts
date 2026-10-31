@@ -26,10 +26,7 @@ export const wizardLive: LiveBinding[] = [
     id: "wizards",
     kinds: ["wizard"],
     patch: async (c, { qc, flash }) => {
-      const lists = [
-        keys.wizards(c.projectId ?? undefined),
-        keys.projectWizards(c.projectId ?? ""),
-      ];
+      const lists = [keys.wizards(c.spaceId ?? undefined), keys.spaceWizards(c.spaceId ?? "")];
       if (c.op === "del") {
         for (const key of lists) {
           patchLists<WizardSummary>(qc, key, (list) => without(list, c.item));
@@ -54,10 +51,7 @@ export const wizardLive: LiveBinding[] = [
         );
       }
     },
-    fallback: (c) => [
-      keys.wizards(c.projectId ?? undefined),
-      keys.projectWizards(c.projectId ?? ""),
-    ],
+    fallback: (c) => [keys.wizards(c.spaceId ?? undefined), keys.spaceWizards(c.spaceId ?? "")],
   },
   {
     id: "translations",

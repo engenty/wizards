@@ -10,7 +10,7 @@ import { lang, t } from "../../lib/i18n";
  * The wizard file keeps it as before: no list (the default targets), a list, or an empty list.
  */
 
-/** Every target a wizard of this project can name, with whether it works here. */
+/** Every target a wizard of this space can name, with whether it works here. */
 export function useShareTargets(wizardId: string | undefined) {
   return useQuery({
     queryKey: ["share-targets", wizardId, lang],
@@ -38,7 +38,7 @@ export interface ShareRow {
   /** Stays the same when the default targets become a list of the wizard's own. */
   key: string;
   target: string;
-  /** Unknown where the wizard names a target this project does not have. */
+  /** Unknown where the wizard names a target this space does not have. */
   info: ShareTargetInfo | undefined;
   /** Its place in the wizard's own list; null where it is not listed. */
   index: number | null;

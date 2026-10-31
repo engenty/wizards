@@ -1,5 +1,5 @@
 import { DownloadButtons, OutputView } from "@engenty/wizards-runner";
-import type { ShareView } from "@engenty/wizards-shared/run";
+import { note, noteText, type ShareView } from "@engenty/wizards-shared/run";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { useEffect } from "react";
@@ -78,22 +78,33 @@ export function SharePage() {
           </div>
         </div>
         <div className="flex flex-col gap-6">
-          {view.shown.map(({ step, output, formats, label }) => (
-            <Card key={step.id} className="p-4 sm:p-5">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-display font-semibold text-[1.0625rem]">
+          {view.shown.map(({ step, output, formats, label, kept }) =>
+            kept ? (
+              <Card key={step.id} className="p-4 sm:p-5">
+                <h2 className="mb-2 font-display font-semibold text-[1.0625rem]">
                   {label ?? step.title}
                 </h2>
-                <DownloadButtons
-                  base={base}
-                  stepId={step.id}
-                  formats={formats}
-                  title={label ?? step.title}
-                />
-              </div>
-              <OutputView base={base} step={step} output={output} />
-            </Card>
-          ))}
+                <p className="text-[0.9375rem] text-ink-3">
+                  {noteText(note("resultKeptInSpace"), lang)}
+                </p>
+              </Card>
+            ) : (
+              <Card key={step.id} className="p-4 sm:p-5">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="font-display font-semibold text-[1.0625rem]">
+                    {label ?? step.title}
+                  </h2>
+                  <DownloadButtons
+                    base={base}
+                    stepId={step.id}
+                    formats={formats}
+                    title={label ?? step.title}
+                  />
+                </div>
+                <OutputView base={base} step={step} output={output} />
+              </Card>
+            ),
+          )}
         </div>
         {view.wizardUrl ? (
           <a

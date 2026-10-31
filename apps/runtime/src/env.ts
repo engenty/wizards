@@ -213,7 +213,7 @@ export const env = {
     video: str("MODEL_VIDEO", "google/veo-3.1-fast-generate-001"),
     audio: str("MODEL_AUDIO", "google/gemini-3.5-flash-lite"),
     speech: str("MODEL_SPEECH", "google/gemini-3.8-flash-tts"),
-    /** Vectors for a project's document index; not a class a step names. */
+    /** Vectors for a space's document index; not a class a step names. */
     embedding: str("MODEL_EMBEDDING", "openai/text-embedding-3-small"),
   },
 
@@ -239,6 +239,11 @@ export const env = {
    * or empty for the first one that is ready here.
    */
   sandbox: str("SANDBOX_ENABLED", "1") === "1" ? str("SANDBOX").toLowerCase() : "off",
+  /**
+   * The engine for a guest's run (a visitor's, a channel's): `off` or `agentos`, never Docker;
+   * `agentos` only when it is ready here (sandbox/index.ts, pickGuestEngine).
+   */
+  sandboxGuests: str("SANDBOX_GUESTS", "off").toLowerCase(),
   sandboxImage,
   /** Where `wizards sandbox add` installs the engines that aren't part of the runtime. */
   sandboxEngines: enginesDir(),
@@ -306,11 +311,11 @@ export const env = {
     /** Runs of one tenant that work at the same time; the Manage-App can set another number per tenant. */
     concurrentRuns: num("LIMIT_CONCURRENT_RUNS", 4),
     /**
-     * Projects a tenant works with. One: the studio shows no project switcher. The Manage-App
+     * Spaces a tenant works with. One: the studio shows no space switcher. The Manage-App
      * can set another number per tenant; the database holds any number either way.
      */
-    projects: num("LIMIT_PROJECTS", 1),
-    /** Wizards a local install may keep on this runtime in its synced project. */
+    spaces: num("LIMIT_SPACES", 1),
+    /** Wizards a local install may keep on this runtime in its synced space. */
     syncedWizards: num("LIMIT_SYNCED_WIZARDS", 50),
     /** End-user runs (no account) and their shared links are deleted after this many days. */
     resultTtlDays: num("RESULT_TTL_DAYS", 7),

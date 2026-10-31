@@ -46,7 +46,7 @@ import {
   type ServerProblem,
   useCloud,
   useMe,
-  useProjects,
+  useSpaces,
   type WizardDetail,
 } from "../../lib/session";
 import { PluginFrame, type StudioPlugins, useStudioPlugins } from "../../plugins/host";
@@ -62,8 +62,8 @@ import {
   channelsOfRunners,
   runnerSettingsOf,
 } from "../NewWizardChannels";
-import { pageAddress } from "../project/page-address";
 import { FitChip, NeedList, useStandalone } from "../StandaloneNeeds";
+import { pageAddress } from "../space/page-address";
 import { sharedLink, type WhereItRuns, whereItRuns } from "../where";
 import { useEstimate } from "./estimate";
 import { TranslationsSection } from "./Translations";
@@ -158,9 +158,9 @@ function PageSection({ wizard }: { wizard: WizardDetail }) {
   const id = useId();
   const me = useMe();
   const host = me.data?.tenant.pagesHost;
-  const projects = useProjects(Boolean(host));
-  const project = projects.data?.find((p) => p.id === wizard.projectId);
-  const page = project?.page ?? null;
+  const spaces = useSpaces(Boolean(host));
+  const space = spaces.data?.find((p) => p.id === wizard.spaceId);
+  const page = space?.page ?? null;
   const on = Boolean(page?.wizards.includes(wizard.id));
   const runs = useQuery({
     queryKey: ["runs", wizard.id],
@@ -169,23 +169,23 @@ function PageSection({ wizard }: { wizard: WizardDetail }) {
   });
   const change = useMutation({
     mutationFn: (patch: { wizards?: string[]; examples?: Record<string, string> }) =>
-      api.patch(`/api/studio/projects/${project?.id}`, { page: { ...page, ...patch } }),
+      api.patch(`/api/studio/spaces/${space?.id}`, { page: { ...page, ...patch } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.spaces() }),
   });
-  if (!(host && project)) {
+  if (!(host && space)) {
     return null;
   }
   const shared = (runs.data ?? []).filter((r) => r.shareToken);
   const example = page?.examples[wizard.id] ?? "";
   const when = new Intl.DateTimeFormat(lang, { dateStyle: "medium" });
   // The page's own name where it has one; the space's title before that.
-  const space = page?.title || project.brand.name?.trim() || project.name;
+  const spaceName = page?.title || space.brand.name?.trim() || space.name;
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3 rounded-xl bg-paper-2 px-4 py-3.5">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h3 id={id} className="font-medium text-[0.9375rem]">
-            {t("share.onPage", { space })}
+            {t("share.onPage", { space: spaceName })}
           </h3>
           <p className="text-[0.8125rem] text-ink-3">
             {page ? (
@@ -424,14 +424,14 @@ function Problems({ problems }: { problems: ServerProblem[] }) {
 
 const shortTime = () => new Intl.DateTimeFormat(lang, { timeStyle: "short" });
 
-/** A project of a local install the account's cloud holds. */
+/** A space of a local install the account's cloud holds. */
 interface CloudSpace {
   id: string;
   name: string;
 }
 
 /**
- * Why the last try did not arrive. Where the account's cloud holds another install's project,
+ * Why the last try did not arrive. Where the account's cloud holds another install's space,
  * that one can be replaced from here: its wizards and their links go.
  */
 function CloudError({ error }: { error: NonNullable<CloudState["error"]> }) {
@@ -1086,7 +1086,7 @@ function WebsiteView({
 
 /**
  * The wizard as a package for a WordPress site without an account: what it needs there, in the
- * gallery's words, and the project's pages along if wanted.
+ * gallery's words, and the space's pages along if wanted.
  */
 function PackageView({ wizard }: { wizard: WizardDetail }) {
   const fit = useStandalone(wizard.draft);

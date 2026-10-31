@@ -138,6 +138,11 @@ let cookie = "";
 let spaceId = "";
 
 const LOCAL = "local";
+/** The studio's one person, the owner: the search reads as them (broker/rwx.ts). */
+const who = [
+  { kind: "person" as const, id: LOCAL },
+  { kind: "role" as const, id: "owner" },
+];
 const seen = () => (globalThis as any).__atlas as { events: any[]; ticks: any[] };
 const url = (path: string) => `http://localhost:5181${path}`;
 const send = (method: string, path: string, body?: unknown, as = cookie) =>
@@ -167,10 +172,11 @@ const stepOf = (emitted: string[] = []) =>
     runId: "run-1",
     stepId: "ask",
     tenantId: LOCAL,
-    project: { id: spaceId, name: "Ahorn" },
-    projectFiles: [],
+    space: { id: spaceId, name: "Ahorn" },
+    spaceFiles: [],
     def: { title: "Wizard" },
     test: false,
+    holder: { kind: "person", id: "local", role: "owner" },
     store: { wizardId: "wizard-1", holder: "u:local" },
     signal: new AbortController().signal,
     emit: async (_type: string, message: string) => {
@@ -187,15 +193,15 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request(url("/api/local/enter?k=test-key")));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
-  const projects = await import("../src/services/projects");
-  spaceId = (await client.withTenant(LOCAL, () => projects.defaultProject("local"))).id;
+  const spaces = await import("../src/services/spaces");
+  spaceId = (await client.withTenant(LOCAL, () => spaces.defaultSpace("local"))).id;
 }, 60_000);
 
 describe("a space's events", () => {
   it("tell when a space is made and changed", async () => {
-    const projects = await import("../src/services/projects");
+    const spaces = await import("../src/services/spaces");
     await client.withTenant(LOCAL, () =>
-      projects.updateProject("local", spaceId, { brand: { name: "Tischlerei Ahorn" } }),
+      spaces.updateSpace("local", spaceId, { brand: { name: "Tischlerei Ahorn" } }),
     );
     const events = await until(
       () => seen().events,
@@ -239,9 +245,9 @@ describe("the search index", () => {
     expect(await json(send("POST", "/api/studio/plugins/atlas/index", { ...hours, space: spaceId }))).toEqual({
       ok: true,
     });
-    const { searchKnowledge, hasIndexEntries } = await import("../src/services/project-index");
+    const { searchKnowledge, hasIndexEntries } = await import("../src/services/space-index");
     const found = await client.withTenant(LOCAL, () =>
-      searchKnowledge(spaceId, "Werkstatt geöffnet"),
+      searchKnowledge(spaceId, "Werkstatt geöffnet", { who }),
     );
     expect(found.hits).toEqual([
       expect.objectContaining({
@@ -256,16 +262,16 @@ describe("the search index", () => {
     expect(await client.withTenant(LOCAL, () => hasIndexEntries(spaceId))).toBe(true);
   });
 
-  it("gives the steps project_search without documents", async () => {
-    const { projectTools } = await import("../src/tools/project");
-    const tools = await client.withTenant(LOCAL, () => projectTools(stepOf()));
-    expect(Object.keys(tools)).toEqual(["project_search", "project_list"]);
+  it("gives the steps space_search without documents", async () => {
+    const { spaceTools } = await import("../src/tools/space");
+    const tools = await client.withTenant(LOCAL, () => spaceTools(stepOf()));
+    expect(Object.keys(tools)).toEqual(["space_search", "space_list"]);
   });
 
   it("replaces a key that is put again, and takes keys out", async () => {
-    const { searchKnowledge } = await import("../src/services/project-index");
+    const { searchKnowledge } = await import("../src/services/space-index");
     const search = async (q: string) =>
-      (await client.withTenant(LOCAL, () => searchKnowledge(spaceId, q))).hits;
+      (await client.withTenant(LOCAL, () => searchKnowledge(spaceId, q, { who }))).hits;
     await send("POST", "/api/studio/plugins/atlas/index", {
       ...hours,
       space: spaceId,

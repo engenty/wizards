@@ -1,13 +1,20 @@
 ---
 title: Connectors
 description: Services a wizard works in for the person who runs it – built in, from the registry or over MCP.
-version: 0.11.3
+version: 0.13.0
 ---
 
-Settings → Connectors lists the services the space’s wizards can work in. A wizard uses a connector
-with the account of the person who runs it: they connect their account during the run, on a page
-that asks for it. Each space has its own connectors. In the cloud, a space you publish from your
-computer shows its connectors without letting you change them: you change them on your computer.
+**[Capabilities](./capabilities.md) › Connectors** lists the services the space’s wizards, Work
+chats and Goose can work in. Each space has its own connectors. In the cloud, a space you publish
+from your computer shows its connectors without letting you change them: you change them on your
+computer.
+
+A wizard reaches a service in one of two ways:
+
+- through a [connection of the space](#connections-in-the-space), which the space’s admins set up
+  once;
+- with the account of the person who runs it: they connect their account during the run, on a page
+  that asks for it.
 
 ## Built in
 
@@ -54,20 +61,69 @@ Any other service comes from the [integrations.sh](https://integrations.sh) regi
 If a service needs an OAuth client of your own, it says so. Remove it and import it again with
 “Your own OAuth client”.
 
+**Capabilities › Discover** searches integrations.sh and skills.sh at once. Admins set up a
+service from its result with “Set up”, and a service the space already has shows “In this space”.
+
 The editor’s chat does the same while it builds a wizard: ask it to work with a service, and it
 finds and imports the connector. An [AI app](./ai-apps.md) connected to engenty wizards can do
 this too.
 
 ## What a wizard may do
 
-A wizard names the actions it uses. Without a list, it uses only the actions that read. During a
-run:
+A wizard names the actions it uses. Without a list, it uses only the actions that read. What a run
+may use is fixed when it starts: a change to the wizard during the run doesn’t widen it. On the
+account of the person who runs it:
 
 | The action | What happens |
 |---|---|
 | Reads | It runs without asking, unless the wizard says to ask |
 | Changes something | The person allows each call, or chooses “Allow for the rest of this run”. A wizard can let it run without asking |
 | Deletes | The person allows it like a change. A wizard can never let it run without asking |
+
+## Connections in the space
+
+In Capabilities › Connectors, “In this space” lists the space’s connections. A connection belongs to
+the space, not to the person who set it up: it stays when they leave. The page notes who set it up
+and when, and when it was last used. Several connections to one service are fine, for example
+Gmail · Orders and Gmail · Support.
+
+Only the space’s admins set up connections. “Add connection” starts one, and so does a built-in
+connector below the list or an imported one under “More connectors”, where you also search the
+registry. When you set one up, you choose how it signs in:
+
+| Signs in | What it means |
+|---|---|
+| As the space | An admin signs the space in once, with an API key, an app token or a team account. Everyone uses that account, even when nobody is watching. On this kind of connection the AI only reads; writing happens in fixed steps or as an action someone confirms |
+| Each person signs in | Each person signs in once with their own account, here or in their menu › Connections. The connection then acts as that person, and asks them before it changes something |
+
+You can’t change how a connection signs in later. Set up a new one instead.
+
+**Who may use it.** Admins, Members or Everyone. Everyone includes guests who start a wizard from
+its link.
+
+**What it may do.** One rule for each kind of action:
+
+| Kind | What it covers |
+|---|---|
+| Read | Searching and reading, in AI steps and chats |
+| Change | Creating and changing, only in fixed steps or as a confirmed action |
+| Delete | Removing something for good |
+| Send | Sending emails and messages to others |
+
+Each rule is Allowed, With approval or Never. A new connection reads freely, asks for approval
+before a change or a send, and never deletes. With approval asks the space’s admins, and the action
+waits until one of them agrees.
+
+Members see the connections open to them, with their rules, but change nothing. Where each person
+signs in, they sign in right there.
+
+## Connections in your menu
+
+A space’s admins set up a connection and choose how it signs in: once as the space, or each
+person for themselves. Your menu › Connections lists the connections of your spaces that are open
+to you. Where each person signs in, you sign in or out there; your chats, your runs and your Goose
+then act as you, and nobody else sees your sign-in. Where the space signs in, you see its account
+and who set it up. You set up no connection there: that stays with the space’s admins.
 
 ## The person’s mailbox
 

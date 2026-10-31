@@ -3,7 +3,7 @@ import type { MarketplaceEntry } from "@engenty/wizards-shared/marketplace";
 import { isSentence, searchTerms } from "@engenty/wizards-shared/marketplace-search";
 import type { RunnerInfo } from "@engenty/wizards-shared/runners";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Paperclip, Plus, X } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { Mascot } from "../brand";
@@ -14,22 +14,14 @@ import { keys } from "../lib/keys";
 import {
   dropWish,
   pendingWish,
-  useCurrentProject,
+  useCurrentSpace,
   useMayCreate,
   useMe,
   type WizardSummary,
 } from "../lib/session";
 import { useDictation, useDictationSettings } from "../lib/speech";
-import {
-  Button,
-  Chip,
-  cn,
-  DictationButton,
-  pastedName,
-  Textarea,
-  Thumb,
-  workspaceFile,
-} from "../ui";
+import { Button, Chip, cn, DictationButton, pastedName, Textarea, workspaceFile } from "../ui";
+import { FilePreview, FileTile } from "../ui/file-preview";
 import { ImportWizard } from "./ImportWizard";
 import {
   EntryDialog,
@@ -70,25 +62,6 @@ async function putFile(wizardId: string, file: File) {
   }
 }
 
-/** Takes a file off again: in a picture's corner, or at the end of a file's chip. */
-function Detach({ over, onClick }: { over: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-label={t("editor.detach")}
-      onClick={onClick}
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full",
-        over
-          ? "-top-1.5 -right-1.5 absolute size-5 bg-ink text-paper shadow-soft coarse:size-7"
-          : "size-5 text-ink-3 hover:bg-paper-3 hover:text-ink coarse:size-7",
-      )}
-    >
-      <X className="size-3" />
-    </button>
-  );
-}
-
 /** The space's own wizards the wish reads like, best first: the gallery's scoring on title and description. */
 function ownMatches(wizards: WizardSummary[], wish: string): WizardSummary[] {
   const terms = searchTerms(wish);
@@ -119,13 +92,13 @@ function ownMatches(wizards: WizardSummary[], wish: string): WizardSummary[] {
  */
 function Similar({
   wish,
-  projectId,
+  spaceId,
   busy,
   onTake,
   onMore,
 }: {
   wish: string;
-  projectId: string;
+  spaceId: string;
   busy: boolean;
   onTake: (entry: MarketplaceEntry) => void;
   onMore: (words: string) => void;
@@ -134,8 +107,8 @@ function Similar({
   const [picked, setPicked] = useState<string | null>(null);
   const q = useSettled(wish.trim(), 300);
   const wizards = useQuery({
-    queryKey: ["wizards", projectId, "similar"],
-    queryFn: () => api.get<WizardSummary[]>(`/api/studio/projects/${projectId}/wizards`),
+    queryKey: ["wizards", spaceId, "similar"],
+    queryFn: () => api.get<WizardSummary[]>(`/api/studio/spaces/${spaceId}/wizards`),
   });
   const templates = useQuery({
     queryKey: ["marketplace", lang, q, "similar"],
@@ -219,7 +192,7 @@ function Similar({
 export function NewWizardPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   const build = useMayCreate();
   const me = useMe();
   // The templates that fit the organization first, the full browser a click away.
@@ -250,12 +223,12 @@ export function NewWizardPage() {
     const picked = raw.map(workspaceFile);
     setFiles((all) => [...all.filter((f) => !picked.some((p) => p.name === f.name)), ...picked]);
   };
-  const [thumbs, setThumbs] = useState<Map<File, string>>(new Map());
+  // Each attached file opens from a URL of its own until the wizard is made.
+  const [urls, setUrls] = useState<Map<File, string>>(new Map());
+  const [previewAt, setPreviewAt] = useState<number | null>(null);
   useEffect(() => {
-    const next = new Map(
-      files.filter((f) => f.type.startsWith("image/")).map((f) => [f, URL.createObjectURL(f)]),
-    );
-    setThumbs(next);
+    const next = new Map(files.map((f) => [f, URL.createObjectURL(f)]));
+    setUrls(next);
     return () => {
       for (const url of next.values()) {
         URL.revokeObjectURL(url);
@@ -263,9 +236,11 @@ export function NewWizardPage() {
     };
   }, [files]);
 
+  const shown = files.map((f) => ({ name: f.name, mime: f.type, size: f.size, url: urls.get(f) }));
+
   const fromStarter = useMutation({
     mutationFn: (starterId: string) =>
-      api.post<{ id: string }>("/api/studio/wizards", { projectId: project!.id, starterId, lang }),
+      api.post<{ id: string }>("/api/studio/wizards", { spaceId: space!.id, starterId, lang }),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });
@@ -279,8 +254,7 @@ export function NewWizardPage() {
     mutationFn: async () => {
       const id =
         made.current ??
-        (await api.post<{ id: string }>("/api/studio/wizards", { projectId: project!.id, lang }))
-          .id;
+        (await api.post<{ id: string }>("/api/studio/wizards", { spaceId: space!.id, lang })).id;
       made.current = id;
       if (!isDefaultChoice(channels)) {
         await api.patch(`/api/studio/wizards/${id}`, { runners: runnerSettingsOf(channels) });
@@ -306,7 +280,7 @@ export function NewWizardPage() {
   });
 
   const submit = () => {
-    if (prompt.trim() && project && !create.isPending) {
+    if (prompt.trim() && space && !create.isPending) {
       if (speech.listening) {
         speech.stop();
       }
@@ -315,14 +289,14 @@ export function NewWizardPage() {
   };
 
   useEffect(() => {
-    if (guestWish.current && project && build && !project.readOnly && prompt.trim()) {
+    if (guestWish.current && space && build && !space.readOnly && prompt.trim()) {
       guestWish.current = false;
       create.mutate();
     }
-  }, [project, build, prompt, create]);
+  }, [space, build, prompt, create]);
 
-  // Nothing is made here, or not in this project (a local install's): back to what there is.
-  if (!build || project?.readOnly) {
+  // Nothing is made here, or not in this space (a local install's): back to what there is.
+  if (!build || space?.readOnly) {
     return <Navigate to="/" replace />;
   }
   const error = create.error ?? fromStarter.error;
@@ -368,27 +342,18 @@ export function NewWizardPage() {
           }}
         >
           {files.length ? (
-            <div className="flex flex-wrap items-center gap-2 px-2 pt-2 pb-1">
-              {files.map((f, i) => {
-                const url = thumbs.get(f);
-                const drop = () => setFiles((all) => all.filter((_, j) => j !== i));
-                return url ? (
-                  <Thumb key={`${f.name}-${i}`} url={url} label={f.name}>
-                    <Detach over={Boolean(url)} onClick={drop} />
-                  </Thumb>
-                ) : (
-                  <span
-                    key={`${f.name}-${i}`}
-                    className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-paper-2 py-1 pr-1 pl-2.5 text-[0.8125rem] text-ink-2"
-                  >
-                    <Paperclip className="size-3.5 shrink-0 text-ink-4" />
-                    <span className="truncate">{f.name}</span>
-                    <Detach over={Boolean(url)} onClick={drop} />
-                  </span>
-                );
-              })}
-            </div>
+            <ul className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
+              {shown.map((f, i) => (
+                <FileTile
+                  key={`${f.name}-${i}`}
+                  file={f}
+                  onOpen={() => setPreviewAt(i)}
+                  onRemove={() => setFiles((all) => all.filter((_, j) => j !== i))}
+                />
+              ))}
+            </ul>
           ) : null}
+          <FilePreview files={shown} at={previewAt} onAt={setPreviewAt} />
           <Textarea
             autoFocus
             minRows={4}
@@ -409,7 +374,7 @@ export function NewWizardPage() {
             placeholder={speech.listening ? t("editor.listening") : t("new.placeholder")}
             className="border-0 bg-transparent text-[1rem] shadow-none focus:ring-0"
           />
-          <div className="flex items-center gap-2 px-1 pb-1">
+          <div className="@container flex items-center gap-2 px-1 pb-1">
             <button
               type="button"
               aria-label={t("editor.attach")}
@@ -453,10 +418,10 @@ export function NewWizardPage() {
         {error ? (
           <p className="mt-3 text-center text-[0.875rem] text-rose">{(error as Error).message}</p>
         ) : null}
-        {project ? (
+        {space ? (
           <Similar
             wish={prompt}
-            projectId={project.id}
+            spaceId={space.id}
             busy={fromStarter.isPending || create.isPending}
             onTake={(entry) => !fromStarter.isPending && fromStarter.mutate(entry.id)}
             onMore={(words) => {
@@ -473,7 +438,7 @@ export function NewWizardPage() {
             page={fit}
             organization={me.data?.tenant.name ?? ""}
             busy={fromStarter.isPending}
-            onUse={(entry) => project && !fromStarter.isPending && fromStarter.mutate(entry.id)}
+            onUse={(entry) => space && !fromStarter.isPending && fromStarter.mutate(entry.id)}
             onAll={() => setAll(true)}
           />
         </div>
@@ -489,7 +454,7 @@ export function NewWizardPage() {
           open={params.get("starter")}
           search={gallerySearch}
           busy={fromStarter.isPending}
-          onUse={(entry) => project && !fromStarter.isPending && fromStarter.mutate(entry.id)}
+          onUse={(entry) => space && !fromStarter.isPending && fromStarter.mutate(entry.id)}
         />
       </section>
       <div className="mt-8 flex justify-center">

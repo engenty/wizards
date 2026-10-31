@@ -10,11 +10,18 @@ const CYCLE_MS = 2800;
 /** Cycling engenty used as the brand mark. Cycles the founding five only —
  *  the mark is the thing people learn to recognise, so it does not drift
  *  through every shape the cast has since grown. */
-export function EngentyLogoMark({ size = 72 }: { size?: number }) {
+export function EngentyLogoMark({
+  size = 72,
+  kind,
+}: {
+  size?: number;
+  /** One engenty that stays, instead of the cycle (the studio's mode wears its own). */
+  kind?: EngentyKind;
+}) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (kind || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       return;
     }
     const id = window.setInterval(
@@ -22,7 +29,7 @@ export function EngentyLogoMark({ size = 72 }: { size?: number }) {
       CYCLE_MS,
     );
     return () => window.clearInterval(id);
-  }, []);
+  }, [kind]);
 
   return (
     <span
@@ -30,18 +37,22 @@ export function EngentyLogoMark({ size = 72 }: { size?: number }) {
       className="relative inline-block shrink-0"
       style={{ width: size, height: size }}
     >
-      {ENGENTY_CORE_KINDS.map((kind, i) => (
-        <span
-          className="absolute inset-0"
-          key={kind}
-          style={{
-            opacity: i === index ? 1 : 0,
-            transition: "opacity 0.45s ease",
-          }}
-        >
-          <Engenty kind={kind as EngentyKind} size={size} />
-        </span>
-      ))}
+      {kind ? (
+        <Engenty kind={kind} size={size} />
+      ) : (
+        ENGENTY_CORE_KINDS.map((core, i) => (
+          <span
+            className="absolute inset-0"
+            key={core}
+            style={{
+              opacity: i === index ? 1 : 0,
+              transition: "opacity 0.45s ease",
+            }}
+          >
+            <Engenty kind={core as EngentyKind} size={size} />
+          </span>
+        ))
+      )}
     </span>
   );
 }

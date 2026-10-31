@@ -22,6 +22,7 @@ import { apiRun, apiRuns, apiSpaceDetails, apiSpaces, apiWizards } from "../serv
 import { ServiceError } from "../services/errors.js";
 import { deleteFile, draftFiles, writeFile } from "../services/files.js";
 import { asLang, searchMarketplace } from "../services/marketplace.js";
+import { requireStudio } from "../services/members-studio.js";
 import { exportWizard } from "../services/package.js";
 import { siteJob, siteSchema, startSiteJob } from "../services/site.js";
 import {
@@ -37,7 +38,7 @@ import {
   syncSpaceData,
   syncWizard,
   syncWizardSchema,
-} from "../services/spaces.js";
+} from "../services/synced-spaces.js";
 import { createWizard, ownedWizard, publishWizard, writeDraft } from "../services/wizards.js";
 import {
   adoptSpace,
@@ -57,7 +58,7 @@ import { dispatchAs } from "./plugins.js";
 const importSchema = z.object({
   /** An earlier import's wizard: it is updated instead of a new one being made. */
   wizardId: z.string().optional(),
-  projectId: z.string().optional(),
+  spaceId: z.string().optional(),
   definition: z.unknown(),
   files: z
     .array(z.object({ path: z.string(), mime: z.string().optional(), data: z.string() }))
@@ -74,6 +75,16 @@ const inTenantAs = async <T>(who: Principal, fn: () => T | Promise<T>) => {
     nudge(who.tenantId);
   }
 };
+
+/**
+ * A call on one space, as `inTenantAs`: refused where the space's Studio is closed to the caller,
+ * as the studio API refuses it (services/members-studio.ts).
+ */
+const inSpaceAs = <T>(who: Principal, spaceId: string, fn: () => T | Promise<T>) =>
+  inTenantAs(who, async () => {
+    await requireStudio("spaces", spaceId);
+    return fn();
+  });
 
 const HOUR = 60 * 60 * 1000;
 
@@ -193,7 +204,7 @@ const runsQuery = z.object({
 });
 
 /**
- * The runtime's API for other programs. `/spaces/…` is how a local install's project comes
+ * The runtime's API for other programs. `/spaces/…` is how a local install's space comes
  * here: the wizards it publishes, under the ids they have there (docs/manage-contract.md).
  * `POST /wizards/import` takes a whole wizard as a new one of a tenant that builds here.
  */
@@ -249,13 +260,14 @@ export const apiRoutes = new Hono()
     );
   })
   // The published wizard as a `.wizard` package: what a WordPress site runs on its own; with
-  // `knowledge=1` the project's pages come along as files (up to the snapshot's cap).
+  // `knowledge=1` the space's pages come along as files (up to the snapshot's cap).
   .get("/wizards/:id/package", async (c) => {
     const who = await caller(c, ["wizards:read"]);
     if (who instanceof Response) {
       return who;
     }
     return inTenantAs(who, async () => {
+      await requireStudio("wizards", c.req.param("id"));
       const found = await exportWizard(who.userId, c.req.param("id"), {
         published: true,
         knowledge: c.req.query("knowledge") === "1",
@@ -296,7 +308,7 @@ export const apiRoutes = new Hono()
       const writer = { source: "mcp" as const, client: who.client };
       const created = await createWizard(
         who.userId,
-        { projectId: body.spaceId, starterId: body.starterId, lang: body.lang },
+        { spaceId: body.spaceId, starterId: body.starterId, lang: body.lang },
         writer,
       );
       let published = false;
@@ -432,7 +444,7 @@ export const apiRoutes = new Hono()
       return limited;
     }
     const body = syncWizardSchema.parse(await c.req.json());
-    return inTenantAs(who, async () =>
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
       c.json(await syncWizard(c.req.param("spaceId"), c.req.param("wizardId"), body)),
     );
   })
@@ -447,7 +459,9 @@ export const apiRoutes = new Hono()
       return limited;
     }
     const body = syncDataSchema.parse(await c.req.json());
-    return inTenantAs(who, async () => c.json(await syncSpaceData(c.req.param("spaceId"), body)));
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
+      c.json(await syncSpaceData(c.req.param("spaceId"), body)),
+    );
   })
   .patch("/spaces/:spaceId/wizards/:wizardId", async (c) => {
     const who = await caller(c, ["wizards:publish"]);
@@ -459,7 +473,7 @@ export const apiRoutes = new Hono()
       return limited;
     }
     const body = syncSettingsSchema.parse(await c.req.json());
-    return inTenantAs(who, async () =>
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
       c.json(await patchSyncedWizard(c.req.param("spaceId"), c.req.param("wizardId"), body)),
     );
   })
@@ -472,7 +486,7 @@ export const apiRoutes = new Hono()
     if (limited) {
       return limited;
     }
-    return inTenantAs(who, async () =>
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
       c.json(await rotateSyncedLink(who.userId, c.req.param("spaceId"), c.req.param("wizardId"))),
     );
   })
@@ -481,7 +495,7 @@ export const apiRoutes = new Hono()
     if (who instanceof Response) {
       return who;
     }
-    return inTenantAs(who, async () =>
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
       c.json(await removeSyncedWizard(who.userId, c.req.param("spaceId"), c.req.param("wizardId"))),
     );
   })
@@ -490,7 +504,9 @@ export const apiRoutes = new Hono()
     if (who instanceof Response) {
       return who;
     }
-    return inTenantAs(who, async () => c.json(await removeSyncedSpace(c.req.param("spaceId"))));
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
+      c.json(await removeSyncedSpace(c.req.param("spaceId"))),
+    );
   })
   // --- the two-way sync of a space (docs/manage-contract.md, "Two-way sync of a space") ---
   .get("/sync", async (c) => {
@@ -563,7 +579,7 @@ export const apiRoutes = new Hono()
     }
     const since = Math.max(0, Number.parseInt(c.req.query("since") ?? "0", 10) || 0);
     const cursor = c.req.query("cursor") || undefined;
-    return inTenantAs(who, async () =>
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
       c.json(await pullChanges(c.req.param("spaceId"), since, cursor)),
     );
   })
@@ -577,7 +593,7 @@ export const apiRoutes = new Hono()
       return limited;
     }
     const body = pushSchema.parse(await c.req.json());
-    return inTenantAs(who, async () => {
+    return inSpaceAs(who, c.req.param("spaceId"), async () => {
       // The feed numbers this push writes: the live call does not send them back to this install.
       const push = notePush(who.tenantId, c.req.header("x-wizards-install"), await newestSeq());
       try {
@@ -593,7 +609,9 @@ export const apiRoutes = new Hono()
       return who;
     }
     const body = missingBlobsSchema.parse(await c.req.json());
-    return inTenantAs(who, async () => c.json({ missing: await missingBlobs(body.hashes) }));
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
+      c.json({ missing: await missingBlobs(body.hashes) }),
+    );
   })
   .put("/sync/spaces/:spaceId/blobs/:hash", tooLarge, async (c) => {
     const who = await caller(c, ["wizards:write"]);
@@ -602,7 +620,7 @@ export const apiRoutes = new Hono()
     }
     const hash = blobHash.parse(c.req.param("hash"));
     const data = new Uint8Array(await c.req.arrayBuffer());
-    return inTenantAs(who, async () => {
+    return inSpaceAs(who, c.req.param("spaceId"), async () => {
       await takeBlob(hash, data).catch(() => {
         throw new ServiceError("invalid", "The bytes do not match their hash.");
       });
@@ -615,7 +633,7 @@ export const apiRoutes = new Hono()
       return who;
     }
     const hash = blobHash.parse(c.req.param("hash"));
-    return inTenantAs(who, async () => {
+    return inSpaceAs(who, c.req.param("spaceId"), async () => {
       const data = await blobBytes(hash).catch(() => null);
       if (!data) {
         return c.json({ error: "There are no such bytes here.", code: "not_found" }, 404);
@@ -628,7 +646,7 @@ export const apiRoutes = new Hono()
     if (who instanceof Response) {
       return who;
     }
-    return inTenantAs(who, async () =>
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
       c.json(await publishSynced(who.userId, c.req.param("spaceId"), c.req.param("wizardId"))),
     );
   })
@@ -637,7 +655,7 @@ export const apiRoutes = new Hono()
     if (who instanceof Response) {
       return who;
     }
-    return inTenantAs(who, async () =>
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
       c.json(await rotateSynced(who.userId, c.req.param("spaceId"), c.req.param("wizardId"))),
     );
   })
@@ -646,7 +664,9 @@ export const apiRoutes = new Hono()
     if (who instanceof Response) {
       return who;
     }
-    return inTenantAs(who, async () => c.json(await adoptSpace(c.req.param("spaceId"))));
+    return inSpaceAs(who, c.req.param("spaceId"), async () =>
+      c.json(await adoptSpace(c.req.param("spaceId"))),
+    );
   })
   .post("/wizards/import", tooLarge, async (c) => {
     const authInfo = await authenticate(c.req.raw);
@@ -677,12 +697,13 @@ export const apiRoutes = new Hono()
       const writer = { source: "mcp" as const, client: who.client };
       let wizardId = body.wizardId;
       if (wizardId) {
+        await requireStudio("wizards", wizardId);
         const existing = await ownedWizard(who.userId, wizardId).catch(() => null);
         wizardId = existing?.id;
       }
       if (!wizardId) {
         // The workspace must be there before the definition is checked against it.
-        const created = await createWizard(who.userId, { projectId: body.projectId }, writer);
+        const created = await createWizard(who.userId, { spaceId: body.spaceId }, writer);
         wizardId = created.id;
       }
       const incoming = new Set(body.files.map((f) => f.path));

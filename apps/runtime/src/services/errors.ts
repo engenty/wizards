@@ -10,9 +10,9 @@ export type ServiceErrorCode =
   | "revision_conflict"
   | "no_credits"
   | "refused"
-  /** Another space of the organization has the public page; `data.project` names it. */
+  /** Another space of the organization has the public page; `data.space` names it. */
   | "page_taken"
-  /** Nothing is changed here: the project is a local install's, or the tenant builds elsewhere. */
+  /** Nothing is changed here: the space is a local install's, or the tenant builds elsewhere. */
   | "read_only"
   /** The person's role in the organization does not allow it: a member edits wizards, an admin makes and deletes. */
   | "forbidden";

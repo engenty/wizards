@@ -1,11 +1,11 @@
 ---
 title: Skills
 description: The skills of a space – the SKILL.md engenty wizards reads, its limits, the studio’s routes, the two tools a step reads skills with and how their scripts run in the sandbox.
-version: 0.11.6
+version: 0.13.0
 ---
 
 A space’s skills are instructions in the Agent Skills format that its AI steps follow. They sit
-behind the `skills` switch, which is off by default. While it is off, every route below answers
+behind the `skills` switch, which is on by default. While it is off, every route below answers
 404 and no step sees a skill.
 
 ## The format
@@ -64,7 +64,8 @@ them. A file for scripts answers that it isn’t text to read.
 A step that writes HTML (a document, a dashboard) gets the skills always on, without tools. A
 model that runs no tools (an on-device model) gets the skills always on alone. The run shows
 “Reading the skill …” for each read. Goose gets the same two tools and a list of the space’s
-skills.
+skills. So does the space’s AI in a Work chat: the skills always on in its instructions, the ones
+on demand by name, and the chat shows “Read the skill …” for each read.
 
 ## Scripts in the sandbox
 
@@ -87,18 +88,24 @@ If the folder can’t be written, `skill_load` still answers the instructions, a
 the scripts can’t run in this step. A skill with `run_scripts` off, a step without the sandbox,
 and Goose get the text alone. The code is in `apps/runtime/src/tools/skills.ts`.
 
+A Work chat has a sandbox of its own where the server has one: `run_command` runs there, and
+`skill_load` writes a skill’s folder there the same way. One sandbox per chat, made on its first
+command and kept while the chat is used, so a file one turn writes is there for the next; it is
+gone after 30 minutes without a command, when the chat is deleted, or when the runtime stops
+(`apps/runtime/src/services/work-sandbox.ts`).
+
 ## Routes
 
 Under `/api/studio`, signed in as for the studio:
 
 | Route | What it does |
 | --- | --- |
-| `GET /projects/:id/skills` | The space’s skills, without their content |
-| `POST /projects/:id/skills` | A new skill: `{ name, description, body?, mode? }` |
-| `POST /projects/:id/skills/upload` | A `SKILL.md`, `.zip` or `.skill` in the form field `file` |
-| `GET /projects/:id/skills/registry?q=` | A search on skills.sh |
-| `GET /projects/:id/skills/registry/preview?ref=` | A skill of skills.sh read whole: `owner/repo/skill` |
-| `POST /projects/:id/skills/registry` | Adds one: `{ ref, mode? }` |
+| `GET /spaces/:id/skills` | The space’s skills, without their content |
+| `POST /spaces/:id/skills` | A new skill: `{ name, description, body?, mode? }` |
+| `POST /spaces/:id/skills/upload` | A `SKILL.md`, `.zip` or `.skill` in the form field `file` |
+| `GET /spaces/:id/skills/registry?q=` | A search on skills.sh |
+| `GET /spaces/:id/skills/registry/preview?ref=` | A skill of skills.sh read whole: `owner/repo/skill` |
+| `POST /spaces/:id/skills/registry` | Adds one: `{ ref, mode? }` |
 | `GET`, `PATCH`, `DELETE /skills/:id` | One skill. `PATCH` takes `name`, `description`, `body`, `meta`, `files`, `mode`, `runScripts`, or the whole `skillMd` |
 | `POST /skills/:id/copy` | A copy as the space’s own skill |
 | `GET /skills/:id/zip` | The skill’s folder as a zip |

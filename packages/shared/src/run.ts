@@ -212,6 +212,23 @@ const NOTES_EN = {
   downloads: "Downloading {name}",
   attaches: "Attaching {name}",
   runs: "Running: {command}",
+  noSandbox: "Working without the sandbox – this run can’t run code",
+  // What the run may reach outside, from its grant (broker/grant.ts), as its log opens.
+  grant: "This run may: {what}",
+  grantReads: "read in {name}",
+  grantWrites: "write in {name}",
+  grantSends: "send through {name}",
+  grantDeletes: "delete in {name}",
+  grantCalls: "call {actions} in {name}",
+  grantSearchesWeb: "search the web",
+  grantReadsWeb: "read web pages",
+  grantBrowser: "use the browser",
+  grantRunsCode: "run code",
+  grantDrawsImages: "draw images",
+  grantCallsApis: "call APIs on the web",
+  grantCallsHosts: "call {hosts}",
+  grantWritesPages: "write pages",
+  grantPlugin: "use the plugin {name}",
   python: "Running Python",
   runsProgram: "Working through the data in one go",
   drawing: "Drawing an image",
@@ -301,6 +318,10 @@ const NOTES_EN = {
   googleNotConnectedThrough: "Google can’t be connected through your engenty account right now.",
   stepNeedsToolPlugin:
     "This step needs the tool “{id}”. The plugin “{plugin}” isn’t installed here.",
+  stepCallsUnknownConnection:
+    "This step calls the connection “{id}”, which the wizard doesn’t have.",
+  stepCallNotAllowed: "The change in {service} wasn’t allowed, so this step stopped.",
+  stepCallRefused: "{service} didn’t run “{action}” for this step: {reason}",
   clientNotSignedIn: "{name} isn’t signed in on this computer. Sign in under Settings → Models.",
   clientNotInstalled:
     "{name} isn’t installed on this computer. Install it under Settings → Models.",
@@ -373,6 +394,14 @@ const NOTES_EN = {
   pageSlugTaken: "Another space of your organization has this address.",
   pageTaken: "The page is already at “{space}”.",
   notDeleteLastSpace: "You can’t delete the last space.",
+  connectorGone: "There is no connector “{id}” in this space.",
+  connectorNoAction: "{name} has no action “{id}”.",
+  tooManyConnections: "This space has as many connections as it can hold.",
+  connectionEachPersonSignsIn: "Each person signs in to this connection themselves.",
+  connectionSignsInAsSpace: "This connection signs in as the space. Its admins sign it in.",
+  connectionNotForYou: "This connection is not open to you.",
+  connectorSignsIn: "{name} is connected by signing in, not with keys.",
+  connectorTakesKeys: "{name} takes keys, not a sign-in.",
   notFound: "This doesn’t exist or was deleted.",
   categoryNeedsName: "A category needs a name.",
   unknownCategoryType: "Unknown type “{type}”.",
@@ -427,6 +456,25 @@ const NOTES_EN = {
   noParentPage: "There’s no page with the key “{parent}” to put this page under.",
   onlyOrganizationAdmins:
     "Only organization admins can do that. As a member, you can edit the wizards that already exist.",
+  // A member and the rule of the space „Mitglieder dürfen ins Studio“ (docs/plans/capabilities.md).
+  studioClosedToMembers:
+    "This space’s studio is open to its admins only. An admin can let members in, in the space’s info.",
+  onlyAdminsPublish:
+    "Only the space’s admins publish a wizard or share it outside the space. Ask one of them.",
+  forbidden:
+    "You don’t have permission to {verb} this {what} ({id}). An admin of the space can change that.",
+  // The result page of a guest: a step that read a connection the space keeps for its members.
+  resultKeptInSpace: "This part of the result stays with the team that made the wizard.",
+  rwxDocument: "document",
+  rwxTable: "table",
+  rwxPage: "page",
+  rwxConnection: "connection",
+  rwxMail: "email",
+  rwxHost: "host",
+  rwxSandbox: "sandbox",
+  rwxRead: "read",
+  rwxWrite: "change",
+  rwxRun: "run",
   spaceEditedLocally: "You edit this space in engenty wizards on your computer, not here.",
   wizardsRunOncePublished:
     "Wizards run here once you publish them in engenty wizards on your computer. You build and edit them there.",
@@ -595,6 +643,22 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   downloads: "Lädt {name} herunter",
   attaches: "Hängt {name} an",
   runs: "Führt aus: {command}",
+  noSandbox: "Arbeitet ohne Sandbox – dieser Lauf kann keinen Code ausführen",
+  grant: "Dieser Lauf darf: {what}",
+  grantReads: "in {name} lesen",
+  grantWrites: "in {name} schreiben",
+  grantSends: "über {name} senden",
+  grantDeletes: "in {name} löschen",
+  grantCalls: "in {name} {actions} aufrufen",
+  grantSearchesWeb: "im Web suchen",
+  grantReadsWeb: "Webseiten lesen",
+  grantBrowser: "den Browser nutzen",
+  grantRunsCode: "Code ausführen",
+  grantDrawsImages: "Bilder zeichnen",
+  grantCallsApis: "APIs im Web aufrufen",
+  grantCallsHosts: "{hosts} aufrufen",
+  grantWritesPages: "Seiten schreiben",
+  grantPlugin: "das Plugin {name} nutzen",
   runsProgram: "Arbeitet die Daten in einem Zug durch",
   python: "Führt Python aus",
   drawing: "Zeichnet ein Bild",
@@ -688,6 +752,11 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   googleNotConnectedThrough: "Google lässt sich über dein engenty-Konto gerade nicht verbinden.",
   stepNeedsToolPlugin:
     "Dieser Schritt braucht das Werkzeug „{id}“. Das Plugin „{plugin}“ ist hier nicht installiert.",
+  stepCallsUnknownConnection:
+    "Dieser Schritt ruft die Verbindung „{id}“ auf, die der Wizard nicht hat.",
+  stepCallNotAllowed:
+    "Die Änderung in {service} wurde nicht erlaubt, darum hat dieser Schritt aufgehört.",
+  stepCallRefused: "{service} hat „{action}“ für diesen Schritt nicht ausgeführt: {reason}",
   clientNotSignedIn:
     "{name} ist auf diesem Computer nicht angemeldet. Melde dich unter Einstellungen → Modelle an.",
   clientNotInstalled:
@@ -764,6 +833,14 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   pageSlugTaken: "Ein anderer Space deiner Organisation hat diese Adresse.",
   pageTaken: "Die Seite ist schon bei „{space}“.",
   notDeleteLastSpace: "Der letzte Space lässt sich nicht löschen.",
+  connectorGone: "In diesem Space gibt es keinen Connector „{id}“.",
+  connectorNoAction: "{name} hat keine Aktion „{id}“.",
+  tooManyConnections: "Dieser Space hat so viele Verbindungen, wie er halten kann.",
+  connectionEachPersonSignsIn: "Bei dieser Verbindung meldet sich jede Person selbst an.",
+  connectionSignsInAsSpace: "Diese Verbindung meldet sich als Space an. Die Admins melden sie an.",
+  connectionNotForYou: "Diese Verbindung steht dir nicht offen.",
+  connectorSignsIn: "{name} wird per Anmeldung verbunden, nicht mit Keys.",
+  connectorTakesKeys: "{name} nimmt Keys, keine Anmeldung.",
   notFound: "Das gibt es nicht oder nicht mehr.",
   categoryNeedsName: "Eine Kategorie braucht einen Namen.",
   unknownCategoryType: "Unbekannter Typ „{type}“.",
@@ -818,6 +895,22 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   noParentPage: "Es gibt keine Seite mit dem Schlüssel „{parent}“, unter die diese Seite könnte.",
   onlyOrganizationAdmins:
     "Das dürfen nur Admins der Organisation. Als Mitglied bearbeitest du die Wizards, die es schon gibt.",
+  studioClosedToMembers:
+    "Das Studio dieses Space ist nur für seine Admins offen. Ein Admin kann Mitglieder in den Infos des Space hereinlassen.",
+  onlyAdminsPublish:
+    "Wizards veröffentlichen oder außerhalb des Space teilen dürfen nur die Admins des Space. Frag einen von ihnen.",
+  forbidden: "Du darfst {what} {id} nicht {verb}. Das ändern die Admins des Space.",
+  resultKeptInSpace: "Dieser Teil des Ergebnisses bleibt beim Team, das den Wizard gemacht hat.",
+  rwxDocument: "Dokument",
+  rwxTable: "Tabelle",
+  rwxPage: "Seite",
+  rwxConnection: "Verbindung",
+  rwxMail: "E-Mail",
+  rwxHost: "Host",
+  rwxSandbox: "Sandbox",
+  rwxRead: "lesen",
+  rwxWrite: "ändern",
+  rwxRun: "ausführen",
   spaceEditedLocally:
     "Diesen Space bearbeitest du in engenty wizards auf deinem Computer, nicht hier.",
   wizardsRunOncePublished:
@@ -1010,6 +1103,19 @@ export interface RunEvent {
   asset?: string | null;
 }
 
+/** One step's output as the current step shows it. */
+export interface ShownStep {
+  step: Step;
+  output: StepOutput | null;
+  formats: Format[];
+  label: string | null;
+  /**
+   * A guest's result: the step read a connection the space keeps for its members, so its output
+   * stays in the space (`output` is null here) and the page says so.
+   */
+  kept?: boolean;
+}
+
 export interface RunView {
   id: string;
   status: RunStatus;
@@ -1049,7 +1155,7 @@ export interface RunView {
   closed: Record<string, ClosedChoice>;
   outputs: Record<string, StepOutput>;
   /** Steps whose outputs the current step shows, with their definitions. */
-  shown: { step: Step; output: StepOutput | null; formats: Format[]; label: string | null }[];
+  shown: ShownStep[];
   progress: { done: number; total: number };
   canBack: boolean;
   error: string | null;

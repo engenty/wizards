@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
-import { useCurrentProject, useManyProjects, useMe } from "../lib/session";
+import { useCurrentSpace, useManySpaces, useMe } from "../lib/session";
 import { useStudioPlugins } from "../plugins/host";
 import { PluginsSettings } from "../plugins/PluginsSettings";
 import { cn, Empty } from "../ui";
@@ -10,9 +11,10 @@ import { useCrumbs } from "./AppFrame";
 import { useAssistantPage } from "./assistant/page";
 import { CloudSyncSection } from "./CloudSync";
 import { Connectors } from "./Connectors";
-import { ProjectSwitcher } from "./HomePage";
+import { SpaceSwitcher } from "./HomePage";
 import { Integrate } from "./Integrate";
 import { Models } from "./Models";
+import { useMemberStudio } from "./members-studio";
 import { Organization } from "./Organization";
 import {
   OrganizationCredits,
@@ -21,7 +23,8 @@ import {
 } from "./OrganizationCredits";
 import { OrganizationGeneral, OrganizationKeys, OrganizationMembers } from "./OrganizationSettings";
 import { PersonApps, PersonOrganizations, PersonProfile } from "./PersonAccount";
-import { projectReadOnlyText, ReadOnlyNote } from "./ReadOnly";
+import { PersonSignInsPage } from "./PersonSignIns";
+import { ReadOnlyNote, spaceReadOnlyText } from "./ReadOnly";
 import { RuntimeSetup } from "./RuntimeSettings";
 import {
   BackRow,
@@ -56,10 +59,13 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const me = useMe();
-  const { project, loading } = useCurrentProject();
-  const many = useManyProjects();
-  const [key, setKey] = useState(project?.id);
-  useEffect(() => setKey(project?.id), [project?.id]);
+  const { space, loading } = useCurrentSpace();
+  const many = useManySpaces();
+  const memberStudio = useMemberStudio();
+  const capabilities = useFeature("capabilities");
+  const location = useLocation();
+  const [key, setKey] = useState(space?.id);
+  useEffect(() => setKey(space?.id), [space?.id]);
   const plugins = useStudioPlugins();
   const narrow = useNarrow();
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -68,7 +74,8 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
   // opens its own menu again.
   const [upAt, setUpAt] = useState<string | null>(null);
   // The gear's list, or the person's Konto behind the avatar: the same frame, another list.
-  const sections = scope === "account" ? accountSections() : settingsSections(me.data, plugins);
+  const sections =
+    scope === "account" ? accountSections(me.data?.features) : settingsSections(me.data, plugins);
   const base = scope === "account" ? "/account" : "/settings";
   const title = scope === "account" ? t("konto.title") : t("settings.title");
   const first =
@@ -76,7 +83,8 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
       ? "profile"
       : sections.some((s) => s.id === "general")
         ? "general"
-        : "account";
+        : // A member in the Studio has no Organisation group and no Konto here: the first there is.
+          (sections.find((s) => s.id === "account") ?? sections[0])?.id;
   const current = sections.find((s) => s.id === section);
   const entries = sections.map((s) => ({ ...s, to: `${base}/${s.id}` }));
   const entry = entries.find((e) => e.id === section);
@@ -129,13 +137,19 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
     ...(current && detail ? [{ label: detail }] : []),
   ]);
   if (!current) {
+    // The person's switches decide some of their sections: those wait for them.
+    if (scope === "account" && !me.data) {
+      return null;
+    }
+    // With Fähigkeiten on, the connectors live there.
+    if (scope === "settings" && section === "connectors" && capabilities) {
+      return (
+        <Navigate to={{ pathname: "/capabilities/connectors", search: location.search }} replace />
+      );
+    }
     // The page for AI clients was /settings/build before it became "Integrate".
     if (section === "build") {
       return <Navigate to="/settings/integrate" replace />;
-    }
-    // The space was the settings section "project" before it got a page of its own.
-    if (section === "project") {
-      return <Navigate to="/space" replace />;
     }
     // A plugin's settings stand one level down in Plugins.
     if (plugins.sections.some((s) => s.id === section)) {
@@ -148,7 +162,7 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
       ) : null;
     }
   }
-  // Connectors belong to a project: with several, the switcher stands above them.
+  // Connectors belong to a space: with several, the switcher stands above them.
   const scoped = current?.id === "connectors" && many;
   // The settings' menu, at the page's left.
   const menuBody = (
@@ -210,20 +224,22 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
               ) : null}
               {scoped ? (
                 <div className="mb-6">
-                  <ProjectSwitcher />
+                  <SpaceSwitcher />
                 </div>
               ) : null}
-              {current.id === "connectors" && project ? (
+              {current.id === "connectors" && space ? (
                 <div className="flex flex-col gap-6">
-                  {project.readOnly ? (
-                    <ReadOnlyNote>{projectReadOnlyText(project)}</ReadOnlyNote>
-                  ) : null}
-                  <Connectors key={key} projectId={project.id} readOnly={project.readOnly} />
+                  {space.readOnly ? <ReadOnlyNote>{spaceReadOnlyText(space)}</ReadOnlyNote> : null}
+                  <Connectors
+                    key={key}
+                    spaceId={space.id}
+                    readOnly={space.readOnly || memberStudio}
+                  />
                 </div>
               ) : null}
-              {/* No project yet: nothing is built here, and no local install has sent one. */}
-              {current.id === "connectors" && !project && !loading ? (
-                <Empty>{t("settings.noProject")}</Empty>
+              {/* No space yet: nothing is built here, and no local install has sent one. */}
+              {current.id === "connectors" && !space && !loading ? (
+                <Empty>{t("settings.noSpace")}</Empty>
               ) : null}
               {current.id === "models" ? <Models /> : null}
               {current.id === "integrate" ? <Integrate /> : null}
@@ -242,6 +258,7 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
               {current.id === "profile" && me.data ? <PersonProfile me={me.data} /> : null}
               {current.id === "orgs" && me.data ? <PersonOrganizations me={me.data} /> : null}
               {current.id === "apps" && me.data ? <PersonApps /> : null}
+              {current.id === "connections" ? <PersonSignInsPage /> : null}
               {current.id === "credits" && me.data ? <OrganizationCredits me={me.data} /> : null}
               {current.id === "usage" && me.data ? <OrganizationUsage me={me.data} /> : null}
               {current.id === "invoices" && me.data ? <OrganizationInvoices me={me.data} /> : null}

@@ -14,7 +14,6 @@ import {
   textClassOf,
   wizardLang,
 } from "@engenty/wizards-shared/definition";
-import { mainLogo, ruleLines, runTheme } from "@engenty/wizards-shared/projects";
 import type { AssetRef, StepOutput } from "@engenty/wizards-shared/run";
 import { note as runNote } from "@engenty/wizards-shared/run";
 import {
@@ -27,6 +26,7 @@ import {
   shapeZod,
   titleKey,
 } from "@engenty/wizards-shared/shape";
+import { mainLogo, ruleLines, runTheme } from "@engenty/wizards-shared/spaces";
 import {
   type Surface,
   type SurfaceComponent,
@@ -58,8 +58,8 @@ import {
 import { runMotionGraphicsStep } from "../motion-graphics/step.js";
 import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
-import { sandboxCapabilities } from "../sandbox/index.js";
 import { knowledgeBlock } from "../services/knowledge.js";
+import { callConnection } from "../tools/connector.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
 import { skillsBlock, skillsOf } from "../tools/skills.js";
@@ -559,13 +559,21 @@ function callInput(value: unknown, ctx: StepContext): unknown {
   return value;
 }
 
-/** A step's `call`: one plugin tool, no model; its answer is the step's json output as it is. */
+/**
+ * A step's `call`: one plugin tool or one action of a connection, no model; its answer is the
+ * step's json output as it is. A connection's action runs through the broker as the step, with
+ * the fields the wizard fixed: the one way a run writes as the space.
+ */
 async function runCallStep(
   step: AgentStep & { call: NonNullable<AgentStep["call"]> },
   ctx: StepContext,
 ): Promise<StepOutput> {
   // What it is doing is the step's `working` line, shown as it starts, and what the tool says.
-  const answer = await callPluginTool(step.call.tool, callInput(step.call.input, ctx), ctx);
+  const input = callInput(step.call.input, ctx);
+  const answer =
+    "tool" in step.call
+      ? await callPluginTool(step.call.tool, input, ctx)
+      : await callConnection(step.call, input, ctx);
   if (
     answer &&
     typeof answer === "object" &&
@@ -593,6 +601,10 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
   });
   const uploads = await personUploads(ctx);
   const { tools, assets, instructions } = await buildStepTools(step, ctx, resolved, uploads);
+  // A step written for the sandbox on a run without one works on in text: said in the run's log.
+  if (step.tools.includes("sandbox") && !ctx.resources.sandboxCapabilities()) {
+    await ctx.emit("info", { code: "noSandbox" });
+  }
   // A step without tools of its own and without uploads: the run's device may answer it alone.
   attachTools(resolved, tools, step.tools.length === 0 && uploads.length === 0);
   const photos = await seenPhotos(step, ctx, resolved, uploads);
@@ -612,11 +624,11 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     `Today is ${today(ctx)}.`,
     brandBlock(ctx),
     // Knowledge: what the space holds for its wizards, and how to find and read it.
-    await knowledgeBlock(ctx.project.id),
+    await knowledgeBlock(ctx.space.id),
     // Skills: always on whole, on demand by name and description (docs/plans/skills.md).
     skillsBlock(await skillsOf(ctx), {
       tools: takesTools(resolved),
-      sandbox: step.tools.includes("sandbox") && sandboxCapabilities() !== null,
+      sandbox: step.tools.includes("sandbox") && ctx.resources.sandboxCapabilities() !== null,
     }),
     // What the space's plugins hold for its wizards: a wiki, questions and answers.
     ...(await spaceContextOf(ctx)).blocks,
@@ -801,7 +813,7 @@ function entriesOf(step: GenerateStep, ctx: StepContext): Entry[] {
 /** The document templates a document step can name; each is a `document.*` section. */
 const DOCUMENT_TEMPLATES = new Set(["invoice", "offer", "briefing", "letter", "report", "free"]);
 
-/** Images a document may place: earlier generated images, uploads, the project's logos and images. */
+/** Images a document may place: earlier generated images, uploads, the space's logos and images. */
 function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; label: string }[] {
   const out: { id: string; label: string }[] = [];
   const index = ctx.def.steps.indexOf(step);
@@ -833,7 +845,7 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       }
     }
   }
-  const logos = ctx.projectFiles.filter((f) => f.kind === "logo");
+  const logos = ctx.spaceFiles.filter((f) => f.kind === "logo");
   const main = mainLogo(logos, ctx.scope.brand.logoSections);
   for (const f of logos) {
     const section = logoSectionLine(ctx.scope.brand.logoSections, f.id);
@@ -847,7 +859,7 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
     });
   }
   for (const p of ctx.scope.brand.patterns ?? []) {
-    const file = ctx.projectFiles.find((f) => f.id === p.file);
+    const file = ctx.spaceFiles.find((f) => f.id === p.file);
     const section = ctx.scope.brand.colorSections?.find((s) => s.id === p.section);
     if (file) {
       out.push({
@@ -856,12 +868,12 @@ function placeableImages(step: GenerateStep, ctx: StepContext): { id: string; la
       });
     }
   }
-  for (const f of ctx.projectFiles) {
+  for (const f of ctx.spaceFiles) {
     if (f.kind === "asset" && f.mime.startsWith("image/")) {
       const section = assetSectionLine(ctx.scope.brand.assetSections, f.id);
       out.push({
         id: f.id,
-        label: `${f.description || f.name} (from the project's assets${section ? `, section ${section}` : ""})`,
+        label: `${f.description || f.name} (from the space's assets${section ? `, section ${section}` : ""})`,
       });
     }
   }

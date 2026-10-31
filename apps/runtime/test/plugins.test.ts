@@ -137,7 +137,7 @@ export default definePlugin((wizards) => {
     execute: async ({ word }, ctx) => {
       await ctx.emit("Zählt Einträge");
       const [{ n }] = await server.getTenantDb().select({ n: count() }).from(entry);
-      return { entries: n, word: word ?? null, project: ctx.project.name };
+      return { entries: n, word: word ?? null, space: ctx.space.name };
     },
   });
   server.on("run.done", async ({ values }) => {
@@ -396,9 +396,10 @@ describe("a plugin's tools", () => {
       runId: "run-1",
       stepId: "ask",
       tenantId: LOCAL,
-      project: { id: "p1", name: "Projekt" },
+      space: { id: "p1", name: "Projekt" },
       def: { title: "Wizard" },
       test: false,
+      holder: { kind: "person", id: "local", role: "owner" },
       store: { wizardId: "wizard-1", holder: "u:local" },
       signal: new AbortController().signal,
       emit: async (_type: string, message: string) => {
@@ -430,7 +431,7 @@ describe("a plugin's tools", () => {
     );
     expect(Object.keys(tools)).toEqual(["guestbook_count"]);
     const result = await client.withTenant(LOCAL, () => tools.guestbook_count.execute({ word: "x" }));
-    expect(result).toEqual({ entries: 1, word: "x", project: "Projekt" });
+    expect(result).toEqual({ entries: 1, word: "x", space: "Projekt" });
     expect(emitted).toEqual(["Zählt Einträge"]);
   });
 
@@ -455,7 +456,7 @@ describe("a plugin's tools", () => {
     const out = await client.withTenant(LOCAL, () =>
       runAgentStep(step as any, { ...ctx(emitted), scope } as any),
     );
-    expect(out.json).toEqual({ entries: 1, word: "Gast", project: "Projekt" });
+    expect(out.json).toEqual({ entries: 1, word: "Gast", space: "Projekt" });
     expect(emitted).toEqual(["Zählt Einträge"]);
     // An input the tool's schema refuses is the step's error, not a model's guess.
     await expect(

@@ -1,7 +1,7 @@
 ---
 title: Working together
-description: How the studio shows what others change while you work, merges it with what you type, shows who else is in a wizard, page or table, and where an organization’s settings are.
-version: 0.12.2
+description: How the studio shows what others change while you work, merges it with what you type, shows who else is in a wizard, page or table, where an organization’s settings are, and who may use the studio.
+version: 0.13.0
 ---
 
 The studio shows changes made elsewhere as they happen. You don’t reload anything. That holds
@@ -61,6 +61,20 @@ On engenty.ai the settings start with the organization’s:
 
 The person who made the organization can change its address once, in its first 14 days. The
 studio moves with it.
+
+### Members in the studio
+
+Admins decide for each space whether its members may use the studio: in the space’s info, with
+“Members can use the studio”. The rule counts for every member, not for one person.
+
+With it on, members build and test wizards in that space. They add and change skills, knowledge
+and data, and use the connections open to them. Admins still publish wizards and share them
+outside the space, set up connections and change their rules. Approvals go to the admins, and only
+they see the [Log](./protocol.md). With it off, members work in Work and run the space’s wizards
+there.
+
+A new space starts with the studio closed to members. [Capabilities](./capabilities.md#who-sees-capabilities)
+has a table of what each role sees.
 
 ## Switch it off
 

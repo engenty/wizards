@@ -1,11 +1,11 @@
 import type { PluginWebPage } from "@engenty/wizards/plugin";
-import { FONT_WEIGHTS } from "@engenty/wizards-shared/projects";
+import { FONT_WEIGHTS } from "@engenty/wizards-shared/spaces";
 import { webContext } from "../render/chromium.js";
 import { htmlToMarkdown } from "../render/convert.js";
 import { safeFetch } from "../tools/net-guard.js";
 
 /**
- * A web page as the project assistant needs it: its text, and what it says about the brand —
+ * A web page as the space assistant needs it: its text, and what it says about the brand —
  * colours from its stylesheets, logo candidates, and the pages that carry address and VAT ID.
  */
 export interface WebsiteReading {

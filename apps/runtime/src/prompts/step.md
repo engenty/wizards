@@ -125,11 +125,11 @@ Ground truth the space's owner keeps for all wizards: ${what}. Use it when the t
 
 <!-- section: knowledge.categories -->
 <!-- Followed by one line per category. -->
-Categories, to filter with `where` in project_search and project_list before searching:
+Categories, to filter with `where` in space_search and space_list before searching:
 
 <!-- section: knowledge.find -->
 <!-- `page_marker` is the page marker the pages carry, an HTML comment, which this file cannot hold. -->
-Find with project_search (a question; `where` on categories). List with project_list. Read whole with page_read and table_read by path. A page marks the pages of its original as ${page_marker}: quote them when the source matters.
+Find with space_search (a question; `where` on categories). List with space_list. Read whole with page_read and table_read by path. A page marks the pages of its original as ${page_marker}: quote them when the source matters.
 
 <!-- section: skills.always -->
 <!-- tools/skills.ts (skillsBlock): before the skills always on, each whole in a <skill name="…"> tag. -->

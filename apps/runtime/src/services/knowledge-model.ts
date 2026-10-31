@@ -15,7 +15,6 @@ import { prompt } from "../prompts.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { ServiceError } from "./errors.js";
 import { freeSlug, pageTree } from "./knowledge.js";
-import { keepText, queueIndex } from "./project-index.js";
 import {
   categoryRow,
   categoryRows,
@@ -23,6 +22,7 @@ import {
   numberOf,
   setItemCategories,
 } from "./space-categories.js";
+import { keepText, queueIndex } from "./space-index.js";
 
 /**
  * What models do for Knowledge. A document is read when it arrives and becomes what a step reads:
@@ -32,7 +32,7 @@ import {
  * summary of a value from its items.
  */
 
-type FileRow = typeof schema.projectFile.$inferSelect;
+type FileRow = typeof schema.spaceFile.$inferSelect;
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 // --- tables from sheets ------------------------------------------------------------------
@@ -290,11 +290,11 @@ async function insertPage(
   await db.insert(schema.spacePage).values({
     id,
     tenantId: currentTenant(),
-    projectId: file.projectId,
+    spaceId: file.spaceId,
     parentId: input.parentId,
     position: input.position,
     title: input.title,
-    slug: await freeSlug(file.projectId, input.title, { parentId: input.parentId }),
+    slug: await freeSlug(file.spaceId, input.title, { parentId: input.parentId }),
     markdown: input.markdown.slice(0, 200_000),
     fileId: file.id,
     origin: file.origin,
@@ -361,9 +361,9 @@ export async function convertDocument(file: FileRow, data: Uint8Array): Promise<
       await db.insert(schema.spaceTable).values({
         id,
         tenantId: currentTenant(),
-        projectId: file.projectId,
+        spaceId: file.spaceId,
         title,
-        slug: await freeSlug(file.projectId, title, "table"),
+        slug: await freeSlug(file.spaceId, title, "table"),
         columns,
         fileId: file.id,
         origin: file.origin,
@@ -438,7 +438,7 @@ export async function convertDocument(file: FileRow, data: Uint8Array): Promise<
     );
   }
   // References to other parts become links, now that each part has its path.
-  const tree = await pageTree(file.projectId);
+  const tree = await pageTree(file.spaceId);
   const targets = new Map<string, string>();
   ids.forEach((id, k) => {
     const ref = referenceKey(split.parts[k].title);
@@ -482,13 +482,13 @@ export async function convertDocument(file: FileRow, data: Uint8Array): Promise<
  * set them yet. Values a person set are never touched. True when anything was set.
  */
 export async function fillCategories(
-  projectId: string,
+  spaceId: string,
   ref: ItemRef,
   text: string,
   name: string,
 ): Promise<boolean> {
   // A column's category comes from its cells, not from a model.
-  const categories = (await categoryRows(projectId)).filter((c) => !(c.proposed || c.tableId));
+  const categories = (await categoryRows(spaceId)).filter((c) => !(c.proposed || c.tableId));
   if (!(categories.length && text.trim())) {
     return false;
   }
@@ -545,7 +545,7 @@ export async function fillCategories(
   if (!Object.keys(input).length) {
     return false;
   }
-  const { changed } = await setItemCategories(projectId, ref, input, "model");
+  const { changed } = await setItemCategories(spaceId, ref, input, "model");
   return changed;
 }
 
@@ -590,8 +590,8 @@ async function itemsOfValue(valueId: string) {
         out.push({ title: "Row", text: JSON.stringify(row.cells).slice(0, 600) });
       }
     } else if (r.fileId) {
-      const file = await db.query.projectFile.findFirst({
-        where: eq(schema.projectFile.id, r.fileId),
+      const file = await db.query.spaceFile.findFirst({
+        where: eq(schema.spaceFile.id, r.fileId),
       });
       if (file) {
         out.push({ title: file.name, text: file.description });
@@ -640,8 +640,8 @@ export async function writeSummary(valueId: string): Promise<string> {
 }
 
 /** After a source wrote: the values it filled that have three items or more get their summary. */
-export async function summarizeValues(projectId: string, categoryName?: string, value?: string) {
-  const categories = (await categoryRows(projectId)).filter(
+export async function summarizeValues(spaceId: string, categoryName?: string, value?: string) {
+  const categories = (await categoryRows(spaceId)).filter(
     (c) =>
       c.type === "choice" &&
       !c.proposed &&

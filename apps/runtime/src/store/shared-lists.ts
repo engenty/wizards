@@ -9,6 +9,7 @@ import {
 } from "@engenty/wizards-shared/store";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { assertRwx, type Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { StoreError } from "./errors.js";
 
@@ -44,7 +45,7 @@ export async function sharedTable(wizardId: string, def: ListDef): Promise<Table
   }
   const wizard = await db.query.wizard.findFirst({
     where: eq(schema.wizard.id, wizardId),
-    columns: { projectId: true, tenantId: true },
+    columns: { spaceId: true, tenantId: true },
   });
   if (!wizard) {
     throw new StoreError("The wizard is gone.");
@@ -72,8 +73,13 @@ function toRow(r: typeof schema.spaceTableRow.$inferSelect): ListRow {
   return { id: r.id, cells: r.cells, updatedAt: r.updatedAt.toISOString() };
 }
 
-export async function sharedRows(wizardId: string, def: ListDef): Promise<ListRow[]> {
+export async function sharedRows(
+  wizardId: string,
+  def: ListDef,
+  who: Subject[],
+): Promise<ListRow[]> {
   const table = await sharedTable(wizardId, def);
+  await assertRwx(table.spaceId, who, { kind: "table", id: table.id }, "r");
   const rows = await db.query.spaceTableRow.findMany({
     where: eq(schema.spaceTableRow.tableId, table.id),
     orderBy: [asc(schema.spaceTableRow.createdAt), asc(schema.spaceTableRow.id)],

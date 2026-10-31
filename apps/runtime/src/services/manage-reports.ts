@@ -2,9 +2,10 @@ import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import { capabilitiesOf, effortOf } from "@engenty/wizards-shared/marketplace";
 import { resultsOf } from "@engenty/wizards-shared/marketplace-entry";
 import { and, eq, inArray } from "drizzle-orm";
+import { type LoggedRow, onCritical } from "../broker/index.js";
 import { db, knownTenants, schema, withTenant } from "../db/client.js";
 import { env } from "../env.js";
-import { managed, postRunReport, putWizards } from "../manage.js";
+import { managed, postBrokerReport, postRunReport, putWizards } from "../manage.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { pageLangOf, pageSteps } from "./pages.js";
 
@@ -19,12 +20,12 @@ let last: Promise<void> = Promise.resolve();
 /** The team's wizards as the admin app lists them: the published version where there is one. */
 export async function wizardsReport() {
   const tenantId = currentTenant();
-  const [wizards, projects] = await Promise.all([
+  const [wizards, spaceRows] = await Promise.all([
     db.select().from(schema.wizard).where(eq(schema.wizard.tenantId, tenantId)),
     db
-      .select({ id: schema.project.id, name: schema.project.name })
-      .from(schema.project)
-      .where(eq(schema.project.tenantId, tenantId)),
+      .select({ id: schema.space.id, name: schema.space.name })
+      .from(schema.space)
+      .where(eq(schema.space.tenantId, tenantId)),
   ]);
   const published = wizards.filter((w) => w.publishedVersion !== null);
   const versions = published.length
@@ -43,7 +44,7 @@ export async function wizardsReport() {
           ),
         )
     : [];
-  const spaces = new Map(projects.map((p) => [p.id, p.name]));
+  const spaces = new Map(spaceRows.map((p) => [p.id, p.name]));
   return {
     wizards: wizards.map((w) => {
       const live = versions.find((v) => v.wizardId === w.id && v.version === w.publishedVersion);
@@ -54,7 +55,7 @@ export async function wizardsReport() {
         description: (def.description ?? "").slice(0, 1000),
         avatar: def.avatar ?? "round",
         lang: (def.lang ?? "de").slice(0, 5),
-        space: spaces.has(w.projectId) ? { id: w.projectId, name: spaces.get(w.projectId)! } : null,
+        space: spaces.has(w.spaceId) ? { id: w.spaceId, name: spaces.get(w.spaceId)! } : null,
         published: Boolean(live),
         publishedAt: live?.createdAt.toISOString() ?? null,
         template: w.starter ? { id: w.starter, revision: w.starterRevision ?? null } : null,
@@ -221,4 +222,81 @@ export function reportRun(runId: string, status: RunStatus): void {
   })().catch((err) => {
     console.warn(`[reports] run ${runId}:`, (err as Error).message);
   });
+}
+
+// --- the broker's critical lines ---------------------------------------------------------------
+
+/** How often the lines that are not a guest's go out. */
+const DAILY_MS = 24 * 3600_000;
+/** How many lines one report carries at most. */
+const REPORT_LINES = 200;
+
+/** A line as the admin app takes it: who, where, what, the outcome; never the input. */
+export function criticalLine(row: LoggedRow) {
+  return {
+    id: row.id,
+    at: row.at.toISOString(),
+    kind: row.criticalKind,
+    who: { kind: row.whoKind, id: row.whoId },
+    where: { runId: row.runId, chatId: row.chatId, wizardId: row.wizardId, spaceId: row.spaceId },
+    connection: row.connectionId,
+    action: row.actionId,
+    actionKind: row.kind,
+    outcome: row.outcome,
+    rule: row.rule,
+    result: row.result,
+    reason: (row.reason ?? "").slice(0, 500),
+  };
+}
+
+const kept = new Map<string, LoggedRow[]>();
+
+function post(tenantId: string, rows: LoggedRow[], batch: "at_once" | "daily") {
+  if (!rows.length) {
+    return Promise.resolve();
+  }
+  return postBrokerReport(tenantId, { batch, lines: rows.map(criticalLine) }).then(
+    () => undefined,
+    (err) => console.warn(`[reports] broker ${tenantId}:`, (err as Error).message),
+  );
+}
+
+/**
+ * Hears every critical row (broker/log.ts): a guest's goes to the admin app at once – someone at a
+ * wizard's link reached for what the rules keep from them; the rest wait for the daily report.
+ */
+export function reportCritical(row: LoggedRow): Promise<void> {
+  if (!managed) {
+    return Promise.resolve();
+  }
+  const tenantId = currentTenant();
+  if (row.whoKind === "guest") {
+    return post(tenantId, [row], "at_once");
+  }
+  const rows = kept.get(tenantId) ?? [];
+  rows.push(row);
+  kept.set(tenantId, rows.slice(-REPORT_LINES));
+  return Promise.resolve();
+}
+
+/** The daily report: what was kept for each tenant, one tenant after the other. */
+export async function reportCriticalDaily(): Promise<void> {
+  for (const [tenantId, rows] of [...kept]) {
+    kept.delete(tenantId);
+    await post(tenantId, rows, "daily");
+  }
+}
+
+/** Starts hearing the broker and the daily report; the handle stops both. */
+export function startCriticalReports(): () => void {
+  if (!managed) {
+    return () => undefined;
+  }
+  const off = onCritical((row) => void reportCritical(row));
+  const timer = setInterval(() => void reportCriticalDaily(), DAILY_MS);
+  timer.unref?.();
+  return () => {
+    off();
+    clearInterval(timer);
+  };
 }

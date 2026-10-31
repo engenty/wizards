@@ -75,7 +75,7 @@ export interface PluginRoute {
   handler(request: PluginRequest): unknown | Promise<unknown>;
 }
 
-/** A space: what all its wizards share. The runtime's own tables call it a project. */
+/** A space: what all its wizards share. */
 export interface PluginSpace {
   id: string;
   /** What the studio's switcher calls it. */
@@ -89,8 +89,6 @@ export interface PluginStepContext {
   tenantId: string;
   /** The space of the step's wizard. */
   space: PluginSpace;
-  /** The same as `space`, by its older name. */
-  project: { id: string; name: string };
   wizard: { id: string; title: string };
   /** "test": a test run from the studio. Keep what it makes apart from what real runs make. */
   mode: "test" | "live";
@@ -120,7 +118,7 @@ export interface PluginRunEvent {
     mode: "test" | "live";
     status: "done" | "failed" | "cancelled";
   };
-  wizard: { id: string; title: string; projectId: string };
+  wizard: { id: string; title: string; spaceId: string };
   /** What the person answered, by field id. */
   values: Record<string, unknown>;
 }
@@ -216,7 +214,7 @@ export interface PluginIndexEntry {
 }
 
 export interface PluginIndex {
-  /** Puts the entry in; `project_search` finds it from then on. */
+  /** Puts the entry in; `space_search` finds it from then on. */
   put(entry: PluginIndexEntry): Promise<void>;
   /** Takes one key out, or without a key every entry of the plugin in the space. */
   remove(space: string, key?: string): Promise<void>;
@@ -371,7 +369,7 @@ export interface PluginSpaceItem {
 
 /**
  * Knowledge of a space, written by a plugin: pages, tables and files under keys of its own, with
- * their categories. Every write is indexed: `project_search` finds it a moment later.
+ * their categories. Every write is indexed: `space_search` finds it a moment later.
  */
 export interface PluginSpaceData {
   /**
@@ -441,6 +439,18 @@ export interface PluginAssistantTool<S extends z.ZodType = z.ZodType> {
    * (`registerAssistantCard`) draws it. It is sent as it is: keep such a result small.
    */
   card?: boolean;
+  /**
+   * What a call does, for the AI of a Work chat (docs/plans/work-chats.md): `read` only reads,
+   * `space` changes the space's own data, `outside` reaches past the space (sends, books,
+   * cancels with someone, publishes, deletes on a connected service). An `outside` call waits
+   * for a person's approval before it runs.
+   */
+  risk?: "read" | "space" | "outside";
+  /**
+   * What a call does, as a Work chat's step line says it: `{ de: "Mail senden", en: "Send a
+   * mail" }`. Without it the line shows the plugin's name and the tool's.
+   */
+  label?: { de: string; en: string };
   execute(input: z.infer<S>, ctx: PluginAssistantContext): unknown | Promise<unknown>;
 }
 
@@ -1019,7 +1029,7 @@ export interface PluginServerApi {
    * per tenant at a time; a turn that throws counts as run.
    */
   every(name: string, everyMs: number, handler: (tick: PluginTick) => void | Promise<void>): void;
-  /** The space's search index, which `project_search` asks. */
+  /** The space's search index, which `space_search` asks. */
   index: PluginIndex;
   /** Knowledge of a space: pages, tables and files the plugin writes, with their categories. */
   spaceData: PluginSpaceData;

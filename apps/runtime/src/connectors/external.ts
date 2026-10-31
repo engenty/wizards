@@ -23,6 +23,7 @@ import {
   surfaceRequiresAuth,
   toolPrefixFromSlug,
 } from "../engenty/connections-external/import-service.js";
+import { groupOf } from "../engenty/connections-external/importer/classify.js";
 import { createGuardedFetch } from "../engenty/connections-external/net/guarded-fetch.js";
 import {
   discoverImportableSources,
@@ -40,7 +41,7 @@ import type {
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { encryptToken } from "../engenty/shims/connections-sdk.js";
 import { env } from "../env.js";
-import { requireAdmin, requireWritableProject } from "../services/access.js";
+import { requireAdmin, requireWritableSpace } from "../services/access.js";
 import { ServiceError } from "../services/errors.js";
 import { BUILTIN_CONNECTORS, builtinConnector, missingSetup, usable } from "./builtin.js";
 
@@ -55,20 +56,20 @@ import { BUILTIN_CONNECTORS, builtinConnector, missingSetup, usable } from "./bu
 process.env.CONNECTIONS_REDIRECT_URI ??=
   env.connectRedirectUrl || `${env.appUrl}/api/connect/callback`;
 
-const where = (projectId: string, id: string) =>
-  and(eq(schema.projectConnector.projectId, projectId), eq(schema.projectConnector.id, id));
+const where = (spaceId: string, id: string) =>
+  and(eq(schema.spaceConnector.spaceId, spaceId), eq(schema.spaceConnector.id, id));
 
-async function load(projectId: string, id: string): Promise<ImportedConnectorRecord | null> {
-  const row = await db.query.projectConnector.findFirst({ where: where(projectId, id) });
+async function load(spaceId: string, id: string): Promise<ImportedConnectorRecord | null> {
+  const row = await db.query.spaceConnector.findFirst({ where: where(spaceId, id) });
   return row?.record ?? null;
 }
 
-async function save(projectId: string, record: ImportedConnectorRecord) {
+async function save(spaceId: string, record: ImportedConnectorRecord) {
   await db
-    .insert(schema.projectConnector)
-    .values({ projectId, id: record.id, record })
+    .insert(schema.spaceConnector)
+    .values({ spaceId, id: record.id, record })
     .onConflictDoUpdate({
-      target: [schema.projectConnector.projectId, schema.projectConnector.id],
+      target: [schema.spaceConnector.spaceId, schema.spaceConnector.id],
       set: { record, updatedAt: new Date() },
     });
 }
@@ -76,7 +77,7 @@ async function save(projectId: string, record: ImportedConnectorRecord) {
 const actionView = (a: NormalizedAction): ConnectorActionView => ({
   id: a.id,
   summary: (a.summary || a.description).slice(0, 160),
-  group: a.classification,
+  group: groupOf(a),
 });
 
 function view(record: ImportedConnectorRecord): ConnectorView {
@@ -266,7 +267,7 @@ export async function previewSource(input: {
   };
 }
 
-// --- a project's connectors --------------------------------------------------------
+// --- a space's connectors --------------------------------------------------------
 
 async function builtinView(connector: ConnectorDefinition): Promise<ConnectorView> {
   const ready = await usable(connector);
@@ -292,11 +293,11 @@ async function builtinView(connector: ConnectorDefinition): Promise<ConnectorVie
   };
 }
 
-/** Every connector a wizard of the project can name: the built-in ones, then its imports. */
-export async function listConnectors(projectId: string): Promise<ConnectorView[]> {
-  const rows = await db.query.projectConnector.findMany({
-    where: eq(schema.projectConnector.projectId, projectId),
-    orderBy: [asc(schema.projectConnector.createdAt)],
+/** Every connector a wizard of the space can name: the built-in ones, then its imports. */
+export async function listConnectors(spaceId: string): Promise<ConnectorView[]> {
+  const rows = await db.query.spaceConnector.findMany({
+    where: eq(schema.spaceConnector.spaceId, spaceId),
+    orderBy: [asc(schema.spaceConnector.createdAt)],
   });
   return [
     ...(await Promise.all(BUILTIN_CONNECTORS.map(builtinView))),
@@ -306,10 +307,10 @@ export async function listConnectors(projectId: string): Promise<ConnectorView[]
 
 /**
  * A connector by id, ready to run, with the JSON schema of each action's input: a built-in one,
- * or one the project imported.
+ * or one the space imported.
  */
 export async function resolveConnector(
-  projectId: string,
+  spaceId: string,
   id: string,
 ): Promise<{
   connector: ConnectorDefinition;
@@ -331,7 +332,7 @@ export async function resolveConnector(
       },
     };
   }
-  const found = await importedConnector(projectId, id);
+  const found = await importedConnector(spaceId, id);
   return found
     ? {
         connector: found.connector,
@@ -344,12 +345,12 @@ export async function resolveConnector(
 
 export async function importConnector(
   userId: string,
-  projectId: string,
+  spaceId: string,
   input: ImportRequest,
 ): Promise<{ connector: ConnectorView; warnings: string[] }> {
-  await requireWritableProject(projectId);
+  await requireWritableSpace(spaceId);
   await requireAdmin();
-  if (await load(projectId, input.id)) {
+  if (await load(spaceId, input.id)) {
     throw new ServiceError("invalid", note("connectorAlreadyExistsSpace", { id: input.id }));
   }
   try {
@@ -371,14 +372,14 @@ export async function importConnector(
       sourceKind: input.sourceKind,
       sourceUrl: input.sourceUrl,
       surface,
-      tenantId: projectId,
+      tenantId: spaceId,
       toolPrefix: input.toolPrefix,
     });
     const { skippedActions } = buildImportedConnector(record);
     if (skippedActions.length) {
       warnings.push(`${skippedActions.length} action(s) have an input the tools cannot express`);
     }
-    await save(projectId, record);
+    await save(spaceId, record);
     return { connector: view(record), warnings };
   } catch (err) {
     throw err instanceof ServiceError ? err : importFailure(err);
@@ -392,10 +393,10 @@ export async function importConnector(
  */
 export async function importFromRegistry(
   userId: string,
-  projectId: string,
+  spaceId: string,
   input: { domain: string; kind?: "mcp" | "openapi" },
 ): Promise<{ connector: ConnectorView; warnings: string[] }> {
-  await requireWritableProject(projectId);
+  await requireWritableSpace(spaceId);
   await requireAdmin();
   const service = await registryService(input.domain);
   const order = input.kind ? [input.kind] : (["mcp", "openapi"] as const);
@@ -409,11 +410,11 @@ export async function importFromRegistry(
       `${input.domain} has nothing that can be imported${why ? ` (${why})` : ""}.`,
     );
   }
-  const taken = (await listConnectors(projectId)).find((c) => c.id === source.suggestedId);
+  const taken = (await listConnectors(spaceId)).find((c) => c.id === source.suggestedId);
   if (taken) {
     return { connector: taken, warnings: ["already imported"] };
   }
-  return importConnector(userId, projectId, {
+  return importConnector(userId, spaceId, {
     domain: service.domain,
     sourceKind: source.sourceKind,
     sourceUrl: source.sourceUrl,
@@ -423,10 +424,10 @@ export async function importFromRegistry(
   });
 }
 
-export async function removeConnector(projectId: string, id: string) {
-  await requireWritableProject(projectId);
+export async function removeConnector(spaceId: string, id: string) {
+  await requireWritableSpace(spaceId);
   await requireAdmin();
-  await db.delete(schema.projectConnector).where(where(projectId, id));
+  await db.delete(schema.spaceConnector).where(where(spaceId, id));
 }
 
 /**
@@ -434,12 +435,12 @@ export async function removeConnector(projectId: string, id: string) {
  * tools to a signed-in account needs that account's token.
  */
 export async function refreshConnector(
-  projectId: string,
+  spaceId: string,
   id: string,
   accessToken: string | null,
 ): Promise<ConnectorView> {
-  await requireWritableProject(projectId);
-  const record = await load(projectId, id);
+  await requireWritableSpace(spaceId);
+  const record = await load(spaceId, id);
   if (!record) {
     throw new ServiceError("not_found", note("connectorNotExist"));
   }
@@ -472,7 +473,7 @@ export async function refreshConnector(
       required_headers: requiredHeaders,
       spec_hash: prepared.spec_hash,
     };
-    await save(projectId, updated);
+    await save(spaceId, updated);
     return view(updated);
   } catch (err) {
     throw importFailure(err);
@@ -481,10 +482,10 @@ export async function refreshConnector(
 
 /** The connector as engenty's framework runs it: actions with handlers, auth with its flows. */
 export async function importedConnector(
-  projectId: string,
+  spaceId: string,
   id: string,
 ): Promise<{ connector: ConnectorDefinition; record: ImportedConnectorRecord } | null> {
-  const record = await load(projectId, id);
+  const record = await load(spaceId, id);
   if (!record) {
     return null;
   }
@@ -499,7 +500,7 @@ export async function importedConnector(
         client_id_enc: encryptToken(client.clientId),
         client_secret_enc: client.clientSecret ? encryptToken(client.clientSecret) : null,
       };
-      await save(projectId, current);
+      await save(spaceId, current);
     },
   );
   return { connector, record };

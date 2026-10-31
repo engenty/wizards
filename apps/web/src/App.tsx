@@ -3,12 +3,15 @@ import { Navigate, Route, Routes, useLocation } from "react-router";
 import { Mascot } from "./brand";
 import { ImpersonationBanner } from "./impersonation";
 import { STUDIO } from "./lib/base";
+import { useFeature } from "./lib/features";
 import { useLang } from "./lib/i18n";
 import { useAccountLang, useMe } from "./lib/session";
 import { PluginFrame, startStudioPlugins, useStudioPlugins } from "./plugins/host";
 import { AppFrame } from "./studio/AppFrame";
 import { AssistantProvider } from "./studio/assistant/chat";
+import { MembersStudio } from "./studio/members-studio";
 import { SignInPage } from "./studio/SignInPage";
+import { ClientPage, InMode, WorkPage } from "./studio/work/WorkPages";
 
 // The public runner and the studio are separate bundles: a visitor never downloads the editor.
 const PublicRunner = lazy(() =>
@@ -28,8 +31,9 @@ const NewWizardPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("./studio/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
-const ProjectPage = lazy(() =>
-  import("./studio/ProjectPage").then((m) => ({ default: m.ProjectPage })),
+const SpacePage = lazy(() => import("./studio/SpacePage").then((m) => ({ default: m.SpacePage })));
+const CapabilitiesPage = lazy(() =>
+  import("./studio/capabilities/CapabilitiesPage").then((m) => ({ default: m.CapabilitiesPage })),
 );
 const SetupPage = lazy(() => import("./studio/SetupPage").then((m) => ({ default: m.SetupPage })));
 
@@ -92,7 +96,7 @@ function Studio({
     </>
   ) : (
     <AppFrame me={me.data} wide={wide} full={full}>
-      {children}
+      <MembersStudio me={me.data}>{children}</MembersStudio>
     </AppFrame>
   );
 }
@@ -129,6 +133,15 @@ function ToStudio() {
   return <Splash />;
 }
 
+/** Skills at /skills; with Fähigkeiten on they live in it, and the address leads there. */
+function SkillsPlace() {
+  const { search, hash } = useLocation();
+  if (useFeature("capabilities")) {
+    return <Navigate to={{ pathname: "/capabilities/skills", search, hash }} replace />;
+  }
+  return <SpacePage place="skills" />;
+}
+
 /** An address the studio does not know: a plugin's page that is still loading, or nothing. */
 function Unknown() {
   const plugins = useStudioPlugins();
@@ -156,7 +169,9 @@ export function StudioApp() {
             path="/"
             element={
               <Studio>
-                <HomePage />
+                <InMode mode="studio">
+                  <HomePage />
+                </InMode>
               </Studio>
             }
           />
@@ -188,7 +203,63 @@ export function StudioApp() {
             path="/space/:group?"
             element={
               <Studio wide>
-                <ProjectPage />
+                <SpacePage />
+              </Studio>
+            }
+          />
+          <Route
+            path="/skills"
+            element={
+              <Studio wide>
+                <SkillsPlace />
+              </Studio>
+            }
+          />
+          <Route
+            path="/capabilities/:section?"
+            element={
+              <Studio wide>
+                <CapabilitiesPage />
+              </Studio>
+            }
+          />
+          <Route
+            path="/work"
+            element={
+              <Studio full>
+                <InMode mode="work">
+                  <WorkPage />
+                </InMode>
+              </Studio>
+            }
+          />
+          <Route
+            path="/work/c/:chatId"
+            element={
+              <Studio full>
+                <InMode mode="work">
+                  <WorkPage />
+                </InMode>
+              </Studio>
+            }
+          />
+          <Route
+            path="/work/:place"
+            element={
+              <Studio wide>
+                <InMode mode="work">
+                  <WorkPage />
+                </InMode>
+              </Studio>
+            }
+          />
+          <Route
+            path="/client"
+            element={
+              <Studio wide>
+                <InMode mode="client">
+                  <ClientPage />
+                </InMode>
               </Studio>
             }
           />

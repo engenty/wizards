@@ -1,5 +1,5 @@
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
-import { luminance } from "@engenty/wizards-shared/projects";
+import { luminance } from "@engenty/wizards-shared/spaces";
 import { type Theme, themeColors } from "@engenty/wizards-shared/theme";
 import { useEffect } from "react";
 import { Mascot } from "../../brand";

@@ -1,12 +1,12 @@
 import { ADDRESS_NAMES, addressKind, addressUrl } from "@engenty/wizards-shared/addresses";
 import type { Lang } from "@engenty/wizards-shared/definition";
+import { matchSectors } from "@engenty/wizards-shared/sectors";
 import {
   type BasicFact,
   factKey,
-  PROJECT_LIMITS,
-  type ProjectFact,
-} from "@engenty/wizards-shared/projects";
-import { matchSectors } from "@engenty/wizards-shared/sectors";
+  SPACE_LIMITS,
+  type SpaceFact,
+} from "@engenty/wizards-shared/spaces";
 import { nanoid } from "nanoid";
 import { type CompanyPage, readCompany } from "../agents/company.js";
 import { type CompanyContact, readContact, readWebsite } from "../agents/website.js";
@@ -14,8 +14,8 @@ import { managed, type Role } from "../manage.js";
 import { readSetting, writeSetting } from "../settings.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { isAdminRole } from "./access.js";
-import { addProjectFileFromUrl, projectFiles } from "./project-files.js";
-import { listProjects, ownedProject, updateProject } from "./projects.js";
+import { addSpaceFileFromUrl, spaceFiles } from "./space-files.js";
+import { listSpaces, ownedSpace, updateSpace } from "./spaces.js";
 
 /**
  * The first visit of a studio in the cloud. What the organization is (its kind, name, website,
@@ -41,8 +41,8 @@ async function setUp(user: { id: string; tenantId: string }): Promise<boolean> {
   if (await readSetting(organizationKey(user.tenantId))) {
     return true;
   }
-  const projects = await listProjects(user.id);
-  return projects.some((p) => p.wizardCount > 0);
+  const spaces = await listSpaces(user.id);
+  return spaces.some((p) => p.wizardCount > 0);
 }
 
 /**
@@ -310,11 +310,11 @@ const sameValue = (a: string, b: string) =>
  * value the space already has is left out.
  */
 export function withFacts(
-  facts: ProjectFact[],
+  facts: SpaceFact[],
   found: Found,
   lang: Lang,
   more: { label: string; value: string }[] = [],
-): { facts: ProjectFact[]; added: number } {
+): { facts: SpaceFact[]; added: number } {
   const next = [...facts];
   let added = 0;
   const basicKey = (label: string) =>
@@ -349,7 +349,7 @@ export function withFacts(
       // Beyond the basics, a value the space has under another label is not added twice.
       (i >= FACTS.length && next.some((f) => sameValue(f.value, value))) ||
       (at >= 0 && next[at].value.trim()) ||
-      (at < 0 && next.length >= PROJECT_LIMITS.facts)
+      (at < 0 && next.length >= SPACE_LIMITS.facts)
     ) {
       continue;
     }
@@ -398,7 +398,7 @@ const ASSETS = 4;
  */
 export async function applyWebsite(
   userId: string,
-  projectId: string,
+  spaceId: string,
   url: string,
   lang: Lang,
 ): Promise<WebsiteOutcome> {
@@ -432,10 +432,10 @@ export async function applyWebsite(
   const name = read?.name ?? found.name;
   const about = read?.about ?? found.about;
   const company = read?.company ?? contact.company;
-  const project = await ownedProject(userId, projectId);
-  const fonts = project.brand.fonts?.length ? [] : read?.fonts.length ? read.fonts : found.fonts;
+  const space = await ownedSpace(userId, spaceId);
+  const fonts = space.brand.fonts?.length ? [] : read?.fonts.length ? read.fonts : found.fonts;
   const facts = withFacts(
-    project.facts,
+    space.facts,
     {
       ...contact,
       // The full name only where it says more than the name the space goes by.
@@ -445,7 +445,7 @@ export async function applyWebsite(
     lang,
     read?.facts,
   );
-  await updateProject(userId, projectId, {
+  await updateSpace(userId, spaceId, {
     brand: {
       name,
       ...(about ? { about } : {}),
@@ -458,13 +458,13 @@ export async function applyWebsite(
   const [logo, assets] = await Promise.all([
     (async () => {
       const first = reading.brand.logos[0];
-      if (!first || (await projectFiles(projectId, "logo")).length > 0) {
+      if (!first || (await spaceFiles(spaceId, "logo")).length > 0) {
         return false;
       }
-      return keep(projectId, first.url, "logo", first.hint);
+      return keep(spaceId, first.url, "logo", first.hint);
     })(),
     (async () => {
-      if ((await projectFiles(projectId, "asset")).length > 0) {
+      if ((await spaceFiles(spaceId, "asset")).length > 0) {
         return 0;
       }
       const pictures = reading.brand.images.filter((i) => i.hero).slice(0, ASSETS);
@@ -475,7 +475,7 @@ export async function applyWebsite(
         const description = picture.alt.startsWith("share image")
           ? `share image of ${host}`
           : picture.alt || `picture on the home page of ${host}`;
-        kept += Number(await keep(projectId, picture.url, "asset", description, until));
+        kept += Number(await keep(spaceId, picture.url, "asset", description, until));
       }
       return kept;
     })(),
@@ -501,16 +501,16 @@ export async function applyWebsite(
  */
 export async function applyAddresses(
   userId: string,
-  projectId: string,
+  spaceId: string,
   raw: string[],
   lang: Lang,
 ): Promise<WebsiteOutcome | null> {
   const urls = [...new Set(raw.flatMap((r) => addressUrl(r) ?? []))].slice(0, 10);
   const site = urls.find((u) => addressKind(u) === "website");
-  const outcome = site ? await applyWebsite(userId, projectId, site, lang) : null;
+  const outcome = site ? await applyWebsite(userId, spaceId, site, lang) : null;
   const rest = urls.filter((u) => u !== site);
   if (rest.length) {
-    const project = await ownedProject(userId, projectId);
+    const space = await ownedSpace(userId, spaceId);
     const named = rest.map((url) => {
       const kind = addressKind(url);
       const count = rest.filter((u) => addressKind(u) === kind).indexOf(url);
@@ -519,9 +519,9 @@ export async function applyAddresses(
         value: url,
       };
     });
-    const facts = withFacts(project.facts, {}, lang, named);
+    const facts = withFacts(space.facts, {}, lang, named);
     if (facts.added) {
-      await updateProject(userId, projectId, { facts: facts.facts });
+      await updateSpace(userId, spaceId, { facts: facts.facts });
     }
     if (outcome) {
       outcome.facts += facts.added;
@@ -532,14 +532,14 @@ export async function applyAddresses(
 
 /** A picture of the site kept in the space; one that cannot be fetched is no loss. */
 async function keep(
-  projectId: string,
+  spaceId: string,
   url: string,
   kind: "logo" | "asset",
   description: string,
   signal = AbortSignal.timeout(15_000),
 ): Promise<boolean> {
   try {
-    await addProjectFileFromUrl(projectId, { url, kind, description, signal });
+    await addSpaceFileFromUrl(spaceId, { url, kind, description, signal });
     return true;
   } catch {
     // The person adds it under Space → Logos or Brand material.

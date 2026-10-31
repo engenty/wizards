@@ -233,19 +233,19 @@ describe("the public page of a space", () => {
     cookie = await signIn(TENANT);
     const me = await studio("GET", "/me", cookie);
     expect(me.body.tenant.pagesHost).toBe("berger-partner.wizards.localhost");
-    const [project] = (await studio("GET", "/projects", cookie)).body;
-    space = project.id;
-    expect(project.page).toBeNull();
-    other = (await studio("POST", "/projects", cookie, { name: "Zweiter" })).body.id;
+    const [first] = (await studio("GET", "/spaces", cookie)).body;
+    space = first.id;
+    expect(first.page).toBeNull();
+    other = (await studio("POST", "/spaces", cookie, { name: "Zweiter" })).body.id;
   });
 
   it("keeps the page's settings, only this space's wizards on it and the form for German", async () => {
-    wizard = (await studio("POST", "/wizards", cookie, { projectId: space })).body.id;
-    const res = await studio("PATCH", `/projects/${space}`, cookie, {
+    wizard = (await studio("POST", "/wizards", cookie, { spaceId: space })).body.id;
+    const res = await studio("PATCH", `/spaces/${space}`, cookie, {
       page: { ...PAGE, wizards: [wizard, "not-here", wizard], examples: { "not-here": "abc" } },
     });
     expect(res.status).toBe(200);
-    const page = (await studio("GET", "/projects", cookie)).body.find((p: any) => p.id === space).page;
+    const page = (await studio("GET", "/spaces", cookie)).body.find((p: any) => p.id === space).page;
     expect(page).toEqual({
       on: true,
       slug: "steuer",
@@ -257,41 +257,41 @@ describe("the public page of a space", () => {
       examples: {},
     });
     // An English page has no form.
-    await studio("PATCH", `/projects/${space}`, cookie, { page: { ...PAGE, lang: "en" } });
-    const english = (await studio("GET", "/projects", cookie)).body.find((p: any) => p.id === space).page;
+    await studio("PATCH", `/spaces/${space}`, cookie, { page: { ...PAGE, lang: "en" } });
+    const english = (await studio("GET", "/spaces", cookie)).body.find((p: any) => p.id === space).page;
     expect(english.form).toBeUndefined();
-    await studio("PATCH", `/projects/${space}`, cookie, { page: PAGE });
+    await studio("PATCH", `/spaces/${space}`, cookie, { page: PAGE });
   });
 
   it("refuses an address with other characters or one another space has", async () => {
-    const bad = await studio("PATCH", `/projects/${space}`, cookie, { page: { ...PAGE, slug: "Steuer Büro" } });
+    const bad = await studio("PATCH", `/spaces/${space}`, cookie, { page: { ...PAGE, slug: "Steuer Büro" } });
     expect(bad.status).toBe(400);
-    const taken = await studio("PATCH", `/projects/${other}`, cookie, { page: { ...PAGE, on: false } });
+    const taken = await studio("PATCH", `/spaces/${other}`, cookie, { page: { ...PAGE, on: false } });
     expect(taken.status).toBe(400);
     expect(taken.body.error).toMatch(/address|Adresse/);
   });
 
   it("lets one space of the organization have the page on, and names it to the second", async () => {
-    const second = await studio("PATCH", `/projects/${other}`, cookie, {
+    const second = await studio("PATCH", `/spaces/${other}`, cookie, {
       page: { ...PAGE, slug: "zweiter", title: "Zweiter" },
     });
     expect(second.status).toBe(409);
-    expect(second.body).toMatchObject({ code: "page_taken", project: { id: space, name: "My wizards" } });
+    expect(second.body).toMatchObject({ code: "page_taken", space: { id: space, name: "My wizards" } });
     // Off, it may keep its settings.
-    const off = await studio("PATCH", `/projects/${other}`, cookie, {
+    const off = await studio("PATCH", `/spaces/${other}`, cookie, {
       page: { ...PAGE, on: false, slug: "zweiter", title: "Zweiter" },
     });
     expect(off.status).toBe(200);
     // The first switches off: the second may switch on.
-    await studio("PATCH", `/projects/${space}`, cookie, { page: { ...PAGE, on: false } });
-    const on = await studio("PATCH", `/projects/${other}`, cookie, {
+    await studio("PATCH", `/spaces/${space}`, cookie, { page: { ...PAGE, on: false } });
+    const on = await studio("PATCH", `/spaces/${other}`, cookie, {
       page: { ...PAGE, slug: "zweiter", title: "Zweiter" },
     });
     expect(on.status).toBe(200);
-    await studio("PATCH", `/projects/${other}`, cookie, {
+    await studio("PATCH", `/spaces/${other}`, cookie, {
       page: { ...PAGE, on: false, slug: "zweiter", title: "Zweiter" },
     });
-    await studio("PATCH", `/projects/${space}`, cookie, { page: PAGE });
+    await studio("PATCH", `/spaces/${space}`, cookie, { page: PAGE });
   });
 });
 
@@ -307,10 +307,10 @@ describe("the page data sent to the Manage-App", () => {
 
   it("sends no page while no listed wizard is published and shared", async () => {
     cookie = await signIn(TENANT);
-    const projects = (await studio("GET", "/projects", cookie)).body;
-    space = projects.find((p: any) => p.page?.on).id;
-    wizard = (await studio("GET", `/projects/${space}/wizards`, cookie)).body[0].id;
-    await studio("PATCH", `/projects/${space}`, cookie, { page: { ...PAGE, wizards: [wizard] } });
+    const spaces = (await studio("GET", "/spaces", cookie)).body;
+    space = spaces.find((p: any) => p.page?.on).id;
+    wizard = (await studio("GET", `/spaces/${space}/wizards`, cookie)).body[0].id;
+    await studio("PATCH", `/spaces/${space}`, cookie, { page: { ...PAGE, wizards: [wizard] } });
     const sent = await lastPush();
     expect(sent).toEqual({ slug: "berger-partner", name: "Berger & Partner", lang: "de", space: null });
   });
@@ -322,7 +322,7 @@ describe("the page data sent to the Manage-App", () => {
       baseRevision: current.revision,
     });
     expect(draft.status).toBe(200);
-    await studio("PATCH", `/projects/${space}`, cookie, {
+    await studio("PATCH", `/spaces/${space}`, cookie, {
       brand: { name: "Berger & Partner", colors: [{ name: "Primär", value: "#0f4c5c" }] },
       facts: [
         { key: "firma", label: "Firma", value: "Berger & Partner Steuerberatung GmbH" },
@@ -386,7 +386,7 @@ describe("the page data sent to the Manage-App", () => {
       slug: "belege-fuers-quartal-sortieren",
       title: "Belege sortieren",
     });
-    const page = (await studio("GET", "/projects", cookie)).body.find((p: any) => p.id === space).page;
+    const page = (await studio("GET", "/spaces", cookie)).body.find((p: any) => p.id === space).page;
     expect(page.slugs).toEqual({ [wizard]: "belege-fuers-quartal-sortieren" });
   });
 
@@ -400,14 +400,14 @@ describe("the page data sent to the Manage-App", () => {
   it("logs a failed send and sends everything again on the next change", async () => {
     const before = pushes.length;
     pagesDown = true;
-    const res = await studio("PATCH", `/projects/${space}`, cookie, {
+    const res = await studio("PATCH", `/spaces/${space}`, cookie, {
       page: { ...PAGE, wizards: [wizard], headline: "Neu" },
     });
     expect(res.status).toBe(200);
     await settled();
     expect(pushes.length).toBe(before);
     pagesDown = false;
-    await studio("PATCH", `/projects/${space}`, cookie, {
+    await studio("PATCH", `/spaces/${space}`, cookie, {
       page: { ...PAGE, wizards: [wizard], headline: "Neu", intro: "Ein paar Worte." },
     });
     const sent = await lastPush();
@@ -421,7 +421,7 @@ describe("the page data sent to the Manage-App", () => {
     try {
       const me = await studio("GET", "/me", cookie);
       expect(me.body.tenant.pagesHost).toBeNull();
-      await studio("PATCH", `/projects/${space}`, cookie, {
+      await studio("PATCH", `/spaces/${space}`, cookie, {
         page: { ...PAGE, wizards: [wizard], headline: "Aus" },
       });
       expect((await lastPush()).space).toBeNull();
@@ -434,7 +434,7 @@ describe("the page data sent to the Manage-App", () => {
   it("sends no page once the listed wizard is deleted, and forgets it on the page", async () => {
     await studio("DELETE", `/wizards/${wizard}`, cookie);
     expect((await lastPush()).space).toBeNull();
-    const page = (await studio("GET", "/projects", cookie)).body.find((p: any) => p.id === space).page;
+    const page = (await studio("GET", "/spaces", cookie)).body.find((p: any) => p.id === space).page;
     expect(page.wizards).toEqual([]);
   });
 });

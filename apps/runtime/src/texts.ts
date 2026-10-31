@@ -36,6 +36,21 @@ const EN = {
   newWizardDone: "Done",
   templateSetUp:
     "I have set up the template “{title}” for you. Test it at the top right – or tell me what should be different.",
+  criticalMailSubject: {
+    one: "{space}: one line from the wizards’ connections to look at",
+    other: "{space}: {count} lines from the wizards’ connections to look at",
+  },
+  criticalMailIntro:
+    "In the last hour the wizards’ connections in {space} saw these lines. None of the admins was in the studio, so they come by mail.",
+  criticalMailMore: { one: "… and one more line.", other: "… and {count} more lines." },
+  criticalMailOutro: "The bell in Work shows them, and what to do: {url}",
+  "criticalKind.refused_write": "Refused: a write, a delete or a send",
+  "criticalKind.outside_audience": "A guest reached a connection that is not for guests",
+  "criticalKind.host_not_in_grant": "A request to a host the run may not reach",
+  "criticalKind.limit_reached": "A limit was reached",
+  "criticalKind.sign_in_failed": "A sign-in ran out or was refused",
+  "criticalKind.first_use": "A connection was used for the first time",
+  "criticalKind.rule_changed": "A rule was changed",
   imapHint:
     "Gmail, iCloud, GMX and web.de need an app password (in your account’s security settings), not your normal password.",
   doingSaveLogo: "Fetching the logo…",
@@ -144,8 +159,11 @@ const EN = {
     "The attachments are {size} – too large for an email. Choose fewer files or share the link.",
   shareMailboxLimit:
     "The attachments are too large for this mailbox (at most 3 MB). Choose fewer files or share the link.",
-  shareVisitorMails:
-    "From here, one run sends {mails} emails to at most {recipients} addresses each.",
+  shareVisitorRecipients: "From here, an email goes to at most {recipients} addresses.",
+  shareGuestRecipient:
+    "From here, an email goes only to the address you gave in the wizard or to the team’s own addresses.",
+  shareGuestRunMails: "This run has sent its {mails} emails.",
+  shareGuestDayMails: "This wizard has sent its emails for today. Try again tomorrow.",
   shareConnectMailbox: "Connect a mailbox first.",
   shareSendingFrom: "Sending from {account}",
   shareSentTo: "Sent to {to}",
@@ -228,6 +246,7 @@ const EN = {
   skillUploadKind: "Upload a SKILL.md, a .zip or a .skill file.",
   skillReadOnly: "A skill from skills.sh stays as it is. Copy it as your own skill to change it.",
   skillsRegistryDown: "skills.sh did not answer. Try again in a moment.",
+  connectorsRegistryDown: "integrations.sh did not answer. Try again in a moment.",
   skillsRegistryMissing: "skills.sh has no skill at {ref}.",
   skillUpdateChanged:
     "skills.sh changed the skill again since you looked. Look at the changes once more.",
@@ -235,6 +254,21 @@ const EN = {
 export type ServerKey = keyof typeof EN;
 
 const DE: Partial<Record<ServerKey, Line>> = {
+  criticalMailSubject: {
+    one: "{space}: eine Zeile aus den Verbindungen der Wizards zum Nachsehen",
+    other: "{space}: {count} Zeilen aus den Verbindungen der Wizards zum Nachsehen",
+  },
+  criticalMailIntro:
+    "In der letzten Stunde gab es in den Verbindungen der Wizards in {space} diese Zeilen. Keiner der Admins war im Studio, darum kommen sie per E-Mail.",
+  criticalMailMore: { one: "… und eine weitere Zeile.", other: "… und {count} weitere Zeilen." },
+  criticalMailOutro: "Die Glocke in Work zeigt sie und was du tun kannst: {url}",
+  "criticalKind.refused_write": "Abgelehnt: ein Schreiben, Löschen oder Senden",
+  "criticalKind.outside_audience": "Ein Gast hat eine Verbindung erreicht, die nicht für Gäste ist",
+  "criticalKind.host_not_in_grant": "Eine Anfrage an einen Host, den der Lauf nicht erreichen darf",
+  "criticalKind.limit_reached": "Ein Limit ist erreicht",
+  "criticalKind.sign_in_failed": "Eine Anmeldung ist abgelaufen oder wurde abgelehnt",
+  "criticalKind.first_use": "Eine Verbindung wurde zum ersten Mal verwendet",
+  "criticalKind.rule_changed": "Eine Regel wurde geändert",
   keyUnknown: "Der Anbieter kennt diesen API-Key nicht.",
   providerError: "Der Anbieter antwortet mit Fehler {status}.",
   providerUnreachable: "Der Anbieter ist gerade nicht erreichbar.",
@@ -368,8 +402,12 @@ const DE: Partial<Record<ServerKey, Line>> = {
     "Die Anhänge sind mit {size} zu groß für eine E-Mail. Wähle weniger Dateien oder teile den Link.",
   shareMailboxLimit:
     "Die Anhänge sind zu groß für dieses Postfach (höchstens 3 MB). Wähle weniger Dateien oder teile den Link.",
-  shareVisitorMails:
-    "Von hier gehen pro Lauf {mails} E-Mails an je höchstens {recipients} Adressen.",
+  shareVisitorRecipients: "Von hier geht eine E-Mail an höchstens {recipients} Adressen.",
+  shareGuestRecipient:
+    "Von hier geht eine E-Mail nur an die Adresse, die du im Wizard angegeben hast, oder an Adressen des Teams.",
+  shareGuestRunMails: "Dieser Lauf hat seine {mails} E-Mails gesendet.",
+  shareGuestDayMails:
+    "Dieser Wizard hat seine E-Mails für heute gesendet. Versuch es morgen wieder.",
   shareConnectMailbox: "Verbinde zuerst ein Postfach.",
   shareSendingFrom: "Sendet von {account}",
   shareSentTo: "Gesendet an {to}",
@@ -452,6 +490,7 @@ const DE: Partial<Record<ServerKey, Line>> = {
   skillReadOnly:
     "Ein Skill von skills.sh bleibt, wie er ist. Kopier ihn als eigenen Skill, um ihn zu ändern.",
   skillsRegistryDown: "skills.sh antwortet nicht. Versuch es gleich noch einmal.",
+  connectorsRegistryDown: "integrations.sh antwortet nicht. Versuch es gleich noch einmal.",
   skillsRegistryMissing: "Auf skills.sh gibt es keinen Skill unter {ref}.",
   skillUpdateChanged:
     "skills.sh hat den Skill seitdem wieder geändert. Sieh dir die Änderungen noch einmal an.",

@@ -6,11 +6,13 @@ import { EngentyLogoMark } from "../engenty/logo";
 import { type AppBarPosition, besideBar } from "../lib/appbar";
 import { t } from "../lib/i18n";
 import { acceptInstall, standalone, useInstallPrompt } from "../lib/install";
+import { allowedModes, useMode } from "../lib/mode";
 import type { Me } from "../lib/session";
 import { useUpdate } from "../lib/update";
 import { cn } from "../ui";
 import { useDismiss } from "./AppFrame";
 import { InstallDialog } from "./InstallBanner";
+import { MODE_ENGENTY } from "./ModeSwitch";
 import {
   currentOrganization,
   OrganizationFace,
@@ -60,6 +62,10 @@ export function EngentyMenu({
   // Only a runtime that runs alone has updates of its own; in the cloud they come by themselves.
   const local = me.mode === "local";
   const { data, check } = useUpdate(local);
+  // With more than one mode the engenty wears the one the person is in (its switch stands right
+  // under it, ModeSwitch.tsx); else it cycles, as the brand mark does.
+  const mode = useMode(me);
+  const kind = allowedModes(me).length > 1 ? MODE_ENGENTY[mode] : undefined;
   // The settings from anywhere, as an app opens its own.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -106,7 +112,7 @@ export function EngentyMenu({
             : cn("grid place-items-center", horizontal ? "size-11" : "h-12 w-11"),
         )}
       >
-        <EngentyLogoMark size={32} />
+        <EngentyLogoMark size={32} kind={kind} />
         {labels ? (
           <span className="truncate font-display font-semibold text-[1rem] tracking-tight">
             engenty<span className="text-ember">.</span>

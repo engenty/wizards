@@ -136,8 +136,8 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request("http://localhost:5181/api/local/enter?k=test-key"));
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
-  const projects = await import("../src/services/projects");
-  spaceId = (await client.withTenant("local", () => projects.defaultProject("local"))).id;
+  const spaces = await import("../src/services/spaces");
+  spaceId = (await client.withTenant("local", () => spaces.defaultSpace("local"))).id;
 }, 60_000);
 
 describe("the logo", () => {
@@ -413,7 +413,7 @@ describe("reading a website into the space", () => {
     pages.set(SHARE, { mime: "image/png", body: picture });
     pages.set(HERO, { mime: "image/png", body: picture });
 
-    const res = await send("POST", `/api/studio/projects/${spaceId}/website`, {
+    const res = await send("POST", `/api/studio/spaces/${spaceId}/website`, {
       url: `${SITE}/`,
       lang: "de",
     });
@@ -429,7 +429,7 @@ describe("reading a website into the space", () => {
       sectors: expect.any(Array),
     });
 
-    const projects = (await (await send("GET", "/api/studio/projects")).json()) as {
+    const spaces = (await (await send("GET", "/api/studio/spaces")).json()) as {
       id: string;
       brand: {
         name: string;
@@ -439,7 +439,7 @@ describe("reading a website into the space", () => {
       };
       facts: { key: string; label: string; value: string }[];
     }[];
-    const space = projects.find((p) => p.id === spaceId);
+    const space = spaces.find((p) => p.id === spaceId);
     expect(space?.brand.name).toBe("SFG");
     expect(space?.brand.about).toBe(PURPOSE);
     expect(space?.brand.colors.map((c) => c.value)).toEqual(["#a6c93f", "#432a74"]);
@@ -465,7 +465,7 @@ describe("reading a website into the space", () => {
       { key: "youtube", label: "YouTube", value: PROFILES.youtube },
     ]);
 
-    const { files } = (await (await send("GET", `/api/studio/projects/${spaceId}/files`)).json()) as {
+    const { files } = (await (await send("GET", `/api/studio/spaces/${spaceId}/files`)).json()) as {
       files: {
         id: string;
         kind: string;
@@ -478,7 +478,7 @@ describe("reading a website into the space", () => {
     expect(logos).toHaveLength(1);
     expect(logos[0].mime).toBe("image/svg+xml");
     const drawing = await (
-      await send("GET", `/api/studio/projects/${spaceId}/files/${logos[0].id}/content`)
+      await send("GET", `/api/studio/spaces/${spaceId}/files/${logos[0].id}/content`)
     ).text();
     expect(drawing).toMatch(/<svg[^>]*fill="#a6c93f"/);
     expect(drawing).toMatch(/<svg[^>]*color="#2b2b32"/);
@@ -518,8 +518,8 @@ describe("the model after the patterns", () => {
     llm.answer = answer;
     llm.prompts.length = 0;
     // A space without facts and fonts yet.
-    await send("PATCH", `/api/studio/projects/${spaceId}`, { facts: [], brand: { fonts: [] } });
-    const res = await send("POST", `/api/studio/projects/${spaceId}/website`, {
+    await send("PATCH", `/api/studio/spaces/${spaceId}`, { facts: [], brand: { fonts: [] } });
+    const res = await send("POST", `/api/studio/spaces/${spaceId}/website`, {
       url: `${SITE}/`,
       lang: "de",
     });
@@ -530,12 +530,12 @@ describe("the model after the patterns", () => {
     expect(llm.prompts[0]).toContain("Unternehmensgegenstand");
     expect(llm.prompts[0]).toContain("FN 44903 i");
 
-    const projects = (await (await send("GET", "/api/studio/projects")).json()) as {
+    const spaces = (await (await send("GET", "/api/studio/spaces")).json()) as {
       id: string;
       brand: { about: string; fonts: { family: string; role: string; weights: number[] }[] };
       facts: { key: string; label: string; value: string }[];
     }[];
-    const space = projects.find((p) => p.id === spaceId);
+    const space = spaces.find((p) => p.id === spaceId);
     expect(space?.brand.about).toBe(answer.about);
     expect(space?.brand.fonts).toMatchObject([
       { family: "Geomanist", role: "Überschriften und Fließtext", weights: [400, 500, 700] },

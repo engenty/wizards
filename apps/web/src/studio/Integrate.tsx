@@ -24,7 +24,7 @@ import { type ReactNode, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "../lib/api";
 import { type Key, lang, t } from "../lib/i18n";
-import { type Me, useCurrentProject, useMe, type WizardSummary } from "../lib/session";
+import { type Me, useCurrentSpace, useMe, type WizardSummary } from "../lib/session";
 import { Button, Card, Chip, cn, IconButton } from "../ui";
 import { LinkStatus, useAccountLink } from "./Account";
 import { openExternal } from "./LocalRuntime";
@@ -549,11 +549,11 @@ function Checks({ client, seen }: { client: Client; seen: Seen | undefined }) {
 /** A wizard of the space to name in the first prompts: a published one, if there is one. */
 function useExampleWizard(): WizardSummary | null {
   const me = useMe().data;
-  const { project } = useCurrentProject();
+  const { space } = useCurrentSpace();
   const wizards = useQuery({
-    queryKey: ["wizards", project?.id, Boolean(me?.account)],
-    queryFn: () => api.get<WizardSummary[]>(`/api/studio/projects/${project!.id}/wizards`),
-    enabled: Boolean(project),
+    queryKey: ["wizards", space?.id, Boolean(me?.account)],
+    queryFn: () => api.get<WizardSummary[]>(`/api/studio/spaces/${space!.id}/wizards`),
+    enabled: Boolean(space),
   });
   const list = wizards.data ?? [];
   return list.find((w) => w.published) ?? list[0] ?? null;

@@ -1,6 +1,6 @@
 import type { Lang } from "@engenty/wizards-shared/definition";
-import { factKey, PROJECT_LIMITS } from "@engenty/wizards-shared/projects";
 import { note } from "@engenty/wizards-shared/run";
+import { factKey, SPACE_LIMITS } from "@engenty/wizards-shared/spaces";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { runStudioAssistant } from "../agents/studio-assistant.js";
@@ -10,14 +10,14 @@ import { errorText } from "../model-errors.js";
 import { prompt } from "../prompts.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
-import { projectWritable, requireWritable } from "./access.js";
+import { requireWritable, spaceWritable } from "./access.js";
 import { apiSpace, apiSpaceDetails } from "./api.js";
 import { openChat, turnHistory } from "./assistant-chats.js";
 import { mainLogoId } from "./brand.js";
 import { ServiceError } from "./errors.js";
-import { addProjectFile } from "./project-files.js";
-import { brandColorSchema, ownedProject, updateProject } from "./projects.js";
 import { listOrigin, putOriginPage, removeOrigin } from "./space-data.js";
+import { addSpaceFile } from "./space-files.js";
+import { brandColorSchema, ownedSpace, updateSpace } from "./spaces.js";
 
 /*
  * A website reads itself into a space: the WordPress plugin sends what the site says about
@@ -41,7 +41,7 @@ export const siteSchema = z.object({
     .array(z.object({ label: z.string().min(1).max(80), value: z.string().min(1).max(4000) }))
     .max(40)
     .default([]),
-  colors: z.array(brandColorSchema).max(PROJECT_LIMITS.colors).default([]),
+  colors: z.array(brandColorSchema).max(SPACE_LIMITS.colors).default([]),
   logo: z
     .object({
       name: z.string().max(200),
@@ -102,15 +102,15 @@ function forget() {
 }
 
 /** What the site states, written where the space has nothing yet; the admin's own stays. */
-async function fillFromSite(userId: string, projectId: string, input: SiteInput) {
-  const p = await ownedProject(userId, projectId);
+async function fillFromSite(userId: string, spaceId: string, input: SiteInput) {
+  const p = await ownedSpace(userId, spaceId);
   const facts = [...p.facts];
   for (const f of input.facts) {
     const label = f.label.trim();
     if (facts.some((x) => x.label.toLowerCase() === label.toLowerCase())) {
       continue;
     }
-    if (facts.length >= PROJECT_LIMITS.facts) {
+    if (facts.length >= SPACE_LIMITS.facts) {
       break;
     }
     facts.push({
@@ -123,7 +123,7 @@ async function fillFromSite(userId: string, projectId: string, input: SiteInput)
     });
   }
   const website = facts.some((x) => /^(website|webseite)$/i.test(x.label));
-  if (!website && facts.length < PROJECT_LIMITS.facts) {
+  if (!website && facts.length < SPACE_LIMITS.facts) {
     facts.push({
       key: factKey(
         "Website",
@@ -133,7 +133,7 @@ async function fillFromSite(userId: string, projectId: string, input: SiteInput)
       value: input.url,
     });
   }
-  await updateProject(userId, projectId, {
+  await updateSpace(userId, spaceId, {
     brand: {
       ...(p.brand.name ? {} : input.name ? { name: input.name } : {}),
       ...(p.brand.about ? {} : input.tagline ? { about: input.tagline } : {}),
@@ -143,8 +143,8 @@ async function fillFromSite(userId: string, projectId: string, input: SiteInput)
     },
     facts,
   });
-  if (input.logo && !(await mainLogoId(projectId))) {
-    await addProjectFile(projectId, {
+  if (input.logo && !(await mainLogoId(spaceId))) {
+    await addSpaceFile(spaceId, {
       kind: "logo",
       name: input.logo.name,
       mime: input.logo.mime,
@@ -156,7 +156,7 @@ async function fillFromSite(userId: string, projectId: string, input: SiteInput)
 }
 
 /** The site's pages as Knowledge: the same page again rewrites, a page gone from the site goes. */
-async function writePages(projectId: string, input: SiteInput): Promise<number> {
+async function writePages(spaceId: string, input: SiteInput): Promise<number> {
   const keys = new Set<string>();
   for (const page of input.pages) {
     if (!page.markdown.trim()) {
@@ -164,16 +164,16 @@ async function writePages(projectId: string, input: SiteInput): Promise<number> 
     }
     keys.add(page.key);
     await putOriginPage(SITE_ORIGIN, {
-      space: projectId,
+      space: spaceId,
       key: page.key,
       label: page.url ?? null,
       title: page.title || page.url || "Seite",
       markdown: page.url ? `Quelle: ${page.url}\n\n${page.markdown}` : page.markdown,
     });
   }
-  for (const item of await listOrigin(SITE_ORIGIN, projectId)) {
+  for (const item of await listOrigin(SITE_ORIGIN, spaceId)) {
     if (item.kind === "page" && !keys.has(item.key)) {
-      await removeOrigin(SITE_ORIGIN, projectId, item.key);
+      await removeOrigin(SITE_ORIGIN, spaceId, item.key);
     }
   }
   return keys.size;
@@ -208,24 +208,24 @@ function assistMessage(input: SiteInput): string {
     .slice(0, 7900);
 }
 
-async function work(job: SiteJob, projectId: string, input: SiteInput) {
+async function work(job: SiteJob, spaceId: string, input: SiteInput) {
   try {
     const lang = siteLang(input);
     job.activity = serverText(lang, "siteTakingOver");
-    await fillFromSite(job.userId, projectId, input);
+    await fillFromSite(job.userId, spaceId, input);
     job.activity = serverText(lang, "siteWritingPages");
-    job.pages = await writePages(projectId, input);
+    job.pages = await writePages(spaceId, input);
     if (input.assist && (await canSpend())) {
       job.activity = serverText(lang, "siteReading");
-      const project = await ownedProject(job.userId, projectId);
+      const space = await ownedSpace(job.userId, spaceId);
       // The person's open assistant chat gives the context; the turn is not stored in it.
       const chat = await openChat(job.user);
       const result = await runStudioAssistant({
         user: job.user,
         chat,
         history: await turnHistory(job.user, chat),
-        project,
-        writable: await projectWritable(project),
+        space,
+        writable: await spaceWritable(space),
         message: assistMessage(input),
         page: null,
         browserTools: [],
@@ -242,7 +242,7 @@ async function work(job: SiteJob, projectId: string, input: SiteInput) {
       });
       job.reply = result?.reply ?? "";
     }
-    job.space = await apiSpaceDetails(job.userId, projectId);
+    job.space = await apiSpaceDetails(job.userId, spaceId);
     job.status = "done";
     job.activity = "";
   } catch (err) {

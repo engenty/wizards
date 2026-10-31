@@ -28,7 +28,7 @@ import { type Key, lang, t } from "../lib/i18n";
 import { keys } from "../lib/keys";
 import {
   type Me,
-  useCurrentProject,
+  useCurrentSpace,
   useMayBuild,
   useMayCreate,
   useMe,
@@ -60,11 +60,11 @@ const SPACE_HOLDS: { icon: LucideIcon; name: () => string; what: Key }[] = [
 
 /** Names a new space and makes it the one the studio looks at; says first what a space is. */
 export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { select } = useCurrentProject();
+  const { select } = useCurrentSpace();
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const create = useMutation({
-    mutationFn: () => api.post<{ id: string }>("/api/studio/projects", { name }),
+    mutationFn: () => api.post<{ id: string }>("/api/studio/spaces", { name }),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.spaces() });
       select(id);
@@ -73,7 +73,7 @@ export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () =
     },
   });
   return (
-    <Dialog open={open} onClose={onClose} title={t("home.newProject")}>
+    <Dialog open={open} onClose={onClose} title={t("home.newSpace")}>
       <p className="-mt-2 text-[0.875rem] text-ink-2">{t("space.holds.intro")}</p>
       <dl className="mt-4 flex flex-col gap-2.5 text-[0.8125rem]">
         {SPACE_HOLDS.map((row) => (
@@ -96,7 +96,7 @@ export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () =
       >
         <Input
           autoFocus
-          placeholder={t("home.projectName")}
+          placeholder={t("home.spaceName")}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -105,7 +105,7 @@ export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () =
             {t("common.cancel")}
           </Button>
           <Button type="submit" busy={create.isPending} disabled={!name.trim()}>
-            {t("home.newProject")}
+            {t("home.newSpace")}
           </Button>
         </div>
       </form>
@@ -113,32 +113,32 @@ export function NewSpaceDialog({ open, onClose }: { open: boolean; onClose: () =
   );
 }
 
-/** Picks the project the studio looks at. Nothing where the tenant works with one project. */
-export function ProjectSwitcher() {
-  const { project, projects, select } = useCurrentProject();
+/** Picks the space the studio looks at. Nothing where the tenant works with one space. */
+export function SpaceSwitcher() {
+  const { space, spaces, select } = useCurrentSpace();
   // Null: as many as wanted.
-  const limit = useMe().data?.limits.projects ?? 1;
+  const limit = useMe().data?.limits.spaces ?? 1;
   const mayCreate = useMayCreate();
   const [open, setOpen] = useState(false);
-  if (!project || (limit !== null && limit <= 1)) {
+  if (!space || (limit !== null && limit <= 1)) {
     return null;
   }
   return (
     <div className="flex items-center gap-2">
       <Select
         className="w-56"
-        value={project.id}
+        value={space.id}
         onChange={(v) => (v === "__new" ? setOpen(true) : select(v))}
         options={[
-          ...projects.map((p) => ({ value: p.id, label: p.name })),
-          // A tenant that builds nothing here makes no project here either; nor does a member.
+          ...spaces.map((p) => ({ value: p.id, label: p.name })),
+          // A tenant that builds nothing here makes no space here either; nor does a member.
           ...(mayCreate
             ? [
-                limit === null || projects.length < limit
-                  ? { value: "__new", label: `+ ${t("home.newProject")}` }
+                limit === null || spaces.length < limit
+                  ? { value: "__new", label: `+ ${t("home.newSpace")}` }
                   : {
                       value: "__new",
-                      label: t("home.projectLimit", { n: limit }),
+                      label: t("home.spaceLimit", { n: limit }),
                       disabled: true,
                     },
               ]
@@ -485,15 +485,15 @@ function FromLocal() {
 export function HomePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { project, projects, loading } = useCurrentProject();
+  const { space, spaces, loading } = useCurrentSpace();
   const me = useMe().data;
   const build = useMayBuild();
   const create = useMayCreate();
   const wizards = useQuery({
     // Linked or not, the cards ask anew: where each wizard runs changes with it.
-    queryKey: ["wizards", project?.id, Boolean(me?.account)],
-    queryFn: () => api.get<WizardSummary[]>(`/api/studio/projects/${project!.id}/wizards`),
-    enabled: Boolean(project),
+    queryKey: ["wizards", space?.id, Boolean(me?.account)],
+    queryFn: () => api.get<WizardSummary[]>(`/api/studio/spaces/${space!.id}/wizards`),
+    enabled: Boolean(space),
   });
   const runners = useRunners().data ?? [];
   const presentItems = usePresentItems("wizard");
@@ -512,21 +512,21 @@ export function HomePage() {
   const beyond = Boolean(q) && shown.length < FEW;
   const fromEntry = useMutation({
     mutationFn: (starterId: string) =>
-      api.post<{ id: string }>("/api/studio/wizards", { projectId: project!.id, starterId, lang }),
+      api.post<{ id: string }>("/api/studio/wizards", { spaceId: space!.id, starterId, lang }),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.spaces() });
       await qc.invalidateQueries({ queryKey: ["wizards"] });
       navigate(`/edit/${id}`);
     },
   });
-  const total = projects.reduce((n, p) => n + p.wizardCount, 0);
-  /** Wizards are made in this project: the person makes things here, and the project is the organization's own. */
-  const canCreate = create && !project?.readOnly;
-  if (!loading && canCreate && projects.length && total === 0) {
+  const total = spaces.reduce((n, p) => n + p.wizardCount, 0);
+  /** Wizards are made in this space: the person makes things here, and the space is the organization's own. */
+  const canCreate = create && !space?.readOnly;
+  if (!loading && canCreate && spaces.length && total === 0) {
     return <Navigate to="/new" replace />;
   }
   // Nothing is built here and no install has sent anything yet: the way a wizard gets here.
-  if (!loading && !build && projects.length === 0) {
+  if (!loading && !build && spaces.length === 0) {
     return <FromLocal />;
   }
   return (
@@ -536,7 +536,7 @@ export function HomePage() {
           <WizardSearch value={query} onChange={setQuery} />
         ) : (
           <h1 className="font-display font-semibold text-[1.75rem] tracking-tight">
-            {t("home.title", { space: project?.name ?? "" })}
+            {t("home.title", { space: space?.name ?? "" })}
           </h1>
         )}
         {canCreate ? (
@@ -545,15 +545,15 @@ export function HomePage() {
           </Button>
         ) : null}
       </div>
-      {project?.origin === "local" ? (
+      {space?.origin === "local" ? (
         <p className="mt-2 text-[0.875rem] text-ink-3">
           {t("home.fromLocal")}{" "}
-          {project.syncedAt
+          {space.syncedAt
             ? t("home.syncedAt", {
                 when: new Intl.DateTimeFormat(lang, {
                   dateStyle: "medium",
                   timeStyle: "short",
-                }).format(new Date(project.syncedAt)),
+                }).format(new Date(space.syncedAt)),
               })
             : null}
         </p>
@@ -594,7 +594,7 @@ export function HomePage() {
             <MarketplaceHits
               query={query}
               busy={fromEntry.isPending}
-              onUse={(entry) => project && !fromEntry.isPending && fromEntry.mutate(entry.id)}
+              onUse={(entry) => space && !fromEntry.isPending && fromEntry.mutate(entry.id)}
             />
           ) : (
             <MarketplaceHits query={query} />

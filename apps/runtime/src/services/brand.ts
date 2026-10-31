@@ -1,3 +1,5 @@
+import type { BrandView, RunTheme } from "@engenty/wizards-shared/run";
+import { note } from "@engenty/wizards-shared/run";
 import {
   type BrandColor,
   type BrandGradient,
@@ -5,9 +7,7 @@ import {
   gradientCss,
   mainLogo,
   runTheme,
-} from "@engenty/wizards-shared/projects";
-import type { BrandView, RunTheme } from "@engenty/wizards-shared/run";
-import { note } from "@engenty/wizards-shared/run";
+} from "@engenty/wizards-shared/spaces";
 import { chosenTheme, lookColours, themedLook } from "@engenty/wizards-shared/theme-look";
 import { generateText, Output } from "ai";
 import { and, asc, eq } from "drizzle-orm";
@@ -17,28 +17,28 @@ import { textModel } from "../models.js";
 import { prompt } from "../prompts.js";
 import { ServiceError } from "./errors.js";
 
-/** The project's main logo, the first standard one: what end users, documents and widgets get. */
-export async function mainLogoId(projectId: string): Promise<string | null> {
-  const p = await db.query.project.findFirst({ where: eq(schema.project.id, projectId) });
-  const logos = await db.query.projectFile.findMany({
+/** The space's main logo, the first standard one: what end users, documents and widgets get. */
+export async function mainLogoId(spaceId: string): Promise<string | null> {
+  const p = await db.query.space.findFirst({ where: eq(schema.space.id, spaceId) });
+  const logos = await db.query.spaceFile.findMany({
     columns: { id: true },
-    where: and(eq(schema.projectFile.projectId, projectId), eq(schema.projectFile.kind, "logo")),
-    orderBy: [asc(schema.projectFile.position), asc(schema.projectFile.createdAt)],
+    where: and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.kind, "logo")),
+    orderBy: [asc(schema.spaceFile.position), asc(schema.spaceFile.createdAt)],
   });
   return mainLogo(logos, p?.brand.logoSections)?.id ?? null;
 }
 
 /**
- * What end users see of the project: its title, accent and logo — never the project name — and the
+ * What end users see of the space: its title, accent and logo — never the space name — and the
  * look of the wizard's pages: the theme the place showing it asks for where the wizard offers
  * it, else the first theme of the wizard's chain the space has, else the brand.
  */
 export async function brandView(
-  projectId: string,
+  spaceId: string,
   chain?: readonly string[],
   asked?: string | null,
 ): Promise<BrandView> {
-  const p = await db.query.project.findFirst({ where: eq(schema.project.id, projectId) });
+  const p = await db.query.space.findFirst({ where: eq(schema.space.id, spaceId) });
   const logo = p ? await mainLogoId(p.id) : null;
   const theme = themedLook(runTheme(p?.brand ?? {}), chosenTheme(chain, p?.themes ?? [], asked));
   return {
@@ -65,10 +65,10 @@ export interface ThemeLook {
  * between. A theme the space no longer has is left out.
  */
 export async function themeLooks(
-  projectId: string,
+  spaceId: string,
   chain: readonly string[] | undefined,
 ): Promise<ThemeLook[]> {
-  const p = await db.query.project.findFirst({ where: eq(schema.project.id, projectId) });
+  const p = await db.query.space.findFirst({ where: eq(schema.space.id, spaceId) });
   const brand = runTheme(p?.brand ?? {});
   return (chain ?? []).flatMap((id) => {
     const theme = chosenTheme([id], p?.themes ?? []);

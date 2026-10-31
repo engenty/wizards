@@ -1,13 +1,25 @@
 import type { AgentStep } from "@engenty/wizards-shared/definition";
+import { note } from "@engenty/wizards-shared/run";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import {
+  type BrokerConnection,
+  brokerCall,
+  decide,
+  kindOf,
+  type Refusal,
+  reachesOutside,
+  type Who,
+  whereOf,
+} from "../broker/index.js";
 import { refreshConnector, resolveConnector } from "../connectors/external.js";
-import { connectionContext } from "../connectors/index.js";
+import { spaceConnectionOf } from "../connectors/space-connections.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
-import type { StepContext } from "../engine/types.js";
+import { type StepContext, StepError } from "../engine/types.js";
 import { prompt } from "../prompts.js";
 import { inProgram } from "./code.js";
+import { holderWho, stepWho } from "./plugin.js";
 import { attempt, clip, type FileKeeper } from "./shared.js";
 import { resolveFile } from "./store.js";
 
@@ -16,14 +28,15 @@ const DIRECT_TOOLS = 24;
 const TOOL_NAME = /^[a-zA-Z0-9_-]{1,64}$/;
 
 /**
- * The actions of imported connectors a step may use, as tools. Reading is free; anything that
- * changes the person's account waits for their yes — engenty's default policy for connectors
- * (read: allow, write and destructive: ask), asked of the person who is running the wizard.
+ * The actions of connectors a step may use, as tools. On the wizard's own connection reading is
+ * free and anything that changes the person's account waits for their yes (read: allow, write
+ * and destructive: ask), asked of the person who is running the wizard. On a connection of the
+ * space its audience and rules decide (broker/call.ts).
  */
 export async function connectorTools(step: AgentStep, ctx: StepContext, files: FileKeeper) {
   const tools: Record<string, any> = {};
   const connections = (ctx.def.connections ?? []).filter(
-    (c) => c.connector && step.connections?.includes(c.id),
+    (c) => (c.connector || c.spaceConnection) && step.connections?.includes(c.id),
   );
   for (const connection of connections) {
     Object.assign(tools, await toolsOf(connection, ctx, files));
@@ -103,91 +116,197 @@ async function sendContent(input: unknown, ctx: StepContext): Promise<unknown> {
 const sentence = (text: string) => (/[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`);
 
 /**
- * Whether the person is asked before an action runs. The wizard's author can settle it per
- * action (a server may call a plain lookup a change); deleting is never taken off the person.
+ * Whether the person is asked before an action runs: the broker's decision for this step, with
+ * no side effect. The wizard's author can settle it per action (`connection.policy`); deleting is
+ * never taken off the person.
  */
-function asks(connection: ConnectionDef, action: ConnectorAction): boolean {
-  if (action.group === "destructive") {
-    return true;
+function asks(held: BrokerConnection, action: ConnectorAction, ctx: StepContext): boolean {
+  return (
+    decide({
+      who: holderWho(ctx),
+      where: whereOf(ctx),
+      connection: held,
+      actionId: action.id,
+      kind: kindOf(action.group),
+    }).outcome === "ask"
+  );
+}
+
+/** What the model reads when the broker refuses a call. */
+function refusalNote(refused: Refusal, service: string): string {
+  switch (refused) {
+    case "not_connected":
+      return prompt("tools", "note.connector_not_connected", { service });
+    case "nobody":
+      return inProgram()
+        ? prompt("tools", "note.connector_in_program")
+        : prompt("tools", "note.connector_nobody");
+    case "declined":
+      return prompt("tools", "note.connector_declined");
+    case "needs_approval":
+      return prompt("tools", "note.connector_needs_approval", { service });
+    case "ai_step_writes":
+      return prompt("tools", "note.connector_ai_step_writes", { service });
+    default:
+      return prompt("tools", "note.connector_refused", { service });
   }
-  return (connection.policy?.[action.id] ?? (action.group === "read" ? "allow" : "ask")) === "ask";
+}
+
+/** A wizard's connection as the broker holds it, with its connector ready to run. */
+interface Held {
+  held: BrokerConnection;
+  resolved: NonNullable<Awaited<ReturnType<typeof resolveConnector>>>;
+}
+
+/**
+ * The connection behind a wizard's `connections` entry: a connection of the space (its row says
+ * which connector and which actions it is for) or the wizard's own sign-in. Null where the space
+ * no longer has it. An MCP server that lists its tools only to a signed-in account is asked now
+ * that there is one.
+ */
+async function heldOf(connection: ConnectionDef, ctx: StepContext, who: Who): Promise<Held | null> {
+  const spaceId = ctx.space.id;
+  const ofSpace = connection.spaceConnection
+    ? await spaceConnectionOf(spaceId, connection.spaceConnection)
+    : null;
+  if (connection.spaceConnection && !ofSpace) {
+    return null;
+  }
+  const id = ofSpace?.connectorId ?? connection.connector ?? "";
+  let resolved = await resolveConnector(spaceId, id);
+  if (!resolved) {
+    return null;
+  }
+  const held: BrokerConnection = ofSpace
+    ? { kind: "space_connection", row: ofSpace, connector: resolved.connector }
+    : { kind: "store_secret", def: connection, scope: ctx.store, spaceId };
+  if (resolved.imported && !resolved.connector.actions.length) {
+    const refreshed = await brokerCall({
+      who,
+      where: whereOf(ctx),
+      connection: held,
+      action: { id: "list_tools", kind: "read" },
+      input: {},
+      handler: (account) => refreshConnector(spaceId, id, account.ctx.accessToken),
+    }).catch(() => null);
+    if (refreshed?.ok) {
+      resolved = (await resolveConnector(spaceId, id)) ?? resolved;
+      if (held.kind === "space_connection") {
+        held.connector = resolved.connector;
+      }
+    }
+  }
+  return { held, resolved };
+}
+
+/**
+ * A fixed step's `call` on a connection: one action, its input filled from the run's values, no
+ * model. It calls as the step, for the person running the wizard, and the broker decides as for
+ * any call: on the wizard's own connection a write asks that person; on a connection of the
+ * space its rules decide, and this is the one way a run writes as the space. What the broker
+ * refuses is the step's error.
+ */
+export async function callConnection(
+  call: { connection: string; action: string },
+  input: unknown,
+  ctx: StepContext,
+): Promise<unknown> {
+  const connection = (ctx.def.connections ?? []).find((c) => c.id === call.connection);
+  if (!connection) {
+    throw new StepError(note("stepCallsUnknownConnection", { id: call.connection }));
+  }
+  const who = stepWho(ctx);
+  const found = await heldOf(connection, ctx, who);
+  if (!found) {
+    throw new StepError(
+      note("connectorGone", { id: connection.spaceConnection ?? connection.connector ?? "" }),
+    );
+  }
+  const { held, resolved } = found;
+  const service = connection.title ?? resolved.connector.name;
+  const action = resolved.connector.actions.find((a) => a.id === call.action);
+  if (!action) {
+    throw new StepError(note("connectorNoAction", { name: service, id: call.action }));
+  }
+  const out = await brokerCall({
+    who,
+    where: whereOf(ctx),
+    connection: held,
+    action: { id: action.id, kind: kindOf(action.group) },
+    input: input ?? {},
+    ctx: { ask: ctx.ask, allowed: ctx.resources.allowed },
+    handler: async (account) => {
+      await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
+      return action.handler(await sendContent(input ?? {}, ctx), account.ctx);
+    },
+  });
+  if (!out.ok) {
+    throw new StepError(
+      out.refused === "declined" || out.refused === "nobody"
+        ? note("stepCallNotAllowed", { service })
+        : note("stepCallRefused", { service, action: action.id, reason: out.reason }),
+    );
+  }
+  return out.result;
 }
 
 /** One connection's actions as tools — for a step that lists it, or a share job that sends through it. */
 export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files: FileKeeper) {
-  const projectId = ctx.project.id;
-  const id = connection.connector ?? "";
-  let resolved = await resolveConnector(projectId, id);
-  if (!resolved) {
+  const who = holderWho(ctx);
+  const found = await heldOf(connection, ctx, who);
+  if (!found) {
     return {};
   }
-  const account = () => connectionContext(ctx.store, connection, projectId);
-  // An MCP server that lists its tools only to a signed-in account: ask it now that there is one.
-  if (resolved.imported && !resolved.connector.actions.length) {
-    const found = await account();
-    if (found) {
-      await refreshConnector(projectId, id, found.ctx.accessToken).catch(() => undefined);
-      resolved = (await resolveConnector(projectId, id)) ?? resolved;
-    }
-  }
+  const { held, resolved } = found;
+  const ofSpace = held.kind === "space_connection" ? held.row : null;
+  const where = whereOf(ctx);
   const { connector, inputSchema } = resolved;
-  const usable = connection.actions
-    ? connector.actions.filter((a) => connection.actions?.includes(a.id))
-    : connector.actions.filter((a) => a.group === "read");
+  // The wizard names actions, or gets the reads; a connection of the space narrows them to what it
+  // is for, and one that signs in as the space to its reads: a write there is a fixed step's.
+  const usable = (
+    connection.actions
+      ? connector.actions.filter((a) => connection.actions?.includes(a.id))
+      : connector.actions.filter((a) => a.group === "read")
+  )
+    .filter((a) => !ofSpace?.actions.length || ofSpace.actions.includes(a.id))
+    .filter((a) => ofSpace?.signIn !== "space" || a.group === "read");
   const service = connection.title ?? connector.name;
+  const prefix = connector.toolPrefix;
+  for (const action of usable) {
+    reachesOutside(`${prefix}_${action.id}`, {
+      connection: connection.id,
+      action: action.id,
+      kind: kindOf(action.group),
+    });
+  }
 
   const call = (action: ConnectorAction, input: unknown) =>
     attempt(async () => {
-      const found = await account();
-      if (!found) {
-        return {
-          error: prompt("tools", "note.connector_not_connected", { service }),
-        };
+      const out = await brokerCall({
+        who,
+        where,
+        connection: held,
+        action: { id: action.id, kind: kindOf(action.group) },
+        input: input ?? {},
+        ctx: { ask: ctx.ask, allowed: ctx.resources.allowed },
+        handler: async (account) => {
+          await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
+          return keepContent(
+            await action.handler(await sendContent(input ?? {}, ctx), account.ctx),
+            action,
+            service,
+            files,
+          );
+        },
+      });
+      if (!out.ok) {
+        return { error: refusalNote(out.refused, service) };
       }
-      const key = `${connection.id}:${action.id}`;
-      if (asks(connection, action) && !ctx.resources.allowed.has(key)) {
-        if (inProgram()) {
-          return {
-            error: prompt("tools", "note.connector_in_program"),
-          };
-        }
-        const answer = await ctx.ask({
-          kind: "confirm",
-          reason: action.summary || action.id,
-          service,
-          action: {
-            id: action.id,
-            summary: action.summary,
-            destructive: action.group === "destructive",
-          },
-          input: JSON.stringify(input ?? {}, null, 2).slice(0, 4000),
-        });
-        if (!answer) {
-          return {
-            error: prompt("tools", "note.connector_nobody"),
-          };
-        }
-        if (answer.type !== "done") {
-          return {
-            error: prompt("tools", "note.connector_declined"),
-          };
-        }
-        if (answer.remember) {
-          ctx.resources.allowed.add(key);
-        }
-      }
-      await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
-      const result = await keepContent(
-        await action.handler(await sendContent(input ?? {}, ctx), found.ctx),
-        action,
-        service,
-        files,
-      );
+      const result = out.result;
       const text = typeof result === "string" ? result : JSON.stringify(result);
       return { result: clip(text ?? "", 8000) };
     });
 
-  const prefix = connector.toolPrefix;
   const fileNote = prompt("tools", "connector.file_note");
   const direct =
     usable.length <= DIRECT_TOOLS && usable.every((a) => TOOL_NAME.test(`${prefix}_${a.id}`));
@@ -199,7 +318,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
           id: `${prefix}_${action.id}`,
           description: [
             sentence(`${service}: ${action.description || action.summary}`),
-            asks(connection, action) ? prompt("tools", "connector.asks") : "",
+            asks(held, action, ctx) ? prompt("tools", "connector.asks") : "",
             fileNote,
           ]
             .filter(Boolean)
@@ -238,7 +357,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
             actions: scored.map(({ a }) => ({
               id: a.id,
               does: a.summary || a.description.slice(0, 200),
-              asks_person_first: asks(connection, a),
+              asks_person_first: asks(held, a, ctx),
               input: inputSchema(a.id),
             })),
           };

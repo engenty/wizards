@@ -61,4 +61,9 @@ export {
 } from "./outputs.js";
 export { initialValues, RunnerBody, type RunSource, useDoneSignal } from "./RunnerView.js";
 export { ConnectionField, ListCheck, ListDownloads, ListTable, StoreButton } from "./store.js";
-export { type SurfaceAction, SurfaceView } from "./surface.js";
+export {
+  type SurfaceAction,
+  type SurfaceChat,
+  type SurfaceFormAnswer,
+  SurfaceView,
+} from "./surface.js";

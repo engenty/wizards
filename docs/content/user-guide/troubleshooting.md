@@ -1,7 +1,7 @@
 ---
 title: Troubleshooting
 description: What to do when a link no longer works, a client shows as not signed in, or an export fails.
-version: 0.11.2
+version: 0.13.0
 ---
 
 `wizards doctor` checks engenty wizards on your computer and says what is wrong. Start there.
@@ -43,7 +43,7 @@ version: 0.11.2
 | “This wizard doesn’t exist or was deleted.” | It is not published, or its link was replaced by a new one |
 | Others can’t open the link | engenty wizards on your computer answers on `localhost` only. See [who can open the link](./test-and-share.md#who-can-open-the-link) |
 | The camera, microphone or location doesn’t work | Allow it in the browser’s site settings (the lock icon in the address bar) |
-| A built-in connector is missing from Settings → Connectors | It needs an OAuth client in the settings file. See [Connectors](./connectors.md) |
+| A built-in connector is missing from Capabilities › Connectors | It needs an OAuth client in the settings file. See [Connectors](./connectors.md) |
 | A step stops at a plugin’s tool | That plugin is not installed here. See [Plugins](./plugins.md) |
 
 ## Updating

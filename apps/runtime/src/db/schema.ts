@@ -1,5 +1,20 @@
+import {
+  CONNECTION_AUDIENCES,
+  CONNECTION_SIGN_INS,
+  type ConnectionRules,
+} from "@engenty/wizards-shared/connectors";
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
+import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
+import type { RunnerSettings } from "@engenty/wizards-shared/runners";
+import { RWX_FLAGS, RWX_RESOURCE_KINDS, RWX_SUBJECT_KINDS } from "@engenty/wizards-shared/rwx";
+import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
+import {
+  SKILL_MODES,
+  SKILL_SOURCES,
+  type SkillBlobFile,
+  type SkillFile,
+} from "@engenty/wizards-shared/skills";
 import type {
   AssetSection,
   BrandColor,
@@ -9,19 +24,11 @@ import type {
   BrandRule,
   ColorSection,
   LogoSection,
-  ProjectFact,
-  ProjectPage,
+  SpaceFact,
+  SpaceNotify,
+  SpacePage,
   TextStyle,
-} from "@engenty/wizards-shared/projects";
-import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
-import type { RunnerSettings } from "@engenty/wizards-shared/runners";
-import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
-import {
-  SKILL_MODES,
-  SKILL_SOURCES,
-  type SkillBlobFile,
-  type SkillFile,
-} from "@engenty/wizards-shared/skills";
+} from "@engenty/wizards-shared/spaces";
 import type { Theme } from "@engenty/wizards-shared/theme";
 import type { TranslationMemory } from "@engenty/wizards-shared/translation";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
@@ -37,6 +44,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import type { Grant } from "../broker/grant.js";
 import type { ImportedConnectorRecord } from "../engenty/connections-external/types.js";
 import type { DeviceAnswer, DeviceOffer, DeviceRequest } from "../engine/device.js";
 
@@ -76,20 +84,41 @@ export interface BrandConfig {
   logoRules?: BrandRule[];
 }
 
-export const project = sqliteTable(
-  "project",
+export const space = sqliteTable(
+  "space",
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
     name: text("name").notNull(),
     brand: text("brand", { mode: "json" }).$type<BrandConfig>().notNull().default({}),
-    facts: text("facts", { mode: "json" }).$type<ProjectFact[]>().notNull().default([]),
+    facts: text("facts", { mode: "json" }).$type<SpaceFact[]>().notNull().default([]),
     /** The space's themes: values only (docs/plans/themes.md). Wizards name them in `themes`. */
     themes: text("themes", { mode: "json" }).$type<Theme[]>().notNull().default([]),
     /** The space's public page at `<organization>.wizards.page/<slug>`; null until it is set up. */
-    page: text("page", { mode: "json" }).$type<ProjectPage>(),
+    page: text("page", { mode: "json" }).$type<SpacePage>(),
     /**
-     * `local`: the project of a local install, synced here when that install publishes. It keeps
+     * The space's own mail domains (`firma.at`): a guest's run may send to an address in one of
+     * them, besides the address the run itself collected (broker/send.ts). Admins set them.
+     */
+    mailDomains: text("mail_domains", { mode: "json" }).$type<string[]>().notNull().default([]),
+    /**
+     * How the space's admins hear of the broker's critical lines (docs/plans/broker.md,
+     * "Notifications"): under Work's bell, and by mail once an hour where nobody of them was in
+     * the app. Set through `PATCH /api/studio/spaces/:id`, on Fähigkeiten › Protokoll.
+     */
+    notify: text("notify", { mode: "json" })
+      .$type<SpaceNotify>()
+      .notNull()
+      .default({ bell: true, mail: "hourly" }),
+    /** When the hourly mail last went out, or was skipped because an admin had seen the bell. */
+    criticalMailedAt: integer("critical_mailed_at", { mode: "timestamp_ms" }),
+    /**
+     * „Mitglieder dürfen ins Studio“: the organization's members build here too, with less than
+     * its admins (services/members-studio.ts). One rule for all members; admins set it.
+     */
+    membersStudio: integer("members_studio", { mode: "boolean" }).notNull().default(false),
+    /**
+     * `local`: the space of a local install, synced here when that install publishes. It keeps
      * the ids it has there and is changed only by the next sync. Null: made on this runtime.
      */
     origin: text("origin", { enum: ["local"] }),
@@ -97,16 +126,16 @@ export const project = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("project_tenant").on(t.tenantId)],
+  (t) => [index("space_tenant").on(t.tenantId)],
 );
 
 export const wizard = sqliteTable(
   "wizard",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     tenantId: text("tenant_id").notNull(),
     title: text("title").notNull(),
     draft: text("draft", { mode: "json" }).$type<WizardDefinition>().notNull(),
@@ -114,6 +143,8 @@ export const wizard = sqliteTable(
     shareToken: text("share_token").notNull(),
     shareEnabled: integer("share_enabled", { mode: "boolean" }).notNull().default(true),
     dailyRunLimit: integer("daily_run_limit").notNull().default(50),
+    /** How many emails guests' runs of this wizard send per day, from any address (broker/send.ts). */
+    dailyMailLimit: integer("daily_mail_limit").notNull().default(50),
     starter: text("starter"),
     /** The revision of the marketplace entry the wizard was made from. */
     starterRevision: integer("starter_revision"),
@@ -126,10 +157,7 @@ export const wizard = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [
-    uniqueIndex("wizard_share_token").on(t.shareToken),
-    index("wizard_project").on(t.projectId),
-  ],
+  (t) => [uniqueIndex("wizard_share_token").on(t.shareToken), index("wizard_space").on(t.spaceId)],
 );
 
 export const wizardVersion = sqliteTable(
@@ -218,6 +246,11 @@ export const run = sqliteTable(
     definition: text("definition", { mode: "json" }).$type<WizardDefinition>().notNull(),
     /** The workspace the run started with. */
     files: text("files", { mode: "json" }).$type<WorkspaceFile[]>().notNull().default([]),
+    /**
+     * What the run may reach outside, from the definition it started on (broker/grant.ts); null
+     * on a run from before grants were kept, filled from its definition on first use.
+     */
+    grant: text("grant", { mode: "json" }).$type<Grant | null>(),
     version: integer("version"),
     mode: text("mode", { enum: ["test", "live"] }).notNull(),
     /** The door the run came through: steps, chat, or a plugin's runner. Null: the page. */
@@ -370,31 +403,31 @@ export const asset = sqliteTable(
  * A service imported as a connector, from the integrations registry or a pasted OpenAPI spec /
  * MCP endpoint. The record is engenty's: actions, auth and source, normalised at import time.
  */
-export const projectConnector = sqliteTable(
-  "project_connector",
+export const spaceConnector = sqliteTable(
+  "space_connector",
   {
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     id: text("id").notNull(),
     record: text("record", { mode: "json" }).$type<ImportedConnectorRecord>().notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.id] })],
+  (t) => [primaryKey({ columns: [t.spaceId, t.id] })],
 );
 
 /**
- * What a project holds for all its wizards: logos, assets (images, graphics, videos) and
+ * What a space holds for all its wizards: logos, assets (images, graphics, videos) and
  * documents. `id` is the asset the content lives in. The first logo is the one end users see.
  */
-export const projectFile = sqliteTable(
-  "project_file",
+export const spaceFile = sqliteTable(
+  "space_file",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     kind: text("kind", { enum: ["logo", "asset", "document", "pattern"] }).notNull(),
     name: text("name").notNull(),
     mime: text("mime").notNull(),
@@ -422,8 +455,8 @@ export const projectFile = sqliteTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    index("project_file_project").on(t.projectId, t.kind, t.position),
-    uniqueIndex("project_file_origin").on(t.projectId, t.origin, t.originKey),
+    index("space_file_space").on(t.spaceId, t.kind, t.position),
+    uniqueIndex("space_file_origin").on(t.spaceId, t.origin, t.originKey),
   ],
 );
 
@@ -431,19 +464,19 @@ export const projectFile = sqliteTable(
  * The index of Knowledge: one unit per section of a page, row of a table, file, summary of a
  * category's value, passage of a document read before pages, and passage of a plugin's text
  * (`server.index`). Each unit's text starts with where it stands and its categories. Keywords
- * live in two FTS5 tables, words (`project_chunk_fts`) and trigrams (`project_chunk_tri`), which
+ * live in two FTS5 tables, words (`space_chunk_fts`) and trigrams (`space_chunk_tri`), which
  * triggers keep in step (see the migrations); `embedding` is the unit's vector as float32
  * bytes, compared with libSQL's `vector_distance_cos`.
  */
-export const projectChunk = sqliteTable(
-  "project_chunk",
+export const spaceChunk = sqliteTable(
+  "space_chunk",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     /** The document the passage is of; null for a plugin's text. */
-    fileId: text("file_id").references(() => projectFile.id, { onDelete: "cascade" }),
+    fileId: text("file_id").references(() => spaceFile.id, { onDelete: "cascade" }),
     /** What the unit is of: a page, a row (with its table), a table (FAQ format: a row), a value. */
     pageId: text("page_id").references((): AnySQLiteColumn => spacePage.id, {
       onDelete: "cascade",
@@ -473,13 +506,13 @@ export const projectChunk = sqliteTable(
     model: text("model"),
   },
   (t) => [
-    index("project_chunk_project").on(t.projectId, t.model),
-    index("project_chunk_file").on(t.fileId),
-    index("project_chunk_ref").on(t.projectId, t.plugin, t.ref),
-    index("project_chunk_page").on(t.pageId),
-    index("project_chunk_row").on(t.rowId),
-    index("project_chunk_table").on(t.tableId),
-    index("project_chunk_value").on(t.valueId),
+    index("space_chunk_space").on(t.spaceId, t.model),
+    index("space_chunk_file").on(t.fileId),
+    index("space_chunk_ref").on(t.spaceId, t.plugin, t.ref),
+    index("space_chunk_page").on(t.pageId),
+    index("space_chunk_row").on(t.rowId),
+    index("space_chunk_table").on(t.tableId),
+    index("space_chunk_value").on(t.valueId),
   ],
 );
 
@@ -493,9 +526,9 @@ export const spaceTable = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     /** The wizard it belongs to; null: the space's own. */
     wizardId: text("wizard_id").references(() => wizard.id, { onDelete: "cascade" }),
     /**
@@ -523,14 +556,14 @@ export const spaceTable = sqliteTable(
     /** Why a person should look at it ("hardly readable"); null when nothing is in doubt. */
     review: text("review"),
     /** The file it was read from, kept as the evidence. */
-    fileId: text("file_id").references(() => projectFile.id, { onDelete: "set null" }),
+    fileId: text("file_id").references(() => spaceFile.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    index("space_table_project").on(t.projectId, t.wizardId),
+    index("space_table_space").on(t.spaceId, t.wizardId),
     uniqueIndex("space_table_list").on(t.wizardId, t.list),
-    uniqueIndex("space_table_origin").on(t.projectId, t.origin, t.originKey),
+    uniqueIndex("space_table_origin").on(t.spaceId, t.origin, t.originKey),
   ],
 );
 
@@ -563,9 +596,9 @@ export const spacePage = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     wizardId: text("wizard_id").references(() => wizard.id, { onDelete: "cascade" }),
     parentId: text("parent_id").references((): AnySQLiteColumn => spacePage.id, {
       onDelete: "cascade",
@@ -588,14 +621,14 @@ export const spacePage = sqliteTable(
     /** Why a person should look at it ("hardly readable"); null when nothing is in doubt. */
     review: text("review"),
     /** The file it was read from, kept as the evidence. */
-    fileId: text("file_id").references(() => projectFile.id, { onDelete: "set null" }),
+    fileId: text("file_id").references(() => spaceFile.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    index("space_page_project").on(t.projectId, t.wizardId),
+    index("space_page_space").on(t.spaceId, t.wizardId),
     index("space_page_parent").on(t.parentId, t.position),
-    uniqueIndex("space_page_origin").on(t.projectId, t.origin, t.originKey),
+    uniqueIndex("space_page_origin").on(t.spaceId, t.origin, t.originKey),
   ],
 );
 
@@ -609,9 +642,9 @@ export const spaceCategory = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     type: text("type", { enum: ["choice", "date", "number", "text", "boolean"] }).notNull(),
     /** A number's unit: `h`, `€`, `kg`. */
@@ -633,7 +666,7 @@ export const spaceCategory = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex("space_category_name").on(t.projectId, t.name)],
+  (t) => [uniqueIndex("space_category_name").on(t.spaceId, t.name)],
 );
 
 /** A value of a choice: grows as items arrive; its summary is the summary of its items. */
@@ -663,16 +696,16 @@ export const spaceItemCategory = sqliteTable(
   "space_item_category",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     categoryId: text("category_id")
       .notNull()
       .references(() => spaceCategory.id, { onDelete: "cascade" }),
     pageId: text("page_id").references(() => spacePage.id, { onDelete: "cascade" }),
     rowId: text("row_id").references(() => spaceTableRow.id, { onDelete: "cascade" }),
     tableId: text("table_id").references(() => spaceTable.id, { onDelete: "cascade" }),
-    fileId: text("file_id").references(() => projectFile.id, { onDelete: "cascade" }),
+    fileId: text("file_id").references(() => spaceFile.id, { onDelete: "cascade" }),
     valueId: text("value_id").references(() => spaceCategoryValue.id, { onDelete: "cascade" }),
     text: text("text"),
     num: real("num"),
@@ -701,9 +734,9 @@ export const spaceSkill = sqliteTable(
   {
     id: text("id").primaryKey(),
     tenantId: text("tenant_id").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => space.id, { onDelete: "cascade" }),
     /** Its name in the format: lower case and hyphens, unique in the space. */
     name: text("name").notNull(),
     description: text("description").notNull(),
@@ -725,7 +758,46 @@ export const spaceSkill = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex("space_skill_name").on(t.projectId, t.name)],
+  (t) => [uniqueIndex("space_skill_name").on(t.spaceId, t.name)],
+);
+
+// --- The broker: RWX ---------------------------------------------------------------
+// One table of permissions per space (docs/plans/broker.md, "First: RWX"): who (a guest, a
+// person, a role, Goose for a person, a wizard, a plugin) may read, write or execute what (a
+// document, a table, a page …; `*` for all of a kind). Each flag is allow, deny or unset; unset
+// means deny, and a deny wins over every allow. The runtime asks in broker/rwx.ts.
+
+export const rwxRule = sqliteTable(
+  "rwx_rule",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    subjectKind: text("subject_kind", { enum: RWX_SUBJECT_KINDS }).notNull(),
+    /** `member`, `admin` or `owner` for a role; a user's, a wizard's or a plugin's id; null for a guest. */
+    subjectId: text("subject_id"),
+    resourceKind: text("resource_kind", { enum: RWX_RESOURCE_KINDS }).notNull(),
+    /** The resource's id, or `*` for every resource of the kind. */
+    resourceId: text("resource_id").notNull(),
+    r: text("r", { enum: RWX_FLAGS }),
+    w: text("w", { enum: RWX_FLAGS }),
+    x: text("x", { enum: RWX_FLAGS }),
+    /** Who wrote the row: a user's id, or `seed` for the rows every space starts with. */
+    createdBy: text("created_by").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("rwx_rule_key").on(
+      t.spaceId,
+      t.subjectKind,
+      t.subjectId,
+      t.resourceKind,
+      t.resourceId,
+    ),
+    index("rwx_rule_space").on(t.spaceId),
+  ],
 );
 
 // --- The studio's assistant ---------------------------------------------------
@@ -787,6 +859,128 @@ export const assistantMessage = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index("assistant_message_chat").on(t.chatId, t.createdAt)],
+);
+
+// --- Work's chats (behind `workMode`) --------------------------------------------
+// A chat belongs to a space, has members (people, later engenties) and lives in a section of
+// the space's sidebar or in none. A sub-thread is a chat with a parent. A private chat is seen by
+// its members only; any other chat by everyone of the tenant. The messages are Mastra's: a
+// memory thread per chat (thread id = chat id, resource id = the space), in Mastra's tables of
+// the same database (services/work-mastra.ts). The chat row keeps what the sidebar shows.
+
+export const chatSection = sqliteTable(
+  "chat_section",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    position: integer("position").notNull().default(0),
+    createdBy: text("created_by").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("chat_section_space").on(t.spaceId, t.position)],
+);
+
+export const chat = sqliteTable(
+  "chat",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    sectionId: text("section_id").references(() => chatSection.id, { onDelete: "set null" }),
+    parentId: text("parent_id").references((): AnySQLiteColumn => chat.id, {
+      onDelete: "cascade",
+    }),
+    private: integer("private", { mode: "boolean" }).notNull().default(false),
+    createdBy: text("created_by").notNull(),
+    createdAt: createdAt(),
+    /** The last message's time, else when it was made: the sidebar's order. */
+    updatedAt: updatedAt(),
+    /** The last message for the sidebar: who wrote it ("ai" for the space's AI), its start. */
+    lastAuthorId: text("last_author_id"),
+    lastAuthorName: text("last_author_name"),
+    lastText: text("last_text"),
+    /** Since when the space's AI answers here; null while it doesn't. Others follow the turn. */
+    answeringSince: integer("answering_since", { mode: "timestamp_ms" }),
+  },
+  (t) => [index("chat_space").on(t.spaceId, t.updatedAt), index("chat_parent").on(t.parentId)],
+);
+
+export const chatMember = sqliteTable(
+  "chat_member",
+  {
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chat.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["person", "engenty"] }).notNull(),
+    /** A person's user id, an engenty's id. */
+    memberId: text("member_id").notNull(),
+    joinedAt: integer("joined_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [
+    primaryKey({ columns: [t.chatId, t.kind, t.memberId] }),
+    index("chat_member_member").on(t.kind, t.memberId),
+  ],
+);
+
+/** What one person did with a chat: pinned it, archived it for themselves, read it up to when. */
+export const chatState = sqliteTable(
+  "chat_state",
+  {
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chat.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    pinnedAt: integer("pinned_at", { mode: "timestamp_ms" }),
+    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+    /** Null: never opened, or marked unread. */
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [primaryKey({ columns: [t.chatId, t.userId] })],
+);
+
+/**
+ * A call of a tool that reaches past the space, held for a person's approval (Work chats, step 3
+ * piece 4). Approve runs the stored call once with the stored arguments; Deny doesn't. Either way
+ * the AI hears of it in the chat and goes on.
+ */
+export const chatApproval = sqliteTable(
+  "chat_approval",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chat.id, { onDelete: "cascade" }),
+    toolName: text("tool_name").notNull(),
+    input: text("input", { mode: "json" }).$type<unknown>(),
+    /** Who the turn was for: the call runs with their access, and they may decide. */
+    askedBy: text("asked_by").notNull(),
+    /**
+     * Whose decision it waits for: the asker's (a confirmed action, a plugin's tool), or the
+     * space's admins' („Mit Freigabe“ on a connection that signs in as the space, A7).
+     */
+    heldFor: text("held_for", { enum: ["asker", "admins"] })
+      .notNull()
+      .default("asker"),
+    state: text("state", { enum: ["pending", "approved", "denied", "failed"] })
+      .notNull()
+      .default("pending"),
+    output: text("output", { mode: "json" }).$type<unknown>(),
+    decidedBy: text("decided_by"),
+    decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("chat_approval_chat").on(t.chatId, t.createdAt),
+    index("chat_approval_state").on(t.tenantId, t.state),
+  ],
 );
 
 // --- The wizard's store ------------------------------------------------------
@@ -879,30 +1073,114 @@ export const marketplaceStar = sqliteTable(
 );
 
 /**
- * An account a plugin connected for a space (`server.connections`): a calendar, a mailbox. Not
- * a wizard's: it outlives runs and people. `data` is encrypted.
+ * A connection of a space (docs/plans/capabilities.md, "Connections"): a service the space's
+ * admins set up, with how it signs in, who may use it and what each kind of action may do. One
+ * that signs in as the space keeps its secret here, sealed; one each person signs in to keeps
+ * theirs in `space_connection_sign_in`. Nobody owns it: `set_up_by` only records who did.
  */
-export const pluginConnection = sqliteTable(
-  "plugin_connection",
+export const spaceConnection = sqliteTable(
+  "space_connection",
   {
     id: text("id").primaryKey(),
-    plugin: text("plugin").notNull(),
-    projectId: text("project_id")
+    spaceId: text("space_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
-    /** The built-in connector: `google-calendar`, `microsoft-outlook`. */
-    connector: text("connector").notNull(),
-    /** Shown to the person: the account's address. */
+      .references(() => space.id, { onDelete: "cascade" }),
+    /** A built-in connector's id (`google-calendar`, `hubspot`) or a `space_connector` of the space. */
+    connectorId: text("connector_id").notNull(),
+    /** The plugin that set it up through `server.connections`, where one did. */
+    plugin: text("plugin"),
+    /** What people call it: „Vertrieb“, „Bestellungen“. */
+    name: text("name").notNull(),
+    /** A `space` sign-in: the account as the provider names it; null until signed in. */
+    label: text("label"),
+    signIn: text("sign_in", { enum: CONNECTION_SIGN_INS }).notNull(),
+    audience: text("audience", { enum: CONNECTION_AUDIENCES }).notNull(),
+    rules: text("rules", { mode: "json" }).$type<ConnectionRules>().notNull(),
+    /** The connector's actions it is made for (the provider granted what they need); empty: every action. */
+    actions: text("actions", { mode: "json" }).$type<string[]>().notNull().default([]),
+    /** A `space` sign-in's tokens or keys, sealed; the broker alone unseals them. */
+    secret: text("secret"),
+    setUpBy: text("set_up_by"),
+    setUpAt: integer("set_up_at", { mode: "timestamp_ms" }).notNull().default(now),
+    updatedAt: updatedAt(),
+    lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [index("space_connection_space").on(t.spaceId)],
+);
+
+/** A person's own sign-in to a connection in which each person signs in. `secret` is sealed. */
+export const spaceConnectionSignIn = sqliteTable(
+  "space_connection_sign_in",
+  {
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => spaceConnection.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    /** The account as the provider names it. */
     label: text("label").notNull(),
-    /** The connector's actions it was connected for. */
-    actions: text("actions", { mode: "json" }).$type<string[]>().notNull(),
-    data: text("data").notNull(),
-    createdBy: text("created_by"),
-    createdAt: createdAt(),
+    secret: text("secret").notNull(),
+    signedInAt: integer("signed_in_at", { mode: "timestamp_ms" }).notNull().default(now),
     updatedAt: updatedAt(),
   },
-  (t) => [index("plugin_connection_space").on(t.plugin, t.projectId)],
+  (t) => [primaryKey({ columns: [t.connectionId, t.userId] })],
 );
+
+/**
+ * Every call that reaches outside through the broker (`broker/call.ts`): who called, where, which
+ * connection and action, what was decided and how it went. Append-only; a secret never goes in.
+ */
+export const brokerLog = sqliteTable(
+  "broker_log",
+  {
+    id: text("id").primaryKey(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    /** guest, person, admin, goose, plugin, step. */
+    whoKind: text("who_kind").notNull(),
+    whoId: text("who_id"),
+    runId: text("run_id"),
+    /** The step of the run that called; null outside a step. */
+    stepId: text("step_id"),
+    chatId: text("chat_id"),
+    wizardId: text("wizard_id"),
+    spaceId: text("space_id"),
+    connectionId: text("connection_id").notNull(),
+    actionId: text("action_id").notNull(),
+    /** read, write, destructive, send. */
+    kind: text("kind").notNull(),
+    /** The input's field names and sizes, one clipped value that is no secret, a hash of the whole. */
+    inputSummary: text("input_summary").notNull(),
+    /** allow, ask, deny. */
+    outcome: text("outcome").notNull(),
+    /** Which rule decided (broker/call.ts `decide`): `grant`, `audience`, `rules.write`, `policy`, …; null where none did. */
+    rule: text("rule"),
+    reason: text("reason"),
+    /** ok, declined, nobody, not_connected, or the error's class. */
+    result: text("result"),
+    resultSize: integer("result_size"),
+    critical: integer("critical", { mode: "boolean" }).notNull().default(false),
+    /** Which of the critical kinds (broker/log.ts `CriticalKind`); null where the row is not critical. */
+    criticalKind: text("critical_kind"),
+  },
+  (t) => [
+    index("broker_log_connection").on(t.connectionId, t.at),
+    index("broker_log_space").on(t.spaceId, t.at),
+    index("broker_log_critical").on(t.spaceId, t.critical, t.at),
+    index("broker_log_run").on(t.runId),
+    index("broker_log_wizard").on(t.wizardId, t.kind, t.at),
+  ],
+);
+
+/**
+ * When a person of the tenant was last in the app, and when they last opened Work's bell. The
+ * hourly mail of the broker's critical lines goes out only where no admin was in the app since
+ * the last one (broker/notify.ts); the bell's count is what came in since the bell was opened.
+ */
+export const personSeen = sqliteTable("person_seen", {
+  userId: text("user_id").primaryKey(),
+  seenAt: integer("seen_at", { mode: "timestamp_ms" }).notNull(),
+  bellSeenAt: integer("bell_seen_at", { mode: "timestamp_ms" }),
+});
 
 // --- The two-way sync -----------------------------------------------------------
 // A space that syncs with the organization in the cloud (docs/plans/tenant-sync.md). Triggers
@@ -914,14 +1192,14 @@ export const syncChange = sqliteTable(
   "sync_change",
   {
     seq: integer("seq").primaryKey({ autoIncrement: true }),
-    projectId: text("project_id").notNull(),
+    spaceId: text("space_id").notNull(),
     kind: text("kind").notNull(),
     item: text("item").notNull(),
     at: integer("at", { mode: "timestamp_ms" }).notNull().default(now),
   },
   (t) => [
     index("sync_change_item").on(t.kind, t.item),
-    index("sync_change_project").on(t.projectId, t.seq),
+    index("sync_change_space").on(t.spaceId, t.seq),
   ],
 );
 
@@ -933,7 +1211,7 @@ export const liveChange = sqliteTable(
   "live_change",
   {
     seq: integer("seq").primaryKey({ autoIncrement: true }),
-    projectId: text("project_id"),
+    spaceId: text("space_id"),
     kind: text("kind").notNull(),
     /** `put` or `del`. */
     op: text("op").notNull(),
@@ -991,11 +1269,11 @@ export const syncBase = sqliteTable(
   {
     kind: text("kind").notNull(),
     item: text("item").notNull(),
-    projectId: text("project_id").notNull(),
+    spaceId: text("space_id").notNull(),
     seq: integer("seq").notNull(),
     record: text("record", { mode: "json" }).$type<Record<string, unknown> | null>(),
   },
-  (t) => [primaryKey({ columns: [t.kind, t.item] }), index("sync_base_project").on(t.projectId)],
+  (t) => [primaryKey({ columns: [t.kind, t.item] }), index("sync_base_space").on(t.spaceId)],
 );
 
 /** An item both sides changed, where the merge was not clean: it waits for the person. */
@@ -1003,7 +1281,7 @@ export const syncConflict = sqliteTable(
   "sync_conflict",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id").notNull(),
+    spaceId: text("space_id").notNull(),
     kind: text("kind").notNull(),
     item: text("item").notNull(),
     /** The cloud's number of its version. */
@@ -1021,7 +1299,7 @@ export const syncMerge = sqliteTable(
   "sync_merge",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id").notNull(),
+    spaceId: text("space_id").notNull(),
     kind: text("kind").notNull(),
     item: text("item").notNull(),
     /** Labels of the places each side changed. */

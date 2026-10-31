@@ -75,7 +75,6 @@ interface PluginStepContext {
   stepId: string;
   tenantId: string;
   space: { id: string; name: string };    // the space of the step's wizard
-  project: { id: string; name: string };  // the same, by its older name
   wizard: { id: string; title: string };
   mode: "test" | "live";                  // "test": a test run from the studio
   signal: AbortSignal;                    // aborted when the run is cancelled
@@ -184,6 +183,8 @@ interface PluginAssistantTool<S extends z.ZodType = z.ZodType> {
   description: string;    // for the model
   inputSchema: S;
   card?: boolean;         // the result also goes to the chat, for the studio half's card
+  risk?: "read" | "space" | "outside"; // "outside" waits for a person's approval in Work chats
+  label?: { de: string; en: string };  // what a call does, as a Work chat's step line says it
   execute(input: z.infer<S>, turn: PluginAssistantContext): unknown | Promise<unknown>;
 }
 
@@ -234,7 +235,7 @@ interface PluginStarter {
 ```ts
 interface PluginRunEvent {
   run: { id: string; wizardId: string; mode: "test" | "live"; status: "done" | "failed" | "cancelled" };
-  wizard: { id: string; title: string; projectId: string };
+  wizard: { id: string; title: string; spaceId: string };
   values: Record<string, unknown>;   // what the person answered, by field id
 }
 ```

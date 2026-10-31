@@ -25,6 +25,7 @@ import { clearRunning, writeRunning } from "./running.js";
 import { reportAllWizards } from "./services/manage-reports.js";
 import { syncMarketplace } from "./services/marketplace.js";
 import { purgeExpiredRuns } from "./services/shares.js";
+import { dropChatSandboxes } from "./services/work-sandbox.js";
 import { purgeUnusedStores } from "./store/index.js";
 import { compactLog } from "./sync/log.js";
 import { forgetRunner, registerRunner } from "./tenants/control.js";
@@ -122,12 +123,28 @@ void purge().catch((err) => console.error("[retention]", err));
 
 // Assets came into the index later than documents: what is not there yet goes in once.
 if (env.serves.studio) {
-  const { indexMissingAssets } = await import("./services/project-index.js");
+  const { indexMissingAssets } = await import("./services/space-index.js");
   for (const id of await knownTenants()) {
     void withTenant(id, () => indexMissingAssets()).catch((err) =>
-      console.error(`[project-index ${id}]`, err),
+      console.error(`[space-index ${id}]`, err),
     );
   }
+}
+// The broker is heard (docs/plans/broker.md, "Notifications"): a guest's critical lines go to
+// the Manage-App at once, the rest daily; the admins of each space get a mail once an hour where
+// none of them was in the app. The studio alone, so several runners don't send the same mail.
+if (env.serves.studio) {
+  const { startCriticalReports } = await import("./services/manage-reports.js");
+  startCriticalReports();
+  const { sendCriticalMails } = await import("./services/broker-notify.js");
+  const criticalMails = async () => {
+    for (const id of await knownTenants()) {
+      await withTenant(id, () => sendCriticalMails()).catch((err) =>
+        console.error(`[broker] the hourly mail for ${id}:`, (err as Error).message),
+      );
+    }
+  };
+  setInterval(() => void criticalMails(), 3600_000).unref();
 }
 setInterval(() => void purge().catch((err) => console.error("[retention]", err)), 3600_000).unref();
 
@@ -161,6 +178,7 @@ async function shutdown(code = 0) {
     await forgetRunner().catch(() => undefined);
   }
   await closeBrowser();
+  await dropChatSandboxes();
   process.exit(code);
 }
 // A process that hangs (docs/plans/health-and-status.md) ends, after saying what hangs; the

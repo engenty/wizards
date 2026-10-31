@@ -109,9 +109,9 @@ export const FEATURES = {
   },
   skills: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Skills",
-    hint: "Skills in a space's sources: from skills.sh, uploaded or written; always on in every AI step, or read by a wizard when it needs one.",
+    hint: "Skills, a place of their own in the app bar: from skills.sh, uploaded or written; always on in every AI step, or read by a wizard when it needs one.",
   },
   plugins: {
     kind: "release",
@@ -125,6 +125,12 @@ export const FEATURES = {
     label: "Goose",
     hint: "The studio's assistant: its chat at the foot of the page and in the sidebar.",
   },
+  workMode: {
+    kind: "release",
+    default: false,
+    label: "Work mode",
+    hint: "The switch between Studio, Work and Client in the engenty menu, and Work's places in the app bar: chats, engenties, files, data, results.",
+  },
   modelTiers: {
     kind: "release",
     default: false,
@@ -136,6 +142,18 @@ export const FEATURES = {
     default: false,
     label: "Own domains",
     hint: "Settings › Allgemein: the organization's wizards under a domain of its own, once a TXT record confirms it.",
+  },
+  broker: {
+    kind: "release",
+    default: true,
+    label: "Broker",
+    hint: "RWX rules per space: who may read, write and execute what; enforced at every reader.",
+  },
+  capabilities: {
+    kind: "release",
+    default: true,
+    label: "Capabilities",
+    hint: "One place in the app bar for Skills and Verbindungen: the space's connections with sign-in, audience and rules, each person's own sign-ins, the broker's Protokoll, Entdecken.",
   },
   ownKeys: {
     kind: "plan",
