@@ -24,7 +24,7 @@ for Client.
 
 | Mode | For | What it holds |
 |---|---|---|
-| **Studio** | The people who build | Wizards, Sources, Capabilities and the settings, as before |
+| **Studio** | The people who build | Wizards, Resources, Capabilities and the settings, as before |
 | **Work** | Everyone in the organization | Chats with the space’s AI, and what waits for you |
 | **Client** | A look at what your clients see | Nothing yet. “This view comes soon.” |
 
