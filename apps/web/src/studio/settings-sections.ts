@@ -1,5 +1,6 @@
 import { featureOn } from "@engenty/wizards-shared/features";
 import {
+  Bell,
   Blocks,
   Building2,
   Cable,
@@ -117,6 +118,18 @@ export function settingsSections(
     ...(featureOn(me?.features, "capabilities")
       ? []
       : [inStudio({ id: "connectors", label: t("connectors.title"), icon: Plug, menu: true })]),
+    // How the space's admins hear of what the broker held or refused (also over Fähigkeiten › Audit).
+    ...(featureOn(me?.features, "capabilities") &&
+    !(me?.mode === "managed" && me.tenant.role === "member")
+      ? [
+          inStudio({
+            id: "notifications",
+            label: t("protocol.notify.title"),
+            icon: Bell,
+            menu: false,
+          }),
+        ]
+      : []),
     // Alone for this machine; in the cloud for the organization, on its credits unless it brings keys.
     inStudio({ id: "models", label: t("local.title"), icon: Cpu, menu: true }),
     inStudio({ id: "integrate", label: t("integrate.nav"), icon: Cable, menu: true }),

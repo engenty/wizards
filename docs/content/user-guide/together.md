@@ -70,7 +70,7 @@ Admins decide for each space whether its members may use the studio: in the spac
 With it on, members build and test wizards in that space. They add and change skills, knowledge
 and data, and use the connections open to them. Admins still publish wizards and share them
 outside the space, set up connections and change their rules. Approvals go to the admins, and only
-they see the [Log](./protocol.md). With it off, members work in Work and run the space’s wizards
+they see the [Audit](./protocol.md). With it off, members work in Work and run the space’s wizards
 there.
 
 A new space starts with the studio closed to members. [Capabilities](./capabilities.md#who-sees-capabilities)

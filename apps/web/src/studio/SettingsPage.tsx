@@ -11,6 +11,7 @@ import { useCrumbs } from "./AppFrame";
 import { useAssistantPage } from "./assistant/page";
 import { CloudSyncSection } from "./CloudSync";
 import { Connectors } from "./Connectors";
+import { NotifySettings } from "./capabilities/ProtocolSection";
 import { SpaceSwitcher } from "./HomePage";
 import { Integrate } from "./Integrate";
 import { Models } from "./Models";
@@ -36,6 +37,7 @@ import {
   useStepDirection,
 } from "./settings-menu";
 import { accountSections, settingsSections } from "./settings-sections";
+import { Section } from "./space/Section";
 
 const AboutPanel = lazy(() =>
   import("../about/AboutDialog").then((m) => ({ default: m.AboutPanel })),
@@ -259,6 +261,11 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
               {current.id === "orgs" && me.data ? <PersonOrganizations me={me.data} /> : null}
               {current.id === "apps" && me.data ? <PersonApps /> : null}
               {current.id === "connections" ? <PersonSignInsPage /> : null}
+              {current.id === "notifications" && space ? (
+                <Section title={t("protocol.notify.title")} hint={t("protocol.notify.hint")}>
+                  <NotifySettings space={space} />
+                </Section>
+              ) : null}
               {current.id === "credits" && me.data ? <OrganizationCredits me={me.data} /> : null}
               {current.id === "usage" && me.data ? <OrganizationUsage me={me.data} /> : null}
               {current.id === "invoices" && me.data ? <OrganizationInvoices me={me.data} /> : null}

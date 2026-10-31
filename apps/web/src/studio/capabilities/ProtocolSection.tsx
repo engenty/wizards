@@ -13,7 +13,6 @@ import {
   CircleCheck,
   CircleX,
   Clock,
-  History,
   type LucideIcon,
   ShieldAlert,
   ShieldQuestion,
@@ -25,9 +24,7 @@ import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { type Space, useCurrentSpace } from "../../lib/session";
-import { Button, Chip, cn, Select, Spinner, Switch, Tabs } from "../../ui";
-import { scrollRoot } from "../AppFrame";
-import { MenuRow, SubMenu, useDetail, useSettingsMenu } from "../settings-menu";
+import { Button, Chip, cn, Dialog, Select, Spinner, Switch, Tabs } from "../../ui";
 import { SearchField, Section } from "../space/Section";
 import {
   actionWord,
@@ -43,41 +40,22 @@ import {
 } from "./protocol-words";
 
 /*
- * Fähigkeiten › Protokoll (docs/plans/capabilities.md, B5; docs/plans/broker.md, "The log",
+ * Fähigkeiten › Audit (docs/plans/capabilities.md, B5; docs/plans/broker.md, "The log",
  * "„Was darf …?“"): every call the broker decided in this space, in plain words, with filters and
- * a detail per line; the question an admin asks of the rules before anything runs; how the admins
- * hear of critical lines. For owners and admins: the runtime answers a member with 403, and the
+ * a detail per line. Beside its title: the question an admin asks of the rules before anything
+ * runs, and how the admins hear of critical lines, each in a dialog. For owners and admins: the runtime answers a member with 403, and the
  * section is not in a member's menu (`sections.ts`).
  */
 
-type View = "log" | "ask" | "notify";
-
-const VIEWS: { id: View; label: Parameters<typeof t>[0]; icon: LucideIcon }[] = [
-  { id: "log", label: "capabilities.protocol", icon: History },
-  { id: "ask", label: "protocol.ask.title", icon: ShieldQuestion },
-  { id: "notify", label: "protocol.notify.title", icon: Bell },
-];
+type Opened = "ask" | "notify";
 
 export function ProtocolSection() {
   const [params, setParams] = useSearchParams();
   const { space } = useCurrentSpace();
-  const { narrow } = useSettingsMenu();
+  // „Was darf …?“ and the notifications open over the log; a link may name one (`?show=`).
   const shown = params.get("show");
-  const view: View = shown === "ask" || shown === "notify" ? shown : "log";
-  const current = VIEWS.find((v) => v.id === view);
-  useDetail(view === "log" ? null : current ? t(current.label) : null);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new view is what scrolls up.
-  useEffect(() => {
-    if (!narrow) {
-      scrollRoot().scrollTo({ top: 0 });
-    }
-  }, [narrow, view]);
-
-  const pick = (id: View) =>
-    narrow
-      ? setParams({ show: id })
-      : setParams(id === "log" ? {} : { show: id }, { replace: true });
+  const opened: Opened | null = shown === "ask" || shown === "notify" ? shown : null;
+  const open = (next: Opened | null) => setParams(next ? { show: next } : {}, { replace: true });
 
   const choices = useQuery({
     queryKey: ["broker-choices", space?.id],
@@ -85,29 +63,49 @@ export function ProtocolSection() {
     enabled: Boolean(space),
   });
 
+  if (!space) {
+    return null;
+  }
   return (
-    <>
-      <SubMenu>
-        <ul className="flex flex-col gap-0.5">
-          {VIEWS.map((v) => (
-            <MenuRow
-              key={v.id}
-              icon={v.icon}
-              label={t(v.label)}
-              selected={!narrow && view === v.id}
-              onPick={() => pick(v.id)}
-            />
-          ))}
-        </ul>
-      </SubMenu>
-      {space ? (
-        <div className="flex flex-col gap-9 pb-20">
-          {view === "log" ? <Log spaceId={space.id} choices={choices.data} /> : null}
-          {view === "ask" ? <Ask choices={choices.data} spaceId={space.id} /> : null}
-          {view === "notify" ? <Notify space={space} /> : null}
-        </div>
-      ) : null}
-    </>
+    <div className="flex flex-col gap-9 pb-20">
+      <Log
+        spaceId={space.id}
+        choices={choices.data}
+        action={
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => open("ask")}>
+              <ShieldQuestion className="size-4" /> {t("protocol.ask.title")}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => open("notify")}
+              aria-label={t("protocol.notify.title")}
+              title={t("protocol.notify.title")}
+            >
+              <Bell className="size-4" />
+            </Button>
+          </div>
+        }
+      />
+      <Dialog
+        open={opened === "ask"}
+        onClose={() => open(null)}
+        wide
+        title={t("protocol.ask.title")}
+      >
+        <p className="-mt-2 mb-4 text-[0.875rem] text-ink-3">{t("protocol.ask.hint")}</p>
+        <Ask choices={choices.data} spaceId={space.id} />
+      </Dialog>
+      <Dialog
+        open={opened === "notify"}
+        onClose={() => open(null)}
+        title={t("protocol.notify.title")}
+      >
+        <p className="-mt-2 mb-4 text-[0.875rem] text-ink-3">{t("protocol.notify.hint")}</p>
+        <NotifySettings space={space} />
+      </Dialog>
+    </div>
   );
 }
 
@@ -138,7 +136,15 @@ function useSettled(value: string, ms = 300): string {
   return settled;
 }
 
-function Log({ spaceId, choices }: { spaceId: string; choices: ProtocolChoices | undefined }) {
+function Log({
+  spaceId,
+  choices,
+  action,
+}: {
+  spaceId: string;
+  choices: ProtocolChoices | undefined;
+  action: ReactNode;
+}) {
   const [outcome, setOutcome] = useState<OutcomeFilter>("all");
   const [who, setWho] = useState("");
   const [connection, setConnection] = useState("");
@@ -185,7 +191,7 @@ function Log({ spaceId, choices }: { spaceId: string; choices: ProtocolChoices |
   const spaceConnections = new Set(choices?.connections.map((c) => c.id));
 
   return (
-    <Section title={t("capabilities.protocol")} hint={t("protocol.hint")} plain>
+    <Section title={t("capabilities.protocol")} hint={t("protocol.hint")} action={action} plain>
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <Tabs
@@ -560,7 +566,7 @@ function Ask({ choices, spaceId }: { choices: ProtocolChoices | undefined; space
   ];
 
   return (
-    <Section title={t("protocol.ask.title")} hint={t("protocol.ask.hint")}>
+    <>
       {choices.connections.length === 0 ? (
         <p className="text-[0.875rem] text-ink-3">{t("protocol.ask.noConnections")}</p>
       ) : (
@@ -638,7 +644,7 @@ function Ask({ choices, spaceId }: { choices: ProtocolChoices | undefined; space
           </div>
         </div>
       )}
-    </Section>
+    </>
   );
 }
 
@@ -687,8 +693,11 @@ function Labelled({ label, children }: { label: string; children: ReactNode }) {
 
 // --- notifications -----------------------------------------------------------------------------
 
-/** The space's `notify` setting (A7a): Work's bell and the hourly mail, changed in place. */
-function Notify({ space }: { space: Space }) {
+/**
+ * The space's `notify` setting (A7a): Work's bell and the hourly mail, changed in place. Over the
+ * audit and in the settings.
+ */
+export function NotifySettings({ space }: { space: Space }) {
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -707,25 +716,23 @@ function Notify({ space }: { space: Space }) {
   };
   const locked = space.readOnly || saving;
   return (
-    <Section title={t("protocol.notify.title")} hint={t("protocol.notify.hint")}>
-      <div className="flex flex-col gap-4">
-        <NotifyRow
-          label={t("protocol.notify.bell")}
-          hint={t("protocol.notify.bellHint")}
-          checked={notify.bell}
-          disabled={locked}
-          onChange={(bell) => void save({ ...notify, bell })}
-        />
-        <NotifyRow
-          label={t("protocol.notify.mail")}
-          hint={t("protocol.notify.mailHint")}
-          checked={notify.mail === "hourly"}
-          disabled={locked}
-          onChange={(on) => void save({ ...notify, mail: on ? "hourly" : "off" })}
-        />
-        {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
-      </div>
-    </Section>
+    <div className="flex flex-col gap-4">
+      <NotifyRow
+        label={t("protocol.notify.bell")}
+        hint={t("protocol.notify.bellHint")}
+        checked={notify.bell}
+        disabled={locked}
+        onChange={(bell) => void save({ ...notify, bell })}
+      />
+      <NotifyRow
+        label={t("protocol.notify.mail")}
+        hint={t("protocol.notify.mailHint")}
+        checked={notify.mail === "hourly"}
+        disabled={locked}
+        onChange={(on) => void save({ ...notify, mail: on ? "hourly" : "off" })}
+      />
+      {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
+    </div>
   );
 }
 

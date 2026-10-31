@@ -1,12 +1,12 @@
 ---
-title: Log
+title: Audit
 description: Every time a wizard, a chat or Goose used a connection of your space, allowed or not – what critical means, and how to try a rule before anything runs.
 version: 0.13.0
 ---
 
-**[Capabilities](./capabilities.md) › Log** shows every call your space’s wizards, Work chats and
+**[Capabilities](./capabilities.md) › Audit** shows every call your space’s wizards, Work chats and
 Goose made to a connection. Each call is one line, whether it ran or not.
-Only the owner and the admins of the organization see the log. Members don’t find it in their menu.
+Only the owner and the admins of the organization see the audit. Members don’t find it in their menu.
 
 ## What a line says
 
@@ -28,7 +28,7 @@ how big the input and the result were, and which rule decided. A line from a run
 run’s grant: what the wizard allowed that run through this connection when the run started. The
 buttons below lead to the run, the chat or the connection.
 
-The log never holds a password, a token, a key or a whole email. Of the input it keeps the names of
+The audit never holds a password, a token, a key or a whole email. Of the input it keeps the names of
 the fields, their sizes and one short value that is no secret.
 
 ## Filters
@@ -57,13 +57,14 @@ A line is critical when someone should hear of it:
 - someone changed a rule.
 
 The admins hear of a critical line at once, under the bell in Work. Where no admin was in the app,
-they get one email an hour with the critical lines since the last one. Under **Notifications** in
-the log’s menu, an admin turns the bell and the hourly email off or on for the space.
+they get one email an hour with the critical lines since the last one. The bell icon beside the
+audit’s title, or **Settings › Notifications**, lets an admin turn the bell and the hourly email off
+or on for the space.
 
 ## Who may do what?
 
-Rules are easier to understand when you can try them. **Who may do what?** answers a question
-before anything runs, for example “May Julia send an email in this space?”.
+Rules are easier to understand when you can try them. **Who may do what?**, the button beside the
+audit’s title, answers a question before anything runs, for example “May Julia send an email in this space?”.
 
 1. Choose **who**: a person of your organization, a guest, Goose, or a fixed step in a guest’s or
    a member’s run.
@@ -76,4 +77,4 @@ The answer is one sentence:
 - “A guest may not read in HubSpot · Sales – the connection is for members only.”
 
 Below it you see which rule decided, and “Change the rules” opens the connection. The answer comes from the
-same rules that decide every real call, and nothing runs or lands in the log.
+same rules that decide every real call, and nothing runs or lands in the audit.
