@@ -1,0 +1,140 @@
+# Plan: one tool surface for every client
+
+Status: plan, nothing built. Written on 2026-10-31 against main `f5d7b224` (v0.13.x with Work
+mode). Page with both diagrams: the artifact “Modular Wizards Plan”
+(claude.ai/artifact/BRLfib42d2m3Nq6mXG5s7s). It extends the architecture page
+(`docs/content/dev/architecture.md`).
+
+Studio makes the elements of a space: wizards, skills, connections and data. Everything else uses
+them through one tool surface and one broker. Work becomes any agent client (our own chat, Claude,
+Codex), and a published wizard becomes a durable agent that other systems can call.
+
+## Why
+
+Two directions from 2026-10-31:
+
+- **Published wizards run on their own and plug into other systems.** Today a published wizard
+  runs when someone opens its link, a chat or a channel. It should also start by itself, wait for
+  days, ask a person and go on, and be callable from Claude, apps and sites.
+- **Work can be Claude or Codex.** A person who works in Claude Code or Codex should reach the
+  same space as our Work chat: its wizards, skills, connections and data, under the same rules.
+
+Both need the same thing underneath: the space's elements as tools any caller can use, with the
+broker deciding every call. Today each caller has its own tool set, and the broker decides only
+connector calls and reads and writes of documents, tables and pages.
+
+## Today and target
+
+The system, top to bottom:
+
+- **Entry points:** Studio and Work (split per person by `allowedModes`) on the signed-in side,
+  Published Wizards on the guest side.
+- **Roles (`RUNTIME_ROLE`):** `studio` (`/api/studio`), a new `api` role for MCP and the API
+  (one tool surface), `doors` (`/w/…`, plus embeds), `runner` (runs, plus waits).
+
+One instance:
+
+- The roles reach the **engine** and the **broker**.
+- The broker guards **every element** (wizards, skills, connections and MCPs, knowledge and
+  tables) and every call to a **connected service**.
+- The engine uses **models**; it reaches data only through the broker and the elements.
+- **Data:** the control database (one per runtime), a libSQL database per tenant, files under
+  `t/<tenant>/` (unchanged).
+
+## Rules
+
+1. **Studio makes, everyone else uses.** An element is made and changed in Studio (or by the
+   studio assistant). Clients use elements; they do not get the studio's write routes.
+2. **One tool catalogue.** The tools an agent gets come from one place that turns a space's
+   elements into tools. Wizard steps, our Work chat, Goose and outside clients all read it; none
+   keeps its own list.
+3. **The broker decides every element call.** Running a wizard, loading or running a skill, a
+   connection's action, reading or writing data: one call through `broker/call`, one decision,
+   one log line. No caller reaches the tenant database for an element directly.
+4. **A call always acts as someone.** A person (signed in, scoped token), a guest of a published
+   wizard, or the runtime itself for a start. The broker already knows `guest`, `person`,
+   `admin`, `goose`, `plugin`, `step` (`broker/call.ts`); outside clients add none, they act as
+   the person who signed them in.
+5. **Secrets never leave the broker.** Claude or Codex can use a connection; they never see its
+   token.
+6. **Guests stay on their side.** A published wizard's guest reaches only what that wizard's
+   grant names (A3: a run's grant, fixed at start). Where the cloud runs `doors` apart, the guest
+   boundary is a process boundary.
+7. **No fallback code.** Unreleased, so routes and settings change outright; local data converts
+   once by command.
+
+## What would need to change
+
+| Area | Today (main) | Change |
+|---|---|---|
+| Tool sets | Separate lists: step tools (`tools/index.ts` `buildStepTools`), Work chat (`services/work-ai.ts`: `search_space`, `run_command`, `show_view`, skill tools), Goose (`agents/space-agent.ts`), MCP (`mcp/tools.ts`) | One catalogue: elements → tools, each with its broker resource and action (r / w / x). The four callers build from it with their own filter (a step's `tools`, a chat's switches, a token's scopes). |
+| MCP | `/api/mcp` exposes authoring: `create_wizard`, `edit_wizard`, `run_wizard`, `start_test_run`, `list_files`, `read_file`, `write_file`, `find_connectors` and more. Scopes `wizards:read\|write\|publish`, `runs:test\|read` | A second tool set for using a space: run a wizard, list and load skills, run a skill script, call a connection's action, search knowledge, read and write tables. New scopes `elements:read`, `elements:run`, `data:read`, `data:write`. Authoring tools stay behind their scopes. |
+| API | `/api/v1`: wizards, runs, spaces, sync (`routes/api.ts`). `x-wizards-client` built; client registry and attestation not built (`api-clients.md`) | The same element calls as REST under `/api/v1/spaces/:id/…`, generated from the catalogue so MCP and API never drift. |
+| Runtime roles | `studio`, `doors`, `web`, `runner`, `all` (`env.ts`) | New role `api` serving `/api/mcp` and `/api/v1`, so outside clients scale and fail apart from the studio. `all` keeps serving everything on a local install. |
+| Broker | Decides connector calls (A2) and RWX on documents, tables and pages (A0, on by default since B8). Work chats and Goose call it (A7) | Resources for wizards (run = x), skills (read = r, script = x) and data rows (r / w). The log names the client (`x-wizards-client`, the MCP client's name). |
+| Sign-in | MCP OAuth through the Manage-App consent page (`mcp/auth.ts`); a local install uses its access key | Every outside call carries a person and a space. A local install needs a token per client (today one key opens everything). |
+| Skills | Stored per space; steps and Work chats read them and run scripts in a sandbox (`tools/skills.ts`, `services/work-sandbox.ts`) | Offered to outside clients as tools (load, run a script in our sandbox) and as a download in the `SKILL.md` layout Claude and Codex read, without the scripts' secrets. |
+| Work chat | Own routes `/api/studio/work` and its own agent (`work-ai.ts`) | Our chat becomes a client of the catalogue like Claude; its UI stays. The sandbox per chat moves from memory to something that survives a restart. |
+| Published wizards | Run from the link, the chat runner, channels, embeds (OpenUI component, WordPress plugin). Starts: phase 1 on a branch behind `startTriggers`, not merged | Each published wizard is also an MCP tool and an API endpoint with its own grant; starts land; the guests' sandbox engine is decided (`SANDBOX_GUESTS`). |
+| Runner | Own process since 2026-10-10; takes runs in line (`runner-process.md`) | Holds durable runs: waits, signals, a person's step, resume after restart (`durable-agents.md`, switch `durableRuns`). |
+| Claude and Codex | Used the other way round: harnesses we call for thinking (`harness/claude.ts`, `codex.ts`); the Claude Code plugin `wizards` talks to `wizards mcp` (authoring) | Also clients: one MCP entry gives them the space. The plugin gains the element tools; Codex gets the same server entry. |
+
+## Phases
+
+Each phase is a few small PRs behind one switch, on by default once its last PR is in.
+
+1. **One tool catalogue.** Elements → tools in one module with their broker resource. Step
+   tools, Work chat and Goose build from it; behaviour stays the same. Wizards, skills and data
+   rows become broker resources. Done when the three callers share one list, every element call
+   writes a broker log line, and existing tests pass unchanged.
+2. **The `mcp · api` surface.** Element tools on `/api/mcp` with the new scopes, the same calls
+   on `/api/v1`, the `api` role, tokens per client on a local install. Done when an MCP client
+   signed in as a member sees exactly what the Work chat shows that member, and is refused the
+   same things.
+3. **Claude and Codex as Work.** The Claude Code plugin and a Codex config entry point at the
+   surface; skills offered as tools and as `SKILL.md` downloads; connection approvals reach the
+   person in their client and in the bell. Done when, from Claude Code, a person runs a space's
+   wizard, uses a skill with a script and calls a connection that needs approval, and the
+   Protokoll shows all three.
+4. **Published wizards as endpoints.** A published wizard as MCP tool, API endpoint and embed
+   with its grant; starts merged; the guests' sandbox engine set. Done when another system starts
+   a published wizard by API or webhook and gets its result without anyone opening the link.
+5. **Durable runs.** `durable-agents.md` on the runner: `wait` steps, signals, a person's step
+   with timeout and reminders, resume after restart, sandboxes that come back. Done when a run
+   waits three days for an answer, survives a deploy, and goes on.
+
+## Open
+
+1. Does a client that is not a person exist (a service key for another system), or does every
+   outside call act as a person or a published wizard's guest?
+2. Credits: who pays for a run Claude starts, the person's plan or the space's? Does a published
+   wizard called by another system charge its publisher?
+3. Skills for Claude and Codex: tools only, download only, or both? A download takes its scripts
+   out of our sandbox and our broker.
+4. Does our Work chat stay the default Work client in the studio, or does Work point people to
+   Claude and Codex once phase 3 lands?
+5. One MCP server per space, or one per person with a space parameter?
+6. The new role's name: `api`, `mcp`, or folded into `doors`?
+7. Local install: is a linked account required for outside clients, or does a local token per
+   client suffice?
+
+## Risks
+
+- **Two lists again.** If phase 1 leaves one caller on its own tools, the broker misses its
+  calls. Phase 1 is done only when all three share the catalogue.
+- **Prompt injection from outside clients.** Claude reading a page can ask a connection to send
+  mail. The broker's ask rules and approvals carry this; they must hold for clients we do not run.
+- **Guest runs with a sandbox.** Autonomous published wizards make guest runs common;
+  `SANDBOX_GUESTS` off is safe but limits what they can do.
+- **Durable state in memory.** The chat sandbox and parts of a run live in memory today; phase 5
+  depends on moving them.
+
+## Builds on
+
+- `broker.md`, `capabilities.md`: the broker, RWX, grants, connections of the space (built; A8
+  isolated instances open)
+- `durable-agents.md`: durable runs (nothing built)
+- `starts.md`: runs that start by themselves
+- `api-clients.md`: clients of the API (phase 1 built)
+- `runner-process.md`: the runner as its own process
+- `work-chats.md`: Work chats on Mastra
