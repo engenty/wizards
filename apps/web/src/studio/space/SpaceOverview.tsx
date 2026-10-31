@@ -128,26 +128,40 @@ export function SpaceOverview({ space, parts }: { space: Space; parts: OverviewP
           </div>
         ) : null;
       case "brand":
-        return logos + colors ? (
-          <div className="flex items-center gap-3">
-            {logoFiles.slice(0, 3).map((f) => (
-              <span
-                key={f.id}
-                className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-lg bg-paper ring-1 ring-border-soft"
-              >
-                <Preview spaceId={space.id} file={f} small />
+        return logos + colors || space.brand.tagline ? (
+          <div className="flex flex-col gap-2">
+            {space.brand.brandName || space.brand.tagline ? (
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate font-medium text-[0.875rem] text-ink">
+                  {space.brand.brandName || space.brand.name}
+                </span>
+                {space.brand.tagline ? (
+                  <span className="truncate text-[0.8125rem] text-ink-3 italic">
+                    {space.brand.tagline}
+                  </span>
+                ) : null}
               </span>
-            ))}
-            <span className="flex flex-wrap gap-1">
-              {(space.brand.colors ?? []).slice(0, 8).map((c) => (
+            ) : null}
+            <div className="flex items-center gap-3">
+              {logoFiles.slice(0, 3).map((f) => (
                 <span
-                  key={`${c.name}${c.value}`}
-                  title={`${c.name} ${c.value}`}
-                  className="size-5 rounded-full ring-1 ring-border-soft"
-                  style={{ background: c.value }}
-                />
+                  key={f.id}
+                  className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-lg bg-paper ring-1 ring-border-soft"
+                >
+                  <Preview spaceId={space.id} file={f} small />
+                </span>
               ))}
-            </span>
+              <span className="flex flex-wrap gap-1">
+                {(space.brand.colors ?? []).slice(0, 8).map((c) => (
+                  <span
+                    key={`${c.name}${c.value}`}
+                    title={`${c.name} ${c.value}`}
+                    className="size-5 rounded-full ring-1 ring-border-soft"
+                    style={{ background: c.value }}
+                  />
+                ))}
+              </span>
+            </div>
           </div>
         ) : null;
       case "knowledge":

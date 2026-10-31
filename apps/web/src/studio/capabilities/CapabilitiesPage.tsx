@@ -132,12 +132,16 @@ export function CapabilitiesPage() {
               root={{
                 icon: Toolbox,
                 label: t("nav.capabilities"),
+                // The overview is the head's own link, not a row of the list.
+                onOpen: () =>
+                  navigate(narrow ? "/capabilities/overview?show=page" : "/capabilities/overview"),
+                current: open?.id === "overview",
               }}
             />
             <div key={level} className={cn(stepClass(levelStep))}>
               {level === 0 ? (
                 <LevelList
-                  entries={entries}
+                  entries={entries.filter((e) => e.id !== "overview")}
                   current={entry}
                   onPick={(picked) => {
                     setUpAt(null);

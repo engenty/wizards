@@ -39,6 +39,8 @@ type Patch = {
   brand?: {
     name?: string;
     about?: string;
+    brandName?: string;
+    tagline?: string;
     colors?: BrandColor[];
     colorSections?: ColorSection[];
     gradients?: BrandGradient[];
@@ -115,6 +117,41 @@ function MembersStudioRow({
         }}
       />
     </div>
+  );
+}
+
+/** Marke › Name und Claim: the brand's name as it is written and its tagline, saved as typed. */
+function Identity({ space, save }: { space: Space; save: (patch: Patch) => Promise<unknown> }) {
+  const [brandName, setBrandName] = useState(space.brand.brandName ?? "");
+  const [tagline, setTagline] = useState(space.brand.tagline ?? "");
+  const status = useAutosave({ brandName: brandName.trim(), tagline: tagline.trim() }, (brand) =>
+    save({ brand }),
+  );
+  return (
+    <Section
+      title={t("space.identity")}
+      hint={t("space.identityHint")}
+      save={status}
+      locked={space.readOnly}
+    >
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <Label>{t("space.brandName")}</Label>
+          <Input
+            value={brandName}
+            maxLength={120}
+            placeholder={space.brand.name ?? ""}
+            onChange={(e) => setBrandName(e.target.value)}
+          />
+          <p className="mt-1.5 text-[0.8125rem] text-ink-3">{t("space.brandNameHint")}</p>
+        </div>
+        <div>
+          <Label>{t("space.tagline")}</Label>
+          <Input value={tagline} maxLength={200} onChange={(e) => setTagline(e.target.value)} />
+          <p className="mt-1.5 text-[0.8125rem] text-ink-3">{t("space.taglineHint")}</p>
+        </div>
+      </div>
+    </Section>
   );
 }
 
@@ -267,6 +304,9 @@ export function SpaceSettings({
       ) : null}
       {group === "brand" ? (
         <>
+          <Anchor id="identity">
+            <Identity key={`identity:${key}`} space={space} save={save} />
+          </Anchor>
           <Anchor id="logos">
             <Logos
               key={`logos:${key}`}

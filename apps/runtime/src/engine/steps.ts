@@ -95,6 +95,8 @@ function brandBlock(ctx: StepContext): string {
   const b = ctx.scope.brand;
   const parts = [
     b.name,
+    b.brandName && b.brandName !== b.name ? `Brand name, written as it is: ${b.brandName}` : "",
+    b.tagline ? `Tagline: ${b.tagline}` : "",
     b.about,
     b.facts?.length ? `Facts:\n${factLines(b.facts)}` : "",
     b.colors?.length

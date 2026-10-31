@@ -36,6 +36,8 @@ export interface TemplateScope {
   brand: {
     name?: string;
     about?: string;
+    brandName?: string;
+    tagline?: string;
     colors?: BrandColor[];
     colorSections?: ColorSection[];
     gradients?: BrandGradient[];
@@ -163,6 +165,11 @@ function brandRef(brand: TemplateScope["brand"], key: string): unknown {
       return brand.name ?? "";
     case "about":
       return brand.about ?? "";
+    // The brand's own name where it has one, else the title.
+    case "brandName":
+      return brand.brandName || brand.name || "";
+    case "tagline":
+      return brand.tagline ?? "";
     // What the free "details" text once held is now the description and the facts.
     case "details":
       return [brand.about, factLines(brand.facts ?? [])].filter(Boolean).join("\n");

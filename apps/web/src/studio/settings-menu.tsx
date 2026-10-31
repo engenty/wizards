@@ -96,7 +96,8 @@ export function LevelHead({
   open: LevelEntry | null;
   /** Back up from the open entry; without it the open entry stands alone, with no way up. */
   onBack?: () => void;
-  root?: { icon: Icon; label: string };
+  /** The upper level's name and icon; with `onOpen` the name is a link to the area's own page. */
+  root?: { icon: Icon; label: string; onOpen?: () => void; current?: boolean };
 }) {
   const shown = open ?? root ?? null;
   const back = open ? onBack : undefined;
@@ -119,7 +120,20 @@ export function LevelHead({
           <ArrowLeft className="size-4" />
         </button>
       </div>
-      {shown ? (
+      {!open && root?.onOpen ? (
+        <button
+          type="button"
+          onClick={root.onOpen}
+          aria-current={root.current ? "page" : undefined}
+          className={cn(
+            "-mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 font-medium text-[0.875rem] transition hover:bg-accent",
+            root.current && "bg-paper-2",
+          )}
+        >
+          <root.icon className="size-4 shrink-0 text-ember-strong" />
+          <span className="truncate">{root.label}</span>
+        </button>
+      ) : shown ? (
         <span className="flex min-w-0 items-center gap-2 font-medium text-[0.875rem]">
           <shown.icon className="size-4 shrink-0 text-ember-strong" />
           <span className="truncate">{shown.label}</span>
