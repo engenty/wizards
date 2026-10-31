@@ -54,6 +54,10 @@ vi.mock("../src/tools/plugin.js", () => ({
   spaceContextOf: async () => ({ blocks: [] }),
 }));
 vi.mock("../src/services/knowledge.js", () => ({ knowledgeBlock: async () => "" }));
+vi.mock("../src/services/skills.js", async (original) => ({
+  ...(await original<typeof import("../src/services/skills.js")>()),
+  activeSkills: async () => ({ always: [], demand: [] }),
+}));
 
 const { outputSchema, ownJson, runAgentStep } = await import("../src/engine/steps");
 const { shapedCsvRows, shapedMarkdown, shapedTables } = await import("../src/render/shaped");
