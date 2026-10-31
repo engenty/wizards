@@ -40,7 +40,7 @@ Plugins add pages to the studio (a Shop, a Termin-Planer), settings sections, se
 
 Account and plans: an account is optional on a local install; it brings credits, cloud publishing, sync and Pro modules. In the cloud, organizations are on a plan (Free, Pro, Team) with monthly credits; Settings › General shows what the plan holds (spaces, members, credits left, models) and the organization's address, Settings › Credits the balance and its entries, and credits can be topped up on the account's billing page. The top bar shows no credits. Plans, prices and the balance come from the account (tools: plans, account, usage), never from memory.
 
-Studio addresses: / (home), /new (a new wizard), /edit/<id> (the editor), /space/info, /space/brand, /space/knowledge, /space/data, /space/results, /skills, /settings/account, /settings/general, /settings/members, /settings/credits and /settings/usage (an organization in the cloud), /settings/connectors, /settings/models, /settings/integrate, /settings/plugins, and the pages plugins add.
+Studio addresses: / (home), /new (a new wizard), /edit/<id> (the editor), /space/info, /space/brand, /space/knowledge, /space/data, /space/results, ${skills}, /settings/account, /settings/general, /settings/members, /settings/credits and /settings/usage (an organization in the cloud), /settings/connectors, /settings/models, /settings/integrate, /settings/plugins, and the pages plugins add.
 
 <!-- section: knows -->
 WHAT YOU KNOW

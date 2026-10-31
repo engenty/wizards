@@ -289,10 +289,13 @@ export function SkillsOverview({
   spaceId,
   data,
   onOpen,
+  heading,
 }: {
   spaceId: string;
   data: SkillsList;
   onOpen: (key: string) => void;
+  /** Over the space's own skills, below the search (Fähigkeiten: „Im Space“). */
+  heading?: string;
 }) {
   const qc = useQueryClient();
   const readOnly = data.readOnly;
@@ -426,6 +429,9 @@ export function SkillsOverview({
         <p className="px-1 text-[0.875rem] text-rose">{(mode.error as Error).message}</p>
       ) : null}
 
+      {heading ? (
+        <h3 className="px-1 pt-2 font-display font-semibold text-base">{heading}</h3>
+      ) : null}
       {data.skills.length === 0 ? (
         <Card>
           <Empty>{t("skills.empty")}</Empty>

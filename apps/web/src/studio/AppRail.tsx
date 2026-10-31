@@ -23,6 +23,7 @@ import {
   ScrollText,
   Settings,
   Sun,
+  Toolbox,
 } from "lucide-react";
 import {
   lazy,
@@ -243,8 +244,19 @@ function BarMenu({
   );
 }
 
-/** The place in the bar a page belongs to: Home (the wizards), the space's sources, its skills, its results. */
-function usePlace(): "home" | "new" | "space" | "skills" | "results" | "settings" | null {
+/**
+ * The place in the bar a page belongs to: Home (the wizards), the space's sources, its skills (or
+ * Fähigkeiten, which holds them), its results.
+ */
+function usePlace():
+  | "home"
+  | "new"
+  | "space"
+  | "skills"
+  | "capabilities"
+  | "results"
+  | "settings"
+  | null {
   const { pathname } = useLocation();
   if (pathname === "/new") {
     return "new";
@@ -254,6 +266,9 @@ function usePlace(): "home" | "new" | "space" | "skills" | "results" | "settings
   }
   if (pathname === "/skills") {
     return "skills";
+  }
+  if (pathname === "/capabilities" || pathname.startsWith("/capabilities/")) {
+    return "capabilities";
   }
   if (pathname === "/space/results" || pathname.startsWith("/space/results/")) {
     return "results";
@@ -319,6 +334,7 @@ function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean
 export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: boolean }) {
   const plugins = useStudioPlugins();
   const skillsOn = useFeature("skills");
+  const capabilitiesOn = useFeature("capabilities");
   const { position } = useAppBar();
   const horizontal = isHorizontal(position);
   const place = usePlace();
@@ -439,8 +455,23 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
             <Layers className="size-5 shrink-0" />
             {labels ? <Label>{t("nav.sources")}</Label> : null}
           </Link>
-          {/* The skills the space's wizards work by, behind their switch. */}
-          {skillsOn ? (
+          {/* What the space's wizards, chats and Goose may use: Fähigkeiten, behind its switch; else
+              the skills the space's wizards work by, behind theirs. */}
+          {capabilitiesOn ? (
+            <Link
+              to="/capabilities"
+              title={t("nav.capabilities")}
+              aria-label={t("nav.capabilities")}
+              aria-current={place === "capabilities" ? "page" : undefined}
+              className={cn(
+                glyph(place === "capabilities", labels),
+                horizontal ? "ml-1.5" : "mt-2",
+              )}
+            >
+              <Toolbox className="size-5 shrink-0" />
+              {labels ? <Label>{t("nav.capabilities")}</Label> : null}
+            </Link>
+          ) : skillsOn ? (
             <Link
               to="/skills"
               title={t("space.skills")}
@@ -520,7 +551,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
 
 /**
  * A phone's bar: always along the bottom, floating over the page as glass. It holds the space and
- * its two places to go every day, Home and the space's sources; "⋯" holds the rest (skills, results, the
+ * its two places to go every day, Home and the space's sources; "⋯" holds the rest (skills or Fähigkeiten, results, the
  * plugins' apps, then what the engenty's menu holds, the settings among it). The person sits at the top.
  */
 /**
@@ -584,13 +615,14 @@ function Capsule({ index }: { index: number | null }) {
 /**
  * A phone's bar: always along the bottom, a capsule of glass floating over the page. Three tabs:
  * the space's two places to go every day, Home and its sources, and "More" with the rest in a menu:
- * Skills, Results, the settings, the plugins' apps, then About (in a dialog). Beside it, on glass of its
+ * Skills (or Fähigkeiten), Results, the settings, the plugins' apps, then About (in a dialog). Beside it, on glass of its
  * own, the page's main action (`usePrimaryAction`), else a new wizard. The space and the person
  * sit in the top bar.
  */
 export function PhoneBar({ me }: { me: Me }) {
   const plugins = useStudioPlugins();
   const skillsOn = useFeature("skills");
+  const capabilitiesOn = useFeature("capabilities");
   const place = usePlace();
   const [open, setOpen] = useState(false);
   const [about, setAbout] = useState(false);
@@ -618,7 +650,10 @@ export function PhoneBar({ me }: { me: Me }) {
       ? 0
       : place === "space"
         ? 1
-        : place === "skills" || place === "results" || place === "settings"
+        : place === "skills" ||
+            place === "capabilities" ||
+            place === "results" ||
+            place === "settings"
           ? 2
           : null;
   const go = (to: string) => {
@@ -662,7 +697,13 @@ export function PhoneBar({ me }: { me: Me }) {
           aria-expanded={open}
           aria-haspopup="menu"
           onClick={() => setOpen((o) => !o)}
-          className={tab(open || place === "skills" || place === "results" || place === "settings")}
+          className={tab(
+            open ||
+              place === "skills" ||
+              place === "capabilities" ||
+              place === "results" ||
+              place === "settings",
+          )}
         >
           <Ellipsis className="size-[1.375rem]" />
         </button>
@@ -673,7 +714,17 @@ export function PhoneBar({ me }: { me: Me }) {
             role="menu"
             className="absolute right-0 bottom-full mb-3 flex w-60 animate-rise flex-col rounded-2xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft"
           >
-            {skillsOn ? (
+            {capabilitiesOn ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={row(place === "capabilities")}
+                onClick={() => go("/capabilities")}
+              >
+                <Toolbox className="size-[1.125rem] shrink-0 text-ink-3" />
+                <span className="min-w-0 flex-1 truncate">{t("nav.capabilities")}</span>
+              </button>
+            ) : skillsOn ? (
               <button
                 type="button"
                 role="menuitem"

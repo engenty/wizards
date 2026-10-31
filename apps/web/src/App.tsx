@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router";
 import { Mascot } from "./brand";
 import { ImpersonationBanner } from "./impersonation";
 import { STUDIO } from "./lib/base";
+import { useFeature } from "./lib/features";
 import { useLang } from "./lib/i18n";
 import { useAccountLang, useMe } from "./lib/session";
 import { PluginFrame, startStudioPlugins, useStudioPlugins } from "./plugins/host";
@@ -30,6 +31,9 @@ const SettingsPage = lazy(() =>
   import("./studio/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
 const SpacePage = lazy(() => import("./studio/SpacePage").then((m) => ({ default: m.SpacePage })));
+const CapabilitiesPage = lazy(() =>
+  import("./studio/capabilities/CapabilitiesPage").then((m) => ({ default: m.CapabilitiesPage })),
+);
 const SetupPage = lazy(() => import("./studio/SetupPage").then((m) => ({ default: m.SetupPage })));
 
 const ViewLab = import.meta.env.DEV
@@ -128,6 +132,15 @@ function ToStudio() {
   return <Splash />;
 }
 
+/** Skills at /skills; with Fähigkeiten on they live in it, and the address leads there. */
+function SkillsPlace() {
+  const { search, hash } = useLocation();
+  if (useFeature("capabilities")) {
+    return <Navigate to={{ pathname: "/capabilities/skills", search, hash }} replace />;
+  }
+  return <SpacePage place="skills" />;
+}
+
 /** An address the studio does not know: a plugin's page that is still loading, or nothing. */
 function Unknown() {
   const plugins = useStudioPlugins();
@@ -197,7 +210,15 @@ export function StudioApp() {
             path="/skills"
             element={
               <Studio wide>
-                <SpacePage place="skills" />
+                <SkillsPlace />
+              </Studio>
+            }
+          />
+          <Route
+            path="/capabilities/:section?"
+            element={
+              <Studio wide>
+                <CapabilitiesPage />
               </Studio>
             }
           />
