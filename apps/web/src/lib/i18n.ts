@@ -1561,6 +1561,8 @@ const de: Record<Key, Line> = {
   "home.local.signIn": "Melde dich dort unter Einstellungen → Konto mit diesem Konto an.",
   "home.local.publish": "Veröffentliche einen Wizard. Er erscheint dann hier.",
   "new.title": "Was soll dein Wizard können?",
+  "new.studioHint":
+    "Du bist im Studio. Hier richtest du ein, was andere verwenden: dein Team in Work oder Kund:innen auf deiner Seite (bald).",
   "new.placeholder":
     "z. B. Kund:innen geben ihr Produkt und ihre Zielgruppe ein, der Wizard recherchiert die Konkurrenz und erstellt daraus ein Positionierungs-Briefing als PDF.",
   "new.build": "Wizard bauen",
@@ -5247,6 +5249,8 @@ const en = {
   "home.local.signIn": "Sign in there with this account, under Settings → Account.",
   "home.local.publish": "Publish a wizard. It then shows up here.",
   "new.title": "What should your wizard do?",
+  "new.studioHint":
+    "You’re in the Studio. Here you set up what others use: your team in Work, or your customers on your page (soon).",
   "new.placeholder":
     "e.g. Customers enter their product and audience, the wizard researches competitors and writes a positioning briefing as a PDF.",
   "new.build": "Build wizard",
