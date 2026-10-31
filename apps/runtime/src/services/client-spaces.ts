@@ -1,3 +1,4 @@
+import { note } from "@engenty/wizards-shared/run";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { openToClients } from "../broker/rwx.js";
@@ -183,10 +184,7 @@ export async function inviteClient(
   await requireAdmin();
   const space = await clientSpace(userId, spaceId);
   if (!managed) {
-    throw new ServiceError(
-      "refused",
-      "Clients are invited in the cloud, where they have accounts.",
-    );
+    throw new ServiceError("refused", note("clientsInCloud"));
   }
   const email = input.email.trim().toLowerCase();
   await inviteMember(currentTenant(), { actorId: userId, email, role: "client", lang: input.lang });
