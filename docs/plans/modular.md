@@ -121,6 +121,73 @@ Decided on 2026-10-31 (roadmap page: claude.ai/artifact/LhdF8LKeqC2gcL3zNA9qC6).
 6. **The new role is `api`.** It serves `/api/mcp` and `/api/v1`; `doors` stays the guests' side.
 7. **A local install needs no linked account.** It gives a token per client, which can be revoked
    alone (today one access key opens everything).
+8. **Client spaces, one level under a space, cloud only** (B2 below). Each customer's data stays in
+   its own space under the broker, without copying the parent's setup.
+
+## Measured against the goal
+
+The goal (2026-10-31): Studio creates (skills, tools, knowledge, wizards and agents); Work and
+Client use it. Everything is isolated by tenant, space and customer, served through the broker,
+safe against the LLMs and agents that use it, and built from parts that can be swapped (Claude
+Code instead of our Work) or reused (wizards in other apps). Diagrams of the target (parts and
+contracts, isolation, trust boundary): the artifact “Modular Wizards Roadmap”
+(claude.ai/artifact/LhdF8LKeqC2gcL3zNA9qC6).
+
+| Goal | Plan above | Gap | Added |
+|---|---|---|---|
+| Studio creates, others use | Rule 1, one catalogue | Client pages are not in it; Goose writes space settings with tools no broker sees | B1, B4 |
+| Tenant isolation | Database per tenant, `inTenant()`, files per tenant | None | – |
+| Space isolation | RWX per space, grants | The space a client names (decision 5) must be checked against its token | I2 |
+| Customer isolation | Not in the plan | No client subject, no client space | B2, decision 8 |
+| Served via the broker | Phase 1 | Authoring and pages stay outside | B1, B4 |
+| LLMs can't breach it | Rules 3–6 | No stated invariants; Claude Code runs tools itself and skips the agent framework's approvals (`work-chats-spike.md`) | B3 |
+| Swap parts | MCP for Claude and Codex | No contract per part, no test that our own Work keeps to it | B1 |
+| Wizards in other apps | Phases 4 and 5 | The run protocol has no asks and answers from outside | B1 |
+
+### B1: a contract per part
+
+- **Studio API** (`/api/studio`): authoring, testing, publishing. Only Studio uses it.
+- **Element protocol** (MCP and `/api/v1`, from the catalogue): Work. Our Work chat, Claude Code
+  and Codex all speak it.
+- **Run protocol**: start, events, asks, answers, result. Client pages, embeds and other apps use
+  it. It gains asks and answers from outside, so a person in another app can answer a durable
+  run.
+- **Wizard format** (MIT, JSON Schema): definitions move between installs and apps.
+
+A part is swappable when it reaches the core only through its contract. Test: our Work chat calls
+only the element protocol, Client pages only the run protocol.
+
+### B2: client spaces
+
+A space kind `client`, one level under a space, cloud only. A broker subject `client` for the
+customer who signs in. Reads: the client space plus what the parent marks for clients. Writes:
+only the client space. An agent working for a client reaches the narrower of itself and that
+client. Rejected on 2026-10-29: a copied space per client (drift), a client tag on rows (leaks).
+
+### B3: invariants
+
+1. **I1** The caller comes from the session or token, never from a tool's arguments.
+2. **I2** A space argument is checked against the token and pinned per session.
+3. **I3** A run's grant is fixed at its start (A3).
+4. **I4** Approvals are held in the broker, not in the agent framework.
+5. **I5** Secrets never reach a model or a client.
+6. **I6** One log line per call, with the client's name.
+
+### B4: Studio's own writes
+
+Goose is an LLM with write tools on the space (`set_colors`, `set_facts`, `save_file` and more in
+`agents/studio-assistant.ts`). They become broker calls with `w` on the space's setup. People in
+Studio keep their direct routes.
+
+### Phase changes
+
+- Phase 1 gains a sixth PR (B4) and tests for I1, I5 and I6.
+- Phase 2 is done also when a space argument outside the token is refused (I2) and our Work chat
+  calls only the element protocol (B1).
+- New phase 2b, **client spaces** (B2): done when a customer signed in to their client space sees
+  their own results and the shared knowledge, and nothing of another client or of the space's
+  setup, from the page, the run protocol and MCP alike.
+- Decision 8 (2026-10-31): client spaces as B2 describes them, one level under a space, cloud only.
 
 ## Risks
 
