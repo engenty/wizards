@@ -7,7 +7,7 @@ import type { StepContext } from "../engine/types.js";
  * (elements/knowledge.ts) for the run's holder and its wizard.
  */
 
-export { pageReadInput } from "../elements/knowledge.js";
+export { pageReadInput } from "../elements/specs.js";
 
 /** A page of Knowledge by its path, for a step: its front matter and Markdown, in parts. */
 export function readKnowledgePage(

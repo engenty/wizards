@@ -29,6 +29,7 @@ import { brokerRoutes } from "./routes/broker.js";
 import { connectionRoutes } from "./routes/connections.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
 import { discoverRoutes } from "./routes/discover.js";
+import { elementRoutes } from "./routes/elements.js";
 import { internalRoutes } from "./routes/internal.js";
 import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
 import { liveRoutes } from "./routes/live.js";
@@ -203,7 +204,7 @@ app.get("/api/config", (c) =>
   }),
 );
 
-if (serves.studio) {
+if (serves.api) {
   // OAuth discovery for MCP clients (RFC 9728): the Manage-App is the authorization server.
   app.get("/.well-known/oauth-protected-resource/*", async (c) => {
     if (!managed) {
@@ -217,6 +218,8 @@ if (serves.studio) {
       bearer_methods_supported: ["header"],
     });
   });
+}
+if (serves.studio) {
   // OpenAI's plugin portal checks that the submitter controls the MCP server's host.
   app.get("/.well-known/openai-apps-challenge", (c) =>
     env.openaiAppsChallenge ? c.text(env.openaiAppsChallenge) : c.notFound(),
@@ -320,9 +323,13 @@ if (serves.studio) {
 
   // A member reaches a space's studio only where its admins opened it (behind `capabilities`).
   app.use("/api/studio/*", membersStudioGate);
-
+}
+if (serves.api) {
+  // Outside clients: MCP and the API (docs/plans/modular.md), the space's elements among them.
   const mcp = mcpHandler();
   app.on(["GET", "POST", "DELETE"], "/api/mcp", (c) => mcp(c.req.raw));
+  app.route("/api/v1", elementRoutes);
+  app.route("/api/v1", apiRoutes);
 }
 if (serves.runner) {
   // The tools of one model call, for the installed Claude Code while it answers that call: the
@@ -364,7 +371,6 @@ if (serves.studio) {
   app.route("/api/studio/runtime", runtimeSettingsRoutes);
   app.route("/api/studio/work", workRoutes);
   app.route("/api/studio", studio);
-  app.route("/api/v1", apiRoutes);
   app.route("/api/local/debug", localDebugRoutes);
 }
 app.route("/api/internal", internalRoutes);

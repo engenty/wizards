@@ -34,15 +34,4 @@ export async function elementTools(
   };
 }
 
-/** The names the catalogue can give, for the tests that hold the callers to it. */
-export const ELEMENT_TOOL_NAMES = [
-  "space_search",
-  "space_list",
-  "page_read",
-  "table_read",
-  "space_document",
-  "skill_load",
-  "skill_read",
-  "wizard_list",
-  "wizard_run",
-] as const;
+export { ELEMENT_TOOL_NAMES } from "./specs.js";

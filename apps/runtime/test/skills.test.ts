@@ -438,7 +438,7 @@ describe("in a step", () => {
       expect(skillsBlock(skills, { tools: false })).not.toContain("ON DEMAND");
 
       const tools = await skillTools(ctx);
-      expect(Object.keys(tools)).toEqual(["skill_load", "skill_read"]);
+      expect(Object.keys(tools)).toEqual(["skill_list", "skill_load", "skill_read"]);
       expect(tools.skill_read.description).toContain("nothing runs them");
       const loaded = await tools.skill_load.execute({ name: "pdf" });
       expect(loaded).toMatchObject({ name: "pdf", files: ["forms.md", "scripts/fill.py"] });

@@ -1,8 +1,9 @@
 import { skillMd } from "@engenty/wizards-shared/skills";
 import { createTool } from "@mastra/core/tools";
-import { z } from "zod";
+import { readableIds } from "../broker/rwx.js";
 import { type ElementCaller, stepCaller } from "../elements/caller.js";
 import { elementCall, mayDo } from "../elements/gate.js";
+import { ELEMENT_SPECS } from "../elements/specs.js";
 import type { StepContext } from "../engine/types.js";
 import { getBlob } from "../files/blobs.js";
 import { prompt } from "../prompts.js";
@@ -177,10 +178,33 @@ export function skillToolsOf(skills: Skills, caller: ElementCaller): Record<stri
     };
   };
   return {
+    skill_list: createTool({
+      id: "skill_list",
+      description: ELEMENT_SPECS.skill_list.description(),
+      inputSchema: ELEMENT_SPECS.skill_list.input,
+      execute: (input) =>
+        attempt(() =>
+          elementCall(caller, { action: "skill_list", perm: "r", input }, async () => {
+            const ok = new Set(
+              await readableIds(
+                caller.space.id,
+                caller.subjects,
+                "skill",
+                readable.map((k) => k.id),
+              ),
+            );
+            return {
+              skills: readable
+                .filter((k) => ok.has(k.id))
+                .map((k) => ({ name: k.name, description: k.description })),
+            };
+          }),
+        ),
+    }),
     skill_load: createTool({
       id: "skill_load",
       description: prompt("tools", "tool.skill_load", { names }),
-      inputSchema: z.object({ name: z.string().describe("The skill's name, as listed") }),
+      inputSchema: ELEMENT_SPECS.skill_load.input,
       execute: (input) =>
         attempt(async () => {
           const k = byName(skills, input.name);
@@ -210,11 +234,7 @@ export function skillToolsOf(skills: Skills, caller: ElementCaller): Record<stri
       description: runs
         ? prompt("tools", "tool.skill_read")
         : `${prompt("tools", "tool.skill_read")} ${prompt("tools", "tool.skill_read.text_only")}`,
-      inputSchema: z.object({
-        name: z.string().describe("The skill's name"),
-        path: z.string().describe("The file's path in the skill, e.g. references/forms.md"),
-        from: z.number().int().min(0).optional().describe("Character to continue a long file at"),
-      }),
+      inputSchema: ELEMENT_SPECS.skill_read.input,
       execute: (input) =>
         attempt(async () => {
           const { name, path, from } = input;

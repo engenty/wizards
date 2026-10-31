@@ -30,7 +30,7 @@ beforeAll(async () => {
 
 describe("RUNTIME_ROLE=doors", () => {
   it("serves the doors' half and what both halves need", async () => {
-    expect(env.serves).toEqual({ studio: false, doors: true, runner: false });
+    expect(env.serves).toEqual({ studio: false, doors: true, runner: false, api: false });
     expect(env.publicUrl).toBe(env.appUrl);
     expect((await get("/api/health")).status).toBe(200);
     // The doors' routes answer: the app links for the wizards' pages, a code nobody has.

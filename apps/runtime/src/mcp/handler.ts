@@ -13,6 +13,7 @@ import { asRole } from "../services/access.js";
 import { tenantStatus } from "../tenants/control.js";
 import { serverText } from "../texts.js";
 import { authenticate, type Principal, principalOf } from "./auth.js";
+import { registerElementTools } from "./elements.js";
 import { registerFlowApp } from "./flow-app.js";
 import { appKind, clientNameOf, noteChecked, noteRequest } from "./seen.js";
 import { registerPrompts, registerTools } from "./tools.js";
@@ -89,6 +90,7 @@ export function mcpHandler(): (request: Request) => Promise<Response> {
       );
       const who = principalOf(ctx.authInfo!);
       registerTools(server, who);
+      registerElementTools(server, who);
       registerPrompts(server);
       registerFlowApp(server);
       return server;

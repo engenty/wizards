@@ -1,7 +1,5 @@
-import { whereSchema } from "@engenty/wizards-shared/knowledge";
 import { createTool } from "@mastra/core/tools";
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
 import { assertRwx } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { prompt } from "../prompts.js";
@@ -17,6 +15,7 @@ import { documentText, hasIndexEntries, searchKnowledge } from "../services/spac
 import { attempt, clip } from "../tools/shared.js";
 import type { ElementCaller } from "./caller.js";
 import { elementCall } from "./gate.js";
+import { ELEMENT_SPECS } from "./specs.js";
 
 /**
  * The space's Knowledge as tools of the catalogue: search it (a question, filtered by categories
@@ -27,16 +26,7 @@ import { elementCall } from "./gate.js";
  * (broker/rwx.ts), and each call is a line of its log (gate.ts).
  */
 
-const where = whereSchema.optional().describe(prompt("tools", "tool.space.where"));
-
-export const pageReadInput = {
-  path: z.string().describe("The page's path, as space_search or space_list give it: pages/…"),
-  section: z
-    .string()
-    .optional()
-    .describe("Only this section: a heading of the page, or the start of one"),
-  from: z.number().int().min(0).optional().describe("Character to continue a long page at"),
-};
+export { pageReadInput } from "./specs.js";
 
 /** A page of Knowledge by its path, for the caller: its front matter and Markdown, in parts. */
 export function readKnowledgePage(
@@ -67,11 +57,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
     space_search: createTool({
       id: "space_search",
       description: prompt("tools", "tool.space_search"),
-      inputSchema: z.object({
-        query: z.string().describe("What to look for: a question or keywords"),
-        where,
-        limit: z.number().int().min(1).max(12).optional().describe("Items to get, 6 by default"),
-      }),
+      inputSchema: ELEMENT_SPECS.space_search.input,
       execute: (input) =>
         call("space_search", input, async () => {
           const found = await searchKnowledge(spaceId, input.query, {
@@ -108,7 +94,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
     space_list: createTool({
       id: "space_list",
       description: prompt("tools", "tool.space_list"),
-      inputSchema: z.object({ where }),
+      inputSchema: ELEMENT_SPECS.space_list.input,
       execute: (input) =>
         call("space_list", input, async () => {
           const listed = await listForStep(spaceId, input.where, who);
@@ -121,7 +107,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
     tools.page_read = createTool({
       id: "page_read",
       description: prompt("tools", "tool.page_read.knowledge"),
-      inputSchema: z.object(pageReadInput),
+      inputSchema: ELEMENT_SPECS.page_read.input,
       execute: (input) => readKnowledgePage(caller, input),
     });
   }
@@ -129,13 +115,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
     tools.table_read = createTool({
       id: "table_read",
       description: prompt("tools", "tool.table_read"),
-      inputSchema: z.object({
-        path: z.string().describe("The table's path: tables/…"),
-        where: whereSchema.optional().describe("Filter by columns, by their names"),
-        columns: z.array(z.string()).max(40).optional().describe("Only these columns"),
-        limit: z.number().int().min(1).max(1000).optional(),
-        offset: z.number().int().min(0).optional(),
-      }),
+      inputSchema: ELEMENT_SPECS.table_read.input,
       execute: (input) =>
         call("table_read", input, async () => {
           const read = await readTable(spaceId, input.path, input, who);
@@ -148,12 +128,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
     tools.space_document = createTool({
       id: "space_document",
       description: prompt("tools", "tool.space_document"),
-      inputSchema: z.object({
-        path: z
-          .string()
-          .describe("The file's path: files/…, as the page's front matter or a hit names it"),
-        from: z.number().int().min(0).optional().describe("Character to start at"),
-      }),
+      inputSchema: ELEMENT_SPECS.space_document.input,
       execute: (input) =>
         call("space_document", input, async () => {
           const { path, from } = input;

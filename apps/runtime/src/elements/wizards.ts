@@ -1,11 +1,11 @@
 import { createTool } from "@mastra/core/tools";
-import { z } from "zod";
 import { readableIds } from "../broker/rwx.js";
 import { runReport, startRun } from "../services/runs.js";
 import { listWizards } from "../services/wizards.js";
 import { attempt } from "../tools/shared.js";
 import type { ElementCaller } from "./caller.js";
 import { elementCall } from "./gate.js";
+import { ELEMENT_SPECS } from "./specs.js";
 
 /**
  * The space's published wizards as tools of the catalogue: list them (`r` on each) and run one
@@ -29,9 +29,8 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
   return {
     wizard_list: createTool({
       id: "wizard_list",
-      description:
-        "Lists the space's published wizards you may run: their id, title and what they do. Run one with wizard_run.",
-      inputSchema: z.object({}),
+      description: ELEMENT_SPECS.wizard_list.description(),
+      inputSchema: ELEMENT_SPECS.wizard_list.input,
       execute: (input) =>
         attempt(() =>
           elementCall(caller, { action: "wizard_list", perm: "r", input }, async () => {
@@ -54,13 +53,8 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
     }),
     wizard_run: createTool({
       id: "wizard_run",
-      description:
-        "Runs one of the space's published wizards as the person you work for, with answers for its first page. Returns the run: its result, or the page or confirmation it waits for.",
-      inputSchema: z.object({
-        wizardId: z.string().describe("The wizard's id, as wizard_list gives it"),
-        answers: z.record(z.string(), z.unknown()).default({}),
-        waitSeconds: z.number().int().min(0).max(45).default(20),
-      }),
+      description: ELEMENT_SPECS.wizard_run.description(),
+      inputSchema: ELEMENT_SPECS.wizard_run.input,
       execute: (input) =>
         attempt(() =>
           elementCall(

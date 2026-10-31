@@ -10,6 +10,11 @@ export const SCOPES = [
   "wizards:publish",
   "runs:test",
   "runs:read",
+  // Using a space's elements (docs/plans/modular.md): reading its data, reading its skills and
+  // wizards, running them.
+  "data:read",
+  "elements:read",
+  "elements:run",
 ] as const;
 export type Scope = (typeof SCOPES)[number];
 

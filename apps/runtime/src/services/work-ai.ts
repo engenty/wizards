@@ -191,7 +191,11 @@ async function toolsFor(
     sandbox: sandbox.skill,
   });
   const tools: Record<string, unknown> = {
-    ...(await elementTools(caller, { knowledge: true, skills: await spaceSkills(space.id) })),
+    ...(await elementTools(caller, {
+      knowledge: true,
+      skills: await spaceSkills(space.id),
+      wizards: true,
+    })),
     show_view: showView(),
     ...sandbox.tools,
     ...connections.tools,
