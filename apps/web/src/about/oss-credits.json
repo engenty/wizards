@@ -91,6 +91,12 @@
       "homepage": "https://github.com/modelcontextprotocol/ext-apps"
     },
     {
+      "name": "ai",
+      "version": "7.0.102",
+      "license": "Apache-2.0",
+      "homepage": "https://ai-sdk.dev/docs"
+    },
+    {
       "name": "dompurify",
       "version": "3.4.17",
       "license": "(MPL-2.0 OR Apache-2.0)",
@@ -128,7 +134,7 @@
     },
     {
       "name": "zod",
-      "version": "4.6.6",
+      "version": "4.6.7",
       "license": "MIT",
       "homepage": "https://zod.dev"
     }
@@ -212,6 +218,12 @@
           "homepage": "https://github.com/lydell/node-pty#readme"
         },
         {
+          "name": "@mastra/ai-sdk",
+          "version": "1.11.2",
+          "license": "Apache-2.0",
+          "homepage": "https://mastra.ai"
+        },
+        {
           "name": "@mastra/core",
           "version": "1.80.0",
           "license": "Apache-2.0",
@@ -220,6 +232,18 @@
         {
           "name": "@mastra/docker",
           "version": "0.12.1",
+          "license": "Apache-2.0",
+          "homepage": "https://mastra.ai"
+        },
+        {
+          "name": "@mastra/libsql",
+          "version": "1.27.1",
+          "license": "Apache-2.0",
+          "homepage": "https://mastra.ai"
+        },
+        {
+          "name": "@mastra/memory",
+          "version": "1.39.1",
           "license": "Apache-2.0",
           "homepage": "https://mastra.ai"
         },
@@ -246,12 +270,6 @@
           "version": "1.23.1",
           "license": "MIT",
           "homepage": "https://github.com/TurboDocx/html-to-docx#readme"
-        },
-        {
-          "name": "ai",
-          "version": "7.0.102",
-          "license": "Apache-2.0",
-          "homepage": "https://ai-sdk.dev/docs"
         },
         {
           "name": "aws4fetch",
@@ -375,6 +393,18 @@
       "label": "studio",
       "packages": [
         {
+          "name": "@ai-sdk/react",
+          "version": "4.0.105",
+          "license": "Apache-2.0",
+          "homepage": "https://ai-sdk.dev/docs"
+        },
+        {
+          "name": "@base-ui/react",
+          "version": "1.9.0",
+          "license": "MIT",
+          "homepage": "https://base-ui.com"
+        },
+        {
           "name": "@codemirror/autocomplete",
           "version": "6.20.3",
           "license": "MIT"
@@ -432,6 +462,12 @@
           "license": "MIT"
         },
         {
+          "name": "@shadcn/react",
+          "version": "0.3.1",
+          "license": "MIT",
+          "homepage": "https://ui.shadcn.com"
+        },
+        {
           "name": "@tanstack/react-query",
           "version": "5.104.0",
           "license": "MIT",
@@ -462,6 +498,18 @@
           "homepage": "https://reactflow.dev"
         },
         {
+          "name": "class-variance-authority",
+          "version": "0.7.1",
+          "license": "Apache-2.0",
+          "homepage": "https://github.com/joe-bell/cva#readme"
+        },
+        {
+          "name": "cn",
+          "version": "0.5.0",
+          "license": "MIT",
+          "homepage": "https://github.com/shadcn-ui/cn#readme"
+        },
+        {
           "name": "modern-screenshot",
           "version": "4.7.0",
           "license": "MIT",
@@ -481,9 +529,15 @@
         },
         {
           "name": "react-router",
-          "version": "7.18.4",
+          "version": "8.5.1",
           "license": "MIT",
           "homepage": "https://github.com/remix-run/react-router#readme"
+        },
+        {
+          "name": "tw-animate-css",
+          "version": "1.4.0",
+          "license": "MIT",
+          "homepage": "https://github.com/Wombosvideo/tw-animate-css#readme"
         },
         {
           "name": "uqr",

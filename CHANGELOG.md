@@ -4,6 +4,19 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.14.0] - 2026-10-31
+- ADDED **[studio]** Fähigkeiten in the app bar: the space's skills and connections on one overview, Entdecken to find more, and Audit for what was allowed and refused (#331, #380, #383, #384)
+- ADDED **[runtime]** The broker is on: connections, each person's sign-ins and sending go through it, and members reach a closed space through no side door (#331)
+- ADDED **[studio]** Ressourcen (was Quellen) open on an overview of Info, Marke, Wissen and Daten: what each holds and what is still missing, with Goose on top (#390, #391)
+- ADDED **[studio]** Marke: the brand's name as it is written, its tagline, and Stimme und Haltung (tone, audience, positioning, values or blocks of your own), which every AI step writes by (#392, #394, #395)
+- ADDED **[studio]** Info › Links: the website and social profiles, for pages, mails and posts (#394)
+- ADDED **[studio]** Goose introduces each page at its top with a line to ask; closed, a Hilfe button brings it back. Goose floats, docks or stays small per area, and keeps out of the way where a page has its own input (#387, #388, #389, #399)
+- ADDED **[studio]** Work mode, behind the workMode switch: chats with the space's AI, and the Studio · Work · Client switch in the app bar (#331, #393)
+- CHANGED **[studio]** "Project" is now "space" everywhere, also in the plugin SDK and the AI tools (#331) **[breaking]**
+- CHANGED **[studio]** A lighter light mode: a white page, toned cards, softer contrast (#381, #382, #387)
+- CHANGED **[studio]** Side menus keep one level with a search (⌘F); an area's name opens its overview (#383, #385, #386, #390, #392, #396)
+- DOCS An architecture page with diagrams of the system and of Work mode (#378)
+
 ## [0.13.0] - 2026-10-30
 - ADDED **[models]** Settings › Models opens on an overview: what your studio chat and your wizards run on, which model does which job, and what is still missing (#328)
 - ADDED **[models]** Choose models by name in wizard steps and in Goose's menu, from a short list that fits your organization; Auto picks for you (#328)
