@@ -1367,20 +1367,61 @@ function useStoredFlag(key: string): [boolean, (on?: boolean) => void] {
   return [on, set];
 }
 
-/** Where the introduction was closed: Goose, a word and a help icon at the top right; it opens it again. */
-function HelpHint({ onOpen }: { onOpen: () => void }) {
+/**
+ * The introduction's frame at the top right of its place: as wide as the column while it is open,
+ * as small as the help hint once closed. It grows and shrinks between the two (width by
+ * `interpolate-size`, height measured), and what it holds fades in.
+ */
+function IntroFrame({ closed, children }: { closed: boolean; children: ReactNode }) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the content is swapped when it opens or closes: measured anew.
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) {
+      return;
+    }
+    const measure = () => setHeight(el.offsetHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [closed]);
   return (
     <div className="flex justify-end">
-      <button
-        type="button"
-        onClick={onOpen}
-        className="flex items-center gap-2 rounded-full bg-card py-1 pr-3 pl-1 text-[0.875rem] text-ink-2 shadow-soft ring-1 ring-border transition hover:text-ink"
+      <section
+        className={cn(
+          "overflow-hidden bg-card shadow-soft ring-1 transition-[width,height,border-radius,box-shadow] duration-300 ease-out [interpolate-size:allow-keywords] motion-reduce:transition-none",
+          closed
+            ? "w-fit rounded-[1.25rem] ring-border"
+            : "w-full rounded-xl bg-linear-to-br from-ember-tint via-card to-card ring-ember-veil",
+        )}
+        style={height === null ? undefined : { height }}
       >
-        <Mascot kind="round" size={28} helmet interactive={false} />
-        {t("assistant.help")}
-        <CircleHelp className="size-4 text-ink-3" />
-      </button>
+        <div
+          ref={inner}
+          key={closed ? "hint" : "intro"}
+          className="fade-in-0 animate-in duration-300"
+        >
+          {children}
+        </div>
+      </section>
     </div>
+  );
+}
+
+/** Where the introduction was closed: Goose, a word and a help icon; it opens it again. */
+function HelpHint({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex items-center gap-2 whitespace-nowrap py-1 pr-3 pl-1 text-[0.875rem] text-ink-2 transition hover:text-ink"
+    >
+      <Mascot kind="round" size={28} helmet interactive={false} />
+      {t("assistant.help")}
+      <CircleHelp className="size-4 text-ink-3" />
+    </button>
   );
 }
 
@@ -1407,7 +1448,7 @@ function PageIntro({ state, onClose }: { state: AssistantState; onClose: () => v
     setText("");
   };
   return (
-    <section className="relative rounded-xl bg-card bg-linear-to-br from-ember-tint via-card to-card p-4 shadow-soft ring-1 ring-ember-veil sm:p-5">
+    <div className="relative p-4 sm:p-5">
       <IconButton
         label={t("assistant.intro.close")}
         onClick={onClose}
@@ -1483,7 +1524,7 @@ function PageIntro({ state, onClose }: { state: AssistantState; onClose: () => v
           </button>
         ))}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -1560,20 +1601,6 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const width = dockWidth(size.width);
   // On a phone, and where the column has no room for it, the chat stands in the middle.
   const place = where?.phone || !hasRight(size.width) ? "center" : prefs.place;
-  // The page's introduction at its top, closed per page; `top` while it is in view.
-  const slot = useAssistantSlot();
-  const path = useLocation().pathname;
-  const [introClosed, closeIntro] = useStoredFlag(`goose.intro.closed:${path}`);
-  // Closed, the introduction leaves a small help hint in its place.
-  const introAt = slot && visible ? slot : null;
-  const slotHeight = useRef(0);
-  useLayoutEffect(() => {
-    if (slot) {
-      slot.style.display = introAt ? "block" : "";
-    }
-  }, [slot, introAt]);
-  const away = useSlotAway(introAt, slotHeight);
-  const top = Boolean(introAt) && !away;
   const open = Boolean(state?.open);
   const [focused, setFocused] = useState(false);
   // Goose has something going on: it works, talks, or answered a moment ago.
@@ -1586,8 +1613,23 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const sidebar = where?.where === "sidebar";
   const ownInput = Boolean(usePageAssistant().ownInput);
   const small = !sidebar && (where?.where === "avatar" || ownInput) && !busy;
-  // The introduction in view and nothing going on: Goose keeps out of the way.
-  const quiet = top && !busy && !open && !sidebar;
+  // The page's introduction at its top, closed per page (a help hint stays in its place). Only
+  // while Goose is the small engenty, closed: docked, floating, in the sidebar or open, Goose
+  // stands in sight already. `top` while it is in view.
+  const slot = useAssistantSlot();
+  const path = useLocation().pathname;
+  const [introClosed, closeIntro] = useStoredFlag(`goose.intro.closed:${path}`);
+  const introAt = slot && visible && small && !open ? slot : null;
+  const slotHeight = useRef(0);
+  useLayoutEffect(() => {
+    if (slot) {
+      slot.style.display = introAt ? "block" : "";
+    }
+  }, [slot, introAt]);
+  const away = useSlotAway(introAt, slotHeight);
+  const top = Boolean(introAt) && !away;
+  // The introduction in view: the small engenty keeps out of the way.
+  const quiet = top;
   const reserve = !(quiet || sidebar);
   // A phone's bar floats at the bottom of the window: the chat stands above it.
   const phone = Boolean(where?.phone);
@@ -1668,11 +1710,13 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   }
   const intro = introAt
     ? createPortal(
-        introClosed ? (
-          <HelpHint onOpen={() => closeIntro(false)} />
-        ) : (
-          <PageIntro state={state} onClose={() => closeIntro()} />
-        ),
+        <IntroFrame closed={introClosed}>
+          {introClosed ? (
+            <HelpHint onOpen={() => closeIntro(false)} />
+          ) : (
+            <PageIntro state={state} onClose={() => closeIntro()} />
+          )}
+        </IntroFrame>,
         introAt,
       )
     : null;
