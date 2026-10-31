@@ -2790,6 +2790,13 @@ const de: Record<Key, Line> = {
   "space.data": "Daten",
   "space.results": "Ergebnisse",
   "space.page": "Öffentliche Seite",
+  "space.identity": "Name und Claim",
+  "space.identityHint":
+    "Wie die Marke heißt und was hinter ihr steht. Jeder KI-Schritt kennt das; Seiten und Dokumente setzen es in Kopf und Titel.",
+  "space.brandName": "Markenname",
+  "space.brandNameHint": "So geschrieben, wie die Marke es tut. Leer: der Titel aus Info.",
+  "space.tagline": "Tagline",
+  "space.taglineHint": "Ein Satz, der mit dem Namen steht: ein Claim, ein Versprechen.",
   "space.overview": "Übersicht",
   "space.overviewHint":
     "Was jeder KI-Schritt deiner Wizards über dich weiß. Je mehr hier steht, desto weniger fragt ein Wizard nach.",
@@ -6422,6 +6429,13 @@ const en = {
   "space.data": "Data",
   "space.results": "Results",
   "space.page": "Public page",
+  "space.identity": "Name and tagline",
+  "space.identityHint":
+    "What the brand is called and what it stands for. Every AI step knows it; pages and documents put it in headers and titles.",
+  "space.brandName": "Brand name",
+  "space.brandNameHint": "Written the way the brand writes it. Empty: the title from Info.",
+  "space.tagline": "Tagline",
+  "space.taglineHint": "One line that stands with the name: a claim, a promise.",
   "space.overview": "Overview",
   "space.overviewHint":
     "What every AI step of your wizards knows about you. The more is here, the less a wizard has to ask.",

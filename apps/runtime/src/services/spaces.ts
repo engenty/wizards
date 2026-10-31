@@ -168,6 +168,8 @@ export const spacePatchSchema = z.object({
     .object({
       name: z.string().max(120).optional(),
       about: z.string().max(8000).optional(),
+      brandName: z.string().max(120).optional(),
+      tagline: z.string().max(200).optional(),
       colors: z.array(brandColorSchema).max(SPACE_LIMITS.colors).optional(),
       colorSections: z.array(colorSectionSchema).max(SPACE_LIMITS.logoSections).optional(),
       gradients: z.array(gradientSchema).max(SPACE_LIMITS.gradients).optional(),
@@ -549,6 +551,9 @@ function brandAfter(
 export interface SpaceProfile {
   name: string;
   about: string;
+  /** Empty where the brand is written as the title. */
+  brandName: string;
+  tagline: string;
   colors: { name: string; value: string; section?: string }[];
   /** Empty where the colours are not grouped. */
   colorSections: ColorSection[];
@@ -572,6 +577,8 @@ export function spaceProfile(p: SpaceRow): SpaceProfile {
   return {
     name: p.brand.name ?? "",
     about: p.brand.about ?? "",
+    brandName: p.brand.brandName ?? "",
+    tagline: p.brand.tagline ?? "",
     colors: p.brand.colors ?? [],
     colorSections: p.brand.colorSections ?? [],
     gradients: p.brand.gradients ?? [],

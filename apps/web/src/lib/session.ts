@@ -313,6 +313,8 @@ export interface Space {
   brand: {
     name?: string;
     about?: string;
+    brandName?: string;
+    tagline?: string;
     colors?: BrandColor[];
     colorSections?: ColorSection[];
     gradients?: BrandGradient[];

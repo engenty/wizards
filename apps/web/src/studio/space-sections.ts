@@ -96,6 +96,7 @@ export interface SpaceSectionGroup {
 const OWN: { id: string; group: SpaceGroupId; label: Key; icon: LucideIcon }[] = [
   { id: "base", group: "info", label: "space.base", icon: Type },
   { id: "facts", group: "info", label: "space.facts", icon: ListChecks },
+  { id: "identity", group: "brand", label: "space.identity", icon: Type },
   { id: "logos", group: "brand", label: "space.logos", icon: Shapes },
   { id: "colors", group: "brand", label: "space.colors", icon: Palette },
   { id: "typography", group: "brand", label: "space.typography", icon: ALargeSmall },

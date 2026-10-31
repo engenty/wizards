@@ -180,14 +180,8 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const skillsOn = useFeature("skills");
   const groups = spaceGroups().filter((g) => pagesOn || g.id !== "page");
   const parts = withParts(groups, plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
-  // The overview at `/space` leads the parts; a phone opens it a step deeper.
-  const overviewEntry = {
-    id: "overview",
-    label: t("space.overview"),
-    icon: LayoutGrid,
-    to: narrow ? "/space?show=overview" : "/space",
-  };
-  const entries = [overviewEntry, ...parts];
+  // The overview at `/space` is the head's own link, not a row; a phone opens it a step deeper.
+  const entries = parts;
   // Results have a place of their own in the app bar: no part among the others, no way up.
   const resultsEntry = {
     id: "results",
@@ -476,6 +470,8 @@ export function SpacePage({ place }: { place?: "skills" }) {
         root={{
           icon: Layers,
           label: t("nav.sources"),
+          onOpen: () => navigate(narrow ? "/space?show=overview" : "/space"),
+          current: !open,
         }}
       />
       {narrow || own ? (
@@ -493,7 +489,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
               up; below them a line, the search and the part's own menu come in. */}
           <LevelList
             entries={entries}
-            current={level === 0 ? (open ? entry : overviewEntry) : undefined}
+            current={level === 0 ? entry : undefined}
             hide={level === 1 ? entry?.id : undefined}
             onPick={() => {
               setUpAt(null);

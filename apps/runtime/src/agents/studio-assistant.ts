@@ -331,8 +331,10 @@ export function gooseSpaceTools(
       inputSchema: z.object({
         title: z.string().max(120).optional(),
         about: z.string().max(8000).optional(),
+        brandName: z.string().max(120).optional(),
+        tagline: z.string().max(200).optional(),
       }),
-      execute: ({ title, about }) =>
+      execute: ({ title, about, brandName, tagline }) =>
         attempt(() =>
           inTurn(async () => {
             doing("set_profile");
@@ -340,6 +342,8 @@ export function gooseSpaceTools(
               brand: {
                 ...(title !== undefined ? { name: title } : {}),
                 ...(about !== undefined ? { about } : {}),
+                ...(brandName !== undefined ? { brandName } : {}),
+                ...(tagline !== undefined ? { tagline } : {}),
               },
             });
             wrote();

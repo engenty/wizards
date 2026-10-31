@@ -60,6 +60,10 @@ export interface BrandConfig {
   name?: string;
   /** Free text about it: what it does, for whom, in which tone it speaks. */
   about?: string;
+  /** The brand's name as it is written ("engrd."), where it differs from the title. */
+  brandName?: string;
+  /** The line that stands with the name: a claim, a promise. */
+  tagline?: string;
   /** The first colour is the accent of documents, dashboards and public pages. */
   colors?: BrandColor[];
   /** Optional: further colours, gradients or patterns grouped by use, each saying when to use it. */
