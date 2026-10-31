@@ -26,6 +26,8 @@ export interface SettingsMenu {
   narrow: boolean;
   /** What the page shows inside the section, for the trail in the top bar ("Images"). */
   setDetail: (label: string | null) => void;
+  /** Words the menu's search holds: a row whose name lacks them is left out. */
+  filter?: string;
 }
 
 export const SettingsMenuContext = createContext<SettingsMenu>({
@@ -133,52 +135,64 @@ export function LevelHead({
 export function LevelList({
   entries,
   current,
+  hide,
   onPick,
 }: {
   entries: LevelEntry[];
   current: LevelEntry | undefined;
+  /** An entry folded away (it stands in the head above): its row closes, the others move up. */
+  hide?: string;
   /** The entry that is open already was picked: its menu comes back, nothing else changes. */
   onPick: (entry: LevelEntry) => void;
 }) {
   return (
     <ul className="flex flex-col gap-0.5">
       {entries.map((e, i) => (
-        <li key={e.id}>
-          {e.group !== entries[i - 1]?.group ? (
-            e.group ? (
-              <div className="px-2 pt-4 pb-1 font-medium text-[0.75rem] text-ink-3 first:pt-1">
-                {e.group}
-              </div>
-            ) : (
-              <div className="h-3" aria-hidden />
-            )
-          ) : null}
-          <Link
-            to={e.to}
-            onClick={(event) => {
-              if (e.id === current?.id) {
-                event.preventDefault();
-                onPick(e);
-              }
-            }}
-            aria-current={e.id === current?.id ? "page" : undefined}
-            className={cn(
-              "group flex items-center gap-2 rounded-lg px-2 py-1 text-[0.875rem] transition max-md:py-2",
-              e.id === current?.id
-                ? "bg-paper-2 font-medium text-ink"
-                : "text-ink-2 hover:bg-accent hover:text-ink",
-            )}
-          >
-            <span className="grid size-7 shrink-0 place-items-center">
-              <e.icon className="size-4 transition-transform duration-200 ease-out group-hover:scale-110" />
-            </span>
-            <span className="min-w-0 flex-1 truncate">{e.label}</span>
-            {e.count !== undefined ? (
-              <span className="text-[0.75rem] text-ink-3 tabular-nums">{e.count}</span>
+        <li
+          key={e.id}
+          aria-hidden={e.id === hide || undefined}
+          className={cn(
+            "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+            e.id === hide ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]",
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
+            {e.group !== entries[i - 1]?.group ? (
+              e.group ? (
+                <div className="px-2 pt-4 pb-1 font-medium text-[0.75rem] text-ink-3 first:pt-1">
+                  {e.group}
+                </div>
+              ) : (
+                <div className="h-3" aria-hidden />
+              )
             ) : null}
-            {/* On a phone every row goes one step deeper. */}
-            <ChevronRight className="size-4 text-ink-4 md:hidden" />
-          </Link>
+            <Link
+              to={e.to}
+              onClick={(event) => {
+                if (e.id === current?.id) {
+                  event.preventDefault();
+                  onPick(e);
+                }
+              }}
+              aria-current={e.id === current?.id ? "page" : undefined}
+              className={cn(
+                "group flex items-center gap-2 rounded-lg px-2 py-1 text-[0.875rem] transition max-md:py-2",
+                e.id === current?.id
+                  ? "bg-paper-2 font-medium text-ink"
+                  : "text-ink-2 hover:bg-accent hover:text-ink",
+              )}
+            >
+              <span className="grid size-7 shrink-0 place-items-center">
+                <e.icon className="size-4 transition-transform duration-200 ease-out group-hover:scale-110" />
+              </span>
+              <span className="min-w-0 flex-1 truncate">{e.label}</span>
+              {e.count !== undefined ? (
+                <span className="text-[0.75rem] text-ink-3 tabular-nums">{e.count}</span>
+              ) : null}
+              {/* On a phone every row goes one step deeper. */}
+              <ChevronRight className="size-4 text-ink-4 md:hidden" />
+            </Link>
+          </div>
         </li>
       ))}
     </ul>
@@ -231,7 +245,8 @@ export function MenuGroup({
   const [open, setOpen] = useState(initiallyOpen);
   const heading = "font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em]";
   return (
-    <div className="mt-5 first:mt-0">
+    // A group whose rows the search left out goes too.
+    <div className="mt-5 first:mt-0 [&:not(:has(li))]:hidden">
       {collapsible ? (
         <button
           type="button"
@@ -280,6 +295,10 @@ export function MenuRow({
   disabled?: boolean;
   onPick?: () => void;
 }) {
+  const { filter } = useSettingsMenu();
+  if (filter && !label.toLowerCase().includes(filter)) {
+    return null;
+  }
   return (
     <li>
       <button

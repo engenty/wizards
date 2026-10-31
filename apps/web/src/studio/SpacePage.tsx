@@ -1,4 +1,4 @@
-import { Inbox, Layers, LayoutGrid, Puzzle, ScrollText } from "lucide-react";
+import { Inbox, Layers, LayoutGrid, Puzzle, ScrollText, Search } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useFeature } from "../lib/features";
@@ -45,6 +45,8 @@ import {
  * The section in view: the last whose top passed the upper third of the page's scroll
  * container; at its end the last one, which may be too short to get there.
  */
+
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 function useSectionInView(ids: string[]): string | undefined {
   const key = ids.join(" ");
   const [current, setCurrent] = useState<string | undefined>(ids[0]);
@@ -195,7 +197,14 @@ export function SpacePage({ place }: { place?: "skills" }) {
         ? skillsEntry
         : entries.find((e) => e.id === open);
   const show = params.get("show");
-  const menu = useMemo(() => ({ slot, narrow, setDetail }), [slot, narrow]);
+  // The search over the open part's menu, and ⌘F / Ctrl+F to it.
+  const [menuQuery, setMenuQuery] = useState("");
+  const menuSearch = useRef<HTMLInputElement>(null);
+  const menuFilter = menuQuery.trim().toLowerCase();
+  const menu = useMemo(
+    () => ({ slot, narrow, setDetail, filter: menuFilter }),
+    [slot, narrow, menuFilter],
+  );
   const title = space ? space.brand.name?.trim() || space.name : t("nav.space");
 
   // Typography waits behind its switch.
@@ -261,6 +270,23 @@ export function SpacePage({ place }: { place?: "skills" }) {
         : 0;
   const levelStep = useStepDirection(level);
   const pageStep = useStepDirection(phone);
+  // A new part starts its menu unfiltered; ⌘F / Ctrl+F goes to the search while a menu is open.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another part clears the search.
+  useEffect(() => setMenuQuery(""), [open]);
+  useEffect(() => {
+    if (narrow || level !== 1) {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f" && menuSearch.current) {
+        e.preventDefault();
+        menuSearch.current.focus();
+        menuSearch.current.select();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [narrow, level]);
   const pickedTitle =
     group === "skills"
       ? skills.data?.skills.find((k) => `k:${k.id}` === skillPick)?.name
@@ -437,11 +463,23 @@ export function SpacePage({ place }: { place?: "skills" }) {
           label: t("nav.sources"),
         }}
       />
-      <div key={level} className={cn(stepClass(levelStep))}>
-        {level === 0 ? (
+      {narrow || own ? (
+        // A phone, and the places of their own, take the levels in turns.
+        <div key={level} className={cn(stepClass(levelStep))}>
+          {level === 0 ? (
+            <LevelList entries={entries} current={undefined} onPick={() => setUpAt(null)} />
+          ) : (
+            <div ref={setSlot} />
+          )}
+        </div>
+      ) : (
+        <>
+          {/* One list: the open part's row folds into the head above, the others stay and move
+              up; below them a line, the search and the part's own menu come in. */}
           <LevelList
             entries={entries}
-            current={narrow ? undefined : entry}
+            current={level === 0 ? entry : undefined}
+            hide={level === 1 ? entry?.id : undefined}
             onPick={() => {
               setUpAt(null);
               // Picked again: the part's page from its top.
@@ -451,30 +489,30 @@ export function SpacePage({ place }: { place?: "skills" }) {
               }
             }}
           />
-        ) : (
-          <>
-            <div ref={setSlot} />
-            {/* Below a part's own menu, after a line, the parts again: another one is one click
-                away, without going back up. */}
-            {own || narrow ? null : (
-              <>
-                <div className="mx-2 my-3 h-px bg-border-soft" aria-hidden />
-                <LevelList
-                  entries={entries}
-                  current={entry}
-                  onPick={() => {
-                    // The open part picked again: all of it, from the top.
-                    if (entry) {
-                      navigate(entry.to);
-                      scrollRoot().scrollTo({ top: 0, behavior: "smooth" });
-                    }
-                  }}
+          {level === 1 ? (
+            <div key={open} className="fade-in-0 slide-in-from-top-1 animate-in duration-200">
+              <div className="mx-2 my-3 h-px bg-border-soft" aria-hidden />
+              <div className="relative mb-2">
+                <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-ink-4" />
+                <input
+                  ref={menuSearch}
+                  type="search"
+                  value={menuQuery}
+                  onChange={(e) => setMenuQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Escape" && setMenuQuery("")}
+                  aria-label={t("space.menuSearch")}
+                  placeholder={t("space.menuSearch")}
+                  className="h-8 w-full rounded-lg border border-input bg-card pr-14 pl-9 text-[0.8125rem] text-ink outline-none transition placeholder:text-ink-4 focus:border-focus focus:ring-4 focus:ring-focus-glow"
                 />
-              </>
-            )}
-          </>
-        )}
-      </div>
+                <kbd className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2 rounded border border-border-soft px-1 font-sans text-[0.6875rem] text-ink-4">
+                  {IS_MAC ? "⌘F" : "Ctrl F"}
+                </kbd>
+              </div>
+              <div ref={setSlot} />
+            </div>
+          ) : null}
+        </>
+      )}
     </>
   );
   return (
