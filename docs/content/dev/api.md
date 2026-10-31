@@ -1,7 +1,7 @@
 ---
 title: The API
 description: What a program may rely on when it talks to a runtime, and what is private.
-version: 0.14.1
+version: 0.15.0
 ---
 
 A runtime answers HTTP under `/api`. Three parts are a contract: they are versioned, documented

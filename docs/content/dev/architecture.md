@@ -1,7 +1,7 @@
 ---
 title: Architecture
 description: How engenty wizards is built – the runtime and its roles, your computer and the cloud, tenants and spaces, the engine and its sandboxes, skills, plugins, the broker and the feature switches.
-version: 0.14.1
+version: 0.15.0
 ---
 
 engenty wizards is one server program, the **runtime**, and one web app, the **studio**, that it
