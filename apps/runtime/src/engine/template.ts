@@ -16,6 +16,7 @@ import {
   type BrandColor,
   type BrandFont,
   type BrandGradient,
+  type BrandLink,
   type BrandPattern,
   type BrandRule,
   type ColorSection,
@@ -25,6 +26,7 @@ import {
   type SpaceFact,
   type TextStyle,
   textStyleLine,
+  type VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
 import { type ListDef, type ListRow, listAsMarkdown } from "@engenty/wizards-shared/store";
 import { prompt } from "../prompts.js";
@@ -38,6 +40,9 @@ export interface TemplateScope {
     about?: string;
     brandName?: string;
     tagline?: string;
+    voice?: VoiceBlock[];
+    voiceRules?: BrandRule[];
+    links?: BrandLink[];
     colors?: BrandColor[];
     colorSections?: ColorSection[];
     gradients?: BrandGradient[];
@@ -96,6 +101,16 @@ export function itemsAsMarkdown(
 /** Facts as lines a model reads: "Label: value". */
 export function factLines(facts: SpaceFact[]): string {
   return facts.map((f) => `${f.label}: ${f.value}`).join("\n");
+}
+
+/** The brand's voice as a model reads it: each block under its title. */
+export function voiceLines(voice: VoiceBlock[]): string {
+  return voice.map((b) => (b.title ? `${b.title}: ${b.text}` : b.text)).join("\n");
+}
+
+/** Links as lines a model reads: "Label: address". */
+export function linkLines(links: BrandLink[]): string {
+  return links.map((l) => (l.label ? `${l.label}: ${l.url}` : l.url)).join("\n");
 }
 
 /**
@@ -170,6 +185,10 @@ function brandRef(brand: TemplateScope["brand"], key: string): unknown {
       return brand.brandName || brand.name || "";
     case "tagline":
       return brand.tagline ?? "";
+    case "voice":
+      return voiceLines(brand.voice ?? []);
+    case "links":
+      return linkLines(brand.links ?? []);
     // What the free "details" text once held is now the description and the facts.
     case "details":
       return [brand.about, factLines(brand.facts ?? [])].filter(Boolean).join("\n");

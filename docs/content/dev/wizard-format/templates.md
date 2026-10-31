@@ -24,6 +24,7 @@ does not.
 | `{{today}}` | Today’s date |
 | `{{brand.name}}`, `{{brand.about}}`, `{{brand.colors}}` | The space’s brand |
 | `{{brand.brandName}}`, `{{brand.tagline}}` | The brand’s name as it is written (the title where it has none) and its tagline |
+| `{{brand.voice}}`, `{{brand.links}}` | How the brand speaks (tone, audience, positioning, …) and where it is found on the web |
 | `{{facts.key}}`, `{{facts}}` | One fact of the space, such as its address or VAT ID, or all of them |
 
 Every AI step already knows the brand and the facts. Name one only where the text must carry it.

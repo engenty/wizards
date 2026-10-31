@@ -4,6 +4,7 @@ import {
   type AssetSection,
   type BrandFont,
   type BrandGradient,
+  type BrandLink,
   type BrandPattern,
   type BrandRule,
   COLOR_SECTION_KINDS,
@@ -25,6 +26,7 @@ import {
   type SpaceFact,
   type SpacePage,
   type TextStyle,
+  type VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
 import { and, count, eq, isNull, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -132,6 +134,18 @@ export const logoSectionSchema = z.object({
   logos: z.array(z.string().max(40)).max(SPACE_LIMITS.files.logo),
 });
 
+export const voiceBlockSchema = z.object({
+  id: sectionId,
+  title: z.string().max(80),
+  text: z.string().max(SPACE_LIMITS.voiceText),
+});
+
+export const brandLinkSchema = z.object({
+  id: sectionId,
+  label: z.string().max(80),
+  url: z.string().max(600),
+});
+
 export const spaceFactSchema = z.object({
   key: z.string().regex(/^[a-z0-9_]{1,40}$/),
   label: z.string().min(1).max(80),
@@ -170,6 +184,9 @@ export const spacePatchSchema = z.object({
       about: z.string().max(8000).optional(),
       brandName: z.string().max(120).optional(),
       tagline: z.string().max(200).optional(),
+      voice: z.array(voiceBlockSchema).max(SPACE_LIMITS.voiceBlocks).optional(),
+      voiceRules: rulesSchema.optional(),
+      links: z.array(brandLinkSchema).max(SPACE_LIMITS.links).optional(),
       colors: z.array(brandColorSchema).max(SPACE_LIMITS.colors).optional(),
       colorSections: z.array(colorSectionSchema).max(SPACE_LIMITS.logoSections).optional(),
       gradients: z.array(gradientSchema).max(SPACE_LIMITS.gradients).optional(),
@@ -443,6 +460,19 @@ async function linkFontFiles(spaceId: string, fonts: BrandFont[]) {
   }
 }
 
+/** An address as typed, with https:// where it has no scheme; empty where it is not one. */
+function webAddress(raw: string): string {
+  const text = raw.trim();
+  if (!text) return "";
+  const url = /^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:" || u.protocol === "mailto:" ? url : "";
+  } catch {
+    return "";
+  }
+}
+
 /**
  * The brand with the patch on it. Sections and rules are optional: a section without title and
  * logos and rules without words are not kept.
@@ -463,6 +493,9 @@ function brandAfter(
     fonts,
     textStyles,
     typeRules,
+    voice,
+    voiceRules,
+    links,
     ...rest
   } = {
     ...brand,
@@ -529,8 +562,19 @@ function brandAfter(
   const typeRows = rows(typeRules);
   const rules = rows(logoRules);
   const colourRules = rows(colorRules);
+  // A block without words and a link without an address are not kept.
+  const blocks = (voice ?? [])
+    .map((b) => ({ ...b, title: b.title.trim(), text: b.text.trim() }))
+    .filter((b) => b.text);
+  const voiceRows = rows(voiceRules);
+  const places = (links ?? [])
+    .map((l) => ({ ...l, label: l.label.trim(), url: webAddress(l.url) }))
+    .filter((l) => l.url);
   return {
     ...rest,
+    ...(blocks.length ? { voice: blocks } : {}),
+    ...(voiceRows.length ? { voiceRules: voiceRows } : {}),
+    ...(places.length ? { links: places } : {}),
     ...(swatches ? { colors: orderColors(swatches, colorGroups) } : {}),
     ...(colorGroups.length
       ? { colorSections: colorGroups.map(({ kind, ...s }) => (kind ? { ...s, kind } : s)) }
@@ -554,6 +598,10 @@ export interface SpaceProfile {
   /** Empty where the brand is written as the title. */
   brandName: string;
   tagline: string;
+  /** Empty where the brand states none. */
+  voice: VoiceBlock[];
+  voiceRules: BrandRule[];
+  links: BrandLink[];
   colors: { name: string; value: string; section?: string }[];
   /** Empty where the colours are not grouped. */
   colorSections: ColorSection[];
@@ -579,6 +627,9 @@ export function spaceProfile(p: SpaceRow): SpaceProfile {
     about: p.brand.about ?? "",
     brandName: p.brand.brandName ?? "",
     tagline: p.brand.tagline ?? "",
+    voice: p.brand.voice ?? [],
+    voiceRules: p.brand.voiceRules ?? [],
+    links: p.brand.links ?? [],
     colors: p.brand.colors ?? [],
     colorSections: p.brand.colorSections ?? [],
     gradients: p.brand.gradients ?? [],

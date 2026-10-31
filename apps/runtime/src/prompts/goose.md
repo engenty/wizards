@@ -127,7 +127,7 @@ ${messages}
 Read a public web page: its text as Markdown, the colours of its stylesheet (named variables and the most used ones), logo candidates and images with their addresses, and the links to imprint, contact and about pages.
 
 <!-- section: tool.set_profile -->
-Set the space's title (the company, brand or undertaking), its about text, the brand's name as it is written where it differs from the title (`brandName`, e.g. "engrd." for "engrd digital design GmbH") and its tagline (the claim that stands with the name). Only what you found or were told.
+Set the space's title (the company, brand or undertaking), its about text, the brand's name as it is written where it differs from the title (`brandName`, e.g. "engrd." for "engrd digital design GmbH") and its tagline (the claim that stands with the name). `voice` is how the brand speaks, in blocks with a title (Tonalität, Zielgruppe, Positionierung, Werte, or one of its own) and the text; `links` are where the brand is found on the web (website, social profiles), each with a label. Both replace what is there: send the whole list. Only what you found or were told.
 
 <!-- section: tool.set_facts -->
 Add facts to the space, or update the ones whose label is already there. A fact is a label and a value.

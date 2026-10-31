@@ -10,6 +10,7 @@ import type {
   BrandColor,
   BrandFont,
   BrandGradient,
+  BrandLink,
   BrandPattern,
   BrandRule,
   ColorSection,
@@ -18,6 +19,7 @@ import type {
   SpaceNotify,
   SpacePage,
   TextStyle,
+  VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -326,6 +328,9 @@ export interface Space {
     textStyles?: TextStyle[];
     typeRules?: BrandRule[];
     logoRules?: BrandRule[];
+    voice?: VoiceBlock[];
+    voiceRules?: BrandRule[];
+    links?: BrandLink[];
   };
   facts: SpaceFact[];
   /** The space's public page; null until it is set up. */

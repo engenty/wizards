@@ -73,12 +73,14 @@ import {
   assetSectionLine,
   colorLine,
   factLines,
+  linkLines,
   logoSectionLine,
   renderTask,
   renderTemplate,
   resolveRef,
   type TemplateScope,
   typeLines,
+  voiceLines,
 } from "./template.js";
 import { type StepContext, StepError } from "./types.js";
 
@@ -98,7 +100,12 @@ function brandBlock(ctx: StepContext): string {
     b.brandName && b.brandName !== b.name ? `Brand name, written as it is: ${b.brandName}` : "",
     b.tagline ? `Tagline: ${b.tagline}` : "",
     b.about,
+    b.voice?.length ? `How the brand speaks, in its words:\n${voiceLines(b.voice)}` : "",
+    b.voiceRules?.length
+      ? `Rules for what the brand says, in its words:\n${ruleLines(b.voiceRules)}`
+      : "",
     b.facts?.length ? `Facts:\n${factLines(b.facts)}` : "",
+    b.links?.length ? `Where the brand is found:\n${linkLines(b.links)}` : "",
     b.colors?.length
       ? `Colours (the first is the accent): ${colorLine(b.colors, b.colorSections, b.gradients)}`
       : "",

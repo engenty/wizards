@@ -302,6 +302,20 @@ export function orderColors(colors: BrandColor[], sections: ColorSection[]): Bra
  * Optional. Logos in no section are the standard ones: they come first, without a title, and
  * the first of them is the main logo.
  */
+/** A block of how the brand speaks: its tone, audience, positioning, values or one of its own. */
+export interface VoiceBlock {
+  id: string;
+  title: string;
+  text: string;
+}
+
+/** A place the brand is found on the web: its website, a social profile. */
+export interface BrandLink {
+  id: string;
+  label: string;
+  url: string;
+}
+
 export interface LogoSection {
   id: string;
   title: string;
@@ -602,6 +616,10 @@ export const SPACE_LIMITS = {
   logoSections: 8,
   /** Rows of logo rules. */
   logoRules: 16,
+  /** Blocks of the brand's voice, and the words of one. */
+  voiceBlocks: 12,
+  voiceText: 2000,
+  links: 20,
   files: { logo: 24, asset: 100, document: 2000, pattern: 24 },
   gradients: 24,
   bytes: {

@@ -3,6 +3,7 @@ import {
   type BrandColor,
   type BrandFont,
   type BrandGradient,
+  type BrandLink,
   type BrandPattern,
   type BrandRule,
   type ColorSection,
@@ -11,6 +12,7 @@ import {
   type SpaceFact,
   type SpaceFileView,
   type TextStyle,
+  type VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus } from "lucide-react";
@@ -30,9 +32,11 @@ import { Colors } from "./Colors";
 import { useAutosave, useSpaceFiles } from "./data";
 import { Facts } from "./Facts";
 import { Preview } from "./Files";
+import { Links } from "./Links";
 import { Logos } from "./Logos";
 import { Anchor, Section } from "./Section";
 import { Typography } from "./Typography";
+import { Voice } from "./Voice";
 
 type Patch = {
   name?: string;
@@ -41,6 +45,9 @@ type Patch = {
     about?: string;
     brandName?: string;
     tagline?: string;
+    voice?: VoiceBlock[];
+    voiceRules?: BrandRule[];
+    links?: BrandLink[];
     colors?: BrandColor[];
     colorSections?: ColorSection[];
     gradients?: BrandGradient[];
@@ -300,12 +307,30 @@ export function SpaceSettings({
               readOnly={readOnly}
             />
           </Anchor>
+          <Anchor id="links">
+            <Links
+              key={`links:${key}`}
+              links={space.brand.links ?? []}
+              save={(links) => save({ brand: { links } })}
+              readOnly={readOnly}
+            />
+          </Anchor>
         </>
       ) : null}
       {group === "brand" ? (
         <>
           <Anchor id="identity">
             <Identity key={`identity:${key}`} space={space} save={save} />
+          </Anchor>
+          <Anchor id="voice">
+            <Voice
+              key={`voice:${key}`}
+              blocks={space.brand.voice ?? []}
+              rules={space.brand.voiceRules ?? []}
+              ruled={ruled}
+              save={(brand) => save({ brand })}
+              readOnly={readOnly}
+            />
           </Anchor>
           <Anchor id="logos">
             <Logos
