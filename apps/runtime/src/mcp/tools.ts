@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authoringGuide } from "../authoring/guide.js";
 import { wizardOpSchema } from "../authoring/ops.js";
 import { importFromRegistry, listConnectors, searchRegistry } from "../connectors/external.js";
+import { guideSpaceConnections } from "../connectors/space-connections.js";
 import { RunConflict } from "../engine/runner.js";
 import { pluginToolsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
@@ -25,6 +26,7 @@ import {
 import { defaultSpace, listSpaces, ownedSpace } from "../services/spaces.js";
 import { checkDraftWidget } from "../services/widgets.js";
 import {
+  checkDraft,
   createWizard,
   editWizard,
   listWizards,
@@ -248,7 +250,11 @@ export function registerTools(server: McpServer, who: Principal) {
       const space = spaceId
         ? await ownedSpace(who.userId, spaceId)
         : await defaultSpace(who.userId);
-      return authoringGuide(await listConnectors(space.id), await pluginToolsOf(who.tenantId));
+      return authoringGuide(
+        await listConnectors(space.id),
+        await pluginToolsOf(who.tenantId),
+        await guideSpaceConnections(space.id),
+      );
     },
   );
 
@@ -424,12 +430,19 @@ export function registerTools(server: McpServer, who: Principal) {
     {
       title: "Validate wizard",
       description: prompt("mcp", "tool.validate_wizard"),
-      input: z.object({ definition }),
+      input: z.object({
+        definition,
+        spaceId: z.string().optional().describe("Defaults to the person's first space."),
+      }),
       readOnly: true,
     },
     async (args) => {
       try {
-        const { issues } = parseDraft(authored(args.definition));
+        const space = args.spaceId
+          ? await ownedSpace(who.userId, args.spaceId)
+          : await defaultSpace(who.userId);
+        const { draft } = parseDraft(authored(args.definition));
+        const issues = await checkDraft(space.id, draft);
         return { ok: issues.length === 0, issues };
       } catch (err) {
         if (err instanceof ServiceError && err.code === "invalid") {

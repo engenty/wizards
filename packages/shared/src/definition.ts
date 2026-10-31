@@ -701,16 +701,27 @@ export const agentStepSchema = z.object({
   /** What the agent does. A template: {{field}}, {{steps.id}}, {{brand.name}}. Empty with `call`. */
   instructions: z.string().default(""),
   /**
-   * One tool of a plugin, called once with these inputs and no model: its answer is the step's
-   * json output, as it is. For data a later page shows unchanged (free appointment times), where
-   * a model would only copy it. String inputs are templates; a filled-in whole number or
-   * true/false is passed as one, an empty one is left out.
+   * A fixed step: one tool of a plugin, or one action of a connection of the wizard, called once
+   * with these inputs and no model; its answer is the step's json output, as it is. For data a
+   * later page shows unchanged (free appointment times), where a model would only copy it, and
+   * for every write through a connection that signs in as the space: the fields are the wizard's,
+   * so nothing a person typed can steer the call. String inputs are templates; a filled-in whole
+   * number or true/false is passed as one, an empty one is left out.
    */
   call: z
-    .object({
-      tool: pluginToolIdSchema,
-      input: z.record(z.string(), z.unknown()).default({}),
-    })
+    .union([
+      z.object({
+        tool: pluginToolIdSchema,
+        input: z.record(z.string(), z.unknown()).default({}),
+      }),
+      z.object({
+        /** A connection of the wizard, by id. */
+        connection: id,
+        /** The connector's action to run. */
+        action: z.string().min(1).max(120),
+        input: z.record(z.string(), z.unknown()).default({}),
+      }),
+    ])
     .optional(),
   tools: z.array(z.union([z.enum(TOOL_IDS), pluginToolIdSchema])).default([]),
   /** Ids of wizard connections (the person's accounts) this step may use. */
@@ -1608,6 +1619,18 @@ export function validateWizard(def: WizardDefinition, files?: string[]): Validat
         for (const c of step.connections ?? []) {
           if (!connectionIds.has(c)) {
             issues.push({ stepId: step.id, message: `Step uses unknown connection "${c}".` });
+          }
+        }
+        if (step.call && "connection" in step.call) {
+          const called = step.call.connection;
+          const named = (def.connections ?? []).find((c) => c.id === called);
+          if (!named) {
+            issues.push({ stepId: step.id, message: `Step calls unknown connection "${called}".` });
+          } else if (named.kind) {
+            issues.push({
+              stepId: step.id,
+              message: `A "call" names an action of a connector: connection "${called}" is of kind "${named.kind}".`,
+            });
           }
         }
         if (step.output.surface && step.output.format !== "json") {

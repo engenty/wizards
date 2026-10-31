@@ -12,6 +12,7 @@ import { note } from "@engenty/wizards-shared/run";
 import { and, asc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import type { GuideSpaceConnection } from "../authoring/guide.js";
 import { inAudience, type Who } from "../broker/index.js";
 import { db, schema } from "../db/client.js";
 import {
@@ -126,6 +127,29 @@ export async function connectorOfRow(row: SpaceConnectionRow): Promise<Connector
     throw new ServiceError("not_found", note("connectorGone", { id: row.connectorId }));
   }
   return found.connector;
+}
+
+/** The space's connections as the authoring guide lists them: id, name, connector, sign-in, actions. */
+export async function guideSpaceConnections(spaceId: string): Promise<GuideSpaceConnection[]> {
+  const rows = await listSpaceConnections(spaceId);
+  const listed: GuideSpaceConnection[] = [];
+  for (const row of rows) {
+    const connector = (await resolveConnector(spaceId, row.connectorId))?.connector;
+    if (!connector) {
+      continue;
+    }
+    const actions = row.actions.length
+      ? connector.actions.filter((a) => row.actions.includes(a.id))
+      : connector.actions;
+    listed.push({
+      id: row.id,
+      name: row.name,
+      connector: connector.name,
+      signIn: row.signIn,
+      actions: actions.map((a) => ({ id: a.id, group: a.group })),
+    });
+  }
+  return listed;
 }
 
 /** What the studio shows: never a secret. `userId` tells whose own sign-in to look up. */

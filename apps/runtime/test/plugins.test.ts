@@ -399,6 +399,7 @@ describe("a plugin's tools", () => {
       space: { id: "p1", name: "Projekt" },
       def: { title: "Wizard" },
       test: false,
+      holder: { kind: "person", id: "local", role: "owner" },
       store: { wizardId: "wizard-1", holder: "u:local" },
       signal: new AbortController().signal,
       emit: async (_type: string, message: string) => {

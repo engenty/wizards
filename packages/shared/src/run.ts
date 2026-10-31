@@ -316,6 +316,10 @@ const NOTES_EN = {
   googleNotConnectedThrough: "Google can’t be connected through your engenty account right now.",
   stepNeedsToolPlugin:
     "This step needs the tool “{id}”. The plugin “{plugin}” isn’t installed here.",
+  stepCallsUnknownConnection:
+    "This step calls the connection “{id}”, which the wizard doesn’t have.",
+  stepCallNotAllowed: "The change in {service} wasn’t allowed, so this step stopped.",
+  stepCallRefused: "{service} didn’t run “{action}” for this step: {reason}",
   clientNotSignedIn: "{name} isn’t signed in on this computer. Sign in under Settings → Models.",
   clientNotInstalled:
     "{name} isn’t installed on this computer. Install it under Settings → Models.",
@@ -737,6 +741,11 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   googleNotConnectedThrough: "Google lässt sich über dein engenty-Konto gerade nicht verbinden.",
   stepNeedsToolPlugin:
     "Dieser Schritt braucht das Werkzeug „{id}“. Das Plugin „{plugin}“ ist hier nicht installiert.",
+  stepCallsUnknownConnection:
+    "Dieser Schritt ruft die Verbindung „{id}“ auf, die der Wizard nicht hat.",
+  stepCallNotAllowed:
+    "Die Änderung in {service} wurde nicht erlaubt, darum hat dieser Schritt aufgehört.",
+  stepCallRefused: "{service} hat „{action}“ für diesen Schritt nicht ausgeführt: {reason}",
   clientNotSignedIn:
     "{name} ist auf diesem Computer nicht angemeldet. Melde dich unter Einstellungen → Modelle an.",
   clientNotInstalled:

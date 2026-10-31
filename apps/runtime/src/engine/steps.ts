@@ -59,6 +59,7 @@ import { runMotionGraphicsStep } from "../motion-graphics/step.js";
 import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
 import { knowledgeBlock } from "../services/knowledge.js";
+import { callConnection } from "../tools/connector.js";
 import { buildStepTools } from "../tools/index.js";
 import { callPluginTool, spaceContextOf } from "../tools/plugin.js";
 import { skillsBlock, skillsOf } from "../tools/skills.js";
@@ -558,13 +559,21 @@ function callInput(value: unknown, ctx: StepContext): unknown {
   return value;
 }
 
-/** A step's `call`: one plugin tool, no model; its answer is the step's json output as it is. */
+/**
+ * A step's `call`: one plugin tool or one action of a connection, no model; its answer is the
+ * step's json output as it is. A connection's action runs through the broker as the step, with
+ * the fields the wizard fixed: the one way a run writes as the space.
+ */
 async function runCallStep(
   step: AgentStep & { call: NonNullable<AgentStep["call"]> },
   ctx: StepContext,
 ): Promise<StepOutput> {
   // What it is doing is the step's `working` line, shown as it starts, and what the tool says.
-  const answer = await callPluginTool(step.call.tool, callInput(step.call.input, ctx), ctx);
+  const input = callInput(step.call.input, ctx);
+  const answer =
+    "tool" in step.call
+      ? await callPluginTool(step.call.tool, input, ctx)
+      : await callConnection(step.call, input, ctx);
   if (
     answer &&
     typeof answer === "object" &&

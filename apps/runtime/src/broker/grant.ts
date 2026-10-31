@@ -16,7 +16,8 @@ export interface Grant {
   /**
    * The wizard's connections a step lists, each with what may be called through it: action ids
    * where the connection names them, else the kind `read` — every action that only reads, as the
-   * connector tools have always offered.
+   * connector tools have always offered; and the action a fixed `call` step names on its
+   * connection.
    */
   connections: Record<string, string[]>;
   /** Hosts `http_request` may reach. Empty until A6: today it reaches any public host. */
@@ -36,6 +37,11 @@ export function grantOf(definition: WizardDefinition): Grant {
     }
     for (const tool of step.tools) {
       tools.add(tool);
+    }
+    if (step.call && "connection" in step.call && defs.has(step.call.connection)) {
+      const have = new Set(connections[step.call.connection] ?? []);
+      have.add(step.call.action);
+      connections[step.call.connection] = [...have].sort();
     }
     for (const id of step.connections ?? []) {
       const def = defs.get(id);

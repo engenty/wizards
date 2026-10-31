@@ -302,7 +302,9 @@ export function pluginsOf(def: WizardDefinition): string[] {
   const found = new Set<string>();
   for (const step of def.steps) {
     if (step.type === "agent") {
-      for (const tool of step.call ? [...step.tools, step.call.tool] : step.tools) {
+      for (const tool of step.call && "tool" in step.call
+        ? [...step.tools, step.call.tool]
+        : step.tools) {
         const of = pluginToolOf(tool);
         if (of) {
           found.add(of.plugin);

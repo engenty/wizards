@@ -1,5 +1,6 @@
 import { versionChanges } from "@engenty/wizards-shared/changes";
 import {
+  type AgentStep,
   DEFINITION_VERSION,
   type Lang,
   pluginToolOf,
@@ -14,8 +15,10 @@ import type { RunnerSettings } from "@engenty/wizards-shared/runners";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { applyOps, OpError, type WizardOp } from "../authoring/ops.js";
-import { listConnectors } from "../connectors/external.js";
+import { listConnectors, resolveConnector } from "../connectors/external.js";
+import { listSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
+import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { env } from "../env.js";
 import { saidOf } from "../model-errors.js";
 import { pluginToolsOf } from "../plugins/registry.js";
@@ -193,11 +196,84 @@ async function pluginIssues(draft: WizardDefinition) {
   return issues;
 }
 
+/**
+ * A draft's connections of the space (A4 of docs/plans/capabilities.md): the connection must exist;
+ * on one that signs in as the space an AI step only reads, so a write action it lists is refused;
+ * a fixed `call` step names an action the connector has and the connection is for.
+ */
+async function spaceConnectionIssues(spaceId: string, draft: WizardDefinition) {
+  const connections = draft.connections ?? [];
+  const fixed = draft.steps.filter(
+    (s) => s.type === "agent" && s.call && "connection" in s.call,
+  ) as (AgentStep & { call: { connection: string; action: string } })[];
+  if (!connections.some((c) => c.spaceConnection) && !fixed.length) {
+    return [];
+  }
+  const issues: ValidationIssue[] = [];
+  const rows = await listSpaceConnections(spaceId);
+  const connectors = new Map<string, ConnectorDefinition | null>();
+  const connectorOf = async (id: string) => {
+    if (!connectors.has(id)) {
+      connectors.set(id, (await resolveConnector(spaceId, id))?.connector ?? null);
+    }
+    return connectors.get(id) ?? null;
+  };
+  for (const connection of connections) {
+    const row = connection.spaceConnection
+      ? rows.find((r) => r.id === connection.spaceConnection)
+      : null;
+    if (connection.spaceConnection && !row) {
+      issues.push({
+        message: `Connection "${connection.id}" names the space's connection "${connection.spaceConnection}", which this space does not have.`,
+      });
+      continue;
+    }
+    const connector = await connectorOf(row?.connectorId ?? connection.connector ?? "");
+    if (!connector) {
+      continue;
+    }
+    const name = connection.title ?? connector.name;
+    if (row?.signIn === "space") {
+      const writes = (connection.actions ?? []).filter((id) => {
+        const action = connector.actions.find((a) => a.id === id);
+        return action && action.group !== "read";
+      });
+      for (const step of draft.steps) {
+        if (step.type !== "agent" || step.call || !step.connections?.includes(connection.id)) {
+          continue;
+        }
+        for (const id of writes) {
+          issues.push({
+            stepId: step.id,
+            message: `Step "${step.id}": "${id}" writes in ${name}, which signs in as the space. An AI step only reads there; put the write in a step with "call".`,
+          });
+        }
+      }
+    }
+    for (const step of fixed.filter((s) => s.call.connection === connection.id)) {
+      const action = connector.actions.find((a) => a.id === step.call.action);
+      if (!action) {
+        issues.push({
+          stepId: step.id,
+          message: `Step "${step.id}": ${name} has no action "${step.call.action}".`,
+        });
+      } else if (row?.actions.length && !row.actions.includes(action.id)) {
+        issues.push({
+          stepId: step.id,
+          message: `Step "${step.id}": the connection ${name} is not for "${action.id}".`,
+        });
+      }
+    }
+  }
+  return issues;
+}
+
 /** Everything wrong with a draft: its structure, its workspace files, its space's connectors and plugins. */
-async function checkDraft(spaceId: string, draft: WizardDefinition, files: string[]) {
+export async function checkDraft(spaceId: string, draft: WizardDefinition, files?: string[]) {
   return [
     ...validateWizard(draft, files),
     ...(await connectorIssues(spaceId, draft)),
+    ...(await spaceConnectionIssues(spaceId, draft)),
     ...(await pluginIssues(draft)),
   ];
 }

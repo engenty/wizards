@@ -177,7 +177,7 @@ export function needs(step: Step, def: WizardDefinition): StepNeed[] {
       }
       break;
     case "agent": {
-      const tools = step.call ? [...step.tools, step.call.tool] : step.tools;
+      const tools = step.call && "tool" in step.call ? [...step.tools, step.call.tool] : step.tools;
       for (const tool of tools) {
         const plugin = pluginToolOf(tool);
         if (plugin) {

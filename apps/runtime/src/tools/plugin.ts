@@ -2,7 +2,7 @@ import type { PluginSpace, PluginTool } from "@engenty/wizards/plugin";
 import { type AgentStep, pluginToolOf } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import { createTool } from "@mastra/core/tools";
-import { type Caller, whereOf, whoOf, withCaller } from "../broker/index.js";
+import { type Caller, type Who, whereOf, whoOf, withCaller } from "../broker/index.js";
 import { type StepContext, StepError } from "../engine/types.js";
 import { loadedPlugin, pluginIdsOf, pluginsOf } from "../plugins/registry.js";
 import { attempt, clip } from "./shared.js";
@@ -27,11 +27,18 @@ function toolContext(ctx: StepContext) {
   };
 }
 
+/** Who an AI step calls as: the person running the wizard, an admin where their role says so. */
+export function holderWho(ctx: StepContext): Who {
+  return whoOf(ctx.store.holder, ctx.holder.kind === "person" ? ctx.holder.role : undefined);
+}
+
+/** Who a fixed step calls as: the step itself, for the person running the wizard. The broker hears it. */
+export function stepWho(ctx: StepContext): Who {
+  return { kind: "step", id: ctx.stepId, for: holderWho(ctx) };
+}
+
 /** Who a step's plugin tool calls for: the person running the wizard, in this run. The broker hears it. */
-const callerOf = (ctx: StepContext): Caller => ({
-  who: whoOf(ctx.store.holder, ctx.holder.kind === "person" ? ctx.holder.role : undefined),
-  where: whereOf(ctx),
-});
+const callerOf = (ctx: StepContext): Caller => ({ who: holderWho(ctx), where: whereOf(ctx) });
 
 /** A plugin's tool as an agent step calls it. */
 function stepTool(plugin: string, tool: PluginTool, ctx: StepContext) {
@@ -76,9 +83,8 @@ export async function callPluginTool(id: string, input: unknown, ctx: StepContex
   }
   try {
     // A fixed step calls as the step, for the person running it.
-    return await withCaller(
-      { who: { kind: "step", id: ctx.stepId }, where: whereOf(ctx) },
-      async () => tool.execute(parsed.data, toolContext(ctx)),
+    return await withCaller({ who: stepWho(ctx), where: whereOf(ctx) }, async () =>
+      tool.execute(parsed.data, toolContext(ctx)),
     );
   } catch (err) {
     throw new StepError(String((err as Error)?.message ?? err).slice(0, 400));

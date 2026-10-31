@@ -30,6 +30,31 @@ function connectorsLine(connectors: GuideConnector[]): string {
   return prompt("authoring", "line.connectors", { connectors: lines.join("\n") });
 }
 
+/** A connection of the space, as the guide lists it. */
+export interface GuideSpaceConnection {
+  id: string;
+  name: string;
+  connector: string;
+  signIn: "space" | "person";
+  /** The connector's actions it is for; empty: every action. */
+  actions: { id: string; group: string }[];
+}
+
+function spaceConnectionsLine(connections: GuideSpaceConnection[]): string {
+  if (!connections.length) {
+    return "";
+  }
+  const lines = connections.map((c) => {
+    const actions = c.actions
+      .slice(0, 40)
+      .map((a) => `${a.id}${a.group === "read" ? "" : ` (${a.group})`}`)
+      .join(", ");
+    const who = c.signIn === "space" ? "signs in as the space" : "each person signs in";
+    return `- ${c.id} — ${c.name} (${c.connector}), ${who}, actions: ${actions || prompt("authoring", "line.connectors.no_actions")}`;
+  });
+  return prompt("authoring", "line.space_connections", { connections: lines.join("\n") });
+}
+
 export interface GuideTool {
   /** `<plugin>.<tool>`, as a step lists it. */
   id: string;
@@ -45,9 +70,19 @@ function pluginToolsLine(tools: GuideTool[]): string {
   return prompt("authoring", "line.plugin_tools", { tools: lines.join("\n") });
 }
 
-/** What the space offers agent steps: its connectors and plugin tools. */
-export function spaceLines(connectors: GuideConnector[], pluginTools: GuideTool[]): string {
-  return [connectorsLine(connectors), pluginToolsLine(pluginTools)].filter(Boolean).join("\n\n");
+/** What the space offers agent steps: its connectors, its connections and plugin tools. */
+export function spaceLines(
+  connectors: GuideConnector[],
+  pluginTools: GuideTool[],
+  connections: GuideSpaceConnection[] = [],
+): string {
+  return [
+    connectorsLine(connectors),
+    spaceConnectionsLine(connections),
+    pluginToolsLine(pluginTools),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 export function exampleWizard(): string {
@@ -58,13 +93,14 @@ export function exampleWizard(): string {
 export function authoringGuide(
   connectors: GuideConnector[] = [],
   pluginTools: GuideTool[] = [],
+  connections: GuideSpaceConnection[] = [],
 ): string {
   return prompt("authoring", "guide", {
     schema: prompt("authoring", "schema"),
     principles: prompt("authoring", "principles", { sandbox: sandboxGuideLine() }),
     widgets: prompt("authoring", "widgets"),
     surfaces: prompt("authoring", "surfaces"),
-    space_tools: spaceLines(connectors, pluginTools),
+    space_tools: spaceLines(connectors, pluginTools, connections),
     schema_url: WIZARD_SCHEMA_URL,
     example: exampleWizard(),
   });
