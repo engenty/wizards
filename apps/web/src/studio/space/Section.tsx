@@ -55,7 +55,8 @@ export function Section({
       data-assist-section={title}
       className={cn("flex flex-col", action ? "gap-6" : "gap-2.5")}
     >
-      <div className="group/head flex items-end justify-between gap-4 px-1">
+      {/* The button stands at the top right, by the title: a longer hint does not move it. */}
+      <div className="group/head flex items-start justify-between gap-4 px-1">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <h2 className="font-display font-semibold text-lg leading-tight">{title}</h2>

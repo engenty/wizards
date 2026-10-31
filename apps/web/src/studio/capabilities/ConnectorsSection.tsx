@@ -11,7 +11,7 @@ import {
   type SpaceConnectionView,
 } from "@engenty/wizards-shared/connectors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, LayoutGrid, Plus, UserRound } from "lucide-react";
+import { Building2, Plus, UserRound } from "lucide-react";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "../../lib/api";
@@ -23,7 +23,7 @@ import { Button, Card, Chip, cn, Empty, Input, Label, Select, Tabs } from "../..
 import { scrollRoot } from "../AppFrame";
 import { Connectors } from "../Connectors";
 import { SignInButtons, SignInPanel, useConnectedMessage, useSignIn } from "../connection-sign-in";
-import { MenuGroup, MenuRow, SubMenu, useDetail, useSettingsMenu } from "../settings-menu";
+import { useDetail, useSettingsMenu } from "../settings-menu";
 import { Section } from "../space/Section";
 
 /*
@@ -254,35 +254,6 @@ export function ConnectorsSection() {
 
   return (
     <>
-      <SubMenu>
-        <ul className="flex flex-col gap-0.5">
-          <MenuRow
-            icon={LayoutGrid}
-            label={t("capabilities.connectors.all")}
-            selected={!(narrow || show)}
-            onPick={() => pick("all")}
-          />
-          {list.map((c) => (
-            <MenuRow
-              key={c.id}
-              icon={c.signIn === "space" ? Building2 : UserRound}
-              label={titleOf(c)}
-              selected={!narrow && show === c.id}
-              onPick={() => pick(c.id)}
-            />
-          ))}
-        </ul>
-        {writable ? (
-          <MenuGroup label={t("capabilities.connectors.more")}>
-            <MenuRow
-              icon={Plus}
-              label={t("capabilities.connectors.add")}
-              selected={false}
-              onPick={() => startSetup("")}
-            />
-          </MenuGroup>
-        ) : null}
-      </SubMenu>
       {space ? (
         <div className="flex flex-col gap-9 pb-20">
           {picked ? (

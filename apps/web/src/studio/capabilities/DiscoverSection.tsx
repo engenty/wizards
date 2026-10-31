@@ -1,15 +1,7 @@
 import type { DiscoverAnswer, DiscoverConnector } from "@engenty/wizards-shared/discover";
 import type { SkillHit } from "@engenty/wizards-shared/skills";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  BadgeCheck,
-  Check,
-  LayoutGrid,
-  type LucideIcon,
-  Plug,
-  ScrollText,
-  Search,
-} from "lucide-react";
+import { BadgeCheck, Check, type LucideIcon, Plug, ScrollText, Search } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { api } from "../../lib/api";
@@ -18,25 +10,21 @@ import { type Key, lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { useCurrentSpace, useIsAdmin } from "../../lib/session";
 import { Button, Card, Chip, Dialog, Spinner } from "../../ui";
-import { MenuRow, SubMenu, useSettingsMenu } from "../settings-menu";
-import { Section } from "../space/Section";
 import { RegistrySkillPreview } from "../space/Skills";
 
-/**
- * Fähigkeiten › Entdecken (docs/plans/capabilities.md, part B6): one search over skills.sh and
- * integrations.sh, the words in the address (`?q=`) so a search can be shared. A skill is looked
- * at or added here; a connector is set up on Connectors, by an admin. What the space has already
- * is marked „Im Space“.
+/*
+ * Entdecken, the overview's second tab (docs/plans/capabilities.md, part B6): one search over
+ * skills.sh and integrations.sh, the words in the address (`?q=`) so a search can be shared. A
+ * skill is looked at or added here; a connector is set up on Connectors, by an admin. What the
+ * space has already is marked „Im Space“.
  */
-
-type Only = "skills" | "connectors";
 
 const EXAMPLES: Key[] = ["discover.example1", "discover.example2", "discover.example3"];
 const queryKey = (spaceId: string, q?: string) =>
   q === undefined ? ["discover", spaceId] : ["discover", spaceId, q];
 
 /** What the search box holds goes into the address once the typing pauses. */
-function useAskedWords(): [string, (next: string) => void, string] {
+export function useAskedWords(): [string, (next: string) => void, string] {
   const [params, setParams] = useSearchParams();
   const asked = params.get("q") ?? "";
   const [text, setText] = useState(asked);
@@ -69,18 +57,24 @@ function useAskedWords(): [string, (next: string) => void, string] {
   return [text, setText, asked.trim()];
 }
 
-export function DiscoverSection() {
-  const [params, setParams] = useSearchParams();
+/**
+ * The directories' answer for `asked` (two letters at least): skills from skills.sh, connectors
+ * from integrations.sh, what the space has already marked „Im Space“. Before a search, examples
+ * that fill the search box (`onExample`).
+ */
+export function DiscoverResults({
+  asked,
+  onExample,
+}: {
+  asked: string;
+  onExample: (words: string) => void;
+}) {
   const { space } = useCurrentSpace();
-  const { narrow } = useSettingsMenu();
   const admin = useIsAdmin();
   const skillsOn = useFeature("skills");
   const qc = useQueryClient();
-  const [text, setText, asked] = useAskedWords();
   const [looking, setLooking] = useState<string | null>(null);
   const spaceId = space?.id ?? "";
-  const show = params.get("show");
-  const only: Only | null = show === "skills" || show === "connectors" ? show : null;
 
   const found = useQuery({
     queryKey: queryKey(spaceId, asked),
@@ -108,23 +102,6 @@ export function DiscoverSection() {
     onSuccess: (_, ref) => marked(ref),
   });
 
-  // On a phone the page is a step deeper, beside the menu in place.
-  const pick = (next: Only | null) =>
-    setParams(
-      (prev) => {
-        const out = new URLSearchParams(prev);
-        if (next || narrow) {
-          out.set("show", next ?? "all");
-        } else {
-          out.delete("show");
-        }
-        return out;
-      },
-      { replace: !narrow },
-    );
-
-  const showSkills = skillsOn && only !== "connectors";
-  const showConnectors = only !== "skills";
   const data = found.data;
   const nothing =
     data &&
@@ -133,128 +110,83 @@ export function DiscoverSection() {
     !data.errors.skills &&
     !data.errors.connectors;
 
+  if (!space) {
+    return null;
+  }
   return (
     <>
-      <SubMenu>
-        <ul className="flex flex-col gap-0.5">
-          <MenuRow
-            icon={LayoutGrid}
-            label={t("discover.all")}
-            selected={!(narrow || only)}
-            onPick={() => pick(null)}
-          />
-          {skillsOn ? (
-            <MenuRow
-              icon={ScrollText}
-              label={t("space.skills")}
-              selected={!narrow && only === "skills"}
-              onPick={() => pick("skills")}
-            />
-          ) : null}
-          <MenuRow
-            icon={Plug}
-            label={t("capabilities.connectors")}
-            selected={!narrow && only === "connectors"}
-            onPick={() => pick("connectors")}
-          />
-        </ul>
-      </SubMenu>
-      {space ? (
-        <div className="flex flex-col gap-9 pb-20">
-          <Section title={t("capabilities.discover")} hint={t("discover.hint")} plain>
-            <form
-              className="flex h-11 w-full max-w-2xl items-center gap-2 rounded-full border border-input bg-card px-4 shadow-soft focus-within:border-focus focus-within:ring-4 focus-within:ring-focus-glow"
-              onSubmit={(e) => e.preventDefault()}
-            >
-              <Search className="size-4 shrink-0 text-ink-3" />
-              <input
-                type="search"
-                value={text}
-                aria-label={t("discover.searchLabel")}
-                placeholder={t("discover.search")}
-                onChange={(e) => setText(e.target.value)}
-                className="min-w-0 flex-1 bg-transparent text-[0.875rem] text-ink outline-none placeholder:text-ink-4"
-              />
-              {found.isFetching ? <Spinner className="size-4 text-ink-3" /> : null}
-            </form>
-          </Section>
-
-          {asked.length < 2 ? (
-            <div className="flex flex-col gap-3 px-1 text-[0.875rem] text-ink-3">
-              <p>{t("discover.start")}</p>
-              <div className="flex flex-wrap gap-2">
-                {EXAMPLES.map((key) => (
-                  <Button key={key} variant="secondary" size="sm" onClick={() => setText(t(key))}>
-                    <Search className="size-3.5" /> {t(key)}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ) : found.error ? (
-            <p className="px-1 text-[0.875rem] text-rose">{(found.error as Error).message}</p>
-          ) : !data ? (
-            <div className="flex justify-center py-16">
-              <Spinner className="size-5" />
-            </div>
-          ) : nothing ? (
-            <p className="px-1 text-[0.875rem] text-ink-3">{t("discover.none", { q: asked })}</p>
-          ) : (
-            <>
-              {showSkills ? (
-                <Group
-                  title={t("space.skills")}
-                  count={data.skills.length}
-                  error={data.errors.skills}
-                  empty={t("discover.groupNone", { directory: "skills.sh" })}
-                >
-                  {data.skills.map((hit) => (
-                    <SkillResult
-                      key={hit.ref}
-                      hit={hit}
-                      adding={add.isPending && add.variables === hit.ref}
-                      failed={add.isError && add.variables === hit.ref ? add.error : null}
-                      onLook={() => setLooking(hit.ref)}
-                      onAdd={() => add.mutate(hit.ref)}
-                    />
-                  ))}
-                </Group>
-              ) : null}
-              {showConnectors ? (
-                <Group
-                  title={t("capabilities.connectors")}
-                  count={data.connectors.length}
-                  error={data.errors.connectors}
-                  empty={t("discover.groupNone", { directory: "integrations.sh" })}
-                >
-                  {data.connectors.map((hit) => (
-                    <ConnectorResult key={hit.domain} hit={hit} admin={admin} />
-                  ))}
-                </Group>
-              ) : null}
-            </>
-          )}
-
-          <Dialog
-            open={looking !== null}
-            onClose={() => setLooking(null)}
-            wide
-            height="tall"
-            title={t("skills.registryTitle")}
-          >
-            {looking ? (
-              <RegistrySkillPreview
-                key={looking}
-                spaceId={spaceId}
-                skillRef={looking}
-                onAdded={() => {
-                  marked(looking);
-                  setLooking(null);
-                }}
-              />
-            ) : null}
-          </Dialog>
+      {asked.length < 2 ? (
+        <div className="flex flex-col gap-3 px-1 text-[0.875rem] text-ink-3">
+          <p>{t("discover.start")}</p>
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLES.map((key) => (
+              <Button key={key} variant="secondary" size="sm" onClick={() => onExample(t(key))}>
+                <Search className="size-3.5" /> {t(key)}
+              </Button>
+            ))}
+          </div>
         </div>
-      ) : null}
+      ) : found.error ? (
+        <p className="px-1 text-[0.875rem] text-rose">{(found.error as Error).message}</p>
+      ) : !data ? (
+        <div className="flex justify-center py-16">
+          <Spinner className="size-5" />
+        </div>
+      ) : nothing ? (
+        <p className="px-1 text-[0.875rem] text-ink-3">{t("discover.none", { q: asked })}</p>
+      ) : (
+        <>
+          {skillsOn ? (
+            <Group
+              title={t("space.skills")}
+              count={data.skills.length}
+              error={data.errors.skills}
+              empty={t("discover.groupNone", { directory: "skills.sh" })}
+            >
+              {data.skills.map((hit) => (
+                <SkillResult
+                  key={hit.ref}
+                  hit={hit}
+                  adding={add.isPending && add.variables === hit.ref}
+                  failed={add.isError && add.variables === hit.ref ? add.error : null}
+                  onLook={() => setLooking(hit.ref)}
+                  onAdd={() => add.mutate(hit.ref)}
+                />
+              ))}
+            </Group>
+          ) : null}
+          <Group
+            title={t("capabilities.connectors")}
+            count={data.connectors.length}
+            error={data.errors.connectors}
+            empty={t("discover.groupNone", { directory: "integrations.sh" })}
+          >
+            {data.connectors.map((hit) => (
+              <ConnectorResult key={hit.domain} hit={hit} admin={admin} />
+            ))}
+          </Group>
+        </>
+      )}
+
+      <Dialog
+        open={looking !== null}
+        onClose={() => setLooking(null)}
+        wide
+        height="tall"
+        title={t("skills.registryTitle")}
+      >
+        {looking ? (
+          <RegistrySkillPreview
+            key={looking}
+            spaceId={spaceId}
+            skillRef={looking}
+            onAdded={() => {
+              marked(looking);
+              setLooking(null);
+            }}
+          />
+        ) : null}
+      </Dialog>
     </>
   );
 }

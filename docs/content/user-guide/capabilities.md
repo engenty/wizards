@@ -8,27 +8,29 @@ version: 0.13.0
 Goose may use. On a phone you find it in the “More” menu. It belongs to the space you are in, and
 each space has its own.
 
-It opens on the **Overview**, then has four more sections:
+It opens on the **Overview**, then has three more sections. None of them has a menu of its own:
+the list of sections stays beside the page.
 
 | Section | What it holds | Who sees it |
 |---|---|---|
-| **Overview** | The skills that count, the space’s connections and the built-in connectors nobody connected yet, on one page, with a search over them | Everyone who uses the studio |
+| **Overview** | The skills that count, the space’s connections and the built-in connectors nobody connected yet, on one page, with a search over them. Its second tab, **Discover**, searches skills.sh and integrations.sh | Everyone who uses the studio. Only admins set up a connector from Discover |
 | **Skills** | Instructions your wizards work by. See [Skills](./skills.md) | Everyone who uses the studio |
 | **Connectors** | The space’s connections to other services, the built-in connectors and the ones from the registry | Everyone who uses the studio. Members see the connections open to them |
 | **Log** | Every call to a connection, allowed or not. See [Log](./protocol.md) | The owner and the admins |
-| **Discover** | One search over skills.sh and integrations.sh | Everyone who uses the studio. Only admins set up a connector from it |
 
-The old addresses still work: `/skills` opens Capabilities › Skills, and the connectors’ old
-address in the settings opens Capabilities › Connectors.
+The old addresses still work: `/skills` opens Capabilities › Skills, the connectors’ old address
+in the settings opens Capabilities › Connectors, and `/capabilities/discover` opens the Overview’s
+Discover tab.
 
 ## Overview
 
 The Overview shows the skills that are always on or on demand, with the ones always on first, and
 the space’s connections, each with how it signs in and who may use it. “All” beside each part
 opens its section, and the menu shows how many skills and connections the space has. The search
-looks through both. Switch to “Discover”, or search for something the space doesn’t have, to
-search skills.sh and integrations.sh. “Add” leads to a new skill, a new connection (admins) or
-Discover.
+looks through both. The “Discover” tab, or a search for something the space doesn’t have, searches
+skills.sh and integrations.sh in place, with the same words. “Add” leads to a new skill, a new
+connection (admins) or Discover. Picking Skills in the menu again, with a skill open, shows all
+skills.
 
 ## Skills
 

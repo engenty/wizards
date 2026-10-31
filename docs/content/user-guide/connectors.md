@@ -61,7 +61,7 @@ Any other service comes from the [integrations.sh](https://integrations.sh) regi
 If a service needs an OAuth client of your own, it says so. Remove it and import it again with
 “Your own OAuth client”.
 
-**Capabilities › Discover** searches integrations.sh and skills.sh at once. Admins set up a
+The **Discover** tab of Capabilities › Overview searches integrations.sh and skills.sh at once. Admins set up a
 service from its result with “Set up”, and a service the space already has shows “In this space”.
 
 The editor’s chat does the same while it builds a wizard: ask it to work with a service, and it

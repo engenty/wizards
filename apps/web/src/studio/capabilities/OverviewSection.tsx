@@ -10,7 +10,7 @@ import {
   Search,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { useFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
 import { useCurrentSpace, useIsAdmin } from "../../lib/session";
@@ -23,6 +23,7 @@ import {
   useConnectors,
   useSpaceConnections,
 } from "./ConnectorsSection";
+import { DiscoverResults, useAskedWords } from "./DiscoverSection";
 
 /** How many skills and connections the overview shows before „Alle“ leads on. */
 const SHOWN = { skills: 4, connections: 5 };
@@ -30,8 +31,9 @@ const SHOWN = { skills: 4, connections: 5 };
 /**
  * Fähigkeiten › Übersicht (mockup 1 of „Fähigkeiten in the Studio“): what the space's wizards,
  * chats and Goose may use, on one page. The skills that count, the space's connections and the
- * built-in connectors nobody has set up yet; each part leads on to its section. The search finds
- * among them here; under „Entdecken“ it searches the directories.
+ * built-in connectors nobody has set up yet; each part leads on to its section. Its second tab,
+ * „Entdecken“ (`?tab=discover`), searches the directories in place. One search box for both: it
+ * finds among the space's own under „Im Space“; its words stay in the address (`?q=`).
  */
 export function OverviewSection() {
   const { space } = useCurrentSpace();
@@ -39,7 +41,9 @@ export function OverviewSection() {
   const navigate = useNavigate();
   const skillsOn = useFeature("skills");
   const unsetConnectors = useFeature("unsetConnectors");
-  const [query, setQuery] = useState("");
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "discover" ? "discover" : "space";
+  const [text, setText, asked] = useAskedWords();
   const spaceId = space?.id ?? "";
   const skills = useSkills(skillsOn ? space?.id : undefined);
   const connections = useSpaceConnections(spaceId);
@@ -48,7 +52,7 @@ export function OverviewSection() {
     return null;
   }
   const writable = admin && !space.readOnly;
-  const q = query.trim().toLowerCase();
+  const q = text.trim().toLowerCase();
   const allSkills = skills.data?.skills ?? [];
   const allConnections = connections.data?.connections ?? [];
   // The skills that count, the ones always on first.
@@ -64,11 +68,18 @@ export function OverviewSection() {
       )
     : allConnections;
   const builtin = unusedBuiltins(connectors.data ?? [], allConnections, unsetConnectors);
-  const discover = (asked: string) =>
-    navigate(
-      asked.trim()
-        ? `/capabilities/discover?q=${encodeURIComponent(asked.trim())}`
-        : "/capabilities/discover",
+  const showTab = (next: "space" | "discover") =>
+    setParams(
+      (prev) => {
+        const out = new URLSearchParams(prev);
+        if (next === "discover") {
+          out.set("tab", "discover");
+        } else {
+          out.delete("tab");
+        }
+        return out;
+      },
+      { replace: true },
     );
 
   return (
@@ -104,7 +115,7 @@ export function OverviewSection() {
                 icon: Compass,
                 label: t("capabilities.discover"),
                 hint: t("capabilities.overview.discoverHint"),
-                to: "/capabilities/discover",
+                to: "/capabilities/overview?tab=discover",
               },
             ]}
           />
@@ -112,11 +123,11 @@ export function OverviewSection() {
       >
         <div className="flex flex-wrap items-center gap-3">
           <Tabs
-            value="space"
-            onChange={(next) => (next === "discover" ? discover(query) : undefined)}
+            value={tab}
+            onChange={showTab}
             options={[
-              { id: "space", label: t("capabilities.inSpace") },
-              { id: "discover", label: t("capabilities.discover") },
+              { id: "space" as const, label: t("capabilities.inSpace") },
+              { id: "discover" as const, label: t("capabilities.discover") },
             ]}
             label={t("nav.capabilities")}
           />
@@ -125,103 +136,122 @@ export function OverviewSection() {
             onSubmit={(e) => {
               e.preventDefault();
               // Nothing here: the directories may have it.
-              if (q && !foundSkills.length && !foundConnections.length) {
-                discover(query);
+              if (tab === "space" && q && !foundSkills.length && !foundConnections.length) {
+                showTab("discover");
               }
             }}
           >
             <Search className="size-4 shrink-0 text-ink-3" />
             <input
               type="search"
-              value={query}
-              aria-label={t("capabilities.overview.search")}
-              placeholder={t("capabilities.overview.search")}
-              onChange={(e) => setQuery(e.target.value)}
+              value={text}
+              aria-label={t(
+                tab === "discover" ? "discover.searchLabel" : "capabilities.overview.search",
+              )}
+              placeholder={t(
+                tab === "discover" ? "discover.search" : "capabilities.overview.search",
+              )}
+              onChange={(e) => setText(e.target.value)}
               className="min-w-0 flex-1 bg-transparent text-[0.875rem] text-ink outline-none placeholder:text-ink-4"
             />
           </form>
         </div>
       </Section>
 
-      {skillsOn ? (
-        <Part
-          icon={ScrollText}
-          title={t("space.skills")}
-          all={allSkills.length}
-          to="/capabilities/skills"
-        >
-          {skills.error ? (
-            <p className="px-1 text-[0.875rem] text-rose">{(skills.error as Error).message}</p>
-          ) : foundSkills.length ? (
-            <div className="grid gap-2.5 sm:grid-cols-2">
-              {foundSkills.slice(0, SHOWN.skills).map((s) => (
-                <SkillCard
-                  key={s.id}
-                  skill={s}
-                  onOpen={() => navigate(`/capabilities/skills?show=k:${s.id}`)}
-                />
-              ))}
-            </div>
-          ) : skills.isPending ? null : (
-            <Card>
-              <Empty>
-                {q
-                  ? t("capabilities.overview.nothing", { q: query.trim() })
-                  : t("capabilities.overview.noSkills")}
-              </Empty>
-            </Card>
-          )}
-        </Part>
-      ) : null}
-
-      <Part
-        icon={Plug}
-        title={t("capabilities.connectors")}
-        all={allConnections.length}
-        to="/capabilities/connectors"
-      >
-        {connections.error ? (
-          <p className="px-1 text-[0.875rem] text-rose">{(connections.error as Error).message}</p>
-        ) : foundConnections.length ? (
-          <Card className="flex flex-col divide-y divide-border-soft p-0">
-            {foundConnections.slice(0, SHOWN.connections).map((c) => (
-              <ConnectionRow
-                key={c.id}
-                connection={c}
-                onOpen={() => navigate(`/capabilities/connectors?show=${encodeURIComponent(c.id)}`)}
-              />
-            ))}
-          </Card>
-        ) : connections.isPending ? null : (
-          <Card>
-            <Empty>
-              {q
-                ? t("capabilities.overview.nothing", { q: query.trim() })
-                : t("capabilities.overview.noConnections")}
-            </Empty>
-          </Card>
-        )}
-        {builtin.length && !q ? (
-          <p className="px-1 text-[0.8125rem] text-ink-3">
-            {t("capabilities.connectors.builtin")}:{" "}
-            {builtin.map((c, i) => (
-              <span key={c.id}>
-                {i ? " · " : null}
-                {writable && c.usable ? (
-                  <Link
-                    to={`/capabilities/connectors?setup=${encodeURIComponent(c.id)}`}
-                    className="text-ink-2 hover:text-ink hover:underline"
-                  >
-                    {c.name}
-                  </Link>
-                ) : (
-                  <span className="text-ink-2">{c.name}</span>
+      {/* The tab's content comes in from below; the header and the search stay. */}
+      <div key={tab} className="flex animate-rise flex-col gap-9">
+        {tab === "discover" ? (
+          <DiscoverResults asked={asked} onExample={setText} />
+        ) : (
+          <>
+            {skillsOn ? (
+              <Part
+                icon={ScrollText}
+                title={t("space.skills")}
+                all={allSkills.length}
+                to="/capabilities/skills"
+              >
+                {skills.error ? (
+                  <p className="px-1 text-[0.875rem] text-rose">
+                    {(skills.error as Error).message}
+                  </p>
+                ) : foundSkills.length ? (
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {foundSkills.slice(0, SHOWN.skills).map((s) => (
+                      <SkillCard
+                        key={s.id}
+                        skill={s}
+                        onOpen={() => navigate(`/capabilities/skills?show=k:${s.id}`)}
+                      />
+                    ))}
+                  </div>
+                ) : skills.isPending ? null : (
+                  <Card>
+                    <Empty>
+                      {q
+                        ? t("capabilities.overview.nothing", { q: text.trim() })
+                        : t("capabilities.overview.noSkills")}
+                    </Empty>
+                  </Card>
                 )}
-              </span>
-            ))}
-          </p>
-        ) : null}
-      </Part>
+              </Part>
+            ) : null}
+
+            <Part
+              icon={Plug}
+              title={t("capabilities.connectors")}
+              all={allConnections.length}
+              to="/capabilities/connectors"
+            >
+              {connections.error ? (
+                <p className="px-1 text-[0.875rem] text-rose">
+                  {(connections.error as Error).message}
+                </p>
+              ) : foundConnections.length ? (
+                <Card className="flex flex-col divide-y divide-border-soft p-0">
+                  {foundConnections.slice(0, SHOWN.connections).map((c) => (
+                    <ConnectionRow
+                      key={c.id}
+                      connection={c}
+                      onOpen={() =>
+                        navigate(`/capabilities/connectors?show=${encodeURIComponent(c.id)}`)
+                      }
+                    />
+                  ))}
+                </Card>
+              ) : connections.isPending ? null : (
+                <Card>
+                  <Empty>
+                    {q
+                      ? t("capabilities.overview.nothing", { q: text.trim() })
+                      : t("capabilities.overview.noConnections")}
+                  </Empty>
+                </Card>
+              )}
+              {builtin.length && !q ? (
+                <p className="px-1 text-[0.8125rem] text-ink-3">
+                  {t("capabilities.connectors.builtin")}:{" "}
+                  {builtin.map((c, i) => (
+                    <span key={c.id}>
+                      {i ? " · " : null}
+                      {writable && c.usable ? (
+                        <Link
+                          to={`/capabilities/connectors?setup=${encodeURIComponent(c.id)}`}
+                          className="text-ink-2 hover:text-ink hover:underline"
+                        >
+                          {c.name}
+                        </Link>
+                      ) : (
+                        <span className="text-ink-2">{c.name}</span>
+                      )}
+                    </span>
+                  ))}
+                </p>
+              ) : null}
+            </Part>
+          </>
+        )}
+      </div>
     </div>
   );
 }
