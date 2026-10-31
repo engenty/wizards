@@ -1,7 +1,20 @@
 [
   {
+    "version": "v0.14.1",
+    "timestamp": 1793460872,
+    "commits": [
+      {
+        "id": "8c84ab0",
+        "message": "tenant databases from 0.13.0 open again: space_skill's migration was renumbered (#401)",
+        "group": "Fixed",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.14.0",
-    "timestamp": 1793457807,
+    "timestamp": 1793457945,
     "commits": [
       {
         "id": "3b31c1a",
