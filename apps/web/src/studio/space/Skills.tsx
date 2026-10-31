@@ -611,6 +611,161 @@ const kb = (bytes: number) =>
   `${(bytes / 1000).toLocaleString(lang, { maximumFractionDigits: 1 })} KB`;
 
 /**
+ * A skill of skills.sh read whole before it is added: its SKILL.md and files, whether its source
+ * is official, and Add with the mode it starts in. Drawn inside a dialog, whose foot it takes.
+ */
+export function RegistrySkillPreview({
+  spaceId,
+  skillRef,
+  onBack,
+  onAdded,
+}: {
+  spaceId: string;
+  /** Its address on skills.sh: `owner/repo/skill`. */
+  skillRef: string;
+  /** Back to where it was opened from; none: nothing to go back to. */
+  onBack?: () => void;
+  onAdded: (id: string) => void;
+}) {
+  const qc = useQueryClient();
+  const [mode, setMode] = useState<SkillMode>("demand");
+  const [tab, setTab] = useState<"skill" | "files">("skill");
+  const preview = useQuery({
+    queryKey: ["skills-preview", spaceId, skillRef],
+    queryFn: () =>
+      api.get<SkillPreview>(
+        `/api/studio/spaces/${spaceId}/skills/registry/preview?ref=${encodeURIComponent(skillRef)}`,
+      ),
+  });
+  const add = useMutation({
+    mutationFn: () =>
+      api.post<{ id: string }>(`/api/studio/spaces/${spaceId}/skills/registry`, {
+        ref: skillRef,
+        mode,
+      }),
+    onSuccess: async ({ id }) => {
+      await qc.invalidateQueries({ queryKey: keys.skills(spaceId) });
+      onAdded(id);
+    },
+  });
+  const p = preview.data;
+  return (
+    <div className="flex flex-col gap-3">
+      {onBack ? (
+        <div>
+          <Button variant="ghost" size="sm" className="-ml-3" onClick={onBack}>
+            <ArrowLeft className="size-4" /> {t("skills.results")}
+          </Button>
+        </div>
+      ) : null}
+      {!p ? (
+        preview.error ? (
+          <p className="text-[0.875rem] text-rose">{(preview.error as Error).message}</p>
+        ) : (
+          <div className="flex justify-center py-16">
+            <Spinner className="size-5" />
+          </div>
+        )
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-medium font-mono text-lg">{p.name}</h2>
+            {p.official ? (
+              <Chip tone="live" icon={<BadgeCheck className="size-3" />}>
+                {t("skills.official")}
+              </Chip>
+            ) : (
+              <Chip tone="warn">{t("skills.unchecked")}</Chip>
+            )}
+          </div>
+          <p className="text-[0.8125rem] text-ink-3">
+            <a
+              href={`https://github.com/${p.ref.split("/").slice(0, 2).join("/")}`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-ink"
+            >
+              {p.ref.split("/").slice(0, 2).join("/")}
+            </a>{" "}
+            {t("skills.onGithub")}
+          </p>
+          <p className="text-[0.875rem] text-ink-2">{p.description}</p>
+          {p.official ? null : (
+            <p className="rounded-lg bg-amber-tint px-3 py-2 text-[0.8125rem] text-ink-2">
+              {t("skills.uncheckedWarn")}
+            </p>
+          )}
+          <div className="flex gap-1 border-border-soft border-b" role="tablist">
+            {(["skill", "files"] as const).map((x) => (
+              <button
+                key={x}
+                type="button"
+                role="tab"
+                aria-selected={tab === x}
+                onClick={() => setTab(x)}
+                className={cn(
+                  "-mb-px h-9 border-b-2 px-2.5 text-[0.8125rem]",
+                  tab === x
+                    ? "border-ink font-medium text-ink"
+                    : "border-transparent text-ink-3 hover:text-ink",
+                )}
+              >
+                {x === "skill"
+                  ? "SKILL.md"
+                  : t("skills.tabFiles", { n: p.fileList.length + p.blobList.length })}
+              </button>
+            ))}
+          </div>
+          <div>
+            {tab === "skill" ? (
+              <div className="rounded-lg bg-paper-2 p-4">
+                <Markdown text={p.body} />
+              </div>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border-soft rounded-lg ring-1 ring-border-soft">
+                {p.fileList.map((f) => (
+                  <li key={f.path} className="flex items-center gap-2 px-3 py-2">
+                    <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">
+                      {f.path}
+                    </span>
+                    <span className="text-[0.75rem] text-ink-3">{kb(f.text.length)}</span>
+                  </li>
+                ))}
+                {p.blobList.map((f) => (
+                  <li key={f.path} className="flex items-center gap-2 px-3 py-2">
+                    <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">
+                      {f.path}
+                    </span>
+                    <span className="text-[0.75rem] text-ink-3">
+                      {t("skills.forScripts")} · {kb(f.bytes)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <FileNotes files={p.fileList} skipped={p.skipped} />
+          {add.error ? (
+            <p className="text-[0.875rem] text-rose">{(add.error as Error).message}</p>
+          ) : null}
+          <div className="-mx-5 sm:-mx-7 -mb-5 sm:-mb-7 -bottom-5 sm:-bottom-7 sticky flex flex-wrap items-center gap-3 border-border-soft border-t bg-card px-5 pt-3 pb-5 sm:px-7 sm:pb-7">
+            <ModeSwitch value={mode === "off" ? "demand" : mode} onChange={setMode} />
+            <span className="flex-1 text-[0.75rem] text-ink-3">
+              {[kb(p.bytes), countFiles(p.fileList.length + p.blobList.length)]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+            <Button busy={add.isPending} onClick={() => add.mutate()}>
+              {t("skills.add")}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
  * skills.sh in a dialog: a search, official sources first, and a skill read whole before it is
  * added. It keeps its height while it switches between the results and a skill.
  */
@@ -626,13 +781,10 @@ function RegistryDialog({
   onClose: () => void;
   onAdded: (id: string) => void;
 }) {
-  const qc = useQueryClient();
   const [text, setText] = useState("");
   const [asked, setAsked] = useState("");
   const [onlyOfficial, setOnlyOfficial] = useState(true);
   const [ref, setRef] = useState<string | null>(null);
-  const [mode, setMode] = useState<SkillMode>("demand");
-  const [tab, setTab] = useState<"skill" | "files">("skill");
   useEffect(() => {
     if (query !== null) {
       setText(query);
@@ -649,28 +801,7 @@ function RegistryDialog({
     enabled: query !== null && asked.length >= 2,
     staleTime: 60_000,
   });
-  const preview = useQuery({
-    queryKey: ["skills-preview", spaceId, ref],
-    queryFn: () =>
-      api.get<SkillPreview>(
-        `/api/studio/spaces/${spaceId}/skills/registry/preview?ref=${encodeURIComponent(ref ?? "")}`,
-      ),
-    enabled: Boolean(ref),
-  });
-  const add = useMutation({
-    mutationFn: () =>
-      api.post<{ id: string }>(`/api/studio/spaces/${spaceId}/skills/registry`, {
-        ref,
-        mode,
-      }),
-    onSuccess: async ({ id }) => {
-      await qc.invalidateQueries({ queryKey: keys.skills(spaceId) });
-      setRef(null);
-      onAdded(id);
-    },
-  });
   const list = (hits.data?.hits ?? []).filter((h) => !onlyOfficial || h.official);
-  const p = preview.data;
   return (
     <Dialog
       open={query !== null}
@@ -680,124 +811,16 @@ function RegistryDialog({
       title={t("skills.registryTitle")}
     >
       {ref ? (
-        <div className="flex flex-col gap-3">
-          <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="-ml-3"
-              onClick={() => {
-                setRef(null);
-                add.reset();
-              }}
-            >
-              <ArrowLeft className="size-4" /> {t("skills.results")}
-            </Button>
-          </div>
-          {!p ? (
-            preview.error ? (
-              <p className="text-[0.875rem] text-rose">{(preview.error as Error).message}</p>
-            ) : (
-              <div className="flex justify-center py-16">
-                <Spinner className="size-5" />
-              </div>
-            )
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-medium font-mono text-lg">{p.name}</h2>
-                {p.official ? (
-                  <Chip tone="live" icon={<BadgeCheck className="size-3" />}>
-                    {t("skills.official")}
-                  </Chip>
-                ) : (
-                  <Chip tone="warn">{t("skills.unchecked")}</Chip>
-                )}
-              </div>
-              <p className="text-[0.8125rem] text-ink-3">
-                <a
-                  href={`https://github.com/${p.ref.split("/").slice(0, 2).join("/")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline hover:text-ink"
-                >
-                  {p.ref.split("/").slice(0, 2).join("/")}
-                </a>{" "}
-                {t("skills.onGithub")}
-              </p>
-              <p className="text-[0.875rem] text-ink-2">{p.description}</p>
-              {p.official ? null : (
-                <p className="rounded-lg bg-amber-tint px-3 py-2 text-[0.8125rem] text-ink-2">
-                  {t("skills.uncheckedWarn")}
-                </p>
-              )}
-              <div className="flex gap-1 border-border-soft border-b" role="tablist">
-                {(["skill", "files"] as const).map((x) => (
-                  <button
-                    key={x}
-                    type="button"
-                    role="tab"
-                    aria-selected={tab === x}
-                    onClick={() => setTab(x)}
-                    className={cn(
-                      "-mb-px h-9 border-b-2 px-2.5 text-[0.8125rem]",
-                      tab === x
-                        ? "border-ink font-medium text-ink"
-                        : "border-transparent text-ink-3 hover:text-ink",
-                    )}
-                  >
-                    {x === "skill"
-                      ? "SKILL.md"
-                      : t("skills.tabFiles", { n: p.fileList.length + p.blobList.length })}
-                  </button>
-                ))}
-              </div>
-              <div>
-                {tab === "skill" ? (
-                  <div className="rounded-lg bg-paper-2 p-4">
-                    <Markdown text={p.body} />
-                  </div>
-                ) : (
-                  <ul className="flex flex-col divide-y divide-border-soft rounded-lg ring-1 ring-border-soft">
-                    {p.fileList.map((f) => (
-                      <li key={f.path} className="flex items-center gap-2 px-3 py-2">
-                        <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">
-                          {f.path}
-                        </span>
-                        <span className="text-[0.75rem] text-ink-3">{kb(f.text.length)}</span>
-                      </li>
-                    ))}
-                    {p.blobList.map((f) => (
-                      <li key={f.path} className="flex items-center gap-2 px-3 py-2">
-                        <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">
-                          {f.path}
-                        </span>
-                        <span className="text-[0.75rem] text-ink-3">
-                          {t("skills.forScripts")} · {kb(f.bytes)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <FileNotes files={p.fileList} skipped={p.skipped} />
-              {add.error ? (
-                <p className="text-[0.875rem] text-rose">{(add.error as Error).message}</p>
-              ) : null}
-              <div className="-mx-5 sm:-mx-7 -mb-5 sm:-mb-7 -bottom-5 sm:-bottom-7 sticky flex flex-wrap items-center gap-3 border-border-soft border-t bg-card px-5 pt-3 pb-5 sm:px-7 sm:pb-7">
-                <ModeSwitch value={mode === "off" ? "demand" : mode} onChange={setMode} />
-                <span className="flex-1 text-[0.75rem] text-ink-3">
-                  {[kb(p.bytes), countFiles(p.fileList.length + p.blobList.length)]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-                <Button busy={add.isPending} onClick={() => add.mutate()}>
-                  {t("skills.add")}
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
+        <RegistrySkillPreview
+          key={ref}
+          spaceId={spaceId}
+          skillRef={ref}
+          onBack={() => setRef(null)}
+          onAdded={(id) => {
+            setRef(null);
+            onAdded(id);
+          }}
+        />
       ) : (
         <div className="flex flex-col gap-3">
           <p className="-mt-3 text-[0.875rem] text-ink-3">{t("skills.registryHint")}</p>
@@ -859,15 +882,7 @@ function RegistryDialog({
                     {h.added ? (
                       <span className="text-[0.75rem] text-ink-3">{t("skills.inSpace")}</span>
                     ) : null}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => {
-                        setTab("skill");
-                        setMode("demand");
-                        setRef(h.ref);
-                      }}
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => setRef(h.ref)}>
                       {t("skills.open")}
                     </Button>
                   </li>
