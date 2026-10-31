@@ -149,6 +149,12 @@ export const FEATURES = {
     label: "Broker",
     hint: "RWX rules per space: who may read, write and execute what; enforced at every reader.",
   },
+  capabilities: {
+    kind: "release",
+    default: false,
+    label: "Capabilities",
+    hint: "One place in the app bar for Skills and Verbindungen: the space's connections with sign-in, audience and rules, each person's own sign-ins, the broker's Protokoll, Entdecken.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,
