@@ -54,7 +54,8 @@ export type StudioSpaceGroup =
   | "data"
   | "page"
   | "results"
-  | "skills";
+  | "skills"
+  | "clients";
 
 /**
  * A section of the space page, in one of its parts, below the part's own sections. The studio

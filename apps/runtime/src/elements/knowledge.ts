@@ -28,6 +28,48 @@ import { ELEMENT_SPECS } from "./specs.js";
 
 export { pageReadInput } from "./specs.js";
 
+/**
+ * Where the caller's Knowledge is read: the space, and for a client space its parent too
+ * (docs/plans/client-spaces.md). The rules decide each item of the parent as for any reader: a
+ * client reads only what the parent opened to clients, the firm reads all of it.
+ */
+async function readsFrom(spaceId: string): Promise<{ id: string; name: string; own: boolean }[]> {
+  const space = await db.query.space.findFirst({
+    columns: { id: true, name: true, kind: true, parentId: true },
+    where: eq(schema.space.id, spaceId),
+  });
+  if (!(space?.kind === "client" && space.parentId)) {
+    return [{ id: spaceId, name: space?.name ?? "", own: true }];
+  }
+  const parent = await db.query.space.findFirst({
+    columns: { id: true, name: true },
+    where: eq(schema.space.id, space.parentId),
+  });
+  return [
+    { id: spaceId, name: space.name, own: true },
+    ...(parent ? [{ id: parent.id, name: parent.name, own: false }] : []),
+  ];
+}
+
+/** The first space that has it: the client space before its parent. A refusal stands. */
+async function firstFound<T>(
+  spaces: { id: string }[],
+  read: (spaceId: string) => Promise<T>,
+): Promise<T> {
+  let missing: unknown = null;
+  for (const space of spaces) {
+    try {
+      return await read(space.id);
+    } catch (err) {
+      if ((err as { code?: string })?.code === "forbidden") {
+        throw err;
+      }
+      missing ??= err;
+    }
+  }
+  throw missing;
+}
+
 /** A page of Knowledge by its path, for the caller: its front matter and Markdown, in parts. */
 export function readKnowledgePage(
   caller: ElementCaller,
@@ -35,7 +77,9 @@ export function readKnowledgePage(
 ) {
   return attempt(() =>
     elementCall(caller, { action: "page_read", perm: "r", input }, async () => {
-      const read = await readPage(caller.space.id, input.path, input, caller.subjects);
+      const read = await firstFound(await readsFrom(caller.space.id), (spaceId) =>
+        readPage(spaceId, input.path, input, caller.subjects),
+      );
       await caller.note?.({ code: "reads", params: { name: read.path } });
       return read;
     }),
@@ -46,8 +90,16 @@ export function readKnowledgePage(
 export async function knowledgeTools(caller: ElementCaller): Promise<Record<string, any>> {
   const spaceId = caller.space.id;
   const who = caller.subjects;
-  const counts = await knowledgeCounts(spaceId);
-  const entries = await hasIndexEntries(spaceId);
+  const spaces = await readsFrom(spaceId);
+  const counts = { pages: 0, tables: 0, files: 0 };
+  let entries = false;
+  for (const space of spaces) {
+    const of = await knowledgeCounts(space.id);
+    counts.pages += of.pages;
+    counts.tables += of.tables;
+    counts.files += of.files;
+    entries ||= await hasIndexEntries(space.id);
+  }
   if (!(counts.pages || counts.tables || counts.files || entries)) {
     return {};
   }
@@ -60,7 +112,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
       inputSchema: ELEMENT_SPECS.space_search.input,
       execute: (input) =>
         call("space_search", input, async () => {
-          const found = await searchKnowledge(spaceId, input.query, {
+          const found = await searchAll(spaces, input.query, {
             where: input.where,
             limit: input.limit,
             signal: caller.signal,
@@ -98,6 +150,13 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
       execute: (input) =>
         call("space_list", input, async () => {
           const listed = await listForStep(spaceId, input.where, who);
+          const parent = spaces.find((p) => !p.own);
+          if (parent) {
+            return {
+              ...listed,
+              [`from ${parent.name}`]: await listForStep(parent.id, input.where, who),
+            };
+          }
           await caller.note?.({ code: "listsKnowledge" });
           return listed;
         }),
@@ -118,7 +177,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
       inputSchema: ELEMENT_SPECS.table_read.input,
       execute: (input) =>
         call("table_read", input, async () => {
-          const read = await readTable(spaceId, input.path, input, who);
+          const read = await firstFound(spaces, (id) => readTable(id, input.path, input, who));
           await caller.note?.({ code: "reads", params: { name: read.path } });
           return read;
         }),
@@ -132,21 +191,26 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
       execute: (input) =>
         call("space_document", input, async () => {
           const { path, from } = input;
-          const found = await resolvePath(
-            spaceId,
-            path.startsWith("files/") ? path : `files/${path}`,
-          );
+          const wanted = path.startsWith("files/") ? path : `files/${path}`;
+          const inSpace = await firstFound(spaces, async (id) => {
+            const hit = await resolvePath(id, wanted);
+            if (hit?.kind !== "file") {
+              throw new Error("not here");
+            }
+            return id;
+          }).catch(() => spaceId);
+          const found = await resolvePath(inSpace, wanted);
           if (found?.kind !== "file") {
             const there = [...(await filePaths(spaceId)).values()].slice(0, 40);
             throw new Error(`No file "${path}". There are: ${there.join(", ")}`);
           }
           const file = await db.query.spaceFile.findFirst({
-            where: and(eq(schema.spaceFile.id, found.id), eq(schema.spaceFile.spaceId, spaceId)),
+            where: and(eq(schema.spaceFile.id, found.id), eq(schema.spaceFile.spaceId, inSpace)),
           });
           if (!file) {
             throw new Error(`No file "${path}".`);
           }
-          await assertRwx(spaceId, who, { kind: "document", id: file.id }, "r");
+          await assertRwx(inSpace, who, { kind: "document", id: file.id }, "r");
           await caller.note?.({ code: "reads", params: { name: file.name } });
           const text = (await documentText(file)) || file.description;
           const start = Math.min(from ?? 0, text.length);
@@ -161,4 +225,29 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
     });
   }
   return tools;
+}
+
+/** A search over the client space and its parent, the best of both by relevance. */
+async function searchAll(
+  spaces: { id: string; name: string; own: boolean }[],
+  query: string,
+  opts: Parameters<typeof searchKnowledge>[2],
+) {
+  if (spaces.length === 1) {
+    return searchKnowledge(spaces[0].id, query, opts);
+  }
+  const each = await Promise.all(spaces.map((p) => searchKnowledge(p.id, query, opts)));
+  const limit = Math.min(Math.max(1, opts?.limit ?? 6), 12);
+  const hits = each
+    .flatMap((found) => found.hits)
+    .sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0))
+    .slice(0, limit);
+  return {
+    hits,
+    checked: each.every((f) => f.checked),
+    candidates: each.reduce((n, f) => n + f.candidates, 0),
+    filtered: each.some((f) => f.filtered !== null)
+      ? each.reduce((n, f) => n + (f.filtered ?? 0), 0)
+      : null,
+  };
 }

@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
-import { useCurrentSpace } from "../lib/session";
+import { useCurrentSpace, useIsAdmin } from "../lib/session";
 import { PluginFrame, SpacePartFrame, useStudioPlugins } from "../plugins/host";
 import { cn, Empty } from "../ui";
 import { scrollRoot, useCrumbs } from "./AppFrame";
@@ -21,6 +21,7 @@ import {
   useStepDirection,
 } from "./settings-menu";
 import { CATEGORY_ICON, CategoryView, useValue, ValueView } from "./space/Categories";
+import { ClientSpaces, OpenToClients } from "./space/ClientSpaces";
 import { FileView } from "./space/Documents";
 import { CategoryItems, ItemRow, KnowledgeOverview, useKnowledge } from "./space/Knowledge";
 import { PageEditor } from "./space/PageEditor";
@@ -178,7 +179,12 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const pagesOn = useFeature("pages");
   // Skills wait behind theirs.
   const skillsOn = useFeature("skills");
-  const groups = spaceGroups().filter((g) => pagesOn || g.id !== "page");
+  // Client spaces wait behind theirs, and are the admins'.
+  const admin = useIsAdmin();
+  const clientsOn = useFeature("clientSpaces") && admin;
+  const groups = spaceGroups().filter(
+    (g) => (pagesOn || g.id !== "page") && (clientsOn || g.id !== "clients"),
+  );
   const parts = withParts(groups, plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
   // The overview at `/space` is the head's own link, not a row; a phone opens it a step deeper.
   const entries = parts;
@@ -668,6 +674,19 @@ export function SpacePage({ place }: { place?: "skills" }) {
                   group={group}
                   top={!picked || Boolean(pickedSection)}
                 >
+                  {group === "knowledge" && item && clientsOn ? (
+                    <OpenToClients
+                      spaceId={space.id}
+                      kind={
+                        item.startsWith("p:")
+                          ? "page"
+                          : item.startsWith("t:")
+                            ? "table"
+                            : "document"
+                      }
+                      id={item.slice(2)}
+                    />
+                  ) : null}
                   {group !== "knowledge" ? null : item ? (
                     item.startsWith("p:") ? (
                       <PageEditor
@@ -761,6 +780,11 @@ export function SpacePage({ place }: { place?: "skills" }) {
                   )}
                   {group === "info" || group === "brand" ? pluginSections(added) : null}
                 </SpaceSettings>
+              ) : null}
+              {space && group === "clients" && clientsOn ? (
+                <Anchor id="clients">
+                  <ClientSpaces space={space} />
+                </Anchor>
               ) : null}
               {space && group === "skills" && skillsOn ? (
                 <div className="flex flex-col gap-9 pb-20">

@@ -26,6 +26,7 @@ import { openCommand } from "./open-command.js";
 import { PLUGIN_NAME, pluginArchive, pluginMarketplace } from "./plugin.js";
 import { apiRoutes } from "./routes/api.js";
 import { brokerRoutes } from "./routes/broker.js";
+import { clientSpaceRoutes } from "./routes/client-spaces.js";
 import { connectionRoutes } from "./routes/connections.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
 import { discoverRoutes } from "./routes/discover.js";
@@ -366,6 +367,7 @@ if (serves.studio) {
   app.route("/api/studio", skillRoutes);
   app.route("/api/studio", discoverRoutes);
   app.route("/api/studio", ruleRoutes);
+  app.route("/api/studio", clientSpaceRoutes);
   app.route("/api/studio", connectionRoutes);
   app.route("/api/studio", brokerRoutes);
   app.route("/api/studio/runtime", runtimeSettingsRoutes);

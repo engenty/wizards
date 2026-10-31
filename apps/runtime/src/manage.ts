@@ -11,7 +11,8 @@ import { serverText } from "./texts.js";
  */
 export const managed = Boolean(env.manage.url);
 
-export type Role = "owner" | "admin" | "member";
+/** `client`: a client of the organization, in their client spaces only (docs/plans/client-spaces.md). */
+export type Role = "owner" | "admin" | "member" | "client";
 
 export interface TokenClaims {
   userId: string;

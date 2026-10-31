@@ -128,7 +128,7 @@ export type BrokerRefusal = (typeof BROKER_REFUSALS)[number];
 export interface ProtocolPerson {
   id: string;
   name: string;
-  role: "owner" | "admin" | "member";
+  role: "owner" | "admin" | "member" | "client";
 }
 
 /** An action of a connection, as „Was darf …?“ offers it. */
