@@ -75,6 +75,8 @@ export interface LevelEntry {
   to: string;
   /** The small heading it stands under; a row without one after a group stands apart. */
   group?: string;
+  /** How many it holds, at the row's end. */
+  count?: number;
 }
 
 /**
@@ -171,6 +173,9 @@ export function LevelList({
               <e.icon className="size-4 transition-transform duration-200 ease-out group-hover:scale-110" />
             </span>
             <span className="min-w-0 flex-1 truncate">{e.label}</span>
+            {e.count !== undefined ? (
+              <span className="text-[0.75rem] text-ink-3 tabular-nums">{e.count}</span>
+            ) : null}
             {/* On a phone every row goes one step deeper. */}
             <ChevronRight className="size-4 text-ink-4 md:hidden" />
           </Link>

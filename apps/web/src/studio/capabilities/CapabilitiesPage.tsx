@@ -16,6 +16,8 @@ import {
   useNarrow,
   useStepDirection,
 } from "../settings-menu";
+import { useSkills } from "../space/Skills";
+import { useSpaceConnections } from "./ConnectorsSection";
 import { shownSections } from "./sections";
 
 /** The height of the page's scroll container: the menu beside the page scrolls within it. */
@@ -54,16 +56,25 @@ export function CapabilitiesPage() {
   const admin = useIsAdmin();
   const sections = shownSections((name) => featureOn(features, name), admin);
   const open = sections.find((s) => s.id === param);
+  // How many skills and connections the space has, beside their rows.
+  const skills = useSkills(sections.some((s) => s.id === "skills") ? space?.id : undefined);
+  const connections = useSpaceConnections(space?.id ?? "");
+  const counts: Record<string, number | undefined> = {
+    skills: skills.data?.skills.length,
+    connectors: connections.data?.connections.length,
+  };
   const entries = sections.map((s) => ({
     id: s.id,
     label: t(s.label),
     icon: s.icon,
-    to: `/capabilities/${s.id}`,
+    // A section without a menu has only its page: a phone goes there at once.
+    to: s.menu === false ? `/capabilities/${s.id}?show=page` : `/capabilities/${s.id}`,
+    count: counts[s.id],
   }));
   const entry = entries.find((e) => e.id === open?.id);
   // A phone: 1 the section's menu, 2 the page.
   const phone = params.get("show") || params.has("setup") ? 2 : 1;
-  const level = open && upAt !== open.id ? 1 : 0;
+  const level = open && open.menu !== false && upAt !== open.id ? 1 : 0;
   const levelStep = useStepDirection(level);
   const pageStep = useStepDirection(phone);
   const menu = useMemo(() => ({ slot, narrow, setDetail }), [slot, narrow]);
@@ -121,7 +132,17 @@ export function CapabilitiesPage() {
             />
             <div key={level} className={cn(stepClass(levelStep))}>
               {level === 0 ? (
-                <LevelList entries={entries} current={entry} onPick={() => setUpAt(null)} />
+                <LevelList
+                  entries={entries}
+                  current={entry}
+                  onPick={(picked) => {
+                    setUpAt(null);
+                    // On a phone the overview's row, open already behind the list, shows its page.
+                    if (narrow && open?.menu === false) {
+                      navigate(picked.to);
+                    }
+                  }}
+                />
               ) : (
                 <div ref={setSlot} />
               )}

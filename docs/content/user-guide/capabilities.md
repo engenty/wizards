@@ -8,10 +8,11 @@ version: 0.13.0
 Goose may use. On a phone you find it in the “More” menu. It belongs to the space you are in, and
 each space has its own.
 
-It has four sections:
+It opens on the **Overview**, then has four more sections:
 
 | Section | What it holds | Who sees it |
 |---|---|---|
+| **Overview** | The skills that count, the space’s connections and the built-in connectors nobody connected yet, on one page, with a search over them | Everyone who uses the studio |
 | **Skills** | Instructions your wizards work by. See [Skills](./skills.md) | Everyone who uses the studio |
 | **Connectors** | The space’s connections to other services, the built-in connectors and the ones from the registry | Everyone who uses the studio. Members see the connections open to them |
 | **Log** | Every call to a connection, allowed or not. See [Log](./protocol.md) | The owner and the admins |
@@ -19,6 +20,15 @@ It has four sections:
 
 The old addresses still work: `/skills` opens Capabilities › Skills, and the connectors’ old
 address in the settings opens Capabilities › Connectors.
+
+## Overview
+
+The Overview shows the skills that are always on or on demand, with the ones always on first, and
+the space’s connections, each with how it signs in and who may use it. “All” beside each part
+opens its section, and the menu shows how many skills and connections the space has. The search
+looks through both. Switch to “Discover”, or search for something the space doesn’t have, to
+search skills.sh and integrations.sh. “Add” leads to a new skill, a new connection (admins) or
+Discover.
 
 ## Skills
 
