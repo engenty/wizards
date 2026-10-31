@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { CriticalKind } from "@engenty/wizards-shared/connectors";
-import { and, desc, eq, gt, inArray, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lt, not, or, type SQL, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
 
@@ -173,37 +173,131 @@ export interface LogQuery {
   connection?: string;
   who?: string;
   outcome?: string;
+  /** What came of the call: `ok`, a refusal (`needs_approval` holds a call for the admins), an error's class. */
+  result?: string;
+  /** Refused: by a rule, or by the person asked. */
+  refused?: boolean;
   critical?: boolean;
   since?: Date;
+  /** Up to, not including, this time: the end of a time range. */
+  until?: Date;
+  /**
+   * A text, found in the action, the connection, the reason, the result, the rule, the caller's
+   * id and the input's sample — and in the ids `matches` names for it (people, connections and
+   * wizards found by their names).
+   */
+  q?: string;
+  matches?: { who?: string[]; connections?: string[]; wizards?: string[] };
+  /** Rows older than this one: the next page. */
+  before?: LogCursor;
   limit?: number;
+}
+
+/** Where a page of the log ended: the last row's time and id (rows of one millisecond go by id). */
+export interface LogCursor {
+  at: Date;
+  id: string;
+}
+
+/** The cursor as the API hands it out: `<ms>.<id>`. */
+export function cursorOf(row: Pick<LoggedRow, "at" | "id">): string {
+  return `${row.at.getTime()}.${row.id}`;
+}
+
+/** A cursor the API took; null where it is none. */
+export function readCursor(text: string): LogCursor | null {
+  const match = /^(\d{1,15})\.([A-Za-z0-9_-]{1,40})$/.exec(text);
+  return match ? { at: new Date(Number(match[1])), id: match[2] as string } : null;
 }
 
 /** The widest the log answers at once. */
 export const LOG_PAGE = 200;
 
+/** The results of a call the person asked turned down, beside an `outcome` of `deny`. */
+const REFUSED_BY_PERSON = ["declined"];
+
+/** `%` and `_` stand for themselves in a search. */
+function likeOf(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
 /** A space's log, newest first, filtered. */
 export async function logOfSpace(spaceId: string, query: LogQuery = {}): Promise<LoggedRow[]> {
-  const where: SQL[] = [eq(schema.brokerLog.spaceId, spaceId)];
+  const log = schema.brokerLog;
+  const where: SQL[] = [eq(log.spaceId, spaceId)];
   if (query.connection) {
-    where.push(eq(schema.brokerLog.connectionId, query.connection));
+    where.push(eq(log.connectionId, query.connection));
   }
   if (query.who) {
-    where.push(eq(schema.brokerLog.whoKind, query.who));
+    where.push(eq(log.whoKind, query.who));
   }
   if (query.outcome) {
-    where.push(eq(schema.brokerLog.outcome, query.outcome));
+    where.push(eq(log.outcome, query.outcome));
+  }
+  if (query.result) {
+    where.push(eq(log.result, query.result));
+  }
+  if (query.refused !== undefined) {
+    const refused = or(
+      eq(log.outcome, "deny"),
+      and(eq(log.outcome, "ask"), inArray(log.result, REFUSED_BY_PERSON)),
+    ) as SQL;
+    where.push(query.refused ? refused : not(refused));
   }
   if (query.critical !== undefined) {
-    where.push(eq(schema.brokerLog.critical, query.critical));
+    where.push(eq(log.critical, query.critical));
   }
   if (query.since) {
-    where.push(gt(schema.brokerLog.at, query.since));
+    where.push(gt(log.at, query.since));
+  }
+  if (query.until) {
+    where.push(lt(log.at, query.until));
+  }
+  const text = query.q?.trim();
+  if (text) {
+    const like = likeOf(text);
+    const found: SQL[] = [
+      log.actionId,
+      log.connectionId,
+      log.reason,
+      log.result,
+      log.rule,
+      log.whoId,
+      log.inputSummary,
+    ].map((column) => sql`${column} like ${like} escape '\\'`);
+    const { who = [], connections = [], wizards = [] } = query.matches ?? {};
+    if (who.length) {
+      found.push(inArray(log.whoId, who));
+    }
+    if (connections.length) {
+      found.push(inArray(log.connectionId, connections));
+    }
+    if (wizards.length) {
+      found.push(inArray(log.wizardId, wizards));
+    }
+    where.push(or(...found) as SQL);
+  }
+  if (query.before) {
+    where.push(
+      or(
+        lt(log.at, query.before.at),
+        and(eq(log.at, query.before.at), lt(log.id, query.before.id)),
+      ) as SQL,
+    );
   }
   return db.query.brokerLog.findMany({
     where: and(...where),
-    orderBy: [desc(schema.brokerLog.at)],
+    orderBy: [desc(log.at), desc(log.id)],
     limit: Math.min(Math.max(query.limit ?? LOG_PAGE, 1), LOG_PAGE),
   });
+}
+
+/** One line of a space's log. */
+export async function logLine(spaceId: string, id: string): Promise<LoggedRow | null> {
+  const row = await db.query.brokerLog.findFirst({
+    where: and(eq(schema.brokerLog.spaceId, spaceId), eq(schema.brokerLog.id, id)),
+  });
+  return row ?? null;
 }
 
 /** The critical rows of these spaces since a time, newest first. */

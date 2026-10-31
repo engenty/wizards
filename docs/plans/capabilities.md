@@ -368,6 +368,11 @@ All behind `capabilities`, off by default. They show what part A built.
 3. `feat(studio): each person signs in` — the person's menu › „Verbindungen“.
 4. `feat(studio): members in the Studio per space` — one rule per space, the reduced set.
 5. `feat(studio): Fähigkeiten › Protokoll` — the broker's log per space, filters, „Was darf …?“.
+   Built: `capabilities/ProtocolSection.tsx` (admins only, not in a member's menu), its words in
+   `protocol-words.ts` with a test that every refusal (`BROKER_REFUSALS`, shared) has some; the
+   log route grew `refused`, `result`, `until`, `q` (also over people's, connections' and wizards'
+   names) and a `cursor` with `next`, named lines, `GET …/broker/log/:line` with the run's grant
+   and `GET …/broker/choices`; the space's `notify` shows in its view and switches on the page.
 6. `feat(studio): Entdecken` — one search over skills.sh and integrations.sh.
 7. `feat: Fähigkeiten on by default` — switch, docs, glossary.
 

@@ -104,7 +104,7 @@ export const space = sqliteTable(
     /**
      * How the space's admins hear of the broker's critical lines (docs/plans/broker.md,
      * "Notifications"): under Work's bell, and by mail once an hour where nobody of them was in
-     * the app. Set through `PATCH /api/studio/spaces/:id`; no page draws it yet.
+     * the app. Set through `PATCH /api/studio/spaces/:id`, on Fähigkeiten › Protokoll.
      */
     notify: text("notify", { mode: "json" })
       .$type<SpaceNotify>()

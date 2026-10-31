@@ -1,4 +1,4 @@
-import type { ConnectionActionKind } from "@engenty/wizards-shared/connectors";
+import type { BrokerRefusal, ConnectionActionKind } from "@engenty/wizards-shared/connectors";
 import type { AskInput } from "@engenty/wizards-shared/run";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import type { SpaceConnectionRow } from "../connectors/space-connections.js";
@@ -90,23 +90,15 @@ export interface BrokerCallInput<T = unknown> {
   handler?: (account: Account) => Promise<T>;
 }
 
-export type Refusal =
-  | "not_connected"
-  | "no_action"
-  | "not_in_grant"
-  | "denied"
-  | "declined"
-  | "nobody"
-  /** The connection's rule says „Mit Freigabe“: the call waits for an admin of the space. The caller holds it. */
-  | "needs_approval"
-  /** An AI step wanted to write as the space: only a fixed `call` step does that (A4). */
-  | "ai_step_writes"
-  /** A guest's send to an address that is neither the run's own nor in the space's domains. */
-  | "not_allowed_recipient"
-  /** A guest's run has sent its mails. */
-  | "run_limit"
-  /** The wizard's guests have sent today's mails. */
-  | "day_limit";
+/**
+ * Why a call did not run, one of `BROKER_REFUSALS` (shared/connectors), so the Protokoll page has
+ * words for each: `needs_approval` – the connection's rule says „Mit Freigabe“, the call waits for
+ * an admin of the space and the caller holds it; `ai_step_writes` – an AI step wanted to write as
+ * the space, which only a fixed `call` step does (A4); `not_allowed_recipient` – a guest's send to
+ * an address that is neither the run's own nor in the space's domains; `run_limit` – a guest's
+ * run has sent its mails; `day_limit` – the wizard's guests have sent today's mails.
+ */
+export type Refusal = BrokerRefusal;
 
 export type BrokerResult<T> =
   | { ok: true; result: T; account: { connector: ConnectorDefinition; label: string } }

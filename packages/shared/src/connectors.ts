@@ -104,6 +104,119 @@ export const CRITICAL_KINDS = [
 ] as const;
 export type CriticalKind = (typeof CRITICAL_KINDS)[number];
 
+/**
+ * Why the broker did not run a call (the runtime's broker/call.ts `Refusal`), as the log's
+ * `result` and „Was darf …?“ name it. The Protokoll page has words for each one.
+ */
+export const BROKER_REFUSALS = [
+  "not_connected",
+  "no_action",
+  "not_in_grant",
+  "denied",
+  "declined",
+  "nobody",
+  "needs_approval",
+  "ai_step_writes",
+  "not_allowed_recipient",
+  "run_limit",
+  "day_limit",
+] as const;
+export type BrokerRefusal = (typeof BROKER_REFUSALS)[number];
+
+/** A person of the organization, as Fähigkeiten › Protokoll names them and „Was darf …?“ offers them. */
+export interface ProtocolPerson {
+  id: string;
+  name: string;
+  role: "owner" | "admin" | "member";
+}
+
+/** An action of a connection, as „Was darf …?“ offers it. */
+export interface BrokerActionChoice {
+  id: string;
+  name: string;
+  kind: ConnectionActionKind;
+}
+
+/** What „Was darf …?“ picks from (`GET /api/studio/spaces/:id/broker/choices`). */
+export interface ProtocolChoices {
+  people: ProtocolPerson[];
+  connections: {
+    id: string;
+    name: string;
+    connector: { id: string; name: string } | null;
+    audience: "admins" | "members" | "all";
+    signIn: "space" | "person";
+    actions: BrokerActionChoice[];
+  }[];
+}
+
+/** One line of the broker's log as the Protokoll page reads it (`GET …/broker/log`). */
+export interface ProtocolLine {
+  id: string;
+  at: string;
+  durationMs: number;
+  who: {
+    kind: string;
+    id: string | null;
+    /** A person, an admin, or the person Goose works for, by name. */
+    name: string | null;
+    /** A fixed step: whom its run is held for. */
+    for?: { kind: string; id: string | null; name: string | null };
+  };
+  runId: string | null;
+  stepId: string | null;
+  chatId: string | null;
+  wizardId: string | null;
+  connectionId: string;
+  actionId: string;
+  kind: string;
+  input: { fields?: Record<string, number>; sample?: string | null; size?: number } | null;
+  outcome: string;
+  rule: string | null;
+  reason: string | null;
+  result: string | null;
+  resultSize: number | null;
+  critical: boolean;
+  criticalKind: string | null;
+  connectionName: string | null;
+  connectorName: string | null;
+  actionName: string | null;
+  wizardName: string | null;
+  runMode: string | null;
+  chatTitle: string | null;
+}
+
+/** A page of the log; `next` loads the one after it. */
+export interface ProtocolPage {
+  lines: ProtocolLine[];
+  next: string | null;
+}
+
+/** One line with what its run was allowed (`GET …/broker/log/:line`). */
+export interface ProtocolLineDetail {
+  line: ProtocolLine;
+  run: {
+    id: string;
+    wizardId: string;
+    mode: string;
+    status: string;
+    /** Null: a run from before grants were kept. */
+    grant: { actions: string[] | null; hosts: string[] } | null;
+  } | null;
+}
+
+/** „Was darf …?“'s answer (`GET …/broker/ask`). */
+export interface BrokerAnswer {
+  who: { kind: string; for?: { kind: string }; admin?: boolean };
+  connection: { id: string; name: string; connector: string };
+  action: { id: string; kind: ConnectionActionKind; known: boolean };
+  outcome: ConnectionOutcome;
+  rule: string;
+  reason: string;
+  refused?: BrokerRefusal;
+  admins?: true;
+}
+
 /** What an action does, as the rules see it. */
 export const CONNECTION_ACTION_KINDS = ["read", "write", "destructive", "send"] as const;
 export type ConnectionActionKind = (typeof CONNECTION_ACTION_KINDS)[number];
