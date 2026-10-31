@@ -12,6 +12,7 @@ import {
 import { cleanPath, mimeForPath } from "@engenty/wizards-shared/workspace";
 import { and, asc, eq, inArray, like, lt, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import type { Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { getBlob, putBlob } from "../files/blobs.js";
@@ -68,10 +69,17 @@ function toRow(r: typeof schema.storeRow.$inferSelect): ListRow {
   return { id: r.id, cells: r.cells, updatedAt: r.updatedAt.toISOString() };
 }
 
-/** The rows of a list: the person's, or every run's where the list is shared. */
-export async function listRows(scope: StoreScope, def: ListDef): Promise<ListRow[]> {
+/**
+ * The rows of a list: the person's, or every run's where the list is shared. A shared list is a
+ * table of the space, read as `who` may read it (broker/rwx.ts); a person's own rows are theirs.
+ */
+export async function listRows(
+  scope: StoreScope,
+  def: ListDef,
+  who: Subject[] = [],
+): Promise<ListRow[]> {
   if (def.shared) {
-    return sharedRows(scope.wizardId, def);
+    return sharedRows(scope.wizardId, def, who);
   }
   const rows = await db.query.storeRow.findMany({
     where: inList(scope, def.id),

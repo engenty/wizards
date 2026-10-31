@@ -26,6 +26,7 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { knowsTools } from "../assistant/knows.js";
 import type { SessionUser } from "../auth/index.js";
+import { subjectsOfGoose } from "../broker/rwx.js";
 import type { AssistantCardRecord, AssistantToolCallRecord } from "../db/schema.js";
 import { currentFeatures } from "../features.js";
 import { managed } from "../manage.js";
@@ -277,15 +278,19 @@ async function spaceState(userId: string, spaceId: string) {
   };
 }
 
-/** The space's own tools: what fills it in. */
 /** Parts of the brand that wait behind their switches: their tools are left out while off. */
-interface BrandSwitches {
+export interface BrandSwitches {
   brandSections: boolean;
   brandRules: boolean;
   typography: boolean;
 }
 
-function spaceTools(input: AssistantInput, space: SpaceRow, wrote: () => void, on: BrandSwitches) {
+export function gooseSpaceTools(
+  input: AssistantInput,
+  space: SpaceRow,
+  wrote: () => void,
+  on: BrandSwitches,
+) {
   const { signal } = input;
   const userId = input.user.id;
   const spaceId = space.id;
@@ -720,7 +725,11 @@ function spaceTools(input: AssistantInput, space: SpaceRow, wrote: () => void, o
       execute: ({ id, from }) =>
         attempt(async () => {
           doing("look_at_file");
-          const { row, data } = await spaceFileContent(spaceId, id);
+          const { row, data } = await spaceFileContent(
+            spaceId,
+            id,
+            subjectsOfGoose(userId, input.user.role),
+          );
           if (row.kind === "document") {
             const text = await documentText(row);
             if (!text) {
@@ -895,7 +904,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
         input.onCard?.(card);
       },
     }),
-    ...(writable ? spaceTools(input, writable, wrote, brandOn) : {}),
+    ...(writable ? gooseSpaceTools(input, writable, wrote, brandOn) : {}),
   };
   // On everyday effort the chat can offer extra effort for work that asks for more: a card with
   // a button, while it goes on answering.

@@ -4,6 +4,7 @@ import type { ListDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { subjectsOf } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { parseDocument, type ScanKind, scanDocument } from "../documents/parse.js";
 import type { StepContext } from "../engine/types.js";
@@ -50,7 +51,7 @@ export async function resolveFile(ctx: StepContext, file: string) {
   const result = parseResultRef(file);
   if (result) {
     const found = await resultFile(
-      { def: ctx.def, state: ctx.state, store: ctx.store },
+      { def: ctx.def, state: ctx.state, store: ctx.store, who: subjectsOf(ctx) },
       result.from,
       result.format,
     );
@@ -127,7 +128,7 @@ export function storeTools(ctx: StepContext, uploads: UploadRef[], keeper: FileK
       inputSchema: z.object({ list: listId }),
       execute: ({ list }) =>
         attempt(async () => {
-          const rows = await listRows(ctx.store, defOf(list));
+          const rows = await listRows(ctx.store, defOf(list), subjectsOf(ctx));
           return {
             list,
             total: rows.length,

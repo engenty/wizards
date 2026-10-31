@@ -3,6 +3,7 @@ import type { AskInput, AssetRef, RunNote, RunState } from "@engenty/wizards-sha
 import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import type { schema } from "../db/client.js";
 import type { SaveAssetInput } from "../files/storage.js";
+import type { Role } from "../manage.js";
 import { NotedError } from "../model-errors.js";
 import type { CallMeta } from "../models.js";
 import type { StoreScope } from "../store/index.js";
@@ -14,9 +15,17 @@ export type SpaceRow = typeof schema.space.$inferSelect;
 export type SpaceFileRow = typeof schema.spaceFile.$inferSelect;
 export type RunRow = typeof schema.run.$inferSelect;
 
+/**
+ * Who a run belongs to, as the broker asks it (broker/rwx.ts): a guest on a shared link (the
+ * visitor, else the run itself), or a signed-in person with their role in the organization.
+ */
+export type RunHolder = { kind: "guest"; id: string } | { kind: "person"; id: string; role: Role };
+
 export interface StepContext {
   runId: string;
   tenantId: string;
+  /** Who holds the run; with the wizard, who a step reads as. */
+  holder: RunHolder;
   /** A test run from the studio: it writes the wizard's memory into a copy of its own. */
   test: boolean;
   /** The current step's id. */

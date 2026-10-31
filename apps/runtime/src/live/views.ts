@@ -3,6 +3,7 @@ import { wizardLang } from "@engenty/wizards-shared/definition";
 import type { LiveItem, LiveKind } from "@engenty/wizards-shared/live";
 import { wizardTexts } from "@engenty/wizards-shared/translation";
 import { eq } from "drizzle-orm";
+import type { Subject } from "../broker/rwx.js";
 import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { embeddingModel } from "../models.js";
@@ -26,6 +27,8 @@ import { listWizards, ownedWizard, wizardMessages, wizardState } from "../servic
 export interface Reader {
   userId: string;
   lang: Lang;
+  /** Who reads, for the broker (broker/rwx.ts): the person and their role. */
+  who: Subject[];
 }
 
 /** The spaces, as the studio lists them. */
@@ -129,10 +132,10 @@ const ITEM_VIEWS: Record<LiveKind, ((r: Reader, x: LiveItem) => Promise<unknown>
   },
   translation: async (r, x) => (x.parent ? translationsView(r, x.parent) : null),
   message: null,
-  page: (r, x) => getPage(r.userId, x.item),
-  table: (r, x) => getTableHeader(r.userId, x.item),
+  page: (r, x) => getPage(r.userId, x.item, r.who),
+  table: (r, x) => getTableHeader(r.userId, x.item, r.who),
   row: async (r, x) => {
-    const row = x.parent ? await getRow(r.userId, x.parent, x.item) : null;
+    const row = x.parent ? await getRow(r.userId, x.parent, x.item, r.who) : null;
     return row ? { ...row, tableId: x.parent } : null;
   },
   category: null,

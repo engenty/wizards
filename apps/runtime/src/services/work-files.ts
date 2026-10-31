@@ -1,5 +1,6 @@
 import type { SpaceFileKind } from "@engenty/wizards-shared/spaces";
 import { and, eq, inArray } from "drizzle-orm";
+import type { Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { ServiceError } from "./errors.js";
 import { spaceFileContent } from "./space-files.js";
@@ -67,6 +68,8 @@ export async function messageContents(
   spaceId: string,
   text: string,
   files: ChatFile[],
+  /** Who sends the message: the files go to the model as they may read them. */
+  who: Subject[],
 ): Promise<{ contents: string | (TextPart | FilePart)[]; files: ChatFile[] }> {
   if (!files.length) {
     return { contents: text, files };
@@ -74,7 +77,7 @@ export async function messageContents(
   const parts: (TextPart | FilePart)[] = text ? [{ type: "text", text }] : [];
   const kept: ChatFile[] = [];
   for (const file of files) {
-    const { row, data } = await spaceFileContent(spaceId, file.id);
+    const { row, data } = await spaceFileContent(spaceId, file.id, who);
     const read = data.byteLength <= (MODEL_READS[row.mime] ?? 0);
     if (read) {
       parts.push({

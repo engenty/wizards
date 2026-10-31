@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { note } from "@engenty/wizards-shared/run";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db/client.js";
-import { managed, type Role, tenantInfo } from "../manage.js";
+import { managed, type Role, tenantInfo, tenantMembers } from "../manage.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { ServiceError } from "./errors.js";
 
@@ -42,6 +42,29 @@ export function currentRole(): Role {
 export const isAdminRole = (role: Role): boolean => role === "owner" || role === "admin";
 
 export const MEMBERS_EDIT_ONLY = note("onlyOrganizationAdmins");
+
+const roles = new Map<string, { at: number; byUser: Map<string, Role> }>();
+
+/**
+ * The role of a person in the tenant at hand, for a context that has no session of theirs (a
+ * run's job, a Work turn). The one person of a runtime that runs alone is its owner; in an
+ * organization, what the Manage-App says, asked once a minute. Unknown there: a member.
+ */
+export async function roleOf(userId: string): Promise<Role> {
+  if (!managed) {
+    return "owner";
+  }
+  const tenant = currentTenant();
+  let hit = roles.get(tenant);
+  if (!hit || Date.now() - hit.at > 60_000) {
+    const people = await tenantMembers(tenant).catch(() => null);
+    if (people) {
+      hit = { at: Date.now(), byUser: new Map(people.members.map((m) => [m.userId, m.role])) };
+      roles.set(tenant, hit);
+    }
+  }
+  return hit?.byUser.get(userId) ?? "member";
+}
 
 /** Refuses a member: making and deleting is for the owner and the admins of the organization. */
 export async function requireAdmin(): Promise<void> {

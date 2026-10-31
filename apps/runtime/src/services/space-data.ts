@@ -17,6 +17,7 @@ import {
 import { rowKey } from "@engenty/wizards-shared/store";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { assertRwx, pageResources, readable, type Subject, tableResources } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { saidOf } from "../model-errors.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -68,8 +69,15 @@ export function checkColumns(columns: unknown): TableColumn[] {
   return parsed.data;
 }
 
-/** Data: the tables and pages the space's wizards keep, and the wizards to name whose they are. */
-export async function listSpaceData(userId: string, spaceId: string): Promise<SpaceData> {
+/**
+ * Data: the tables and pages the space's wizards keep that `who` may read, and the wizards to
+ * name whose they are.
+ */
+export async function listSpaceData(
+  userId: string,
+  spaceId: string,
+  who: Subject[],
+): Promise<SpaceData> {
   const space = await ownedSpace(userId, spaceId);
   const [tables, rows, pages, wizards] = await Promise.all([
     db.query.spaceTable.findMany({
@@ -94,13 +102,21 @@ export async function listSpaceData(userId: string, spaceId: string): Promise<Sp
       columns: { id: true, title: true },
     }),
   ]);
+  const [okTables, okPages] = await Promise.all([
+    readable(space.id, who, await tableResources(tables.map((t) => t.id))),
+    readable(space.id, who, await pageResources(pages.map((p) => p.id))),
+  ]);
   return {
-    tables: tables.map((t) => ({
-      ...t,
-      rows: rows.find((r) => r.tableId === t.id)?.n ?? 0,
-      updatedAt: t.updatedAt.toISOString(),
-    })),
-    pages: pages.map((p) => ({ ...p, updatedAt: p.updatedAt.toISOString() })),
+    tables: tables
+      .filter((t) => okTables.has(t.id))
+      .map((t) => ({
+        ...t,
+        rows: rows.find((r) => r.tableId === t.id)?.n ?? 0,
+        updatedAt: t.updatedAt.toISOString(),
+      })),
+    pages: pages
+      .filter((p) => okPages.has(p.id))
+      .map((p) => ({ ...p, updatedAt: p.updatedAt.toISOString() })),
     wizards,
   };
 }
@@ -200,8 +216,12 @@ async function tableKnowledge(table: TableRow): Promise<SpaceTable["knowledge"]>
   };
 }
 
-export async function getTable(userId: string, tableId: string): Promise<SpaceTable> {
-  const header = await getTableHeader(userId, tableId);
+export async function getTable(
+  userId: string,
+  tableId: string,
+  who: Subject[],
+): Promise<SpaceTable> {
+  const header = await getTableHeader(userId, tableId, who);
   const rows = await db.query.spaceTableRow.findMany({
     where: eq(schema.spaceTableRow.tableId, header.id),
     orderBy: [asc(schema.spaceTableRow.createdAt), asc(schema.spaceTableRow.id)],
@@ -213,9 +233,11 @@ export async function getTable(userId: string, tableId: string): Promise<SpaceTa
 export async function getTableHeader(
   userId: string,
   tableId: string,
+  who: Subject[],
 ): Promise<Omit<SpaceTable, "rows">> {
   const table = await tableRow(tableId);
   const space = await ownedSpace(userId, table.spaceId);
+  await assertRwx(space.id, who, { kind: "table", id: table.id, fileId: table.fileId }, "r");
   return {
     id: table.id,
     spaceId: table.spaceId,
@@ -234,8 +256,10 @@ export async function getRow(
   _userId: string,
   tableId: string,
   rowId: string,
+  who: Subject[],
 ): Promise<SpaceTableRow | null> {
-  await tableRow(tableId);
+  const table = await tableRow(tableId);
+  await assertRwx(table.spaceId, who, { kind: "table", id: table.id, fileId: table.fileId }, "r");
   const row = await db.query.spaceTableRow.findFirst({
     where: and(eq(schema.spaceTableRow.id, rowId), eq(schema.spaceTableRow.tableId, tableId)),
   });
@@ -534,9 +558,15 @@ export async function createPage(
   return { id };
 }
 
-export async function getPage(userId: string, pageId: string): Promise<SpacePage> {
+export async function getPage(userId: string, pageId: string, who: Subject[]): Promise<SpacePage> {
   const page = await pageRow(pageId);
   const space = await ownedSpace(userId, page.spaceId);
+  await assertRwx(space.id, who, { kind: "page", id: page.id, fileId: page.fileId }, "r");
+  return pageView(page, space);
+}
+
+/** A page as the studio shows it, for one that was just read or written. */
+async function pageView(page: PageRow, space: { origin: string | null }): Promise<SpacePage> {
   return {
     id: page.id,
     spaceId: page.spaceId,
@@ -570,7 +600,7 @@ export async function updatePage(
   await requireWritableSpace(page.spaceId);
   if (patch.baseUpdatedAt && page.updatedAt.getTime() > Date.parse(patch.baseUpdatedAt)) {
     throw new ServiceError("revision_conflict", note("itemChangedMeantime"), {
-      page: await getPage(_userId, pageId),
+      page: await pageView(page, await ownedSpace(_userId, page.spaceId)),
     });
   }
   const title = patch.title !== undefined ? patch.title.trim() || page.title : page.title;

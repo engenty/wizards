@@ -4,6 +4,7 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { sortedTools } from "../agents/space-agent.js";
 import { chatTurnWay } from "../agents/subscription.js";
+import { subjectsOfPerson } from "../broker/rwx.js";
 import { currentFeatures } from "../features.js";
 import { HarnessModel } from "../harness/index.js";
 import { managed } from "../manage.js";
@@ -15,6 +16,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { assistantToolPlugin, assistantToolRisk, assistantToolsOf } from "../tools/plugin.js";
 import { clip } from "../tools/shared.js";
 import { skillsBlock, skillToolsOf } from "../tools/skills.js";
+import { roleOf } from "./access.js";
 import { ClientSteps } from "./client-steps.js";
 import { activeSkills } from "./skills.js";
 import { searchKnowledge } from "./space-index.js";
@@ -162,6 +164,8 @@ async function toolsFor(
 ): Promise<Record<string, unknown>> {
   const sandbox = sandboxTools(chatId);
   const skills = await spaceSkills(space.id);
+  // The turn reads as the person who asked: what they may not read, the AI does not find.
+  const who = subjectsOfPerson(userId, await roleOf(userId));
   const tools: Record<string, unknown> = {
     search_space: createTool({
       id: "search_space",
@@ -169,7 +173,7 @@ async function toolsFor(
         "Searches the space's knowledge: its documents, pages, tables and the sources its plugins bring. Returns the best matches with where they are.",
       inputSchema: z.object({ query: z.string().min(2).max(300) }),
       execute: async ({ query }) => {
-        const found = await searchKnowledge(space.id, query, { limit: 8, signal });
+        const found = await searchKnowledge(space.id, query, { limit: 8, signal, who });
         return { hits: found.hits };
       },
     }),

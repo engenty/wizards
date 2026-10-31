@@ -35,6 +35,7 @@ import { personRoutes } from "./routes/person.js";
 import { publicPluginRoutes } from "./routes/plugin-public.js";
 import { pluginRoutes } from "./routes/plugins.js";
 import { reportRoutes } from "./routes/reports.js";
+import { ruleRoutes } from "./routes/rules.js";
 import { clientIp, connectCallback, publicRoutes, runRoutes, shareRoutes } from "./routes/runs.js";
 import { runtimeSettingsRoutes } from "./routes/runtime-settings.js";
 import { skillRoutes } from "./routes/skills.js";
@@ -346,6 +347,7 @@ if (serves.studio) {
   app.route("/api/studio/organization", organizationRoutes);
   app.route("/api/studio/person", personRoutes);
   app.route("/api/studio", skillRoutes);
+  app.route("/api/studio", ruleRoutes);
   app.route("/api/studio/runtime", runtimeSettingsRoutes);
   app.route("/api/studio/work", workRoutes);
   app.route("/api/studio", studio);

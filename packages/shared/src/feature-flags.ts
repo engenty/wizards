@@ -143,6 +143,12 @@ export const FEATURES = {
     label: "Own domains",
     hint: "Settings › Allgemein: the organization's wizards under a domain of its own, once a TXT record confirms it.",
   },
+  broker: {
+    kind: "release",
+    default: false,
+    label: "Broker",
+    hint: "RWX rules per space: who may read, write and execute what; enforced at every reader.",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

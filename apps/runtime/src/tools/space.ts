@@ -2,6 +2,7 @@ import { whereSchema } from "@engenty/wizards-shared/knowledge";
 import { createTool } from "@mastra/core/tools";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { assertRwx, subjectsOf } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import type { StepContext } from "../engine/types.js";
 import { prompt } from "../prompts.js";
@@ -21,7 +22,8 @@ import { attempt, clip } from "./shared.js";
  * categories first, checked by a classifier after), list it by categories, read a page, a table
  * or a file whole by its path. Hits and reads look like files — a path, front matter, Markdown or
  * CSV — so a model reads them as it reads files. The search also finds what the space's plugins
- * put into the index.
+ * put into the index. Every read is the run's: its holder and its wizard ask the broker
+ * (broker/rwx.ts) before anything is handed out.
  */
 
 const where = whereSchema.optional().describe(prompt("tools", "tool.space.where"));
@@ -41,7 +43,7 @@ export function readKnowledgePage(
   input: { path: string; section?: string; from?: number },
 ) {
   return attempt(async () => {
-    const read = await readPage(ctx.space.id, input.path, input);
+    const read = await readPage(ctx.space.id, input.path, input, subjectsOf(ctx));
     await ctx.emit("tool", { code: "reads", params: { name: read.path } });
     return read;
   });
@@ -49,6 +51,7 @@ export function readKnowledgePage(
 
 export async function spaceTools(ctx: StepContext): Promise<Record<string, any>> {
   const spaceId = ctx.space.id;
+  const who = subjectsOf(ctx);
   const counts = await knowledgeCounts(spaceId);
   const entries = await hasIndexEntries(spaceId);
   if (!(counts.pages || counts.tables || counts.files || entries)) {
@@ -69,6 +72,7 @@ export async function spaceTools(ctx: StepContext): Promise<Record<string, any>>
             where: input.where,
             limit: input.limit,
             signal: ctx.signal,
+            who,
           });
           await ctx.emit("tool", {
             code: "searchesKnowledge",
@@ -100,7 +104,7 @@ export async function spaceTools(ctx: StepContext): Promise<Record<string, any>>
       inputSchema: z.object({ where }),
       execute: (input) =>
         attempt(async () => {
-          const listed = await listForStep(spaceId, input.where);
+          const listed = await listForStep(spaceId, input.where, who);
           await ctx.emit("tool", { code: "listsKnowledge" });
           return listed;
         }),
@@ -127,7 +131,7 @@ export async function spaceTools(ctx: StepContext): Promise<Record<string, any>>
       }),
       execute: (input) =>
         attempt(async () => {
-          const read = await readTable(spaceId, input.path, input);
+          const read = await readTable(spaceId, input.path, input, who);
           await ctx.emit("tool", { code: "reads", params: { name: read.path } });
           return read;
         }),
@@ -159,6 +163,7 @@ export async function spaceTools(ctx: StepContext): Promise<Record<string, any>>
           if (!file) {
             throw new Error(`No file "${path}".`);
           }
+          await assertRwx(spaceId, who, { kind: "document", id: file.id }, "r");
           await ctx.emit("tool", { code: "reads", params: { name: file.name } });
           const text = (await documentText(file)) || file.description;
           const start = Math.min(from ?? 0, text.length);
