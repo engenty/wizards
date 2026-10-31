@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useFeature, useFeatures } from "../../lib/features";
 import { t } from "../../lib/i18n";
-import { useCurrentSpace } from "../../lib/session";
+import { useCurrentSpace, useIsAdmin } from "../../lib/session";
 import { cn, Empty } from "../../ui";
 import { scrollRoot, useCrumbs } from "../AppFrame";
 import {
@@ -51,7 +51,8 @@ export function CapabilitiesPage() {
   const [detail, setDetail] = useState<string | null>(null);
   // Back up to the sections, while the section's page stays; another section opens its menu again.
   const [upAt, setUpAt] = useState<string | null>(null);
-  const sections = shownSections((name) => featureOn(features, name));
+  const admin = useIsAdmin();
+  const sections = shownSections((name) => featureOn(features, name), admin);
   const open = sections.find((s) => s.id === param);
   const entries = sections.map((s) => ({
     id: s.id,

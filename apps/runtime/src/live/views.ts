@@ -53,6 +53,8 @@ export async function spacesView(r: Reader) {
       membersStudio: p.membersStudio,
       /** Whether this person reaches the space's Studio: a member only by the rule above. */
       studio: await studioOpen(p),
+      /** How the admins hear of the broker's critical lines: Work's bell, the hourly mail. */
+      notify: p.notify,
     })),
   );
 }

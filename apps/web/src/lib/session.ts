@@ -15,6 +15,7 @@ import type {
   ColorSection,
   LogoSection,
   SpaceFact,
+  SpaceNotify,
   SpacePage,
   TextStyle,
 } from "@engenty/wizards-shared/spaces";
@@ -337,6 +338,8 @@ export interface Space {
   membersStudio: boolean;
   /** Whether this person reaches the space's Studio: a member only by the rule above. */
   studio: boolean;
+  /** How the admins hear of the broker's critical lines: Work's bell, the hourly mail. */
+  notify: SpaceNotify;
 }
 
 export function useSpaces(enabled = true) {
