@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.14.1] - 2026-10-31
+- FIXED **[runtime]** Tenant databases from 0.13.0 open again: space_skill's migration was renumbered (#401)
+
 ## [0.14.0] - 2026-10-31
 - ADDED **[studio]** Fähigkeiten in the app bar: the space's skills and connections on one overview, Entdecken to find more, and Audit for what was allowed and refused (#331, #380, #383, #384)
 - ADDED **[runtime]** The broker is on: connections, each person's sign-ins and sending go through it, and members reach a closed space through no side door (#331)
