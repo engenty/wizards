@@ -123,7 +123,7 @@ studio.registerSettingsSection({
 ## The space
 
 A space holds what all its wizards share: a title, logos, colours, facts and Knowledge. The
-space page, behind the layers icon (Sources) in the app bar, shows them in five parts:
+space page, behind the layers icon (Resources) in the app bar, shows them in five parts:
 
 | Part | `group` | Holds |
 |---|---|---|

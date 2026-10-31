@@ -10,16 +10,17 @@ wizard never has to ask for your company’s name or address.
 The app bar holds its places, below the space’s tile in its corner:
 
 - The house opens the space’s wizards: the list and “New wizard”.
-- The layers below it open the space’s sources (“Sources”): what your wizards know.
+- The layers below it open the space’s resources (“Resources”): what your wizards know.
 - The tray below them opens the space’s results.
 
 On a phone the bar floats along the bottom with the house, the layers and “More” (⋯), which
 holds the results, the settings and the rest. The space’s tile and name sit at the top left, your
 picture at the top right.
 
-On Sources, the menu on the left shows its four parts. A part opens its own sections,
-and the arrow at the top leads back. On a phone, the parts, a part’s sections and the page take
-turns.
+On Resources, the menu on the left starts with the Overview: each of the four parts with what it
+is for and how far it is filled, Goose on top. Then the parts themselves. Where a part lists
+things of its own (Knowledge’s categories, Data’s tables), it opens its menu under the other parts,
+with a search (⌘F). On a phone, the parts, a part’s menu and the page take turns.
 
 Results have no menu: the list above them picks one wizard or all of them.
 

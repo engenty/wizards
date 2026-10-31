@@ -29,6 +29,7 @@ import { NO_FILTER, Results, type ResultsFilter, useResults } from "./space/Resu
 import { Anchor, Section } from "./space/Section";
 import { MODE_ICON, SkillsOverview, useSkills } from "./space/Skills";
 import { DATA_ICON, DataOverview, dataGroups, useSpaceData } from "./space/SpaceData";
+import { SpaceOverview } from "./space/SpaceOverview";
 import { SpaceSettings } from "./space/SpaceSettings";
 import { TableEditor } from "./space/TableEditor";
 import {
@@ -178,7 +179,15 @@ export function SpacePage({ place }: { place?: "skills" }) {
   // Skills wait behind theirs.
   const skillsOn = useFeature("skills");
   const groups = spaceGroups().filter((g) => pagesOn || g.id !== "page");
-  const entries = withParts(groups, plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
+  const parts = withParts(groups, plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
+  // The overview at `/space` leads the parts; a phone opens it a step deeper.
+  const overviewEntry = {
+    id: "overview",
+    label: t("space.overview"),
+    icon: LayoutGrid,
+    to: narrow ? "/space?show=overview" : "/space",
+  };
+  const entries = [overviewEntry, ...parts];
   // Results have a place of their own in the app bar: no part among the others, no way up.
   const resultsEntry = {
     id: "results",
@@ -260,7 +269,8 @@ export function SpacePage({ place }: { place?: "skills" }) {
       Boolean(spaceData.data && dataGroups(spaceData.data).some((g) => g.items.length)));
   const listOnly =
     Boolean(group) && !own && !((group === "data" || group === "knowledge") && listed);
-  const phone = group === "results" ? 2 : !open ? 0 : show || listOnly ? 2 : 1;
+  const phone =
+    group === "results" ? 2 : !open ? (show === "overview" ? 2 : 0) : show || listOnly ? 2 : 1;
   const level = own
     ? 1
     : narrow
@@ -310,6 +320,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
 
   useCrumbs([
     ...(own ? [] : [{ label: t("nav.sources"), to: "/space" }]),
+    ...(open ? [] : [{ label: t("space.overview") }]),
     ...(entry ? [{ label: entry.label, to: entry.to }] : []),
     ...(entry && (detail ?? wizardTitle ?? pickedTitle)
       ? [{ label: (detail ?? wizardTitle ?? pickedTitle) as string }]
@@ -398,9 +409,9 @@ export function SpacePage({ place }: { place?: "skills" }) {
     if ((id || param) && plugins.status !== "ready") {
       return null;
     }
-    // A phone starts at the parts.
-    if (param !== undefined || !narrow) {
-      return <Navigate to="/space/info" replace state={{ parts: true }} />;
+    // An address that names no part leads to the overview.
+    if (param !== undefined) {
+      return <Navigate to="/space" replace />;
     }
   }
 
@@ -482,7 +493,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
               up; below them a line, the search and the part's own menu come in. */}
           <LevelList
             entries={entries}
-            current={level === 0 ? entry : undefined}
+            current={level === 0 ? (open ? entry : overviewEntry) : undefined}
             hide={level === 1 ? entry?.id : undefined}
             onPick={() => {
               setUpAt(null);
@@ -833,6 +844,15 @@ export function SpacePage({ place }: { place?: "skills" }) {
               ) : null}
               {/* No space yet: nothing is built here, and no local install has sent one. */}
               {!(space || loading) ? <Empty>{t("settings.noSpace")}</Empty> : null}
+            </div>
+          ) : space && (!narrow || show === "overview") ? (
+            <div className="min-w-0">
+              {narrow ? (
+                <div className="mb-3">
+                  <BackRow label={t("nav.sources")} onBack={() => navigate("/space")} />
+                </div>
+              ) : null}
+              <SpaceOverview space={space} parts={parts} />
             </div>
           ) : null}
         </div>
