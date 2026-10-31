@@ -62,6 +62,11 @@ let categories: typeof import("../src/services/space-categories");
 let origin: typeof import("../src/live/origin");
 
 const USER = "local";
+/** The owner, as the studio reads a page for them (broker/rwx.ts). */
+const asUser = [
+  { kind: "person" as const, id: USER },
+  { kind: "role" as const, id: "owner" },
+];
 const local = <T>(fn: () => Promise<T>) => client.withTenant("local", fn);
 const cloud = <T>(fn: () => Promise<T>) => client.withTenant("org", fn);
 let schemaTag = "";
@@ -242,7 +247,7 @@ describe("a change on one side", () => {
     calls.length = 0;
     await local(() => sync.syncSpace(spaceId, "pull"));
     expect(calls).toContain("pull");
-    const page = await local(() => data.getPage(USER, pageId));
+    const page = await local(() => data.getPage(USER, pageId, asUser));
     expect(page.markdown).toContain("Two, changed in the cloud.");
     // What came down is not sent back up.
     calls.length = 0;
@@ -284,7 +289,7 @@ describe("both sides changed the same item", () => {
     await cloud(() => data.updatePage(USER, pageId, { markdown: "One.\n\nTwo, changed in the cloud.\n\nThree, the cloud again." }));
     await local(() => data.updatePage(USER, pageId, { markdown: "One, changed here.\n\nTwo, changed in the cloud.\n\nThree." }));
     await local(() => sync.syncSpace(spaceId, "push"));
-    const md = (await cloud(() => data.getPage(USER, pageId))).markdown;
+    const md = (await cloud(() => data.getPage(USER, pageId, asUser))).markdown;
     expect(md).toContain("One, changed here.");
     expect(md).toContain("Three, the cloud again.");
   });
@@ -432,7 +437,7 @@ describe("more of the space", () => {
     expect(conflict?.deleted).toBe("remote");
     await local(() => sync.resolveConflict(conflict!.id, { take: "local" }));
     await local(() => sync.syncSpace(spaceId, "push"));
-    expect((await cloud(() => data.getPage(USER, extra.id))).markdown).toBe("Changed here.");
+    expect((await cloud(() => data.getPage(USER, extra.id, asUser))).markdown).toBe("Changed here.");
   });
 });
 
@@ -491,7 +496,7 @@ describe("following the cloud", () => {
     return false;
   };
   const markdownIn = (side: typeof local) =>
-    side(async () => (await data.getPage(USER, pageId)).markdown);
+    side(async () => (await data.getPage(USER, pageId, asUser)).markdown);
 
   it("brings a change made in the cloud within two seconds, and not the install's own push", async () => {
     await local(() => sync.syncAll());

@@ -5,6 +5,7 @@ import { type Context, Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import type { Principal } from "../auth/index.js";
+import { readingAs, subjectsOfPerson } from "../broker/rwx.js";
 import { switchOn } from "../features.js";
 import { managed } from "../manage.js";
 import type { PluginSource } from "../plugins/discovery.js";
@@ -130,7 +131,10 @@ export async function dispatchAs(c: Context, user: Principal): Promise<Response>
       },
     };
     try {
-      const result = await route.handler(request);
+      // What the plugin reads of the space's Knowledge, it reads as this person (broker/rwx.ts).
+      const result = await readingAs(subjectsOfPerson(user.id, user.role), async () =>
+        route.handler(request),
+      );
       return result instanceof Response ? result : c.json(result ?? null);
     } catch (err) {
       const answer = answerOf(err);

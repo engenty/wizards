@@ -1,6 +1,8 @@
 import type { PluginSpaceData } from "@engenty/wizards/plugin";
 import type { CategoryInput } from "@engenty/wizards-shared/knowledge";
 import { and, desc, eq, isNull } from "drizzle-orm";
+import { currentCaller } from "../broker/caller.js";
+import { currentReader, type Subject, subjectsOfCaller } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { UnreadableDocument } from "../documents/parse.js";
 import { ServiceError } from "./errors.js";
@@ -221,7 +223,13 @@ export function originData(origin: string): PluginSpaceData {
       }));
     },
     async readFile(space, fileId) {
-      const { row, data } = await spaceFileContent(space, fileId, [{ kind: "plugin", id: origin }]);
+      // As whom the plugin was called for, and as itself: a tool in a step or a Work chat as its
+      // caller, an HTTP route as the person it answers, a job as the runtime itself (readingAs).
+      // Anything else reads as the plugin alone, which no seed allows. A deny for it always wins.
+      const caller = currentCaller();
+      const plugin: Subject = { kind: "plugin", id: origin };
+      const who = [...(caller ? await subjectsOfCaller(caller) : currentReader()), plugin];
+      const { row, data } = await spaceFileContent(space, fileId, who);
       return {
         id: row.id,
         name: row.name,

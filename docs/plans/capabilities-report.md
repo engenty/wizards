@@ -116,9 +116,8 @@ computed opacity is 1. Not a product defect.
 ## Status
 
 Everything in Part A and Part B of the plan is merged on `feat/work-mode` (`98a88b30`);
-`capabilities` is on by default, `broker` (RWX enforcement) is off. F1 is fixed by #373 and
+`capabilities` and `broker` (RWX enforcement) are on by default (B8). F1 is fixed by #373 and
 re-checked on the final branch: the connection page lists `send_message` under „Senden", and
 `broker/ask` answers an admin's send in a chat with `ask` by `rules.send` and a guest's send in a
-run with `deny` by the audience. Decide before `feat/work-mode` goes to main: switch `broker`
-on; narrow the plugin connections A5 converted with audience „alle"; whether a guest's Slack
+run with `deny` by the audience. Decide before `feat/work-mode` goes to main: narrow the plugin connections A5 converted with audience „alle"; whether a guest's Slack
 post should be refused like a send without an address (#373 made it so).

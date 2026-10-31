@@ -3,7 +3,7 @@
 Status: built on `feat/work-mode`, parts A and B, except A8 (isolated instances); see „Open“.
 Written on 2026-10-30 against `feat/work-mode` (v0.13.x), revised after review on 2026-10-30 and
 2026-10-31. The runtime comes first (part A below), the places after (part B). Behind the switch
-`capabilities` (#364), on by default since B7; RWX behind `broker`, still off. Mockups: the artifact
+`capabilities` (#364), on by default since B7; RWX behind `broker`, on by default since B8. Mockups: the artifact
 “Fähigkeiten in the Studio” (claude.ai/artifact/SLU1E9iwxQ8SjNAeHVg5qT). The connection model,
 the three allowances, fixed steps and the broker come from the connections plan (artifact
 “Verbindungen in Quellen”, claude.ai/artifact/GUtiTfPMVvoe1EcgRes3fh); this plan gives them

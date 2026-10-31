@@ -54,8 +54,9 @@ const flush = async () => {
 const on = () => {
   process.env.FEATURES = "broker=on";
 };
+/** The switch is on by default: off is said out loud. */
 const off = () => {
-  delete process.env.FEATURES;
+  process.env.FEATURES = "broker=off";
 };
 
 const upload = async (name: string, mime: string, text: string) => {
@@ -172,11 +173,12 @@ beforeAll(async () => {
 
 afterAll(() => {
   vi.unstubAllGlobals();
-  off();
+  delete process.env.FEATURES;
 });
 
 describe("with the switch off", () => {
   it("every answer is yes, rules or not, and the rules are not there", async () => {
+    off();
     await local(() =>
       client.db.insert(client.schema.rwxRule).values({
         id: "deny-off",
@@ -508,6 +510,132 @@ describe("deny by default", () => {
       ),
     ).toEqual(["other"]);
     expect(await local(() => rwx.readableIds(spaceId, rwx.subjectsOfPerson("b3", "admin"), "document", [fixture.D, "other"]))).toEqual([fixture.D, "other"]);
+  });
+});
+
+/**
+ * The runtime itself (`SYSTEM`): a plugin's job, which no person, guest or run stands behind. It
+ * may do everything, a deny for a subject beside it still wins, and nothing a request carries
+ * turns into it. No subject at all stays a no.
+ */
+describe("the runtime itself", () => {
+  const D = () => ({ kind: "document" as const, id: fixture.D });
+
+  it("is allowed everything, whatever a role's rows say; a deny for the plugin beside it wins", async () => {
+    on();
+    await putRules([
+      { subjectKind: "role", subjectId: "owner", resourceKind: "document", resourceId: fixture.D, r: "deny", w: "deny", x: "deny" },
+    ]);
+    expect((await local(() => rwx.decide(spaceId, rwx.subjectsOfPerson(B, "owner"), D(), "r"))).ok).toBe(false);
+    for (const perm of ["r", "w", "x"] as const) {
+      expect(await local(() => rwx.decide(spaceId, [rwx.SYSTEM], D(), perm))).toEqual({
+        ok: true,
+        reason: `document ${fixture.D}: the runtime itself`,
+        of: D(),
+      });
+    }
+    // The page made of D is D: a deny on D for the plugin reaches the page too.
+    const plugin = { kind: "plugin" as const, id: "data-sourcer" };
+    await putRules([
+      { subjectKind: "plugin", subjectId: "data-sourcer", resourceKind: "document", resourceId: fixture.D, r: "deny" },
+    ]);
+    const page = { kind: "page" as const, id: fixture.pageOfD, fileId: fixture.D };
+    expect(await local(() => rwx.decide(spaceId, [rwx.SYSTEM, plugin], page, "r"))).toMatchObject({
+      ok: false,
+      reason: `document ${fixture.D}: denied`,
+    });
+    expect((await local(() => rwx.decide(spaceId, [rwx.SYSTEM, plugin], page, "w"))).ok).toBe(true);
+    expect((await local(() => rwx.decide(spaceId, [rwx.SYSTEM], page, "r"))).ok).toBe(true);
+    // No subject is still a no, also for the search.
+    expect((await local(() => rwx.decide(spaceId, [], D(), "r"))).reason).toBe(`document ${fixture.D}: no subject`);
+    const { searchKnowledge } = await import("../src/services/space-index");
+    await expect(local(() => searchKnowledge(spaceId, "Hollunder", { who: [] }))).rejects.toMatchObject({
+      code: "forbidden",
+    });
+  });
+
+  it("never comes from a request: no helper gives it, no rule names it, a look-alike is nobody", async () => {
+    on();
+    const step = rwx.subjectsOf({
+      holder: { kind: "person", id: B, role: "owner" },
+      store: { wizardId: fixture.W } as never,
+    });
+    const callers = await local(() =>
+      Promise.all(
+        (
+          [
+            { kind: "guest", id: "v1" },
+            { kind: "person", id: B },
+            { kind: "admin", id: B },
+            { kind: "goose", id: B },
+            { kind: "plugin", id: "atlas" },
+            { kind: "step", id: "s1", for: { kind: "guest", id: "v1" } },
+            { kind: "person" },
+          ] as const
+        ).map((who) => rwx.subjectsOfCaller({ who, where: { wizardId: fixture.W } })),
+      ),
+    );
+    for (const subjects of [
+      rwx.subjectsOfGuest(),
+      rwx.subjectsOfPerson(B, "owner"),
+      rwx.subjectsOfGoose(B, "admin"),
+      rwx.subjectsOfHolder({ kind: "guest", id: "v1" }),
+      step,
+      rwx.currentReader(),
+      ...callers,
+    ]) {
+      expect(subjects.some((s) => s.kind === "system")).toBe(false);
+    }
+    // A subject that only looks like it is nobody: no rule names it.
+    const lookalike = { kind: "system", id: null } as never;
+    expect((await local(() => rwx.decide(spaceId, [lookalike], D(), "r"))).reason).toBe(
+      `document ${fixture.D}: no rule`,
+    );
+    const res = await send("PUT", `/api/studio/spaces/${spaceId}/rules`, {
+      rules: [{ subjectKind: "system", subjectId: null, resourceKind: "document", resourceId: "*", r: "allow" }],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("a plugin reads a document as whom it was called for, as the runtime only in a job", async () => {
+    on();
+    await putRules([
+      { subjectKind: "plugin", subjectId: "atlas", resourceKind: "document", resourceId: fixture.D, r: "deny" },
+      { subjectKind: "role", subjectId: "owner", resourceKind: "document", resourceId: fixture.D, r: null, w: null, x: "allow" },
+    ]);
+    const { originData } = await import("../src/services/space-origin");
+    const { withCaller } = await import("../src/broker/caller");
+    const read = (plugin: string) => local(() => originData(plugin).readFile(spaceId, fixture.D));
+    // Outside a job, a route or a call: the plugin alone, which no seed allows.
+    await expect(read("shop")).rejects.toMatchObject({ code: "forbidden" });
+    // A job: the runtime itself.
+    expect((await rwx.readingAs([rwx.SYSTEM], () => read("shop"))).id).toBe(fixture.D);
+    // A deny for the plugin wins, in a job too.
+    await expect(rwx.readingAs([rwx.SYSTEM], () => read("atlas"))).rejects.toMatchObject({ code: "forbidden" });
+    // An HTTP route reads as its person: the member's deny on D holds (deny by default above).
+    await expect(
+      rwx.readingAs(rwx.subjectsOfPerson("b3", "member"), () => read("shop")),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    expect((await rwx.readingAs(rwx.subjectsOfPerson("b3", "admin"), () => read("shop"))).id).toBe(fixture.D);
+    // A tool in a guest's run reads as the guest; the seed lets guests read.
+    expect(
+      (await withCaller({ who: { kind: "guest", id: "v1" }, where: { wizardId: fixture.W } }, () => read("shop"))).id,
+    ).toBe(fixture.D);
+  });
+
+  it("is used only where the runtime acts for nobody", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const src = join(__dirname, "../src");
+    const files = (readdirSync(src, { recursive: true }) as string[]).filter((f) => f.endsWith(".ts"));
+    const users = files.filter((f) => {
+      const text = readFileSync(join(src, f), "utf8");
+      return (
+        /import\s*\{[^}]*\bSYSTEM\b[^}]*\}\s*from\s*"[^"]*broker\/rwx(\.js)?"/.test(text) ||
+        /\.SYSTEM\b/.test(text)
+      );
+    });
+    // plugins/jobs.ts: a plugin's job runs on the clock, for no person, guest or run.
+    expect(users.sort()).toEqual(["plugins/jobs.ts"]);
   });
 });
 

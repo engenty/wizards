@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { featureOn } from "@engenty/wizards-shared/features";
 import { note, type RunNoteCode } from "@engenty/wizards-shared/run";
 import {
@@ -20,6 +21,8 @@ import { currentRole, isAdminRole, MEMBERS_EDIT_ONLY, roleOf } from "../services
 import { notFound, ServiceError } from "../services/errors.js";
 import { ownedSpace } from "../services/spaces.js";
 import { currentTenant } from "../tenants/tenant.js";
+import type { Who } from "./call.js";
+import type { Caller } from "./caller.js";
 import { logRuleChange } from "./log.js";
 
 /**
@@ -30,15 +33,17 @@ import { logRuleChange } from "./log.js";
  * the switch off every answer is yes, and nothing here changes what the runtime does.
  *
  * Who asks: a guest (a visitor on a shared link), a person with their role, Goose for a person
- * (the person's own rules count too), a run (its holder and its wizard), a plugin. The rows are
- * written by the space's admins (routes/rules.ts); every space starts with the seed below, so
- * turning the switch on changes nothing until an admin writes a deny.
+ * (the person's own rules count too), a run (its holder and its wizard), a plugin, and the
+ * runtime itself (`SYSTEM`). The rows are written by the space's admins (routes/rules.ts); every
+ * space starts with the seed below, so turning the switch on changes nothing until an admin
+ * writes a deny.
  */
 
 export type Perm = RwxPerm;
 
 export interface Subject {
-  kind: RwxSubjectKind;
+  /** A kind a rule can name, or `system`: the runtime itself, which no rule names (`SYSTEM`). */
+  kind: RwxSubjectKind | "system";
   /** `member`, `admin` or `owner` for a role; a user's, wizard's or plugin's id; null for a guest. */
   id: string | null;
 }
@@ -74,6 +79,16 @@ export async function brokerOn(): Promise<boolean> {
 
 // --- who ------------------------------------------------------------------------------------
 
+/**
+ * The runtime itself, with no person, guest or run behind it: a plugin's job (`server.every`,
+ * plugins/jobs.ts). It may read, write and run everything in the space; a deny
+ * written for a subject it asks beside (the plugin) still wins. It never comes from a request:
+ * no helper below returns it, a rule cannot name it (`system` is no `RwxSubjectKind`),
+ * `decideWith` knows it by identity rather than by its kind, and test/rwx.test.ts fails on a file
+ * that uses it outside the places listed there. No subject at all stays a no.
+ */
+export const SYSTEM: Subject = Object.freeze({ kind: "system", id: null }) as Subject;
+
 export const subjectsOfGuest = (): Subject[] => [{ kind: "guest", id: null }];
 
 /** A signed-in person: their own rows, and their role's. */
@@ -99,6 +114,48 @@ export function subjectsOf(ctx: Pick<StepContext, "holder" | "store">): Subject[
   ];
 }
 
+const reader = new AsyncLocalStorage<Subject[]>();
+
+/**
+ * Runs `fn` reading as `who`, for code the runtime hands a call to without a broker caller: a
+ * plugin's HTTP route reads as the person it answers, a plugin's job as the runtime itself. Code
+ * outside reads as nobody, which is a no.
+ */
+export function readingAs<T>(who: Subject[], fn: () => Promise<T>): Promise<T> {
+  return reader.run(who, fn);
+}
+
+/** Whom the code runs reading for (`readingAs`), or nobody. */
+export const currentReader = (): Subject[] => reader.getStore() ?? [];
+
+/**
+ * Whom code the runtime hands a call to (a plugin's tool in a step or a Work chat) runs for: the
+ * person, guest or Goose behind the caller, a fixed step's holder, and the run's wizard. Never
+ * `SYSTEM`; a caller with no one behind it gives no subject, which is a no.
+ */
+export async function subjectsOfCaller(caller: Caller): Promise<Subject[]> {
+  const wizard: Subject[] = caller.where.wizardId
+    ? [{ kind: "wizard", id: caller.where.wizardId }]
+    : [];
+  return [...(await subjectsOfWho(caller.who)), ...wizard];
+}
+
+async function subjectsOfWho(who: Who): Promise<Subject[]> {
+  switch (who.kind) {
+    case "guest":
+      return subjectsOfGuest();
+    case "person":
+    case "admin":
+      return who.id ? subjectsOfPerson(who.id, await roleOf(who.id)) : [];
+    case "goose":
+      return who.id ? subjectsOfGoose(who.id, await roleOf(who.id)) : [];
+    case "step":
+      return who.for ? subjectsOfWho(who.for) : [];
+    case "plugin":
+      return who.id ? [{ kind: "plugin", id: who.id }] : [];
+  }
+}
+
 /** Who holds a run: the signed-in person with their role, else the visitor of the shared link. */
 export async function runHolder(
   run: Pick<RunRow, "id" | "userId" | "visitorId">,
@@ -118,23 +175,53 @@ const names = (rule: Rule, resource: Resource) =>
   rule.resourceKind === resource.kind &&
   (rule.resourceId === RWX_ALL || rule.resourceId === resource.id);
 
+/** The first rule about the subjects and the resource that says `flag` for `perm`. */
+const matching = (
+  rules: Rule[],
+  subjects: Subject[],
+  resource: Resource,
+  perm: Perm,
+  flag: "allow" | "deny",
+) => rules.find((r) => about(r, subjects) && names(r, resource) && r[perm] === flag);
+
+/**
+ * The runtime itself (`SYSTEM`): yes, unless a deny names a subject it asks beside, on the
+ * resource or on the document behind it.
+ */
+function decideSystem(rules: Rule[], others: Subject[], resource: Resource, perm: Perm): Decision {
+  const behind: Resource[] = resource.fileId ? [{ kind: "document", id: resource.fileId }] : [];
+  for (const r of [{ kind: resource.kind, id: resource.id }, ...behind]) {
+    const deny = matching(rules, others, r, perm, "deny");
+    if (deny) {
+      return { ok: false, rule: deny.id, reason: `${r.kind} ${r.id}: denied`, of: r };
+    }
+  }
+  return {
+    ok: true,
+    reason: `${resource.kind} ${resource.id}: the runtime itself`,
+    of: { kind: resource.kind, id: resource.id },
+  };
+}
+
 /** One resource against the rules, without the document behind it. */
 function decideOne(rules: Rule[], subjects: Subject[], resource: Resource, perm: Perm): Decision {
   const where = `${resource.kind} ${resource.id}`;
   const of = { kind: resource.kind, id: resource.id };
-  const matching = rules.filter((r) => about(r, subjects) && names(r, resource));
-  const deny = matching.find((r) => r[perm] === "deny");
+  const deny = matching(rules, subjects, resource, perm, "deny");
   if (deny) {
     return { ok: false, rule: deny.id, reason: `${where}: denied`, of };
   }
-  const allow = matching.find((r) => r[perm] === "allow");
+  const allow = matching(rules, subjects, resource, perm, "allow");
   if (allow) {
     return { ok: true, rule: allow.id, reason: `${where}: allowed`, of };
   }
   return { ok: false, reason: `${where}: no rule`, of };
 }
 
-/** The decision from rules already loaded: deny wins, then any allow, else no rule. */
+/**
+ * The decision from rules already loaded: no subject is a no; the runtime itself is a yes but for
+ * a deny on a subject beside it; else a deny wins, then any allow, else no rule.
+ */
 export function decideWith(
   rules: Rule[],
   subjects: Subject[],
@@ -147,6 +234,10 @@ export function decideWith(
       reason: `${resource.kind} ${resource.id}: no subject`,
       of: { kind: resource.kind, id: resource.id },
     };
+  }
+  if (subjects.includes(SYSTEM)) {
+    const others = subjects.filter((s) => s !== SYSTEM);
+    return decideSystem(rules, others, resource, perm);
   }
   const own = decideOne(rules, subjects, resource, perm);
   if (!(own.ok && resource.fileId)) {
