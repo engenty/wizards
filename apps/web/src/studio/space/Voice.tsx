@@ -2,7 +2,7 @@ import { type BrandRule, SPACE_LIMITS, type VoiceBlock } from "@engenty/wizards-
 import { ListChecks, Plus, TextQuote } from "lucide-react";
 import { useState } from "react";
 import { type Key, t } from "../../lib/i18n";
-import { Textarea } from "../../ui";
+import { Button, Textarea } from "../../ui";
 import { useAutosave } from "./data";
 import {
   type AddEntry,
@@ -140,10 +140,13 @@ export function Voice({
           );
         })}
 
-        {/* Nothing written yet: the usual blocks to start with, one click each. */}
-        {!blocks.length && !readOnly ? (
+        {/* Adding stays in reach under the blocks: an own one, or a usual one not written yet. */}
+        {readOnly || full ? null : (
           <div className="flex flex-wrap items-center gap-2">
-            {PRESETS.map((p) => (
+            <Button variant="secondary" size="sm" onClick={() => add("")}>
+              <Plus className="size-4" /> {t("space.voice.own")}
+            </Button>
+            {open.map((p) => (
               <button
                 key={p.title}
                 type="button"
@@ -154,7 +157,7 @@ export function Voice({
               </button>
             ))}
           </div>
-        ) : null}
+        )}
 
         {ruled ? (
           <RuleRows

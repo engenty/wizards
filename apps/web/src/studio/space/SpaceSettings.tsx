@@ -141,22 +141,53 @@ function Identity({ space, save }: { space: Space; save: (patch: Patch) => Promi
       save={status}
       locked={space.readOnly}
     >
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <Label>{t("space.brandName")}</Label>
-          <Input
-            value={brandName}
-            maxLength={120}
-            placeholder={space.brand.name ?? ""}
-            onChange={(e) => setBrandName(e.target.value)}
-          />
-          <p className="mt-1.5 text-[0.8125rem] text-ink-3">{t("space.brandNameHint")}</p>
-        </div>
-        <div>
-          <Label>{t("space.tagline")}</Label>
-          <Input value={tagline} maxLength={200} onChange={(e) => setTagline(e.target.value)} />
-          <p className="mt-1.5 text-[0.8125rem] text-ink-3">{t("space.taglineHint")}</p>
-        </div>
+      {/* One field per row, label beside its value, as the facts stand. */}
+      <div className="flex flex-col gap-4">
+        {[
+          {
+            id: "brand-name",
+            label: t("space.brandName"),
+            hint: t("space.brandNameHint"),
+            field: (
+              <Input
+                id="brand-name"
+                value={brandName}
+                maxLength={120}
+                placeholder={space.brand.name ?? ""}
+                onChange={(e) => setBrandName(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: "brand-tagline",
+            label: t("space.tagline"),
+            hint: t("space.taglineHint"),
+            field: (
+              <Input
+                id="brand-tagline"
+                value={tagline}
+                maxLength={200}
+                onChange={(e) => setTagline(e.target.value)}
+              />
+            ),
+          },
+        ].map((row) => (
+          <div
+            key={row.id}
+            className="grid items-start gap-x-2 gap-y-1.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+          >
+            <label
+              htmlFor={row.id}
+              className="font-medium text-[0.9375rem] sm:flex sm:h-11 sm:items-center"
+            >
+              {row.label}
+            </label>
+            <div>
+              {row.field}
+              <p className="mt-1.5 text-[0.8125rem] text-ink-3">{row.hint}</p>
+            </div>
+          </div>
+        ))}
       </div>
     </Section>
   );

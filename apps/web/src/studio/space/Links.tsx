@@ -2,7 +2,7 @@ import { type BrandLink, SPACE_LIMITS } from "@engenty/wizards-shared/spaces";
 import { AtSign, Globe, Link2, Plus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { t } from "../../lib/i18n";
-import { IconButton, Input } from "../../ui";
+import { Button, IconButton, Input } from "../../ui";
 import { useAutosave } from "./data";
 import { type AddEntry, AddMenu, newId, Section } from "./Section";
 
@@ -121,9 +121,12 @@ export function Links({
           );
         })}
       </div>
-      {!rows.length && !readOnly ? (
-        <div className="flex flex-wrap items-center gap-2">
-          {PRESETS.slice(0, 4).map((p) => (
+      {readOnly || full ? null : (
+        <div className={`flex flex-wrap items-center gap-2 ${rows.length ? "mt-4" : ""}`}>
+          <Button variant="secondary" size="sm" onClick={() => add("")}>
+            <Plus className="size-4" /> {t("space.links.own")}
+          </Button>
+          {open.map((p) => (
             <button
               key={p.label}
               type="button"
@@ -134,7 +137,7 @@ export function Links({
             </button>
           ))}
         </div>
-      ) : null}
+      )}
     </Section>
   );
 }
