@@ -2794,9 +2794,9 @@ const de: Record<Key, Line> = {
   "space.identityHint":
     "Wie die Marke heißt und was hinter ihr steht. Jeder KI-Schritt kennt das; Seiten und Dokumente setzen es in Kopf und Titel.",
   "space.brandName": "Markenname",
-  "space.brandNameHint": "So geschrieben, wie die Marke es tut. Leer: der Titel aus Info.",
+  "space.brandNameHint": "Leer: der Titel aus Info.",
   "space.tagline": "Tagline",
-  "space.taglineHint": "Ein Satz, der mit dem Namen steht: ein Claim, ein Versprechen.",
+  "space.taglineHint": "Ein Satz zum Namen.",
   "space.voice": "Stimme und Haltung",
   "space.voiceHint":
     "Wie die Marke spricht, zu wem und wofür sie steht. Jeder KI-Schritt schreibt danach.",
@@ -6454,9 +6454,9 @@ const en = {
   "space.identityHint":
     "What the brand is called and what it stands for. Every AI step knows it; pages and documents put it in headers and titles.",
   "space.brandName": "Brand name",
-  "space.brandNameHint": "Written the way the brand writes it. Empty: the title from Info.",
+  "space.brandNameHint": "Empty: the title from Info.",
   "space.tagline": "Tagline",
-  "space.taglineHint": "One line that stands with the name: a claim, a promise.",
+  "space.taglineHint": "One line with the name.",
   "space.voice": "Voice and stance",
   "space.voiceHint":
     "How the brand speaks, to whom and what it stands for. Every AI step writes by it.",
