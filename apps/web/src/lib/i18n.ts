@@ -3528,6 +3528,28 @@ const de: Record<Key, Line> = {
     "Was Wizards wissen sollen: Adresse, USt-IdNr., Öffnungszeiten – alles, was passt.",
   "space.factLabel": "Bezeichnung",
   "space.factValue": "Wert",
+  "space.clients": "Kund:innen",
+  "clients.title": "Kund:innen",
+  "clients.hint":
+    "Jede Firma oder Person, für die du arbeitest, bekommt einen eigenen Space: ihre Daten, Ergebnisse und Chats, getrennt von deinen anderen Kund:innen. Dort gelten die Wizards, Skills und das Wissen dieses Space, soweit du sie für Kund:innen öffnest.",
+  "clients.new": "Kund:in anlegen",
+  "clients.newPlaceholder": "Name, z. B. Wagner GmbH",
+  "clients.empty": "Noch keine Kund:innen.",
+  "clients.counts": "{clients} der Kundschaft · {members} vom Team",
+  "clients.close": "Space von {name} schließen",
+  "clients.closeConfirm":
+    "Den Space von „{name}“ mit seinen Daten, Ergebnissen und Chats schließen?",
+  "clients.roleClient": "Kund:in",
+  "clients.roleMember": "Team",
+  "clients.noPeople":
+    "Noch niemand. Kund:innen melden sich mit einem eigenen Konto an, sobald die Anmeldung für sie da ist.",
+  "clients.wizards": "Wizards für Kund:innen",
+  "clients.wizardsHint":
+    "Welche veröffentlichten Wizards Kund:innen in ihrem Space starten dürfen. Alle anderen bleiben beim Team.",
+  "clients.noWizards": "Noch kein veröffentlichter Wizard.",
+  "clients.openTitle": "Für Kund:innen sichtbar",
+  "clients.openOn": "Kund:innen lesen das in ihrem Space.",
+  "clients.openOff": "Nur das Team sieht das.",
   "space.factAdd": "Eintrag",
   "credit.engenty-wizards": "KI-Wizards aus einer Beschreibung, mit einem Link geteilt.",
   "credit.engenty":
@@ -7176,6 +7198,27 @@ const en = {
     "What wizards should know: address, VAT ID, opening hours – anything that fits.",
   "space.factLabel": "Label",
   "space.factValue": "Value",
+  "space.clients": "Clients",
+  "clients.title": "Clients",
+  "clients.hint":
+    "Each client gets a client space of their own: their data, results and chats, kept apart from your other clients. It uses this space’s wizards, skills and knowledge, as far as you open them to clients.",
+  "clients.new": "Add client",
+  "clients.newPlaceholder": "The client’s name, e.g. Wagner GmbH",
+  "clients.empty": "No clients yet.",
+  "clients.counts": "{clients} of the client · {members} of the team",
+  "clients.close": "Close {name}’s client space",
+  "clients.closeConfirm": "Close the client space of “{name}” with its data, results and chats?",
+  "clients.roleClient": "Client",
+  "clients.roleMember": "Team",
+  "clients.noPeople":
+    "Nobody yet. Clients sign in with an account of their own once sign-in for clients is there.",
+  "clients.wizards": "Wizards for clients",
+  "clients.wizardsHint":
+    "Which published wizards clients may start in their client space. All others stay with the team.",
+  "clients.noWizards": "No published wizard yet.",
+  "clients.openTitle": "Visible to clients",
+  "clients.openOn": "Clients read this in their client space.",
+  "clients.openOff": "Only the team sees this.",
   "space.factAdd": "Entry",
   "credit.engenty-wizards": "AI wizards built from a description, shared with a link.",
   "credit.engenty":

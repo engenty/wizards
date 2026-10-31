@@ -16,6 +16,7 @@ import {
   Shapes,
   SwatchBook,
   Type,
+  UsersRound,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { type Key, t } from "../lib/i18n";
@@ -42,6 +43,7 @@ export function spaceGroups(): SpaceGroup[] {
     { id: "knowledge", label: t("space.knowledge"), icon: BookOpen },
     { id: "data", label: t("space.data"), icon: Database },
     { id: "page", label: t("space.page"), icon: Globe },
+    { id: "clients", label: t("space.clients"), icon: UsersRound },
   ];
 }
 
@@ -75,7 +77,8 @@ export function isSpaceGroup(id: string | undefined): id is SpaceGroupId {
     id === "data" ||
     id === "page" ||
     id === "results" ||
-    id === "skills"
+    id === "skills" ||
+    id === "clients"
   );
 }
 
@@ -109,6 +112,7 @@ const OWN: { id: string; group: SpaceGroupId; label: Key; icon: LucideIcon }[] =
   { id: "page", group: "page", label: "page.sectionPage", icon: Globe },
   { id: "page-words", group: "page", label: "page.sectionWords", icon: Type },
   { id: "page-wizards", group: "page", label: "page.sectionWizards", icon: LayoutGrid },
+  { id: "clients", group: "clients", label: "clients.title", icon: UsersRound },
 ];
 
 export const OWN_SPACE_SECTIONS = OWN.map((s) => s.id);

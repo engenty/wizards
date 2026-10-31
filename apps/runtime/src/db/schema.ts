@@ -139,7 +139,9 @@ export const space = sqliteTable(
      * `client`: a client space under `parentId` (docs/plans/client-spaces.md): one client's data,
      * results and chats, reading the parent's setup. `space`: a space of the organization.
      */
-    kind: text("kind", { enum: ["space", "client"] }).notNull().default("space"),
+    kind: text("kind", { enum: ["space", "client"] })
+      .notNull()
+      .default("space"),
     /** The space a client space belongs to; null for a space. Two levels, never more. */
     parentId: text("parent_id").references((): AnySQLiteColumn => space.id, {
       onDelete: "cascade",
