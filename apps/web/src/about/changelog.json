@@ -1,20 +1,33 @@
 [
   {
-    "version": "v0.14.2",
-    "timestamp": 1793462213,
+    "version": "v0.15.0",
+    "timestamp": 1793480890,
     "commits": [
+      {
+        "id": "92d8757",
+        "message": "one tool catalogue behind the broker, the space's elements for MCP, the API, Claude and Codex (#407)",
+        "group": "Added",
+        "scope": "runtime",
+        "breaking": false
+      }
+    ]
+  },
+  {
+    "version": "v0.14.2",
+    "timestamp": 1793462421,
+    "commits": [
+      {
+        "id": "9e1fadf",
+        "message": "documentation updates (#403, #404)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
       {
         "id": "b075112",
         "message": "a databases health check: tenant databases that don't open (#405)",
         "group": "Added",
         "scope": "runtime",
-        "breaking": false
-      },
-      {
-        "id": "19f3beb",
-        "message": "the modular plan's open questions decided (#403)",
-        "group": "Docs",
-        "scope": "plans",
         "breaking": false
       }
     ]

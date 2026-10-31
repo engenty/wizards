@@ -4,6 +4,9 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.15.0] - 2026-10-31
+- ADDED **[runtime]** One tool catalogue behind the broker, the space's elements for MCP, the API, Claude and Codex (#407)
+
 ## [0.14.2] - 2026-10-31
 - ADDED **[runtime]** A databases health check: tenant databases that don't open (#405)
 - DOCS **[plans]** The modular plan's open questions decided (#403)
