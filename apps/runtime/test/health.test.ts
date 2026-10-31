@@ -1,6 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const dir = mkdtempSync(join(tmpdir(), "wizards-health-"));
@@ -38,6 +39,7 @@ describe("readiness", () => {
       process: "ok",
       control: "ok",
       tenants: "ok",
+      databases: "ok",
       objects: "ok",
       line: "ok",
     });
@@ -69,6 +71,21 @@ describe("readiness", () => {
     });
     expect(r.status).toBe("down");
     expect(r.error).toBe("refused: Bearer [redacted]");
+  });
+
+  it("reports tenant databases that don't open", async () => {
+    const { controlDb, control, tenantDb } = await import("../src/db/client");
+    await tenantDb("works");
+    await controlDb
+      .insert(control.tenant)
+      .values({ id: "broken", dbUrl: `file:${join(dir, "no-such-folder", "broken.db")}` });
+    await expect(tenantDb("broken")).rejects.toThrow();
+    const r = await health.databasesCheck();
+    expect(r?.status).toBe("degraded");
+    expect(r?.error).toMatch(/1 of \d+ tenant databases don't open/);
+    expect(r?.detail).toEqual({ failing: [{ id: "broken", at: expect.any(String) }] });
+    await controlDb.delete(control.tenant).where(eq(control.tenant.id, "works"));
+    expect((await health.databasesCheck())?.status).toBe("down");
   });
 
   it("counts requests until their handler returned", async () => {

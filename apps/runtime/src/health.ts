@@ -4,7 +4,13 @@ import { join } from "node:path";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { type Client, createClient } from "@libsql/client";
 import { packageVersion } from "./cli/home.js";
-import { openingTenants, probeControl } from "./db/client.js";
+import {
+  failingTenants,
+  knownTenants,
+  openingTenants,
+  probeControl,
+  tenantDb,
+} from "./db/client.js";
 import { lineAskedSince } from "./engine/runner.js";
 import { env } from "./env.js";
 import { probeObjects } from "./files/objects.js";
@@ -183,6 +189,53 @@ async function tenantsCheck() {
   return undefined;
 }
 
+/** How often every tenant database is opened in the background, for `databases`. */
+const SWEEP_MS = 60_000;
+let swept = 0;
+let sweeping = false;
+
+/**
+ * Opens every known tenant database, one after the other, at most once a minute and never twice
+ * at once. An open one answers at once; one that fails (a migration, say) is tried again.
+ */
+function sweepTenants(now: number) {
+  if (sweeping || now - swept < SWEEP_MS) {
+    return;
+  }
+  sweeping = true;
+  swept = now;
+  void (async () => {
+    try {
+      for (const id of await knownTenants()) {
+        await tenantDb(id).catch(() => undefined);
+      }
+    } catch {
+      // the control database is `control`'s to report
+    } finally {
+      sweeping = false;
+    }
+  })();
+}
+
+/**
+ * Whether the tenant databases open: every request of a tenant needs its own. The sweep runs
+ * behind the check, so the answer is what the last sweep and the requests since found. Some
+ * failing is `degraded`, all failing `down`.
+ */
+export async function databasesCheck(): Promise<Omit<CheckResult, "ms"> | undefined> {
+  sweepTenants(Date.now());
+  const failing = failingTenants();
+  if (!failing.length) {
+    return undefined;
+  }
+  const known = (await knownTenants()).length;
+  return {
+    status: failing.length >= known ? "down" : "degraded",
+    error: `${failing.length} of ${known} tenant databases don't open: ${failing[0].error}`,
+    detail: { failing: failing.map((f) => ({ id: f.id, at: new Date(f.at).toISOString() })) },
+  };
+}
+
 async function lineCheck(): Promise<Omit<CheckResult, "ms">> {
   const { runners, oldestWaiting } = await lineState();
   const now = Date.now();
@@ -255,6 +308,9 @@ function checksOf(): { name: string; required: boolean; run: Run }[] {
   const all: { name: string; required: boolean; run: Run; when: boolean }[] = [
     { name: "control", required: true, run: controlCheck, when: true },
     { name: "tenants", required: true, run: tenantsCheck, when: true },
+    // Not required: a database that doesn't open leaves the others serving; the status page
+    // reads this check by name.
+    { name: "databases", required: false, run: databasesCheck, when: serves.studio },
     {
       name: "objects",
       required: true,
