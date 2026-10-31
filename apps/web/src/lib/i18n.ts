@@ -1377,6 +1377,24 @@ const de: Record<Key, Line> = {
   "konto.scope.test": "Testläufe starten – verbraucht Guthaben",
   "konto.scope.results": "Ergebnisse deiner Wizards lesen",
   "konto.scope.profile": "Deinen Namen und deine E-Mail sehen",
+  "konto.connections": "Verbindungen",
+  "konto.connectionsHint":
+    "Wo du dich selbst anmeldest. Deine Chats, deine Läufe und dein Goose handeln dann als du.",
+  "konto.connectionsCount": { one: "1 Verbindung", other: "{n} Verbindungen" },
+  "konto.connectionsNone":
+    "In deinen Spaces gibt es noch keine Verbindung für dich. Die Admins eines Space richten sie ein.",
+  "konto.connectionsFailed":
+    "Die Verbindungen ließen sich nicht laden. Versuch es gleich noch einmal.",
+  "konto.connectionsFoot": "Neue Verbindungen für einen Space richten dessen Admins ein.",
+  "konto.connectionEach": "jede Person meldet sich an",
+  "konto.connectionAsSpace": "Als Space angemeldet",
+  "konto.connectionSpaceNotYet": "Der Space ist noch nicht angemeldet",
+  "konto.connectionSetUpBy": "eingerichtet von {name} am {when}",
+  "konto.connectionSetUpAt": "eingerichtet am {when}",
+  "konto.connectionSignIn": "Anmelden",
+  "konto.connectionSignOutConfirm":
+    "Von „{name}“ abmelden? Deine Chats, deine Läufe und dein Goose nutzen die Verbindung dann nicht mehr als du.",
+  "konto.signedIn": "angemeldet",
   "credits.title": "Guthaben",
   "credits.hint": "Das Guthaben von {name}. Läufe, KI-Schritte und Bilder ziehen davon ab.",
   "credits.failed": "Das Guthaben ließ sich nicht laden. Versuch es gleich noch einmal.",
@@ -4730,6 +4748,23 @@ const en = {
   "konto.scope.test": "Start test runs – uses credits",
   "konto.scope.results": "Read your wizards’ results",
   "konto.scope.profile": "See your name and email",
+  "konto.connections": "Connections",
+  "konto.connectionsHint":
+    "Where you sign in yourself. Your chats, your runs and your Goose then act as you.",
+  "konto.connectionsCount": { one: "1 connection", other: "{n} connections" },
+  "konto.connectionsNone":
+    "Your spaces have no connection for you yet. A space’s admins set them up.",
+  "konto.connectionsFailed": "The connections couldn’t be loaded. Try again in a moment.",
+  "konto.connectionsFoot": "A space’s admins set up its new connections.",
+  "konto.connectionEach": "each person signs in",
+  "konto.connectionAsSpace": "Signed in as the space",
+  "konto.connectionSpaceNotYet": "The space isn’t signed in yet",
+  "konto.connectionSetUpBy": "set up by {name} on {when}",
+  "konto.connectionSetUpAt": "set up on {when}",
+  "konto.connectionSignIn": "Sign in",
+  "konto.connectionSignOutConfirm":
+    "Sign out of “{name}”? Your chats, your runs and your Goose then stop using it as you.",
+  "konto.signedIn": "signed in",
   "credits.title": "Credits",
   "credits.hint": "{name}’s credits. Runs, AI steps and pictures draw on them.",
   "credits.failed": "The credits couldn’t be loaded. Try again in a moment.",

@@ -12,6 +12,7 @@ import {
   Flag,
   Folder,
   Laptop,
+  Link2,
   LogOut,
   Pencil,
   Plus,
@@ -694,6 +695,7 @@ export function UserMenu({
   const dev = useDockPrefs().dev;
   const account = useFeature("account");
   const state = accountState(me, account);
+  const capabilities = useFeature("capabilities");
   // The person's own settings are behind the avatar where the organization has its own.
   const ownSettings = me.mode === "managed" && featureOn(me.features, "organizationSettings");
   const item =
@@ -820,6 +822,19 @@ export function UserMenu({
           >
             <UserRound className="size-4" /> {t("konto.title")}
           </button>
+          {/* The person's own sign-ins to the connections of their spaces. */}
+          {capabilities ? (
+            <button
+              type="button"
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                navigate("/account/connections");
+              }}
+            >
+              <Link2 className="size-4" /> {t("konto.connections")}
+            </button>
+          ) : null}
           {!ownSettings && me.manageUrl ? (
             <a className={item} href={`${me.manageUrl}/account`} target="_blank" rel="noreferrer">
               <CreditCard className="size-4" /> {t("nav.account")}

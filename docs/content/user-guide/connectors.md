@@ -69,6 +69,14 @@ run:
 | Changes something | The person allows each call, or chooses “Allow for the rest of this run”. A wizard can let it run without asking |
 | Deletes | The person allows it like a change. A wizard can never let it run without asking |
 
+## Connections in your menu
+
+A space’s admins can set up a connection and choose how it signs in: once as the space, or each
+person for themselves. Your menu › Connections lists the connections of your spaces that are open
+to you. Where each person signs in, you sign in or out there; your chats, your runs and your Goose
+then act as you, and nobody else sees your sign-in. Where the space signs in, you see its account
+and who set it up. You set up no connection there: that stays with the space’s admins.
+
 ## The person’s mailbox
 
 A wizard can ask for the person’s mailbox and read it: search emails, read them and keep

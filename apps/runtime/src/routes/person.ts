@@ -1,6 +1,7 @@
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { renameSessions, type SessionUser } from "../auth/index.js";
+import { personSignIns } from "../connectors/person-sign-ins.js";
 import {
   disconnectPersonApp,
   ManageError,
@@ -26,9 +27,11 @@ async function answer(c: Context, work: Promise<unknown>) {
 
 /**
  * The person's Konto in the cloud studio, behind the avatar: their name and what holds a sign-in
- * of theirs, kept at the Manage-App for every organization (docs/manage-contract.md).
+ * of theirs, kept at the Manage-App for every organization (docs/manage-contract.md). Their
+ * sign-ins to the connections of their spaces are the runtime's, also on a local install.
  */
 export const personRoutes = new Hono<Vars>()
+  .get("/sign-ins", async (c) => c.json(await personSignIns(c.get("user"))))
   .use(async (c, next) => {
     if (!managed) {
       return c.json({ error: say(c, "onlyAvailableCloud"), code: "not_managed" }, 404);
