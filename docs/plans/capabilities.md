@@ -277,7 +277,7 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    fails on a tool without a broker action. Plugin
    connections from a guest run: reads only, logged. Closes: plugin connections with no ask and
    no holder; nobody knowing who called.
-3. `feat(runtime): a run's grant, fixed at start` — **built** (#PRNUM): `grantOf(definition)`
+3. `feat(runtime): a run's grant, fixed at start` — **built** (#358): `grantOf(definition)`
    in `broker/grant.ts` — the steps' connections with the actions they may use (read only
    without a list), the steps' tools, hosts empty until A6 — computed in `createRun` from the
    published definition (a test run: the draft), kept as `run.grant`, so an edit never widens a
