@@ -1,6 +1,6 @@
 # Plan: one tool surface for every client
 
-Status: plan, nothing built. Written on 2026-10-31 against main `f5d7b224` (v0.13.x with Work
+Status: plan, nothing built; open questions decided on 2026-10-31. Written on 2026-10-31 against main `f5d7b224` (v0.13.x with Work
 mode). Page with both diagrams: the artifact “Modular Wizards Plan”
 (claude.ai/artifact/BRLfib42d2m3Nq6mXG5s7s). It extends the architecture page
 (`docs/content/dev/architecture.md`).
@@ -103,20 +103,24 @@ Each phase is a few small PRs behind one switch, on by default once its last PR 
    with timeout and reminders, resume after restart, sandboxes that come back. Done when a run
    waits three days for an answer, survives a deploy, and goes on.
 
-## Open
+## Decided
 
-1. Does a client that is not a person exist (a service key for another system), or does every
-   outside call act as a person or a published wizard's guest?
-2. Credits: who pays for a run Claude starts, the person's plan or the space's? Does a published
-   wizard called by another system charge its publisher?
-3. Skills for Claude and Codex: tools only, download only, or both? A download takes its scripts
-   out of our sandbox and our broker.
-4. Does our Work chat stay the default Work client in the studio, or does Work point people to
-   Claude and Codex once phase 3 lands?
-5. One MCP server per space, or one per person with a space parameter?
-6. The new role's name: `api`, `mcp`, or folded into `doors`?
-7. Local install: is a linked account required for outside clients, or does a local token per
-   client suffice?
+Decided on 2026-10-31 (roadmap page: claude.ai/artifact/LhdF8LKeqC2gcL3zNA9qC6).
+
+1. **No client that is not a person, for now.** Every outside call acts as a person or as a
+   published wizard's guest; the broker already knows both.
+2. **Credits:** a run Claude or Codex starts is paid by the person's organization, as a run from
+   the Work chat. A published wizard called by another system charges its publisher, as guest runs
+   do today.
+3. **Skills reach Claude and Codex as tools first.** Scripts stay in our sandbox and behind the
+   broker. A download in the `SKILL.md` layout comes later, for skills without scripts.
+4. **Our Work chat stays the default Work client.** It becomes one client of the catalogue;
+   Claude and Codex are added, not swapped in.
+5. **One MCP server per person, the space as a parameter.** One sign-in per client; the tool list
+   stays the same across spaces.
+6. **The new role is `api`.** It serves `/api/mcp` and `/api/v1`; `doors` stays the guests' side.
+7. **A local install needs no linked account.** It gives a token per client, which can be revoked
+   alone (today one access key opens everything).
 
 ## Risks
 
