@@ -191,7 +191,7 @@ describe("a plugin's connection", () => {
       actionId: "create_contact",
       kind: "write",
       outcome: "deny",
-      result: "denied",
+      result: "ai_step_writes",
       critical: true,
     });
     expect(calls).toEqual([]);
@@ -431,6 +431,7 @@ describe("a wizard's connection, as the person running it", () => {
         signIn: "space",
         audience: "all",
         rules: { read: "allow", write: "ask", destructive: "deny", send: "ask" },
+        actions: [],
       } as never,
       connector: {} as never,
     };
@@ -615,5 +616,277 @@ describe("the run's grant, fixed at start", () => {
     );
     expect(row?.grant).toEqual(grant);
     expect(await inTenant(() => broker.runGrant("run-old"))).toEqual(grant);
+  });
+});
+
+describe("fixed steps write, AI steps on space connections read", () => {
+  let crm = "";
+  /** The wizard's entry for the space's connection. */
+  const viaSpace = (actions?: string[]) => ({
+    id: "crm",
+    spaceConnection: crm,
+    title: "CRM",
+    ...(actions ? { actions } : {}),
+  });
+  /** A step with a fixed `call`: the action and the fields are the wizard's. */
+  const fixed = (connection: string, action = "create_contact") => ({
+    id: "save",
+    type: "agent",
+    title: "Save",
+    instructions: "",
+    tools: [],
+    call: { connection, action, input: { email: "{{email}}", id: "{{steps.read.id}}" } },
+    output: { format: "json" },
+  });
+  /** The step that reads the id the fixed step sends along. */
+  const read = {
+    id: "read",
+    type: "agent",
+    title: "Read",
+    instructions: "Find the contact's id.",
+    tools: [],
+    output: { format: "json", fields: [{ id: "id", kind: "text", description: "The id" }] },
+  };
+  const withFixed = (connection: Record<string, unknown>, step = fixed(connection.id as string)) => ({
+    ...definition,
+    connections: [connection],
+    steps: [definition.steps[0], read, step, definition.steps[1]],
+  });
+
+  /** A step's context as far as a fixed step and the connector tools read it. */
+  function contextOf(
+    def: Record<string, unknown>,
+    runId: string,
+    holder: { kind: "guest"; id: string } | { kind: "person"; id: string; role: "member" },
+    ask: (ask: unknown) => Promise<unknown>,
+  ) {
+    const state = {
+      values: { email: "lead@b.at" },
+      outputs: { read: { json: { id: "c-42" }, at: "" } },
+      history: [],
+      notes: {},
+    };
+    return {
+      runId,
+      tenantId: TENANT,
+      holder,
+      test: false,
+      stepId: "save",
+      store: { wizardId, holder: holder.kind === "guest" ? `v:${holder.id}` : `u:${holder.id}` },
+      def,
+      lang: null,
+      files: [],
+      state,
+      scope: { def, state, brand: {} },
+      space: { id: space },
+      spaceFiles: [],
+      signal: new AbortController().signal,
+      resources: { allowed: new Set<string>() },
+      emit: async () => {},
+      ask,
+      call: {},
+    } as unknown as import("../src/engine/types").StepContext;
+  }
+
+  beforeAll(async () => {
+    // The space's CRM: signs in as the space, open to everyone, writes allowed.
+    crm = (
+      await inTenant(() =>
+        connections.pluginConnections("crm").connect({
+          space,
+          connector: "hubspot",
+          actions: [],
+          credentials: { access_token: TOKEN },
+        }),
+      )
+    ).id;
+    await inTenant(() =>
+      client.db
+        .update(client.schema.spaceConnection)
+        .set({ rules: { read: "allow", write: "allow", destructive: "deny", send: "allow" } })
+        .where(eq(client.schema.spaceConnection.id, crm)),
+    );
+  });
+
+  it("a fixed step writes as the space with the run's fields, asking nobody, and the log says the step", async () => {
+    calls.length = 0;
+    const def = withFixed(viaSpace());
+    const ask = vi.fn();
+    const steps = await import("../src/engine/steps");
+    const out = await inTenant(() =>
+      steps.runAgentStep(
+        def.steps[2] as never,
+        contextOf(def, "run-f", { kind: "guest", id: "visitor-9" }, ask),
+      ),
+    );
+    expect(out.json).toEqual({ done: "create_contact", contacts: [{ id: "7" }] });
+    expect(ask).not.toHaveBeenCalled();
+    expect(calls).toEqual([
+      { action: "create_contact", input: { email: "lead@b.at", id: "c-42" }, token: expect.stringContaining(TOKEN) },
+    ]);
+    expect((await logOf(crm)).at(-1)).toMatchObject({
+      whoKind: "step",
+      whoId: "save",
+      runId: "run-f",
+      wizardId,
+      actionId: "create_contact",
+      kind: "write",
+      outcome: "allow",
+      result: "ok",
+      critical: false,
+    });
+  });
+
+  it("refuses a write from an AI step on a connection that signs in as the space, whatever the wizard says, and logs it", async () => {
+    calls.length = 0;
+    const held = {
+      kind: "space_connection" as const,
+      row: (await inTenant(() =>
+        client.db.query.spaceConnection.findFirst({ where: (t, { eq }) => eq(t.id, crm) }),
+      )) as never,
+      connector: (await import("../src/engenty/connections-hubspot/connector")).hubspotConnector,
+    };
+    const where = { runId: "run-f", wizardId, spaceId: space, mode: "live" as const, guest: false };
+    const ask = vi.fn(async () => ({ type: "done" as const }));
+    for (const who of [
+      { kind: "person" as const, id: "user-b" },
+      { kind: "admin" as const, id: "user-a" },
+      { kind: "guest" as const, id: "visitor-9" },
+    ]) {
+      const out = await inTenant(() =>
+        broker.brokerCall({
+          who,
+          where,
+          connection: held,
+          action: { id: "create_contact" },
+          input: { email: "x@y.at" },
+          ctx: { ask, allowed: new Set(["crm:create_contact"]), confirmed: true },
+        }),
+      );
+      expect(out).toMatchObject({ ok: false, refused: "ai_step_writes" });
+    }
+    expect(ask).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+    expect((await logOf(crm)).at(-1)).toMatchObject({
+      whoKind: "guest",
+      actionId: "create_contact",
+      kind: "write",
+      outcome: "deny",
+      result: "ai_step_writes",
+      critical: true,
+    });
+    // Reading is what an AI step does there.
+    const read = await inTenant(() =>
+      broker.brokerCall({ who: { kind: "person", id: "user-b" }, where, connection: held, action: { id: "list_contacts" }, input: {} }),
+    );
+    expect(read.ok).toBe(true);
+    // A Work chat is no AI step of a run: the connection's rule decides (A7 puts it on the broker).
+    const chat = broker.decide({
+      who: { kind: "person", id: "user-b" },
+      where: { chatId: "chat-1", spaceId: space },
+      connection: held,
+      actionId: "create_contact",
+      kind: "write",
+    });
+    expect(chat.outcome).toBe("allow");
+  });
+
+  it("offers an AI step only the read actions of a connection that signs in as the space", async () => {
+    const { toolsOf } = await import("../src/tools/connector");
+    const def = withFixed(viaSpace(["list_contacts", "create_contact", "delete_contact"]));
+    const ctx = contextOf(def, "run-f", { kind: "person", id: "user-b", role: "member" }, vi.fn());
+    const tools = await inTenant(() => toolsOf(def.connections[0] as never, ctx, {} as never));
+    expect(Object.keys(tools)).toEqual(["hubspot_list_contacts"]);
+  });
+
+  it("asks the person before a fixed step writes on their own connection", async () => {
+    calls.length = 0;
+    const def = withFixed(hub());
+    await runRow("run-p", def, broker.grantOf(def as never));
+    const ask = vi.fn(async () => ({ type: "done" as const }));
+    const steps = await import("../src/engine/steps");
+    const out = await inTenant(() =>
+      steps.runAgentStep(
+        def.steps[2] as never,
+        contextOf(def, "run-p", { kind: "person", id: "user-b", role: "member" }, ask),
+      ),
+    );
+    expect(out.json).toMatchObject({ done: "create_contact" });
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(ask.mock.calls[0][0]).toMatchObject({
+      kind: "confirm",
+      service: "HubSpot",
+      action: { id: "create_contact", destructive: false },
+    });
+    expect(calls.map((c) => c.input)).toEqual([{ email: "lead@b.at", id: "c-42" }]);
+    expect((await logOf("hub")).at(-1)).toMatchObject({
+      whoKind: "step",
+      whoId: "save",
+      runId: "run-p",
+      kind: "write",
+      outcome: "ask",
+      result: "ok",
+    });
+    // Declined: the step fails, in the person's words.
+    await expect(
+      inTenant(() =>
+        steps.runAgentStep(
+          def.steps[2] as never,
+          contextOf(def, "run-p", { kind: "person", id: "user-b", role: "member" }, async () => ({ type: "skip" })),
+        ),
+      ),
+    ).rejects.toThrow(/wasn’t allowed/);
+  });
+
+  it("puts a fixed step's connection and action into the run's grant", () => {
+    const def = withFixed(hub());
+    expect(broker.grantOf(def as never).connections).toEqual({ hub: ["create_contact"] });
+    const both = {
+      ...def,
+      steps: [
+        def.steps[0],
+        { ...read, connections: ["hub"] },
+        { ...def.steps[2], call: { connection: "hub", action: "delete_contact", input: {} } },
+        def.steps[3],
+      ],
+    };
+    expect(broker.grantOf(both as never).connections).toEqual({
+      hub: ["create_contact", "delete_contact", "list_contacts"],
+    });
+  });
+
+  it("the validator refuses an AI step that would write as the space, and a call to an action the connector lacks", async () => {
+    const wizards = await import("../src/services/wizards");
+    const { validateWizard } = await import("@engenty/wizards-shared/definition");
+    const aiWrites = {
+      ...definition,
+      connections: [viaSpace(["list_contacts", "create_contact"])],
+      steps: [
+        definition.steps[0],
+        { id: "sync", type: "agent", title: "Sync", instructions: "Sync it.", tools: [], connections: ["crm"], output: { format: "text" } },
+        definition.steps[1],
+      ],
+    };
+    const issues = await inTenant(() => wizards.checkDraft(space, aiWrites as never));
+    expect(issues.map((i) => i.message)).toEqual([
+      expect.stringMatching(/"create_contact" writes in CRM, which signs in as the space\. An AI step only reads there; put the write in a step with "call"/),
+    ]);
+    // A fixed step may write there.
+    expect(await inTenant(() => wizards.checkDraft(space, withFixed(viaSpace()) as never))).toEqual([]);
+    const noSuchAction = withFixed(viaSpace(), fixed("crm", "nope"));
+    expect(
+      (await inTenant(() => wizards.checkDraft(space, noSuchAction as never))).map((i) => i.message),
+    ).toEqual([expect.stringMatching(/CRM has no action "nope"/)]);
+    const gone = withFixed({ ...viaSpace(), spaceConnection: "sc-gone" });
+    expect((await inTenant(() => wizards.checkDraft(space, gone as never))).map((i) => i.message)).toEqual([
+      expect.stringMatching(/"sc-gone", which this space does not have/),
+    ]);
+    // The shared validator: the call names a connection the wizard has, and not a mailbox.
+    expect(validateWizard(withFixed(hub(), fixed("nowhere")) as never).map((i) => i.message)).toEqual([
+      'Step calls unknown connection "nowhere".',
+    ]);
+    expect(
+      validateWizard(withFixed({ id: "inbox", kind: "mail" }, fixed("inbox", "send")) as never).map((i) => i.message),
+    ).toEqual([expect.stringMatching(/is of kind "mail"/)]);
   });
 });

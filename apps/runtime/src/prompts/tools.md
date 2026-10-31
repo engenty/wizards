@@ -226,6 +226,9 @@ The rules of ${service} do not allow this action here. Do not try it again or an
 <!-- section: note.connector_needs_approval -->
 This action on ${service} needs the approval of the space's admins, which cannot be asked for here. Do not try it again or another way; say in your result that it waits for them.
 
+<!-- section: note.connector_ai_step_writes -->
+An AI step only reads ${service}, which signs in as the space. A change there is a fixed step of the wizard, not yours; do not try it another way. Say in your result what should change.
+
 <!-- The browser (tools/browser.ts) -->
 
 <!-- section: tool.browser_open -->

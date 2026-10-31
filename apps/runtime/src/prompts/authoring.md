@@ -37,6 +37,7 @@ ${sandbox}
 - Collecting from everyone who runs the wizard (requests, leads, sign-ups, feedback): a list with "shared": true, saved with list_write. It is the admin's, under Space → Data; never show one person's rows to another. Longer text for every run (a running summary, a log): the "pages" tool.
 - The person's mail: one connection of kind "mail", a page field of kind "connection" early in the wizard, and the agent step lists it in "connections". Do not ask for the provider or the address in other fields — the connect field does that.
 - Working in a service for the person (read their Notion, create an issue, look up a customer): import the service as a connector, declare a connection with "connector", put a page field of kind "connection" before the step, and list the connection in the step's "connections". Prefer a connector over the browser whenever the service has one.
+- Working in the space's own account (its CRM, its calendar, its mailbox — set up by the admins, listed below as connections of the space): declare a connection with "spaceConnection", no connect field. AI steps READ there; every WRITE (create, update, send, delete) is a fixed step: "call" with the connection, the action and fixed input fields from the run's values — the AI never writes as the space, and the person running is never asked for it. Example: an agent step reads the request and extracts the fields; then { "type": "agent", "call": { "connection": "crm", "action": "create_contact", "input": { "email": "{{email}}", "note": "{{steps.read.summary}}" } }, "output": { "format": "json" } }.
 - Logins on websites: never ask for passwords in page fields. An agent step with the browser tool asks the person at the moment it meets the login (browser_request_credentials); write that into its instructions, and that it must go on without the site when the person skips.
 - Most people open a wizard on their phone. Keep pages short, and let the phone do the typing: photos with an "image" field (multiple) instead of descriptions, the place with a "location" field instead of an address form, what happened as an "audio" field instead of a long textarea (keep an optional textarea beside it), a sign-off as a "signature" field, a serial or ticket number as a "text" field with scan. Typical: damage report, handover protocol, site inspection, delivery note.
 - How it runs: the first message may name the channels ("Läuft als: …" / "Runs as: …"); they are set already, never ask about them. A call, an SMS or WhatsApp asks by voice or text only: where one of them is named, keep each answer to text, a choice, a number or a date, and leave photos, files, signatures and maps to pages that only the browser shows (a call hands over a link by SMS).
@@ -131,6 +132,11 @@ type List = {
 type Connection =
   | { id, kind: "mail", title?, description? }
       // the person picks how to connect (Gmail, Outlook, or any mailbox over IMAP); steps only ever READ it
+  | { id, spaceConnection: spaceConnectionId, actions?: actionId[], title?, description? }
+      // a connection of the SPACE (listed below), set up by its admins, who chose how it signs in, who may use it and
+      //   what each kind of action may do; the wizard holds no account and "policy" has no say. Where it signs in as
+      //   the space, an agent step that lists it gets its READ actions only: a write is a fixed step with "call"
+      //   (connection + action + fixed input), never the model's. Where each person signs in, it works like "connector".
   | { id, connector: connectorId, actions?: actionId[], policy?: { [actionId]: "allow"|"ask" }, title?, description? }
       // connector = a service the wizard works in for the person: a built-in one (Gmail, Google Drive, Calendar and
       //   Contacts, Outlook, OneDrive, Slack, GitHub, HubSpot, S3) or one imported into the space from the
@@ -237,10 +243,14 @@ type AgentStep = {
   type: "agent"
   instructions: string          // the task, with {{templates}} ("" with call)
   call?: { tool: "<plugin>.<tool>", input: { … } }
-                                // NO MODEL: one plugin tool called once with this input; its answer IS the json output
-                                //   (fields name the keys later steps read). Use it where a model would only fetch and copy
-                                //   data (free appointment times) — it answers in a second instead of half a minute.
-                                //   String inputs are templates; a filled-in whole number or true/false is passed as one.
+       | { connection: connectionId, action: actionId, input: { … } }
+                                // NO MODEL: one plugin tool, or one action of a connection, called once with this input; its
+                                //   answer IS the json output (fields name the keys later steps read). Use it where a model
+                                //   would only fetch and copy data (free appointment times) — it answers in a second instead
+                                //   of half a minute — and for EVERY write through a connection that signs in as the space.
+                                //   String inputs are templates ("{{email}}", "{{steps.read.summary}}"); a filled-in whole
+                                //   number or true/false is passed as one, an empty one is left out. On the person's own
+                                //   connection a write still asks them first.
   tools: ("web_search"|"web_fetch"|"browser"|"sandbox"|"image"|"http"|"pages"|"code")[]
   connections?: string[]        // ids of wizard connections this step may read (mail → mail_search, mail_read, mail_save)
   output: { format: "text"|"markdown"|"json", fields?: { id, kind: "text"|"number"|"list"|"table"|"yesno"|"choice"|"score", description, columns?: string[], options?: string[] }[], schema?: Schema, surface?: SurfaceComponent[] | true }
@@ -515,6 +525,11 @@ NOT SET UP on this server: tell the admin before you build on it
 
 <!-- section: line.connectors.no_actions -->
 actions appear once an account is connected
+
+<!-- section: line.space_connections -->
+<!-- Only where the space has connections; connections: one "- id — name (connector), signs in as …, actions: …" line each. -->
+Connections of this space, set up by its admins (a wizard uses one with { "spaceConnection": id }; where it signs in as the space, agent steps read and a step with "call" writes):
+${connections}
 
 <!-- section: line.plugin_tools -->
 <!-- Only when the app's plugins add tools; tools: one "- id — description" line per tool. -->

@@ -8,6 +8,7 @@ import { accountOverview, accountToken, linkedAccount } from "../auth/account.js
 import type { SessionUser } from "../auth/index.js";
 import { authoringGuide } from "../authoring/guide.js";
 import { listConnectors } from "../connectors/external.js";
+import { guideSpaceConnections } from "../connectors/space-connections.js";
 import { db, schema } from "../db/client.js";
 import type { AssistantCardRecord } from "../db/schema.js";
 import { env } from "../env.js";
@@ -97,6 +98,7 @@ export function knowsTools(ctx: KnowsContext): Record<string, any> {
           const guide = authoringGuide(
             ctx.space ? await listConnectors(ctx.space.id) : [],
             await pluginToolsOf(user.tenantId),
+            ctx.space ? await guideSpaceConnections(ctx.space.id) : [],
           );
           const start = Math.min(from ?? 0, guide.length);
           return {

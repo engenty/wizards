@@ -1,7 +1,7 @@
 ---
 title: Agent steps
 description: An AI step’s instructions, tools, output, model class and maker, decisions, and one run per entry.
-version: 0.12.2
+version: 0.13.0
 ---
 
 An `agent` step is an AI step. It reads its `instructions`, may call tools, and returns its
@@ -108,10 +108,10 @@ A `classifier` step with no tools whose `json` output holds only `yesno`, `choic
 fields is a decision. It is answered in one fast, cheap call. A branch reads its answer, and
 `steps.<id>.<field>.p` is how sure it is, from 0 to 1. See [Branches and loops](./branches.md).
 
-## A plugin tool without a model
+## A fixed step: `call` without a model
 
-`call` runs one tool of a plugin once, with these inputs and no model. Its answer is the step’s
-`json` output, as it is. `instructions` stay empty.
+`call` runs one tool of a plugin, or one action of a connection, once, with these inputs and no
+model. Its answer is the step’s `json` output, as it is. `instructions` stay empty.
 
 ```json
 {
@@ -121,7 +121,27 @@ fields is a decision. It is answered in one fast, cheap call. A branch reads its
 }
 ```
 
-Use it for data a later page shows unchanged. String inputs are templates.
+Use it for data a later page shows unchanged. String inputs are templates: `{{email}}` is a
+field’s answer, `{{steps.read.summary}}` an earlier step’s output. A filled-in whole number or
+`true`/`false` is passed as one, an empty input is left out.
+
+With a connection, `call` names it and the connector’s action:
+
+```json
+{
+  "id": "save", "type": "agent", "title": "Save the lead",
+  "call": {
+    "connection": "crm", "action": "create_contact",
+    "input": { "email": "{{email}}", "note": "{{steps.read.summary}}" }
+  },
+  "output": { "format": "json" }
+}
+```
+
+The step calls as the wizard, with the fields the wizard fixed: nothing a person typed can steer
+it to another action. This is how a wizard writes through a connection of the space (see
+[Lists and connections](./lists-and-connections.md)): an AI step only reads there. On the person’s
+own connection the step asks them before it writes, as an AI step’s tool would.
 
 ## One run per entry
 

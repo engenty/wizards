@@ -286,11 +286,16 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    use; the run's log opens with what it may do („Dieser Lauf darf: …“). A share target's
    connection and a plugin's are not bound (A5, A7). Closes: the AI steering a step to another
    action.
-4. `feat(runtime): fixed steps write, AI steps on space connections read` — `step.call` takes a
-   connection's action with fixed fields from the run's values; an AI step on a space-owned
-   connection gets read actions only; a write there never asks the guest (denied until „Mit
-   Freigabe“ exists). The person's own connection keeps today's ask. Closes: a guest approving
-   their own write; injected text becoming a write.
+4. `feat(runtime): fixed steps write, AI steps on space connections read` — **built** (#360):
+   `step.call` takes a connection's action (`{ connection, action, input }`) with fixed fields
+   from the run's values, run through the broker as `step` (carrying the run's holder for the
+   audience), in the grant; an AI step on a connection that signs in as the space gets read
+   actions only, in its tools list and in the broker (`ai_step_writes`, logged critical, whatever
+   `policy` says); a write there never asks the person running (denied until „Mit Freigabe“
+   exists). The person's own connection keeps today's ask, in fixed steps too. The architect's
+   guide says so and lists the space's connections; `checkDraft` and `validate_wizard` refuse an
+   AI step with a write action on such a connection. Closes: a guest approving their own write;
+   injected text becoming a write.
 5. `feat(runtime): connections belong to the space` — **built** (#359) — `space_connection`
    replaces `plugin_connection` (migration 0034 moves the rows: as the space, open to everyone,
    default rules): name, how it signs in (space, person), audience (*Admins / Mitglieder /

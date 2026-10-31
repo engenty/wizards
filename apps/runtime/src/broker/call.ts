@@ -30,6 +30,8 @@ export interface Who {
   kind: WhoKind;
   /** The visitor, the person, the plugin or the step; left out where there is none. */
   id?: string;
+  /** A fixed step: whom the run is held for, which says whether the step is in a connection's audience. */
+  for?: Who;
 }
 
 /** The run or chat a call is made in. */
@@ -86,7 +88,9 @@ export type Refusal =
   | "declined"
   | "nobody"
   /** The connection's rule says „Mit Freigabe“, and nobody holds the call for the admins yet. */
-  | "needs_approval";
+  | "needs_approval"
+  /** An AI step wanted to write as the space: only a fixed `call` step does that (A4). */
+  | "ai_step_writes";
 
 export type BrokerResult<T> =
   | { ok: true; result: T; account: { connector: ConnectorDefinition; label: string } }
@@ -150,11 +154,12 @@ export function inAudience(audience: SpaceConnectionRow["audience"], who: Who): 
   if (audience === "all") {
     return true;
   }
+  // A fixed step is in the audience its run's holder is in; a plugin's job works for the space.
+  const asked = who.kind === "step" && who.for ? who.for : who;
   if (audience === "members") {
-    // A plugin's job and a fixed step work for the space; a guest at a link is no member.
-    return who.kind !== "guest";
+    return asked.kind !== "guest";
   }
-  return who.kind === "admin";
+  return asked.kind === "admin";
 }
 
 /**
@@ -162,11 +167,12 @@ export function inAudience(audience: SpaceConnectionRow["audience"], who: Who): 
  * comes first: a wizard's connection outside it, or an action the grant does not name, is denied
  * whatever the rules say.
  *
- * A connection of the space: outside its audience nothing runs. Its rules say per kind of action
- * Erlaubt, Mit Freigabe or Nie. A write on a connection that signs in as the space never asks a
- * guest, whatever the rule; „Mit Freigabe“ there is a deny until A7 holds the call for the
- * admins. Where each person signs in, „Mit Freigabe“ asks that person. A plugin's own job on a
- * connection it set up runs as before.
+ * A connection of the space: outside its audience nothing runs, nor an action the connection is
+ * not for. Its rules say per kind of action Erlaubt, Mit Freigabe or Nie. On a connection that
+ * signs in as the space an AI step only reads: a write there comes from a fixed `call` step (the
+ * wizard's fields, no model) or, later, a confirmed action, and never asks the person running;
+ * „Mit Freigabe“ there is a deny until A7 holds the call for the admins. Where each person signs
+ * in, „Mit Freigabe“ asks that person. A plugin's own job on a connection it set up runs as before.
  *
  * A wizard's own connection: reads run, writes and sends ask the person running, deleting always
  * asks; the wizard's author may settle an action's ask per `connection.policy`.
@@ -199,8 +205,15 @@ export function decide(call: {
     if (!inAudience(row.audience, who)) {
       return { outcome: "deny", reason: `The connection is for ${AUDIENCE[row.audience]}.` };
     }
-    if (row.signIn === "space" && call.where.guest && kind !== "read") {
-      return { outcome: "deny", reason: "A guest's run only reads as the space." };
+    if (row.actions.length && !row.actions.includes(call.actionId)) {
+      return { outcome: "deny", reason: `The connection is not for "${call.actionId}".` };
+    }
+    if (row.signIn === "space" && kind !== "read" && aiStep(who, call.where)) {
+      return {
+        outcome: "deny",
+        refused: "ai_step_writes",
+        reason: `An AI step only reads as the space: ${VERB[kind]} goes in a fixed step with "call".`,
+      };
     }
     const rule = row.rules[kind] ?? "deny";
     if (rule === "deny") {
@@ -229,6 +242,15 @@ export function decide(call: {
     outcome: "allow",
     reason: kind === "read" ? "Reading is allowed." : "The wizard allows this action.",
   };
+}
+
+/**
+ * Whether a call in a run comes from an AI step: a model's tool call, made as the person running
+ * (a guest, a person, an admin), or a plugin tool it called. A fixed step calls as `step`; a
+ * plugin's own job and a Work chat are no run.
+ */
+function aiStep(who: Who, where: Where): boolean {
+  return !!where.runId && who.kind !== "step";
 }
 
 /**
