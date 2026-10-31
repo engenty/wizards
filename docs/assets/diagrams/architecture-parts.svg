@@ -36,13 +36,13 @@
 <text x="550.0" y="182.5" class="d-s" text-anchor="middle">takes the runs in line</text>
 <polygon points="130,140 125.5,131.0 134.5,131.0" class="d-head"/>
 <polygon points="340,140 335.5,131.0 344.5,131.0" class="d-head"/>
-<text x="34" y="268" class="d-zl" text-anchor="start">Data</text>
-<text x="94.0" y="316.5" class="d-t" text-anchor="middle">Tenant</text>
-<text x="94.0" y="333.0" class="d-s" text-anchor="middle">per organization</text>
-<text x="220.0" y="316.5" class="d-t" text-anchor="middle">Control</text>
-<text x="220.0" y="333.0" class="d-s" text-anchor="middle">runs in line</text>
+<text x="34" y="268" class="d-zl" text-anchor="start">Data · libSQL and a file store</text>
+<text x="94.0" y="316.5" class="d-t" text-anchor="middle">Control</text>
+<text x="94.0" y="333.0" class="d-s" text-anchor="middle">one per runtime</text>
+<text x="220.0" y="316.5" class="d-t" text-anchor="middle">Tenants</text>
+<text x="220.0" y="333.0" class="d-s" text-anchor="middle">a libSQL DB each</text>
 <text x="346.0" y="316.5" class="d-t" text-anchor="middle">Files</text>
-<text x="346.0" y="333.0" class="d-s" text-anchor="middle">folder or bucket</text>
+<text x="346.0" y="333.0" class="d-m" text-anchor="middle">t/&lt;tenant&gt;/…</text>
 <polygon points="130,248 125.5,239.0 134.5,239.0" class="d-head"/>
 <polygon points="340,248 335.5,239.0 344.5,239.0" class="d-head"/>
 <text x="550.0" y="294.0" class="d-t" text-anchor="middle">Engine</text>

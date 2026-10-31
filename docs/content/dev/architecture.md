@@ -52,8 +52,8 @@ database’s `runner` table, and `RUNNER_URL` says where the web reaches one.
 |---|---|---|
 | Processes | One, role `all`, on `127.0.0.1:24368` | `studio`, `doors` and `runner` from one image, plus a Chromium container that holds no secrets |
 | Tenants | One, `local` | One per organization |
-| Databases | `tenants/local.db` and `control.db` in the data folder | One libSQL database per tenant and a control database |
-| Files | `objects/` in the data folder | An S3-compatible bucket |
+| Databases | libSQL files: `tenants/local.db` and `control.db` in the data folder | libSQL: a control database (`DATABASE_URL`) and one database per tenant, at the address the Manage-App hands out |
+| Files | `objects/` in the data folder | An S3-compatible bucket (`S3_ENDPOINT`, `S3_BUCKET`) |
 | Sign-in | A one-time link the command line opens | The Manage-App’s tokens (OAuth 2.1 / OIDC), which name the person, the tenant and the role |
 | Models | An AI client on the computer (Claude Code, Codex, Antigravity, Cursor Agent), your own API keys, a local model, or a linked account’s credits | The model gateway. The runtime holds no model keys |
 
@@ -72,8 +72,8 @@ its links work while the computer is off.
 
 A **tenant** is an organization’s data: its own database, its files and its plugins’ tables. The
 runtime sets the tenant once per request, run or background job (`tenants/tenant.ts`), never
-from a request body. The control database holds what spans tenants: the sessions, the index of
-runs, the runners.
+from a request body. The control database holds what spans tenants: the links, the index of
+runs, the sessions and the settings.
 
 A **space** lives inside a tenant. It holds what its wizards share and produce: info and brand,
 knowledge, data, files, results, skills and connections. Every AI step knows its space. The
@@ -82,7 +82,23 @@ tenant tables carry a `space_id`, and the code says “space” throughout (`ser
 Each tenant also has a live feed (`live_change`): numbered writes to what a studio shows. An open
 studio reads it and shows what changed elsewhere without a reload (`apps/runtime/src/live/`).
 
-![A control database across all tenants. Each tenant holds its database, its files and its spaces](../../assets/diagrams/architecture-tenants.svg)
+### Tenant isolation
+
+Every tenant has a database of its own and its own folder of files. The databases are libSQL,
+reached through Drizzle (`db/client.ts`):
+
+- **The control database** is one per runtime: `DATABASE_URL` with `DATABASE_AUTH_TOKEN`, else
+  `control.db` in the data folder.
+- **A tenant’s database** is at the address the Manage-App hands out for it, else at
+  `TENANT_DB_URL_TEMPLATE` with `{tenant}` filled in, else `tenants/<id>.db` in the data folder.
+  Code reaches a tenant’s tables only inside `inTenant()`. Outside it, `db` throws `NoTenantError`.
+- **A tenant’s files** sit under the prefix `t/<tenant>/` in the file store (`files/objects.ts`):
+  the data folder, or an S3-compatible bucket when `S3_ENDPOINT` and `S3_BUCKET` are set.
+  Deleting a tenant removes that one folder.
+
+Inside a tenant, the broker’s RWX rules keep the spaces apart ([The broker](#the-broker)).
+
+![The control database is shared. Each tenant has its own libSQL database and its own prefix in the file store, and the broker’s RWX rules stand between its spaces](../../assets/diagrams/architecture-tenants.svg)
 
 ## The engine
 
