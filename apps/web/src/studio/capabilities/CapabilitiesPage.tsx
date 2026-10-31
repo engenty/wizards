@@ -132,8 +132,6 @@ export function CapabilitiesPage() {
               root={{
                 icon: Toolbox,
                 label: t("nav.capabilities"),
-                backLabel: t("nav.wizards"),
-                onBack: () => navigate("/"),
               }}
             />
             <div key={level} className={cn(stepClass(levelStep))}>

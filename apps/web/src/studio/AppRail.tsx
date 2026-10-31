@@ -35,6 +35,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { BRAND } from "../brand";
 import {
@@ -83,6 +84,58 @@ function glyph(active: boolean, labels = false): string {
       ? "bg-paper text-ink shadow-soft dark:ring-1 dark:ring-border-soft"
       : "text-ink-3 hover:bg-ink/10 hover:text-ink",
   );
+}
+
+/**
+ * In a bar of glyphs alone, the name of the place the pointer rests on, beside it on the side away
+ * from the window's edge. One label for the whole bar: any link or button with an `aria-label`.
+ */
+function useBarHint(on: boolean, position: AppBarPosition) {
+  const [hint, setHint] = useState<{ label: string; x: number; y: number } | null>(null);
+  // The pointer resting on a place, or the keyboard's focus on it.
+  const over = (e: { target: EventTarget }) => {
+    if (!on) {
+      return;
+    }
+    const target = (e.target as HTMLElement).closest<HTMLElement>(
+      "a[aria-label], button[aria-label]",
+    );
+    const label = target?.getAttribute("aria-label");
+    if (!(target && label)) {
+      setHint(null);
+      return;
+    }
+    const r = target.getBoundingClientRect();
+    const gap = 8;
+    setHint(
+      position === "left"
+        ? { label, x: r.right + gap, y: r.top + r.height / 2 }
+        : position === "right"
+          ? { label, x: r.left - gap, y: r.top + r.height / 2 }
+          : position === "top"
+            ? { label, x: r.left + r.width / 2, y: r.bottom + gap }
+            : { label, x: r.left + r.width / 2, y: r.top - gap },
+    );
+  };
+  const element = hint
+    ? createPortal(
+        <span
+          role="tooltip"
+          className={cn(
+            "pointer-events-none fixed z-[60] animate-in whitespace-nowrap rounded-md bg-ink px-2.5 py-1 font-medium text-[0.8125rem] text-paper shadow-soft fade-in-0",
+            position === "left" && "-translate-y-1/2",
+            position === "right" && "-translate-x-full -translate-y-1/2",
+            position === "top" && "-translate-x-1/2",
+            position === "bottom" && "-translate-x-1/2 -translate-y-full",
+          )}
+          style={{ left: hint.x, top: hint.y }}
+        >
+          {hint.label}
+        </span>,
+        document.body,
+      )
+    : null;
+  return { over, out: () => setHint(null), element };
 }
 
 /** A place's name beside its glyph, in a bar that names its places. */
@@ -311,7 +364,6 @@ function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean
             key={place}
             to={to}
             end
-            title={t(label)}
             aria-label={t(label)}
             className={({ isActive }) => cn(glyph(isActive, labels), "relative")}
           >
@@ -339,6 +391,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
   const capabilitiesOn = useFeature("capabilities");
   const { position } = useAppBar();
   const horizontal = isHorizontal(position);
+  const hint = useBarHint(!labels, position);
   const place = usePlace();
   const mode = useMode(me);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -400,6 +453,11 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
       onPointerCancel={endPress}
       onPointerLeave={endPress}
       onClickCapture={onClickCapture}
+      onMouseOver={hint.over}
+      onFocus={hint.over}
+      onMouseLeave={hint.out}
+      onBlur={hint.out}
+      onClick={hint.out}
       className={cn(
         // No text selection and no link callout while a finger rests on the bar.
         "flex shrink-0 select-none bg-sidebar [-webkit-touch-callout:none]",
@@ -435,7 +493,6 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
         <>
           <Link
             to="/"
-            title={t("nav.home")}
             aria-label={t("nav.home")}
             aria-current={place === "home" || place === "new" ? "page" : undefined}
             className={cn(
@@ -449,7 +506,6 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
           {/* The space's sources: Info, Brand, Knowledge and Data. */}
           <Link
             to="/space"
-            title={t("nav.sources")}
             aria-label={t("nav.sources")}
             aria-current={place === "space" ? "page" : undefined}
             className={cn(glyph(place === "space", labels), horizontal ? "ml-1.5" : "mt-2")}
@@ -462,7 +518,6 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
           {capabilitiesOn ? (
             <Link
               to="/capabilities"
-              title={t("nav.capabilities")}
               aria-label={t("nav.capabilities")}
               aria-current={place === "capabilities" ? "page" : undefined}
               className={cn(
@@ -476,7 +531,6 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
           ) : skillsOn ? (
             <Link
               to="/skills"
-              title={t("space.skills")}
               aria-label={t("space.skills")}
               aria-current={place === "skills" ? "page" : undefined}
               className={cn(glyph(place === "skills", labels), horizontal ? "ml-1.5" : "mt-2")}
@@ -488,7 +542,6 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
           {/* What the space's wizards made. */}
           <Link
             to="/space/results"
-            title={t("space.results")}
             aria-label={t("space.results")}
             aria-current={place === "results" ? "page" : undefined}
             className={cn(glyph(place === "results", labels), horizontal ? "ml-1.5" : "mt-2")}
@@ -516,7 +569,6 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
               <PluginFrame key={entry.serial} of={entry}>
                 <NavLink
                   to={entry.to}
-                  title={entry.label()}
                   aria-label={entry.label()}
                   className={({ isActive }) => glyph(isActive, labels)}
                 >
@@ -537,7 +589,6 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
       >
         <NavLink
           to="/settings"
-          title={t("nav.settings")}
           aria-label={t("nav.settings")}
           className={({ isActive }) => glyph(isActive, labels)}
         >
@@ -547,6 +598,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
         <UserMenu me={me} placement="bar-end" named={labels} />
       </div>
       {menu ? <BarMenu at={menu} room={room} onClose={() => setMenu(null)} /> : null}
+      {hint.element}
     </aside>
   );
 }
