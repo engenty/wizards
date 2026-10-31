@@ -4,6 +4,10 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.14.2] - 2026-10-31
+- ADDED **[runtime]** A databases health check: tenant databases that don't open (#405)
+- DOCS **[plans]** The modular plan's open questions decided (#403)
+
 ## [0.14.1] - 2026-10-31
 - FIXED **[runtime]** Tenant databases from 0.13.0 open again: space_skill's migration was renumbered (#401)
 
