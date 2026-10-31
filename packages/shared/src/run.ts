@@ -225,6 +225,7 @@ const NOTES_EN = {
   grantRunsCode: "run code",
   grantDrawsImages: "draw images",
   grantCallsApis: "call APIs on the web",
+  grantCallsHosts: "call {hosts}",
   grantWritesPages: "write pages",
   grantPlugin: "use the plugin {name}",
   python: "Running Python",
@@ -456,6 +457,8 @@ const NOTES_EN = {
     "Only organization admins can do that. As a member, you can edit the wizards that already exist.",
   forbidden:
     "You don’t have permission to {verb} this {what} ({id}). An admin of the space can change that.",
+  // The result page of a guest: a step that read a connection the space keeps for its members.
+  resultKeptInSpace: "This part of the result stays with the team that made the wizard.",
   rwxDocument: "document",
   rwxTable: "table",
   rwxPage: "page",
@@ -646,6 +649,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   grantRunsCode: "Code ausführen",
   grantDrawsImages: "Bilder zeichnen",
   grantCallsApis: "APIs im Web aufrufen",
+  grantCallsHosts: "{hosts} aufrufen",
   grantWritesPages: "Seiten schreiben",
   grantPlugin: "das Plugin {name} nutzen",
   runsProgram: "Arbeitet die Daten in einem Zug durch",
@@ -885,6 +889,7 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   onlyOrganizationAdmins:
     "Das dürfen nur Admins der Organisation. Als Mitglied bearbeitest du die Wizards, die es schon gibt.",
   forbidden: "Du darfst {what} {id} nicht {verb}. Das ändern die Admins des Space.",
+  resultKeptInSpace: "Dieser Teil des Ergebnisses bleibt beim Team, das den Wizard gemacht hat.",
   rwxDocument: "Dokument",
   rwxTable: "Tabelle",
   rwxPage: "Seite",
@@ -1087,6 +1092,19 @@ export interface RunEvent {
   asset?: string | null;
 }
 
+/** One step's output as the current step shows it. */
+export interface ShownStep {
+  step: Step;
+  output: StepOutput | null;
+  formats: Format[];
+  label: string | null;
+  /**
+   * A guest's result: the step read a connection the space keeps for its members, so its output
+   * stays in the space (`output` is null here) and the page says so.
+   */
+  kept?: boolean;
+}
+
 export interface RunView {
   id: string;
   status: RunStatus;
@@ -1126,7 +1144,7 @@ export interface RunView {
   closed: Record<string, ClosedChoice>;
   outputs: Record<string, StepOutput>;
   /** Steps whose outputs the current step shows, with their definitions. */
-  shown: { step: Step; output: StepOutput | null; formats: Format[]; label: string | null }[];
+  shown: ShownStep[];
   progress: { done: number; total: number };
   canBack: boolean;
   error: string | null;

@@ -181,6 +181,17 @@ export const spacePatchSchema = z.object({
     })
     .optional(),
   facts: z.array(spaceFactSchema).max(SPACE_LIMITS.facts).optional(),
+  /** The space's own mail domains, where a guest's run may send to (broker/send.ts). Admins only. */
+  mailDomains: z
+    .array(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(/^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/),
+    )
+    .max(20)
+    .optional(),
 });
 
 /**
@@ -342,6 +353,7 @@ export async function updateSpace(
       ...(patch.name ? { name: patch.name } : {}),
       ...(patch.brand ? { brand: brandAfter(p.brand, patch.brand) } : {}),
       ...(patch.facts ? { facts: patch.facts } : {}),
+      ...(patch.mailDomains ? { mailDomains: [...new Set(patch.mailDomains)] } : {}),
       ...(page ? { page } : {}),
       updatedAt: new Date(),
     })

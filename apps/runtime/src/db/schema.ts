@@ -96,6 +96,11 @@ export const space = sqliteTable(
     /** The space's public page at `<organization>.wizards.page/<slug>`; null until it is set up. */
     page: text("page", { mode: "json" }).$type<SpacePage>(),
     /**
+     * The space's own mail domains (`firma.at`): a guest's run may send to an address in one of
+     * them, besides the address the run itself collected (broker/send.ts). Admins set them.
+     */
+    mailDomains: text("mail_domains", { mode: "json" }).$type<string[]>().notNull().default([]),
+    /**
      * `local`: the space of a local install, synced here when that install publishes. It keeps
      * the ids it has there and is changed only by the next sync. Null: made on this runtime.
      */
@@ -121,6 +126,8 @@ export const wizard = sqliteTable(
     shareToken: text("share_token").notNull(),
     shareEnabled: integer("share_enabled", { mode: "boolean" }).notNull().default(true),
     dailyRunLimit: integer("daily_run_limit").notNull().default(50),
+    /** How many emails guests' runs of this wizard send per day, from any address (broker/send.ts). */
+    dailyMailLimit: integer("daily_mail_limit").notNull().default(50),
     starter: text("starter"),
     /** The revision of the marketplace entry the wizard was made from. */
     starterRevision: integer("starter_revision"),
@@ -1115,6 +1122,8 @@ export const brokerLog = sqliteTable(
     whoKind: text("who_kind").notNull(),
     whoId: text("who_id"),
     runId: text("run_id"),
+    /** The step of the run that called; null outside a step. */
+    stepId: text("step_id"),
     chatId: text("chat_id"),
     wizardId: text("wizard_id"),
     spaceId: text("space_id"),
@@ -1135,6 +1144,8 @@ export const brokerLog = sqliteTable(
   (t) => [
     index("broker_log_connection").on(t.connectionId, t.at),
     index("broker_log_space").on(t.spaceId, t.at),
+    index("broker_log_run").on(t.runId),
+    index("broker_log_wizard").on(t.wizardId, t.kind, t.at),
   ],
 );
 

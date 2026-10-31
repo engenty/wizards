@@ -305,10 +305,18 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    sign-in is a deny (`needs_approval`) until A7 holds the call for the admins (the bell,
    `chat_approval`). `store_secret` rows stay the person's own sign-in per wizard. The rules
    left the code.
-6. `feat(runtime): ways out for guests` — `http_request` only to hosts in the grant; a send
-   step's recipient as a rule (the run's confirmed address or the space's domain) with a cap
-   per run and per day; what an AI step read from a space connection stays in the space when the
-   run is outside its audience (rules 5 and 7 of the connections plan).
+6. `feat(runtime): ways out for guests` — **built** (#362) — a step lists `hosts`,
+   `grantOf` collects them, `http_request` goes through the broker (`broker/host.ts`, a `host:`
+   resource of kind `send`): a guest's run reaches only the hosts in its grant, a member's any
+   public host until the `broker` switch is on; a guest's send (the email share target, a
+   connection's send action) goes only to the address a page field of kind `email` collected
+   (nothing confirms one yet) or to the space's `mailDomains` (admin API, `PATCH /spaces/:id`),
+   3 per run and `wizard.dailyMailLimit` (default 50) per day (`broker/send.ts`); what a step
+   of a guest's run read from a space connection whose audience is not „alle“ stays in the space
+   (`broker/kept.ts`, from `broker_log.step_id`): the guest's page and share link show a note
+   (`resultKeptInSpace`), Ergebnisse shows it; every refusal is logged as critical (rules 5 and
+   7 of the connections plan). A guest still never reads outside the audience (A5): the rule
+   covers a connection narrowed after the read, and whatever A7 lets through later.
 7. `feat(work): Work chats and Goose call the broker` — **built** (#361) — a Work chat's
    tools are the space's connections open to the person's role (`tools/connections.ts`,
    `services/work-connections.ts`): reads run through `brokerCall` as the person in the chat; a

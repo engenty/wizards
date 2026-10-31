@@ -1,7 +1,8 @@
-import type { ShareView } from "@engenty/wizards-shared/run";
+import type { ShareView, ShownStep } from "@engenty/wizards-shared/run";
 import { note } from "@engenty/wizards-shared/run";
 import { and, eq, isNotNull, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { keptStepIds } from "../broker/index.js";
 import { db, schema } from "../db/client.js";
 import { availableFormats } from "../engine/runner.js";
 import { env } from "../env.js";
@@ -64,22 +65,26 @@ export async function shareView(run: RunRow): Promise<ShareView> {
     def.steps.find((s) => s.id === run.cursor && s.type === "result") ??
     def.steps.findLast((s) => s.type === "result");
   const deliverables = result?.type === "result" ? result.deliverables : [];
-  const shown = await Promise.all(
-    deliverables.flatMap((d) => {
-      const step = def.steps.find((s) => s.id === d.from);
-      const output = run.state.outputs[d.from];
-      return step && output
-        ? [
-            (async () => ({
-              step,
-              output,
-              formats: await availableFormats(step, run, d.formats),
-              label: d.label ?? null,
-            }))(),
-          ]
-        : [];
-    }),
-  );
+  // A guest's link shows nothing a step made from a connection the space keeps for its members.
+  const kept = await keptStepIds(run);
+  const shown: ShownStep[] = [];
+  for (const d of deliverables) {
+    const step = def.steps.find((s) => s.id === d.from);
+    const output = run.state.outputs[d.from];
+    if (!(step && output)) {
+      continue;
+    }
+    shown.push(
+      kept.has(step.id)
+        ? { step, output: null, formats: [], label: d.label ?? null, kept: true }
+        : {
+            step,
+            output,
+            formats: await availableFormats(step, run, d.formats),
+            label: d.label ?? null,
+          },
+    );
+  }
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
   return {
     token: run.shareToken ?? "",
@@ -98,6 +103,16 @@ export async function shareView(run: RunRow): Promise<ShareView> {
     wizardUrl:
       w?.shareEnabled && w.publishedVersion !== null ? `${env.publicUrl}/w/${w.shareToken}` : null,
   };
+}
+
+/** The steps of a shared run whose files the link may serve: its deliverables, less what stays in the space. */
+export async function sharedStepIds(run: RunRow): Promise<Set<string>> {
+  const kept = await keptStepIds(run);
+  return new Set(
+    run.definition.steps.flatMap((s) =>
+      s.type === "result" ? s.deliverables.map((d) => d.from).filter((id) => !kept.has(id)) : [],
+    ),
+  );
 }
 
 /**

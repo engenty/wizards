@@ -14,6 +14,7 @@ import type { StoreScope } from "../store/index.js";
 import { type Account, keptSecret, markUsed, spaceAccount, wizardAccount } from "./account.js";
 import { type Grant, inGrant, runGrant } from "./grant.js";
 import { summarizeInput, writeLog } from "./log.js";
+import { guestSendCheck, recipientsOf } from "./send.js";
 
 /*
  * The broker (docs/plans/broker.md): the one path every connector call takes. It knows who calls
@@ -42,6 +43,8 @@ export interface Who {
 /** The run or chat a call is made in. */
 export interface Where {
   runId?: string;
+  /** The step of the run that calls; left out outside a step (a share job). */
+  stepId?: string;
   chatId?: string;
   wizardId?: string;
   spaceId?: string;
@@ -97,7 +100,13 @@ export type Refusal =
   /** The connection's rule says „Mit Freigabe“: the call waits for an admin of the space. The caller holds it. */
   | "needs_approval"
   /** An AI step wanted to write as the space: only a fixed `call` step does that (A4). */
-  | "ai_step_writes";
+  | "ai_step_writes"
+  /** A guest's send to an address that is neither the run's own nor in the space's domains. */
+  | "not_allowed_recipient"
+  /** A guest's run has sent its mails. */
+  | "run_limit"
+  /** The wizard's guests have sent today's mails. */
+  | "day_limit";
 
 export type BrokerResult<T> =
   | { ok: true; result: T; account: { connector: ConnectorDefinition; label: string } }
@@ -130,11 +139,14 @@ export function whoOf(holder: string, role?: Role): Who {
 
 /** Where a step's call is made. */
 export function whereOf(ctx: StepContext): Where {
-  return whereOfRun(
-    { id: ctx.runId, wizardId: ctx.store.wizardId, mode: ctx.test ? "test" : "live" },
-    ctx.store.holder,
-    ctx.space.id,
-  );
+  return {
+    ...whereOfRun(
+      { id: ctx.runId, wizardId: ctx.store.wizardId, mode: ctx.test ? "test" : "live" },
+      ctx.store.holder,
+      ctx.space.id,
+    ),
+    stepId: ctx.stepId,
+  };
 }
 
 /** Where a call about a run is made (a share job, a step). */
@@ -334,6 +346,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       whoKind: who.kind,
       whoId: who.id ?? null,
       runId: where.runId ?? null,
+      stepId: where.stepId ?? null,
       chatId: where.chatId ?? null,
       wizardId: where.wizardId ?? null,
       spaceId: where.spaceId ?? null,
@@ -345,7 +358,8 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       reason,
       result,
       resultSize: size,
-      critical: outcome === "deny" && kind !== "read",
+      // Every refusal is critical: someone reached for what the rules keep from them.
+      critical: outcome === "deny",
     });
 
   // The account says what kind the action is; its secret stays inside the broker.
@@ -387,6 +401,14 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     const refused = decision.refused ?? "denied";
     await line(kind, "deny", decision.reason, refused);
     return { ok: false, refused, reason: decision.reason };
+  }
+  // A guest's send goes only to the run's own address or the space's domains, a few per run and day.
+  if (kind === "send" && where.guest) {
+    const sent = await guestSendCheck(where, recipientsOf(call.input));
+    if (!sent.ok) {
+      await line(kind, "deny", sent.reason, sent.refused);
+      return { ok: false, refused: sent.refused, reason: sent.reason };
+    }
   }
   if (decision.outcome === "ask" && decision.admins) {
     // „Mit Freigabe“ as the space: the person's own yes is not enough; an admin's is.
@@ -467,6 +489,7 @@ export async function brokerSecret<S, T>(call: {
       whoKind: call.who.kind,
       whoId: call.who.id ?? null,
       runId: call.where.runId ?? null,
+      stepId: call.where.stepId ?? null,
       chatId: call.where.chatId ?? null,
       wizardId: call.where.wizardId ?? null,
       spaceId: call.where.spaceId ?? null,

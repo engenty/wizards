@@ -1237,7 +1237,15 @@ export async function talkAllowed(run: RunRow): Promise<boolean> {
   return enabled.some((id) => CONVERSATION_RUNNERS.includes(id) && !off.has(id));
 }
 
-export async function runView(run: RunRow, brand: RunView["brand"]): Promise<RunView> {
+/**
+ * The run as the viewer sees it. `hide`: steps whose output stays in the space (broker/kept.ts):
+ * shown with no output and `kept`, left out of `outputs`; empty for a member, or a member's run.
+ */
+export async function runView(
+  run: RunRow,
+  brand: RunView["brand"],
+  hide: ReadonlySet<string> = new Set(),
+): Promise<RunView> {
   // In the viewer's language every text of the view is the translation; ids and values stay.
   const memory = run.lang ? await storedTranslation(run.wizardId, run.lang) : null;
   const translated = memory ? translateDefinition(run.definition, memory) : null;
@@ -1282,6 +1290,15 @@ export async function runView(run: RunRow, brand: RunView["brand"]): Promise<Run
       .map(async (s) => {
         const deliverable =
           step?.type === "result" ? step.deliverables.find((d) => d.from === s.id) : undefined;
+        if (hide.has(s.id) && run.state.outputs[s.id]) {
+          return {
+            step: s,
+            output: null,
+            formats: [],
+            label: deliverable?.label ?? null,
+            kept: true,
+          };
+        }
         return {
           step: s,
           output: run.state.outputs[s.id] ?? null,
@@ -1329,7 +1346,10 @@ export async function runView(run: RunRow, brand: RunView["brand"]): Promise<Run
       : {}),
     closed,
     outputs: Object.fromEntries(
-      shownIds.map((id) => [id, run.state.outputs[id]]).filter(([, o]) => o),
+      shownIds
+        .filter((id) => !hide.has(id))
+        .map((id) => [id, run.state.outputs[id]])
+        .filter(([, o]) => o),
     ),
     shown,
     progress: { done: run.status === "done" ? def.steps.length : index, total: def.steps.length },

@@ -184,6 +184,12 @@ beforeAll(async () => {
   app = (await import("../src/app")).default;
   const entered = await app.fetch(new Request(`${ORIGIN}/api/local/enter?k=test-key`));
   member = entered.headers.get("set-cookie")?.split(";")[0] ?? "";
+  // A guest's run mails only its own address or the space's domains: example.com is the space's here.
+  const spaces = await import("../src/services/spaces");
+  await client.withTenant(TENANT, async () => {
+    const space = await spaces.defaultSpace("local");
+    await spaces.updateSpace("local", space.id, { mailDomains: ["example.com"] });
+  });
 }, 60_000);
 
 afterAll(() => {

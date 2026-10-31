@@ -24,9 +24,12 @@ const files = walk(SRC).map((path) => ({
 }));
 const outside = (dir: string) => files.filter((f) => !f.path.startsWith(dir));
 
-/** Files that still reach the internet without the broker: step 6 of part A (`http_request`, hosts). */
-const OPEN_UNTIL_A6 = new Set([
-  "tools/index.ts", // http_request, fetch_url
+/**
+ * Files that fetch on their own: `web_fetch` reads public pages as a model's search does, and the
+ * guard is the fetch. `http_request` in the same file goes through `brokerHost` (A6).
+ */
+const OPEN_FETCHERS = new Set([
+  "tools/index.ts", // web_fetch; http_request calls brokerHost
   "tools/net-guard.ts", // the guard itself
 ]);
 
@@ -62,7 +65,7 @@ describe("every tool and share target that reaches outside", () => {
   const reaching = files.filter(
     (f) =>
       (f.path.startsWith("tools/") || f.path.startsWith("sharing/targets/")) &&
-      !OPEN_UNTIL_A6.has(f.path),
+      !OPEN_FETCHERS.has(f.path),
   );
 
   it("never runs a connector action or a fetch on its own", () => {
@@ -97,7 +100,7 @@ describe("every tool and share target that reaches outside", () => {
   });
 
   it("names every file that is still open, so a new one is noticed", () => {
-    for (const path of OPEN_UNTIL_A6) {
+    for (const path of OPEN_FETCHERS) {
       expect(files.some((f) => f.path === path)).toBe(true);
     }
   });

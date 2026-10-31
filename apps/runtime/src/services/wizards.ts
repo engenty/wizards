@@ -104,6 +104,8 @@ export function wizardSummary(w: WizardRow) {
     shareToken: w.shareToken,
     shareEnabled: w.shareEnabled,
     dailyRunLimit: w.dailyRunLimit,
+    /** How many emails guests' runs send per day, from any address. */
+    dailyMailLimit: w.dailyMailLimit,
     /** How it is offered; null: the link opens the page, the chat is on beside it. */
     runners: w.runners,
     /** Its page offers it in the viewer's language, translated on request. */
@@ -537,6 +539,7 @@ export async function updateWizardSettings(
   patch: {
     shareEnabled?: boolean;
     dailyRunLimit?: number;
+    dailyMailLimit?: number;
     spaceId?: string;
     runners?: RunnerSettings;
     translate?: boolean;

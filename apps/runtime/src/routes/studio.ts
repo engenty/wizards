@@ -1422,6 +1422,7 @@ export const studio = new Hono<Vars>()
       .object({
         shareEnabled: z.boolean().optional(),
         dailyRunLimit: z.number().int().min(1).max(10_000).optional(),
+        dailyMailLimit: z.number().int().min(0).max(10_000).optional(),
         spaceId: z.string().optional(),
         runners: z.object({ default: z.string(), enabled: z.array(z.string()).max(20) }).optional(),
         translate: z.boolean().optional(),

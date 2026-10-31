@@ -4,6 +4,7 @@ import type { AssetRef } from "@engenty/wizards-shared/run";
 import { isTextMime } from "@engenty/wizards-shared/workspace";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import { brokerHost, reachesOutside, whereOf, whoOf } from "../broker/index.js";
 import { documentMime, parseDocument } from "../documents/parse.js";
 import type { StepContext } from "../engine/types.js";
 import { generateImageMedia } from "../media/generate.js";
@@ -25,6 +26,9 @@ import { clip, FileKeeper } from "./shared.js";
 import { skillTools } from "./skills.js";
 import { spaceTools } from "./space.js";
 import { storeTools, type UploadRef } from "./store.js";
+
+// A request to a host is a send to that host; the broker holds a guest's run to the hosts in its grant.
+reachesOutside("http_request", { connection: "host", action: "http_request", kind: "send" });
 
 export interface StepTools {
   tools: Record<string, any>;
@@ -159,17 +163,28 @@ export async function buildStepTools(
       }),
       execute: async ({ method, url, headers, json }) => {
         const safe = await assertPublicUrl(url);
-        await ctx.emit("tool", `${method} ${safe.hostname}${safe.pathname}`);
-        const res = await safeFetch(safe.toString(), {
+        const out = await brokerHost({
+          who: whoOf(ctx.store.holder, ctx.holder.kind === "person" ? ctx.holder.role : undefined),
+          where: whereOf(ctx),
+          url: safe,
           method,
-          signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(30_000)]),
-          headers: {
-            ...(json !== undefined ? { "content-type": "application/json" } : {}),
-            ...headers,
+          handler: async () => {
+            await ctx.emit("tool", `${method} ${safe.hostname}${safe.pathname}`);
+            const res = await safeFetch(safe.toString(), {
+              method,
+              signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(30_000)]),
+              headers: {
+                ...(json !== undefined ? { "content-type": "application/json" } : {}),
+                ...headers,
+              },
+              body: json !== undefined ? JSON.stringify(json) : undefined,
+            });
+            return { status: res.status, body: clip(await res.text(), 8000) };
           },
-          body: json !== undefined ? JSON.stringify(json) : undefined,
         });
-        return { status: res.status, body: clip(await res.text(), 8000) };
+        return out.ok
+          ? out.result
+          : { error: prompt("tools", "note.host_not_in_grant", { host: safe.hostname }) };
       },
     });
   }

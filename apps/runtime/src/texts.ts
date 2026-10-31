@@ -144,8 +144,11 @@ const EN = {
     "The attachments are {size} – too large for an email. Choose fewer files or share the link.",
   shareMailboxLimit:
     "The attachments are too large for this mailbox (at most 3 MB). Choose fewer files or share the link.",
-  shareVisitorMails:
-    "From here, one run sends {mails} emails to at most {recipients} addresses each.",
+  shareVisitorRecipients: "From here, an email goes to at most {recipients} addresses.",
+  shareGuestRecipient:
+    "From here, an email goes only to the address you gave in the wizard or to the team’s own addresses.",
+  shareGuestRunMails: "This run has sent its {mails} emails.",
+  shareGuestDayMails: "This wizard has sent its emails for today. Try again tomorrow.",
   shareConnectMailbox: "Connect a mailbox first.",
   shareSendingFrom: "Sending from {account}",
   shareSentTo: "Sent to {to}",
@@ -368,8 +371,12 @@ const DE: Partial<Record<ServerKey, Line>> = {
     "Die Anhänge sind mit {size} zu groß für eine E-Mail. Wähle weniger Dateien oder teile den Link.",
   shareMailboxLimit:
     "Die Anhänge sind zu groß für dieses Postfach (höchstens 3 MB). Wähle weniger Dateien oder teile den Link.",
-  shareVisitorMails:
-    "Von hier gehen pro Lauf {mails} E-Mails an je höchstens {recipients} Adressen.",
+  shareVisitorRecipients: "Von hier geht eine E-Mail an höchstens {recipients} Adressen.",
+  shareGuestRecipient:
+    "Von hier geht eine E-Mail nur an die Adresse, die du im Wizard angegeben hast, oder an Adressen des Teams.",
+  shareGuestRunMails: "Dieser Lauf hat seine {mails} E-Mails gesendet.",
+  shareGuestDayMails:
+    "Dieser Wizard hat seine E-Mails für heute gesendet. Versuch es morgen wieder.",
   shareConnectMailbox: "Verbinde zuerst ein Postfach.",
   shareSendingFrom: "Sendet von {account}",
   shareSentTo: "Gesendet an {to}",
