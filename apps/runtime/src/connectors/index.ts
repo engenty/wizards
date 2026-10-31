@@ -12,26 +12,16 @@ import {
   buildAuthorizationUrl,
   createOAuth2Pkce,
   exchangeAuthorizationCode,
-  refreshAccessToken,
 } from "../engenty/connections-sdk/oauth2.js";
-import {
-  type ConnectorActionContext,
-  type ConnectorDefinition,
-  scopesForGroups,
-} from "../engenty/connections-sdk/types.js";
+import { type ConnectorDefinition, scopesForGroups } from "../engenty/connections-sdk/types.js";
 import { env } from "../env.js";
 import { NotedError } from "../model-errors.js";
 import { seal, unseal } from "../secrets/crypto.js";
-import { deleteSecret, getSecret, putSecret, type StoreScope } from "../store/index.js";
+import { deleteSecret, peekSecret, putSecret, type StoreScope } from "../store/index.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { connectorFetch, MAIL_CONNECTORS, resolveEnv, usable, viaAccount } from "./builtin.js";
 import { resolveConnector } from "./external.js";
-import {
-  AccountConnectError,
-  redeemTicket,
-  refreshThroughAccount,
-  startThroughAccount,
-} from "./via-account.js";
+import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
 /** The connectors a person can pick for each kind of connection. */
 const CONNECTORS: Record<ConnectionKind, ConnectorDefinition[]> = { mail: MAIL_CONNECTORS };
@@ -113,10 +103,11 @@ export function connectRedirectUri(): string {
   return env.connectRedirectUrl || `${env.appUrl}/api/connect/callback`;
 }
 
-const slot = (connectionId: string) => `connection:${connectionId}`;
+/** The store slot of a connection's account. */
+export const slot = (connectionId: string) => `connection:${connectionId}`;
 
 /** What is stored for a connected account. `accessToken` is the credentials JSON for `api_key`. */
-interface StoredConnection {
+export interface StoredConnection {
   accessToken: string;
   refreshToken: string | null;
   expiresAt: string | null;
@@ -126,14 +117,14 @@ interface StoredConnection {
 }
 
 /** A connector that needs no credential: there is nothing for the person to connect. */
-const open = (connector: ConnectorDefinition) =>
+export const open = (connector: ConnectorDefinition) =>
   connector.auth.kind === "api_key" && connector.auth.apiKey.fields.length === 0;
 
 /**
  * The connectors behind a connection: the built-in ones of its kind, the one it names, or the
  * ones a share target lets the person pick from.
  */
-async function candidates(connection: ConnectionDef, spaceId: string) {
+export async function candidates(connection: ConnectionDef, spaceId: string) {
   if (connection.target) {
     const found = await Promise.all(
       connection.target.connectors.map((id) => resolveConnector(spaceId, id)),
@@ -175,7 +166,7 @@ export async function connectorOptions(
   return out;
 }
 
-async function connectorFor(
+export async function connectorFor(
   connection: ConnectionDef,
   connectorId: string,
   spaceId: string,
@@ -196,7 +187,7 @@ export async function connectionViews(
 ): Promise<ConnectionView[]> {
   return Promise.all(
     connections.map(async (c) => {
-      const stored = await getSecret<StoredConnection>(scope, slot(c.id));
+      const stored = await peekSecret(scope, slot(c.id));
       const only = c.connector ? (await candidates(c, spaceId))[0] : undefined;
       return {
         id: c.id,
@@ -417,83 +408,5 @@ export function disconnect(scope: StoreScope, connectionId: string) {
 }
 
 // --- using ---------------------------------------------------------------------
-
-/**
- * The connector and the context its actions run with, for a connection the person has
- * connected — with a fresh access token. `null` when nothing is connected.
- */
-export async function connectionContext(
-  scope: StoreScope,
-  connection: ConnectionDef,
-  spaceId: string,
-): Promise<{ connector: ConnectorDefinition; ctx: ConnectorActionContext; label: string } | null> {
-  const stored = await getSecret<StoredConnection>(scope, slot(connection.id));
-  if (!stored) {
-    const only = connection.connector ? (await candidates(connection, spaceId))[0] : undefined;
-    return only && open(only)
-      ? { connector: only, label: only.name, ctx: actionContext(scope, connection, only, "{}", []) }
-      : null;
-  }
-  const connector = await connectorFor(connection, stored.provider, spaceId);
-  let data = stored.data;
-  const expires = data.expiresAt ? Date.parse(data.expiresAt) : null;
-  if (
-    connector.auth.kind === "oauth2" &&
-    data.refreshToken &&
-    expires !== null &&
-    expires - Date.now() < 5 * 60_000
-  ) {
-    const tokens =
-      data.via === "account"
-        ? await refreshThroughAccount(data.refreshToken)
-        : await refreshAccessToken({
-            config: connector.auth.oauth2,
-            refreshToken: data.refreshToken,
-            resolveEnv,
-          });
-    data = {
-      ...(data.via ? { via: data.via } : {}),
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken ?? data.refreshToken,
-      expiresAt: tokens.expiresAt?.toISOString() ?? null,
-      scopes: tokens.grantedScopes.length ? tokens.grantedScopes : data.scopes,
-    };
-    await putSecret(scope, slot(connection.id), connector.id, stored.label, data);
-  }
-  return {
-    connector,
-    label: stored.label,
-    ctx: actionContext(scope, connection, connector, data.accessToken, data.scopes, stored),
-  };
-}
-
-function actionContext(
-  scope: StoreScope,
-  connection: ConnectionDef,
-  connector: ConnectorDefinition,
-  accessToken: string,
-  scopes: string[],
-  stored?: { label: string; createdAt: Date },
-): ConnectorActionContext {
-  return {
-    accessToken,
-    fetchImpl: connectorFetch,
-    log: () => undefined,
-    connection: {
-      id: connection.id,
-      connector_id: connector.id,
-      auth_kind: connector.auth.kind,
-      autonomous_mode: "read_only",
-      connected_by: null,
-      created_at: (stored?.createdAt ?? new Date()).toISOString(),
-      display_name: stored?.label ?? connector.name,
-      error_message: null,
-      external_account: stored?.label ?? null,
-      granted_scopes: scopes,
-      owner_user_id: null,
-      space_id: null,
-      status: "active",
-      tenant_id: scope.wizardId,
-    },
-  };
-}
+// An account is read by the broker alone (`broker/account.ts`): a connector call goes through
+// `brokerCall`, which knows who calls, decides, runs the action and logs it.

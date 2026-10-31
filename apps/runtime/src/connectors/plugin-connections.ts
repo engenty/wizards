@@ -6,28 +6,20 @@ import type {
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { brokerCall, currentCaller, reachesOutside } from "../broker/index.js";
 import { db, schema } from "../db/client.js";
 import {
   buildAuthorizationUrl,
   createOAuth2Pkce,
   exchangeAuthorizationCode,
   type OAuth2Tokens,
-  refreshAccessToken,
 } from "../engenty/connections-sdk/oauth2.js";
-import type {
-  ConnectorActionContext,
-  ConnectorDefinition,
-} from "../engenty/connections-sdk/types.js";
+import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { builtinConnector, connectorFetch, resolveEnv, usable, viaAccount } from "./builtin.js";
 import { connectRedirectUri as redirectUri } from "./index.js";
-import {
-  AccountConnectError,
-  redeemTicket,
-  refreshThroughAccount,
-  startThroughAccount,
-} from "./via-account.js";
+import { AccountConnectError, redeemTicket, startThroughAccount } from "./via-account.js";
 
 /*
  * Accounts a plugin connects for a space (`server.connections`, docs/content/dev/plugins): the
@@ -48,8 +40,8 @@ interface PluginOAuthState {
   lang?: Lang;
 }
 
-/** What is sealed in `data`. */
-interface StoredTokens {
+/** What is sealed in `data`; the broker's reader (`broker/account.ts`) alone unseals it. */
+export interface StoredTokens {
   accessToken: string;
   refreshToken: string | null;
   expiresAt: string | null;
@@ -57,7 +49,8 @@ interface StoredTokens {
   via?: "account";
 }
 
-type Row = typeof schema.pluginConnection.$inferSelect;
+export type PluginConnectionRow = typeof schema.pluginConnection.$inferSelect;
+type Row = PluginConnectionRow;
 
 function oauthConnector(id: string): ConnectorDefinition {
   const connector = builtinConnector(id);
@@ -213,67 +206,6 @@ export async function finishPluginOAuth(
   return { plugin: state.plugin, spaceId: state.spaceId };
 }
 
-/** The tokens of a connection, refreshed when they run out within five minutes. */
-async function freshTokens(row: Row, connector: ConnectorDefinition): Promise<StoredTokens> {
-  let data = unseal<StoredTokens>(row.data);
-  if (!data) {
-    throw new Error("The connection's keys cannot be read here. Connect the account again.");
-  }
-  const expires = data.expiresAt ? Date.parse(data.expiresAt) : null;
-  if (
-    connector.auth.kind === "oauth2" &&
-    data.refreshToken &&
-    expires !== null &&
-    expires - Date.now() < 5 * 60_000
-  ) {
-    const tokens =
-      data.via === "account"
-        ? await refreshThroughAccount(data.refreshToken)
-        : await refreshAccessToken({
-            config: connector.auth.oauth2,
-            refreshToken: data.refreshToken,
-            resolveEnv,
-          });
-    data = {
-      ...(data.via ? { via: data.via } : {}),
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken ?? data.refreshToken,
-      expiresAt: tokens.expiresAt?.toISOString() ?? null,
-      scopes: tokens.grantedScopes.length ? tokens.grantedScopes : data.scopes,
-    };
-    await db
-      .update(schema.pluginConnection)
-      .set({ data: seal(data), updatedAt: new Date() })
-      .where(eq(schema.pluginConnection.id, row.id));
-  }
-  return data;
-}
-
-function contextOf(row: Row, connector: ConnectorDefinition, data: StoredTokens) {
-  const ctx: ConnectorActionContext = {
-    accessToken: data.accessToken,
-    fetchImpl: connectorFetch,
-    log: () => undefined,
-    connection: {
-      id: row.id,
-      connector_id: connector.id,
-      auth_kind: connector.auth.kind,
-      autonomous_mode: "read_only",
-      connected_by: row.createdBy,
-      created_at: row.createdAt.toISOString(),
-      display_name: row.label,
-      error_message: null,
-      external_account: row.label,
-      granted_scopes: data.scopes,
-      owner_user_id: null,
-      space_id: row.spaceId,
-      status: "active",
-      tenant_id: currentTenant(),
-    },
-  };
-  return ctx;
-}
-
 /** `server.connections` of one plugin; every call runs inside the current tenant. */
 export function pluginConnections(plugin: string): PluginConnections {
   const own = (id: string) =>
@@ -427,11 +359,27 @@ export function pluginConnections(plugin: string): PluginConnections {
       if (!action) {
         throw new Error(`${connector.name} has no action "${actionId}".`);
       }
-      const data = await freshTokens(row, connector);
-      return (await action.handler(
-        action.inputSchema.parse(input) as any,
-        contextOf(row, connector, data),
-      )) as never;
+      // The run or chat the plugin's code runs in, where the runtime set it; else the plugin itself.
+      const caller = currentCaller() ?? {
+        who: { kind: "plugin" as const, id: plugin },
+        where: { spaceId: row.spaceId },
+      };
+      reachesOutside(`plugin:${plugin}`, {
+        connection: row.connector,
+        action: actionId,
+        kind: action.group === "destructive" ? "destructive" : action.group,
+      });
+      const out = await brokerCall({
+        who: caller.who,
+        where: { ...caller.where, spaceId: caller.where.spaceId ?? row.spaceId },
+        connection: { kind: "plugin_connection", row, connector },
+        action: { id: actionId },
+        input: action.inputSchema.parse(input),
+      });
+      if (!out.ok) {
+        throw new Error(out.reason);
+      }
+      return out.result as never;
     },
 
     async remove(id) {

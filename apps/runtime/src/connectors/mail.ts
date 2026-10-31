@@ -1,9 +1,5 @@
 import { z } from "zod";
-import type {
-  ConnectorAction,
-  ConnectorActionContext,
-  ConnectorDefinition,
-} from "../engenty/connections-sdk/types.js";
+import type { ConnectorAction, ConnectorActionContext } from "../engenty/connections-sdk/types.js";
 import { prompt } from "../prompts.js";
 
 /**
@@ -102,20 +98,6 @@ export function mailActions(backend: MailBackend, providerScopes: string[]): Con
       },
     },
   ];
-}
-
-/** Calls one of a mail connector's actions. */
-export async function mailAction<T>(
-  connector: ConnectorDefinition,
-  actionId: "search" | "read" | "get_attachment",
-  input: unknown,
-  ctx: ConnectorActionContext,
-): Promise<T> {
-  const action = connector.actions.find((a) => a.id === actionId);
-  if (!action) {
-    throw new Error(`${connector.name} has no action "${actionId}".`);
-  }
-  return (await action.handler(input, ctx)) as T;
 }
 
 export function snippetOf(text: string, length = 240): string {

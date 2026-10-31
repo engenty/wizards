@@ -1,3 +1,4 @@
+import { reachesOutside } from "../../broker/index.js";
 import {
   MAIL_SENDERS,
   MailTooLarge,
@@ -16,6 +17,8 @@ const VISITOR_RECIPIENTS = 3;
 const RECIPIENTS = 20;
 
 const ADDRESS = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
+
+reachesOutside("share:email", { connection: "share:email", action: "send_message", kind: "send" });
 
 /** "a@b.at, c@d.at; e@f.at" → the addresses; throws on one that is none. */
 export function parseRecipients(raw: string): string[] {
@@ -80,11 +83,15 @@ export const emailTarget: ShareTarget = {
       text: (values.message ?? "").trim(),
       attachments: files.map((f) => ({ name: f.name, mime: f.mime, data: f.data })),
     };
-    const account = await ctx.account();
+    const account = await ctx.connected();
     if (account) {
       await ctx.emit(line("shareSendingFrom", { account: account.label }));
       try {
-        await sendAsAccount(account.connector, account.ctx, message);
+        await ctx.call(
+          { id: "send_message", kind: "send" },
+          { to: message.to, subject: message.subject, attachments: message.attachments.length },
+          (held) => sendAsAccount(held.connector, held.ctx, message),
+        );
       } catch (err) {
         if (err instanceof MailTooLarge) {
           throw new ShareError(line("shareMailboxLimit"));

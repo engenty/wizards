@@ -2,6 +2,7 @@ import type { PluginSpace, PluginTool } from "@engenty/wizards/plugin";
 import { type AgentStep, pluginToolOf } from "@engenty/wizards-shared/definition";
 import { note } from "@engenty/wizards-shared/run";
 import { createTool } from "@mastra/core/tools";
+import { type Caller, whereOf, whoOf, withCaller } from "../broker/index.js";
 import { type StepContext, StepError } from "../engine/types.js";
 import { loadedPlugin, pluginIdsOf, pluginsOf } from "../plugins/registry.js";
 import { attempt, clip } from "./shared.js";
@@ -26,13 +27,20 @@ function toolContext(ctx: StepContext) {
   };
 }
 
+/** Who a step's plugin tool calls for: the person running the wizard, in this run. The broker hears it. */
+const callerOf = (ctx: StepContext): Caller => ({
+  who: whoOf(ctx.store.holder),
+  where: whereOf(ctx),
+});
+
 /** A plugin's tool as an agent step calls it. */
 function stepTool(plugin: string, tool: PluginTool, ctx: StepContext) {
   return createTool({
     id: pluginToolName(plugin, tool.name),
     description: tool.description,
     inputSchema: tool.inputSchema,
-    execute: (input) => attempt(async () => tool.execute(input, toolContext(ctx))),
+    execute: (input) =>
+      attempt(() => withCaller(callerOf(ctx), async () => tool.execute(input, toolContext(ctx)))),
   });
 }
 
@@ -67,7 +75,11 @@ export async function callPluginTool(id: string, input: unknown, ctx: StepContex
     );
   }
   try {
-    return await tool.execute(parsed.data, toolContext(ctx));
+    // A fixed step calls as the step, for the person running it.
+    return await withCaller(
+      { who: { kind: "step", id: ctx.stepId }, where: whereOf(ctx) },
+      async () => tool.execute(parsed.data, toolContext(ctx)),
+    );
   } catch (err) {
     throw new StepError(String((err as Error)?.message ?? err).slice(0, 400));
   }
@@ -178,14 +190,21 @@ export async function assistantToolsOf(turn: AssistantTurn): Promise<Record<stri
         inputSchema: tool.inputSchema,
         execute: (input) =>
           attempt(async () => {
-            const result = await tool.execute(input, {
-              tenantId: turn.tenantId,
-              space: turn.space,
-              userId: turn.userId,
-              signal: turn.signal,
-              emit: turn.emit,
-              changed: turn.changed,
-            });
+            // A Work chat's tool calls as the person in the chat.
+            const caller: Caller = {
+              who: { kind: "person", id: turn.userId },
+              where: { spaceId: turn.space.id },
+            };
+            const result = await withCaller(caller, async () =>
+              tool.execute(input, {
+                tenantId: turn.tenantId,
+                space: turn.space,
+                userId: turn.userId,
+                signal: turn.signal,
+                emit: turn.emit,
+                changed: turn.changed,
+              }),
+            );
             if (tool.card) {
               turn.card({ plugin: plugin.source.id, tool: tool.name, data: result ?? null });
             }

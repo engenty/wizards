@@ -1,3 +1,4 @@
+import { reachesOutside } from "../../broker/index.js";
 import { line, ShareError, type ShareTarget } from "../types.js";
 
 interface Channel {
@@ -5,6 +6,11 @@ interface Channel {
   name: string;
   is_private: boolean;
 }
+
+reachesOutside("share:slack", [
+  { connection: "share:slack", action: "list_channels", kind: "read" },
+  { connection: "share:slack", action: "post_message", kind: "send" },
+]);
 
 /**
  * A message in a Slack channel, as the person: their text and the link to the result page.
@@ -36,28 +42,26 @@ export const slackTarget: ShareTarget = {
     message: [scope.title, scope.text?.slice(0, 2500)].filter(Boolean).join("\n\n"),
   }),
   async choices(field, ctx) {
-    const account = field === "channel" ? await ctx.account() : null;
-    const list = account?.connector.actions.find((a) => a.id === "list_channels");
-    if (!account || !list) {
+    if (field !== "channel" || !(await ctx.connected())) {
       return [];
     }
-    const { channels } = (await list.handler({ limit: 50 }, account.ctx)) as {
-      channels: Channel[];
-    };
+    const { channels } = await ctx.call<{ channels: Channel[] }>(
+      { id: "list_channels", kind: "read" },
+      { limit: 50 },
+    );
     return channels
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((c) => ({ value: c.id, label: `${c.is_private ? "🔒 " : "#"}${c.name}` }));
   },
   async send({ values }, ctx) {
-    const account = await ctx.account();
-    const post = account?.connector.actions.find((a) => a.id === "post_message");
-    if (!account || !post) {
+    const account = await ctx.connected();
+    if (!account?.connector.actions.some((a) => a.id === "post_message")) {
       throw new ShareError(line("shareConnectFirst", { name: "Slack" }));
     }
     const link = await ctx.link();
     const text = [values.message?.trim(), link].filter(Boolean).join("\n\n");
     await ctx.emit(line("sharePostingAs", { account: account.label }));
-    await post.handler({ channel: values.channel, text }, account.ctx);
+    await ctx.call({ id: "post_message", kind: "send" }, { channel: values.channel, text });
     return { summary: line("sharePostedSlack") };
   },
 };

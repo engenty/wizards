@@ -7,10 +7,8 @@ import type {
 } from "@engenty/wizards-shared/sharing";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import type { Gap } from "@engenty/wizards-shared/texts";
-import type {
-  ConnectorActionContext,
-  ConnectorDefinition,
-} from "../engenty/connections-sdk/types.js";
+import type { Account, ActionKind } from "../broker/index.js";
+import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
 import type { AskResult } from "../engine/asks.js";
 import type { RunRow, StepContext } from "../engine/types.js";
 import { NotedError, type ServerLine } from "../model-errors.js";
@@ -122,12 +120,17 @@ export interface ShareContext extends TargetScope {
   emit(message: Said): Promise<void>;
   /** Asks the person (a sign-in, leave to publish) and waits; null when nobody is there. */
   ask(ask: AskInput): Promise<AskResult | null>;
-  /** The account the person connected for this target, with a fresh token; null = none. */
-  account(): Promise<{
-    connector: ConnectorDefinition;
-    ctx: ConnectorActionContext;
-    label: string;
-  } | null>;
+  /** The account the person connected for this target; null = none. Its secret stays with the broker. */
+  connected(): Promise<{ connector: ConnectorDefinition; label: string } | null>;
+  /**
+   * Runs one of the account's actions through the broker, as the person who asked for this
+   * share. `run` does the work where the connector has no action for it (an upload, a mail).
+   */
+  call<T = unknown>(
+    action: { id: string; kind: ActionKind },
+    input: unknown,
+    run?: (account: Account) => Promise<T>,
+  ): Promise<T>;
   /** The link to the result page, if people elsewhere can open it; shares the run if needed. */
   link(): Promise<string | null>;
   /** What an agent works with: the run's browser, store and asks. For targets with `agent`. */

@@ -1,3 +1,4 @@
+import { reachesOutside } from "../../broker/index.js";
 import { BUILTIN_CONNECTORS } from "../../connectors/builtin.js";
 import type {
   ConnectorActionContext,
@@ -173,6 +174,8 @@ export function storageTarget(connector: ConnectorDefinition): ShareTarget | nul
     return null;
   }
   const id = `storage:${connector.id}`;
+  const action = UPLOAD_ACTION[connector.id] ?? "files_write";
+  reachesOutside(id, { connection: `share:${id}`, action, kind: "write" });
   return {
     id,
     name: connector.name,
@@ -183,7 +186,7 @@ export function storageTarget(connector: ConnectorDefinition): ShareTarget | nul
     connection: () => ({
       id: `share:${id}`,
       target: { connectors: [connector.id] },
-      actions: UPLOAD_ACTION[connector.id] ? [UPLOAD_ACTION[connector.id]] : ["files_write"],
+      actions: [action],
       title: connector.name,
     }),
     fields: [
@@ -197,13 +200,17 @@ export function storageTarget(connector: ConnectorDefinition): ShareTarget | nul
     ],
     defaults: (scope) => ({ folder: scope.run.definition.title.replace(/\//g, "-") }),
     async send({ values, files }, ctx) {
-      const account = await ctx.account();
-      if (!account) {
+      if (!(await ctx.connected())) {
         throw new ShareError(line("shareConnectFirst", { name: connector.name }));
       }
       const folder = (values.folder ?? "").trim();
-      const link = await upload(account.ctx, folder, files, (file) =>
-        ctx.emit(line("shareUploading", { name: file.name })),
+      const link = await ctx.call(
+        { id: action, kind: "write" },
+        { folder, files: files.map((f) => f.name) },
+        (account) =>
+          upload(account.ctx, folder, files, (file) =>
+            ctx.emit(line("shareUploading", { name: file.name })),
+          ),
       );
       const where = [connector.name, folder].filter(Boolean).join(" › ");
       return { summary: line("shareSavedFiles", { count: files.length, where }), url: link };
