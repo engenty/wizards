@@ -48,6 +48,12 @@ export const browserToolSchema = z.object({
 });
 export type BrowserTool = z.infer<typeof browserToolSchema>;
 
+/**
+ * The browser's tool that shows the person a change Goose is about to make through one of their
+ * connections and waits for their yes; the runtime calls it, never the model.
+ */
+export const CONFIRM_ACTION_TOOL = "confirm_action";
+
 /** The browser waits no longer for a tool than this; the runtime neither. */
 export const BROWSER_TOOL_TIMEOUT_MS = 60_000;
 

@@ -738,9 +738,12 @@ export function ApprovalCard({ id }: { id: string }) {
     approval.input && typeof approval.input === "object" && !Array.isArray(approval.input)
       ? Object.entries(approval.input)
       : [];
+  // A confirmed action „Mit Freigabe“: the person's yes held it again, for the space's admins.
+  const next =
+    approval.state === "approved" ? heldBy({ output: approval.output } as ToolPart) : null;
   const state =
     approval.state === "approved"
-      ? t("work.approval.approved")
+      ? t(next ? "work.approval.toAdmins" : "work.approval.approved")
       : approval.state === "denied"
         ? t("work.approval.denied")
         : approval.state === "failed"
@@ -757,7 +760,12 @@ export function ApprovalCard({ id }: { id: string }) {
           <ShieldX className="size-4 shrink-0 text-ink-3" />
         )}
         {approval.state === "pending"
-          ? t("work.approval.waiting", { name: labelOf(approval.toolName, tools) })
+          ? t(
+              approval.heldFor === "admins"
+                ? "work.approval.waitingAdmins"
+                : "work.approval.waiting",
+              { name: labelOf(approval.toolName, tools) },
+            )
           : labelOf(approval.toolName, tools)}
       </p>
       {input.length ? (
@@ -789,8 +797,15 @@ export function ApprovalCard({ id }: { id: string }) {
           </Button>
         </div>
       ) : (
-        <p className="text-ink-3">{t("work.approval.notYours")}</p>
+        <p className="text-ink-3">
+          {t(
+            approval.heldFor === "admins"
+              ? "work.approval.notYoursAdmins"
+              : "work.approval.notYours",
+          )}
+        </p>
       )}
+      {next ? <ApprovalCard id={next} /> : null}
     </div>
   );
 }

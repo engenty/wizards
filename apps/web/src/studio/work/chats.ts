@@ -106,6 +106,8 @@ export interface Approval {
   toolName: string;
   input: unknown;
   askedBy: string;
+  /** Whose decision it waits for: the asker's, or the space's admins' („Mit Freigabe“). */
+  heldFor: "asker" | "admins";
   state: "pending" | "approved" | "denied" | "failed";
   output: unknown;
   decidedBy: string | null;

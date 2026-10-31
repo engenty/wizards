@@ -309,9 +309,18 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    step's recipient as a rule (the run's confirmed address or the space's domain) with a cap
    per run and per day; what an AI step read from a space connection stays in the space when the
    run is outside its audience (rules 5 and 7 of the connections plan).
-7. `feat(runtime): Work chats and Goose call the broker` — Work chats reach the space's
-   connections (reads; writes as a confirmed action), Goose its person's own sign-ins; both
-   through the same path and gate.
+7. `feat(work): Work chats and Goose call the broker` — **built** (#361) — a Work chat's
+   tools are the space's connections open to the person's role (`tools/connections.ts`,
+   `services/work-connections.ts`): reads run through `brokerCall` as the person in the chat; a
+   write, a send or a delete is a confirmed action the gate holds for the person
+   (`chat_approval`), and once confirmed the broker decides by the rules: *Erlaubt* runs, *Mit
+   Freigabe* on a `space` sign-in is an `ask` of the admins (`needs_approval`) that the chat holds
+   again (`held_for: admins`, the bell; owners and admins decide, the asker only as one), *Nie*
+   fails the call with the reason. Goose (`agents/goose-connections.ts`) gets the `person`
+   sign-in connections its person signed in to, within their audience, as `who` goose; a write
+   asks them on a card in Goose's chat (the browser's `confirm_action`), with no hold for the
+   admins; never a connection that signs in as the space. Every call is in `broker_log` with the
+   chat. A run still gets the `needs_approval` refusal.
 7a. `feat(runtime): the broker is heard` — critical kinds, the bell, the hourly mail to admins,
    the Manage-App's report, „Was darf …?“ (broker plan, phase 2).
 8. Later, when the cloud needs it: `feat(runtime): isolated instances` — `RUNTIME_ROLE`

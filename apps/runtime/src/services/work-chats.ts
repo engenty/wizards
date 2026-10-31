@@ -26,7 +26,8 @@ import {
   toolToRun,
   type WorkTurn,
 } from "./work-ai.js";
-import { approvalsOf, noteOutcome, takeDecision, waitingFor } from "./work-approvals.js";
+import { approvalsOf, heldBy, noteOutcome, takeDecision, waitingFor } from "./work-approvals.js";
+import { workConnectionLabels } from "./work-connections.js";
 import { type ChatFile, chatFiles, fileKind, messageContents, viewParts } from "./work-files.js";
 import { LAST_MESSAGES, workMastra } from "./work-mastra.js";
 import { dropChatSandbox } from "./work-sandbox.js";
@@ -424,7 +425,10 @@ export async function readChat(user: SessionUser, id: string) {
     ),
     threads: threads.map(listItem),
     approvals: await approvalsOf(chat.id),
-    tools: await assistantToolLabels(user.tenantId),
+    tools: {
+      ...(await assistantToolLabels(user.tenantId)),
+      ...(await workConnectionLabels(chat.spaceId, user.id)),
+    },
   };
 }
 
@@ -988,7 +992,9 @@ async function afterTurn(chat: ChatRow, reply: string, steps: ClientStep[]) {
 /**
  * A person decides on a held call. Approved, the stored call runs once, with the stored arguments
  * and the access of the person the turn was for; the AI hears the outcome in the chat (a signal)
- * and goes on, waking for a turn of its own when none runs. Denied, it hears that.
+ * and goes on, waking for a turn of its own when none runs. Denied, it hears that. A confirmed
+ * action on a connection „Mit Freigabe“ is held again, for the space's admins: the AI hears that
+ * it waits, and the admin's yes runs it.
  */
 export async function decideApproval(
   user: SessionUser,
@@ -1010,6 +1016,7 @@ export async function decideApproval(
       taken.askedBy,
       taken.toolName,
       turn.signal,
+      { chatId: chat.id, byAdmin: taken.heldFor === "admins" },
     );
     try {
       if (!tool?.execute) {
@@ -1031,7 +1038,10 @@ export async function decideApproval(
         );
       }
       await noteOutcome(taken.id, { output });
-      told = `${name} approved ${taken.toolName} (approval ${taken.id}); it ran once. Result: ${JSON.stringify(output ?? null).slice(0, 4000)}`;
+      const held = heldBy(output);
+      told = held
+        ? `${name} confirmed ${taken.toolName} (approval ${taken.id}); the connection's rule asks the space's admins, so it waits for them (approval ${held}). Don't call it again.`
+        : `${name} approved ${taken.toolName} (approval ${taken.id}); it ran once. Result: ${JSON.stringify(output ?? null).slice(0, 4000)}`;
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       await noteOutcome(taken.id, { error });

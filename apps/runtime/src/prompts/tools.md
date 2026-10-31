@@ -229,6 +229,23 @@ This action on ${service} needs the approval of the space's admins, which cannot
 <!-- section: note.connector_ai_step_writes -->
 An AI step only reads ${service}, which signs in as the space. A change there is a fixed step of the wizard, not yours; do not try it another way. Say in your result what should change.
 
+<!-- The connections of a space in a chat (tools/connections.ts): a Work chat's AI and Goose. Each tool is
+     "<connection> (<connector>): <the action's own description>", then one of these for a write. -->
+<!-- section: connection.confirms -->
+A confirmed action: fill in its fields, and the chat shows them to the person, who confirms before it runs. Don't ask them in words as well.
+
+<!-- section: connection.confirms_admins -->
+A confirmed action: fill in its fields, and the chat shows them to the person, who confirms. The space's admins approve it after them, since the connection signs in as the space. Don't ask anyone in words as well.
+
+<!-- section: connection.asks_person -->
+The person is asked before this runs: a card shows them what you filled in.
+
+<!-- section: note.connection_nobody -->
+Nobody can confirm this change here, so it was not made. Say so.
+
+<!-- section: note.connection_waits_admins -->
+Held for the space's admins. Don't call it again: the chat tells you once they decided.
+
 <!-- The browser (tools/browser.ts) -->
 
 <!-- section: tool.browser_open -->

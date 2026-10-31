@@ -14,6 +14,7 @@ import {
   PanelRight,
   Pencil,
   PhoneOff,
+  ShieldQuestion,
   SquarePen,
   Volume2,
   X,
@@ -65,7 +66,13 @@ import {
 } from "./dock";
 import { canLive } from "./live";
 import { type AssistantSuggestion, usePageAssistant } from "./page";
-import { openStudioLink, setHighlight, useHighlight } from "./tools";
+import {
+  dropConfirmation,
+  openStudioLink,
+  setHighlight,
+  useConfirmation,
+  useHighlight,
+} from "./tools";
 
 // The gallery's cards come with the gallery's code, loaded when an answer shows templates.
 const MarketplaceCards = lazy(() =>
@@ -757,6 +764,55 @@ function CallStrip({ state }: { state: AssistantState }) {
 }
 
 /** What the person wrote while Goose works: into its next step, or after the answer. */
+/**
+ * A change Goose is about to make through one of the person's connections: the connection, the
+ * action, what would be sent, and their yes or no. The turn waits for it; Stop answers no.
+ */
+function ConfirmationCard({ state }: { state: AssistantState }) {
+  const confirmation = useConfirmation();
+  const idle = state.chat.phase === "idle";
+  useEffect(() => {
+    if (idle) {
+      dropConfirmation();
+    }
+  }, [idle]);
+  if (!confirmation) {
+    return null;
+  }
+  return (
+    <div className="mb-2 grid gap-2.5 rounded-xl border border-ember/40 bg-card p-3 text-[0.8125rem]">
+      <p className="flex items-center gap-2 font-medium text-ink">
+        <ShieldQuestion className="size-4 shrink-0 text-ember" />
+        {t(confirmation.destructive ? "assistant.confirm.delete" : "assistant.confirm.change", {
+          service: confirmation.service,
+        })}
+      </p>
+      <p className="text-ink-2">{confirmation.action}</p>
+      {confirmation.input && confirmation.input !== "{}" ? (
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-ink/5 px-3 py-2 text-[0.75rem] text-ink">
+          {confirmation.input}
+        </pre>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => confirmation.answer(true)}
+          className="inline-flex h-8 items-center rounded-full bg-primary px-3 font-medium text-[0.8125rem] text-primary-foreground"
+        >
+          {t("assistant.confirm.yes")}
+        </button>
+        <button
+          type="button"
+          onClick={() => confirmation.answer(false)}
+          className="inline-flex h-8 items-center rounded-full px-3 text-ink-2 ring-1 ring-border hover:bg-paper-2"
+        >
+          {t("assistant.confirm.no")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Pending({
   state,
   composer,
@@ -907,6 +963,7 @@ function Bottom({
         <CallStrip state={state} />
       ) : (
         <>
+          <ConfirmationCard state={state} />
           <Pending state={state} composer={composer} />
           <Composer
             ref={composer}
