@@ -45,7 +45,9 @@ import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
+import { grantNote, grantOf, type KnownConnector, kindOf } from "../broker/index.js";
 import { runHolder, subjectsOf } from "../broker/rwx.js";
+import { resolveConnector } from "../connectors/external.js";
 import { connectionViews } from "../connectors/index.js";
 import {
   addLocalCost,
@@ -167,7 +169,7 @@ async function loadRun(runId: string): Promise<RunRow | undefined> {
 }
 
 /** The space a run's wizard belongs to — where its imported connectors live. */
-export async function spaceIdOf(run: RunRow): Promise<string> {
+export async function spaceIdOf(run: Pick<RunRow, "wizardId">): Promise<string> {
   const w = await db.query.wizard.findFirst({ where: eq(schema.wizard.id, run.wizardId) });
   return w?.spaceId ?? "";
 }
@@ -313,12 +315,15 @@ export async function createRun(input: {
   if (!held) {
     throw new NoCreditsError();
   }
+  // What the run may reach outside, from the definition it starts on: fixed here, never widened.
+  const grant = grantOf(input.definition);
   await db.insert(schema.run).values({
     id,
     wizardId: input.wizardId,
     tenantId: currentTenant(),
     definition: input.definition,
     files: input.files,
+    grant,
     version: input.version,
     mode: input.mode,
     runner: input.runner ?? null,
@@ -339,12 +344,49 @@ export async function createRun(input: {
         ? new Date(Date.now() + env.limits.resultTtlDays * 24 * 60 * 60 * 1000)
         : null,
   });
+  const may = grantNote(
+    grant,
+    input.definition,
+    await grantConnectors(input.wizardId, input.definition),
+  );
+  if (may) {
+    await emitEvent(id, first.id, "info", may);
+  }
   await indexRun({ runId: id, visitorId: input.visitorId, ipHash: input.ipHash });
   reportRun(id, first.type === "page" ? "waiting_input" : "running");
   if (first.type !== "page") {
     kick(id);
   }
   return id;
+}
+
+/**
+ * The wizard's connectors as the space has them, by connection id, for the line that says what
+ * the run may do: their names, and what kind each action is. A connector the space does not have
+ * is left out; the line then names the connection as the definition does.
+ */
+async function grantConnectors(
+  wizardId: string,
+  definition: WizardDefinition,
+): Promise<Record<string, KnownConnector>> {
+  const out: Record<string, KnownConnector> = {};
+  const imported = (definition.connections ?? []).filter((c) => c.connector);
+  if (!imported.length) {
+    return out;
+  }
+  const spaceId = await spaceIdOf({ wizardId });
+  for (const c of imported) {
+    const resolved = await resolveConnector(spaceId, c.connector as string).catch(() => null);
+    if (resolved) {
+      out[c.id] = {
+        name: resolved.connector.name,
+        kinds: Object.fromEntries(
+          resolved.connector.actions.map((a) => [a.id, kindOf(a.group)] as const),
+        ),
+      };
+    }
+  }
+  return out;
 }
 
 /**

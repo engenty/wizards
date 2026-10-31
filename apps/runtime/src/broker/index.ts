@@ -15,6 +15,7 @@ export {
   brokerSecret,
   type Decision,
   decide,
+  grantBinds,
   kindOf,
   type Refusal,
   type Where,
@@ -25,5 +26,6 @@ export {
   whoOf,
 } from "./call.js";
 export { type Caller, currentCaller, withCaller } from "./caller.js";
+export { type Grant, grantNote, grantOf, inGrant, type KnownConnector, runGrant } from "./grant.js";
 export { lastUseOf, summarizeInput } from "./log.js";
 export { type OutsideReach, outsideReaches, reachesOutside } from "./registry.js";
