@@ -744,6 +744,14 @@ export function postRunReport(tenantId: string, data: unknown) {
   return call<{ ok: boolean }>("POST", `/v1/runs/${encodeURIComponent(tenantId)}`, data);
 }
 
+/**
+ * The broker's critical lines (docs/plans/broker.md, "Notifications"): a guest's at once, the
+ * rest once a day. The admin app's Diagnose page and Abuse checks read them.
+ */
+export function postBrokerReport(tenantId: string, data: unknown) {
+  return call<{ ok: boolean }>("POST", `/v1/broker/${encodeURIComponent(tenantId)}`, data);
+}
+
 /** What a person said at the end of a run. */
 export function postFeedback(tenantId: string, data: unknown) {
   return call<{ ok: boolean }>("POST", `/v1/feedback/${encodeURIComponent(tenantId)}`, data);

@@ -488,6 +488,22 @@ function Editor() {
     setRunView(null);
     setShowRun(false);
   };
+  // `?run=<id>` opens that run (the bell's critical lines lead here), then leaves the address.
+  const wantedRun = params.get("run");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the address alone says when to open; openRun is made anew each render.
+  useEffect(() => {
+    if (!wantedRun) {
+      return;
+    }
+    openRun(wantedRun);
+    setParams(
+      (p) => {
+        p.delete("run");
+        return p;
+      },
+      { replace: true },
+    );
+  }, [wantedRun]);
   const testRun = useMutation({
     mutationFn: () => api.post<{ runId: string }>(`/api/studio/wizards/${id}/test-runs`),
     onSuccess: ({ runId }) => openRun(runId),

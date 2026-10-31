@@ -13,7 +13,7 @@ import type { Role } from "../manage.js";
 import type { StoreScope } from "../store/index.js";
 import { type Account, keptSecret, markUsed, spaceAccount, wizardAccount } from "./account.js";
 import { type Grant, inGrant, runGrant } from "./grant.js";
-import { summarizeInput, writeLog } from "./log.js";
+import { type LineContext, SIGN_IN_FAILED, summarizeInput, writeLog } from "./log.js";
 import { guestSendCheck, recipientsOf } from "./send.js";
 
 /*
@@ -114,6 +114,12 @@ export type BrokerResult<T> =
 
 export interface Decision {
   outcome: "allow" | "ask" | "deny";
+  /**
+   * Which rule decided, as the log and „Was darf …?“ name it: `grant`, `audience`, `actions`,
+   * `ai_step_writes`, `rules.<kind>` (a connection of the space), `destructive`, `policy.<action>`
+   * (a wizard's connection), `read`, `own_job`.
+   */
+  rule: string;
   reason: string;
   /** A deny's refusal where it is more than "denied". */
   refused?: Refusal;
@@ -212,6 +218,7 @@ export function decide(call: {
     if (!inGrant(call.grant, connection.def.id, call.actionId, kind)) {
       return {
         outcome: "deny",
+        rule: "grant",
         reason: `The run's grant does not include "${call.actionId}" through ${connection.def.id}.`,
       };
     }
@@ -221,46 +228,76 @@ export function decide(call: {
     const ownJob =
       who.kind === "plugin" && row.plugin === who.id && !call.where.runId && !call.where.chatId;
     if (ownJob) {
-      return { outcome: "allow", reason: "The plugin's own connection." };
+      return { outcome: "allow", rule: "own_job", reason: "The plugin's own connection." };
     }
     if (!inAudience(row.audience, who)) {
-      return { outcome: "deny", reason: `The connection is for ${AUDIENCE[row.audience]}.` };
+      return {
+        outcome: "deny",
+        rule: "audience",
+        reason: `The connection is for ${AUDIENCE[row.audience]}.`,
+      };
     }
     if (row.actions.length && !row.actions.includes(call.actionId)) {
-      return { outcome: "deny", reason: `The connection is not for "${call.actionId}".` };
+      return {
+        outcome: "deny",
+        rule: "actions",
+        reason: `The connection is not for "${call.actionId}".`,
+      };
     }
     if (row.signIn === "space" && kind !== "read" && aiStep(who, call.where)) {
       return {
         outcome: "deny",
+        rule: "ai_step_writes",
         refused: "ai_step_writes",
         reason: `An AI step only reads as the space: ${VERB[kind]} goes in a fixed step with "call".`,
       };
     }
     const rule = row.rules[kind] ?? "deny";
+    const named = `rules.${kind}`;
     if (rule === "deny") {
-      return { outcome: "deny", reason: `The connection's rule: ${VERB[kind]} never.` };
+      return {
+        outcome: "deny",
+        rule: named,
+        reason: `The connection's rule: ${VERB[kind]} never.`,
+      };
     }
     if (rule === "allow") {
-      return { outcome: "allow", reason: `The connection's rule: ${VERB[kind]} allowed.` };
+      return {
+        outcome: "allow",
+        rule: named,
+        reason: `The connection's rule: ${VERB[kind]} allowed.`,
+      };
     }
     if (row.signIn === "person") {
-      return { outcome: "ask", reason: `The connection's rule: ${VERB[kind]} asks the person.` };
+      return {
+        outcome: "ask",
+        rule: named,
+        reason: `The connection's rule: ${VERB[kind]} asks the person.`,
+      };
     }
     return {
       outcome: "ask",
+      rule: named,
       admins: true,
       reason: `The connection's rule: ${VERB[kind]} asks the space's admins.`,
     };
   }
   if (kind === "destructive") {
-    return { outcome: "ask", reason: "Deleting always asks the person." };
+    return { outcome: "ask", rule: "destructive", reason: "Deleting always asks the person." };
   }
-  const policy = connection.def.policy?.[call.actionId] ?? (kind === "read" ? "allow" : "ask");
+  const set = connection.def.policy?.[call.actionId];
+  const policy = set ?? (kind === "read" ? "allow" : "ask");
+  const named = set ? `policy.${call.actionId}` : kind === "read" ? "read" : "policy";
   if (policy === "ask") {
-    return { outcome: "ask", reason: "A change asks the person running the wizard." };
+    return {
+      outcome: "ask",
+      rule: named,
+      reason: "A change asks the person running the wizard.",
+    };
   }
   return {
     outcome: "allow",
+    rule: named,
     reason: kind === "read" ? "Reading is allowed." : "The wizard allows this action.",
   };
 }
@@ -333,37 +370,51 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
   const started = Date.now();
   const { who, where, connection, ctx = {} } = call;
   const connectionId = connectionIdOf(connection);
+  // A connection of the space used for the first time is heard of (log.ts, `first_use`).
+  const firstUse = connection.kind === "space_connection" && !connection.row.lastUsedAt;
   const line = (
     kind: ActionKind,
     outcome: Decision["outcome"],
+    rule: string | null,
     reason: string,
     result: string,
     size: number | null = null,
+    context: LineContext = {},
   ) =>
-    writeLog({
-      at: new Date(started),
-      durationMs: Date.now() - started,
-      whoKind: who.kind,
-      whoId: who.id ?? null,
-      runId: where.runId ?? null,
-      stepId: where.stepId ?? null,
-      chatId: where.chatId ?? null,
-      wizardId: where.wizardId ?? null,
-      spaceId: where.spaceId ?? null,
-      connectionId,
-      actionId: call.action.id,
-      kind,
-      inputSummary: summarizeInput(call.input),
-      outcome,
-      reason,
-      result,
-      resultSize: size,
-      // Every refusal is critical: someone reached for what the rules keep from them.
-      critical: outcome === "deny",
-    });
+    writeLog(
+      {
+        at: new Date(started),
+        durationMs: Date.now() - started,
+        whoKind: who.kind,
+        whoId: who.id ?? null,
+        runId: where.runId ?? null,
+        stepId: where.stepId ?? null,
+        chatId: where.chatId ?? null,
+        wizardId: where.wizardId ?? null,
+        spaceId: where.spaceId ?? null,
+        connectionId,
+        actionId: call.action.id,
+        kind,
+        inputSummary: summarizeInput(call.input),
+        outcome,
+        rule,
+        reason,
+        result,
+        resultSize: size,
+      },
+      context,
+    );
 
-  // The account says what kind the action is; its secret stays inside the broker.
-  const account = await accountOf(connection, who);
+  // The account says what kind the action is; its secret stays inside the broker. A sign-in
+  // that ran out and cannot be renewed, or that the service refuses, is heard of.
+  let account: Account | null;
+  try {
+    account = await accountOf(connection, who);
+  } catch (err) {
+    const reason = `The sign-in could not be renewed: ${err instanceof Error ? err.message : String(err)}`;
+    await line(call.action.kind ?? "read", "deny", null, reason, SIGN_IN_FAILED);
+    return { ok: false, refused: "not_connected", reason };
+  }
   const found = account?.connector.actions.find((a) => a.id === call.action.id);
   const kind = call.action.kind ?? (found ? kindOf(found.group) : "write");
 
@@ -373,12 +424,12 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     grant = await runGrant(where.runId as string);
     if (!grant) {
       const reason = "The run is not known here.";
-      await line(kind, "deny", reason, "not_in_grant");
+      await line(kind, "deny", "grant", reason, "not_in_grant");
       return { ok: false, refused: "not_in_grant", reason };
     }
     if (!inGrant(grant, connectionId, call.action.id, kind)) {
       const decision = decide({ who, where, connection, actionId: call.action.id, kind, grant });
-      await line(kind, "deny", decision.reason, "not_in_grant");
+      await line(kind, "deny", decision.rule, decision.reason, "not_in_grant");
       return { ok: false, refused: "not_in_grant", reason: decision.reason };
     }
   }
@@ -387,26 +438,27 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       connection.kind === "space_connection" && connection.row.signIn === "person"
         ? "You have not signed in to this connection."
         : "Nothing is connected.";
-    await line(kind, "deny", reason, "not_connected");
+    await line(kind, "deny", null, reason, "not_connected");
     return { ok: false, refused: "not_connected", reason };
   }
   if (!(found || call.handler)) {
     const reason = `${account.connector.name} has no action "${call.action.id}".`;
-    await line(kind, "deny", reason, "no_action");
+    await line(kind, "deny", null, reason, "no_action");
     return { ok: false, refused: "no_action", reason };
   }
 
   const decision = decide({ who, where, connection, actionId: call.action.id, kind, grant });
+  const { rule } = decision;
   if (decision.outcome === "deny") {
     const refused = decision.refused ?? "denied";
-    await line(kind, "deny", decision.reason, refused);
+    await line(kind, "deny", rule, decision.reason, refused);
     return { ok: false, refused, reason: decision.reason };
   }
   // A guest's send goes only to the run's own address or the space's domains, a few per run and day.
   if (kind === "send" && where.guest) {
     const sent = await guestSendCheck(where, recipientsOf(call.input));
     if (!sent.ok) {
-      await line(kind, "deny", sent.reason, sent.refused);
+      await line(kind, "deny", "guest_send", sent.reason, sent.refused);
       return { ok: false, refused: sent.refused, reason: sent.reason };
     }
   }
@@ -415,7 +467,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     if (ctx.approved) {
       decision.reason = "An admin of the space approved it.";
     } else {
-      await line(kind, "ask", decision.reason, "needs_approval");
+      await line(kind, "ask", rule, decision.reason, "needs_approval");
       return { ok: false, refused: "needs_approval", reason: decision.reason };
     }
   } else if (decision.outcome === "ask") {
@@ -425,7 +477,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     } else if (ctx.confirmed && kind !== "destructive") {
       decision.reason = "The person asked for it themselves.";
     } else if (!ctx.ask) {
-      await line(kind, "ask", decision.reason, "nobody");
+      await line(kind, "ask", rule, decision.reason, "nobody");
       return { ok: false, refused: "nobody", reason: "Nobody is there to ask." };
     } else {
       const answer = await ctx.ask({
@@ -440,11 +492,11 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
         input: JSON.stringify(call.input ?? {}, null, 2).slice(0, ASK_INPUT),
       });
       if (!answer) {
-        await line(kind, "ask", decision.reason, "nobody");
+        await line(kind, "ask", rule, decision.reason, "nobody");
         return { ok: false, refused: "nobody", reason: "Nobody is there to ask." };
       }
       if (answer.type !== "done") {
-        await line(kind, "ask", decision.reason, "declined");
+        await line(kind, "ask", rule, decision.reason, "declined");
         return { ok: false, refused: "declined", reason: "The person did not allow it." };
       }
       if (answer.remember) {
@@ -457,16 +509,27 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     const result = call.handler
       ? await call.handler(account)
       : ((await (found as ConnectorAction).handler(call.input ?? {}, account.ctx)) as T);
-    await line(kind, decision.outcome, decision.reason, "ok", sizeOf(result));
+    await line(kind, decision.outcome, rule, decision.reason, "ok", sizeOf(result), { firstUse });
     if (connection.kind === "space_connection") {
       await markUsed(connection.row);
     }
     return { ok: true, result, account: { connector: account.connector, label: account.label } };
   } catch (err) {
-    const name = err instanceof Error ? err.constructor.name || "Error" : "Error";
-    await line(kind, decision.outcome, decision.reason, name);
+    // The service turned the sign-in down: heard of, like a sign-in that ran out.
+    const result = signInRefused(err)
+      ? SIGN_IN_FAILED
+      : err instanceof Error
+        ? err.constructor.name || "Error"
+        : "Error";
+    await line(kind, decision.outcome, rule, decision.reason, result);
     throw err;
   }
+}
+
+/** Whether the service answered a call with "who are you?": its 401, or an OAuth grant gone. */
+export function signInRefused(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err);
+  return /(^|\D)401(\D|$)|invalid_grant|unauthori[sz]ed|token (has )?expired/i.test(text);
 }
 
 /**
@@ -498,10 +561,10 @@ export async function brokerSecret<S, T>(call: {
       kind: "read",
       inputSummary: summarizeInput({}),
       outcome: "allow",
+      rule: "read",
       reason: "Reading is allowed.",
       result,
       resultSize: null,
-      critical: false,
     });
   try {
     const result = await call.handler(kept?.data ?? null);

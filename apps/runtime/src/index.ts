@@ -130,6 +130,22 @@ if (env.serves.studio) {
     );
   }
 }
+// The broker is heard (docs/plans/broker.md, "Notifications"): a guest's critical lines go to
+// the Manage-App at once, the rest daily; the admins of each space get a mail once an hour where
+// none of them was in the app. The studio alone, so several runners don't send the same mail.
+if (env.serves.studio) {
+  const { startCriticalReports } = await import("./services/manage-reports.js");
+  startCriticalReports();
+  const { sendCriticalMails } = await import("./services/broker-notify.js");
+  const criticalMails = async () => {
+    for (const id of await knownTenants()) {
+      await withTenant(id, () => sendCriticalMails()).catch((err) =>
+        console.error(`[broker] the hourly mail for ${id}:`, (err as Error).message),
+      );
+    }
+  };
+  setInterval(() => void criticalMails(), 3600_000).unref();
+}
 setInterval(() => void purge().catch((err) => console.error("[retention]", err)), 3600_000).unref();
 
 // A runtime that runs alone sends again what did not arrive in its account's cloud.

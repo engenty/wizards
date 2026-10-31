@@ -329,8 +329,27 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    asks them on a card in Goose's chat (the browser's `confirm_action`), with no hold for the
    admins; never a connection that signs in as the space. Every call is in `broker_log` with the
    chat. A run still gets the `needs_approval` refusal.
-7a. `feat(runtime): the broker is heard` — critical kinds, the bell, the hourly mail to admins,
-   the Manage-App's report, „Was darf …?“ (broker plan, phase 2).
+7a. `feat(runtime): the broker is heard` — **built** (#PR_NUMBER) — the critical kinds, decided
+   in one function (`broker/log.ts` `criticalOf`, the kinds in `CRITICAL_KINDS`): a refused
+   write, delete or send; a guest outside a connection's audience; a host not in the grant; a
+   limit reached; a sign-in that ran out or was refused; a connection's first use; a changed
+   rule (RWX, a connection's rules or audience); every such row has `critical` and
+   `critical_kind`, and `broker_log.rule` names the rule that decided. The bell in Work lists an
+   admin's critical lines of the last seven days beside the held calls (`GET /work/approvals`
+   answers `{ approvals, critical, unseen }`, `POST /work/approvals/seen` marks them seen; an
+   admin now sees every pending hold of the organization, private chats included, and decides
+   it from the bell – A7's note is closed); a line leads to its chat or run (`/wizards/:id?run=`).
+   Once an hour the space's admins get a mail with the lines since the last one, only where none
+   of them was in the app since (`person_seen`, marked on every studio request), through the
+   space's mail connection that signs in as the space, else the server's address
+   (`services/broker-notify.ts`); `space.notify` (`{ bell, mail: "hourly" | "off" }`, `PATCH
+   /spaces/:id`) turns it off. A guest's critical rows go to the Manage-App at once, the rest
+   daily (`POST /v1/broker/:tenant`, `services/manage-reports.ts`; the Manage-App's side is not
+   built yet), and every critical row is a line of the runtime's own log. „Was darf …?“: `GET
+   /spaces/:id/broker/ask?who=&resource=&action=&in=` answers with `decide`'s outcome and rule,
+   nothing runs; `GET /spaces/:id/broker/log` filters by connection, who, outcome, critical and
+   since; both for admins (403 for a member). Not yet: the Protokoll page (B5), a webhook, per-kind
+   choices of what notifies.
 8. Later, when the cloud needs it: `feat(runtime): isolated instances` — `RUNTIME_ROLE`
    `runner-guests`, the broker as its own process holding the sealing key, a guest instance
    that opens only connections for „alle“.

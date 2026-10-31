@@ -207,13 +207,15 @@ describe("a plugin's connection", () => {
     );
     expect(listed.contacts).toHaveLength(1);
     const rows = await logOf(id);
+    // The connection's first use: heard of (A7a), though nothing was refused.
     expect(rows.at(-1)).toMatchObject({
       whoKind: "guest",
       actionId: "list_contacts",
       kind: "read",
       outcome: "allow",
       result: "ok",
-      critical: false,
+      critical: true,
+      criticalKind: "first_use",
     });
     expect(rows.at(-1)?.resultSize).toBeGreaterThan(0);
   });
@@ -743,7 +745,9 @@ describe("fixed steps write, AI steps on space connections read", () => {
       kind: "write",
       outcome: "allow",
       result: "ok",
-      critical: false,
+      // The connection's first use is heard of (A7a).
+      critical: true,
+      criticalKind: "first_use",
     });
   });
 

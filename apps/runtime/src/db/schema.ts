@@ -25,6 +25,7 @@ import type {
   ColorSection,
   LogoSection,
   SpaceFact,
+  SpaceNotify,
   SpacePage,
   TextStyle,
 } from "@engenty/wizards-shared/spaces";
@@ -100,6 +101,17 @@ export const space = sqliteTable(
      * them, besides the address the run itself collected (broker/send.ts). Admins set them.
      */
     mailDomains: text("mail_domains", { mode: "json" }).$type<string[]>().notNull().default([]),
+    /**
+     * How the space's admins hear of the broker's critical lines (docs/plans/broker.md,
+     * "Notifications"): under Work's bell, and by mail once an hour where nobody of them was in
+     * the app. Set through `PATCH /api/studio/spaces/:id`; no page draws it yet.
+     */
+    notify: text("notify", { mode: "json" })
+      .$type<SpaceNotify>()
+      .notNull()
+      .default({ bell: true, mail: "hourly" }),
+    /** When the hourly mail last went out, or was skipped because an admin had seen the bell. */
+    criticalMailedAt: integer("critical_mailed_at", { mode: "timestamp_ms" }),
     /**
      * `local`: the space of a local install, synced here when that install publishes. It keeps
      * the ids it has there and is changed only by the next sync. Null: made on this runtime.
@@ -1135,19 +1147,35 @@ export const brokerLog = sqliteTable(
     inputSummary: text("input_summary").notNull(),
     /** allow, ask, deny. */
     outcome: text("outcome").notNull(),
+    /** Which rule decided (broker/call.ts `decide`): `grant`, `audience`, `rules.write`, `policy`, …; null where none did. */
+    rule: text("rule"),
     reason: text("reason"),
     /** ok, declined, nobody, not_connected, or the error's class. */
     result: text("result"),
     resultSize: integer("result_size"),
     critical: integer("critical", { mode: "boolean" }).notNull().default(false),
+    /** Which of the critical kinds (broker/log.ts `CriticalKind`); null where the row is not critical. */
+    criticalKind: text("critical_kind"),
   },
   (t) => [
     index("broker_log_connection").on(t.connectionId, t.at),
     index("broker_log_space").on(t.spaceId, t.at),
+    index("broker_log_critical").on(t.spaceId, t.critical, t.at),
     index("broker_log_run").on(t.runId),
     index("broker_log_wizard").on(t.wizardId, t.kind, t.at),
   ],
 );
+
+/**
+ * When a person of the tenant was last in the app, and when they last opened Work's bell. The
+ * hourly mail of the broker's critical lines goes out only where no admin was in the app since
+ * the last one (broker/notify.ts); the bell's count is what came in since the bell was opened.
+ */
+export const personSeen = sqliteTable("person_seen", {
+  userId: text("user_id").primaryKey(),
+  seenAt: integer("seen_at", { mode: "timestamp_ms" }).notNull(),
+  bellSeenAt: integer("bell_seen_at", { mode: "timestamp_ms" }),
+});
 
 // --- The two-way sync -----------------------------------------------------------
 // A space that syncs with the organization in the cloud (docs/plans/tenant-sync.md). Triggers

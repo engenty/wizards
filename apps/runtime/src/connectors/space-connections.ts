@@ -4,6 +4,7 @@ import {
   CONNECTION_LIMITS,
   CONNECTION_OUTCOMES,
   CONNECTION_SIGN_INS,
+  type ConnectionRules,
   DEFAULT_CONNECTION_RULES,
   type SpaceConnectionView,
 } from "@engenty/wizards-shared/connectors";
@@ -13,7 +14,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import type { GuideSpaceConnection } from "../authoring/guide.js";
-import { inAudience, type Who } from "../broker/index.js";
+import { inAudience, logRuleChange, type Who } from "../broker/index.js";
 import { db, schema } from "../db/client.js";
 import {
   buildAuthorizationUrl,
@@ -274,7 +275,36 @@ export async function updateSpaceConnection(
     })
     .where(eq(schema.spaceConnection.id, row.id))
     .returning();
+  // Who may use it, and what each kind of action may do: a change there is heard of.
+  const rulesChanged =
+    patch.rules !== undefined && JSON.stringify(patch.rules) !== JSON.stringify(row.rules);
+  const audienceChanged = patch.audience !== undefined && patch.audience !== row.audience;
+  if (rulesChanged || audienceChanged) {
+    await logRuleChange({
+      userId,
+      spaceId: row.spaceId,
+      connectionId: row.id,
+      summary: {
+        ...(audienceChanged ? { audience: `${row.audience} → ${updated.audience}` } : {}),
+        ...(rulesChanged ? { rules: changedRules(row.rules, updated.rules) } : {}),
+      },
+      reason: [
+        audienceChanged ? `The audience is now ${updated.audience}.` : "",
+        rulesChanged ? `The rules changed: ${changedRules(row.rules, updated.rules)}.` : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    });
+  }
   return updated;
+}
+
+/** "write: ask → allow, send: ask → deny" */
+function changedRules(before: ConnectionRules, after: ConnectionRules): string {
+  return (Object.keys(after) as (keyof ConnectionRules)[])
+    .filter((k) => before[k] !== after[k])
+    .map((k) => `${k}: ${before[k]} → ${after[k]}`)
+    .join(", ");
 }
 
 export async function removeSpaceConnection(userId: string, id: string): Promise<void> {

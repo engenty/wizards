@@ -1,4 +1,5 @@
 import { useChat as useAiChat } from "@ai-sdk/react";
+import type { CriticalKind } from "@engenty/wizards-shared/connectors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createUIMessageStreamResponse, DefaultChatTransport } from "ai";
 import { type RefObject, useMemo } from "react";
@@ -112,6 +113,31 @@ export interface Approval {
   output: unknown;
   decidedBy: string | null;
   createdAt: string;
+}
+
+/** One of the broker's critical lines, under the bell (docs/plans/broker.md, "Notifications"). */
+export interface CriticalItem {
+  id: string;
+  at: string;
+  kind: CriticalKind;
+  spaceId: string;
+  who: { kind: string; id: string | null };
+  connectionId: string;
+  actionId: string;
+  outcome: string;
+  result: string | null;
+  reason: string | null;
+  runId: string | null;
+  wizardId: string | null;
+  chatId: string | null;
+}
+
+/** What waits under the bell: the held calls, and for an admin the broker's critical lines. */
+export interface Waiting {
+  approvals: Approval[];
+  critical: CriticalItem[];
+  /** Critical lines since the person last opened the bell. */
+  unseen: number;
 }
 
 export interface OpenChat {
@@ -396,13 +422,22 @@ export const useMoveSection = () =>
 
 export const useDeleteSection = () => useChange((id: string) => api.del(`${BASE}/sections/${id}`));
 
-/** The approvals waiting for the person: the bell's count and list. */
+/** What waits for the person: the bell's count and list. */
 export function useWaiting() {
   const poll = usePoll();
   return useQuery({
     queryKey: ["work-approvals"],
-    queryFn: () => api.get<{ approvals: Approval[] }>(`${BASE}/approvals`),
+    queryFn: () => api.get<Waiting>(`${BASE}/approvals`),
     refetchInterval: poll,
+  });
+}
+
+/** The person opened the bell: the critical lines there count as seen. */
+export function useBellOpened() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post(`${BASE}/approvals/seen`),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["work-approvals"] }),
   });
 }
 

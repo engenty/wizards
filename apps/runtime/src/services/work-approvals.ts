@@ -128,20 +128,26 @@ export async function noteOutcome(id: string, outcome: { output: unknown } | { e
 }
 
 /**
- * The approvals waiting for the person, in the chats they see, newest first: the bell. A member
- * sees their own; an owner or admin everything, the calls held for the admins among them.
+ * The approvals waiting for the person, newest first: the bell. A member sees their own, in the
+ * chats they see; an owner or admin every pending call of the organization, those held for the
+ * admins among them, in private chats they are not in too (docs/plans/capabilities.md, A7a).
  */
 export async function waitingFor(user: SessionUser, visibleChatIds: string[]) {
-  if (!visibleChatIds.length) {
+  const admin = isAdminRole(user.role);
+  if (!(admin || visibleChatIds.length)) {
     return [];
   }
   const rows = await db.query.chatApproval.findMany({
     where: and(
+      eq(schema.chatApproval.tenantId, user.tenantId),
       eq(schema.chatApproval.state, "pending"),
-      inArray(schema.chatApproval.chatId, visibleChatIds),
-      isAdminRole(user.role)
+      admin
         ? undefined
-        : and(eq(schema.chatApproval.askedBy, user.id), eq(schema.chatApproval.heldFor, "asker")),
+        : and(
+            inArray(schema.chatApproval.chatId, visibleChatIds),
+            eq(schema.chatApproval.askedBy, user.id),
+            eq(schema.chatApproval.heldFor, "asker"),
+          ),
     ),
     orderBy: [desc(schema.chatApproval.createdAt)],
   });

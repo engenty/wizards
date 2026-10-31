@@ -1,13 +1,13 @@
-import { ShieldQuestion } from "lucide-react";
-import type { ReactNode, SVGProps } from "react";
+import { ShieldAlert, ShieldQuestion } from "lucide-react";
+import { type ReactNode, type SVGProps, useEffect } from "react";
 import { Navigate, NavLink, useParams } from "react-router";
-import { type Key, t } from "../../lib/i18n";
+import { type Key, lang, t } from "../../lib/i18n";
 import { MODE_HOME, type Mode, useMode } from "../../lib/mode";
 import { useMe } from "../../lib/session";
 import { TopBar, useCrumbs } from "../AppFrame";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatView } from "./ChatView";
-import { useWaiting } from "./chats";
+import { type CriticalItem, useBellOpened, useWaiting } from "./chats";
 import { WorkHome } from "./WorkHome";
 
 /**
@@ -100,27 +100,106 @@ function EmptyPlace({ place }: { place: keyof typeof EMPTY }) {
   return <Empty>{t(EMPTY[place])}</Empty>;
 }
 
-/** The bell: the calls held for the person's approval, each leading to its chat. */
+const item =
+  "flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-[0.9375rem] text-ink hover:bg-ink/5";
+
+/**
+ * The bell: the calls held for the person's approval, each leading to its chat, and for an admin
+ * the broker's critical lines of the last days (docs/plans/broker.md, "Notifications"), each
+ * leading to its run or chat. Opening the bell marks the lines seen.
+ */
 function WaitingPlace() {
   useCrumbs([{ label: t("work.waiting") }]);
-  const approvals = useWaiting().data?.approvals ?? [];
-  if (!approvals.length) {
+  const waiting = useWaiting().data;
+  const opened = useBellOpened();
+  const open = opened.mutate;
+  useEffect(() => {
+    open();
+  }, [open]);
+  const approvals = waiting?.approvals ?? [];
+  const critical = waiting?.critical ?? [];
+  if (!(approvals.length || critical.length)) {
     return <Empty>{t("work.waitingEmpty")}</Empty>;
   }
   return (
-    <ul className="mx-auto grid w-full max-w-2xl gap-2 py-8">
-      {approvals.map((a) => (
-        <li key={a.id}>
-          <NavLink
-            to={`/work/c/${a.chatId}`}
-            className="flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-[0.9375rem] text-ink hover:bg-ink/5"
-          >
-            <ShieldQuestion className="size-4 shrink-0 text-ember" />
-            {t("work.approval.waiting", { name: a.toolName })}
-          </NavLink>
-        </li>
-      ))}
-    </ul>
+    <div className="mx-auto grid w-full max-w-2xl gap-8 py-8">
+      {approvals.length ? (
+        <section className="grid gap-2">
+          <h2 className="font-semibold text-[0.75rem] text-ink-3 uppercase tracking-wide">
+            {t("work.waiting.calls")}
+          </h2>
+          <ul className="grid gap-2">
+            {approvals.map((a) => (
+              <li key={a.id}>
+                <NavLink to={`/work/c/${a.chatId}`} className={item}>
+                  <ShieldQuestion className="size-4 shrink-0 text-ember" />
+                  {t(
+                    a.heldFor === "admins"
+                      ? "work.approval.waitingAdmins"
+                      : "work.approval.waiting",
+                    { name: a.toolName },
+                  )}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {critical.length ? (
+        <section className="grid gap-2">
+          <h2 className="font-semibold text-[0.75rem] text-ink-3 uppercase tracking-wide">
+            {t("work.waiting.critical")}
+          </h2>
+          <ul className="grid gap-2">
+            {critical.map((c) => (
+              <li key={c.id}>
+                <CriticalLine line={c} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+/** Where a critical line leads: the chat, or the run in its wizard; nowhere for a changed rule. */
+function criticalLink(line: CriticalItem): string | null {
+  if (line.chatId) {
+    return `/work/c/${line.chatId}`;
+  }
+  if (line.wizardId) {
+    return `/wizards/${line.wizardId}${line.runId ? `?run=${line.runId}` : ""}`;
+  }
+  return null;
+}
+
+function CriticalLine({ line }: { line: CriticalItem }) {
+  const to = criticalLink(line);
+  const body = (
+    <>
+      <ShieldAlert className="size-4 shrink-0 text-ember" />
+      <span className="grid min-w-0 gap-0.5">
+        <span className="truncate">
+          {t(`work.critical.${line.kind}`)}
+          {" · "}
+          {line.connectionId} · {line.actionId}
+        </span>
+        <span className="truncate text-[0.8125rem] text-ink-3">
+          {new Date(line.at).toLocaleString(lang, { dateStyle: "short", timeStyle: "short" })}
+          {" · "}
+          {line.who.kind}
+          {line.reason ? ` · ${line.reason}` : ""}
+        </span>
+      </span>
+    </>
+  );
+  return to ? (
+    <NavLink to={to} className={item}>
+      {body}
+    </NavLink>
+  ) : (
+    <div className={item}>{body}</div>
   );
 }
 

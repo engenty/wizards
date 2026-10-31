@@ -19,6 +19,7 @@ export {
   inAudience,
   kindOf,
   type Refusal,
+  signInRefused,
   type Where,
   type Who,
   type WhoKind,
@@ -38,7 +39,22 @@ export {
 } from "./grant.js";
 export { brokerHost, type HostResult } from "./host.js";
 export { keptStepIds } from "./kept.js";
-export { lastUseOf, summarizeInput } from "./log.js";
+export {
+  CRITICAL_KINDS,
+  type CriticalKind,
+  criticalOf,
+  criticalSince,
+  LOG_PAGE,
+  type LoggedRow,
+  type LogQuery,
+  lastUseOf,
+  logOfSpace,
+  logRuleChange,
+  onCritical,
+  RULE_CHANGE_ACTION,
+  SIGN_IN_FAILED,
+  summarizeInput,
+} from "./log.js";
 export { type OutsideReach, outsideReaches, reachesOutside } from "./registry.js";
 export {
   brokerSend,
