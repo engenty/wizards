@@ -213,7 +213,8 @@ function toolView(
   const errorBody = error ? <p className="text-[0.8125rem] text-danger">{error}</p> : null;
   const base = { key: part.toolCallId, phase };
 
-  if (name === "search_space") {
+  // The catalogue's search; chats from before it say search_space.
+  if (name === "space_search" || name === "search_space") {
     const query = typeof input.query === "string" ? input.query : "";
     const hits = hitsOf(output);
     return {
@@ -488,9 +489,23 @@ interface Hit {
   link: string | null;
 }
 
+/** A search's hits, as the catalogue's space_search gives them (path, open, section) or as they were. */
 function hitsOf(output: unknown): Hit[] | null {
   const hits = (output as { hits?: unknown } | null)?.hits;
-  return Array.isArray(hits) ? (hits as Hit[]) : null;
+  if (!Array.isArray(hits)) {
+    return null;
+  }
+  return hits.map((raw: Record<string, unknown>) => {
+    const text = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string) : null);
+    return {
+      key: text("key") ?? text("open") ?? text("path") ?? "",
+      title: text("title") ?? "",
+      heading: text("heading") ?? text("section"),
+      text: text("text") ?? "",
+      open: text("open"),
+      link: text("link"),
+    };
+  });
 }
 
 const HIT_ICON: Record<string, LucideIcon> = {

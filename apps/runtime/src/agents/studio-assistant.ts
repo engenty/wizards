@@ -29,6 +29,8 @@ import { knowsTools } from "../assistant/knows.js";
 import type { SessionUser } from "../auth/index.js";
 import { subjectsOfGoose } from "../broker/rwx.js";
 import type { AssistantCardRecord, AssistantToolCallRecord } from "../db/schema.js";
+import { gooseCaller } from "../elements/caller.js";
+import { elementTools } from "../elements/catalogue.js";
 import { currentFeatures } from "../features.js";
 import { managed } from "../manage.js";
 import {
@@ -61,7 +63,6 @@ import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
-import { skillToolsOf } from "../tools/skills.js";
 import { gooseConnectionTools } from "./goose-connections.js";
 import { spaceAgent } from "./space-agent.js";
 import { chatTurnWay } from "./subscription.js";
@@ -981,11 +982,26 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   // The space's skills (docs/plans/skills.md): Goose reads them as a step does.
   const skills = space && switches.skills === true ? await activeSkills(space.id) : null;
   const allSkills = space && switches.skills === true ? await skillList(space.id) : [];
-  if (skills) {
+  // The space's Knowledge and skills from the tool catalogue (elements/), as Goose for its person.
+  if (space) {
     Object.assign(
       tools,
-      skillToolsOf(skills, (name) =>
-        input.onActivity?.(serverText(input.lang, "doingReadSkill", { name })),
+      await elementTools(
+        gooseCaller({
+          space: { id: space.id, name: space.name },
+          userId: input.user.id,
+          role: input.user.role,
+          signal: input.signal ?? new AbortController().signal,
+          chatId: input.chat.id,
+          note: (note) => {
+            if (note.code === "readsSkill") {
+              input.onActivity?.(
+                serverText(input.lang, "doingReadSkill", { name: String(note.params?.name ?? "") }),
+              );
+            }
+          },
+        }),
+        { knowledge: true, skills },
       ),
     );
   }

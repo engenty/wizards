@@ -215,7 +215,7 @@ describe("the rules, for the space's admins", () => {
   it("seeds a space on its first read: admins and owners rwx, members rw, guests r", async () => {
     on();
     const { rules } = await json(send("GET", `/api/studio/spaces/${spaceId}/rules`));
-    expect(rules).toHaveLength(12);
+    expect(rules).toHaveLength(22);
     expect(rules.every((r: any) => r.createdBy === "seed" && r.resourceId === "*")).toBe(true);
     const of = (kind: string, id: string | null) =>
       rules.filter((r: any) => r.subjectKind === kind && r.subjectId === id).map((r: any) => [r.resourceKind, r.r, r.w, r.x]);
@@ -223,16 +223,25 @@ describe("the rules, for the space's admins", () => {
       ["document", "allow", "allow", "allow"],
       ["table", "allow", "allow", "allow"],
       ["page", "allow", "allow", "allow"],
+      ["wizard", "allow", "allow", "allow"],
+      ["skill", "allow", "allow", "allow"],
+      ["setup", "allow", "allow", "allow"],
     ]);
+    // A member runs wizards and skills' scripts, and writes the space's setup; building a wizard
+    // is the studio's, by the members' studio rule.
     expect(of("role", "member")).toEqual([
       ["document", "allow", "allow", null],
       ["table", "allow", "allow", null],
       ["page", "allow", "allow", null],
+      ["wizard", "allow", null, "allow"],
+      ["skill", "allow", null, "allow"],
+      ["setup", "allow", "allow", null],
     ]);
     expect(of("guest", null)).toEqual([
       ["document", "allow", null, null],
       ["table", "allow", null, null],
       ["page", "allow", null, null],
+      ["skill", "allow", null, "allow"],
     ]);
   });
 
@@ -251,11 +260,11 @@ describe("the rules, for the space's admins", () => {
     const rules = await putRules([
       { subjectKind: "person", subjectId: "b2", resourceKind: "page", resourceId: fixture.pageOfD, r: "deny" },
     ]);
-    expect(rules).toHaveLength(13);
+    expect(rules).toHaveLength(23);
     const added = rules.find((r: any) => r.subjectId === "b2");
     expect(added).toMatchObject({ createdBy: B, resourceKind: "page", r: "deny", w: null, x: null });
     expect((await send("DELETE", `/api/studio/spaces/${spaceId}/rules/${added.id}`)).status).toBe(200);
-    expect((await json(send("GET", `/api/studio/spaces/${spaceId}/rules`))).rules).toHaveLength(12);
+    expect((await json(send("GET", `/api/studio/spaces/${spaceId}/rules`))).rules).toHaveLength(22);
     expect((await send("DELETE", `/api/studio/spaces/${spaceId}/rules/${added.id}`)).status).toBe(404);
   });
 
@@ -343,10 +352,10 @@ describe("„B darf Dokument D nicht lesen“", () => {
     );
   });
 
-  it("a Work chat's search_space finds nothing of it for B", async () => {
+  it("a Work chat's space_search finds nothing of it for B", async () => {
     const { toolToRun } = await import("../src/services/work-ai");
     const tool = await local(() =>
-      toolToRun({ id: spaceId, name: "Test" }, B, "search_space", new AbortController().signal),
+      toolToRun({ id: spaceId, name: "Test" }, B, "space_search", new AbortController().signal),
     );
     const found = (await local(() => tool?.execute?.({ query: "Hollunder" }))) as any;
     expect(found.hits.map((h: any) => h.open)).not.toContain(`p:${fixture.pageOfD}`);
@@ -649,6 +658,9 @@ describe("the walk over every resource kind", () => {
     document: "„B darf Dokument D nicht lesen“",
     table: "„Gäste dürfen Tabelle T nicht lesen“",
     page: "a wizard's pages (Daten), and the page made of D",
+    wizard: "wizard_run refused without x (elements.test.ts)",
+    skill: "skill_load refused without r, scripts without x (elements.test.ts)",
+    setup: "Goose's writes refused without w (elements.test.ts)",
   };
   it("enforces exactly the kinds that have a fixture", async () => {
     expect([...rwx.ENFORCED].sort()).toEqual(Object.keys(fixtures).sort());

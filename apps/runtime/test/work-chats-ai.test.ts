@@ -103,6 +103,11 @@ beforeAll(async () => {
   cookie = (entered.headers.get("set-cookie") ?? "").split(";")[0];
   const spaces = await import("../src/services/spaces");
   spaceId = (await client.withTenant("local", () => spaces.defaultSpace("local"))).id;
+  // Knowledge to search: a space without any gets no search tool (elements/knowledge.ts).
+  const data = await import("../src/services/space-data");
+  await client.withTenant("local", () =>
+    data.createPage("local", spaceId, { title: "Akten", markdown: "Maier hat zwei Akten." }),
+  );
 }, 60_000);
 
 describe("the space's AI in a chat", () => {
@@ -132,7 +137,7 @@ describe("the space's AI in a chat", () => {
 
   it("uses the space's tools, and the chat keeps the call with its result", async () => {
     const id = await newChat();
-    script.push({ chunks: callTool("search_space", { query: "Maier" }) }, { chunks: say("Nichts gefunden.") });
+    script.push({ chunks: callTool("space_search", { query: "Maier" }) }, { chunks: say("Nichts gefunden.") });
     const seen = await chunks(
       await send("POST", `/chats/${id}/messages`, { text: "Such Maier.", ask: true }),
     );
@@ -142,7 +147,7 @@ describe("the space's AI in a chat", () => {
     const read = await json(send("GET", `/chats/${id}`));
     expect(read.messages[1].parts).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ type: "tool-search_space", state: "output-available" }),
+        expect.objectContaining({ type: "tool-space_search", state: "output-available" }),
       ]),
     );
   });
@@ -150,7 +155,7 @@ describe("the space's AI in a chat", () => {
   it("takes a message written during its turn into that turn, with its author", async () => {
     const id = await newChat();
     const step = gate();
-    script.push({ wait: step.wait, chunks: callTool("search_space", { query: "Frist" }) });
+    script.push({ wait: step.wait, chunks: callTool("space_search", { query: "Frist" }) });
     script.push({ chunks: say("Frist ist der 7. November.") });
     const before = prompts.length;
     const turn = send("POST", `/chats/${id}/messages`, { text: "Welche Frist?", ask: true });
@@ -168,7 +173,7 @@ describe("the space's AI in a chat", () => {
   it("keeps a message that doesn't ask it out of the running turn, and builds no turn for one taken in", async () => {
     const id = await newChat();
     const step = gate();
-    script.push({ wait: step.wait, chunks: callTool("search_space", { query: "Frist" }) });
+    script.push({ wait: step.wait, chunks: callTool("space_search", { query: "Frist" }) });
     script.push({ chunks: say("Erledigt.") });
     const before = prompts.length;
     const turnsBefore = made.turns;

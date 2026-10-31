@@ -1,6 +1,8 @@
 import { skillMd } from "@engenty/wizards-shared/skills";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import { type ElementCaller, stepCaller } from "../elements/caller.js";
+import { elementCall, mayDo } from "../elements/gate.js";
 import type { StepContext } from "../engine/types.js";
 import { getBlob } from "../files/blobs.js";
 import { prompt } from "../prompts.js";
@@ -137,15 +139,15 @@ const byName = (skills: Skills, name: string) =>
   [...skills.always, ...skills.demand].find((k) => k.name === name.trim().toLowerCase());
 
 /**
- * `skill_load` and `skill_read` over the skills that count. `onRead` says what is read, for the
- * run's events or Goose's line; none when the space has no skill a model could read. With
- * `sandbox`, loading a skill whose scripts may run writes its folder there.
+ * `skill_load` and `skill_read` over the skills that count, for the caller of the tool catalogue
+ * (elements/): reading a skill is `r` on it, its folder placed in the caller's sandbox for its
+ * scripts to run is `x` (docs/plans/modular.md). Each call is a line of the broker's log. None
+ * when the space has no skill a model could read.
  */
-export function skillToolsOf(
-  skills: Skills,
-  onRead: (name: string) => Promise<void> | void,
-  sandbox: SkillSandbox | null = null,
-): Record<string, any> {
+export function skillToolsOf(skills: Skills, caller: ElementCaller): Record<string, any> {
+  const sandbox = caller.sandbox ?? null;
+  const onRead = (name: string) => caller.note?.({ code: "readsSkill", params: { name } });
+  const asSkill = (k: Skill) => ({ kind: "skill" as const, id: k.id });
   const readable = [...skills.always, ...skills.demand];
   if (
     !(skills.demand.length || skills.always.some((k) => k.files.length || (sandbox && runnable(k))))
@@ -158,6 +160,9 @@ export function skillToolsOf(
   const place = async (k: Skill): Promise<{ folder?: string; scripts: string } | null> => {
     if (!(sandbox && runnable(k))) {
       return null;
+    }
+    if (!(await mayDo(caller, asSkill(k), "x"))) {
+      return { scripts: prompt("tools", "note.skill_scripts_refused") };
     }
     const folder = `${sandbox.workdir}/${skillFolder(k.name)}`;
     try {
@@ -176,22 +181,28 @@ export function skillToolsOf(
       id: "skill_load",
       description: prompt("tools", "tool.skill_load", { names }),
       inputSchema: z.object({ name: z.string().describe("The skill's name, as listed") }),
-      execute: ({ name }) =>
+      execute: (input) =>
         attempt(async () => {
-          const k = byName(skills, name);
+          const k = byName(skills, input.name);
           if (!k) {
-            return { error: prompt("tools", "note.skill_unknown", { name, names }) };
+            return { error: prompt("tools", "note.skill_unknown", { name: input.name, names }) };
           }
-          await onRead(k.name);
-          const placed = await place(k);
-          // In the sandbox, the files for its scripts are there too.
-          const files = placed?.folder ? [...k.files, ...k.blobFiles] : k.files;
-          return {
-            name: k.name,
-            instructions: clip(k.body, 60_000),
-            files: files.map((f) => f.path).sort(),
-            ...placed,
-          };
+          return elementCall(
+            caller,
+            { action: "skill_load", resource: asSkill(k), perm: "r", input },
+            async () => {
+              await onRead(k.name);
+              const placed = await place(k);
+              // In the sandbox, the files for its scripts are there too.
+              const files = placed?.folder ? [...k.files, ...k.blobFiles] : k.files;
+              return {
+                name: k.name,
+                instructions: clip(k.body, 60_000),
+                files: files.map((f) => f.path).sort(),
+                ...placed,
+              };
+            },
+          );
         }),
     }),
     skill_read: createTool({
@@ -204,42 +215,57 @@ export function skillToolsOf(
         path: z.string().describe("The file's path in the skill, e.g. references/forms.md"),
         from: z.number().int().min(0).optional().describe("Character to continue a long file at"),
       }),
-      execute: ({ name, path, from }) =>
+      execute: (input) =>
         attempt(async () => {
+          const { name, path, from } = input;
           const k = byName(skills, name);
           if (!k) {
             return { error: prompt("tools", "note.skill_unknown", { name, names }) };
           }
-          if (path === "SKILL.md") {
-            return { path, text: clip(skillMd(k), 60_000) };
-          }
-          const wanted = path.replace(/^\.?\//, "");
-          const file = k.files.find((f) => f.path === wanted);
-          if (!file && k.blobFiles.some((f) => f.path === wanted)) {
-            return { error: prompt("tools", "note.skill_blob", { path: wanted }) };
-          }
-          if (!file) {
-            return {
-              error: prompt("tools", "note.skill_no_file", {
-                path,
-                skill: k.name,
-                files: k.files.map((f) => f.path).join(", ") || "none",
-              }),
-            };
-          }
-          await onRead(`${k.name}/${file.path}`);
-          const start = from ?? 0;
-          const part = file.text.slice(start, start + 30_000);
-          const rest = file.text.length - start - part.length;
-          return {
-            path: file.path,
-            text: part,
-            ...(rest > 0
-              ? { more: prompt("tools", "note.skill_more", { rest, from: start + part.length }) }
-              : {}),
-          };
+          return elementCall(
+            caller,
+            { action: "skill_read", resource: asSkill(k), perm: "r", input },
+            () => readSkillFile(k, path, from, onRead),
+          );
         }),
     }),
+  };
+}
+
+/** A file of a skill, in parts: `SKILL.md` whole, a text file from `from`. */
+async function readSkillFile(
+  k: Skill,
+  path: string,
+  from: number | undefined,
+  onRead: (name: string) => Promise<void> | void,
+) {
+  if (path === "SKILL.md") {
+    return { path, text: clip(skillMd(k), 60_000) };
+  }
+  const wanted = path.replace(/^\.?\//, "");
+  const file = k.files.find((f) => f.path === wanted);
+  if (!file && k.blobFiles.some((f) => f.path === wanted)) {
+    return { error: prompt("tools", "note.skill_blob", { path: wanted }) };
+  }
+  if (!file) {
+    return {
+      error: prompt("tools", "note.skill_no_file", {
+        path,
+        skill: k.name,
+        files: k.files.map((f) => f.path).join(", ") || "none",
+      }),
+    };
+  }
+  await onRead(`${k.name}/${file.path}`);
+  const start = from ?? 0;
+  const part = file.text.slice(start, start + 30_000);
+  const rest = file.text.length - start - part.length;
+  return {
+    path: file.path,
+    text: part,
+    ...(rest > 0
+      ? { more: prompt("tools", "note.skill_more", { rest, from: start + part.length }) }
+      : {}),
   };
 }
 
@@ -251,9 +277,5 @@ export async function skillTools(
   ctx: StepContext,
   sandbox: SkillSandbox | null = null,
 ): Promise<Record<string, any>> {
-  return skillToolsOf(
-    await skillsOf(ctx),
-    (name) => ctx.emit("tool", { code: "readsSkill", params: { name } }),
-    sandbox,
-  );
+  return skillToolsOf(await skillsOf(ctx), stepCaller(ctx, sandbox));
 }

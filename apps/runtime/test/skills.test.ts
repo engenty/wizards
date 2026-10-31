@@ -418,6 +418,9 @@ describe("in a step", () => {
     const emitted: any[] = [];
     const ctx = {
       space: { id: spaceId },
+      signal: new AbortController().signal,
+      holder: { kind: "person", id: "local", role: "owner" },
+      store: { holder: "u:local", wizardId: "w1" },
       emit: async (_type: string, message: unknown) => {
         emitted.push(message);
       },
@@ -474,6 +477,17 @@ describe("scripts in the sandbox", () => {
     return { sandbox, files, commands };
   };
   const ctx = { space: { id: "" }, emit: async () => undefined };
+  /** The owner, with the fake sandbox: a caller of the tool catalogue. */
+  const testCaller = async (sandbox: unknown) => {
+    const { personCaller } = await import("../src/elements/caller");
+    return personCaller({
+      space: { id: spaceId, name: "Test" },
+      userId: "local",
+      role: "owner",
+      signal: new AbortController().signal,
+      sandbox: { handle: () => sandbox as never, workdir: "/sandbox" },
+    });
+  };
 
   it("puts the folder of a skill whose scripts may run into the sandbox, once per run", async () => {
     const { skillsBlock, skillToolsOf } = await import("../src/tools/skills");
@@ -488,10 +502,7 @@ describe("scripts in the sandbox", () => {
       );
       expect(skillsBlock(skills, { tools: true })).not.toContain("scripts that run");
 
-      const tools = skillToolsOf(skills, () => undefined, {
-        handle: () => sandbox,
-        workdir: "/sandbox",
-      });
+      const tools = skillToolsOf(skills, await testCaller(sandbox));
       expect(tools.skill_read.description).not.toContain("nothing runs them");
       const loaded = await tools.skill_load.execute({ name: "pdf" });
       expect(loaded).toMatchObject({
@@ -529,10 +540,7 @@ describe("scripts in the sandbox", () => {
     await send("PATCH", `/api/studio/skills/${pdf.id}`, { runScripts: false });
     const { sandbox, files } = fakeSandbox();
     await local(async () => {
-      const tools = skillToolsOf(await activeSkills(spaceId), () => undefined, {
-        handle: () => sandbox,
-        workdir: "/sandbox",
-      });
+      const tools = skillToolsOf(await activeSkills(spaceId), await testCaller(sandbox));
       const loaded = await tools.skill_load.execute({ name: "pdf" });
       expect(loaded.folder).toBeUndefined();
       expect(loaded.files).toEqual(["forms.md", "scripts/fill.py"]);
@@ -551,10 +559,7 @@ describe("scripts in the sandbox", () => {
       throw new Error("disk full");
     };
     await local(async () => {
-      const tools = skillToolsOf(await activeSkills(spaceId), () => undefined, {
-        handle: () => sandbox,
-        workdir: "/sandbox",
-      });
+      const tools = skillToolsOf(await activeSkills(spaceId), await testCaller(sandbox));
       const loaded = await tools.skill_load.execute({ name: "pdf" });
       expect(loaded.instructions).toContain("Read forms.md for forms.");
       expect(loaded.folder).toBeUndefined();

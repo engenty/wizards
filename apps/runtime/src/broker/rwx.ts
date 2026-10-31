@@ -68,8 +68,19 @@ export interface Decision {
   of: Resource;
 }
 
-/** The resource kinds this runtime asks the broker about today; the others wait for their reader. */
-export const ENFORCED: readonly RwxResourceKind[] = ["document", "table", "page"];
+/**
+ * The resource kinds this runtime asks the broker about today; the others wait for their reader.
+ * A wizard is run (`x`) and listed (`r`) through the tool catalogue (elements/), a skill read
+ * (`r`) and its scripts placed to run (`x`), a space's setup written (`w`) by Goose.
+ */
+export const ENFORCED: readonly RwxResourceKind[] = [
+  "document",
+  "table",
+  "page",
+  "wizard",
+  "skill",
+  "setup",
+];
 
 type Rule = typeof schema.rwxRule.$inferSelect;
 
@@ -278,6 +289,9 @@ const WHAT: Record<RwxResourceKind, RunNoteCode> = {
   mail: "rwxMail",
   host: "rwxHost",
   sandbox: "rwxSandbox",
+  wizard: "rwxWizard",
+  skill: "rwxSkill",
+  setup: "rwxSetup",
 };
 const VERB: Record<Perm, RunNoteCode> = { r: "rwxRead", w: "rwxWrite", x: "rwxRun" };
 
@@ -384,14 +398,38 @@ export async function seedRwx(spaceId: string): Promise<void> {
     for (const role of ["admin", "owner"] as const) {
       seeded.push(rule("role", role, kind, { r: "allow", w: "allow", x: "allow" }));
     }
-    seeded.push(rule("role", "member", kind, { r: "allow", w: "allow", x: null }));
-    seeded.push(rule("guest", null, kind, { r: "allow", w: null, x: null }));
+    seeded.push(rule("role", "member", kind, MEMBER_SEED[kind] ?? MEMBER_DATA));
+    const guest = GUEST_SEED[kind];
+    if (guest) {
+      seeded.push(rule("guest", null, kind, guest));
+    }
   }
   await db
     .insert(schema.rwxRule)
     .values(seeded.map((r) => row(spaceId, r, "seed")))
     .onConflictDoNothing();
 }
+
+type Flags = Pick<RwxRuleInput, "r" | "w" | "x">;
+
+/**
+ * A member's seed: documents, tables and pages read and written; a wizard read and run (building
+ * it is the studio's, by the members' studio rule); a skill read and its scripts run; the space's
+ * setup read and written. The same as the migration 0040 writes for spaces seeded before.
+ */
+const MEMBER_DATA: Flags = { r: "allow", w: "allow", x: null };
+const MEMBER_SEED: Partial<Record<RwxResourceKind, Flags>> = {
+  wizard: { r: "allow", w: null, x: "allow" },
+  skill: { r: "allow", w: null, x: "allow" },
+};
+
+/** A guest's seed: data read, a skill read and run in its run; no wizard, no setup. */
+const GUEST_SEED: Partial<Record<RwxResourceKind, Flags>> = {
+  document: { r: "allow", w: null, x: null },
+  table: { r: "allow", w: null, x: null },
+  page: { r: "allow", w: null, x: null },
+  skill: { r: "allow", w: null, x: "allow" },
+};
 
 const rule = (
   subjectKind: RwxSubjectKind,

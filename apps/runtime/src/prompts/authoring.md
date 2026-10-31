@@ -506,11 +506,11 @@ In a chat, show_view draws the view in the chat for everyone in it. The data is 
 In a chat a view may also:
 - ask the AI: Button { label, action: "ask", prompt? } — the person who taps it says the prompt (else the label) in the chat, and you answer it
 - open a file: Button { label, action: "open", target: a file id }
-- point to a thing of the space: Ref { title, open, subtitle?, meta? } — open is what search_space gave as "open" ("p:…", "t:…", "f:…"), or "chat:<id>", "wizard:<id>"
+- point to a thing of the space: Ref { title, open, subtitle?, meta? } — open is what space_search gave as "open" ("p:…", "t:…", "f:…"), or "chat:<id>", "wizard:<id>"
 - ask for answers: one Form { title?, submit, children: [Field ids] } with Field { name, kind, label, required?, options?, value?, placeholder?, help?, multiple? }
   kind: text, textarea, number, select, multiselect (both need options: [texts]), date, email, url, toggle, color, image (a picture or the camera), file, location (where the person is), audio (a recording), signature
   value prefills what you already know from the chat; the person still checks it. The answers come back as that person's message; once someone sent them, the form shows them.
-A file id is the space's file: what search_space gave after "f:", or a file in a message. Media and files come from the space only, never from an address on the web.
+A file id is the space's file: what space_search gave after "f:", or a file in a message. Media and files come from the space only, never from an address on the web.
 Never ask for passwords, card numbers or other secrets in a Form.
 Use a view when rows, figures, a comparison or a few questions answer better than text: write one short sentence around it, not the same content again. For a short answer, write text.
 

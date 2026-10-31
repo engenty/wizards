@@ -281,6 +281,20 @@
       "when": 1793411368904,
       "tag": "0039_members_studio",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1793462355176,
+      "tag": "0040_rwx_elements",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1793462415359,
+      "tag": "0041_broker_log_client",
+      "breakpoints": true
     }
   ]
 }

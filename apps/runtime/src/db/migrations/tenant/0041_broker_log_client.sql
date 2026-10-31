@@ -1,0 +1,1 @@
+ALTER TABLE `broker_log` ADD `client` text;

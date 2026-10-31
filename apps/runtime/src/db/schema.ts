@@ -1153,6 +1153,8 @@ export const brokerLog = sqliteTable(
     runId: text("run_id"),
     /** The step of the run that called; null outside a step. */
     stepId: text("step_id"),
+    /** The outside client that called, as it names itself (an MCP client, `x-wizards-client`); null inside the runtime. */
+    client: text("client"),
     chatId: text("chat_id"),
     wizardId: text("wizard_id"),
     spaceId: text("space_id"),
