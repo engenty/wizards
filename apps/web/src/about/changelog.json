@@ -1,67 +1,164 @@
 [
   {
+    "version": "v0.14.0",
+    "timestamp": 1793457807,
+    "commits": [
+      {
+        "id": "3b31c1a",
+        "message": "the Studio's start page explains the Studio, one AI input per screen (#399)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "56dc6d6",
+        "message": "the menu's top entry highlights as a full row (#396)",
+        "group": "Fixed",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "ce2c248",
+        "message": "Stimme und Haltung at the end of Marke (#395)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "143f117",
+        "message": "brand voice blocks with rules, and links in Info (#394)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "e9eebf3",
+        "message": "Client behind pages, Work's unfinished parts behind workWip (#393)",
+        "group": "Added",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "49975e2",
+        "message": "Marke gets a brand name and a tagline; the area's name opens its overview (#392)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "8cb871e",
+        "message": "Ressourcen (was Quellen) open on an overview of their parts with Goose on top (#391)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "654ca96",
+        "message": "a Quellen part's menu under the other parts, with a search (⌘F) and the row folding into the head (#390)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "9d15b9a",
+        "message": "Goose closes by hand, floats from an icon, and stays small beside a page's own input (#389)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "19aaaf5",
+        "message": "a page's introduction at its top with a line to ask Goose; Goose's place per area, docked while it works (#388)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "526ca01",
+        "message": "Goose stands at a page's top also when made small; light mode's lines and fields as in dark (#387)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "9024021",
+        "message": "below a Quellen part's own menu, the parts again (#386)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "5e86198",
+        "message": "Quellen keeps one menu where a part lists nothing, the bar names its glyphs on hover, the mode card follows the bar (#385)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "12dae9d",
+        "message": "Protokoll becomes Audit, one page; Was darf …? and notifications from its header (#384)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "80ecd16",
+        "message": "Fähigkeiten keeps one menu: Skills and Connectors without their own, Entdecken as the overview's tab (#383)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "b7612ff",
+        "message": "documentation updates (#378, #379)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "67ee411",
+        "message": "Fähigkeiten opens on an overview of the space's skills and connections (#380)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "f5d7b22",
+        "message": "Work mode behind workMode: chats with the space's AI, the Studio · Work · Client switch, and \"project\" becomes \"space\" (#331)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": true
+      }
+    ]
+  },
+  {
     "version": "v0.13.0",
-    "timestamp": 1793368199,
+    "timestamp": 1793369478,
     "commits": [
       {
         "id": "845afa5",
-        "message": "Settings › Models opens on an overview: what your studio chat and your wizards run on, which model does which job, and what is still missing (#328)",
+        "message": "model tiers, model choice by name, masking and the new Models overview (#328)",
         "group": "Added",
         "scope": "models",
         "breaking": false
       },
       {
-        "id": "845afa5",
-        "message": "choose models by name in wizard steps and in Goose's menu, from a short list that fits your organization; Auto picks for you (#328)",
+        "id": "c4c1378",
+        "message": "the Manage-App can switch off the checks of what guests make (#316)",
         "group": "Added",
-        "scope": "models",
-        "breaking": false
-      },
-      {
-        "id": "845afa5",
-        "message": "model tiers for organizations: all models, EU-Datenschutz (EU data centres, nothing stored, never trained on) and EU-Souverän (EU companies only); Pro and Team admins choose (#328)",
-        "group": "Added",
-        "scope": "models",
-        "breaking": false
-      },
-      {
-        "id": "845afa5",
-        "message": "mask personal data: names, e-mails and IBANs become placeholders before a call leaves engenty and come back in the answer; admins add what else to mask (#328)",
-        "group": "Added",
-        "scope": "models",
-        "breaking": false
-      },
-      {
-        "id": "845afa5",
-        "message": "admins decide whether members may use their own API keys and AI subscriptions in the studio chat; the page says where the data then goes (#328)",
-        "group": "Added",
-        "scope": "models",
-        "breaking": false
-      },
-      {
-        "id": "845afa5",
-        "message": "Settings › General shows your plan and what it holds: spaces, members, credits and models (#328)",
-        "group": "Added",
-        "scope": "studio",
-        "breaking": false
-      },
-      {
-        "id": "845afa5",
-        "message": "leaving an organization moved to Settings › Members, and the credit balance left the top bar (#328)",
-        "group": "Changed",
-        "scope": "studio",
+        "scope": "runtime",
         "breaking": false
       },
       {
         "id": "305d830",
-        "message": "what guests make stays private and is checked against the content rules; admins can switch the checks off (#315, #316)",
+        "message": "guards for what guests make: results stay private, answers and step text checked against the content rules, input marked as data, stops reported to Manage (#315)",
         "group": "Added",
         "scope": "runtime",
         "breaking": false
       },
       {
         "id": "08f9008",
-        "message": "team levels are gone from the catalog; featured templates come first (#312)",
+        "message": "remove team levels from the catalog, keep featured first (#312)",
         "group": "Changed",
         "scope": "studio",
         "breaking": false

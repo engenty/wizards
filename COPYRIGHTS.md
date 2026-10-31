@@ -71,6 +71,7 @@ Declared by two or more of the workspaces below:
 | [@fontsource/young-serif](https://fontsource.org/fonts/young-serif) | 5.3.0 | OFL-1.1 |
 | [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
 | [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.3 | MIT |
+| [ai](https://ai-sdk.dev/docs) | 7.0.102 | Apache-2.0 |
 | [dompurify](https://github.com/cure53/DOMPurify) | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
 | [fflate](https://101arrowz.github.io/fflate) | 0.8.3 | MIT |
 | [lucide-react](https://lucide.dev) | 1.49.0 | ISC |
@@ -79,7 +80,7 @@ Declared by two or more of the workspaces below:
 | [qr-scanner](https://github.com/nimiq/qr-scanner#readme) | 1.4.2 | MIT |
 | [react](https://react.dev/) | 19.3.0 | MIT |
 | [react-dom](https://react.dev/) | 19.3.0 | MIT |
-| [zod](https://zod.dev) | 4.6.6 | MIT |
+| [zod](https://zod.dev) | 4.6.7 | MIT |
 
 ### docs (apps/docs)
 
@@ -108,13 +109,15 @@ Declared by two or more of the workspaces below:
 | [@hono/node-server](https://github.com/honojs/node-server) | 2.1.3 | MIT |
 | [@libsql/client](https://github.com/tursodatabase/libsql-client-ts#readme) | 0.18.0 | MIT |
 | [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
+| [@mastra/ai-sdk](https://mastra.ai) | 1.11.2 | Apache-2.0 |
 | [@mastra/core](https://mastra.ai) | 1.80.0 | Apache-2.0 |
 | [@mastra/docker](https://mastra.ai) | 0.12.1 | Apache-2.0 |
+| [@mastra/libsql](https://mastra.ai) | 1.27.1 | Apache-2.0 |
+| [@mastra/memory](https://mastra.ai) | 1.39.1 | Apache-2.0 |
 | [@mastra/quickjs](https://mastra.ai) | 0.1.5 | Apache-2.0 |
 | [@modelcontextprotocol/server](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
 | [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas#readme) | 1.0.13 | MIT |
 | [@turbodocx/html-to-docx](https://github.com/TurboDocx/html-to-docx#readme) | 1.23.1 | MIT |
-| [ai](https://ai-sdk.dev/docs) | 7.0.102 | Apache-2.0 |
 | [aws4fetch](https://github.com/mhart/aws4fetch#readme) | 1.0.20 | MIT |
 | [cross-spawn](https://github.com/moxystudio/node-cross-spawn) | 7.0.6 | MIT |
 | [drizzle-orm](https://orm.drizzle.team) | 0.45.3 | Apache-2.0 |
@@ -139,6 +142,8 @@ Declared by two or more of the workspaces below:
 
 | Package | Version | Licence |
 |---|---|---|
+| [@ai-sdk/react](https://ai-sdk.dev/docs) | 4.0.105 | Apache-2.0 |
+| [@base-ui/react](https://base-ui.com) | 1.9.0 | MIT |
 | @codemirror/autocomplete | 6.20.3 | MIT |
 | @codemirror/commands | 6.11.1 | MIT |
 | [@codemirror/lang-json](https://github.com/codemirror/lang-json#readme) | 6.0.2 | MIT |
@@ -150,13 +155,17 @@ Declared by two or more of the workspaces below:
 | @codemirror/view | 6.43.14 | MIT |
 | [@dagrejs/dagre](https://github.com/dagrejs/dagre#readme) | 3.1.1 | MIT |
 | @lezer/highlight | 1.2.5 | MIT |
+| [@shadcn/react](https://ui.shadcn.com) | 0.3.1 | MIT |
 | [@tanstack/react-query](https://tanstack.com/query) | 5.104.0 | MIT |
 | [@xterm/addon-fit](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.11.0 | MIT |
 | [@xterm/addon-web-links](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.12.0 | MIT |
 | [@xterm/xterm](https://github.com/xtermjs/xterm.js#readme) | 6.0.0 | MIT |
 | [@xyflow/react](https://reactflow.dev) | 12.12.0 | MIT |
+| [class-variance-authority](https://github.com/joe-bell/cva#readme) | 0.7.1 | Apache-2.0 |
+| [cn](https://github.com/shadcn-ui/cn#readme) | 0.5.0 | MIT |
 | [modern-screenshot](https://github.com/qq15725/modern-screenshot) | 4.7.0 | MIT |
-| [react-router](https://github.com/remix-run/react-router#readme) | 7.18.4 | MIT |
+| [react-router](https://github.com/remix-run/react-router#readme) | 8.5.1 | MIT |
+| [tw-animate-css](https://github.com/Wombosvideo/tw-animate-css#readme) | 1.4.0 | MIT |
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT |
 
 ### Development only
