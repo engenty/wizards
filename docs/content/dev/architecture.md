@@ -1,7 +1,7 @@
 ---
 title: Architecture
 description: How engenty wizards is built – the runtime and its roles, your computer and the cloud, tenants and spaces, the engine and its sandboxes, skills, plugins, the broker and the feature switches.
-version: 0.13.0
+version: 0.14.1
 ---
 
 engenty wizards is one server program, the **runtime**, and one web app, the **studio**, that it
@@ -28,7 +28,8 @@ and whether it takes runs.
 
 | Role | Serves |
 |---|---|
-| `studio` | The makers’ half: sign-in, `/api/studio`, the authoring MCP server (`/api/mcp`), the sync from computers (`/api/v1`), `/install.sh`, the studio’s pages |
+| `studio` | The makers’ half: sign-in, `/api/studio`, `/install.sh`, the studio’s pages. Until the cloud routes them to an `api` process, also what `api` serves |
+| `api` | Outside clients: the MCP server (`/api/mcp`) and the API (`/api/v1`), the space’s elements among them, so they scale and fail apart from the studio |
 | `doors` | The customers’ half: `/api/public`, shared results, the plugins’ public routes and webhooks, `/embed.js`, the pages `/w/<token>` and `/s/<token>` |
 | `web` | Both halves |
 | `runner` | Takes the runs that wait and drives them. It serves the routes too, for what only the process holding a run can answer, such as its browser’s screen |
@@ -176,6 +177,16 @@ action and writes one line of the log. Model calls don’t pass it.
 [Capabilities](../user-guide/capabilities.md).
 
 ![Every caller goes through brokerCall, which checks the grant, the audience and the rule, then runs the action, asks first or refuses, and logs every call](../../assets/diagrams/architecture-broker.svg)
+
+## The tool catalogue
+
+A space’s elements reach every AI through one list (`apps/runtime/src/elements/`): its knowledge,
+its skills, its published wizards and, for outside clients, its connections. A wizard’s step, a
+Work chat, Goose and the MCP and API clients take their tools from it, for a caller fixed before
+a model sees a tool: no tool takes who calls or for whom. Every call goes through the broker’s
+gate, which decides wizards (`x` to run), skills (`r` to read, `x` for their scripts) and a
+space’s setup (`w`, Goose’s writes) by the RWX rules, and writes a line of the log with the
+client’s name.
 
 ## Work mode
 

@@ -157,6 +157,9 @@ No file "${path}" in ${skill}. Its files: ${files}.
 <!-- section: note.skill_folder -->
 This skill's folder is in the sandbox at ${folder}: its SKILL.md and every file. Run its scripts with run_command from the working directory, e.g. python3 ${folder}/scripts/<file>.py, and install what they import first (pip install, npm install). Write what you make outside ${folder}.
 
+<!-- section: note.skill_scripts_refused -->
+This skill's scripts may not run for whoever this step works for: the space's rules keep them closed. Follow its instructions without them.
+
 <!-- section: note.skill_folder_failed -->
 This skill's folder could not be put into the sandbox (${error}): its scripts can't run in this step. Follow its instructions without them.
 

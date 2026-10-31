@@ -18,6 +18,9 @@ export const RWX_RESOURCE_KINDS = [
   "mail",
   "host",
   "sandbox",
+  "wizard",
+  "skill",
+  "setup",
 ] as const;
 export type RwxResourceKind = (typeof RWX_RESOURCE_KINDS)[number];
 

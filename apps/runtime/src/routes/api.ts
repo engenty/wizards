@@ -68,7 +68,7 @@ const importSchema = z.object({
 });
 
 /** Runs a call in the caller's tenant, as the caller's role. */
-const inTenantAs = async <T>(who: Principal, fn: () => T | Promise<T>) => {
+export const inTenantAs = async <T>(who: Principal, fn: () => T | Promise<T>) => {
   try {
     return await withTenant(who.tenantId, () => asRole(who.role, fn));
   } finally {
@@ -105,7 +105,7 @@ const tooLarge = bodyLimit({
  * The caller of an API call, signed in like an MCP client (access token or API key), with the
  * scopes the call needs; or the answer that turns it away.
  */
-async function caller(c: Context, scopes: Scope[]): Promise<Principal | Response> {
+export async function caller(c: Context, scopes: Scope[]): Promise<Principal | Response> {
   const authInfo = await authenticate(c.req.raw);
   if (authInfo instanceof Response) {
     return authInfo;

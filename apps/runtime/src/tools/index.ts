@@ -6,6 +6,8 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { brokerHost, reachesOutside, whereOf, whoOf } from "../broker/index.js";
 import { documentMime, parseDocument } from "../documents/parse.js";
+import { stepCaller } from "../elements/caller.js";
+import { elementTools } from "../elements/catalogue.js";
 import type { StepContext } from "../engine/types.js";
 import { generateImageMedia } from "../media/generate.js";
 import { markMedia } from "../media/marking.js";
@@ -23,8 +25,7 @@ import { assertPublicUrl, safeFetch } from "./net-guard.js";
 import { pageTools } from "./pages.js";
 import { pluginTools, spaceContextOf } from "./plugin.js";
 import { clip, FileKeeper } from "./shared.js";
-import { skillTools } from "./skills.js";
-import { spaceTools } from "./space.js";
+import { skillsOf } from "./skills.js";
 import { storeTools, type UploadRef } from "./store.js";
 
 // A request to a host is a send to that host; the broker holds a guest's run to the hosts in its grant.
@@ -206,14 +207,17 @@ export async function buildStepTools(
   if (!idle) {
     Object.assign(tools, storeTools(ctx, uploads, files));
   }
-  Object.assign(tools, await spaceTools(ctx));
   // The run's sandbox: a guest's run has none unless SANDBOX_GUESTS says so (engine/resources.ts).
   const sandbox = allowed.has("sandbox") ? ctx.resources.sandboxCapabilities() : null;
+  // The space's Knowledge and skills, from the tool catalogue (elements/), for the run's holder.
   Object.assign(
     tools,
-    await skillTools(
-      ctx,
-      sandbox ? { handle: () => ctx.resources.sandboxHandle(), workdir: sandbox.workdir } : null,
+    await elementTools(
+      stepCaller(
+        ctx,
+        sandbox ? { handle: () => ctx.resources.sandboxHandle(), workdir: sandbox.workdir } : null,
+      ),
+      { knowledge: true, skills: await skillsOf(ctx) },
     ),
   );
   Object.assign(tools, mailTools(step, ctx, files));

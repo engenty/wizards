@@ -26,7 +26,7 @@ import { holdCall } from "./work-approvals.js";
  */
 
 /** Who a chat's turn calls as: the person, an admin where their role in the organization says so. */
-async function chatWho(userId: string): Promise<Who> {
+export async function chatWho(userId: string): Promise<Who> {
   const role = await roleOf(userId);
   return { kind: isAdminRole(role) ? "admin" : "person", id: userId };
 }
@@ -35,7 +35,7 @@ async function chatWho(userId: string): Promise<Who> {
  * The connections of the space this person reaches in a chat: those open to their role, and of
  * the ones in which each person signs in, only those they signed in to.
  */
-async function chatConnectionTools(spaceId: string, userId: string, who: Who) {
+export async function chatConnectionTools(spaceId: string, userId: string, who: Who) {
   const rows = await listSpaceConnections(spaceId);
   const own = rows.some((r) => r.signIn === "person")
     ? new Set(

@@ -4,7 +4,8 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { sortedTools } from "../agents/space-agent.js";
 import { chatTurnWay } from "../agents/subscription.js";
-import { subjectsOfPerson } from "../broker/rwx.js";
+import { personCaller } from "../elements/caller.js";
+import { elementTools } from "../elements/catalogue.js";
 import { currentFeatures } from "../features.js";
 import { HarnessModel } from "../harness/index.js";
 import { managed } from "../manage.js";
@@ -15,11 +16,10 @@ import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../s
 import { currentTenant } from "../tenants/tenant.js";
 import { assistantToolPlugin, assistantToolRisk, assistantToolsOf } from "../tools/plugin.js";
 import { clip } from "../tools/shared.js";
-import { skillsBlock, skillToolsOf } from "../tools/skills.js";
+import { skillsBlock } from "../tools/skills.js";
 import { roleOf } from "./access.js";
 import { ClientSteps } from "./client-steps.js";
 import { activeSkills } from "./skills.js";
-import { searchKnowledge } from "./space-index.js";
 import { holdCall } from "./work-approvals.js";
 import { workConnectionTools } from "./work-connections.js";
 import { chatSandbox } from "./work-sandbox.js";
@@ -53,11 +53,13 @@ export interface WorkTurn {
   instructions: string;
 }
 
-const instructionsFor = (space: string, skills: string) =>
+const instructionsFor = (space: string, skills: string, knowledge: boolean) =>
   [
     `You are the AI of the space "${space}" in engenty wizards. The team of the space talks with you and with each other in this chat.`,
     'Each message of a person comes as <user name="…">; answer the person who asked you, in their language, and call them by their name only when it helps.',
-    "Before you answer about the space (its clients, matters, files, data), look it up with search_space; say where you found it. When you can't find it, say so.",
+    knowledge
+      ? "Before you answer about the space (its clients, matters, files, data), look it up with space_search; say where you found it. When you can't find it, say so."
+      : "The space has no knowledge yet: say so when you're asked about its clients, matters, files or data.",
     "Write short, plain answers. Use lists or a table where they help. Rows, figures, a comparison or a few questions to the team can be a view instead: show_view.",
     skills,
   ]
@@ -178,23 +180,24 @@ async function toolsFor(
     chatId: chatId ?? approved?.chatId ?? null,
     byAdmin: approved?.byAdmin,
   });
-  const skills = await spaceSkills(space.id);
-  // The turn reads as the person who asked: what they may not read, the AI does not find.
-  const who = subjectsOfPerson(userId, await roleOf(userId));
+  // The turn reads as the person who asked: what they may not read, the AI does not find. Its
+  // Knowledge and skills come from the tool catalogue (elements/), as a step's and Goose's do.
+  const caller = personCaller({
+    space,
+    userId,
+    role: await roleOf(userId),
+    signal,
+    chatId: chatId ?? approved?.chatId ?? null,
+    sandbox: sandbox.skill,
+  });
   const tools: Record<string, unknown> = {
-    search_space: createTool({
-      id: "search_space",
-      description:
-        "Searches the space's knowledge: its documents, pages, tables and the sources its plugins bring. Returns the best matches with where they are.",
-      inputSchema: z.object({ query: z.string().min(2).max(300) }),
-      execute: async ({ query }) => {
-        const found = await searchKnowledge(space.id, query, { limit: 8, signal, who });
-        return { hits: found.hits };
-      },
-    }),
+    ...(await elementTools(caller, {
+      knowledge: true,
+      skills: await spaceSkills(space.id),
+      wizards: true,
+    })),
     show_view: showView(),
     ...sandbox.tools,
-    ...(skills ? skillToolsOf(skills, () => {}, sandbox.skill) : {}),
     ...connections.tools,
     ...(await assistantToolsOf({
       tenantId: currentTenant(),
@@ -332,7 +335,11 @@ export async function workTurn(
   const block = skills
     ? skillsBlock(skills, { tools: true, sandbox: sandboxCapabilities() !== null })
     : "";
-  return { resolved, tools, instructions: instructionsFor(turn.space.name, block) };
+  return {
+    resolved,
+    tools,
+    instructions: instructionsFor(turn.space.name, block, "space_search" in tools),
+  };
 }
 
 /** A turn made on its first use, and the signal that ends it TURN_MS after that. */

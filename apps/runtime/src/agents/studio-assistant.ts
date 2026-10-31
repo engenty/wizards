@@ -29,6 +29,9 @@ import { knowsTools } from "../assistant/knows.js";
 import type { SessionUser } from "../auth/index.js";
 import { subjectsOfGoose } from "../broker/rwx.js";
 import type { AssistantCardRecord, AssistantToolCallRecord } from "../db/schema.js";
+import { gooseCaller } from "../elements/caller.js";
+import { elementTools } from "../elements/catalogue.js";
+import { brokered } from "../elements/gate.js";
 import { currentFeatures } from "../features.js";
 import { managed } from "../manage.js";
 import {
@@ -61,7 +64,6 @@ import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
-import { skillToolsOf } from "../tools/skills.js";
 import { gooseConnectionTools } from "./goose-connections.js";
 import { spaceAgent } from "./space-agent.js";
 import { chatTurnWay } from "./subscription.js";
@@ -783,8 +785,42 @@ export function gooseSpaceTools(
   if (!on.typography) {
     delete tools.set_typography;
   }
+  // Every write to the space's setup is the broker's: `w` on it, for Goose for its person
+  // (docs/plans/modular.md, B4). An admin's deny for Goose stops it; each write is a log line.
+  const caller = gooseCaller({
+    space: { id: spaceId, name: space.name },
+    userId,
+    role: input.user.role,
+    signal: signal ?? new AbortController().signal,
+    chatId: input.chat?.id,
+  });
+  for (const name of SETUP_WRITES) {
+    if (tools[name]) {
+      tools[name] = brokered(tools[name], caller, (args) => ({
+        action: name,
+        resource: { kind: "setup", id: spaceId },
+        perm: "w",
+        input: args,
+      }));
+    }
+  }
   return tools;
 }
+
+/** Goose's tools that write the space's setup: its profile, facts, brand, rules and files. */
+const SETUP_WRITES = [
+  "set_profile",
+  "set_facts",
+  "remove_facts",
+  "set_colors",
+  "set_logo_sections",
+  "set_asset_sections",
+  "set_typography",
+  "set_gradients",
+  "set_rules",
+  "save_file",
+  "describe_file",
+] as const;
 
 /** A browser tool as the model calls it: sent to the page, its answer awaited. */
 function browserTool(input: AssistantInput, spec: BrowserTool) {
@@ -981,11 +1017,26 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   // The space's skills (docs/plans/skills.md): Goose reads them as a step does.
   const skills = space && switches.skills === true ? await activeSkills(space.id) : null;
   const allSkills = space && switches.skills === true ? await skillList(space.id) : [];
-  if (skills) {
+  // The space's Knowledge and skills from the tool catalogue (elements/), as Goose for its person.
+  if (space) {
     Object.assign(
       tools,
-      skillToolsOf(skills, (name) =>
-        input.onActivity?.(serverText(input.lang, "doingReadSkill", { name })),
+      await elementTools(
+        gooseCaller({
+          space: { id: space.id, name: space.name },
+          userId: input.user.id,
+          role: input.user.role,
+          signal: input.signal ?? new AbortController().signal,
+          chatId: input.chat.id,
+          note: (note) => {
+            if (note.code === "readsSkill") {
+              input.onActivity?.(
+                serverText(input.lang, "doingReadSkill", { name: String(note.params?.name ?? "") }),
+              );
+            }
+          },
+        }),
+        { knowledge: true, skills },
       ),
     );
   }

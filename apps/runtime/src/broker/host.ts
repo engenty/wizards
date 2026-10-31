@@ -33,6 +33,7 @@ export async function brokerHost<T>(call: {
       whoId: who.id ?? null,
       runId: where.runId ?? null,
       stepId: where.stepId ?? null,
+      client: where.client ?? null,
       chatId: where.chatId ?? null,
       wizardId: where.wizardId ?? null,
       spaceId: where.spaceId ?? null,
