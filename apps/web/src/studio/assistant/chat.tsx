@@ -17,6 +17,7 @@ import {
 } from "react";
 import { useNavigate } from "react-router";
 import { api, postStream } from "../../lib/api";
+import { useFeature } from "../../lib/features";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { useCurrentSpace, useMe } from "../../lib/session";
@@ -143,6 +144,7 @@ export function useAssistant(): AssistantState | null {
 function useRoutes(): () => string[] {
   const plugins = useStudioPlugins();
   const me = useMe();
+  const capabilitiesOn = useFeature("capabilities");
   const ref = useRef<string[]>([]);
   ref.current = [
     "/",
@@ -151,6 +153,7 @@ function useRoutes(): () => string[] {
     "/space",
     "/space/:group",
     "/skills",
+    ...(capabilitiesOn ? ["/capabilities", "/capabilities/:section"] : []),
     "/settings",
     ...settingsSections(me.data, plugins).map((s) => `/settings/${s.id}`),
     ...plugins.pages.map((p) => p.path),

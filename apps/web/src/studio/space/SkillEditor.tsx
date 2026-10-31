@@ -421,10 +421,13 @@ export function SkillEditor({
   skillId,
   onGone,
   onOpen,
+  filesFirst,
 }: {
   skillId: string;
   onGone: () => void;
   onOpen: (key: string) => void;
+  /** Dateien at the top of the right column, beside the instructions that point to them (Fähigkeiten). */
+  filesFirst?: boolean;
 }) {
   const skill = useSkill(skillId);
   if (skill.error) {
@@ -437,17 +440,27 @@ export function SkillEditor({
       </div>
     );
   }
-  return <SkillForm key={skill.data.id} skill={skill.data} onGone={onGone} onOpen={onOpen} />;
+  return (
+    <SkillForm
+      key={skill.data.id}
+      skill={skill.data}
+      onGone={onGone}
+      onOpen={onOpen}
+      filesFirst={filesFirst}
+    />
+  );
 }
 
 function SkillForm({
   skill,
   onGone,
   onOpen,
+  filesFirst,
 }: {
   skill: SkillDetail;
   onGone: () => void;
   onOpen: (key: string) => void;
+  filesFirst?: boolean;
 }) {
   const qc = useQueryClient();
   const fromRegistry = skill.source === "skills.sh";
@@ -504,6 +517,49 @@ function SkillForm({
   };
   const error = save.error ?? (mode.error as Error | null)?.message ?? null;
   const license = typeof skill.meta.license === "string" ? skill.meta.license : null;
+  // The skill's files: last in the right column, or first (`filesFirst`).
+  const files = (
+    <div className="flex flex-col gap-2">
+      <SideHead title={t("skills.filesTitle")}>
+        {locked ? null : (
+          <Button variant="secondary" size="sm" onClick={() => setNewFile(true)}>
+            <Plus className="size-4" /> {t("skills.addFile")}
+          </Button>
+        )}
+      </SideHead>
+      {draft.files.length || skill.blobList.length ? (
+        <Card className="flex flex-col divide-y divide-border-soft overflow-hidden">
+          {draft.files.map((f) => (
+            <button
+              key={f.path}
+              type="button"
+              onClick={() => setFile(f.path)}
+              className="flex items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-accent"
+            >
+              <FileText className="size-4 shrink-0 text-ink-3" />
+              <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">{f.path}</span>
+              <span className="shrink-0 text-[0.75rem] text-ink-3">{kb(f.text)}</span>
+            </button>
+          ))}
+          {skill.blobList.map((f) => (
+            <div key={f.path} className="flex items-center gap-2.5 px-3 py-2.5">
+              <FileArchive className="size-4 shrink-0 text-ink-3" />
+              <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">{f.path}</span>
+              <span className="shrink-0 text-[0.75rem] text-ink-3">
+                {t("skills.forScripts")} · {bytesKb(f.bytes)}
+              </span>
+            </div>
+          ))}
+        </Card>
+      ) : (
+        <p className="px-1 text-[0.8125rem] text-ink-3">{t("skills.noFiles")}</p>
+      )}
+      <p className="px-1 text-[0.75rem] text-ink-3">{t("skills.filesHint")}</p>
+      {skill.blobList.length ? (
+        <p className="px-1 text-[0.75rem] text-ink-3">{t("skills.blobHint")}</p>
+      ) : null}
+    </div>
+  );
   return (
     <div className="flex flex-col gap-5 pb-20">
       <header className="flex flex-wrap items-start gap-4">
@@ -630,6 +686,7 @@ function SkillForm({
         </section>
 
         <aside className="flex flex-col gap-6">
+          {filesFirst ? files : null}
           <div className="flex flex-col gap-2">
             <SideHead title={t("skills.when")} />
             <ModeCards
@@ -685,50 +742,7 @@ function SkillForm({
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-2">
-            <SideHead title={t("skills.filesTitle")}>
-              {locked ? null : (
-                <Button variant="secondary" size="sm" onClick={() => setNewFile(true)}>
-                  <Plus className="size-4" /> {t("skills.addFile")}
-                </Button>
-              )}
-            </SideHead>
-            {draft.files.length || skill.blobList.length ? (
-              <Card className="flex flex-col divide-y divide-border-soft overflow-hidden">
-                {draft.files.map((f) => (
-                  <button
-                    key={f.path}
-                    type="button"
-                    onClick={() => setFile(f.path)}
-                    className="flex items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-accent"
-                  >
-                    <FileText className="size-4 shrink-0 text-ink-3" />
-                    <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">
-                      {f.path}
-                    </span>
-                    <span className="shrink-0 text-[0.75rem] text-ink-3">{kb(f.text)}</span>
-                  </button>
-                ))}
-                {skill.blobList.map((f) => (
-                  <div key={f.path} className="flex items-center gap-2.5 px-3 py-2.5">
-                    <FileArchive className="size-4 shrink-0 text-ink-3" />
-                    <span className="min-w-0 flex-1 truncate font-mono text-[0.8125rem]">
-                      {f.path}
-                    </span>
-                    <span className="shrink-0 text-[0.75rem] text-ink-3">
-                      {t("skills.forScripts")} · {bytesKb(f.bytes)}
-                    </span>
-                  </div>
-                ))}
-              </Card>
-            ) : (
-              <p className="px-1 text-[0.8125rem] text-ink-3">{t("skills.noFiles")}</p>
-            )}
-            <p className="px-1 text-[0.75rem] text-ink-3">{t("skills.filesHint")}</p>
-            {skill.blobList.length ? (
-              <p className="px-1 text-[0.75rem] text-ink-3">{t("skills.blobHint")}</p>
-            ) : null}
-          </div>
+          {filesFirst ? null : files}
         </aside>
       </div>
 

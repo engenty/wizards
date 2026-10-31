@@ -133,12 +133,17 @@ export function signalText(taken: AssistantSignal[]): string {
 
 const MAX_STEPS = 24;
 
-/** The system prompt: these sections of prompts/goose.md, in this order. */
-function system(): string {
+/**
+ * The system prompt: these sections of prompts/goose.md, in this order. `capabilities`: Skills
+ * live in Fähigkeiten, at its address.
+ */
+function system(capabilities: boolean): string {
   return [
     prompt("goose", "persona"),
     prompt("goose", "voice"),
-    prompt("goose", "primer"),
+    prompt("goose", "primer", {
+      skills: capabilities ? "/capabilities/skills" : "/skills",
+    }),
     prompt("goose", "knows"),
     prompt("goose", "page"),
     prompt("goose", "space"),
@@ -832,10 +837,16 @@ function traced(
   }
 }
 
-/** The part of the space page a route stands on; Skills have their own address. */
+/** The part of the space page a route stands on; Skills have their own address, or Fähigkeiten's. */
 function partOf(route: string): string | null {
   const m = route.match(/^\/space\/(info|brand|knowledge|data|results)/);
-  return m ? m[1] : route === "/space" ? "info" : route.startsWith("/skills") ? "skills" : null;
+  return m
+    ? m[1]
+    : route === "/space"
+      ? "info"
+      : /^\/(skills|capabilities\/skills)\b/.test(route)
+        ? "skills"
+        : null;
 }
 
 /** How large each tool is in the prompt: its description and its schema, in characters. */
@@ -981,7 +992,7 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   } else if (search && resolved.gateway) {
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
   }
-  const instructions = system();
+  const instructions = system(switches.capabilities === true);
   const agent = spaceAgent({
     id: "studio-assistant",
     name: "Studio assistant",

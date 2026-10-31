@@ -2679,6 +2679,11 @@ const de: Record<Key, Line> = {
   "space.skills": "Skills",
   "skills.hint":
     "Anleitungen, nach denen deine Wizards arbeiten. Einem Skill, der immer an ist, folgt jeder Wizard. Bei Bedarf liest ein Wizard ihn, wenn er zur Aufgabe passt.",
+  "nav.capabilities": "Fähigkeiten",
+  "capabilities.inSpace": "Im Space",
+  "capabilities.connectors": "Connectors",
+  "capabilities.protocol": "Protokoll",
+  "capabilities.discover": "Entdecken",
   "skills.all": "Alle Skills",
   "skills.add": "Hinzufügen",
   "skills.fromRegistry": "Von skills.sh",
@@ -5991,6 +5996,11 @@ const en = {
   "space.skills": "Skills",
   "skills.hint":
     "Instructions your wizards work by. Every wizard follows a skill that is always on. A wizard reads one on demand when it fits the task.",
+  "nav.capabilities": "Capabilities",
+  "capabilities.inSpace": "In this space",
+  "capabilities.connectors": "Connectors",
+  "capabilities.protocol": "Log",
+  "capabilities.discover": "Discover",
   "skills.all": "All skills",
   "skills.add": "Add",
   "skills.fromRegistry": "From skills.sh",
