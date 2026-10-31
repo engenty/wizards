@@ -499,6 +499,51 @@ describe("the studio's routes", () => {
     });
     expect((await send(memberApp, "DELETE", `/connections/${view.id}/my-sign-in`)).status).toBe(200);
   });
+
+  it("lists for Fähigkeiten: who set it up by name, how many signed in, the keys a sign-in asks for", async () => {
+    const owner = await appAs("owner");
+    const memberApp = await appAs("member");
+    const made = await (
+      await send(owner, "POST", `/spaces/${space}/connections`, {
+        connectorId: "hubspot",
+        name: "Kalender für alle",
+        signIn: "person",
+      })
+    ).json();
+    const hidden = await (
+      await send(owner, "POST", `/spaces/${space}/connections`, {
+        connectorId: "hubspot",
+        name: "Nur für Admins",
+        signIn: "space",
+        audience: "admins",
+      })
+    ).json();
+    expect(made).toMatchObject({
+      setUpBy: "user-a",
+      setUpByName: "Anna",
+      signedIn: 0,
+      connector: { id: "hubspot", fields: [{ key: "access_token", secret: true }] },
+    });
+    await send(memberApp, "POST", `/connections/${made.id}/my-sign-in`, {
+      credentials: { access_token: "member-key-4" },
+    });
+    const ownerList = (await (await send(owner, "GET", `/spaces/${space}/connections`)).json())
+      .connections as any[];
+    // The admin sees the count, not the member's sign-in.
+    expect(ownerList.find((c) => c.id === made.id)).toMatchObject({ signedIn: 1, mySignIn: null });
+    expect(ownerList.map((c) => c.id)).toContain(hidden.id);
+    // A member sees only what is open to them.
+    const memberList = (await (await send(memberApp, "GET", `/spaces/${space}/connections`)).json())
+      .connections as any[];
+    expect(memberList.map((c) => c.id)).toContain(made.id);
+    expect(memberList.map((c) => c.id)).not.toContain(hidden.id);
+    expect(JSON.stringify(memberList)).not.toContain("member-key-4");
+
+    const renamed = await send(owner, "PATCH", `/connections/${made.id}`, { name: "Kalender" });
+    expect(await renamed.json()).toMatchObject({ name: "Kalender", signedIn: 1 });
+    await send(owner, "DELETE", `/connections/${made.id}`);
+    await send(owner, "DELETE", `/connections/${hidden.id}`);
+  });
 });
 
 describe("a person's own sign-ins (menu › Verbindungen)", () => {

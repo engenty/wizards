@@ -21,7 +21,7 @@ import { listSpaceConnections } from "./space-connections.js";
  */
 
 /** Names of the organization's people by id; alone, the one person. */
-async function namesOf(user: SessionUser): Promise<Map<string, string>> {
+export async function namesOf(user: SessionUser): Promise<Map<string, string>> {
   if (!managed) {
     return new Map([[user.id, (await userProfile(user)).name]]);
   }

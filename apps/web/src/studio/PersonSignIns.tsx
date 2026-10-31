@@ -1,11 +1,12 @@
 import type { PersonConnectionView, PersonSignIns } from "@engenty/wizards-shared/connectors";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, UserRound } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { api } from "../lib/api";
 import { lang, t } from "../lib/i18n";
 import { initialsOf } from "../lib/session";
-import { Button, Chip, Input, Label, Spinner } from "../ui";
+import { Spinner } from "../ui";
+import { SignInButtons, SignInPanel, useConnectedMessage, useSignIn } from "./connection-sign-in";
 import { Section } from "./space/Section";
 
 const KEY = ["person-sign-ins"];
@@ -23,16 +24,7 @@ export function PersonSignInsPage() {
     queryKey: KEY,
     queryFn: () => api.get<PersonSignIns>("/api/studio/person/sign-ins"),
   });
-  // The provider's sign-in window tells the studio when it is done (`/api/connect/callback`).
-  useEffect(() => {
-    const heard = (e: MessageEvent) => {
-      if (e.data?.type === "wizards:connected") {
-        void qc.invalidateQueries({ queryKey: KEY });
-      }
-    };
-    window.addEventListener("message", heard);
-    return () => window.removeEventListener("message", heard);
-  }, [qc]);
+  useConnectedMessage(useCallback(() => void qc.invalidateQueries({ queryKey: KEY }), [qc]));
   const data = signIns.data;
   if (!data) {
     return signIns.isError ? (
@@ -77,48 +69,9 @@ function titleOf(c: PersonConnectionView): string {
 
 function ConnectionRow({ connection: c }: { connection: PersonConnectionView }) {
   const qc = useQueryClient();
-  const [confirm, setConfirm] = useState(false);
-  const [keys, setKeys] = useState<Record<string, string> | null>(null);
-  const path = `/api/studio/connections/${encodeURIComponent(c.id)}/my-sign-in`;
-  const reload = () => qc.invalidateQueries({ queryKey: KEY });
-  const signIn = useMutation({
-    mutationFn: async (credentials?: Record<string, string>) => {
-      if (credentials) {
-        return api.post(path, { credentials });
-      }
-      // The window opens now, while the click still counts, and goes to the provider after.
-      const popup = window.open("", "_blank", "popup,width=520,height=700");
-      try {
-        const { url } = await api.post<{ url: string }>(path, { oauth: true });
-        if (popup) {
-          popup.location.href = url;
-        } else {
-          window.location.href = url;
-        }
-      } catch (err) {
-        popup?.close();
-        throw err;
-      }
-    },
-    onSuccess: async (_, credentials) => {
-      if (credentials) {
-        setKeys(null);
-        await reload();
-      }
-    },
-  });
-  const signOut = useMutation({
-    mutationFn: () => api.del(path),
-    onSuccess: async () => {
-      setConfirm(false);
-      await reload();
-    },
-  });
-  const fields = c.connector?.fields ?? [];
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    signIn.mutate(keys ?? {});
-  };
+  const s = useSignIn(`/api/studio/connections/${encodeURIComponent(c.id)}/my-sign-in`, () =>
+    qc.invalidateQueries({ queryKey: KEY }),
+  );
   const person = c.signIn === "person";
   const sub = person
     ? [t("konto.connectionEach"), c.mySignIn?.label].filter(Boolean).join(" · ")
@@ -146,74 +99,16 @@ function ConnectionRow({ connection: c }: { connection: PersonConnectionView }) 
           </div>
         </div>
         {person ? (
-          <div className="flex shrink-0 items-center gap-2">
-            {c.mySignIn ? (
-              <>
-                <span className="max-sm:hidden">
-                  <Chip tone="live">{t("konto.signedIn")}</Chip>
-                </span>
-                <Button variant="ghost" size="sm" onClick={() => setConfirm(true)}>
-                  {t("konto.signOut")}
-                </Button>
-              </>
-            ) : (
-              <Button
-                size="sm"
-                busy={signIn.isPending && !keys}
-                onClick={() =>
-                  c.connector?.auth === "api_key"
-                    ? setKeys(keys ? null : {})
-                    : signIn.mutate(undefined)
-                }
-              >
-                {t("konto.connectionSignIn")}
-              </Button>
-            )}
-          </div>
+          <SignInButtons s={s} auth={c.connector?.auth} signedIn={Boolean(c.mySignIn)} />
         ) : null}
       </div>
-      {keys && !c.mySignIn ? (
-        <form onSubmit={submit} className="mt-3 ml-12 flex flex-col gap-3">
-          {fields.map((f) => (
-            <div key={f.key}>
-              <Label>{f.label}</Label>
-              <Input
-                type={f.secret ? "password" : "text"}
-                autoComplete="off"
-                placeholder={f.placeholder}
-                required={f.required !== false}
-                maxLength={500}
-                value={keys[f.key] ?? ""}
-                onChange={(e) => setKeys({ ...keys, [f.key]: e.target.value })}
-              />
-            </div>
-          ))}
-          <div className="flex gap-2">
-            <Button type="submit" size="sm" busy={signIn.isPending}>
-              {t("konto.connectionSignIn")}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setKeys(null)}>
-              {t("orgSettings.cancel")}
-            </Button>
-          </div>
-        </form>
-      ) : null}
-      {signIn.isError ? (
-        <p className="mt-2 ml-12 text-[0.8125rem] text-rose">{(signIn.error as Error).message}</p>
-      ) : null}
-      {confirm ? (
-        <div className="mt-3 ml-12 flex flex-wrap items-center gap-3 rounded-lg bg-paper p-3 text-[0.875rem] ring-1 ring-border-soft">
-          <p className="min-w-48 flex-1">
-            {t("konto.connectionSignOutConfirm", { name: titleOf(c) })}
-          </p>
-          <Button variant="ghost" onClick={() => setConfirm(false)}>
-            {t("orgSettings.cancel")}
-          </Button>
-          <Button busy={signOut.isPending} onClick={() => signOut.mutate()}>
-            {t("konto.signOut")}
-          </Button>
-        </div>
-      ) : null}
+      <SignInPanel
+        s={s}
+        fields={c.connector?.fields ?? []}
+        signedIn={Boolean(c.mySignIn)}
+        confirmText={t("konto.connectionSignOutConfirm", { name: titleOf(c) })}
+        className="ml-12"
+      />
     </div>
   );
 }

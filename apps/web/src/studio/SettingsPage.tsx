@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
 import { useCurrentSpace, useManySpaces, useMe } from "../lib/session";
 import { useStudioPlugins } from "../plugins/host";
@@ -61,6 +62,8 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
   const { space, loading } = useCurrentSpace();
   const many = useManySpaces();
   const memberStudio = useMemberStudio();
+  const capabilities = useFeature("capabilities");
+  const location = useLocation();
   const [key, setKey] = useState(space?.id);
   useEffect(() => setKey(space?.id), [space?.id]);
   const plugins = useStudioPlugins();
@@ -137,6 +140,12 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
     // The person's switches decide some of their sections: those wait for them.
     if (scope === "account" && !me.data) {
       return null;
+    }
+    // With Fähigkeiten on, the connectors live there.
+    if (scope === "settings" && section === "connectors" && capabilities) {
+      return (
+        <Navigate to={{ pathname: "/capabilities/connectors", search: location.search }} replace />
+      );
     }
     // The page for AI clients was /settings/build before it became "Integrate".
     if (section === "build") {

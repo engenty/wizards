@@ -135,7 +135,15 @@ export interface SpaceConnectionView {
   spaceId: string;
   connectorId: string;
   /** The connector behind it, where this runtime knows it. */
-  connector: { id: string; name: string; auth: "oauth2" | "api_key" | "browser" } | null;
+  connector: {
+    id: string;
+    name: string;
+    auth: "oauth2" | "api_key" | "browser";
+    /** What the connector is for, in its own words. */
+    description?: string;
+    /** An `api_key` connector: what is typed to sign in (as the space, or each person). */
+    fields?: ConnectorKeyField[];
+  } | null;
   name: string;
   signIn: ConnectionSignIn;
   audience: ConnectionAudience;
@@ -149,8 +157,21 @@ export interface SpaceConnectionView {
   /** A `person` sign-in: the asking person's own; null until they signed in. */
   mySignIn: { label: string; signedInAt: string } | null;
   setUpBy: string | null;
+  /** Who set it up, by name where the organization still knows them. */
+  setUpByName?: string | null;
   setUpAt: string;
   lastUsedAt: string | null;
+  /** A `person` sign-in: how many people signed in; never who. */
+  signedIn: number;
+}
+
+/** A field an `api_key` connector asks for when someone signs in. */
+export interface ConnectorKeyField {
+  key: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  secret?: boolean;
 }
 
 /**
@@ -166,13 +187,7 @@ export interface PersonConnectionView {
     name: string;
     auth: "oauth2" | "api_key" | "browser";
     /** An `api_key` connector: what the person types to sign in. */
-    fields?: {
-      key: string;
-      label: string;
-      placeholder?: string;
-      required?: boolean;
-      secret?: boolean;
-    }[];
+    fields?: ConnectorKeyField[];
   } | null;
   signIn: ConnectionSignIn;
   audience: ConnectionAudience;

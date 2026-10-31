@@ -7,7 +7,7 @@ import type {
 } from "@engenty/wizards-shared/connectors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Plug, RefreshCw, Search, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
@@ -71,10 +71,12 @@ function Imported({
   spaceId,
   connector,
   readOnly,
+  onSetUp,
 }: {
   spaceId: string;
   connector: ConnectorView;
   readOnly?: boolean;
+  onSetUp?: (connectorId: string) => void;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -111,6 +113,11 @@ function Imported({
         </button>
         {readOnly ? null : (
           <>
+            {onSetUp ? (
+              <Button size="sm" variant="secondary" onClick={() => onSetUp(connector.id)}>
+                {t("capabilities.connectors.setUp")}
+              </Button>
+            ) : null}
             <IconButton label={t("connectors.refresh")} onClick={() => refresh.mutate()}>
               {refresh.isPending ? (
                 <Spinner className="size-4" />
@@ -177,7 +184,7 @@ function SourceRow({
   domain: string;
   source: RegistrySource;
   taken: string[];
-  onDone: (warnings: string[]) => void;
+  onDone: (warnings: string[], connectorId: string) => void;
 }) {
   const qc = useQueryClient();
   const [client, setClient] = useState({ id: "", secret: "" });
@@ -201,7 +208,7 @@ function SourceRow({
       ),
     onSuccess: async (result) => {
       await qc.invalidateQueries({ queryKey: keys.connectors(spaceId) });
-      onDone(result.warnings);
+      onDone(result.warnings, result.connector.id);
     },
   });
   return (
@@ -259,7 +266,22 @@ function SourceRow({
  * and imported from its OpenAPI spec or its MCP server. `readOnly`: the space is not changed
  * here, so the list is shown and nothing is imported, refreshed or removed.
  */
-export function Connectors({ spaceId, readOnly }: { spaceId: string; readOnly?: boolean }) {
+export function Connectors({
+  spaceId,
+  readOnly,
+  embedded,
+  onSetUp,
+  domain,
+}: {
+  spaceId: string;
+  readOnly?: boolean;
+  /** Inside Fähigkeiten › Connectors: no card and no heading, the built-in ones shown there. */
+  embedded?: boolean;
+  /** Each imported one, and one just imported, sets up a connection of the space with it. */
+  onSetUp?: (connectorId: string) => void;
+  /** A service of the registry to open at once (`?setup=<domain>`). */
+  domain?: string | null;
+}) {
   const unsetConnectors = useFeature("unsetConnectors");
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<RegistryHit[] | null>(null);
@@ -282,16 +304,27 @@ export function Connectors({ spaceId, readOnly }: { spaceId: string; readOnly?: 
       api.get<RegistryService>(`/api/studio/connectors/registry/${encodeURIComponent(domain)}`),
     onSuccess: setService,
   });
+  const openService = open.mutate;
+  useEffect(() => {
+    if (domain && !readOnly) {
+      openService(domain);
+    }
+  }, [domain, readOnly, openService]);
   const connectors = list.data ?? [];
   const builtin = connectors.filter(
     (c) => c.sourceKind === "builtin" && (unsetConnectors || c.usable),
   );
   const imported = connectors.filter((c) => c.sourceKind !== "builtin");
+  const Frame = embedded ? EmbeddedFrame : CardFrame;
   return (
-    <Card className="p-4 sm:p-6">
-      <h2 className="font-display font-semibold text-lg">{t("connectors.title")}</h2>
-      <p className="mt-1 mb-5 text-[0.875rem] text-ink-3">{t("connectors.hint")}</p>
-      {builtin.length ? (
+    <Frame>
+      {embedded ? null : (
+        <>
+          <h2 className="font-display font-semibold text-lg">{t("connectors.title")}</h2>
+          <p className="mt-1 mb-5 text-[0.875rem] text-ink-3">{t("connectors.hint")}</p>
+        </>
+      )}
+      {builtin.length && !embedded ? (
         <div className="mb-5 grid gap-1.5 sm:grid-cols-2">
           {builtin.map((c) => (
             <Builtin key={c.id} connector={c} />
@@ -304,7 +337,13 @@ export function Connectors({ spaceId, readOnly }: { spaceId: string; readOnly?: 
       {imported.length ? (
         <div className="mb-4 flex flex-col gap-2">
           {imported.map((c) => (
-            <Imported key={c.id} spaceId={spaceId} connector={c} readOnly={readOnly} />
+            <Imported
+              key={c.id}
+              spaceId={spaceId}
+              connector={c}
+              readOnly={readOnly}
+              onSetUp={onSetUp}
+            />
           ))}
         </div>
       ) : null}
@@ -384,7 +423,10 @@ export function Connectors({ spaceId, readOnly }: { spaceId: string; readOnly?: 
               domain={service.domain}
               source={source}
               taken={connectors.map((c) => c.id)}
-              onDone={setWarnings}
+              onDone={(found, id) => {
+                setWarnings(found);
+                onSetUp?.(id);
+              }}
             />
           ))}
           {service.credentials
@@ -406,6 +448,14 @@ export function Connectors({ spaceId, readOnly }: { spaceId: string; readOnly?: 
           ))}
         </div>
       ) : null}
-    </Card>
+    </Frame>
   );
+}
+
+function CardFrame({ children }: { children: ReactNode }) {
+  return <Card className="p-4 sm:p-6">{children}</Card>;
+}
+
+function EmbeddedFrame({ children }: { children: ReactNode }) {
+  return <div>{children}</div>;
 }

@@ -61,7 +61,7 @@ export function CapabilitiesPage() {
   }));
   const entry = entries.find((e) => e.id === open?.id);
   // A phone: 1 the section's menu, 2 the page.
-  const phone = params.get("show") ? 2 : 1;
+  const phone = params.get("show") || params.has("setup") ? 2 : 1;
   const level = open && upAt !== open.id ? 1 : 0;
   const levelStep = useStepDirection(level);
   const pageStep = useStepDirection(phone);

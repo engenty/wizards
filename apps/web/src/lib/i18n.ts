@@ -2592,6 +2592,91 @@ const de: Record<Key, Line> = {
   "connectors.group.read": "liest",
   "connectors.group.write": "ändert",
   "connectors.group.destructive": "löscht",
+  // Fähigkeiten › Connectors: the connections of a space (capabilities/ConnectorsSection.tsx).
+  "capabilities.connectors.hint":
+    "Dienste, mit denen deine Wizards, Chats und Goose in diesem Space arbeiten. Jede Verbindung gehört dem Space. Seine Admins richten sie ein und legen fest, wer sie nutzt und was sie darf.",
+  "capabilities.connectors.all": "Alle Connectors",
+  "capabilities.connectors.more": "Weitere Connectors",
+  "capabilities.connectors.moreHint":
+    "Jeden weiteren Dienst findest du im Verzeichnis integrations.sh. Du importierst ihn aus seiner OpenAPI-Beschreibung oder seinem MCP-Server und richtest dann eine Verbindung ein.",
+  "capabilities.connectors.add": "Verbindung hinzufügen",
+  "capabilities.connectors.setUp": "Einrichten",
+  "capabilities.connectors.setUpNamed": "{name} einrichten",
+  "capabilities.connectors.none":
+    "Für dich ist in diesem Space noch keine Verbindung offen. Die Admins des Space richten Verbindungen ein.",
+  "capabilities.connectors.noneAdmin":
+    "Noch keine Verbindung im Space. Richte eine mit „Verbindung hinzufügen“ ein oder wähl unten einen eingebauten Connector.",
+  "capabilities.connectors.builtin": "Eingebaut, noch nicht verbunden",
+  "capabilities.connectors.builtinHint":
+    "Diese Connectors bringt engenty wizards mit. Wähl einen, um eine Verbindung einzurichten.",
+  "capabilities.connectors.builtinHintMember":
+    "Diese Connectors bringt engenty wizards mit. Verbindungen richten die Admins des Space ein.",
+  "connection.audience.admins": "Admins",
+  "connection.audience.members": "Mitglieder",
+  "connection.audience.all": "Alle",
+  "connection.audience.adminsHint": "Nur die Admins des Space nutzen sie.",
+  "connection.audience.membersHint":
+    "Alle Mitglieder des Space nutzen sie, in Wizards, Chats und Goose.",
+  "connection.audience.allHint":
+    "Auch Gäste nutzen sie, wenn sie einen Wizard über seinen Link starten.",
+  "connection.kind.read": "Lesen",
+  "connection.kind.write": "Ändern",
+  "connection.kind.destructive": "Löschen",
+  "connection.kind.send": "Senden",
+  "connection.kind.readHint": "Suchen und lesen, in KI-Schritten und Chats.",
+  "connection.kind.writeHint":
+    "Anlegen und ändern, nur in festen Schritten oder als bestätigte Aktion.",
+  "connection.kind.destructiveHint": "Etwas endgültig entfernen.",
+  "connection.kind.sendHint": "E-Mails und Nachrichten an andere schicken.",
+  "connection.outcome.allow": "Erlaubt",
+  "connection.outcome.ask": "Mit Freigabe",
+  "connection.outcome.deny": "Nie",
+  "connection.signIn.space": "Als Space",
+  "connection.signIn.person": "Jede Person meldet sich an",
+  "connection.signIn.spaceHint":
+    "Ein Admin meldet den Space einmal an, etwa mit einem API-Key oder einem Team-Konto. Alle nutzen dieses Konto, auch wenn niemand zusieht.",
+  "connection.signIn.personHint":
+    "Jede Person meldet sich einmal mit ihrem eigenen Konto an. Die Verbindung handelt dann als diese Person.",
+  "connection.asSpaceAccount": "Als Space · {label}",
+  "connection.asSpaceNotYet": "Als Space · noch nicht angemeldet",
+  "connection.eachPersonCount": {
+    one: "Jede Person · 1 angemeldet",
+    other: "Jede Person · {n} angemeldet",
+  },
+  "connection.lastUsed": "zuletzt verwendet {when}",
+  "connection.neverUsed": "noch nicht verwendet",
+  "connection.setupHint":
+    "Eine Verbindung gehört dem Space. Du legst fest, wie sie sich anmeldet und wer sie nutzt. Was sie darf, stellst du danach ein.",
+  "connection.connector": "Connector",
+  "connection.connectorPick": "Connector wählen",
+  "connection.name": "Name",
+  "connection.nameHint": "Er unterscheidet mehrere Verbindungen zum selben Dienst.",
+  "connection.namePlaceholder": "z. B. Vertrieb",
+  "connection.signIn": "Meldet sich an",
+  "connection.signInFixed": "Das lässt sich später nicht mehr ändern.",
+  "connection.audience": "Wer sie nutzen darf",
+  "connection.adminsManage": "Die Admins verwalten diese Verbindung.",
+  "connection.account": "Konto",
+  "connection.accountSignedIn": "Angemeldet als {label}",
+  "connection.accountNotYetAdmin":
+    "Noch nicht angemeldet. Bis du den Space anmeldest, kann niemand die Verbindung nutzen.",
+  "connection.accountNotYet":
+    "Noch nicht angemeldet. Die Verbindung wartet, bis ein Admin den Space anmeldet.",
+  "connection.signOutSpaceConfirm":
+    "Den Space von {name} abmelden? Bis ein Admin ihn wieder anmeldet, nutzt niemand die Verbindung.",
+  "connection.people": "Anmeldungen",
+  "connection.peopleSignedIn": { one: "1 Person angemeldet", other: "{n} Personen angemeldet" },
+  "connection.youSignedIn": "du als {label}",
+  "connection.youNotYet": "du noch nicht",
+  "connection.rules": "Was die Verbindung darf",
+  "connection.askHint":
+    "„Mit Freigabe“ fragt die Admins des Space. Bis jemand zustimmt, wartet die Aktion.",
+  "connection.askHintMember":
+    "Du nutzt diese Verbindung in deinen Wizards und Chats. Freigaben gehen an die Admins des Space.",
+  "connection.use": "Nutzung",
+  "connection.removeConfirm":
+    "„{name}“ entfernen? Wizards und Chats erreichen den Dienst dann nicht mehr. Alle Anmeldungen gehen mit.",
+  "connection.remove": "Verbindung entfernen",
   "camera.missing": "An diesem Gerät wurde keine Kamera gefunden. Lade stattdessen ein Foto hoch.",
   "camera.busy":
     "Die Kamera wird gerade von einer anderen App verwendet. Schließ sie und versuch es noch einmal.",
@@ -5952,6 +6037,89 @@ const en = {
   "connectors.group.read": "reads",
   "connectors.group.write": "changes",
   "connectors.group.destructive": "deletes",
+  // Fähigkeiten › Connectors: the connections of a space (capabilities/ConnectorsSection.tsx).
+  "capabilities.connectors.hint":
+    "Services your wizards, chats and Goose work with in this space. Each connection belongs to the space. Its admins set it up and decide who uses it and what it may do.",
+  "capabilities.connectors.all": "All connectors",
+  "capabilities.connectors.more": "More connectors",
+  "capabilities.connectors.moreHint":
+    "You find any other service in the integrations.sh registry. Import it from its OpenAPI description or its MCP server, then set up a connection.",
+  "capabilities.connectors.add": "Add connection",
+  "capabilities.connectors.setUp": "Set up",
+  "capabilities.connectors.setUpNamed": "Set up {name}",
+  "capabilities.connectors.none":
+    "No connection in this space is open to you yet. The space’s admins set up connections.",
+  "capabilities.connectors.noneAdmin":
+    "No connections in this space yet. Set one up with “Add connection”, or choose a built-in connector below.",
+  "capabilities.connectors.builtin": "Built in, not connected yet",
+  "capabilities.connectors.builtinHint":
+    "engenty wizards comes with these connectors. Choose one to set up a connection.",
+  "capabilities.connectors.builtinHintMember":
+    "engenty wizards comes with these connectors. The space’s admins set up connections.",
+  "connection.audience.admins": "Admins",
+  "connection.audience.members": "Members",
+  "connection.audience.all": "Everyone",
+  "connection.audience.adminsHint": "Only the space’s admins use it.",
+  "connection.audience.membersHint":
+    "Every member of the space uses it, in wizards, chats and Goose.",
+  "connection.audience.allHint": "Guests use it too, when they start a wizard from its link.",
+  "connection.kind.read": "Read",
+  "connection.kind.write": "Change",
+  "connection.kind.destructive": "Delete",
+  "connection.kind.send": "Send",
+  "connection.kind.readHint": "Search and read, in AI steps and chats.",
+  "connection.kind.writeHint": "Create and change, only in fixed steps or as a confirmed action.",
+  "connection.kind.destructiveHint": "Remove something for good.",
+  "connection.kind.sendHint": "Send emails and messages to others.",
+  "connection.outcome.allow": "Allowed",
+  "connection.outcome.ask": "With approval",
+  "connection.outcome.deny": "Never",
+  "connection.signIn.space": "As the space",
+  "connection.signIn.person": "Each person signs in",
+  "connection.signIn.spaceHint":
+    "An admin signs the space in once, for example with an API key or a team account. Everyone uses that account, even when nobody is watching.",
+  "connection.signIn.personHint":
+    "Each person signs in once with their own account. The connection then acts as that person.",
+  "connection.asSpaceAccount": "As the space · {label}",
+  "connection.asSpaceNotYet": "As the space · not signed in yet",
+  "connection.eachPersonCount": {
+    one: "Each person · 1 signed in",
+    other: "Each person · {n} signed in",
+  },
+  "connection.lastUsed": "last used {when}",
+  "connection.neverUsed": "not used yet",
+  "connection.setupHint":
+    "A connection belongs to the space. You choose how it signs in and who uses it. You set what it may do afterwards.",
+  "connection.connector": "Connector",
+  "connection.connectorPick": "Choose a connector",
+  "connection.name": "Name",
+  "connection.nameHint": "It tells several connections to the same service apart.",
+  "connection.namePlaceholder": "e.g. Sales",
+  "connection.signIn": "Signs in",
+  "connection.signInFixed": "This can’t be changed later.",
+  "connection.audience": "Who may use it",
+  "connection.adminsManage": "The admins manage this connection.",
+  "connection.account": "Account",
+  "connection.accountSignedIn": "Signed in as {label}",
+  "connection.accountNotYetAdmin":
+    "Not signed in yet. Until you sign the space in, nobody can use the connection.",
+  "connection.accountNotYet":
+    "Not signed in yet. The connection waits until an admin signs the space in.",
+  "connection.signOutSpaceConfirm":
+    "Sign the space out of {name}? Nobody uses the connection until an admin signs it in again.",
+  "connection.people": "Sign-ins",
+  "connection.peopleSignedIn": { one: "1 person signed in", other: "{n} people signed in" },
+  "connection.youSignedIn": "you as {label}",
+  "connection.youNotYet": "not you yet",
+  "connection.rules": "What the connection may do",
+  "connection.askHint":
+    "“With approval” asks the space’s admins. The action waits until one of them agrees.",
+  "connection.askHintMember":
+    "You use this connection in your wizards and chats. Approvals go to the space’s admins.",
+  "connection.use": "Use",
+  "connection.removeConfirm":
+    "Remove “{name}”? Wizards and chats can no longer reach the service. Every sign-in goes with it.",
+  "connection.remove": "Remove connection",
   "camera.missing": "No camera was found on this device. Upload a photo instead.",
   "camera.busy": "Another app is using the camera. Close it and try again.",
   "location.unavailable":

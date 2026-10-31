@@ -113,7 +113,10 @@ export function settingsSections(
     ...(cloudSyncOn(me)
       ? [inStudio({ id: "cloud", label: t("cloudSync.title"), icon: CloudCog, menu: false })]
       : []),
-    inStudio({ id: "connectors", label: t("connectors.title"), icon: Plug, menu: true }),
+    // With Fähigkeiten on, the connectors live there (/settings/connectors leads to it).
+    ...(featureOn(me?.features, "capabilities")
+      ? []
+      : [inStudio({ id: "connectors", label: t("connectors.title"), icon: Plug, menu: true })]),
     // Alone for this machine; in the cloud for the organization, on its credits unless it brings keys.
     inStudio({ id: "models", label: t("local.title"), icon: Cpu, menu: true }),
     inStudio({ id: "integrate", label: t("integrate.nav"), icon: Cable, menu: true }),
