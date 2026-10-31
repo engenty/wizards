@@ -225,6 +225,13 @@
       "when": 1793272616234,
       "tag": "0031_space",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1793404565723,
+      "tag": "0033_broker_log",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import type { BrowserContext, CDPSession, Page } from "playwright-core";
+import { brokerSecret, reachesOutside, whoOf } from "../broker/index.js";
 import { webContext } from "../render/chromium.js";
 import { guestRun } from "../safety.js";
 import {
@@ -8,11 +9,16 @@ import {
   type SandboxEngine,
   sandboxEngine,
 } from "../sandbox/index.js";
-import { getSecret, putSecret, type StoreScope } from "../store/index.js";
+import { putSecret, type StoreScope } from "../store/index.js";
 
 /** Sign-ins the person asked the wizard to keep, as Playwright storage state. */
 const SESSION_SLOT = "browser";
 type StorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
+reachesOutside("browser_session", {
+  connection: SESSION_SLOT,
+  action: "read_secret",
+  kind: "read",
+});
 
 /** Someone watching the run's browser: gets each new picture of the page, null when it ends. */
 export type BrowserWatcher = (frame: Buffer | null) => void;
@@ -72,13 +78,19 @@ export class RunResources {
 
   async browserContext(): Promise<BrowserContext> {
     if (!this.context) {
-      const kept = this.scope
-        ? await getSecret<StorageState>(this.scope, SESSION_SLOT).catch(() => null)
-        : null;
-      this.context = await webContext({
-        locale: "de-DE",
-        ...(kept ? { storageState: kept.data } : {}),
-      });
+      const make = (kept: StorageState | null) =>
+        webContext({ locale: "de-DE", ...(kept ? { storageState: kept } : {}) });
+      // The kept sign-ins are read through the broker: only the browser context sees them.
+      const scope = this.scope;
+      this.context = scope
+        ? await brokerSecret<StorageState, BrowserContext>({
+            who: whoOf(scope.holder),
+            where: { runId: this.runId, wizardId: scope.wizardId },
+            scope,
+            slot: SESSION_SLOT,
+            handler: make,
+          }).catch(() => make(null))
+        : await make(null);
     }
     return this.context;
   }

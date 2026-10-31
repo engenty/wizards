@@ -329,6 +329,18 @@ export async function getSecret<T>(
     : null;
 }
 
+/** What a secret is, without the secret: who it is for and since when. For a connection's view. */
+export async function peekSecret(
+  scope: StoreScope,
+  slot: string,
+): Promise<{ provider: string; label: string; createdAt: Date } | null> {
+  const row = await db.query.storeSecret.findFirst({
+    where: and(ownSecrets(scope), eq(schema.storeSecret.slot, slot)),
+    columns: { provider: true, label: true, createdAt: true },
+  });
+  return row ?? null;
+}
+
 export async function putSecret(
   scope: StoreScope,
   slot: string,

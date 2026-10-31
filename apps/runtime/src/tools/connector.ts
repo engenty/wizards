@@ -2,8 +2,17 @@ import type { AgentStep } from "@engenty/wizards-shared/definition";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import {
+  type BrokerConnection,
+  brokerCall,
+  decide,
+  kindOf,
+  type Refusal,
+  reachesOutside,
+  whereOf,
+  whoOf,
+} from "../broker/index.js";
 import { refreshConnector, resolveConnector } from "../connectors/external.js";
-import { connectionContext } from "../connectors/index.js";
 import type { ConnectorAction } from "../engenty/connections-sdk/types.js";
 import type { StepContext } from "../engine/types.js";
 import { prompt } from "../prompts.js";
@@ -103,14 +112,41 @@ async function sendContent(input: unknown, ctx: StepContext): Promise<unknown> {
 const sentence = (text: string) => (/[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`);
 
 /**
- * Whether the person is asked before an action runs. The wizard's author can settle it per
- * action (a server may call a plain lookup a change); deleting is never taken off the person.
+ * Whether the person is asked before an action runs: the broker's decision for this step, with
+ * no side effect. The wizard's author can settle it per action (`connection.policy`); deleting is
+ * never taken off the person.
  */
-function asks(connection: ConnectionDef, action: ConnectorAction): boolean {
-  if (action.group === "destructive") {
-    return true;
+function asks(connection: ConnectionDef, action: ConnectorAction, ctx: StepContext): boolean {
+  return (
+    decide({
+      who: whoOf(ctx.store.holder),
+      where: whereOf(ctx),
+      connection: {
+        kind: "store_secret",
+        def: connection,
+        scope: ctx.store,
+        spaceId: ctx.space.id,
+      },
+      actionId: action.id,
+      kind: kindOf(action.group),
+    }).outcome === "ask"
+  );
+}
+
+/** What the model reads when the broker refuses a call. */
+function refusalNote(refused: Refusal, service: string): string {
+  switch (refused) {
+    case "not_connected":
+      return prompt("tools", "note.connector_not_connected", { service });
+    case "nobody":
+      return inProgram()
+        ? prompt("tools", "note.connector_in_program")
+        : prompt("tools", "note.connector_nobody");
+    case "declined":
+      return prompt("tools", "note.connector_declined");
+    default:
+      return prompt("tools", "note.connector_refused", { service });
   }
-  return (connection.policy?.[action.id] ?? (action.group === "read" ? "allow" : "ask")) === "ask";
 }
 
 /** One connection's actions as tools — for a step that lists it, or a share job that sends through it. */
@@ -121,12 +157,25 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
   if (!resolved) {
     return {};
   }
-  const account = () => connectionContext(ctx.store, connection, spaceId);
+  const held: BrokerConnection = {
+    kind: "store_secret",
+    def: connection,
+    scope: ctx.store,
+    spaceId,
+  };
+  const who = whoOf(ctx.store.holder);
+  const where = whereOf(ctx);
   // An MCP server that lists its tools only to a signed-in account: ask it now that there is one.
   if (resolved.imported && !resolved.connector.actions.length) {
-    const found = await account();
-    if (found) {
-      await refreshConnector(spaceId, id, found.ctx.accessToken).catch(() => undefined);
+    const refreshed = await brokerCall({
+      who,
+      where,
+      connection: held,
+      action: { id: "list_tools", kind: "read" },
+      input: {},
+      handler: (account) => refreshConnector(spaceId, id, account.ctx.accessToken),
+    }).catch(() => null);
+    if (refreshed?.ok) {
       resolved = (await resolveConnector(spaceId, id)) ?? resolved;
     }
   }
@@ -135,59 +184,42 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
     ? connector.actions.filter((a) => connection.actions?.includes(a.id))
     : connector.actions.filter((a) => a.group === "read");
   const service = connection.title ?? connector.name;
+  const prefix = connector.toolPrefix;
+  for (const action of usable) {
+    reachesOutside(`${prefix}_${action.id}`, {
+      connection: connection.id,
+      action: action.id,
+      kind: kindOf(action.group),
+    });
+  }
 
   const call = (action: ConnectorAction, input: unknown) =>
     attempt(async () => {
-      const found = await account();
-      if (!found) {
-        return {
-          error: prompt("tools", "note.connector_not_connected", { service }),
-        };
+      const out = await brokerCall({
+        who,
+        where,
+        connection: held,
+        action: { id: action.id, kind: kindOf(action.group) },
+        input: input ?? {},
+        ctx: { ask: ctx.ask, allowed: ctx.resources.allowed },
+        handler: async (account) => {
+          await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
+          return keepContent(
+            await action.handler(await sendContent(input ?? {}, ctx), account.ctx),
+            action,
+            service,
+            files,
+          );
+        },
+      });
+      if (!out.ok) {
+        return { error: refusalNote(out.refused, service) };
       }
-      const key = `${connection.id}:${action.id}`;
-      if (asks(connection, action) && !ctx.resources.allowed.has(key)) {
-        if (inProgram()) {
-          return {
-            error: prompt("tools", "note.connector_in_program"),
-          };
-        }
-        const answer = await ctx.ask({
-          kind: "confirm",
-          reason: action.summary || action.id,
-          service,
-          action: {
-            id: action.id,
-            summary: action.summary,
-            destructive: action.group === "destructive",
-          },
-          input: JSON.stringify(input ?? {}, null, 2).slice(0, 4000),
-        });
-        if (!answer) {
-          return {
-            error: prompt("tools", "note.connector_nobody"),
-          };
-        }
-        if (answer.type !== "done") {
-          return {
-            error: prompt("tools", "note.connector_declined"),
-          };
-        }
-        if (answer.remember) {
-          ctx.resources.allowed.add(key);
-        }
-      }
-      await ctx.emit("tool", `${service}: ${action.summary || action.id}`.slice(0, 120));
-      const result = await keepContent(
-        await action.handler(await sendContent(input ?? {}, ctx), found.ctx),
-        action,
-        service,
-        files,
-      );
+      const result = out.result;
       const text = typeof result === "string" ? result : JSON.stringify(result);
       return { result: clip(text ?? "", 8000) };
     });
 
-  const prefix = connector.toolPrefix;
   const fileNote = prompt("tools", "connector.file_note");
   const direct =
     usable.length <= DIRECT_TOOLS && usable.every((a) => TOOL_NAME.test(`${prefix}_${a.id}`));
@@ -199,7 +231,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
           id: `${prefix}_${action.id}`,
           description: [
             sentence(`${service}: ${action.description || action.summary}`),
-            asks(connection, action) ? prompt("tools", "connector.asks") : "",
+            asks(connection, action, ctx) ? prompt("tools", "connector.asks") : "",
             fileNote,
           ]
             .filter(Boolean)
@@ -238,7 +270,7 @@ export async function toolsOf(connection: ConnectionDef, ctx: StepContext, files
             actions: scored.map(({ a }) => ({
               id: a.id,
               does: a.summary || a.description.slice(0, 200),
-              asks_person_first: asks(connection, a),
+              asks_person_first: asks(connection, a, ctx),
               input: inputSchema(a.id),
             })),
           };

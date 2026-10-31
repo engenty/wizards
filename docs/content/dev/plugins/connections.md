@@ -1,7 +1,7 @@
 ---
 title: Accounts
 description: Accounts a plugin connects for a space, such as a calendar or a mailbox, through the runtime's built-in connectors.
-version: 0.5.0
+version: 0.13.0
 ---
 
 A wizard’s connections belong to the person who runs it. A plugin that works for the whole
@@ -33,7 +33,7 @@ const { events } = await server.connections.call<{ events: unknown[] }>(account.
 | `start({ space, connector, actions, lang? })` | Returns the provider’s sign-in page of an OAuth connector. The provider asks only for the rights that `actions` need. `lang` (`"en"` or `"de"`) is the language of the page the person comes back to; without it, the page follows their browser |
 | `connect({ space, connector, actions, credentials })` | Connects a connector that takes keys. `credentials` holds the keys by field key. The runtime tries them once at the provider and then keeps them sealed. Keys the provider refuses throw an error with the status `400` and the code `credentials`, whose message says what was wrong. Returns the connection |
 | `list(space)`, `get(id)` | Return what is connected: `{ id, space, connector, label, actions, createdAt }`, the newest first. `label` is the account as the provider names it, often an email address |
-| `call(id, action, input)` | Runs one of the connector’s actions with the account. When the token has run out, the runtime fetches a fresh one first |
+| `call(id, action, input)` | Runs one of the connector’s actions with the account, through the runtime’s broker. When the token has run out, the runtime fetches a fresh one first. The call carries the run or chat it is made in: from a guest’s run (a wizard at its link, nobody signed in) only actions that read go through; a write or delete throws, and the refusal is logged. A plugin’s own job (a sync, a timer) runs every action the connection was made for |
 | `remove(id)` | Forgets the connection and its tokens |
 
 ## Signing in

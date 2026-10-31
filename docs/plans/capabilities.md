@@ -269,7 +269,7 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    decides (`runSandboxEngine`, `engine/resources.ts`); a step without the sandbox says so in the
    run's log. Members keep what the server has. Closes: install and send anything from a guest's
    step.
-2. `feat(runtime): one broker path for every connector call` — `broker.call(who, where,
+2. `feat(runtime): one broker path for every connector call` (engenty/wizards#355) — `broker.call(who, where,
    connection, action, input)` in the runtime (`docs/plans/broker.md`); the five call sites (`tools/connector.ts`,
    `tools/mail.ts`, `sharing/targets/*`, `plugin-connections.ts`, `engine/resources.ts`) move
    onto it. `who` is visitor, member, admin, Goose or plugin. Rules as in code today (read

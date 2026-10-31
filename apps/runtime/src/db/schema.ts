@@ -1016,6 +1016,43 @@ export const pluginConnection = sqliteTable(
   (t) => [index("plugin_connection_space").on(t.plugin, t.spaceId)],
 );
 
+/**
+ * Every call that reaches outside through the broker (`broker/call.ts`): who called, where, which
+ * connection and action, what was decided and how it went. Append-only; a secret never goes in.
+ */
+export const brokerLog = sqliteTable(
+  "broker_log",
+  {
+    id: text("id").primaryKey(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    /** guest, person, admin, goose, plugin, step. */
+    whoKind: text("who_kind").notNull(),
+    whoId: text("who_id"),
+    runId: text("run_id"),
+    chatId: text("chat_id"),
+    wizardId: text("wizard_id"),
+    spaceId: text("space_id"),
+    connectionId: text("connection_id").notNull(),
+    actionId: text("action_id").notNull(),
+    /** read, write, destructive, send. */
+    kind: text("kind").notNull(),
+    /** The input's field names and sizes, one clipped value that is no secret, a hash of the whole. */
+    inputSummary: text("input_summary").notNull(),
+    /** allow, ask, deny. */
+    outcome: text("outcome").notNull(),
+    reason: text("reason"),
+    /** ok, declined, nobody, not_connected, or the error's class. */
+    result: text("result"),
+    resultSize: integer("result_size"),
+    critical: integer("critical", { mode: "boolean" }).notNull().default(false),
+  },
+  (t) => [
+    index("broker_log_connection").on(t.connectionId, t.at),
+    index("broker_log_space").on(t.spaceId, t.at),
+  ],
+);
+
 // --- The two-way sync -----------------------------------------------------------
 // A space that syncs with the organization in the cloud (docs/plans/tenant-sync.md). Triggers
 // on the synced tables note every write in `sync_change` (see the migration); the cloud numbers

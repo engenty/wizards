@@ -5,7 +5,8 @@ import type {
   ShareLang,
   ShareRequest,
 } from "@engenty/wizards-shared/sharing";
-import { connectionContext } from "../connectors/index.js";
+import type { ConnectionDef } from "@engenty/wizards-shared/store";
+import { brokerCall, brokerConnected, whereOfRun, whoOf } from "../broker/index.js";
 import { askPerson } from "../engine/asks.js";
 import { signalChanged } from "../engine/events.js";
 import { releaseResources } from "../engine/resources.js";
@@ -15,7 +16,7 @@ import { env } from "../env.js";
 import { errorText } from "../model-errors.js";
 import { ServiceError } from "../services/errors.js";
 import { shareRun } from "../services/shares.js";
-import { scopeOf } from "../store/index.js";
+import { holderOf, scopeOf } from "../store/index.js";
 import { serverText } from "../texts.js";
 import { SHARE_STEP } from "./agent.js";
 import { shareFiles } from "./files.js";
@@ -30,7 +31,7 @@ import {
   workingJob,
 } from "./state.js";
 import { parseRecipients } from "./targets/email.js";
-import { type Said, type ShareContext, ShareError, sayIn } from "./types.js";
+import { line, type Said, type ShareContext, ShareError, sayIn } from "./types.js";
 
 /** What the person filled in does not do: per field, what is wrong. `_files` and `_account` name the other steps. */
 export class ShareInputError extends Error {
@@ -57,6 +58,10 @@ function publicOrigin(): boolean {
   );
 }
 
+/** A share target's account, held by the run's store like a wizard's connections. */
+const heldBy = (run: RunRow, def: ConnectionDef, spaceId: string) =>
+  ({ kind: "store_secret", def, scope: scopeOf(run), spaceId }) as const;
+
 function contextOf(
   run: RunRow,
   spaceId: string,
@@ -79,8 +84,30 @@ function contextOf(
     sentBefore: job?.sentBefore ?? 0,
     emit,
     ask,
-    account: () =>
-      connection ? connectionContext(scopeOf(run), connection, spaceId) : Promise.resolve(null),
+    connected: () =>
+      connection ? brokerConnected(heldBy(run, connection, spaceId)) : Promise.resolve(null),
+    call: async (action, input, handler) => {
+      const name = sayIn(who.lang, entry.target.name);
+      if (!connection) {
+        throw new ShareError(line("shareConnectFirst", { name }));
+      }
+      // The person filled the form and sent it: a write is theirs, nothing asks again.
+      const out = await brokerCall({
+        who: whoOf(holderOf(run)),
+        where: whereOfRun(run, holderOf(run), spaceId),
+        connection: heldBy(run, connection, spaceId),
+        action,
+        input,
+        ctx: { ask, confirmed: true },
+        handler,
+      });
+      if (!out.ok) {
+        throw new ShareError(
+          out.refused === "not_connected" ? line("shareConnectFirst", { name }) : out.reason,
+        );
+      }
+      return out.result as never;
+    },
     link: async () => (publicOrigin() ? (await shareRun(run)).url : null),
     step: async () =>
       makeContext(run, await loadSpace(run), structuredClone(run.state), signal, {
@@ -153,7 +180,7 @@ export async function startShare(
     errors._files = serverText(lang, "sharePickFile");
   }
   const connection = target.connection?.() ?? null;
-  if (connection && !(await connectionContext(scopeOf(run), connection, spaceId))) {
+  if (connection && !(await brokerConnected(heldBy(run, connection, spaceId)))) {
     errors._account = serverText(lang, "shareConnectAccount");
   }
   if (Object.keys(errors).length) {

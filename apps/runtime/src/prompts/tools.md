@@ -220,6 +220,9 @@ Nobody is there to allow this change, so it was not made. Report it as open in y
 <!-- section: note.connector_declined -->
 The person did not allow this change. Do not try it again; say in your result that it was not made.
 
+<!-- section: note.connector_refused -->
+The rules of ${service} do not allow this action here. Do not try it again or another way; say in your result that it was not done.
+
 <!-- The browser (tools/browser.ts) -->
 
 <!-- section: tool.browser_open -->
