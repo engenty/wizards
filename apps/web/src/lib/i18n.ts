@@ -3532,6 +3532,8 @@ const de: Record<Key, Line> = {
   "assistant.layoutSidebar": "Als Seitenleiste",
   "assistant.close": "Schließen",
   "assistant.helloTitle": "Wie kann ich helfen?",
+  "assistant.intro.close": "Einführung schließen",
+  "assistant.intro.hideHello": "Text ausblenden",
   "assistant.hello":
     "Ich kenne engenty wizards und sehe, was du gerade siehst. Frag mich, wie etwas geht – ich zeige es dir auch.",
   "assistant.composer": "Frag etwas oder sag, was du brauchst …",
@@ -7123,6 +7125,8 @@ const en = {
   "assistant.layoutSidebar": "As a sidebar",
   "assistant.close": "Close",
   "assistant.helloTitle": "How can I help?",
+  "assistant.intro.close": "Close the introduction",
+  "assistant.intro.hideHello": "Hide the text",
   "assistant.hello":
     "I know engenty wizards and see what you see. Ask me how something works – I’ll show you too.",
   "assistant.composer": "Ask something or say what you need…",

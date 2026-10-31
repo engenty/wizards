@@ -15,7 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { api, postStream } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { lang, t } from "../../lib/i18n";
@@ -181,7 +181,11 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const savedLayout = useQuery({
     queryKey: ["assistant-layout"],
     queryFn: () =>
-      api.get<{ layout: AssistantLayout; width: number | null }>("/api/studio/assistant/layout"),
+      api.get<{
+        layout: AssistantLayout;
+        layouts: Record<string, AssistantLayout>;
+        width: number | null;
+      }>("/api/studio/assistant/layout"),
     enabled: signedIn,
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -194,7 +198,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [renewing, setRenewing] = useState(false);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<AssistantView>({ kind: "chat" });
-  const [layout, setLayoutState] = useState<AssistantLayout | null>(null);
+  // Where Goose stands is kept per area of the studio: the address's first part.
+  const area = areaOf(useLocation().pathname);
+  const [layouts, setLayoutsState] = useState<Record<string, AssistantLayout>>({});
   const [width, setWidthState] = useState<number | null | undefined>(undefined);
   const [pending, setPendingState] = useState<PendingMessage[]>([]);
   const [turns, setTurns] = useState<DevTurn[]>([]);
@@ -223,15 +229,17 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
   const setLayout = useCallback(
     (next: AssistantLayout) => {
-      setLayoutState(next);
-      qc.setQueryData(["assistant-layout"], (old: object | undefined) => ({
+      setLayoutsState((all) => ({ ...all, [area]: next }));
+      qc.setQueryData(["assistant-layout"], (old: { layouts?: object } | undefined) => ({
         ...old,
-        layout: next,
+        layouts: { ...old?.layouts, [area]: next },
       }));
-      void api.put("/api/studio/assistant/layout", { layout: next }).catch(() => null);
+      void api.put("/api/studio/assistant/layout", { layout: next, area }).catch(() => null);
     },
-    [qc],
+    [qc, area],
   );
+  const layout =
+    layouts[area] ?? savedLayout.data?.layouts?.[area] ?? savedLayout.data?.layout ?? "bottom";
   const setWidth = useCallback(
     (next: number | null, save = true) => {
       setWidthState(next);
@@ -656,7 +664,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       setExtra,
       model,
       setModel,
-      layout: layout ?? savedLayout.data?.layout ?? "bottom",
+      layout,
       setLayout,
       width: width === undefined ? (savedLayout.data?.width ?? null) : width,
       setWidth,
@@ -717,4 +725,15 @@ export function useStoredChat(id: string | null) {
     },
     enabled: Boolean(id),
   });
+}
+
+/** The studio's area an address is in: its first part (`space`, `capabilities`, `work` …). */
+export function areaOf(pathname: string): string {
+  return (
+    pathname
+      .split("/")
+      .find(Boolean)
+      ?.toLowerCase()
+      .replace(/[^a-z0-9-]/g, "") || "home"
+  );
 }

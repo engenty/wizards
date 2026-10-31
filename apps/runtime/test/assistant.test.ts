@@ -175,17 +175,31 @@ describe("one chat per person", () => {
 
   it("keeps where the person wants the assistant", async () => {
     const layout = () => json(send("GET", "/api/studio/assistant/layout"));
-    expect(await layout()).toEqual({ layout: "bottom", width: null });
+    expect(await layout()).toEqual({ layout: "bottom", layouts: {}, width: null });
     await send("PUT", "/api/studio/assistant/layout", { layout: "sidebar" });
-    expect(await layout()).toEqual({ layout: "sidebar", width: null });
+    expect(await layout()).toEqual({ layout: "sidebar", layouts: {}, width: null });
     expect((await send("PUT", "/api/studio/assistant/layout", { layout: "left" })).status).toBe(400);
     // The sidebar's width goes with it; null is the default again.
     await send("PUT", "/api/studio/assistant/layout", { width: 520 });
-    expect(await layout()).toEqual({ layout: "sidebar", width: 520 });
+    expect(await layout()).toEqual({ layout: "sidebar", layouts: {}, width: 520 });
     expect((await send("PUT", "/api/studio/assistant/layout", { width: 90 })).status).toBe(400);
     expect((await send("PUT", "/api/studio/assistant/layout", {})).status).toBe(400);
     await send("PUT", "/api/studio/assistant/layout", { width: null });
-    expect(await layout()).toEqual({ layout: "sidebar", width: null });
+    expect(await layout()).toEqual({ layout: "sidebar", layouts: {}, width: null });
+  });
+
+  it("keeps a place per area of the studio, beside the person's default", async () => {
+    const layout = () => json(send("GET", "/api/studio/assistant/layout"));
+    await send("PUT", "/api/studio/assistant/layout", { layout: "avatar", area: "space" });
+    await send("PUT", "/api/studio/assistant/layout", { layout: "bottom", area: "work" });
+    const kept = (await layout()) as { layout: string; layouts: Record<string, string> };
+    expect(kept.layouts).toEqual({ space: "avatar", work: "bottom" });
+    // The default stays as it was.
+    expect(kept.layout).toBe("sidebar");
+    expect(
+      (await send("PUT", "/api/studio/assistant/layout", { layout: "bottom", area: "Not/This" }))
+        .status,
+    ).toBe(400);
   });
 });
 

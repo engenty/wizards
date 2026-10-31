@@ -386,6 +386,23 @@ export async function assistantLayout(user: SessionUser): Promise<AssistantLayou
     : "bottom";
 }
 
+/**
+ * Where the person put the assistant in each area of the studio (`space`, `capabilities`, `work`
+ * …, the address's first part): an area without one takes `assistantLayout`.
+ */
+export async function assistantLayouts(
+  user: SessionUser,
+): Promise<Record<string, AssistantLayout>> {
+  const stored = await readSetting<Record<string, string>>(
+    `assistant-layouts:${user.tenantId}:${user.id}`,
+  );
+  return Object.fromEntries(
+    Object.entries(stored ?? {}).filter(([, layout]) =>
+      (ASSISTANT_LAYOUTS as readonly string[]).includes(layout),
+    ),
+  ) as Record<string, AssistantLayout>;
+}
+
 /** The sidebar's width the person set with its handle; null: the default. */
 export async function assistantWidth(user: SessionUser): Promise<number | null> {
   const stored = await readSetting<number>(`assistant-width:${user.tenantId}:${user.id}`);
