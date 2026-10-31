@@ -38,6 +38,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import type { Grant } from "../broker/grant.js";
 import type { ImportedConnectorRecord } from "../engenty/connections-external/types.js";
 import type { DeviceAnswer, DeviceOffer, DeviceRequest } from "../engine/device.js";
 
@@ -216,6 +217,11 @@ export const run = sqliteTable(
     definition: text("definition", { mode: "json" }).$type<WizardDefinition>().notNull(),
     /** The workspace the run started with. */
     files: text("files", { mode: "json" }).$type<WorkspaceFile[]>().notNull().default([]),
+    /**
+     * What the run may reach outside, from the definition it started on (broker/grant.ts); null
+     * on a run from before grants were kept, filled from its definition on first use.
+     */
+    grant: text("grant", { mode: "json" }).$type<Grant | null>(),
     version: integer("version"),
     mode: text("mode", { enum: ["test", "live"] }).notNull(),
     /** The door the run came through: steps, chat, or a plugin's runner. Null: the page. */

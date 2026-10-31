@@ -10,6 +10,7 @@ import type { AskResult } from "../engine/asks.js";
 import type { StepContext } from "../engine/types.js";
 import type { StoreScope } from "../store/index.js";
 import { type Account, keptSecret, pluginAccount, wizardAccount } from "./account.js";
+import { type Grant, inGrant, runGrant } from "./grant.js";
 import { summarizeInput, writeLog } from "./log.js";
 
 /*
@@ -74,7 +75,13 @@ export interface BrokerCallInput<T = unknown> {
   handler?: (account: Account) => Promise<T>;
 }
 
-export type Refusal = "not_connected" | "no_action" | "denied" | "declined" | "nobody";
+export type Refusal =
+  | "not_connected"
+  | "no_action"
+  | "not_in_grant"
+  | "denied"
+  | "declined"
+  | "nobody";
 
 export type BrokerResult<T> =
   | { ok: true; result: T; account: { connector: ConnectorDefinition; label: string } }
@@ -128,10 +135,12 @@ export function kindOf(group: ConnectorActionGroup): ActionKind {
 }
 
 /**
- * The decision, with no side effect: the same function „Was darf …?“ will show. The rules are the
- * code's of today. A wizard's connection: reads run, writes and sends ask the person running,
- * deleting always asks; the wizard's author may settle an action's ask per `connection.policy`.
- * A plugin's connection: a plugin's own call runs; from a guest's run only reads do.
+ * The decision, with no side effect: the same function „Was darf …?“ will show. The run's grant
+ * comes first: a wizard's connection outside it, or an action the grant does not name, is denied
+ * whatever the rules say. Then the rules, the code's of today. A wizard's connection: reads run,
+ * writes and sends ask the person running, deleting always asks; the wizard's author may settle
+ * an action's ask per `connection.policy`. A plugin's connection: a plugin's own call runs; from
+ * a guest's run only reads do.
  */
 export function decide(call: {
   who: Who;
@@ -139,8 +148,18 @@ export function decide(call: {
   connection: BrokerConnection;
   actionId: string;
   kind: ActionKind;
+  /** The run's grant, where the call is bound by one (`grantBinds`); left out: no grant applies. */
+  grant?: Grant | null;
 }): Decision {
   const { connection, kind } = call;
+  if (call.grant && connection.kind === "store_secret") {
+    if (!inGrant(call.grant, connection.def.id, call.actionId, kind)) {
+      return {
+        outcome: "deny",
+        reason: `The run's grant does not include "${call.actionId}" through ${connection.def.id}.`,
+      };
+    }
+  }
   if (connection.kind === "plugin_connection") {
     if (call.where.guest && kind !== "read") {
       return {
@@ -164,6 +183,15 @@ export function decide(call: {
     outcome: "allow",
     reason: kind === "read" ? "Reading is allowed." : "The wizard allows this action.",
   };
+}
+
+/**
+ * Whether a run's grant binds this call: a wizard's own connection, called in a run. A plugin's
+ * connection is the space's, under its own rules (A4, A5); a share target's connection
+ * (`def.target`) is the person's own request after the run, never in the definition.
+ */
+export function grantBinds(where: Where, connection: BrokerConnection): boolean {
+  return !!where.runId && connection.kind === "store_secret" && !connection.def.target;
 }
 
 /** The log's id of a connection: a plugin's row, a wizard's connection id. */
@@ -224,9 +252,26 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       critical: outcome === "deny" && kind !== "read",
     });
 
+  // The account says what kind the action is; its secret stays inside the broker.
   const account = await accountOf(connection);
   const found = account?.connector.actions.find((a) => a.id === call.action.id);
   const kind = call.action.kind ?? (found ? kindOf(found.group) : "write");
+
+  // The grant first: what the run's definition gave it, fixed when it started.
+  let grant: Grant | null | undefined;
+  if (grantBinds(where, connection)) {
+    grant = await runGrant(where.runId as string);
+    if (!grant) {
+      const reason = "The run is not known here.";
+      await line(kind, "deny", reason, "not_in_grant");
+      return { ok: false, refused: "not_in_grant", reason };
+    }
+    if (!inGrant(grant, connectionId, call.action.id, kind)) {
+      const decision = decide({ who, where, connection, actionId: call.action.id, kind, grant });
+      await line(kind, "deny", decision.reason, "not_in_grant");
+      return { ok: false, refused: "not_in_grant", reason: decision.reason };
+    }
+  }
   if (!account) {
     await line(kind, "deny", "Nothing is connected.", "not_connected");
     return { ok: false, refused: "not_connected", reason: "Nothing is connected." };
@@ -237,7 +282,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     return { ok: false, refused: "no_action", reason };
   }
 
-  const decision = decide({ who, where, connection, actionId: call.action.id, kind });
+  const decision = decide({ who, where, connection, actionId: call.action.id, kind, grant });
   if (decision.outcome === "deny") {
     await line(kind, "deny", decision.reason, "denied");
     return { ok: false, refused: "denied", reason: decision.reason };

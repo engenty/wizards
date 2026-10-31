@@ -277,9 +277,15 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    fails on a tool without a broker action. Plugin
    connections from a guest run: reads only, logged. Closes: plugin connections with no ask and
    no holder; nobody knowing who called.
-3. `feat(runtime): a run's grant, fixed at start` — from the published definition: which
-   connections, which actions, which hosts for `http_request`; the broker refuses the rest. A
-   test run gets the draft's. Closes: the AI steering a step to another action.
+3. `feat(runtime): a run's grant, fixed at start` — **built** (#PRNUM): `grantOf(definition)`
+   in `broker/grant.ts` — the steps' connections with the actions they may use (read only
+   without a list), the steps' tools, hosts empty until A6 — computed in `createRun` from the
+   published definition (a test run: the draft), kept as `run.grant`, so an edit never widens a
+   run under way; `brokerCall` refuses a wizard's connection or action outside it before any rule
+   (`not_in_grant`, logged as critical); an older run gets its grant from its definition on first
+   use; the run's log opens with what it may do („Dieser Lauf darf: …“). A share target's
+   connection and a plugin's are not bound (A5, A7). Closes: the AI steering a step to another
+   action.
 4. `feat(runtime): fixed steps write, AI steps on space connections read` — `step.call` takes a
    connection's action with fixed fields from the run's values; an AI step on a space-owned
    connection gets read actions only; a write there never asks the guest (denied until „Mit

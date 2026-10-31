@@ -1,6 +1,8 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { noteText } from "@engenty/wizards-shared/run";
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -48,9 +50,17 @@ vi.mock("../src/engenty/connections-hubspot/connector", async (importOriginal) =
   };
 });
 
+// A run starts whatever model this test machine lacks: the grant is what is under test.
+vi.mock("../src/engine/requirements", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/engine/requirements")>()),
+  missingModelsSaid: async () => [],
+  stepsWithoutModel: async () => new Set<string>(),
+}));
+
 let client: typeof import("../src/db/client");
 let broker: typeof import("../src/broker/index");
 let connections: typeof import("../src/connectors/plugin-connections");
+let runner: typeof import("../src/engine/runner");
 let space: string;
 let wizardId: string;
 
@@ -79,6 +89,37 @@ const hub = (policy?: Record<string, "allow" | "ask">) => ({
 
 const member = { wizardId: "", holder: "u:user-b" };
 
+/** The definition a run holds: the page, an agent step on HubSpot, the result. */
+const withStep = (actions?: string[], tools: string[] = []) => ({
+  ...definition,
+  connections: [{ id: "hub", connector: "hubspot", ...(actions ? { actions } : {}) }],
+  steps: [
+    definition.steps[0],
+    { id: "sync", type: "agent", title: "Sync", instructions: "Sync the lead.", tools, connections: ["hub"] },
+    definition.steps[1],
+  ],
+});
+
+/** A run row as `createRun` leaves it, with this grant (null: from before grants were kept). */
+async function runRow(id: string, def: Record<string, unknown>, grant: unknown) {
+  await inTenant(() =>
+    client.db.insert(client.schema.run).values({
+      id,
+      wizardId,
+      tenantId: TENANT,
+      definition: def as never,
+      files: [],
+      grant: grant as never,
+      version: null,
+      mode: "live",
+      userId: "user-b",
+      status: "waiting_input",
+      cursor: "start",
+      state: { values: {}, outputs: {}, history: [], notes: {} },
+    }),
+  );
+}
+
 async function logOf(connectionId: string) {
   return inTenant(() =>
     client.db.query.brokerLog.findMany({
@@ -94,6 +135,7 @@ beforeAll(async () => {
   await client.openTenantDb(TENANT);
   broker = await import("../src/broker/index");
   connections = await import("../src/connectors/plugin-connections");
+  runner = await import("../src/engine/runner");
   const spaces = await import("../src/services/spaces");
   const wizards = await import("../src/services/wizards");
   space = (await inTenant(() => spaces.createSpace("user-b", "Vertrieb"))).id;
@@ -108,6 +150,8 @@ beforeAll(async () => {
       scopes: [],
     }),
   );
+  // The member's run: its step may call every action of the wizard's HubSpot connection.
+  await runRow("run-m", withStep(["list_contacts", "create_contact", "delete_contact"]), null);
 }, 60_000);
 
 describe("a plugin's connection", () => {
@@ -396,5 +440,174 @@ describe("a wizard's connection, as the person running it", () => {
       broker.decide({ who, where, connection: held(), actionId: "delete_contact", kind: "destructive" })
         .outcome,
     ).toBe("ask");
+  });
+});
+
+describe("the run's grant, fixed at start", () => {
+  const who = { kind: "person" as const, id: "user-b" };
+  const held = (def: Record<string, unknown>) =>
+    ({ kind: "store_secret", def: def as never, scope: member, spaceId: space }) as const;
+
+  it("comes from the steps: their connections with the actions they may use, their tools", () => {
+    const def = {
+      ...definition,
+      connections: [
+        { id: "hub", connector: "hubspot", actions: ["create_contact"] },
+        { id: "inbox", kind: "mail" },
+        { id: "unused", connector: "hubspot" },
+      ],
+      steps: [
+        definition.steps[0],
+        { id: "read", type: "agent", title: "Read", instructions: "", tools: ["web_search", "shop.find"], connections: ["inbox"] },
+        { id: "write", type: "agent", title: "Write", instructions: "", tools: ["web_search", "http"], connections: ["hub", "inbox"] },
+        definition.steps[1],
+      ],
+    };
+    expect(broker.grantOf(def as never)).toEqual({
+      connections: { hub: ["create_contact"], inbox: ["read"] },
+      hosts: [],
+      tools: ["http", "shop.find", "web_search"],
+    });
+    expect(broker.grantOf(definition as never)).toEqual({ connections: {}, hosts: [], tools: [] });
+  });
+
+  it("says what the run may do, in the person's language", () => {
+    const def = withStep(undefined, ["web_search", "sandbox", "shop.find"]);
+    const said = broker.grantNote(broker.grantOf(def as never), def as never);
+    expect(said && noteText(said, "de")).toBe(
+      "Dieser Lauf darf: in hubspot lesen, im Web suchen, Code ausführen, das Plugin shop nutzen",
+    );
+    const named = { ...def, connections: [{ id: "hub", connector: "hubspot", title: "HubSpot", actions: ["create_contact", "list_contacts"] }] };
+    const known = { hub: { name: "HubSpot", kinds: { create_contact: "write" as const, list_contacts: "read" as const } } };
+    const line = broker.grantNote(broker.grantOf(named as never), named as never, known);
+    expect(line && noteText(line, "en")).toBe(
+      "This run may: read in HubSpot, write in HubSpot, search the web, run code, use the plugin shop",
+    );
+    expect(broker.grantNote(broker.grantOf(definition as never), definition as never)).toBeNull();
+  });
+
+  it("refuses an action outside the grant before any rule, and logs it as critical", async () => {
+    calls.length = 0;
+    await runRow("run-r", withStep(), { connections: { hub: ["read"] }, hosts: [], tools: [] });
+    const where = { runId: "run-r", wizardId, spaceId: space, mode: "live" as const, guest: false };
+    const ask = vi.fn(async () => ({ type: "done" as const }));
+    const denied = await inTenant(() =>
+      broker.brokerCall({
+        who,
+        where,
+        connection: held(hub()),
+        action: { id: "create_contact" },
+        input: { email: "x@y.at" },
+        ctx: { ask },
+      }),
+    );
+    expect(denied).toMatchObject({ ok: false, refused: "not_in_grant" });
+    expect(ask).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+    expect((await logOf("hub")).at(-1)).toMatchObject({
+      runId: "run-r",
+      actionId: "create_contact",
+      outcome: "deny",
+      result: "not_in_grant",
+      critical: true,
+    });
+    // What the grant names by kind runs.
+    const read = await inTenant(() =>
+      broker.brokerCall({ who, where, connection: held(hub()), action: { id: "list_contacts" }, input: {} }),
+    );
+    expect(read.ok).toBe(true);
+    // A connection no step lists is outside the grant too.
+    const other = await inTenant(() =>
+      broker.brokerCall({
+        who,
+        where,
+        connection: held({ ...hub(), id: "other" }),
+        action: { id: "list_contacts" },
+        input: {},
+      }),
+    );
+    expect(other).toMatchObject({ ok: false, refused: "not_in_grant" });
+    // A run this tenant does not know has no grant: nothing runs for it.
+    const unknown = await inTenant(() =>
+      broker.brokerCall({
+        who,
+        where: { ...where, runId: "run-nowhere" },
+        connection: held(hub()),
+        action: { id: "list_contacts" },
+        input: {},
+      }),
+    );
+    expect(unknown).toMatchObject({ ok: false, refused: "not_in_grant" });
+  });
+
+  it("does not bind a share target's connection: the person's own request after the run", async () => {
+    const where = { runId: "run-r", wizardId, spaceId: space, mode: "live" as const, guest: false };
+    const target = { ...hub(), target: { connectors: ["hubspot"] } };
+    const out = await inTenant(() =>
+      broker.brokerCall({
+        who,
+        where,
+        connection: held(target),
+        action: { id: "create_contact" },
+        input: { email: "share@y.at" },
+        ctx: { confirmed: true },
+      }),
+    );
+    expect(out.ok).toBe(true);
+  });
+
+  it("is computed when the run starts – a test run from the draft – and an edit never widens it", async () => {
+    const draft = withStep(["create_contact"], ["web_search"]);
+    const runId = await inTenant(() =>
+      runner.createRun({
+        wizardId,
+        definition: draft as never,
+        files: [],
+        version: null,
+        mode: "test",
+        userId: "user-b",
+      }),
+    );
+    const row = () =>
+      inTenant(() => client.db.query.run.findFirst({ where: (t, { eq }) => eq(t.id, runId) }));
+    expect((await row())?.grant).toEqual({
+      connections: { hub: ["create_contact"] },
+      hosts: [],
+      tools: ["web_search"],
+    });
+    const events = await inTenant(() =>
+      client.db.query.runEvent.findMany({ where: (t, { eq }) => eq(t.runId, runId) }),
+    );
+    expect(events.map((e) => e.note?.code)).toEqual(["grant"]);
+    expect(events[0].message).toBe("This run may: write in HubSpot, search the web");
+    // The wizard is edited while the run is under way: the run keeps the grant it started with.
+    const wider = withStep(["create_contact", "delete_contact"], ["web_search", "http"]);
+    await inTenant(() =>
+      client.db
+        .update(client.schema.wizard)
+        .set({ draft: wider as never })
+        .where(eq(client.schema.wizard.id, wizardId)),
+    );
+    expect(await inTenant(() => broker.runGrant(runId))).toEqual({
+      connections: { hub: ["create_contact"] },
+      hosts: [],
+      tools: ["web_search"],
+    });
+    const where = { runId, wizardId, spaceId: space, mode: "test" as const, guest: false };
+    const out = await inTenant(() =>
+      broker.brokerCall({ who, where, connection: held(hub()), action: { id: "delete_contact" }, input: { id: "7" } }),
+    );
+    expect(out).toMatchObject({ ok: false, refused: "not_in_grant" });
+  });
+
+  it("gives a run from before grants were kept one from its definition, once", async () => {
+    await runRow("run-old", withStep(["list_contacts"]), null);
+    const grant = { connections: { hub: ["list_contacts"] }, hosts: [], tools: [] };
+    expect(await inTenant(() => broker.runGrant("run-old"))).toEqual(grant);
+    const row = await inTenant(() =>
+      client.db.query.run.findFirst({ where: (t, { eq }) => eq(t.id, "run-old") }),
+    );
+    expect(row?.grant).toEqual(grant);
+    expect(await inTenant(() => broker.runGrant("run-old"))).toEqual(grant);
   });
 });
