@@ -377,7 +377,7 @@ All behind `capabilities` (#364), on by default since 7. They show what part A b
    names) and a `cursor` with `next`, named lines, `GET …/broker/log/:line` with the run's grant
    and `GET …/broker/choices`; the space's `notify` shows in its view and switches on the page.
 6. `feat(studio): Entdecken` — **built** (#369) — one search over skills.sh and integrations.sh.
-7. `feat: Fähigkeiten on by default` — **built** (#PR) — `capabilities` defaults to on, `broker`
+7. `feat: Fähigkeiten on by default` — **built** (#372) — `capabilities` defaults to on, `broker`
    stays off; the user guide's `capabilities.md`, `skills.md`, `connectors.md`, `protocol.md`,
    `together.md` describe the on state; the developers' `dev/broker.md`; the glossary's rows in
    `docs/copy-style.md`.
