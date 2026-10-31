@@ -45,6 +45,12 @@ export function settingsSections(
   // In the cloud with organizationSettings on, the organization's settings come first, under their
   // heading, and the studio's own under theirs.
   const ownSettings = me?.mode === "managed" && featureOn(me.features, "organizationSettings");
+  // Behind `capabilities`, a member's Studio holds none of the organization's settings.
+  const organizationShown = !(
+    me?.mode === "managed" &&
+    me.tenant.role === "member" &&
+    featureOn(me.features, "capabilities")
+  );
   const organization = t("settings.groupOrganization");
   const studio = ownSettings ? t("settings.groupStudio") : undefined;
   const inStudio = (section: SettingsSection): SettingsSection =>
@@ -54,7 +60,7 @@ export function settingsSections(
     ...(ownSettings
       ? []
       : [{ id: "account", label: t("account.title"), icon: UserRound, menu: true }]),
-    ...(ownSettings
+    ...(ownSettings && organizationShown
       ? [
           {
             id: "general",
@@ -100,7 +106,7 @@ export function settingsSections(
           },
         ]
       : // In the cloud the studio is an organization's: who is in it, and its plan — once teamPlans is on.
-        me?.mode === "managed" && featureOn(me.features, "teamPlans")
+        me?.mode === "managed" && featureOn(me.features, "teamPlans") && organizationShown
         ? [{ id: "organization", label: t("organization.title"), icon: Users, menu: true }]
         : []),
     // This computer's spaces kept the same as the organization's in the cloud, both ways.

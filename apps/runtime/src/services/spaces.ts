@@ -195,6 +195,8 @@ export const spacePatchSchema = z.object({
     .optional(),
   /** How the admins hear of the broker's critical lines (docs/plans/broker.md, "Notifications"). */
   notify: z.object({ bell: z.boolean(), mail: z.enum(NOTIFY_MAIL) }).optional(),
+  /** „Mitglieder dürfen ins Studio“ (services/members-studio.ts). Admins only, as every change here. */
+  membersStudio: z.boolean().optional(),
 });
 
 /**
@@ -359,6 +361,7 @@ export async function updateSpace(
       ...(patch.mailDomains ? { mailDomains: [...new Set(patch.mailDomains)] } : {}),
       ...(patch.notify ? { notify: patch.notify } : {}),
       ...(page ? { page } : {}),
+      ...(patch.membersStudio !== undefined ? { membersStudio: patch.membersStudio } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.space.id, p.id));

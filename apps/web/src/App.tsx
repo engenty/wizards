@@ -9,6 +9,7 @@ import { useAccountLang, useMe } from "./lib/session";
 import { PluginFrame, startStudioPlugins, useStudioPlugins } from "./plugins/host";
 import { AppFrame } from "./studio/AppFrame";
 import { AssistantProvider } from "./studio/assistant/chat";
+import { MembersStudio } from "./studio/members-studio";
 import { SignInPage } from "./studio/SignInPage";
 import { ClientPage, InMode, WorkPage } from "./studio/work/WorkPages";
 
@@ -95,7 +96,7 @@ function Studio({
     </>
   ) : (
     <AppFrame me={me.data} wide={wide} full={full}>
-      {children}
+      <MembersStudio me={me.data}>{children}</MembersStudio>
     </AppFrame>
   );
 }

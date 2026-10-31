@@ -113,6 +113,11 @@ export const space = sqliteTable(
     /** When the hourly mail last went out, or was skipped because an admin had seen the bell. */
     criticalMailedAt: integer("critical_mailed_at", { mode: "timestamp_ms" }),
     /**
+     * „Mitglieder dürfen ins Studio“: the organization's members build here too, with less than
+     * its admins (services/members-studio.ts). One rule for all members; admins set it.
+     */
+    membersStudio: integer("members_studio", { mode: "boolean" }).notNull().default(false),
+    /**
      * `local`: the space of a local install, synced here when that install publishes. It keeps
      * the ids it has there and is changed only by the next sync. Null: made on this runtime.
      */

@@ -20,8 +20,8 @@ import { api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { type Space, useIsAdmin, useManySpaces } from "../../lib/session";
-import { Button, cn, Dialog, Input, Label, Textarea } from "../../ui";
+import { type Space, useIsAdmin, useManySpaces, useMe } from "../../lib/session";
+import { Button, cn, Dialog, Input, Label, Switch, Textarea } from "../../ui";
 import { useAssistantPage } from "../assistant/page";
 import { AssistantSlot } from "../assistant/StudioAssistant";
 import { ReadOnlyNote, spaceReadOnlyText } from "../ReadOnly";
@@ -52,6 +52,7 @@ type Patch = {
     logoRules?: BrandRule[];
   };
   facts?: SpaceFact[];
+  membersStudio?: boolean;
 };
 
 /**
@@ -76,6 +77,43 @@ function LogoPeek({ spaceId, logo }: { spaceId: string; logo: SpaceFileView | un
       >
         {logo ? <Preview spaceId={spaceId} file={logo} small /> : <ImagePlus className="size-5" />}
       </Link>
+    </div>
+  );
+}
+
+/**
+ * „Mitglieder dürfen ins Studio“: one rule for all the organization's members, set by its admins.
+ * Behind `capabilities`; only admins of an organization see it.
+ */
+function MembersStudioRow({
+  space,
+  save,
+}: {
+  space: Space;
+  save: (patch: Patch) => Promise<unknown>;
+}) {
+  const me = useMe().data;
+  const admin = useIsAdmin();
+  const shown = useFeature("capabilities") && admin && me?.mode === "managed";
+  const [open, setOpen] = useState(space.membersStudio);
+  if (!shown) {
+    return null;
+  }
+  return (
+    <div className="flex items-start gap-3 border-border-soft border-t pt-5">
+      <div className="min-w-0 flex-1">
+        <span className="font-medium text-[0.875rem]">{t("space.membersStudio")}</span>
+        <p className="mt-0.5 text-[0.8125rem] text-ink-3">{t("space.membersStudioHint")}</p>
+      </div>
+      <Switch
+        checked={open}
+        disabled={space.readOnly}
+        label={t("space.membersStudio")}
+        onChange={(on) => {
+          setOpen(on);
+          save({ membersStudio: on }).catch(() => setOpen(!on));
+        }}
+      />
     </div>
   );
 }
@@ -115,6 +153,7 @@ function Base({
           <Textarea minRows={4} value={about} onChange={(e) => setAbout(e.target.value)} />
           <p className="mt-1.5 text-[0.8125rem] text-ink-3">{t("space.aboutHint")}</p>
         </div>
+        <MembersStudioRow space={space} save={save} />
       </div>
     </Section>
   );

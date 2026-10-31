@@ -2894,6 +2894,9 @@ const de: Record<Key, Line> = {
   "space.saving": "Speichert …",
   "space.base": "Grundlagen",
   "space.baseHint": "Wer hinter den Wizards steht. Jeder KI-Schritt kennt das.",
+  "space.membersStudio": "Mitglieder dürfen ins Studio",
+  "space.membersStudioHint":
+    "Alle Mitglieder bauen und testen hier Wizards und pflegen Skills, Wissen und Daten. Veröffentlichen, Verbindungen und Regeln bleiben bei den Admins.",
   "space.title": "Titel",
   "space.titleHint":
     "Firma, Marke oder Vorhaben – so sehen es auch alle, die deine Wizards nutzen.",
@@ -6235,6 +6238,9 @@ const en = {
   "space.saving": "Saving…",
   "space.base": "Basics",
   "space.baseHint": "Who is behind the wizards. Every AI step knows this.",
+  "space.membersStudio": "Members can use the studio",
+  "space.membersStudioHint":
+    "Every member builds and tests wizards here and adds skills, knowledge and data. Publishing, connections and rules stay with the admins.",
   "space.title": "Title",
   "space.titleHint": "Company, brand or undertaking – people using your wizards see it too.",
   "space.about": "About",

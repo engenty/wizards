@@ -13,9 +13,9 @@ import { listConnectors } from "../connectors/external.js";
 import { db, schema } from "../db/client.js";
 import { getBlob } from "../files/blobs.js";
 import { serverText } from "../texts.js";
-import { requireAdmin } from "./access.js";
 import { draftFiles, writeFile } from "./files.js";
 import { pageTree } from "./knowledge.js";
+import { requireMaker } from "./members-studio.js";
 import { readPackage } from "./package-file.js";
 import { ownedSpace } from "./spaces.js";
 import { importThemes, themesOf } from "./themes.js";
@@ -168,7 +168,7 @@ export async function importWizard(
   /** The language the admin reads the import's note in. */
   lang: Lang = "en",
 ) {
-  await requireAdmin();
+  await requireMaker(async () => spaceId);
   const { manifest, files } = readPackage(data);
   // The shape is checked before anything is written; a wrong one leaves no wizard behind.
   const { draft } = parseDraft(

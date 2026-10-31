@@ -47,6 +47,7 @@ import { workRoutes } from "./routes/work.js";
 import { runTicketValid } from "./secrets/signing.js";
 import { asRole } from "./services/access.js";
 import { ServiceError } from "./services/errors.js";
+import { membersStudioGate } from "./services/members-studio.js";
 import { servePageRunner } from "./services/runners.js";
 import { markSeen } from "./services/seen.js";
 import { afterStudioWrite, beforeStudioLoad } from "./sync/client.js";
@@ -315,6 +316,9 @@ if (serves.studio) {
       }
     });
   });
+
+  // A member reaches a space's studio only where its admins opened it (behind `capabilities`).
+  app.use("/api/studio/*", membersStudioGate);
 
   const mcp = mcpHandler();
   app.on(["GET", "POST", "DELETE"], "/api/mcp", (c) => mcp(c.req.raw));
