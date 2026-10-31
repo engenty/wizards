@@ -1,6 +1,7 @@
 import { ShieldAlert, ShieldQuestion } from "lucide-react";
 import { type ReactNode, type SVGProps, useEffect } from "react";
 import { Navigate, NavLink, useParams } from "react-router";
+import { useFeature } from "../../lib/features";
 import { type Key, lang, t } from "../../lib/i18n";
 import { MODE_HOME, type Mode, useMode } from "../../lib/mode";
 import { useMe } from "../../lib/session";
@@ -63,10 +64,12 @@ export function InMode({ mode, children }: { mode: Mode; children: ReactNode }) 
 /** `/work/:place?`: Chats without a place, else one of the others. */
 export function WorkPage() {
   const { place, chatId } = useParams();
+  const wip = useFeature("workWip");
   if (chatId) {
     return <ChatsPage />;
   }
-  const known = WORK_PLACES.find((p) => p.place === place && p.place !== "chats");
+  // The places past the chats come with `workWip`; without it their addresses lead to the chats.
+  const known = wip ? WORK_PLACES.find((p) => p.place === place && p.place !== "chats") : undefined;
   if (place && !known) {
     return <Navigate to="/work" replace />;
   }
