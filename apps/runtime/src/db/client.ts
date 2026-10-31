@@ -137,6 +137,26 @@ async function openTenant(id: string): Promise<Db> {
   }
 }
 
+/**
+ * 0.13.0 shipped `space_skill` as tenant migration 0027; since 0.14.0 it is 0030, after Work
+ * mode's 0027–0029. drizzle runs only migrations newer than the last one it applied, so a
+ * database from 0.13.0 would skip 0027–0029 and fail on 0030. Forgetting the old entry lets
+ * 0027–0039 run; 0030 leaves the table it finds as it is (the same table, IF NOT EXISTS).
+ */
+const OLD_SPACE_SKILL = 1793266571661;
+
+async function forgetRenumbered(client: Client) {
+  const journal = await client.execute(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '__drizzle_migrations'",
+  );
+  if (journal.rows.length) {
+    await client.execute({
+      sql: "DELETE FROM __drizzle_migrations WHERE created_at = ?",
+      args: [OLD_SPACE_SKILL],
+    });
+  }
+}
+
 async function openTenantNow(id: string): Promise<Db> {
   let row = await controlDb.query.tenant.findFirst({ where: eq(control.tenant.id, id) });
   if (!row) {
@@ -151,6 +171,7 @@ async function openTenantNow(id: string): Promise<Db> {
   try {
     await whileBusy(async () => {
       await prepare(client, url);
+      await forgetRenumbered(client);
       await migrate(db, { migrationsFolder: migrationsFolder("tenant") });
     });
   } catch (err) {
