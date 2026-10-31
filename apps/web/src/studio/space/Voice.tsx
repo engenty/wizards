@@ -1,18 +1,10 @@
 import { type BrandRule, SPACE_LIMITS, type VoiceBlock } from "@engenty/wizards-shared/spaces";
-import { ListChecks, Plus, TextQuote } from "lucide-react";
+import { ListChecks, Plus, TextQuote, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { type Key, t } from "../../lib/i18n";
-import { Button, Textarea } from "../../ui";
+import { Button, IconButton, Input, Textarea } from "../../ui";
 import { useAutosave } from "./data";
-import {
-  type AddEntry,
-  AddMenu,
-  newId,
-  RuleRows,
-  Section,
-  SubSectionHead,
-  useRuleRows,
-} from "./Section";
+import { type AddEntry, AddMenu, newId, RuleRows, Section, useRuleRows } from "./Section";
 
 /** The blocks most brands write down, offered by name; any other is the brand's own. */
 const PRESETS: { title: Key; hint: Key }[] = [
@@ -92,53 +84,81 @@ export function Voice({
       action={readOnly || !entries.length ? null : <AddMenu entries={entries} />}
     >
       <div className="flex flex-col gap-7">
-        {blocks.map((b) => {
-          const hint = hintOf(b.title);
-          return (
-            <div key={b.id} className="group/section flex flex-col gap-2">
-              <SubSectionHead
-                title={b.title}
-                titlePlaceholder={t("space.voice.title")}
-                autoFocus={titleFor === b.id}
-                readOnly={readOnly}
-                onChange={(patch) => set(b.id, { title: patch.title ?? b.title })}
-                onRemove={() => {
-                  if (
-                    !b.text.trim() ||
-                    confirm(
-                      t("space.voice.removeConfirm", {
-                        name: b.title || t("space.sectionUntitled"),
-                      }),
-                    )
-                  ) {
-                    setBlocks((all) => all.filter((x) => x.id !== b.id));
-                  }
-                }}
-              />
-              {readOnly ? (
-                <p className="whitespace-pre-wrap text-[0.9375rem] text-ink-2 leading-relaxed">
-                  {b.text}
-                </p>
-              ) : (
-                <Textarea
-                  ref={(el) => {
-                    if (el && textFor === b.id) {
-                      setTextFor(null);
-                      el.focus();
-                    }
-                  }}
-                  rows={2}
-                  minRows={2}
-                  maxRows={14}
-                  maxLength={SPACE_LIMITS.voiceText}
-                  value={b.text}
-                  placeholder={hint ? t(hint) : t("space.voice.textPlaceholder")}
-                  onChange={(e) => set(b.id, { text: e.target.value })}
-                />
-              )}
-            </div>
-          );
-        })}
+        {/* One block per row: its title on the left, its words on the right, as the facts stand. */}
+        {blocks.length ? (
+          <div className="flex flex-col gap-3">
+            {blocks.map((b) => {
+              const hint = hintOf(b.title);
+              const remove = () => {
+                if (
+                  !b.text.trim() ||
+                  confirm(
+                    t("space.voice.removeConfirm", {
+                      name: b.title || t("space.sectionUntitled"),
+                    }),
+                  )
+                ) {
+                  setBlocks((all) => all.filter((x) => x.id !== b.id));
+                }
+              };
+              return (
+                <div
+                  key={b.id}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1 gap-y-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)_auto]"
+                >
+                  {readOnly ? (
+                    <p className="font-medium text-[0.9375rem] sm:pt-2.5">{b.title}</p>
+                  ) : (
+                    <Input
+                      ref={(el) => {
+                        if (el && titleFor === b.id) {
+                          setTitleFor(null);
+                          el.focus();
+                        }
+                      }}
+                      value={b.title}
+                      maxLength={80}
+                      placeholder={t("space.voice.title")}
+                      onChange={(e) => set(b.id, { title: e.target.value })}
+                      className="font-medium sm:mr-1"
+                    />
+                  )}
+                  {readOnly ? (
+                    <p className="whitespace-pre-wrap text-[0.9375rem] text-ink-2 leading-relaxed max-sm:col-span-2 sm:pt-2.5">
+                      {b.text}
+                    </p>
+                  ) : (
+                    <Textarea
+                      ref={(el) => {
+                        if (el && textFor === b.id) {
+                          setTextFor(null);
+                          el.focus();
+                        }
+                      }}
+                      rows={2}
+                      minRows={2}
+                      maxRows={14}
+                      maxLength={SPACE_LIMITS.voiceText}
+                      value={b.text}
+                      placeholder={hint ? t(hint) : t("space.voice.textPlaceholder")}
+                      onChange={(e) => set(b.id, { text: e.target.value })}
+                      className="max-sm:col-span-2 max-sm:row-start-2"
+                    />
+                  )}
+                  {readOnly ? null : (
+                    <IconButton
+                      label={t("space.remove")}
+                      onClick={remove}
+                      className="size-11 rounded-lg hover:text-rose max-sm:col-start-2 max-sm:row-start-1"
+                    >
+                      <Trash2 className="size-4" />
+                    </IconButton>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
 
         {/* Adding stays in reach under the blocks: an own one, or a usual one not written yet. */}
         {readOnly || full ? null : (

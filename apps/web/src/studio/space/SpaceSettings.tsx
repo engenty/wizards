@@ -176,16 +176,13 @@ function Identity({ space, save }: { space: Space; save: (patch: Patch) => Promi
             key={row.id}
             className="grid items-start gap-x-2 gap-y-1.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
           >
-            <label
-              htmlFor={row.id}
-              className="font-medium text-[0.9375rem] sm:flex sm:h-11 sm:items-center"
-            >
-              {row.label}
-            </label>
-            <div>
-              {row.field}
-              <p className="mt-1.5 text-[0.8125rem] text-ink-3">{row.hint}</p>
+            <div className="sm:pt-2.5">
+              <label htmlFor={row.id} className="font-medium text-[0.9375rem]">
+                {row.label}
+              </label>
+              <p className="mt-0.5 text-[0.8125rem] text-ink-3 leading-snug">{row.hint}</p>
             </div>
+            {row.field}
           </div>
         ))}
       </div>
