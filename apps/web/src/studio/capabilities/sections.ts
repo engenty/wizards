@@ -2,6 +2,7 @@ import type { FeatureName } from "@engenty/wizards-shared/features";
 import { Compass, History, type LucideIcon, Plug, ScrollText } from "lucide-react";
 import type { ComponentType } from "react";
 import type { Key } from "../../lib/i18n";
+import { DiscoverSection } from "./DiscoverSection";
 import { SkillsSection } from "./SkillsSection";
 
 /**
@@ -28,7 +29,7 @@ export const CAPABILITY_SECTIONS: CapabilitySection[] = [
   },
   { id: "connectors", label: "capabilities.connectors", icon: Plug, element: null },
   { id: "protocol", label: "capabilities.protocol", icon: History, element: null },
-  { id: "discover", label: "capabilities.discover", icon: Compass, element: null },
+  { id: "discover", label: "capabilities.discover", icon: Compass, element: DiscoverSection },
 ];
 
 /** The sections the page shows: built, and on where they wait behind a switch. */

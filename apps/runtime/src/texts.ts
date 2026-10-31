@@ -246,6 +246,7 @@ const EN = {
   skillUploadKind: "Upload a SKILL.md, a .zip or a .skill file.",
   skillReadOnly: "A skill from skills.sh stays as it is. Copy it as your own skill to change it.",
   skillsRegistryDown: "skills.sh did not answer. Try again in a moment.",
+  connectorsRegistryDown: "integrations.sh did not answer. Try again in a moment.",
   skillsRegistryMissing: "skills.sh has no skill at {ref}.",
   skillUpdateChanged:
     "skills.sh changed the skill again since you looked. Look at the changes once more.",
@@ -489,6 +490,7 @@ const DE: Partial<Record<ServerKey, Line>> = {
   skillReadOnly:
     "Ein Skill von skills.sh bleibt, wie er ist. Kopier ihn als eigenen Skill, um ihn zu ändern.",
   skillsRegistryDown: "skills.sh antwortet nicht. Versuch es gleich noch einmal.",
+  connectorsRegistryDown: "integrations.sh antwortet nicht. Versuch es gleich noch einmal.",
   skillsRegistryMissing: "Auf skills.sh gibt es keinen Skill unter {ref}.",
   skillUpdateChanged:
     "skills.sh hat den Skill seitdem wieder geändert. Sieh dir die Änderungen noch einmal an.",

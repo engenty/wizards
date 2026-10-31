@@ -28,6 +28,7 @@ import { apiRoutes } from "./routes/api.js";
 import { brokerRoutes } from "./routes/broker.js";
 import { connectionRoutes } from "./routes/connections.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
+import { discoverRoutes } from "./routes/discover.js";
 import { internalRoutes } from "./routes/internal.js";
 import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
 import { liveRoutes } from "./routes/live.js";
@@ -356,6 +357,7 @@ if (serves.studio) {
   app.route("/api/studio/organization", organizationRoutes);
   app.route("/api/studio/person", personRoutes);
   app.route("/api/studio", skillRoutes);
+  app.route("/api/studio", discoverRoutes);
   app.route("/api/studio", ruleRoutes);
   app.route("/api/studio", connectionRoutes);
   app.route("/api/studio", brokerRoutes);
