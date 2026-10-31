@@ -1,8 +1,9 @@
 # Plan: Fähigkeiten, one place for skills and connectors
 
-Status: plan, nothing built. Written on 2026-10-30 against `feat/work-mode` (v0.13.x), revised
-after review on 2026-10-30 and 2026-10-31. The runtime comes first (part A below), the places
-after (part B). Behind a new switch `capabilities`, off by default. Mockups: the artifact
+Status: built on `feat/work-mode`, parts A and B, except A8 (isolated instances); see „Open“.
+Written on 2026-10-30 against `feat/work-mode` (v0.13.x), revised after review on 2026-10-30 and
+2026-10-31. The runtime comes first (part A below), the places after (part B). Behind the switch
+`capabilities` (#364), on by default since B7; RWX behind `broker`, still off. Mockups: the artifact
 “Fähigkeiten in the Studio” (claude.ai/artifact/SLU1E9iwxQ8SjNAeHVg5qT). The connection model,
 the three allowances, fixed steps and the broker come from the connections plan (artifact
 “Verbindungen in Quellen”, claude.ai/artifact/GUtiTfPMVvoe1EcgRes3fh); this plan gives them
@@ -348,7 +349,7 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    built yet), and every critical row is a line of the runtime's own log. „Was darf …?“: `GET
    /spaces/:id/broker/ask?who=&resource=&action=&in=` answers with `decide`'s outcome and rule,
    nothing runs; `GET /spaces/:id/broker/log` filters by connection, who, outcome, critical and
-   since; both for admins (403 for a member). Not yet: the Protokoll page (B5), a webhook, per-kind
+   since; both for admins (403 for a member). The Protokoll page came with B5. Not yet: a webhook, per-kind
    choices of what notifies.
 8. Later, when the cloud needs it: `feat(runtime): isolated instances` — `RUNTIME_ROLE`
    `runner-guests`, the broker as its own process holding the sealing key, a guest instance
@@ -360,21 +361,26 @@ reach becomes structural with 8.
 
 ### Part B: the places
 
-All behind `capabilities`, off by default. They show what part A built.
+All behind `capabilities` (#364), on by default since 7. They show what part A built.
 
-1. `feat(studio): Fähigkeiten in the app bar` — Skills move in, `/skills` redirects.
-2. `feat(studio): connectors move to Fähigkeiten` — list, page with sign-in kind, audience and
-   rules (from A5), built-ins as names; `/settings/connectors` redirects.
-3. `feat(studio): each person signs in` — the person's menu › „Verbindungen“.
-4. `feat(studio): members in the Studio per space` — one rule per space, the reduced set.
-5. `feat(studio): Fähigkeiten › Protokoll` — the broker's log per space, filters, „Was darf …?“.
-   Built: `capabilities/ProtocolSection.tsx` (admins only, not in a member's menu), its words in
+1. `feat(studio): Fähigkeiten in the app bar` — **built** (#365) — Skills move in, `/skills`
+   redirects.
+2. `feat(studio): connectors move to Fähigkeiten` — **built** (#370) — list, page with sign-in
+   kind, audience and rules (from A5), built-ins as names; `/settings/connectors` redirects.
+3. `feat(studio): each person signs in` — **built** (#367) — the person's menu › „Verbindungen“.
+4. `feat(studio): members in the Studio per space` — **built** (#368) — one rule per space, the
+   reduced set.
+5. `feat(studio): Fähigkeiten › Protokoll` — **built** (#371) — the broker's log per space,
+   filters, „Was darf …?“. Built: `capabilities/ProtocolSection.tsx` (admins only, not in a member's menu), its words in
    `protocol-words.ts` with a test that every refusal (`BROKER_REFUSALS`, shared) has some; the
    log route grew `refused`, `result`, `until`, `q` (also over people's, connections' and wizards'
    names) and a `cursor` with `next`, named lines, `GET …/broker/log/:line` with the run's grant
    and `GET …/broker/choices`; the space's `notify` shows in its view and switches on the page.
-6. `feat(studio): Entdecken` — one search over skills.sh and integrations.sh.
-7. `feat: Fähigkeiten on by default` — switch, docs, glossary.
+6. `feat(studio): Entdecken` — **built** (#369) — one search over skills.sh and integrations.sh.
+7. `feat: Fähigkeiten on by default` — **built** (#PR) — `capabilities` defaults to on, `broker`
+   stays off; the user guide's `capabilities.md`, `skills.md`, `connectors.md`, `protocol.md`,
+   `together.md` describe the on state; the developers' `dev/broker.md`; the glossary's rows in
+   `docs/copy-style.md`.
 
 ## Roadmap
 
@@ -383,6 +389,21 @@ All behind `capabilities`, off by default. They show what part A built.
 - Through the company sign-in: MCP Enterprise-Managed Authorization, for Enterprise with SSO.
 
 ## Open
+
+Not built or not verified, as the sessions reported:
+
+- The Manage-App's receiving endpoint `POST /v1/broker/:tenant` for the broker's report (A7a): the
+  runtime posts, nobody receives.
+- Members still reach closed spaces through Goose's tools, MCP, `/api/v1` and the live stream (B4):
+  the rule guards the studio API only.
+- Signing in as each person is not gated to the Team plan (B2, B3).
+- The Work bell's link to a run, `/wizards/:id?run=`, is no route; the Protokoll uses
+  `/edit/:id?run=` (B5).
+- A5 converted the old plugin connections with the audience „alle“: guests reach them until an
+  admin narrows them.
+- Isolated instances (A8), the company sign-in (Roadmap) and a page for the RWX rules are not built.
+
+Questions:
 
 - Does a member in Work ever need to see the space's connections and rules, or is the menu enough?
 - Later: may a member with Studio publish a wizard to people outside the space, or only an admin?

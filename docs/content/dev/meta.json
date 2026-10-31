@@ -10,6 +10,7 @@
     "plugins",
     "skills",
     "api",
+    "broker",
     "licensing"
   ]
 }

@@ -151,7 +151,7 @@ export const FEATURES = {
   },
   capabilities: {
     kind: "release",
-    default: false,
+    default: true,
     label: "Capabilities",
     hint: "One place in the app bar for Skills and Verbindungen: the space's connections with sign-in, audience and rules, each person's own sign-ins, the broker's Protokoll, Entdecken.",
   },

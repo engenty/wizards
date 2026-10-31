@@ -444,6 +444,9 @@ describe("a runtime of a Manage-App", () => {
     expect(me.tenant).toMatchObject({ id: "tenant-a", role: "member" });
     expect(me.limits.create).toBe(false);
     const [space] = (await (await get("/api/studio/spaces", m)).json()) as { id: string }[];
+    // The role's limits alone: with `capabilities` on, a space's studio is closed to members too
+    // (members-studio.test.ts).
+    process.env.FEATURES = "capabilities=off";
     // Making: refused for a wizard, a space, a copy; by every door.
     const made = await post("/api/studio/wizards", m, { spaceId: space.id });
     expect(made.status).toBe(403);
@@ -479,6 +482,7 @@ describe("a runtime of a Manage-App", () => {
     expect(edited.status).toBe(200);
     // The owner still makes.
     expect((await post("/api/studio/wizards", a, { spaceId: space.id })).status).toBe(200);
+    delete process.env.FEATURES;
     // The organization page: people, invitations and places, from the Manage-App.
     const organization = (await (await get("/api/studio/organization", m)).json()) as any;
     expect(organization).toMatchObject({

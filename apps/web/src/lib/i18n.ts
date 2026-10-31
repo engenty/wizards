@@ -2914,10 +2914,10 @@ const de: Record<Key, Line> = {
   "protocol.detail.resultSize": "{size} Zeichen",
   "protocol.detail.resultNone": "Kein Ergebnis",
   "protocol.detail.rule": "Entschieden von",
-  "protocol.detail.grant": "Freigabe des Laufs",
+  "protocol.detail.grant": "Was der Lauf darf",
   "protocol.detail.grantSpace":
     "Gilt hier nicht. Bei einer Verbindung des Space entscheiden ihre Regeln.",
-  "protocol.detail.grantNone": "Der Lauf hat keine Freigabe gespeichert.",
+  "protocol.detail.grantNone": "Für den Lauf ist nicht gespeichert, was er darf.",
   "protocol.detail.grantActions": "Durch diese Verbindung: {actions}",
   "protocol.detail.grantNoActions": "Nichts durch diese Verbindung.",
   "protocol.detail.grantHosts": "Hosts: {hosts}",
