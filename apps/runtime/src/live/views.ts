@@ -10,7 +10,7 @@ import { embeddingModel } from "../models.js";
 import { mayBuild, spaceWritable } from "../services/access.js";
 import { cloudLinked, cloudState } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
-import { studioOpen } from "../services/members-studio.js";
+import { closedToMe, studioOpen } from "../services/members-studio.js";
 import { presentIn } from "../services/presence.js";
 import { getPage, getRow, getTableHeader } from "../services/space-data.js";
 import { fileView, spaceFiles } from "../services/space-files.js";
@@ -167,12 +167,29 @@ const ITEM_VIEWS: Record<LiveKind, ((r: Reader, x: LiveItem) => Promise<unknown>
   },
 };
 
+/**
+ * What the Studio alone shows of a space: a member whose Studio the space is closed to gets no view
+ * of these, and the browser asks the studio API, which refuses it (services/members-studio.ts).
+ * The space itself, its files and connectors are what Work reads in every space.
+ */
+const STUDIO_KINDS = new Set<LiveKind>([
+  "wizard",
+  "translation",
+  "page",
+  "table",
+  "row",
+  "presence",
+]);
+
 export async function itemView(r: Reader, x: LiveItem): Promise<unknown> {
   const read = ITEM_VIEWS[x.kind];
   if (!read) {
     return undefined;
   }
   try {
+    if (x.spaceId && STUDIO_KINDS.has(x.kind) && (await closedToMe(x.spaceId))) {
+      return undefined;
+    }
     return await read(r, x);
   } catch (err) {
     if (gone(err)) {

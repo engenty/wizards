@@ -4,13 +4,43 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 /**
  * Members in the Studio, one rule per space (docs/plans/capabilities.md, "Who sees the place"):
  * an owner and a member of one organization, two spaces, the rule on in one of them. Behind
- * `capabilities`; with it off, a member does what they did before.
+ * `capabilities`; with it off, a member does what they did before. The rule holds at every door:
+ * the studio API, MCP, `/api/v1`, the live stream and Goose's tools.
  */
+
+// HubSpot without HubSpot: a key that needs no check, one read.
+vi.mock("../src/engenty/connections-hubspot/connector", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../src/engenty/connections-hubspot/connector")>();
+  return {
+    ...mod,
+    hubspotConnector: {
+      ...mod.hubspotConnector,
+      auth: {
+        kind: "api_key",
+        apiKey: {
+          fields: [{ key: "access_token", label: "Token", secret: true }],
+          verify: async () => ({ label: "HubSpot" }),
+        },
+      },
+      actions: [
+        {
+          id: "list_contacts",
+          group: "read",
+          summary: "List contacts",
+          description: "List contacts",
+          inputSchema: z.object({}),
+          handler: async () => ({ contacts: [] }),
+        },
+      ],
+    },
+  };
+});
 
 const { publicKey, privateKey } = await generateKeyPair("ES256");
 const jwk = { ...(await exportJWK(publicKey)), kid: "k1", alg: "ES256", use: "sig" };
@@ -94,6 +124,9 @@ const manage: Server = createServer(async (req, res) => {
       db: null,
     });
   }
+  if (url.pathname === "/v1/grants/check") {
+    return json({ active: true });
+  }
   if (/^\/v1\/users\/[^/]+$/.test(url.pathname)) {
     return json({ id: url.pathname.split("/").pop(), features: {}, admin: false, tenants: [] });
   }
@@ -151,6 +184,7 @@ let member = "";
 let open = "";
 let closed = "";
 let wizard = "";
+let closedWizard = "";
 
 type SpaceView = { id: string; membersStudio: boolean; studio: boolean };
 
@@ -166,6 +200,9 @@ beforeAll(async () => {
     id: string;
   });
   ({ id: wizard } = (await (await send("POST", "/api/studio/wizards", owner, { spaceId: open })).json()) as {
+    id: string;
+  });
+  ({ id: closedWizard } = (await (await send("POST", "/api/studio/wizards", owner, { spaceId: closed })).json()) as {
     id: string;
   });
 }, 60_000);
@@ -246,5 +283,148 @@ describe("members in the Studio, switch on", () => {
     // The owner keeps everything.
     expect((await send("PATCH", `/api/studio/wizards/${wizard}`, owner, { shareEnabled: true })).status).toBe(200);
     expect((await get(`/api/studio/spaces/${open}/rules`, owner)).status).toBe(200);
+  });
+});
+
+// --- the other doors ----------------------------------------------------------------------------
+
+const CLOSED = "open to its admins only";
+
+/** An access token of the Manage-App for an AI app, as the owner (o) or the member (m). */
+const bearer = async (who: "o" | "m") =>
+  `Bearer ${await token(
+    {
+      sub: `user-${who}`,
+      tenant: TENANT,
+      role: who === "m" ? "member" : "owner",
+      azp: "claude-code",
+      scope: "openid wizards:read wizards:write wizards:publish runs:read runs:test",
+    },
+    `${RUNTIME}/api/mcp`,
+  )}`;
+
+/** One MCP tool call: what it answered, as text. */
+async function mcp(who: "o" | "m", name: string, args: Record<string, unknown>): Promise<string> {
+  const res = await app.fetch(
+    new Request(`${RUNTIME}/api/mcp`, {
+      method: "POST",
+      headers: {
+        authorization: await bearer(who),
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+    }),
+  );
+  expect(res.status).toBe(200);
+  return res.text();
+}
+
+const v1 = async (who: "o" | "m", path: string) =>
+  app.fetch(new Request(`${RUNTIME}/api/v1${path}`, { headers: { authorization: await bearer(who), "accept-language": "en" } }));
+
+describe("members in the Studio, the other doors", () => {
+  it("changes nothing at any door with the switch off", async () => {
+    switches([], ["capabilities"]);
+    expect(await mcp("m", "get_wizard", { wizardId: closedWizard })).not.toContain(CLOSED);
+    expect((await v1("m", `/space?space=${closed}`)).status).toBe(200);
+    switches(["capabilities"]);
+  });
+
+  it("MCP: refuses a member a closed space's wizard, its files and tests; the open space works", async () => {
+    for (const [name, args] of [
+      ["get_wizard", { wizardId: closedWizard }],
+      ["list_files", { wizardId: closedWizard }],
+      ["show_wizard", { wizardId: closedWizard, version: "draft" }],
+      ["validate_wizard", { spaceId: closed, definition: { title: "x", steps: [] } }],
+    ] as const) {
+      expect(await mcp("m", name, args)).toContain(CLOSED);
+    }
+    const allowed = await mcp("m", "get_wizard", { wizardId: wizard });
+    expect(allowed).not.toContain(CLOSED);
+    expect(allowed).toContain(wizard);
+    // What Work reads stays: the wizards of every space.
+    expect(await mcp("m", "list_wizards", { spaceId: closed })).toContain(closedWizard);
+    // The owner reaches both.
+    expect(await mcp("o", "get_wizard", { wizardId: closedWizard })).not.toContain(CLOSED);
+  });
+
+  it("/api/v1: refuses a member a closed space's details and wizards; the open space works", async () => {
+    const refused = await v1("m", `/space?space=${closed}`);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: "forbidden", error: expect.stringContaining(CLOSED) });
+    expect((await v1("m", `/wizards/${closedWizard}/package`)).status).toBe(403);
+    expect((await v1("m", `/sync/spaces/${closed}/changes`)).status).toBe(403);
+    expect((await v1("m", `/space?space=${open}`)).status).toBe(200);
+    // Named no space: the first one open to them.
+    expect(await (await v1("m", "/space")).json()).toMatchObject({ id: open });
+    expect((await v1("o", `/space?space=${closed}`)).status).toBe(200);
+  });
+
+  it("the live stream: a member hears a closed space's changes without their views", async () => {
+    switches(["capabilities", "liveChanges"]);
+    const res = await get("/api/studio/live", member);
+    expect(res.status).toBe(200);
+    const reader = (res.body as ReadableStream<Uint8Array>).getReader();
+    const decoder = new TextDecoder();
+    const make = async (spaceId: string, title: string) =>
+      ((await (await send("POST", `/api/studio/spaces/${spaceId}/tables`, owner, { title })).json()) as { id: string }).id;
+    // The stream says hello before the owner writes, so it hears the writes.
+    let text = "";
+    while (!text.includes("event: hello")) {
+      text += decoder.decode((await reader.read()).value, { stream: true });
+    }
+    const inClosed = await make(closed, "Gehälter");
+    const inOpen = await make(open, "Leads 2");
+    type Change = { item: string; view?: unknown };
+    const heard = new Map<string, Change>();
+    const until = Date.now() + 8000;
+    while ((!heard.has(inClosed) || !heard.has(inOpen)) && Date.now() < until) {
+      text += decoder.decode((await reader.read()).value, { stream: true });
+      for (const block of text.split("\n\n")) {
+        const data = block.split("\n").find((l) => l.startsWith("data: "));
+        if (block.includes("event: changes") && data) {
+          for (const item of (JSON.parse(data.slice(6)) as { items: Change[] }).items) {
+            heard.set(item.item, item);
+          }
+        }
+      }
+    }
+    await reader.cancel();
+    expect(heard.get(inClosed)).toBeDefined();
+    expect(heard.get(inClosed)?.view).toBeUndefined();
+    expect(heard.get(inOpen)?.view).toMatchObject({ id: inOpen });
+    // The view the stream held back: the studio API refuses it.
+    expect((await get(`/api/studio/tables/${inClosed}`, member)).status).toBe(403);
+  }, 20_000);
+
+  it("Goose: a member's own sign-ins work in open spaces only", async () => {
+    switches(["capabilities", "broker"]);
+    const { withTenant } = await import("../src/db/client");
+    const { asRole } = await import("../src/services/access");
+    const service = await import("../src/connectors/space-connections");
+    const goose = await import("../src/agents/goose-connections");
+    const as = <T>(role: "owner" | "member", fn: () => Promise<T>) => withTenant(TENANT, () => asRole(role, fn));
+    const ids: string[] = [];
+    for (const spaceId of [open, closed]) {
+      const row = await as("owner", () =>
+        service.createSpaceConnection("user-o", spaceId, {
+          connectorId: "hubspot",
+          name: "Mein HubSpot",
+          signIn: "person",
+          audience: "members",
+          rules: { read: "allow", write: "ask", destructive: "deny", send: "ask" },
+          actions: [],
+        }),
+      );
+      await as("member", () =>
+        service.signInWithCredentials(row.id, { as: "person", userId: "user-m", role: "member" }, { access_token: "pat-m" }),
+      );
+      ids.push(row.id);
+    }
+    const input = { user: { id: "user-m", role: "member", tenantId: TENANT }, chat: { id: "goose-m" }, browserTools: [] } as never;
+    const names = Object.keys(await as("member", () => goose.gooseConnectionTools(input)));
+    expect(names.some((n) => n.includes(ids[0]))).toBe(true);
+    expect(names.some((n) => n.includes(ids[1]))).toBe(false);
   });
 });

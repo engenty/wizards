@@ -20,6 +20,7 @@ import { mayBuild, READ_ONLY_TENANT, spaceWritable } from "./access.js";
 import { mainLogoId } from "./brand.js";
 import { notFound, ServiceError } from "./errors.js";
 import { knowledgeCounts } from "./knowledge.js";
+import { closedToMe, requireStudio } from "./members-studio.js";
 import { runReport } from "./runs.js";
 import { shareUrlFor } from "./shares.js";
 import { listSpaces, ownedSpace } from "./spaces.js";
@@ -46,12 +47,23 @@ export async function apiSpaces(userId: string) {
   );
 }
 
-/** The space a call names, or the one a caller means when it names none: the first one listed. */
+/**
+ * The space a call names, or the one a caller means when it names none: the first one listed
+ * whose Studio is open to them. A member is refused a space closed to them (services/members-studio.ts).
+ */
 export async function apiSpace(userId: string, spaceId?: string | null) {
   if (spaceId) {
-    return ownedSpace(userId, spaceId);
+    const space = await ownedSpace(userId, spaceId);
+    await requireStudio("spaces", space.id);
+    return space;
   }
-  const [first] = await listSpaces(userId);
+  const spaces = await listSpaces(userId);
+  for (const p of spaces) {
+    if (!(await closedToMe(p.id))) {
+      return p;
+    }
+  }
+  const [first] = spaces;
   if (!first) {
     // A plan that builds nothing here has a space only once its local install synced one.
     if (!(await mayBuild())) {
@@ -59,6 +71,8 @@ export async function apiSpace(userId: string, spaceId?: string | null) {
     }
     throw notFound();
   }
+  // Every space is closed to them: the studio's answer.
+  await requireStudio("spaces", first.id);
   return first;
 }
 
@@ -216,7 +230,17 @@ const PAGE = 50;
 /** The live runs of the caller's wizards, newest first, by pages of 50: what visitors left. */
 export async function apiRuns(userId: string, filter: ApiRunsFilter = {}) {
   const wizards = await apiWizards(userId, filter.spaceId);
-  const ids = wizards.map((w) => w.id).filter((id) => !filter.wizardId || id === filter.wizardId);
+  // What visitors left is the Studio's: none of a space closed to the person.
+  const closed = new Set<string>();
+  for (const spaceId of new Set(wizards.map((w) => w.spaceId))) {
+    if (await closedToMe(spaceId)) {
+      closed.add(spaceId);
+    }
+  }
+  const ids = wizards
+    .filter((w) => !closed.has(w.spaceId))
+    .map((w) => w.id)
+    .filter((id) => !filter.wizardId || id === filter.wizardId);
   const page = Math.max(1, filter.page ?? 1);
   if (!ids.length) {
     return { runs: [], page, pages: 0, total: 0 };
@@ -295,6 +319,7 @@ export async function apiRuns(userId: string, filter: ApiRunsFilter = {}) {
 
 /** One run with everything a reader of the result needs: the answers, the outputs, the downloads. */
 export async function apiRun(userId: string, runId: string) {
+  await requireStudio("runs", runId);
   // Refuses what is no live run of the tenant.
   const report = await runReport(userId, runId, 0, "live");
   const run = await db.query.run.findFirst({
