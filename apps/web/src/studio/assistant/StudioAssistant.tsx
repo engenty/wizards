@@ -1558,10 +1558,12 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const busy = state?.chat.phase !== "idle" || (state?.live.state ?? "off") !== "off" || recent;
   const active = focused || open || busy;
   // Made small, the chat folds into the engenty at the lower right; opened, it is the same chat
-  // as at the bottom, where it last stood. Busy, it stands docked at the bottom instead.
-  const small = where?.where === "avatar" && !busy;
-  // The introduction in view and nothing going on: Goose keeps out of the way (a sidebar stays).
+  // as at the bottom, where it last stood. Busy, it stands docked at the bottom instead. A page
+  // with its own input keeps it small too: one place to type on a screen. A sidebar stays.
   const sidebar = where?.where === "sidebar";
+  const ownInput = Boolean(usePageAssistant().ownInput);
+  const small = !sidebar && (where?.where === "avatar" || ownInput) && !busy;
+  // The introduction in view and nothing going on: Goose keeps out of the way.
   const quiet = top && !busy && !open && !sidebar;
   const reserve = !(quiet || sidebar);
   // A phone's bar floats at the bottom of the window: the chat stands above it.

@@ -7,6 +7,7 @@ import { type Me, useCurrentSpace, useMe, type WizardSummary } from "../../lib/s
 import { Button, cn } from "../../ui";
 import { Composer, type ComposerHandle } from "../../ui/composer";
 import { useCrumbs } from "../AppFrame";
+import { useAssistantPage } from "../assistant/page";
 import { openExternal } from "../LocalRuntime";
 import {
   type Approval,
@@ -33,6 +34,8 @@ const WIZARDS = 4;
 
 export function WorkHome() {
   useCrumbs([{ label: t("work.chats") }]);
+  // A chat starts here: Goose stays small beside it.
+  useAssistantPage({ ownInput: true });
   const { space } = useCurrentSpace();
   const me = useMe().data;
   const spaceName = space?.name ?? "";
