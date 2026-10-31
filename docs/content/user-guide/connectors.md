@@ -4,13 +4,17 @@ description: Services a wizard works in for the person who runs it – built in,
 version: 0.13.0
 ---
 
-Settings → Connectors lists the services the space’s wizards can work in. A wizard uses a connector
-with the account of the person who runs it: they connect their account during the run, on a page
-that asks for it. Each space has its own connectors. In the cloud, a space you publish from your
-computer shows its connectors without letting you change them: you change them on your computer.
+**[Capabilities](./capabilities.md) › Connectors** lists the services the space’s wizards, Work
+chats and Goose can work in. Each space has its own connectors. In the cloud, a space you publish
+from your computer shows its connectors without letting you change them: you change them on your
+computer.
 
-Where Capabilities is switched on, the connectors live in Capabilities › Connectors instead, and
-Settings → Connectors leads there. See [Connections in the space](#connections-in-the-space).
+A wizard reaches a service in one of two ways:
+
+- through a [connection of the space](#connections-in-the-space), which the space’s admins set up
+  once;
+- with the account of the person who runs it: they connect their account during the run, on a page
+  that asks for it.
 
 ## Built in
 
@@ -57,9 +61,8 @@ Any other service comes from the [integrations.sh](https://integrations.sh) regi
 If a service needs an OAuth client of your own, it says so. Remove it and import it again with
 “Your own OAuth client”.
 
-Where Capabilities is switched on, **Capabilities › Discover** searches integrations.sh and
-skills.sh at once. Admins set up a service from its result with “Set up”, and a service the space
-already has shows “In this space”.
+**Capabilities › Discover** searches integrations.sh and skills.sh at once. Admins set up a
+service from its result with “Set up”, and a service the space already has shows “In this space”.
 
 The editor’s chat does the same while it builds a wizard: ask it to work with a service, and it
 finds and imports the connector. An [AI app](./ai-apps.md) connected to engenty wizards can do
@@ -67,8 +70,9 @@ this too.
 
 ## What a wizard may do
 
-A wizard names the actions it uses. Without a list, it uses only the actions that read. During a
-run:
+A wizard names the actions it uses. Without a list, it uses only the actions that read. What a run
+may use is fixed when it starts: a change to the wizard during the run doesn’t widen it. On the
+account of the person who runs it:
 
 | The action | What happens |
 |---|---|
@@ -115,7 +119,7 @@ signs in, they sign in right there.
 
 ## Connections in your menu
 
-A space’s admins can set up a connection and choose how it signs in: once as the space, or each
+A space’s admins set up a connection and choose how it signs in: once as the space, or each
 person for themselves. Your menu › Connections lists the connections of your spaces that are open
 to you. Where each person signs in, you sign in or out there; your chats, your runs and your Goose
 then act as you, and nobody else sees your sign-in. Where the space signs in, you see its account

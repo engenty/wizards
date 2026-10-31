@@ -63,7 +63,7 @@
 # RWX rules per space, enforced at every reader (off by default)
 # broker=on|off
 #
-# Fähigkeiten: one place in the app bar for Skills and Verbindungen, the Protokoll and Entdecken (off by default)
+# Fähigkeiten: one place in the app bar for Skills and Verbindungen, the Protokoll and Entdecken (on by default)
 # capabilities=on|off
 #
 # a plugin's switches carry its id; `wizards features` lists the ones installed here

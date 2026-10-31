@@ -141,9 +141,9 @@ const send = (method: string, path: string, cookie: string, body?: unknown) =>
   );
 const get = (path: string, cookie: string) => send("GET", path, cookie);
 
-/** Switches on for the runtime: what `FEATURES` says counts unless the Manage-App says otherwise. */
-const switches = (on: string[]) => {
-  process.env.FEATURES = on.map((name) => `${name}=on`).join(",");
+/** Switches for the runtime: what `FEATURES` says counts unless the Manage-App says otherwise. */
+const switches = (on: string[], off: string[] = []) => {
+  process.env.FEATURES = [...on.map((name) => `${name}=on`), ...off.map((name) => `${name}=off`)].join(",");
 };
 
 let owner = "";
@@ -177,7 +177,7 @@ afterAll(() => {
 
 describe("members in the Studio, switch off", () => {
   it("leaves a member where they were: every space's studio, no making", async () => {
-    switches([]);
+    switches([], ["capabilities"]);
     expect((await get(`/api/studio/spaces/${closed}/knowledge`, member)).status).toBe(200);
     expect((await get(`/api/studio/wizards/${wizard}`, member)).status).toBe(200);
     const made = await send("POST", "/api/studio/wizards", member, { spaceId: open });

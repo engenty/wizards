@@ -5,9 +5,8 @@ version: 0.13.0
 ---
 
 A skill is a set of instructions your wizards work by: how you write, what a quote must hold, how
-to handle a PDF. You find them under **Skills** in the app bar, beside Sources and Results.
-Where **Capabilities** is switched on, the skills sit there instead, under **Capabilities ›
-Skills**, after Sources.
+to handle a PDF. You find them under **[Capabilities](./capabilities.md) › Skills** in the app bar,
+after Sources.
 
 A skill is a folder in the open Agent Skills format: a `SKILL.md` with a name, a description and
 the instructions, and any text files the instructions point to. The same skill works in Claude,
@@ -48,9 +47,8 @@ such as fonts, templates or pictures, come along for the skill’s scripts, and 
 as “for scripts”. skills.sh hands out text files only, so a skill that needs fonts or templates
 comes as a zip upload.
 
-Where Capabilities is switched on, **Capabilities › Discover** searches skills.sh and
-integrations.sh at once: you view or add a skill right in the results, marked “In this space”
-once the space has it.
+**Capabilities › Discover** searches skills.sh and integrations.sh at once: you view or add a
+skill right in the results, marked “In this space” once the space has it.
 
 ## Run a skill’s scripts
 

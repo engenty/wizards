@@ -4,8 +4,8 @@ description: Every time a wizard, a chat or Goose used a connection of your spac
 version: 0.13.0
 ---
 
-Where **Capabilities** is switched on, **Capabilities › Log** shows every call your space’s
-wizards, Work chats and Goose made to a connection. Each call is one line, whether it ran or not.
+**[Capabilities](./capabilities.md) › Log** shows every call your space’s wizards, Work chats and
+Goose made to a connection. Each call is one line, whether it ran or not.
 Only the owner and the admins of the organization see the log. Members don’t find it in their menu.
 
 ## What a line says
