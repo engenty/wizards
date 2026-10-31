@@ -1,5 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 470" style="--w:600px" role="img">
-<title>The order in which brokerCall checks a call</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 470" style="--w:600px" aria-hidden="true">
 <rect x="40" y="20" width="320" height="44" rx="10" class="d-box"/>
 <path d="M360,42 L434.0,42.0" class="d-line"/>
 <path d="M200,64 L200.0,74.0" class="d-line"/>

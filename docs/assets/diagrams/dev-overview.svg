@@ -1,5 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 260" style="--w:680px" role="img">
-<title>What goes into the runtime and where wizards reach people</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 260" style="--w:680px" aria-hidden="true">
 <rect x="20" y="66" width="170" height="56" rx="10" class="d-box"/>
 <rect x="20" y="138" width="170" height="56" rx="10" class="d-box"/>
 <rect x="250" y="66" width="170" height="128" rx="10" class="d-key"/>

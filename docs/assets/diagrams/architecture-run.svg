@@ -1,5 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 690 396" style="--w:690px" role="img">
-<title>A run from a wizard’s link, across the processes</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 690 396" style="--w:690px" aria-hidden="true">
 <rect x="40.0" y="16" width="120" height="40" rx="10" class="d-box"/>
 <line x1="100" y1="56" x2="100" y2="380" class="d-life"/>
 <rect x="170.0" y="16" width="120" height="40" rx="10" class="d-box"/>

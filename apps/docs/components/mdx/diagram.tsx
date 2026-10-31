@@ -4,7 +4,7 @@
  */
 export function Diagram({ svg, alt }: { svg: string; alt: string }) {
   return (
-    <figure className="diagram not-prose" aria-label={alt}>
+    <figure className="diagram not-prose" role="img" aria-label={alt}>
       {/* biome-ignore lint/security/noDangerouslySetInnerHtml: our own SVG files from the repository */}
       <div dangerouslySetInnerHTML={{ __html: svg }} />
     </figure>

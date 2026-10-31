@@ -8,7 +8,7 @@ engenty wizards is one server program, the **runtime**, and one web app, the **s
 serves. The same code runs on your computer and in the cloud. This page shows the parts and how
 they fit, with the folder each one lives in.
 
-![The studio and Published Wizards (durable Agents) reach the runtime’s studio and doors halves; the runner drives the engine, which reaches the models and, through the broker, the connected services. All of them keep their data in the tenant database, the control database and the files](../../assets/diagrams/architecture-parts.svg)
+![Studio and Work, two modes split per person, reach the runtime’s studio half. Published Wizards (durable Agents) reach the doors, on the guest side. The runner drives the engine, which reaches the models and, through the broker, the connected services. All of them keep their data in libSQL databases and a file store](../../assets/diagrams/architecture-parts.svg)
 
 ## The parts
 
@@ -36,6 +36,14 @@ and whether it takes runs.
 
 Every role serves what both halves need: `/api/health`, `/api/config`, the runs’ API
 (`/api/runs`) and the OAuth callback (`/api/connect`).
+
+Studio and Work are two modes of one web app, and the `studio` half serves both: `/api/studio`
+and `/api/studio/work`. They share the sign-in, the tenant database and the broker’s rules. The
+line between them is drawn per person, not per process: `allowedModes`
+(`apps/web/src/lib/mode.ts`) gives the people who build Studio, Work and Client, and everyone else
+Work and Client. Client has no server half of its own. Published wizards come in through `doors`:
+a guest’s run has no person signed in, never gets the Docker sandbox and meets the broker as a
+guest. That is the one boundary between processes.
 
 A run from a wizard’s link, in the cloud, where each role is its own process:
 

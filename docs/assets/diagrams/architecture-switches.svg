@@ -1,5 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 290" style="--w:520px" role="img">
-<title>Where a feature switch gets its value</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 290" style="--w:520px" aria-hidden="true">
 <rect x="40" y="30" width="340" height="48" rx="10" class="d-key"/>
 <rect x="40" y="94" width="340" height="48" rx="10" class="d-box"/>
 <rect x="40" y="158" width="340" height="48" rx="10" class="d-box"/>

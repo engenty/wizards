@@ -1,5 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 290" style="--w:680px" role="img">
-<title>What happens to a call to a connection</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 290" style="--w:680px" aria-hidden="true">
 <rect x="20" y="86" width="160" height="64" rx="10" class="d-no"/>
 <rect x="210" y="78" width="150" height="80" rx="10" class="d-key"/>
 <path d="M180,118 L204.0,118.0" class="d-line"/>
