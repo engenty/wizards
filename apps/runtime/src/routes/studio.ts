@@ -151,6 +151,7 @@ import { architectTurn } from "../services/architect.js";
 import {
   addMessage,
   assistantLayout,
+  assistantLayouts,
   assistantWidth,
   currentChat,
   earlierChats,
@@ -718,6 +719,7 @@ export const studio = new Hono<Vars>()
   .get("/assistant/layout", async (c) =>
     c.json({
       layout: await assistantLayout(c.get("user")),
+      layouts: await assistantLayouts(c.get("user")),
       width: await assistantWidth(c.get("user")),
     }),
   )
@@ -726,6 +728,11 @@ export const studio = new Hono<Vars>()
     const body = z
       .object({
         layout: z.enum(ASSISTANT_LAYOUTS).optional(),
+        /** The studio's area the layout is for; without it the person's default. */
+        area: z
+          .string()
+          .regex(/^[a-z0-9-]{1,40}$/)
+          .optional(),
         width: z
           .number()
           .int()
@@ -736,7 +743,12 @@ export const studio = new Hono<Vars>()
       })
       .refine((b) => b.layout !== undefined || b.width !== undefined)
       .parse(await c.req.json());
-    if (body.layout) {
+    if (body.layout && body.area) {
+      await writeSetting(`assistant-layouts:${user.tenantId}:${user.id}`, {
+        ...(await assistantLayouts(user)),
+        [body.area]: body.layout,
+      });
+    } else if (body.layout) {
       await writeSetting(`assistant-layout:${user.tenantId}:${user.id}`, body.layout);
     }
     if (body.width === null) {
@@ -744,7 +756,11 @@ export const studio = new Hono<Vars>()
     } else if (body.width !== undefined) {
       await writeSetting(`assistant-width:${user.tenantId}:${user.id}`, body.width);
     }
-    return c.json({ layout: await assistantLayout(user), width: await assistantWidth(user) });
+    return c.json({
+      layout: await assistantLayout(user),
+      layouts: await assistantLayouts(user),
+      width: await assistantWidth(user),
+    });
   })
   // Live chat reads answers aloud with the speech model where one is set up; else the browser's voices.
   .get("/assistant/voice", async (c) => c.json({ way: (await classWays()).speech.kind }))
