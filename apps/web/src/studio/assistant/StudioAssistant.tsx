@@ -7,6 +7,7 @@ import {
   AudioLines,
   Check,
   ChevronDown,
+  CircleHelp,
   GripVertical,
   History,
   Mic,
@@ -1300,8 +1301,8 @@ const SLOT_FIRST = 240;
 
 /**
  * Where a page wants Goose's introduction at its top (the space page's parts): the page's words,
- * a line to ask Goose and a few questions. It can be closed, per page; while it is in view and
- * Goose has nothing going on, Goose itself keeps out of the way.
+ * a line to ask Goose and a few questions. Closed (per page), a small help hint stays in its
+ * place. While either is in view and Goose has nothing going on, Goose itself keeps out of the way.
  */
 export function AssistantSlot() {
   return <div ref={setAssistantSlot} className="hidden" />;
@@ -1343,8 +1344,8 @@ function useRecentAnswer(state: AssistantState | null): boolean {
   return until > Date.now();
 }
 
-/** A yes kept in this browser under `key` (a page's closed introduction), and the way to set it. */
-function useStoredFlag(key: string): [boolean, () => void] {
+/** A yes kept in this browser under `key` (a page's closed introduction), and the way to change it. */
+function useStoredFlag(key: string): [boolean, (on?: boolean) => void] {
   const [on, setOn] = useState(false);
   useEffect(() => {
     try {
@@ -1353,13 +1354,34 @@ function useStoredFlag(key: string): [boolean, () => void] {
       setOn(false);
     }
   }, [key]);
-  const set = () => {
-    setOn(true);
+  const set = (next = true) => {
+    setOn(next);
     try {
-      localStorage.setItem(key, "1");
+      if (next) {
+        localStorage.setItem(key, "1");
+      } else {
+        localStorage.removeItem(key);
+      }
     } catch {}
   };
   return [on, set];
+}
+
+/** Where the introduction was closed: Goose, a word and a help icon at the top right; it opens it again. */
+function HelpHint({ onOpen }: { onOpen: () => void }) {
+  return (
+    <div className="flex justify-end">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex items-center gap-2 rounded-full bg-card py-1 pr-3 pl-1 text-[0.875rem] text-ink-2 shadow-soft ring-1 ring-border transition hover:text-ink"
+      >
+        <Mascot kind="round" size={28} helmet interactive={false} />
+        {t("assistant.help")}
+        <CircleHelp className="size-4 text-ink-3" />
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -1412,7 +1434,7 @@ function PageIntro({ state, onClose }: { state: AssistantState; onClose: () => v
             ) : null}
             <button
               type="button"
-              onClick={hideHello}
+              onClick={() => hideHello()}
               className="mt-2 text-[0.75rem] text-ink-3 underline-offset-2 hover:text-ink hover:underline"
             >
               {t("assistant.intro.hideHello")}
@@ -1542,7 +1564,8 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const slot = useAssistantSlot();
   const path = useLocation().pathname;
   const [introClosed, closeIntro] = useStoredFlag(`goose.intro.closed:${path}`);
-  const introAt = slot && visible && !introClosed ? slot : null;
+  // Closed, the introduction leaves a small help hint in its place.
+  const introAt = slot && visible ? slot : null;
   const slotHeight = useRef(0);
   useLayoutEffect(() => {
     if (slot) {
@@ -1644,7 +1667,14 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     return null;
   }
   const intro = introAt
-    ? createPortal(<PageIntro state={state} onClose={closeIntro} />, introAt)
+    ? createPortal(
+        introClosed ? (
+          <HelpHint onOpen={() => closeIntro(false)} />
+        ) : (
+          <PageIntro state={state} onClose={() => closeIntro()} />
+        ),
+        introAt,
+      )
     : null;
   // The thread is as high as the handle set it, within what the column leaves.
   const maxThread = Math.max(THREAD.min, Math.min(THREAD.max, size.height - 220));
