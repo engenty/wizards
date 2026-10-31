@@ -22,6 +22,11 @@ html[data-studio]:not(.dark) {
   --contrast: 0.85;
   --paper: oklch(1 0 0);
   --card: oklch(from var(--raw-background) 0.975 calc(c * 0.5) h);
+  /* Lines, fields and the hover wash as in dark: mixed from the card up, so a field's edge, a
+     button's outline and a picked row read on the toned cards as well as on the white page. */
+  --accent: color-mix(in oklch, var(--ink) 8%, var(--card));
+  --border: color-mix(in oklch, var(--ink) 16%, var(--card));
+  --input: color-mix(in oklch, var(--ink) 22%, var(--card));
 }
 
 /* Dark comes two ways, picked by the visitor. Branded (`.branded` on the root) is not the
