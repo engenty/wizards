@@ -25,8 +25,8 @@
 <path d="M550,472 L550.0,486.0" class="d-line"/>
 <text x="130.0" y="46.0" class="d-t" text-anchor="middle">Studio</text>
 <text x="130.0" y="62.5" class="d-s" text-anchor="middle">people who build</text>
-<text x="340.0" y="46.0" class="d-t" text-anchor="middle">A wizard’s link</text>
-<text x="340.0" y="62.5" class="d-s" text-anchor="middle">people who run it</text>
+<text x="340.0" y="46.0" class="d-t" text-anchor="middle">Published Wizards</text>
+<text x="340.0" y="62.5" class="d-s" text-anchor="middle">(durable Agents)</text>
 <text x="34" y="128" class="d-zl" text-anchor="start">Runtime · RUNTIME_ROLE</text>
 <text x="130.0" y="166.0" class="d-t" text-anchor="middle">studio</text>
 <text x="130.0" y="182.5" class="d-s" text-anchor="middle">the makers’ half</text>

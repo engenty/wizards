@@ -8,7 +8,7 @@ engenty wizards is one server program, the **runtime**, and one web app, the **s
 serves. The same code runs on your computer and in the cloud. This page shows the parts and how
 they fit, with the folder each one lives in.
 
-![The studio and a wizard’s link reach the runtime’s studio and doors halves; the runner drives the engine, which reaches the models and, through the broker, the connected services. All of them keep their data in the tenant database, the control database and the files](../../assets/diagrams/architecture-parts.svg)
+![The studio and Published Wizards (durable Agents) reach the runtime’s studio and doors halves; the runner drives the engine, which reaches the models and, through the broker, the connected services. All of them keep their data in the tenant database, the control database and the files](../../assets/diagrams/architecture-parts.svg)
 
 ## The parts
 
