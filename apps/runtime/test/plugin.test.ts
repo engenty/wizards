@@ -44,6 +44,7 @@ describe("Claude Code plugin of this deployment", () => {
       "plugin.json",
       "skills/build-wizard/SKILL.md",
       "skills/use-wizard/SKILL.md",
+      "skills/work-in-space/SKILL.md",
     ]);
     const mcp = JSON.parse(strFromU8(files[".mcp.json"]));
     expect(mcp.mcpServers["engenty-wizards"].url).toBe("https://wizards.example.com/api/mcp");

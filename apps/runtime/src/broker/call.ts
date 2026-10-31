@@ -51,6 +51,8 @@ export interface Where {
   mode?: "test" | "live";
   /** A guest's run: live, and nobody signed in. */
   guest?: boolean;
+  /** The outside client that calls (an MCP client, `x-wizards-client`), for the log. */
+  client?: string;
 }
 
 /** What an action does, as the rules see it. */
@@ -381,6 +383,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
         whoId: who.id ?? null,
         runId: where.runId ?? null,
         stepId: where.stepId ?? null,
+        client: where.client ?? null,
         chatId: where.chatId ?? null,
         wizardId: where.wizardId ?? null,
         spaceId: where.spaceId ?? null,
@@ -545,6 +548,7 @@ export async function brokerSecret<S, T>(call: {
       whoId: call.who.id ?? null,
       runId: call.where.runId ?? null,
       stepId: call.where.stepId ?? null,
+      client: call.where.client ?? null,
       chatId: call.where.chatId ?? null,
       wizardId: call.where.wizardId ?? null,
       spaceId: call.where.spaceId ?? null,

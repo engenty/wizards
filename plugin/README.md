@@ -8,6 +8,9 @@ files at the end. This plugin brings your wizards into your AI app:
   starts from the closest starter, fixes every issue, runs one test and gives you the studio link.
 - **Run** one of your published wizards in the chat with the `use-wizard` skill, page by page,
   with its review and its downloads. Apps that show MCP Apps show the wizard itself.
+- **Work in your space** with the `work-in-space` skill: search its knowledge, follow its skills
+  (their scripts run in a sandbox of the space), use its connections and run its wizards, under
+  the space's rules, as you.
 - **Publish** a wizard and change who may open its link, when you ask for it.
 
 The plugin connects your app to engenty.ai (`https://engenty.ai/api/mcp`). The first time you use

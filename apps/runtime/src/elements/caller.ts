@@ -60,7 +60,11 @@ export function personCaller(input: {
     space: input.space,
     who: whoOf(`u:${input.userId}`, input.role),
     subjects: subjectsOfPerson(input.userId, input.role),
-    where: { spaceId: input.space.id, ...(input.chatId ? { chatId: input.chatId } : {}) },
+    where: {
+      spaceId: input.space.id,
+      ...(input.chatId ? { chatId: input.chatId } : {}),
+      ...(input.client ? { client: input.client } : {}),
+    },
     signal: input.signal,
     client: input.client,
     sandbox: input.sandbox ?? null,

@@ -188,12 +188,15 @@ describe("the same elements everywhere", () => {
       );
       const signal = new AbortController().signal;
       const work: string[] = [];
-      for (const name of ELEMENT_TOOL_NAMES) {
+      // A Work chat has one tool per connection action; outside clients have connection_list and
+      // connection_call over the same actions.
+      const names = ELEMENT_TOOL_NAMES.filter((n) => !n.startsWith("connection_"));
+      for (const name of names) {
         if (await toolToRun({ id: spaceId, name: "Test" }, "local", name, signal, { chatId: "c1", byAdmin: false })) {
           work.push(name);
         }
       }
-      const outsideNames = Object.keys(outside).filter((n) => (ELEMENT_TOOL_NAMES as readonly string[]).includes(n));
+      const outsideNames = Object.keys(outside).filter((n) => (names as readonly string[]).includes(n));
       expect(outsideNames.sort()).toEqual(work.sort());
       expect(work).toEqual(expect.arrayContaining(["space_search", "skill_load", "wizard_run"]));
     });

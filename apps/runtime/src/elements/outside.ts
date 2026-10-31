@@ -72,7 +72,12 @@ export async function outsideTools(
     sandbox,
   });
   const skills = (await currentFeatures()).skills === true ? await activeSkills(space.id) : null;
-  const tools = await elementTools(caller, { knowledge: true, skills, wizards: true });
+  const tools = await elementTools(caller, {
+    knowledge: true,
+    skills,
+    wizards: true,
+    connections: true,
+  });
   if (sandbox) {
     const report = (result: ExecResult) => ({
       exitCode: result.exitCode,

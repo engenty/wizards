@@ -28,6 +28,7 @@ const READ_ONLY = new Set<string>([
   "skill_list",
   "skill_load",
   "skill_read",
+  "connection_list",
   "wizard_list",
 ]);
 
@@ -62,7 +63,8 @@ export function registerElementTools(server: McpServer, who: Principal) {
         inputSchema: withSpace,
         annotations: {
           readOnlyHint: READ_ONLY.has(name),
-          destructiveHint: false,
+          // A connection's action may write, send or delete in a connected account.
+          destructiveHint: name === "connection_call",
           // Running a wizard or a command reaches past the person's own data.
           openWorldHint: !READ_ONLY.has(name),
         },

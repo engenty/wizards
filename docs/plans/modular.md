@@ -1,6 +1,6 @@
 # Plan: one tool surface for every client
 
-Status: plan, nothing built; open questions decided on 2026-10-31. Written on 2026-10-31 against main `f5d7b224` (v0.13.x with Work
+Status: phases 1–3 built on `feat/modular` (2026-10-31); phases 2b, 4 and 5 open. Open questions decided on 2026-10-31. Written on 2026-10-31 against main `f5d7b224` (v0.13.x with Work
 mode). Page with both diagrams: the artifact “Modular Wizards Plan”
 (claude.ai/artifact/BRLfib42d2m3Nq6mXG5s7s). It extends the architecture page
 (`docs/content/dev/architecture.md`).
@@ -121,6 +121,30 @@ Decided on 2026-10-31 (roadmap page: claude.ai/artifact/LhdF8LKeqC2gcL3zNA9qC6).
 6. **The new role is `api`.** It serves `/api/mcp` and `/api/v1`; `doors` stays the guests' side.
 7. **A local install needs no linked account.** It gives a token per client, which can be revoked
    alone (today one access key opens everything).
+
+## Built (phases 1–3)
+
+- **Catalogue** (`apps/runtime/src/elements/`): `specs.ts` (inputs and scopes), `caller.ts`,
+  `gate.ts` (decide and log), `knowledge.ts`, `wizards.ts`, `connections.ts`, `catalogue.ts`;
+  skills in `tools/skills.ts`. Steps, Work chats and Goose build from it; `search_space` became
+  `space_search`. Work chats gained `wizard_list` and `wizard_run`; Goose gained Knowledge.
+- **Broker:** resource kinds `wizard`, `skill`, `setup`, enforced and seeded (migration 0040 for
+  spaces seeded before); `broker_log.client` (0041). Goose's setup writes are `w` on `setup`.
+- **Outside clients:** scopes `data:read`, `elements:read`, `elements:run`; the element tools on
+  `/api/mcp` and `/api/v1/spaces/:id/elements`; role `api`; skills' scripts in a sandbox per
+  person, space and client. A local install's per-client keys already existed.
+- **Claude and Codex:** the plugin's `work-in-space` skill; `wizards connect` already writes the
+  Codex entry.
+
+Where it differs from the plan:
+
+- **I2:** MCP is stateless, so a space is not pinned per session; every call checks its space
+  against the token's organization instead. A person reaches every space of the organization
+  until client spaces (2b) bring membership.
+- **Approvals from outside:** a write that needs a person's yes or the admins' approval is
+  refused for an outside client, with why; it is not held for the bell. The person's yes is never
+  taken from the client (I4).
+- **No `data:write` scope yet:** no element writes data.
 
 ## Risks
 

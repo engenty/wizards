@@ -85,6 +85,21 @@ export const ELEMENT_SPECS = {
       from: z.number().int().min(0).optional().describe("Character to continue a long file at"),
     }),
   },
+  connection_list: {
+    scope: "elements:read",
+    description: () =>
+      "Lists the actions of the space's connections (mail, calendar, CRM …) you may use: each action's name, what it does, whether it reads or writes, and its input. Call one with connection_call.",
+    input: z.object({}),
+  },
+  connection_call: {
+    scope: "elements:run",
+    description: () =>
+      "Calls one action of the space's connections, as connection_list names it, with its input. A read runs at once; a write, a send or a delete runs only where the space's rules allow it without a person's yes: otherwise it is refused and says why.",
+    input: z.object({
+      name: z.string().describe("The action's name, as connection_list gives it"),
+      input: z.record(z.string(), z.unknown()).default({}),
+    }),
+  },
   wizard_list: {
     scope: "elements:read",
     description: () =>

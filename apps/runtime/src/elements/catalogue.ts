@@ -1,6 +1,7 @@
 import type { activeSkills } from "../services/skills.js";
 import { skillToolsOf } from "../tools/skills.js";
 import type { ElementCaller } from "./caller.js";
+import { connectionElementTools } from "./connections.js";
 import { knowledgeTools } from "./knowledge.js";
 import { wizardTools } from "./wizards.js";
 
@@ -20,6 +21,12 @@ export interface CatalogueRequest {
   skills?: Skills | null;
   /** The space's published wizards: list them, run one (`x` on the wizard). */
   wizards?: boolean;
+  /**
+   * The space's connections as two calls, list and call: for outside clients, whose tools are
+   * fixed before a space is known. A Work chat gets one tool per action instead
+   * (services/work-connections.ts), Goose the person's own sign-ins.
+   */
+  connections?: boolean;
 }
 
 /** The element tools for the caller, by what it asks for. */
@@ -31,6 +38,7 @@ export async function elementTools(
     ...(request.knowledge ? await knowledgeTools(caller) : {}),
     ...(request.skills ? skillToolsOf(request.skills, caller) : {}),
     ...(request.wizards ? await wizardTools(caller) : {}),
+    ...(request.connections ? await connectionElementTools(caller) : {}),
   };
 }
 
