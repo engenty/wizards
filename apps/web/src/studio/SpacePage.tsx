@@ -270,9 +270,13 @@ export function SpacePage({ place }: { place?: "skills" }) {
         : 0;
   const levelStep = useStepDirection(level);
   const pageStep = useStepDirection(phone);
-  // A new part starts its menu unfiltered; ⌘F / Ctrl+F goes to the search while a menu is open.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: another part clears the search.
-  useEffect(() => setMenuQuery(""), [open]);
+  // Another part opens its own menu again (going up from one part does not stay for the next),
+  // unfiltered; ⌘F / Ctrl+F goes to the search while a menu is open.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another part is what resets them.
+  useEffect(() => {
+    setUpAt(null);
+    setMenuQuery("");
+  }, [open]);
   useEffect(() => {
     if (narrow || level !== 1) {
       return;
