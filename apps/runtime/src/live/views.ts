@@ -10,6 +10,7 @@ import { embeddingModel } from "../models.js";
 import { mayBuild, spaceWritable } from "../services/access.js";
 import { cloudLinked, cloudState } from "../services/cloud.js";
 import { ServiceError } from "../services/errors.js";
+import { studioOpen } from "../services/members-studio.js";
 import { presentIn } from "../services/presence.js";
 import { getPage, getRow, getTableHeader } from "../services/space-data.js";
 import { fileView, spaceFiles } from "../services/space-files.js";
@@ -35,19 +36,25 @@ export interface Reader {
 export async function spacesView(r: Reader) {
   const spaces = await listSpaces(r.userId, r.lang);
   const build = await mayBuild();
-  return spaces.map((p) => ({
-    id: p.id,
-    name: p.name,
-    brand: p.brand,
-    facts: p.facts,
-    /** The space's public page; null until it is set up. */
-    page: p.page ?? null,
-    wizardCount: p.wizardCount,
-    /** `local`: synced from a local install, where it is changed. */
-    origin: p.origin,
-    syncedAt: p.syncedAt?.toISOString() ?? null,
-    readOnly: p.origin === "local" || !build,
-  }));
+  return Promise.all(
+    spaces.map(async (p) => ({
+      id: p.id,
+      name: p.name,
+      brand: p.brand,
+      facts: p.facts,
+      /** The space's public page; null until it is set up. */
+      page: p.page ?? null,
+      wizardCount: p.wizardCount,
+      /** `local`: synced from a local install, where it is changed. */
+      origin: p.origin,
+      syncedAt: p.syncedAt?.toISOString() ?? null,
+      readOnly: p.origin === "local" || !build,
+      /** „Mitglieder dürfen ins Studio“: the organization's members build here too. */
+      membersStudio: p.membersStudio,
+      /** Whether this person reaches the space's Studio: a member only by the rule above. */
+      studio: await studioOpen(p),
+    })),
+  );
 }
 
 /** A space's wizards, as its cards show them. */

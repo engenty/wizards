@@ -455,6 +455,11 @@ const NOTES_EN = {
   noParentPage: "There’s no page with the key “{parent}” to put this page under.",
   onlyOrganizationAdmins:
     "Only organization admins can do that. As a member, you can edit the wizards that already exist.",
+  // A member and the rule of the space „Mitglieder dürfen ins Studio“ (docs/plans/capabilities.md).
+  studioClosedToMembers:
+    "This space’s studio is open to its admins only. An admin can let members in, in the space’s info.",
+  onlyAdminsPublish:
+    "Only the space’s admins publish a wizard or share it outside the space. Ask one of them.",
   forbidden:
     "You don’t have permission to {verb} this {what} ({id}). An admin of the space can change that.",
   // The result page of a guest: a step that read a connection the space keeps for its members.
@@ -888,6 +893,10 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   noParentPage: "Es gibt keine Seite mit dem Schlüssel „{parent}“, unter die diese Seite könnte.",
   onlyOrganizationAdmins:
     "Das dürfen nur Admins der Organisation. Als Mitglied bearbeitest du die Wizards, die es schon gibt.",
+  studioClosedToMembers:
+    "Das Studio dieses Space ist nur für seine Admins offen. Ein Admin kann Mitglieder in den Infos des Space hereinlassen.",
+  onlyAdminsPublish:
+    "Wizards veröffentlichen oder außerhalb des Space teilen dürfen nur die Admins des Space. Frag einen von ihnen.",
   forbidden: "Du darfst {what} {id} nicht {verb}. Das ändern die Admins des Space.",
   resultKeptInSpace: "Dieser Teil des Ergebnisses bleibt beim Team, das den Wizard gemacht hat.",
   rwxDocument: "Dokument",

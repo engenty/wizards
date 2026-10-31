@@ -22,7 +22,26 @@ export function allowedModes(me: Me): Mode[] {
   if (!featureOn(me.features, "workMode")) {
     return ["studio"];
   }
-  return me.limits.create ? ["studio", "work", "client"] : ["work", "client"];
+  // Behind `capabilities`, a member builds too where the space opens its Studio to members.
+  const builds =
+    me.limits.create ||
+    (featureOn(me.features, "capabilities") && me.limits.build && membersStudio);
+  return builds ? ["studio", "work", "client"] : ["work", "client"];
+}
+
+/** Whether the space the studio looks at opens its Studio to members (studio/members-studio.tsx). */
+let membersStudio = false;
+
+export function setMembersStudio(open: boolean) {
+  if (open === membersStudio) {
+    return;
+  }
+  membersStudio = open;
+  // A new pick object, so that `useMode` draws again.
+  picks = { ...picks };
+  for (const listener of listeners) {
+    listener();
+  }
 }
 
 function read(): Record<string, Mode> {

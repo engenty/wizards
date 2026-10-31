@@ -32,6 +32,7 @@ import { copyFiles, draftFiles, sameFiles, seedFiles } from "./files.js";
 import { forgetWizardLinks } from "./links.js";
 import { pushWizards } from "./manage-reports.js";
 import { asLang, countInstall, marketplaceWizard } from "./marketplace.js";
+import { requireMaker } from "./members-studio.js";
 import { pushPages } from "./pages.js";
 import { checkRunnerSettings } from "./runners.js";
 import { defaultSpace, ownedSpace } from "./spaces.js";
@@ -396,10 +397,9 @@ export async function createWizard(
 ) {
   // Asked first: a tenant that builds nothing here has no space of its own to name.
   await requireBuild();
-  await requireAdmin();
-  const space = input.spaceId
-    ? await ownedSpace(userId, input.spaceId)
-    : await defaultSpace(userId);
+  const named = () => (input.spaceId ? ownedSpace(userId, input.spaceId) : defaultSpace(userId));
+  await requireMaker(async () => (await named()).id);
+  const space = await named();
   await requireWritable(space);
   const starter = input.starterId
     ? await marketplaceWizard(input.starterId, asLang(input.lang))
@@ -578,7 +578,7 @@ export async function rotateShareLink(userId: string, wizardId: string) {
 }
 
 export async function duplicateWizard(userId: string, wizardId: string) {
-  await requireAdmin();
+  await requireMaker(async () => (await writableWizard(userId, wizardId)).spaceId);
   const w = await writableWizard(userId, wizardId);
   const id = nanoid(12);
   const draft = { ...w.draft, title: `${w.draft.title} (Kopie)` };

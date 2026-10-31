@@ -4,6 +4,7 @@ import {
   TEXT_CLASSES,
   type WizardDefinition,
 } from "@engenty/wizards-shared/definition";
+import { featureOn } from "@engenty/wizards-shared/features";
 import type {
   AssetSection,
   BrandColor,
@@ -237,9 +238,17 @@ export function useMayBuild(): boolean {
   return useMe().data?.limits.build ?? true;
 }
 
-/** Whether this person makes and deletes here: builds at all, and is no mere member of the organization. */
+/**
+ * Whether this person makes wizards here: builds at all, and is no mere member of the organization
+ * — or, behind `capabilities`, a member in a space that opens its Studio to members.
+ */
 export function useMayCreate(): boolean {
-  return useMe().data?.limits.create ?? true;
+  const me = useMe().data;
+  const open = useCurrentSpace().space?.studio ?? false;
+  if (!me) {
+    return true;
+  }
+  return me.limits.create || (featureOn(me.features, "capabilities") && me.limits.build && open);
 }
 
 /** Whether this person manages the organization: its owner or an admin, or alone. */
@@ -324,6 +333,10 @@ export interface Space {
   syncedAt: string | null;
   /** Shown here, changed elsewhere: a local install's space, or nothing is built on this runtime. */
   readOnly: boolean;
+  /** „Mitglieder dürfen ins Studio“: the organization's members build here too. */
+  membersStudio: boolean;
+  /** Whether this person reaches the space's Studio: a member only by the rule above. */
+  studio: boolean;
 }
 
 export function useSpaces(enabled = true) {

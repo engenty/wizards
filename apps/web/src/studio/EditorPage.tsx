@@ -48,6 +48,7 @@ import { ResultPageOpener } from "./editor/share";
 import { LiveChip, useLiveDraft } from "./live";
 import { PresenceStack, useAlsoHere } from "./live/PresenceStack";
 import { useReportPresence } from "./live/presence";
+import { useMemberStudio } from "./members-studio";
 import { pageAddress, pageUrl } from "./space/page-address";
 import { tierClassLabel } from "./tiers";
 import { WizardMenu } from "./WizardMenu";
@@ -370,6 +371,8 @@ function Editor() {
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [liveOpen, setLiveOpen] = useState(false);
+  // A member in the Studio builds and tests; publishing and sharing stay with the admins.
+  const publishes = !useMemberStudio();
   /** The test run the preview shows. */
   const [drawerRun, setDrawerRun] = useState<string | null>(null);
   /** The preview shows the open test run, not the step chosen. */
@@ -1032,14 +1035,14 @@ function Editor() {
             </a>
           ) : null}
           {/* The first version goes live by sharing; every later one by its own dialog. */}
-          {w.published && w.dirty && !w.readOnly ? (
+          {w.published && w.dirty && !w.readOnly && publishes ? (
             <Button variant="secondary" size="sm" onClick={() => setLiveOpen(true)}>
               <span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
               <span className="max-sm:hidden">{t("live.open")}</span>
               <span className="sm:hidden">{t("live.openShort")}</span>
             </Button>
           ) : null}
-          {shareButton}
+          {publishes ? shareButton : null}
           {/* At the very right: a copy, the package to keep, deleting it. */}
           <WizardMenu
             wizard={{ id: w.id, title: def.title, published: w.published }}
@@ -1292,7 +1295,7 @@ function Editor() {
 
       <ShareDialog
         wizard={w}
-        open={shareOpen}
+        open={shareOpen && publishes}
         onClose={() => setShareOpen(false)}
         publish={
           w.readOnly
@@ -1309,7 +1312,7 @@ function Editor() {
               }
         }
       />
-      {w.readOnly ? null : (
+      {w.readOnly || !publishes ? null : (
         <LiveDialog
           wizard={w}
           open={liveOpen}

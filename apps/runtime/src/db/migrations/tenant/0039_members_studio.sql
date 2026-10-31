@@ -1,0 +1,1 @@
+ALTER TABLE `space` ADD `members_studio` integer DEFAULT false NOT NULL;

@@ -13,6 +13,7 @@ import { Connectors } from "./Connectors";
 import { SpaceSwitcher } from "./HomePage";
 import { Integrate } from "./Integrate";
 import { Models } from "./Models";
+import { useMemberStudio } from "./members-studio";
 import { Organization } from "./Organization";
 import {
   OrganizationCredits,
@@ -58,6 +59,7 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
   const me = useMe();
   const { space, loading } = useCurrentSpace();
   const many = useManySpaces();
+  const memberStudio = useMemberStudio();
   const [key, setKey] = useState(space?.id);
   useEffect(() => setKey(space?.id), [space?.id]);
   const plugins = useStudioPlugins();
@@ -76,7 +78,8 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
       ? "profile"
       : sections.some((s) => s.id === "general")
         ? "general"
-        : "account";
+        : // A member in the Studio has no Organisation group and no Konto here: the first there is.
+          (sections.find((s) => s.id === "account") ?? sections[0])?.id;
   const current = sections.find((s) => s.id === section);
   const entries = sections.map((s) => ({ ...s, to: `${base}/${s.id}` }));
   const entry = entries.find((e) => e.id === section);
@@ -212,7 +215,11 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
               {current.id === "connectors" && space ? (
                 <div className="flex flex-col gap-6">
                   {space.readOnly ? <ReadOnlyNote>{spaceReadOnlyText(space)}</ReadOnlyNote> : null}
-                  <Connectors key={key} spaceId={space.id} readOnly={space.readOnly} />
+                  <Connectors
+                    key={key}
+                    spaceId={space.id}
+                    readOnly={space.readOnly || memberStudio}
+                  />
                 </div>
               ) : null}
               {/* No space yet: nothing is built here, and no local install has sent one. */}
