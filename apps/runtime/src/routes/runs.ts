@@ -44,6 +44,10 @@ import {
   startOAuth,
 } from "../connectors/index.js";
 import { finishPluginOAuth, pluginStateTenant } from "../connectors/plugin-connections.js";
+import {
+  finishSpaceConnectionOAuth,
+  spaceConnectionStateTenant,
+} from "../connectors/space-connections.js";
 import { db, schema, withTenant } from "../db/client.js";
 import { answerAsk, pendingAsk } from "../engine/asks.js";
 import { answerDevice, offerDevice, openDeviceCalls } from "../engine/device.js";
@@ -1676,14 +1680,19 @@ export const connectCallback = new Hono().get("/callback", async (c) => {
     c.req.query("error") === "exchange_failed"
       ? { code: "connectFailed" }
       : { code: "connectCancelled" };
-  // A plugin's sign-in (server.connections) names its tenant; a wizard's names its run.
+  // A plugin's sign-in (server.connections) and a space connection's name their tenant; a wizard's names its run.
   const pluginTenant = state ? pluginStateTenant(state) : null;
-  const tenant = state ? (pluginTenant ?? (await tenantOfRun(oauthStateRun(state) ?? ""))) : null;
+  const spaceTenant = state ? spaceConnectionStateTenant(state) : null;
+  const tenant = state
+    ? (pluginTenant ?? spaceTenant ?? (await tenantOfRun(oauthStateRun(state) ?? "")))
+    : null;
   const answer = ticket ? { ticket } : code ? { code } : null;
   if (answer && state && tenant) {
     try {
       if (pluginTenant) {
         await withTenant(tenant, () => finishPluginOAuth(answer, state));
+      } else if (spaceTenant) {
+        await withTenant(tenant, () => finishSpaceConnectionOAuth(answer, state));
       } else {
         const done = await withTenant(tenant, () => finishOAuth(answer, state));
         signalChanged(done.runId);

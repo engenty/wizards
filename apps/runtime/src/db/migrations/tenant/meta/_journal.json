@@ -241,6 +241,13 @@
       "breakpoints": true
     },
     {
+      "idx": 34,
+      "version": "6",
+      "when": 1793406538591,
+      "tag": "0034_space_connection",
+      "breakpoints": true
+    },
+    {
       "idx": 35,
       "version": "6",
       "when": 1793406639106,

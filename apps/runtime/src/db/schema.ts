@@ -1,3 +1,8 @@
+import {
+  CONNECTION_AUDIENCES,
+  CONNECTION_SIGN_INS,
+  type ConnectionRules,
+} from "@engenty/wizards-shared/connectors";
 import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
 import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
@@ -1037,29 +1042,56 @@ export const marketplaceStar = sqliteTable(
 );
 
 /**
- * An account a plugin connected for a space (`server.connections`): a calendar, a mailbox. Not
- * a wizard's: it outlives runs and people. `data` is encrypted.
+ * A connection of a space (docs/plans/capabilities.md, "Connections"): a service the space's
+ * admins set up, with how it signs in, who may use it and what each kind of action may do. One
+ * that signs in as the space keeps its secret here, sealed; one each person signs in to keeps
+ * theirs in `space_connection_sign_in`. Nobody owns it: `set_up_by` only records who did.
  */
-export const pluginConnection = sqliteTable(
-  "plugin_connection",
+export const spaceConnection = sqliteTable(
+  "space_connection",
   {
     id: text("id").primaryKey(),
-    plugin: text("plugin").notNull(),
     spaceId: text("space_id")
       .notNull()
       .references(() => space.id, { onDelete: "cascade" }),
-    /** The built-in connector: `google-calendar`, `microsoft-outlook`. */
-    connector: text("connector").notNull(),
-    /** Shown to the person: the account's address. */
+    /** A built-in connector's id (`google-calendar`, `hubspot`) or a `space_connector` of the space. */
+    connectorId: text("connector_id").notNull(),
+    /** The plugin that set it up through `server.connections`, where one did. */
+    plugin: text("plugin"),
+    /** What people call it: „Vertrieb“, „Bestellungen“. */
+    name: text("name").notNull(),
+    /** A `space` sign-in: the account as the provider names it; null until signed in. */
+    label: text("label"),
+    signIn: text("sign_in", { enum: CONNECTION_SIGN_INS }).notNull(),
+    audience: text("audience", { enum: CONNECTION_AUDIENCES }).notNull(),
+    rules: text("rules", { mode: "json" }).$type<ConnectionRules>().notNull(),
+    /** The connector's actions it is made for (the provider granted what they need); empty: every action. */
+    actions: text("actions", { mode: "json" }).$type<string[]>().notNull().default([]),
+    /** A `space` sign-in's tokens or keys, sealed; the broker alone unseals them. */
+    secret: text("secret"),
+    setUpBy: text("set_up_by"),
+    setUpAt: integer("set_up_at", { mode: "timestamp_ms" }).notNull().default(now),
+    updatedAt: updatedAt(),
+    lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [index("space_connection_space").on(t.spaceId)],
+);
+
+/** A person's own sign-in to a connection in which each person signs in. `secret` is sealed. */
+export const spaceConnectionSignIn = sqliteTable(
+  "space_connection_sign_in",
+  {
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => spaceConnection.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    /** The account as the provider names it. */
     label: text("label").notNull(),
-    /** The connector's actions it was connected for. */
-    actions: text("actions", { mode: "json" }).$type<string[]>().notNull(),
-    data: text("data").notNull(),
-    createdBy: text("created_by"),
-    createdAt: createdAt(),
+    secret: text("secret").notNull(),
+    signedInAt: integer("signed_in_at", { mode: "timestamp_ms" }).notNull().default(now),
     updatedAt: updatedAt(),
   },
-  (t) => [index("plugin_connection_space").on(t.plugin, t.spaceId)],
+  (t) => [primaryKey({ columns: [t.connectionId, t.userId] })],
 );
 
 /**

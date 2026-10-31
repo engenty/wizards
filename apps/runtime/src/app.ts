@@ -25,6 +25,7 @@ import { MCP_RESOURCE, SCOPES } from "./mcp/scopes.js";
 import { openCommand } from "./open-command.js";
 import { PLUGIN_NAME, pluginArchive, pluginMarketplace } from "./plugin.js";
 import { apiRoutes } from "./routes/api.js";
+import { connectionRoutes } from "./routes/connections.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
 import { internalRoutes } from "./routes/internal.js";
 import { notFoundAnswer, requestLang, say, spelledFor } from "./routes/lang.js";
@@ -348,6 +349,7 @@ if (serves.studio) {
   app.route("/api/studio/person", personRoutes);
   app.route("/api/studio", skillRoutes);
   app.route("/api/studio", ruleRoutes);
+  app.route("/api/studio", connectionRoutes);
   app.route("/api/studio/runtime", runtimeSettingsRoutes);
   app.route("/api/studio/work", workRoutes);
   app.route("/api/studio", studio);

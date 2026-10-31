@@ -2,7 +2,7 @@
   "version": "6",
   "dialect": "sqlite",
   "id": "b2b90fe0-04c5-4ea0-a59f-bbb78e6d0703",
-  "prevId": "9ca75857-4d78-4571-8d2e-d74a4cc27446",
+  "prevId": "289c2684-9820-4f70-81dc-3ef7edc4e63c",
   "tables": {
     "asset": {
       "name": "asset",
@@ -1229,20 +1229,13 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "plugin_connection": {
-      "name": "plugin_connection",
+    "space_connection": {
+      "name": "space_connection",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "plugin": {
-          "name": "plugin",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
@@ -1253,8 +1246,141 @@
           "notNull": true,
           "autoincrement": false
         },
-        "connector": {
-          "name": "connector",
+        "connector_id": {
+          "name": "connector_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "plugin": {
+          "name": "plugin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sign_in": {
+          "name": "sign_in",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "audience": {
+          "name": "audience",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rules": {
+          "name": "rules",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actions": {
+          "name": "actions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "secret": {
+          "name": "secret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "set_up_by": {
+          "name": "set_up_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "set_up_at": {
+          "name": "set_up_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "space_connection_space": {
+          "name": "space_connection_space",
+          "columns": [
+            "space_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "space_connection_space_id_space_id_fk": {
+          "name": "space_connection_space_id_space_id_fk",
+          "tableFrom": "space_connection",
+          "tableTo": "space",
+          "columnsFrom": [
+            "space_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "space_connection_sign_in": {
+      "name": "space_connection_sign_in",
+      "columns": {
+        "connection_id": {
+          "name": "connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1267,29 +1393,15 @@
           "notNull": true,
           "autoincrement": false
         },
-        "actions": {
-          "name": "actions",
+        "secret": {
+          "name": "secret",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "data": {
-          "name": "data",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
+        "signed_in_at": {
+          "name": "signed_in_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -1305,23 +1417,14 @@
           "default": "(unixepoch() * 1000)"
         }
       },
-      "indexes": {
-        "plugin_connection_space": {
-          "name": "plugin_connection_space",
-          "columns": [
-            "plugin",
-            "space_id"
-          ],
-          "isUnique": false
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
-        "plugin_connection_space_id_space_id_fk": {
-          "name": "plugin_connection_space_id_space_id_fk",
-          "tableFrom": "plugin_connection",
-          "tableTo": "space",
+        "space_connection_sign_in_connection_id_space_connection_id_fk": {
+          "name": "space_connection_sign_in_connection_id_space_connection_id_fk",
+          "tableFrom": "space_connection_sign_in",
+          "tableTo": "space_connection",
           "columnsFrom": [
-            "space_id"
+            "connection_id"
           ],
           "columnsTo": [
             "id"
@@ -1330,7 +1433,15 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "space_connection_sign_in_connection_id_user_id_pk": {
+          "columns": [
+            "connection_id",
+            "user_id"
+          ],
+          "name": "space_connection_sign_in_connection_id_user_id_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },

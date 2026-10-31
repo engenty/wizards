@@ -291,11 +291,15 @@ behaviour, and testable with the API and the existing pages. Nothing here needs 
    connection gets read actions only; a write there never asks the guest (denied until „Mit
    Freigabe“ exists). The person's own connection keeps today's ask. Closes: a guest approving
    their own write; injected text becoming a write.
-5. `feat(runtime): connections belong to the space` — `plugin_connection` becomes the space's
-   connection table: name, how it signs in (space, person), audience (*Admins / Mitglieder /
-   alle*), rules per action; `store_secret` rows move once by command; API under
-   `/api/studio/spaces/:id/connections`. „Mit Freigabe“ holds the call for the space's admins
-   (the bell, `chat_approval`). The rules leave the code.
+5. `feat(runtime): connections belong to the space` — **built** (#359) — `space_connection`
+   replaces `plugin_connection` (migration 0034 moves the rows: as the space, open to everyone,
+   default rules): name, how it signs in (space, person), audience (*Admins / Mitglieder /
+   alle*), rules per kind of action; a person's sign-in per connection in
+   `space_connection_sign_in`; a wizard reaches one through a connection with `spaceConnection`;
+   API under `/api/studio/spaces/:id/connections`, admins only. „Mit Freigabe“ on a `space`
+   sign-in is a deny (`needs_approval`) until A7 holds the call for the admins (the bell,
+   `chat_approval`). `store_secret` rows stay the person's own sign-in per wizard. The rules
+   left the code.
 6. `feat(runtime): ways out for guests` — `http_request` only to hosts in the grant; a send
    step's recipient as a rule (the run's confirmed address or the space's domain) with a cap
    per run and per day; what an AI step read from a space connection stays in the space when the

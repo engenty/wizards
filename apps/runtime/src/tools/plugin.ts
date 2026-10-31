@@ -29,7 +29,7 @@ function toolContext(ctx: StepContext) {
 
 /** Who a step's plugin tool calls for: the person running the wizard, in this run. The broker hears it. */
 const callerOf = (ctx: StepContext): Caller => ({
-  who: whoOf(ctx.store.holder),
+  who: whoOf(ctx.store.holder, ctx.holder.kind === "person" ? ctx.holder.role : undefined),
   where: whereOf(ctx),
 });
 

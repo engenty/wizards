@@ -1,6 +1,7 @@
+import type { ConnectionActionKind } from "@engenty/wizards-shared/connectors";
 import type { AskInput } from "@engenty/wizards-shared/run";
 import type { ConnectionDef } from "@engenty/wizards-shared/store";
-import type { PluginConnectionRow } from "../connectors/plugin-connections.js";
+import type { SpaceConnectionRow } from "../connectors/space-connections.js";
 import type {
   ConnectorAction,
   ConnectorActionGroup,
@@ -8,16 +9,18 @@ import type {
 } from "../engenty/connections-sdk/types.js";
 import type { AskResult } from "../engine/asks.js";
 import type { StepContext } from "../engine/types.js";
+import type { Role } from "../manage.js";
 import type { StoreScope } from "../store/index.js";
-import { type Account, keptSecret, pluginAccount, wizardAccount } from "./account.js";
+import { type Account, keptSecret, markUsed, spaceAccount, wizardAccount } from "./account.js";
 import { type Grant, inGrant, runGrant } from "./grant.js";
 import { summarizeInput, writeLog } from "./log.js";
 
 /*
  * The broker (docs/plans/broker.md): the one path every connector call takes. It knows who calls
- * and where, reads the account's secret (the only reader), decides allow / ask / deny by the rules
- * the code has today, runs the action and writes one line of the log. Phase A2 of
- * docs/plans/capabilities.md: rules as data, grants, audiences and „Mit Freigabe“ come after.
+ * and where, reads the account's secret (the only reader), decides allow / ask / deny, runs the
+ * action and writes one line of the log. A connection of the space (A5 of
+ * docs/plans/capabilities.md) decides by its audience and rules; a wizard's own sign-in by the
+ * rules the code had before. Holding a „Mit Freigabe“ call for the admins comes with A7.
  */
 
 /** Who calls: a guest at the wizard's link, a signed-in person, Goose for a person, a plugin's own job, a fixed step. */
@@ -41,12 +44,12 @@ export interface Where {
 }
 
 /** What an action does, as the rules see it. */
-export type ActionKind = "read" | "write" | "destructive" | "send";
+export type ActionKind = ConnectionActionKind;
 
-/** Which connection: one a wizard holds for the person running it, or one a plugin connected for the space. */
+/** Which connection: one a wizard holds for the person running it, or one of the space. */
 export type BrokerConnection =
   | { kind: "store_secret"; def: ConnectionDef; scope: StoreScope; spaceId: string }
-  | { kind: "plugin_connection"; row: PluginConnectionRow; connector: ConnectorDefinition };
+  | { kind: "space_connection"; row: SpaceConnectionRow; connector: ConnectorDefinition };
 
 export interface BrokerAction {
   id: string;
@@ -81,7 +84,9 @@ export type Refusal =
   | "not_in_grant"
   | "denied"
   | "declined"
-  | "nobody";
+  | "nobody"
+  /** The connection's rule says „Mit Freigabe“, and nobody holds the call for the admins yet. */
+  | "needs_approval";
 
 export type BrokerResult<T> =
   | { ok: true; result: T; account: { connector: ConnectorDefinition; label: string } }
@@ -90,12 +95,18 @@ export type BrokerResult<T> =
 export interface Decision {
   outcome: "allow" | "ask" | "deny";
   reason: string;
+  /** A deny's refusal where it is more than "denied". */
+  refused?: Refusal;
 }
 
-/** A wizard's step calls as the person running it: the store's holder says who that is. */
-export function whoOf(holder: string): Who {
+/**
+ * A wizard's step calls as the person running it: the store's holder says who that is, their
+ * role in the organization whether they count as an admin.
+ */
+export function whoOf(holder: string, role?: Role): Who {
   if (holder.startsWith("u:")) {
-    return { kind: "person", id: holder.slice(2) };
+    const admin = role === "owner" || role === "admin";
+    return { kind: admin ? "admin" : "person", id: holder.slice(2) };
   }
   if (holder.startsWith("v:")) {
     return { kind: "guest", id: holder.slice(2) };
@@ -134,13 +145,31 @@ export function kindOf(group: ConnectorActionGroup): ActionKind {
   return group === "destructive" ? "destructive" : group === "write" ? "write" : "read";
 }
 
+/** Whether this caller is in a connection's audience: Admins, Mitglieder or alle. */
+export function inAudience(audience: SpaceConnectionRow["audience"], who: Who): boolean {
+  if (audience === "all") {
+    return true;
+  }
+  if (audience === "members") {
+    // A plugin's job and a fixed step work for the space; a guest at a link is no member.
+    return who.kind !== "guest";
+  }
+  return who.kind === "admin";
+}
+
 /**
  * The decision, with no side effect: the same function „Was darf …?“ will show. The run's grant
  * comes first: a wizard's connection outside it, or an action the grant does not name, is denied
- * whatever the rules say. Then the rules, the code's of today. A wizard's connection: reads run,
- * writes and sends ask the person running, deleting always asks; the wizard's author may settle
- * an action's ask per `connection.policy`. A plugin's connection: a plugin's own call runs; from
- * a guest's run only reads do.
+ * whatever the rules say.
+ *
+ * A connection of the space: outside its audience nothing runs. Its rules say per kind of action
+ * Erlaubt, Mit Freigabe or Nie. A write on a connection that signs in as the space never asks a
+ * guest, whatever the rule; „Mit Freigabe“ there is a deny until A7 holds the call for the
+ * admins. Where each person signs in, „Mit Freigabe“ asks that person. A plugin's own job on a
+ * connection it set up runs as before.
+ *
+ * A wizard's own connection: reads run, writes and sends ask the person running, deleting always
+ * asks; the wizard's author may settle an action's ask per `connection.policy`.
  */
 export function decide(call: {
   who: Who;
@@ -151,7 +180,7 @@ export function decide(call: {
   /** The run's grant, where the call is bound by one (`grantBinds`); left out: no grant applies. */
   grant?: Grant | null;
 }): Decision {
-  const { connection, kind } = call;
+  const { connection, kind, who } = call;
   if (call.grant && connection.kind === "store_secret") {
     if (!inGrant(call.grant, connection.def.id, call.actionId, kind)) {
       return {
@@ -160,16 +189,33 @@ export function decide(call: {
       };
     }
   }
-  if (connection.kind === "plugin_connection") {
-    if (call.where.guest && kind !== "read") {
-      return {
-        outcome: "deny",
-        reason: "A guest's run only reads through a plugin's connection.",
-      };
+  if (connection.kind === "space_connection") {
+    const { row } = connection;
+    const ownJob =
+      who.kind === "plugin" && row.plugin === who.id && !call.where.runId && !call.where.chatId;
+    if (ownJob) {
+      return { outcome: "allow", reason: "The plugin's own connection." };
+    }
+    if (!inAudience(row.audience, who)) {
+      return { outcome: "deny", reason: `The connection is for ${AUDIENCE[row.audience]}.` };
+    }
+    if (row.signIn === "space" && call.where.guest && kind !== "read") {
+      return { outcome: "deny", reason: "A guest's run only reads as the space." };
+    }
+    const rule = row.rules[kind] ?? "deny";
+    if (rule === "deny") {
+      return { outcome: "deny", reason: `The connection's rule: ${VERB[kind]} never.` };
+    }
+    if (rule === "allow") {
+      return { outcome: "allow", reason: `The connection's rule: ${VERB[kind]} allowed.` };
+    }
+    if (row.signIn === "person") {
+      return { outcome: "ask", reason: `The connection's rule: ${VERB[kind]} asks the person.` };
     }
     return {
-      outcome: "allow",
-      reason: kind === "read" ? "Reading is allowed." : "The plugin's own connection.",
+      outcome: "deny",
+      refused: "needs_approval",
+      reason: `The connection's rule: ${VERB[kind]} needs the admins' approval, which nothing holds a call for yet.`,
     };
   }
   if (kind === "destructive") {
@@ -194,22 +240,41 @@ export function grantBinds(where: Where, connection: BrokerConnection): boolean 
   return !!where.runId && connection.kind === "store_secret" && !connection.def.target;
 }
 
+const AUDIENCE: Record<SpaceConnectionRow["audience"], string> = {
+  admins: "the space's admins",
+  members: "the space's members",
+  all: "everyone",
+};
+const VERB: Record<ActionKind, string> = {
+  read: "reading",
+  write: "writing",
+  destructive: "deleting",
+  send: "sending",
+};
+
 /** The log's id of a connection: a plugin's row, a wizard's connection id. */
 function connectionIdOf(connection: BrokerConnection): string {
-  return connection.kind === "plugin_connection" ? connection.row.id : connection.def.id;
+  return connection.kind === "space_connection" ? connection.row.id : connection.def.id;
 }
 
-async function accountOf(connection: BrokerConnection): Promise<Account | null> {
-  return connection.kind === "plugin_connection"
-    ? pluginAccount(connection.row, connection.connector)
+async function accountOf(connection: BrokerConnection, who: Who): Promise<Account | null> {
+  return connection.kind === "space_connection"
+    ? spaceAccount(connection.row, connection.connector, who)
     : wizardAccount(connection.scope, connection.def, connection.spaceId);
 }
 
-/** The account a connection holds, without its secret: whether and as whom it is connected. */
+/** Nobody in particular: for what a wizard's connection holds, which asks for no caller. */
+const NOBODY: Who = { kind: "guest" };
+
+/**
+ * The account a connection holds, without its secret: whether and as whom it is connected. A
+ * connection in which each person signs in needs the caller to say whose.
+ */
 export async function brokerConnected(
   connection: BrokerConnection,
+  who: Who = NOBODY,
 ): Promise<{ connector: ConnectorDefinition; label: string } | null> {
-  const account = await accountOf(connection);
+  const account = await accountOf(connection, who);
   return account ? { connector: account.connector, label: account.label } : null;
 }
 
@@ -253,7 +318,7 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     });
 
   // The account says what kind the action is; its secret stays inside the broker.
-  const account = await accountOf(connection);
+  const account = await accountOf(connection, who);
   const found = account?.connector.actions.find((a) => a.id === call.action.id);
   const kind = call.action.kind ?? (found ? kindOf(found.group) : "write");
 
@@ -273,8 +338,12 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
     }
   }
   if (!account) {
-    await line(kind, "deny", "Nothing is connected.", "not_connected");
-    return { ok: false, refused: "not_connected", reason: "Nothing is connected." };
+    const reason =
+      connection.kind === "space_connection" && connection.row.signIn === "person"
+        ? "You have not signed in to this connection."
+        : "Nothing is connected.";
+    await line(kind, "deny", reason, "not_connected");
+    return { ok: false, refused: "not_connected", reason };
   }
   if (!(found || call.handler)) {
     const reason = `${account.connector.name} has no action "${call.action.id}".`;
@@ -284,8 +353,9 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
 
   const decision = decide({ who, where, connection, actionId: call.action.id, kind, grant });
   if (decision.outcome === "deny") {
-    await line(kind, "deny", decision.reason, "denied");
-    return { ok: false, refused: "denied", reason: decision.reason };
+    const refused = decision.refused ?? "denied";
+    await line(kind, "deny", decision.reason, refused);
+    return { ok: false, refused, reason: decision.reason };
   }
   if (decision.outcome === "ask") {
     const key = `${connectionId}:${call.action.id}`;
@@ -327,6 +397,9 @@ export async function brokerCall<T = unknown>(call: BrokerCallInput<T>): Promise
       ? await call.handler(account)
       : ((await (found as ConnectorAction).handler(call.input ?? {}, account.ctx)) as T);
     await line(kind, decision.outcome, decision.reason, "ok", sizeOf(result));
+    if (connection.kind === "space_connection") {
+      await markUsed(connection.row);
+    }
     return { ok: true, result, account: { connector: account.connector, label: account.label } };
   } catch (err) {
     const name = err instanceof Error ? err.constructor.name || "Error" : "Error";
