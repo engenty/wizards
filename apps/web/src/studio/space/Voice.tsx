@@ -114,7 +114,7 @@ export function Voice({
                   key={b.id}
                   className="group/row grid gap-x-6 gap-y-2 py-4 first:pt-0 last:pb-0 sm:grid-cols-[15rem_minmax(0,1fr)]"
                 >
-                  <div className="flex min-w-0 items-start gap-1 sm:pt-2">
+                  <div className="flex min-w-0 items-start gap-1">
                     {readOnly ? (
                       <p className="min-w-0 flex-1 font-medium text-[0.9375rem]">{b.title}</p>
                     ) : (

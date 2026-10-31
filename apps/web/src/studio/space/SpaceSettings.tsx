@@ -176,7 +176,7 @@ function Identity({ space, save }: { space: Space; save: (patch: Patch) => Promi
             key={row.id}
             className="grid items-start gap-x-6 gap-y-2 py-4 first:pt-0 last:pb-0 sm:grid-cols-[15rem_minmax(0,1fr)]"
           >
-            <div className="sm:pt-2.5">
+            <div>
               <label htmlFor={row.id} className="font-medium text-[0.9375rem]">
                 {row.label}
               </label>
@@ -350,16 +350,6 @@ export function SpaceSettings({
           <Anchor id="identity">
             <Identity key={`identity:${key}`} space={space} save={save} />
           </Anchor>
-          <Anchor id="voice">
-            <Voice
-              key={`voice:${key}`}
-              blocks={space.brand.voice ?? []}
-              rules={space.brand.voiceRules ?? []}
-              ruled={ruled}
-              save={(brand) => save({ brand })}
-              readOnly={readOnly}
-            />
-          </Anchor>
           <Anchor id="logos">
             <Logos
               key={`logos:${key}`}
@@ -412,6 +402,16 @@ export function SpaceSettings({
               readOnly={readOnly}
               sections={space.brand.assetSections ?? []}
               save={(brand) => save({ brand })}
+            />
+          </Anchor>
+          <Anchor id="voice">
+            <Voice
+              key={`voice:${key}`}
+              blocks={space.brand.voice ?? []}
+              rules={space.brand.voiceRules ?? []}
+              ruled={ruled}
+              save={(brand) => save({ brand })}
+              readOnly={readOnly}
             />
           </Anchor>
         </>
