@@ -4,7 +4,7 @@ description: One place for what your wizards, Work chats and Goose may use – s
 version: 0.13.0
 ---
 
-**Capabilities** in the app bar, after Sources, holds what a space’s wizards, Work chats and
+**Capabilities** in the app bar, after Resources, holds what a space’s wizards, Work chats and
 Goose may use. On a phone you find it in the “More” menu. It belongs to the space you are in, and
 each space has its own.
 

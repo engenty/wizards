@@ -1029,7 +1029,7 @@ const de: Record<Key, Line> = {
   "work.home.open": "Öffnen",
   "client.placeholder": "So sehen deine Clients den Space. Diese Ansicht kommt bald.",
   "nav.more": "Mehr",
-  "nav.sources": "Quellen",
+  "nav.sources": "Ressourcen",
   "nav.space": "Space",
   "nav.switchSpace": "Space wechseln",
   "nav.addSpace": "Space hinzufügen",
@@ -2790,6 +2790,29 @@ const de: Record<Key, Line> = {
   "space.data": "Daten",
   "space.results": "Ergebnisse",
   "space.page": "Öffentliche Seite",
+  "space.overview": "Übersicht",
+  "space.overviewHint":
+    "Was jeder KI-Schritt deiner Wizards über dich weiß. Je mehr hier steht, desto weniger fragt ein Wizard nach.",
+  "space.overviewAssistantTitle": "Was weiß dein Space schon?",
+  "space.overviewAssistantHello":
+    "Ich zeige dir, was in deinen Ressourcen steht und was noch fehlt. Nenn mir deine Website, dann trage ich Titel, Beschreibung, Logo und Farben ein.",
+  "space.teaser.info":
+    "Wer hinter den Wizards steht: Titel, Über uns und Fakten wie Adresse oder Öffnungszeiten.",
+  "space.teaser.brand":
+    "Wie du aussiehst: Logos, Farben, Schriften und Material für Dokumente und Seiten.",
+  "space.teaser.knowledge":
+    "Worin die KI nachschlägt: Dokumente, Seiten und Tabellen, nach Kategorien.",
+  "space.teaser.data":
+    "Was deine Wizards führen: Anfragen, Buchungen, Listen. Füllt sich, während sie laufen.",
+  "space.teaser.page": "Die öffentliche Seite des Space mit seinen Wizards.",
+  "space.status.empty": "Noch leer",
+  "space.status.noTitle": "Titel fehlt",
+  "space.status.facts": { one: "{n} Fakt", other: "{n} Fakten" },
+  "space.status.logos": { one: "{n} Logo", other: "{n} Logos" },
+  "space.status.colors": { one: "{n} Farbe", other: "{n} Farben" },
+  "space.status.entries": { one: "{n} Eintrag", other: "{n} Einträge" },
+  "space.status.categories": { one: "{n} Kategorie", other: "{n} Kategorien" },
+  "space.status.tables": { one: "{n} Tabelle", other: "{n} Tabellen" },
   "space.skills": "Skills",
   "skills.hint":
     "Anleitungen, nach denen deine Wizards arbeiten. Einem Skill, der immer an ist, folgt jeder Wizard. Bei Bedarf liest ein Wizard ihn, wenn er zur Aufgabe passt.",
@@ -4674,7 +4697,7 @@ const en = {
   "work.home.open": "Open",
   "client.placeholder": "This is how clients see the space. This view comes soon.",
   "nav.more": "More",
-  "nav.sources": "Sources",
+  "nav.sources": "Resources",
   "nav.space": "Space",
   "nav.switchSpace": "Switch space",
   "nav.addSpace": "Add space",
@@ -6399,6 +6422,27 @@ const en = {
   "space.data": "Data",
   "space.results": "Results",
   "space.page": "Public page",
+  "space.overview": "Overview",
+  "space.overviewHint":
+    "What every AI step of your wizards knows about you. The more is here, the less a wizard has to ask.",
+  "space.overviewAssistantTitle": "What does your space know already?",
+  "space.overviewAssistantHello":
+    "I’ll show you what your resources hold and what is missing. Name your website and I’ll fill in title, description, logo and colours.",
+  "space.teaser.info":
+    "Who is behind the wizards: title, about and facts like address or opening hours.",
+  "space.teaser.brand": "How you look: logos, colours, fonts and material for documents and pages.",
+  "space.teaser.knowledge":
+    "What the AI looks things up in: documents, pages and tables, by category.",
+  "space.teaser.data": "What your wizards keep: requests, bookings, lists. Fills up as they run.",
+  "space.teaser.page": "The space’s public page with its wizards.",
+  "space.status.empty": "Empty so far",
+  "space.status.noTitle": "No title yet",
+  "space.status.facts": { one: "{n} fact", other: "{n} facts" },
+  "space.status.logos": { one: "{n} logo", other: "{n} logos" },
+  "space.status.colors": { one: "{n} colour", other: "{n} colours" },
+  "space.status.entries": { one: "{n} entry", other: "{n} entries" },
+  "space.status.categories": { one: "{n} category", other: "{n} categories" },
+  "space.status.tables": { one: "{n} table", other: "{n} tables" },
   "space.skills": "Skills",
   "skills.hint":
     "Instructions your wizards work by. Every wizard follows a skill that is always on. A wizard reads one on demand when it fits the task.",
