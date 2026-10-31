@@ -3,6 +3,15 @@ import { formatTableCell } from "@engenty/wizards-shared/engenty/data-tables";
 import type { KnowledgeHit, KnowledgeSearch, Where } from "@engenty/wizards-shared/knowledge";
 import { embedMany } from "ai";
 import { and, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
+import {
+  brokerOn,
+  forbidden,
+  pageResources,
+  readable,
+  readsEverything,
+  type Subject,
+  tableResources,
+} from "../broker/rwx.js";
 import { db, schema, withTenant } from "../db/client.js";
 import { createSearchChunks } from "../engenty/search-index/chunks.js";
 import { getBlob, putBlob } from "../files/blobs.js";
@@ -633,17 +642,71 @@ function itemOf(u: Found): string {
 }
 
 /**
- * Searches Knowledge: items whose categories pass `where`, then the units the keywords, the
- * trigrams and the vectors rank best, merged by rank (RRF), then the classifier's judgement of
- * each of the CANDIDATES best. Gives up to `limit` items with their best section. `check: false`
- * leaves the classifier out.
+ * What `who` may read among the units found: a page or file by its own rule, a row by its
+ * table's, a value's summary (made of many items) only where they may read everything; a
+ * plugin's text is not the broker's yet. Null while the switch is off: everything.
+ */
+async function readableUnits(
+  spaceId: string,
+  who: Subject[],
+  units: Found[],
+): Promise<((u: Found) => boolean) | null> {
+  if (!(await brokerOn())) {
+    return null;
+  }
+  const ids = (pick: (u: Found) => string | null) => [
+    ...new Set(units.flatMap((u) => (pick(u) ? [pick(u) as string] : []))),
+  ];
+  const [pages, tables, files, all] = await Promise.all([
+    pageResources(ids((u) => u.page_id)).then((r) => readable(spaceId, who, r)),
+    tableResources(ids((u) => u.table_id)).then((r) => readable(spaceId, who, r)),
+    readable(
+      spaceId,
+      who,
+      ids((u) => u.file_id).map((id) => ({ kind: "document", id })),
+    ),
+    readsEverything(spaceId, who),
+  ]);
+  return (u) => {
+    if (u.page_id) {
+      return pages.has(u.page_id);
+    }
+    if (u.row_id) {
+      return u.table_id !== null && tables.has(u.table_id);
+    }
+    if (u.value_id) {
+      return all;
+    }
+    if (u.file_id) {
+      return files.has(u.file_id);
+    }
+    return Boolean(u.plugin);
+  };
+}
+
+/**
+ * Searches Knowledge for `who`: items whose categories pass `where` and that they may read, then
+ * the units the keywords, the trigrams and the vectors rank best, merged by rank (RRF), then the
+ * classifier's judgement of each of the CANDIDATES best. Gives up to `limit` items with their
+ * best section. `check: false` leaves the classifier out. While the `broker` switch is on, a call
+ * without `who` is refused, and an item they may not read is in no hit, candidate or count.
  */
 export async function searchKnowledge(
   spaceId: string,
   query: string,
-  opts: { where?: Where; limit?: number; check?: boolean; signal?: AbortSignal } = {},
+  opts: {
+    where?: Where;
+    limit?: number;
+    check?: boolean;
+    signal?: AbortSignal;
+    who?: Subject[];
+  } = {},
 ): Promise<KnowledgeSearch> {
   const limit = Math.min(Math.max(1, opts.limit ?? 6), 12);
+  const on = await brokerOn();
+  if (on && !opts.who?.length) {
+    throw forbidden({ kind: "document", id: "*" }, "r");
+  }
   const filter = await filterItems(spaceId, opts.where);
   if (filter && !filter.size) {
     return { hits: [], candidates: 0, checked: false, filtered: 0 };
@@ -658,7 +721,8 @@ export async function searchKnowledge(
       ? (inFilter ?? sql`(c.page_id IS NOT NULL OR c.row_id IS NOT NULL OR c.file_id IS NOT NULL)`)
       : undefined,
   ) as SQL;
-  const take = filter && !inFilter ? 300 : CANDIDATES;
+  // What the rules or a long filter take out afterwards must not starve the candidates.
+  const take = on || (filter && !inFilter) ? 300 : CANDIDATES;
   const lists: Found[][] = [];
   const words = keywordQuery(query);
   if (words) {
@@ -689,11 +753,13 @@ export async function searchKnowledge(
         ORDER BY vector_distance_cos(c.embedding, ${vectorBytes(embedded.vectors[0])}) LIMIT ${take}`),
     );
   }
+  const allowed = await readableUnits(spaceId, opts.who ?? [], lists.flat());
   // Reciprocal rank fusion: a unit the lists rank high comes first.
   const scored = new Map<number, { unit: Found; score: number }>();
   for (const list of lists) {
     list
       .filter((u) => !filter || inFilter || leaves(filter, u))
+      .filter((u) => !allowed || allowed(u))
       .slice(0, CANDIDATES)
       .forEach((unit, rank) => {
         const entry = scored.get(unit.id) ?? { unit, score: 0 };

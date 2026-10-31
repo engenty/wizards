@@ -2,6 +2,7 @@ import type { WizardDefinition } from "@engenty/wizards-shared/definition";
 import type { TableColumn } from "@engenty/wizards-shared/engenty/data-tables";
 import type { AskAnswer, RunAsk, RunNote, RunState } from "@engenty/wizards-shared/run";
 import type { RunnerSettings } from "@engenty/wizards-shared/runners";
+import { RWX_FLAGS, RWX_RESOURCE_KINDS, RWX_SUBJECT_KINDS } from "@engenty/wizards-shared/rwx";
 import type { ShareIcon, ShareJobView, ShareRequest } from "@engenty/wizards-shared/sharing";
 import {
   SKILL_MODES,
@@ -723,6 +724,45 @@ export const spaceSkill = sqliteTable(
     updatedAt: updatedAt(),
   },
   (t) => [uniqueIndex("space_skill_name").on(t.spaceId, t.name)],
+);
+
+// --- The broker: RWX ---------------------------------------------------------------
+// One table of permissions per space (docs/plans/broker.md, "First: RWX"): who (a guest, a
+// person, a role, Goose for a person, a wizard, a plugin) may read, write or execute what (a
+// document, a table, a page …; `*` for all of a kind). Each flag is allow, deny or unset; unset
+// means deny, and a deny wins over every allow. The runtime asks in broker/rwx.ts.
+
+export const rwxRule = sqliteTable(
+  "rwx_rule",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    subjectKind: text("subject_kind", { enum: RWX_SUBJECT_KINDS }).notNull(),
+    /** `member`, `admin` or `owner` for a role; a user's, a wizard's or a plugin's id; null for a guest. */
+    subjectId: text("subject_id"),
+    resourceKind: text("resource_kind", { enum: RWX_RESOURCE_KINDS }).notNull(),
+    /** The resource's id, or `*` for every resource of the kind. */
+    resourceId: text("resource_id").notNull(),
+    r: text("r", { enum: RWX_FLAGS }),
+    w: text("w", { enum: RWX_FLAGS }),
+    x: text("x", { enum: RWX_FLAGS }),
+    /** Who wrote the row: a user's id, or `seed` for the rows every space starts with. */
+    createdBy: text("created_by").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("rwx_rule_key").on(
+      t.spaceId,
+      t.subjectKind,
+      t.subjectId,
+      t.resourceKind,
+      t.resourceId,
+    ),
+    index("rwx_rule_space").on(t.spaceId),
+  ],
 );
 
 // --- The studio's assistant ---------------------------------------------------

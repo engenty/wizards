@@ -8,6 +8,7 @@ import {
 } from "@engenty/wizards-shared/spaces";
 import { generateText } from "ai";
 import { and, asc, count, eq, max } from "drizzle-orm";
+import { assertRwx, type Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { documentMime, UnreadableDocument } from "../documents/parse.js";
 import { loadAsset, removeAsset, replaceAsset, saveAsset } from "../files/storage.js";
@@ -68,8 +69,16 @@ export async function spaceFile(spaceId: string, fileId: string): Promise<SpaceF
   return row;
 }
 
-export async function spaceFileContent(spaceId: string, fileId: string) {
+/**
+ * A file's bytes. A document's go out only to a `who` the broker lets read it (broker/rwx.ts),
+ * and to nobody when none is given; a logo, pattern or asset is the brand's, not Knowledge, and
+ * asks nobody.
+ */
+export async function spaceFileContent(spaceId: string, fileId: string, who: Subject[] = []) {
   const row = await spaceFile(spaceId, fileId);
+  if (row.kind === "document") {
+    await assertRwx(spaceId, who, { kind: "document", id: row.id }, "r");
+  }
   const found = await loadAsset(row.id);
   if (!found) {
     throw notFound();

@@ -50,6 +50,7 @@ import { endRun, signalRun, startRun, takeSignals } from "../assistant/runs.js";
 import { accountOverview, linkedAccount, startLink, unlink } from "../auth/account.js";
 import type { SessionUser } from "../auth/index.js";
 import { createLocalKey, deleteLocalKey, listLocalKeys } from "../auth/keys.js";
+import { assertRwx, subjectsOfPerson } from "../broker/rwx.js";
 import { appStates, connectApps } from "../cli/connect.js";
 import { layout } from "../cli/home.js";
 import {
@@ -313,7 +314,14 @@ const presenceSchema = z.object({
 });
 
 /** Who reads, for the views the live stream sends too (live/views.ts). */
-const reader = (c: Context<Vars>): Reader => ({ userId: c.get("user").id, lang: requestLang(c) });
+/** Who reads, for the broker (broker/rwx.ts): the signed-in person and their role. */
+const whoOf = (c: Context<Vars>) => subjectsOfPerson(c.get("user").id, c.get("user").role);
+
+const reader = (c: Context<Vars>): Reader => ({
+  userId: c.get("user").id,
+  lang: requestLang(c),
+  who: whoOf(c),
+});
 
 /** The model sources a test call has worked on: the setup is done for those, not for the others. */
 async function testedSources(): Promise<string[]> {
@@ -1022,13 +1030,14 @@ export const studio = new Hono<Vars>()
   })
   .get("/spaces/:id/files/:fileId/content", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
-    const { row, data } = await spaceFileContent(space.id, c.req.param("fileId"));
+    const { row, data } = await spaceFileContent(space.id, c.req.param("fileId"), whoOf(c));
     return spaceFileResponse(c, row.mime, data);
   })
   // A document as the models read it: its text as Markdown, or the start of it.
   .get("/spaces/:id/files/:fileId/text", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const row = await spaceFile(space.id, c.req.param("fileId"));
+    await assertRwx(space.id, whoOf(c), { kind: "document", id: row.id }, "r");
     const limit = z.coerce
       .number()
       .int()
@@ -1045,7 +1054,9 @@ export const studio = new Hono<Vars>()
     const body = z
       .object({ query: z.string().min(1).max(400), where: whereSchema.optional() })
       .parse(await c.req.json());
-    return c.json(await searchKnowledge(space.id, body.query, { where: body.where }));
+    return c.json(
+      await searchKnowledge(space.id, body.query, { where: body.where, who: whoOf(c) }),
+    );
   })
   .delete("/spaces/:id", async (c) => {
     await deleteSpace(c.get("user").id, c.req.param("id"));
@@ -1113,7 +1124,7 @@ export const studio = new Hono<Vars>()
 
   // --- Knowledge: its items and categories ------------------------------------
   .get("/spaces/:id/knowledge", async (c) =>
-    c.json(await listKnowledge(c.get("user").id, c.req.param("id"))),
+    c.json(await listKnowledge(c.get("user").id, c.req.param("id"), whoOf(c))),
   )
   // What a link in a page names (`pages/bgb/p-281`): the studio opens it.
   .get("/spaces/:id/resolve", async (c) => {
@@ -1179,10 +1190,12 @@ export const studio = new Hono<Vars>()
     await orderCategoryValues(row.id, ids);
     return c.json({ ok: true });
   })
-  .get("/values/:id", async (c) => c.json(await valueContents(c.get("user").id, c.req.param("id"))))
+  .get("/values/:id", async (c) =>
+    c.json(await valueContents(c.get("user").id, c.req.param("id"), whoOf(c))),
+  )
   // Everything that has a category: the entries its page lists.
   .get("/categories/:id/items", async (c) =>
-    c.json(await categoryContents(c.get("user").id, c.req.param("id"))),
+    c.json(await categoryContents(c.get("user").id, c.req.param("id"), whoOf(c))),
   )
   .patch("/values/:id", async (c) => {
     const { category } = await categoryValue(c.req.param("id"));
@@ -1241,7 +1254,7 @@ export const studio = new Hono<Vars>()
 
   // --- the space's tables and pages --------------------------------------------
   .get("/spaces/:id/data", async (c) =>
-    c.json(await listSpaceData(c.get("user").id, c.req.param("id"))),
+    c.json(await listSpaceData(c.get("user").id, c.req.param("id"), whoOf(c))),
   )
   .post("/spaces/:id/tables", async (c) => {
     const body = z
@@ -1254,7 +1267,9 @@ export const studio = new Hono<Vars>()
       .parse(await c.req.json());
     return c.json(await createTable(c.get("user").id, c.req.param("id"), body, requestLang(c)));
   })
-  .get("/tables/:id", async (c) => c.json(await getTable(c.get("user").id, c.req.param("id"))))
+  .get("/tables/:id", async (c) =>
+    c.json(await getTable(c.get("user").id, c.req.param("id"), whoOf(c))),
+  )
   .patch("/tables/:id", async (c) => {
     const body = z
       .object({
@@ -1300,7 +1315,9 @@ export const studio = new Hono<Vars>()
       .parse(await c.req.json());
     return c.json(await createPage(c.get("user").id, c.req.param("id"), body));
   })
-  .get("/pages/:id", async (c) => c.json(await getPage(c.get("user").id, c.req.param("id"))))
+  .get("/pages/:id", async (c) =>
+    c.json(await getPage(c.get("user").id, c.req.param("id"), whoOf(c))),
+  )
   .patch("/pages/:id", async (c) => {
     const body = z
       .object({

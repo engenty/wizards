@@ -1,5 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import { readableIds, subjectsOf } from "../broker/rwx.js";
 import type { StepContext } from "../engine/types.js";
 import { prompt } from "../prompts.js";
 import { runPages, writeRunPage } from "../services/space-data.js";
@@ -15,9 +16,21 @@ import { pageReadInput, readKnowledgePage } from "./space.js";
 export function pageTools(ctx: StepContext) {
   const spaceId = ctx.space.id;
   const wizardId = ctx.store.wizardId;
-  /** The wizard's pages as this run sees them: a test run's own writes over the real ones. */
+  /**
+   * The wizard's pages as this run sees them: those its holder may read, a test run's own
+   * writes over the real ones.
+   */
   const pages = async (): Promise<{ title: string; markdown: string }[]> => {
-    const real = await runPages(spaceId, wizardId);
+    const all = await runPages(spaceId, wizardId);
+    const ok = new Set(
+      await readableIds(
+        spaceId,
+        subjectsOf(ctx),
+        "page",
+        all.map((p) => p.id),
+      ),
+    );
+    const real = all.filter((p) => ok.has(p.id));
     const copy = ctx.test ? (ctx.state.memory ?? {}) : {};
     const lower = (t: string) => t.toLowerCase();
     const written = Object.entries(copy).map(([title, markdown]) => ({ title, markdown }));

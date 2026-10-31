@@ -6,6 +6,7 @@ import { and, asc, desc, eq, exists, inArray, like, max, or, sql } from "drizzle
 import { nanoid } from "nanoid";
 import { toolSizes } from "../agents/studio-assistant.js";
 import type { SessionUser } from "../auth/index.js";
+import { subjectsOfPerson } from "../broker/rwx.js";
 import { canSpend } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { managed, tenantMembers } from "../manage.js";
@@ -466,7 +467,7 @@ export async function seeChat(user: SessionUser, id: string): Promise<void> {
 /** A file of the chat's space, for the chat's views and their Fields (`/chats/:id/assets/:file`). */
 export async function chatFileContent(user: SessionUser, id: string, fileId: string) {
   const chat = await visibleChat(user, id);
-  return spaceFileContent(chat.spaceId, fileId);
+  return spaceFileContent(chat.spaceId, fileId, subjectsOfPerson(user.id, user.role));
 }
 
 /** What became of a message: kept, queued, or a turn (new, or the running one it went into). */
@@ -500,7 +501,8 @@ export async function sendMessage(
   await join(chat.id, "person", user.id);
   const name = (await userProfile(user)).name;
   const { agent } = await workMastra();
-  const { contents, files } = await messageContents(chat.spaceId, text, named);
+  const who = subjectsOfPerson(user.id, user.role);
+  const { contents, files } = await messageContents(chat.spaceId, text, named, who);
   const message = {
     contents,
     attributes: { name },
@@ -555,6 +557,7 @@ export async function sendMessage(
             chat.spaceId,
             `${text}\n\n(The request before this one still stands.)`.trim(),
             named,
+            who,
           )
         ).contents,
         transient: true,

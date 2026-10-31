@@ -428,6 +428,18 @@ const NOTES_EN = {
   noParentPage: "There’s no page with the key “{parent}” to put this page under.",
   onlyOrganizationAdmins:
     "Only organization admins can do that. As a member, you can edit the wizards that already exist.",
+  forbidden:
+    "You don’t have permission to {verb} this {what} ({id}). An admin of the space can change that.",
+  rwxDocument: "document",
+  rwxTable: "table",
+  rwxPage: "page",
+  rwxConnection: "connection",
+  rwxMail: "email",
+  rwxHost: "host",
+  rwxSandbox: "sandbox",
+  rwxRead: "read",
+  rwxWrite: "change",
+  rwxRun: "run",
   spaceEditedLocally: "You edit this space in engenty wizards on your computer, not here.",
   wizardsRunOncePublished:
     "Wizards run here once you publish them in engenty wizards on your computer. You build and edit them there.",
@@ -820,6 +832,17 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   noParentPage: "Es gibt keine Seite mit dem Schlüssel „{parent}“, unter die diese Seite könnte.",
   onlyOrganizationAdmins:
     "Das dürfen nur Admins der Organisation. Als Mitglied bearbeitest du die Wizards, die es schon gibt.",
+  forbidden: "Du darfst {what} {id} nicht {verb}. Das ändern die Admins des Space.",
+  rwxDocument: "Dokument",
+  rwxTable: "Tabelle",
+  rwxPage: "Seite",
+  rwxConnection: "Verbindung",
+  rwxMail: "E-Mail",
+  rwxHost: "Host",
+  rwxSandbox: "Sandbox",
+  rwxRead: "lesen",
+  rwxWrite: "ändern",
+  rwxRun: "ausführen",
   spaceEditedLocally:
     "Diesen Space bearbeitest du in engenty wizards auf deinem Computer, nicht hier.",
   wizardsRunOncePublished:

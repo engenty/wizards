@@ -45,6 +45,7 @@ import type { WorkspaceFile } from "@engenty/wizards-shared/workspace";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { currentImpersonator } from "../auth/impersonation.js";
+import { runHolder, subjectsOf } from "../broker/rwx.js";
 import { connectionViews } from "../connectors/index.js";
 import {
   addLocalCost,
@@ -113,7 +114,7 @@ import {
 import { releaseResources, resourcesFor } from "./resources.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
 import { answersAsText, resolveRef } from "./template.js";
-import type { RunRow, SpaceRow, StepContext } from "./types.js";
+import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
 import { StepError } from "./types.js";
 
 /** A command the run cannot take in its current state; a note where the person may read it. */
@@ -540,14 +541,16 @@ function viewContext(
   return { known: ctx.known, options: ctx.options, cards: ctx.cards, decidedFields: ctx.decided };
 }
 
-/** The wizard's lists with the person's rows, by list id. */
+/** The wizard's lists with the person's rows, by list id; a shared list's as its holder may read them. */
 async function storedLists(
   run: RunRow,
+  holder?: RunHolder,
 ): Promise<Record<string, { def: ListDef; rows: ListRow[] }>> {
   const scope = scopeOf(run);
+  const who = subjectsOf({ holder: holder ?? (await runHolder(run)), store: scope });
   const out: Record<string, { def: ListDef; rows: ListRow[] }> = {};
   for (const def of run.definition.lists ?? []) {
-    out[def.id] = { def, rows: await listRows(scope, def) };
+    out[def.id] = { def, rows: await listRows(scope, def, who) };
   }
   return out;
 }
@@ -567,11 +570,13 @@ export async function makeContext(
   const resources = resourcesFor(run.id);
   resources.bind(store, run);
   const stepId = own.stepId ?? run.cursor ?? "";
+  const holder = await runHolder(run);
   return {
     runId: run.id,
     tenantId: run.tenantId,
     test: run.mode === "test",
     stepId,
+    holder,
     store,
     def: run.definition,
     lang: run.lang,
@@ -581,7 +586,7 @@ export async function makeContext(
       def: run.definition,
       state,
       brand: spaceProfile(space),
-      lists: await storedLists(run),
+      lists: await storedLists(run, holder),
     },
     space,
     spaceFiles: (await spaceFiles(space.id)).filter((f) => f.status === "ready"),

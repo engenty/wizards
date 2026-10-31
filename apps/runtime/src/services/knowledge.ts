@@ -9,6 +9,7 @@ import {
   type WhereValue,
 } from "@engenty/wizards-shared/knowledge";
 import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { assertRwx, pageResources, readable, type Subject, tableResources } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { embeddingModel, systemOneAccess } from "../models.js";
 import { prompt } from "../prompts.js";
@@ -242,8 +243,33 @@ async function convertedFiles(spaceId: string): Promise<Set<string>> {
   return new Set([...pages, ...tables].map((r) => r.id as string));
 }
 
-/** Everything Knowledge holds: pages (sub-pages counted under them), tables, files, categories. */
-export async function listKnowledge(userId: string, spaceId: string): Promise<Knowledge> {
+/** The items among these the subjects may read, each with the document it was made from. */
+async function readableItems<T extends KnowledgeItem>(
+  spaceId: string,
+  who: Subject[],
+  items: T[],
+): Promise<T[]> {
+  const ok = await readable(
+    spaceId,
+    who,
+    items.map((i) =>
+      i.kind === "file"
+        ? { kind: "document", id: i.id }
+        : { kind: i.kind, id: i.id, fileId: i.fileId },
+    ),
+  );
+  return items.filter((i) => ok.has(i.id));
+}
+
+/**
+ * Everything Knowledge holds that `who` may read: pages (sub-pages counted under them), tables,
+ * files, categories.
+ */
+export async function listKnowledge(
+  userId: string,
+  spaceId: string,
+  who: Subject[],
+): Promise<Knowledge> {
   const space = await ownedSpace(userId, spaceId);
   const [tree, tables, rowCounts, files, converted, categories, embeddings, checker] =
     await Promise.all([
@@ -357,11 +383,20 @@ export async function listKnowledge(userId: string, spaceId: string): Promise<Kn
     ),
   ];
   items.sort((a, b) => a.title.localeCompare(b.title, "de"));
-  return { items, categories, embeddings, checked: checker };
+  return {
+    items: await readableItems(space.id, who, items),
+    categories,
+    embeddings,
+    checked: checker,
+  };
 }
 
 /** A value opened in the studio: its summary, and the items and rows that have it. */
-export async function valueContents(userId: string, valueId: string): Promise<KnowledgeValue> {
+export async function valueContents(
+  userId: string,
+  valueId: string,
+  who: Subject[],
+): Promise<KnowledgeValue> {
   const value = await db.query.spaceCategoryValue.findFirst({
     where: eq(schema.spaceCategoryValue.id, valueId),
   });
@@ -383,12 +418,12 @@ export async function valueContents(userId: string, valueId: string): Promise<Kn
     category: { id: category.id, name: category.name },
     summary: value.summary,
     summaryAt: value.summaryAt?.toISOString() ?? null,
-    ...(await itemsHaving(userId, space.id, having)),
+    ...(await itemsHaving(userId, space.id, having, who)),
   };
 }
 
 /** Everything that has a category, whatever its value: what the category's page lists. */
-export async function categoryContents(userId: string, categoryId: string) {
+export async function categoryContents(userId: string, categoryId: string, who: Subject[]) {
   const category = await db.query.spaceCategory.findFirst({
     where: eq(schema.spaceCategory.id, categoryId),
   });
@@ -399,21 +434,25 @@ export async function categoryContents(userId: string, categoryId: string) {
   const having = await db.query.spaceItemCategory.findMany({
     where: eq(schema.spaceItemCategory.categoryId, category.id),
   });
-  return itemsHaving(userId, space.id, having);
+  return itemsHaving(userId, space.id, having, who);
 }
 
-/** The items rows of `space_item_category` name, as the studio lists them, and rows by table. */
+/**
+ * The items rows of `space_item_category` name, as the studio lists them, and rows by table;
+ * only what `who` may read.
+ */
 async function itemsHaving(
   userId: string,
   spaceId: string,
   having: (typeof schema.spaceItemCategory.$inferSelect)[],
+  who: Subject[],
 ): Promise<Pick<KnowledgeValue, "items" | "rows">> {
   const space = { id: spaceId };
   const pageIds = having.flatMap((h) => (h.pageId ? [h.pageId] : []));
   const tableIds = having.flatMap((h) => (h.tableId ? [h.tableId] : []));
   const fileIds = having.flatMap((h) => (h.fileId ? [h.fileId] : []));
   const rowIds = having.flatMap((h) => (h.rowId ? [h.rowId] : []));
-  const all = await listKnowledge(userId, space.id);
+  const all = await listKnowledge(userId, space.id, who);
   const tree = await pageTree(space.id);
   const subPages = pageIds.filter((id) => !all.items.some((i) => i.key === `p:${id}`));
   const subItems: KnowledgeItem[] = [];
@@ -452,6 +491,13 @@ async function itemsHaving(
       rowTables.set(r.tableId, (rowTables.get(r.tableId) ?? 0) + 1);
     }
   }
+  // A row is read as its table is.
+  const readTables = await readable(space.id, who, await tableResources([...rowTables.keys()]));
+  for (const tableId of [...rowTables.keys()]) {
+    if (!readTables.has(tableId)) {
+      rowTables.delete(tableId);
+    }
+  }
   return {
     items: [
       ...all.items.filter(
@@ -460,7 +506,7 @@ async function itemsHaving(
           (i.kind === "table" && tableIds.includes(i.id)) ||
           (i.kind === "file" && fileIds.includes(i.id)),
       ),
-      ...subItems,
+      ...(await readableItems(space.id, who, subItems)),
     ],
     rows: [...rowTables].map(([tableId, n]) => ({
       tableId,
@@ -548,7 +594,8 @@ function sectionOf(markdown: string, wanted: string): string | null {
 export async function readPage(
   spaceId: string,
   path: string,
-  opts: { section?: string; from?: number } = {},
+  opts: { section?: string; from?: number },
+  who: Subject[],
 ) {
   const found = await resolvePath(spaceId, path);
   if (found?.kind !== "page") {
@@ -561,6 +608,7 @@ export async function readPage(
   if (!page) {
     throw notFound();
   }
+  await assertRwx(spaceId, who, { kind: "page", id: page.id, fileId: page.fileId }, "r");
   const tree = await pageTree(spaceId);
   const node = tree.get(page.id);
   const categories = await categoryRows(spaceId);
@@ -661,7 +709,8 @@ const csvCell = (value: string) =>
 export async function readTable(
   spaceId: string,
   path: string,
-  opts: { where?: Where; columns?: string[]; limit?: number; offset?: number } = {},
+  opts: { where?: Where; columns?: string[]; limit?: number; offset?: number },
+  who: Subject[],
 ) {
   const found = await resolvePath(spaceId, path);
   if (found?.kind !== "table") {
@@ -674,6 +723,7 @@ export async function readTable(
   if (!table) {
     throw notFound();
   }
+  await assertRwx(spaceId, who, { kind: "table", id: table.id, fileId: table.fileId }, "r");
   const byName = (name: string) =>
     table.columns.find(
       (c) => c.name.toLowerCase() === name.trim().toLowerCase() || c.id === name.trim(),
@@ -726,9 +776,9 @@ export async function readTable(
 
 /**
  * For space_list: without a filter, the categories with their values and how many items each
- * has; with one, the items it leaves, with their paths and categories.
+ * has; with one, the items it leaves that `who` may read, with their paths and categories.
  */
-export async function listForStep(spaceId: string, where: Where | undefined) {
+export async function listForStep(spaceId: string, where: Where | undefined, who: Subject[]) {
   const categories = await listCategories(spaceId);
   const taken = categories.filter((c) => !c.proposed);
   if (!Object.keys(where ?? {}).length) {
@@ -752,10 +802,18 @@ export async function listForStep(spaceId: string, where: Where | undefined) {
     tablePaths(spaceId),
     filePaths(spaceId),
   ]);
+  const okPages = await readable(spaceId, who, await pageResources([...(filtered?.pages ?? [])]));
+  const okFiles = await readable(
+    spaceId,
+    who,
+    [...(filtered?.files ?? [])].map((id) => ({ kind: "document", id })),
+  );
+  const pages = [...(filtered?.pages ?? [])].filter((id) => okPages.has(id));
+  const files = [...(filtered?.files ?? [])].filter((id) => okFiles.has(id));
   const refs = [
-    ...[...(filtered?.pages ?? [])].map((pageId) => ({ pageId })),
+    ...pages.map((pageId) => ({ pageId })),
     ...[...(filtered?.tables ?? [])].map((tableId) => ({ tableId })),
-    ...[...(filtered?.files ?? [])].map((fileId) => ({ fileId })),
+    ...files.map((fileId) => ({ fileId })),
   ];
   const cats = await itemCategoriesOf(refs);
   // Rows whose table is not left as a whole: by their table, with how many.
@@ -771,8 +829,15 @@ export async function listForStep(spaceId: string, where: Where | undefined) {
       }
     }
   }
+  // A table, and the rows of one, as its holder may read it.
+  const okTables = await readable(
+    spaceId,
+    who,
+    await tableResources([...(filtered?.tables ?? []), ...rowTables.keys()]),
+  );
+  const tables = [...(filtered?.tables ?? [])].filter((id) => okTables.has(id));
   const items = [
-    ...[...(filtered?.pages ?? [])]
+    ...pages
       .map((id) => tree.get(id))
       .filter((n): n is PageNode => Boolean(n))
       .sort((a, b) => a.path.localeCompare(b.path))
@@ -781,17 +846,19 @@ export async function listForStep(spaceId: string, where: Where | undefined) {
         title: n.title,
         categories: categoryLines(taken, cats.get(`p:${n.id}`)),
       })),
-    ...[...(filtered?.tables ?? [])].map((id) => ({
+    ...tables.map((id) => ({
       path: tPaths.get(id) ?? "",
       title: "",
       categories: categoryLines(taken, cats.get(`t:${id}`)),
     })),
-    ...[...rowTables].map(([id, n]) => ({
-      path: tPaths.get(id) ?? "",
-      title: `${n} rows match: read them with table_read and the same values as its columns`,
-      categories: [],
-    })),
-    ...[...(filtered?.files ?? [])].map((id) => ({
+    ...[...rowTables]
+      .filter(([id]) => okTables.has(id))
+      .map(([id, n]) => ({
+        path: tPaths.get(id) ?? "",
+        title: `${n} rows match: read them with table_read and the same values as its columns`,
+        categories: [],
+      })),
+    ...files.map((id) => ({
       path: fPaths.get(id) ?? "",
       title: "",
       categories: categoryLines(taken, cats.get(`f:${id}`)),

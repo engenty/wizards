@@ -221,7 +221,7 @@ export function originData(origin: string): PluginSpaceData {
       }));
     },
     async readFile(space, fileId) {
-      const { row, data } = await spaceFileContent(space, fileId);
+      const { row, data } = await spaceFileContent(space, fileId, [{ kind: "plugin", id: origin }]);
       return {
         id: row.id,
         name: row.name,
