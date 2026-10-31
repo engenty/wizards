@@ -63,8 +63,8 @@ vi.mock("../src/manage.js", async (importOriginal) => ({
   tenantInfo: async () => ({ limits: { build: true } }),
   tenantMembers: async () => ({
     members: [
-      { userId: "user-a", role: "owner" },
-      { userId: "user-m", role: "member" },
+      { userId: "user-a", role: "owner", name: "Anna" },
+      { userId: "user-m", role: "member", name: "Max" },
     ],
   }),
 }));
@@ -498,5 +498,100 @@ describe("the studio's routes", () => {
       account: null,
     });
     expect((await send(memberApp, "DELETE", `/connections/${view.id}/my-sign-in`)).status).toBe(200);
+  });
+});
+
+describe("a person's own sign-ins (menu › Verbindungen)", () => {
+  type App = { fetch: (req: Request) => Response | Promise<Response> };
+  const ids: Record<string, string> = {};
+
+  /** The person's routes and the connections' routes, as this person sees them. */
+  async function appAs(id: string, role: "owner" | "member"): Promise<App> {
+    const { connectionRoutes } = await import("../src/routes/connections");
+    const { personRoutes } = await import("../src/routes/person");
+    const user = { id, role, tenantId: TENANT, name: id, email: `${id}@example.com` };
+    return new Hono<{ Variables: { user: typeof user } }>()
+      .use("*", async (c, next) => {
+        c.set("user", user);
+        await client.withTenant(TENANT, () => access.asRole(role, next));
+      })
+      .route("/api/studio/person", personRoutes as never)
+      .route("/api/studio", connectionRoutes as never);
+  }
+
+  const send = (app: App, method: string, path: string, body?: unknown) =>
+    app.fetch(
+      new Request(`http://localhost:5181/api/studio${path}`, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
+    );
+
+  /** This describe's connections as this person's menu lists them, in the space. */
+  async function listed(app: App) {
+    const res = await send(app, "GET", "/person/sign-ins");
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const body = JSON.parse(text);
+    const all = body.spaces.find((s: any) => s.id === space).connections as any[];
+    return { text, rows: all.filter((r) => Object.values(ids).includes(r.id)) };
+  }
+
+  beforeAll(async () => {
+    const make = (name: string, signIn: "space" | "person", audience: "admins" | "members") =>
+      inTenant(() =>
+        service.createSpaceConnection("user-a", space, {
+          connectorId: "hubspot",
+          name,
+          signIn,
+          audience,
+          rules: RULES,
+          actions: [],
+        }),
+      );
+    ids.each = (await make("Kalender", "person", "members")).id;
+    ids.space = (await make("Bestellungen", "space", "members")).id;
+    ids.admins = (await make("Nur Admins", "person", "admins")).id;
+    await inTenant(() =>
+      service.signInWithCredentials(ids.space, { as: "space" }, { access_token: "space-key-5" }),
+    );
+  });
+
+  it("shows an admin every connection of the space, a member those for members", async () => {
+    const owner = await listed(await appAs("user-a", "owner"));
+    expect(owner.rows.map((r) => r.name)).toEqual(["Kalender", "Bestellungen", "Nur Admins"]);
+    const member = await listed(await appAs("user-m", "member"));
+    expect(member.rows.map((r) => r.name)).toEqual(["Kalender", "Bestellungen"]);
+    // The space's sign-in: which account, who set it up; the person signs in to nothing there.
+    expect(member.rows[1]).toMatchObject({
+      signIn: "space",
+      account: { label: "HubSpot 5" },
+      setUpBy: "Anna",
+      mySignIn: null,
+    });
+    expect(member.text).not.toContain("space-key-5");
+  });
+
+  it("signs a member in and out, and shows each person only their own sign-in", async () => {
+    const memberApp = await appAs("user-m", "member");
+    const ownerApp = await appAs("user-a", "owner");
+    const otherApp = await appAs("user-x", "member");
+    const signedIn = await send(memberApp, "POST", `/connections/${ids.each}/my-sign-in`, {
+      credentials: { access_token: "member-key-7" },
+    });
+    expect(await signedIn.json()).toEqual({ ok: true, label: "HubSpot 7" });
+
+    const mine = await listed(memberApp);
+    expect(mine.rows[0]).toMatchObject({ signIn: "person", mySignIn: { label: "HubSpot 7" } });
+    expect(mine.text).not.toContain("member-key-7");
+    // Nobody else sees the member's sign-in, the admin included.
+    expect((await listed(ownerApp)).rows[0].mySignIn).toBeNull();
+    expect((await listed(otherApp)).rows[0].mySignIn).toBeNull();
+
+    expect((await send(memberApp, "DELETE", `/connections/${ids.each}/my-sign-in`)).status).toBe(
+      200,
+    );
+    expect((await listed(memberApp)).rows[0].mySignIn).toBeNull();
   });
 });

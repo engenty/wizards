@@ -9,6 +9,7 @@ import {
   Cpu,
   Info,
   KeyRound,
+  Link2,
   type LucideIcon,
   Plug,
   Receipt,
@@ -128,9 +129,13 @@ export function settingsSections(
 }
 
 /** The person's Konto behind the avatar: theirs in every organization, so it names none. */
-export function accountSections(): SettingsSection[] {
+export function accountSections(features?: Record<string, boolean>): SettingsSection[] {
   return [
     { id: "profile", label: t("konto.profile"), icon: UserRound, menu: true },
+    // The person's own sign-ins to their spaces' connections (docs/plans/capabilities.md).
+    ...(featureOn(features, "capabilities")
+      ? [{ id: "connections", label: t("konto.connections"), icon: Link2, menu: true }]
+      : []),
     { id: "orgs", label: t("konto.organizations"), icon: Building2, menu: false },
     { id: "apps", label: t("konto.apps"), icon: Plug, menu: false },
   ];

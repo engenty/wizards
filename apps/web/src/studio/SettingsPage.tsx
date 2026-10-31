@@ -21,6 +21,7 @@ import {
 } from "./OrganizationCredits";
 import { OrganizationGeneral, OrganizationKeys, OrganizationMembers } from "./OrganizationSettings";
 import { PersonApps, PersonOrganizations, PersonProfile } from "./PersonAccount";
+import { PersonSignInsPage } from "./PersonSignIns";
 import { ReadOnlyNote, spaceReadOnlyText } from "./ReadOnly";
 import { RuntimeSetup } from "./RuntimeSettings";
 import {
@@ -68,7 +69,8 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
   // opens its own menu again.
   const [upAt, setUpAt] = useState<string | null>(null);
   // The gear's list, or the person's Konto behind the avatar: the same frame, another list.
-  const sections = scope === "account" ? accountSections() : settingsSections(me.data, plugins);
+  const sections =
+    scope === "account" ? accountSections(me.data?.features) : settingsSections(me.data, plugins);
   const base = scope === "account" ? "/account" : "/settings";
   const title = scope === "account" ? t("konto.title") : t("settings.title");
   const first =
@@ -129,6 +131,10 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
     ...(current && detail ? [{ label: detail }] : []),
   ]);
   if (!current) {
+    // The person's switches decide some of their sections: those wait for them.
+    if (scope === "account" && !me.data) {
+      return null;
+    }
     // The page for AI clients was /settings/build before it became "Integrate".
     if (section === "build") {
       return <Navigate to="/settings/integrate" replace />;
@@ -236,6 +242,7 @@ export function SettingsPage({ scope = "settings" }: { scope?: "settings" | "acc
               {current.id === "profile" && me.data ? <PersonProfile me={me.data} /> : null}
               {current.id === "orgs" && me.data ? <PersonOrganizations me={me.data} /> : null}
               {current.id === "apps" && me.data ? <PersonApps /> : null}
+              {current.id === "connections" ? <PersonSignInsPage /> : null}
               {current.id === "credits" && me.data ? <OrganizationCredits me={me.data} /> : null}
               {current.id === "usage" && me.data ? <OrganizationUsage me={me.data} /> : null}
               {current.id === "invoices" && me.data ? <OrganizationInvoices me={me.data} /> : null}

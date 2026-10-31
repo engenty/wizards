@@ -152,3 +152,40 @@ export interface SpaceConnectionView {
   setUpAt: string;
   lastUsedAt: string | null;
 }
+
+/**
+ * A connection as a person's menu › „Verbindungen“ lists it: in a space of theirs, within their
+ * audience. Their own sign-in only, never anyone else's, never a secret.
+ */
+export interface PersonConnectionView {
+  id: string;
+  name: string;
+  connectorId: string;
+  connector: {
+    id: string;
+    name: string;
+    auth: "oauth2" | "api_key" | "browser";
+    /** An `api_key` connector: what the person types to sign in. */
+    fields?: {
+      key: string;
+      label: string;
+      placeholder?: string;
+      required?: boolean;
+      secret?: boolean;
+    }[];
+  } | null;
+  signIn: ConnectionSignIn;
+  audience: ConnectionAudience;
+  /** A `person` sign-in: this person's own; null until they signed in. */
+  mySignIn: { label: string; signedInAt: string } | null;
+  /** A `space` sign-in: the account the admins signed in with; null until they did. */
+  account: { label: string; signedInAt: string } | null;
+  /** Who set it up, by name where the organization still knows them. */
+  setUpBy: string | null;
+  setUpAt: string;
+}
+
+/** The person's menu › „Verbindungen“: per space they belong to, the connections they may use. */
+export interface PersonSignIns {
+  spaces: { id: string; name: string; connections: PersonConnectionView[] }[];
+}
