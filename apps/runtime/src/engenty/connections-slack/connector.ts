@@ -342,7 +342,8 @@ const actions: ConnectorAction[] = [
   {
     description:
       "Post a message to a Slack channel (or as a thread reply) as the connected user.",
-    group: "write",
+    // Others read it: a post is a send, not a change.
+    group: "send",
     handler: async (input, ctx) => {
       const args = postMessageInput.parse(input);
       const data = await slackApi<

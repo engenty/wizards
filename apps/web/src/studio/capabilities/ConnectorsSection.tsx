@@ -659,7 +659,7 @@ function ConnectionPage({
     : t("konto.connectionSetUpAt", { when: day(c.setUpAt) });
   const actionsOf = (kind: ConnectionActionKind) =>
     (connector?.actions ?? [])
-      .filter((a) => kind !== "send" && a.group === kind)
+      .filter((a) => a.group === kind)
       .filter((a) => !c.actions.length || c.actions.includes(a.id));
 
   return (

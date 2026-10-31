@@ -568,11 +568,11 @@ export const microsoftOutlookConnector: ConnectorDefinition = defineConnector({
       },
       summary: "Update a calendar event",
     }),
-    // ── destructive ─────────────────────────────────────────────────────
+    // ── send ────────────────────────────────────────────────────────────
     action({
       description:
         "Send an email immediately on behalf of the connected account.",
-      group: "destructive",
+      group: "send",
       id: "send_message",
       inputSchema: z.object({
         ...messageDraftFields,
@@ -594,6 +594,7 @@ export const microsoftOutlookConnector: ConnectorDefinition = defineConnector({
       },
       summary: "Send an email",
     }),
+    // ── destructive ─────────────────────────────────────────────────────
     action({
       description:
         "Delete a message (moves it to the Deleted Items folder; recoverable from there).",

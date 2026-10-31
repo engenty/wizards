@@ -29,7 +29,7 @@ Search the integrations registry for a service that can be imported as a connect
 The connectors a space has imported, each with its actions.
 
 <!-- section: tool.import_connector -->
-Import a registry service into a space as a connector. Returns its id, tool prefix, how people connect (OAuth, API key, none) and its actions with their marks (read / write / destructive). Importing again returns the existing one. A wizard uses it through a connection { id, connector }.
+Import a registry service into a space as a connector. Returns its id, tool prefix, how people connect (OAuth, API key, none) and its actions with their marks (read / write / send / destructive). Importing again returns the existing one. A wizard uses it through a connection { id, connector }.
 
 <!-- section: tool.list_starters -->
 Ready-made wizards to start from: first those the space's plugins bring (marked with the plugin), then the marketplace's (tweet with image, video ad, research briefing, dashboard, invoice, offer …), with what each makes and needs. Give a query to search them; without one you get the starters.

@@ -7,6 +7,7 @@ import {
 } from "../shims/connections-sdk.js";
 import { z } from "zod";
 import { headersFromRequired } from "./import-service.js";
+import { groupOf } from "./importer/classify.js";
 import { executeHttpAction } from "./invoke/http-invoker.js";
 import { mcpCallTool } from "./invoke/mcp-client.js";
 import { connectionsRedirectUri, registerDynamicClient } from "./oauth-dcr.js";
@@ -66,12 +67,7 @@ function buildAction(
   if (!inputSchema) {
     return null;
   }
-  const group =
-    action.classification === "read"
-      ? "read"
-      : action.classification === "destructive"
-        ? "destructive"
-        : "write";
+  const group = groupOf(action);
   return {
     description: action.description.slice(0, 1024),
     group,

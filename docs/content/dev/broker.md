@@ -60,8 +60,14 @@ interface Where {
   `currentCaller()` (`broker/caller.ts`).
 
 `ActionKind` is `read`, `write`, `destructive` or `send`. `kindOf(group)` maps a connector
-action’s group to it. `send` is never a connector group: the caller names it, as the mail tools,
-the email share target and `http_request` do.
+action’s group to the kind of the same name. A connector action that mails, messages or posts to
+other people has the group `send` (SMTP’s, Gmail’s and Outlook’s `send_message`, Slack’s
+`post_message`); creating or changing a record is `write`, deleting is `destructive`. An imported
+connector’s action has no such group in its spec, so `groupOf`
+(`connections-external/importer/classify.ts`) guesses it by name: an action that is no read,
+whose id or summary says send, mail, message, post or notify, and not draft, update or delete,
+is a `send`. A caller may name the kind itself, as the mail tools, the share targets and
+`http_request` do.
 
 ## Connections
 
@@ -176,6 +182,8 @@ once from the run’s definition and writes it. `inGrant` always lets `list_tool
   grant. A member’s run reaches any public host, until the `broker` switch is on.
 - `guestSendCheck` (`broker/send.ts`) lets a guest’s send go only to an address a page field of
   kind `email` collected in the run, or to the space’s `mailDomains`, within the limits above.
+  It holds a connection’s send action as well as the email share target. A send whose input
+  names no address, such as a Slack post, is refused for a guest.
 - `keptStepIds` (`broker/kept.ts`) names the steps of a guest’s run that read from a space
   connection whose audience is not `all`. Their results stay in the space.
 

@@ -9,9 +9,10 @@ import type { ZodType } from "zod";
  * - `read`        → idempotent, riskLevel low, no approval ⇒ readOnly
  *                   (available from Code Mode `external_*` stubs)
  * - `write`       → riskLevel medium, requiresApproval
- * - `destructive` → riskLevel high, requiresApproval (send/delete/trash/...)
+ * - `send`        → riskLevel high, requiresApproval (a mail, a message, a post to other people)
+ * - `destructive` → riskLevel high, requiresApproval (delete/trash/...)
  */
-export type ConnectorActionGroup = "read" | "write" | "destructive";
+export type ConnectorActionGroup = "read" | "write" | "send" | "destructive";
 
 export type ConnectionActionPolicy = "allow" | "ask" | "deny";
 
@@ -29,6 +30,7 @@ export const ACTION_GROUP_CONTRACTS: Record<
 > = {
   read: { idempotent: true, requiresApproval: false, riskLevel: "low" },
   write: { idempotent: false, requiresApproval: true, riskLevel: "medium" },
+  send: { idempotent: false, requiresApproval: true, riskLevel: "high" },
   destructive: { idempotent: false, requiresApproval: true, riskLevel: "high" },
 };
 
@@ -39,6 +41,7 @@ export const ACTION_GROUP_DEFAULT_POLICY: Record<
 > = {
   read: "allow",
   write: "ask",
+  send: "ask",
   destructive: "ask",
 };
 

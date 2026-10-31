@@ -904,3 +904,59 @@ describe("fixed steps write, AI steps on space connections read", () => {
     ).toEqual([expect.stringMatching(/is of kind "mail"/)]);
   });
 });
+
+describe("sending is its own kind of connector action", () => {
+  it("maps each group to the rule of the same name", () => {
+    expect(["read", "write", "send", "destructive"].map((g) => broker.kindOf(g as never))).toEqual([
+      "read",
+      "write",
+      "send",
+      "destructive",
+    ]);
+  });
+
+  it("marks what mails, messages or posts as send, and leaves deleting destructive", async () => {
+    const { builtinConnector } = await import("../src/connectors/builtin");
+    const group = (connector: string, action: string) =>
+      builtinConnector(connector)?.actions.find((a) => a.id === action)?.group;
+    expect(group("smtp", "send_message")).toBe("send");
+    expect(group("google-gmail", "send_message")).toBe("send");
+    expect(group("microsoft-outlook", "send_message")).toBe("send");
+    expect(group("slack", "post_message")).toBe("send");
+    expect(group("google-gmail", "create_draft")).toBe("write");
+    expect(group("google-gmail", "trash_message")).toBe("destructive");
+    expect(group("microsoft-outlook", "delete_message")).toBe("destructive");
+  });
+
+  it("guesses an imported action's send by its name", async () => {
+    const { groupOf } = await import("../src/engenty/connections-external/importer/classify");
+    const mcp = { kind: "mcp" as const, tool_name: "x" };
+    const post = { kind: "http" as const, method: "post", path_template: "/", params: [], body_content_type: null };
+    const of = (
+      id: string,
+      summary: string,
+      classification: "read" | "write" | "destructive",
+      invoke: typeof mcp | typeof post = mcp,
+    ) => groupOf({ id, summary, classification, invoke });
+    expect(of("send_email", "", "write")).toBe("send");
+    expect(of("sendEmail", "", "destructive")).toBe("send");
+    expect(of("chat_postMessage", "Post a message", "write", post)).toBe("send");
+    expect(of("create_notification", "", "write")).toBe("send");
+    expect(of("x1", "Send an e-mail to a contact", "write")).toBe("send");
+    // A read stays a read, a draft or an edit is no send, a delete stays a delete.
+    expect(of("list_messages", "List messages", "read")).toBe("read");
+    expect(of("create_draft_message", "", "write")).toBe("write");
+    expect(of("update_message", "", "write")).toBe("write");
+    expect(of("delete_message", "", "destructive")).toBe("destructive");
+    // The method an OpenAPI id or summary starts with is no word of the action's.
+    expect(of("post_users", "POST /users", "write", post)).toBe("write");
+    expect(of("create_contact", "Create a contact", "write")).toBe("write");
+  });
+
+  it("says a send in the run's grant", () => {
+    const def = withStep(["send_message"]);
+    const known = { hub: { name: "Postfach", kinds: { send_message: "send" as const } } };
+    const line = broker.grantNote(broker.grantOf(def as never), def as never, known);
+    expect(line && noteText(line, "de")).toBe("Dieser Lauf darf: über Postfach senden");
+  });
+});

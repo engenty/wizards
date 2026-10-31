@@ -316,6 +316,37 @@ describe("the Protokoll's log", () => {
     });
   });
 
+  it("answers a mail over SMTP with the connection's send rule, not its delete rule", async () => {
+    const service = await import("../src/connectors/space-connections");
+    const { DEFAULT_CONNECTION_RULES } = await import("@engenty/wizards-shared/connectors");
+    const smtp = await inTenant(() =>
+      service.createSpaceConnection("user-a", space, {
+        connectorId: "smtp",
+        name: "Postfach",
+        signIn: "space",
+        audience: "all",
+        rules: DEFAULT_CONNECTION_RULES,
+        actions: [],
+      }),
+    );
+    const app = await appAs("owner");
+    const asked = await get(
+      app,
+      `/spaces/${space}/broker/ask?who=admin&in=chat&resource=${smtp.id}&action=send_message`,
+    );
+    expect(asked.body).toMatchObject({
+      action: { id: "send_message", kind: "send", known: true },
+      outcome: "ask",
+      rule: "rules.send",
+      admins: true,
+    });
+    expect(asked.body.reason).toMatch(/sending asks/);
+    const choices = await get(app, `/spaces/${space}/broker/choices`);
+    const listed = choices.body.connections.find((c: { id: string }) => c.id === smtp.id);
+    expect(listed.actions).toEqual([{ id: "send_message", name: "Send an e-mail", kind: "send" }]);
+    await inTenant(() => service.removeSpaceConnection("user-a", smtp.id));
+  });
+
   it("is for the admins: a member gets 403", async () => {
     const app = await appAs("member");
     for (const path of ["broker/log", "broker/choices", "broker/log/x"]) {

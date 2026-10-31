@@ -709,7 +709,7 @@ export const gmailConnector: ConnectorDefinition = defineConnector({
     connectorAction({
       description:
         "Send an email via Gmail immediately (plain text). This delivers mail to the recipients — irreversible.",
-      group: "destructive",
+      group: "send",
       handler: async (input, ctx) => {
         const result = await googleJson<{
           id: string;

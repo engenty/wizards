@@ -23,6 +23,7 @@ import {
   surfaceRequiresAuth,
   toolPrefixFromSlug,
 } from "../engenty/connections-external/import-service.js";
+import { groupOf } from "../engenty/connections-external/importer/classify.js";
 import { createGuardedFetch } from "../engenty/connections-external/net/guarded-fetch.js";
 import {
   discoverImportableSources,
@@ -76,7 +77,7 @@ async function save(spaceId: string, record: ImportedConnectorRecord) {
 const actionView = (a: NormalizedAction): ConnectorActionView => ({
   id: a.id,
   summary: (a.summary || a.description).slice(0, 160),
-  group: a.classification,
+  group: groupOf(a),
 });
 
 function view(record: ImportedConnectorRecord): ConnectorView {

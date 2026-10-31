@@ -387,6 +387,62 @@ describe("sends from a guest's run", () => {
     expect((await logOf(row.id)).at(-1)).toMatchObject({ outcome: "deny", critical: true });
   });
 
+  it("knows a mail over SMTP as a send by its connector: the send rule and the recipient rule", async () => {
+    const { smtpConnector } = await import("../src/connectors/smtp");
+    const { DEFAULT_CONNECTION_RULES } = await import("@engenty/wizards-shared/connectors");
+    const apiKey = (smtpConnector.auth as { apiKey: { verify: unknown } }).apiKey;
+    const verify = apiKey.verify;
+    apiKey.verify = async () => ({ label: "post@firma.at" });
+    const row = await inTenant(() =>
+      connections.createSpaceConnection("local", space, {
+        connectorId: "smtp",
+        name: "Postfach",
+        signIn: "space",
+        audience: "all",
+        rules: DEFAULT_CONNECTION_RULES,
+        actions: [],
+      }),
+    );
+    await inTenant(() =>
+      connections.signInWithCredentials(row.id, { as: "space" }, { email: "post@firma.at", password: "pw" }),
+    );
+    apiKey.verify = verify;
+    const connection = {
+      kind: "space_connection" as const,
+      row: await inTenant(() => connections.spaceConnectionById(row.id)),
+      connector: await inTenant(() => connections.connectorOfRow(row)),
+    };
+    await runRow("run-g-smtp", "guest", broker.grantOf(definition as never));
+    // No kind given: the connector's group says it, as for any tool or step.
+    const sendAs = (who: Parameters<typeof broker.brokerCall>[0]["who"], at: ReturnType<typeof where>, to: string) =>
+      inTenant(() =>
+        broker.brokerCall({
+          who,
+          where: at,
+          connection,
+          action: { id: "send_message" },
+          input: { to: [to], subject: "Angebot", body_text: "Hallo" },
+          handler: async () => "sent",
+        }),
+      );
+    // An admin in a Work chat: the default rule for sending asks the space's admins, it is no delete.
+    const admin = await sendAs({ kind: "admin", id: "local" }, { spaceId: space, chatId: "chat-1" } as never, "x@elsewhere.net");
+    expect(admin).toMatchObject({ ok: false, refused: "needs_approval" });
+    expect(admin.ok || admin.reason).toMatch(/sending asks the space's admins/);
+    expect((await logOf(row.id)).at(-1)).toMatchObject({ kind: "send", rule: "rules.send" });
+    // A fixed step of a guest's run: a stranger is refused before the rule asks anyone.
+    const step = { kind: "step" as const, id: "send", for: guest };
+    expect(await sendAs(step, where("run-g-smtp", "guest", "send"), "stranger@elsewhere.net")).toMatchObject({
+      ok: false,
+      refused: "not_allowed_recipient",
+    });
+    // The run's own address passes the recipient rule and waits for the admins, as the rule says.
+    expect(await sendAs(step, where("run-g-smtp", "guest", "send"), "kundin@example.com")).toMatchObject({
+      ok: false,
+      refused: "needs_approval",
+    });
+  });
+
   it("lets a member's run send anywhere", async () => {
     const { out, handler } = await send("member", ["stranger@elsewhere.net"]);
     expect(out).toEqual({ ok: true, result: "sent" });

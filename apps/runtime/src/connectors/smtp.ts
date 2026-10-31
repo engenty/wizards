@@ -243,7 +243,7 @@ export const smtpConnector: ConnectorDefinition = {
       summary: "Send an e-mail",
       description:
         "Send an e-mail from the connected mailbox right away (plain text, one optional attachment). Irreversible.",
-      group: "destructive",
+      group: "send",
       inputSchema: sendInput,
       handler: async (raw, ctx) => {
         const input = sendInput.parse(raw);
