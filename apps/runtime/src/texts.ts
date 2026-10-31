@@ -102,6 +102,7 @@ const EN = {
   invalidInput: "Invalid input",
   internalError: "Internal error",
   notSignedIn: "You’re not signed in.",
+  clientsNotHere: "This is for the team. Your client space is open to you in the client view.",
   accountSuspended: "This account is suspended.",
   tooLarge: "That is too large.",
   tooManyStreams: "Too many studio windows are open. Close one, or reload in a moment.",
@@ -351,6 +352,8 @@ const DE: Partial<Record<ServerKey, Line>> = {
   internalError: "Interner Fehler",
   schemaMismatch: "Der Wizard passt nicht zum Schema.",
   notSignedIn: "Du bist nicht angemeldet.",
+  clientsNotHere:
+    "Das ist für das Team. Dein Space ist für dich in der Ansicht für Kund:innen offen.",
   accountSuspended: "Dieses Konto ist gesperrt.",
   tooLarge: "Das ist zu groß.",
   tooManyStreams: "Zu viele Fenster des Studios sind offen. Schließ eines, oder lade gleich neu.",

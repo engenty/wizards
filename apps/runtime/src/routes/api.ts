@@ -105,12 +105,21 @@ const tooLarge = bodyLimit({
  * The caller of an API call, signed in like an MCP client (access token or API key), with the
  * scopes the call needs; or the answer that turns it away.
  */
-export async function caller(c: Context, scopes: Scope[]): Promise<Principal | Response> {
+export async function caller(
+  c: Context,
+  scopes: Scope[],
+  { clients = false }: { clients?: boolean } = {},
+): Promise<Principal | Response> {
   const authInfo = await authenticate(c.req.raw);
   if (authInfo instanceof Response) {
     return authInfo;
   }
   const who = principalOf(authInfo);
+  // A client of the organization uses its client spaces' elements, nothing else of the API
+  // (docs/plans/client-spaces.md).
+  if (who.role === "client" && !clients) {
+    return c.json({ error: "This isn’t open to clients.", code: "forbidden" }, 403);
+  }
   if (scopes.some((scope) => !who.scopes.includes(scope))) {
     return c.json(
       { error: "This token isn’t allowed to do that.", code: "insufficient_scope" },

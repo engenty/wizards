@@ -77,7 +77,11 @@ function toClaims(payload: JWTPayload): TokenClaims | null {
   if (typeof p.sub !== "string" || typeof p.tenant !== "string") {
     return null;
   }
-  const role = p.role === "owner" || p.role === "admin" ? p.role : "member";
+  // A role this runtime does not know gets the least: a client's (docs/plans/client-spaces.md).
+  const role: Role =
+    p.role === "owner" || p.role === "admin" || p.role === "member" || p.role === "client"
+      ? p.role
+      : "client";
   return {
     userId: p.sub,
     tenantId: p.tenant,

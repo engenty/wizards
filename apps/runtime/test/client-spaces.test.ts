@@ -139,6 +139,53 @@ describe("client spaces", () => {
     expect(row).toBeUndefined();
   });
 
+  it("invite clients by address in the cloud only, and take them in at their first sign-in", async () => {
+    // A local install has no accounts to invite.
+    expect(
+      (await send("POST", `/api/studio/spaces/${clientId}/invite`, { email: "x@wagner.at" })).status,
+    ).toBe(400);
+    const clients = await import("../src/services/client-spaces");
+    await local(async () => {
+      await db.db.insert(db.schema.spaceMember).values({
+        id: "pending1",
+        tenantId: "local",
+        spaceId: clientId,
+        userId: null,
+        email: "eva@wagner.at",
+        role: "client",
+        addedBy: "local",
+      });
+      await clients.claimClientInvites("eva", "Eva@Wagner.at");
+      const row = await db.db.query.spaceMember.findFirst({
+        where: (m, { eq }) => eq(m.id, "pending1"),
+      });
+      expect(row).toMatchObject({ userId: "eva", email: "eva@wagner.at" });
+    });
+    const { members } = await json(send("GET", `/api/studio/spaces/${clientId}/members`));
+    expect(members).toEqual(
+      expect.arrayContaining([expect.objectContaining({ userId: "eva", role: "client" })]),
+    );
+  });
+
+  it("give a client's token no authoring tools, only the elements", async () => {
+    const { registerTools } = await import("../src/mcp/tools");
+    const { registerElementTools } = await import("../src/mcp/elements");
+    const names: string[] = [];
+    const server = { registerTool: (name: string) => names.push(name) } as never;
+    const who = {
+      userId: "eva",
+      tenantId: "local",
+      role: "client",
+      client: "Claude",
+      scopes: ["wizards:read", "wizards:write", "data:read", "elements:read"],
+    } as never;
+    registerTools(server, who);
+    expect(names).toEqual([]);
+    registerElementTools(server, who);
+    expect(names).toEqual(expect.arrayContaining(["space_search", "skill_load"]));
+    expect(names).not.toContain("create_wizard");
+  });
+
   it("are not there while the switch is off", async () => {
     process.env.FEATURES = "clientSpaces=off";
     expect((await send("GET", `/api/studio/spaces/${spaceId}/clients`)).status).toBe(404);
