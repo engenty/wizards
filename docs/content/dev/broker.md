@@ -244,6 +244,17 @@ All of this is behind the `broker` switch, on by default. With it off, `decide`,
 `http_request` reaches any public host. On, the seed changes nothing until an admin
 writes a deny. No studio page draws the rules yet.
 
+Every reader takes its subjects from whoever it serves: the studio’s person (`whoOf(c)`), a
+run’s holder and wizard (`subjectsOf(ctx)`, `runHolder(run)`), Goose for its person. A plugin
+reading a document (`server.spaceData.readFile`) reads as whom it serves, and as itself: a tool
+in a step or a Work chat as its caller (`subjectsOfCaller`), an HTTP route as the person it
+answers, a job as the runtime itself. Anything else reads as the plugin alone, which no seed
+allows. The runtime itself is the subject `SYSTEM`, set with `readingAs([SYSTEM], …)` around a
+plugin’s job (`plugins/jobs.ts`) and nowhere else: no person, guest or run stands behind a job.
+It may read, write and run everything; a deny for the plugin beside it still wins. No rule can
+name it, no helper builds it from a request, `decideWith` knows it only by identity, and
+`test/rwx.test.ts` fails when a new file uses it. A call with no subject at all stays a no.
+
 The `capabilities` switch is on by default. It shows the studio’s Capabilities place, opens
 `/spaces/:id/discover` and makes the rule „Mitglieder dürfen ins Studio“ count. It does not turn
 on RWX.

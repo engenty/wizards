@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { readingAs, SYSTEM } from "../broker/rwx.js";
 import { control, controlDb, withTenant } from "../db/client.js";
 import { env } from "../env.js";
 import { twoWayActive } from "../sync/state.js";
@@ -60,7 +61,10 @@ export async function runDueJobs(now = new Date()): Promise<void> {
         });
       started.push(
         withTenant(tenant.id, () =>
-          job.handler({ tenantId: tenant.id, lastRun: last, signal: plugin.stopped.signal }),
+          // A job runs on the clock, for no person, guest or run: the runtime itself reads.
+          readingAs([SYSTEM], async () =>
+            job.handler({ tenantId: tenant.id, lastRun: last, signal: plugin.stopped.signal }),
+          ),
         )
           .catch((err) => console.error(`[plugin ${id}] job ${name}:`, err))
           .finally(() => running.delete(key)),

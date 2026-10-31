@@ -238,6 +238,8 @@ describe("hosts in the grant", () => {
 
   it("lets a member's run reach any public host while the switch is off", async () => {
     const handler = vi.fn(async () => ({ status: 200 }));
+    // The switch is on by default: off is said out loud.
+    process.env.FEATURES = "broker=off";
     const out = await inTenant(() =>
       broker.brokerHost({
         who: member,
@@ -246,7 +248,9 @@ describe("hosts in the grant", () => {
         method: "GET",
         handler,
       }),
-    );
+    ).finally(() => {
+      delete process.env.FEATURES;
+    });
     expect(out.ok).toBe(true);
     expect(handler).toHaveBeenCalledTimes(1);
     expect((await logOf("host:anywhere.example.net")).at(-1)).toMatchObject({

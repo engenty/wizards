@@ -30,6 +30,11 @@ let data: typeof import("../src/services/space-data");
 let settings: typeof import("../src/settings");
 
 const USER = "local";
+/** The owner, as the studio reads a page for them (broker/rwx.ts). */
+const asUser = [
+  { kind: "person" as const, id: USER },
+  { kind: "role" as const, id: "owner" },
+];
 const local = <T>(fn: () => Promise<T>) => client.withTenant("local", fn);
 /** The organization the account is signed in to now. */
 const now = async () => (await account.linkedAccount())?.tenantId ?? "org-a";
@@ -92,7 +97,7 @@ describe("switching the organization", () => {
     expect(await spacesIn("org-a")).toEqual([first]);
     await local(() => data.updatePage(USER, pageId, { markdown: "Changed before the switch." }));
     expect(await local(() => sync.sendBeforeSwitch())).toEqual([]);
-    const page = await inOrg("org-a", () => data.getPage(USER, pageId));
+    const page = await inOrg("org-a", () => data.getPage(USER, pageId, asUser));
     expect(page.markdown).toBe("Changed before the switch.");
   });
 
@@ -104,7 +109,7 @@ describe("switching the organization", () => {
     // Both spaces are still on this computer, with what they hold.
     const here = await local(() => spaces.listSpaces(USER));
     expect(here.map((p) => p.id).sort()).toEqual([first, onlyHere].sort());
-    expect((await local(() => data.getPage(USER, pageId))).markdown).toBe("Changed before the switch.");
+    expect((await local(() => data.getPage(USER, pageId, asUser))).markdown).toBe("Changed before the switch.");
     const view = await local(() => sync.syncView());
     expect(view.spaces.find((s) => s.spaceId === first)).toMatchObject({ on: false, organization: "org-a" });
     expect(view.spaces.find((s) => s.spaceId === onlyHere)).toMatchObject({ on: false, organization: null });

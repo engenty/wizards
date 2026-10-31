@@ -38,6 +38,11 @@ const send = (method: string, path: string, body?: unknown) =>
   );
 const json = async (res: Response | Promise<Response>) => (await res).json() as Promise<any>;
 const local = <T>(fn: () => T | Promise<T>) => client.withTenant("local", fn);
+/** The studio's one person, the owner: the search reads as them (broker/rwx.ts). */
+const who = [
+  { kind: "person" as const, id: "local" },
+  { kind: "role" as const, id: "owner" },
+];
 const flush = async () => {
   const { flushIndex } = await import("../src/services/space-index");
   await flushIndex();
@@ -223,7 +228,7 @@ describe("the search", () => {
     relevant = (c) => (c.text.includes("Riss") ? 0.92 : 0.2);
     const before = asked;
     const found = await local(() =>
-      searchKnowledge(spaceId, "Riss Schalung", { where: { Baustelle: "Graz Süd" } }),
+      searchKnowledge(spaceId, "Riss Schalung", { where: { Baustelle: "Graz Süd" }, who }),
     );
     expect(asked).toBe(before + 1);
     expect(found.checked).toBe(true);
@@ -234,7 +239,7 @@ describe("the search", () => {
     ]);
     expect(found.hits.every((h) => h.relevance === 0.92 && h.heading?.endsWith("Mängel"))).toBe(true);
     relevant = () => 0.1;
-    const none = await local(() => searchKnowledge(spaceId, "Riss Schalung"));
+    const none = await local(() => searchKnowledge(spaceId, "Riss Schalung", { who }));
     expect(none.hits).toEqual([]);
     expect(none.candidates).toBeGreaterThan(0);
     relevant = () => 0.9;
@@ -247,10 +252,10 @@ describe("the search", () => {
     });
     await flush();
     const { searchKnowledge } = await import("../src/services/space-index");
-    const compound = await local(() => searchKnowledge(spaceId, "förderhöhe", { check: false }));
+    const compound = await local(() => searchKnowledge(spaceId, "förderhöhe", { check: false, who }));
     expect(compound.hits[0]?.title).toBe("Cyber-Sicher");
     expect(compound.checked).toBe(false);
-    const code = await local(() => searchKnowledge(spaceId, "khsw", { check: false }));
+    const code = await local(() => searchKnowledge(spaceId, "khsw", { check: false, who }));
     expect(code.hits[0]?.title).toBe("Cyber-Sicher");
   });
 });
@@ -275,16 +280,16 @@ describe("assets", () => {
       }),
     );
     await flush();
-    const found = await local(() => searchKnowledge(spaceId, "Versandkarton", { check: false }));
+    const found = await local(() => searchKnowledge(spaceId, "Versandkarton", { check: false, who }));
     expect(found.hits[0]).toMatchObject({ kind: "file", open: `f:${row.id}`, title: "karton.png" });
     expect(found.hits[0]?.text).toContain("image asset");
     await local(() =>
       updateSpaceFile(spaceId, row.id, { description: "Palette mit Schrumpffolie" }),
     );
     await flush();
-    const again = await local(() => searchKnowledge(spaceId, "Schrumpffolie", { check: false }));
+    const again = await local(() => searchKnowledge(spaceId, "Schrumpffolie", { check: false, who }));
     expect(again.hits[0]?.open).toBe(`f:${row.id}`);
-    const old = await local(() => searchKnowledge(spaceId, "Versandkarton", { check: false }));
+    const old = await local(() => searchKnowledge(spaceId, "Versandkarton", { check: false, who }));
     expect(old.hits.some((h) => h.open === `f:${row.id}`)).toBe(false);
   });
 });
@@ -343,7 +348,7 @@ describe("what a plugin writes", () => {
     await flush();
     const { searchKnowledge } = await import("../src/services/space-index");
     const heavy = await local(() =>
-      searchKnowledge(spaceId, "WIN Kette", { where: { WLL: { gte: 1500 } }, check: false }),
+      searchKnowledge(spaceId, "WIN Kette", { where: { WLL: { gte: 1500 } }, check: false, who }),
     );
     expect(heavy.hits.map((h) => h.text)).toEqual([expect.stringContaining("Code: WIN 8")]);
   });

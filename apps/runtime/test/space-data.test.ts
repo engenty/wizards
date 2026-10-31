@@ -195,6 +195,11 @@ describe("the space's results", () => {
 });
 
 describe("a shared list", () => {
+  /** A guest's run of the wizard, as the broker asks: the shared list is read as it (broker/rwx.ts). */
+  const aGuest = () => [
+    { kind: "guest" as const, id: null },
+    { kind: "wizard" as const, id: wizardId },
+  ];
   const leads = {
     id: "leads",
     title: "Anfragen",
@@ -217,7 +222,7 @@ describe("a shared list", () => {
         { email: "ben@example.com", anliegen: "Treppe" },
         { email: "ANNA@example.com ", anliegen: "Küche und Bad" },
       ]);
-      const rows = await store.listRows({ wizardId, holder: "v:carla" }, leads);
+      const rows = await store.listRows({ wizardId, holder: "v:carla" }, leads, aGuest());
       // Anna's row, found by its key, took what was given the second time.
       expect(rows.map((r) => r.cells)).toEqual([
         { email: "ANNA@example.com ", anliegen: "Küche und Bad" },
@@ -251,7 +256,7 @@ describe("a shared list", () => {
             { email: `${who}@example.com`, anliegen: who },
           ]);
         }
-        const rows = await store.listRows({ wizardId, holder: "v:x" }, queue);
+        const rows = await store.listRows({ wizardId, holder: "v:x" }, queue, aGuest());
         expect(rows.map((r) => r.cells.anliegen)).toEqual(["a", "b", "c", "d", "e"]);
       });
     } finally {
@@ -287,6 +292,7 @@ describe("a run's pages", () => {
     const emitted: unknown[] = [];
     const tools = pageTools({
       space: { id: spaceId },
+      holder: { kind: "guest", id: "anna" },
       store: { wizardId, holder: "v:anna" },
       emit: async (_type: string, message: unknown) => {
         emitted.push(message);

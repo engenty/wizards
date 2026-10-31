@@ -138,6 +138,11 @@ let cookie = "";
 let spaceId = "";
 
 const LOCAL = "local";
+/** The studio's one person, the owner: the search reads as them (broker/rwx.ts). */
+const who = [
+  { kind: "person" as const, id: LOCAL },
+  { kind: "role" as const, id: "owner" },
+];
 const seen = () => (globalThis as any).__atlas as { events: any[]; ticks: any[] };
 const url = (path: string) => `http://localhost:5181${path}`;
 const send = (method: string, path: string, body?: unknown, as = cookie) =>
@@ -242,7 +247,7 @@ describe("the search index", () => {
     });
     const { searchKnowledge, hasIndexEntries } = await import("../src/services/space-index");
     const found = await client.withTenant(LOCAL, () =>
-      searchKnowledge(spaceId, "Werkstatt geöffnet"),
+      searchKnowledge(spaceId, "Werkstatt geöffnet", { who }),
     );
     expect(found.hits).toEqual([
       expect.objectContaining({
@@ -266,7 +271,7 @@ describe("the search index", () => {
   it("replaces a key that is put again, and takes keys out", async () => {
     const { searchKnowledge } = await import("../src/services/space-index");
     const search = async (q: string) =>
-      (await client.withTenant(LOCAL, () => searchKnowledge(spaceId, q))).hits;
+      (await client.withTenant(LOCAL, () => searchKnowledge(spaceId, q, { who }))).hits;
     await send("POST", "/api/studio/plugins/atlas/index", {
       ...hours,
       space: spaceId,
