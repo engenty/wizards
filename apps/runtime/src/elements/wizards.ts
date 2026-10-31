@@ -33,22 +33,26 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
       inputSchema: ELEMENT_SPECS.wizard_list.input,
       execute: (input) =>
         attempt(() =>
-          elementCall(caller, { action: "wizard_list", perm: "r", input }, async () => {
-            const published = (await listWizards(userId, spaceId)).filter((w) => w.published);
-            const ok = new Set(
-              await readableIds(
-                spaceId,
-                caller.subjects,
-                "wizard",
-                published.map((w) => w.id),
-              ),
-            );
-            return {
-              wizards: published
-                .filter((w) => ok.has(w.id))
-                .map((w) => ({ id: w.id, title: w.title, description: w.description ?? "" })),
-            };
-          }),
+          elementCall(
+            caller,
+            { action: "wizard_list", about: "wizards", perm: "r", input },
+            async () => {
+              const published = (await listWizards(userId, spaceId)).filter((w) => w.published);
+              const ok = new Set(
+                await readableIds(
+                  spaceId,
+                  caller.subjects,
+                  "wizard",
+                  published.map((w) => w.id),
+                ),
+              );
+              return {
+                wizards: published
+                  .filter((w) => ok.has(w.id))
+                  .map((w) => ({ id: w.id, title: w.title, description: w.description ?? "" })),
+              };
+            },
+          ),
         ),
     }),
     wizard_run: createTool({

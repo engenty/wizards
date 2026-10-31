@@ -89,12 +89,15 @@ export async function outsideTools(
       description: shellToolDescription(sandboxCapabilities()!),
       inputSchema: RUN_COMMAND.input,
       execute: (input) =>
-        elementCall(caller, { action: "run_command", perm: "x", input }, async () =>
-          report(
-            await sandbox.handle().exec(input.command, {
-              timeoutMs: Math.min((input.timeoutSeconds ?? 120) * 1000, 600_000),
-            }),
-          ),
+        elementCall(
+          caller,
+          { action: "run_command", about: "sandbox", perm: "x", input },
+          async () =>
+            report(
+              await sandbox.handle().exec(input.command, {
+                timeoutMs: Math.min((input.timeoutSeconds ?? 120) * 1000, 600_000),
+              }),
+            ),
         ),
     });
   }

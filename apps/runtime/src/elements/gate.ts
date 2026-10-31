@@ -16,6 +16,8 @@ export interface ElementCall {
   action: string;
   /** Left out: the reader decides each item it hands out (Knowledge). */
   resource?: Resource;
+  /** What the log files a call without one resource under: `knowledge` when left out, `skills`, `wizards`, `sandbox`. */
+  about?: string;
   perm: Perm;
   input: unknown;
 }
@@ -24,7 +26,7 @@ const KIND: Record<Perm, string> = { r: "read", w: "write", x: "run" };
 
 /** The log's name for what was called: `knowledge`, `skill:<name>`, `wizard:<id>`, `setup`. */
 const subjectOf = (call: ElementCall) =>
-  call.resource ? `${call.resource.kind}:${call.resource.id}` : "knowledge";
+  call.resource ? `${call.resource.kind}:${call.resource.id}` : (call.about ?? "knowledge");
 
 const sizeOf = (result: unknown) => {
   try {

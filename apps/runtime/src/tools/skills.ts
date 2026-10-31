@@ -184,21 +184,25 @@ export function skillToolsOf(skills: Skills, caller: ElementCaller): Record<stri
       inputSchema: ELEMENT_SPECS.skill_list.input,
       execute: (input) =>
         attempt(() =>
-          elementCall(caller, { action: "skill_list", perm: "r", input }, async () => {
-            const ok = new Set(
-              await readableIds(
-                caller.space.id,
-                caller.subjects,
-                "skill",
-                readable.map((k) => k.id),
-              ),
-            );
-            return {
-              skills: readable
-                .filter((k) => ok.has(k.id))
-                .map((k) => ({ name: k.name, description: k.description })),
-            };
-          }),
+          elementCall(
+            caller,
+            { action: "skill_list", about: "skills", perm: "r", input },
+            async () => {
+              const ok = new Set(
+                await readableIds(
+                  caller.space.id,
+                  caller.subjects,
+                  "skill",
+                  readable.map((k) => k.id),
+                ),
+              );
+              return {
+                skills: readable
+                  .filter((k) => ok.has(k.id))
+                  .map((k) => ({ name: k.name, description: k.description })),
+              };
+            },
+          ),
         ),
     }),
     skill_load: createTool({
