@@ -125,13 +125,16 @@ export function LevelHead({
           type="button"
           onClick={root.onOpen}
           aria-current={root.current ? "page" : undefined}
+          // Highlighted as a row of the list below is: the whole width, the same height.
           className={cn(
-            "-mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 font-medium text-[0.875rem] transition hover:bg-accent",
-            root.current && "bg-paper-2",
+            "-mx-1 flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left font-medium text-[0.875rem] transition",
+            root.current ? "bg-paper-2 text-ink" : "hover:bg-accent",
           )}
         >
-          <root.icon className="size-4 shrink-0 text-ember-strong" />
-          <span className="truncate">{root.label}</span>
+          <span className="grid size-7 shrink-0 place-items-center">
+            <root.icon className="size-4 text-ember-strong" />
+          </span>
+          <span className="min-w-0 flex-1 truncate">{root.label}</span>
         </button>
       ) : shown ? (
         <span className="flex min-w-0 items-center gap-2 font-medium text-[0.875rem]">
