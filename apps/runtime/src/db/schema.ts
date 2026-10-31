@@ -20,6 +20,7 @@ import type {
   BrandColor,
   BrandFont,
   BrandGradient,
+  BrandLink,
   BrandPattern,
   BrandRule,
   ColorSection,
@@ -28,6 +29,7 @@ import type {
   SpaceNotify,
   SpacePage,
   TextStyle,
+  VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
 import type { Theme } from "@engenty/wizards-shared/theme";
 import type { TranslationMemory } from "@engenty/wizards-shared/translation";
@@ -64,6 +66,12 @@ export interface BrandConfig {
   brandName?: string;
   /** The line that stands with the name: a claim, a promise. */
   tagline?: string;
+  /** Optional: how the brand speaks, in blocks (tone, audience, positioning, values, …). */
+  voice?: VoiceBlock[];
+  /** Optional: what to say and not to say, one rule per row with its sign. */
+  voiceRules?: BrandRule[];
+  /** Optional: where the brand is found on the web. */
+  links?: BrandLink[];
   /** The first colour is the accent of documents, dashboards and public pages. */
   colors?: BrandColor[];
   /** Optional: further colours, gradients or patterns grouped by use, each saying when to use it. */

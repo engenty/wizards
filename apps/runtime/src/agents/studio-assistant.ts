@@ -333,8 +333,18 @@ export function gooseSpaceTools(
         about: z.string().max(8000).optional(),
         brandName: z.string().max(120).optional(),
         tagline: z.string().max(200).optional(),
+        voice: z
+          .array(z.object({ title: z.string().max(80), text: z.string().min(1).max(2000) }))
+          .max(12)
+          .optional()
+          .describe("Replaces the brand's voice blocks"),
+        links: z
+          .array(z.object({ label: z.string().max(80), url: z.string().min(1).max(600) }))
+          .max(20)
+          .optional()
+          .describe("Replaces the brand's links"),
       }),
-      execute: ({ title, about, brandName, tagline }) =>
+      execute: ({ title, about, brandName, tagline, voice, links }) =>
         attempt(() =>
           inTurn(async () => {
             doing("set_profile");
@@ -344,6 +354,8 @@ export function gooseSpaceTools(
                 ...(about !== undefined ? { about } : {}),
                 ...(brandName !== undefined ? { brandName } : {}),
                 ...(tagline !== undefined ? { tagline } : {}),
+                ...(voice ? { voice: voice.map((b) => ({ id: nanoid(10), ...b })) } : {}),
+                ...(links ? { links: links.map((l) => ({ id: nanoid(10), ...l })) } : {}),
               },
             });
             wrote();

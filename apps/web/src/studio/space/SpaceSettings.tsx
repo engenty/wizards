@@ -3,6 +3,7 @@ import {
   type BrandColor,
   type BrandFont,
   type BrandGradient,
+  type BrandLink,
   type BrandPattern,
   type BrandRule,
   type ColorSection,
@@ -11,6 +12,7 @@ import {
   type SpaceFact,
   type SpaceFileView,
   type TextStyle,
+  type VoiceBlock,
 } from "@engenty/wizards-shared/spaces";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus } from "lucide-react";
@@ -30,9 +32,11 @@ import { Colors } from "./Colors";
 import { useAutosave, useSpaceFiles } from "./data";
 import { Facts } from "./Facts";
 import { Preview } from "./Files";
+import { Links } from "./Links";
 import { Logos } from "./Logos";
 import { Anchor, Section } from "./Section";
 import { Typography } from "./Typography";
+import { Voice } from "./Voice";
 
 type Patch = {
   name?: string;
@@ -41,6 +45,9 @@ type Patch = {
     about?: string;
     brandName?: string;
     tagline?: string;
+    voice?: VoiceBlock[];
+    voiceRules?: BrandRule[];
+    links?: BrandLink[];
     colors?: BrandColor[];
     colorSections?: ColorSection[];
     gradients?: BrandGradient[];
@@ -134,22 +141,50 @@ function Identity({ space, save }: { space: Space; save: (patch: Patch) => Promi
       save={status}
       locked={space.readOnly}
     >
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <Label>{t("space.brandName")}</Label>
-          <Input
-            value={brandName}
-            maxLength={120}
-            placeholder={space.brand.name ?? ""}
-            onChange={(e) => setBrandName(e.target.value)}
-          />
-          <p className="mt-1.5 text-[0.8125rem] text-ink-3">{t("space.brandNameHint")}</p>
-        </div>
-        <div>
-          <Label>{t("space.tagline")}</Label>
-          <Input value={tagline} maxLength={200} onChange={(e) => setTagline(e.target.value)} />
-          <p className="mt-1.5 text-[0.8125rem] text-ink-3">{t("space.taglineHint")}</p>
-        </div>
+      {/* One field per row, label beside its value, as the facts stand. */}
+      <div className="flex flex-col divide-y divide-border-soft">
+        {[
+          {
+            id: "brand-name",
+            label: t("space.brandName"),
+            hint: t("space.brandNameHint"),
+            field: (
+              <Input
+                id="brand-name"
+                value={brandName}
+                maxLength={120}
+                placeholder={space.brand.name ?? ""}
+                onChange={(e) => setBrandName(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: "brand-tagline",
+            label: t("space.tagline"),
+            hint: t("space.taglineHint"),
+            field: (
+              <Input
+                id="brand-tagline"
+                value={tagline}
+                maxLength={200}
+                onChange={(e) => setTagline(e.target.value)}
+              />
+            ),
+          },
+        ].map((row) => (
+          <div
+            key={row.id}
+            className="grid items-start gap-x-6 gap-y-2 py-4 first:pt-0 last:pb-0 sm:grid-cols-[15rem_minmax(0,1fr)]"
+          >
+            <div className="sm:pt-2.5">
+              <label htmlFor={row.id} className="font-medium text-[0.9375rem]">
+                {row.label}
+              </label>
+              <p className="mt-0.5 text-[0.8125rem] text-ink-3 leading-snug">{row.hint}</p>
+            </div>
+            {row.field}
+          </div>
+        ))}
       </div>
     </Section>
   );
@@ -300,12 +335,30 @@ export function SpaceSettings({
               readOnly={readOnly}
             />
           </Anchor>
+          <Anchor id="links">
+            <Links
+              key={`links:${key}`}
+              links={space.brand.links ?? []}
+              save={(links) => save({ brand: { links } })}
+              readOnly={readOnly}
+            />
+          </Anchor>
         </>
       ) : null}
       {group === "brand" ? (
         <>
           <Anchor id="identity">
             <Identity key={`identity:${key}`} space={space} save={save} />
+          </Anchor>
+          <Anchor id="voice">
+            <Voice
+              key={`voice:${key}`}
+              blocks={space.brand.voice ?? []}
+              rules={space.brand.voiceRules ?? []}
+              ruled={ruled}
+              save={(brand) => save({ brand })}
+              readOnly={readOnly}
+            />
           </Anchor>
           <Anchor id="logos">
             <Logos
