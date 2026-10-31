@@ -449,7 +449,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
           {group === "results" ? null : (
             <aside
               className={cn(
-                "min-w-0 md:sticky md:top-6 md:self-start md:overflow-y-auto md:overscroll-contain",
+                "menu-scroll min-w-0 md:sticky md:top-6 md:self-start md:overflow-y-auto md:overscroll-contain",
                 narrow && phone === 2 && "hidden",
                 narrow && pageStep === "back" && stepClass("back"),
               )}

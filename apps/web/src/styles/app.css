@@ -186,6 +186,12 @@ a,
   outline-offset: 2px;
 }
 
+/* A menu column that scrolls on its own clips what stands outside it: its rows draw the line
+   inside their edge. */
+.menu-scroll :focus-visible {
+  outline-offset: -2px;
+}
+
 /* A field shows focus by its own border (`border-focus`), not an outline. */
 :is(input, textarea, select):focus-visible {
   outline: none;

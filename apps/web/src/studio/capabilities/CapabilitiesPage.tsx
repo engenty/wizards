@@ -68,7 +68,7 @@ export function CapabilitiesPage() {
     label: t(s.label),
     icon: s.icon,
     // A section without a menu has only its page: a phone goes there at once.
-    to: s.menu === false ? `/capabilities/${s.id}?show=page` : `/capabilities/${s.id}`,
+    to: s.menu === false && narrow ? `/capabilities/${s.id}?show=page` : `/capabilities/${s.id}`,
     count: counts[s.id],
   }));
   const entry = entries.find((e) => e.id === open?.id);
@@ -89,6 +89,12 @@ export function CapabilitiesPage() {
   if (!on) {
     return <Navigate to="/" replace />;
   }
+  // Entdecken is the overview's second tab: an old or shared address opens it there.
+  if (param === "discover") {
+    const search = new URLSearchParams(location.search);
+    search.set("tab", "discover");
+    return <Navigate to={{ pathname: "/capabilities/overview", search: `?${search}` }} replace />;
+  }
   // `/capabilities`, or a section not built yet: the first that is.
   if (!open && sections[0]) {
     return (
@@ -106,7 +112,7 @@ export function CapabilitiesPage() {
         <div className="grid gap-6 md:grid-cols-[10.5rem_minmax(0,1fr)] md:gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
           <aside
             className={cn(
-              "min-w-0 md:sticky md:top-6 md:self-start md:overflow-y-auto md:overscroll-contain",
+              "menu-scroll min-w-0 md:sticky md:top-6 md:self-start md:overflow-y-auto md:overscroll-contain",
               narrow && phone === 2 && "hidden",
               narrow && pageStep === "back" && stepClass("back"),
             )}
@@ -137,8 +143,9 @@ export function CapabilitiesPage() {
                   current={entry}
                   onPick={(picked) => {
                     setUpAt(null);
-                    // On a phone the overview's row, open already behind the list, shows its page.
-                    if (narrow && open?.menu === false) {
+                    // A section without a menu, picked again: its page from the top (all skills,
+                    // not the one open); on a phone the page behind the list.
+                    if (open?.menu === false) {
                       navigate(picked.to);
                     }
                   }}

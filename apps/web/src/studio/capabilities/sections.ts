@@ -1,9 +1,8 @@
 import type { FeatureName } from "@engenty/wizards-shared/features";
-import { Compass, History, LayoutGrid, type LucideIcon, Plug, ScrollText } from "lucide-react";
+import { History, LayoutGrid, type LucideIcon, Plug, ScrollText } from "lucide-react";
 import type { ComponentType } from "react";
 import type { Key } from "../../lib/i18n";
 import { ConnectorsSection } from "./ConnectorsSection";
-import { DiscoverSection } from "./DiscoverSection";
 import { OverviewSection } from "./OverviewSection";
 import { ProtocolSection } from "./ProtocolSection";
 import { SkillsSection } from "./SkillsSection";
@@ -40,8 +39,17 @@ export const CAPABILITY_SECTIONS: CapabilitySection[] = [
     icon: ScrollText,
     element: SkillsSection,
     feature: "skills",
+    // Its page lists every skill: a menu of them beside it added nothing.
+    menu: false,
   },
-  { id: "connectors", label: "capabilities.connectors", icon: Plug, element: ConnectorsSection },
+  {
+    id: "connectors",
+    label: "capabilities.connectors",
+    icon: Plug,
+    element: ConnectorsSection,
+    // Its page lists every connection and has the button to add one.
+    menu: false,
+  },
   {
     id: "protocol",
     label: "capabilities.protocol",
@@ -49,7 +57,6 @@ export const CAPABILITY_SECTIONS: CapabilitySection[] = [
     element: ProtocolSection,
     admins: true,
   },
-  { id: "discover", label: "capabilities.discover", icon: Compass, element: DiscoverSection },
 ];
 
 /** The sections the page shows: built, on where they wait behind a switch, and the admins' to an admin. */

@@ -47,7 +47,7 @@ such as fonts, templates or pictures, come along for the skill’s scripts, and 
 as “for scripts”. skills.sh hands out text files only, so a skill that needs fonts or templates
 comes as a zip upload.
 
-**Capabilities › Discover** searches skills.sh and integrations.sh at once: you view or add a
+The **Discover** tab of Capabilities › Overview searches skills.sh and integrations.sh at once: you view or add a
 skill right in the results, marked “In this space” once the space has it.
 
 ## Run a skill’s scripts
