@@ -350,16 +350,6 @@ export function SpaceSettings({
           <Anchor id="identity">
             <Identity key={`identity:${key}`} space={space} save={save} />
           </Anchor>
-          <Anchor id="voice">
-            <Voice
-              key={`voice:${key}`}
-              blocks={space.brand.voice ?? []}
-              rules={space.brand.voiceRules ?? []}
-              ruled={ruled}
-              save={(brand) => save({ brand })}
-              readOnly={readOnly}
-            />
-          </Anchor>
           <Anchor id="logos">
             <Logos
               key={`logos:${key}`}
@@ -412,6 +402,16 @@ export function SpaceSettings({
               readOnly={readOnly}
               sections={space.brand.assetSections ?? []}
               save={(brand) => save({ brand })}
+            />
+          </Anchor>
+          <Anchor id="voice">
+            <Voice
+              key={`voice:${key}`}
+              blocks={space.brand.voice ?? []}
+              rules={space.brand.voiceRules ?? []}
+              ruled={ruled}
+              save={(brand) => save({ brand })}
+              readOnly={readOnly}
             />
           </Anchor>
         </>
