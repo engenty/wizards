@@ -452,7 +452,27 @@ export function SpacePage({ place }: { place?: "skills" }) {
             }}
           />
         ) : (
-          <div ref={setSlot} />
+          <>
+            <div ref={setSlot} />
+            {/* Below a part's own menu, after a line, the parts again: another one is one click
+                away, without going back up. */}
+            {own || narrow ? null : (
+              <>
+                <div className="mx-2 my-3 h-px bg-border-soft" aria-hidden />
+                <LevelList
+                  entries={entries}
+                  current={entry}
+                  onPick={() => {
+                    // The open part picked again: all of it, from the top.
+                    if (entry) {
+                      navigate(entry.to);
+                      scrollRoot().scrollTo({ top: 0, behavior: "smooth" });
+                    }
+                  }}
+                />
+              </>
+            )}
+          </>
         )}
       </div>
     </>
