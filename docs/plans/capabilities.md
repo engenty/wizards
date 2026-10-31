@@ -260,7 +260,7 @@ admins.
 Before any new place in the studio. Each PR is small, behind a switch where it changes
 behaviour, and testable with the API and the existing pages. Nothing here needs a frontend.
 
-0. `feat(runtime): RWX` — one table of permissions per space (`subject × resource × R W X`),
+0. `feat(runtime): RWX` — **built** (#356) — one table of permissions per space (`subject × resource × R W X`),
    deny by default, *verboten* wins, one reader per resource kind (documents, tables,
    connections, mail, hosts, the sandbox), search filtered by R, the deny test suite
    (`docs/plans/broker.md`, „First: RWX“).
