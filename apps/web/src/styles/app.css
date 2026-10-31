@@ -15,6 +15,12 @@
   --raw-sidebar: var(--paper-2);
 }
 
+/* The studio's page in light: nearly white, so it stands clear of the app bar and of the grey of
+   a picked row or a field. A wizard's own page keeps the base paper. */
+html[data-studio]:not(.dark) {
+  --paper: oklch(from var(--raw-background) 0.995 calc(c * 0.5) h);
+}
+
 /* Dark comes two ways, picked by the visitor. Branded (`.branded` on the root) is not the
    near-black of the base palette: the page takes the deep colour of an engenty
    (`--engenty-stage`, set per wizard by `useStage`), the ground the jelly coat is made for. Plain
