@@ -1,7 +1,8 @@
 # Plan: wizards as durable agents with a person in the loop
 
 Status: plan, nothing built. Written on 2026-10-30 against `feat/work-mode` (v0.13.x). Behind a
-new switch `durableRuns`, off by default.
+new switch `durableRuns`, off by default. The open questions were decided on 2026-10-31
+("Decisions", at the end).
 
 Scope: a wizard run that lasts hours or days. It follows its steps, branches and waits, survives
 restarts of every process, and stops for a person where it needs one (approve, answer, take over),
@@ -113,7 +114,7 @@ All optional. An existing wizard parses, validates and runs as before. Version s
 +const durationSchema = z.object({
 +  minutes: z.number().int().min(0).optional(),
 +  hours: z.number().int().min(0).optional(),
-+  days: z.number().int().min(0).max(365).optional(),
++  days: z.number().int().min(0).max(31).optional(),
 +});
 +
 +export const waitStepSchema = z
@@ -153,7 +154,7 @@ All optional. An existing wizard parses, validates and runs as before. Version s
     "next": [{ "when": { "field": "steps.paid.came", "op": "equals", "value": false }, "goto": "remind" }] }
   ```
 
-- The least wait is one minute, the longest 365 days. A wait in a loop needs the loop's `max`
+- The least wait is one minute, the longest 31 days (7 on Free, see "Decisions"). A wait in a loop needs the loop's `max`
   (the validator already warns about loops; a loop with a wait becomes an error).
 - A page right after a `wait` is shown when the run wakes, not before.
 
@@ -235,7 +236,7 @@ for someone other than the run's person. A review with `approve` is the approval
   step goes to the next step in the list, and its fields stay empty.
 - Take over in a chat runner (a person writes to the customer in the wizard's place) is a page
   with `who: "team"` whose answer the chat shows as the wizard's message. The runner part of it
-  is an open question.
+  comes later, with Engenties ("Decisions", 8).
 
 ### Agent steps that last
 
@@ -288,7 +289,7 @@ what happens after.
 |---|---|
 | `wait` has exactly one of `for`, `until`, `signal` | error |
 | `wait.signal.name` is one of `signals` | error |
-| `timeout`, `remind`, `for` between 1 minute and 365 days; `remind` shorter than `timeout` | error |
+| `timeout`, `remind`, `for` between 1 minute and 31 days; `remind` shorter than `timeout` | error |
 | A loop through a `wait` without `max` | error |
 | `onFail` names a step | error |
 | `who: "team"` on a wizard whose share settings name no one | warning at publish: "Nobody is set to answer “{step}”." |
@@ -312,7 +313,8 @@ and checks the time."
 
 - A visitor who left an e-mail on a page gets the run's link by e-mail when the run reaches a page
   for them again ("Weitermachen" on wizards.page, `starts.md`). The mail goes out through the
-  account (the cloud's mail). Through the space's own mailbox is an open question.
+  account (the cloud's mail), with the space's name as sender name and reply-to. The space's own
+  mailbox comes later.
 - A run on a channel (WhatsApp, SMS, the chat runner) asks its person in that channel, as today.
   The person's next message there is the answer.
 
@@ -354,7 +356,7 @@ and checks the time."
 - Waiting runs are not in anyone's hands. They wait in rows. Nothing is lost when every
   process is down. When the tick runs again, it wakes everything that came due meanwhile, once.
 - A local install that was off overnight wakes what came due at its next start. Signals sent to
-  it while it was off are not there (open question: the cloud as relay).
+  it while it was off wait in the cloud for a linked install and arrive at its start ("Decisions", 3).
 
 ### Steps that run twice
 
@@ -417,7 +419,7 @@ POST /api/public/signals/<token>      (doors, no sign-in)
 | `run_wait` (tenant DB) | `run_id, step_id, name, key, since`: one row per run waiting for a signal; an index on `(name, key)` |
 | The intake | writes the signal, finds `run_wait` rows with the same name and key in the space, writes the signal's id into each run's `waiting`, and wakes them. Answers before any step runs |
 | A run reaching a `wait` | first looks for a signal with its name and key that came since the run started and that it has not taken. Found: the step is done at once. Else it writes `run_wait` and goes `waiting_signal` |
-| The token | one per wizard, made in the share dialog ("Signals"), shown once, kept as a hash (like the starts webhook). An optional secret signs the body (`X-Signature`, HMAC) |
+| The token | one per wizard, made in the share dialog ("Events"), shown once, kept as a hash (like the starts webhook). An optional secret signs the body (`X-Signature`, HMAC) |
 
 Sources besides the address, all writing the same row:
 
@@ -461,8 +463,8 @@ the hold blocks credits for days, and a run admitted on Monday may find nothing 
 | Run | Kept until |
 |---|---|
 | Finished (`done`, `failed`, `cancelled`) | `RESULT_TTL_DAYS` after it finished (today: after its start) |
-| `sleeping`, `waiting_signal` | `RESULT_TTL_DAYS` after its `wake_at` (the timeout); a signal wait without timeout: 365 days after it began |
-| `waiting_input` for someone other than the person | `RESULT_TTL_DAYS` after its timeout, else 365 days |
+| `sleeping`, `waiting_signal` | `RESULT_TTL_DAYS` after its `wake_at` (the timeout); a signal wait without timeout: 31 days after it began |
+| `waiting_input` for someone other than the person | `RESULT_TTL_DAYS` after its timeout, else 31 days |
 | `waiting_input` for the person (a visitor left a page) | `RESULT_TTL_DAYS` after its last change (today: after its start) |
 | Signals | 30 days |
 | A test run | as today |
@@ -575,31 +577,24 @@ twice; a run out of credits after a wake, then topped up; retention of a run tha
 | `apps/runtime/src/mcp/tools.ts` | `send_signal`; `get_run` with `waiting` and the timeline |
 | `packages/wizards/src/plugin` | `server.signals.send` |
 | `apps/web/src/studio/work/WorkHome.tsx`, `ChatSidebar.tsx` | runs in Needs you and Waiting for you; the run inside Work |
-| `apps/web/src/studio/editor/RunsPanel.tsx`, `FlowDiagram.tsx`, `ShareDialog.tsx` | timeline and actions; wait nodes and timeout edges; "Answered by", "Signals" |
+| `apps/web/src/studio/editor/RunsPanel.tsx`, `FlowDiagram.tsx`, `ShareDialog.tsx` | timeline and actions; wait nodes and timeout edges; "Answered by", "Events" |
 | `packages/runner` | "Goes on {time}", "{name} looks at it", team pages with `instructions` |
 | `apps/runtime/src/authoring/guide.ts` | the new steps and the rule against looping agent steps |
 
-## Open questions
+## Decisions
 
-1. **Pause.** Should the owner be able to pause a waiting run (its wake time stops) besides
-   stopping it? Not in this plan.
-2. **New versions.** A run keeps the definition it started on (as today). Should a waiting run
-   be moved to a newly published version, for long campaigns? Not in v1. The owner stops it and
-   starts it again.
-3. **A local install that is off.** Waits catch up at the next start, but signals sent while it
-   was off are lost. Does the cloud take signals for a linked local install and hand them over
-   (the relay `starts.md` mentions for webhooks)?
-4. **Plans.** How many waiting runs, and how long a wait, per plan? The data does not care.
-5. **The price of waiting.** Waiting costs no credits here. Should a run that waits for months
-   cost something for being kept?
-6. **Parallel branches.** One cursor stays. `timeout` and `remind` cover "remind while waiting".
-   Is there a real case for two things happening at once in one run?
-7. **The word for a signal** in the UI where no description fits (the share dialog's section
-   name): "Events" / „Ereignisse“?
-8. **Take over in a chat runner.** A team member writing to the customer as the wizard: part of
-   PR 5, or later with Engenties?
-9. **Who the team is.** A list per wizard ("Answered by"), or the space's members, or the
-   sections of Work?
-10. **Mail to a visitor.** From engenty's address through the account, or from the space's
-    connected mailbox, so the customer gets mail from the business itself?
-11. **The longest wait.** 365 days, or shorter until a real case asks for it?
+Decided on 2026-10-31.
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Pause besides stop | No pause in v1. Owner and admins have "Go on now" and "Stop". A pause comes when a campaign needs to be held |
+| 2 | Waiting runs on a new version | No. A run keeps the definition it started on. The runs panel says "runs on version N" and offers "Stop these runs" |
+| 3 | Signals while a local install is off | The cloud takes signals for a linked local install, and the install fetches them at its start. Without a linked account the share dialog says signals arrive only while the computer runs |
+| 4 | Limits per plan | Free: 10 waiting runs, a wait of at most 7 days, no signals. Pro: 1,000 waiting runs, 31 days. Team: no limit on runs, 31 days. A local install has no limits |
+| 5 | The price of waiting | Free. Waiting costs a row |
+| 6 | Parallel branches | No. One cursor. `remind` and `timeout` cover "remind while waiting". A second track is a second run, started by `wizard.done` or a signal |
+| 7 | The word for a signal | "Events" / „Ereignisse“ as the share dialog's section. A step shows its signal's `description`. "Signal" stays a code word |
+| 8 | Take over in a chat runner | Later, with Engenties. PR 5 holds team pages only |
+| 9 | Who the team is | A list per wizard ("Answered by": people or "admins"), chosen from the space's members |
+| 10 | Mail to a visitor | Through the account, with the space's name as sender name and reply-to. The space's connected mailbox later |
+| 11 | The longest wait | 31 days in the format, 7 days on Free |
