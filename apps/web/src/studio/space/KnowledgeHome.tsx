@@ -6,6 +6,7 @@ import type {
 } from "@engenty/wizards-shared/knowledge";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  ChevronDown,
   Files,
   FileText,
   FolderInput,
@@ -33,11 +34,25 @@ import {
   useState,
 } from "react";
 import { useNavigate } from "react-router";
+import { Mascot } from "../../brand";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { Button, Card, Chip, cn, Dialog, Empty, IconButton, Input, Label, Spinner } from "../../ui";
+import {
+  Button,
+  Card,
+  Chip,
+  cn,
+  Dialog,
+  Empty,
+  IconButton,
+  Input,
+  Label,
+  Spinner,
+  Textarea,
+} from "../../ui";
 import { useDismiss } from "../AppFrame";
+import { useAssistant } from "../assistant/chat";
 import { CATEGORY_ICON } from "./Categories";
 import { useFileActions } from "./data";
 import { ItemViewSwitch } from "./item-view";
@@ -69,8 +84,11 @@ import {
 /** What uploads take: documents that become pages and tables, and pictures. */
 const DOCUMENTS = ".pdf,.docx,.doc,.xlsx,.csv,.tsv,.txt,.md,.json,.html,.eml,image/*";
 
-/** How many recently changed items the start page lists while nothing narrows them down. */
-const RECENT = 12;
+/**
+ * How many recently changed items the start page lists while nothing narrows them down: enough
+ * to fill a tall window.
+ */
+const RECENT = 40;
 
 /** An entry a plugin adds to „Hinzufügen“: it opens the plugin's section of Knowledge. */
 export interface KnowledgeAdd {
@@ -164,7 +182,7 @@ function KnowledgeRow({
 }
 
 /** What „Hinzufügen“ offers on its left; picked, its details fill the right. */
-type AddWay = "page" | "table" | "folder" | "upload" | `kind:${string}`;
+type AddWay = "start" | "page" | "table" | "folder" | "upload" | `kind:${string}`;
 
 /**
  * „Hinzufügen“ as a dialog: the ways in on the left (made here, from this computer, sources),
@@ -176,6 +194,7 @@ function AddDialog({
   initial,
   spaceId,
   parentId,
+  folderPath,
   upload,
   kinds = [],
   adds = [],
@@ -188,6 +207,8 @@ function AddDialog({
   initial: AddWay;
   spaceId: string;
   parentId: string | null;
+  /** The folder's path (`pages/…`), for Goose to know where; none at the top. */
+  folderPath?: string;
   upload: Uploads;
   kinds?: SourceKind[];
   adds?: KnowledgeAdd[];
@@ -197,12 +218,15 @@ function AddDialog({
   onWrite: (key: string) => void;
   onPlugin?: (id: string) => void;
 }) {
-  const [way, setWay] = useState<AddWay>(initial);
+  const assistant = useAssistant();
+  // Without Goose the first way is the upload: the start is a prompt for Goose and a drop zone.
+  const first: AddWay = initial === "start" && !assistant ? "upload" : initial;
+  const [way, setWay] = useState<AddWay>(first);
   useEffect(() => {
     if (open) {
-      setWay(initial);
+      setWay(first);
     }
-  }, [open, initial]);
+  }, [open, first]);
   // An upload started here closes the dialog once it is done; the page says what came in.
   const started = useRef(false);
   useEffect(() => {
@@ -216,6 +240,9 @@ function AddDialog({
     }
   }, [upload.busy, upload.error, onClose]);
   const kind = way.startsWith("kind:") ? kinds.find((k) => `kind:${k.kind}` === way) : undefined;
+  // The sources fold away until wanted; one of them picked keeps them open.
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const showSources = sourcesOpen || Boolean(kind);
   const entry = (id: AddWay, Icon: ComponentType<{ className?: string }>, label: string) => (
     <button
       key={id}
@@ -237,15 +264,17 @@ function AddDialog({
     </p>
   );
   const title =
-    way === "page"
-      ? t("know.addPage")
-      : way === "table"
-        ? t("know.addTable")
-        : way === "folder"
-          ? t("know.newFolder")
-          : way === "upload"
-            ? t("know.upload")
-            : (kind?.label() ?? "");
+    way === "start"
+      ? t("know.addAskTitle")
+      : way === "page"
+        ? t("know.addPage")
+        : way === "table"
+          ? t("know.addTable")
+          : way === "folder"
+            ? t("know.newFolder")
+            : way === "upload"
+              ? t("know.upload")
+              : (kind?.label() ?? "");
   // Drops stop here: the page behind takes them too, and would upload them twice.
   const stop = (run: (e: React.DragEvent) => void) => (e: React.DragEvent) => {
     e.stopPropagation();
@@ -263,15 +292,44 @@ function AddDialog({
         className="relative mx-auto flex h-[min(36rem,calc(100dvh-32px))] w-full overflow-hidden rounded-2xl bg-card shadow-overlay max-sm:h-dvh max-sm:flex-col max-sm:rounded-none"
       >
         <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-border-soft border-r bg-paper-2/60 p-2 max-sm:w-full max-sm:flex-row max-sm:overflow-x-auto max-sm:border-r-0 max-sm:border-b">
+          {assistant ? (
+            // Goose as it looks everywhere: its own face, with room below before the rest.
+            <button
+              type="button"
+              aria-current={way === "start" ? "true" : undefined}
+              onClick={() => setWay("start")}
+              className={cn(
+                "mb-2 flex h-11 w-full shrink-0 items-center gap-2.5 rounded-lg px-2 text-left text-[0.875rem] transition max-sm:mb-0 max-sm:w-auto",
+                way === "start"
+                  ? "bg-card font-medium text-ink shadow-soft"
+                  : "text-ink-2 hover:bg-accent",
+              )}
+            >
+              <Mascot kind="round" size={26} helmet interactive={false} />
+              <span className="truncate">{t("know.addStart")}</span>
+            </button>
+          ) : null}
           {group(t("know.addOwn"))}
           {entry("page", FileText, t("know.addPage"))}
           {entry("table", Table2, t("know.addTable"))}
           {entry("folder", FolderPlus, t("know.newFolder"))}
           {group(t("know.addFromComputer"))}
           {entry("upload", Upload, t("know.upload"))}
-          {kinds.length || adds.length ? group(t("know.sources")) : null}
-          {kinds.map((k) => entry(`kind:${k.kind}`, k.icon, k.label()))}
-          {onPlugin
+          {kinds.length || adds.length ? (
+            <button
+              type="button"
+              aria-expanded={showSources}
+              onClick={() => setSourcesOpen(!showSources)}
+              className="flex w-full items-center gap-1 px-2 pt-3 pb-1 text-left font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em] hover:text-ink-2 max-sm:w-auto max-sm:pt-0"
+            >
+              <span className="flex-1">{t("know.sources")}</span>
+              <ChevronDown
+                className={cn("size-3.5 transition-transform", showSources ? null : "-rotate-90")}
+              />
+            </button>
+          ) : null}
+          {showSources ? kinds.map((k) => entry(`kind:${k.kind}`, k.icon, k.label())) : null}
+          {showSources && onPlugin
             ? adds.map((a) => {
                 const Icon = a.icon ?? Puzzle;
                 return (
@@ -299,7 +357,18 @@ function AddDialog({
             </IconButton>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-3 pb-6">
-            {way === "page" || way === "table" || way === "folder" ? (
+            {way === "start" && assistant ? (
+              <StartPane
+                upload={upload}
+                onAsk={(text) => {
+                  assistant.setOpen(true);
+                  void assistant.send(
+                    folderPath ? `${text}\n\n${t("know.gooseWhere", { path: folderPath })}` : text,
+                  );
+                  onClose();
+                }}
+              />
+            ) : way === "page" || way === "table" || way === "folder" ? (
               <NewItemForm
                 key={way}
                 kind={way}
@@ -342,28 +411,86 @@ function AddDialog({
   );
 }
 
+/** „Hinzufügen“'s start: say what should come in, and Goose does it; or drop files. */
+function StartPane({ upload, onAsk }: { upload: Uploads; onAsk: (text: string) => void }) {
+  const [text, setText] = useState("");
+  const ask = () => text.trim() && onAsk(text.trim());
+  return (
+    <div className="flex flex-col gap-5">
+      <form
+        className="flex flex-col gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          ask();
+        }}
+      >
+        <Textarea
+          data-autofocus
+          value={text}
+          minRows={4}
+          maxRows={10}
+          placeholder={t("know.addAskPlaceholder")}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            // ⌘/Ctrl + Enter sends; Enter alone makes a new line.
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              ask();
+            }
+          }}
+        />
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(["know.addExample1", "know.addExample2", "know.addExample3"] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setText(t(key))}
+              className="h-7 rounded-full bg-paper-2 px-2.5 text-[0.75rem] text-ink-2 transition hover:bg-accent hover:text-ink"
+            >
+              {t(key)}
+            </button>
+          ))}
+          <span className="flex-1" />
+          <Button type="submit" size="sm" disabled={!text.trim()}>
+            {t("know.askGoose")}
+          </Button>
+        </div>
+      </form>
+      <UploadBox upload={upload} />
+      {upload.error ? <p className="text-[0.8125rem] text-rose">{upload.error}</p> : null}
+    </div>
+  );
+}
+
 /** Uploading: files or a whole folder, picked or dropped. A folder keeps its sub folders. */
 function UploadPane({ upload }: { upload: Uploads }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-[0.8125rem] text-ink-3">{t("know.uploadPaneHint")}</p>
-      <div className="flex flex-col items-center justify-center gap-3 rounded-xl px-4 py-10 text-center ring-1 ring-border ring-dashed">
-        {upload.busy ? (
-          <Spinner className="size-5 text-ink-3" />
-        ) : (
-          <Upload className="size-5 text-ink-3" />
-        )}
-        <p className="text-[0.875rem] text-ink-2">{upload.note ?? t("know.dropHere")}</p>
-        <div className="flex flex-wrap justify-center gap-2">
-          <Button size="sm" variant="secondary" onClick={upload.pick} disabled={upload.busy}>
-            <Files className="size-4" /> {t("know.pickFiles")}
-          </Button>
-          <Button size="sm" variant="secondary" onClick={upload.pickFolder} disabled={upload.busy}>
-            <FolderUp className="size-4" /> {t("know.pickFolder")}
-          </Button>
-        </div>
-      </div>
+      <UploadBox upload={upload} />
       {upload.error ? <p className="text-[0.8125rem] text-rose">{upload.error}</p> : null}
+    </div>
+  );
+}
+
+/** The drop zone with its two pickers: files, or a folder with what is in it. */
+function UploadBox({ upload }: { upload: Uploads }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-xl px-4 py-10 text-center ring-1 ring-border ring-dashed">
+      {upload.busy ? (
+        <Spinner className="size-5 text-ink-3" />
+      ) : (
+        <Upload className="size-5 text-ink-3" />
+      )}
+      <p className="text-[0.875rem] text-ink-2">{upload.note ?? t("know.dropHere")}</p>
+      <div className="flex flex-wrap justify-center gap-2">
+        <Button size="sm" variant="secondary" onClick={upload.pick} disabled={upload.busy}>
+          <Files className="size-4" /> {t("know.pickFiles")}
+        </Button>
+        <Button size="sm" variant="secondary" onClick={upload.pickFolder} disabled={upload.busy}>
+          <FolderUp className="size-4" /> {t("know.pickFolder")}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -633,7 +760,7 @@ export function KnowledgeHome({
         plain
         action={
           readOnly ? null : (
-            <Button size="sm" onClick={() => setMaking("page")}>
+            <Button size="sm" onClick={() => setMaking("start")}>
               <Plus className="size-4" /> {t("know.add")}
             </Button>
           )
@@ -766,7 +893,7 @@ export function KnowledgeHome({
       {upload.input}
       <AddDialog
         open={making !== null}
-        initial={making ?? "page"}
+        initial={making ?? "start"}
         spaceId={spaceId}
         parentId={null}
         upload={upload}
@@ -932,7 +1059,7 @@ export function KnowledgeFolder({
                   <Button variant="ghost" size="sm" onClick={() => onWrite(folder.key)}>
                     <PenLine className="size-4" /> {t("know.writeText")}
                   </Button>
-                  <Button size="sm" onClick={() => setMaking("page")}>
+                  <Button size="sm" onClick={() => setMaking("start")}>
                     <Plus className="size-4" /> {t("know.add")}
                   </Button>
                 </>
@@ -961,9 +1088,10 @@ export function KnowledgeFolder({
       {upload.input}
       <AddDialog
         open={making !== null}
-        initial={making ?? "page"}
+        initial={making ?? "start"}
         spaceId={spaceId}
         parentId={folder.id}
+        folderPath={folder.path}
         upload={upload}
         kinds={kinds}
         onClose={() => setMaking(null)}

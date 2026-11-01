@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Files,
   FileText,
+  Folder,
   type LucideIcon,
   MessagesSquare,
   Paperclip,
@@ -35,7 +36,6 @@ import {
   Empty,
   Input,
   Label,
-  Select,
   Spinner,
   Switch,
   Textarea,
@@ -691,6 +691,103 @@ export function SearchHits({
 /** What a page could ask Goose for, one click away. */
 const GOOSE_EXAMPLES = ["know.gooseExample1", "know.gooseExample2", "know.gooseExample3"] as const;
 
+/**
+ * A folder picked by typing part of its name: the folders whose path holds the words show below,
+ * the arrows move, Enter takes one, Escape closes the list (not the dialog).
+ */
+function FolderField({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  options: { id: string; label: string }[];
+}) {
+  const picked = options.find((o) => o.id === value) ?? options[0];
+  const [query, setQuery] = useState<string | null>(null);
+  const [hi, setHi] = useState(0);
+  const open = query !== null;
+  const words = (query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = options
+    .filter((o) => words.every((w) => o.label.toLowerCase().includes(w)))
+    .slice(0, 50);
+  const pick = (id: string) => {
+    onChange(id);
+    setQuery(null);
+  };
+  return (
+    <div className="relative">
+      <input
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        autoComplete="off"
+        value={open ? query : (picked?.label ?? "")}
+        onFocus={(e) => {
+          setQuery("");
+          setHi(0);
+          e.currentTarget.select();
+        }}
+        onBlur={() => setQuery(null)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setHi(0);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            setHi((h) =>
+              Math.max(0, Math.min(shown.length - 1, h + (e.key === "ArrowDown" ? 1 : -1))),
+            );
+          } else if (e.key === "Enter" && open && shown[hi]) {
+            e.preventDefault();
+            pick(shown[hi].id);
+            e.currentTarget.blur();
+          } else if (e.key === "Escape" && open) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.blur();
+          }
+        }}
+        placeholder={picked?.label}
+        className="h-10 w-full rounded-lg border border-input bg-card px-3 pr-9 text-[0.875rem] text-ink outline-none transition placeholder:text-ink-4 focus:border-focus focus:ring-4 focus:ring-focus-glow"
+      />
+      <ChevronDown className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 size-4 text-ink-3" />
+      {open && !shown.length ? (
+        <p className="absolute top-full right-0 left-0 z-30 mt-1 rounded-lg bg-card px-3 py-2 text-[0.8125rem] text-ink-3 shadow-overlay ring-1 ring-border-soft">
+          {t("know.noFolder")}
+        </p>
+      ) : null}
+      {open && shown.length ? (
+        <ul className="absolute top-full right-0 left-0 z-30 mt-1 max-h-60 overflow-y-auto rounded-lg bg-card p-1 shadow-overlay ring-1 ring-border-soft">
+          {shown.map((o, i) => (
+            <li
+              key={o.id || "."}
+              aria-selected={i === hi}
+              // Picked before the field loses the focus.
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(o.id);
+                (document.activeElement as HTMLElement | null)?.blur();
+              }}
+              onMouseEnter={() => setHi(i)}
+              className={cn(
+                "flex h-8 cursor-pointer items-center gap-2 truncate rounded-md px-2 text-[0.8125rem]",
+                i === hi ? "bg-accent text-ink" : "text-ink-2",
+                o.id === value && "font-medium",
+              )}
+            >
+              <Folder className="size-3.5 shrink-0 text-ink-3" />
+              <span className="truncate">{o.label}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 /** A folder of one's own, by its titles from the top („Handbuch › Montage“). */
 function ownFolders(items: KnowledgeItem[]): { id: string; label: string }[] {
   const byId = new Map(items.map((i) => [i.id, i]));
@@ -840,12 +937,12 @@ export function NewItemForm({
     >
       <div className="flex flex-col gap-1.5">
         <Label>{t("know.inFolder")}</Label>
-        <Select
+        <FolderField
           value={into}
           onChange={setInto}
           options={[
-            { value: "", label: t("know.title") },
-            ...folders.map((f) => ({ value: f.id, label: `${t("know.title")} › ${f.label}` })),
+            { id: "", label: t("know.title") },
+            ...folders.map((f) => ({ id: f.id, label: `${t("know.title")} › ${f.label}` })),
           ]}
         />
       </div>
