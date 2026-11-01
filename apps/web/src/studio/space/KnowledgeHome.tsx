@@ -474,7 +474,7 @@ const labelClass = "px-1 font-medium text-[0.6875rem] text-ink-4 uppercase track
 /** The small label above a set of items, with the switch between cards and the list. */
 function ItemsLabel({ label, switcher = true }: { label: string; switcher?: boolean }) {
   return (
-    <div className="flex min-h-8 items-center justify-between">
+    <div className="flex h-7 items-center justify-between">
       <p className={labelClass}>{label}</p>
       {switcher ? <ItemViewSwitch /> : null}
     </div>
@@ -647,7 +647,7 @@ export function KnowledgeHome({
         {data.items.length ? (
           <>
             {sourceFolders.length && !filtered ? (
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <ItemsLabel label={t("know.sources")} />
                 <SourceCards
                   spaceId={spaceId}
@@ -657,13 +657,13 @@ export function KnowledgeHome({
               </div>
             ) : null}
             {ownTop.length && !filtered ? (
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <ItemsLabel label={t("know.ownTop")} switcher={!sourceFolders.length} />
                 <ItemCards items={ownTop} categories={data.categories} onOpen={onOpen} />
               </div>
             ) : null}
-            <div className="flex flex-col gap-1.5">
-              <p className={labelClass}>{t("know.recent")}</p>
+            <div className="flex flex-col gap-2">
+              <ItemsLabel label={t("know.recent")} switcher={false} />
               <Card className="flex flex-col p-1.5">
                 {shown.length ? (
                   shown.map((item) => (

@@ -35,7 +35,6 @@ import {
   Empty,
   Input,
   Label,
-  Segmented,
   Select,
   Spinner,
   Switch,
@@ -394,6 +393,10 @@ function filterLabel(category: SpaceCategory, w: WhereValue): string {
  * A choice's values to filter by, as a short list to tick: each with how many items have it,
  * a field to find one once there are more than ten, the list scrolling past a dozen.
  */
+/** A field inside a filter's popover: as small as the rows around it. */
+const smallField =
+  "h-7 w-full min-w-0 rounded-md bg-paper-2 px-2 text-[0.8125rem] text-ink outline-none transition placeholder:text-ink-4 focus:bg-paper focus:ring-1 focus:ring-ring";
+
 function ValueChecklist({
   values,
   picked,
@@ -410,12 +413,12 @@ function ValueChecklist({
   return (
     <div className="flex flex-col gap-1">
       {values.length > 10 ? (
-        <Input
+        <input
           data-autofocus
           value={find}
           placeholder={t("know.findValue")}
           onChange={(e) => setFind(e.target.value)}
-          className="h-8 text-[0.8125rem]"
+          className={smallField}
         />
       ) : null}
       <ul className="max-h-72 overflow-y-auto">
@@ -430,7 +433,7 @@ function ValueChecklist({
                 onClick={() =>
                   onChange(on ? picked.filter((p) => p !== v.value) : [...picked, v.value])
                 }
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[0.8125rem] text-ink-2 transition hover:bg-accent hover:text-ink"
+                className="flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-[0.8125rem] text-ink-2 transition hover:bg-accent hover:text-ink"
               >
                 <span
                   className={cn(
@@ -451,7 +454,7 @@ function ValueChecklist({
         <button
           type="button"
           onClick={() => onChange([])}
-          className="self-start px-2 py-1 text-[0.75rem] text-ink-3 underline hover:text-ink"
+          className="self-start px-2 pt-0.5 text-[0.75rem] text-ink-3 underline hover:text-ink"
         >
           {t("know.clear")}
         </button>
@@ -498,21 +501,26 @@ export function FilterChip({
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[0.8125rem] transition",
+          "inline-flex h-6.5 items-center gap-1 rounded-full pr-1.5 pl-2 text-[0.8125rem] transition",
           value === undefined
             ? "text-ink-2 ring-1 ring-border-soft hover:ring-border"
             : "bg-ember-tint text-ink ring-1 ring-ember/30",
         )}
       >
-        <Icon className="size-3.5 text-ink-3" />
+        <Icon className="size-3 text-ink-3" />
         {category.name}
         {value !== undefined ? (
           <span className="font-medium">: {filterLabel(category, value)}</span>
         ) : null}
-        <ChevronDown className="size-3.5 text-ink-3" />
+        <ChevronDown className="size-3 text-ink-4" />
       </button>
       {open ? (
-        <div className="absolute top-full left-0 z-30 mt-1.5 w-64 max-w-[calc(100vw-32px)] rounded-xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft">
+        <div
+          className={cn(
+            "absolute top-full left-0 z-30 mt-1 max-w-[calc(100vw-32px)] rounded-lg bg-card p-1 shadow-overlay ring-1 ring-border-soft",
+            category.type === "choice" ? "w-60" : category.type === "boolean" ? "w-36" : "w-52",
+          )}
+        >
           {category.type === "choice" ? (
             <ValueChecklist
               values={category.values}
@@ -520,28 +528,46 @@ export function FilterChip({
               onChange={(next) => onChange(next.length ? next : undefined)}
             />
           ) : category.type === "boolean" ? (
-            <Segmented
-              value={value === true ? t("know.yes") : value === false ? t("know.no") : ""}
-              options={[t("know.yes"), t("know.no")]}
-              onChange={(v: string) => onChange(v === t("know.yes"))}
-            />
+            <div className="flex flex-col">
+              {([true, false] as const).map((yes) => (
+                <button
+                  key={String(yes)}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={value === yes}
+                  onClick={() => onChange(value === yes ? undefined : yes)}
+                  className="flex h-7 items-center gap-2 rounded-md px-2 text-left text-[0.8125rem] text-ink-2 transition hover:bg-accent hover:text-ink"
+                >
+                  <span
+                    className={cn(
+                      "grid size-3.5 place-items-center rounded-full ring-1",
+                      value === yes ? "ring-4 ring-ember ring-inset" : "ring-border",
+                    )}
+                  />
+                  {yes ? t("know.yes") : t("know.no")}
+                </button>
+              ))}
+            </div>
           ) : category.type === "text" ? (
-            <Input
+            <input
               data-autofocus
+              autoFocus
               value={range.contains ?? ""}
               placeholder={t("know.contains")}
               onChange={(e) => onChange(e.target.value ? { contains: e.target.value } : undefined)}
-              className="h-9"
+              className={smallField}
             />
           ) : (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-1.5 text-[0.75rem] text-ink-3">
               {(category.type === "number"
                 ? (["gte", "lte"] as const)
                 : (["after", "before"] as const)
               ).map((key, i) => (
-                <div key={key}>
-                  <Label>{i === 0 ? t("know.minimum") : t("know.maximum")}</Label>
-                  <Input
+                <label key={key} className="flex min-w-0 flex-1 items-center gap-1.5">
+                  <span className="shrink-0 pl-1">
+                    {i === 0 ? t("know.minimum") : t("know.maximum")}
+                  </span>
+                  <input
                     type={category.type === "number" ? "number" : "date"}
                     step="any"
                     value={String(range[key] ?? "")}
@@ -551,9 +577,9 @@ export function FilterChip({
                         : ""
                     }
                     onChange={(e) => setRange(key, e.target.value)}
-                    className="h-9"
+                    className={cn(smallField, "tabular-nums")}
                   />
-                </div>
+                </label>
               ))}
             </div>
           )}
@@ -564,7 +590,7 @@ export function FilterChip({
                 onChange(undefined);
                 setOpen(false);
               }}
-              className="mt-3 text-[0.8125rem] text-ink-3 underline hover:text-ink"
+              className="mt-1 px-2 text-[0.75rem] text-ink-3 underline hover:text-ink"
             >
               {t("know.clear")}
             </button>
