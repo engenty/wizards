@@ -7,12 +7,15 @@ import type {
 import { featureOn } from "@engenty/wizards-shared/features";
 import { spaceFileLimit } from "@engenty/wizards-shared/spaces";
 import { and, eq, like } from "drizzle-orm";
+import type { Subject } from "../broker/rwx.js";
 import { db, knownTenants, schema, withTenant } from "../db/client.js";
 import { documentMime } from "../documents/parse.js";
 import { currentFeatures } from "../features.js";
 import { managed } from "../manage.js";
+import { moveKnowledgeItem } from "../services/space-data.js";
+import { addSpaceFile } from "../services/space-files.js";
 import { CORE, registerCoreSource, runDueSources, startSource } from "../services/space-sources.js";
-import { onMountChanged, readerOf } from "./mounts.js";
+import { mountFileContent, onMountChanged, readerOf } from "./mounts.js";
 
 /**
  * „Aus Dateien übernehmen“ (docs/plans/media-and-files.md, step 8): the core's kind of source of
@@ -175,4 +178,34 @@ export function startFileSources() {
       );
     }
   }, DUE_MS).unref();
+}
+
+/**
+ * „In Wissen übernehmen“: one file of a mount copied into Knowledge, read as an upload of it is,
+ * into a folder of Knowledge or at the top. The copy is the space's own; the source does not
+ * follow it.
+ */
+export async function copyToKnowledge(
+  userId: string,
+  spaceId: string,
+  fileId: string,
+  who: Subject[],
+  parentId: string | null,
+) {
+  const { file, data } = await mountFileContent(spaceId, fileId, who);
+  const mount = await db.query.spaceMount.findFirst({
+    where: eq(schema.spaceMount.id, file.mountId),
+    columns: { slug: true },
+  });
+  const row = await addSpaceFile(spaceId, {
+    kind: "document",
+    name: file.name,
+    mime: file.mime,
+    data,
+    source: mount ? `dateien/${mount.slug}/${file.path}` : undefined,
+  });
+  if (parentId) {
+    await moveKnowledgeItem(userId, spaceId, { key: `f:${row.id}`, parentId });
+  }
+  return row;
 }

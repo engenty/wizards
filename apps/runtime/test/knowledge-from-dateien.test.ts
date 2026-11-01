@@ -177,4 +177,25 @@ describe("Aus Dateien übernehmen", () => {
     const after = await json(send("GET", `/api/studio/spaces/${spaceId}/sources/${sourceId}`));
     expect(after.source.lastRunAt).toBe(source.lastRunAt);
   });
+
+  it("copies one file into Knowledge, read as an upload is", async () => {
+    const { files } = await json(send("GET", `/api/studio/spaces/${spaceId}/mounts/${mountId}/files`));
+    const file = files.find((f: { path: string }) => f.path === "Intern/geheim.md");
+    const copy = await json(
+      send("POST", `/api/studio/spaces/${spaceId}/mount-files/${file.id}/knowledge`, {
+        parentId: folderId,
+      }),
+    );
+    expect(copy.name).toBe("geheim.md");
+    for (let i = 0; i < 100; i++) {
+      const page = (await knowledge()).items.find((x) => x.title === "Geheim");
+      if (page) {
+        // The space's own, in the folder it was put in.
+        expect(page).toMatchObject({ origin: null, parentId: folderId });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    throw new Error("not read");
+  });
 });

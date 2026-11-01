@@ -2876,6 +2876,10 @@ const de: Record<Key, Line> = {
     one: "1 Datei veröffentlicht.",
     other: "{count} Dateien veröffentlicht.",
   },
+  "dateien.toKnowledge": "In Wissen übernehmen",
+  "dateien.toKnowledgeTitle": "„{name}“ in Wissen übernehmen",
+  "dateien.toKnowledgeNote":
+    "Wissen bekommt eine Kopie, gelesen wie beim Hochladen. Änderungen hier kommen dort nicht an.",
   "space.data": "Daten",
   "space.results": "Ergebnisse",
   "space.page": "Öffentliche Seite",
@@ -6853,6 +6857,10 @@ const en = {
   },
   "dateien.draftConflicts": { one: "1 with a conflict", other: "{count} with a conflict" },
   "dateien.publishedAll": { one: "1 file published.", other: "{count} files published." },
+  "dateien.toKnowledge": "Copy into Knowledge",
+  "dateien.toKnowledgeTitle": "Copy “{name}” into Knowledge",
+  "dateien.toKnowledgeNote":
+    "Knowledge gets a copy, read as an upload is. Changes here won’t reach it.",
   "space.data": "Data",
   "space.results": "Results",
   "space.page": "Public page",

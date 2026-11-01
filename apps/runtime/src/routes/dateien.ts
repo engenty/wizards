@@ -29,6 +29,7 @@ import {
   rescanMount,
   updateMount,
 } from "../mounts/mounts.js";
+import { copyToKnowledge } from "../mounts/source.js";
 import { ServiceError } from "../services/errors.js";
 import { ownedSpace } from "../services/spaces.js";
 import { spaceFileResponse } from "./delivery.js";
@@ -125,6 +126,21 @@ export const dateienRoutes = new Hono<Vars>()
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const { file, data } = await mountFileContent(space.id, c.req.param("fileId"), whoOf(c));
     return spaceFileResponse(c, file.mime, data);
+  })
+  // „In Wissen übernehmen“: a copy of the file in Knowledge, read as an upload is.
+  .post("/spaces/:id/mount-files/:fileId/knowledge", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const { parentId } = z
+      .object({ parentId: z.string().max(40).nullish() })
+      .parse(await c.req.json().catch(() => ({})));
+    const row = await copyToKnowledge(
+      c.get("user").id,
+      space.id,
+      c.req.param("fileId"),
+      whoOf(c),
+      parentId ?? null,
+    );
+    return c.json({ id: row.id, name: row.name });
   })
   .get("/spaces/:id/mount-files/:fileId/thumb", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
