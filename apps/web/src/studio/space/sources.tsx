@@ -798,7 +798,13 @@ export function SourceDialog({
     error: propose.error ? errorText(propose.error) : null,
   };
   return (
-    <Dialog open={Boolean(kind)} onClose={onClose} title={kind?.label()} height="tall">
+    // The form is short; what it proposes needs the room, and the dialog grows to it once.
+    <Dialog
+      open={Boolean(kind)}
+      onClose={onClose}
+      title={kind?.label()}
+      height={proposal ? "tall" : "auto"}
+    >
       {!kind ? null : proposal ? (
         <ProposalView
           spaceId={spaceId}
