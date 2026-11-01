@@ -1,5 +1,5 @@
 import type { ItemCategory } from "@engenty/wizards-shared/knowledge";
-import type { Audience } from "@engenty/wizards-shared/rwx";
+import type { AgentAccess, Audience } from "@engenty/wizards-shared/rwx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { keys } from "../../lib/keys";
@@ -30,6 +30,8 @@ export interface Mount {
 /** Who sees a mount besides its admins; none: the admins alone. */
 export type MountSee = Audience[];
 export type MountWizards = "all" | "none" | string[];
+/** What an AI working for a person may do with it: nothing, read, or write drafts. */
+export type MountAgents = AgentAccess;
 
 export interface MountFile {
   id: string;
@@ -125,6 +127,7 @@ export function useMountAccess(spaceId: string, mountId: string | null) {
         Mount & {
           see: MountSee;
           wizards: MountWizards;
+          agents: MountAgents;
           /** Whether its account may write there now; a plugin's kind asks for the rights first. */
           canWrite: boolean;
           /** What a plugin's kind keeps, for its studio half; none for a folder. */
@@ -154,6 +157,7 @@ export function useMountActions(spaceId: string) {
       name?: string;
       see: MountSee;
       wizards: MountWizards;
+      agents: MountAgents;
       folderCategory?: string | null;
       writable?: boolean;
     }) => {
@@ -163,7 +167,13 @@ export function useMountActions(spaceId: string) {
     },
     update: async (
       mountId: string,
-      patch: { name?: string; see?: MountSee; wizards?: MountWizards; writable?: boolean },
+      patch: {
+        name?: string;
+        see?: MountSee;
+        wizards?: MountWizards;
+        agents?: MountAgents;
+        writable?: boolean;
+      },
     ) => {
       await api.patch(`${base(spaceId)}/mounts/${mountId}`, patch);
       await refresh();

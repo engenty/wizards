@@ -134,6 +134,9 @@ Read a table of Knowledge by its path: its rows as CSV, filtered by its columns 
 <!-- section: tool.space_document -->
 Read a file of Knowledge as text by its path (files/…): a file that is not a page, or the original a page was read from. Also a file of a folder mounted in Dateien (dateien/…), read from where it lives. Long files come in parts: pass `from` to continue.
 
+<!-- section: tool.dateien_draft -->
+Write a new text for a file of a folder mounted in Dateien (dateien/…), as a draft. Read it first with space_document and send the whole text. The file itself changes only when a person publishes the draft in Dateien; say so.
+
 <!-- Skills of the space (tools/skills.ts); Goose gets the same tools. `names` joined with ", ". -->
 
 <!-- section: tool.skill_load -->

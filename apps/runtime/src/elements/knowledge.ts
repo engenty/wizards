@@ -1,7 +1,9 @@
 import { createTool } from "@mastra/core/tools";
-import { and, eq } from "drizzle-orm";
-import { assertRwx } from "../broker/rwx.js";
+import { and, eq, inArray } from "drizzle-orm";
+import { z } from "zod";
+import { assertRwx, decide, type Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
+import { openDraft, saveDraft } from "../mounts/drafts.js";
 import { fileByPath, mountFileText, usableMounts } from "../mounts/mounts.js";
 import { prompt } from "../prompts.js";
 import {
@@ -231,6 +233,49 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
         }),
     });
   }
+  // A Work chat's AI writes drafts of a mounted folder's files where the folder lets agents do it;
+  // a person publishes them. Not offered to outside clients: their scopes don't write yet.
+  const drafts =
+    !caller.client &&
+    caller.who.id &&
+    who.some((s) => s.kind === "agent") &&
+    (await draftableMounts(spaceId, who)).length > 0;
+  if (drafts) {
+    const userId = caller.who.id as string;
+    tools.dateien_draft = createTool({
+      id: "dateien_draft",
+      description: prompt("tools", "tool.dateien_draft"),
+      inputSchema: z.object({
+        path: z.string().describe("The file's path in Dateien: dateien/…"),
+        text: z.string().max(200_000).describe("The file's whole new text"),
+      }),
+      execute: (input) =>
+        attempt(() =>
+          elementCall(
+            caller,
+            { action: "dateien_draft", perm: "w", input: { path: input.path } },
+            async () => {
+              const found = await fileByPath(spaceId, input.path, who);
+              if (!found) {
+                throw new Error(`No file "${input.path}" in the folders you may use.`);
+              }
+              const open = await openDraft(spaceId, found.file.id, who);
+              if (open.edit !== "text") {
+                throw new Error(`"${input.path}" is not a text file: it can't be written as text.`);
+              }
+              await saveDraft(userId, spaceId, found.file.id, who, {
+                text: input.text,
+                ...(open.draft ? {} : { base: open.base, baseText: open.baseText ?? undefined }),
+              });
+              return {
+                ok: true,
+                note: "Kept as a draft. A person publishes it in Dateien.",
+              };
+            },
+          ),
+        ),
+    });
+  }
   return tools;
 
   /** A file of a mount, read from where it lives: the mount's rules decided before. */
@@ -255,6 +300,35 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
       length: text.length,
     };
   }
+}
+
+/** The mounts an AI for the caller may write drafts in: changeable, and agents may write. */
+async function draftableMounts(spaceId: string, who: Subject[]): Promise<string[]> {
+  const ids = (await usableMounts(spaceId, who)).map((m) => m.id);
+  const agents = who.filter((s) => s.kind === "agent");
+  const ok = await Promise.all(
+    ids.map(async (id) => (await decide(spaceId, agents, { kind: "mount", id }, "w")).ok),
+  );
+  return writableMountIds(
+    spaceId,
+    ids.filter((_, i) => ok[i]),
+  );
+}
+
+/** The mounts among these whose files may be changed. */
+async function writableMountIds(spaceId: string, ids: string[]): Promise<string[]> {
+  if (!ids.length) {
+    return [];
+  }
+  const rows = await db.query.spaceMount.findMany({
+    columns: { id: true },
+    where: and(
+      eq(schema.spaceMount.spaceId, spaceId),
+      eq(schema.spaceMount.writable, true),
+      inArray(schema.spaceMount.id, ids),
+    ),
+  });
+  return rows.map((r) => r.id);
 }
 
 /** A search over the client space and its parent, the best of both by relevance. */

@@ -84,7 +84,20 @@ async function requireWrite(spaceId: string, mount: MountRow, who: Subject[]) {
   if (who.some((s) => s.kind === "wizard")) {
     throw forbidden({ kind: "mount", id: mount.id }, "w");
   }
-  await assertRwx(spaceId, who, { kind: "mount", id: mount.id }, "w");
+  // An AI working for a person writes where the person may and the mount lets agents write drafts.
+  const agents = who.filter((s) => s.kind === "agent");
+  const people = who.filter((s) => s.kind !== "agent");
+  await assertRwx(spaceId, people, { kind: "mount", id: mount.id }, "w");
+  if (agents.length) {
+    await assertRwx(spaceId, agents, { kind: "mount", id: mount.id }, "w");
+  }
+}
+
+/** „Veröffentlichen“ is a person's: an AI working for one leaves drafts. */
+function requirePerson(mount: MountRow, who: Subject[]) {
+  if (who.some((s) => s.kind === "agent")) {
+    throw forbidden({ kind: "mount", id: mount.id }, "w");
+  }
 }
 
 async function writable(spaceId: string, mountId: string, who: Subject[]) {
@@ -360,6 +373,7 @@ export async function publishDraft(
   who: Subject[],
 ): Promise<PublishResult> {
   const { mount, file } = await writableFile(spaceId, fileId, who);
+  requirePerson(mount, who);
   const draft = await draftOf(file.id);
   if (!draft) {
     throw notFound();
@@ -380,6 +394,7 @@ export async function keepMine(
   who: Subject[],
 ): Promise<PublishResult> {
   const { mount, file } = await writableFile(spaceId, fileId, who);
+  requirePerson(mount, who);
   const draft = await draftOf(file.id);
   if (!draft?.conflict) {
     throw notFound();
@@ -430,6 +445,7 @@ export async function mountDrafts(
 /** „Veröffentlichen“ for every draft of a mount that has no conflict. */
 export async function publishMount(spaceId: string, mountId: string, who: Subject[]) {
   const mount = await writable(spaceId, mountId, who);
+  requirePerson(mount, who);
   const drafts = await db.query.spaceMountDraft.findMany({
     where: eq(schema.spaceMountDraft.mountId, mount.id),
   });

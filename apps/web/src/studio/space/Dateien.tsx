@@ -52,6 +52,7 @@ import { mountFileUrl, mountThumbUrl } from "./data";
 import {
   type FolderPreview,
   type Mount,
+  type MountAgents,
   type MountDraft,
   type MountFile,
   type MountSee,
@@ -1055,18 +1056,30 @@ function FileView({
 
 // --- mounting a folder --------------------------------------------------------------------------
 
+/**
+ * Who may do what with a mounted folder, in the order one decides it: who sees it, whether its
+ * files may be changed and by whom, what the AI in Work may do, which wizards may use it.
+ */
 function AccessFields({
   spaceId,
   see,
   wizards,
+  agents,
+  writable,
   onSee,
   onWizards,
+  onAgents,
+  onWritable,
 }: {
   spaceId: string;
   see: MountSee;
   wizards: MountWizards;
+  agents: MountAgents;
+  writable: boolean;
   onSee: (v: MountSee) => void;
   onWizards: (v: MountWizards) => void;
+  onAgents: (v: MountAgents) => void;
+  onWritable: (v: boolean) => void;
 }) {
   const list = useQuery({
     queryKey: ["wizards", spaceId, "dateien"],
@@ -1074,11 +1087,46 @@ function AccessFields({
       api.get<{ id: string; title: string }[]>(`/api/studio/spaces/${spaceId}/wizards`),
   });
   const picked = Array.isArray(wizards) ? wizards : [];
+  // Drafts need a folder that may be changed: turned off, the AI goes back to reading.
+  const agentsShown = !writable && agents === "drafts" ? "read" : agents;
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-5">
       <div>
         <Label>{t("dateien.see")}</Label>
         <AudiencePicker value={see} onChange={onSee} />
+      </div>
+      <label className="flex items-center justify-between gap-4 rounded-lg px-3.5 py-3 ring-1 ring-border-soft">
+        <span className="flex min-w-0 flex-col">
+          <span className="font-medium text-[0.875rem] leading-snug">{t("dateien.writable")}</span>
+          <span className="text-[0.8125rem] text-ink-3 leading-snug">
+            {t("dateien.writableNote")}
+          </span>
+        </span>
+        <Switch
+          checked={writable}
+          label={t("dateien.writable")}
+          onChange={(on) => {
+            onWritable(on);
+            if (!on && agents === "drafts") {
+              onAgents("read");
+            }
+          }}
+        />
+      </label>
+      <div>
+        <Label>{t("dateien.agents")}</Label>
+        <Select
+          value={agentsShown}
+          onChange={(v) => onAgents(v as MountAgents)}
+          options={[
+            { value: "none", label: t("dateien.agentsNone") },
+            { value: "read", label: t("dateien.agentsRead") },
+            ...(writable ? [{ value: "drafts", label: t("dateien.agentsDrafts") }] : []),
+          ]}
+        />
+        <p className="mt-1.5 text-[0.8125rem] text-ink-3 leading-snug">
+          {writable ? t("dateien.agentsHint") : t("dateien.agentsHintReadOnly")}
+        </p>
       </div>
       <div>
         <Label>{t("dateien.wizards")}</Label>
@@ -1109,27 +1157,11 @@ function AccessFields({
             ))}
           </div>
         ) : null}
+        <p className="mt-1.5 text-[0.8125rem] text-ink-3 leading-snug">
+          {t("dateien.wizardsHint")}
+        </p>
       </div>
     </div>
-  );
-}
-
-/** „Ändern erlauben“: off unless asked for; drafts are then written back with „Veröffentlichen“. */
-function WritableField({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-start justify-between gap-3 rounded-lg p-3 ring-1 ring-border-soft">
-      <span className="flex flex-col gap-0.5">
-        <span className="font-medium text-[0.875rem]">{t("dateien.writable")}</span>
-        <span className="text-[0.8125rem] text-ink-3">{t("dateien.writableNote")}</span>
-      </span>
-      <Switch checked={checked} onChange={onChange} />
-    </label>
   );
 }
 
@@ -1163,6 +1195,7 @@ function MountDialog({
   const [found, setFound] = useState<FolderPreview | null>(null);
   const [see, setSee] = useState<MountSee>(["team"]);
   const [wizards, setWizards] = useState<MountWizards>("all");
+  const [agents, setAgents] = useState<MountAgents>("read");
   const [writable, setWritable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1177,6 +1210,7 @@ function MountDialog({
       setError(null);
       setSee(["team"]);
       setWizards("all");
+      setAgents("read");
       setWritable(false);
     }
   }, [open]);
@@ -1329,8 +1363,11 @@ function MountDialog({
                     wizards={wizards}
                     onSee={setSee}
                     onWizards={setWizards}
+                    agents={agents}
+                    onAgents={setAgents}
+                    writable={writable}
+                    onWritable={setWritable}
                   />
-                  <WritableField checked={writable} onChange={setWritable} />
                   {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
                   <div className="flex justify-end gap-2">
                     <Button variant="ghost" onClick={() => setReady(false)}>
@@ -1354,6 +1391,7 @@ function MountDialog({
                             name: name.trim() || chosen.name,
                             see,
                             wizards,
+                            agents,
                             writable,
                           });
                           onMounted(made.id);
@@ -1449,8 +1487,11 @@ function MountDialog({
                   wizards={wizards}
                   onSee={setSee}
                   onWizards={setWizards}
+                  agents={agents}
+                  onAgents={setAgents}
+                  writable={writable}
+                  onWritable={setWritable}
                 />
-                <WritableField checked={writable} onChange={setWritable} />
                 {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
                 <div className="flex justify-end gap-2">
                   <Button variant="ghost" onClick={() => setFound(null)}>
@@ -1463,6 +1504,7 @@ function MountDialog({
                         path: found.path,
                         see,
                         wizards,
+                        agents,
                         writable,
                       })
                     }
@@ -1497,6 +1539,7 @@ function MountSettings({
   const [name, setName] = useState("");
   const [see, setSee] = useState<MountSee>(["team"]);
   const [wizards, setWizards] = useState<MountWizards>("all");
+  const [agents, setAgents] = useState<MountAgents>("read");
   const [writable, setWritable] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -1504,6 +1547,7 @@ function MountSettings({
       setName(access.data.name);
       setSee(access.data.see);
       setWizards(access.data.wizards);
+      setAgents(access.data.agents);
       setWritable(access.data.writable);
     }
   }, [access.data]);
@@ -1521,8 +1565,11 @@ function MountSettings({
             wizards={wizards}
             onSee={setSee}
             onWizards={setWizards}
+            agents={agents}
+            onAgents={setAgents}
+            writable={writable}
+            onWritable={setWritable}
           />
-          <WritableField checked={writable} onChange={setWritable} />
           {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
           <div className="flex items-center justify-between gap-2">
             <Button
@@ -1557,7 +1604,7 @@ function MountSettings({
                     setError(t("dateien.writeNotAllowed"));
                     return;
                   }
-                  await actions.update(mount.id, { name, see, wizards, writable });
+                  await actions.update(mount.id, { name, see, wizards, agents, writable });
                   onClose();
                 } finally {
                   setBusy(false);
