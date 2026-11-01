@@ -57,3 +57,21 @@ export function runTicketValid(runId: string, ticket: string | undefined): boole
   }
   return sameSignature(`run:${runId}|${exp}`, sig);
 }
+
+/**
+ * A ticket that only reads one run: its view, its stream, its downloads. A client of the
+ * organization gets one for a run the firm shared with them (docs/plans/client-portal.md): they
+ * see it, they do not steer it.
+ */
+export function runViewTicket(runId: string, ttlSeconds = 12 * 3600): string {
+  const exp = String(Math.floor(Date.now() / 1000) + ttlSeconds);
+  return `${exp}.${sign(`run-view:${runId}|${exp}`)}`;
+}
+
+export function runViewTicketValid(runId: string, ticket: string | undefined): boolean {
+  const [exp, sig] = (ticket ?? "").split(".");
+  if (!exp || !sig || Number(exp) * 1000 < Date.now()) {
+    return false;
+  }
+  return sameSignature(`run-view:${runId}|${exp}`, sig);
+}

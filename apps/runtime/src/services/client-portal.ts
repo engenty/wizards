@@ -8,7 +8,7 @@ import { elementCall } from "../elements/gate.js";
 import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
 import { tenantInfo } from "../manage.js";
-import { runTicket } from "../secrets/signing.js";
+import { runTicket, runViewTicket } from "../secrets/signing.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { brandView } from "./brand.js";
 import { claimClientInvites } from "./client-spaces.js";
@@ -261,12 +261,13 @@ export async function clientResults(who: ClientWho, spaceId: string) {
 
 /**
  * A ticket for one run the client sees, by the run alone (a deep link, `/portal/r/<run>`): the
- * run's own routes open with it (`?rt=`); its client space comes along.
+ * run's own routes open with it (`?rt=`); its client space comes along. A run the firm shared
+ * gets a ticket that only reads it.
  */
 export async function clientOpenRun(who: ClientWho, runId: string) {
   await requirePortal(who);
   const [row] = await db
-    .select({ id: schema.run.id, spaceId: schema.space.id })
+    .select({ id: schema.run.id, spaceId: schema.space.id, userId: schema.run.userId })
     .from(schema.run)
     .innerJoin(schema.space, eq(schema.space.id, schema.run.clientSpaceId))
     .innerJoin(schema.spaceMember, eq(schema.spaceMember.spaceId, schema.space.id))
@@ -281,7 +282,14 @@ export async function clientOpenRun(who: ClientWho, runId: string) {
   if (!row) {
     throw notFound();
   }
-  return { runId: row.id, spaceId: row.spaceId, ticket: runTicket(row.id) };
+  // The client's own run they go on with; one the firm shared they only read.
+  const mine = row.userId === who.id;
+  return {
+    runId: row.id,
+    spaceId: row.spaceId,
+    readOnly: !mine,
+    ticket: mine ? runTicket(row.id) : runViewTicket(row.id),
+  };
 }
 
 /**

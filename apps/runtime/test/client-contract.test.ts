@@ -221,7 +221,13 @@ describe("the client contract", () => {
     const { result } = await call("tok-wagner", "results", wagner);
     expect(result).toEqual([expect.objectContaining({ runId, mine: false, title: "Interne Kalkulation" })]);
     expect((await call("tok-wagner", "for_you", wagner)).result.shared.map((r: any) => r.runId)).toEqual([runId]);
-    expect((await call("tok-wagner", "run_open", undefined, { runId })).status).toBe(200);
+    const opened = await call("tok-wagner", "run_open", undefined, { runId });
+    expect(opened.result).toMatchObject({ readOnly: true });
+    // The firm's run is read, never steered, with the client's ticket.
+    const rt = encodeURIComponent(opened.result.ticket);
+    expect((await app.fetch(new Request(`http://localhost:5181/api/runs/${runId}?rt=${rt}`))).status).toBe(200);
+    const back = await app.fetch(new Request(`http://localhost:5181/api/runs/${runId}/back?rt=${rt}`, { method: "POST" }));
+    expect(back.status).toBe(404);
     expect((await call("tok-berger", "results", berger)).result).toEqual([]);
   });
 

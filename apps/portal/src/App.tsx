@@ -681,20 +681,22 @@ function RunItem({
   onSpace: (id: string) => void;
 }) {
   const [ready, setReady] = useState(false);
+  const [readOnly, setReadOnly] = useState(true);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     setReady(false);
     setError(null);
     openRun(runId).then(
-      ({ spaceId }) => {
-        onSpace(spaceId);
+      (opened) => {
+        onSpace(opened.spaceId);
+        setReadOnly(opened.readOnly);
         setReady(true);
       },
       (err: Error) =>
         setError(err instanceof CallError && err.status === 404 ? t("notFound") : err.message),
     );
   }, [runId, onSpace]);
-  const run = useRun(ready ? runId : null);
+  const run = useRun(ready ? runId : null, { readOnly });
   if (error) {
     return <Failed error={error} />;
   }

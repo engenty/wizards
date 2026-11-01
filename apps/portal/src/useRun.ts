@@ -8,9 +8,10 @@ const STALE_MS = 45_000;
 /**
  * One run, live, as the runner draws it: the run's stream of its whole view and the commands the
  * client gives, through the portal server with the run's ticket. The same as the studio's
- * `useRun` (apps/web/src/runner/useRun.ts) and the OpenUI component's.
+ * `useRun` (apps/web/src/runner/useRun.ts) and the OpenUI component's. A run the firm shared is
+ * only read: its ticket allows nothing else, so the runner offers no step back.
  */
-export function useRun(runId: string | null): RunSource {
+export function useRun(runId: string | null, { readOnly = false } = {}): RunSource {
   const [view, setView] = useState<RunView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -116,7 +117,7 @@ export function useRun(runId: string | null): RunSource {
 
   setChoiceLabels(view?.translation?.labels);
   return {
-    view,
+    view: view && readOnly ? { ...view, canBack: false } : view,
     notFound,
     error,
     busy,
