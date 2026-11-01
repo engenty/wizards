@@ -464,8 +464,13 @@ export interface PluginWebPage {
   lastModified: string | null;
   title: string;
   description: string;
-  /** The page's text as Markdown. */
+  /** The page's whole text as Markdown, menus and footer included. */
   text: string;
+  /**
+   * The page's content as Markdown: its main part, without the site's navigation, header and
+   * footer, asides, forms, hidden menus, skip links and cookie notices. What a page is about.
+   */
+  content: string;
   /** Every link of the page, absolute, each once. */
   links: { url: string; text: string }[];
   /**

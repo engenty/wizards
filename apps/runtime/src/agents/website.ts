@@ -1,7 +1,7 @@
 import type { PluginWebPage } from "@engenty/wizards/plugin";
 import { FONT_WEIGHTS } from "@engenty/wizards-shared/spaces";
 import { webContext } from "../render/chromium.js";
-import { htmlToMarkdown } from "../render/convert.js";
+import { htmlToContent, htmlToMarkdown } from "../render/convert.js";
 import { safeFetch } from "../tools/net-guard.js";
 
 /**
@@ -406,9 +406,9 @@ export function jsonLdOf(html: string): unknown[] {
 }
 
 /**
- * A page for a plugin (`server.web.read`): its whole text as Markdown, every link and its
- * structured data, as against `readWebsite`, which picks what the assistant needs of a
- * company's site.
+ * A page for a plugin (`server.web.read`): its whole text and its content as Markdown, every
+ * link and its structured data, as against `readWebsite`, which picks what the assistant needs
+ * of a company's site.
  */
 export async function readPage(raw: string, signal?: AbortSignal): Promise<PluginWebPage> {
   const { res, base, html } = await loadPage(raw, signal);
@@ -427,6 +427,7 @@ export async function readPage(raw: string, signal?: AbortSignal): Promise<Plugi
     title: titleOf(html),
     description: metaOf(html, "description") || metaOf(html, "og:description"),
     text: htmlToMarkdown(html).slice(0, 400_000),
+    content: htmlToContent(html).slice(0, 400_000),
     links,
     jsonld: jsonLdOf(html),
   };
