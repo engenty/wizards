@@ -866,7 +866,13 @@ export function SpacePage({ place }: { place?: "skills" }) {
                         }
                         kinds={sources.kinds}
                         onKind={(kind, parentId) => setAdding({ kind, parentId })}
-                        source={sources.ofFolder(pickedItem.id)}
+                        // A folder the source made inside its own names it too.
+                        source={
+                          sources.ofFolder(pickedItem.id) ??
+                          (pickedItem.kept
+                            ? undefined
+                            : sources.sources.find((s) => pickedItem.origin === `source:${s.id}`))
+                        }
                         status={
                           sources.ofFolder(pickedItem.id) ? (
                             <SourcesStatus

@@ -1,7 +1,7 @@
 import { LayoutGrid, List } from "lucide-react";
 import { useSyncExternalStore } from "react";
 import { t } from "../../lib/i18n";
-import { IconButton } from "../../ui";
+import { cn } from "../../ui";
 
 /**
  * How Wissen shows a set of items: as cards with the start of their text, or as a list. One
@@ -42,18 +42,28 @@ export function useItemView(): ItemView {
   );
 }
 
-/** One icon that switches between cards and the list; it shows what a press turns to. */
+/** Cards and the list side by side, as two small icons; the one shown stands out. */
 export function ItemViewSwitch() {
   const view = useItemView();
-  const next: ItemView = view === "cards" ? "list" : "cards";
-  const Icon = next === "list" ? List : LayoutGrid;
-  return (
-    <IconButton
-      label={next === "list" ? t("know.asList") : t("know.asCards")}
-      className="size-8 text-ink-3 hover:text-ink"
-      onClick={() => setItemView(next)}
+  const option = (id: ItemView, Icon: typeof List, label: string) => (
+    <button
+      type="button"
+      aria-pressed={view === id}
+      aria-label={label}
+      title={label}
+      onClick={() => setItemView(id)}
+      className={cn(
+        "grid size-6 place-items-center rounded-md transition",
+        view === id ? "bg-card text-ink shadow-soft" : "text-ink-4 hover:text-ink",
+      )}
     >
-      <Icon className="size-4" />
-    </IconButton>
+      <Icon className="size-3.5" />
+    </button>
+  );
+  return (
+    <div className="inline-flex items-center gap-0.5 rounded-lg bg-paper-2 p-0.5">
+      {option("cards", LayoutGrid, t("know.asCards"))}
+      {option("list", List, t("know.asList"))}
+    </div>
   );
 }
