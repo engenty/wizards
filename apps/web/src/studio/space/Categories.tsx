@@ -38,6 +38,7 @@ import {
   Switch,
   Textarea,
 } from "../../ui";
+import { ItemViewSwitch } from "./item-view";
 import { Section } from "./Section";
 
 export const CATEGORY_ICON: Record<CategoryType, LucideIcon> = {
@@ -701,7 +702,7 @@ export function ValueView({
           ) : null}
         </Card>
       </Section>
-      <Section title={t("know.toc")} plain>
+      <Section title={t("know.toc")} plain action={<ItemViewSwitch />}>
         {children}
       </Section>
     </div>

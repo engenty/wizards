@@ -79,6 +79,16 @@ export interface KnowledgeItem {
   position: number;
   /** A page without text of its own: it shows as a folder. */
   blank: boolean;
+  /**
+   * The start of what it says, as plain text (a page's text without its title, a file's
+   * description), about four lines' worth; null when it says nothing.
+   */
+  excerpt: string | null;
+  /**
+   * Where a sub-page stands, its folders' titles („Handbuch › Montage“), in a list that mixes
+   * items from all over Knowledge (a value's entries); left out elsewhere.
+   */
+  place?: string;
   /** A table's rows. */
   rows: number | null;
   format: "faq" | null;

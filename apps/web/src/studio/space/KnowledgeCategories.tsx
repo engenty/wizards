@@ -74,11 +74,12 @@ export function CategoryTree({
 }) {
   const { filter } = useSettingsMenu();
   const [open, setOpen] = useState<Set<string>>(() => new Set());
+  // A value picked opens its Kategorie once; closed again by hand, it stays closed.
   useEffect(() => {
-    if (pickedCategory && !open.has(pickedCategory)) {
-      setOpen((now) => new Set([...now, pickedCategory]));
+    if (pickedCategory) {
+      setOpen((now) => (now.has(pickedCategory) ? now : new Set([...now, pickedCategory])));
     }
-  }, [pickedCategory, open]);
+  }, [pickedCategory]);
   const toggle = (id: string) =>
     setOpen((now) => {
       const next = new Set(now);
@@ -120,7 +121,9 @@ export function CategoryTree({
             ? c.values.filter((v) => v.value.toLowerCase().includes(filter))
             : c.values;
           const isOpen = open.has(c.id) || Boolean(filter && values.length);
-          const selected = picked === `c:${c.id}`;
+          // Closed over the value that is open, the Kategorie stands for it.
+          const selected =
+            picked === `c:${c.id}` || (!isOpen && pickedCategory === c.id && picked !== null);
           return (
             <li key={c.id}>
               <div

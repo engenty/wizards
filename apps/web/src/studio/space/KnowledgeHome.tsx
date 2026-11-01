@@ -39,6 +39,7 @@ import { Button, Card, Chip, cn, Dialog, Empty, IconButton, Input, Label, Spinne
 import { useDismiss } from "../AppFrame";
 import { CATEGORY_ICON } from "./Categories";
 import { useFileActions } from "./data";
+import { ItemViewSwitch } from "./item-view";
 import { FilterChip, NewItemDialog, passes } from "./Knowledge";
 import { PaletteField } from "./KnowledgePalette";
 import {
@@ -466,6 +467,16 @@ function EmptyWays({
 
 const labelClass = "px-1 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em]";
 
+/** The small label above a set of items, with the switch between cards and the list. */
+function ItemsLabel({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <p className={labelClass}>{label}</p>
+      <ItemViewSwitch />
+    </div>
+  );
+}
+
 /**
  * Knowledge's start page behind `knowledgeTree`: what it is in one sentence, one „Hinzufügen“,
  * the search, what a step can't do yet as a notice, the folders at the top as cards and what
@@ -629,7 +640,7 @@ export function KnowledgeHome({
           <>
             {folders.length && !filtered ? (
               <div className="flex flex-col gap-1.5">
-                <p className={labelClass}>{t("know.folders")}</p>
+                <ItemsLabel label={t("know.folders")} />
                 <ItemCards items={folders} categories={data.categories} onOpen={onOpen} />
               </div>
             ) : null}
@@ -834,6 +845,7 @@ export function KnowledgeFolder({
                   />
                 </>
               )}
+              <ItemViewSwitch />
               <FolderMenu
                 onRename={() => setRenaming(true)}
                 onMove={() => setMoving(true)}
@@ -946,7 +958,7 @@ export function PageContents({
   }
   return (
     <div className="flex flex-col gap-1.5">
-      <p className={labelClass}>{t("know.inPage")}</p>
+      <ItemsLabel label={t("know.inPage")} />
       <ItemCards items={inside} categories={data.categories} onOpen={onOpen} />
     </div>
   );
