@@ -337,9 +337,13 @@ async function indexRows(tableId: string, rowIds?: string[]) {
 /** An image, video or sound among a space's assets: found by its name and description. */
 const MEDIA_ASSET = /^(image|video|audio)\//;
 
-/** Whether the index holds a file: a document, or an image, video or sound asset. */
+/** Whether the index holds a file: a document, an image, video or sound asset, a page's picture. */
 export function indexedFile(file: { kind: string; mime: string }): boolean {
-  return file.kind === "document" || (file.kind === "asset" && MEDIA_ASSET.test(file.mime));
+  return (
+    file.kind === "document" ||
+    file.kind === "picture" ||
+    (file.kind === "asset" && MEDIA_ASSET.test(file.mime))
+  );
 }
 
 /** The pictures the embedding model is shown: what @napi-rs/canvas reads. */
@@ -387,7 +391,32 @@ async function pictureUnits(file: FileRow, lines: string[], from: number): Promi
   }));
 }
 
-/** An asset stands in the index as one unit: its name, its kind, its categories, its description. */
+/** The page of the space that shows each picture of a page (`asset://ID` in its Markdown). */
+async function pagesShowing(
+  spaceId: string,
+  fileIds: string[],
+): Promise<Map<string, { id: string; title: string }>> {
+  const out = new Map<string, { id: string; title: string }>();
+  for (const id of fileIds) {
+    const page = await db.query.spacePage.findFirst({
+      where: and(
+        eq(schema.spacePage.spaceId, spaceId),
+        isNull(schema.spacePage.wizardId),
+        sql`instr(${schema.spacePage.markdown}, ${`asset://${id}`}) > 0`,
+      ),
+      columns: { id: true, title: true },
+    });
+    if (page) {
+      out.set(id, page);
+    }
+  }
+  return out;
+}
+
+/**
+ * An asset stands in the index as one unit: its name, its kind, its categories, its description.
+ * A page's picture as the picture of that page.
+ */
 async function indexAsset(file: typeof schema.spaceFile.$inferSelect) {
   const categories = await categoryRows(file.spaceId);
   const lines = categoryLines(
@@ -395,15 +424,16 @@ async function indexAsset(file: typeof schema.spaceFile.$inferSelect) {
     (await itemCategoriesOf([{ fileId: file.id }])).get(`f:${file.id}`),
   );
   const kind = file.mime.split("/")[0];
+  const page =
+    file.kind === "picture" ? (await pagesShowing(file.spaceId, [file.id])).get(file.id) : null;
+  const what = page ? `picture of the page "${page.title}"` : `${kind} asset`;
   await writeUnits(eq(schema.spaceChunk.fileId, file.id), [
     {
       spaceId: file.spaceId,
       fileId: file.id,
       heading: file.name,
       idx: 0,
-      text: [head([file.name], [`${kind} asset`, ...lines]), file.description]
-        .filter(Boolean)
-        .join("\n\n"),
+      text: [head([file.name], [what, ...lines]), file.description].filter(Boolean).join("\n\n"),
     },
     ...(await pictureUnits(file, lines, 1)),
   ]);
@@ -414,7 +444,7 @@ async function indexFile(fileId: string) {
   if (!(file && indexedFile(file) && file.status === "ready")) {
     return;
   }
-  if (file.kind === "asset") {
+  if (file.kind === "asset" || file.kind === "picture") {
     return indexAsset(file);
   }
   const converted =
@@ -1070,7 +1100,7 @@ async function describe(spaceId: string, units: Found[]): Promise<KnowledgeHit[]
   const fileIds = [...new Set(units.flatMap((u) => (u.file_id ? [u.file_id] : [])))];
   const valueIds = [...new Set(units.flatMap((u) => (u.value_id ? [u.value_id] : [])))];
   const [tree, tPaths, fPaths, categories, rows, files, values] = await Promise.all([
-    pageIds.length ? pageTree(spaceId) : new Map(),
+    pageIds.length || fileIds.length ? pageTree(spaceId) : new Map(),
     rowIds.length ? tablePaths(spaceId) : new Map<string, string>(),
     fileIds.length ? filePaths(spaceId) : new Map<string, string>(),
     categoryRows(spaceId),
@@ -1083,7 +1113,7 @@ async function describe(spaceId: string, units: Found[]): Promise<KnowledgeHit[]
     fileIds.length
       ? db.query.spaceFile.findMany({
           where: inArray(schema.spaceFile.id, fileIds),
-          columns: { id: true, name: true },
+          columns: { id: true, name: true, kind: true, description: true },
         })
       : [],
     valueIds.length
@@ -1099,6 +1129,10 @@ async function describe(spaceId: string, units: Found[]): Promise<KnowledgeHit[]
         columns: { id: true, title: true },
       })
     : [];
+  const showing = await pagesShowing(
+    spaceId,
+    files.filter((f) => f.kind === "picture").map((f) => f.id),
+  );
   const cats = await itemCategoriesOf([
     ...pageIds.map((pageId) => ({ pageId })),
     ...rowIds.map((rowId) => ({ rowId })),
@@ -1163,6 +1197,20 @@ async function describe(spaceId: string, units: Found[]): Promise<KnowledgeHit[]
         categories: [],
       };
     }
+    const shownOn = u.file_id ? showing.get(u.file_id) : undefined;
+    if (u.file_id && shownOn) {
+      // A page's picture opens its page; it is a picture however it was found.
+      const file = files.find((f) => f.id === u.file_id);
+      return {
+        ...base,
+        kind: "file",
+        open: `p:${shownOn.id}`,
+        path: tree.get(shownOn.id)?.path ?? "",
+        title: file?.description.split("\n")[0] || shownOn.title,
+        categories: categoryLines(categories, cats.get(`f:${u.file_id}`)),
+        picture: "image",
+      };
+    }
     if (u.file_id) {
       return {
         ...base,
@@ -1191,7 +1239,7 @@ export async function reindexSpace(spaceId: string) {
     db.query.spaceFile.findMany({
       where: and(
         eq(schema.spaceFile.spaceId, spaceId),
-        inArray(schema.spaceFile.kind, ["document", "asset"]),
+        inArray(schema.spaceFile.kind, ["document", "asset", "picture"]),
       ),
       columns: { id: true, kind: true, mime: true },
     }),
@@ -1239,7 +1287,7 @@ export async function reindexAll() {
 export async function indexMissingAssets() {
   const rows = await db.all<{ id: string; kind: string; mime: string }>(sql`
     SELECT f.id, f.kind, f.mime FROM space_file f
-    WHERE f.kind = 'asset' AND f.status = 'ready'
+    WHERE f.kind IN ('asset', 'picture') AND f.status = 'ready'
       AND NOT EXISTS (SELECT 1 FROM space_chunk c WHERE c.file_id = f.id)`);
   for (const row of rows.filter(indexedFile)) {
     queueIndex(`f:${row.id}`);
@@ -1249,7 +1297,7 @@ export async function indexMissingAssets() {
   }
   const unseen = await db.all<{ id: string; kind: string; mime: string }>(sql`
     SELECT f.id, f.kind, f.mime FROM space_file f
-    WHERE f.kind IN ('asset', 'document') AND f.status = 'ready' AND f.hash IS NOT NULL
+    WHERE f.kind IN ('asset', 'document', 'picture') AND f.status = 'ready' AND f.hash IS NOT NULL
       AND (f.mime IN ('image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'))
       AND NOT EXISTS (SELECT 1 FROM space_chunk c WHERE c.file_id = f.id AND c.kind IS NOT NULL)`);
   for (const row of unseen.filter(indexedFile)) {

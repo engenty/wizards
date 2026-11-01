@@ -589,7 +589,8 @@ export function cleanAssetSections(sections: AssetSection[], files?: string[]): 
 
 // --- files -----------------------------------------------------------------------
 
-export const SPACE_FILE_KINDS = ["logo", "asset", "document", "pattern"] as const;
+/** `picture`: a picture a page of Wissen shows, copied from where the page was read. */
+export const SPACE_FILE_KINDS = ["logo", "asset", "document", "pattern", "picture"] as const;
 export type SpaceFileKind = (typeof SPACE_FILE_KINDS)[number];
 
 /** `pending`: being read, described and indexed. */
@@ -628,7 +629,7 @@ export const SPACE_LIMITS = {
   voiceBlocks: 12,
   voiceText: 2000,
   links: 20,
-  files: { logo: 24, asset: 100, document: 2000, pattern: 24 },
+  files: { logo: 24, asset: 100, document: 2000, pattern: 24, picture: 20_000 },
   gradients: 24,
   bytes: {
     logo: 5_000_000,
@@ -636,6 +637,7 @@ export const SPACE_LIMITS = {
     video: 80_000_000,
     document: 30_000_000,
     pattern: 10_000_000,
+    picture: 8_000_000,
   },
 } as const;
 

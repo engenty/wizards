@@ -37,7 +37,7 @@ The default export is a `WizardsPluginFactory`: `(wizards: WizardsPluginApi) => 
 | `spaces.brand(space)` | [The space](./space.md#the-spaces-brand). `{ name, colors, fonts }` of the space, or `null` |
 | `registerAssistantTool(tool: PluginAssistantTool)` | [The space](./space.md#tools-of-the-space-assistant) |
 | `index.put({ space, key, title, text, link? })`, `index.remove(space, key?)` | [The space](./space.md#the-search-index) |
-| `spaceData.putCategories`, `.putPage`, `.putTable`, `.putFile`, `.putDocument`, `.list`, `.readPages`, `.files`, `.readFile`, `.remove`, `.summarize` | [The space](./space.md#knowledge-a-plugin-writes). Knowledge of a space: pages, tables and files under keys of the plugin’s own, with their categories; and the space’s own pages and files to read |
+| `spaceData.putCategories`, `.putPage`, `.putTable`, `.putFile`, `.putDocument`, `.list`, `.readPages`, `.files`, `.readFile`, `.remove`, `.summarize` | [The space](./space.md#knowledge-a-plugin-writes). Knowledge of a space: pages, tables and files under keys of the plugin’s own, with their categories, a page’s pictures copied into the space; and the space’s own pages and files to read |
 | `registerKnowledgeSource`, `knowledgeSources.list`, `.byToken`, `.run`, `.addEntries` | [The space](./space.md#a-source-of-knowledge). A kind of source of Knowledge (a website, a sitemap) and its reader; each source fills a folder of its own and is read again on its schedule |
 | `registerHttpRoute(route: PluginRoute)` | [Routes](./routes.md) |
 | `registerPublicRoute(route: PluginPublicRoute)` | [Routes](./routes.md#public-routes) |

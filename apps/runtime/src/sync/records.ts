@@ -6,6 +6,7 @@ import {
   type SkillBlobFile,
   type SkillFile,
 } from "@engenty/wizards-shared/skills";
+import { SPACE_FILE_KINDS, type SpaceFileKind } from "@engenty/wizards-shared/spaces";
 import type { SyncKind, SyncRecord } from "@engenty/wizards-shared/sync";
 import { themeSchema } from "@engenty/wizards-shared/theme";
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
@@ -873,8 +874,8 @@ const file: KindDef = {
     const mime = str(r.mime) ?? "application/octet-stream";
     const name = str(r.name) ?? "file";
     const kind = (
-      ["logo", "asset", "document", "pattern"].includes(r.kind as string) ? r.kind : "asset"
-    ) as "logo" | "asset" | "document" | "pattern";
+      SPACE_FILE_KINDS.includes(r.kind as SpaceFileKind) ? r.kind : "asset"
+    ) as SpaceFileKind;
     // The bytes came ahead of the record, by their hash (client.ts, hub.ts).
     const hash = String(r.content);
     if (!(await hasBlob(hash))) {

@@ -733,6 +733,7 @@ async function writeEntry(
       parent,
       title: read.title,
       markdown: read.markdown.slice(0, 190_000),
+      images: read.images,
       fill: kind.fill,
     });
     if (put.state === "kept") {

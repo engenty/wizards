@@ -131,7 +131,12 @@ export interface PluginSpaceEvent {
 /** A file of a space: read and ready (a document is in the index then), or removed. */
 export interface PluginSpaceFileEvent {
   space: { id: string };
-  file: { id: string; name: string; kind: "logo" | "asset" | "document" | "pattern"; mime: string };
+  file: {
+    id: string;
+    name: string;
+    kind: "logo" | "asset" | "document" | "pattern" | "picture";
+    mime: string;
+  };
 }
 
 export interface PluginEvents {
@@ -274,6 +279,13 @@ export interface PluginPageInput {
   fill?: boolean;
   /** Why a person should look at it ("hardly readable"); shown in Knowledge. */
   review?: string | null;
+  /**
+   * The pictures the page shows, as `web.read` gives them (`images`): the space keeps a copy of
+   * each and the Markdown shows the copy (`![alt](asset://ID)`), so a wizard finds it by what it
+   * shows and puts it into what it makes. At most 30, 8 MB each; icons and pictures under 10 KB
+   * or 200 px are left as they are. One the Markdown doesn't show is added at its end.
+   */
+  images?: { url: string; alt?: string }[];
 }
 
 export interface PluginTableInput {
@@ -350,7 +362,7 @@ export interface PluginSpaceFile {
   name: string;
   mime: string;
   size: number;
-  kind: "logo" | "asset" | "document" | "pattern";
+  kind: "logo" | "asset" | "document" | "pattern" | "picture";
   updatedAt: string;
 }
 
@@ -400,7 +412,7 @@ export interface PluginSpaceData {
   /** The space's files of a kind (`document` when left out), newest first. */
   files(
     space: string,
-    kind?: "logo" | "asset" | "document" | "pattern",
+    kind?: "logo" | "asset" | "document" | "pattern" | "picture",
   ): Promise<PluginSpaceFile[]>;
   /** One file of the space with its bytes: a price list someone dropped into Knowledge. */
   readFile(space: string, fileId: string): Promise<PluginSpaceFile & { data: Uint8Array }>;
@@ -464,6 +476,8 @@ export type PluginSourceRead =
       kind: "page";
       title: string;
       markdown: string;
+      /** The pictures it shows, as `web.read` gives them: the space keeps copies (`putPage` `images`). */
+      images?: { url: string; alt?: string }[];
       /** Without one the page's text is its fingerprint. */
       fingerprint?: string | null;
     }
@@ -629,7 +643,8 @@ export interface PluginWebPage {
   /**
    * The pictures `content` shows, each once, in their order: absolute, the largest `srcset`
    * entry up to 2000 px, without icons, sprites, drawings (SVG) and pictures drawn under 200 px.
-   * `text` and `content` show them at these same addresses.
+   * `text` and `content` show them at these same addresses: `spaceData.putPage` takes them as
+   * `images` and the space keeps copies.
    */
   images: { url: string; alt: string }[];
   /** Every link of the page, absolute, each once. */

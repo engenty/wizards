@@ -45,12 +45,12 @@ const doc = await server.spaceData.putDocument({ space, key, label, name, mime, 
 | `server.spaceData.` | Does |
 |---|---|
 | `putCategories({ space, categories, proposed? })` | Adds categories, or values to known ones. Types: `choice` (with `values`, `multiple`, `ordered`), `date`, `number` (with `unit`), `text`, `boolean`. `column: { table, column }` takes a category’s values from a column of a table the plugin wrote |
-| `putPage(input)` | A page: `title`, `markdown`, `parent` (the key of a page to stand under), `original` (the file it was read from), `categories`, `fill`, `review` (why a person should look) |
+| `putPage(input)` | A page: `title`, `markdown`, `parent` (the key of a page to stand under), `original` (the file it was read from), `categories`, `fill`, `review` (why a person should look), `images` (the pictures it shows, [copied into the space](#pictures-of-a-page)) |
 | `putTable(input)` | A table: typed `columns`, `rows` (cells by column id, they replace the rows the key had), `format: "faq"` |
 | `putFile(input)` | A file that is not a page. It is found by its name, `description` and categories; `text` is what a step reads of it |
 | `putDocument(input)` | A file, read the way an upload is. Returns what it became: `items` (pages, tables), and `review` when it was hard to read or could not be read |
 | `readPages(space, { parent? })` | The space’s own pages, whoever wrote them, with their Markdown: `{ id, title, path, parentId, markdown, origin, originKey, updatedAt }` |
-| `files(space, kind?)`, `readFile(space, id)` | The space’s files of a kind (`document`, `logo`, `asset`, `pattern`; `document` when none is named), newest first, and one file with its bytes, such as a price list someone dropped into Knowledge |
+| `files(space, kind?)`, `readFile(space, id)` | The space’s files of a kind (`document`, `logo`, `asset`, `pattern`, `picture`; `document` when none is named), newest first, and one file with its bytes, such as a price list someone dropped into Knowledge |
 | `list(space)` | Everything the plugin wrote, by key, with its path and `state` |
 | `remove(space, key?)` | Takes out one key, or everything the plugin wrote in the space. Returns how many items it removed |
 | `summarize(space, category?, value?)` | Writes the “Overview” of one value, or of every value with three items or more. Each costs a model call. Returns how many it wrote |
@@ -59,6 +59,37 @@ const doc = await server.spaceData.putDocument({ space, key, label, name, mime, 
 - When a person changes an item, it is theirs: the plugin’s next write returns `state: "kept"`
   and changes nothing, and `remove` leaves it.
 - What a step reads of an item is its path: `pages/…`, `tables/…`, `files/…`.
+
+### Pictures of a page
+
+A page read from the web shows pictures from the web. A wizard can’t find them by what they show
+or put them into what it makes (a generated page loads nothing from the network), and they break
+when the site changes. With `images` the space keeps a copy of each:
+
+```ts
+const page = await server.web.read(address);
+await server.spaceData.putPage({
+  space,
+  key: address,
+  title: page.title,
+  markdown: page.content,
+  images: page.images, // [{ url, alt }]
+});
+```
+
+- Each picture is fetched once: at most 30 per page and 8 MB each; icons, SVG drawings and
+  pictures under 10 KB or 200 px stay as they were. The same picture on many pages (the same
+  address, or the same bytes) is one copy.
+- The Markdown points at the copy: `![alt](https://…)` becomes `![alt](asset://ID)`. A picture
+  of `images` the Markdown doesn’t show is added at its end. The copy is a file of the kind
+  `picture` whose `source` is the address it came from.
+- The search finds a copy by what it shows (where the embedding model sees pictures; elsewhere by
+  its `alt` and a sentence a model writes about it) and opens its page. It is no item of the
+  plugin’s own: `list` leaves it out.
+- A copy no page of the space shows any more goes with the plugin’s next `putPage` or `remove`
+  of the page that showed it.
+- While the switch `knowledgeMedia` is off, `images` is left aside and the Markdown stays as it
+  came.
 
 ## A source of Knowledge
 
@@ -88,7 +119,7 @@ server.registerKnowledgeSource({
     },
     async read(source, entry, { signal }) {
       const page = await server.web.read(entry.address, { signal });
-      return { kind: "page", title: page.title, markdown: page.content };
+      return { kind: "page", title: page.title, markdown: page.content, images: page.images };
     },
   },
 });
@@ -96,7 +127,7 @@ server.registerKnowledgeSource({
 
 - **`list`** says what the source holds now, at most 1000 entries. New addresses come in under the
   source’s `rules`; a person’s „leave out“ stays. What is no longer listed goes out of Knowledge.
-- **`read`** gives one entry as a `page`, as a `document` (read as an upload is: pages, a table
+- **`read`** gives one entry as a `page` (with `images`, its [pictures](#pictures-of-a-page)), as a `document` (read as an upload is: pages, a table
   per sheet, or a file), as `unchanged`, or as `failed` with a note. `entry.fingerprint` is what it
   was last read with, for asking whether it changed.
 - **`propose`** (optional) runs once, before anything is written: a name, Kategorien and entries
