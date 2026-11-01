@@ -889,6 +889,15 @@ export async function createMount(
 ): Promise<MountView> {
   await requireDateien();
   requireAdmin();
+  return addMount(userId, spaceId, input);
+}
+
+/** Mounts a folder without asking who: `createMount`, and a command's conversion. */
+export async function addMount(
+  userId: string,
+  spaceId: string,
+  input: MountInput,
+): Promise<MountView> {
   const path = resolve(input.path.replace(/^~(?=$|\/)/, homedir()));
   if (!(await stat(path).catch(() => null))?.isDirectory()) {
     throw new ServiceError("invalid", `There is no folder "${input.path}".`);

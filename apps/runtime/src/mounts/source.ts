@@ -179,13 +179,16 @@ export function startFileSources() {
   if (managed) {
     return;
   }
-  setInterval(async () => {
+  const due = async () => {
     for (const tenant of await knownTenants()) {
       await withTenant(tenant, () => runDueSources(CORE)).catch((err) =>
         console.error(`[sources] due ${tenant}`, err),
       );
     }
-  }, DUE_MS).unref();
+  };
+  // At start as well: a source that never ran (`wizards move-folder-sources`) reads now.
+  setTimeout(() => void due(), 5000).unref();
+  setInterval(() => void due(), DUE_MS).unref();
 }
 
 /**

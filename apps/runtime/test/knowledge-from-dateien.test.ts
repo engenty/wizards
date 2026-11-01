@@ -198,4 +198,59 @@ describe("Aus Dateien übernehmen", () => {
     }
     throw new Error("not read");
   });
+
+  it("converts the Sources plugin's old folder sources by command", async () => {
+    write("../Alt/handbuch.md", "# Handbuch\n\nSo geht es.");
+    await local(async () => {
+      const { sql } = await import("drizzle-orm");
+      await client.db.run(sql`CREATE TABLE data_sourcer_source (id text PRIMARY KEY, space_id text,
+        kind text, address text, label text, state text, rules text, categories text,
+        every_hours integer, token text, status text, error text, last_run_at integer,
+        created_at integer, updated_at integer)`);
+      await client.db.run(sql`CREATE TABLE data_sourcer_entry (id text, source_id text)`);
+      await client.db.run(sql`CREATE TABLE data_sourcer_run (id text, source_id text)`);
+      await client.db.run(sql`INSERT INTO data_sourcer_source VALUES ('old1', ${spaceId}, 'folder',
+        ${join(dir, "Alt")}, 'Altes Handbuch', 'taken', '[]', '[]', NULL, 't', 'idle', NULL, NULL,
+        0, 0)`);
+      await client.db.run(sql`INSERT INTO data_sourcer_entry VALUES ('e1', 'old1')`);
+      const { putOriginPage } = await import("../src/services/space-data");
+      await putOriginPage("data-sourcer", {
+        space: spaceId,
+        key: "old1:e1",
+        label: "Altes Handbuch",
+        title: "Handbuch alt",
+        markdown: "Alt.",
+      });
+      await putOriginPage("data-sourcer", {
+        space: spaceId,
+        key: "old1:e2",
+        label: "Altes Handbuch",
+        title: "Behalten",
+        markdown: "Von Hand geändert.",
+      });
+      await client.db.run(sql`UPDATE space_page SET kept = 1 WHERE title = 'Behalten'`);
+    });
+    const { moveFolderSources } = await import("../src/cli/move-folder-sources");
+    expect(await moveFolderSources()).toBe(0);
+    const { sources } = await json(send("GET", `/api/studio/spaces/${spaceId}/sources`));
+    const moved = sources.find((s: { label: string }) => s.label === "Altes Handbuch");
+    expect(moved).toMatchObject({ kind: "dateien", plugin: "core", address: "dateien/alt", state: "taken" });
+    const { mounts: list } = await json(send("GET", `/api/studio/spaces/${spaceId}/mounts`));
+    expect(list.map((m: { name: string }) => m.name)).toContain("Alt");
+    let items = (await knowledge()).items;
+    expect(items.some((i) => i.title === "Handbuch alt")).toBe(false);
+    expect(items.find((i) => i.title === "Behalten")?.origin).toBe(null);
+    // Read again by the new source.
+    await local(async () => {
+      const { runSource } = await import("../src/services/space-sources");
+      await runSource(moved.id);
+    });
+    items = (await knowledge()).items;
+    expect(items.find((i) => i.title === "Handbuch")?.origin).toBe(`source:${moved.id}`);
+    const left = await local(async () => {
+      const { sql } = await import("drizzle-orm");
+      return client.db.all<{ n: number }>(sql`SELECT count(*) AS n FROM data_sourcer_source`);
+    });
+    expect(left[0].n).toBe(0);
+  });
 });
