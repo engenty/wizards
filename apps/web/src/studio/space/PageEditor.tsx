@@ -3,8 +3,9 @@ import type { SpacePage } from "@engenty/wizards-shared/space-data";
 import { mergeText } from "@engenty/wizards-shared/text-merge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronRight, FileText, GitMerge, Plus, Trash2 } from "lucide-react";
-import { type MouseEvent, useEffect, useState } from "react";
+import { lazy, type MouseEvent, Suspense, useEffect, useState } from "react";
 import { ApiError, api } from "../../lib/api";
+import { useFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { useMe } from "../../lib/session";
@@ -20,8 +21,15 @@ import {
   useEditingOthers,
 } from "../live/PresenceStack";
 import { useReportPresence } from "../live/presence";
-import { type Autosave, fileUrl, useAutosave } from "./data";
+import type { Target } from "./blocks/targets";
+import { type Autosave, fileUrl, useAutosave, useFileActions, useSpaceFiles } from "./data";
 import { KnowledgeHeader, useKnowledge } from "./Knowledge";
+import { TableEmbed } from "./TableEmbed";
+
+// TipTap is large: it loads with the first page written in blocks.
+const BlockEditor = lazy(() =>
+  import("./blocks/BlockEditor").then((m) => ({ default: m.BlockEditor })),
+);
 
 /** The page once it is loaded: its title and text, saved a moment after they stop changing. */
 function Editor({
@@ -36,8 +44,12 @@ function Editor({
   const qc = useQueryClient();
   const [title, setTitle] = useState(page.title);
   const [markdown, setMarkdown] = useState(page.markdown);
-  // An empty page opens to be written; a written one opens to be read.
-  const [view, setView] = useState<"write" | "read" | "original">(page.markdown ? "read" : "write");
+  // With the block editor a page opens in it, written or not: blocks look like the text read.
+  // Without it an empty page opens to be written, a written one to be read.
+  const blocks = useFeature("knowledgeTree");
+  const [view, setView] = useState<"write" | "markdown" | "read" | "original">(
+    blocks || !page.markdown ? "write" : "read",
+  );
   const know = page.knowledge;
   const me = useMe().data?.user.id;
   // Who else is here, and where this tab writes: the heading above the caret.
@@ -180,11 +192,46 @@ function Editor({
     }
   };
   // What a link's address may name, offered while writing it.
-  const knowledgeItems = useKnowledge(page.spaceId).data?.items;
+  const knowledge = useKnowledge(page.spaceId);
+  const spaceFiles = useSpaceFiles(page.spaceId);
+  const knowledgeItems = knowledge.data?.items;
   const links = (knowledgeItems ?? [])
     .filter((i) => i.id !== page.id)
     .map((i) => ({ title: i.title, path: i.path, kind: t(KIND_WORD[i.kind]) }));
   const readOnly = page.readOnly;
+  // What a page can link to and show, by the paths steps name them by.
+  const targets: Target[] = (knowledgeItems ?? []).map((i) => ({
+    path: i.path,
+    title: i.title,
+    kind: i.kind === "file" && IMAGE_PATH.test(i.path) ? "image" : i.kind,
+  }));
+  // A picture's `files/<name>`: a file of Wissen, also one a page was read from (it stands behind
+  // the page in the list, and a step still reads it by that path).
+  const byName = new Map(
+    (spaceFiles.data?.files ?? [])
+      .filter((f) => f.kind === "document")
+      .map((f) => [`files/${f.name.replace(/[/\\]/g, "-")}`.toLowerCase(), f.id]),
+  );
+  const resolve = (src: string) => {
+    const id = byName.get(src.toLowerCase());
+    return id ? fileUrl(page.spaceId, id) : src;
+  };
+  const files = useFileActions(page.spaceId, readOnly);
+  // Files dropped or picked go into Wissen; the page links to them by their paths.
+  const onFiles = async (picked: File[]) => {
+    const taken = await files.upload("document", picked);
+    const items = (await knowledge.refetch()).data?.items ?? [];
+    await spaceFiles.refetch();
+    return taken
+      .map((f) => {
+        // A picture is shown as itself, also once a page is read from it.
+        const item = items.find((i) => i.key === `f:${f.id}`);
+        const path = item?.path ?? `files/${f.name.replace(/[/\\]/g, "-")}`;
+        const words = (item?.title ?? f.name).replace(/[[\]]/g, "\\$&");
+        return `${f.mime.startsWith("image/") ? "!" : ""}[${words}](${path})`;
+      })
+      .join("\n\n");
+  };
   const original =
     know?.file && (know.file.mime === "application/pdf" || know.file.mime.startsWith("image/"))
       ? know.file
@@ -287,7 +334,22 @@ function Editor({
         />
       ) : null}
       <Card className="flex flex-col">
-        {readOnly && !original ? null : (
+        {readOnly && !original ? null : blocks ? (
+          <div className="flex items-center gap-1 border-border-soft border-b px-2 py-1.5">
+            {tab("write", readOnly ? t("data.preview") : t("data.write"))}
+            {readOnly ? null : tab("markdown", t("blocks.markdown"))}
+            {original ? tab("original", t("know.original")) : null}
+            <span className="ml-auto truncate px-2 text-[0.75rem] text-ink-4 max-sm:hidden">
+              {view === "original" && original
+                ? original.name
+                : view === "markdown"
+                  ? t("data.markdownHint")
+                  : readOnly
+                    ? null
+                    : t("blocks.hint")}
+            </span>
+          </div>
+        ) : (
           <div className="flex items-center gap-1 border-border-soft border-b px-2 py-1.5">
             {readOnly ? null : tab("write", t("data.write"))}
             {tab("read", t("data.preview"))}
@@ -311,7 +373,32 @@ function Editor({
               className="mx-auto max-h-[70dvh] object-contain p-4"
             />
           )
-        ) : view === "write" && !readOnly ? (
+        ) : blocks && view === "write" ? (
+          // Blocks for writing and reading alike; a change from elsewhere replaces only the
+          // blocks it touched (blocks/BlockEditor.tsx).
+          <Suspense fallback={<Spinner className="m-5 size-4 text-ink-3" />}>
+            <BlockEditor
+              text={markdown}
+              onChange={(next) => {
+                setMarkdown(next);
+                setTyping(true);
+              }}
+              readOnly={readOnly}
+              targets={targets}
+              self={know?.path}
+              onFiles={readOnly ? undefined : onFiles}
+              resolve={resolve}
+              onOpen={(href) => void open(href)}
+              embed={{
+                test: (href) => href.startsWith("tables/"),
+                render: (href) => <TableEmbed spaceId={page.spaceId} href={href} onOpen={onOpen} />,
+              }}
+              onHeading={(head) => setPlace((was) => (was?.id === head?.id ? was : head))}
+              marks={marks}
+              ariaLabel={page.title}
+            />
+          </Suspense>
+        ) : (view === "write" || view === "markdown") && !readOnly ? (
           // A change from elsewhere arrives as `markdown` and is applied as the smallest
           // change: the caret stays, and undo leaves it alone (ui/code-editor).
           <CodeEditor
@@ -418,6 +505,7 @@ function headingAt(text: string, at: number): { id: string; label: string } | nu
 }
 
 const KNOWLEDGE_PATH = /^(pages|tables|files)\//;
+const IMAGE_PATH = /\.(png|jpe?g|gif|webp|avif|svg)$/i;
 const KIND_WORD = {
   page: "know.kind.page",
   table: "know.kind.table",

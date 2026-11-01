@@ -1,0 +1,408 @@
+/* The block editor (BlockEditor.tsx): the text looks as it reads (`prose-zen`), with the handle,
+   the `/` menu, the bubble and the picker floating over it. From peer-it's docs app. */
+
+.block-editor {
+  position: relative;
+}
+.block-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 6px 10px 0;
+}
+.block-page {
+  position: relative;
+  padding: 18px 20px 48px 56px;
+}
+.block-editor.read-only .block-page {
+  padding-left: 20px;
+}
+@media (max-width: 639px) {
+  .block-page {
+    padding: 14px 14px 32px 14px;
+  }
+}
+.block-page .tiptap {
+  outline: none;
+  caret-color: var(--ember);
+  min-height: 40vh;
+}
+.block-editor.read-only .tiptap {
+  min-height: 0;
+}
+.block-page .tiptap .is-empty:first-child::before,
+.block-page .tiptap p.is-editor-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--ink-4);
+  pointer-events: none;
+}
+.soft-break::before {
+  content: " ";
+}
+.block-doc pre.raw-md {
+  position: relative;
+  padding: 0.6em 0.8em;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  font-family: var(--f-mono);
+  font-size: 0.85em;
+}
+.block-doc pre.raw-md code {
+  background: none;
+  padding: 0;
+}
+.block-doc pre.raw-md::after {
+  content: "Markdown";
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font: 600 10px / 1 var(--f-ui, inherit);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.block-doc pre:not(.raw-md) {
+  padding: 0.7em 0.9em;
+  border-radius: 8px;
+  background: var(--paper-2);
+  font-family: var(--f-mono);
+  font-size: 0.85em;
+}
+.block-doc pre:not(.raw-md) code {
+  background: none;
+  padding: 0;
+}
+.block-doc li > p {
+  margin: 0.15em 0;
+}
+.block-doc td p,
+.block-doc th p {
+  margin: 0;
+}
+.block-doc th {
+  font-weight: 600;
+}
+.block-doc hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.block-doc ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 2px;
+}
+.block-doc ul[data-type="taskList"] li {
+  display: flex;
+  gap: 8px;
+}
+.block-doc ul[data-type="taskList"] li > label {
+  margin-top: 0.2em;
+}
+.block-doc ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+.block-doc ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+.block-doc .selectedCell {
+  background: var(--ember-veil);
+}
+.block-doc img.ProseMirror-selectednode {
+  outline: 2px solid var(--ember);
+}
+.block-editor:not(.read-only) .block-doc a {
+  cursor: text;
+}
+
+/* A heading someone else writes under: their colour beside it. */
+.block-doc .block-heading-mark {
+  box-shadow: -10px 0 0 -7px var(--mark);
+}
+
+/* A lone link that shows what it names below it (a table of Wissen): the link is its caption. */
+.block-doc p.block-embed-link {
+  margin-bottom: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.block-embed {
+  margin-top: 0.4em;
+  user-select: none;
+}
+
+/* The handle beside each block. */
+.block-gutter {
+  position: absolute;
+  left: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  height: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.block-gutter.on {
+  opacity: 1;
+}
+.block-gutter-btn {
+  width: 20px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--ink-4);
+  pointer-events: auto;
+}
+.block-gutter-btn:hover {
+  background: var(--accent);
+  color: var(--ink);
+}
+.block-gutter-btn.grip {
+  cursor: grab;
+}
+@media (max-width: 639px) {
+  .block-gutter {
+    display: none;
+  }
+}
+.block-drop-line {
+  position: absolute;
+  left: 56px;
+  right: 20px;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--ember);
+  border-radius: 1px;
+  pointer-events: none;
+}
+.block-drag-preview {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  max-width: 240px;
+  padding: 4px 8px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* Floating: the handle's menu, the `/` menu, the bubble, the picker. */
+.block-menu,
+.slash-menu,
+.block-bubble,
+.target-picker {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-ember-overlay);
+  color: var(--ink);
+}
+.block-menu {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 1px;
+  width: 220px;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 12px;
+}
+.block-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 13px;
+  text-align: left;
+}
+.block-menu-item:hover {
+  background: var(--accent);
+}
+.block-menu-item.danger:hover {
+  color: var(--rose, var(--ink));
+}
+.block-menu-label {
+  padding: 6px 8px 3px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.block-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border-soft);
+}
+.block-menu-glyph {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--paper);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.slash-menu {
+  display: grid;
+  gap: 1px;
+  width: 280px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 12px;
+}
+.slash-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  text-align: left;
+}
+.slash-item.on {
+  background: var(--accent);
+}
+.slash-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: var(--paper);
+  color: var(--ink-2);
+}
+.slash-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.slash-title {
+  font-size: 13px;
+  color: var(--ink);
+}
+.slash-hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.block-bubble {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 10px;
+  z-index: 30;
+}
+.block-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.block-tool:hover {
+  background: var(--accent);
+  color: var(--ink);
+}
+.block-tool.on {
+  background: var(--accent);
+  color: var(--ink);
+}
+.block-bubble-href {
+  max-width: 220px;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.block-bubble-input,
+.target-picker-input {
+  padding: 5px 8px;
+  font-size: 13px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--ink);
+  outline: none;
+}
+.block-bubble-input {
+  width: min(300px, 70vw);
+}
+.block-bubble-input:focus,
+.target-picker-input:focus {
+  border-color: var(--ink-4);
+}
+.target-list {
+  display: grid;
+  gap: 1px;
+  max-height: 260px;
+  overflow: auto;
+}
+.target-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  text-align: left;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.target-opt.on {
+  background: var(--accent);
+}
+.target-opt-name {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.target-opt-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.target-picker {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 4px;
+  width: min(340px, calc(100vw - 32px));
+  padding: 6px;
+  border-radius: 12px;
+}
+.target-picker-none {
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
