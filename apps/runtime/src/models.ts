@@ -163,7 +163,7 @@ export type EmbeddingChoice = (typeof EMBEDDING_CHOICES)[number];
 
 /**
  * Google's EmbeddingGemma 2: open weights, about 1.3 GB in Ollama's library. Text, images and
- * sound share one space; the index uses its text so far.
+ * sound share one space; the index uses text, and pictures while `knowledgeMedia` is on.
  */
 export const LOCAL_EMBEDDING_MODEL = "embeddinggemma-2:740m";
 
@@ -724,6 +724,8 @@ export interface ClassPrice {
   creditsPerMinute?: number;
   /** The audio class is bound to a transcription model: called on /transcription-model. */
   transcribes?: boolean;
+  /** The embedding class's model embeds pictures too: called on /picture-embedding. */
+  pictures?: boolean;
 }
 
 export interface GatewayCatalog {
@@ -1178,23 +1180,32 @@ function localEmbeddingName(cfg: ModelConfig): string {
 }
 
 /** What the local Ollama held at the last look, by address and model, so a call does not ask it every time. */
-const ollamaHeld = new Map<string, { there: boolean; at: number }>();
+const ollamaHeld = new Map<string, { capabilities: string[] | null; at: number }>();
 
-/** Whether Ollama on this computer holds `name`, looked up once a minute. */
-async function ollamaHolds(url: string, name: string): Promise<boolean> {
+/** What Ollama on this computer can do with `name` ("embedding", "vision"); null where it does not hold it. Looked up once a minute. */
+async function ollamaHolds(url: string, name: string): Promise<string[] | null> {
   const key = `${url} ${name}`;
   const hit = ollamaHeld.get(key);
   if (hit && Date.now() < hit.at) {
-    return hit.there;
+    return hit.capabilities;
   }
-  const there = await fetch(`${ollamaRoot(url)}/api/tags`, { signal: AbortSignal.timeout(1500) })
-    .then((res) => (res.ok ? (res.json() as Promise<{ models?: { name: string }[] }>) : null))
-    .then((body) =>
-      (body?.models ?? []).some((m) => m.name === name || m.name === `${name}:latest`),
+  const capabilities = await fetch(`${ollamaRoot(url)}/api/tags`, {
+    signal: AbortSignal.timeout(1500),
+  })
+    .then((res) =>
+      res.ok
+        ? (res.json() as Promise<{ models?: { name: string; capabilities?: string[] }[] }>)
+        : null,
     )
-    .catch(() => false);
-  ollamaHeld.set(key, { there, at: Date.now() + 60_000 });
-  return there;
+    .then((body) => {
+      const found = (body?.models ?? []).find(
+        (m) => m.name === name || m.name === `${name}:latest`,
+      );
+      return found ? (found.capabilities ?? []) : null;
+    })
+    .catch(() => null);
+  ollamaHeld.set(key, { capabilities, at: Date.now() + 60_000 });
+  return capabilities;
 }
 
 /** Forgets what Ollama held: after a model was downloaded or removed (local-models.ts). */
@@ -1208,7 +1219,70 @@ export async function localOllamaUrl(): Promise<string> {
   return (await config()).settings.ollamaUrl ?? env.ollamaUrl;
 }
 
-type ResolvedEmbedding = { model: EmbeddingModel; ref: string };
+/**
+ * An embedding model, with `embedImage` where it embeds pictures too, into the same space as
+ * text (EmbeddingGemma 2): a question then finds a photo or a PDF page by what it shows.
+ */
+type ResolvedEmbedding = {
+  model: EmbeddingModel;
+  ref: string;
+  /** A unit-length vector for a JPEG (`jpegOf`); only while the switch `knowledgeMedia` is on. */
+  embedImage?: (jpeg: Buffer) => Promise<number[]>;
+};
+
+/** A vector scaled to length one, as the text embeddings come. */
+function unitVector(v: readonly number[]): number[] {
+  const len = Math.sqrt(v.reduce((sum, x) => sum + x * x, 0)) || 1;
+  return v.map((x) => x / len);
+}
+
+/** Pictures through Ollama's own /api/embed: its OpenAI-style endpoint takes no pictures. */
+function ollamaImageEmbedder(url: string, name: string) {
+  return async (jpeg: Buffer) => {
+    const res = await fetch(`${ollamaRoot(url)}/api/embed`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: name, input: [{ image: jpeg.toString("base64") }] }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!res.ok) {
+      throw new Error(`Ollama answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    }
+    const [v] = ((await res.json()) as { embeddings?: number[][] }).embeddings ?? [];
+    if (!v) {
+      throw new Error("Ollama gave no vector for the picture.");
+    }
+    return unitVector(v);
+  };
+}
+
+/** Pictures through the gateway of the credits, where the embedding class's model takes them. */
+function gatewayImageEmbedder(access: GatewayAccess) {
+  return async (jpeg: Buffer) => {
+    const res = await fetch(`${access.baseUrl}/v4/ai/picture-embedding`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${access.token}`,
+        "content-type": "application/json",
+        ...DEFINITION_HEADER,
+        ...(access.tenant ? { "x-wizards-tenant": access.tenant } : {}),
+      },
+      body: JSON.stringify({ pictures: [jpeg.toString("base64")] }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!res.ok) {
+      throw new Error(`The gateway answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    }
+    const [v] = ((await res.json()) as { embeddings?: number[][] }).embeddings ?? [];
+    if (!v) {
+      throw new Error("The gateway gave no vector for the picture.");
+    }
+    return unitVector(v);
+  };
+}
+
+/** Whether pictures go into the index as pictures (docs/plans/media-and-files.md). */
+const picturesOn = async () => feature("knowledgeMedia", await remoteFeatures().catch(() => null));
 
 /** The embedding model one way reaches; null where that way has none. */
 async function embeddingBy(
@@ -1245,11 +1319,19 @@ async function embeddingBy(
     case "local": {
       const url = cfg.settings.ollamaUrl ?? env.ollamaUrl;
       const name = localEmbeddingName(cfg);
-      if (!(await ollamaHolds(url, name))) {
+      const capabilities = await ollamaHolds(url, name);
+      if (!capabilities) {
         return null;
       }
+      // Text through the OpenAI-style API, pictures through /api/embed: the same vectors.
       const ollama = createOpenAI({ baseURL: url, apiKey: "ollama" });
-      return { model: ollama.embedding(name), ref: `ollama:${name}` };
+      return {
+        model: ollama.embedding(name),
+        ref: `ollama:${name}`,
+        ...(capabilities.includes("vision") && (await picturesOn())
+          ? { embedImage: ollamaImageEmbedder(url, name) }
+          : {}),
+      };
     }
     default: {
       const access = await creditAccess(cfg, chosen).catch(() => null);
@@ -1258,6 +1340,9 @@ async function embeddingBy(
         ? {
             model: gatewayClient(access, {}, await tiersOn()).embeddingModel("wizards/embedding"),
             ref: bound.model,
+            ...(bound.pictures && (await picturesOn())
+              ? { embedImage: gatewayImageEmbedder(access) }
+              : {}),
           }
         : null;
     }
@@ -1301,7 +1386,7 @@ async function embeddingAccess(
  */
 export async function embeddingModel(): Promise<ResolvedEmbedding | null> {
   const found = await embeddingAccess(await config());
-  return found ? { model: found.model, ref: found.ref } : null;
+  return found ? { model: found.model, ref: found.ref, embedImage: found.embedImage } : null;
 }
 
 /**

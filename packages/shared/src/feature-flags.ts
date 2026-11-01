@@ -173,6 +173,12 @@ export const FEATURES = {
     label: "Knowledge as a knowledge base",
     hint: "Knowledge's start page with one Add menu, folders in its menu and categories as a tab (docs/plans/knowledge-base.md).",
   },
+  knowledgeMedia: {
+    kind: "release",
+    default: false,
+    label: "Pictures in Wissen by what they show",
+    hint: "Pictures and PDF pages are embedded as pictures where the embedding model takes them (EmbeddingGemma 2), so a search finds a photo by what it shows (docs/plans/media-and-files.md).",
+  },
   ownKeys: {
     kind: "plan",
     default: true,
