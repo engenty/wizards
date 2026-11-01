@@ -148,9 +148,12 @@ export async function clientSpaces(who: ClientWho) {
 
 // --- wizards ---------------------------------------------------------------------------------
 
+/** The portal's own parts of a client space's address: no wizard takes one of them. */
+const PORTAL_PARTS = ["chats", "files", "results", "runs"];
+
 /** A wizard's address in the portal: from its title, unique among the ones listed. */
 function withSlugs<T extends { id: string; title: string }>(wizards: T[]) {
-  const taken = new Set<string>();
+  const taken = new Set<string>(PORTAL_PARTS);
   return wizards.map((w) => {
     const base = pageSlugOf(w.title) || w.id.toLowerCase();
     let slug = base;

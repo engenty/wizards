@@ -1,0 +1,11 @@
+# Only what apps/portal/Dockerfile copies.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!apps/portal
+!packages/shared
+!packages/runner
+**/node_modules
+**/dist

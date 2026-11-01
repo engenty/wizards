@@ -1,6 +1,7 @@
 # Plan: the client portal
 
-Status: planned on 2026-11-01; nothing built. Step 3 of `docs/plans/client-spaces.md`, phase 2b
+Status: built on 2026-11-01, not released: the contract (#415), the Manage-App's client and page
+by host (Manage #165), the portal app (this branch). Step 3 of `docs/plans/client-spaces.md`, phase 2b
 of `docs/plans/modular.md`. Page with the diagram: the artifact “Client Portal Plan”
 (claude.ai/artifact/3BKfh32GhDy6cfAptwAK1H).
 
@@ -142,15 +143,22 @@ starter in their client space.
 ## Deploying
 
 - `apps/portal/Dockerfile`: a small Node image (server + SPA), `ghcr.io/engenty/engenty-wizards-portal`,
-  built with the runtime's images in CI.
-- `compose.cloud.yaml`: a `portal` service on port 8893 with `PORTAL_URL`, `MANAGE_URL`,
-  `RUNTIME_URL` (the `api` role and the doors), `PORTAL_CLIENT_ID`, `PORTAL_CLIENT_SECRET`,
-  `PORTAL_SECRET`.
-- **Coolify (by hand):** a Traefik router `HostRegexp(`^[a-z0-9-]+\.wizards\.page$`) &&
-  PathPrefix(`/portal`)` to `portal:8893`, priority above the Manage-App's `*.wizards.page`
-  router; the same for `PORTAL_URL`'s host. Own domains: one rule each, later.
-- **Manage-App** (a PR in the Manage repository): a pre-registered client per runtime with a
-  portal (`RUNTIMES[].portalUrl`, client `wizards-portal-<name>`, redirect
+  built with the runtime's images for every release (`.github/workflows/ci.yml`, job `images`).
+- `compose.cloud.yaml`: a `portal` service on port 8893. It needs `PORTAL_URL` (its own origin,
+  where every sign-in comes back), `PORTAL_CLIENT_SECRET` and `PORTAL_SECRET` (32 characters or
+  more); `MANAGE_URL` and `APP_URL` it shares with the runtime. It calls the `api` and `doors`
+  services inside the stack.
+- **Coolify (by hand):**
+  1. The domain of `portal`: `PORTAL_URL`'s host, e.g. `https://portal.wizards.page`.
+  2. A Traefik router for `/portal` on every team's host, ahead of the Manage-App's
+     `*.wizards.page` router: `HostRegexp(`^[a-z0-9-]+\.wizards\.page$`) && PathPrefix(`/portal`)`
+     to `portal:8893`, with a higher priority. Own domains: one rule each, later.
+  3. The Manage-App's `RUNTIMES` entry for `cloud` gains `portalUrl` (= `PORTAL_URL`) and
+     `portalSecret` (= `PORTAL_CLIENT_SECRET`); its restart writes the client
+     `wizards-portal-cloud`.
+  4. The variables above on `portal`, then deploy it with the release that ships client spaces.
+- **Manage-App** (Manage #165): the pre-registered client per runtime with a portal
+  (`RUNTIMES[].portalUrl`, client `wizards-portal-<name>`, redirect
   `<portalUrl>/portal/auth/callback`, resource the runtime's `APP_URL`), no consent page; and the
   public read `GET /v1/pages/host/:host`.
 
@@ -165,12 +173,20 @@ starter in their client space.
 4. **The portal** (one PR): `apps/portal`, the image, the compose service; tried on a local stack
    with the Manage-App.
 
+## Not built yet
+
+- **The firm's side in Studio:** "Share with the client" and the client space's address have their
+  routes (`PUT /api/studio/runs/:id/client-share`, `PATCH /api/studio/spaces/:id/client`); the
+  buttons wait for the space's Clients part (`client-spaces.md`, step 2).
+- **A run's knowledge in a client space:** a step's Knowledge block counts the client space's own
+  items; the parent's opened items are found by search but not counted there.
+
 ## Open
 
 1. **Own domains:** the page by host answers for the team's address first; own domains join once
    the Manage-App serves pages on them.
-2. **Organization hint at sign-in:** the Manage-App picks the active organization; a hint from the
-   host would save a client in two organizations the second sign-in.
+2. **Organization at sign-in:** solved: the portal sends the host's team as `organization`, which
+   the Manage-App's sign-in already takes.
 3. **D10 in the portal:** a client's chat or run that needs a person's yes is held for the bell.
    Until the broker holds outside calls (`modular.md`, "Approvals from outside"), it is refused
    with why.

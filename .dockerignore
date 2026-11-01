@@ -9,5 +9,7 @@ data
 docs/*
 !docs/content
 apps/docs
+# The client portal has an image of its own (apps/portal/Dockerfile).
+apps/portal
 apps/runtime/test
 examples

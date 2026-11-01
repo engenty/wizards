@@ -11,6 +11,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 // takes that half of one object holding both languages.
 const TABLES = [
   ["apps/web/src/lib/i18n.ts", "const en", "const de", ""],
+  ["apps/portal/src/i18n.ts", "const en", "const de", "portal:"],
   ["packages/shared/src/runner-texts.ts", "const en", "const de", ""],
   ["apps/runtime/src/texts.ts", "const EN", "const DE", "server:"],
   ["packages/shared/src/run.ts", "const NOTES_EN", "const NOTES_DE", "run:"],
