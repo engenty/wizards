@@ -4,11 +4,15 @@
 // reading is peer-it's (packages/docs-ui/src/csv.ts).
 
 import { EditorView } from "@codemirror/view";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { lang, t } from "../../lib/i18n";
 import { cn, Spinner } from "../../ui";
 import { CodeEditor } from "../../ui/code-editor";
 import type { ViewerKind } from "./viewers-kind";
+
+const BlockEditor = lazy(() =>
+  import("./blocks/BlockEditor").then((m) => ({ default: m.BlockEditor })),
+);
 
 /** Larger files are not read here: the original opens in its own tab. */
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -86,7 +90,11 @@ export function Viewer({
     case "html":
       return <HtmlView url={url} name={name} />;
     case "text":
-      return <TextView url={url} name={name} />;
+      return /\.(md|markdown)$/i.test(name) ? (
+        <MarkdownView url={url} name={name} />
+      ) : (
+        <TextView url={url} name={name} />
+      );
   }
 }
 
@@ -409,6 +417,94 @@ function HtmlView({ url, name }: { url: string; name: string }) {
       referrerPolicy="no-referrer"
       className={cn(frame, "bg-white")}
     />
+  );
+}
+
+// --- Markdown -------------------------------------------------------------------------------------
+
+const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
+
+/** A Markdown file's front matter as label and value, one per `key: value` line, and the rest. */
+function splitFrontMatter(text: string): { props: [string, string][]; body: string } {
+  const match = text.match(FRONT_MATTER);
+  if (!match) {
+    return { props: [], body: text };
+  }
+  const props = match[1]
+    .split(/\r?\n/)
+    .map((line) => line.match(/^([\w.-]+):\s*(.*)$/))
+    .filter((m): m is RegExpMatchArray => Boolean(m))
+    .map((m): [string, string] => [m[1], m[2].replace(/^["']|["']$/g, "")]);
+  return { props, body: text.slice(match[0].length) };
+}
+
+const isExternal = (href: string) => /^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("//");
+
+/**
+ * A Markdown file as it reads, as peer-it shows one: the block editor without editing, its front
+ * matter as properties above it; „Markdown“ shows the file as it is.
+ */
+function MarkdownView({ url, name }: { url: string; name: string }) {
+  const { value: text, error } = useLoaded(() => decode(url, MAX_TEXT), url);
+  const [source, setSource] = useState(false);
+  if (error) {
+    return <Failed error={error} />;
+  }
+  if (text === undefined) {
+    return <Waiting />;
+  }
+  const { props, body } = splitFrontMatter(text);
+  const tab = (on: boolean, label: string, pick: () => void) => (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={pick}
+      className={cn(
+        "rounded-md px-2.5 py-1 text-[0.8125rem] transition",
+        on ? "bg-paper-2 font-medium text-ink" : "text-ink-3 hover:text-ink",
+      )}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="flex flex-col">
+      <div className="flex items-center gap-1 border-border-soft border-b px-2 py-1.5">
+        {tab(!source, t("viewer.read"), () => setSource(false))}
+        {tab(source, t("blocks.markdown"), () => setSource(true))}
+      </div>
+      {source ? (
+        <TextView url={url} name={name} />
+      ) : (
+        <div className="flex flex-col">
+          {props.length ? (
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-border-soft border-b px-5 py-3 text-[0.8125rem]">
+              {props.map(([key, value]) => (
+                <div key={key} className="contents">
+                  <dt className="text-ink-3">{key}</dt>
+                  <dd className="min-w-0 break-words text-ink-2">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+          <Suspense fallback={<Waiting />}>
+            <BlockEditor
+              text={body}
+              onChange={() => undefined}
+              readOnly
+              targets={[]}
+              resolve={(src) => (isExternal(src) ? src : new URL(src, url).href)}
+              onOpen={(href) => {
+                if (isExternal(href)) {
+                  window.open(href, "_blank", "noopener");
+                }
+              }}
+              ariaLabel={name}
+            />
+          </Suspense>
+        </div>
+      )}
+    </div>
   );
 }
 
