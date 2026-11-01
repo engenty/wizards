@@ -59,6 +59,76 @@ export function htmlToMarkdown(html: string): string {
   );
 }
 
+// --- a page's content, without what every page of the site has -----------------------------
+
+/** Elements that are a site's frame, never a page's content. */
+const FRAME_TAGS = new Set([
+  "NAV",
+  "FOOTER",
+  "ASIDE",
+  "FORM",
+  "DIALOG",
+  "BUTTON",
+  "IFRAME",
+  "NOSCRIPT",
+  "TEMPLATE",
+]);
+const FRAME_ROLES =
+  /^(navigation|banner|contentinfo|search|dialog|alertdialog|complementary|menu|menubar)$/i;
+/** Classes and ids of skip links, cookie notices, breadcrumbs and share buttons. */
+const FRAME_NAMES =
+  /(^|[\s_-])(skip-link|screen-reader-text|cookies?|consent|gdpr|borlabs|breadcrumbs?|share|sharing|social)([\s_-]|$)/i;
+
+const within = (node: Node, names: string[]) => {
+  for (let at = node.parentNode; at; at = at.parentNode) {
+    if (names.includes(at.nodeName)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/** An element of the site's frame: its menus, its header and footer, hidden parts, notices. */
+function frame(node: HTMLElement): boolean {
+  if (FRAME_TAGS.has(node.nodeName)) {
+    return true;
+  }
+  // A header inside an article or the main part is the content's own heading.
+  if (node.nodeName === "HEADER" && !within(node, ["ARTICLE", "MAIN"])) {
+    return true;
+  }
+  const get = (name: string) => node.getAttribute?.(name) ?? "";
+  return (
+    get("aria-hidden") === "true" ||
+    node.hasAttribute?.("hidden") ||
+    FRAME_ROLES.test(get("role")) ||
+    FRAME_NAMES.test(`${get("class")} ${get("id")}`)
+  );
+}
+
+// A rule of its own, not `remove`: turndown asks `remove` only of elements no rule converts,
+// and links, pictures and headings have rules.
+const content = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" }).addRule(
+  "frame",
+  { filter: (node) => frame(node), replacement: () => "" },
+);
+
+/**
+ * A web page's content as Markdown: its main part where it marks one (`<main>`,
+ * `role="main"`), else its body, without the site's frame — navigation, the site's header and
+ * footer, asides, forms, hidden menus, skip links, cookie notices, breadcrumbs.
+ */
+export function htmlToContent(html: string): string {
+  const main =
+    html.match(/<main\b[^>]*>([\s\S]*)<\/main>/i)?.[1] ??
+    html.match(/<[a-z]+\b[^>]*\brole\s*=\s*["']main["'][^>]*>[\s\S]*/i)?.[0];
+  const part = main ?? html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] ?? html;
+  return content
+    .turndown(part.replace(/<(script|style|svg)\b[\s\S]*?<\/\1>/gi, ""))
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export async function htmlToPdf(html: string): Promise<Uint8Array> {
   const context = await offlineContext();
   try {
