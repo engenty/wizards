@@ -60,7 +60,7 @@ ${line(`${command()} disconnect`, "remove your wizards from those apps (same nam
 ${line(`${command()} mcp`, "run the MCP server over stdio (AI apps start this)")}
 ${line(`${command()} uninstall`, "take it off this computer: shows the plan, asks about your data (kept by default)")}
 ${more("--dry-run only shows it; --yes asks nothing and keeps your data; --yes --delete-data")}
-${line(`${command()} move-files`, "once after the update to 0.16: move the spaces’ files to where they are kept now")}
+${line(`${command()} move-files`, "move the spaces’ files to where 0.16 keeps them; runs by itself at start, by hand for a second try")}
 ${line(`${command()} move-folder-sources`, "once with Dateien on: the Sources plugin’s folders become mounts, taken into Wissen from there")}
 ${line(`${command()} validate`, "check wizards without the studio: .wizard files, unpacked packages, wizard JSON")}
 ${more("--json prints the issues as JSON. A space’s connectors and plugins are checked on import.")}

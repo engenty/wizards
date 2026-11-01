@@ -185,6 +185,28 @@ describe("wizards move-files", () => {
     expect(await local(() => loadAsset(id))).toBeNull();
     expect(await moveFiles()).toBe(0);
   });
+
+  it("moves a file of before by itself when the runtime starts", async () => {
+    const { saveAsset } = await import("../src/files/storage");
+    const { schema } = client;
+    const data = json({ atStart: true });
+    const id = await local(async () => {
+      const ref = await saveAsset({ kind: "space", mime: "application/json", name: "a.json", data });
+      await client.db.insert(schema.spaceFile).values({
+        id: ref.id,
+        spaceId,
+        kind: "asset",
+        name: "a.json",
+        mime: "application/json",
+        size: data.byteLength,
+      });
+      return ref.id;
+    });
+    const { moveFilesAtStart } = await import("../src/cli/move-files");
+    await moveFilesAtStart();
+    const read = await local(() => files.spaceFileContent(spaceId, id));
+    expect(JSON.parse(read.data.toString("utf8"))).toEqual({ atStart: true });
+  });
 });
 
 describe("thumbnails", () => {

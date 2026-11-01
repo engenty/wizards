@@ -8,8 +8,9 @@ import { objects } from "../files/objects.js";
  * asset it lived in (`assets/<id>.<ext>`) to the blob store by their hash (`blobs/`), with the
  * thumbnail of a picture or PDF, for every tenant this runtime knows. Until then such a file
  * doesn't open. What moved is not moved again, so a second run moves only what the first could
- * not reach. In the cloud it runs as `node apps/runtime/dist/move-files.js`, with the runtime's
- * environment.
+ * not reach. The runtime runs it by itself when it starts (`moveFilesAtStart`); by hand it is
+ * for a second try. In the cloud it runs as `node apps/runtime/dist/move-files.js`, with the
+ * runtime's environment.
  */
 export async function moveFiles(): Promise<number> {
   await migrateControlDb();
@@ -28,6 +29,26 @@ export async function moveFiles(): Promise<number> {
   }
   console.log(failed ? "Done; the files listed have no bytes to move." : "Done.");
   return failed ? 1 : 0;
+}
+
+/**
+ * At the start of a runtime that serves the studio, after the tenants' databases are current:
+ * the files of before 0.16 move, so nobody has to run a command after the update. Quiet when
+ * there is nothing to move.
+ */
+export async function moveFilesAtStart(): Promise<void> {
+  for (const tenant of await knownTenants()) {
+    try {
+      const { moved, missing } = await withTenant(tenant, moveTenantFiles);
+      if (moved || missing.length) {
+        console.log(
+          `[move-files] ${tenant}: ${moved} moved${missing.length ? `, ${missing.length} without their bytes: ${missing.join("; ")}` : ""}`,
+        );
+      }
+    } catch (err) {
+      console.error(`[move-files] ${tenant}:`, (err as Error).message);
+    }
+  }
 }
 
 async function moveTenantFiles() {
