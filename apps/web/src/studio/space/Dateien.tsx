@@ -1161,8 +1161,6 @@ function MountDialog({
   const [suggest, setSuggest] = useState<string[]>([]);
   const [noDialog, setNoDialog] = useState(false);
   const [found, setFound] = useState<FolderPreview | null>(null);
-  const [byFolder, setByFolder] = useState(true);
-  const [category, setCategory] = useState("");
   const [see, setSee] = useState<MountSee>(["team"]);
   const [wizards, setWizards] = useState<MountWizards>("all");
   const [writable, setWritable] = useState(false);
@@ -1180,7 +1178,6 @@ function MountDialog({
       setSee(["team"]);
       setWizards("all");
       setWritable(false);
-      setByFolder(true);
     }
   }, [open]);
   // The path field completes folders as one types.
@@ -1213,7 +1210,6 @@ function MountDialog({
     run(async () => {
       const preview = await actions.preview(chosen);
       setFound(preview);
-      setCategory(preview.name);
     });
   const choose = () =>
     run(async () => {
@@ -1225,7 +1221,6 @@ function MountDialog({
         await review(picked);
       }
     });
-  const values = found?.first.map((f) => f.name) ?? [];
   // Another kind picked on the left starts its steps anew.
   const pickKind = (next: string) => {
     setKind(next);
@@ -1448,30 +1443,6 @@ function MountDialog({
                     {t("dateien.leftOut", { count: found.leftOut })}
                   </p>
                 ) : null}
-                {values.length ? (
-                  <div className="flex flex-col gap-2 rounded-lg p-3 ring-1 ring-border-soft">
-                    <label className="flex items-center justify-between gap-3 text-[0.875rem]">
-                      <span className="font-medium">{t("dateien.byFolder")}</span>
-                      <Switch checked={byFolder} onChange={setByFolder} />
-                    </label>
-                    {byFolder ? (
-                      <>
-                        <Input
-                          value={category}
-                          maxLength={60}
-                          aria-label={t("dateien.categoryName")}
-                          onChange={(e) => setCategory(e.target.value)}
-                        />
-                        <span className="text-[0.8125rem] text-ink-3">
-                          {t("dateien.byFolderHint", {
-                            name: category,
-                            values: values.slice(0, 4).join(", ") + (values.length > 4 ? " …" : ""),
-                          })}
-                        </span>
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
                 <AccessFields
                   spaceId={spaceId}
                   see={see}
@@ -1493,8 +1464,6 @@ function MountDialog({
                         see,
                         wizards,
                         writable,
-                        folderCategory:
-                          byFolder && values.length && category.trim() ? category.trim() : null,
                       })
                     }
                   >

@@ -2,39 +2,41 @@ import type { Audience } from "@engenty/wizards-shared/rwx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { useFeature } from "../../lib/features";
 import { type Key, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { Button, Dialog, Switch } from "../../ui";
 
-/** The audiences in the order they are offered; clients only where client spaces are on. */
+/** The audiences in the order they are offered. */
 const ROWS: { audience: Audience; label: Key; hint: Key }[] = [
   { audience: "team", label: "audience.team", hint: "audience.teamHint" },
   { audience: "clients", label: "audience.clients", hint: "audience.clientsHint" },
   { audience: "guests", label: "audience.guests", hint: "audience.guestsHint" },
 ];
 
+/** A row: who, in a line what that means, and its switch; the admins' row says „Immer“. */
 function Row({
   label,
   hint,
   checked,
-  disabled,
   onChange,
 }: {
   label: string;
   hint: string;
-  checked: boolean;
-  disabled?: boolean;
+  checked?: boolean;
   onChange?: (v: boolean) => void;
 }) {
   return (
-    <label className="flex items-start justify-between gap-3 px-3 py-2.5">
-      <span className="flex flex-col gap-0.5">
-        <span className="font-medium text-[0.875rem]">{label}</span>
-        <span className="text-[0.8125rem] text-ink-3">{hint}</span>
+    <div className="flex items-center justify-between gap-4 px-3.5 py-3">
+      <span className="flex min-w-0 flex-col">
+        <span className="font-medium text-[0.875rem] leading-snug">{label}</span>
+        <span className="text-[0.8125rem] text-ink-3 leading-snug">{hint}</span>
       </span>
-      <Switch checked={checked} onChange={onChange ?? (() => undefined)} disabled={disabled} />
-    </label>
+      {onChange ? (
+        <Switch checked={Boolean(checked)} onChange={onChange} label={label} />
+      ) : (
+        <span className="shrink-0 text-[0.8125rem] text-ink-3">{t("audience.always")}</span>
+      )}
+    </div>
   );
 }
 
@@ -49,12 +51,10 @@ export function AudiencePicker({
   value: Audience[];
   onChange: (value: Audience[]) => void;
 }) {
-  const clients = useFeature("clientSpaces");
-  const rows = ROWS.filter((r) => r.audience !== "clients" || clients || value.includes("clients"));
   return (
     <div className="flex flex-col divide-y divide-border-soft rounded-lg ring-1 ring-border-soft">
-      <Row label={t("audience.admins")} hint={t("audience.adminsHint")} checked disabled />
-      {rows.map((r) => (
+      <Row label={t("audience.admins")} hint={t("audience.adminsHint")} />
+      {ROWS.map((r) => (
         <Row
           key={r.audience}
           label={t(r.label)}
