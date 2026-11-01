@@ -10,13 +10,17 @@ import {
   CircleAlert,
   Eye,
   EyeOff,
+  File,
+  FileText,
   FolderOpen,
+  Globe,
   Hash,
   type LucideIcon,
   Pause,
   PenLine,
   RefreshCw,
   Settings2,
+  Table2,
   Tags,
   ToggleLeft,
   Trash2,
@@ -213,6 +217,18 @@ export function useSources(spaceId: string | undefined) {
 }
 
 // --- the sources on Wissen's start page -------------------------------------------------------
+
+/** What an entry is: a page on the web, or a file's page, table or picture. */
+function EntryIcon({ entry, className }: { entry: SourceEntry; className?: string }) {
+  const Icon = /^https?:\/\//.test(entry.address)
+    ? Globe
+    : entry.result?.kind === "table"
+      ? Table2
+      : entry.result?.kind === "file"
+        ? File
+        : FileText;
+  return <Icon className={className} />;
+}
 
 /** „5m“, „2h“, „3d“: a stretch of time, short. */
 function span(minutes: number): string {
@@ -1094,6 +1110,10 @@ export function SourceView({
                   key={e.id}
                   className="group flex items-center gap-3 rounded-lg py-1.5 pr-1 pl-2.5 hover:bg-accent"
                 >
+                  <EntryIcon
+                    entry={e}
+                    className={cn("size-4 shrink-0", e.included ? "text-ink-3" : "text-ink-4")}
+                  />
                   <button
                     type="button"
                     disabled={!e.result}
