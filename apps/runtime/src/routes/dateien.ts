@@ -1,3 +1,4 @@
+import { note } from "@engenty/wizards-shared/run";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
@@ -28,6 +29,7 @@ import {
   rescanMount,
   updateMount,
 } from "../mounts/mounts.js";
+import { ServiceError } from "../services/errors.js";
 import { ownedSpace } from "../services/spaces.js";
 import { spaceFileResponse } from "./delivery.js";
 
@@ -168,13 +170,23 @@ export const dateienRoutes = new Hono<Vars>()
     );
     return c.json({ draft });
   })
-  // A file replaced by an upload, as a draft: the request's body is the new file.
+  // A file replaced by an upload (the form's `file`), as a draft.
   .post("/spaces/:id/mount-files/:fileId/draft/replace", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
-    const data = new Uint8Array(await c.req.arrayBuffer());
-    const mime = (c.req.header("content-type") ?? "application/octet-stream").split(";")[0];
+    const file = (await c.req.formData()).get("file");
+    if (!(file instanceof File)) {
+      throw new ServiceError("invalid", note("chooseFile"));
+    }
+    const data = new Uint8Array(await file.arrayBuffer());
     return c.json(
-      await replaceDraft(c.get("user").id, space.id, c.req.param("fileId"), whoOf(c), data, mime),
+      await replaceDraft(
+        c.get("user").id,
+        space.id,
+        c.req.param("fileId"),
+        whoOf(c),
+        data,
+        file.type || "application/octet-stream",
+      ),
     );
   })
   .delete("/spaces/:id/mount-files/:fileId/draft", async (c) => {

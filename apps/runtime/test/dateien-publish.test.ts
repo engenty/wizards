@@ -181,11 +181,13 @@ describe("Dateien: drafts and „Veröffentlichen“", () => {
     const id = await fileId("logo.png");
     const opened = await json(send("GET", filePath(id, "/draft")));
     expect(opened).toMatchObject({ edit: "replace", draft: false });
+    const form = new FormData();
+    form.set("file", new File([new Uint8Array([9, 8, 7, 6])], "logo.png", { type: "image/png" }));
     const res = await app.fetch(
       new Request(url(filePath(id, "/draft/replace")), {
         method: "POST",
-        headers: { cookie, "content-type": "image/png", origin: "http://localhost:5181" },
-        body: new Uint8Array([9, 8, 7, 6]),
+        headers: { cookie, origin: "http://localhost:5181" },
+        body: form,
       }),
     );
     expect(await json(res)).toMatchObject({ edit: "replace", draft: true });
