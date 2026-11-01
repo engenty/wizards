@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { type ComponentType, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
-import { type Key, t } from "../../lib/i18n";
+import { type Key, lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { useCurrentSpace } from "../../lib/session";
 import { PluginFrame, useStudioPlugins } from "../../plugins/host";
@@ -126,6 +126,8 @@ export interface SourceEntry {
   status: "new" | "done" | "check" | "failed" | "kept";
   result: { kind: "page" | "table" | "file"; id: string; path: string; title: string } | null;
   note: string | null;
+  /** When the source last wrote down what it found for it. */
+  updatedAt: string;
 }
 
 interface SourcesList {
@@ -274,7 +276,8 @@ export function SourceCards({
             <button
               type="button"
               onClick={() => s.folderId && onOpen(`p:${s.folderId}`)}
-              className="flex min-w-0 items-center gap-2 pr-7 text-left"
+              // Its click area covers the whole card; the gear stands above it.
+              className="flex min-w-0 items-center gap-2 pr-7 text-left after:absolute after:inset-0 after:rounded-xl"
             >
               <Icon className="size-4 shrink-0 text-ink-3" />
               <span className="truncate font-medium text-[0.875rem]">{s.label}</span>
@@ -301,7 +304,7 @@ export function SourceCards({
             ) : null}
             <IconButton
               label={t("src.menuSource")}
-              className="absolute top-2 right-2 size-7 text-ink-4 opacity-0 transition group-hover/card:opacity-100 focus-visible:opacity-100"
+              className="absolute top-2 right-2 z-10 size-7 text-ink-4 opacity-0 transition group-hover/card:opacity-100 focus-visible:opacity-100"
               onClick={() => onOpen(`q:${s.id}`)}
             >
               <Settings2 className="size-4" />
@@ -1060,17 +1063,8 @@ export function SourceView({
               {shown.map((e) => (
                 <li
                   key={e.id}
-                  className="group flex items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-accent"
+                  className="group flex items-center gap-3 rounded-lg py-1.5 pr-1 pl-2.5 hover:bg-accent"
                 >
-                  {readOnly ? null : (
-                    <IconButton
-                      label={e.included ? t("src.leaveOut") : t("src.takeIn")}
-                      onClick={() => eye.mutate(e)}
-                      className={cn("size-8", e.included ? "text-ink-3" : "text-ink-4")}
-                    >
-                      {e.included ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-                    </IconButton>
-                  )}
                   <button
                     type="button"
                     disabled={!e.result}
@@ -1096,6 +1090,21 @@ export function SourceView({
                       {t(STATUS_WORD[e.status])}
                     </Chip>
                   ) : null}
+                  <span
+                    className="shrink-0 text-[0.75rem] text-ink-4 tabular-nums"
+                    title={new Date(e.updatedAt).toLocaleString(lang)}
+                  >
+                    {ago(e.updatedAt)}
+                  </span>
+                  {readOnly ? null : (
+                    <IconButton
+                      label={e.included ? t("src.leaveOut") : t("src.takeIn")}
+                      onClick={() => eye.mutate(e)}
+                      className={cn("size-7", e.included ? "text-ink-3" : "text-ink-4")}
+                    >
+                      {e.included ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                    </IconButton>
+                  )}
                 </li>
               ))}
             </ul>
