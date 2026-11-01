@@ -667,7 +667,11 @@ export function SpacePage({ place }: { place?: "skills" }) {
           style={menuWidth ? ({ "--menu-w": `${menuWidth}px` } as CSSProperties) : undefined}
         >
           {group === "results" ? null : (
-            <div className="relative min-w-0">
+            // As tall as the page's frame: the menu's edge, to resize it, runs to the bottom.
+            <div
+              className="relative min-w-0"
+              style={!narrow && rootHeight ? { minHeight: rootHeight - 48 } : undefined}
+            >
               <aside
                 className={cn(
                   "menu-scroll min-w-0 md:sticky md:top-6 md:self-start md:overflow-y-auto md:overscroll-contain",

@@ -760,10 +760,15 @@ function FolderField({
         </p>
       ) : null}
       {open && shown.length ? (
-        <ul className="absolute top-full right-0 left-0 z-30 mt-1 max-h-60 overflow-y-auto rounded-lg bg-card p-1 shadow-overlay ring-1 ring-border-soft">
+        <div
+          role="listbox"
+          className="absolute top-full right-0 left-0 z-30 mt-1 max-h-60 overflow-y-auto rounded-lg bg-card p-1 shadow-overlay ring-1 ring-border-soft"
+        >
           {shown.map((o, i) => (
-            <li
+            <div
               key={o.id || "."}
+              role="option"
+              tabIndex={-1}
               aria-selected={i === hi}
               // Picked before the field loses the focus.
               onMouseDown={(e) => {
@@ -780,9 +785,9 @@ function FolderField({
             >
               <Folder className="size-3.5 shrink-0 text-ink-3" />
               <span className="truncate">{o.label}</span>
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       ) : null}
     </div>
   );
