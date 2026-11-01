@@ -3,6 +3,7 @@ import { extname, join, normalize } from "node:path";
 import { type Context, Hono } from "hono";
 import { currentSession, finishSignIn, signOut, startSignIn, takeHandover } from "./auth.js";
 import { env } from "./env.js";
+import { OWN, PORTAL } from "./paths.js";
 
 /**
  * The portal server (docs/plans/client-portal.md): the client's sign-in, and two forwards. The
@@ -82,29 +83,85 @@ const MIME: Record<string, string> = {
   ".webmanifest": "application/manifest+json",
 };
 
-/** A file of the built SPA; every other address under /portal is the SPA's own page. */
-async function webFile(c: Context): Promise<Response> {
-  const path = normalize(c.req.path.replace(/^\/portal\/?/, "")).replace(/^(\.\.[/\\])+/, "");
-  const file = path && path !== "." ? join(env.webDir, path) : "";
-  if (file?.startsWith(env.webDir)) {
-    const data = await readFile(file).catch(() => null);
-    if (data) {
-      return new Response(new Uint8Array(data), {
+/** A file of the built SPA. */
+async function asset(path: string): Promise<Response | null> {
+  const file = join(env.webDir, path);
+  if (!file.startsWith(env.webDir)) {
+    return null;
+  }
+  const data = await readFile(file).catch(() => null);
+  return data
+    ? new Response(new Uint8Array(data), {
         headers: {
           "content-type": MIME[extname(file)] ?? "application/octet-stream",
-          "cache-control": path.startsWith("assets/")
-            ? "public, max-age=31536000, immutable"
-            : "no-cache",
+          "cache-control": "public, max-age=31536000, immutable",
         },
-      });
-    }
+      })
+    : null;
+}
+
+/**
+ * The SPA's pages. `/portal` is the firm's public face for anyone; every other address below it
+ * is the client's, and without a session it gets the same redirect to the sign-in, whatever it
+ * names (docs/plans/client-portal.md, "Addresses").
+ */
+async function page(c: Context): Promise<Response> {
+  const path = normalize(c.req.path.slice(PORTAL.length).replace(/^\/+/, "")).replace(
+    /^(\.\.[/\\])+/,
+    "",
+  );
+  if (path.startsWith("assets/")) {
+    return (await asset(path)) ?? c.notFound();
+  }
+  if (path && path !== "." && !(await currentSession(c))) {
+    return c.redirect(`${PORTAL}/auth/login?return=${encodeURIComponent(c.req.path)}`);
   }
   const index = await readFile(join(env.webDir, "index.html"), "utf8").catch(() => null);
   return index ? c.html(index, 200, { "cache-control": "no-cache" }) : c.notFound();
 }
 
+/** Calls per client address and minute: the portal as a whole, and the sign-in. */
+const LIMITS = { portal: 600, signIn: 30 };
+const hits = new Map<string, { at: number; n: number }>();
+
+function tooMany(c: Context, kind: keyof typeof LIMITS): boolean {
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || c.req.header("x-real-ip") || "-";
+  const key = `${kind}:${ip}`;
+  const now = Date.now();
+  const hit = hits.get(key);
+  if (!hit || now - hit.at > 60_000) {
+    hits.set(key, { at: now, n: 1 });
+    if (hits.size > 50_000) {
+      hits.clear();
+    }
+    return false;
+  }
+  hit.n += 1;
+  return hit.n > LIMITS[kind];
+}
+
 export const app = new Hono()
   .get("/health", (c) => c.json({ ok: true }))
+  // Nothing of the portal goes on in a Referer or into a search engine; and no address calls it
+  // without end.
+  .use(`${PORTAL}/*`, async (c, next) => {
+    const signIn = c.req.path.startsWith(`${PORTAL}/auth/`);
+    if (tooMany(c, "portal") || (signIn && tooMany(c, "signIn"))) {
+      return c.json(
+        { error: "Too many requests. Try again in a minute.", code: "rate_limited" },
+        429,
+      );
+    }
+    await next();
+    c.header("Referrer-Policy", "no-referrer");
+    c.header("X-Robots-Tag", "noindex, nofollow");
+  })
+  .use(PORTAL, async (c, next) => {
+    await next();
+    c.header("Referrer-Policy", "no-referrer");
+    c.header("X-Robots-Tag", "noindex, nofollow");
+  })
   // --- sign-in --------------------------------------------------------------------------------
   .get("/portal/auth/login", async (c) =>
     startSignIn(c, (await faceOf(hostOf(c)))?.team.slug ?? null),
@@ -161,8 +218,14 @@ export const app = new Hono()
       forwarded(c),
     ),
   )
-  .get("/portal", (c) => webFile(c))
-  .get("/portal/*", (c) => webFile(c))
+  .get(PORTAL, (c) => page(c))
+  .get(`${PORTAL}/*`, (c) => {
+    const first = c.req.path.slice(PORTAL.length + 1).split("/")[0];
+    // The portal's own routes that did not answer: not a page.
+    return first !== "assets" && (OWN as readonly string[]).includes(first)
+      ? c.notFound()
+      : page(c);
+  })
   .get("/", (c) => c.redirect("/portal"));
 
 function runRoute(c: Context) {

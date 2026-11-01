@@ -68,8 +68,7 @@ export async function call<T>(name: string, space?: string, input: object = {}):
   return (await answer<{ result: T }>(res)).result;
 }
 
-export const fileUrl = (space: string, fileId: string) =>
-  `/portal/api/client/spaces/${encodeURIComponent(space)}/files/${encodeURIComponent(fileId)}`;
+export const fileUrl = (fileId: string) => `/portal/api/client/files/${encodeURIComponent(fileId)}`;
 
 /** The firm's brand on a client space, as the runtime gives it (`brandView`). */
 export interface Brand {
@@ -82,7 +81,6 @@ export interface Brand {
 export interface ClientSpace {
   id: string;
   name: string;
-  slug: string;
   firm: { name: string; brand: Brand };
 }
 
@@ -98,7 +96,6 @@ export interface Result {
 
 export interface Wizard {
   id: string;
-  slug: string;
   title: string;
   description: string;
 }
@@ -118,6 +115,7 @@ export interface Chat {
 }
 
 export interface ChatMessages {
+  spaceId: string;
   chat: { id: string; title: string; answering: boolean };
   messages: {
     id: string;
@@ -144,9 +142,38 @@ export const keepTicket = (runId: string, ticket: string) => tickets.set(runId, 
 export const runBase = (runId: string) =>
   `/api/run/${encodeURIComponent(runId)}/${encodeURIComponent(tickets.get(runId) ?? "none")}`;
 
-export async function openRun(space: string, runId: string): Promise<void> {
-  if (!tickets.has(runId)) {
-    const { ticket } = await call<{ ticket: string }>("run_open", space, { runId });
-    keepTicket(runId, ticket);
+/** Opens a run by its id alone (a deep link): its ticket, and the client space it belongs to. */
+export async function openRun(runId: string): Promise<{ spaceId: string }> {
+  const opened = await call<{ ticket: string; spaceId: string }>("run_open", undefined, { runId });
+  keepTicket(runId, opened.ticket);
+  return { spaceId: opened.spaceId };
+}
+
+export interface FileInfo {
+  spaceId: string;
+  file: SpaceFile;
+}
+
+// --- the client space this tab is on ------------------------------------------------------------
+// Never in the address and never in the shared session (docs/plans/client-portal.md,
+// "Addresses"): a tab keeps its own, a new tab starts with the one opened last.
+
+const TAB = "wz_portal_space";
+const LAST = "wz_portal_last_space";
+
+export function tabSpace(): string | null {
+  try {
+    return sessionStorage.getItem(TAB) ?? localStorage.getItem(LAST);
+  } catch {
+    return null;
+  }
+}
+
+export function keepTabSpace(id: string) {
+  try {
+    sessionStorage.setItem(TAB, id);
+    localStorage.setItem(LAST, id);
+  } catch {
+    // Without storage the tab starts with the first client space next time.
   }
 }

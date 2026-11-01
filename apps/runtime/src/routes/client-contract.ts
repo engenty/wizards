@@ -9,6 +9,7 @@ import {
   clientChatPost,
   clientChats,
   clientFile,
+  clientFileInfo,
   clientFiles,
   clientForYou,
   clientMe,
@@ -87,10 +88,11 @@ export const CLIENT_CALLS = {
   },
   run_open: {
     scope: "data:read",
-    space: true,
-    description: "A ticket for one of those runs: its own routes open with it (`?rt=`).",
+    space: false,
+    description:
+      "One run you see, by its id: a ticket its own routes open with (`?rt=`), and its client space.",
     input: z.object({ runId: z.string().min(1).max(64) }),
-    run: (who, spaceId, input) => clientOpenRun(who, spaceId, input.runId),
+    run: (who, _spaceId, input) => clientOpenRun(who, input.runId),
   },
   chats: {
     scope: "data:read",
@@ -101,10 +103,10 @@ export const CLIENT_CALLS = {
   },
   chat_messages: {
     scope: "data:read",
-    space: true,
-    description: "One chat's messages: who wrote and what.",
+    space: false,
+    description: "One of your chats, by its id: who wrote what, and its client space.",
     input: z.object({ chatId: z.string().min(1).max(64) }),
-    run: (who, spaceId, input) => clientChatMessages(who, spaceId, input.chatId),
+    run: (who, _spaceId, input) => clientChatMessages(who, input.chatId),
   },
   chat_post: {
     scope: "elements:run",
@@ -121,10 +123,16 @@ export const CLIENT_CALLS = {
   files: {
     scope: "data:read",
     space: true,
-    description:
-      "The files of a client space. One file's bytes: GET /client/spaces/:spaceId/files/:fileId.",
+    description: "The files of a client space. One file's bytes: GET /client/files/:fileId.",
     input: none,
     run: (who, spaceId) => clientFiles(who, spaceId),
+  },
+  file: {
+    scope: "data:read",
+    space: false,
+    description: "One file you see, by its id: what it is, and its client space.",
+    input: z.object({ fileId: z.string().min(1).max(64) }),
+    run: (who, _spaceId, input) => clientFileInfo(who, input.fileId),
   },
 } satisfies Record<string, ClientCall>;
 
@@ -193,15 +201,13 @@ export const clientContractRoutes = new Hono()
       })),
     }),
   )
-  .get("/client/spaces/:spaceId/files/:fileId", async (c) => {
+  .get("/client/files/:fileId", async (c) => {
     const signedIn = await clientWho(c, "data:read");
     if (signedIn instanceof Response) {
       return signedIn;
     }
     const { who, principal } = signedIn;
-    const file = await inTenantAs(principal, () =>
-      clientFile(who, c.req.param("spaceId"), c.req.param("fileId")),
-    );
+    const file = await inTenantAs(principal, () => clientFile(who, c.req.param("fileId")));
     return new Response(new Uint8Array(file.data), {
       headers: {
         "content-type": file.mime,

@@ -23,6 +23,7 @@ contract.
 | Who | Only people with the organization's role `client`. The firm's own view of a client space stays in Studio and Work ("View as" in Client mode, `client-spaces.md` step 2) |
 | Switch | `clientSpaces`, as the rest of client spaces |
 | The organization's page (2026-11-01) | The app is the organization's page with an optional client part. Before sign-in it shows the firm's brand and its public page; client portals are a Team plan option. Later the organization's page can offer chat, wizards and information to everyone too: the routes leave room for it. MVP now, structure right |
+| Addresses (2026-11-01) | No client space's name or id in a portal address. `/portal` is the client's home; deep links name the item (`/portal/r/<run>`, `/portal/chat/<chat>`, `/portal/f/<file>`), never the space. See "Addresses" below |
 | Chats (2026-11-01) | A client writes to the firm's people. In a chat the client can ask the space's AI, which answers as the client under the broker and spends the firm's credits |
 
 ## The parts
@@ -60,17 +61,17 @@ rule opens it to clients.
 | Call | Scope | Space | What it gives |
 |---|---|---|---|
 | `me` | `data:read` | – | The person (name, e-mail) and the organization (name, address `slug`, `pagesHost`), so the portal checks the host |
-| `spaces` | `data:read` | – | The client's client spaces: id, name, slug, the firm's space name and its brand (`brandView` of the parent) |
+| `spaces` | `data:read` | – | The client's client spaces: id, name, the firm's space name and its brand (`brandView` of the parent) |
+| `run_open` | `data:read` | – | By the run alone: a ticket for it and its client space, for a deep link |
+| `chat_messages` | `data:read` | – | By the chat alone: its messages and its client space |
+| `file` | `data:read` | – | By the file alone: what it is and its client space; its bytes at `GET /api/v1/client/files/:id` |
 | `for_you` | `data:read` | ✓ | What waits for them: their runs waiting on a page or an ask, results the firm shared since they last looked, the wizards opened to clients |
 | `wizards` | `elements:read` | ✓ | The parent's published wizards a client may run (rule `x` for role `client`) |
 | `wizard_start` | `elements:run` | ✓ | Starts one in the client space; gives the run id and its ticket |
 | `results` | `data:read` | ✓ | Runs of the client space the client may see: their own, and the firm's shared with them |
-| `run_open` | `data:read` | ✓ | A ticket for one of those runs, for the run protocol |
 | `chats` | `data:read` | ✓ | The client space's chats the client is a member of: the ones they started, the ones the firm added them to. The firm's other chats there stay internal |
-| `chat_messages` | `data:read` | ✓ | One chat's messages, older ones by cursor |
 | `chat_post` | `elements:run` | ✓ | Writes a message in one of those chats; a new chat with the firm when none is named. `ask: true` lets the space's AI answer, as the client |
 | `files` | `data:read` | ✓ | The client space's documents and uploads |
-| `GET …/files/:id` | `data:read` | ✓ | One file's bytes (the only call that is not JSON) |
 
 Paths: `POST /api/v1/client/:name` (no space), `POST /api/v1/client/spaces/:spaceId/:name`,
 `GET /api/v1/client/spaces/:spaceId/files/:fileId`. Body `{ input }`, answer `{ result }` or
@@ -118,16 +119,40 @@ starter in their client space.
 
 | Address | Page |
 |---|---|
-| `/portal` | The firm's public face: its brand, its public page's words and wizards, and "Sign in" where the client portal is on. Signed in: the client spaces; with one, straight in |
-| `/portal/<slug>` | **For you** / **Für dich**: what waits, new results, the wizards to start |
-| `/portal/<slug>/chats` | Chats with the firm; one open beside the list (on a phone, one at a time) |
-| `/portal/<slug>/files` | Files of the client space, to download |
-| `/portal/<slug>/results` | Results: their runs and the shared ones; one opens in the runner |
-| `/portal/<slug>/<wizard>` | A wizard: its start, then its run in the runner |
+| `/portal` | Signed out: the firm's public face (its brand, its public page's words and wizards, "Sign in" where the client portal is on). Signed in: the client's home, **For you** / **Für dich** of the current client space |
+| `/portal/chats`, `/portal/files`, `/portal/results` | The parts of the current client space |
+| `/portal/r/<run>` | One run or result, in the runner |
+| `/portal/chat/<chat>` | One chat |
+| `/portal/f/<file>` | One file |
+| `/portal/w/<wizard>` | One of the firm's wizards opened to clients: its start |
 
-- **Slug:** client spaces get `space.slug`, made from the name when made, unique in the
-  organization, editable in Studio (the client space's settings). Client spaces made before get
-  one by migration.
+### Addresses
+
+Decided on 2026-11-01 (replacing addresses with a client space's name or id):
+
+- **Why:** a client relationship can itself be confidential (law firms, tax advisers). A name in
+  an address leaks through the browser's history, the `Referer`, server logs and screenshots.
+  Client names at the root of the team's host would collide with the public spaces' addresses
+  and make the public page's server know the clients' names.
+- **The current client space is held per tab**, never in the address and never in the shared
+  session: one client space, that one; several, the last one opened (kept in the browser), with
+  a switcher on the page; a tab keeps its own (`sessionStorage`), so two tabs on two matters do
+  not overwrite each other. The calls of the contract name it; the address bar does not.
+- **Deep links name the item.** Ids are random. The contract finds the item's client space and
+  the broker decides as the client; mails and notifications link this way.
+- **Uniform answers.** Without a session every `/portal/…` but `/portal` itself gets the same
+  redirect to the sign-in. Signed in, a client space, run, chat or file the person is not in
+  answers exactly as one that does not exist: the same status and body, from one query that asks
+  for the item and the person's place together, so neither the answer nor its timing tells them
+  apart.
+- **No traces:** `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex` on all of `/portal`;
+  no portal address in any sitemap.
+- **Rate limits** on `/portal/…` and, tighter, on the sign-in.
+- **`portal` is a reserved word** for a public space's address (`RESERVED_PAGE_SLUGS`); the
+  Manage-App's reserved words (`HOUSE` in `address-words.ts`) need it too.
+- The addresses live in one place (`apps/portal/server/paths.ts`), used by the server and the
+  SPA, since their exact shape may still change.
+
 - **Brand:** before sign-in the public page's brand; after it the parent space's brand
   (`runTheme`, the main logo). The engenty look where there is none.
 - **Languages:** German and English, by the browser, switchable. German gender-neutral
@@ -167,7 +192,7 @@ starter in their client space.
 1. **Plan** (this page, the artifact).
 2. **The contract** (one PR): `run.clientSpaceId` and `run.clientSharedAt`, runs in a client space, the
    client calls from one spec list, "Share with the client" on the studio route, the run ticket
-   for clients, `space.slug`; tests that a client sees nothing of another client or of the
+   for clients; tests that a client sees nothing of another client or of the
    parent's setup, and the parent's Knowledge only where opened; `docs/content/dev/api.md`.
 3. **The Manage-App** (Manage PR): the portal's OAuth client per runtime, the page by host.
 4. **The portal** (one PR): `apps/portal`, the image, the compose service; tried on a local stack
@@ -175,9 +200,11 @@ starter in their client space.
 
 ## Not built yet
 
-- **The firm's side in Studio:** "Share with the client" and the client space's address have their
+- **The firm's side in Studio:** "Share with the client" and renaming a client space have their
   routes (`PUT /api/studio/runs/:id/client-share`, `PATCH /api/studio/spaces/:id/client`); the
   buttons wait for the space's Clients part (`client-spaces.md`, step 2).
+- **The Manage-App's reserved words:** `portal` still needs adding to `HOUSE` in
+  `address-words.ts` there, so no team takes it as its own address word either.
 - **A run's knowledge in a client space:** a step's Knowledge block counts the client space's own
   items; the parent's opened items are found by search but not counted there.
 

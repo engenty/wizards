@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 // The portal server (docs/plans/client-portal.md): it signs the client in through the Manage-App
@@ -11,6 +14,9 @@ process.env.RUNTIME_URL = "https://runtime.test";
 process.env.RUNTIME_DOORS_URL = "https://doors.test";
 process.env.PORTAL_CLIENT_SECRET = "client-secret-0123456789";
 process.env.PORTAL_SECRET = "portal-secret-0123456789-0123456789";
+// The built SPA, as far as the server looks at it.
+process.env.PORTAL_WEB_DIR = mkdtempSync(join(tmpdir(), "portal-web-"));
+writeFileSync(join(process.env.PORTAL_WEB_DIR, "index.html"), "<!doctype html><title>Portal</title>");
 
 /** An access token as the Manage-App signs one; the portal only reads it. */
 const token = (claims: Record<string, unknown>) =>
@@ -120,5 +126,38 @@ describe("the portal server", () => {
   it("opens a run's routes with its ticket only, at the doors", async () => {
     const res = await at("/portal/api/run/r1/tick.et/pages/start", { method: "POST", body: '{"values":{}}' });
     expect(await res.json()).toEqual({ url: "https://doors.test/api/runs/r1/pages/start?rt=tick.et", auth: null });
+  });
+
+  it("sends every client address to the sign-in alike without a session, and asks nobody", async () => {
+    calls.length = 0;
+    const answers = await Promise.all(
+      ["/portal/r/a1b2c3d4e5f6", "/portal/r/doesnotexist", "/portal/chat/x9", "/portal/f/y8", "/portal/files"].map((p) =>
+        at(p),
+      ),
+    );
+    for (const res of answers) {
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toMatch(/^\/portal\/auth\/login\?return=%2Fportal%2F/);
+    }
+    expect(calls.filter((c) => !c.url.includes("/.well-known/"))).toEqual([]);
+  });
+
+  it("keeps the portal out of Referers and search engines", async () => {
+    for (const path of ["/portal", "/portal/r/x", "/portal/api/session"]) {
+      const res = await at(path);
+      expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(res.headers.get("x-robots-tag")).toContain("noindex");
+    }
+  });
+
+  it("limits the sign-in per address", async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      statuses.push(
+        (await at("/portal/auth/finish?h=x", { headers: { "x-forwarded-for": "203.0.113.9" } })).status,
+      );
+    }
+    expect(statuses.slice(0, 30).every((s) => s === 302)).toBe(true);
+    expect(statuses.at(-1)).toBe(429);
   });
 });

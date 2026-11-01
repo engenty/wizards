@@ -1,5 +1,6 @@
 import { RunnerBody } from "@engenty/wizards-runner";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ItemKind, NEW_CHAT, type PartName, pathOf, placeOf } from "../server/paths";
 import {
   type Brand,
   CallError,
@@ -8,8 +9,10 @@ import {
   type ClientSpace,
   call,
   type Face,
+  type FileInfo,
   type ForYou,
   fileUrl,
+  keepTabSpace,
   keepTicket,
   openRun,
   type Result,
@@ -18,6 +21,7 @@ import {
   session,
   signInUrl,
   signOut,
+  tabSpace,
   type Wizard,
 } from "./api";
 import { switchLang, type TextKey, t } from "./i18n";
@@ -26,27 +30,27 @@ import { useRun } from "./useRun";
 
 /*
  * The client portal (docs/plans/client-portal.md): the firm's public face before sign-in, then
- * the client's client spaces. Addresses: /portal, /portal/<space>, …/chats, …/files, …/results,
- * …/runs/<run>, …/<wizard>.
+ * the client's home in the client space this tab is on. No address names a client space
+ * (server/paths.ts): the parts have a word each, a deep link names its item.
  */
 
-type Part = "forYou" | "chats" | "files" | "results";
-const PARTS: { id: Part; path: string; label: TextKey }[] = [
-  { id: "forYou", path: "", label: "nav.forYou" },
-  { id: "chats", path: "chats", label: "nav.chats" },
-  { id: "files", path: "files", label: "nav.files" },
-  { id: "results", path: "results", label: "nav.results" },
+type Part = "forYou" | PartName;
+const PARTS: { id: Part; to: string; label: TextKey }[] = [
+  { id: "forYou", to: pathOf.home(), label: "nav.forYou" },
+  { id: "chats", to: pathOf.part("chats"), label: "nav.chats" },
+  { id: "files", to: pathOf.part("files"), label: "nav.files" },
+  { id: "results", to: pathOf.part("results"), label: "nav.results" },
 ];
 
-/** Where the address points, below /portal. */
-function placeOf(pathname: string) {
-  const [slug = "", part = "", id = ""] = pathname
-    .replace(/^\/portal\/?/, "")
-    .split("/")
-    .filter(Boolean)
-    .map(decodeURIComponent);
-  return { slug, part, id };
-}
+/** The part an item belongs to, for the bar. */
+const PART_OF: Record<ItemKind, Part> = {
+  run: "results",
+  chat: "chats",
+  file: "files",
+  wizard: "forYou",
+};
+
+type Go = (to: string) => void;
 
 function usePath(): [string, (to: string) => void] {
   const [path, setPath] = useState(location.pathname);
@@ -164,7 +168,7 @@ function PublicFace({ face, failed }: { face: Face | null; failed: boolean }) {
             <h2>{t("signIn.clients", { firm })}</h2>
             <p>{t("signIn.lead", { firm })}</p>
             {failed ? <p className="warn">{t("signIn.failed")}</p> : null}
-            <a className="button" href={signInUrl("/portal")}>
+            <a className="button" href={signInUrl(pathOf.home())}>
               {t("signIn")}
             </a>
           </section>
@@ -195,27 +199,55 @@ function PublicFace({ face, failed }: { face: Face | null; failed: boolean }) {
 
 // --- signed in ---------------------------------------------------------------------------------
 
+function SpaceSwitch({
+  spaces,
+  space,
+  onSwitch,
+}: {
+  spaces: ClientSpace[];
+  space: ClientSpace;
+  onSwitch: (id: string) => void;
+}) {
+  if (spaces.length < 2) {
+    return <p className="space-line">{space.name}</p>;
+  }
+  return (
+    <label className="space-line switch">
+      <span className="sr">{t("spaces.switch")}</span>
+      <select id="space-switch" value={space.id} onChange={(e) => onSwitch(e.target.value)}>
+        {spaces.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function Shell({
+  spaces,
   space,
   part,
   go,
   person,
+  onSwitch,
   children,
 }: {
+  spaces: ClientSpace[];
   space: ClientSpace;
   part: Part | null;
-  go: (to: string) => void;
+  go: Go;
   person: { name: string };
+  onSwitch: (id: string) => void;
   children: ReactNode;
 }) {
-  const base = `/portal/${encodeURIComponent(space.slug)}`;
   return (
     <div className="app">
       <header className="band">
         <div className="wrap band-inner">
           <div className="who">
             <Logo brand={space.firm.brand} name={firmName(space)} />
-            <span className="space-name">{space.name}</span>
           </div>
           <div className="me">
             <span className="quiet person">{person.name}</span>
@@ -223,7 +255,7 @@ function Shell({
             <button
               type="button"
               className="link"
-              onClick={() => void signOut().then(() => location.assign("/portal"))}
+              onClick={() => void signOut().then(() => location.assign(pathOf.home()))}
             >
               {t("signOut")}
             </button>
@@ -231,20 +263,15 @@ function Shell({
         </div>
       </header>
       <div className="wrap body">
-        <nav className="parts" aria-label={space.name}>
+        <nav className="parts" aria-label={t("nav.label")}>
           {PARTS.map((p) => (
-            <Go
-              key={p.id}
-              to={p.path ? `${base}/${p.path}` : base}
-              go={go}
-              className={`part${p.id === part ? " on" : ""}`}
-            >
+            <Go key={p.id} to={p.to} go={go} className={`part${p.id === part ? " on" : ""}`}>
               {t(p.label)}
             </Go>
           ))}
         </nav>
         <main className="content">
-          <p className="space-line">{space.name}</p>
+          <SpaceSwitch spaces={spaces} space={space} onSwitch={onSwitch} />
           {children}
         </main>
       </div>
@@ -252,20 +279,12 @@ function Shell({
   );
 }
 
-function ResultRows({
-  results,
-  base,
-  go,
-}: {
-  results: Result[];
-  base: string;
-  go: (to: string) => void;
-}) {
+function ResultRows({ results, go }: { results: Result[]; go: Go }) {
   return (
     <ul className="rows">
       {results.map((r) => (
         <li key={r.runId}>
-          <Go to={`${base}/runs/${r.runId}`} go={go} className="row">
+          <Go to={pathOf.item("run", r.runId)} go={go} className="row">
             <div className="row-main">
               <strong>{r.title}</strong>
               <span className="quiet">{dateOf(r.updatedAt)}</span>
@@ -278,9 +297,8 @@ function ResultRows({
   );
 }
 
-function ForYouPart({ space, go }: { space: ClientSpace; go: (to: string) => void }) {
+function ForYouPart({ space, go }: { space: ClientSpace; go: Go }) {
   const firm = firmName(space);
-  const base = `/portal/${encodeURIComponent(space.slug)}`;
   const { data, error, loading } = useLoad(() => call<ForYou>("for_you", space.id), space.id);
   if (loading && !data) {
     return <Loading />;
@@ -296,7 +314,7 @@ function ForYouPart({ space, go }: { space: ClientSpace; go: (to: string) => voi
           <ul className="rows">
             {data.waiting.map((r) => (
               <li key={r.runId}>
-                <Go to={`${base}/runs/${r.runId}`} go={go} className="row">
+                <Go to={pathOf.item("run", r.runId)} go={go} className="row">
                   <div className="row-main">
                     <strong>{r.title}</strong>
                     <span className="quiet">{dateOf(r.updatedAt)}</span>
@@ -313,7 +331,7 @@ function ForYouPart({ space, go }: { space: ClientSpace; go: (to: string) => voi
       <section className="stack-sm">
         <h2>{t("forYou.shared", { firm })}</h2>
         {data.shared.length ? (
-          <ResultRows results={data.shared} base={base} go={go} />
+          <ResultRows results={data.shared} go={go} />
         ) : (
           <p className="quiet">{t("forYou.shared.empty")}</p>
         )}
@@ -324,7 +342,7 @@ function ForYouPart({ space, go }: { space: ClientSpace; go: (to: string) => voi
           <ul className="tiles">
             {data.wizards.map((w) => (
               <li key={w.id}>
-                <Go to={`${base}/${w.slug}`} go={go} className="tile">
+                <Go to={pathOf.item("wizard", w.id)} go={go} className="tile">
                   <strong>{w.title}</strong>
                   <span className="quiet">{w.description}</span>
                 </Go>
@@ -339,9 +357,8 @@ function ForYouPart({ space, go }: { space: ClientSpace; go: (to: string) => voi
   );
 }
 
-function ResultsPart({ space, go }: { space: ClientSpace; go: (to: string) => void }) {
+function ResultsPart({ space, go }: { space: ClientSpace; go: Go }) {
   const { data, error, loading } = useLoad(() => call<Result[]>("results", space.id), space.id);
-  const base = `/portal/${encodeURIComponent(space.slug)}`;
   return (
     <section className="stack-sm">
       <h2>{t("results.title")}</h2>
@@ -350,7 +367,7 @@ function ResultsPart({ space, go }: { space: ClientSpace; go: (to: string) => vo
       ) : error || !data ? (
         <Failed error={error ?? ""} />
       ) : data.length ? (
-        <ResultRows results={data} base={base} go={go} />
+        <ResultRows results={data} go={go} />
       ) : (
         <p className="quiet">{t("results.empty", { firm: firmName(space) })}</p>
       )}
@@ -363,7 +380,23 @@ const sizeOf = (bytes: number) =>
     ? `${Math.max(1, Math.round(bytes / 1024))} KB`
     : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-function FilesPart({ space }: { space: ClientSpace }) {
+function FileRow({ file, go }: { file: SpaceFile; go: Go }) {
+  return (
+    <li className="row">
+      <Go to={pathOf.item("file", file.id)} go={go} className="row-main plain">
+        <strong>{file.name}</strong>
+        <span className="quiet">
+          {dateOf(file.createdAt)} · {sizeOf(file.size)}
+        </span>
+      </Go>
+      <a className="button ghost small" href={fileUrl(file.id)} download={file.name}>
+        {t("files.download")}
+      </a>
+    </li>
+  );
+}
+
+function FilesPart({ space, go }: { space: ClientSpace; go: Go }) {
   const { data, error, loading } = useLoad(() => call<SpaceFile[]>("files", space.id), space.id);
   return (
     <section className="stack-sm">
@@ -375,23 +408,50 @@ function FilesPart({ space }: { space: ClientSpace }) {
       ) : data.length ? (
         <ul className="rows">
           {data.map((f) => (
-            <li key={f.id} className="row">
-              <div className="row-main">
-                <strong>{f.name}</strong>
-                <span className="quiet">
-                  {dateOf(f.createdAt)} · {sizeOf(f.size)}
-                </span>
-              </div>
-              <a className="button ghost small" href={fileUrl(space.id, f.id)} download={f.name}>
-                {t("files.download")}
-              </a>
-            </li>
+            <FileRow key={f.id} file={f} go={go} />
           ))}
         </ul>
       ) : (
         <p className="quiet">{t("files.empty")}</p>
       )}
     </section>
+  );
+}
+
+/** One file by its deep link: its client space becomes the tab's. */
+function FileItem({
+  fileId,
+  go,
+  onSpace,
+}: {
+  fileId: string;
+  go: Go;
+  onSpace: (id: string) => void;
+}) {
+  const { data, error, loading } = useLoad(
+    () => call<FileInfo>("file", undefined, { fileId }),
+    fileId,
+  );
+  useEffect(() => {
+    if (data) {
+      onSpace(data.spaceId);
+    }
+  }, [data, onSpace]);
+  if (loading && !data) {
+    return <Loading />;
+  }
+  if (error || !data) {
+    return <Failed error={t("notFound")} />;
+  }
+  return (
+    <div className="stack-sm">
+      <Go to={pathOf.part("files")} go={go} className="link back">
+        {t("files.all")}
+      </Go>
+      <ul className="rows">
+        <FileRow file={data.file} go={go} />
+      </ul>
+    </div>
   );
 }
 
@@ -463,26 +523,42 @@ function Composer({
   );
 }
 
-function Conversation({ space, chatId }: { space: ClientSpace; chatId: string }) {
+/** One chat by its deep link: its client space becomes the tab's. */
+function Conversation({
+  space,
+  chatId,
+  onSpace,
+}: {
+  space: ClientSpace;
+  chatId: string;
+  onSpace: (id: string) => void;
+}) {
   const [data, setData] = useState<ChatMessages | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(
     () =>
-      call<ChatMessages>("chat_messages", space.id, { chatId }).then(
+      call<ChatMessages>("chat_messages", undefined, { chatId }).then(
         (read) => {
           setData(read);
           setError(null);
         },
-        (err: Error) => setError(err.message),
+        (err: Error) =>
+          setError(err instanceof CallError && err.status === 404 ? t("notFound") : err.message),
       ),
-    [space.id, chatId],
+    [chatId],
   );
   useEffect(() => {
+    setData(null);
     void load();
     // The firm's people and the AI write here too: a look every few seconds while it is open.
     const timer = setInterval(() => void load(), 4000);
     return () => clearInterval(timer);
   }, [load]);
+  useEffect(() => {
+    if (data) {
+      onSpace(data.spaceId);
+    }
+  }, [data, onSpace]);
   // A look that fails while messages are shown leaves them; the next one may answer again.
   if (!data) {
     return error ? <Failed error={error} /> : <Loading />;
@@ -504,7 +580,9 @@ function Conversation({ space, chatId }: { space: ClientSpace; chatId: string })
         ))}
       </ol>
       {data.chat.answering ? <p className="quiet">{t("chats.answering")}</p> : null}
-      <Composer space={space} chatId={chatId} onSent={() => void load()} />
+      {data.spaceId === space.id ? (
+        <Composer space={space} chatId={chatId} onSent={() => void load()} />
+      ) : null}
     </div>
   );
 }
@@ -513,12 +591,13 @@ function ChatsPart({
   space,
   chatId,
   go,
+  onSpace,
 }: {
   space: ClientSpace;
-  chatId: string;
-  go: (to: string) => void;
+  chatId: string | null;
+  go: Go;
+  onSpace: (id: string) => void;
 }) {
-  const base = `/portal/${encodeURIComponent(space.slug)}/chats`;
   const { data, error, loading, reload } = useLoad(
     () => call<Chat[]>("chats", space.id),
     `${space.id}:${chatId}`,
@@ -528,7 +607,7 @@ function ChatsPart({
     <div className="chat-list stack-sm">
       <div className="split">
         <h2>{t("chats.title")}</h2>
-        <Go to={`${base}/new`} go={go} className="button ghost small">
+        <Go to={pathOf.item("chat", NEW_CHAT)} go={go} className="button ghost small">
           {t("chats.new")}
         </Go>
       </div>
@@ -540,7 +619,11 @@ function ChatsPart({
         <ul className="rows">
           {data.map((c) => (
             <li key={c.id}>
-              <Go to={`${base}/${c.id}`} go={go} className={`row${c.id === chatId ? " on" : ""}`}>
+              <Go
+                to={pathOf.item("chat", c.id)}
+                go={go}
+                className={`row${c.id === chatId ? " on" : ""}`}
+              >
                 <div className="row-main">
                   <strong>{c.title || t("chats.untitled")}</strong>
                   {c.last ? (
@@ -560,20 +643,20 @@ function ChatsPart({
   );
   const open = chatId ? (
     <div className="chat-open stack-sm">
-      <Go to={base} go={go} className="link back">
+      <Go to={pathOf.part("chats")} go={go} className="link back">
         {t("chats.back")}
       </Go>
-      {chatId === "new" ? (
+      {chatId === NEW_CHAT ? (
         <Composer
           space={space}
           chatId={null}
           onSent={(id) => {
             reload();
-            go(`${base}/${id}`);
+            go(pathOf.item("chat", id));
           }}
         />
       ) : (
-        <Conversation space={space} chatId={chatId} />
+        <Conversation space={space} chatId={chatId} onSpace={onSpace} />
       )}
     </div>
   ) : null;
@@ -585,33 +668,39 @@ function ChatsPart({
   );
 }
 
-function RunPart({
+/** One run by its deep link: its ticket, and its client space becomes the tab's. */
+function RunItem({
   space,
   runId,
   go,
+  onSpace,
 }: {
   space: ClientSpace;
   runId: string;
-  go: (to: string) => void;
+  go: Go;
+  onSpace: (id: string) => void;
 }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     setReady(false);
-    openRun(space.id, runId).then(
-      () => setReady(true),
+    setError(null);
+    openRun(runId).then(
+      ({ spaceId }) => {
+        onSpace(spaceId);
+        setReady(true);
+      },
       (err: Error) =>
         setError(err instanceof CallError && err.status === 404 ? t("notFound") : err.message),
     );
-  }, [space.id, runId]);
+  }, [runId, onSpace]);
   const run = useRun(ready ? runId : null);
-  const base = `/portal/${encodeURIComponent(space.slug)}`;
   if (error) {
     return <Failed error={error} />;
   }
   return (
     <div className="stack-sm">
-      <Go to={base} go={go} className="link back">
+      <Go to={pathOf.part("results")} go={go} className="link back">
         {t("run.back")}
       </Go>
       <div className="engenty-runner run" {...runnerLook(space.firm.brand.theme)}>
@@ -621,24 +710,17 @@ function RunPart({
   );
 }
 
-function WizardPart({
-  space,
-  slug,
-  go,
-}: {
-  space: ClientSpace;
-  slug: string;
-  go: (to: string) => void;
-}) {
+/** One of the firm's wizards opened to clients: its start, in the tab's client space. */
+function WizardItem({ space, wizardId, go }: { space: ClientSpace; wizardId: string; go: Go }) {
   const { data, error, loading } = useLoad(() => call<Wizard[]>("wizards", space.id), space.id);
   const [starting, setStarting] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   if (loading && !data) {
     return <Loading />;
   }
-  const wizard = data?.find((w) => w.slug === slug);
+  const wizard = data?.find((w) => w.id === wizardId);
   if (error || !wizard) {
-    return <Failed error={error ?? t("notFound")} />;
+    return <Failed error={t("notFound")} />;
   }
   const start = async () => {
     setStarting(true);
@@ -650,7 +732,7 @@ function WizardPart({
         { wizardId: wizard.id },
       );
       keepTicket(runId, ticket);
-      go(`/portal/${encodeURIComponent(space.slug)}/runs/${runId}`);
+      go(pathOf.item("run", runId));
     } catch (err) {
       setFailed((err as Error).message);
       setStarting(false);
@@ -670,24 +752,6 @@ function WizardPart({
   );
 }
 
-function SpacesList({ spaces, go }: { spaces: ClientSpace[]; go: (to: string) => void }) {
-  return (
-    <main className="wrap stack">
-      <h1>{t("spaces.title")}</h1>
-      <ul className="tiles">
-        {spaces.map((s) => (
-          <li key={s.id}>
-            <Go to={`/portal/${encodeURIComponent(s.slug)}`} go={go} className="tile">
-              <strong>{s.name}</strong>
-              <span className="quiet">{firmName(s)}</span>
-            </Go>
-          </li>
-        ))}
-      </ul>
-    </main>
-  );
-}
-
 function Notice({ face, title, hint }: { face: Face | null; title: string; hint: string }) {
   return (
     <div className="public">
@@ -697,7 +761,7 @@ function Notice({ face, title, hint }: { face: Face | null; title: string; hint:
           <button
             type="button"
             className="link"
-            onClick={() => void signOut().then(() => location.assign("/portal"))}
+            onClick={() => void signOut().then(() => location.assign(pathOf.home()))}
           >
             {t("signOut")}
           </button>
@@ -711,64 +775,87 @@ function Notice({ face, title, hint }: { face: Face | null; title: string; hint:
   );
 }
 
-function SignedIn({
-  info,
-  go,
-  path,
-}: {
-  info: SessionInfo;
-  go: (to: string) => void;
-  path: string;
-}) {
+/**
+ * The client's portal. The client space is the tab's (api.ts `tabSpace`); a deep link moves the
+ * tab to its item's client space once the contract has found it.
+ */
+function SignedIn({ info, go, path }: { info: SessionInfo; go: Go; path: string }) {
   const firm = info.face?.page?.brand.name || info.face?.team.name || "";
   const spaces = useLoad(() => call<ClientSpace[]>("spaces"), "spaces");
-  const { slug, part, id } = placeOf(path);
+  const [current, setCurrent] = useState<string | null>(tabSpace);
   const list = spaces.data ?? [];
-  const space = list.find((s) => s.slug === slug) ?? null;
+  const space = list.find((s) => s.id === current) ?? list[0] ?? null;
   const brand: Brand | null = space?.firm.brand ?? null;
   useEffect(() => wearBrand(brand?.theme ?? null, brand?.accent), [brand]);
-  // One client space: straight in.
   useEffect(() => {
-    if (!slug && list.length === 1) {
-      history.replaceState(null, "", `/portal/${encodeURIComponent(list[0].slug)}`);
-      go(`/portal/${encodeURIComponent(list[0].slug)}`);
+    if (space) {
+      keepTabSpace(space.id);
     }
-  }, [slug, list, go]);
+  }, [space]);
+  const onSpace = useCallback((id: string) => setCurrent(id), []);
   if (spaces.loading && !spaces.data) {
     return <Loading />;
   }
   if (spaces.error) {
     return <Notice face={info.face} title={t("error", { error: spaces.error })} hint="" />;
   }
-  if (!list.length) {
+  if (!space) {
     return <Notice face={info.face} title={t("noSpaces")} hint={t("noSpaces.hint", { firm })} />;
   }
-  if (!space) {
-    return slug ? (
-      <Notice face={info.face} title={t("notFound")} hint="" />
-    ) : (
-      <SpacesList spaces={list} go={go} />
-    );
-  }
+  const place = placeOf(path);
   const person = { name: info.person?.name || info.person?.email || "" };
-  const known = PARTS.find((p) => p.path === part && p.path);
-  const shown: Part | null = !part ? "forYou" : known ? known.id : null;
   let body: ReactNode;
-  if (!part) {
-    body = <ForYouPart space={space} go={go} />;
-  } else if (part === "chats") {
-    body = <ChatsPart space={space} chatId={id} go={go} />;
-  } else if (part === "files") {
-    body = <FilesPart space={space} />;
-  } else if (part === "results") {
-    body = <ResultsPart space={space} go={go} />;
-  } else if (part === "runs" && id) {
-    body = <RunPart space={space} runId={id} go={go} />;
-  } else {
-    body = <WizardPart space={space} slug={part} go={go} />;
+  let part: Part | null = null;
+  switch (place.kind) {
+    case "home":
+      part = "forYou";
+      body = <ForYouPart space={space} go={go} />;
+      break;
+    case "part":
+      part = place.part;
+      body =
+        place.part === "chats" ? (
+          <ChatsPart space={space} chatId={null} go={go} onSpace={onSpace} />
+        ) : place.part === "files" ? (
+          <FilesPart space={space} go={go} />
+        ) : (
+          <ResultsPart space={space} go={go} />
+        );
+      break;
+    case "run":
+      part = PART_OF.run;
+      body = <RunItem space={space} runId={place.id} go={go} onSpace={onSpace} />;
+      break;
+    case "chat":
+      part = PART_OF.chat;
+      body = <ChatsPart space={space} chatId={place.id} go={go} onSpace={onSpace} />;
+      break;
+    case "file":
+      part = PART_OF.file;
+      body = <FileItem fileId={place.id} go={go} onSpace={onSpace} />;
+      break;
+    case "wizard":
+      part = PART_OF.wizard;
+      body = <WizardItem space={space} wizardId={place.id} go={go} />;
+      break;
+    default:
+      body = <Failed error={t("notFound")} />;
   }
   return (
-    <Shell space={space} part={shown} go={go} person={person}>
+    <Shell
+      spaces={list}
+      space={space}
+      part={part}
+      go={go}
+      person={person}
+      onSwitch={(id) => {
+        setCurrent(id);
+        // Another matter: its home, not an item of the one before.
+        if (place.kind !== "home" && place.kind !== "part") {
+          go(pathOf.home());
+        }
+      }}
+    >
       {body}
     </Shell>
   );

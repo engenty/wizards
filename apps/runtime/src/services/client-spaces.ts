@@ -1,5 +1,4 @@
 import { note } from "@engenty/wizards-shared/run";
-import { PAGE_SLUG, pageSlugOf } from "@engenty/wizards-shared/spaces";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { openToClients } from "../broker/rwx.js";
@@ -68,7 +67,6 @@ export async function listClientSpaces(userId: string, spaceId: string) {
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
-    slug: r.slug ?? r.id,
     createdAt: r.createdAt.toISOString(),
     clients: people(r.id, "client"),
     members: people(r.id, "member"),
@@ -97,56 +95,27 @@ export async function createClientSpace(
     brand: {},
     kind: "client",
     parentId: space.id,
-    slug: await freeSlug(pageSlugOf(trimmed) || id.toLowerCase()),
   });
   spaceChanged("space.created", id);
   return { id };
 }
 
-/** Whether a client space of the organization other than `except` has the address. */
-async function slugTaken(slug: string, except?: string): Promise<boolean> {
-  const found = await db.query.space.findFirst({
-    columns: { id: true },
-    where: and(eq(schema.space.tenantId, currentTenant()), eq(schema.space.slug, slug)),
-  });
-  return Boolean(found && found.id !== except);
-}
-
-/** An address for a new client space: its own, or with a number where it is taken. */
-async function freeSlug(base: string): Promise<string> {
-  let slug = base.slice(0, 44);
-  for (let n = 2; await slugTaken(slug); n++) {
-    slug = `${base.slice(0, 44)}-${n}`;
-  }
-  return slug;
-}
-
-/**
- * Renames a client space or changes its address in the client portal
- * (`<team>.wizards.page/portal/<slug>`, docs/plans/client-portal.md). Its admins change them.
- */
-export async function updateClientSpace(
+/** Renames a client space. Its admins do. */
+export async function renameClientSpace(
   userId: string,
   spaceId: string,
-  input: { name?: string; slug?: string },
-): Promise<{ name: string; slug: string }> {
+  name: string,
+): Promise<{ name: string }> {
   await requireClientSpaces();
   await requireAdmin();
   const space = await clientSpace(userId, spaceId);
-  const name = input.name?.trim() || space.name;
-  const slug = input.slug?.trim().toLowerCase() || space.slug || space.id;
-  if (!PAGE_SLUG.test(slug)) {
-    throw new ServiceError("invalid", note("clientSpaceSlugInvalid"));
-  }
-  if (await slugTaken(slug, space.id)) {
-    throw new ServiceError("refused", note("clientSpaceSlugTaken"));
-  }
+  const trimmed = name.trim() || space.name;
   await db
     .update(schema.space)
-    .set({ name, slug, updatedAt: new Date() })
+    .set({ name: trimmed, updatedAt: new Date() })
     .where(eq(schema.space.id, space.id));
   spaceChanged("space.updated", space.id);
-  return { name, slug };
+  return { name: trimmed };
 }
 
 /**
