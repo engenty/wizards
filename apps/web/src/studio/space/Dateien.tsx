@@ -2,6 +2,7 @@ import type { KnowledgeItem } from "@engenty/wizards-shared/knowledge";
 import { formatBytes } from "@engenty/wizards-shared/numbers";
 import { useQuery } from "@tanstack/react-query";
 import {
+  BookPlus,
   ChevronRight,
   ExternalLink,
   Folder,
@@ -12,7 +13,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import {
@@ -51,7 +52,7 @@ import {
   useMounts,
 } from "./dateien-data";
 import { KnowledgeHeader, useKnowledge } from "./Knowledge";
-import { chipsOf } from "./KnowledgeTree";
+import { chipsOf, MoveDialog } from "./KnowledgeTree";
 import { viewerKind } from "./viewers-kind";
 
 const Viewer = lazy(() => import("./viewers").then((m) => ({ default: m.Viewer })));
@@ -604,6 +605,10 @@ function FileView({
   const url = `${mountFileUrl(spaceId, file.id)}?v=${file.size}-${file.modified}`;
   const kind = viewerKind(file.mime, file.name);
   const folder = file.path.split("/").slice(0, -1).join("/");
+  const knowledge = useKnowledge(spaceId);
+  const actions = useMountActions(spaceId);
+  const navigate = useNavigate();
+  const [copying, setCopying] = useState(false);
   useDetail(file.name);
   const drafts = useMountDrafts(spaceId, mount);
   const draft = drafts.data?.drafts.find((d) => d.fileId === file.id);
@@ -665,8 +670,32 @@ function FileView({
           >
             <ExternalLink className="size-4" />
           </a>
+          <IconButton label={t("dateien.toKnowledge")} onClick={() => setCopying(true)}>
+            <BookPlus className="size-4" />
+          </IconButton>
         </div>
       </div>
+      <MoveDialog
+        item={
+          copying
+            ? // Not in Knowledge yet: no folder is its own.
+              ({
+                key: `m:${file.id}`,
+                kind: "file",
+                title: file.name,
+                parentId: "",
+              } as KnowledgeItem)
+            : null
+        }
+        items={knowledge.data?.items ?? []}
+        title={t("dateien.toKnowledgeTitle", { name: file.name })}
+        note={t("dateien.toKnowledgeNote")}
+        onClose={() => setCopying(false)}
+        onMove={async (_key, parentId) => {
+          const copy = await actions.toKnowledge(file.id, parentId);
+          navigate(`/space/knowledge?show=${encodeURIComponent(`f:${copy.id}`)}`);
+        }}
+      />
       <KnowledgeHeader
         spaceId={spaceId}
         itemKey={`m:${file.id}`}

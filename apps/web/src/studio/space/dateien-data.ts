@@ -160,6 +160,15 @@ export function useMountActions(spaceId: string) {
       await api.del(`${base(spaceId)}/mounts/${mountId}`);
       await refresh();
     },
+    /** „In Wissen übernehmen“: a copy in Knowledge, in a folder or at the top. */
+    toKnowledge: async (fileId: string, parentId: string | null) => {
+      const copy = await api.post<{ id: string; name: string }>(
+        `${base(spaceId)}/mount-files/${fileId}/knowledge`,
+        { parentId },
+      );
+      await qc.invalidateQueries({ queryKey: keys.knowledge(spaceId) });
+      return copy;
+    },
   };
 }
 

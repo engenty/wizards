@@ -159,11 +159,16 @@ export function MoveDialog({
   items,
   onClose,
   onMove,
+  title,
+  note,
 }: {
   item: KnowledgeItem | null;
   items: KnowledgeItem[];
   onClose: () => void;
   onMove: (key: string, parentId: string | null) => Promise<void>;
+  /** In place of „… verschieben“ and its note: another way of putting something in a folder. */
+  title?: string;
+  note?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -219,12 +224,15 @@ export function MoveDialog({
     <Dialog
       open={item !== null}
       onClose={onClose}
-      title={item ? t("know.moveTitle", { title: item.title }) : ""}
+      title={item ? (title ?? t("know.moveTitle", { title: item.title })) : ""}
     >
       {item ? (
         <div className="flex flex-col gap-3">
           <p className="-mt-2 text-[0.8125rem] text-ink-3">
-            {item.kind === "page" ? t("know.movePage") : t("know.moveKeeps", { path: item.path })}
+            {note ??
+              (item.kind === "page"
+                ? t("know.movePage")
+                : t("know.moveKeeps", { path: item.path }))}
           </p>
           <div className="flex max-h-80 flex-col overflow-y-auto">
             {row("top", t("know.top"), ArrowUpToLine, 0, item.parentId === null, null)}
