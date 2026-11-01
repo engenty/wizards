@@ -4,6 +4,17 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.16.0] - 2026-11-01
+- ADDED **[documents]** Scanned PDFs are read by OCR and old Word files (.doc) by their text, on your computer: in Wissen and for the AI (#481, #483)
+- ADDED **[goose]** Goose writes pages of Wissen when you ask it to (#418)
+- ADDED **[spaces]** A picture or PDF in a space gets a 320 px thumbnail in its lists (#429)
+- CHANGED **[studio]** Folded Goose is a small „Frag Goose“ button at the top right of every page (#470, #472, #473)
+- CHANGED **[studio]** „Daten“ is called „Memory“; a space's menu resizes from its edge (#456, #467, #468)
+- CHANGED **[spaces]** A space's files are kept once by their content; the files of before move there by themselves at the first start (#424, #484) **[breaking]**
+- FIXED **[studio]** A window lower than 900 px gets the smaller base font size too (#476)
+- ADDED Behind switches, off by default, to try out: the new Wissen with folders, the block editor, sources' own pages, the ⌘K search with its hidden results and „Hinzufügen“ with Goose (`knowledgeTree`, `knowledgeMedia`; #423–#475); Dateien, folders of this computer and drives mounted, searched and edited (`dateien`; #436–#482); client spaces and the client portal (`clientSpaces`; #411–#426)
+- DOCS Documentation updates (#410, #413, #414, #422, #474, #477, #478)
+
 ## [0.15.0] - 2026-10-31
 - ADDED **[runtime]** One tool catalogue behind the broker, the space's elements for MCP, the API, Claude and Codex (#407)
 

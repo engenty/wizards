@@ -109,6 +109,7 @@ Declared by two or more of the workspaces below:
 | [@clack/prompts](https://github.com/bombshell-dev/clack/tree/main/packages/prompts#readme) | 1.8.1 | MIT |
 | [@executor-js/plugin-openapi](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/plugins/openapi) | 1.6.10 | MIT |
 | [@libsql/client](https://github.com/tursodatabase/libsql-client-ts#readme) | 0.18.0 | MIT |
+| [@llamaindex/liteparse](https://github.com/run-llama/liteparse#readme) | 2.17.0 | Apache-2.0 |
 | [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
 | [@mastra/ai-sdk](https://mastra.ai) | 1.11.2 | Apache-2.0 |
 | [@mastra/core](https://mastra.ai) | 1.80.0 | Apache-2.0 |
@@ -137,6 +138,7 @@ Declared by two or more of the workspaces below:
 | [rfc6902](https://github.com/chbrown/rfc6902) | 5.3.0 | MIT |
 | [turndown](https://github.com/mixmark-io/turndown#readme) | 7.2.4 | MIT |
 | [undici](https://undici.nodejs.org) | 8.12.3 | MIT |
+| [word-extractor](https://github.com/morungos/node-word-extractor) | 1.0.4 | MIT |
 
 ### studio (apps/web)
 
@@ -200,6 +202,7 @@ Used to build, check and test; not part of what people run:
 | [@types/react](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react) | 19.3.0 | MIT |
 | [@types/react-dom](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react-dom) | 19.3.0 | MIT |
 | [@types/turndown](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/turndown) | 5.0.6 | MIT |
+| [@types/word-extractor](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/word-extractor) | 1.0.6 | MIT |
 | [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#readme) | 6.1.1 | MIT |
 | [ajv](https://ajv.js.org) | 8.20.0 | MIT |
 | [concurrently](https://github.com/open-cli-tools/concurrently#readme) | 10.0.6 | MIT |
