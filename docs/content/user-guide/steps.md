@@ -218,7 +218,7 @@ row of a list the wizard keeps, at most 20 rows. Its results come together in on
 - **Lists** hold rows between runs, separately for each person who runs the wizard: the
   receipts already booked, the customers already written to.
 - **Shared lists** hold one set of rows for every run: requests, sign-ups, a log. The person
-  running the wizard never sees them; you find them under Space → Data, below the wizard, and
+  running the wizard never sees them; you find them under Space → Memory, below the wizard, and
   in the editor under “Memory”.
 - **Connected accounts and sign-ins** are kept for the person’s next run.
 

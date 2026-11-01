@@ -96,8 +96,8 @@ await server.spaceData.putPage({
 A source fills a folder of Knowledge from outside the space and keeps it current: a website, a
 sitemap, a list of addresses. The core keeps each source’s row, its entries, its runs and its
 folder; a plugin brings a kind of source and its reader with `server.registerKnowledgeSource`.
-Behind the studio’s `knowledgeTree` switch, its kinds show in Knowledge’s „Hinzufügen“ and in the
-assistant’s proposals.
+Behind the studio’s `knowledgeTree` switch, its kinds show under „Quellen“ in Knowledge’s
+„Hinzufügen“ dialog and in the assistant’s proposals.
 
 ```ts
 server.registerKnowledgeSource({
@@ -137,8 +137,10 @@ server.registerKnowledgeSource({
 Every source writes into a folder of its own, a page named as the source, and an entry’s `path`
 becomes its sub-folders; an entry whose path is a folder of others is that folder’s text. What a
 source wrote has the origin `source:<id>` and is read-only in the studio until a person takes it
-over („Als eigene Seite übernehmen“). Removing a source removes what it wrote, but what a person
-took over. Taken sources are read again every `everyHours`, in every tenant that has the plugin.
+over („Selbst bearbeiten“, which asks first). Renaming or moving a source’s folder keeps it the
+source’s, and a new title becomes the source’s name; writing text into the folder takes it over.
+Removing a source removes what it wrote, but what a person took over. Taken sources are read
+again every `everyHours`, in every tenant that has the plugin.
 
 `server.knowledgeSources` reaches the sources of the plugin’s kinds: `list(space?)`,
 `byToken(token)` (the source a signal address names), `run(id)` and `addEntries(id, addresses)`.
