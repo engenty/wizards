@@ -1,5 +1,11 @@
 # Pages in CodeMirror
 
+> **2026-11-01: superseded for „Schreiben“.** Behind the switch `knowledgeTree`, a page of Wissen is
+> written in the block editor taken over from peer-it (`apps/web/src/studio/space/blocks/`,
+> [knowledge-base.md](knowledge-base.md), step 5). CodeMirror stays as the „Markdown“ tab of the
+> same text. The reason against Tiptap below, lossy saves, no longer holds: each block keeps its
+> source and is written back byte for byte unless it was edited (`blocks/markdown.test.ts`).
+
 A technical plan, 2026-10-22. Built the same day, after v0.11.0; see "As built" at the end. It follows the live changes
 ([live-changes.md](live-changes.md)) and comes after its last PR. Editing together in real time
 is not part of it; this plan only makes it possible later.

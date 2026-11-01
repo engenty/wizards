@@ -171,7 +171,7 @@ export const FEATURES = {
     kind: "release",
     default: false,
     label: "Knowledge as a knowledge base",
-    hint: "Knowledge's start page with one Add menu, folders in its menu and categories as a tab (docs/plans/knowledge-base.md).",
+    hint: "Knowledge's start page with one Add menu, folders in its menu and categories as a tab, the block editor for pages (docs/plans/knowledge-base.md).",
   },
   knowledgeMedia: {
     kind: "release",

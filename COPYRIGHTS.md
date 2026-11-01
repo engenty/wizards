@@ -69,11 +69,13 @@ Declared by two or more of the workspaces below:
 | [@fontsource/nunito](https://fontsource.org/fonts/nunito) | 5.3.0 | OFL-1.1 |
 | [@fontsource/playfair-display](https://fontsource.org/fonts/playfair-display) | 5.3.0 | OFL-1.1 |
 | [@fontsource/young-serif](https://fontsource.org/fonts/young-serif) | 5.3.0 | OFL-1.1 |
+| [@hono/node-server](https://github.com/honojs/node-server) | 2.1.3 | MIT |
 | [@modelcontextprotocol/client](https://modelcontextprotocol.io) | 2.3.0 | Apache-2.0 |
 | [@modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps) | 2.0.3 | MIT |
 | [ai](https://ai-sdk.dev/docs) | 7.0.102 | Apache-2.0 |
 | [dompurify](https://github.com/cure53/DOMPurify) | 3.4.17 | (MPL-2.0 OR Apache-2.0) |
 | [fflate](https://101arrowz.github.io/fflate) | 0.8.3 | MIT |
+| [hono](https://hono.dev) | 4.13.14 | MIT |
 | [lucide-react](https://lucide.dev) | 1.49.0 | ISC |
 | [marked](https://marked.js.org) | 18.0.14 | MIT |
 | [pdfmake](http://pdfmake.org) | 0.3.11 | MIT |
@@ -106,7 +108,6 @@ Declared by two or more of the workspaces below:
 | [@ai-sdk/replicate](https://ai-sdk.dev/docs) | 3.0.42 | Apache-2.0 |
 | [@clack/prompts](https://github.com/bombshell-dev/clack/tree/main/packages/prompts#readme) | 1.8.1 | MIT |
 | [@executor-js/plugin-openapi](https://github.com/UsefulSoftwareCo/executor/tree/main/packages/plugins/openapi) | 1.6.10 | MIT |
-| [@hono/node-server](https://github.com/honojs/node-server) | 2.1.3 | MIT |
 | [@libsql/client](https://github.com/tursodatabase/libsql-client-ts#readme) | 0.18.0 | MIT |
 | [@lydell/node-pty](https://github.com/lydell/node-pty#readme) | 1.1.0 | MIT |
 | [@mastra/ai-sdk](https://mastra.ai) | 1.11.2 | Apache-2.0 |
@@ -124,7 +125,6 @@ Declared by two or more of the workspaces below:
 | [effect](https://effect.website) | 4.0.0-beta.59 | MIT |
 | [exceljs](https://github.com/exceljs/exceljs#readme) | 4.4.0 | MIT |
 | [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser#readme) | 5.11.2 | MIT |
-| [hono](https://hono.dev) | 4.13.14 | MIT |
 | [imapflow](https://imapflow.com/) | 2.2.1 | MIT |
 | [jiti](https://github.com/unjs/jiti#readme) | 2.7.0 | MIT |
 | [jose](https://github.com/panva/jose) | 6.2.12 | MIT |
@@ -154,9 +154,20 @@ Declared by two or more of the workspaces below:
 | @codemirror/state | 6.7.6 | MIT |
 | @codemirror/view | 6.43.14 | MIT |
 | [@dagrejs/dagre](https://github.com/dagrejs/dagre#readme) | 3.1.1 | MIT |
+| [@floating-ui/dom](https://floating-ui.com) | 1.8.0 | MIT |
 | @lezer/highlight | 1.2.5 | MIT |
 | [@shadcn/react](https://ui.shadcn.com) | 0.3.1 | MIT |
 | [@tanstack/react-query](https://tanstack.com/query) | 5.104.0 | MIT |
+| [@tiptap/core](https://tiptap.dev) | 3.32.1 | MIT |
+| [@tiptap/extension-bubble-menu](https://tiptap.dev) | 3.32.1 | MIT |
+| [@tiptap/extension-image](https://tiptap.dev) | 3.32.1 | MIT |
+| [@tiptap/extension-list](https://tiptap.dev) | 3.32.1 | MIT |
+| [@tiptap/extension-table](https://tiptap.dev) | 3.32.1 | MIT |
+| [@tiptap/extensions](https://tiptap.dev) | 3.32.1 | MIT |
+| [@tiptap/pm](https://tiptap.dev) | 3.32.1 | MIT |
+| [@tiptap/react](https://tiptap.dev) | 3.32.1 | MIT |
+| [@tiptap/starter-kit](https://tiptap.dev) | 3.32.1 | MIT |
+| [@tiptap/suggestion](https://tiptap.dev) | 3.32.1 | MIT |
 | [@xterm/addon-fit](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.11.0 | MIT |
 | [@xterm/addon-web-links](https://github.com/xtermjs/xterm.js/tree/master#readme) | 0.12.0 | MIT |
 | [@xterm/xterm](https://github.com/xtermjs/xterm.js#readme) | 6.0.0 | MIT |
