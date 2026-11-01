@@ -1,18 +1,24 @@
-import type { KnowledgeItem } from "@engenty/wizards-shared/knowledge";
+import type { KnowledgeItem, SpaceCategory } from "@engenty/wizards-shared/knowledge";
 import { formatBytes } from "@engenty/wizards-shared/numbers";
 import { useQuery } from "@tanstack/react-query";
 import {
   BookPlus,
   ChevronRight,
   ExternalLink,
+  FileCode,
+  File as FileIcon,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
   Folder,
   FolderPlus,
   Laptop,
-  Pencil,
+  type LucideIcon,
+  PenLine,
   RefreshCw,
   Settings2,
 } from "lucide-react";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Fragment, lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
@@ -22,7 +28,6 @@ import {
   askConfirm,
   Button,
   Card,
-  Chip,
   cn,
   Dialog,
   IconButton,
@@ -45,6 +50,7 @@ import { mountFileUrl, mountThumbUrl } from "./data";
 import {
   type FolderPreview,
   type Mount,
+  type MountDraft,
   type MountFile,
   type MountSee,
   type MountWizards,
@@ -54,8 +60,9 @@ import {
   useMountFiles,
   useMounts,
 } from "./dateien-data";
+import { ItemViewSwitch, useItemView } from "./item-view";
 import { KnowledgeHeader, useKnowledge } from "./Knowledge";
-import { chipsOf, MoveDialog } from "./KnowledgeTree";
+import { chipsOf, MoveDialog, Tag } from "./KnowledgeTree";
 import { viewerKind } from "./viewers-kind";
 
 const Viewer = lazy(() => import("./viewers").then((m) => ({ default: m.Viewer })));
@@ -349,7 +356,9 @@ export function DateienPage({ spaceId, admin }: { spaceId: string; admin: boolea
   if (!list.length) {
     return (
       <section className="flex max-w-xl flex-col gap-4 py-10">
-        <h1 className="font-display font-semibold text-2xl">{t("space.dateien")}</h1>
+        <h1 className="font-display font-semibold text-[1.75rem] leading-tight tracking-tight">
+          {t("space.dateien")}
+        </h1>
         <p className="text-[0.9375rem] text-ink-2">{t("dateien.empty")}</p>
         {admin ? (
           <div>
@@ -393,6 +402,7 @@ export function DateienPage({ spaceId, admin }: { spaceId: string; admin: boolea
   ) : null;
 }
 
+/** Where a folder or a file sits: the mount, then the folders down to it. */
 function Crumbs({
   mount,
   path,
@@ -404,7 +414,7 @@ function Crumbs({
 }) {
   const parts = path ? path.split("/") : [];
   return (
-    <nav className="flex min-w-0 flex-wrap items-center gap-1 text-[0.8125rem] text-ink-3">
+    <nav className="flex min-w-0 flex-wrap items-center gap-1 text-[0.75rem] text-ink-4">
       <button type="button" onClick={() => onOpen(`d:${mount.id}`)} className="hover:text-ink">
         {mount.name}
       </button>
@@ -421,6 +431,80 @@ function Crumbs({
         </span>
       ))}
     </nav>
+  );
+}
+
+/**
+ * A folder's or a file's head, as a page in Wissen has it: where it sits, its name as large as a
+ * page's title, the buttons beside it, and one quiet line on it.
+ */
+function Head({
+  crumbs,
+  title,
+  meta,
+  actions,
+}: {
+  crumbs: ReactNode;
+  title: string;
+  meta: ReactNode[];
+  actions: ReactNode;
+}) {
+  const shown = meta.filter(Boolean);
+  return (
+    <div className="flex flex-col gap-1 px-1">
+      {crumbs}
+      <div className="flex items-center gap-1.5">
+        <h1 className="min-w-0 flex-1 truncate font-display font-semibold text-[1.75rem] leading-tight tracking-tight">
+          {title}
+        </h1>
+        {actions}
+      </div>
+      {shown.length ? (
+        // One line: a long part (a mount's path) is cut, the others stay whole.
+        <p className="flex min-w-0 items-center gap-x-1.5 whitespace-nowrap text-[0.75rem] text-ink-4">
+          {shown.map((part, i) => (
+            <Fragment key={i}>
+              {i ? <span aria-hidden>·</span> : null}
+              {typeof part === "string" ? (
+                <span title={part} className={part.length > 24 ? "min-w-0 truncate" : "shrink-0"}>
+                  {part}
+                </span>
+              ) : (
+                part
+              )}
+            </Fragment>
+          ))}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** How a mount stands, as the first part of its line: a dot in its colour and a word. */
+function MountState({ mount }: { mount: Mount }) {
+  const [dot, label] =
+    mount.status === "away"
+      ? ["bg-amber", t("dateien.away")]
+      : mount.status === "scanning" || mount.pending
+        ? ["bg-ember", t("dateien.reading")]
+        : ["bg-moss", t("dateien.current")];
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5">
+      <span className={cn("size-1.5 rounded-full", dot)} />
+      {label}
+    </span>
+  );
+}
+
+const labelClass = "px-1 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em]";
+
+/** The small label above a set of folders or files, with the switch between cards and the list. */
+function ItemsLabel({ label, switcher }: { label: string; switcher: boolean }) {
+  return (
+    <div className="flex min-h-8 items-center justify-between">
+      <p className={labelClass}>{label}</p>
+      {switcher ? <ItemViewSwitch /> : null}
+    </div>
   );
 }
 
@@ -449,41 +533,65 @@ function FolderView({
   const title = node?.name || mount.name;
   useDetail(folder ? title : null);
   const done = mount.files - mount.pending;
+  const items = (list: { folders: Node[]; files: MountFile[] }) => (
+    <MountItems
+      spaceId={spaceId}
+      mount={mount}
+      folders={list.folders}
+      files={list.files}
+      drafts={drafts.data?.drafts ?? []}
+      categories={knowledge.data?.categories ?? []}
+      onOpen={onOpen}
+    />
+  );
   return (
-    <section className="flex flex-col gap-4 pb-20">
-      <div className="flex flex-col gap-1.5 px-1">
-        {folder ? <Crumbs mount={mount} path={folder} onOpen={onOpen} /> : null}
-        <div className="flex items-center gap-3">
-          <h1 className="min-w-0 flex-1 truncate font-display font-semibold text-xl">{title}</h1>
-          {mount.status === "away" ? (
-            <Chip tone="warn">{t("dateien.away")}</Chip>
-          ) : mount.status === "scanning" || mount.pending ? (
-            <Chip tone="ember">{t("dateien.reading")}</Chip>
-          ) : (
-            <Chip tone="live">{t("dateien.current")}</Chip>
-          )}
-          <IconButton label={t("dateien.rescan")} onClick={() => void actions.rescan(mount.id)}>
-            <RefreshCw className="size-4" />
-          </IconButton>
-          {admin ? (
-            <IconButton label={t("dateien.settings")} onClick={() => setSettings(true)}>
-              <Settings2 className="size-4" />
-            </IconButton>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[0.8125rem] text-ink-3">
-          <span className="truncate">{mount.where}</span>
-          <span>
-            {t("dateien.count", { files: mount.files.toLocaleString(lang) })} ·{" "}
-            {formatBytes(mount.bytes)}
-          </span>
-          <span>{mount.writable ? t("dateien.writableOn") : t("dateien.readOnly")}</span>
-        </div>
+    <section className="flex flex-col gap-8 pb-20">
+      <div className="flex flex-col gap-3">
+        <Head
+          crumbs={
+            folder ? (
+              <Crumbs
+                mount={mount}
+                path={folder.split("/").slice(0, -1).join("/")}
+                onOpen={onOpen}
+              />
+            ) : null
+          }
+          title={title}
+          meta={[
+            <MountState key="state" mount={mount} />,
+            folder ? null : mount.where,
+            `${t("dateien.count", { files: (node?.count ?? mount.files).toLocaleString(lang) })}${
+              folder ? "" : ` · ${formatBytes(mount.bytes)}`
+            }`,
+            folder ? null : mount.writable ? t("dateien.writableOn") : t("dateien.readOnly"),
+          ]}
+          actions={
+            <>
+              <IconButton
+                label={t("dateien.rescan")}
+                className="size-8"
+                onClick={() => void actions.rescan(mount.id)}
+              >
+                <RefreshCw className="size-4" />
+              </IconButton>
+              {admin ? (
+                <IconButton
+                  label={t("dateien.settings")}
+                  className="size-8"
+                  onClick={() => setSettings(true)}
+                >
+                  <Settings2 className="size-4" />
+                </IconButton>
+              ) : null}
+            </>
+          }
+        />
         {drafts.data?.drafts.length ? (
           <DraftsBar spaceId={spaceId} mount={mount} drafts={drafts.data.drafts} />
         ) : null}
         {mount.status === "away" ? (
-          <p className="text-[0.8125rem] text-ink-2">{t("dateien.awayText")}</p>
+          <p className="px-1 text-[0.8125rem] text-ink-2">{t("dateien.awayText")}</p>
         ) : mount.pending ? (
           <Progress
             done={done}
@@ -494,7 +602,7 @@ function FolderView({
             })}
           />
         ) : mount.vectorsPending ? (
-          <p className="text-[0.8125rem] text-ink-3">
+          <p className="px-1 text-[0.75rem] text-ink-4">
             {t("dateien.vectors", { count: mount.vectorsPending.toLocaleString(lang) })}
           </p>
         ) : null}
@@ -504,70 +612,22 @@ function FolderView({
           <Spinner />
         </div>
       ) : !node || (!node.folders.length && !node.files.length) ? (
-        <p className="px-1 py-6 text-[0.875rem] text-ink-3">{t("dateien.emptyFolder")}</p>
+        <p className="px-1 text-[0.875rem] text-ink-3">{t("dateien.emptyFolder")}</p>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
-          {node.folders.map((f) => (
-            <button
-              key={f.path}
-              type="button"
-              onClick={() => onOpen(`d:${mount.id}/${f.path}`)}
-              className="flex min-w-0 flex-col gap-1.5 text-left"
-            >
-              <span className="grid aspect-square place-items-center rounded-xl bg-paper-2 ring-1 ring-border-soft transition hover:ring-border">
-                <Folder className="size-8 text-ink-3" />
-              </span>
-              <span className="truncate font-medium text-[0.8125rem]">{f.name}</span>
-              <span className="text-[0.75rem] text-ink-3">
-                {t("dateien.count", { files: f.count.toLocaleString(lang) })}
-              </span>
-            </button>
-          ))}
-          {node.files.map((f) => {
-            const draft = drafts.data?.drafts.find((d) => d.fileId === f.id);
-            const chips = knowledge.data
-              ? chipsOf({ categories: f.categories } as KnowledgeItem, knowledge.data.categories)
-              : [];
-            return (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => onOpen(`m:${f.id}`)}
-                className="relative flex min-w-0 flex-col gap-1.5 text-left"
-              >
-                {draft ? (
-                  <span
-                    title={t("dateien.draft")}
-                    className={cn(
-                      "absolute top-2 right-2 z-10 size-2.5 rounded-full ring-2 ring-card",
-                      draft.conflict ? "bg-rose" : "bg-amber",
-                    )}
-                  />
-                ) : null}
-                {f.thumb ? (
-                  <img
-                    src={mountThumbUrl(spaceId, f.id)}
-                    alt=""
-                    loading="lazy"
-                    className="aspect-square w-full rounded-xl bg-paper-2 object-cover ring-1 ring-border-soft transition hover:ring-border"
-                  />
-                ) : (
-                  <span className="grid aspect-square place-items-center rounded-xl bg-paper-2 font-semibold text-[0.8125rem] text-ink-3 ring-1 ring-border-soft transition hover:ring-border">
-                    {f.status === "pending" ? <Spinner /> : typeOf(f)}
-                  </span>
-                )}
-                <span className="truncate text-[0.8125rem]">{f.name}</span>
-                {chips.length ? (
-                  <span className="flex flex-wrap gap-1">
-                    {chips.map((c) => (
-                      <Chip key={c}>{c}</Chip>
-                    ))}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
+        <>
+          {node.folders.length ? (
+            <div className="flex flex-col gap-1.5">
+              <ItemsLabel label={t("know.folders")} switcher />
+              {items({ folders: node.folders, files: [] })}
+            </div>
+          ) : null}
+          {node.files.length ? (
+            <div className="flex flex-col gap-1.5">
+              <ItemsLabel label={t("space.dateien")} switcher={!node.folders.length} />
+              {items({ folders: [], files: node.files })}
+            </div>
+          ) : null}
+        </>
       )}
       <MountSettings
         spaceId={spaceId}
@@ -582,16 +642,169 @@ function FolderView({
 const typeOf = (f: Pick<MountFile, "name">) =>
   f.name.includes(".") ? (f.name.split(".").pop() as string).toUpperCase().slice(0, 5) : "—";
 
+/** A file's mark by what shows it. */
+function fileIcon(f: Pick<MountFile, "mime" | "name">): LucideIcon {
+  switch (viewerKind(f.mime, f.name)) {
+    case "image":
+      return FileImage;
+    case "sheet":
+      return FileSpreadsheet;
+    case "html":
+      return FileCode;
+    case "pdf":
+    case "text":
+      return FileText;
+    default:
+      return FileIcon;
+  }
+}
+
+/** A draft waiting in engenty: amber, red when the file changed at the source too. */
+function DraftDot({ conflict }: { conflict: boolean }) {
+  return (
+    <span
+      title={t("dateien.draft")}
+      className={cn("size-2 shrink-0 rounded-full", conflict ? "bg-rose" : "bg-amber")}
+    />
+  );
+}
+
+/**
+ * A folder's folders or files as Wissen shows its items (`ItemCards`): cards with a picture when
+ * the file has one, how much a folder holds or a file weighs, and two category values; or a
+ * dense list, as the person switched it (`ItemViewSwitch`).
+ */
+function MountItems({
+  spaceId,
+  mount,
+  folders,
+  files,
+  drafts,
+  categories,
+  onOpen,
+}: {
+  spaceId: string;
+  mount: Mount;
+  folders: Node[];
+  files: MountFile[];
+  drafts: MountDraft[];
+  categories: SpaceCategory[];
+  onOpen: (show: string) => void;
+}) {
+  const view = useItemView();
+  const entries = [
+    ...folders.map((f) => ({
+      key: f.path,
+      show: `d:${mount.id}/${f.path}`,
+      Icon: Folder,
+      title: f.name,
+      line: t("dateien.count", { files: f.count.toLocaleString(lang) }),
+      size: f.count.toLocaleString(lang),
+      thumb: null,
+      chips: [] as string[],
+      draft: undefined as MountDraft | undefined,
+      pending: false,
+    })),
+    ...files.map((f) => ({
+      key: f.id,
+      show: `m:${f.id}`,
+      Icon: fileIcon(f),
+      title: f.name,
+      line: [typeOf(f), f.pages ? t("space.pages", { n: f.pages }) : null, formatBytes(f.size)]
+        .filter(Boolean)
+        .join(" · "),
+      size: formatBytes(f.size),
+      thumb: f.thumb ? mountThumbUrl(spaceId, f.id) : null,
+      // A folder's name as a category value (`folderCategory`) says what the folder says already.
+      chips: chipsOf({ categories: f.categories } as KnowledgeItem, categories).filter(
+        (c) => !f.path.split("/").slice(0, -1).includes(c),
+      ),
+      draft: drafts.find((d) => d.fileId === f.id),
+      pending: f.status === "pending",
+    })),
+  ];
+  if (view === "list") {
+    return (
+      <div className="flex flex-col rounded-xl bg-card p-1.5 shadow-soft ring-1 ring-border-soft">
+        {entries.map((e) => (
+          <button
+            key={e.key}
+            type="button"
+            onClick={() => onOpen(e.show)}
+            className="flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-accent"
+          >
+            {e.pending ? (
+              <Spinner className="size-4 shrink-0 text-ink-3" />
+            ) : (
+              <e.Icon className="size-4 shrink-0 text-ink-3" />
+            )}
+            <span className="min-w-0 flex-1 truncate text-[0.875rem]">{e.title}</span>
+            {e.draft ? <DraftDot conflict={Boolean(e.draft.conflict)} /> : null}
+            <span className="flex shrink-0 gap-1 max-sm:hidden">
+              {e.chips.map((c) => (
+                <Tag key={c}>{c}</Tag>
+              ))}
+            </span>
+            <span className="w-16 shrink-0 text-right text-[0.75rem] text-ink-4 tabular-nums">
+              {e.size}
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3">
+      {entries.map((e) => (
+        <button
+          key={e.key}
+          type="button"
+          onClick={() => onOpen(e.show)}
+          className="flex min-w-0 flex-col overflow-hidden rounded-xl bg-card text-left shadow-soft ring-1 ring-border-soft transition hover:ring-border"
+        >
+          {e.thumb ? (
+            <img
+              src={e.thumb}
+              alt=""
+              loading="lazy"
+              className="aspect-[16/9] w-full border-border-soft border-b bg-paper-2 object-cover"
+            />
+          ) : null}
+          <span className="flex min-w-0 flex-col gap-1.5 px-3.5 py-3">
+            <span className="flex min-w-0 items-center gap-2">
+              {e.pending ? (
+                <Spinner className="size-4 shrink-0 text-ink-3" />
+              ) : (
+                <e.Icon className="size-4 shrink-0 text-ink-3" />
+              )}
+              <span className="min-w-0 flex-1 truncate font-medium text-[0.875rem]">{e.title}</span>
+              {e.draft ? <DraftDot conflict={Boolean(e.draft.conflict)} /> : null}
+            </span>
+            <span className="truncate text-[0.75rem] text-ink-4">{e.line}</span>
+            {e.chips.length ? (
+              <span className="flex flex-wrap gap-1">
+                {e.chips.map((c) => (
+                  <Tag key={c}>{c}</Tag>
+                ))}
+              </span>
+            ) : null}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Progress({ done, total, line }: { done: number; total: number; line: string }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="h-1.5 overflow-hidden rounded-full bg-paper-2">
+    <div className="flex flex-col gap-1.5 px-1">
+      <div className="h-1 overflow-hidden rounded-full bg-paper-2">
         <div
           className="h-full rounded-full bg-ember transition-[width]"
           style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }}
         />
       </div>
-      <p className="text-[0.8125rem] text-ink-3">{line}</p>
+      <p className="text-[0.75rem] text-ink-4">{line}</p>
     </div>
   );
 }
@@ -637,53 +850,62 @@ function FileView({
     }
   }, [draft, asText]);
   const writing = mount.writable && asText && editing;
+  const reachable = mount.status !== "away";
+  // Read, a Markdown file stands on the page as its text, as a page of Wissen does.
+  const asPage = kind === "text" && /\.(md|markdown)$/i.test(file.name) && reachable;
   const done = (how: Exclude<Published, null>) => {
     setEditing(false);
     setPublished(how);
   };
   return (
-    <section className="flex flex-col gap-4 pb-20">
-      <div className="flex flex-col gap-1.5 px-1">
-        <Crumbs mount={mount} path={folder} onOpen={onOpen} />
-        <div className="flex items-center gap-2">
-          <h1 className="min-w-0 flex-1 truncate font-display font-semibold text-xl">
-            {file.name}
-          </h1>
-          <span className="text-[0.8125rem] text-ink-3 max-sm:hidden">
-            {[file.pages ? t("space.pages", { n: file.pages }) : null, formatBytes(file.size)]
-              .filter(Boolean)
-              .join(" · ")}
-          </span>
-          {mount.writable && mount.status !== "away" && !writing ? (
-            asText ? (
-              <IconButton
-                label={t("dateien.edit")}
-                onClick={() => {
-                  setPublished(null);
-                  setEditing(true);
-                }}
-              >
-                <Pencil className="size-4" />
-              </IconButton>
-            ) : (
-              <ReplaceButton spaceId={spaceId} mount={mount} file={file} />
-            )
-          ) : null}
-          <a
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={t("space.openOriginal")}
-            title={t("space.openOriginal")}
-            className="inline-flex size-9 items-center justify-center rounded-full text-ink-3 transition hover:bg-accent hover:text-ink"
-          >
-            <ExternalLink className="size-4" />
-          </a>
-          <IconButton label={t("dateien.toKnowledge")} onClick={() => setCopying(true)}>
-            <BookPlus className="size-4" />
-          </IconButton>
-        </div>
-      </div>
+    <section className="flex flex-col gap-3 pb-20">
+      <Head
+        crumbs={<Crumbs mount={mount} path={folder} onOpen={onOpen} />}
+        title={file.name}
+        meta={[
+          typeOf(file),
+          file.pages ? t("space.pages", { n: file.pages }) : null,
+          formatBytes(file.size),
+        ]}
+        actions={
+          <>
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={t("space.openOriginal")}
+              title={t("space.openOriginal")}
+              className="inline-flex size-8 items-center justify-center rounded-full text-ink-3 transition hover:bg-accent hover:text-ink"
+            >
+              <ExternalLink className="size-4" />
+            </a>
+            <IconButton
+              label={t("dateien.toKnowledge")}
+              className="size-8"
+              onClick={() => setCopying(true)}
+            >
+              <BookPlus className="size-4" />
+            </IconButton>
+            {mount.writable && reachable && !writing ? (
+              asText ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="ml-1"
+                  onClick={() => {
+                    setPublished(null);
+                    setEditing(true);
+                  }}
+                >
+                  <PenLine className="size-4" /> {t("dateien.edit")}
+                </Button>
+              ) : (
+                <ReplaceButton spaceId={spaceId} mount={mount} file={file} />
+              )
+            ) : null}
+          </>
+        }
+      />
       <MoveDialog
         item={
           copying
@@ -736,9 +958,19 @@ function FileView({
           onClose={() => setEditing(false)}
           onOpen={onOpen}
         />
+      ) : asPage ? (
+        <Suspense
+          fallback={
+            <div className="flex h-40 items-center justify-center text-ink-3">
+              <Spinner />
+            </div>
+          }
+        >
+          <Viewer kind="text" url={url} name={file.name} plain />
+        </Suspense>
       ) : (
         <Card className="flex flex-col">
-          {kind && mount.status !== "away" ? (
+          {kind && reachable ? (
             <Suspense
               fallback={
                 <div className="flex h-40 items-center justify-center text-ink-3">
@@ -750,7 +982,7 @@ function FileView({
             </Suspense>
           ) : (
             <p className="py-10 text-center text-[0.875rem] text-ink-3">
-              {mount.status === "away" ? t("dateien.awayText") : t("dateien.noPreview")}
+              {reachable ? t("dateien.noPreview") : t("dateien.awayText")}
             </p>
           )}
         </Card>

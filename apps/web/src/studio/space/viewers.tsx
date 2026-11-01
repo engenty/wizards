@@ -73,12 +73,15 @@ export function Viewer({
   url,
   name,
   page,
+  plain,
 }: {
   kind: ViewerKind;
   url: string;
   name: string;
   /** Where to open: a PDF's page, a workbook's sheet (from 1). */
   page?: number;
+  /** A Markdown file only read, without its switch to the Markdown: it stands on the page. */
+  plain?: boolean;
 }) {
   switch (kind) {
     case "pdf":
@@ -91,7 +94,7 @@ export function Viewer({
       return <HtmlView url={url} name={name} />;
     case "text":
       return /\.(md|markdown)$/i.test(name) ? (
-        <MarkdownView url={url} name={name} />
+        <MarkdownView url={url} name={name} plain={plain} />
       ) : (
         <TextView url={url} name={name} />
       );
@@ -444,7 +447,7 @@ const isExternal = (href: string) => /^[a-z][a-z0-9+.-]*:/i.test(href) || href.s
  * A Markdown file as it reads, as peer-it shows one: the block editor without editing, its front
  * matter as properties above it; „Markdown“ shows the file as it is.
  */
-function MarkdownView({ url, name }: { url: string; name: string }) {
+function MarkdownView({ url, name, plain }: { url: string; name: string; plain?: boolean }) {
   const { value: text, error } = useLoaded(() => decode(url, MAX_TEXT), url);
   const [source, setSource] = useState(false);
   if (error) {
@@ -469,16 +472,23 @@ function MarkdownView({ url, name }: { url: string; name: string }) {
   );
   return (
     <div className="flex flex-col">
-      <div className="flex items-center gap-1 border-border-soft border-b px-2 py-1.5">
-        {tab(!source, t("viewer.read"), () => setSource(false))}
-        {tab(source, t("blocks.markdown"), () => setSource(true))}
-      </div>
+      {plain ? null : (
+        <div className="flex items-center gap-1 border-border-soft border-b px-2 py-1.5">
+          {tab(!source, t("viewer.read"), () => setSource(false))}
+          {tab(source, t("blocks.markdown"), () => setSource(true))}
+        </div>
+      )}
       {source ? (
         <TextView url={url} name={name} />
       ) : (
         <div className="flex flex-col">
           {props.length ? (
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-border-soft border-b px-5 py-3 text-[0.8125rem]">
+            <dl
+              className={cn(
+                "grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-[0.8125rem]",
+                plain ? "px-1 pb-2" : "border-border-soft border-b px-5 py-3",
+              )}
+            >
               {props.map(([key, value]) => (
                 <div key={key} className="contents">
                   <dt className="text-ink-3">{key}</dt>

@@ -306,12 +306,13 @@ function TextDraftEditor({
       )}
       {error ? <p className="px-1 text-[0.875rem] text-rose">{error}</p> : null}
       <Card className="flex flex-col">
-        {markdown ? (
+        {/* Writing in blocks, the switch stands at the end of the editor's toolbar, as in Wissen. */}
+        {markdown && view === "markdown" ? (
           <div className="flex items-center gap-1 border-border-soft border-b px-2 py-1.5">
             {tab("write", t("data.write"))}
             {tab("markdown", t("blocks.markdown"))}
             <span className="ml-auto truncate px-2 text-[0.75rem] text-ink-4 max-sm:hidden">
-              {view === "markdown" ? t("data.markdownHint") : null}
+              {t("data.markdownHint")}
             </span>
           </div>
         ) : null}
@@ -324,6 +325,12 @@ function TextDraftEditor({
               resolve={resolve}
               onOpen={follow}
               ariaLabel={file.name}
+              tools={
+                <>
+                  {tab("write", t("data.write"))}
+                  {tab("markdown", t("blocks.markdown"))}
+                </>
+              }
             />
           </Suspense>
         ) : (
