@@ -96,7 +96,8 @@ const RULES = {
     ["… ohne Leerzeichen davor", /\S…/],
     ["gerade Anführungszeichen: „…“ verwenden", /"/],
     ["gerader Apostroph: ’ verwenden", /\w'\w/],
-    ["Sie-Form", /\b(Ihnen|Ihre[mnrs]?)\b|[a-zäöü,] Sie\b/],
+    // „Ihre übernehmen“: their version, at the start of a button (Dateien's conflict).
+    ["Sie-Form", /\b(Ihnen|Ihre[mnrs]?)\b|[a-zäöü,] Sie\b/, ["dateien.takeTheirs"]],
     ["ihr/euch für die Lesenden: du verwenden", /\b(euch|eure[mnrs]?)\b/i],
     ["Ausrufezeichen", /!/],
     [

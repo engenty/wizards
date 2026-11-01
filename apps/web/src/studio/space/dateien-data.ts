@@ -20,6 +20,8 @@ export interface Mount {
   vectorsPending: number;
   scannedAt: string | null;
   folderCategoryId: string | null;
+  /** Whether its files may be changed: drafts, then „Veröffentlichen“. */
+  writable: boolean;
 }
 
 export type MountSee = "all" | "admins";
@@ -37,6 +39,39 @@ export interface MountFile {
   pages: number | null;
   categories: ItemCategory[];
 }
+
+/** The file as it was read: what a draft is saved with. */
+export interface DraftBase {
+  size: number;
+  modified: number;
+  version: string | null;
+  hash: string;
+}
+
+/** A file's draft, or the file as it stands when it has none. */
+export interface FileDraft {
+  edit: "text" | "replace";
+  draft: boolean;
+  text: string | null;
+  baseText: string | null;
+  base: DraftBase;
+  conflict: { text: string | null } | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+/** A draft of a mount, for its folder view. */
+export interface MountDraft {
+  fileId: string;
+  path: string;
+  conflict: boolean;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
+export type PublishResult =
+  | { ok: true; merged: boolean }
+  | { ok: false; conflict: { text: string | null } };
 
 export interface FolderPreview {
   path: string;
@@ -104,6 +139,7 @@ export function useMountActions(spaceId: string) {
       see: MountSee;
       wizards: MountWizards;
       folderCategory: string | null;
+      writable: boolean;
     }) => {
       const mount = await api.post<Mount>(`${base(spaceId)}/mounts`, input);
       await refresh();
@@ -111,7 +147,7 @@ export function useMountActions(spaceId: string) {
     },
     update: async (
       mountId: string,
-      patch: { name?: string; see?: MountSee; wizards?: MountWizards },
+      patch: { name?: string; see?: MountSee; wizards?: MountWizards; writable?: boolean },
     ) => {
       await api.patch(`${base(spaceId)}/mounts/${mountId}`, patch);
       await refresh();
@@ -125,4 +161,63 @@ export function useMountActions(spaceId: string) {
       await refresh();
     },
   };
+}
+
+export function useMountDrafts(spaceId: string, mount: Mount | undefined) {
+  return useQuery({
+    queryKey: [...mountsKey(spaceId), mount?.id, "drafts"],
+    queryFn: () => api.get<{ drafts: MountDraft[] }>(`${base(spaceId)}/mounts/${mount?.id}/drafts`),
+    enabled: Boolean(mount?.writable),
+  });
+}
+
+export function useFileDraft(spaceId: string, fileId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...mountsKey(spaceId), "draft", fileId],
+    queryFn: () => api.get<FileDraft>(`${base(spaceId)}/mount-files/${fileId}/draft`),
+    enabled,
+    // The draft is what is edited: a refetch while typing would undo the last keys.
+    refetchOnWindowFocus: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/** A file's draft: kept, replaced, thrown away, published, its conflict resolved. */
+export function useDraftActions(spaceId: string, mountId: string, fileId: string) {
+  const qc = useQueryClient();
+  const file = `${base(spaceId)}/mount-files/${fileId}`;
+  const refresh = () => qc.invalidateQueries({ queryKey: mountsKey(spaceId) });
+  return {
+    /** Keeps a text: only the mount's list of drafts is asked again, not the text being typed. */
+    save: async (input: { text: string; base?: DraftBase; baseText?: string }) => {
+      const saved = await api.put<{ draft: FileDraft | null }>(`${file}/draft`, input);
+      await qc.invalidateQueries({ queryKey: [...mountsKey(spaceId), mountId, "drafts"] });
+      return saved;
+    },
+    replace: async (upload: File) => {
+      const draft = await api.upload<FileDraft>(`${file}/draft/replace`, upload);
+      await refresh();
+      return draft;
+    },
+    discard: async () => {
+      await api.del(`${file}/draft`);
+      await refresh();
+    },
+    publish: async () => {
+      const result = await api.post<PublishResult>(`${file}/publish`);
+      await refresh();
+      return result;
+    },
+    keepMine: async () => {
+      const result = await api.post<PublishResult>(`${file}/keep-mine`);
+      await refresh();
+      return result;
+    },
+  };
+}
+
+export async function publishMount(spaceId: string, mountId: string) {
+  return api.post<{ published: number; conflicts: string[] }>(
+    `${base(spaceId)}/mounts/${mountId}/publish`,
+  );
 }

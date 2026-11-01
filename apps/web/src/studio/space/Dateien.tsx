@@ -7,6 +7,7 @@ import {
   Folder,
   FolderPlus,
   Laptop,
+  Pencil,
   RefreshCw,
   Settings2,
 } from "lucide-react";
@@ -28,6 +29,14 @@ import {
   Switch,
 } from "../../ui";
 import { useDetail, useSettingsMenu } from "../settings-menu";
+import {
+  DraftsBar,
+  editsAsText,
+  type Published,
+  ReplaceBar,
+  ReplaceButton,
+  TextDraft,
+} from "./DateienEdit";
 import { mountFileUrl, mountThumbUrl } from "./data";
 import {
   type FolderPreview,
@@ -37,6 +46,7 @@ import {
   type MountWizards,
   useMountAccess,
   useMountActions,
+  useMountDrafts,
   useMountFiles,
   useMounts,
 } from "./dateien-data";
@@ -420,6 +430,7 @@ function FolderView({
   onGone: () => void;
 }) {
   const files = useMountFiles(spaceId, mount);
+  const drafts = useMountDrafts(spaceId, mount);
   const knowledge = useKnowledge(spaceId);
   const actions = useMountActions(spaceId);
   const tree = useMemo(() => treeOf(files.data?.files ?? []), [files.data]);
@@ -456,8 +467,11 @@ function FolderView({
             {t("dateien.count", { files: mount.files.toLocaleString(lang) })} ·{" "}
             {formatBytes(mount.bytes)}
           </span>
-          <span>{t("dateien.readOnly")}</span>
+          <span>{mount.writable ? t("dateien.writableOn") : t("dateien.readOnly")}</span>
         </div>
+        {drafts.data?.drafts.length ? (
+          <DraftsBar spaceId={spaceId} mount={mount} drafts={drafts.data.drafts} />
+        ) : null}
         {mount.status === "away" ? (
           <p className="text-[0.8125rem] text-ink-2">{t("dateien.awayText")}</p>
         ) : mount.pending ? (
@@ -500,6 +514,7 @@ function FolderView({
             </button>
           ))}
           {node.files.map((f) => {
+            const draft = drafts.data?.drafts.find((d) => d.fileId === f.id);
             const chips = knowledge.data
               ? chipsOf({ categories: f.categories } as KnowledgeItem, knowledge.data.categories)
               : [];
@@ -508,8 +523,17 @@ function FolderView({
                 key={f.id}
                 type="button"
                 onClick={() => onOpen(`m:${f.id}`)}
-                className="flex min-w-0 flex-col gap-1.5 text-left"
+                className="relative flex min-w-0 flex-col gap-1.5 text-left"
               >
+                {draft ? (
+                  <span
+                    title={t("dateien.draft")}
+                    className={cn(
+                      "absolute top-2 right-2 z-10 size-2.5 rounded-full ring-2 ring-card",
+                      draft.conflict ? "bg-rose" : "bg-amber",
+                    )}
+                  />
+                ) : null}
                 {f.thumb ? (
                   <img
                     src={mountThumbUrl(spaceId, f.id)}
@@ -576,10 +600,33 @@ function FileView({
   const [params] = useSearchParams();
   // A hit on a PDF page opens there: `m:<id>#<page>`.
   const page = Number(params.get("show")?.split("#")[1]) || undefined;
-  const url = mountFileUrl(spaceId, file.id);
+  // A new version of the file (published from here) is loaded anew, not from the browser's cache.
+  const url = `${mountFileUrl(spaceId, file.id)}?v=${file.size}-${file.modified}`;
   const kind = viewerKind(file.mime, file.name);
   const folder = file.path.split("/").slice(0, -1).join("/");
   useDetail(file.name);
+  const drafts = useMountDrafts(spaceId, mount);
+  const draft = drafts.data?.drafts.find((d) => d.fileId === file.id);
+  const asText = editsAsText(file);
+  const [editing, setEditing] = useState(false);
+  const [published, setPublished] = useState<Published>(null);
+  // Another file opened: its own state.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the file's id is what resets it.
+  useEffect(() => {
+    setEditing(false);
+    setPublished(null);
+  }, [file.id]);
+  // A text with a draft opens in its editor, and stays there while it is edited.
+  useEffect(() => {
+    if (draft && asText) {
+      setEditing(true);
+    }
+  }, [draft, asText]);
+  const writing = mount.writable && asText && editing;
+  const done = (how: Exclude<Published, null>) => {
+    setEditing(false);
+    setPublished(how);
+  };
   return (
     <section className="flex flex-col gap-4 pb-20">
       <div className="flex flex-col gap-1.5 px-1">
@@ -593,6 +640,21 @@ function FileView({
               .filter(Boolean)
               .join(" · ")}
           </span>
+          {mount.writable && mount.status !== "away" && !writing ? (
+            asText ? (
+              <IconButton
+                label={t("dateien.edit")}
+                onClick={() => {
+                  setPublished(null);
+                  setEditing(true);
+                }}
+              >
+                <Pencil className="size-4" />
+              </IconButton>
+            ) : (
+              <ReplaceButton spaceId={spaceId} mount={mount} file={file} />
+            )
+          ) : null}
           <a
             href={url}
             target="_blank"
@@ -619,23 +681,42 @@ function FileView({
       {file.status === "skipped" ? (
         <p className="px-1 text-[0.8125rem] text-ink-3">{t("dateien.skipped")}</p>
       ) : null}
-      <Card className="flex flex-col">
-        {kind && mount.status !== "away" ? (
-          <Suspense
-            fallback={
-              <div className="flex h-40 items-center justify-center text-ink-3">
-                <Spinner />
-              </div>
-            }
-          >
-            <Viewer kind={kind} url={url} name={file.name} page={page} />
-          </Suspense>
-        ) : (
-          <p className="py-10 text-center text-[0.875rem] text-ink-3">
-            {mount.status === "away" ? t("dateien.awayText") : t("dateien.noPreview")}
-          </p>
-        )}
-      </Card>
+      {published ? (
+        <p role="status" className="px-1 text-[0.8125rem] text-moss">
+          {published === "merged" ? t("dateien.merged") : t("dateien.published")}
+        </p>
+      ) : null}
+      {draft && !asText ? (
+        <ReplaceBar spaceId={spaceId} mount={mount} file={file} draft={draft} onPublished={done} />
+      ) : null}
+      {writing ? (
+        <TextDraft
+          spaceId={spaceId}
+          mount={mount}
+          file={file}
+          onPublished={done}
+          onClose={() => setEditing(false)}
+          onOpen={onOpen}
+        />
+      ) : (
+        <Card className="flex flex-col">
+          {kind && mount.status !== "away" ? (
+            <Suspense
+              fallback={
+                <div className="flex h-40 items-center justify-center text-ink-3">
+                  <Spinner />
+                </div>
+              }
+            >
+              <Viewer kind={kind} url={url} name={file.name} page={page} />
+            </Suspense>
+          ) : (
+            <p className="py-10 text-center text-[0.875rem] text-ink-3">
+              {mount.status === "away" ? t("dateien.awayText") : t("dateien.noPreview")}
+            </p>
+          )}
+        </Card>
+      )}
     </section>
   );
 }
@@ -711,6 +792,25 @@ function AccessFields({
   );
 }
 
+/** „Ändern erlauben“: off unless asked for; drafts are then written back with „Veröffentlichen“. */
+function WritableField({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start justify-between gap-3 rounded-lg p-3 ring-1 ring-border-soft">
+      <span className="flex flex-col gap-0.5">
+        <span className="font-medium text-[0.875rem]">{t("dateien.writable")}</span>
+        <span className="text-[0.8125rem] text-ink-3">{t("dateien.writableNote")}</span>
+      </span>
+      <Switch checked={checked} onChange={onChange} />
+    </label>
+  );
+}
+
 function MountDialog({
   spaceId,
   open,
@@ -731,6 +831,7 @@ function MountDialog({
   const [category, setCategory] = useState("");
   const [see, setSee] = useState<MountSee>("all");
   const [wizards, setWizards] = useState<MountWizards>("all");
+  const [writable, setWritable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Opened again, it starts anew.
@@ -741,6 +842,7 @@ function MountDialog({
       setError(null);
       setSee("all");
       setWizards("all");
+      setWritable(false);
       setByFolder(true);
     }
   }, [open]);
@@ -908,6 +1010,7 @@ function MountDialog({
             onSee={setSee}
             onWizards={setWizards}
           />
+          <WritableField checked={writable} onChange={setWritable} />
           {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setFound(null)}>
@@ -921,6 +1024,7 @@ function MountDialog({
                     path: found.path,
                     see,
                     wizards,
+                    writable,
                     folderCategory:
                       byFolder && values.length && category.trim() ? category.trim() : null,
                   });
@@ -953,12 +1057,14 @@ function MountSettings({
   const [name, setName] = useState("");
   const [see, setSee] = useState<MountSee>("all");
   const [wizards, setWizards] = useState<MountWizards>("all");
+  const [writable, setWritable] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (access.data) {
       setName(access.data.name);
       setSee(access.data.see);
       setWizards(access.data.wizards);
+      setWritable(access.data.writable);
     }
   }, [access.data]);
   return (
@@ -976,6 +1082,7 @@ function MountSettings({
             onSee={setSee}
             onWizards={setWizards}
           />
+          <WritableField checked={writable} onChange={setWritable} />
           <div className="flex items-center justify-between gap-2">
             <Button
               variant="ghost"
@@ -995,7 +1102,7 @@ function MountSettings({
               onClick={async () => {
                 setBusy(true);
                 try {
-                  await actions.update(mount.id, { name, see, wizards });
+                  await actions.update(mount.id, { name, see, wizards, writable });
                   onClose();
                 } finally {
                   setBusy(false);
