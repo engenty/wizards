@@ -8,7 +8,7 @@ import {
   type Where,
   type WhereValue,
 } from "@engenty/wizards-shared/knowledge";
-import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { assertRwx, pageResources, readable, type Subject, tableResources } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { embeddingModel, systemOneAccess } from "../models.js";
@@ -262,8 +262,8 @@ async function readableItems<T extends KnowledgeItem>(
 }
 
 /**
- * Everything Knowledge holds that `who` may read: pages (sub-pages counted under them), tables,
- * files, categories.
+ * Everything Knowledge holds that `who` may read, as a tree: pages with their sub-pages, tables
+ * and files, each with the page it sits in (`parentId`) and its place there; and categories.
  */
 export async function listKnowledge(
   userId: string,
@@ -298,20 +298,25 @@ export async function listKnowledge(
   const tPaths = await tablePaths(space.id);
   const fPaths = await filePaths(space.id);
   const pages = await db.query.spacePage.findMany({
-    where: and(
-      eq(schema.spacePage.spaceId, space.id),
-      isNull(schema.spacePage.wizardId),
-      isNull(schema.spacePage.parentId),
-    ),
+    where: and(eq(schema.spacePage.spaceId, space.id), isNull(schema.spacePage.wizardId)),
     columns: { markdown: false },
+    extras: {
+      blank: sql<number>`length(trim(${schema.spacePage.markdown})) = 0`.as("blank"),
+    },
   });
+  const loose = files.filter((f) => !converted.has(f.id));
+  // What each page holds: its sub-pages, and the tables and files in it.
+  const inside = (id: string) => (tree.has(id) ? id : null);
   const children = new Map<string, number>();
-  for (const node of tree.values()) {
-    if (node.parentId) {
-      children.set(node.parentId, (children.get(node.parentId) ?? 0) + 1);
+  for (const parent of [
+    ...[...tree.values()].map((n) => n.parentId),
+    ...tables.map((t) => t.parentId && inside(t.parentId)),
+    ...loose.map((f) => f.parentId && inside(f.parentId)),
+  ]) {
+    if (parent) {
+      children.set(parent, (children.get(parent) ?? 0) + 1);
     }
   }
-  const loose = files.filter((f) => !converted.has(f.id));
   const cats = await itemCategoriesOf([
     ...pages.map((p) => ({ pageId: p.id })),
     ...tables.map((t) => ({ tableId: t.id })),
@@ -326,6 +331,9 @@ export async function listKnowledge(
         title: p.title,
         path: tree.get(p.id)?.path ?? "",
         children: children.get(p.id) ?? 0,
+        parentId: tree.get(p.id)?.parentId ?? null,
+        position: p.position,
+        blank: Boolean(p.blank),
         rows: null,
         format: null,
         origin: p.origin,
@@ -346,6 +354,9 @@ export async function listKnowledge(
         title: t.title,
         path: tPaths.get(t.id) ?? "",
         children: 0,
+        parentId: t.parentId && inside(t.parentId),
+        position: t.position,
+        blank: false,
         rows: rowCounts.find((r) => r.tableId === t.id)?.n ?? 0,
         format: t.format,
         origin: t.origin,
@@ -366,6 +377,9 @@ export async function listKnowledge(
         title: f.name,
         path: fPaths.get(f.id) ?? "",
         children: 0,
+        parentId: f.parentId && inside(f.parentId),
+        position: f.position,
+        blank: false,
         rows: null,
         format: null,
         origin: f.origin,
@@ -454,34 +468,6 @@ async function itemsHaving(
   const rowIds = having.flatMap((h) => (h.rowId ? [h.rowId] : []));
   const all = await listKnowledge(userId, space.id, who);
   const tree = await pageTree(space.id);
-  const subPages = pageIds.filter((id) => !all.items.some((i) => i.key === `p:${id}`));
-  const subItems: KnowledgeItem[] = [];
-  if (subPages.length) {
-    const cats = await itemCategoriesOf(subPages.map((pageId) => ({ pageId })));
-    for (const page of await db.query.spacePage.findMany({
-      where: inArray(schema.spacePage.id, subPages),
-      columns: { markdown: false },
-    })) {
-      subItems.push({
-        key: `p:${page.id}`,
-        kind: "page",
-        id: page.id,
-        title: tree.get(page.id)?.titles.join(" › ") ?? page.title,
-        path: tree.get(page.id)?.path ?? "",
-        children: [...tree.values()].filter((n) => n.parentId === page.id).length,
-        rows: null,
-        format: null,
-        origin: page.origin,
-        originLabel: page.originLabel,
-        kept: page.kept,
-        review: page.review,
-        fileId: page.fileId,
-        status: "ready",
-        categories: cats.get(`p:${page.id}`) ?? [],
-        updatedAt: page.updatedAt.toISOString(),
-      });
-    }
-  }
   const rowTables = new Map<string, number>();
   for (let i = 0; i < rowIds.length; i += 500) {
     for (const r of await db.query.spaceTableRow.findMany({
@@ -499,15 +485,19 @@ async function itemsHaving(
     }
   }
   return {
-    items: [
-      ...all.items.filter(
+    // A sub-page says where it stands: „Handbuch › Montage“.
+    items: all.items
+      .filter(
         (i) =>
           (i.kind === "page" && pageIds.includes(i.id)) ||
           (i.kind === "table" && tableIds.includes(i.id)) ||
           (i.kind === "file" && fileIds.includes(i.id)),
+      )
+      .map((i) =>
+        i.kind === "page" && i.parentId
+          ? { ...i, title: tree.get(i.id)?.titles.join(" › ") ?? i.title }
+          : i,
       ),
-      ...(await readableItems(space.id, who, subItems)),
-    ],
     rows: [...rowTables].map(([tableId, n]) => ({
       tableId,
       title: all.items.find((i) => i.key === `t:${tableId}`)?.title ?? "",

@@ -160,7 +160,14 @@ async function tableCount(spaceId: string) {
 export async function createTable(
   userId: string,
   spaceId: string,
-  input: { title: string; wizardId?: string | null; columns?: unknown; format?: "faq" | null },
+  input: {
+    title: string;
+    wizardId?: string | null;
+    /** Its folder in Knowledge: a page of the space's own. */
+    parentId?: string | null;
+    columns?: unknown;
+    format?: "faq" | null;
+  },
   lang: Lang = "en",
 ) {
   const space = await ownedSpace(userId, spaceId);
@@ -181,12 +188,15 @@ export async function createTable(
       : [{ id: "name", name: "Name", type: "text" as const }];
   const id = nanoid(12);
   const wizardId = await ownerOf(space.id, input.wizardId);
+  const parentId = wizardId ? null : await parentOf(space.id, input.parentId);
   const title = input.title.trim() || serverText(lang, "tableTitle");
   await db.insert(schema.spaceTable).values({
     id,
     tenantId: currentTenant(),
     spaceId: space.id,
     wizardId,
+    parentId,
+    position: wizardId ? 0 : await nextPosition(space.id, parentId),
     title,
     slug: wizardId ? null : await freeSlug(space.id, title, "table"),
     format: input.format ?? null,
@@ -515,18 +525,44 @@ async function parentOf(spaceId: string, parentId: string | null | undefined, pa
   return parent.id;
 }
 
+/**
+ * The place after the last of a folder's contents: its sub-pages, tables and documents share one
+ * order. `parentId` null: the top of Knowledge.
+ */
 async function nextPosition(spaceId: string, parentId: string | null) {
-  const [{ last }] = await db
-    .select({ last: max(schema.spacePage.position) })
-    .from(schema.spacePage)
-    .where(
-      and(
-        eq(schema.spacePage.spaceId, spaceId),
-        isNull(schema.spacePage.wizardId),
-        parentId ? eq(schema.spacePage.parentId, parentId) : isNull(schema.spacePage.parentId),
+  const lasts = await Promise.all([
+    db
+      .select({ last: max(schema.spacePage.position) })
+      .from(schema.spacePage)
+      .where(
+        and(
+          eq(schema.spacePage.spaceId, spaceId),
+          isNull(schema.spacePage.wizardId),
+          parentId ? eq(schema.spacePage.parentId, parentId) : isNull(schema.spacePage.parentId),
+        ),
       ),
-    );
-  return (last ?? -1) + 1;
+    db
+      .select({ last: max(schema.spaceTable.position) })
+      .from(schema.spaceTable)
+      .where(
+        and(
+          eq(schema.spaceTable.spaceId, spaceId),
+          isNull(schema.spaceTable.wizardId),
+          parentId ? eq(schema.spaceTable.parentId, parentId) : isNull(schema.spaceTable.parentId),
+        ),
+      ),
+    db
+      .select({ last: max(schema.spaceFile.position) })
+      .from(schema.spaceFile)
+      .where(
+        and(
+          eq(schema.spaceFile.spaceId, spaceId),
+          eq(schema.spaceFile.kind, "document"),
+          parentId ? eq(schema.spaceFile.parentId, parentId) : isNull(schema.spaceFile.parentId),
+        ),
+      ),
+  ]);
+  return Math.max(-1, ...lasts.map(([{ last }]) => last ?? -1)) + 1;
 }
 
 export async function createPage(
@@ -648,6 +684,125 @@ export async function deletePage(_userId: string, pageId: string) {
   await requireWritableSpace(page.spaceId);
   await db.delete(schema.spacePage).where(eq(schema.spacePage.id, page.id));
   await dropOriginal(page);
+}
+
+/**
+ * Moves an item of Knowledge (`p:`, `t:` or `f:` and its id) into a folder — a page of the
+ * space's own, or the top for null — at `index` among the folder's contents, at the end when left
+ * out. A page's path follows it; a table's and a file's do not.
+ */
+export async function moveKnowledgeItem(
+  userId: string,
+  spaceId: string,
+  input: { key: string; parentId: string | null; index?: number },
+) {
+  const space = await ownedSpace(userId, spaceId);
+  await requireWritableSpace(space.id);
+  const kind = input.key[0];
+  const id = input.key.slice(2);
+  const own = <T extends { spaceId: string }>(row: T | undefined) => {
+    if (!row || row.spaceId !== space.id) {
+      throw notFound();
+    }
+    return row;
+  };
+  if (kind === "p") {
+    const page = own(await pageRow(id));
+    if (page.wizardId) {
+      throw notFound();
+    }
+    // Moved, not edited: what a plugin wrote stays the plugin's.
+    const parentId = await parentOf(space.id, input.parentId, page.id);
+    if (parentId !== page.parentId) {
+      await db
+        .update(schema.spacePage)
+        .set({
+          parentId,
+          slug: await freeSlug(space.id, page.title, { parentId }, page.id),
+          position: await nextPosition(space.id, parentId),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.spacePage.id, page.id));
+      queueIndex(`P:${page.id}`);
+    }
+  } else if (kind === "t") {
+    const table = own(await tableRow(id));
+    if (table.wizardId) {
+      throw notFound();
+    }
+    const parentId = await parentOf(space.id, input.parentId);
+    await db
+      .update(schema.spaceTable)
+      .set({ parentId, position: await nextPosition(space.id, parentId) })
+      .where(eq(schema.spaceTable.id, table.id));
+  } else if (kind === "f") {
+    const file = own(
+      await db.query.spaceFile.findFirst({
+        where: and(eq(schema.spaceFile.id, id), eq(schema.spaceFile.kind, "document")),
+      }),
+    );
+    const parentId = await parentOf(space.id, input.parentId);
+    await db
+      .update(schema.spaceFile)
+      .set({ parentId, position: await nextPosition(space.id, parentId) })
+      .where(eq(schema.spaceFile.id, file.id));
+  } else {
+    throw notFound();
+  }
+  if (input.index !== undefined) {
+    await orderFolder(space.id, input.parentId ?? null, input.key, input.index);
+  }
+}
+
+/** Puts `key` at `index` among a folder's contents and numbers them all again. */
+async function orderFolder(spaceId: string, parentId: string | null, key: string, index: number) {
+  const [pages, tables, files] = await Promise.all([
+    db.query.spacePage.findMany({
+      where: and(
+        eq(schema.spacePage.spaceId, spaceId),
+        isNull(schema.spacePage.wizardId),
+        parentId ? eq(schema.spacePage.parentId, parentId) : isNull(schema.spacePage.parentId),
+      ),
+      columns: { id: true, position: true, title: true },
+    }),
+    db.query.spaceTable.findMany({
+      where: and(
+        eq(schema.spaceTable.spaceId, spaceId),
+        isNull(schema.spaceTable.wizardId),
+        parentId ? eq(schema.spaceTable.parentId, parentId) : isNull(schema.spaceTable.parentId),
+      ),
+      columns: { id: true, position: true, title: true },
+    }),
+    db.query.spaceFile.findMany({
+      where: and(
+        eq(schema.spaceFile.spaceId, spaceId),
+        eq(schema.spaceFile.kind, "document"),
+        parentId ? eq(schema.spaceFile.parentId, parentId) : isNull(schema.spaceFile.parentId),
+      ),
+      columns: { id: true, position: true, name: true },
+    }),
+  ]);
+  const all = [
+    ...pages.map((p) => ({ key: `p:${p.id}`, position: p.position, title: p.title })),
+    ...tables.map((t) => ({ key: `t:${t.id}`, position: t.position, title: t.title })),
+    ...files.map((f) => ({ key: `f:${f.id}`, position: f.position, title: f.name })),
+  ].sort((a, b) => a.position - b.position || a.title.localeCompare(b.title, "de"));
+  const moving = all.find((i) => i.key === key);
+  if (!moving) {
+    return;
+  }
+  const rest = all.filter((i) => i !== moving);
+  rest.splice(Math.max(0, Math.min(index, rest.length)), 0, moving);
+  for (const [position, item] of rest.entries()) {
+    const id = item.key.slice(2);
+    const table =
+      item.key[0] === "p"
+        ? schema.spacePage
+        : item.key[0] === "t"
+          ? schema.spaceTable
+          : schema.spaceFile;
+    await db.update(table).set({ position }).where(eq(table.id, id));
+  }
 }
 
 /** Puts a page's sub-pages into the order of `ids`. */

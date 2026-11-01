@@ -1,3 +1,4 @@
+import type { KnowledgeItem } from "@engenty/wizards-shared/knowledge";
 import { Inbox, Layers, LayoutGrid, Puzzle, ScrollText, Search } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
@@ -23,8 +24,21 @@ import {
 import { CATEGORY_ICON, CategoryView, useValue, ValueView } from "./space/Categories";
 import { ClientSpaces, OpenToClients } from "./space/ClientSpaces";
 import { FileView } from "./space/Documents";
-import { CategoryItems, ItemRow, KnowledgeOverview, useKnowledge } from "./space/Knowledge";
-import { KnowledgeHome } from "./space/KnowledgeHome";
+import {
+  CategoryItems,
+  ItemRow,
+  KnowledgeOverview,
+  NewItemDialog,
+  useKnowledge,
+} from "./space/Knowledge";
+import { KnowledgeFolder, KnowledgeHome, PageContents } from "./space/KnowledgeHome";
+import {
+  ancestorsOf,
+  isFolder,
+  KnowledgeTree,
+  MoveDialog,
+  useMoveItem,
+} from "./space/KnowledgeTree";
 import { PageEditor } from "./space/PageEditor";
 import { PublicPage } from "./space/PublicPage";
 import { NO_FILTER, Results, type ResultsFilter, useResults } from "./space/Results";
@@ -257,6 +271,13 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const spaceData = useSpaceData(group === "data" ? space?.id : undefined);
   const knowledge = useKnowledge(group === "knowledge" ? space?.id : undefined);
   const pickedValue = useValue(picked?.startsWith("v:") ? picked.slice(2) : "");
+  // Knowledge as a tree: the item open, the page opened to write (blank, it would be a folder),
+  // what is being moved and where a new folder goes.
+  const pickedItem = knowledge.data?.items.find((i) => i.key === item);
+  const [writing, setWriting] = useState<string | null>(null);
+  const [moving, setMoving] = useState<KnowledgeItem | null>(null);
+  const [folderIn, setFolderIn] = useState<string | null | undefined>(undefined);
+  const moveItem = useMoveItem(space?.id);
   const pickedCategory = knowledge.data?.categories.find(
     (c) => c.id === (picked?.startsWith("c:") ? picked.slice(2) : pickedValue.data?.category.id),
   );
@@ -267,7 +288,8 @@ export function SpacePage({ place }: { place?: "skills" }) {
   // tables and pages, a plugin's sections. A plugin's part says its own menu.
   const listed =
     added.length > 0 ||
-    (group === "knowledge" && Boolean(knowledge.data?.categories.length)) ||
+    (group === "knowledge" &&
+      Boolean(knowledge.data?.categories.length || (treeOn && knowledge.data?.items.length))) ||
     (group === "data" &&
       Boolean(spaceData.data && dataGroups(spaceData.data).some((g) => g.items.length)));
   const listOnly =
@@ -325,6 +347,13 @@ export function SpacePage({ place }: { place?: "skills" }) {
     ...(own ? [] : [{ label: t("nav.sources"), to: "/space" }]),
     ...(open ? [] : [{ label: t("space.overview") }]),
     ...(entry ? [{ label: entry.label, to: entry.to }] : []),
+    // Knowledge: the folders the open item sits in.
+    ...(treeOn && pickedItem && knowledge.data
+      ? ancestorsOf(knowledge.data.items, pickedItem).map((a) => ({
+          label: a.title,
+          to: `/space/knowledge?show=${a.key}`,
+        }))
+      : []),
     ...(entry && (detail ?? wizardTitle ?? pickedTitle)
       ? [{ label: (detail ?? wizardTitle ?? pickedTitle) as string }]
       : []),
@@ -620,14 +649,27 @@ export function SpacePage({ place }: { place?: "skills" }) {
                 </SubMenu>
               ) : group === "knowledge" ? (
                 <SubMenu>
-                  <ul className="flex flex-col gap-0.5">
-                    <MenuRow
-                      icon={LayoutGrid}
-                      label={t("know.all")}
-                      selected={!(narrow || picked)}
-                      onPick={() => pick("all")}
+                  {treeOn && knowledge.data ? (
+                    <KnowledgeTree
+                      items={knowledge.data.items}
+                      picked={narrow ? null : item}
+                      all={!(narrow || picked)}
+                      readOnly={Boolean(space?.readOnly)}
+                      onPick={pick}
+                      onMove={moveItem}
+                      onNewFolder={setFolderIn}
+                      onMoveTo={setMoving}
                     />
-                  </ul>
+                  ) : (
+                    <ul className="flex flex-col gap-0.5">
+                      <MenuRow
+                        icon={LayoutGrid}
+                        label={t("know.all")}
+                        selected={!(narrow || picked)}
+                        onPick={() => pick("all")}
+                      />
+                    </ul>
+                  )}
                   {knowledge.data?.categories.length ? (
                     <MenuGroup label={t("know.categories")}>
                       {knowledge.data.categories.map((c) => (
@@ -703,13 +745,37 @@ export function SpacePage({ place }: { place?: "skills" }) {
                     />
                   ) : null}
                   {group !== "knowledge" ? null : item ? (
-                    item.startsWith("p:") ? (
-                      <PageEditor
+                    treeOn &&
+                    knowledge.data &&
+                    pickedItem &&
+                    isFolder(pickedItem) &&
+                    writing !== item ? (
+                      <KnowledgeFolder
                         key={item}
-                        pageId={item.slice(2)}
-                        onGone={() => pick("all")}
+                        spaceId={space.id}
+                        data={knowledge.data}
+                        folder={pickedItem}
+                        readOnly={space.readOnly}
                         onOpen={pick}
+                        onWrite={(key) => {
+                          setWriting(key);
+                          pick(key);
+                        }}
+                        onGone={() =>
+                          pick(pickedItem.parentId ? `p:${pickedItem.parentId}` : "all")
+                        }
                       />
+                    ) : item.startsWith("p:") ? (
+                      <div key={item} className="flex flex-col gap-9">
+                        <PageEditor
+                          pageId={item.slice(2)}
+                          onGone={() => pick("all")}
+                          onOpen={pick}
+                        />
+                        {treeOn && knowledge.data && pickedItem ? (
+                          <PageContents data={knowledge.data} page={pickedItem} onOpen={pick} />
+                        ) : null}
+                      </div>
                     ) : item.startsWith("t:") ? (
                       <TableEditor key={item} tableId={item.slice(2)} onGone={() => pick("all")} />
                     ) : (
@@ -791,6 +857,10 @@ export function SpacePage({ place }: { place?: "skills" }) {
                           data={knowledge.data}
                           readOnly={space.readOnly}
                           onOpen={pick}
+                          onWrite={(key) => {
+                            setWriting(key);
+                            pick(key);
+                          }}
                           status={pluginStatus(added)}
                           adds={plugins.spaceSections
                             .filter((x) => (x.group ?? "knowledge") === "knowledge" && x.add)
@@ -814,6 +884,26 @@ export function SpacePage({ place }: { place?: "skills" }) {
                   )}
                   {group === "info" || group === "brand" ? pluginSections(added) : null}
                 </SpaceSettings>
+              ) : null}
+              {space && group === "knowledge" && treeOn && knowledge.data ? (
+                <>
+                  <MoveDialog
+                    item={moving}
+                    items={knowledge.data.items}
+                    onClose={() => setMoving(null)}
+                    onMove={moveItem}
+                  />
+                  <NewItemDialog
+                    kind={folderIn === undefined ? null : "folder"}
+                    spaceId={space.id}
+                    parentId={folderIn}
+                    onClose={() => setFolderIn(undefined)}
+                    onMade={(key) => {
+                      setFolderIn(undefined);
+                      pick(key);
+                    }}
+                  />
+                </>
               ) : null}
               {space && group === "clients" && clientsOn ? (
                 <Anchor id="clients">

@@ -224,6 +224,8 @@ async function spaceDataOf(spaceId: string): Promise<SyncDataInput> {
       title: t.title,
       format: t.format,
       originLabel: t.originLabel,
+      parentId: t.parentId,
+      position: t.position,
       columns: t.columns,
       rows: rows.filter((r) => r.tableId === t.id).map((r) => ({ id: r.id, cells: r.cells })),
     })),

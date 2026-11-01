@@ -235,6 +235,7 @@ import {
   getPage,
   getTable,
   listSpaceData,
+  moveKnowledgeItem,
   orderSubPages,
   updatePage,
   updateTable,
@@ -968,6 +969,11 @@ export const studio = new Hono<Vars>()
       mime: file.type.split(";")[0].trim().toLowerCase(),
       data: new Uint8Array(await file.arrayBuffer()),
     });
+    // A document uploaded into a folder of Knowledge.
+    const parent = c.req.query("parent");
+    if (kind === "document" && parent) {
+      await moveKnowledgeItem(c.get("user").id, space.id, { key: `f:${row.id}`, parentId: parent });
+    }
     return c.json(fileView(row));
   })
   .post("/spaces/:id/files/url", async (c) => {
@@ -1157,6 +1163,18 @@ export const studio = new Hono<Vars>()
   .get("/spaces/:id/knowledge", async (c) =>
     c.json(await listKnowledge(c.get("user").id, c.req.param("id"), whoOf(c))),
   )
+  // An item moved into a folder (a page, or the top), at a place among its contents.
+  .post("/spaces/:id/knowledge/move", async (c) => {
+    const body = z
+      .object({
+        key: z.string().regex(/^[ptf]:[\w-]{1,40}$/),
+        parentId: z.string().max(40).nullable(),
+        index: z.number().int().min(0).max(100_000).optional(),
+      })
+      .parse(await c.req.json());
+    await moveKnowledgeItem(c.get("user").id, c.req.param("id"), body);
+    return c.json({ ok: true });
+  })
   // What a link in a page names (`pages/bgb/p-281`): the studio opens it.
   .get("/spaces/:id/resolve", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
@@ -1292,6 +1310,7 @@ export const studio = new Hono<Vars>()
       .object({
         title: z.string().max(120),
         wizardId: z.string().nullish(),
+        parentId: z.string().nullish(),
         columns: z.unknown().optional(),
         format: z.enum(["faq"]).nullish(),
       })
