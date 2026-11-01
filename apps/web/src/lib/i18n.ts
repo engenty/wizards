@@ -3987,7 +3987,6 @@ const de: Record<Key, Line> = {
   "assistant.layoutSidebar": "Als Seitenleiste",
   "assistant.close": "Schließen",
   "assistant.helloTitle": "Wie kann ich helfen?",
-  "assistant.help": "Hilfe",
   "assistant.intro.close": "Einführung schließen",
   "assistant.intro.hideHello": "Text ausblenden",
   "assistant.hello":
@@ -8024,7 +8023,6 @@ const en = {
   "assistant.layoutSidebar": "As a sidebar",
   "assistant.close": "Close",
   "assistant.helloTitle": "How can I help?",
-  "assistant.help": "Help",
   "assistant.intro.close": "Close the introduction",
   "assistant.intro.hideHello": "Hide the text",
   "assistant.hello":

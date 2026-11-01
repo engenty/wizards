@@ -920,7 +920,7 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
         <Trail alone={personal} />
         {children}
       </div>
-      {/* Goose's help hint, where a page's introduction was closed. */}
+      {/* Goose, folded. */}
       <div ref={setHintSlot} className="flex shrink-0 items-center empty:hidden" />
       {/* A phone has no app bar beside the page: the switch between the modes stands up here. */}
       {personal || !phone ? null : <ModeSwitch me={me} look="row" stack />}
