@@ -1069,7 +1069,14 @@ export function KnowledgeOverview({
         }),
       );
     } catch {
-      setFound({ hits: [], candidates: 0, checked: false, filtered: null, hidden: [] });
+      setFound({
+        hits: [],
+        candidates: 0,
+        checked: false,
+        filtered: null,
+        hidden: [],
+        late: false,
+      });
     } finally {
       setSearching(false);
     }

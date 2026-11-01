@@ -236,7 +236,8 @@ function Palette({
 
   useEffect(() => input.current?.focus(), []);
 
-  // At once without the classifier, then with it: the checked list replaces the first.
+  // At once without the classifier, then with it: the checked list replaces the first. The quick
+  // ask finds by words alone while the embedding model is busy; the second waits for the vectors.
   // biome-ignore lint/correctness/useExhaustiveDependencies: whereKey stands for where
   useEffect(() => {
     if (asked.length < 2) {
@@ -251,7 +252,7 @@ function Palette({
       try {
         const first = await api.post<KnowledgeSearch>(url, { ...body, check: false }, ctl.signal);
         setFound({ query: asked, result: first });
-        if (knowledge.data?.checked && first.hits.length) {
+        if ((knowledge.data?.checked && first.hits.length) || first.late) {
           setRanking(true);
           const checked = await api.post<KnowledgeSearch>(url, body, ctl.signal);
           setFound({ query: asked, result: checked });

@@ -218,6 +218,11 @@ export interface KnowledgeSearch {
    * first: shown on request, in case it was wrong. Empty when nothing was checked.
    */
   hidden: KnowledgeHit[];
+  /**
+   * The query's vector did not come in time (the embedding model was busy, or loading): the words
+   * alone found these. Asked again, the search waits for it.
+   */
+  late: boolean;
 }
 
 /** A day as `YYYY-MM-DD` from what a person or a source wrote: ISO, `14.03.2026`, a timestamp. */

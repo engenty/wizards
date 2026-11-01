@@ -32,6 +32,7 @@ import { embeddingModel } from "../models.js";
 import { onPluginChange, pluginsOf } from "../plugins/registry.js";
 import { currentRole, isAdminRole, MEMBERS_EDIT_ONLY } from "../services/access.js";
 import { notFound, ServiceError } from "../services/errors.js";
+import { searchesFirst } from "../services/query-vectors.js";
 import { itemCategoriesOf, putCategory, setItemCategories } from "../services/space-categories.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { cachedText, keptText } from "./cache.js";
@@ -836,6 +837,7 @@ async function embedTexts(): Promise<boolean> {
     );
   });
   try {
+    await searchesFirst();
     const result = await embedMany({
       model: resolved.model,
       values: values.map((v) => v || " "),
@@ -907,6 +909,7 @@ async function embedPictures(): Promise<boolean> {
         await db.delete(u).where(eq(u.id, unit.id));
         continue;
       }
+      await searchesFirst();
       await db
         .update(u)
         .set({ embedding: vectorBytes(await embedImage(jpeg)), model: resolved.ref })

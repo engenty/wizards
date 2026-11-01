@@ -1,5 +1,6 @@
 import type { DecisionQuestion } from "@engenty/wizards-shared/decision";
 import { decide } from "../engine/decide.js";
+import { systemOneAccess } from "../models.js";
 import { prompt } from "../prompts.js";
 
 /**
@@ -29,6 +30,15 @@ const clip = (value: string, max: number) => {
 };
 
 /**
+ * Whether a search's candidates are checked. Not by Clef in Ollama on this computer: on an M4
+ * it took 18 s for one candidate and a minute for eight, never within TIMEOUT_MS, and the
+ * embedding model waited behind it. Without a decision model, the classifier class's model answers.
+ */
+export async function checksRelevance(): Promise<boolean> {
+  return !(await systemOneAccess().catch(() => null))?.local;
+}
+
+/**
  * P(relevant) for each candidate, in their order. Null for all of them when no way decided in
  * time: the search then keeps the order the index gave.
  */
@@ -39,6 +49,9 @@ export async function judgeRelevance(
 ): Promise<(number | null)[] | null> {
   if (!candidates.length) {
     return [];
+  }
+  if (!(await checksRelevance())) {
+    return null;
   }
   const questions: Record<string, DecisionQuestion> = {};
   const state = {
