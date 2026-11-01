@@ -36,9 +36,12 @@ import {
   Input,
   Label,
   Segmented,
+  Select,
   Spinner,
   Switch,
+  Textarea,
 } from "../../ui";
+import { useAssistant } from "../assistant/chat";
 import {
   CATEGORY_ICON,
   categoryLine,
@@ -47,6 +50,7 @@ import {
   shownValue,
 } from "./Categories";
 import { fileUrl, thumbUrl, useFileActions } from "./data";
+import { folderSources } from "./KnowledgeTree";
 import { DropArea, SearchField, Section } from "./Section";
 
 /** Knowledge of a space: its items and categories; asked again while a document is still read. */
@@ -658,6 +662,36 @@ export function SearchHits({
 
 // --- a new page or table -----------------------------------------------------------------------
 
+/** What a page could ask Goose for, one click away. */
+const GOOSE_EXAMPLES = ["know.gooseExample1", "know.gooseExample2", "know.gooseExample3"] as const;
+
+/** A folder of one's own, by its titles from the top („Handbuch › Montage“). */
+function ownFolders(items: KnowledgeItem[]): { id: string; label: string }[] {
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const trail = (item: KnowledgeItem): string[] | null => {
+    if (folderSources.has(item.id) || item.origin) {
+      return null;
+    }
+    const up = item.parentId ? byId.get(item.parentId) : null;
+    if (!up) {
+      return [item.title];
+    }
+    const above = trail(up);
+    return above ? [...above, item.title] : null;
+  };
+  return items
+    .filter((i) => i.kind === "page" && i.blank)
+    .flatMap((i) => {
+      const titles = trail(i);
+      return titles ? [{ id: i.id, label: titles.join(" › ") }] : [];
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, lang));
+}
+
+/**
+ * A new page, table or folder: where it goes and what it is called. A page can be written by
+ * Goose from a few words instead, and files dropped on it go into the folder as they are.
+ */
 export function NewItemDialog({
   kind,
   spaceId,
@@ -674,25 +708,64 @@ export function NewItemDialog({
   onMade: (key: string) => void;
 }) {
   const qc = useQueryClient();
+  const assistant = useAssistant();
+  const knowledge = useKnowledge(spaceId);
+  const files = useFileActions(spaceId, false);
   const [title, setTitle] = useState("");
   const [faq, setFaq] = useState(false);
+  const [into, setInto] = useState(parentId ?? "");
+  const [ask, setAsk] = useState("");
+  // Opened again, it starts in the folder it was opened from, empty.
+  useEffect(() => {
+    if (kind) {
+      setInto(parentId ?? "");
+      setTitle("");
+      setAsk("");
+      setFaq(false);
+    }
+  }, [kind, parentId]);
+  const items = knowledge.data?.items ?? [];
+  const folders = ownFolders(items);
+  const folder = items.find((i) => i.id === into) ?? null;
+  const goose = kind === "page" && assistant !== null;
+  const asking = goose && ask.trim() !== "";
   const make = useMutation({
     mutationFn: () =>
       api.post<{ id: string }>(
         `/api/studio/spaces/${spaceId}/${kind === "table" ? "tables" : "pages"}`,
         {
           title: title.trim(),
-          ...(parentId ? { parentId } : {}),
+          ...(into ? { parentId: into } : {}),
           ...(kind === "table" && faq ? { format: "faq" } : {}),
         },
       ),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.knowledge(spaceId) });
       onMade(`${kind === "table" ? "t" : "p"}:${id}`);
-      setTitle("");
-      setFaq(false);
     },
   });
+  const upload = useMutation({
+    mutationFn: async (picked: File[]) => {
+      await files.upload("document", picked, into || null);
+      await qc.invalidateQueries({ queryKey: keys.knowledge(spaceId) });
+    },
+    onSuccess: onClose,
+  });
+  // Goose writes the page (write_knowledge_page) in its chat, where it can be asked for more.
+  const askGoose = () => {
+    if (!assistant) {
+      return;
+    }
+    const words = [
+      t("know.gooseNew"),
+      folder ? t("know.gooseIn", { path: folder.path }) : "",
+      title.trim() ? t("know.gooseTitled", { title: title.trim() }) : "",
+    ].join("");
+    assistant.setOpen(true);
+    void assistant.send(`${words}: ${ask.trim()}`);
+    onClose();
+  };
+  const error = (make.error ?? upload.error) as Error | null;
   return (
     <Dialog
       open={kind !== null}
@@ -706,22 +779,41 @@ export function NewItemDialog({
       }
     >
       <form
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-5"
         onSubmit={(e) => {
           e.preventDefault();
-          if (title.trim()) {
+          if (asking) {
+            askGoose();
+          } else if (title.trim()) {
             make.mutate();
           }
         }}
       >
-        <div>
+        <div className="flex flex-col gap-1.5">
+          <Label>{t("know.inFolder")}</Label>
+          <Select
+            value={into}
+            onChange={setInto}
+            options={[
+              { value: "", label: t("know.title") },
+              ...folders.map((f) => ({ value: f.id, label: `${t("know.title")} › ${f.label}` })),
+            ]}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
           <Label>{t("data.title")}</Label>
           <Input
             data-autofocus
             value={title}
             maxLength={120}
+            placeholder={kind === "page" ? t("know.titlePlaceholder") : undefined}
             onChange={(e) => setTitle(e.target.value)}
           />
+          {goose ? (
+            <p className="text-[0.75rem] text-ink-3">
+              {asking ? t("know.gooseNames") : t("know.pageHint")}
+            </p>
+          ) : null}
         </div>
         {kind === "table" ? (
           <label className="flex items-center justify-between gap-3 text-[0.875rem]">
@@ -729,15 +821,43 @@ export function NewItemDialog({
             <Switch checked={faq} onChange={setFaq} />
           </label>
         ) : null}
-        {make.error ? (
-          <p className="text-[0.875rem] text-rose">{(make.error as Error).message}</p>
+        {goose ? (
+          <div className="flex flex-col gap-1.5">
+            <Label>{t("know.gooseWrite")}</Label>
+            <Textarea
+              value={ask}
+              minRows={2}
+              maxRows={6}
+              placeholder={t("know.gooseWritePlaceholder")}
+              onChange={(e) => setAsk(e.target.value)}
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {GOOSE_EXAMPLES.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setAsk(t(key))}
+                  className="h-7 rounded-full bg-paper-2 px-2.5 text-[0.75rem] text-ink-2 transition hover:bg-accent hover:text-ink"
+                >
+                  {t(key)}
+                </button>
+              ))}
+            </div>
+          </div>
         ) : null}
+        {kind === "page" ? (
+          <DropArea onFiles={(picked) => upload.mutate(picked)} className="h-14">
+            {upload.isPending ? <Spinner className="size-4" /> : <Upload className="size-4" />}
+            {t("know.dropOrUpload")}
+          </DropArea>
+        ) : null}
+        {error ? <p className="text-[0.875rem] text-rose">{error.message}</p> : null}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
             {t("common.cancel")}
           </Button>
-          <Button type="submit" busy={make.isPending} disabled={!title.trim()}>
-            {t("know.create")}
+          <Button type="submit" busy={make.isPending} disabled={!(asking || title.trim())}>
+            {asking ? t("know.askGoose") : t("know.create")}
           </Button>
         </div>
       </form>
