@@ -19,7 +19,7 @@ picture at the top right.
 
 On Resources, the menu on the left starts with the Overview: each of the four parts with what it
 is for and how far it is filled, Goose on top. Then the parts themselves. Where a part lists
-things of its own (Knowledge’s categories, Data’s tables), it opens its menu under the other parts,
+things of its own (Knowledge’s categories, Memory’s tables), it opens its menu under the other parts,
 with a search (⌘F). On a phone, the parts, a part’s menu and the page take turns.
 
 Results have no menu: the list above them picks one wizard or all of them.
@@ -29,7 +29,7 @@ Results have no menu: the list above them picks one wizard or all of them.
 | Info | Basics, Facts | Who you are |
 | Brand | Logos, Colours, Brand assets | How you look |
 | Knowledge | All, then each category, then the sections plugins add | What every AI step looks things up in |
-| Data | All data, then each wizard | Tables and pages the wizards keep |
+| Memory | All data, then each wizard | Tables and pages the wizards keep |
 
 ## Info
 
@@ -87,9 +87,9 @@ A plugin can fill Knowledge from outside, from a website or a folder, for exampl
 shows where it came from (“From …”). Once you change it by hand, it stays yours, and the plugin
 no longer updates it.
 
-## Data
+## Memory
 
-Data holds the tables and pages your wizards keep, each under the wizard’s name. The space’s own
+Memory holds the tables and pages your wizards keep, each under the wizard’s name. The space’s own
 tables and pages are in Knowledge. A wizard fills its own: a shared list becomes one of its tables,
 and a step with the “Pages” tool writes its pages. The columns of a shared list come from the
 wizard. The buttons “Table” and “Page” add one to a wizard.
@@ -107,7 +107,7 @@ wizard. The buttons “Table” and “Page” add one to a wizard.
 
 ### On your computer and in the cloud
 
-Data stays where it was written. A wizard’s tables and pages are filled where it runs: on your
+Memory stays where it was written. A wizard’s tables and pages are filled where it runs: on your
 computer by its runs there, in the cloud by the runs over its link. The pages and tables of
 Knowledge, with their categories, go to the cloud with every wizard you publish there. The cloud
 shows them without changing them. Files stay on your computer.
@@ -125,7 +125,7 @@ with its files.
 engenty wizards on your computer has one space, called “My computer” at first (“Mein Computer” in
 German). On engenty.ai the organization’s plan says how many spaces it may have. The space’s tile in the
 app bar opens a menu: it switches between spaces, “Rename space” renames this one, and “Add space”
-adds one while the plan has room. Each space has its own wizards, Info, Brand, Knowledge, Data,
+adds one while the plan has room. Each space has its own wizards, Info, Brand, Knowledge, Memory,
 connectors and results. The account, the models and the plugins are the same for every space.
 
 When you publish wizards from your computer with an account signed in, their space shows up in

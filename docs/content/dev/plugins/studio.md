@@ -92,8 +92,8 @@ export default defineStudioPlugin((studio) => {
 | `studio.registerShareSection({ runner, component })` | A runner’s own settings for a wizard (a keyword), under the share dialog’s gear once the runner is on and set up. See [Runners](./runners.md#the-runners-part-of-the-share-dialog) |
 | `studio.registerShareSetup({ runner, title, component, notice? })` | What “Set up” in the runner’s row opens: a view inside the share dialog, with its buttons at the dialog’s foot, and a banner of the runner’s news. See [Runners](./runners.md#setting-up-inside-the-dialog) |
 | `studio.registerAssistantCard({ tool, component })` | A card in the assistant’s chat for what a tool of the server half returned. See [The space](./space.md#a-card-in-the-chat) |
-| `studio.registerKnowledgeSource({ kind, label, icon, hint?, form?, placeholder?, settings? })` | A kind of source in Knowledge’s „Hinzufügen“ (behind `knowledgeTree`): its dialog asks with `form`, or with one field for the address, and proposes; its sources’ folders carry `icon`; `settings` is its own part of a source’s ⋯ › Quelle. The server half registers the same `kind` with its reader. See [The space](./space.md#a-source-of-knowledge) |
-| `studio.registerMountKind({ kind, label, icon, place, form, hint?, allowWrite? })` | A kind of mount in Dateien’s „Einbinden“ (behind `dateien`): `form` connects the account and picks the folder, and calls `onChange({ source, name })` when it is ready; the dialog then asks who sees it and mounts it. Its mounts carry `icon` and `place` („Google Drive“) in the menu. `allowWrite({ space, source })` connects the account again with the rights to write, when writing is turned on. The server half registers the same `kind` with its reader. See [The space](./space.md#a-kind-of-mount) |
+| `studio.registerKnowledgeSource({ kind, label, icon, hint?, form?, placeholder?, settings? })` | A kind of source under „Quellen“ in Knowledge’s „Hinzufügen“ dialog (behind `knowledgeTree`): picked there, it asks with `form`, or with one field for the address, and proposes; its sources’ folders carry `icon`; `settings` is its own part of a source’s ⋯ › Quelle. The server half registers the same `kind` with its reader. See [The space](./space.md#a-source-of-knowledge) |
+| `studio.registerMountKind({ kind, label, icon, place, form, hint?, allowWrite? })` | A kind of mount on the left of Dateien’s „Ordner einbinden“ dialog (behind `dateien`): picked there, `form` connects the account and picks the folder, and calls `onChange({ source, name })` when it is ready; the dialog then asks who sees it and mounts it („Einbinden“). Its mounts carry `icon` and `place` („Google Drive“) in the menu. `allowWrite({ space, source })` connects the account again with the rights to write, when writing is turned on. The server half registers the same `kind` with its reader. See [The space](./space.md#a-kind-of-mount) |
 
 - The studio’s own addresses are taken: `/new`, `/edit`, `/settings`, `/space`, `/setup`,
   `/sign-in`.
@@ -132,7 +132,7 @@ space page, behind the layers icon (Resources) in the app bar, shows them in fiv
 | Info | `info` | Basics, Facts |
 | Brand | `brand` | Logos, Colours, Typography, Brand assets |
 | Knowledge | `knowledge` | Documents, pages, tables and files with their categories: what every AI step looks things up in |
-| Data | `data` | What the wizards keep |
+| Memory | `data` | What the wizards keep |
 | Results | `results` | The runs that reached their result |
 
 A plugin adds a section to one of them, below the part’s own:
@@ -171,8 +171,8 @@ studio.registerSpaceSection({
   while there is nothing to say; the person sees it without opening the section.
 - `icon` is the section’s row in the part’s menu; a puzzle piece without one. `grouped: false`
   puts the row among the part’s own, without the plugin’s name above it.
-- `add` is an entry of Knowledge’s „Hinzufügen“ that opens the section: `{ label, hint?, icon? }`,
-  what the plugin brings in („Website oder Sitemap“). It shows on the start page that waits
+- `add` is an entry under „Quellen“ in Knowledge’s „Hinzufügen“ dialog that opens the section:
+  `{ label, hint?, icon? }`, what the plugin brings in („Website oder Sitemap“). The dialog waits
   behind the `knowledgeTree` switch.
 - `studio.useSpace()` is a hook: `{ id, name, readOnly, brand }`, or `null` while there is none.
   A component that calls it draws again when the person picks another space, or changes its
