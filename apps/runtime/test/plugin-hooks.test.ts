@@ -173,6 +173,7 @@ const stepOf = (emitted: string[] = []) =>
     stepId: "ask",
     tenantId: LOCAL,
     space: { id: spaceId, name: "Ahorn" },
+    dataSpace: { id: spaceId, name: "Ahorn" },
     spaceFiles: [],
     def: { title: "Wizard" },
     test: false,
@@ -299,6 +300,7 @@ describe("the space assistant", () => {
       assistantToolsOf({
         tenantId: LOCAL,
         space: { id: spaceId, name: "Ahorn" },
+        dataSpace: { id: spaceId, name: "Ahorn" },
         userId: "local",
         signal: new AbortController().signal,
         emit: (message) => told.push(message),

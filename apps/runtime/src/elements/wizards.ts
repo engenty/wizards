@@ -28,8 +28,8 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
     return {};
   }
   // A client space runs the wizards of its space (docs/plans/client-spaces.md): they are listed
-  // from there, by the space's rules. Running one in a client space waits for its runs to belong
-  // to the client space (step 3).
+  // from there and decided by the space's rules; a run started here belongs to the client space
+  // (docs/plans/client-portal.md).
   const space = await db.query.space.findFirst({
     columns: { kind: true, parentId: true },
     where: eq(schema.space.id, caller.space.id),
@@ -76,20 +76,20 @@ export async function wizardTools(caller: ElementCaller): Promise<Record<string,
             {
               action: "wizard_run",
               resource: { kind: "wizard", id: input.wizardId },
+              rulesIn: spaceId,
               perm: "x",
               input,
             },
             async () => {
-              if (inClientSpace) {
-                throw new Error("Running a wizard in a client space is not possible yet.");
-              }
               const published = (await listWizards(userId, spaceId)).find(
                 (w) => w.id === input.wizardId && w.published,
               );
               if (!published) {
                 throw new Error(`No published wizard "${input.wizardId}" in this space.`);
               }
-              const { runId, refused } = await startRun(userId, input.wizardId, input.answers);
+              const { runId, refused } = await startRun(userId, input.wizardId, input.answers, {
+                clientSpaceId: inClientSpace ? caller.space.id : null,
+              });
               const report = await runReport(userId, runId, input.waitSeconds);
               return { ...report, ...(refused ? { refusedAnswers: refused } : {}) };
             },

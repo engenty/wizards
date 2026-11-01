@@ -294,6 +294,8 @@ function standIn(wizard: WizardRow, userId: string): RunRow {
     unattended: false,
     deviceOffer: null,
     costMicros: 0,
+    clientSpaceId: null,
+    clientSharedAt: null,
     shareToken: null,
     sharedAt: null,
     expiresAt: null,

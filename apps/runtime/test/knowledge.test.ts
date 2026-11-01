@@ -485,6 +485,7 @@ describe("the tools of a step", () => {
     const emitted: any[] = [];
     const ctx = {
       space: { id: spaceId },
+      dataSpace: { id: spaceId, name: "" },
       holder: { kind: "person", id: "local", role: "owner" },
       store: { wizardId: "w", holder: "u:local" },
       signal: new AbortController().signal,

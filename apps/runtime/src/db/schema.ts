@@ -146,10 +146,20 @@ export const space = sqliteTable(
     parentId: text("parent_id").references((): AnySQLiteColumn => space.id, {
       onDelete: "cascade",
     }),
+    /**
+     * A client space's address in the client portal, `<team>.wizards.page/portal/<slug>`
+     * (docs/plans/client-portal.md): made from its name, unique in the organization, changed in
+     * Studio. Null for a space.
+     */
+    slug: text("slug"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("space_tenant").on(t.tenantId), index("space_parent").on(t.parentId)],
+  (t) => [
+    index("space_tenant").on(t.tenantId),
+    index("space_parent").on(t.parentId),
+    uniqueIndex("space_slug").on(t.tenantId, t.slug),
+  ],
 );
 
 /**
@@ -341,6 +351,19 @@ export const run = sqliteTable(
       at: number;
     } | null>(),
     costMicros: integer("cost_micros").notNull().default(0),
+    /**
+     * The client space a run was started in (docs/plans/client-portal.md): the wizard is its
+     * parent's, the run's data and results belong to the client space. Null: a run of its
+     * wizard's space.
+     */
+    clientSpaceId: text("client_space_id").references((): AnySQLiteColumn => space.id, {
+      onDelete: "cascade",
+    }),
+    /**
+     * When the firm shared the run with the client space's clients, on purpose; null: it stays
+     * the firm's. A client's own runs need none.
+     */
+    clientSharedAt: integer("client_shared_at", { mode: "timestamp_ms" }),
     /** Set once the result is shared: `/s/<token>` shows it read-only. */
     shareToken: text("share_token"),
     sharedAt: integer("shared_at", { mode: "timestamp_ms" }),
@@ -355,6 +378,7 @@ export const run = sqliteTable(
     index("run_wizard").on(t.wizardId, t.createdAt),
     index("run_visitor").on(t.visitorId, t.createdAt),
     index("run_status").on(t.status),
+    index("run_client_space").on(t.clientSpaceId, t.createdAt),
   ],
 );
 
@@ -613,7 +637,7 @@ export const spaceTable = sqliteTable(
   },
   (t) => [
     index("space_table_space").on(t.spaceId, t.wizardId),
-    uniqueIndex("space_table_list").on(t.wizardId, t.list),
+    uniqueIndex("space_table_list").on(t.spaceId, t.wizardId, t.list),
     uniqueIndex("space_table_origin").on(t.spaceId, t.origin, t.originKey),
   ],
 );

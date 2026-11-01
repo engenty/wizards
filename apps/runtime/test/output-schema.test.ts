@@ -184,6 +184,7 @@ describe("a step with a schema, run", () => {
   const ctx = () => ({
     def: wizard(),
     space: { id: "p" },
+    dataSpace: { id: "p", name: "" },
     call: {},
     signal: new AbortController().signal,
     state: { values: {}, outputs: {}, notes: {} },

@@ -633,7 +633,7 @@ export async function runAgentStep(step: AgentStep, ctx: StepContext): Promise<S
     `Today is ${today(ctx)}.`,
     brandBlock(ctx),
     // Knowledge: what the space holds for its wizards, and how to find and read it.
-    await knowledgeBlock(ctx.space.id),
+    await knowledgeBlock(ctx.dataSpace.id),
     // Skills: always on whole, on demand by name and description (docs/plans/skills.md).
     skillsBlock(await skillsOf(ctx), {
       tools: takesTools(resolved),

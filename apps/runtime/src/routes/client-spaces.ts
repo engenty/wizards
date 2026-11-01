@@ -12,6 +12,8 @@ import {
   listSpaceMembers,
   removeSpaceMember,
   requireClientSpaces,
+  shareWithClient,
+  updateClientSpace,
 } from "../services/client-spaces.js";
 
 /**
@@ -31,6 +33,20 @@ export const clientSpaceRoutes = new Hono<Vars>()
   .post("/spaces/:id/clients", async (c) => {
     const { name } = z.object({ name: z.string().min(1).max(200) }).parse(await c.req.json());
     return c.json(await createClientSpace(c.get("user").id, c.req.param("id"), name));
+  })
+  .patch("/spaces/:id/client", async (c) => {
+    const body = z
+      .object({
+        name: z.string().trim().min(1).max(200).optional(),
+        slug: z.string().trim().min(1).max(48).optional(),
+      })
+      .parse(await c.req.json());
+    return c.json(await updateClientSpace(c.get("user").id, c.req.param("id"), body));
+  })
+  // A run of a client space shared with its clients on purpose, or taken back.
+  .put("/runs/:id/client-share", async (c) => {
+    const { shared } = z.object({ shared: z.boolean() }).parse(await c.req.json());
+    return c.json(await shareWithClient(c.get("user").id, c.req.param("id"), shared));
   })
   .delete("/spaces/:id/client", async (c) => {
     await deleteClientSpace(c.get("user").id, c.req.param("id"));

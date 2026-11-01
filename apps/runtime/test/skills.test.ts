@@ -418,6 +418,7 @@ describe("in a step", () => {
     const emitted: any[] = [];
     const ctx = {
       space: { id: spaceId },
+      dataSpace: { id: spaceId, name: "" },
       signal: new AbortController().signal,
       holder: { kind: "person", id: "local", role: "owner" },
       store: { holder: "u:local", wizardId: "w1" },
@@ -482,6 +483,7 @@ describe("scripts in the sandbox", () => {
     const { personCaller } = await import("../src/elements/caller");
     return personCaller({
       space: { id: spaceId, name: "Test" },
+      dataSpace: { id: spaceId, name: "Test" },
       userId: "local",
       role: "owner",
       signal: new AbortController().signal,

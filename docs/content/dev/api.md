@@ -13,6 +13,7 @@ and change with notice. Everything else is the studio’s own and changes withou
 |---|---|---|
 | `/api/v1/…` | programs that build and publish wizards: the spaces of a local install, importing a wizard | an access token of the account, with scopes (`wizards:read`, `wizards:write`, `wizards:publish`, `runs:test`); see [the Manage-App contract](https://github.com/engenty/engenty-wizards/blob/main/docs/manage-contract.md) |
 | `/api/v1/spaces/:spaceId/elements` | programs that use a space: search its knowledge, read its skills, call its connections, run its wizards (see below) | the same tokens, with `data:read`, `elements:read`, `elements:run` |
+| `/api/v1/client/…` | apps for a firm’s clients, like the client portal: their client spaces, what waits for them, chats, files, results, the wizards opened to them (see below) | a token of a person with the role `client`, with `data:read`, `elements:read`, `elements:run` |
 | `/api/mcp` | AI apps: every tool of [the MCP server](../user-guide/ai-apps.md), the space’s elements among them | the same tokens, or the local ticket `wizards mcp` carries |
 | The public run API: `/api/public/wizards/:token`, `/api/public/wizards/:token/runs`, `/api/public/codes/:code`, `/api/runs/:id/…` | running a published wizard by its link: what the runner in a browser does | nobody; a visitor cookie, or the `x-wizards-visitor` header where a cookie does not survive |
 
@@ -36,6 +37,30 @@ The space’s rules decide every call, and each is a line of the broker’s log 
 name (`x-wizards-client`, or the MCP client’s). A space outside the token’s organization is
 refused. A write, a send or a delete on a connection runs only where the space allows it without a
 person’s yes.
+
+## A client’s client spaces
+
+A firm works for its clients in client spaces under its space. A client of the organization signs
+in with an account of their own and reaches only the client spaces they are in. The client
+portal (`<team>.wizards.page/portal`) is built on these calls alone, so another app can offer the
+same. `GET /api/v1/client` lists them with their inputs as JSON Schema. A call is
+`POST /api/v1/client/:name`, or `POST /api/v1/client/spaces/:spaceId/:name` for one client space,
+with `{ "input": { … } }`; it answers `{ "result": … }`, or an error with why.
+
+| Call | Scope | Gives |
+|---|---|---|
+| `me`, `spaces` | `data:read` | Who you are, your organization, your client spaces with their address (`slug`) and the firm’s brand |
+| `for_you` | `data:read` | Your runs waiting on a page or an answer, the results the firm shared, the wizards you can start |
+| `wizards`, `wizard_start` | `elements:read`, `elements:run` | The firm’s wizards opened to clients; a start runs it in your client space |
+| `results`, `run_open` | `data:read` | Your finished runs and those the firm shared; a ticket for one run’s own routes (`/api/runs/:id/…?rt=…`) |
+| `chats`, `chat_messages` | `data:read` | Your chats in the client space and their messages, without tool calls |
+| `chat_post` | `elements:run` | Writes in one of your chats, or starts one with the firm. With `ask: true` the space’s AI answers you too |
+| `files` | `data:read` | The client space’s files. One file’s bytes: `GET /api/v1/client/spaces/:spaceId/files/:fileId` |
+
+Only a person with the role `client` gets an answer (`403 clients_only` otherwise). A space that is
+not one of yours answers `404`. The firm’s Knowledge and wizards reach you only where the firm
+opened them to clients, and a run the firm makes in your client space only once it is shared with
+you. The calls need the organization’s `clientSpaces` switch.
 
 ## Private
 

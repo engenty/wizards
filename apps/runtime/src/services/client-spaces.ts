@@ -1,4 +1,5 @@
 import { note } from "@engenty/wizards-shared/run";
+import { PAGE_SLUG, pageSlugOf } from "@engenty/wizards-shared/spaces";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { openToClients } from "../broker/rwx.js";
@@ -67,6 +68,7 @@ export async function listClientSpaces(userId: string, spaceId: string) {
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
+    slug: r.slug ?? r.id,
     createdAt: r.createdAt.toISOString(),
     clients: people(r.id, "client"),
     members: people(r.id, "member"),
@@ -95,9 +97,85 @@ export async function createClientSpace(
     brand: {},
     kind: "client",
     parentId: space.id,
+    slug: await freeSlug(pageSlugOf(trimmed) || id.toLowerCase()),
   });
   spaceChanged("space.created", id);
   return { id };
+}
+
+/** Whether a client space of the organization other than `except` has the address. */
+async function slugTaken(slug: string, except?: string): Promise<boolean> {
+  const found = await db.query.space.findFirst({
+    columns: { id: true },
+    where: and(eq(schema.space.tenantId, currentTenant()), eq(schema.space.slug, slug)),
+  });
+  return Boolean(found && found.id !== except);
+}
+
+/** An address for a new client space: its own, or with a number where it is taken. */
+async function freeSlug(base: string): Promise<string> {
+  let slug = base.slice(0, 44);
+  for (let n = 2; await slugTaken(slug); n++) {
+    slug = `${base.slice(0, 44)}-${n}`;
+  }
+  return slug;
+}
+
+/**
+ * Renames a client space or changes its address in the client portal
+ * (`<team>.wizards.page/portal/<slug>`, docs/plans/client-portal.md). Its admins change them.
+ */
+export async function updateClientSpace(
+  userId: string,
+  spaceId: string,
+  input: { name?: string; slug?: string },
+): Promise<{ name: string; slug: string }> {
+  await requireClientSpaces();
+  await requireAdmin();
+  const space = await clientSpace(userId, spaceId);
+  const name = input.name?.trim() || space.name;
+  const slug = input.slug?.trim().toLowerCase() || space.slug || space.id;
+  if (!PAGE_SLUG.test(slug)) {
+    throw new ServiceError("invalid", note("clientSpaceSlugInvalid"));
+  }
+  if (await slugTaken(slug, space.id)) {
+    throw new ServiceError("refused", note("clientSpaceSlugTaken"));
+  }
+  await db
+    .update(schema.space)
+    .set({ name, slug, updatedAt: new Date() })
+    .where(eq(schema.space.id, space.id));
+  spaceChanged("space.updated", space.id);
+  return { name, slug };
+}
+
+/**
+ * Shares a run of a client space with its clients, on purpose, or takes it back
+ * (docs/plans/client-portal.md): until then a run the firm makes there stays the firm's.
+ */
+export async function shareWithClient(
+  userId: string,
+  runId: string,
+  shared: boolean,
+): Promise<{ sharedAt: string | null }> {
+  await requireClientSpaces();
+  if (currentRole() === "client") {
+    throw notFound();
+  }
+  const run = await db.query.run.findFirst({
+    columns: { id: true, clientSpaceId: true, status: true },
+    where: and(eq(schema.run.id, runId), eq(schema.run.tenantId, currentTenant())),
+  });
+  if (!run?.clientSpaceId) {
+    throw notFound();
+  }
+  await clientSpace(userId, run.clientSpaceId);
+  if (shared && run.status !== "done") {
+    throw new ServiceError("refused", note("onlyFinishedResultsShared"));
+  }
+  const sharedAt = shared ? new Date() : null;
+  await db.update(schema.run).set({ clientSharedAt: sharedAt }).where(eq(schema.run.id, run.id));
+  return { sharedAt: sharedAt?.toISOString() ?? null };
 }
 
 /** Closes a client space: its data, results and chats go with it. */

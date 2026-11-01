@@ -85,6 +85,7 @@ const upload = async (name: string, mime: string, text: string) => {
 const stepContext = (holder: { kind: "guest"; id: string } | { kind: "person"; id: string }) =>
   ({
     space: { id: spaceId },
+    dataSpace: { id: spaceId, name: "" },
     signal: new AbortController().signal,
     emit: async () => {},
     holder: holder.kind === "person" ? { ...holder, role: "owner" } : holder,
@@ -439,7 +440,7 @@ describe("„Gäste dürfen Tabelle T nicht lesen“", () => {
     const scope = { wizardId: fixture.W, holder: "v:v1" };
     await local(async () => {
       expect(await listRows(scope, def, rwx.subjectsOfGuest())).toEqual([]);
-      const table = await sharedTable(fixture.W, def);
+      const table = await sharedTable(scope, def);
       await putRules([
         { subjectKind: "guest", subjectId: null, resourceKind: "table", resourceId: fixture.T, r: "deny" },
         { subjectKind: "guest", subjectId: null, resourceKind: "table", resourceId: table.id, r: "deny" },

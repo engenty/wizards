@@ -16,6 +16,11 @@ export interface ElementCall {
   action: string;
   /** Left out: the reader decides each item it hands out (Knowledge). */
   resource?: Resource;
+  /**
+   * The space whose rules decide the resource, where it is not the caller's: a client space's
+   * parent for the wizards it runs (docs/plans/client-portal.md).
+   */
+  rulesIn?: string;
   /** What the log files a call without one resource under: `knowledge` when left out, `skills`, `wizards`, `sandbox`. */
   about?: string;
   perm: Perm;
@@ -87,7 +92,12 @@ export async function elementCall<T>(
 ): Promise<T> {
   const started = Date.now();
   if (call.resource && ENFORCED.includes(call.resource.kind)) {
-    const decision = await decide(caller.space.id, caller.subjects, call.resource, call.perm);
+    const decision = await decide(
+      call.rulesIn ?? caller.space.id,
+      caller.subjects,
+      call.resource,
+      call.perm,
+    );
     if (!decision.ok) {
       await logCall(caller, call, "deny", "forbidden", started, {
         rule: decision.rule,

@@ -24,6 +24,11 @@ import { deleteSharedRows, saveSharedRows, sharedRows } from "./shared-lists.js"
 export interface StoreScope {
   wizardId: string;
   holder: string;
+  /**
+   * The client space the run belongs to (docs/plans/client-portal.md): its shared lists are the
+   * client space's, never the parent's or another client's. Absent: the wizard's space.
+   */
+  clientSpaceId?: string | null;
 }
 
 export { StoreError };
@@ -41,15 +46,20 @@ export function scopeOf(run: {
   wizardId: string;
   userId: string | null;
   visitorId: string | null;
+  clientSpaceId?: string | null;
 }): StoreScope {
-  return { wizardId: run.wizardId, holder: holderOf(run) };
+  return {
+    wizardId: run.wizardId,
+    holder: holderOf(run),
+    ...(run.clientSpaceId ? { clientSpaceId: run.clientSpaceId } : {}),
+  };
 }
 
 /** Marks the store as in use; stores nobody came back to are cleaned up. */
 export async function touchStore(scope: StoreScope) {
   await db
     .insert(schema.storeHolder)
-    .values({ ...scope, usedAt: new Date() })
+    .values({ wizardId: scope.wizardId, holder: scope.holder, usedAt: new Date() })
     .onConflictDoUpdate({
       target: [schema.storeHolder.wizardId, schema.storeHolder.holder],
       set: { usedAt: new Date() },
@@ -79,7 +89,7 @@ export async function listRows(
   who: Subject[] = [],
 ): Promise<ListRow[]> {
   if (def.shared) {
-    return sharedRows(scope.wizardId, def, who);
+    return sharedRows(scope, def, who);
   }
   const rows = await db.query.storeRow.findMany({
     where: inList(scope, def.id),
@@ -99,7 +109,7 @@ export async function saveRows(
   input: Record<string, unknown>[],
 ): Promise<{ added: number; updated: number }> {
   if (def.shared) {
-    return saveSharedRows(scope.wizardId, def, input);
+    return saveSharedRows(scope, def, input);
   }
   let added = 0;
   let updated = 0;
@@ -129,7 +139,8 @@ export async function saveRows(
     }
     const row = {
       id: nanoid(14),
-      ...scope,
+      wizardId: scope.wizardId,
+      holder: scope.holder,
       list: def.id,
       key,
       cells,
@@ -183,7 +194,7 @@ export async function updateRow(
 /** Deletes rows by id, or by the value of the key column. */
 export async function deleteRows(scope: StoreScope, def: ListDef, idsOrKeys: string[]) {
   if (def.shared) {
-    return deleteSharedRows(scope.wizardId, def, idsOrKeys);
+    return deleteSharedRows(scope, def, idsOrKeys);
   }
   if (!idsOrKeys.length) {
     return 0;
@@ -297,7 +308,15 @@ export async function writeStoreFile(
   const updatedAt = new Date();
   await db
     .insert(schema.storeFile)
-    .values({ ...scope, path, hash, mime, size: data.byteLength, source: meta.source ?? null })
+    .values({
+      wizardId: scope.wizardId,
+      holder: scope.holder,
+      path,
+      hash,
+      mime,
+      size: data.byteLength,
+      source: meta.source ?? null,
+    })
     .onConflictDoUpdate({
       target: [schema.storeFile.wizardId, schema.storeFile.holder, schema.storeFile.path],
       set: { hash, mime, size: data.byteLength, source: meta.source ?? null, updatedAt },
@@ -359,7 +378,15 @@ export async function putSecret(
   const sealed = seal(data);
   await db
     .insert(schema.storeSecret)
-    .values({ id: nanoid(14), ...scope, slot, provider, label, data: sealed })
+    .values({
+      id: nanoid(14),
+      wizardId: scope.wizardId,
+      holder: scope.holder,
+      slot,
+      provider,
+      label,
+      data: sealed,
+    })
     .onConflictDoUpdate({
       target: [schema.storeSecret.wizardId, schema.storeSecret.holder, schema.storeSecret.slot],
       set: { provider, label, data: sealed, updatedAt: new Date() },

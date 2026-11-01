@@ -12,6 +12,7 @@ import { nanoid } from "nanoid";
 import { assertRwx, type Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { StoreError } from "./errors.js";
+import type { StoreScope } from "./index.js";
 
 /**
  * A wizard's shared lists: one table of the space per list, owned by the wizard, that every run
@@ -24,9 +25,26 @@ type TableRow = typeof schema.spaceTable.$inferSelect;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-/** The table a shared list is kept in: made the first time, following the list as it changes. */
-export async function sharedTable(wizardId: string, def: ListDef): Promise<TableRow> {
-  const where = and(eq(schema.spaceTable.wizardId, wizardId), eq(schema.spaceTable.list, def.id));
+/**
+ * The table a shared list is kept in: made the first time, following the list as it changes. A
+ * run of a client space keeps it in the client space (docs/plans/client-portal.md): the firm's
+ * clients never share a list.
+ */
+export async function sharedTable(scope: StoreScope, def: ListDef): Promise<TableRow> {
+  const { wizardId } = scope;
+  const wizard = await db.query.wizard.findFirst({
+    where: eq(schema.wizard.id, wizardId),
+    columns: { spaceId: true, tenantId: true },
+  });
+  if (!wizard) {
+    throw new StoreError("The wizard is gone.");
+  }
+  const spaceId = scope.clientSpaceId ?? wizard.spaceId;
+  const where = and(
+    eq(schema.spaceTable.spaceId, spaceId),
+    eq(schema.spaceTable.wizardId, wizardId),
+    eq(schema.spaceTable.list, def.id),
+  );
   const found = await db.query.spaceTable.findFirst({ where });
   const shape = { title: def.title, columns: def.columns, keyColumn: def.key ?? null };
   if (found) {
@@ -43,17 +61,17 @@ export async function sharedTable(wizardId: string, def: ListDef): Promise<Table
     }
     return found;
   }
-  const wizard = await db.query.wizard.findFirst({
-    where: eq(schema.wizard.id, wizardId),
-    columns: { spaceId: true, tenantId: true },
-  });
-  if (!wizard) {
-    throw new StoreError("The wizard is gone.");
-  }
   // Two runs that start at once make it once.
   await db
     .insert(schema.spaceTable)
-    .values({ id: nanoid(12), ...wizard, wizardId, list: def.id, ...shape })
+    .values({
+      id: nanoid(12),
+      spaceId,
+      tenantId: wizard.tenantId,
+      wizardId,
+      list: def.id,
+      ...shape,
+    })
     .onConflictDoNothing();
   const made = await db.query.spaceTable.findFirst({ where });
   if (!made) {
@@ -74,11 +92,11 @@ function toRow(r: typeof schema.spaceTableRow.$inferSelect): ListRow {
 }
 
 export async function sharedRows(
-  wizardId: string,
+  scope: StoreScope,
   def: ListDef,
   who: Subject[],
 ): Promise<ListRow[]> {
-  const table = await sharedTable(wizardId, def);
+  const table = await sharedTable(scope, def);
   await assertRwx(table.spaceId, who, { kind: "table", id: table.id }, "r");
   const rows = await db.query.spaceTableRow.findMany({
     where: eq(schema.spaceTableRow.tableId, table.id),
@@ -89,11 +107,11 @@ export async function sharedRows(
 
 /** As `saveRows` does for one person's list: a row with a known key updates that row. */
 export async function saveSharedRows(
-  wizardId: string,
+  scope: StoreScope,
   def: ListDef,
   input: Record<string, unknown>[],
 ): Promise<{ added: number; updated: number }> {
-  const table = await sharedTable(wizardId, def);
+  const table = await sharedTable(scope, def);
   const existing = await db.query.spaceTableRow.findMany({
     where: eq(schema.spaceTableRow.tableId, table.id),
   });
@@ -137,11 +155,11 @@ export async function saveSharedRows(
 }
 
 /** Deletes rows by id, or by the value of the key column. */
-export async function deleteSharedRows(wizardId: string, def: ListDef, idsOrKeys: string[]) {
+export async function deleteSharedRows(scope: StoreScope, def: ListDef, idsOrKeys: string[]) {
   if (!idsOrKeys.length) {
     return 0;
   }
-  const table = await sharedTable(wizardId, def);
+  const table = await sharedTable(scope, def);
   const keys = idsOrKeys.map((k) => k.trim().toLowerCase());
   const inTable = eq(schema.spaceTableRow.tableId, table.id);
   const byId = await db
