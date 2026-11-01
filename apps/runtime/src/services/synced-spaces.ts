@@ -528,6 +528,8 @@ export const syncDataSchema = z.object({
         title: z.string().min(1).max(120),
         format: z.enum(["faq"]).nullish(),
         originLabel: z.string().max(120).nullish(),
+        parentId: syncedId.nullish(),
+        position: z.number().int().min(0).optional(),
         columns: tableColumnsSchema,
         rows: z
           .array(z.object({ id: syncedId, cells: z.record(z.string(), z.unknown()) }))
@@ -694,7 +696,14 @@ export async function syncSpaceData(rawSpaceId: string, input: SyncDataInput) {
     for (const table of input.tables) {
       await db
         .update(schema.spaceTable)
-        .set({ format: table.format ?? null, originLabel: table.originLabel ?? null, slug: null })
+        .set({
+          format: table.format ?? null,
+          originLabel: table.originLabel ?? null,
+          slug: null,
+          // Its folder, once every page is there.
+          parentId: table.parentId && pagesThere.has(table.parentId) ? table.parentId : null,
+          position: table.position ?? 0,
+        })
         .where(eq(schema.spaceTable.id, table.id));
     }
     if (input.categories) {

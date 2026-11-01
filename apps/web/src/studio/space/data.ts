@@ -51,14 +51,16 @@ export function useFileActions(spaceId: string, readOnly = false) {
     error,
     readOnly,
     /** Resolves with the files that were taken, in order. */
-    upload: async (kind: SpaceFileKind, files: File[]) => {
+    upload: async (kind: SpaceFileKind, files: File[], parentId?: string | null) => {
       setBusy(true);
       const taken: SpaceFileView[] = [];
+      // A document goes into a folder of Knowledge.
+      const into = parentId ? `&parent=${encodeURIComponent(parentId)}` : "";
       await run(async () => {
         for (const file of files) {
           taken.push(
             await api.upload<SpaceFileView>(
-              `/api/studio/spaces/${spaceId}/files?kind=${kind}`,
+              `/api/studio/spaces/${spaceId}/files?kind=${kind}${into}`,
               file,
             ),
           );

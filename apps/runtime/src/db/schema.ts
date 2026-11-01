@@ -504,6 +504,13 @@ export const spaceFile = sqliteTable(
     /** A web address the file was fetched from, when it was not uploaded. */
     source: text("source"),
     position: integer("position").notNull().default(0),
+    /**
+     * A document's folder in Knowledge: the page it sits in, null at the top. Its path
+     * (`files/<name>`) does not follow it. Its folder deleted, it goes to the top.
+     */
+    parentId: text("parent_id").references((): AnySQLiteColumn => spacePage.id, {
+      onDelete: "set null",
+    }),
     /** `pending` while it is read, described and indexed. */
     status: text("status", { enum: ["pending", "ready", "failed"] })
       .notNull()
@@ -610,6 +617,15 @@ export const spaceTable = sqliteTable(
     title: text("title").notNull(),
     /** Its name in a path (`tables/<slug>`), unique among the space's tables. */
     slug: text("slug"),
+    /**
+     * Its folder in Knowledge: the page it sits in, null at the top. Its path does not follow it.
+     * Its folder deleted, it goes to the top.
+     */
+    parentId: text("parent_id").references((): AnySQLiteColumn => spacePage.id, {
+      onDelete: "set null",
+    }),
+    /** Its place among its folder's contents, pages and files among them. */
+    position: integer("position").notNull().default(0),
     /** `faq`: a question and its answer per row. */
     format: text("format", { enum: ["faq"] }),
     columns: text("columns", { mode: "json" }).$type<TableColumn[]>().notNull(),

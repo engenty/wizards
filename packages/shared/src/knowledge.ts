@@ -71,8 +71,14 @@ export interface KnowledgeItem {
   title: string;
   /** How a step names it: `pages/handbuch/montage`, `tables/kettenprogramm`, `files/plan.dwg`. */
   path: string;
-  /** A page's sub-pages. */
+  /** What a page holds: its sub-pages, and the tables and files in it. */
   children: number;
+  /** The page it sits in, its folder; null at the top. */
+  parentId: string | null;
+  /** Its place among its folder's contents. */
+  position: number;
+  /** A page without text of its own: it shows as a folder. */
+  blank: boolean;
   /** A table's rows. */
   rows: number | null;
   format: "faq" | null;

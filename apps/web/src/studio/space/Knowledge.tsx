@@ -553,11 +553,15 @@ export function SearchHits({
 export function NewItemDialog({
   kind,
   spaceId,
+  parentId = null,
   onClose,
   onMade,
 }: {
-  kind: "page" | "table" | null;
+  /** `folder`: a page without text, that holds what goes into it. */
+  kind: "page" | "table" | "folder" | null;
   spaceId: string;
+  /** The folder it goes into; the top when left out. */
+  parentId?: string | null;
   onClose: () => void;
   onMade: (key: string) => void;
 }) {
@@ -568,7 +572,11 @@ export function NewItemDialog({
     mutationFn: () =>
       api.post<{ id: string }>(
         `/api/studio/spaces/${spaceId}/${kind === "table" ? "tables" : "pages"}`,
-        { title: title.trim(), ...(kind === "table" && faq ? { format: "faq" } : {}) },
+        {
+          title: title.trim(),
+          ...(parentId ? { parentId } : {}),
+          ...(kind === "table" && faq ? { format: "faq" } : {}),
+        },
       ),
     onSuccess: async ({ id }) => {
       await qc.invalidateQueries({ queryKey: keys.knowledge(spaceId) });
@@ -581,7 +589,13 @@ export function NewItemDialog({
     <Dialog
       open={kind !== null}
       onClose={onClose}
-      title={kind === "table" ? t("know.newTable") : t("know.newPage")}
+      title={
+        kind === "table"
+          ? t("know.newTable")
+          : kind === "folder"
+            ? t("know.newFolder")
+            : t("know.newPage")
+      }
     >
       <form
         className="flex flex-col gap-4"
@@ -653,12 +667,15 @@ export function KnowledgeOverview({
   const [making, setMaking] = useState<"page" | "table" | "category" | null>(null);
   const taken = data.categories.filter((c) => !c.proposed && c.count > 0);
   const proposed = data.categories.filter((c) => c.proposed);
-  const shown = data.items.filter((item) =>
-    Object.entries(where).every(([name, w]) => {
-      const category = data.categories.find((c) => c.name === name);
-      const mine = item.categories.find((h) => h.categoryId === category?.id);
-      return category && mine ? passes(category, mine.values, w) : false;
-    }),
+  // Sub-pages stand under their page.
+  const shown = data.items.filter(
+    (item) =>
+      !(item.kind === "page" && item.parentId) &&
+      Object.entries(where).every(([name, w]) => {
+        const category = data.categories.find((c) => c.name === name);
+        const mine = item.categories.find((h) => h.categoryId === category?.id);
+        return category && mine ? passes(category, mine.values, w) : false;
+      }),
   );
   const search = async () => {
     if (!query.trim()) {

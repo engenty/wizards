@@ -462,7 +462,7 @@ describe("documents read into Knowledge", () => {
     }).join("\n\n");
     const fileId = await upload("bgb-auszug.txt", "text/plain", `# BGB Auszug\n\n${paragraphs}`);
     const { items } = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
-    const law = items.find((i: any) => i.fileId === fileId && i.kind === "page");
+    const law = items.find((i: any) => i.fileId === fileId && !i.parentId && i.kind === "page");
     expect(law).toMatchObject({ title: "BGB Auszug", children: 6, path: "pages/bgb-auszug" });
     const page = await json(send("GET", `/api/studio/pages/${law.id}`));
     expect(page.knowledge.children.map((c: any) => c.path)).toEqual([
@@ -542,5 +542,42 @@ describe("the tools of a step", () => {
     expect(block).toContain("# KNOWLEDGE — WHAT THE SPACE KNOWS");
     expect(block).toContain("- Baustelle (choice): Graz Süd, Linz Hafen");
     expect(block).toContain("- Arbeitsstunden (number, h): 12 … 41.5");
+  });
+});
+
+describe("folders", () => {
+  it("hold pages, tables and files; a table's path stays where it moves, a page's follows", async () => {
+    const folder = await json(
+      send("POST", `/api/studio/spaces/${spaceId}/pages`, { title: "Angebote" }),
+    );
+    const table = await json(
+      send("POST", `/api/studio/spaces/${spaceId}/tables`, {
+        title: "Preise 2027",
+        parentId: folder.id,
+      }),
+    );
+    const page = await json(
+      send("POST", `/api/studio/spaces/${spaceId}/pages`, {
+        title: "Ablauf",
+        markdown: "Erst das Gespräch, dann das Angebot.",
+      }),
+    );
+    const move = (key: string, parentId: string | null, index?: number) =>
+      send("POST", `/api/studio/spaces/${spaceId}/knowledge/move`, { key, parentId, index });
+    expect((await move(`p:${page.id}`, folder.id, 0)).status).toBe(200);
+    const knowledge = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
+    const item = (id: string) => knowledge.items.find((i: any) => i.id === id);
+    expect(item(folder.id)).toMatchObject({ blank: true, children: 2, parentId: null });
+    expect(item(table.id)).toMatchObject({ parentId: folder.id, path: "tables/preise-2027" });
+    expect(item(page.id)).toMatchObject({ parentId: folder.id, path: "pages/angebote/ablauf" });
+    // Put first, the page stands before the table.
+    expect(item(page.id).position).toBeLessThan(item(table.id).position);
+    // A folder never goes into itself.
+    expect((await move(`p:${folder.id}`, page.id)).status).toBe(400);
+    // Its folder deleted, the table goes to the top; the page goes with it.
+    expect((await send("DELETE", `/api/studio/pages/${folder.id}`)).status).toBe(200);
+    const after = await json(send("GET", `/api/studio/spaces/${spaceId}/knowledge`));
+    expect(after.items.find((i: any) => i.id === table.id)).toMatchObject({ parentId: null });
+    expect(after.items.some((i: any) => i.id === page.id)).toBe(false);
   });
 });
