@@ -19,7 +19,7 @@ export async function moveFiles(): Promise<number> {
     const { moved, missing } = await withTenant(tenant, moveTenantFiles);
     if (moved || missing.length) {
       console.log(
-        `${tenant}: ${moved} moved${missing.length ? `, ${missing.length} without their bytes` : ""}`,
+        `${tenant}: ${moved} moved${missing.length ? `, ${missing.length} not` : ""}`,
       );
     }
     for (const file of missing) {
@@ -27,7 +27,7 @@ export async function moveFiles(): Promise<number> {
     }
     failed += missing.length;
   }
-  console.log(failed ? "Done; the files listed have no bytes to move." : "Done.");
+  console.log(failed ? "Done; the files listed did not move: without their bytes, or with the reason given." : "Done.");
   return failed ? 1 : 0;
 }
 
@@ -42,11 +42,11 @@ export async function moveFilesAtStart(): Promise<void> {
       const { moved, missing } = await withTenant(tenant, moveTenantFiles);
       if (moved || missing.length) {
         console.log(
-          `[move-files] ${tenant}: ${moved} moved${missing.length ? `, ${missing.length} without their bytes: ${missing.join("; ")}` : ""}`,
+          `[move-files] ${tenant}: ${moved} moved${missing.length ? `, ${missing.length} not: ${missing.join("; ")}` : ""}`,
         );
       }
     } catch (err) {
-      console.error(`[move-files] ${tenant}:`, (err as Error).message);
+      console.error(`[move-files] ${tenant}:`, causeOf(err));
     }
   }
 }
@@ -62,13 +62,27 @@ async function moveTenantFiles() {
       missing.push(`${row.name} (${row.id}, space ${row.spaceId})`);
       continue;
     }
-    const hash = await putBlob(bytes);
-    await db.update(schema.spaceFile).set({ hash }).where(eq(schema.spaceFile.id, row.id));
-    // The file reads from the blob now; its asset goes.
-    await db.delete(schema.asset).where(eq(schema.asset.id, asset.id));
-    await objects.remove(`assets/${asset.path}`);
-    await blobThumb(hash, row.mime);
-    moved++;
+    // One file that fails doesn't keep the others where they are; it is tried again next time.
+    try {
+      const hash = await putBlob(bytes);
+      await db.update(schema.spaceFile).set({ hash }).where(eq(schema.spaceFile.id, row.id));
+      // The file reads from the blob now; its asset goes.
+      await db.delete(schema.asset).where(eq(schema.asset.id, asset.id));
+      await objects.remove(`assets/${asset.path}`);
+      await blobThumb(hash, row.mime);
+      moved++;
+    } catch (err) {
+      missing.push(`${row.name} (${row.id}, space ${row.spaceId}): ${causeOf(err)}`);
+    }
   }
   return { moved, missing };
+}
+
+/** What went wrong, down to the database's own words: a failed query wraps them as its cause. */
+function causeOf(err: unknown): string {
+  let e = err as { message?: string; cause?: unknown } | undefined;
+  while (e?.cause) {
+    e = e.cause as typeof e;
+  }
+  return String(e?.message ?? err).slice(0, 300);
 }
