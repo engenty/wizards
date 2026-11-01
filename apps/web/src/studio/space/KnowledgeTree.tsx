@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpToLine,
   ChevronRight,
+  Eye,
   Folder,
   FolderInput,
   FolderPlus,
@@ -20,9 +21,11 @@ import { createPortal } from "react-dom";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
+import { useIsAdmin } from "../../lib/session";
 import { askConfirm, Button, cn, Dialog, Input } from "../../ui";
 import { useDismiss } from "../AppFrame";
 import { useSettingsMenu } from "../settings-menu";
+import { FolderAudienceDialog } from "./Audience";
 import { shownValue } from "./Categories";
 import { useItemView } from "./item-view";
 import { itemIcon } from "./Knowledge";
@@ -336,6 +339,8 @@ function RowMenu({
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [seeing, setSeeing] = useState(false);
+  const admin = useIsAdmin();
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -475,6 +480,12 @@ function RowMenu({
                     onNewFolder(item.id);
                   })
                 : null}
+              {item.kind === "page" && admin
+                ? menuItem(Eye, t("audience.folderMenu"), () => {
+                    setOpen(false);
+                    setSeeing(true);
+                  })
+                : null}
               {menuItem(FolderInput, t("know.move"), () => {
                 setOpen(false);
                 onMoveTo(item);
@@ -494,6 +505,11 @@ function RowMenu({
             document.body,
           )
         : null}
+      <FolderAudienceDialog
+        spaceId={spaceId}
+        folder={seeing ? { id: item.id, title: item.title } : null}
+        onClose={() => setSeeing(false)}
+      />
       <RenameDialog
         open={renaming}
         title={item.title}
