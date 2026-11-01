@@ -25,7 +25,7 @@ import { useCurrentSpace } from "../../lib/session";
 import { cn, Dialog, IconButton, Spinner, Switch } from "../../ui";
 import { useDismiss } from "../AppFrame";
 import { useAssistant } from "../assistant/chat";
-import { thumbUrl } from "./data";
+import { mountFileUrl, mountThumbUrl, thumbUrl } from "./data";
 import { FilterChip, itemIcon, passes, useKnowledge } from "./Knowledge";
 import { when } from "./KnowledgeHome";
 import { ancestorsOf, isFolder, treeIcon } from "./KnowledgeTree";
@@ -83,7 +83,10 @@ interface Row {
  */
 interface Group {
   id: string;
+  /** Above its titles and pictures: „Wissen“, „Dateien › Kunden“. */
   label: string;
+  /** Above its passages, where they need one of their own: „In den Texten von Wissen“. */
+  textsLabel?: string;
   names: Row[];
   pictures: Row[];
   texts: Row[];
@@ -285,7 +288,37 @@ function Palette({
     at: at ? when(item.updatedAt) : undefined,
     open: () => openKey(item.key),
   });
-  const hitRow = (hit: KnowledgeHit): Row => {
+  const hitRow = (hit: KnowledgeHit): Row => (hit.mount ? mountedRow(hit) : wissenRow(hit));
+  // A file of a mount in Dateien: its path in the mount says where it is. Until Dateien has a
+  // page in the studio, it opens as it is, in a tab of its own (a PDF at its page).
+  const mountedRow = (hit: KnowledgeHit): Row => {
+    const id = hit.open?.slice(2) ?? "";
+    const inMount = hit.path.split("/").slice(2, -1).join(" › ");
+    return {
+      id: `${hit.key}:${hit.heading ?? ""}:${hit.sheet ?? ""}`,
+      icon: hit.picture ? Image : FileText,
+      thumb: hit.picture ? mountThumbUrl(spaceId, id) : undefined,
+      title: (
+        <>
+          {hit.title}
+          {hit.heading ? <span className="text-ink-3"> › {plain(hit.heading)}</span> : null}
+          {hit.sheet ? (
+            <span className="text-ink-3"> · {t("know.palette.page", { n: hit.sheet })}</span>
+          ) : null}
+        </>
+      ),
+      where: inMount,
+      // The passage is read with the headings it was indexed under: they are in the title.
+      text: hit.picture ? undefined : plain(hit.text.replace(/^#+ [^\n]*\n+/, "")),
+      relevance: hit.relevance,
+      open: () => {
+        onClose();
+        const url = mountFileUrl(spaceId, id);
+        window.open(hit.sheet ? `${url}#page=${hit.sheet}` : url, "_blank", "noopener");
+      },
+    };
+  };
+  const wissenRow = (hit: KnowledgeHit): Row => {
     const file = hit.open?.startsWith("f:") ? hit.open.slice(2) : null;
     const page = hit.sheet && file ? hit.sheet : null;
     // A page's title comes with its folders: they say where it is.
@@ -375,21 +408,39 @@ function Palette({
     ),
     open: askGoose,
   };
-  // Wissen first; a mount of Dateien adds its own group after it.
+  // Wissen first, then each mount of Dateien the person may see, in the order of its best hit.
+  const own = hits.filter((h) => !h.mount);
+  const mounts = [
+    ...new Map(hits.flatMap((h) => (h.mount ? [[h.mount.id, h.mount] as const] : []))).values(),
+  ];
   const groups: Group[] = empty
     ? []
     : [
         {
           id: "knowledge",
           label: t("know.title"),
+          textsLabel: t("know.palette.texts", { place: t("know.title") }),
           names: names.map((i) => itemRow(i)),
-          pictures: hits
+          pictures: own
             .filter((h) => h.picture)
             .slice(0, PICTURES)
             .map(hitRow),
           // A folder's title is in the names already.
-          texts: hits.filter((h) => !(h.picture || folders.has(h.key))).map(hitRow),
+          texts: own.filter((h) => !(h.picture || folders.has(h.key))).map(hitRow),
         },
+        ...mounts.map((m) => {
+          const mine = hits.filter((h) => h.mount?.id === m.id);
+          return {
+            id: m.id,
+            label: t("know.palette.mount", { name: m.name }),
+            names: [],
+            pictures: mine
+              .filter((h) => h.picture)
+              .slice(0, PICTURES)
+              .map(hitRow),
+            texts: mine.filter((h) => !h.picture).map(hitRow),
+          };
+        }),
       ];
   // What a step gets: the hits in their order, pictures among them, with the numbers.
   const steps = wizard && !empty ? hits.map(hitRow) : [];
@@ -644,14 +695,16 @@ function Palette({
           <>
             {groups.map((g) => (
               <div key={g.id}>
-                {g.names.length || g.pictures.length ? label(g.label) : null}
+                {g.names.length || g.pictures.length || (g.texts.length && !g.textsLabel)
+                  ? label(g.label)
+                  : null}
                 {g.names.map(line)}
                 {g.pictures.length ? (
                   <div className="flex gap-1 overflow-x-auto px-1 pb-1">
                     {g.pictures.map(picture)}
                   </div>
                 ) : null}
-                {g.texts.length ? label(t("know.palette.texts", { place: g.label })) : null}
+                {g.texts.length && g.textsLabel ? label(g.textsLabel) : null}
                 {g.texts.map(line)}
               </div>
             ))}
