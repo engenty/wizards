@@ -48,7 +48,7 @@ import {
 import { openReport } from "../report/ReportDialog";
 import { Button, cn, Dialog, Input, Switch } from "../ui";
 import { AppRail, PhoneBar } from "./AppRail";
-import { setDockPrefs, useDockPrefs } from "./assistant/dock";
+import { setDockPrefs, setHintSlot, useDockPrefs } from "./assistant/dock";
 import {
   AssistantDock,
   AssistantSidebar,
@@ -919,6 +919,8 @@ export function TopBar({ me, children }: { me: Me; children?: ReactNode }) {
         <Trail alone={personal} />
         {children}
       </div>
+      {/* Goose's help hint, where a page's introduction was closed. */}
+      <div ref={setHintSlot} className="flex shrink-0 items-center empty:hidden" />
       {/* A phone has no app bar beside the page: the switch between the modes stands up here. */}
       {personal || !phone ? null : <ModeSwitch me={me} look="row" stack />}
       {/* A phone's bar keeps the places: the person stands up here. */}
