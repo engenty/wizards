@@ -16,6 +16,8 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
+import { useMe } from "../../lib/session";
+import { useStudioPlugins } from "../../plugins/host";
 import {
   Button,
   Card,
@@ -62,7 +64,7 @@ const Viewer = lazy(() => import("./viewers").then((m) => ({ default: m.Viewer }
  * the space and shown as they are there. Each mount is an entry of the menu with its folders as a
  * tree; a folder shows its files as a grid with thumbnails, a file opens in Wissen's viewers.
  * „Ordner einbinden“ chooses a folder of this computer (the system's dialog, else a path), says
- * what it found, and mounts it. What is open is `?show=`: `d:<mount>` or `d:<mount>/<folder>`, a
+ * what it found, and mounts it; a plugin's kind (a bucket, a drive) brings its own form instead. What is open is `?show=`: `d:<mount>` or `d:<mount>/<folder>`, a
  * file `m:<id>`, as a search hit opens it.
  */
 
@@ -284,6 +286,8 @@ function MountRows({
     );
   };
   const atTop = current && folder === "";
+  const kind = useStudioPlugins().mountKinds.find((k) => k.kind === mount.kind);
+  const Mark = kind?.icon ?? Laptop;
   return (
     <>
       <button
@@ -296,11 +300,15 @@ function MountRows({
         )}
       >
         <span className="grid size-6 place-items-center">
-          <Laptop className={cn("size-4", atTop ? "text-ember-strong" : "text-ink-3")} />
+          <Mark className={cn("size-4", atTop ? "text-ember-strong" : "text-ink-3")} />
         </span>
         <span className="min-w-0 flex-1 truncate">{mount.name}</span>
         <span className="truncate text-[0.75rem] text-ink-4">
-          {mount.status === "away" ? t("dateien.away") : t("dateien.thisComputer")}
+          {mount.status === "away"
+            ? t("dateien.away")
+            : mount.kind === "folder"
+              ? t("dateien.thisComputer")
+              : (kind?.place() ?? "")}
         </span>
       </button>
       {current && tree.folders.length ? (
@@ -852,6 +860,18 @@ function MountDialog({
   onMounted: (mountId: string) => void;
 }) {
   const actions = useMountActions(spaceId);
+  const kinds = useStudioPlugins().mountKinds;
+  const local = useMe().data?.mode === "local";
+  // A folder of this computer on a local install; every kind a plugin brings.
+  const choices = [...(local ? ["folder"] : []), ...kinds.map((k) => k.kind)];
+  const [kind, setKind] = useState<string | null>(null);
+  const chosenKind = kind ?? (choices.length === 1 ? choices[0] : null);
+  const plugin = kinds.find((k) => k.kind === chosenKind);
+  const [chosen, setChosen] = useState<{ source: Record<string, unknown>; name: string } | null>(
+    null,
+  );
+  const [ready, setReady] = useState(false);
+  const [name, setName] = useState("");
   const [path, setPath] = useState("");
   const [suggest, setSuggest] = useState<string[]>([]);
   const [noDialog, setNoDialog] = useState(false);
@@ -866,6 +886,9 @@ function MountDialog({
   // Opened again, it starts anew.
   useEffect(() => {
     if (open) {
+      setKind(null);
+      setChosen(null);
+      setReady(false);
       setPath("");
       setFound(null);
       setError(null);
@@ -918,6 +941,118 @@ function MountDialog({
       }
     });
   const values = found?.first.map((f) => f.name) ?? [];
+  const back = choices.length > 1 ? () => setKind(null) : onClose;
+  const mount = (input: Parameters<typeof actions.create>[0]) =>
+    run(async () => {
+      const made = await actions.create(input);
+      onMounted(made.id);
+    });
+  if (!chosenKind || plugin) {
+    return (
+      <Dialog open={open} onClose={onClose} title={plugin ? plugin.label() : t("dateien.mount")}>
+        {!chosenKind ? (
+          <div className="flex flex-col gap-1">
+            {choices.map((c) => {
+              const k = kinds.find((x) => x.kind === c);
+              const Mark = k?.icon ?? Laptop;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setKind(c)}
+                  className="flex items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-accent"
+                >
+                  <Mark className="size-5 shrink-0 text-ink-3" />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="font-medium text-[0.9375rem]">
+                      {k ? k.label() : t("dateien.kindFolder")}
+                    </span>
+                    <span className="truncate text-[0.8125rem] text-ink-3">
+                      {k ? k.hint?.() : t("dateien.kindFolderHint")}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+            {!choices.length ? (
+              <p className="text-[0.875rem] text-ink-3">{t("dateien.noKinds")}</p>
+            ) : null}
+          </div>
+        ) : plugin && !ready ? (
+          <div className="flex flex-col gap-4">
+            <plugin.form
+              space={spaceId}
+              onChange={(c) => {
+                setChosen(c);
+                if (c) {
+                  setName(c.name);
+                }
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={back}>
+                {choices.length > 1 ? t("common.back") : t("common.cancel")}
+              </Button>
+              <Button disabled={!chosen} onClick={() => setReady(true)}>
+                {t("dateien.next")}
+              </Button>
+            </div>
+          </div>
+        ) : plugin && chosen ? (
+          <div className="flex flex-col gap-4">
+            <div className="-mt-2 flex flex-col gap-1 text-[0.875rem] text-ink-2">
+              <span>{t("dateien.readsOnce")}</span>
+              <span>{t("dateien.keepsNoText")}</span>
+            </div>
+            <div>
+              <Label>{t("know.name")}</Label>
+              <Input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <AccessFields
+              spaceId={spaceId}
+              see={see}
+              wizards={wizards}
+              onSee={setSee}
+              onWizards={setWizards}
+            />
+            <WritableField checked={writable} onChange={setWritable} />
+            {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setReady(false)}>
+                {t("common.back")}
+              </Button>
+              <Button
+                busy={busy}
+                onClick={() =>
+                  void run(async () => {
+                    // Writing asks the account for the rights to write first.
+                    if (
+                      writable &&
+                      plugin.allowWrite &&
+                      !(await plugin.allowWrite({ space: spaceId, source: chosen.source }))
+                    ) {
+                      throw new Error(t("dateien.writeNotAllowed"));
+                    }
+                    const made = await actions.create({
+                      kind: plugin.kind,
+                      source: chosen.source,
+                      name: name.trim() || chosen.name,
+                      see,
+                      wizards,
+                      writable,
+                    });
+                    onMounted(made.id);
+                  })
+                }
+              >
+                {t("dateien.mountButton")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Dialog>
+    );
+  }
   return (
     <Dialog
       open={open}
@@ -977,8 +1112,8 @@ function MountDialog({
           <p className="text-[0.8125rem] text-ink-3">{t("dateien.chooseNote")}</p>
           {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={onClose}>
-              {t("common.cancel")}
+            <Button variant="ghost" onClick={back}>
+              {choices.length > 1 ? t("common.back") : t("common.cancel")}
             </Button>
             <Button type="submit" busy={busy} disabled={!path.trim()}>
               {t("dateien.next")}
@@ -1048,16 +1183,13 @@ function MountDialog({
             <Button
               busy={busy}
               onClick={() =>
-                void run(async () => {
-                  const mount = await actions.create({
-                    path: found.path,
-                    see,
-                    wizards,
-                    writable,
-                    folderCategory:
-                      byFolder && values.length && category.trim() ? category.trim() : null,
-                  });
-                  onMounted(mount.id);
+                void mount({
+                  path: found.path,
+                  see,
+                  wizards,
+                  writable,
+                  folderCategory:
+                    byFolder && values.length && category.trim() ? category.trim() : null,
                 })
               }
             >
@@ -1083,6 +1215,8 @@ function MountSettings({
 }) {
   const access = useMountAccess(spaceId, mount?.id ?? null);
   const actions = useMountActions(spaceId);
+  const kind = useStudioPlugins().mountKinds.find((k) => k.kind === mount?.kind);
+  const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [see, setSee] = useState<MountSee>("all");
   const [wizards, setWizards] = useState<MountWizards>("all");
@@ -1112,6 +1246,7 @@ function MountSettings({
             onWizards={setWizards}
           />
           <WritableField checked={writable} onChange={setWritable} />
+          {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
           <div className="flex items-center justify-between gap-2">
             <Button
               variant="ghost"
@@ -1130,7 +1265,21 @@ function MountSettings({
               busy={busy}
               onClick={async () => {
                 setBusy(true);
+                setError(null);
                 try {
+                  // Writing turned on for an account without the rights: it is asked for them.
+                  const ask =
+                    writable && !access.data?.canWrite && kind?.allowWrite && access.data?.source;
+                  if (
+                    ask &&
+                    !(await kind.allowWrite?.({
+                      space: spaceId,
+                      source: access.data?.source ?? {},
+                    }))
+                  ) {
+                    setError(t("dateien.writeNotAllowed"));
+                    return;
+                  }
                   await actions.update(mount.id, { name, see, wizards, writable });
                   onClose();
                 } finally {
