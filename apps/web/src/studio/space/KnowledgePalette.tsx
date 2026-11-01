@@ -7,6 +7,7 @@ import type {
 } from "@engenty/wizards-shared/knowledge";
 import {
   CornerDownLeft,
+  EyeOff,
   FileText,
   Image,
   ListFilter,
@@ -369,6 +370,9 @@ function Palette({
   };
 
   const hits = found?.result.hits ?? [];
+  const [showHidden, setShowHidden] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each new answer starts with them away
+  useEffect(() => setShowHidden(false), [found]);
   const folders = new Set(items.filter(isFolder).map((i) => i.key));
   const empty = asked.length < 2;
   // What the filters let through, as the search's `where` does.
@@ -448,6 +452,9 @@ function Palette({
       ];
   // What a step gets: the hits in their order, pictures among them, with the numbers.
   const steps = wizard && !empty ? hits.map(hitRow) : [];
+  // What the check put under its bar: shown on request, in case it was wrong.
+  const hidden = empty ? [] : (found?.result.hidden ?? []);
+  const hiddenRows = showHidden ? hidden.map(hitRow) : [];
   const recentRows = recent.map((i) => itemRow(i, true));
   const rows: Row[] = [
     ...(goose ? [gooseRow] : []),
@@ -456,6 +463,7 @@ function Palette({
       : wizard
         ? steps
         : groups.flatMap((g) => [...g.names, ...g.pictures, ...g.texts])),
+    ...hiddenRows,
   ];
   // Enter takes the first result, not Goose's line above it (that is ⌘Enter).
   const first = goose && rows.length > 1 ? 1 : 0;
@@ -558,6 +566,26 @@ function Palette({
           : t("know.palette.none", { query: found.query })}
       </p>
     ) : null;
+
+  const hiddenPart = hidden.length ? (
+    showHidden ? (
+      <div className="opacity-75">
+        {label(t("know.palette.hiddenLabel"))}
+        {hiddenRows.map(line)}
+      </div>
+    ) : (
+      <button
+        type="button"
+        onClick={() => setShowHidden(true)}
+        className="mx-3 mt-2 inline-flex items-center gap-1.5 rounded-md py-1 text-[0.8125rem] text-ink-3 underline-offset-2 transition hover:text-ink hover:underline"
+      >
+        <EyeOff className="size-3.5" />
+        {hidden.length === 1
+          ? t("know.palette.showHiddenOne")
+          : t("know.palette.showHidden", { n: hidden.length })}
+      </button>
+    )
+  ) : null;
 
   return (
     <div
@@ -694,6 +722,7 @@ function Palette({
             ) : null}
             {steps.map(line)}
             {nothing}
+            {hiddenPart}
           </>
         ) : (
           <>
@@ -713,6 +742,7 @@ function Palette({
               </div>
             ))}
             {nothing}
+            {hiddenPart}
           </>
         )}
       </div>

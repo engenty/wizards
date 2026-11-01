@@ -965,7 +965,7 @@ export async function searchKnowledge(
   }
   const filter = await filterItems(spaceId, opts.where);
   if (filter && !filter.size) {
-    return { hits: [], candidates: 0, checked: false, filtered: 0 };
+    return { hits: [], candidates: 0, checked: false, filtered: 0, hidden: [] };
   }
   const plugins = [...(await pluginIdsOf(currentTenant()))];
   const inFilter = filter ? filtered(filter) : null;
@@ -1071,7 +1071,7 @@ export async function searchKnowledge(
   }
   const candidates = [...scored.values()].sort((a, b) => b.score - a.score).slice(0, CANDIDATES);
   if (!candidates.length) {
-    return { hits: [], candidates: 0, checked: false, filtered: filter?.size ?? null };
+    return { hits: [], candidates: 0, checked: false, filtered: filter?.size ?? null, hidden: [] };
   }
   const described = await describe(
     spaceId,
@@ -1123,11 +1123,29 @@ export async function searchKnowledge(
       break;
     }
   }
+  // What the classifier put under the bar, best first: one hit per item not among the hits.
+  const hidden: KnowledgeHit[] = [];
+  if (judged) {
+    const under = described
+      .map((hit, i) => ({ ...hit, relevance: judged[i] ?? null }))
+      .filter((hit) => hit.relevance !== null && hit.relevance < MIN_RELEVANCE)
+      .sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0));
+    for (const hit of under) {
+      if (!seen.has(hit.key)) {
+        seen.add(hit.key);
+        hidden.push(hit);
+      }
+      if (hidden.length >= limit) {
+        break;
+      }
+    }
+  }
   return {
     hits,
     candidates: candidates.length,
     checked: judged !== null,
     filtered: filter?.size ?? null,
+    hidden,
   };
 }
 

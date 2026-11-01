@@ -279,5 +279,9 @@ async function searchAll(
     filtered: each.some((f) => f.filtered !== null)
       ? each.reduce((n, f) => n + (f.filtered ?? 0), 0)
       : null,
+    hidden: each
+      .flatMap((found) => found.hidden)
+      .sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0))
+      .slice(0, limit),
   };
 }
