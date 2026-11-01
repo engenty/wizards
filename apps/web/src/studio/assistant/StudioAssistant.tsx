@@ -1423,16 +1423,16 @@ function FoldedGoose({
         type="button"
         onClick={onOpen}
         aria-label={t("assistant.ask")}
-        className="mr-1 flex h-8 items-center gap-1.5 rounded-full bg-card py-1 pr-2.5 pl-1 text-[0.8125rem] text-ink-2 shadow-soft ring-1 ring-border-soft transition hover:text-ink hover:ring-border max-sm:pr-1"
+        className="mr-1 flex h-9 items-center gap-2 rounded-full bg-card py-1 pr-3 pl-1 text-[0.875rem] text-ink-2 shadow-soft ring-1 ring-border-soft transition hover:text-ink hover:ring-border max-sm:pr-1"
       >
         <span className="relative">
-          <Mascot kind="round" size={24} helmet interactive={false} />
+          <Mascot kind="round" size={28} helmet interactive={false} />
           {state.chat.phase !== "idle" || state.live.state !== "off" ? (
             <span className="absolute top-0 right-0 size-2 animate-pulse-dot rounded-full bg-ember ring-2 ring-card" />
           ) : null}
         </span>
         <span className="whitespace-nowrap max-sm:hidden">{t("assistant.ask")}</span>
-        <CircleHelp className="size-3.5 text-ink-4 max-sm:hidden" />
+        <CircleHelp className="size-4 text-ink-4 max-sm:hidden" />
       </button>
     </DropZone>
   );
