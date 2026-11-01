@@ -7,7 +7,6 @@ import {
   AudioLines,
   Check,
   ChevronDown,
-  CircleHelp,
   GripVertical,
   History,
   Mic,
@@ -87,7 +86,7 @@ const MarketplaceCards = lazy(() =>
 
 /**
  * Goose, the studio assistant on every page but the editor: docked at the bottom (the default),
- * as a sidebar on a window wide enough, or small at the lower right. At the bottom it moves by its
+ * as a sidebar on a window wide enough, or small in the top bar. At the bottom it moves by its
  * grip – let go, it docks in the middle or at the right of the bottom, whichever is nearer, or in
  * the sidebar against the window's right edge; the handle on top sets the thread's height, a click
  * on it folds the chat away. Opened at the bottom, the chat rises above the bar; empty, it greets
@@ -120,7 +119,7 @@ function useWhere(state: AssistantState) {
   if (where === "sidebar" && (!wide || phone)) {
     where = "bottom";
   }
-  // A page of full-height tables keeps the assistant small, at the lower right.
+  // A page of full-height tables keeps the assistant small, in the top bar.
   const compact = where === "bottom" && Boolean(page.compact);
   if (compact) {
     where = "avatar";
@@ -681,7 +680,7 @@ function Header({
           <PanelBottom className="size-4" />
         </IconButton>
       ) : null}
-      {/* Closed, Goose is the small engenty at the lower right; opened again, the chat stands where it was.
+      {/* Closed, Goose stands folded in the top bar; opened again, the chat stands where it was.
           Closed by hand, an answer of a moment ago keeps it docked no longer. */}
       <IconButton
         label={t("assistant.close")}
@@ -1306,8 +1305,8 @@ const SLOT_FIRST = 240;
 
 /**
  * Where a page wants Goose's introduction at its top (the space page's parts): the page's words,
- * a line to ask Goose and a few questions. Closed (per page), a small help hint stays in its
- * place. While either is in view and Goose has nothing going on, Goose itself keeps out of the way.
+ * a line to ask Goose and a few questions. Closed (per page), folded Goose in the top bar opens it
+ * again. While it is in view and Goose has nothing going on, Goose itself keeps out of the way.
  */
 export function AssistantSlot() {
   return <div ref={setAssistantSlot} className="hidden" />;
@@ -1372,11 +1371,11 @@ function useStoredFlag(key: string): [boolean, (on?: boolean) => void] {
   return [on, set];
 }
 
-/** The name the introduction and the help hint share, so one morphs into the other. */
+/** The name the introduction and folded Goose share, so one morphs into the other. */
 const INTRO_MORPH = { viewTransitionName: "goose-intro" } as const;
 
 /**
- * Opens or closes the introduction: the help hint in the top bar grows into the card at the top
+ * Opens or closes the introduction: folded Goose in the top bar grows into the card at the top
  * of the page, and shrinks back into it (styles/app.css). At once where the browser has no view
  * transitions or less motion was asked for.
  */
@@ -1401,21 +1400,52 @@ function IntroFrame({ children }: { children: ReactNode }) {
 }
 
 /**
- * Where the introduction was closed, at the right end of the top bar: Goose, a word and a help
- * icon; it opens the introduction again.
+ * Goose folded, at the right end of the top bar: its face and a line to ask it, which open the chat
+ * (or, where the page's introduction was closed, the introduction again), and the voice button.
  */
-function HelpHint({ onOpen }: { onOpen: () => void }) {
+function FoldedGoose({
+  state,
+  composer,
+  onOpen,
+  morph,
+}: {
+  state: AssistantState;
+  composer: RefObject<ComposerHandle | null>;
+  onOpen: () => void;
+  /** It stands for the page's closed introduction and morphs into it. */
+  morph?: boolean;
+}) {
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      style={INTRO_MORPH}
-      className="flex items-center gap-2 whitespace-nowrap rounded-full py-1 pr-3 pl-1 text-[0.875rem] text-ink-2 transition hover:bg-accent hover:text-ink"
-    >
-      <Mascot kind="round" size={26} helmet interactive={false} />
-      {t("assistant.help")}
-      <CircleHelp className="size-4 text-ink-3" />
-    </button>
+    <DropZone composer={composer} className="flex" style={morph ? INTRO_MORPH : undefined}>
+      <div className="flex items-center gap-1 rounded-full bg-card p-1 pr-1.5 shadow-overlay ring-1 ring-border">
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={t("assistant.ask")}
+          className="flex items-center gap-2 rounded-full py-0.5 pr-2 pl-0.5 text-[0.875rem] text-ink-2 transition hover:text-ink max-sm:pr-0.5"
+        >
+          <span className="relative">
+            <Mascot kind="round" size={36} helmet interactive={false} />
+            {state.chat.phase !== "idle" || state.live.state !== "off" ? (
+              <span className="absolute top-0 right-0 size-2.5 animate-pulse-dot rounded-full bg-ember ring-2 ring-card" />
+            ) : null}
+          </span>
+          <span className="whitespace-nowrap max-sm:hidden">{t("assistant.ask")}</span>
+        </button>
+        {canLive ? (
+          <IconButton
+            label={t("assistant.talk")}
+            onClick={() => {
+              state.setOpen(true);
+              void state.live.start();
+            }}
+            className="size-8 bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+          >
+            <AudioLines className="size-4" />
+          </IconButton>
+        ) : null}
+      </div>
+    </DropZone>
   );
 }
 
@@ -1568,20 +1598,19 @@ function useSlotAway(slot: HTMLElement | null, height: RefObject<number>): boole
 }
 
 /**
- * At the bottom of the page and small at its lower right, in the page's column. The height of
+ * At the bottom of the page in the page's column, or small in the top bar. The height of
  * what stays there, the open thread included, is written to `--assistant-dock` on the column, and
  * the page keeps it free below its last section; in the sidebar, in the sidebar's pane. Both are one
  * card in one node that moves, so the draft and the thread stay. Where the page has a slot at its
  * top, the introduction stands there (`PageIntro`), and Goose keeps out of the way while it is in
- * view and nothing goes on. Made small, Goose is the engenty at the lower right, unless it works
- * or has just answered: then it stands docked at the bottom.
+ * view and nothing goes on. Made small, Goose stands folded at the right end of the top bar,
+ * unless it works or has just answered: then it stands docked at the bottom.
  */
 export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | null> }) {
   const state = useAssistant();
   // Above the highlight's dimming: the conversation stays readable beside what it points at.
   const lifted = Boolean(useHighlight());
   const composer = useRef<ComposerHandle>(null);
-  const rest = useRef<HTMLDivElement>(null);
   /** The room kept below the docked card (the phone's home bar). */
   const pad = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
@@ -1601,22 +1630,23 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const recent = useRecentAnswer(state);
   const busy = state?.chat.phase !== "idle" || (state?.live.state ?? "off") !== "off" || recent;
   const active = focused || open || busy;
-  // Made small, the chat folds into the engenty at the lower right; opened, it is the same chat
+  // Made small, the chat folds into Goose in the top bar; opened, it is the same chat
   // as at the bottom, where it last stood. Busy, it stands docked at the bottom instead. A page
   // with its own input keeps it small too: one place to type on a screen. A sidebar stays.
   const sidebar = where?.where === "sidebar";
   const ownInput = Boolean(usePageAssistant().ownInput);
   const small = !sidebar && (where?.where === "avatar" || ownInput) && !busy;
-  // The page's introduction at its top, closed per page: then a help hint stands in the top bar,
-  // and the page loses no row to it. Only while Goose is the small engenty, closed: docked,
-  // floating, in the sidebar or open, Goose stands in sight already. `top` while either is in view.
+  // The page's introduction at its top, closed per page: then folded Goose in the top bar opens it
+  // again, and the page loses no row to it. Only while Goose is small and closed: docked,
+  // floating, in the sidebar or open, Goose stands in sight already.
   const slot = useAssistantSlot();
   const hintSlot = useHintSlot();
   const path = useLocation().pathname;
   const [introClosed, closeIntro] = useStoredFlag(`goose.intro.closed:${path}`);
   const wanted = Boolean(slot && visible && small && !open);
   const introAt = wanted && !introClosed ? slot : null;
-  const hintAt = wanted && introClosed ? hintSlot : null;
+  // Closed here, folded Goose opens the introduction again.
+  const reopen = wanted && introClosed;
   const slotHeight = useRef(0);
   useLayoutEffect(() => {
     if (slot) {
@@ -1624,14 +1654,15 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     }
   }, [slot, introAt]);
   const away = useSlotAway(introAt, slotHeight);
-  const top = (Boolean(introAt) && !away) || Boolean(hintAt);
-  // The introduction in view, or a page with its own input: the small engenty keeps out of the
-  // way. One place to ask on a screen; Goose comes back once it works or is opened.
-  const quiet = top || (ownInput && !busy && !open && !sidebar);
-  const reserve = !(quiet || sidebar);
+  // The introduction in view, or a page with its own input: folded Goose keeps out of the way.
+  // One place to ask on a screen; Goose comes back once it works or is opened.
+  const quiet = (Boolean(introAt) && !away) || (ownInput && !busy && !open && !sidebar);
+  // Folded, Goose stands in the top bar: the page keeps no room for it at its bottom.
+  const folded = small && !open;
+  const reserve = !(quiet || sidebar || folded);
   // A phone's bar floats at the bottom of the window: the chat stands above it.
   const phone = Boolean(where?.phone);
-  const card = Boolean(visible) && !quiet && !(small && !open);
+  const card = Boolean(visible) && !quiet && !folded;
   // The node the card is drawn into, moved between the slot and the dock.
   const [host] = useState(() => {
     const el = document.createElement("div");
@@ -1663,11 +1694,11 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     },
     [host],
   );
-  // The page keeps room below its last section for what stands at rest – the engenty, or the
-  // docked chat as high as it is now, open or folded – so every section scrolls clear of it.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the engenty or the dock's frame, by `small` and `open`, drawn once `placed`
+  // The page keeps room below its last section for the docked chat as high as it is now, open or
+  // folded – so every section scrolls clear of it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the dock's frame, drawn once `placed`
   useLayoutEffect(() => {
-    const el = small && !open ? rest.current : frame.current;
+    const el = frame.current;
     const host = column.current;
     if (!(el && host && visible && reserve)) {
       host?.style.setProperty("--assistant-dock", "0px");
@@ -1675,7 +1706,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     }
     const measure = () => {
       // Above the docked card, room for Goose perching on it while the chat is in use.
-      const perched = el === frame.current && !phone ? PERCH : 0;
+      const perched = phone ? 0 : PERCH;
       const below = host.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
       host.style.setProperty(
         "--assistant-dock",
@@ -1689,7 +1720,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
       observer.disconnect();
       host.style.setProperty("--assistant-dock", "0px");
     };
-  }, [column, visible, reserve, small, open, placed, phone]);
+  }, [column, visible, reserve, placed, phone]);
   // Escape folds the opened chat away.
   useEffect(() => {
     if (!state?.open) {
@@ -1713,9 +1744,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
         </IntroFrame>,
         introAt,
       )
-    : hintAt
-      ? createPortal(<HelpHint onOpen={() => morphIntro(() => closeIntro(false))} />, hintAt)
-      : null;
+    : null;
   // The thread is as high as the handle set it, within what the column leaves.
   const maxThread = Math.max(THREAD.min, Math.min(THREAD.max, size.height - 220));
   const threadHeight = prefs.height === null ? null : Math.min(prefs.height, maxThread);
@@ -1796,7 +1825,6 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
                 </div>
               </div>
               <div
-                ref={rest}
                 onFocusCapture={() => setFocused(true)}
                 onBlurCapture={(e) => {
                   if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
@@ -1844,56 +1872,25 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
       <Mascot kind="round" size={44} helmet interactive={active} />
     </button>
   );
-  // The engenty at the lower right, the chat folded into it.
-  const bubble = (
-    <DropZone
-      composer={composer}
-      className={cn("pointer-events-none absolute inset-0", lifted ? "z-[61]" : "z-30")}
-    >
-      <div
-        ref={rest}
-        className={cn(
-          "pointer-events-auto absolute right-3 sm:right-4",
-          phone ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]" : "bottom-3 sm:bottom-4",
-        )}
-      >
-        <div className="flex items-center gap-1 rounded-full bg-card p-1 pr-1.5 shadow-overlay ring-1 ring-border">
-          <button
-            type="button"
-            onClick={() => state.setOpen(true)}
-            className="flex items-center gap-2 rounded-full py-0.5 pr-2 pl-0.5 text-[0.875rem] text-ink-2 transition hover:text-ink"
-          >
-            <span className="relative">
-              <Mascot kind="round" size={36} helmet interactive={false} />
-              {state.chat.phase !== "idle" || state.live.state !== "off" ? (
-                <span className="absolute top-0 right-0 size-2.5 animate-pulse-dot rounded-full bg-ember ring-2 ring-card" />
-              ) : null}
-            </span>
-            <span className="max-sm:hidden">{t("assistant.ask")}</span>
-          </button>
-          {canLive ? (
-            <IconButton
-              label={t("assistant.talk")}
-              onClick={() => {
-                state.setOpen(true);
-                void state.live.start();
-              }}
-              className="size-8 bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-            >
-              <AudioLines className="size-4" />
-            </IconButton>
-          ) : null}
-        </div>
-      </div>
-    </DropZone>
-  );
+  // Goose at the right end of the top bar, the chat folded into it.
+  const pill =
+    folded && !quiet && hintSlot
+      ? createPortal(
+          <FoldedGoose
+            state={state}
+            composer={composer}
+            morph={reopen}
+            onOpen={reopen ? () => morphIntro(() => closeIntro(false)) : () => state.setOpen(true)}
+          />,
+          hintSlot,
+        )
+      : null;
   return (
     <>
       {intro}
       {drawn}
-      {quiet || sidebar ? null : small && !open ? (
-        bubble
-      ) : (
+      {pill}
+      {quiet || sidebar || folded ? null : (
         <DropZone
           composer={composer}
           className={cn("pointer-events-none absolute inset-0", lifted ? "z-[61]" : "z-30")}

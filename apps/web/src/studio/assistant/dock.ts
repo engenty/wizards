@@ -263,8 +263,8 @@ let hintSlot: HTMLElement | null = null;
 const hintListeners = new Set<() => void>();
 
 /**
- * Where the help hint stands once a page's introduction is closed: the right end of the top bar,
- * so the page loses no row to it. A ref callback of the top bar.
+ * Where folded Goose stands: the right end of the top bar, so it covers nothing of the page and
+ * the page loses no row to it. A ref callback of the top bar.
  */
 export function setHintSlot(el: HTMLElement | null) {
   hintSlot = el;
