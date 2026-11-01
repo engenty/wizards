@@ -143,10 +143,14 @@ export const runBase = (runId: string) =>
   `/api/run/${encodeURIComponent(runId)}/${encodeURIComponent(tickets.get(runId) ?? "none")}`;
 
 /** Opens a run by its id alone (a deep link): its ticket, and the client space it belongs to. */
-export async function openRun(runId: string): Promise<{ spaceId: string }> {
-  const opened = await call<{ ticket: string; spaceId: string }>("run_open", undefined, { runId });
+export async function openRun(runId: string): Promise<{ spaceId: string; readOnly: boolean }> {
+  const opened = await call<{ ticket: string; spaceId: string; readOnly: boolean }>(
+    "run_open",
+    undefined,
+    { runId },
+  );
   keepTicket(runId, opened.ticket);
-  return { spaceId: opened.spaceId };
+  return { spaceId: opened.spaceId, readOnly: opened.readOnly };
 }
 
 export interface FileInfo {

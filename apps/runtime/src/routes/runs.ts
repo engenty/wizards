@@ -84,7 +84,7 @@ import { transcribeAudio } from "../media/transcribe.js";
 import { errorText, ModelUnavailableError, noteOf } from "../model-errors.js";
 import { listDownload, renderDownload, stepHtml } from "../render/downloads.js";
 import { HTML_RESPONSE_CSP } from "../render/guard.js";
-import { runTicketValid, verifySignedUrl } from "../secrets/signing.js";
+import { runTicketValid, runViewTicketValid, verifySignedUrl } from "../secrets/signing.js";
 import { brandView } from "../services/brand.js";
 import { clientMayOpen } from "../services/client-portal.js";
 import { ServiceError } from "../services/errors.js";
@@ -222,6 +222,10 @@ async function accessibleRun(c: Context, runId: string, opts: { signed?: boolean
     return run;
   }
   if (runTicketValid(run.id, c.req.query("rt"))) {
+    return run;
+  }
+  // A ticket that only reads: a run the firm shared with a client (services/client-portal.ts).
+  if (c.req.method === "GET" && runViewTicketValid(run.id, c.req.query("rt"))) {
     return run;
   }
   const vid = visitorId(c, false);

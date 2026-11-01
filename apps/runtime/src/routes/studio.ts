@@ -585,6 +585,11 @@ export const studio = new Hono<Vars>()
       credits: managed ? await balanceCredits() : null,
       /** Where the account, members, API keys and credits are managed. */
       manageUrl: managed ? env.manage.url : null,
+      /** A client's place is the client portal, never the studio; null for everyone else. */
+      portalUrl:
+        user.role === "client" && info?.pagesHost
+          ? env.clientPortalUrl.replace("{host}", info.pagesHost)
+          : null,
       account: linked
         ? {
             name: linked.name,

@@ -34,10 +34,17 @@ async function faceOf(host: string): Promise<Face | null> {
   return face;
 }
 
-const hostOf = (c: Context) =>
-  (c.req.header("x-forwarded-host")?.split(",")[0]?.trim() || c.req.header("host") || "")
+/** The team's host a request came to; in development the portal's own may stand for one. */
+function hostOf(c: Context): string {
+  const host = (
+    c.req.header("x-forwarded-host")?.split(",")[0]?.trim() ||
+    c.req.header("host") ||
+    ""
+  )
     .split(":")[0]
     .toLowerCase();
+  return env.devTeamHost && host === new URL(env.portalUrl).hostname ? env.devTeamHost : host;
+}
 
 /** Headers a forward passes on: what the body is and the language, never the browser's cookies. */
 function forwarded(c: Context, extra: Record<string, string> = {}): Headers {

@@ -44,6 +44,20 @@ function loadFonts(look: Look) {
   loadShipped(look.body);
 }
 
+/** Dark text on a light accent, white on a dark one (relative luminance, WCAG). */
+function onColour(hex: string | null | undefined): string | null {
+  const m = hex?.match(/^#([0-9a-f]{6})$/i);
+  if (!m) {
+    return null;
+  }
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = Number.parseInt(m[1].slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.3 ? "#101418" : "#ffffff";
+}
+
 /** The page wears the brand; null puts back the engenty look. */
 export function wearBrand(look: Look | null, accent?: string | null) {
   const root = document.documentElement.style;
@@ -53,6 +67,7 @@ export function wearBrand(look: Look | null, accent?: string | null) {
     "--brand-text",
     "--brand-display",
     "--brand-body",
+    "--brand-on-accent",
   ]) {
     root.removeProperty(name);
   }
@@ -67,6 +82,7 @@ export function wearBrand(look: Look | null, accent?: string | null) {
     }
   };
   set("--brand-accent", colours.accent ?? accent);
+  set("--brand-on-accent", onColour(colours.accent ?? accent));
   set("--brand-ground", colours.background);
   set("--brand-text", colours.text);
   set("--brand-display", look.display ? fontStack(look.display, look.faces ?? []) : null);
