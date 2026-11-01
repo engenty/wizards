@@ -1,7 +1,6 @@
 import type {
   Knowledge,
   KnowledgeItem,
-  KnowledgeSearch,
   SpaceCategory,
   Where,
 } from "@engenty/wizards-shared/knowledge";
@@ -38,7 +37,8 @@ import { Button, Card, Chip, cn, Dialog, Empty, IconButton, Input, Label, Spinne
 import { useDismiss } from "../AppFrame";
 import { CATEGORY_ICON } from "./Categories";
 import { useFileActions } from "./data";
-import { FilterChip, NewItemDialog, passes, SearchHits } from "./Knowledge";
+import { FilterChip, NewItemDialog, passes } from "./Knowledge";
+import { PaletteField } from "./KnowledgePalette";
 import {
   ancestorsOf,
   chipsOf,
@@ -49,7 +49,7 @@ import {
   treeIcon,
   useMoveItem,
 } from "./KnowledgeTree";
-import { SearchField, Section } from "./Section";
+import { Section } from "./Section";
 
 /** What uploads take: documents that become pages and tables, and pictures. */
 const DOCUMENTS = ".pdf,.docx,.doc,.xlsx,.csv,.tsv,.txt,.md,.json,.html,.eml,image/*";
@@ -67,7 +67,7 @@ export interface KnowledgeAdd {
 }
 
 /** „gerade“, „vor 2 Std.“, „gestern“, „Mo.“, „12. Okt.“: when an item last changed, short. */
-function when(iso: string): string {
+export function when(iso: string): string {
   const then = new Date(iso);
   const minutes = (Date.now() - then.getTime()) / 60_000;
   const short = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "short" });
@@ -390,9 +390,6 @@ export function KnowledgeHome({
   const navigate = useNavigate();
   const upload = useUpload(spaceId, null, readOnly);
   const [where, setWhere] = useState<Where>({});
-  const [query, setQuery] = useState("");
-  const [found, setFound] = useState<KnowledgeSearch | null>(null);
-  const [searching, setSearching] = useState(false);
   const [making, setMaking] = useState<"page" | "table" | "folder" | null>(null);
   const taken = data.categories.filter((c) => !c.proposed && c.count > 0);
   const proposed = data.categories.filter((c) => c.proposed);
@@ -410,25 +407,6 @@ export function KnowledgeHome({
     )
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .slice(0, filtered ? undefined : RECENT);
-  const search = async () => {
-    if (!query.trim()) {
-      setFound(null);
-      return;
-    }
-    setSearching(true);
-    try {
-      setFound(
-        await api.post<KnowledgeSearch>(`/api/studio/spaces/${spaceId}/search`, {
-          query,
-          ...(filtered ? { where } : {}),
-        }),
-      );
-    } catch {
-      setFound({ hits: [], candidates: 0, checked: false, filtered: null });
-    } finally {
-      setSearching(false);
-    }
-  };
   const take = useMutation({
     mutationFn: ({ id, keep }: { id: string; keep: boolean }) =>
       keep
@@ -498,18 +476,7 @@ export function KnowledgeHome({
         ) : null}
         {data.items.length ? (
           <div className="flex flex-col gap-2">
-            <SearchField
-              value={query}
-              placeholder={t("know.searchAll")}
-              busy={searching}
-              onEnter={() => void search()}
-              onChange={(next) => {
-                setQuery(next);
-                if (!next.trim()) {
-                  setFound(null);
-                }
-              }}
-            />
+            <PaletteField />
             {taken.length ? (
               <div className="flex flex-wrap items-center gap-1.5">
                 {taken.map((c) => (
@@ -518,7 +485,6 @@ export function KnowledgeHome({
                     category={c}
                     value={where[c.name]}
                     onChange={(next) => {
-                      setFound(null);
                       setWhere((now) => {
                         const copy = { ...now };
                         if (next === undefined) {
@@ -545,11 +511,7 @@ export function KnowledgeHome({
           </div>
         ) : null}
         {status}
-        {found ? (
-          <Card className="flex flex-col p-1.5">
-            <SearchHits found={found} onOpen={onOpen} />
-          </Card>
-        ) : data.items.length ? (
+        {data.items.length ? (
           <>
             {folders.length && !filtered ? (
               <div className="flex flex-col gap-1.5">

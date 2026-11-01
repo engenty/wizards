@@ -1098,14 +1098,26 @@ export const studio = new Hono<Vars>()
     const text = await documentText(row);
     return c.json({ text: text.slice(0, limit), chars: text.length });
   })
-  // What a search of Knowledge finds for a question: the items an agent step would get.
+  // What a search of Knowledge finds for a question: the items an agent step would get. The
+  // palette asks twice: at once without the classifier (`check: false`), then with it.
   .post("/spaces/:id/search", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const body = z
-      .object({ query: z.string().min(1).max(400), where: whereSchema.optional() })
+      .object({
+        query: z.string().min(1).max(400),
+        where: whereSchema.optional(),
+        limit: z.number().int().min(1).max(12).optional(),
+        check: z.boolean().optional(),
+      })
       .parse(await c.req.json());
     return c.json(
-      await searchKnowledge(space.id, body.query, { where: body.where, who: whoOf(c) }),
+      await searchKnowledge(space.id, body.query, {
+        where: body.where,
+        limit: body.limit,
+        check: body.check,
+        signal: c.req.raw.signal,
+        who: whoOf(c),
+      }),
     );
   })
   .delete("/spaces/:id", async (c) => {

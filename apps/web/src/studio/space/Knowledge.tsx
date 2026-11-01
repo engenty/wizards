@@ -389,12 +389,15 @@ export function FilterChip({
   category,
   value,
   onChange,
+  startOpen = false,
 }: {
   category: SpaceCategory;
   value: WhereValue | undefined;
   onChange: (next: WhereValue | undefined) => void;
+  /** Open from the start: a filter just added, to pick its value. */
+  startOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) {

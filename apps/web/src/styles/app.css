@@ -370,6 +370,19 @@ a,
   }
 }
 
+/* Where a search hit stands, once it is open (space/reveal.ts): it lights up, then fades. */
+@keyframes reveal-flash {
+  0%,
+  35% {
+    background-color: var(--ember-tint);
+    box-shadow: 0 0 0 4px var(--ember-tint);
+  }
+}
+.reveal-flash {
+  border-radius: 4px;
+  animation: reveal-flash 2.4s ease-out;
+}
+
 @keyframes rise {
   from {
     opacity: 0;
