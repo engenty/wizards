@@ -10,7 +10,7 @@ import type {
 import { and, asc, desc, eq, inArray, like } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
-import { type LoadedPlugin, loadedPlugins, pluginsOf } from "../plugins/registry.js";
+import { loadedPlugins, pluginsOf } from "../plugins/registry.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { requireWritableSpace } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
@@ -42,24 +42,49 @@ const dirKey = (path: string[]) => `dir:${path.join("/")}`;
 
 // --- kinds ----------------------------------------------------------------------------------
 
-/** A kind a plugin registered, with the plugin. */
+/** A kind a plugin registered, with the plugin's id; `core` for the core's own. */
 interface Kind {
-  plugin: LoadedPlugin;
+  plugin: string;
   source: PluginKnowledgeSource;
 }
 
-/** The kinds of the current tenant's plugins. */
+/** What the core's own kinds are written as, in place of a plugin. */
+export const CORE = "core";
+
+/** The core's own kinds („Aus Dateien übernehmen“), each with when a tenant has it. */
+const coreKinds = new Map<string, { source: PluginKnowledgeSource; on: () => Promise<boolean> }>();
+
+export function registerCoreSource(source: PluginKnowledgeSource, on: () => Promise<boolean>) {
+  coreKinds.set(source.kind, { source, on });
+}
+
+export const isCoreKind = (kind: string) => coreKinds.has(kind);
+
+/** The kinds of the current tenant: the core's that are on, then its plugins'. */
 export async function kindsOf(): Promise<Kind[]> {
-  return (await pluginsOf(currentTenant())).flatMap((plugin) =>
-    [...plugin.knowledgeSources.values()].map((source) => ({ plugin, source })),
-  );
+  const core: Kind[] = [];
+  for (const { source, on } of coreKinds.values()) {
+    if (await on()) {
+      core.push({ plugin: CORE, source });
+    }
+  }
+  return [
+    ...core,
+    ...(await pluginsOf(currentTenant())).flatMap((plugin) =>
+      [...plugin.knowledgeSources.values()].map((source) => ({ plugin: plugin.source.id, source })),
+    ),
+  ];
 }
 
 /** A source's kind, wherever its plugin is loaded: null when the plugin is gone. */
 function kindOfRow(row: SourceRow): Kind | null {
+  if (row.plugin === CORE) {
+    const core = coreKinds.get(row.kind);
+    return core ? { plugin: CORE, source: core.source } : null;
+  }
   const plugin = loadedPlugins().find((p) => p.source.id === row.plugin);
   const source = plugin?.knowledgeSources.get(row.kind);
-  return plugin && source ? { plugin, source } : null;
+  return plugin && source ? { plugin: plugin.source.id, source } : null;
 }
 
 /** The rule an address falls under; null when none does. Case does not matter. */
@@ -234,6 +259,8 @@ export interface RunNow {
 
 /** Runs going on in this process, by source: a source runs once at a time. */
 const running = new Map<string, { stop: AbortController; now: RunNow }>();
+/** Sources asked to run while they ran: they run once more after. */
+const again = new Set<string>();
 
 async function runsOf(sourceId: string, limit = 5) {
   const rows = await db.query.spaceSourceRun.findMany({
@@ -296,7 +323,7 @@ export async function listSources(spaceId: string) {
   );
   const kinds = (await kindsOf()).map((k) => ({
     kind: k.source.kind,
-    plugin: k.plugin.source.id,
+    plugin: k.plugin,
     manual: Boolean(k.source.manual),
   }));
   return { sources, kinds };
@@ -424,7 +451,7 @@ export async function proposeSource(
     tenantId: currentTenant(),
     spaceId,
     kind: kind.kind,
-    plugin: plugin.source.id,
+    plugin,
     address: picked.address,
     label: (input.label?.trim() || nameOf(picked.address)).slice(0, 120),
     state: "proposed",
@@ -490,7 +517,7 @@ export async function proposeSource(
     } catch (err) {
       // Without a model the source is still proposed: by its rules, without Kategorien.
       if ((err as { code?: string }).code !== "no_model") {
-        console.warn(`[sources] ${plugin.source.id} proposes:`, (err as Error).message);
+        console.warn(`[sources] ${plugin} proposes:`, (err as Error).message);
       }
     }
   }
@@ -680,6 +707,7 @@ export async function keepItem(spaceId: string, key: string) {
 export const isRunning = (sourceId: string) => running.has(sourceId);
 
 export function stopSource(sourceId: string) {
+  again.delete(sourceId);
   running.get(sourceId)?.stop.abort();
 }
 
@@ -719,6 +747,8 @@ async function writeEntry(
   }
   const data = originData(originOf(row.id));
   const path = pathOf(e);
+  // The source's own folder's text: a README at the top of what it reads.
+  const isRoot = read.kind === "page" && path.length === 0 && Boolean(read.folder);
   // A page whose path is a folder of others is that folder's text.
   const isDir = read.kind === "page" && path.length > 0 && dirs.has(path.join("/"));
   // The last part of its path is its own name.
@@ -729,13 +759,18 @@ async function writeEntry(
     if (e.result && e.status !== "failed" && fingerprint === e.fingerprint) {
       return { kind: "unchanged", status: e.status };
     }
-    const key = isDir ? dirKey(path) : `e:${e.id}`;
+    const key = isRoot ? ROOT : isDir ? dirKey(path) : `e:${e.id}`;
     const put = await data.putPage({
       space: row.spaceId,
       key,
       label: row.label,
-      parent,
-      title: read.title,
+      ...(isRoot ? {} : { parent }),
+      // A folder's text keeps the folder's name: the source's, its path's last part.
+      title: isRoot
+        ? row.label
+        : isDir && read.folder
+          ? titleOfSegment(path[path.length - 1])
+          : read.title,
       markdown: read.markdown.slice(0, 190_000),
       images: read.images,
       fill: kind.fill,
@@ -855,6 +890,21 @@ function titleOfSegment(segment: string): string {
 async function removeEntryItem(row: SourceRow, e: EntryRow) {
   const key = e.itemKey ?? `e:${e.id}`;
   const data = originData(originOf(row.id));
+  // The source's folder stays: only its text goes.
+  if (key === ROOT) {
+    await db
+      .update(schema.spacePage)
+      .set({ markdown: "", updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.spacePage.spaceId, row.spaceId),
+          eq(schema.spacePage.origin, originOf(row.id)),
+          eq(schema.spacePage.originKey, ROOT),
+          eq(schema.spacePage.kept, false),
+        ),
+      );
+    return;
+  }
   if (key.startsWith("dir:")) {
     const page = await db.query.spacePage.findFirst({
       where: and(
@@ -914,14 +964,22 @@ export async function runSource(
   const row = await db.query.spaceSource.findFirst({
     where: eq(schema.spaceSource.id, sourceId),
   });
-  if (row?.state !== "taken" || running.has(row.id)) {
+  if (row?.state !== "taken") {
+    return summary;
+  }
+  if (running.has(row.id)) {
+    // Asked again while it reads: once more when it is done, for what changed meanwhile.
+    again.add(row.id);
     return summary;
   }
   const kind = kindOfRow(row);
   if (!kind) {
     await updateSource(row.id, {
       status: "failed",
-      error: `The plugin "${row.plugin}" that reads it is not there.`,
+      error:
+        row.plugin === CORE
+          ? `There is no source of the kind "${row.kind}" here.`
+          : `The plugin "${row.plugin}" that reads it is not there.`,
     });
     return summary;
   }
@@ -983,7 +1041,20 @@ export async function runSource(
       });
       summary.leftOut++;
     }
-    const todo = entries.filter((e) => e.included).slice(0, MAX_RUN);
+    // What the list says did not change is not read and does not count against a run's reads.
+    const same = (e: EntryRow) => {
+      const f = byAddress.get(e.address);
+      return Boolean(
+        e.result && e.status !== "failed" && f?.fingerprint && f.fingerprint === e.fingerprint,
+      );
+    };
+    const included = entries.filter((e) => e.included);
+    for (const e of included.filter(same)) {
+      summary.unchanged++;
+      log.push(line("unchanged", e.result?.title ?? e.title ?? e.address));
+    }
+    const work = included.filter((e) => !same(e));
+    const todo = work.slice(0, MAX_RUN);
     now.phase = "reading";
     now.of = todo.length;
     for (let i = 0; i < todo.length && !signal.aborted; i += 3) {
@@ -993,27 +1064,23 @@ export async function runSource(
         batch.map(async (e) => {
           try {
             const f = byAddress.get(e.address) ?? null;
-            // A list that says when an entry changed spares reading it.
-            const out =
-              e.result && e.status !== "failed" && f?.fingerprint && f.fingerprint === e.fingerprint
-                ? ({ kind: "unchanged", status: e.status } satisfies Outcome)
-                : await writeEntry(
-                    row,
-                    kind.source,
-                    e,
-                    await kind.source.reader.read(
-                      infoOf(row),
-                      {
-                        id: e.id,
-                        address: e.address,
-                        title: e.title,
-                        fingerprint: e.fingerprint,
-                        found: f,
-                      },
-                      ctx,
-                    ),
-                    dirs,
-                  );
+            const out = await writeEntry(
+              row,
+              kind.source,
+              e,
+              await kind.source.reader.read(
+                infoOf(row),
+                {
+                  id: e.id,
+                  address: e.address,
+                  title: e.title,
+                  fingerprint: e.fingerprint,
+                  found: f,
+                },
+                ctx,
+              ),
+              dirs,
+            );
             summary[out.kind]++;
             if (out.kind !== "unchanged" || out.status !== e.status) {
               await updateEntry(e.id, {
@@ -1047,8 +1114,12 @@ export async function runSource(
     }
     now.phase = "finishing";
     now.reading = [];
-    if (entries.filter((e) => e.included).length > MAX_RUN) {
+    if (work.length > MAX_RUN) {
       log.push(line("limit", String(MAX_RUN)));
+      // The core's kinds ask no model: the next reads follow at once.
+      if (row.plugin === CORE && !signal.aborted) {
+        again.add(row.id);
+      }
     }
     // The values the source filled get an Übersicht once they have three items.
     if (summary.written && kind.source.fill && !signal.aborted) {
@@ -1071,6 +1142,9 @@ export async function runSource(
     return summary;
   } finally {
     running.delete(row.id);
+    if (again.delete(row.id)) {
+      startSource(row.id);
+    }
   }
 }
 

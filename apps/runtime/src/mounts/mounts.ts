@@ -10,7 +10,7 @@ import type { RwxRuleInput } from "@engenty/wizards-shared/rwx";
 import { embedMany } from "ai";
 import { and, asc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { readableMounts, type Subject } from "../broker/rwx.js";
+import { readableMounts, type Subject, seedRwx } from "../broker/rwx.js";
 import { db, knownTenants, schema, withTenant } from "../db/client.js";
 import { documentMime, ownText, type ParsedDocument } from "../documents/parse.js";
 import { currentFeatures } from "../features.js";
@@ -88,13 +88,22 @@ interface Open {
 /** The open mounts of this process, by id: their reader, its cursor, its watcher. */
 const opened = new Map<string, Open>();
 
-function readerOf(mount: MountRow): PluginMountReader {
+export function readerOf(mount: MountRow): PluginMountReader {
   let open = opened.get(mount.id);
   if (!open) {
     open = { reader: new FolderReader(mount.source.path), cursor: null };
     opened.set(mount.id, open);
   }
   return open.reader;
+}
+
+/** What is told of the paths of a mount that changed: new, changed, moved or gone. */
+type ChangeListener = (mount: MountRow, paths: string[]) => void;
+const changeListeners: ChangeListener[] = [];
+
+/** Tells `listener` of every change a listing of a mount found, in the mount's tenant. */
+export function onMountChanged(listener: ChangeListener) {
+  changeListeners.push(listener);
 }
 
 /** Starts listening to a mount's source: a change asks for its changes a moment later. */
@@ -301,11 +310,13 @@ async function reconcile(mount: MountRow, listed: PluginMountEntry[], under: str
   const fresh: (typeof t.$inferInsert)[] = [];
   const reader = readerOf(mount);
   const now = new Date();
+  const changed: string[] = [];
   for (const entry of listed) {
     const mime = documentMime(entry.path, entry.mime ?? "");
     const row = byPath.get(entry.path);
     if (row) {
       if (row.size !== entry.size || row.modified !== entry.modified) {
+        changed.push(entry.path);
         await db
           .update(t)
           .set({ size: entry.size, modified: entry.modified, status: "pending", updatedAt: now })
@@ -321,6 +332,7 @@ async function reconcile(mount: MountRow, listed: PluginMountEntry[], under: str
     }
     if (moved) {
       taken.add(moved.id);
+      changed.push(moved.path, entry.path);
       // Its words name its path: indexed again, from the cache, keeping its vectors.
       await db
         .update(t)
@@ -362,6 +374,12 @@ async function reconcile(mount: MountRow, listed: PluginMountEntry[], under: str
   }
   if (fresh.length || taken.size || listed.length) {
     kick(currentTenant());
+  }
+  changed.push(...fresh.map((f) => f.path), ...removed.map((r) => r.path));
+  if (changed.length) {
+    for (const listener of changeListeners) {
+      listener(mount, changed);
+    }
   }
 }
 
@@ -824,6 +842,12 @@ function mountRules(mountId: string, see: MountSee, wizards: MountWizards): RwxR
 
 async function writeRules(spaceId: string, mountId: string, rules: RwxRuleInput[], by: string) {
   const r = schema.rwxRule;
+  // A space is seeded where it has no rules yet: a mount's rules first would leave it unseeded.
+  if (
+    !(await db.query.rwxRule.findFirst({ where: eq(r.spaceId, spaceId), columns: { id: true } }))
+  ) {
+    await seedRwx(spaceId);
+  }
   await db
     .delete(r)
     .where(and(eq(r.spaceId, spaceId), eq(r.resourceKind, "mount"), eq(r.resourceId, mountId)));
