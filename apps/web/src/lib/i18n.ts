@@ -3525,7 +3525,6 @@ const de: Record<Key, Line> = {
   "know.addExample2": "Schreib eine Seite über unsere Leistungen",
   "know.addExample3": "Leg eine Tabelle mit unseren Preisen an",
   "know.gooseWhere": "(In Wissen unter „{path}“)",
-  "know.addFromComputer": "Von deinem Computer",
   "know.uploadPaneHint":
     "PDF, Word, Excel, Text oder Bilder kommen als Seiten, Tabellen und Bilder in diesen Ordner. Ein Ordner kommt mit seinen Unterordnern.",
   "know.dropHere": "Dateien oder Ordner hier ablegen",
@@ -7566,7 +7565,6 @@ const en = {
   "know.addExample2": "Write a page about our services",
   "know.addExample3": "Make a table with our prices",
   "know.gooseWhere": "(In Knowledge under “{path}”)",
-  "know.addFromComputer": "From your computer",
   "know.uploadPaneHint":
     "PDF, Word, Excel, text or pictures come into this folder as pages, tables and pictures. A folder comes with its sub folders.",
   "know.dropHere": "Drop files or folders here",

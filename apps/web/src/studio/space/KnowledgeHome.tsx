@@ -10,7 +10,6 @@ import {
   Files,
   FileText,
   FolderInput,
-  FolderPlus,
   FolderUp,
   type LucideIcon,
   MoreHorizontal,
@@ -182,10 +181,10 @@ function KnowledgeRow({
 }
 
 /** What „Hinzufügen“ offers on its left; picked, its details fill the right. */
-type AddWay = "start" | "page" | "table" | "folder" | "upload" | `kind:${string}`;
+type AddWay = "start" | "page" | "table" | "upload" | `kind:${string}`;
 
 /**
- * „Hinzufügen“ as a dialog: the ways in on the left (made here, from this computer, sources),
+ * „Hinzufügen“ as a dialog: the ways in on the left (made here or uploaded, sources),
  * the one picked on the right. Files or folders dropped anywhere on it are uploaded into the
  * folder it was opened in.
  */
@@ -270,11 +269,9 @@ function AddDialog({
         ? t("know.addPage")
         : way === "table"
           ? t("know.addTable")
-          : way === "folder"
-            ? t("know.newFolder")
-            : way === "upload"
-              ? t("know.upload")
-              : (kind?.label() ?? "");
+          : way === "upload"
+            ? t("know.upload")
+            : (kind?.label() ?? "");
   // Drops stop here: the page behind takes them too, and would upload them twice.
   const stop = (run: (e: React.DragEvent) => void) => (e: React.DragEvent) => {
     e.stopPropagation();
@@ -312,8 +309,6 @@ function AddDialog({
           {group(t("know.addOwn"))}
           {entry("page", FileText, t("know.addPage"))}
           {entry("table", Table2, t("know.addTable"))}
-          {entry("folder", FolderPlus, t("know.newFolder"))}
-          {group(t("know.addFromComputer"))}
           {entry("upload", Upload, t("know.upload"))}
           {kinds.length || adds.length ? (
             <button
@@ -368,7 +363,7 @@ function AddDialog({
                   onClose();
                 }}
               />
-            ) : way === "page" || way === "table" || way === "folder" ? (
+            ) : way === "page" || way === "table" ? (
               <NewItemForm
                 key={way}
                 kind={way}
