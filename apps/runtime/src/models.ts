@@ -526,7 +526,7 @@ function missingText(cfg: ModelConfig, cls: ModelClass): RunNote {
   return note("noModelFor", { makes: note(MAKES[cls]) });
 }
 
-interface GatewayAccess {
+export interface GatewayAccess {
   baseUrl: string;
   token: string;
   tenant: string | null;
@@ -555,6 +555,22 @@ async function creditAccess(cfg: ModelConfig, chosen: boolean): Promise<GatewayA
     return null;
   }
   return { baseUrl: env.local.gatewayUrl, token, tenant: null };
+}
+
+/**
+ * Where the gateway's own tools (web search) are reached: a Manage-App's runtime always; alone,
+ * through the linked account. None: the model's own search, where it has one.
+ */
+export async function toolAccess(): Promise<GatewayAccess | null> {
+  if (managed) {
+    return {
+      baseUrl: env.manage.gatewayUrl,
+      token: env.manage.serviceKey,
+      tenant: currentTenantOrNull(),
+    };
+  }
+  const token = (await linkedAccount()) ? await accountToken() : null;
+  return token ? { baseUrl: env.local.gatewayUrl, token, tenant: null } : null;
 }
 
 /** A class goes to the credits on purpose: text on the account, or a binding that says so. */

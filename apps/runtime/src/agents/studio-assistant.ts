@@ -45,6 +45,7 @@ import {
   gatewayTools,
   searchAllowed,
   textModel,
+  toolAccess,
   totalUsage,
   usageOf,
 } from "../models.js";
@@ -75,6 +76,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
 import { assistantPageOf, assistantToolsOf } from "../tools/plugin.js";
 import { attempt as attemptTool, imageOutput } from "../tools/shared.js";
+import { gatewayWebSearch } from "../tools/web-search.js";
 import { gooseConnectionTools } from "./goose-connections.js";
 import { spaceAgent } from "./space-agent.js";
 import { chatTurnWay } from "./subscription.js";
@@ -1016,7 +1018,8 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   let changes = 0;
   // The way the settings chose for the studio's chats: on a client, its tools reach it over MCP.
   const way = await chatTurnWay(managed);
-  const resolved = await assistantModel(way, input);
+  // The gateway's way for web search, asked beside the model rather than after it.
+  const [resolved, webAccess] = await Promise.all([assistantModel(way, input), toolAccess()]);
   const wrote = () => {
     changes++;
     input.onChanged?.();
@@ -1199,7 +1202,10 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
   traced(tools, input, toolCalls);
   // The organization's tier may allow no web search.
   const search = await searchAllowed();
-  if (search && resolved.vendor === "anthropic") {
+  const access = search ? webAccess : null;
+  if (access) {
+    tools.web_search = gatewayWebSearch(access);
+  } else if (search && resolved.vendor === "anthropic") {
     tools.web_search = anthropic.tools.webSearch_20250305({ maxUses: 5 });
   } else if (search && resolved.gateway) {
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
