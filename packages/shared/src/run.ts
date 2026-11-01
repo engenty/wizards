@@ -473,6 +473,9 @@ const NOTES_EN = {
   rwxHost: "host",
   rwxSandbox: "sandbox",
   clientsInCloud: "Clients are invited in the cloud, where they have accounts of their own.",
+  clientSpaceSlugInvalid:
+    "An address holds lower-case letters, digits and hyphens, and starts and ends with a letter or digit.",
+  clientSpaceSlugTaken: "Another client space has this address. Choose a different one.",
   rwxWizard: "wizard",
   rwxSkill: "skill",
   rwxSetup: "space setup",
@@ -913,6 +916,9 @@ const NOTES_DE: Partial<Record<RunNoteCode, Line>> = {
   rwxHost: "Host",
   rwxSandbox: "Sandbox",
   clientsInCloud: "Kund:innen lädst du in der Cloud ein, wo sie ein eigenes Konto haben.",
+  clientSpaceSlugInvalid:
+    "Eine Adresse hat Kleinbuchstaben, Ziffern und Bindestriche und beginnt und endet mit einem Buchstaben oder einer Ziffer.",
+  clientSpaceSlugTaken: "Ein anderer Space hat diese Adresse schon. Wähle eine andere.",
   rwxWizard: "Wizard",
   rwxSkill: "Skill",
   rwxSetup: "Einrichtung des Space",

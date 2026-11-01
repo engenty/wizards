@@ -26,6 +26,7 @@ import { openCommand } from "./open-command.js";
 import { PLUGIN_NAME, pluginArchive, pluginMarketplace } from "./plugin.js";
 import { apiRoutes } from "./routes/api.js";
 import { brokerRoutes } from "./routes/broker.js";
+import { clientContractRoutes } from "./routes/client-contract.js";
 import { clientSpaceRoutes } from "./routes/client-spaces.js";
 import { connectionRoutes } from "./routes/connections.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
@@ -342,6 +343,8 @@ if (serves.api) {
   const mcp = mcpHandler();
   app.on(["GET", "POST", "DELETE"], "/api/mcp", (c) => mcp(c.req.raw));
   app.route("/api/v1", elementRoutes);
+  // The client contract: a client's own client spaces, for the client portal.
+  app.route("/api/v1", clientContractRoutes);
   app.route("/api/v1", apiRoutes);
 }
 if (serves.runner) {

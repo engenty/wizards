@@ -93,8 +93,12 @@ async function spaceOfItem(kind: string, id: string, sub?: string): Promise<stri
     case "runs": {
       const run = await db.query.run.findFirst({
         where: and(eq(schema.run.id, id), eq(schema.run.tenantId, tenant)),
-        columns: { wizardId: true },
+        columns: { wizardId: true, clientSpaceId: true },
       });
+      // A run of a client space is the client space's, though its wizard is the parent's.
+      if (run?.clientSpaceId) {
+        return run.clientSpaceId;
+      }
       return run ? spaceOfItem("wizards", run.wizardId) : null;
     }
     case "tables":

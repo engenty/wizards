@@ -86,6 +86,7 @@ import { listDownload, renderDownload, stepHtml } from "../render/downloads.js";
 import { HTML_RESPONSE_CSP } from "../render/guard.js";
 import { runTicketValid, verifySignedUrl } from "../secrets/signing.js";
 import { brandView } from "../services/brand.js";
+import { clientMayOpen } from "../services/client-portal.js";
 import { ServiceError } from "../services/errors.js";
 import { publicRunners, servePageRunner } from "../services/runners.js";
 import {
@@ -229,6 +230,11 @@ async function accessibleRun(c: Context, runId: string, opts: { signed?: boolean
   }
   const user = await principalOf(c);
   if (user && user.tenantId === run.tenantId) {
+    // A client of the organization opens only the runs of their client spaces that are theirs
+    // or shared with them (docs/plans/client-portal.md); the firm opens every run.
+    if (user.role === "client" && !(await clientMayOpen(user.id, run))) {
+      return null;
+    }
     return run;
   }
   return null;
@@ -237,7 +243,7 @@ async function accessibleRun(c: Context, runId: string, opts: { signed?: boolean
 /** Whether a signed-in member of the run's organization is looking, not the guest who ran it. */
 async function memberViewing(c: Context, run: RunRow): Promise<boolean> {
   const user = await principalOf(c);
-  return !!user && user.tenantId === run.tenantId;
+  return !!user && user.tenantId === run.tenantId && user.role !== "client";
 }
 
 /**

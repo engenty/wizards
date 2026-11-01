@@ -41,7 +41,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { serverText } from "../texts.js";
 import { currentRole, mayBuild, requireAdmin, requireBuild, requireWritable } from "./access.js";
 import { notFound, ServiceError } from "./errors.js";
-import { forgetWizardLinks } from "./links.js";
+import { forgetWizardLinks, removeClientSpaceRuns } from "./links.js";
 import { pushPages } from "./pages.js";
 import { removeSpaceFiles } from "./space-files.js";
 
@@ -719,6 +719,7 @@ export async function removeSpace(spaceId: string) {
   for (const w of wizards) {
     await forgetWizardLinks(w.id);
   }
+  await removeClientSpaceRuns(spaceId);
   await removeSpaceFiles(spaceId);
   await db
     .delete(schema.space)

@@ -14,7 +14,7 @@ import { pageReadInput, readKnowledgePage } from "./space.js";
  * writes into a copy of its own in the run's state, which goes with the run.
  */
 export function pageTools(ctx: StepContext) {
-  const spaceId = ctx.space.id;
+  const spaceId = ctx.dataSpace.id;
   const wizardId = ctx.store.wizardId;
   /**
    * The wizard's pages as this run sees them: those its holder may read, a test run's own

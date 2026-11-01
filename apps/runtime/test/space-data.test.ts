@@ -292,6 +292,7 @@ describe("a run's pages", () => {
     const emitted: unknown[] = [];
     const tools = pageTools({
       space: { id: spaceId },
+      dataSpace: { id: spaceId, name: "" },
       holder: { kind: "guest", id: "anna" },
       store: { wizardId, holder: "v:anna" },
       emit: async (_type: string, message: unknown) => {

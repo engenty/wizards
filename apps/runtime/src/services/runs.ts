@@ -9,7 +9,7 @@ import {
   wizardLang,
 } from "@engenty/wizards-shared/definition";
 import { note, type RunState, type RunView } from "@engenty/wizards-shared/run";
-import { and, count, desc, eq, gte, inArray, max, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, max, or, sql } from "drizzle-orm";
 import { canSpend, MICROS_PER_CREDIT } from "../credits/credits.js";
 import { db, schema } from "../db/client.js";
 import { answerAsk } from "../engine/asks.js";
@@ -435,12 +435,15 @@ export function refusedInput(err: unknown): never {
 
 /**
  * Runs the published version of a wizard for the admin, from their own AI client: a live run
- * that is theirs — no visitor, no share link needed. With answers the first page is filled.
+ * that is theirs — no visitor, no share link needed. With answers the first page is filled. In a
+ * client space the wizard is its parent's and the run belongs to the client space
+ * (docs/plans/client-portal.md).
  */
 export async function startRun(
   userId: string,
   wizardId: string,
   answers: Record<string, unknown> = {},
+  { clientSpaceId = null }: { clientSpaceId?: string | null } = {},
 ) {
   const w = await ownedWizard(userId, wizardId);
   if (w.publishedVersion === null) {
@@ -468,6 +471,7 @@ export async function startRun(
     version: w.publishedVersion,
     mode: "live",
     userId,
+    clientSpaceId,
   }).catch((err) => {
     if (err instanceof ModelUnavailableError) {
       throw new ServiceError("refused", saidOf(err));
@@ -614,6 +618,8 @@ export async function draftStepView(
     error: null,
     ask: null,
     answer: null,
+    clientSpaceId: null,
+    clientSharedAt: null,
     shareToken: null,
   };
   const view = await runView(run, await brandView(w.spaceId, def.themes));
@@ -670,6 +676,15 @@ export interface ResultsFilter {
  * `filter`; and each wizard with how many it has and when its last one came, the latest first.
  */
 export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
+  // A client space shows the runs started in it, of its parent's wizards; a space only its own
+  // (docs/plans/client-portal.md).
+  const space = await db.query.space.findFirst({
+    columns: { kind: true, parentId: true },
+    where: eq(schema.space.id, spaceId),
+  });
+  const client = space?.kind === "client" && space.parentId ? spaceId : null;
+  const wizardSpace = client && space?.parentId ? space.parentId : spaceId;
+  const inSpace = client ? eq(schema.run.clientSpaceId, client) : isNull(schema.run.clientSpaceId);
   const wizards = await db
     .select({
       id: schema.wizard.id,
@@ -680,9 +695,9 @@ export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
     .from(schema.wizard)
     .leftJoin(
       schema.run,
-      and(eq(schema.run.wizardId, schema.wizard.id), eq(schema.run.status, "done")),
+      and(eq(schema.run.wizardId, schema.wizard.id), eq(schema.run.status, "done"), inSpace),
     )
-    .where(and(eq(schema.wizard.spaceId, spaceId), eq(schema.wizard.tenantId, currentTenant())))
+    .where(and(eq(schema.wizard.spaceId, wizardSpace), eq(schema.wizard.tenantId, currentTenant())))
     .groupBy(schema.wizard.id)
     // Wizards without a result last: SQLite sorts null below every time.
     .orderBy(desc(max(schema.run.updatedAt)), desc(schema.wizard.updatedAt));
@@ -701,12 +716,14 @@ export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
           version: schema.run.version,
           costMicros: schema.run.costMicros,
           updatedAt: schema.run.updatedAt,
+          clientSharedAt: schema.run.clientSharedAt,
         })
         .from(schema.run)
         .where(
           and(
             inArray(schema.run.wizardId, ids),
             eq(schema.run.status, "done"),
+            inSpace,
             filter.mode ? eq(schema.run.mode, filter.mode) : undefined,
             filter.days
               ? gte(schema.run.updatedAt, new Date(Date.now() - filter.days * 86_400_000))
@@ -749,6 +766,7 @@ export async function listResults(spaceId: string, filter: ResultsFilter = {}) {
       doneAt: r.updatedAt.toISOString(),
       credits: Math.ceil(r.costMicros / MICROS_PER_CREDIT),
       assets: assetCounts.find((a) => a.runId === r.id)?.n ?? 0,
+      ...(client ? { clientShared: Boolean(r.clientSharedAt) } : {}),
     })),
   };
 }

@@ -36,7 +36,8 @@ export interface ElementNote {
 /** A step of a run: its holder and its wizard, in the run. */
 export function stepCaller(ctx: StepContext, sandbox: SkillSandbox | null = null): ElementCaller {
   return {
-    space: { id: ctx.space.id, name: ctx.space.name },
+    // The run's data: a client space's Knowledge reaches through to its parent as the rules allow.
+    space: ctx.dataSpace,
     who: whoOf(ctx.store.holder, ctx.holder.kind === "person" ? ctx.holder.role : undefined),
     subjects: subjectsOf(ctx),
     where: whereOf(ctx),
