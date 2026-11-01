@@ -1262,8 +1262,14 @@ function MenuResizer({
       }}
       className="group/resize -right-4 lg:-right-6 absolute inset-y-0 z-10 hidden w-3 cursor-col-resize touch-none md:block"
     >
-      {/* A short grip in the middle of the window, not a line the whole height; it names
+      {/* A thin line the whole height, and a short grip in the middle of the window that names
           itself when the pointer is on it. */}
+      <span
+        className={cn(
+          "absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border transition-opacity",
+          dragging ? "opacity-100" : "opacity-0 group-hover/resize:opacity-100",
+        )}
+      />
       <span
         className={cn(
           "group/grip sticky top-[calc(50vh-1.5rem)] mx-auto flex h-12 w-3 items-center justify-center transition-opacity",
