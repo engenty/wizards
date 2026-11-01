@@ -1,6 +1,7 @@
 import type {
   StudioAssistantCard,
   StudioAssistantProps,
+  StudioKnowledgeSource,
   StudioNavEntry,
   StudioPage,
   StudioPlugin,
@@ -110,6 +111,7 @@ export interface StudioPlugins extends Listing {
   shareSections: Of<StudioShareSection>[];
   shareSetups: Of<StudioShareSetup>[];
   cards: Of<StudioAssistantCard>[];
+  knowledgeSources: Of<StudioKnowledgeSource>[];
 }
 
 let state: StudioPlugins = {
@@ -127,6 +129,7 @@ let state: StudioPlugins = {
   shareSections: [],
   shareSetups: [],
   cards: [],
+  knowledgeSources: [],
 };
 const listeners = new Set<() => void>();
 
@@ -174,6 +177,7 @@ interface Draft {
   shareSections: Of<StudioShareSection>[];
   shareSetups: Of<StudioShareSetup>[];
   cards: Of<StudioAssistantCard>[];
+  knowledgeSources: Of<StudioKnowledgeSource>[];
   disposers: (() => void)[];
 }
 
@@ -298,6 +302,15 @@ function contextFor(plugin: PluginInfo, draft: Draft): StudioPluginContext {
       }
       draft.cards.push({ ...card, plugin: id, serial: ++serials });
     },
+    registerKnowledgeSource(source) {
+      const taken = [...others(state.knowledgeSources), ...draft.knowledgeSources].some(
+        (s) => s.kind === source.kind,
+      );
+      if (taken) {
+        throw new Error(`The source kind "${source.kind}" is taken.`);
+      }
+      draft.knowledgeSources.push({ ...source, plugin: id, serial: ++serials });
+    },
     useSpace,
     useSpaceMenu,
     useCrumbs,
@@ -391,6 +404,7 @@ function unmount(id: string) {
     shareSections: state.shareSections.filter((s) => s.plugin !== id),
     shareSetups: state.shareSetups.filter((s) => s.plugin !== id),
     cards: state.cards.filter((c) => c.plugin !== id),
+    knowledgeSources: state.knowledgeSources.filter((s) => s.plugin !== id),
   });
 }
 
@@ -409,6 +423,7 @@ async function mount(plugin: PluginInfo) {
     shareSections: [],
     shareSetups: [],
     cards: [],
+    knowledgeSources: [],
     disposers: [],
   };
   let link: HTMLLinkElement | null = null;
@@ -449,6 +464,10 @@ async function mount(plugin: PluginInfo) {
     shareSections: [...state.shareSections.filter((s) => s.plugin !== id), ...draft.shareSections],
     shareSetups: [...state.shareSetups.filter((s) => s.plugin !== id), ...draft.shareSetups],
     cards: [...state.cards.filter((c) => c.plugin !== id), ...draft.cards],
+    knowledgeSources: [
+      ...state.knowledgeSources.filter((s) => s.plugin !== id),
+      ...draft.knowledgeSources,
+    ],
   });
   release(id, was?.disposers ?? [], was?.link ?? null);
 }

@@ -30,8 +30,14 @@ import { itemIcon } from "./Knowledge";
 export const isFolder = (item: KnowledgeItem) => item.kind === "page" && item.blank;
 
 export function treeIcon(item: KnowledgeItem): LucideIcon {
-  return isFolder(item) ? Folder : itemIcon(item);
+  return isFolder(item) ? (folderMarks.get(item.id) ?? Folder) : itemIcon(item);
 }
+
+/**
+ * The marks of the folders sources fill, by the folder's id: the icon of the source's kind (a
+ * globe for a website). Set by the page that knows the space's sources.
+ */
+export const folderMarks = new Map<string, LucideIcon>();
 
 /** What a folder holds (null: the top), in its order. */
 export function contentsOf(items: KnowledgeItem[], parentId: string | null): KnowledgeItem[] {
