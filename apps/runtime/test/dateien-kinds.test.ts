@@ -73,6 +73,7 @@ export default definePlugin(({ server }) => {
         },
       };
     },
+    canWrite: async () => memo.mayWrite === true,
   });
 });
 `,
@@ -216,6 +217,33 @@ describe("Dateien, a plugin's mount kinds", () => {
       `/api/studio/spaces/${spaceId}/mount-files/${moved?.id}/content`,
     );
     expect(await content.text()).toContain("Glasfaser");
+  });
+
+  it("turns writing on only where the kind says its account may write", async () => {
+    const refused = await send("POST", `/api/studio/spaces/${spaceId}/mounts`, {
+      kind: "memo",
+      source: { tree: "kunden" },
+      name: "Kunden 2",
+      see: "all",
+      wizards: "all",
+      writable: true,
+    });
+    expect(refused.status).toBe(400);
+    expect((await json(refused)).error).toContain("rights to write");
+    const off = await send("PATCH", `/api/studio/spaces/${spaceId}/mounts/${mountId}`, {
+      writable: true,
+    });
+    expect(off.status).toBe(400);
+    expect(await json(send("GET", `/api/studio/spaces/${spaceId}/mounts/${mountId}`))).toMatchObject({
+      canWrite: false,
+      writable: false,
+    });
+    memo.mayWrite = true;
+    const on = await send("PATCH", `/api/studio/spaces/${spaceId}/mounts/${mountId}`, {
+      writable: true,
+    });
+    expect(on.status).toBe(200);
+    expect(await json(on)).toMatchObject({ writable: true });
   });
 
   it("lists the plugin's mounts for the plugin", async () => {
