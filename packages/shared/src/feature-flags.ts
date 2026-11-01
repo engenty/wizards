@@ -179,6 +179,12 @@ export const FEATURES = {
     label: "Pictures in Wissen by what they show",
     hint: "Pictures and PDF pages are embedded as pictures where the embedding model takes them (EmbeddingGemma 2), so a search finds a photo by what it shows (docs/plans/media-and-files.md).",
   },
+  dateien: {
+    kind: "release",
+    default: false,
+    label: "Dateien",
+    hint: "File trees another party owns, mounted in a space and indexed where they live: a folder on this computer first (docs/plans/media-and-files.md).",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

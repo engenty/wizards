@@ -167,10 +167,11 @@ export type Where = z.infer<typeof whereSchema>;
 
 export interface KnowledgeHit {
   /** `p:<id>`, `t:<id>` (a row of it), `f:<id>`, `v:<id>` (a value's summary), `d:<id>` (a
-   * document read before Knowledge had pages), `x:<plugin>:<key>` (a plugin's text). */
+   * document read before Knowledge had pages), `x:<plugin>:<key>` (a plugin's text), `m:<id>` (a
+   * file of a mount in Dateien). */
   key: string;
-  kind: KnowledgeKind | "summary" | "document" | "plugin";
-  /** What the studio opens for it: `p:`, `t:` (a row's table), `f:`, `v:`; null for a plugin's text. */
+  kind: KnowledgeKind | "summary" | "document" | "plugin" | "mounted";
+  /** What the studio opens for it: `p:`, `t:` (a row's table), `f:`, `v:`, `m:`; null for a plugin's text. */
   open: string | null;
   path: string;
   title: string;
@@ -190,6 +191,8 @@ export interface KnowledgeHit {
   plugin: string | null;
   /** Found by what a picture shows: a picture file (`image`), a PDF's page (`page`, at `sheet`). */
   picture?: "image" | "page";
+  /** A file of Dateien: the mount it lives in. Its path is `dateien/<mount>/<path>`. */
+  mount?: { id: string; name: string };
 }
 
 export interface KnowledgeSearch {

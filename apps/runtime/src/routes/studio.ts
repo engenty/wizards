@@ -1389,7 +1389,8 @@ export const studio = new Hono<Vars>()
     await requireWritable(space);
     return c.json({ summary: await writeSummary(c.req.param("id")) });
   })
-  // A category a person sets on an item: `p:<page>`, `t:<table>`, `r:<row>`, `f:<file>`.
+  // A category a person sets on an item: `p:<page>`, `t:<table>`, `r:<row>`, `f:<file>`,
+  // `m:<a file of a mount in Dateien>`.
   .put("/spaces/:id/items/:key/categories/:categoryId", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     await requireWritable(space);
@@ -1404,7 +1405,9 @@ export const studio = new Hono<Vars>()
             ? { rowId: id }
             : key[0] === "f"
               ? { fileId: id }
-              : null;
+              : key[0] === "m"
+                ? { mountFileId: id }
+                : null;
     if (!ref || key[1] !== ":") {
       throw new ServiceError("invalid", note("unknownEntry"));
     }

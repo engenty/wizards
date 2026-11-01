@@ -1,6 +1,12 @@
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { z } from "zod";
 
+export type {
+  PluginMountChanges,
+  PluginMountEntry,
+  PluginMountReader,
+} from "./mount.js";
+
 /**
  * What the runtime hands a plugin's server half. A plugin is a file or a folder the runtime finds
  * at start (docs/content/dev/plugins); its default export is a factory that registers what it adds. The

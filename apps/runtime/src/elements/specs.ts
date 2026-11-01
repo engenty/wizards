@@ -60,7 +60,9 @@ export const ELEMENT_SPECS = {
     input: z.object({
       path: z
         .string()
-        .describe("The file's path: files/…, as the page's front matter or a hit names it"),
+        .describe(
+          "The file's path: files/… or dateien/…, as the page's front matter or a hit names it",
+        ),
       from: z.number().int().min(0).optional().describe("Character to start at"),
     }),
   },

@@ -130,6 +130,11 @@ if (env.serves.studio) {
     );
   }
 }
+// Dateien: the folders of this computer mounted in a space, watched and listed again.
+if (env.serves.studio) {
+  const { startMounts } = await import("./mounts/mounts.js");
+  void startMounts().catch((err) => console.error("[dateien]", err));
+}
 // The broker is heard (docs/plans/broker.md, "Notifications"): a guest's critical lines go to
 // the Manage-App at once, the rest daily; the admins of each space get a mail once an hour where
 // none of them was in the app. The studio alone, so several runners don't send the same mail.

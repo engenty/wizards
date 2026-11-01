@@ -30,6 +30,7 @@ import { currentFeatures } from "../features.js";
 import { getBlob, putBlob } from "../files/blobs.js";
 import { jpegOf, MAX_PAGE_PICTURES, pdfPages } from "../files/pictures.js";
 import { embeddingModel } from "../models.js";
+import { unitTexts, usableMounts } from "../mounts/mounts.js";
 import { pluginIdsOf } from "../plugins/registry.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { ServiceError } from "./errors.js";
@@ -784,11 +785,23 @@ interface Found {
   idx: number;
   text: string;
   kind: "image" | "page" | null;
+  /** A unit of a file in Dateien: its text is not kept, but where it stands in the file. */
+  mount_file_id: string | null;
+  start: number | null;
+  end: number | null;
 }
 
 const COLUMNS = sql.raw(
-  "c.id, c.file_id, c.page_id, c.row_id, c.table_id, c.value_id, c.heading, c.sheet, c.plugin, c.ref, c.title, c.link, c.idx, c.text, c.kind",
+  'c.id, c.file_id, c.page_id, c.row_id, c.table_id, c.value_id, c.heading, c.sheet, c.plugin, c.ref, c.title, c.link, c.idx, c.text, c.kind, NULL AS mount_file_id, NULL AS start, NULL AS "end"',
 );
+
+/** A mounted file's unit as a `Found`: its text is read from the original for the first hits. */
+const MOUNT_COLUMNS = sql.raw(
+  "u.id, NULL AS file_id, NULL AS page_id, NULL AS row_id, NULL AS table_id, NULL AS value_id, u.heading, u.sheet, NULL AS plugin, NULL AS ref, NULL AS title, NULL AS link, u.idx, '' AS text, u.kind, u.file_id AS mount_file_id, u.start, u.\"end\"",
+);
+
+/** Units of the space's index and of its mounts have ids of their own. */
+const unitKey = (u: Found) => (u.mount_file_id ? `m${u.id}` : `c${u.id}`);
 
 /** A unit of the space's own Knowledge, or of a plugin's text while the tenant has that plugin. */
 function searchable(plugins: string[]): SQL {
@@ -825,12 +838,16 @@ function filtered(f: Filtered): SQL | null {
 }
 
 const leaves = (f: Filtered, u: Found) =>
+  (u.mount_file_id !== null && f.mounted.has(u.mount_file_id)) ||
   (u.page_id !== null && f.pages.has(u.page_id)) ||
   (u.row_id !== null && f.rows.has(u.row_id)) ||
   (u.file_id !== null && f.files.has(u.file_id));
 
 /** The key of the item a unit belongs to: hits are grouped by it. */
 function itemOf(u: Found): string {
+  if (u.mount_file_id) {
+    return `m:${u.mount_file_id}`;
+  }
   if (u.page_id) {
     return `p:${u.page_id}`;
   }
@@ -873,6 +890,10 @@ async function readableUnits(
     readsEverything(spaceId, who),
   ]);
   return (u) => {
+    // A mount's units are searched only where the caller may use the mount.
+    if (u.mount_file_id) {
+      return true;
+    }
     if (u.page_id) {
       return pages.has(u.page_id);
     }
@@ -954,25 +975,68 @@ export async function searchKnowledge(
     const question = vectorBytes(embedded.vectors[0]);
     lists.push(
       featureOn(await currentFeatures(), "knowledgeMedia")
-        ? await byMeaning(where, embedded.model, question, take)
+        ? await byMeaning(CHUNKS, where, embedded.model, question, take)
         : await db.all<Found>(sql`
             SELECT ${COLUMNS} FROM space_chunk c
             WHERE ${where} AND c.model = ${embedded.model}
             ORDER BY vector_distance_cos(c.embedding, ${question}) LIMIT ${take}`),
     );
   }
+  // The mounts of Dateien the caller may use: their words and their vectors, beside Knowledge's.
+  const mounts = await usableMounts(spaceId, opts.who ?? []);
+  const mounted = filter ? [...filter.mounted] : null;
+  if (mounts.length && !(mounted && !mounted.length)) {
+    const inMounts = and(
+      sql`u.mount_id IN (${sql.join(
+        mounts.map((m) => sql`${m.id}`),
+        sql`, `,
+      )})`,
+      mounted && mounted.length <= IN_LIMIT
+        ? sql`u.file_id IN (${sql.join(
+            mounted.map((id) => sql`${id}`),
+            sql`, `,
+          )})`
+        : undefined,
+    ) as SQL;
+    for (const [table, q] of [
+      ["space_mount_unit_fts", words],
+      ["space_mount_unit_tri", grams],
+    ] as const) {
+      if (q) {
+        lists.push(
+          await db
+            .all<Found>(sql`
+              SELECT ${MOUNT_COLUMNS} FROM ${sql.raw(table)} f JOIN space_mount_unit u ON u.id = f.rowid
+              WHERE ${sql.raw(table)} MATCH ${q} AND ${inMounts}
+              ORDER BY bm25(${sql.raw(table)}) LIMIT ${take}`)
+            .catch(() => []),
+        );
+      }
+    }
+    if (embedded) {
+      lists.push(
+        await byMeaning(
+          MOUNT_UNITS,
+          inMounts,
+          embedded.model,
+          vectorBytes(embedded.vectors[0]),
+          take,
+        ),
+      );
+    }
+  }
   const allowed = await readableUnits(spaceId, opts.who ?? [], lists.flat());
   // Reciprocal rank fusion: a unit the lists rank high comes first.
-  const scored = new Map<number, { unit: Found; score: number }>();
+  const scored = new Map<string, { unit: Found; score: number }>();
   for (const list of lists) {
     list
       .filter((u) => !filter || inFilter || leaves(filter, u))
       .filter((u) => !allowed || allowed(u))
       .slice(0, CANDIDATES)
       .forEach((unit, rank) => {
-        const entry = scored.get(unit.id) ?? { unit, score: 0 };
+        const entry = scored.get(unitKey(unit)) ?? { unit, score: 0 };
         entry.score += 1 / (60 + rank);
-        scored.set(unit.id, entry);
+        scored.set(unitKey(unit), entry);
       });
   }
   const candidates = [...scored.values()].sort((a, b) => b.score - a.score).slice(0, CANDIDATES);
@@ -982,6 +1046,7 @@ export async function searchKnowledge(
   const described = await describe(
     spaceId,
     candidates.map((c) => c.unit),
+    mounts,
   );
   // The classifier reads text; a picture, found by what it shows, keeps its place.
   const read = described.filter((d) => !d.picture);
@@ -1036,14 +1101,28 @@ export async function searchKnowledge(
   };
 }
 
+/** Where `byMeaning` looks: Knowledge's units, or the mounts'. */
+const CHUNKS = { from: sql.raw("space_chunk c"), alias: sql.raw("c"), columns: COLUMNS };
+const MOUNT_UNITS = {
+  from: sql.raw("space_mount_unit u"),
+  alias: sql.raw("u"),
+  columns: MOUNT_COLUMNS,
+};
+
 /**
  * The units nearest the question by meaning, where the nearest stand out: the best has to lead
  * the median unit by MIN_LEAD, and a unit counts from halfway between them up. Else none.
  */
-async function byMeaning(where: SQL, model: string, question: Buffer, take: number) {
+async function byMeaning(
+  of: typeof CHUNKS,
+  where: SQL,
+  model: string,
+  question: Buffer,
+  take: number,
+) {
   const near = await db.all<{ id: number; d: number }>(sql`
-    SELECT c.id, vector_distance_cos(c.embedding, ${question}) AS d FROM space_chunk c
-    WHERE ${where} AND c.model = ${model} ORDER BY d`);
+    SELECT ${of.alias}.id, vector_distance_cos(${of.alias}.embedding, ${question}) AS d
+    FROM ${of.from} WHERE ${where} AND ${of.alias}.model = ${model} ORDER BY d`);
   // Distances: 1 - cosine.
   const top = 1 - (near[0]?.d ?? 1);
   const median = 1 - (near[Math.floor(near.length / 2)]?.d ?? 1);
@@ -1055,7 +1134,7 @@ async function byMeaning(where: SQL, model: string, question: Buffer, take: numb
     .slice(0, take)
     .map((n) => n.id);
   const rows = await db.all<Found>(sql`
-    SELECT ${COLUMNS} FROM space_chunk c WHERE c.id IN (${sql.join(
+    SELECT ${of.columns} FROM ${of.from} WHERE ${of.alias}.id IN (${sql.join(
       ids.map((id) => sql`${id}`),
       sql`, `,
     )})`);
@@ -1064,11 +1143,38 @@ async function byMeaning(where: SQL, model: string, question: Buffer, take: numb
 }
 
 /** What a step and the studio see of each unit: the item's path, title and categories. */
-async function describe(spaceId: string, units: Found[]): Promise<KnowledgeHit[]> {
+async function describe(
+  spaceId: string,
+  units: Found[],
+  mounts: { id: string; name: string; slug: string }[] = [],
+): Promise<KnowledgeHit[]> {
   const pageIds = [...new Set(units.flatMap((u) => (u.page_id ? [u.page_id] : [])))];
   const rowIds = [...new Set(units.flatMap((u) => (u.row_id ? [u.row_id] : [])))];
   const fileIds = [...new Set(units.flatMap((u) => (u.file_id ? [u.file_id] : [])))];
   const valueIds = [...new Set(units.flatMap((u) => (u.value_id ? [u.value_id] : [])))];
+  const mountFileIds = [
+    ...new Set(units.flatMap((u) => (u.mount_file_id ? [u.mount_file_id] : []))),
+  ];
+  const mountFiles = mountFileIds.length
+    ? await db.query.spaceMountFile.findMany({
+        where: inArray(schema.spaceMountFile.id, mountFileIds),
+        columns: { id: true, mountId: true, path: true, name: true },
+      })
+    : [];
+  // A mounted file keeps no text: the passages found are read from the original (cache.ts).
+  const mountUnits = units.filter((u) => u.mount_file_id && !u.kind);
+  const mountTexts = new Map(
+    (
+      await unitTexts(
+        mountUnits.map((u) => ({
+          fileId: u.mount_file_id as string,
+          heading: u.heading,
+          start: u.start,
+          end: u.end,
+        })),
+      )
+    ).map((text, i) => [unitKey(mountUnits[i]), text]),
+  );
   const [tree, tPaths, fPaths, categories, rows, files, values] = await Promise.all([
     pageIds.length ? pageTree(spaceId) : new Map(),
     rowIds.length ? tablePaths(spaceId) : new Map<string, string>(),
@@ -1104,6 +1210,7 @@ async function describe(spaceId: string, units: Found[]): Promise<KnowledgeHit[]
     ...rowIds.map((rowId) => ({ rowId })),
     ...tableIds.map((tableId) => ({ tableId })),
     ...fileIds.map((fileId) => ({ fileId })),
+    ...mountFileIds.map((mountFileId) => ({ mountFileId })),
   ]);
   // The unit's text without the head it was indexed with: the step gets that as fields.
   const bodyOf = (u: Found) => {
@@ -1126,6 +1233,20 @@ async function describe(spaceId: string, units: Found[]): Promise<KnowledgeHit[]
       plugin: u.plugin,
       ...(u.kind ? { picture: u.kind } : {}),
     };
+    if (u.mount_file_id) {
+      const file = mountFiles.find((f) => f.id === u.mount_file_id);
+      const mount = mounts.find((m) => m.id === file?.mountId);
+      return {
+        ...base,
+        kind: "mounted",
+        open: `m:${u.mount_file_id}`,
+        path: file && mount ? `dateien/${mount.slug}/${file.path}` : "",
+        title: file?.name ?? "",
+        text: mountTexts.get(unitKey(u)) ?? "",
+        categories: categoryLines(categories, cats.get(`m:${u.mount_file_id}`)),
+        ...(mount ? { mount: { id: mount.id, name: mount.name } } : {}),
+      };
+    }
     if (u.page_id) {
       const node = tree.get(u.page_id);
       return {

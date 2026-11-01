@@ -21,6 +21,7 @@ export const RWX_RESOURCE_KINDS = [
   "wizard",
   "skill",
   "setup",
+  "mount",
 ] as const;
 export type RwxResourceKind = (typeof RWX_RESOURCE_KINDS)[number];
 
