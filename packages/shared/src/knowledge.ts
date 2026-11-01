@@ -213,6 +213,11 @@ export interface KnowledgeSearch {
   checked: boolean;
   /** Items the filter left, when there was one. */
   filtered: number | null;
+  /**
+   * What the classifier judged not to answer the query (under the bar), one hit per item, best
+   * first: shown on request, in case it was wrong. Empty when nothing was checked.
+   */
+  hidden: KnowledgeHit[];
 }
 
 /** A day as `YYYY-MM-DD` from what a person or a source wrote: ISO, `14.03.2026`, a timestamp. */
