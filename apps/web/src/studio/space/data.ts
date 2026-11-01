@@ -32,6 +32,16 @@ export function thumbUrl(spaceId: string, fileId: string): string {
   return withBase(`/api/studio/spaces/${spaceId}/files/${fileId}/thumb`);
 }
 
+/** A file of a mount in Dateien, as it is where it lives. */
+export function mountFileUrl(spaceId: string, fileId: string): string {
+  return withBase(`/api/studio/spaces/${spaceId}/mount-files/${fileId}/content`);
+}
+
+/** A mounted picture's or PDF's 320 px JPEG. */
+export function mountThumbUrl(spaceId: string, fileId: string): string {
+  return withBase(`/api/studio/spaces/${spaceId}/mount-files/${fileId}/thumb`);
+}
+
 /**
  * Uploads, changes and removals of a space's files; each one refreshes the list. `readOnly`:
  * the space is not changed here, so what shows the files offers none of these.
