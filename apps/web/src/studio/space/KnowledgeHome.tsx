@@ -10,6 +10,7 @@ import {
   FileText,
   FolderInput,
   FolderPlus,
+  FolderUp,
   type LucideIcon,
   MoreHorizontal,
   Pencil,
@@ -52,6 +53,14 @@ import {
 } from "./KnowledgeTree";
 import { Section } from "./Section";
 import type { SourceKind } from "./sources";
+import {
+  dropHoldsFolder,
+  type TreeFile,
+  type TreeResult,
+  treeOfDrop,
+  treeOfInput,
+  uploadTree,
+} from "./upload-tree";
 
 /** What uploads take: documents that become pages and tables, and pictures. */
 const DOCUMENTS = ".pdf,.docx,.doc,.xlsx,.csv,.tsv,.txt,.md,.json,.html,.eml,image/*";
@@ -186,6 +195,7 @@ function AddMenu({
   kinds = [],
   onMake,
   onUpload,
+  onUploadFolder,
   onPlugin,
   onKind,
 }: {
@@ -194,6 +204,7 @@ function AddMenu({
   kinds?: SourceKind[];
   onMake: (kind: "page" | "table" | "folder") => void;
   onUpload: () => void;
+  onUploadFolder: () => void;
   onPlugin?: (id: string) => void;
   onKind?: (kind: SourceKind) => void;
 }) {
@@ -235,6 +246,12 @@ function AddMenu({
             hint={t("know.uploadHint")}
             onPick={pick(onUpload)}
           />
+          <AddEntry
+            icon={FolderUp}
+            label={t("know.uploadFolder")}
+            hint={t("know.uploadFolderHint")}
+            onPick={pick(onUploadFolder)}
+          />
           {kinds.length && onKind ? (
             <>
               {line}
@@ -273,20 +290,64 @@ function AddMenu({
  * Uploads into a folder of Knowledge (the top for null): a hidden picker to open, and files
  * dropped anywhere on `area`.
  */
-function useUpload(spaceId: string, parentId: string | null, readOnly: boolean) {
+function useUpload(
+  spaceId: string,
+  parentId: string | null,
+  readOnly: boolean,
+  onFolder?: (key: string) => void,
+) {
   const qc = useQueryClient();
   const files = useFileActions(spaceId, readOnly);
   const picker = useRef<HTMLInputElement>(null);
+  const folderPicker = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
+  // A folder's upload: how far it got, then what it did.
+  const [tree, setTree] = useState<{ done: number; of: number } | null>(null);
+  const [treeDone, setTreeDone] = useState<TreeResult | null>(null);
+  const [treeError, setTreeError] = useState<string | null>(null);
   const upload = async (picked: File[]) => {
     await files.upload("document", picked, parentId);
     await qc.invalidateQueries({ queryKey: keys.knowledge(spaceId) });
   };
+  const uploadFolder = async (picked: TreeFile[]) => {
+    setTreeDone(null);
+    setTreeError(null);
+    setTree({ done: 0, of: 0 });
+    try {
+      const result = await uploadTree(
+        spaceId,
+        parentId,
+        picked,
+        (file, into) => files.upload("document", [file], into),
+        (done, of) => setTree({ done, of }),
+      );
+      setTreeDone(result);
+      await qc.invalidateQueries({ queryKey: keys.knowledge(spaceId) });
+      if (result.top) {
+        onFolder?.(`p:${result.top}`);
+      }
+    } catch (err) {
+      setTreeError((err as Error).message);
+    } finally {
+      setTree(null);
+    }
+  };
   return {
-    busy: files.busy,
-    error: files.error,
+    busy: files.busy || Boolean(tree),
+    error: files.error ?? treeError,
     over,
+    /** What a folder's upload says: how far it got, or what it did. */
+    note: tree
+      ? t("know.uploadingFolder", { done: tree.done, n: tree.of })
+      : treeDone
+        ? t(treeDone.skipped ? "know.uploadedFolderSkipped" : "know.uploadedFolder", {
+            folders: treeDone.folders,
+            files: treeDone.files,
+            skipped: treeDone.skipped,
+          })
+        : null,
     pick: () => picker.current?.click(),
+    pickFolder: () => folderPicker.current?.click(),
     drop: {
       onDragOver: (e: React.DragEvent) => {
         if (!readOnly && e.dataTransfer.types.includes("Files")) {
@@ -305,6 +366,11 @@ function useUpload(spaceId: string, parentId: string | null, readOnly: boolean) 
         }
         e.preventDefault();
         setOver(false);
+        // A folder dropped comes in with its folders.
+        if (dropHoldsFolder(e.dataTransfer)) {
+          void treeOfDrop(e.dataTransfer).then(uploadFolder);
+          return;
+        }
         const picked = Array.from(e.dataTransfer.files);
         if (picked.length) {
           void upload(picked);
@@ -312,22 +378,41 @@ function useUpload(spaceId: string, parentId: string | null, readOnly: boolean) 
       },
     },
     input: (
-      <input
-        ref={picker as RefObject<HTMLInputElement>}
-        className="sr-only"
-        type="file"
-        accept={DOCUMENTS}
-        multiple
-        tabIndex={-1}
-        aria-hidden
-        onChange={(e) => {
-          const picked = Array.from(e.target.files ?? []);
-          e.target.value = "";
-          if (picked.length) {
-            void upload(picked);
-          }
-        }}
-      />
+      <>
+        <input
+          ref={picker as RefObject<HTMLInputElement>}
+          className="sr-only"
+          type="file"
+          accept={DOCUMENTS}
+          multiple
+          tabIndex={-1}
+          aria-hidden
+          onChange={(e) => {
+            const picked = Array.from(e.target.files ?? []);
+            e.target.value = "";
+            if (picked.length) {
+              void upload(picked);
+            }
+          }}
+        />
+        <input
+          ref={folderPicker as RefObject<HTMLInputElement>}
+          className="sr-only"
+          type="file"
+          // A folder with what is in it: the browser asks for one.
+          {...{ webkitdirectory: "", directory: "" }}
+          multiple
+          tabIndex={-1}
+          aria-hidden
+          onChange={(e) => {
+            const picked = Array.from(e.target.files ?? []);
+            e.target.value = "";
+            if (picked.length) {
+              void uploadFolder(treeOfInput(picked));
+            }
+          }}
+        />
+      </>
     ),
   };
 }
@@ -414,7 +499,7 @@ export function KnowledgeHome({
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const upload = useUpload(spaceId, null, readOnly);
+  const upload = useUpload(spaceId, null, readOnly, onOpen);
   const [where, setWhere] = useState<Where>({});
   const [making, setMaking] = useState<"page" | "table" | "folder" | null>(null);
   const taken = data.categories.filter((c) => !c.proposed && c.count > 0);
@@ -457,6 +542,7 @@ export function KnowledgeHome({
               kinds={kinds}
               onMake={setMaking}
               onUpload={upload.pick}
+              onUploadFolder={upload.pickFolder}
               onPlugin={(id) => onOpen(`s:${id}`)}
               onKind={(kind) => onKind(kind, null)}
             />
@@ -574,6 +660,7 @@ export function KnowledgeHome({
             onMake={setMaking}
           />
         )}
+        {upload.note ? <p className="text-[0.875rem] text-ink-3">{upload.note}</p> : null}
         {upload.error ? <p className="text-[0.875rem] text-rose">{upload.error}</p> : null}
       </Section>
       {upload.input}
@@ -693,7 +780,7 @@ export function KnowledgeFolder({
   const qc = useQueryClient();
   // A folder a source fills is the source's: nothing is added to it or written into it by hand.
   const sourced = Boolean(folder.origin?.startsWith("source:")) && !folder.kept;
-  const upload = useUpload(spaceId, folder.id, readOnly || sourced);
+  const upload = useUpload(spaceId, folder.id, readOnly || sourced, onOpen);
   const move = useMoveItem(spaceId);
   const [making, setMaking] = useState<"page" | "table" | "folder" | null>(null);
   const [moving, setMoving] = useState(false);
@@ -742,6 +829,7 @@ export function KnowledgeFolder({
                     kinds={kinds}
                     onMake={setMaking}
                     onUpload={upload.pick}
+                    onUploadFolder={upload.pickFolder}
                     onKind={(kind) => onKind(kind, folder.id)}
                   />
                 </>
@@ -763,6 +851,7 @@ export function KnowledgeFolder({
           <Empty>{readOnly ? t("know.emptyReadOnly") : t("know.folderEmpty")}</Empty>
         )}
         {upload.busy ? <Spinner className="size-4 text-ink-3" /> : null}
+        {upload.note ? <p className="text-[0.875rem] text-ink-3">{upload.note}</p> : null}
         {upload.error ? <p className="text-[0.875rem] text-rose">{upload.error}</p> : null}
       </Section>
       {upload.input}
