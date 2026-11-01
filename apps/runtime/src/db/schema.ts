@@ -484,7 +484,8 @@ export const spaceConnector = sqliteTable(
 
 /**
  * What a space holds for all its wizards: logos, assets (images, graphics, videos) and
- * documents. `id` is the asset the content lives in. The first logo is the one end users see.
+ * documents. Its bytes are a blob, by `hash` (files/blobs.ts): the same bytes in Marke and in
+ * Wissen are stored once. The first logo is the one end users see.
  */
 export const spaceFile = sqliteTable(
   "space_file",
@@ -497,6 +498,8 @@ export const spaceFile = sqliteTable(
     name: text("name").notNull(),
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
+    /** sha256 of its bytes. Null on a file from before 0.16 until `wizards move-files` moved it. */
+    hash: text("hash"),
     description: text("description").notNull().default(""),
     /** A web address the file was fetched from, when it was not uploaded. */
     source: text("source"),
@@ -522,6 +525,7 @@ export const spaceFile = sqliteTable(
   (t) => [
     index("space_file_space").on(t.spaceId, t.kind, t.position),
     uniqueIndex("space_file_origin").on(t.spaceId, t.origin, t.originKey),
+    index("space_file_hash").on(t.hash),
   ],
 );
 

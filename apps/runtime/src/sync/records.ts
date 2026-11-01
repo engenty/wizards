@@ -12,9 +12,7 @@ import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db, schema } from "../db/client.js";
-import { getBlob, putBlob } from "../files/blobs.js";
-import { objects } from "../files/objects.js";
-import { extFor } from "../files/storage.js";
+import { hasBlob, releaseBlob } from "../files/blobs.js";
 import { spaceChanged } from "../plugins/events.js";
 import { asSync } from "../services/access.js";
 import { emitDraftChanged } from "../services/draft-events.js";
@@ -824,8 +822,6 @@ const category: KindDef = {
   title: (r, item) => str(r?.name) ?? item,
 };
 
-const assetKey = (path: string) => `assets/${path}`;
-
 const file: KindDef = {
   async read(id) {
     const f = await db.query.spaceFile.findFirst({ where: eq(schema.spaceFile.id, id) });
@@ -842,9 +838,7 @@ const file: KindDef = {
     if (f.status !== "ready") {
       return "skip";
     }
-    const asset = await db.query.asset.findFirst({ where: eq(schema.asset.id, id) });
-    const bytes = asset ? await objects.get(assetKey(asset.path)) : null;
-    if (!bytes) {
+    if (!f.hash || !(await hasBlob(f.hash))) {
       return "skip";
     }
     return {
@@ -864,7 +858,7 @@ const file: KindDef = {
         origin: f.origin,
         originKey: f.originKey,
         originLabel: f.originLabel,
-        content: await putBlob(bytes),
+        content: f.hash,
         categories: await categoriesOf("fileId", id),
       },
     };
@@ -876,27 +870,19 @@ const file: KindDef = {
     const kind = (
       ["logo", "asset", "document", "pattern"].includes(r.kind as string) ? r.kind : "asset"
     ) as "logo" | "asset" | "document" | "pattern";
-    const bytes = await getBlob(String(r.content));
-    const before = await db.query.asset.findFirst({ where: eq(schema.asset.id, id) });
-    const path = `${id}-${nanoid(6)}.${extFor(mime)}`;
-    await objects.put(assetKey(path), bytes);
-    const assetValues = {
-      kind: kind === "logo" ? "logo" : "space",
-      mime,
-      name,
-      path,
-      size: bytes.byteLength,
-    };
-    await db
-      .insert(schema.asset)
-      .values({ id, tenantId: currentTenant(), ...assetValues })
-      .onConflictDoUpdate({ target: schema.asset.id, set: assetValues });
+    // The bytes came ahead of the record, by their hash (client.ts, hub.ts).
+    const hash = String(r.content);
+    if (!(await hasBlob(hash))) {
+      throw new Error("blob missing");
+    }
+    const before = await db.query.spaceFile.findFirst({ where: eq(schema.spaceFile.id, id) });
     const values = {
       spaceId,
       kind,
       name,
       mime,
-      size: bytes.byteLength,
+      size: num(r.size) ?? 0,
+      hash,
       description: str(r.description) ?? "",
       source: str(r.source),
       position: num(r.position) ?? 0,
@@ -918,8 +904,8 @@ const file: KindDef = {
       });
     await writeCategories(spaceId, "fileId", id, r.categories);
     return async () => {
-      if (before && before.path !== path) {
-        await objects.remove(assetKey(before.path));
+      if (before?.hash !== hash) {
+        await releaseBlob(before?.hash);
       }
       if (kind === "logo") {
         await putLink(id, "logo", id);

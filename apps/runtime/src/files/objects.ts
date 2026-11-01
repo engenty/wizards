@@ -7,9 +7,9 @@ import { env } from "../env.js";
 import { currentTenant } from "../tenants/tenant.js";
 
 /**
- * Where bytes live: assets of runs and workspace files. Every key sits under its tenant's
- * prefix, so one tenant's files are exported or deleted as one folder. The data folder holds
- * them unless an S3-compatible bucket (R2) is configured.
+ * Where bytes live: assets of runs, and blobs by hash (files/blobs.ts) for workspace and space
+ * files. Every key sits under its tenant's prefix, so one tenant's files are exported or deleted
+ * as one folder. The data folder holds them unless an S3-compatible bucket (R2) is configured.
  */
 interface ObjectStore {
   put(key: string, data: Uint8Array): Promise<void>;
@@ -111,6 +111,7 @@ export const objects = {
   get: (key: string) => store.get(tenantKey(key)),
   has: (key: string) => store.has(tenantKey(key)),
   remove: (key: string) => store.remove(tenantKey(key)),
+  removePrefix: (prefix: string) => store.removePrefix(tenantKey(prefix)),
 };
 
 /** Whether the store answers (health.ts). */

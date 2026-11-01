@@ -98,6 +98,7 @@ import {
   unshareRun,
 } from "../services/shares.js";
 import { shippedFontCss, shippedFontFile } from "../services/shipped-fonts.js";
+import { spaceFileBytes } from "../services/space-files.js";
 import {
   isLangCode,
   storedTranslation,
@@ -674,12 +675,15 @@ export const publicRoutes = new Hono()
     });
   })
   .get("/logos/:id", async (c) => {
-    const found = await loadAsset(c.req.param("id"));
-    if (found?.row.kind !== "logo") {
+    const row = await db.query.spaceFile.findFirst({
+      where: eq(schema.spaceFile.id, c.req.param("id")),
+    });
+    const data = row?.kind === "logo" ? await spaceFileBytes(row) : null;
+    if (!row || !data) {
       return c.notFound();
     }
-    return c.body(new Uint8Array(found.data), 200, {
-      "content-type": bareMime(found.row.mime) ?? "application/octet-stream",
+    return c.body(new Uint8Array(data), 200, {
+      "content-type": bareMime(row.mime) ?? "application/octet-stream",
       "cache-control": "public, max-age=86400",
       "x-content-type-options": "nosniff",
       // An SVG logo is shown, never run.
@@ -722,12 +726,12 @@ export const publicRoutes = new Hono()
     const named = p?.brand.fonts?.some(
       (f) => f.source && "file" in f.source && f.source.file === id,
     );
-    const found = named && row?.mime.startsWith("font/") ? await loadAsset(id) : null;
-    if (!found) {
+    const data = named && row?.mime.startsWith("font/") ? await spaceFileBytes(row) : null;
+    if (!row || !data) {
       return c.notFound();
     }
-    return c.body(new Uint8Array(found.data), 200, {
-      "content-type": bareMime(found.row.mime) ?? "application/octet-stream",
+    return c.body(new Uint8Array(data), 200, {
+      "content-type": bareMime(row.mime) ?? "application/octet-stream",
       "cache-control": "public, max-age=86400",
       "x-content-type-options": "nosniff",
       "access-control-allow-origin": "*",

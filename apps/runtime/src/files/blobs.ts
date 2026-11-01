@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
+import { sql } from "drizzle-orm";
+import { db } from "../db/client.js";
 import { objects } from "./objects.js";
 
-/** Content-addressed file store for workspaces: a blob never changes, so snapshots are just lists of hashes. */
+/**
+ * Content-addressed file store for workspaces, skills and the space's files: a blob never
+ * changes, so snapshots are just lists of hashes, and the same bytes are stored once.
+ */
 const blobKey = (hash: string) => `blobs/${hash.slice(0, 2)}/${hash}`;
 
 export async function putBlob(data: Uint8Array): Promise<string> {
@@ -37,4 +42,33 @@ export async function putBlobOf(hash: string, data: Uint8Array): Promise<void> {
   if (!(await objects.has(blobKey(hash)))) {
     await objects.put(blobKey(hash), data);
   }
+}
+
+/** What is made from a blob (a thumbnail), under its hash; it goes with the blob. */
+const derivedPrefix = (hash: string) => `derived/${hash}/`;
+
+/**
+ * Whether a row of this tenant still names the hash: a space file (its bytes or its text), a
+ * workspace or kept file, a published version's or a run's workspace, a skill's file.
+ */
+async function blobInUse(hash: string): Promise<boolean> {
+  const like = `%"${hash}"%`;
+  const found = await db.all(sql`
+    SELECT 1 FROM space_file WHERE hash = ${hash} OR text_hash = ${hash}
+    UNION ALL SELECT 1 FROM wizard_file WHERE hash = ${hash}
+    UNION ALL SELECT 1 FROM store_file WHERE hash = ${hash}
+    UNION ALL SELECT 1 FROM wizard_version WHERE files LIKE ${like}
+    UNION ALL SELECT 1 FROM run WHERE files LIKE ${like}
+    UNION ALL SELECT 1 FROM space_skill WHERE blob_files LIKE ${like}
+    LIMIT 1`);
+  return found.length > 0;
+}
+
+/** Deletes a blob and what was made from it once no row names it any more. */
+export async function releaseBlob(hash: string | null | undefined): Promise<void> {
+  if (!hash || !/^[a-f0-9]{64}$/.test(hash) || (await blobInUse(hash))) {
+    return;
+  }
+  await objects.remove(blobKey(hash));
+  await objects.removePrefix(derivedPrefix(hash));
 }
