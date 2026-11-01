@@ -75,4 +75,15 @@ describe("a web page's pictures", () => {
     expect(content).not.toContain("logo");
     expect(content).toMatch(/^Text\n/);
   });
+  it("puts a link around blocks on one line, so it stays a link", () => {
+    const md = htmlToContent(
+      page(`<main>
+        <a href="https://example.com/case/a1/"><div class="card"><figure><img src="https://example.com/a1.jpg" alt="A1 App"></figure><h3>Mein A1 App</h3></div></a>
+        <p>Ein <a href="https://example.com/x">Link</a> im Text.</p>
+      </main>`),
+    );
+    expect(md).toBe(
+      "[![A1 App](https://example.com/a1.jpg) Mein A1 App](https://example.com/case/a1/)\n\nEin [Link](https://example.com/x) im Text.",
+    );
+  });
 });

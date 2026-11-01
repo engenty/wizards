@@ -5,7 +5,63 @@ import { marked } from "marked";
 import TurndownService from "turndown";
 import { offlineContext } from "./chromium.js";
 
-const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" });
+/** Elements that turndown writes as blocks of their own, with blank lines around them. */
+const BLOCKS = new Set([
+  "ADDRESS",
+  "ARTICLE",
+  "ASIDE",
+  "BLOCKQUOTE",
+  "DIV",
+  "DL",
+  "FIGCAPTION",
+  "FIGURE",
+  "FOOTER",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+  "HEADER",
+  "HR",
+  "LI",
+  "OL",
+  "P",
+  "PRE",
+  "SECTION",
+  "TABLE",
+  "UL",
+]);
+
+const holdsBlock = (node: Node): boolean =>
+  [...node.childNodes].some((child) => BLOCKS.has(child.nodeName) || holdsBlock(child));
+
+/**
+ * A link around blocks (a teaser: a `<div>` with a picture and a heading in one `<a>`) would come
+ * out with blank lines inside its brackets, which no Markdown reads as a link. Its content goes
+ * on one line instead: `[![Bild](…) Titel](…)`.
+ */
+function linkBlocks(service: TurndownService): TurndownService {
+  return service.addRule("blockLink", {
+    filter: (node) =>
+      node.nodeName === "A" && Boolean(node.getAttribute("href")) && holdsBlock(node),
+    replacement: (text, node) => {
+      const inner = text
+        .replace(/\s*\n+\s*/g, " ")
+        .replace(/(^|\s)#{1,6}\s+/g, "$1")
+        .trim();
+      if (!inner) {
+        return "";
+      }
+      const el = node as HTMLElement;
+      const href = (el.getAttribute("href") ?? "").replace(/([()])/g, "\\$1");
+      const title = el.getAttribute("title");
+      return `[${inner}](${href}${title ? ` "${title.replace(/"/g, '\\"')}"` : ""})`;
+    },
+  });
+}
+
+const turndown = linkBlocks(new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" }));
 
 export interface Converted {
   data: Uint8Array | string;
@@ -108,9 +164,11 @@ function frame(node: HTMLElement): boolean {
 
 // A rule of its own, not `remove`: turndown asks `remove` only of elements no rule converts,
 // and links, pictures and headings have rules.
-const content = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" }).addRule(
-  "frame",
-  { filter: (node) => frame(node), replacement: () => "" },
+const content = linkBlocks(
+  new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" }).addRule("frame", {
+    filter: (node) => frame(node),
+    replacement: () => "",
+  }),
 );
 
 /**
