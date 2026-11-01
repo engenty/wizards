@@ -4,9 +4,9 @@ import {
   Activity,
   ArrowLeft,
   ArrowUp,
-  AudioLines,
   Check,
   ChevronDown,
+  CircleHelp,
   GripVertical,
   History,
   Mic,
@@ -1417,35 +1417,23 @@ function FoldedGoose({
 }) {
   return (
     <DropZone composer={composer} className="flex" style={morph ? INTRO_MORPH : undefined}>
-      {/* As tall as the top bar's buttons, so it sits in the bar and not over the page's edge. */}
-      <div className="flex h-9 items-center gap-1 rounded-full bg-card p-0.5 pr-1 shadow-soft ring-1 ring-border-soft">
-        <button
-          type="button"
-          onClick={onOpen}
-          aria-label={t("assistant.ask")}
-          className="flex items-center gap-1.5 rounded-full pr-2 pl-0.5 text-[0.8125rem] text-ink-2 transition hover:text-ink max-sm:pr-0.5"
-        >
-          <span className="relative">
-            <Mascot kind="round" size={28} helmet interactive={false} />
-            {state.chat.phase !== "idle" || state.live.state !== "off" ? (
-              <span className="absolute top-0 right-0 size-2 animate-pulse-dot rounded-full bg-ember ring-2 ring-card" />
-            ) : null}
-          </span>
-          <span className="whitespace-nowrap max-sm:hidden">{t("assistant.ask")}</span>
-        </button>
-        {canLive ? (
-          <IconButton
-            label={t("assistant.talk")}
-            onClick={() => {
-              state.setOpen(true);
-              void state.live.start();
-            }}
-            className="size-7 bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-          >
-            <AudioLines className="size-3.5" />
-          </IconButton>
-        ) : null}
-      </div>
+      {/* One button, small as the top bar's: Goose's face, the words, a help mark. Its right edge
+          stands on the page's own buttons below. Talking to Goose waits until it works well. */}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={t("assistant.ask")}
+        className="mr-1 flex h-9 items-center gap-2 rounded-full bg-card py-1 pr-3 pl-1 text-[0.875rem] text-ink-2 shadow-soft ring-1 ring-border-soft transition hover:text-ink hover:ring-border max-sm:pr-1"
+      >
+        <span className="relative">
+          <Mascot kind="round" size={28} helmet interactive={false} />
+          {state.chat.phase !== "idle" || state.live.state !== "off" ? (
+            <span className="absolute top-0 right-0 size-2 animate-pulse-dot rounded-full bg-ember ring-2 ring-card" />
+          ) : null}
+        </span>
+        <span className="whitespace-nowrap max-sm:hidden">{t("assistant.ask")}</span>
+        <CircleHelp className="size-4 text-ink-4 max-sm:hidden" />
+      </button>
     </DropZone>
   );
 }
