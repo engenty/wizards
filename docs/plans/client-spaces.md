@@ -52,12 +52,14 @@ parent's Knowledge marked for clients when a client asks.
    invited their address at the first sign-in; until the portal, a client's session and token
    reach only who they are, their client spaces and their elements), the client portal (For you,
    Chats, Files, Results, phone), runs a client starts writing into their client space, results
-   shared with the client on purpose.
+   shared with the client on purpose. Planned in `docs/plans/client-portal.md` (2026-11-01): its
+   own app on a public client contract (`/api/v1/client`), runs in a client space
+   (`run.clientSpaceId`), "Share with the client" (`run.clientSharedAt`).
 
 ## Open
 
 - A run started in a client space runs a wizard of the parent: its run must belong to the client
-  space (step 3).
+  space (step 3, `client-portal.md`).
 - The space limit of a plan: client spaces do not count as spaces; their own limit per plan is
   open.
 
