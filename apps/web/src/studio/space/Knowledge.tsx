@@ -45,7 +45,7 @@ import {
   NewCategoryDialog,
   shownValue,
 } from "./Categories";
-import { fileUrl, useFileActions } from "./data";
+import { fileUrl, thumbUrl, useFileActions } from "./data";
 import { DropArea, SearchField, Section } from "./Section";
 
 /** Knowledge of a space: its items and categories; asked again while a document is still read. */
@@ -504,15 +504,20 @@ export function FilterChip({
 // --- the search, as a step gets it ---------------------------------------------------------------
 
 export function SearchHits({
+  spaceId,
   found,
   onOpen,
 }: {
+  spaceId: string;
   found: KnowledgeSearch;
   onOpen: (key: string) => void;
 }) {
   if (!found.hits.length) {
     return <p className="px-3 py-4 text-[0.875rem] text-ink-3">{t("know.searchNone")}</p>;
   }
+  // Pictures found by what they show, or a page's pictures by their words: a group of their own.
+  const pictures = found.hits.filter((h) => h.picture === "image" && h.key.startsWith("f:"));
+  const texts = found.hits.filter((h) => !pictures.includes(h));
   return (
     <div className="flex flex-col">
       <p className="px-3 pt-1 pb-2 text-[0.75rem] text-ink-3">
@@ -520,7 +525,34 @@ export function SearchHits({
           ? t("know.searchStats", { candidates: found.candidates, hits: found.hits.length })
           : t("know.searchUnchecked", { hits: found.hits.length })}
       </p>
-      {found.hits.map((hit) => {
+      {pictures.length ? (
+        <div className="flex flex-col gap-1.5 px-3 pb-2">
+          <p className="font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em]">
+            {t("know.pictures")}
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {pictures.map((hit) => (
+              <button
+                key={hit.key}
+                type="button"
+                disabled={!hit.open}
+                onClick={() => hit.open && onOpen(hit.open)}
+                title={hit.title}
+                className="flex w-28 shrink-0 flex-col gap-1 text-left disabled:pointer-events-none"
+              >
+                <img
+                  src={thumbUrl(spaceId, hit.key.slice(2))}
+                  alt={hit.title}
+                  loading="lazy"
+                  className="aspect-[4/3] w-full rounded-lg bg-paper-2 object-cover"
+                />
+                <span className="truncate text-[0.75rem] text-ink-3">{hit.title}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {texts.map((hit) => {
         const open = hit.open;
         return (
           <button
@@ -808,7 +840,7 @@ export function KnowledgeOverview({
       {status}
       <Card className="flex flex-col p-1.5">
         {found ? (
-          <SearchHits found={found} onOpen={onOpen} />
+          <SearchHits spaceId={spaceId} found={found} onOpen={onOpen} />
         ) : shown.length ? (
           shown.map((item) => (
             <ItemRow key={item.key} item={item} categories={data.categories} onOpen={onOpen} />

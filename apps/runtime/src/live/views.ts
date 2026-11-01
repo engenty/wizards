@@ -111,7 +111,8 @@ export async function translationsView(r: Reader, wizardId: string) {
 export async function filesView(r: Reader, spaceId: string) {
   const space = await ownedSpace(r.userId, spaceId);
   return {
-    files: (await spaceFiles(space.id)).map(fileView),
+    // A page's pictures show in their page, not among the space's files.
+    files: (await spaceFiles(space.id)).filter((f) => f.kind !== "picture").map(fileView),
     /** Whether documents get vectors, or the index works on keywords alone. */
     embeddings: Boolean(await embeddingModel().catch(() => null)),
   };

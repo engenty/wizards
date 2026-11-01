@@ -57,18 +57,22 @@ describe("a web page's pictures", () => {
   it("leaves out icons, sprites, drawings and tiny pictures, and the frame's pictures", () => {
     const { content, images } = read(`
       <header><img src="/logo.png" alt="Logo"></header>
-      <main><p>Text</p>
+      <main><p>Text <a href="/protection" title="Protected"><img src="/lock.svg" alt=""></a></p>
         <img src="/icons/phone.png" alt="">
         <img src="/sprite.svg" alt="">
         <img class="wp-smiley emoji" src="/x.png" alt="">
         <img src="/arrow.png" width="16" height="16" alt="">
         <img src="/thumb.jpg" width="120" srcset="/thumb.jpg 120w, /big.jpg 1200w" alt="Groß">
         <img src="/photo(1).jpg" alt="Foto">
+        <img src="/220px-pool.jpg" width="220" height="165" srcset="/330px-pool.jpg 1.5x, /440px-pool.jpg 2x" alt="Becken">
+        <img src="/bullet.png" width="80" height="60" srcset="/bullet@2x.png 2x" alt="">
       </main>`);
     expect(images.map((i) => i.url)).toEqual([
       "https://example.com/big.jpg",
       "https://example.com/photo%281%29.jpg",
+      "https://example.com/440px-pool.jpg",
     ]);
     expect(content).not.toContain("logo");
+    expect(content).toMatch(/^Text\n/);
   });
 });
