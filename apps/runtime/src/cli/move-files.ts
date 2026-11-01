@@ -18,16 +18,18 @@ export async function moveFiles(): Promise<number> {
   for (const tenant of await knownTenants()) {
     const { moved, missing } = await withTenant(tenant, moveTenantFiles);
     if (moved || missing.length) {
-      console.log(
-        `${tenant}: ${moved} moved${missing.length ? `, ${missing.length} not` : ""}`,
-      );
+      console.log(`${tenant}: ${moved} moved${missing.length ? `, ${missing.length} not` : ""}`);
     }
     for (const file of missing) {
       console.log(`  ${file}`);
     }
     failed += missing.length;
   }
-  console.log(failed ? "Done; the files listed did not move: without their bytes, or with the reason given." : "Done.");
+  console.log(
+    failed
+      ? "Done; the files listed did not move: without their bytes, or with the reason given."
+      : "Done.",
+  );
   return failed ? 1 : 0;
 }
 
