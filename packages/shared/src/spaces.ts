@@ -610,6 +610,8 @@ export interface SpaceFileView {
   indexed: "embeddings" | "keywords" | null;
   pages: number | null;
   chars: number | null;
+  /** A 320 px JPEG of it is at `…/files/<id>/thumb`: pictures and PDFs. */
+  thumb: boolean;
   createdAt: string;
 }
 

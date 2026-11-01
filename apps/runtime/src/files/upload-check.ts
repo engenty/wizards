@@ -390,11 +390,11 @@ process.stdout.write(out, () => process.exit(0));
 
 const REDRAW_TIMEOUT_MS = 30_000;
 
-/** Two pictures are drawn at a time; each process holds a decoded picture in memory. */
+/** Two pictures are drawn at a time (an upload, a thumbnail); each process holds one in memory. */
 let drawing = 0;
 const waiting: (() => void)[] = [];
 
-async function inTurn<T>(work: () => Promise<T>): Promise<T> {
+export async function inTurn<T>(work: () => Promise<T>): Promise<T> {
   if (drawing >= 2) {
     await new Promise<void>((resolve) => waiting.push(resolve));
   }

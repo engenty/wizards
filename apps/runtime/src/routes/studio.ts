@@ -249,6 +249,7 @@ import {
   removeSpaceFile,
   spaceFile,
   spaceFileContent,
+  spaceFileThumb,
   updateSpaceFile,
 } from "../services/space-files.js";
 import { documentText, queueIndex, reindexAll, searchKnowledge } from "../services/space-index.js";
@@ -1056,6 +1057,12 @@ export const studio = new Hono<Vars>()
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const { row, data } = await spaceFileContent(space.id, c.req.param("fileId"), whoOf(c));
     return spaceFileResponse(c, row.mime, data);
+  })
+  // Its 320 px JPEG for lists and search: pictures and PDFs.
+  .get("/spaces/:id/files/:fileId/thumb", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const thumb = await spaceFileThumb(space.id, c.req.param("fileId"), whoOf(c));
+    return thumb ? spaceFileResponse(c, "image/jpeg", thumb) : c.notFound();
   })
   // A document as the models read it: its text as Markdown, or the start of it.
   .get("/spaces/:id/files/:fileId/text", async (c) => {

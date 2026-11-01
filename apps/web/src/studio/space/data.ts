@@ -27,6 +27,11 @@ export function fileUrl(spaceId: string, fileId: string): string {
   return withBase(`/api/studio/spaces/${spaceId}/files/${fileId}/content`);
 }
 
+/** A picture's or PDF's 320 px JPEG, where `thumb` says it has one: for lists and search. */
+export function thumbUrl(spaceId: string, fileId: string): string {
+  return withBase(`/api/studio/spaces/${spaceId}/files/${fileId}/thumb`);
+}
+
 /**
  * Uploads, changes and removals of a space's files; each one refreshes the list. `readOnly`:
  * the space is not changed here, so what shows the files offers none of these.
