@@ -216,7 +216,7 @@ server.every("refresh", 60 * 60_000, async ({ tenantId, lastRun, signal }) => {
 
 ```ts
 const page = await server.web.read("https://example.com/preise");
-// { url, status, etag, lastModified, title, description, text, content, links, jsonld }
+// { url, status, etag, lastModified, title, description, text, content, images, links, jsonld }
 
 const res = await server.web.fetch(`${origin}/sitemap.xml`, {
   headers: { "if-none-match": source.etag ?? "" },
@@ -227,8 +227,12 @@ const res = await server.web.fetch(`${origin}/sitemap.xml`, {
   redirect too, as the runtime’s own requests do.
 - `read` gives the page’s whole text as Markdown (`text`), its content without the site’s
   frame (`content`: the main part, without navigation, header and footer, asides, forms, hidden
-  menus, skip links and cookie notices) and its links, absolute and each once (up to 2,000). A page with hardly any text without its scripts is drawn in a browser first. `etag`
-  and `lastModified` are what the server sent, for asking later whether the page changed. `jsonld`
+  menus, skip links and cookie notices) and its links, absolute and each once (up to 2,000). A page with hardly any text without its scripts is drawn in a browser first.
+- `images` are the pictures `content` shows, each once, as `{ url, alt }`: absolute, the
+  largest `srcset` entry up to 2,000 px (or what a lazy loader keeps in `data-src`), without
+  icons, sprites, drawings (SVG) and pictures drawn under 200 px. `text` and `content` show
+  them at the same addresses.
+- `etag` and `lastModified` are what the server sent, for asking later whether the page changed. `jsonld`
   is the page’s structured data (its `application/ld+json` blocks, parsed): a shop’s product
   page says title, price, availability and image there exactly, without a model.
 - `fetch` is `fetch` behind the guard: for a sitemap, `robots.txt`, a question with

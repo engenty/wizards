@@ -1,7 +1,7 @@
 import type { PluginWebPage } from "@engenty/wizards/plugin";
 import { FONT_WEIGHTS } from "@engenty/wizards-shared/spaces";
 import { webContext } from "../render/chromium.js";
-import { htmlToContent, htmlToMarkdown } from "../render/convert.js";
+import { absolutePictures, htmlToContent, htmlToMarkdown, picturesOf } from "../render/convert.js";
 import { safeFetch } from "../tools/net-guard.js";
 
 /**
@@ -419,6 +419,9 @@ export async function readPage(raw: string, signal?: AbortSignal): Promise<Plugi
       links.push({ url, text: linkText(m[2]) });
     }
   }
+  // Text and content show the same pictures at the same addresses as `images` names them.
+  const pictured = absolutePictures(html, base);
+  const content = htmlToContent(pictured).slice(0, 400_000);
   return {
     url: base,
     status: res.status,
@@ -426,8 +429,9 @@ export async function readPage(raw: string, signal?: AbortSignal): Promise<Plugi
     lastModified: res.headers.get("last-modified"),
     title: titleOf(html),
     description: metaOf(html, "description") || metaOf(html, "og:description"),
-    text: htmlToMarkdown(html).slice(0, 400_000),
-    content: htmlToContent(html).slice(0, 400_000),
+    text: htmlToMarkdown(pictured).slice(0, 400_000),
+    content,
+    images: picturesOf(content),
     links,
     jsonld: jsonLdOf(html),
   };

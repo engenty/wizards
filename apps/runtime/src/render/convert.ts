@@ -129,6 +129,97 @@ export function htmlToContent(html: string): string {
     .trim();
 }
 
+// --- a page's pictures ----------------------------------------------------------------------
+
+/** A picture a web page's content shows. */
+export interface WebPicture {
+  url: string;
+  alt: string;
+}
+
+/** The largest picture `srcset` offers up to this width; where all are wider, the smallest. */
+const MAX_PICTURE_WIDTH = 2000;
+/** Drawn smaller than this, a picture is an icon or a bullet, not content. */
+const MIN_PICTURE_SIDE = 200;
+/** What an address or a class says of an icon, a sprite, a spinner or a tracking pixel. */
+const NO_PICTURE =
+  /(^|[\s/_.-])(icons?|sprites?|emojis?|spinner|loader|spacer|pixel|tracking)([\s/_.-]|$)/i;
+
+/** An attribute of a tag by its exact name: `src`, not the `src` of `data-src`. */
+const attrOf = (tag: string, name: string) =>
+  tag
+    .match(new RegExp(`\\s${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"))
+    ?.slice(2)
+    .find((v) => v !== undefined) ?? "";
+
+/** The candidate of a `srcset` to keep, with its width where the set says one. */
+function fromSrcset(srcset: string): { url: string; width: number | null } | null {
+  const candidates = srcset
+    .split(/,\s+/)
+    .map((part) => part.trim().split(/\s+/))
+    .filter(([url]) => url)
+    .map(([url, d = "1x"]) => ({
+      url: url.replace(/,$/, ""),
+      w: d.endsWith("w") ? Number.parseInt(d, 10) : null,
+      x: d.endsWith("x") ? Number.parseFloat(d) : null,
+    }));
+  const wide = candidates.filter((c) => c.w).sort((a, b) => (a.w ?? 0) - (b.w ?? 0));
+  if (wide.length) {
+    const pick = wide.filter((c) => (c.w ?? 0) <= MAX_PICTURE_WIDTH).pop() ?? wide[0];
+    return { url: pick.url, width: pick.w };
+  }
+  const dense = candidates.sort((a, b) => (a.x ?? 1) - (b.x ?? 1)).pop();
+  return dense ? { url: dense.url, width: null } : null;
+}
+
+/**
+ * A page's `<img>` tags, each pointed at one absolute address: the largest `srcset` entry up to
+ * 2000 px, else `src`, or what a lazy loader keeps in `data-srcset`/`data-src`. Icons, sprites,
+ * drawings (SVG) and pictures drawn under 200 px go: what `htmlToMarkdown` and `htmlToContent`
+ * then write as `![alt](url)` is a picture of the page.
+ */
+export function absolutePictures(html: string, base: string): string {
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    const lazy = (name: string) => attrOf(tag, `data-${name}`) || attrOf(tag, `data-lazy-${name}`);
+    const set = fromSrcset(lazy("srcset") || attrOf(tag, "srcset"));
+    const plain = lazy("src") || attrOf(tag, "data-original") || attrOf(tag, "src");
+    const raw = set?.url || plain;
+    let url: URL;
+    try {
+      url = new URL(raw.trim(), base);
+    } catch {
+      return "";
+    }
+    const side = (name: string) => Number.parseInt(attrOf(tag, name), 10);
+    const tiny =
+      (side("width") < MIN_PICTURE_SIDE || side("height") < MIN_PICTURE_SIDE) &&
+      !((set?.width ?? 0) >= MIN_PICTURE_SIDE);
+    if (
+      !/^https?:$/.test(url.protocol) ||
+      /\.(svg|ico)$/i.test(url.pathname) ||
+      NO_PICTURE.test(url.pathname) ||
+      NO_PICTURE.test(attrOf(tag, "class")) ||
+      tiny
+    ) {
+      return "";
+    }
+    // Markdown ends an address at `)`.
+    const href = url.toString().replace(/\(/g, "%28").replace(/\)/g, "%29");
+    return `<img src="${href}" alt="${attrOf(tag, "alt").replace(/"/g, "&quot;")}">`;
+  });
+}
+
+/** The pictures Markdown shows, each once, in their order. */
+export function picturesOf(markdown: string): WebPicture[] {
+  const seen = new Map<string, WebPicture>();
+  for (const m of markdown.matchAll(/!\[([^\]\n]*)\]\((https?:\/\/[^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    if (!seen.has(m[2])) {
+      seen.set(m[2], { url: m[2], alt: m[1].trim() });
+    }
+  }
+  return [...seen.values()];
+}
+
 export async function htmlToPdf(html: string): Promise<Uint8Array> {
   const context = await offlineContext();
   try {
