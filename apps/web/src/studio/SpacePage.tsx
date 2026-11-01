@@ -667,7 +667,11 @@ export function SpacePage({ place }: { place?: "skills" }) {
           style={menuWidth ? ({ "--menu-w": `${menuWidth}px` } as CSSProperties) : undefined}
         >
           {group === "results" ? null : (
-            <div className="relative min-w-0">
+            // As tall as the page's frame: the menu's edge, to resize it, runs to the bottom.
+            <div
+              className="relative min-w-0"
+              style={!narrow && rootHeight ? { minHeight: rootHeight - 48 } : undefined}
+            >
               <aside
                 className={cn(
                   "menu-scroll min-w-0 md:sticky md:top-6 md:self-start md:overflow-y-auto md:overscroll-contain",
@@ -1228,7 +1232,6 @@ function MenuResizer({
     // A pointer's handle only: the menu's width is no setting a keyboard needs.
     <div
       aria-hidden
-      title={t("space.menuWidth")}
       onDoubleClick={() => {
         grid.current?.style.removeProperty("--menu-w");
         onWidth(null);
@@ -1263,12 +1266,35 @@ function MenuResizer({
       }}
       className="group/resize -right-4 lg:-right-6 absolute inset-y-0 z-10 hidden w-3 cursor-col-resize touch-none md:block"
     >
+      {/* A thin line the whole height, and a short grip in the middle of the window that names
+          itself when the pointer is on it. */}
       <span
         className={cn(
-          "mx-auto block h-full w-0.5 rounded-full bg-border transition-opacity",
+          "absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border transition-opacity",
           dragging ? "opacity-100" : "opacity-0 group-hover/resize:opacity-100",
         )}
       />
+      <span
+        className={cn(
+          "group/grip sticky top-[calc(50vh-1.5rem)] mx-auto flex h-12 w-3 items-center justify-center transition-opacity",
+          dragging ? "opacity-100" : "opacity-0 group-hover/resize:opacity-100",
+        )}
+      >
+        <span
+          className={cn(
+            "block h-10 w-1 rounded-full transition-colors",
+            dragging ? "bg-ink-2" : "bg-ink-4 group-hover/grip:bg-ink-2",
+          )}
+        />
+        <span
+          className={cn(
+            "pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[0.75rem] text-paper opacity-0 shadow-overlay transition-opacity",
+            !dragging && "group-hover/grip:opacity-100 group-hover/grip:delay-300",
+          )}
+        >
+          {t("space.menuWidth")}
+        </span>
+      </span>
     </div>
   );
 }
