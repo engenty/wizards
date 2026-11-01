@@ -3657,7 +3657,6 @@ const de: Record<Key, Line> = {
   "src.statusKept": "Übernommen",
   "src.log": "Protokoll",
   "src.noRun": "Noch nicht gelesen.",
-  "src.lastRun": "Letzter Lauf {when}: {parts}",
   "src.missing":
     "Das Plugin, das diese Quelle liest, ist nicht da. Sie steht still, bis es wieder da ist.",
   "src.addAddresses": "Adressen hinzufügen",
@@ -7680,7 +7679,6 @@ const en = {
   "src.statusKept": "Taken over",
   "src.log": "Log",
   "src.noRun": "Not read yet.",
-  "src.lastRun": "Last run {when}: {parts}",
   "src.missing":
     "The plugin that reads this source is not there. It stands still until it is back.",
   "src.addAddresses": "Add addresses",
