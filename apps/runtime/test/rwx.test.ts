@@ -676,3 +676,95 @@ describe("the walk over every resource kind", () => {
     }
   }
 });
+
+describe("a Wissen folder's audience", () => {
+  const member = [{ kind: "role" as const, id: "member" }];
+  const clientRole = [{ kind: "role" as const, id: "client" }];
+  const guest = [{ kind: "guest" as const, id: null }];
+  let folder = "";
+  let inside = "";
+  let nested = "";
+
+  beforeAll(async () => {
+    on();
+    folder = (await json(send("POST", `/api/studio/spaces/${spaceId}/pages`, { title: "Intern" }))).id;
+    inside = (
+      await json(
+        send("POST", `/api/studio/spaces/${spaceId}/pages`, { title: "Preise", parentId: folder }),
+      )
+    ).id;
+    nested = (
+      await json(
+        send("POST", `/api/studio/spaces/${spaceId}/pages`, { title: "2026", parentId: inside }),
+      )
+    ).id;
+    // Table T moves into the folder too: a folder holds what lies in it, of every kind.
+    const moved = await send("POST", `/api/studio/spaces/${spaceId}/knowledge/move`, {
+      key: `t:${fixture.T}`,
+      parentId: folder,
+    });
+    expect(moved.status, await moved.clone().text()).toBe(200);
+  });
+
+  const reads = (who: { kind: any; id: string | null }[], kind: "page" | "table", id: string) =>
+    local(() => rwx.decide(spaceId, who, { kind, id }, "r")).then((d) => d.ok);
+
+  it("starts as the seed has it: the team and guests, no clients", async () => {
+    const { see } = await json(
+      send("GET", `/api/studio/spaces/${spaceId}/knowledge/folders/${folder}/audience`),
+    );
+    expect(see).toEqual(["team", "guests"]);
+    expect(await reads(member, "page", nested)).toBe(true);
+    expect(await reads(clientRole, "page", nested)).toBe(false);
+  });
+
+  it("closed to the team and guests, opened to clients, it holds for everything in it", async () => {
+    const put = await send(
+      "PUT",
+      `/api/studio/spaces/${spaceId}/knowledge/folders/${folder}/audience`,
+      { see: ["clients"] },
+    );
+    expect(put.status, await put.clone().text()).toBe(200);
+    for (const [kind, id] of [
+      ["page", folder],
+      ["page", inside],
+      ["page", nested],
+      ["table", fixture.T],
+    ] as const) {
+      expect(await reads(member, kind, id), `${kind} ${id} for the team`).toBe(false);
+      expect(await reads(guest, kind, id), `${kind} ${id} for guests`).toBe(false);
+      expect(await reads(clientRole, kind, id), `${kind} ${id} for clients`).toBe(true);
+    }
+    // Outside the folder nothing changed.
+    expect(await reads(member, "page", fixture.pageOfD)).toBe(true);
+    expect(await reads(clientRole, "page", fixture.pageOfD)).toBe(false);
+    const { see } = await json(
+      send("GET", `/api/studio/spaces/${spaceId}/knowledge/folders/${folder}/audience`),
+    );
+    expect(see).toEqual(["clients"]);
+  });
+
+  it("a deny on an item inside still wins over the folder's allow", async () => {
+    const r = await local(() =>
+      rwx.decideWith(
+        [
+          { id: "f", subjectKind: "role", subjectId: "client", resourceKind: "page", resourceId: folder, r: "allow", w: null, x: null } as any,
+          { id: "i", subjectKind: "role", subjectId: "client", resourceKind: "page", resourceId: nested, r: "deny", w: null, x: null } as any,
+        ],
+        clientRole,
+        { kind: "page", id: nested, folders: [inside, folder] },
+        "r",
+      ),
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("back to the team and guests: the folder's rules are gone again", async () => {
+    await send("PUT", `/api/studio/spaces/${spaceId}/knowledge/folders/${folder}/audience`, {
+      see: ["team", "guests"],
+    });
+    expect(await reads(member, "table", fixture.T)).toBe(true);
+    expect(await reads(guest, "page", nested)).toBe(true);
+    expect(await reads(clientRole, "page", nested)).toBe(false);
+  });
+});

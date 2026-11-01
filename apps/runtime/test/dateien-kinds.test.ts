@@ -131,14 +131,14 @@ describe("Dateien, a plugin's mount kinds", () => {
     const none = await send("POST", `/api/studio/spaces/${spaceId}/mounts`, {
       kind: "nope",
       source: {},
-      see: "all",
+      see: ["team"],
       wizards: "all",
     });
     expect(none.status).toBe(400);
     const wrong = await send("POST", `/api/studio/spaces/${spaceId}/mounts`, {
       kind: "memo",
       source: { tree: "fotos" },
-      see: "all",
+      see: ["team"],
       wizards: "all",
     });
     expect(wrong.status).toBe(400);
@@ -149,7 +149,7 @@ describe("Dateien, a plugin's mount kinds", () => {
     const res = await send("POST", `/api/studio/spaces/${spaceId}/mounts`, {
       kind: "memo",
       source: { tree: "kunden" },
-      see: "all",
+      see: ["team"],
       wizards: "all",
     });
     expect(res.status).toBe(200);
@@ -182,7 +182,7 @@ describe("Dateien, a plugin's mount kinds", () => {
     const again = await send("POST", `/api/studio/spaces/${spaceId}/mounts`, {
       kind: "memo",
       source: { tree: "kunden" },
-      see: "all",
+      see: ["team"],
       wizards: "all",
     });
     expect(again.status).toBe(400);
@@ -224,7 +224,7 @@ describe("Dateien, a plugin's mount kinds", () => {
       kind: "memo",
       source: { tree: "kunden" },
       name: "Kunden 2",
-      see: "all",
+      see: ["team"],
       wizards: "all",
       writable: true,
     });

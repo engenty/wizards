@@ -1,4 +1,5 @@
 import { note } from "@engenty/wizards-shared/run";
+import { AUDIENCES } from "@engenty/wizards-shared/rwx";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
@@ -49,7 +50,7 @@ type Vars = { Variables: { user: SessionUser } };
 const whoOf = (c: Context<Vars>) => subjectsOfPerson(c.get("user").id, c.get("user").role);
 
 const access = {
-  see: z.enum(["all", "admins"]),
+  see: z.array(z.enum(AUDIENCES)).max(AUDIENCES.length),
   wizards: z.union([z.enum(["all", "none"]), z.array(z.string().max(60)).max(200)]),
 };
 

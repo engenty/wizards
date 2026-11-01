@@ -85,7 +85,7 @@ async function moveTenantSources(): Promise<number> {
       ? { slug: holding.slug, name: holding.name }
       : await addMount("local", source.space_id, {
           path,
-          see: "admins",
+          see: [],
           wizards: "none",
         });
     const folder = holding ? relative(holding.path, path).split(sep).join("/") : "";

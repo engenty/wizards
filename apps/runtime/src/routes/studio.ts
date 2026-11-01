@@ -20,6 +20,7 @@ import { CATEGORY_TYPES, whereSchema } from "@engenty/wizards-shared/knowledge";
 import { PRESENCE_KINDS } from "@engenty/wizards-shared/live";
 import { CLASS_NAMES, isCreditsRef, modelLabel } from "@engenty/wizards-shared/providers";
 import { note } from "@engenty/wizards-shared/run";
+import { AUDIENCES } from "@engenty/wizards-shared/rwx";
 import { SPACE_FILE_KINDS } from "@engenty/wizards-shared/spaces";
 import {
   MAX_MASK_LABEL_CHARS,
@@ -50,7 +51,7 @@ import { endRun, signalRun, startRun, takeSignals } from "../assistant/runs.js";
 import { accountOverview, linkedAccount, startLink, unlink } from "../auth/account.js";
 import type { SessionUser } from "../auth/index.js";
 import { createLocalKey, deleteLocalKey, listLocalKeys } from "../auth/keys.js";
-import { assertRwx, subjectsOfPerson } from "../broker/rwx.js";
+import { assertRwx, folderAudience, setFolderAudience, subjectsOfPerson } from "../broker/rwx.js";
 import { appStates, connectApps } from "../cli/connect.js";
 import { layout } from "../cli/home.js";
 import {
@@ -1194,6 +1195,19 @@ export const studio = new Hono<Vars>()
   .get("/spaces/:id/knowledge", async (c) =>
     c.json(await listKnowledge(c.get("user").id, c.req.param("id"), whoOf(c))),
   )
+  // Who besides the admins sees a folder and what lies in it: the team, clients, guests.
+  .get("/spaces/:id/knowledge/folders/:folderId/audience", async (c) =>
+    c.json({
+      see: await folderAudience(c.get("user").id, c.req.param("id"), c.req.param("folderId")),
+    }),
+  )
+  .put("/spaces/:id/knowledge/folders/:folderId/audience", async (c) => {
+    const body = z
+      .object({ see: z.array(z.enum(AUDIENCES)).max(AUDIENCES.length) })
+      .parse(await c.req.json());
+    await setFolderAudience(c.get("user").id, c.req.param("id"), c.req.param("folderId"), body.see);
+    return c.json({ see: body.see });
+  })
   // An item moved into a folder (a page, or the top), at a place among its contents.
   .post("/spaces/:id/knowledge/move", async (c) => {
     const body = z
