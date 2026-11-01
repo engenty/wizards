@@ -2892,7 +2892,7 @@ const de: Record<Key, Line> = {
   "dateien.toKnowledgeTitle": "„{name}“ in Wissen übernehmen",
   "dateien.toKnowledgeNote":
     "Wissen bekommt eine Kopie, gelesen wie beim Hochladen. Änderungen hier kommen dort nicht an.",
-  "space.data": "Daten",
+  "space.data": "Memory",
   "space.results": "Ergebnisse",
   "space.page": "Öffentliche Seite",
   "space.identity": "Name und Claim",
@@ -6938,7 +6938,7 @@ const en = {
   "dateien.toKnowledgeTitle": "Copy “{name}” into Knowledge",
   "dateien.toKnowledgeNote":
     "Knowledge gets a copy, read as an upload is. Changes here won’t reach it.",
-  "space.data": "Data",
+  "space.data": "Memory",
   "space.results": "Results",
   "space.page": "Public page",
   "space.identity": "Name and tagline",
