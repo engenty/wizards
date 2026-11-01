@@ -103,10 +103,10 @@ export function chipsOf(item: KnowledgeItem, categories: SpaceCategory[]): strin
 }
 
 /**
- * What a card says under its title: how much a folder holds, a table's rows, where it stands or
- * else where it came from, unless all cards beside it came from there (`shared`).
+ * What a card says under its title: how much a folder holds, a table's rows, where it stands.
+ * Where it came from the folder or the tree says already.
  */
-function cardLine(item: KnowledgeItem, shared: boolean): string {
+function cardLine(item: KnowledgeItem): string {
   return [
     item.kind === "page" && item.children
       ? item.children === 1
@@ -114,7 +114,7 @@ function cardLine(item: KnowledgeItem, shared: boolean): string {
         : t("know.items", { n: item.children })
       : "",
     item.rows !== null ? (item.rows === 1 ? t("know.row") : t("know.rows", { n: item.rows })) : "",
-    item.place || (shared ? "" : item.originLabel) || "",
+    item.place ?? "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -143,9 +143,6 @@ export function ItemCards({
   onOpen: (key: string) => void;
 }) {
   const view = useItemView();
-  // Where every card came from the same source, the heading says so: the cards don't repeat it.
-  const sameOrigin =
-    items.length > 1 && items.every((i) => i.originLabel && i.originLabel === items[0].originLabel);
   if (view === "list") {
     return (
       <div className="flex flex-col rounded-xl bg-card p-1.5 shadow-soft ring-1 ring-border-soft">
@@ -177,7 +174,7 @@ export function ItemCards({
     <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3">
       {items.map((item) => {
         const Icon = treeIcon(item);
-        const line = cardLine(item, sameOrigin);
+        const line = cardLine(item);
         const chips = chipsOf(item, categories);
         return (
           <button

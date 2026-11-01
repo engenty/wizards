@@ -40,7 +40,6 @@ import {
   IconButton,
   Input,
   Label,
-  Select,
   Spinner,
   Textarea,
 } from "../../ui";
@@ -359,17 +358,6 @@ function partsOf(run: Omit<SourceRun, "log">) {
     .join(", ");
 }
 
-function when(at: string | null): string {
-  return at
-    ? new Date(at).toLocaleString(lang, {
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "";
-}
-
 const TONE = {
   running: { box: "bg-cobalt-tint", icon: "text-cobalt" },
   done: { box: "bg-moss-tint", icon: "text-moss" },
@@ -404,7 +392,15 @@ function nowText(source: SourceListed): string {
 }
 
 /** A run's log, following new lines while it runs. */
-function RunLog({ spaceId, source }: { spaceId: string; source: Source }) {
+function RunLog({
+  spaceId,
+  source,
+  className = "max-h-48",
+}: {
+  spaceId: string;
+  source: Source;
+  className?: string;
+}) {
   const detail = useSource(spaceId, source.id, source.running);
   const box = useRef<HTMLUListElement>(null);
   const log = detail.data?.runs[0]?.log ?? [];
@@ -414,7 +410,7 @@ function RunLog({ spaceId, source }: { spaceId: string; source: Source }) {
     }
   }, [source.running, log.length]);
   return (
-    <ul ref={box} className="max-h-48 overflow-y-auto text-[0.75rem] text-ink-3 leading-5">
+    <ul ref={box} className={cn("overflow-y-auto text-[0.75rem] text-ink-3 leading-5", className)}>
       {detail.isPending ? (
         <li>
           <Spinner className="size-3.5" />
@@ -872,7 +868,7 @@ export function SourceView({
 }) {
   const qc = useQueryClient();
   const plugins = useStudioPlugins();
-  const [show, setShow] = useState<"all" | "in" | "out" | "check">("all");
+  const [show, setShow] = useState<"all" | "in" | "out" | "check" | "log">("all");
   const [removing, setRemoving] = useState(false);
   const [adding, setAdding] = useState("");
   const detail = useSource(spaceId, sourceId);
@@ -921,33 +917,39 @@ export function SourceView({
   const Icon = kind?.icon ?? FolderOpen;
   const Settings = kind?.settings;
   const last = runs[0];
+  const toCheck = (e: SourceEntry) => e.included && (e.status === "check" || e.status === "failed");
   const shown = entries.filter((e) =>
     show === "in"
       ? e.included
       : show === "out"
         ? !e.included
         : show === "check"
-          ? e.included && (e.status === "check" || e.status === "failed")
+          ? toCheck(e)
           : true,
   );
-  const tab = (id: typeof show, label: string) => (
+  const lastAt = last?.endedAt ?? source.lastRunAt;
+  const tab = (id: typeof show, label: string, count?: number) => (
     <button
       type="button"
       aria-pressed={show === id}
       onClick={() => setShow(id)}
       className={cn(
-        "rounded-full px-3 py-1 text-[0.8125rem] transition",
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[0.8125rem] transition",
         show === id ? "bg-paper-2 font-medium text-ink" : "text-ink-3 hover:text-ink",
       )}
     >
       {label}
+      {count !== undefined ? (
+        <span className="font-normal text-[0.75rem] text-ink-4 tabular-nums">{count}</span>
+      ) : null}
     </button>
   );
   const error = patch.error ?? run.error ?? eye.error ?? add.error ?? remove.error;
   return (
     <Section
+      page
       title={source.label}
-      hint={[kind?.label() ?? t("src.source"), source.address].join(" · ")}
+      hint={[kind?.label() ?? t("src.source"), shortAddress(source.address)].join(" · ")}
       plain
       action={
         readOnly ? null : (
@@ -977,90 +979,132 @@ export function SourceView({
           {t("src.missing")}
         </p>
       )}
-      <Card className="flex flex-col gap-3 p-4">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[0.8125rem] text-ink-3">
-          <span>{t("src.every")}</span>
-          <div className="w-44">
-            <Select
-              value={String(source.everyHours ?? 0)}
-              onChange={(v) => !readOnly && patch.mutate({ everyHours: Number(v) || null })}
-              options={EVERY.map((h) => ({ value: String(h), label: t(EVERY_WORD[h]) }))}
-            />
-          </div>
-          <span className="flex-1" />
-          {last ? (
-            <span>{t("src.lastRun", { when: when(last.startedAt), parts: partsOf(last) })}</span>
-          ) : null}
-        </div>
-        {Settings ? (
-          <PluginFrame of={kind}>
-            <Settings source={source} />
-          </PluginFrame>
-        ) : null}
-      </Card>
-      {last ? (
-        <details className="px-1 text-[0.8125rem] text-ink-3">
-          <summary className="cursor-pointer">{t("src.log")}</summary>
-          <div className="mt-1.5 pl-4">
-            <RunLog spaceId={spaceId} source={source} />
-          </div>
-        </details>
-      ) : null}
-      <div className="flex items-center gap-1">
-        {tab("all", t("src.all"))}
-        {tab("in", t("src.included"))}
-        {tab("out", t("src.excluded"))}
-        {tab("check", t("src.check"))}
-      </div>
-      <Card className="flex flex-col p-1.5">
-        {shown.length ? (
-          <ul className="flex max-h-[32rem] flex-col overflow-y-auto">
-            {shown.map((e) => (
-              <li
-                key={e.id}
-                className="group flex items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-accent"
-              >
-                {readOnly ? null : (
-                  <IconButton
-                    label={e.included ? t("src.leaveOut") : t("src.takeIn")}
-                    onClick={() => eye.mutate(e)}
-                    className={cn("size-8", e.included ? "text-ink-3" : "text-ink-4")}
-                  >
-                    {e.included ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-                  </IconButton>
-                )}
-                <button
-                  type="button"
-                  disabled={!e.result}
-                  onClick={() => e.result && onOpen(`${e.result.kind[0]}:${e.result.id}`)}
-                  title={e.address}
-                  className={cn(
-                    "min-w-0 flex-1 text-left disabled:cursor-default",
-                    !e.included && "opacity-60",
-                  )}
-                >
-                  <span className="block truncate text-[0.8125rem]">
-                    {e.result?.title ?? e.title ?? e.address}
-                  </span>
-                  <span className="block truncate text-[0.75rem] text-ink-3">
-                    {e.included ? (e.result?.path ?? e.address) : (e.reason ?? e.address)}
-                  </span>
-                </button>
-                {e.included && e.status !== "done" ? (
-                  <Chip
-                    tone={e.status === "kept" || e.status === "new" ? "neutral" : "warn"}
-                    title={e.note ?? undefined}
-                  >
-                    {t(STATUS_WORD[e.status])}
-                  </Chip>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+      {/* How often it reads, when it read last and reads next: one line under the title. */}
+      <div className="-mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[0.8125rem] text-ink-3">
+        <RefreshCw className="size-3.5 text-ink-4" />
+        {readOnly ? (
+          <span>{t(EVERY_WORD[(source.everyHours ?? 0) as keyof typeof EVERY_WORD])}</span>
         ) : (
-          <Empty>{t("src.noRun")}</Empty>
+          <span className="relative">
+            <select
+              aria-label={t("src.every")}
+              value={String(source.everyHours ?? 0)}
+              onChange={(e) => patch.mutate({ everyHours: Number(e.target.value) || null })}
+              className="h-7 cursor-pointer appearance-none rounded-md bg-paper-2 pr-7 pl-2 font-medium text-[0.8125rem] text-ink transition hover:bg-accent"
+            >
+              {EVERY.map((h) => (
+                <option key={h} value={h}>
+                  {t(EVERY_WORD[h])}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2 size-3.5 text-ink-3" />
+          </span>
         )}
-      </Card>
+        {source.running ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-cobalt-tint px-2 py-0.5 text-[0.75rem] text-cobalt">
+            <Spinner className="size-3" />
+            {source.now?.of
+              ? t("src.readingOf", { done: source.now.done, n: source.now.of })
+              : t("src.readingNow")}
+          </span>
+        ) : (
+          <>
+            <span className="text-ink-4">·</span>
+            <span title={last ? partsOf(last) : undefined}>
+              {lastAt ? t("src.lastRead", { when: ago(lastAt) }) : t("src.neverRead")}
+              {last && partsOf(last) ? `: ${partsOf(last)}` : ""}
+            </span>
+            {source.everyHours && lastAt ? (
+              <>
+                <span className="text-ink-4">·</span>
+                <span>
+                  {t("src.nextRead", {
+                    when: due(Date.parse(lastAt) + source.everyHours * 3_600_000),
+                  })}
+                </span>
+              </>
+            ) : null}
+          </>
+        )}
+        {source.status === "failed" && !source.running ? (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full bg-rose-tint px-2 py-0.5 text-[0.75rem] text-rose"
+            title={source.error ?? ""}
+          >
+            <CircleAlert className="size-3" />
+            {t("src.failedShort")}
+          </span>
+        ) : null}
+      </div>
+      {/* The kind's own settings frame themselves: a kind with none to show leaves no box. */}
+      {Settings ? (
+        <PluginFrame of={kind}>
+          <Settings source={source} />
+        </PluginFrame>
+      ) : null}
+      <div className="mt-2 flex flex-wrap items-center gap-1">
+        {tab("all", t("src.all"), entries.length)}
+        {tab("in", t("src.included"), entries.filter((e) => e.included).length)}
+        {tab("out", t("src.excluded"), entries.filter((e) => !e.included).length)}
+        {tab("check", t("src.check"), entries.filter(toCheck).length)}
+        {last ? tab("log", t("src.log")) : null}
+      </div>
+      {show === "log" ? (
+        <Card className="p-4">
+          <RunLog spaceId={spaceId} source={source} className="max-h-[70dvh]" />
+        </Card>
+      ) : (
+        <Card className="flex flex-col p-1.5">
+          {shown.length ? (
+            <ul className="flex flex-col">
+              {shown.map((e) => (
+                <li
+                  key={e.id}
+                  className="group flex items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-accent"
+                >
+                  {readOnly ? null : (
+                    <IconButton
+                      label={e.included ? t("src.leaveOut") : t("src.takeIn")}
+                      onClick={() => eye.mutate(e)}
+                      className={cn("size-8", e.included ? "text-ink-3" : "text-ink-4")}
+                    >
+                      {e.included ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                    </IconButton>
+                  )}
+                  <button
+                    type="button"
+                    disabled={!e.result}
+                    onClick={() => e.result && onOpen(`${e.result.kind[0]}:${e.result.id}`)}
+                    title={e.address}
+                    className={cn(
+                      "min-w-0 flex-1 text-left disabled:cursor-default",
+                      !e.included && "opacity-60",
+                    )}
+                  >
+                    <span className="block truncate text-[0.8125rem]">
+                      {e.result?.title ?? e.title ?? e.address}
+                    </span>
+                    <span className="block truncate text-[0.75rem] text-ink-3">
+                      {e.included ? (e.result?.path ?? e.address) : (e.reason ?? e.address)}
+                    </span>
+                  </button>
+                  {e.included && e.status !== "done" ? (
+                    <Chip
+                      tone={e.status === "kept" || e.status === "new" ? "neutral" : "warn"}
+                      title={e.note ?? undefined}
+                    >
+                      {t(STATUS_WORD[e.status])}
+                    </Chip>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Empty>{t("src.noRun")}</Empty>
+          )}
+        </Card>
+      )}
       {!readOnly && source.manual ? (
         <form
           className="flex flex-col gap-2"
@@ -1092,7 +1136,12 @@ export function SourceView({
       {error ? <p className="text-[0.8125rem] text-rose">{errorText(error)}</p> : null}
       {readOnly ? null : (
         <div className="flex justify-end">
-          <Button variant="ghost" size="sm" onClick={() => setRemoving(true)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setRemoving(true)}
+            className="text-rose hover:bg-rose-tint hover:text-rose"
+          >
             <Trash2 className="size-4" /> {t("src.remove")}
           </Button>
         </div>
