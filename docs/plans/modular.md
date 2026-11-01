@@ -186,7 +186,9 @@ Studio keep their direct routes.
   calls only the element protocol (B1).
 - New phase 2b, **client spaces** (B2): done when a customer signed in to their client space sees
   their own results and the shared knowledge, and nothing of another client or of the space's
-  setup, from the page, the run protocol and MCP alike.
+  setup, from the page, the run protocol and MCP alike. The page is the client portal
+  (`client-portal.md`, 2026-11-01): its own app on a client contract at `/api/v1/client`, the
+  run protocol opened by a run ticket.
 - Decision 8 (2026-10-31): client spaces as B2 describes them, one level under a space, cloud only.
 
 ## Built (phases 1–3)
