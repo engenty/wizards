@@ -80,22 +80,21 @@ export interface KnowledgeAdd {
   icon?: ComponentType<{ className?: string }>;
 }
 
-/** „gerade“, „vor 2 Std.“, „gestern“, „Mo.“, „12. Okt.“: when an item last changed, short. */
+/** „gerade“, „vor 5m“, „vor 2h“, „gestern“, „Mo.“, „12. Okt.“: when an item last changed, short. */
 export function when(iso: string): string {
   const then = new Date(iso);
   const minutes = (Date.now() - then.getTime()) / 60_000;
-  const short = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "short" });
   if (minutes < 1) {
     return t("know.justNow");
   }
   if (minutes < 60) {
-    return short.format(-Math.round(minutes), "minute");
+    return t("know.ago", { span: `${Math.round(minutes)}m` });
   }
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const days = Math.ceil((today.getTime() - then.getTime()) / 86_400_000);
   if (days <= 0) {
-    return short.format(-Math.round(minutes / 60), "hour");
+    return t("know.ago", { span: `${Math.round(minutes / 60)}h` });
   }
   if (days === 1) {
     return new Intl.RelativeTimeFormat(lang, { numeric: "auto" }).format(-1, "day");
