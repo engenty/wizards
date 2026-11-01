@@ -131,7 +131,7 @@ describe("the portal server", () => {
   it("sends every client address to the sign-in alike without a session, and asks nobody", async () => {
     calls.length = 0;
     const answers = await Promise.all(
-      ["/portal/r/a1b2c3d4e5f6", "/portal/r/doesnotexist", "/portal/chat/x9", "/portal/f/y8", "/portal/files"].map((p) =>
+      ["/portal/r/a1b2c3d4e5f6", "/portal/r/doesnotexist", "/portal/chat/x9", "/portal/f/y8", "/portal/results"].map((p) =>
         at(p),
       ),
     );

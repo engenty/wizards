@@ -1,15 +1,36 @@
 # Plan: the client portal
 
-Status: built on 2026-11-01, not released: the contract (#415), the Manage-App's client and page
-by host (Manage #165), the portal app (this branch). Step 3 of `docs/plans/client-spaces.md`, phase 2b
-of `docs/plans/modular.md`. Page with the diagram: the artifact “Client Portal Plan”
-(claude.ai/artifact/3BKfh32GhDy6cfAptwAK1H).
+Status: version 1 built on 2026-11-01 (the contract #415, the Manage-App's client and page by host
+Manage #165, the portal app #416, #417), not released. Re-planned the same day as **version 2**,
+"the firm's AI for its clients"; phase 1 of it is built (this branch). Step 3 of
+`docs/plans/client-spaces.md`, phase 2b of `docs/plans/modular.md`. Pages: “Client Portal v2”
+(claude.ai/artifact/Q5xdCVEKQSU8n7nvPUi97j, the mockups M1–M9 and P1–P4), and the first
+“Client Portal Plan” (claude.ai/artifact/3BKfh32GhDy6cfAptwAK1H) for the parts that stayed.
 
-A firm's client signs in at `<team>.wizards.page/portal` and finds their client space: what waits
-for them, the chats with the firm, their files and the results the firm shared. They start the
-wizards the firm opened to clients. The portal is an app of its own that reaches the runtime only
-through a public contract, signed in as the client, so another app can build a portal on the same
-contract.
+A firm hands its clients an AI that knows their project, runs the firm's ready-made wizards and
+keeps everything that comes out: a chat in the firm's colours, with the wizards beside it and one
+place for results. A client signs in at `<team>.wizards.page/portal`, asks the firm's AI and gets
+answers from their client space and what the firm opened to clients, starts the firm's wizards
+and finds every result. The firm's people come in by hand-off (phase 2), not as the front door.
+The portal is an app of its own that reaches the runtime only through a public contract, signed
+in as the client, so another app can build a portal on the same contract.
+
+## What changed from version 1
+
+Version 1 had four lists (For you, Chats, Files, Results), and its chat went to the firm's people:
+the AI answered only with "Ask the AI too" ticked. That treated the chat as person to person.
+Once the AI answers, the chat is the fastest way to anything, so it moves to the front:
+
+- The home is the chat. Every client message goes to the firm's AI, which answers as the client.
+- **For you** / **Für dich** becomes the row **Waiting for you** / **Wartet auf dich** above the
+  composer, at most three cards, gone when nothing waits.
+- Three places: **Chat**, **Wizards**, **Results** / **Ergebnisse** (with the tab **Files** /
+  **Dateien**). `/portal/chats` and `/portal/files` are gone.
+- The AI speaks as "<firm> AI" / „<Firma> KI“ with the firm's mark, never as a person. Engenties
+  stand only for wizards (cards, starters, runs) and once in a small "with engenty wizards" line.
+
+What stayed: the own app `apps/portal`, the contract `/api/v1/client`, addresses that never name
+a client space, the firm's brand, runs in a client space, "Share with the client".
 
 ## Decided
 
@@ -24,7 +45,10 @@ contract.
 | Switch | `clientSpaces`, as the rest of client spaces |
 | The organization's page (2026-11-01) | The app is the organization's page with an optional client part. Before sign-in it shows the firm's brand and its public page; client portals are a Team plan option. Later the organization's page can offer chat, wizards and information to everyone too: the routes leave room for it. MVP now, structure right |
 | Addresses (2026-11-01) | No client space's name or id in a portal address. `/portal` is the client's home; deep links name the item (`/portal/r/<run>`, `/portal/chat/<chat>`, `/portal/f/<file>`), never the space. See "Addresses" below |
-| Chats (2026-11-01) | A client writes to the firm's people. In a chat the client can ask the space's AI, which answers as the client under the broker and spends the firm's credits |
+| Chats (version 2, 2026-11-01) | Every client message goes to the firm's AI, which answers as the client under the broker with a client's tools only. The firm's people join a chat by hand-off (phase 2) |
+| Who reads a client's chat (2026-11-01) | The firm's members read every chat in a client space, as they see the rest of it. The client is told under the composer from the first message: "You and <firm> see this chat." / „Du und <Firma> seht diesen Chat.“ A hand-off adds the person who answers |
+| Who pays (2026-11-01) | The firm's credits pay every turn and every wizard a client starts, never stopped per client. An optional monthly budget per client space (phase 4) only warns the firm's admins (bell and mail) when a client goes over it; the client keeps working. When the firm's credits run out, the AI pauses and the client can hand the chat over |
+| Public links (2026-11-01) | A client cannot make a public link of a result unless the firm turns it on for that client space in Studio (phase 4). Downloads always work; a link inside the space opens for the people in it |
 
 ## The parts
 
@@ -63,14 +87,14 @@ rule opens it to clients.
 | `me` | `data:read` | – | The person (name, e-mail) and the organization (name, address `slug`, `pagesHost`), so the portal checks the host |
 | `spaces` | `data:read` | – | The client's client spaces: id, name, the firm's space name and its brand (`brandView` of the parent) |
 | `run_open` | `data:read` | – | By the run alone: a ticket for it and its client space, for a deep link |
-| `chat_messages` | `data:read` | – | By the chat alone: its messages and its client space |
+| `chat_messages` | `data:read` | – | By the chat alone: its messages and its client space. A message's `parts` keep the order it was written in: text, the AI's views (`show_view`) and the runs it started (`wizard_run`) as cards; a run only where the client opens it |
 | `file` | `data:read` | – | By the file alone: what it is and its client space; its bytes at `GET /api/v1/client/files/:id` |
 | `for_you` | `data:read` | ✓ | What waits for them: their runs waiting on a page or an ask, results the firm shared since they last looked, the wizards opened to clients |
-| `wizards` | `elements:read` | ✓ | The parent's published wizards a client may run (rule `x` for role `client`) |
+| `wizards` | `elements:read` | ✓ | The parent's published wizards a client may run (rule `x` for role `client`), each with its engenty (`avatar`) and its number of steps |
 | `wizard_start` | `elements:run` | ✓ | Starts one in the client space; gives the run id and its ticket |
 | `results` | `data:read` | ✓ | Runs of the client space the client may see: their own, and the firm's shared with them |
 | `chats` | `data:read` | ✓ | The client space's chats the client is a member of: the ones they started, the ones the firm added them to. The firm's other chats there stay internal |
-| `chat_post` | `elements:run` | ✓ | Writes a message in one of those chats; a new chat with the firm when none is named. `ask: true` lets the space's AI answer, as the client |
+| `chat_post` | `elements:run` | ✓ | Writes a message in one of those chats; a new chat when none is named. The firm's AI answers every message, as the client; the answer shows on the next read (`answering` while it writes) |
 | `files` | `data:read` | ✓ | The client space's documents and uploads |
 
 Paths: `POST /api/v1/client/:name` (no space), `POST /api/v1/client/spaces/:spaceId/:name`,
@@ -100,6 +124,17 @@ run started in a client space uses the parent's wizard and belongs to the client
 - A firm member's run in a client space belongs to the client space as well, internal until
   shared.
 
+### The AI's turn for a client
+
+The turn is Work's AI turn (`services/work-ai.ts`, `chatTurnWay()`), made for the person with
+the role `client` (the session's role, `TurnFor.role`). Its tools are narrower than a member's
+(`clientTools`): Knowledge (the client space, then what the firm opened to clients), the wizards
+opened to clients (`wizard_list`, `wizard_run`: a run lands in the client space) and `show_view`.
+No skills, sandbox, connections, plugin tools or web search: nothing that reaches past the client
+space or acts with the firm's sign-ins, so D10 rarely comes up. Its instructions say whom it
+answers, that the firm reads along, to say where it can't know, and to run a wizard where one
+fits. `test/client-ai.test.ts` holds a client's turn to exactly these tools.
+
 ### A client in the studio
 
 A client who signs in at the studio is sent on to their portal (`CLIENT_PORTAL_URL`, by default
@@ -125,12 +160,31 @@ starter in their client space.
 
 | Address | Page |
 |---|---|
-| `/portal` | Signed out: the firm's public face (its brand, its public page's words and wizards, "Sign in" where the client portal is on). Signed in: the client's home, **For you** / **Für dich** of the current client space |
-| `/portal/chats`, `/portal/files`, `/portal/results` | The parts of the current client space |
+| `/portal` | Signed out: the firm's own page with one button (its brand, its public page's words, "Sign in" where the client portal is on). Signed in: the chat-first home of the current client space |
+| `/portal/wizards` | The firm's wizards opened to clients, in the studio's card style |
+| `/portal/results` | Results as a grid, with the tab **Files** / **Dateien** |
 | `/portal/r/<run>` | One run or result, in the runner |
 | `/portal/chat/<chat>` | One chat |
 | `/portal/f/<file>` | One file |
-| `/portal/w/<wizard>` | One of the firm's wizards opened to clients: its start |
+| `/portal/w/<wizard>` | One of the firm's wizards opened to clients: its card and start |
+
+- **The frame:** on a wide screen a side bar with the firm's logo, the client space (a menu only
+  with several), **New chat**, **Wizards**, **Results** and the chats by when they were written
+  in (today, this week, then by month); the person, the language and sign-out at its foot. On a
+  phone a top bar with the space as its title and three tabs: Chat, Wizards, Results.
+- **The home:** a greeting by first name; **Waiting for you** (at most three of `for_you`'s
+  waiting runs); the composer; the firm's wizards as starters; **New for you** from `results`.
+  On the first visit (no chats, no results) one sentence on what the AI knows and example
+  prompts instead of starters.
+- **A chat:** the client's messages on the right, the AI's answers as "<firm> AI" with the firm's
+  mark, its views drawn with the runner's surface, its runs as cards that open `/portal/r/<run>`.
+  The answer comes by reading the chat while it is `answering` (phase 2 streams it). Under the
+  composer: "You and <firm> see this chat."
+- **The composer:** one box; Enter sends; its **Wizard** button lists the wizards and starts one.
+- **Wizards:** the engenty on the card's top edge, title, two lines, steps, **Start**; a run
+  waiting on the client above them.
+- **Results:** the client's waiting runs first with a status chip, then every result, each with
+  its wizard's engenty, title, source ("By you" / "By <firm>") and date; filters by source.
 
 ### Addresses
 
@@ -160,10 +214,15 @@ Decided on 2026-11-01 (replacing addresses with a client space's name or id):
   SPA, since their exact shape may still change.
 
 - **Brand:** before sign-in the public page's brand; after it the parent space's brand
-  (`runTheme`, the main logo). The engenty look where there is none.
+  (`runTheme`, the main logo) through `look.ts`. The accent marks the main action only; ground and
+  text stay calm; no gradients, banners or hero images. A calm gold marks what waits, the same
+  for every firm. The engenty look where there is no brand.
+- **Engenties** are the studio's (`apps/web/src/engenty/engenty.tsx`), written out with their
+  idle morph to `apps/portal/src/engenty-shapes.ts` by `apps/web/scripts/engenty-shapes.tsx`:
+  one eye, never drawn by hand.
 - **Languages:** German and English, by the browser, switchable. German gender-neutral
   (`docs/copy-style.md`), checked by `pnpm copy:check`.
-- **Phone first:** a bottom bar with the four parts on a phone, a side bar on a wide screen.
+- **Phone first:** three tabs at the bottom on a phone, a side bar from 900px.
 - **Sign-in** (Manage-App OAuth with PKCE, as `apps/runtime/src/auth/index.ts`): the callback is
   at the portal's own origin (`PORTAL_URL/portal/auth/callback`, one redirect URI for every team);
   it hands the session to the team's host with a one-time code that only the browser that started
@@ -195,17 +254,30 @@ Decided on 2026-11-01 (replacing addresses with a client space's name or id):
 
 ## Steps
 
-1. **Plan** (this page, the artifact).
-2. **The contract** (one PR): `run.clientSpaceId` and `run.clientSharedAt`, runs in a client space, the
-   client calls from one spec list, "Share with the client" on the studio route, the run ticket
-   for clients; tests that a client sees nothing of another client or of the
-   parent's setup, and the parent's Knowledge only where opened; `docs/content/dev/api.md`.
-3. **The Manage-App** (Manage PR): the portal's OAuth client per runtime, the page by host.
-4. **The portal** (one PR): `apps/portal`, the image, the compose service; tried on a local stack
-   with the Manage-App.
+Version 1 (built): the plan, the contract (#415), the Manage-App's client and page by host
+(Manage #165), the portal (#416, #417). Version 2 builds on it in phases, each behind
+`clientSpaces` and whole on its own:
+
+1. **The firm's AI in a new portal** (built, this branch): the portal rebuilt to the mockups; the
+   chat-first home; every client message to the AI; the narrower turn for clients with its tests;
+   views and runs as cards in `chat_messages`; Wizards with engenties; Results as a grid with
+   Files; this page.
+2. **Live answers and the firm's people:** the turn streams through the portal server (AI SDK UI
+   message stream); `chat_handoff` with a summary to the firm's bell in Work, the firm answers in
+   the same chat; uploads from the composer into the client space's files; mails (something
+   waits, the firm answered, a long wizard finished).
+3. **Results as artifacts:** one result record that chats and runs write into (`result_save`), with
+   kind and source; versions and change by asking on an opened result, with Undo; preview images
+   made on save; downloads per kind; the share menu (a link for the space, "Zur Durchsicht an
+   <Firma>").
+4. **The firm's controls** in Studio's Clients part: the AI's instructions for clients, who takes
+   hand-offs, public links per client space (off by default), usage per client space and the
+   optional monthly budget that warns the firm's admins; the panel of what the AI reads here.
 
 ## Not built yet
 
+- **Phases 2 to 4** above: streaming, hand-off, uploads, mails, result versions and previews,
+  budget, the firm's settings in Studio.
 - **The firm's side in Studio:** "Share with the client" and renaming a client space have their
   routes (`PUT /api/studio/runs/:id/client-share`, `PATCH /api/studio/spaces/:id/client`); the
   buttons wait for the space's Clients part (`client-spaces.md`, step 2).
@@ -213,20 +285,18 @@ Decided on 2026-11-01 (replacing addresses with a client space's name or id):
   `address-words.ts` there, so no team takes it as its own address word either.
 - **A run's knowledge in a client space:** a step's Knowledge block counts the client space's own
   items; the parent's opened items are found by search but not counted there.
+- **A failed turn** leaves no message: the chat stops saying the AI writes, and nothing explains
+  why until phase 2 streams the turn and its error.
+- **Languages:** the portal says du; the page's language setting (du, Sie, English) comes later.
 
 ## Open
 
 1. **Own domains:** the page by host answers for the team's address first; own domains join once
    the Manage-App serves pages on them.
-2. **Organization at sign-in:** solved: the portal sends the host's team as `organization`, which
-   the Manage-App's sign-in already takes.
-3. **D10 in the portal:** a client's chat or run that needs a person's yes is held for the bell.
+2. **D10 in the portal:** a client's chat or run that needs a person's yes is held for the bell.
    Until the broker holds outside calls (`modular.md`, "Approvals from outside"), it is refused
-   with why.
-4. **Uploads from the client:** the files part only lists and downloads; uploading waits for a
-   decision on the client's write rules for files.
-5. **Notifications:** a mail when something new waits for the client.
-6. **A brand without a public page:** a Team without a public page shows its name in the engenty
+   with why. The client's narrower tools make it rare.
+3. **A brand without a public page:** a Team without a public page shows its name in the engenty
    look before sign-in. An organization brand of its own would need a setting.
-7. **The rest of `<team>.wizards.page` in this app:** the public page, public chat and more could
+4. **The rest of `<team>.wizards.page` in this app:** the public page, public chat and more could
    move here from the Manage-App. To decide when public chat comes.

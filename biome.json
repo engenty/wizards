@@ -29,6 +29,7 @@
       "apps/docs/*.tsx",
       "apps/docs/*.mjs",
       "!apps/runtime/src/services/engenty-shapes.ts",
+      "!apps/portal/src/engenty-shapes.ts",
       "modules/**",
       "examples/plugins/**",
       "plugin/claude-code/**",

@@ -1,6 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 // The client contract (docs/plans/client-portal.md): a client of the organization reaches their
@@ -46,6 +47,28 @@ vi.mock("../src/mcp/auth.js", async (importOriginal) => {
     },
   };
 });
+
+// The firm's AI answers every message a client writes: here a model that answers at once.
+const usage = { inputTokens: { total: 10, noCache: 10 }, outputTokens: { total: 2, text: 2 } };
+const model = new MockLanguageModelV3({
+  doStream: async () => ({
+    stream: convertArrayToReadableStream([
+      { type: "stream-start", warnings: [] },
+      { type: "text-start", id: "t" },
+      { type: "text-delta", id: "t", delta: "Gern." },
+      { type: "text-end", id: "t" },
+      { type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage },
+    ] as never[]),
+  }),
+});
+vi.mock("../src/models.js", async (original) => ({
+  ...(await original<typeof import("../src/models.js")>()),
+  chatModel: async () => ({ model, ref: "test/scripted", vendor: "test", gateway: false, metered: true }),
+}));
+vi.mock("../src/agents/subscription.js", async (original) => ({
+  ...(await original<typeof import("../src/agents/subscription.js")>()),
+  chatTurnWay: async () => "openai",
+}));
 
 type App = { fetch: (req: Request) => Response | Promise<Response> };
 let app: App;
@@ -255,7 +278,7 @@ describe("the client contract", () => {
     expect([mine.spaceId, theirs.spaceId, firm.spaceId]).toEqual([wagner, berger, spaceId]);
   });
 
-  it("chats with the firm: a client sees their own chats, never the firm's internal ones", async () => {
+  it("chats with the firm's AI: a client sees their own chats, never the firm's internal ones", async () => {
     const posted = await call("tok-wagner", "chat_post", wagner, { text: "Wann ist der nächste Termin?" });
     expect(posted.status, JSON.stringify(posted.body)).toBe(200);
     const { chatId } = posted.result;
@@ -266,7 +289,7 @@ describe("the client contract", () => {
     expect(chats.map((c: any) => c.id)).toEqual([chatId]);
     const read = (await call("tok-wagner", "chat_messages", undefined, { chatId })).result;
     expect(read.spaceId).toBe(wagner);
-    expect(read.messages).toEqual([expect.objectContaining({ text: "Wann ist der nächste Termin?", author: expect.objectContaining({ me: true }) })]);
+    expect(read.messages[0]).toEqual(expect.objectContaining({ text: "Wann ist der nächste Termin?", author: expect.objectContaining({ me: true }) }));
     expect((await call("tok-berger", "chat_messages", undefined, { chatId })).status).toBe(404);
     expect((await call("tok-berger", "chats", berger)).result).toEqual([]);
   });

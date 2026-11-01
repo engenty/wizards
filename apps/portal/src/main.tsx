@@ -4,13 +4,13 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { runBase } from "./api";
+import { Engenty } from "./engenty";
 import { lang } from "./i18n";
 import "./portal.css";
 
-/** A plain mark where the runner shows the wizard's figure. */
-function Mark({ size = 64 }: MascotProps) {
-  const d = Math.min(size, 72) * 0.6;
-  return <span aria-hidden="true" className="mark" style={{ width: d, height: d }} />;
+/** The wizard's engenty where the runner shows its figure. */
+function Mascot({ kind, size = 64 }: MascotProps) {
+  return <Engenty kind={kind} size={Math.min(size, 72)} />;
 }
 
 // The runner talks to a run through the portal server, with the ticket the contract gave for it.
@@ -19,7 +19,7 @@ configureRunner({
   runBase,
   withBase: (path) => `/portal${path}`,
   asset: (path) => `/portal/${path.replace(/^\/+/, "")}`,
-  Mascot: Mark,
+  Mascot,
 });
 
 document.documentElement.lang = lang;

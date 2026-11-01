@@ -3,7 +3,9 @@
  * idle morph, oklch turned into hex: apps/runtime/src/services/engenty-shapes.ts, which the
  * runtime draws a wizard's app icon from (with each kind's ground shadow), and the mobile app's
  * src/engenty/shapes.ts in the apps repo (engenty-wizards-apps) when it is beside this repo, or
- * where WIZARDS_APPS says. Run it after the web's engenties change:
+ * where WIZARDS_APPS says. The client portal gets them as they move (apps/portal/src/
+ * engenty-shapes.ts): the idle morph kept, colours as the web writes them. Run it after the web's
+ * engenties change:
  *
  *   pnpm --filter @engenty/wizards-studio exec tsx scripts/engenty-shapes.tsx
  */
@@ -82,6 +84,28 @@ export const ENGENTY_SHADOW: Record<EngentyKind, { cy: number; rx: number }> = $
 `,
 );
 console.log("wrote apps/runtime/src/services/engenty-shapes.ts");
+
+// The client portal: the same figures with their idle morph, as the studio draws them.
+const moving = Object.fromEntries(
+  ENGENTY_KINDS.map((kind) => [
+    kind,
+    renderToStaticMarkup(createElement(Engenty, { kind, animated: true, size: 120 }))
+      .replace(/ (class|aria-hidden|style|width|height)="[^"]*"/g, "")
+      .replace(/^<svg/, '<svg aria-hidden="true"'),
+  ]),
+);
+writeFileSync(
+  join(here, "../../portal/src/engenty-shapes.ts"),
+  `// SPDX-License-Identifier: CC-BY-4.0
+// Written by ${SCRIPT} from apps/web/src/engenty — do not edit by hand.
+
+export type EngentyKind = ${ENGENTY_KINDS.map((k) => JSON.stringify(k)).join(" | ")};
+
+/** SVG, 120 × 120, with its idle morph and blink. */
+export const ENGENTY_SVG: Record<EngentyKind, string> = ${JSON.stringify(moving, null, 2)};
+`,
+);
+console.log("wrote apps/portal/src/engenty-shapes.ts");
 
 // The mobile app, in the apps repo beside this one.
 const apps = resolve(here, "../../..", process.env.WIZARDS_APPS ?? "../engenty-wizards-apps");

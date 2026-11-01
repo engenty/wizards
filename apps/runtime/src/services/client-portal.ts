@@ -178,7 +178,13 @@ async function openWizards(who: ClientWho, parent: SpaceRow) {
       open.push(w);
     }
   }
-  return open.map((w) => ({ id: w.id, title: w.title, description: w.description ?? "" }));
+  return open.map((w) => ({
+    id: w.id,
+    title: w.title,
+    description: w.description ?? "",
+    avatar: w.avatar,
+    steps: w.stepCount,
+  }));
 }
 
 export async function clientWizards(who: ClientWho, spaceId: string) {
@@ -241,6 +247,7 @@ const resultOf = (who: ClientWho, titles: Map<string, string>) => (r: RunRow) =>
   runId: r.id,
   wizardId: r.wizardId,
   title: titles.get(r.wizardId) ?? r.definition.title,
+  avatar: r.definition.avatar,
   status: r.status,
   mine: r.userId === who.id,
   sharedAt: r.clientSharedAt?.toISOString() ?? null,
@@ -388,42 +395,124 @@ async function memberChat(who: ClientWho, chatId: string) {
   return row.chat;
 }
 
-/** A chat's messages as the client reads them: who wrote and the text, no tool calls. */
+/** A tool's name in a message part: `tool-<name>`, or a dynamic tool's own. */
+const toolOf = (p: { type: string; toolName?: unknown }) =>
+  p.type === "dynamic-tool" && typeof p.toolName === "string"
+    ? p.toolName
+    : p.type.startsWith("tool-")
+      ? p.type.slice(5)
+      : null;
+
+/** A view or a run the AI made in a chat, as the portal draws it in the message. */
+export type ClientCard =
+  | {
+      kind: "view";
+      id: string;
+      title: string | null;
+      components: unknown[];
+      data: Record<string, unknown>;
+    }
+  | {
+      kind: "run";
+      runId: string;
+      wizardId: string;
+      title: string;
+      avatar: string;
+      status: string;
+    };
+
+/** A piece of a message, in the order it was written: text, or a card. */
+export type ClientPart = { kind: "text"; text: string } | ClientCard;
+
+/**
+ * A chat's messages as the client reads them: who wrote, the text, and the AI's views and the
+ * runs it started as cards, in the order the AI wrote them (no other tool calls). A run shows
+ * only where the client opens it.
+ */
 export async function clientChatMessages(who: ClientWho, chatId: string) {
   const chat = await memberChat(who, chatId);
   const read = await readChat(who, chat.id);
+  type Part = (typeof read.messages)[number]["parts"][number];
+  const done = (p: Part) =>
+    p.state === "output-available" && p.output && typeof p.output === "object";
+  const runIds = read.messages.flatMap((m) =>
+    m.parts
+      .filter((p) => toolOf(p) === "wizard_run" && done(p))
+      .map((p) => (p.output as { runId?: unknown }).runId)
+      .filter((id): id is string => typeof id === "string"),
+  );
+  const runs = runIds.length
+    ? await db.query.run.findMany({
+        where: and(inArray(schema.run.id, runIds), seenRuns(who, chat.spaceId)),
+      })
+    : [];
+  const titles = await titlesOf(runs.map((r) => r.wizardId));
+  const cardOf = (p: Part): ClientCard | null => {
+    const tool = toolOf(p);
+    if (tool === "show_view" && done(p) && (p.output as { ok?: unknown }).ok === true) {
+      const input = (p.input ?? {}) as { title?: string; components?: unknown[]; data?: object };
+      return {
+        kind: "view",
+        id: String(p.toolCallId ?? ""),
+        title: input.title ?? null,
+        components: input.components ?? [],
+        data: (input.data ?? {}) as Record<string, unknown>,
+      };
+    }
+    if (tool === "wizard_run" && done(p)) {
+      const run = runs.find((r) => r.id === (p.output as { runId?: unknown }).runId);
+      return run
+        ? {
+            kind: "run",
+            runId: run.id,
+            wizardId: run.wizardId,
+            title: titles.get(run.wizardId) ?? run.definition.title,
+            avatar: run.definition.avatar,
+            status: run.status,
+          }
+        : null;
+    }
+    return null;
+  };
+  const partOf = (p: Part): ClientPart | null =>
+    p.type === "text"
+      ? typeof p.text === "string" && p.text.trim()
+        ? { kind: "text", text: p.text.trim() }
+        : null
+      : cardOf(p);
   return {
     spaceId: chat.spaceId,
     chat: { id: chat.id, title: chat.title, answering: Boolean(read.chat.answeringSince) },
     messages: read.messages
-      .map((m) => ({
-        id: m.id,
-        author: { kind: m.author.kind, name: m.author.name, me: m.author.id === who.id },
-        text: m.parts
-          .filter((p) => p.type === "text" && typeof p.text === "string")
-          .map((p) => p.text as string)
-          .join("\n\n")
-          .trim(),
-        createdAt: m.createdAt,
-      }))
-      .filter((m) => m.text),
+      .map((m) => {
+        const parts = m.parts.map(partOf).filter((p): p is ClientPart => p !== null);
+        return {
+          id: m.id,
+          author: { kind: m.author.kind, name: m.author.name, me: m.author.id === who.id },
+          text: parts.flatMap((p) => (p.kind === "text" ? [p.text] : [])).join("\n\n"),
+          parts,
+          createdAt: m.createdAt,
+        };
+      })
+      .filter((m) => m.parts.length),
   };
 }
 
 /**
- * Writes in one of the client's chats, or starts a new one with the firm. `ask` lets the space's
- * AI answer as the client: its turn runs on, the next read shows the answer.
+ * Writes in one of the client's chats, or starts a new one. The firm's AI answers every message
+ * (docs/plans/client-portal.md, phase 1), as the client and with a client's tools (work-ai.ts):
+ * its turn runs on, the next read shows the answer. The firm's people read the chat as well.
  */
 export async function clientChatPost(
   who: ClientWho,
   spaceId: string,
-  input: { chatId?: string; text: string; ask?: boolean },
+  input: { chatId?: string; text: string },
 ) {
   const { space } = await clientSpace(who, spaceId);
   const chatId = input.chatId
     ? (await memberChat(who, input.chatId)).id
     : (await createChat(who, { spaceId: space.id })).id;
-  const sent = await sendMessage(who, chatId, input.text, { ask: input.ask === true });
+  const sent = await sendMessage(who, chatId, input.text, { ask: true });
   if (sent.kind === "turn") {
     // Nobody follows the stream here: it is read to its end so the turn runs through.
     void sent.stream.pipeTo(new WritableStream()).catch(() => undefined);
