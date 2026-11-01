@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { htmlToContent } from "../src/render/convert";
+import { absolutePictures, htmlToContent, picturesOf } from "../src/render/convert";
 
 // What `server.web.read` hands a plugin as `content`: the page without the site's frame.
 
@@ -30,5 +30,45 @@ describe("a web page's content", () => {
         <div class="bottom">Newsletter</div>`),
     );
     expect(md).toBe("## Preise\n\nAb 9 €.");
+  });
+});
+
+describe("a web page's pictures", () => {
+  const base = "https://example.com/blog/post";
+  const read = (body: string) => {
+    const content = htmlToContent(absolutePictures(page(body), base));
+    return { content, images: picturesOf(content) };
+  };
+
+  it("points each picture at one absolute address, the largest srcset entry up to 2000 px", () => {
+    const { content, images } = read(`<main>
+      <img src="/a-800.jpg" srcset="/a-800.jpg 800w, /a-1600.jpg 1600w, /a-3200.jpg 3200w" alt="Messestand 2026">
+      <img src="data:image/gif;base64,R0lGOD" data-src="pics/b.webp" alt="Team">
+      <img src="c.png" srcset="c.png, c@2x.png 2x" alt="">
+    </main>`);
+    expect(images).toEqual([
+      { url: "https://example.com/a-1600.jpg", alt: "Messestand 2026" },
+      { url: "https://example.com/blog/pics/b.webp", alt: "Team" },
+      { url: "https://example.com/blog/c@2x.png", alt: "" },
+    ]);
+    expect(content).toContain("![Messestand 2026](https://example.com/a-1600.jpg)");
+  });
+
+  it("leaves out icons, sprites, drawings and tiny pictures, and the frame's pictures", () => {
+    const { content, images } = read(`
+      <header><img src="/logo.png" alt="Logo"></header>
+      <main><p>Text</p>
+        <img src="/icons/phone.png" alt="">
+        <img src="/sprite.svg" alt="">
+        <img class="wp-smiley emoji" src="/x.png" alt="">
+        <img src="/arrow.png" width="16" height="16" alt="">
+        <img src="/thumb.jpg" width="120" srcset="/thumb.jpg 120w, /big.jpg 1200w" alt="Groß">
+        <img src="/photo(1).jpg" alt="Foto">
+      </main>`);
+    expect(images.map((i) => i.url)).toEqual([
+      "https://example.com/big.jpg",
+      "https://example.com/photo%281%29.jpg",
+    ]);
+    expect(content).not.toContain("logo");
   });
 });

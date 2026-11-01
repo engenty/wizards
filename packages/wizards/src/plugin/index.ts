@@ -471,6 +471,12 @@ export interface PluginWebPage {
    * footer, asides, forms, hidden menus, skip links and cookie notices. What a page is about.
    */
   content: string;
+  /**
+   * The pictures `content` shows, each once, in their order: absolute, the largest `srcset`
+   * entry up to 2000 px, without icons, sprites, drawings (SVG) and pictures drawn under 200 px.
+   * `text` and `content` show them at these same addresses.
+   */
+  images: { url: string; alt: string }[];
   /** Every link of the page, absolute, each once. */
   links: { url: string; text: string }[];
   /**
