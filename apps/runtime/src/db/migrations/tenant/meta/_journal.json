@@ -372,6 +372,13 @@
       "when": 1793534570691,
       "tag": "0052_dateien_plugin_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "6",
+      "when": 1793547992117,
+      "tag": "0053_dateien_file_title",
+      "breakpoints": true
     }
   ]
 }

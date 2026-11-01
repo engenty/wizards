@@ -683,6 +683,8 @@ export const spaceMountFile = sqliteTable(
       .default("pending"),
     error: text("error"),
     pages: integer("pages"),
+    /** What its text calls itself: a front matter's `title:` or its first heading. */
+    title: text("title"),
     /** Whether a thumbnail stands at `derived/m/<mount>/<id>.jpg`. */
     thumb: integer("thumb", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),

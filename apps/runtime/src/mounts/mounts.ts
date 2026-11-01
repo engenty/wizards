@@ -623,6 +623,15 @@ function textOf(file: Pick<FileRow, "name" | "mime">, hash: string, data?: Uint8
   );
 }
 
+/** What a text calls itself: its front matter's `title:`, else its first `#` heading. */
+export function titleOf(text: string): string | null {
+  const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1];
+  const named = front ? /^title:\s*["']?(.+?)["']?\s*$/m.exec(front)?.[1] : undefined;
+  const heading = /^#\s+(.+?)\s*#*\s*$/m.exec(text)?.[1];
+  const title = (named ?? heading)?.trim();
+  return title ? title.slice(0, 200) : null;
+}
+
 const hasText = (file: Pick<FileRow, "mime" | "size">) =>
   TEXT.test(file.mime) && file.size <= MAX_TEXT_BYTES;
 
@@ -712,6 +721,7 @@ async function indexFile(mount: MountRow, file: FileRow) {
     .set({
       hash,
       pages,
+      title: titleOf(text),
       thumb,
       status: big || (!text && !hasThumb(file.mime)) ? "skipped" : "ready",
       error: null,
@@ -1343,6 +1353,8 @@ export interface MountFileView {
   status: FileRow["status"];
   thumb: boolean;
   pages: number | null;
+  /** What its text calls itself, when it says. */
+  title: string | null;
   /** The space's categories set on it, by category id. */
   categories: ItemCategory[];
 }
@@ -1357,6 +1369,7 @@ const fileView = (f: FileRow, categories: ItemCategory[] = []): MountFileView =>
   status: f.status,
   thumb: f.thumb,
   pages: f.pages,
+  title: f.title,
   categories,
 });
 
