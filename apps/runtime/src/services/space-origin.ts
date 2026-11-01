@@ -8,6 +8,12 @@ import { UnreadableDocument } from "../documents/parse.js";
 import { ServiceError } from "./errors.js";
 import { filePaths, pageTree, tablePaths } from "./knowledge.js";
 import { convertDocument, fillCategories, summarizeValues } from "./knowledge-model.js";
+import {
+  copiesPictures,
+  copyPagePictures,
+  dropUnshownPictures,
+  shownFiles,
+} from "./page-pictures.js";
 import { putCategory, setItemCategories } from "./space-categories.js";
 import { listOrigin, putOriginPage, putOriginTable, removeOrigin } from "./space-data.js";
 import { putOriginFile, spaceFileContent } from "./space-files.js";
@@ -57,10 +63,21 @@ export function originData(origin: string): PluginSpaceData {
       }
     },
     async putPage(input) {
+      // Its pictures copied into the space; the ones it showed before go once no page shows them.
+      const before = await pageMarkdown(origin, input.space, input.key);
+      const markdown =
+        input.images?.length && (await copiesPictures())
+          ? await copyPagePictures(origin, { ...input, images: input.images })
+          : input.markdown;
       const written = await putOriginPage(origin, {
         ...input,
+        markdown,
         categories: input.categories as CategoryInput | undefined,
       });
+      await dropUnshownPictures(origin, input.space, [
+        ...shownFiles(before),
+        ...shownFiles(markdown),
+      ]);
       if (input.fill && written.state === "written") {
         const changed = await fillCategories(
           input.space,
@@ -241,7 +258,25 @@ export function originData(origin: string): PluginSpaceData {
       };
     },
     list: (space) => listOrigin(origin, space),
-    remove: (space, key) => removeOrigin(origin, space, key),
+    async remove(space, key) {
+      const before = await pageMarkdown(origin, space, key);
+      const removed = await removeOrigin(origin, space, key);
+      await dropUnshownPictures(origin, space, shownFiles(before));
+      return removed;
+    },
     summarize: (space, category, value) => summarizeValues(space, category, value),
   };
+}
+
+/** The Markdown of the plugin's pages under `key`, or of all of them: the pictures they show. */
+async function pageMarkdown(origin: string, space: string, key?: string): Promise<string> {
+  const rows = await db.query.spacePage.findMany({
+    where: and(
+      eq(schema.spacePage.spaceId, space),
+      eq(schema.spacePage.origin, origin),
+      key === undefined ? undefined : eq(schema.spacePage.originKey, key.trim().slice(0, 300)),
+    ),
+    columns: { markdown: true },
+  });
+  return rows.map((r) => r.markdown).join("\n");
 }

@@ -231,7 +231,8 @@ const res = await server.web.fetch(`${origin}/sitemap.xml`, {
 - `images` are the pictures `content` shows, each once, as `{ url, alt }`: absolute, the
   largest `srcset` entry up to 2,000 px (or what a lazy loader keeps in `data-src`), without
   icons, sprites, drawings (SVG) and pictures drawn under 200 px. `text` and `content` show
-  them at the same addresses.
+  them at the same addresses; `spaceData.putPage` takes them as `images` and the space keeps
+  [copies](./space.md#pictures-of-a-page).
 - `etag` and `lastModified` are what the server sent, for asking later whether the page changed. `jsonld`
   is the page’s structured data (its `application/ld+json` blocks, parsed): a shop’s product
   page says title, price, availability and image there exactly, without a model.

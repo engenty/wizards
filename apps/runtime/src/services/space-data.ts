@@ -15,7 +15,7 @@ import {
   type SpaceTableRow,
 } from "@engenty/wizards-shared/space-data";
 import { rowKey } from "@engenty/wizards-shared/store";
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { assertRwx, pageResources, readable, type Subject, tableResources } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
@@ -1181,8 +1181,13 @@ export async function listOrigin(origin: string, space: string) {
         updatedAt: true,
       },
     }),
+    // A page's pictures go with its pages, not as items of their own.
     db.query.spaceFile.findMany({
-      where: and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.origin, origin)),
+      where: and(
+        eq(schema.spaceFile.spaceId, spaceId),
+        eq(schema.spaceFile.origin, origin),
+        ne(schema.spaceFile.kind, "picture"),
+      ),
       columns: { id: true, originKey: true, name: true, updatedAt: true },
     }),
   ]);

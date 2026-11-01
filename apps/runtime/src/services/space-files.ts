@@ -110,6 +110,10 @@ export async function spaceFileThumb(spaceId: string, fileId: string, who: Subje
 const ASSET_TYPES = /^((image|video|audio|font)\/|application\/(pdf|json)$|model\/gltf)/;
 
 function accepts(kind: SpaceFileKind, mime: string): boolean {
+  // A page's pictures come only with their page (page-pictures.ts).
+  if (kind === "picture") {
+    return false;
+  }
   if (kind === "logo" || kind === "pattern") {
     return mime.startsWith("image/");
   }
@@ -298,6 +302,26 @@ async function describeImage(row: SpaceFileRow, data: Uint8Array): Promise<strin
     ],
   });
   return result.text.trim().slice(0, 600);
+}
+
+/**
+ * A picture of a page (kind `picture`) where the embedding model doesn't see pictures: a sentence
+ * says what it shows, after the words it came with, and the index finds it by them.
+ */
+export function describePicture(row: SpaceFileRow) {
+  void slot(async () => {
+    const data = await spaceFileBytes(row);
+    const said = data ? await describeImage(row, new Uint8Array(data)).catch(() => "") : "";
+    await db
+      .update(schema.spaceFile)
+      .set({
+        status: "ready",
+        description: [row.description, said].filter(Boolean).join("\n").slice(0, 600),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.spaceFile.id, row.id));
+    queueIndex(`f:${row.id}`);
+  });
 }
 
 async function describeDocument(row: SpaceFileRow, text: string): Promise<string> {

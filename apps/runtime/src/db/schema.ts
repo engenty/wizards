@@ -494,7 +494,7 @@ export const spaceFile = sqliteTable(
     spaceId: text("space_id")
       .notNull()
       .references(() => space.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: ["logo", "asset", "document", "pattern"] }).notNull(),
+    kind: text("kind", { enum: ["logo", "asset", "document", "pattern", "picture"] }).notNull(),
     name: text("name").notNull(),
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
