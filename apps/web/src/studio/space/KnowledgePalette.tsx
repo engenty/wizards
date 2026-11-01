@@ -294,6 +294,8 @@ function Palette({
   const mountedRow = (hit: KnowledgeHit): Row => {
     const id = hit.open?.slice(2) ?? "";
     const inMount = hit.path.split("/").slice(2, -1).join(" › ");
+    // The passage is read with the headings it was indexed under: they are in the title.
+    const text = hit.picture ? undefined : plain(hit.text.replace(/^#+ [^\n]*\n+/, ""));
     return {
       id: `${hit.key}:${hit.heading ?? ""}:${hit.sheet ?? ""}`,
       icon: hit.picture ? Image : FileText,
@@ -308,13 +310,13 @@ function Palette({
         </>
       ),
       where: inMount,
-      // The passage is read with the headings it was indexed under: they are in the title.
-      text: hit.picture ? undefined : plain(hit.text.replace(/^#+ [^\n]*\n+/, "")),
+      text,
       relevance: hit.relevance,
       open: () => {
         onClose();
-        const show = hit.sheet ? `m:${id}#${hit.sheet}` : `m:${id}`;
-        navigate(`/space/files?show=${encodeURIComponent(show)}`);
+        const page = hit.picture === "page" ? hit.sheet : null;
+        navigate(`/space/files?show=${encodeURIComponent(page ? `m:${id}#${page}` : `m:${id}`)}`);
+        reveal(page ? { page } : { words: wordsOf(text ?? "") });
       },
     };
   };
