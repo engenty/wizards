@@ -57,7 +57,7 @@ const MAX_READ_BYTES = 100 * 1024 * 1024;
 const MAX_TEXT_BYTES = 50 * 1024 * 1024;
 /** What has text of its own to read: documents, tables, mails, plain text. */
 const TEXT =
-  /^(application\/pdf|application\/json|message\/rfc822|text\/|application\/vnd\.openxmlformats-officedocument\.(wordprocessingml|spreadsheetml))/;
+  /^(application\/pdf|application\/msword|application\/json|message\/rfc822|text\/|application\/vnd\.openxmlformats-officedocument\.(wordprocessingml|spreadsheetml))/;
 /** The pictures the embedding model is shown: what @napi-rs/canvas reads. */
 const PICTURE = /^image\/(png|jpeg|webp|gif)$/;
 /** A mount's tree is listed again this often, for what a watcher missed. */
@@ -616,10 +616,21 @@ async function indexNext(): Promise<boolean> {
   return true;
 }
 
-/** The text of a file's bytes, read without a model; through the cache. */
-function textOf(file: Pick<FileRow, "name" | "mime">, hash: string, data?: Uint8Array) {
-  return cachedText(hash, async () =>
-    data ? ownText({ data, name: file.name, mime: file.mime }).catch(() => null) : null,
+/**
+ * The text of a file's bytes, read without a model; through the cache. `again`: a kept read
+ * without text is read once more (OCR may not have been there).
+ */
+function textOf(
+  file: Pick<FileRow, "name" | "mime">,
+  hash: string,
+  data?: Uint8Array,
+  again = false,
+) {
+  return cachedText(
+    hash,
+    async () =>
+      data ? ownText({ data, name: file.name, mime: file.mime }).catch(() => null) : null,
+    again,
   );
 }
 
@@ -645,7 +656,7 @@ async function indexFile(mount: MountRow, file: FileRow) {
   const hash = data ? createHash("sha256").update(data).digest("hex") : null;
   const same = hash !== null && hash === file.hash;
   const parsed: ParsedDocument | null =
-    hash && hasText(file) ? await textOf(file, hash, data ?? undefined) : null;
+    hash && hasText(file) ? await textOf(file, hash, data ?? undefined, true) : null;
   const text = parsed?.markdown ?? "";
   const pages = parsed?.pages ?? null;
   const base = { spaceId: mount.spaceId, mountId: mount.id, fileId: file.id };

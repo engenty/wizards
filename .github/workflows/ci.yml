@@ -82,6 +82,14 @@ jobs:
           key: vitest-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: vitest-${{ runner.os }}-
 
+      # Tesseract's models for apps/runtime/test/document-reading.test.ts: 24 MB from GitHub,
+      # downloaded once.
+      - if: matrix.check == 'test'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/wizards-tessdata
+          key: tessdata-best-deu-eng
+
       # Lint takes seconds: it rides along with the typecheck.
       - name: Lint
         if: matrix.check == 'typecheck'

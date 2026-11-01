@@ -38,6 +38,7 @@
     "@fontsource/young-serif": "5.3.0",
     "@hono/node-server": "^2.1.3",
     "@libsql/client": "^0.18.0",
+    "@llamaindex/liteparse": "2.17.0",
     "@lydell/node-pty": "1.1.0",
     "@mastra/ai-sdk": "1.11.2",
     "@mastra/core": "1.80.0",
@@ -72,6 +73,7 @@
     "rfc6902": "^5.3.0",
     "turndown": "^7.2.4",
     "undici": "8.12.3",
+    "word-extractor": "1.0.4",
     "zod": "4.6.6"
   },
   "devDependencies": {
@@ -79,6 +81,7 @@
     "@types/node": "^26.6.4",
     "@types/nodemailer": "^8.0.2",
     "@types/turndown": "^5.0.6",
+    "@types/word-extractor": "1.0.6",
     "ajv": "8.20.0",
     "drizzle-kit": "^0.31.11",
     "typescript": "~7.0.2",
