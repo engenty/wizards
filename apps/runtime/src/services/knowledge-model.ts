@@ -22,7 +22,7 @@ import {
   numberOf,
   setItemCategories,
 } from "./space-categories.js";
-import { keepText, queueIndex } from "./space-index.js";
+import { keepText, queueIndex, seenAsPicture } from "./space-index.js";
 
 /**
  * What models do for Knowledge. A document is read when it arrives and becomes what a step reads:
@@ -339,12 +339,18 @@ export interface Converted {
 /**
  * Reads an uploaded document into Knowledge: a table per sheet of a workbook, else a page — with
  * sub-pages when it is long and has headings of its own. The file stays as the original. A file
- * nothing can read stays a file; UnreadableDocument says why.
+ * nothing can read stays a file; UnreadableDocument says why. So does a picture the index embeds
+ * as a picture.
  */
 export async function convertDocument(file: FileRow, data: Uint8Array): Promise<Converted> {
   const mime = documentMime(file.name, file.mime);
   await dropConverted(file.id);
   const items: string[] = [];
+  // Where the embedding model sees pictures, a picture is found by what it shows: it stays a
+  // file, and no vision model writes a page of what is in it.
+  if (await seenAsPicture(mime)) {
+    return { text: "", textHash: null, pages: null, chars: 0, items };
+  }
   if (mime === XLSX || mime === "text/csv") {
     const sheets = await sheetsOf(data, mime);
     const base = titleOf("", file.name);

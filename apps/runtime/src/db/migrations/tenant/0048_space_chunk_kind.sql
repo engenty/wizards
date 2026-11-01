@@ -1,0 +1,1 @@
+ALTER TABLE `space_chunk` ADD `kind` text;
