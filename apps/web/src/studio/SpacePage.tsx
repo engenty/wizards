@@ -547,10 +547,17 @@ export function SpacePage({ place }: { place?: "skills" }) {
     navigate({ search: "", hash: id }, { replace: true });
   };
   // Results and Data pick what the page shows: on a phone a step deeper, beside the menu in place.
-  const pick = (id: string) =>
-    narrow
-      ? setParams({ show: id })
-      : setParams(id === "all" ? {} : { show: id }, { replace: true });
+  // Knowledge is read like a site: each item opened is a step the browser's back goes back from.
+  const pick = (id: string) => {
+    if (id === show) {
+      return;
+    }
+    if (narrow) {
+      setParams({ show: id });
+    } else {
+      setParams(id === "all" ? {} : { show: id }, { replace: group !== "knowledge" });
+    }
+  };
   const pluginSections = (list: SpaceSectionGroup[]) =>
     list
       .flatMap((g) => g.sections)
@@ -859,7 +866,13 @@ export function SpacePage({ place }: { place?: "skills" }) {
                         }
                         kinds={sources.kinds}
                         onKind={(kind, parentId) => setAdding({ kind, parentId })}
-                        source={sources.ofFolder(pickedItem.id)}
+                        // A folder the source made inside its own names it too.
+                        source={
+                          sources.ofFolder(pickedItem.id) ??
+                          (pickedItem.kept
+                            ? undefined
+                            : sources.sources.find((s) => pickedItem.origin === `source:${s.id}`))
+                        }
                         status={
                           sources.ofFolder(pickedItem.id) ? (
                             <SourcesStatus

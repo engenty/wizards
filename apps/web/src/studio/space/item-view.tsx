@@ -42,11 +42,11 @@ export function useItemView(): ItemView {
   );
 }
 
-/** One icon that switches between cards and the list; it shows what a press turns to. */
+/** One icon: the view shown now; a press switches to the other. */
 export function ItemViewSwitch() {
   const view = useItemView();
   const next: ItemView = view === "cards" ? "list" : "cards";
-  const Icon = next === "list" ? List : LayoutGrid;
+  const Icon = view === "list" ? List : LayoutGrid;
   return (
     <IconButton
       label={next === "list" ? t("know.asList") : t("know.asCards")}

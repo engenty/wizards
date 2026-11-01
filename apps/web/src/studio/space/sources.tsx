@@ -126,6 +126,8 @@ export interface SourceEntry {
   status: "new" | "done" | "check" | "failed" | "kept";
   result: { kind: "page" | "table" | "file"; id: string; path: string; title: string } | null;
   note: string | null;
+  /** When the source last wrote down what it found for it. */
+  updatedAt: string;
 }
 
 interface SourcesList {
@@ -212,33 +214,19 @@ export function useSources(spaceId: string | undefined) {
 
 // --- the sources on Wissen's start page -------------------------------------------------------
 
-/** „in 3 Std.“, „morgen“: when something is due, short; „jetzt fällig“ once it is past. */
-function due(at: number): string {
-  const minutes = (at - Date.now()) / 60_000;
-  if (minutes <= 1) {
-    return t("src.dueNow");
-  }
-  const short = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "short" });
+/** „5m“, „2h“, „3d“: a stretch of time, short. */
+function span(minutes: number): string {
   return minutes < 60
-    ? short.format(Math.round(minutes), "minute")
+    ? `${Math.round(minutes)}m`
     : minutes < 48 * 60
-      ? short.format(Math.round(minutes / 60), "hour")
-      : short.format(Math.round(minutes / 1440), "day");
+      ? `${Math.round(minutes / 60)}h`
+      : `${Math.round(minutes / 1440)}d`;
 }
 
-/** „vor 2h“, „vor 5m“, „vor 3d“: how long ago, as short as a card's line wants it. */
-function shortAgo(at: string): string {
-  const minutes = (Date.now() - Date.parse(at)) / 60_000;
-  if (minutes < 1) {
-    return t("src.justNow");
-  }
-  const span =
-    minutes < 60
-      ? `${Math.round(minutes)}m`
-      : minutes < 48 * 60
-        ? `${Math.round(minutes / 60)}h`
-        : `${Math.round(minutes / 1440)}d`;
-  return t("src.ago", { span });
+/** „in 22h“: how long until, short; „jetzt fällig“ once it is past. */
+function shortIn(at: number): string {
+  const minutes = (at - Date.now()) / 60_000;
+  return minutes <= 1 ? t("src.dueNow") : t("src.inSpan", { span: span(minutes) });
 }
 
 /** Where a source reads, short: the host and the path, without the scheme. */
@@ -278,7 +266,7 @@ export function SourceCards({
           pages === 1 ? t("src.onePage") : t("src.pages", { n: pages }),
           t(EVERY_WORD[(s.everyHours ?? 0) as keyof typeof EVERY_WORD] ?? "src.every0"),
           // When it read last, short: when it reads next is on the source's page.
-          last ? shortAgo(last) : t("src.neverRead"),
+          last ? ago(last) : t("src.neverRead"),
         ].filter(Boolean);
         return (
           <div
@@ -288,7 +276,8 @@ export function SourceCards({
             <button
               type="button"
               onClick={() => s.folderId && onOpen(`p:${s.folderId}`)}
-              className="flex min-w-0 items-center gap-2 pr-7 text-left"
+              // Its click area covers the whole card; the gear stands above it.
+              className="flex min-w-0 items-center gap-2 pr-7 text-left after:absolute after:inset-0 after:rounded-xl"
             >
               <Icon className="size-4 shrink-0 text-ink-3" />
               <span className="truncate font-medium text-[0.875rem]">{s.label}</span>
@@ -315,7 +304,7 @@ export function SourceCards({
             ) : null}
             <IconButton
               label={t("src.menuSource")}
-              className="absolute top-2 right-2 size-7 text-ink-4 opacity-0 transition group-hover/card:opacity-100 focus-visible:opacity-100"
+              className="absolute top-2 right-2 z-10 size-7 text-ink-4 opacity-0 transition group-hover/card:opacity-100 focus-visible:opacity-100"
               onClick={() => onOpen(`q:${s.id}`)}
             >
               <Settings2 className="size-4" />
@@ -809,7 +798,13 @@ export function SourceDialog({
     error: propose.error ? errorText(propose.error) : null,
   };
   return (
-    <Dialog open={Boolean(kind)} onClose={onClose} title={kind?.label()} height="tall">
+    // The form is short; what it proposes needs the room, and the dialog grows to it once.
+    <Dialog
+      open={Boolean(kind)}
+      onClose={onClose}
+      title={kind?.label()}
+      height={proposal ? "tall" : "auto"}
+    >
       {!kind ? null : proposal ? (
         <ProposalView
           spaceId={spaceId}
@@ -952,97 +947,104 @@ export function SourceView({
   );
   const error = patch.error ?? run.error ?? eye.error ?? add.error ?? remove.error;
   return (
-    <Section
-      page
-      title={source.label}
-      hint={[kind?.label() ?? t("src.source"), shortAddress(source.address)].join(" · ")}
-      plain
-      action={
-        readOnly ? null : (
-          <div className="flex items-center gap-2">
-            {source.folderId ? (
-              <Button variant="ghost" size="sm" onClick={() => onOpen(`p:${source.folderId}`)}>
-                <Icon className="size-4" /> {t("src.openFolder")}
-              </Button>
-            ) : null}
-            {source.state === "taken" && source.available ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                busy={run.isPending}
-                onClick={() => run.mutate(source.running)}
-              >
-                {source.running ? <Pause className="size-4" /> : <RefreshCw className="size-4" />}{" "}
-                {source.running ? t("src.stop") : t("src.refresh")}
-              </Button>
-            ) : null}
-          </div>
-        )
-      }
-    >
+    <Section page title={source.label} plain>
       {source.available ? null : (
         <p className="rounded-xl bg-amber-tint px-4 py-2.5 text-[0.8125rem] text-ink-2">
           {t("src.missing")}
         </p>
       )}
-      {/* How often it reads, when it read last and reads next: one line under the title. */}
-      <div className="-mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[0.8125rem] text-ink-3">
-        <RefreshCw className="size-3.5 text-ink-4" />
-        {readOnly ? (
-          <span>{t(EVERY_WORD[(source.everyHours ?? 0) as keyof typeof EVERY_WORD])}</span>
-        ) : (
-          <span className="relative">
-            <select
-              aria-label={t("src.every")}
-              value={String(source.everyHours ?? 0)}
-              onChange={(e) => patch.mutate({ everyHours: Number(e.target.value) || null })}
-              className="h-7 cursor-pointer appearance-none rounded-md bg-paper-2 pr-7 pl-2 font-medium text-[0.8125rem] text-ink transition hover:bg-accent"
+      {/* What it reads and its folder; below, how often it reads, with reading now at its end. */}
+      <Card className="flex flex-col divide-y divide-border-soft">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+          <Icon className="size-4 shrink-0 text-ink-3" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-[0.875rem]">{kind?.label() ?? t("src.source")}</p>
+            <a
+              href={source.address}
+              target="_blank"
+              rel="noreferrer"
+              title={source.address}
+              className="block truncate text-[0.8125rem] text-ink-3 underline-offset-2 hover:text-ink hover:underline"
             >
-              {EVERY.map((h) => (
-                <option key={h} value={h}>
-                  {t(EVERY_WORD[h])}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2 size-3.5 text-ink-3" />
-          </span>
-        )}
-        {source.running ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-cobalt-tint px-2 py-0.5 text-[0.75rem] text-cobalt">
-            <Spinner className="size-3" />
-            {source.now?.of
-              ? t("src.readingOf", { done: source.now.done, n: source.now.of })
-              : t("src.readingNow")}
-          </span>
-        ) : (
-          <>
-            <span className="text-ink-4">·</span>
-            <span title={last ? partsOf(last) : undefined}>
-              {lastAt ? t("src.lastRead", { when: ago(lastAt) }) : t("src.neverRead")}
-              {last && partsOf(last) ? `: ${partsOf(last)}` : ""}
+              {shortAddress(source.address)}
+            </a>
+          </div>
+          {source.folderId ? (
+            <Button variant="ghost" size="sm" onClick={() => onOpen(`p:${source.folderId}`)}>
+              <FolderOpen className="size-4" /> {t("src.openFolder")}
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 py-3 text-[0.8125rem] text-ink-3">
+          <span className="text-ink-2">{t("src.every")}</span>
+          {readOnly ? (
+            <span className="font-medium text-ink">
+              {t(EVERY_WORD[(source.everyHours ?? 0) as keyof typeof EVERY_WORD])}
             </span>
-            {source.everyHours && lastAt ? (
-              <>
-                <span className="text-ink-4">·</span>
-                <span>
-                  {t("src.nextRead", {
-                    when: due(Date.parse(lastAt) + source.everyHours * 3_600_000),
-                  })}
-                </span>
-              </>
+          ) : (
+            <span className="relative">
+              <select
+                aria-label={t("src.every")}
+                value={String(source.everyHours ?? 0)}
+                onChange={(e) => patch.mutate({ everyHours: Number(e.target.value) || null })}
+                className="h-7 cursor-pointer appearance-none rounded-md bg-paper-2 pr-7 pl-2 font-medium text-[0.8125rem] text-ink transition hover:bg-accent"
+              >
+                {EVERY.map((h) => (
+                  <option key={h} value={h}>
+                    {t(EVERY_WORD[h])}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2 size-3.5 text-ink-3" />
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            {source.running ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-cobalt-tint px-2 py-0.5 text-[0.75rem] text-cobalt">
+                <Spinner className="size-3" />
+                {source.now?.of
+                  ? t("src.readingOf", { done: source.now.done, n: source.now.of })
+                  : t("src.readingNow")}
+              </span>
+            ) : (
+              <span title={last ? partsOf(last) : undefined}>
+                {[
+                  lastAt
+                    ? `${t("src.lastRead", { when: ago(lastAt) })}${last && partsOf(last) ? `: ${partsOf(last)}` : ""}`
+                    : t("src.neverRead"),
+                  source.everyHours && lastAt
+                    ? t("src.nextRead", {
+                        when: shortIn(Date.parse(lastAt) + source.everyHours * 3_600_000),
+                      })
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            )}
+            {source.status === "failed" && !source.running ? (
+              <span
+                className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-rose-tint px-2 py-0.5 text-[0.75rem] text-rose"
+                title={source.error ?? ""}
+              >
+                <CircleAlert className="size-3" />
+                {t("src.failedShort")}
+              </span>
             ) : null}
-          </>
-        )}
-        {source.status === "failed" && !source.running ? (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full bg-rose-tint px-2 py-0.5 text-[0.75rem] text-rose"
-            title={source.error ?? ""}
-          >
-            <CircleAlert className="size-3" />
-            {t("src.failedShort")}
           </span>
-        ) : null}
-      </div>
+          {!readOnly && source.state === "taken" && source.available ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              busy={run.isPending}
+              onClick={() => run.mutate(source.running)}
+            >
+              {source.running ? <Pause className="size-4" /> : <RefreshCw className="size-4" />}{" "}
+              {source.running ? t("src.stop") : t("src.refresh")}
+            </Button>
+          ) : null}
+        </div>
+      </Card>
       {/* The kind's own settings frame themselves: a kind with none to show leaves no box. */}
       {Settings ? (
         <PluginFrame of={kind}>
@@ -1067,17 +1069,8 @@ export function SourceView({
               {shown.map((e) => (
                 <li
                   key={e.id}
-                  className="group flex items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-accent"
+                  className="group flex items-center gap-3 rounded-lg py-1.5 pr-1 pl-2.5 hover:bg-accent"
                 >
-                  {readOnly ? null : (
-                    <IconButton
-                      label={e.included ? t("src.leaveOut") : t("src.takeIn")}
-                      onClick={() => eye.mutate(e)}
-                      className={cn("size-8", e.included ? "text-ink-3" : "text-ink-4")}
-                    >
-                      {e.included ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-                    </IconButton>
-                  )}
                   <button
                     type="button"
                     disabled={!e.result}
@@ -1103,6 +1096,21 @@ export function SourceView({
                       {t(STATUS_WORD[e.status])}
                     </Chip>
                   ) : null}
+                  <span
+                    className="shrink-0 text-[0.75rem] text-ink-4 tabular-nums"
+                    title={new Date(e.updatedAt).toLocaleString(lang)}
+                  >
+                    {ago(e.updatedAt)}
+                  </span>
+                  {readOnly ? null : (
+                    <IconButton
+                      label={e.included ? t("src.leaveOut") : t("src.takeIn")}
+                      onClick={() => eye.mutate(e)}
+                      className={cn("size-7", e.included ? "text-ink-3" : "text-ink-4")}
+                    >
+                      {e.included ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                    </IconButton>
+                  )}
                 </li>
               ))}
             </ul>
