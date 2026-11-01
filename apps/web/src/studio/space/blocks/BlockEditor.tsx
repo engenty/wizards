@@ -12,7 +12,7 @@ import { Placeholder } from "@tiptap/extensions";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import {
   Bold,
@@ -33,6 +33,7 @@ import {
   ListOrdered,
   Pilcrow,
   Quote,
+  SquareCheck,
   Strikethrough,
   Table,
   Upload,
@@ -615,6 +616,36 @@ export function BlockEditor(props: BlockEditorProps) {
     };
   }, [editor]);
 
+  // What the caret stands in, for the toolbar: read on every change of the selection.
+  const active = useEditorState({
+    editor,
+    selector: ({ editor: e }) => ({
+      h1: Boolean(e?.isActive("heading", { level: 1 })),
+      h2: Boolean(e?.isActive("heading", { level: 2 })),
+      h3: Boolean(e?.isActive("heading", { level: 3 })),
+      bold: Boolean(e?.isActive("bold")),
+      italic: Boolean(e?.isActive("italic")),
+      link: Boolean(e?.isActive("link")),
+      bullets: Boolean(e?.isActive("bulletList")),
+      tasks: Boolean(e?.isActive("taskList")),
+      quote: Boolean(e?.isActive("blockquote")),
+      code: Boolean(e?.isActive("codeBlock")),
+    }),
+  }) ?? {
+    h1: false,
+    h2: false,
+    h3: false,
+    bold: false,
+    italic: false,
+    link: false,
+    bullets: false,
+    tasks: false,
+    quote: false,
+    code: false,
+  };
+  /** The toolbar's link button: the bubble opens its field, counted so each press opens it. */
+  const [linkAsk, setLinkAsk] = useState(0);
+
   // A picture added a moment ago resolves once its file is known: shown from there.
   useEffect(() => {
     if (!editor || !mounted || editor.isDestroyed) {
@@ -633,17 +664,79 @@ export function BlockEditor(props: BlockEditorProps) {
   }
 
   const c = () => editor.chain().focus();
-  const tool = (title: string, run: () => void, label: ReactNode) => (
+  const tool = (title: string, run: () => void, label: ReactNode, on = false) => (
     <button
-      className="block-tool"
+      className={`block-tool${on ? " on" : ""}`}
       key={title}
       onClick={run}
       onMouseDown={(e) => e.preventDefault()}
       title={title}
+      aria-label={title}
+      aria-pressed={on}
       type="button"
     >
       {label}
     </button>
+  );
+  const ic = "size-3.5";
+  // peer-it's toolbar: the blocks and marks of the text, what the caret stands in lit up.
+  const toolbar = readOnly ? null : (
+    <>
+      {tool(t("blocks.h1"), () => c().toggleHeading({ level: 1 }).run(), "H1", active.h1)}
+      {tool(t("blocks.h2"), () => c().toggleHeading({ level: 2 }).run(), "H2", active.h2)}
+      {tool(t("blocks.h3"), () => c().toggleHeading({ level: 3 }).run(), "H3", active.h3)}
+      {tool(t("blocks.bold"), () => c().toggleBold().run(), <Bold className={ic} />, active.bold)}
+      {tool(
+        t("blocks.italic"),
+        () => c().toggleItalic().run(),
+        <Italic className={ic} />,
+        active.italic,
+      )}
+      {tool(t("blocks.link"), () => setLinkAsk((n) => n + 1), <Link className={ic} />, active.link)}
+      {tool(
+        t("blocks.bullets"),
+        () => c().toggleBulletList().run(),
+        <List className={ic} />,
+        active.bullets,
+      )}
+      {tool(
+        t("blocks.tasks"),
+        () => c().toggleTaskList().run(),
+        <SquareCheck className={ic} />,
+        active.tasks,
+      )}
+      {tool(
+        t("blocks.quote"),
+        () => c().toggleBlockquote().run(),
+        <Quote className={ic} />,
+        active.quote,
+      )}
+      {tool(
+        t("blocks.code"),
+        () => c().toggleCodeBlock().run(),
+        <Code className={ic} />,
+        active.code,
+      )}
+      {tool(
+        t("blocks.table"),
+        () => c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+        <Table className={ic} />,
+      )}
+      {props.onFiles ? (
+        <>
+          {tool(
+            t("blocks.uploadImage"),
+            () => imageInput.current?.click(),
+            <ImageUp className={ic} />,
+          )}
+          {tool(
+            t("blocks.uploadFile"),
+            () => fileInput.current?.click(),
+            <Upload className={ic} />,
+          )}
+        </>
+      ) : null}
+    </>
   );
   const tableTools =
     !readOnly && editor.isActive("table") ? (
@@ -662,10 +755,15 @@ export function BlockEditor(props: BlockEditorProps) {
 
   return (
     <div className={`block-editor${readOnly ? " read-only" : ""}`}>
-      {tableTools || tools ? (
-        <div className="block-tools">
-          {tableTools}
-          {tools}
+      {toolbar || tableTools || tools ? (
+        <div className={`block-tools${toolbar ? " toolbar" : ""}`}>
+          {toolbar}
+          {tableTools ? (
+            <span className="block-tools-table">{tableTools}</span>
+          ) : toolbar ? (
+            <span className="block-tools-hint">{t("blocks.hint")}</span>
+          ) : null}
+          {tools ? <span className="block-tools-end">{tools}</span> : null}
         </div>
       ) : null}
       <div className="block-page">
@@ -674,7 +772,13 @@ export function BlockEditor(props: BlockEditorProps) {
         {mounted && !readOnly ? (
           <>
             <BlockGutter editor={editor} />
-            <LinkBubble editor={editor} onOpen={follow} self={self} targets={targets} />
+            <LinkBubble
+              editor={editor}
+              onOpen={follow}
+              self={self}
+              targets={targets}
+              ask={linkAsk}
+            />
             {picking ? (
               <TargetPicker
                 editor={editor}
@@ -730,11 +834,14 @@ function LinkBubble({
   targets,
   self,
   onOpen,
+  ask,
 }: {
   editor: Editor;
   targets: Target[];
   self?: string;
   onOpen: (href: string) => void;
+  /** Counts the toolbar's presses on „Link“: each opens the field for the address. */
+  ask: number;
 }) {
   const [editing, setEditing] = useState(false);
   const editingRef = useRef(editing);
@@ -742,6 +849,19 @@ function LinkBubble({
   const [href, setHref] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const current = String(editor.getAttributes("link").href ?? "");
+
+  // The toolbar asked for a link: the field opens where the caret is, with the link there.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each press counts once, read when it comes
+  useEffect(() => {
+    if (!ask) {
+      return;
+    }
+    setHref(String(editor.getAttributes("link").href ?? ""));
+    setEditing(true);
+    // A transaction lets the bubble ask again whether it shows.
+    editor.view.dispatch(editor.state.tr.setMeta("linkAsk", ask));
+    setTimeout(() => input.current?.focus());
+  }, [ask]);
 
   useEffect(() => {
     const onSel = () => setEditing(false);

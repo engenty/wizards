@@ -11,6 +11,45 @@
   gap: 4px;
   padding: 6px 10px 0;
 }
+/* peer-it's toolbar: the tools in one row (wrapping on a narrow screen), the hint or a table's
+   tools after them, „Schreiben | Markdown“ at the end. */
+.block-tools.toolbar {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.block-tools-table {
+  display: flex;
+  margin-left: 8px;
+}
+.block-tools-hint {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: right;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-4);
+}
+@media (max-width: 639px) {
+  .block-tools-hint {
+    display: none;
+  }
+}
+.block-tools-end {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.block-tools-hint + .block-tools-end {
+  margin-left: 0;
+}
 .block-page {
   position: relative;
   padding: 18px 20px 48px 56px;
