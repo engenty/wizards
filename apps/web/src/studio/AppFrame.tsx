@@ -46,7 +46,7 @@ import {
   useMayCreate,
 } from "../lib/session";
 import { openReport } from "../report/ReportDialog";
-import { Button, cn, Dialog, Input, Switch } from "../ui";
+import { Button, ConfirmHost, cn, Dialog, Input, Switch } from "../ui";
 import { AppRail, PhoneBar } from "./AppRail";
 import { setDockPrefs, setHintSlot, useDockPrefs } from "./assistant/dock";
 import {
@@ -1000,6 +1000,7 @@ export function AppFrame({
             />
           ) : null}
           <UpdateBanner />
+          <ConfirmHost />
           <InstallBanner me={me} />
           <CloudSyncBar me={me} />
           {full ? (

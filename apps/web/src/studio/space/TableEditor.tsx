@@ -18,6 +18,7 @@ import { type Key, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { useMe } from "../../lib/session";
 import {
+  askConfirm,
   Button,
   Card,
   cn,
@@ -469,8 +470,8 @@ function ColumnDialog({
               variant="ghost"
               className="text-rose"
               disabled={busy}
-              onClick={() =>
-                confirm(t("data.confirmDelete", { title: column.name })) &&
+              onClick={async () =>
+                (await askConfirm(t("data.confirmDelete", { title: column.name }))) &&
                 void save(columns.filter((c) => c.id !== column.id))
               }
             >
@@ -649,8 +650,9 @@ export function TableEditor({
         {readOnly ? null : (
           <IconButton
             label={t("data.deleteTable")}
-            onClick={() =>
-              confirm(t("data.confirmDelete", { title: table.data.title })) && remove.mutate()
+            onClick={async () =>
+              (await askConfirm(t("data.confirmDelete", { title: table.data.title }))) &&
+              remove.mutate()
             }
             className="hover:text-rose"
           >

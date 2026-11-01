@@ -60,6 +60,7 @@ import { KnowledgeFolder, KnowledgeHome, PageContents } from "./space/KnowledgeH
 import {
   ancestorsOf,
   folderMarks,
+  folderSources,
   isFolder,
   KnowledgeTree,
   MoveDialog,
@@ -319,10 +320,12 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const sources = useSources(group === "knowledge" && treeOn ? space?.id : undefined);
   const [adding, setAdding] = useState<{ kind: SourceKind; parentId: string | null } | null>(null);
   folderMarks.clear();
+  folderSources.clear();
   for (const s of sources.sources) {
     if (s.folderId) {
       // A plugin's icon draws as lucide's do: it takes `className`.
       folderMarks.set(s.folderId, sources.iconOf(s) as LucideIcon);
+      folderSources.set(s.folderId, s.id);
     }
   }
   const pickedValue = useValue(picked?.startsWith("v:") ? picked.slice(2) : "");
@@ -736,6 +739,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
                     />
                   ) : treeOn && knowledge.data ? (
                     <KnowledgeTree
+                      spaceId={space.id}
                       items={knowledge.data.items}
                       picked={narrow ? null : item}
                       all={!(narrow || picked)}

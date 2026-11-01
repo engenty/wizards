@@ -8,7 +8,7 @@ import {
 import { FolderPlus, Link, ListChecks, Upload } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import { t } from "../../lib/i18n";
-import { cn } from "../../ui";
+import { askConfirm, cn } from "../../ui";
 import { type SpaceFiles, useAutosave, useFileActions } from "./data";
 import { FromUrl, LOGO_DRAG, type MoveTo, Tiles } from "./Files";
 import {
@@ -155,8 +155,8 @@ export function Logos({
         ]);
       }}
       moveTo={moveTo}
-      onRemove={(file) => {
-        if (confirm(t("space.removeConfirm", { name: file.name }))) {
+      onRemove={async (file) => {
+        if (await askConfirm(t("space.removeConfirm", { name: file.name }))) {
           void actions.remove(file.id);
           place(file.id, null);
         }
@@ -237,14 +237,14 @@ export function Logos({
                 autoFocus={titleFor === s.id}
                 readOnly={readOnly}
                 onChange={(patch) => set(s.id, patch)}
-                onRemove={() => {
+                onRemove={async () => {
                   if (
                     !s.logos.length ||
-                    confirm(
+                    (await askConfirm(
                       t("space.logoSectionRemoveConfirm", {
                         name: s.title || t("space.sectionUntitled"),
                       }),
-                    )
+                    ))
                   ) {
                     setSections((all) => all.filter((x) => x.id !== s.id));
                   }

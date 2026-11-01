@@ -11,6 +11,7 @@ import type {
 } from "@engenty/wizards-shared/knowledge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Check,
   ChevronDown,
   Files,
   FileText,
@@ -164,7 +165,7 @@ export function KnowledgeHeader({
         />
       ) : null}
       {notes.length || file || review ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8125rem] text-ink-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.75rem] text-ink-4">
           {notes.map((n) => (
             <span key={n}>{n}</span>
           ))}
@@ -385,6 +386,76 @@ function filterLabel(category: SpaceCategory, w: WhereValue): string {
 }
 
 /** One category as a filter: a chip that opens what it can be set to. */
+/**
+ * A choice's values to filter by, as a short list to tick: each with how many items have it,
+ * a field to find one once there are more than ten, the list scrolling past a dozen.
+ */
+function ValueChecklist({
+  values,
+  picked,
+  onChange,
+}: {
+  values: { id: string; value: string; count: number }[];
+  picked: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [find, setFind] = useState("");
+  const shown = find
+    ? values.filter((v) => v.value.toLowerCase().includes(find.toLowerCase()))
+    : values;
+  return (
+    <div className="flex flex-col gap-1">
+      {values.length > 10 ? (
+        <Input
+          data-autofocus
+          value={find}
+          placeholder={t("know.findValue")}
+          onChange={(e) => setFind(e.target.value)}
+          className="h-8 text-[0.8125rem]"
+        />
+      ) : null}
+      <ul className="max-h-72 overflow-y-auto">
+        {shown.map((v) => {
+          const on = picked.includes(v.value);
+          return (
+            <li key={v.id}>
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={on}
+                onClick={() =>
+                  onChange(on ? picked.filter((p) => p !== v.value) : [...picked, v.value])
+                }
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[0.8125rem] text-ink-2 transition hover:bg-accent hover:text-ink"
+              >
+                <span
+                  className={cn(
+                    "grid size-3.5 shrink-0 place-items-center rounded-[4px] ring-1",
+                    on ? "bg-ember text-white ring-ember" : "ring-border",
+                  )}
+                >
+                  {on ? <Check className="size-3" /> : null}
+                </span>
+                <span className="min-w-0 flex-1 truncate">{v.value}</span>
+                <span className="text-[0.75rem] text-ink-4 tabular-nums">{v.count}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {picked.length ? (
+        <button
+          type="button"
+          onClick={() => onChange([])}
+          className="self-start px-2 py-1 text-[0.75rem] text-ink-3 underline hover:text-ink"
+        >
+          {t("know.clear")}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function FilterChip({
   category,
   value,
@@ -423,7 +494,7 @@ export function FilterChip({
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[0.8125rem] transition",
+          "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[0.8125rem] transition",
           value === undefined
             ? "text-ink-2 ring-1 ring-border-soft hover:ring-border"
             : "bg-ember-tint text-ink ring-1 ring-ember/30",
@@ -437,13 +508,12 @@ export function FilterChip({
         <ChevronDown className="size-3.5 text-ink-3" />
       </button>
       {open ? (
-        <div className="absolute top-full left-0 z-30 mt-1.5 w-72 max-w-[calc(100vw-32px)] rounded-xl bg-card p-3 shadow-overlay ring-1 ring-border-soft">
+        <div className="absolute top-full left-0 z-30 mt-1.5 w-64 max-w-[calc(100vw-32px)] rounded-xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft">
           {category.type === "choice" ? (
-            <Segmented
-              multi
-              value={Array.isArray(value) ? value.map(String) : []}
-              options={category.values.map((v) => v.value)}
-              onChange={(next: string[]) => onChange(next.length ? next : undefined)}
+            <ValueChecklist
+              values={category.values}
+              picked={Array.isArray(value) ? value.map(String) : []}
+              onChange={(next) => onChange(next.length ? next : undefined)}
             />
           ) : category.type === "boolean" ? (
             <Segmented

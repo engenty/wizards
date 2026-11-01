@@ -46,14 +46,16 @@ import {
   ancestorsOf,
   chipsOf,
   contentsOf,
+  folderSources,
   ItemCards,
   isFolder,
   MoveDialog,
   treeIcon,
   useMoveItem,
+  Tag as ValueTag,
 } from "./KnowledgeTree";
 import { Section } from "./Section";
-import type { SourceKind } from "./sources";
+import { SourceCards, type SourceKind } from "./sources";
 import {
   dropHoldsFolder,
   type TreeFile,
@@ -119,11 +121,13 @@ function KnowledgeRow({
   onOpen: (key: string) => void;
 }) {
   const Icon = treeIcon(item);
+  const path = ancestorsOf(items, item)
+    .map((a) => a.title)
+    .join(" › ");
   const where = [
-    ancestorsOf(items, item)
-      .map((a) => a.title)
-      .join(" › "),
-    item.originLabel ?? "",
+    path,
+    // A source's folder already names where it came from.
+    item.originLabel && !path.startsWith(item.originLabel) ? item.originLabel : "",
     item.rows !== null ? (item.rows === 1 ? t("know.row") : t("know.rows", { n: item.rows })) : "",
   ]
     .filter(Boolean)
@@ -144,7 +148,7 @@ function KnowledgeRow({
         {item.status === "pending" ? (
           <Chip icon={<Spinner className="size-3" />}>{t("know.reading")}</Chip>
         ) : (
-          chipsOf(item, categories).map((c) => <Chip key={c}>{c}</Chip>)
+          chipsOf(item, categories).map((c) => <ValueTag key={c}>{c}</ValueTag>)
         )}
         {item.review ? (
           <Chip tone="warn" title={item.review}>
@@ -468,11 +472,11 @@ function EmptyWays({
 const labelClass = "px-1 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em]";
 
 /** The small label above a set of items, with the switch between cards and the list. */
-function ItemsLabel({ label }: { label: string }) {
+function ItemsLabel({ label, switcher = true }: { label: string; switcher?: boolean }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex min-h-8 items-center justify-between">
       <p className={labelClass}>{label}</p>
-      <ItemViewSwitch />
+      {switcher ? <ItemViewSwitch /> : null}
     </div>
   );
 }
@@ -516,7 +520,10 @@ export function KnowledgeHome({
   const taken = data.categories.filter((c) => !c.proposed && c.count > 0);
   const proposed = data.categories.filter((c) => c.proposed);
   const filtered = Object.keys(where).length > 0;
-  const folders = contentsOf(data.items, null).filter(isFolder);
+  // At the top: the sources' folders apart, then the folders and pages of the space's own.
+  const top = contentsOf(data.items, null);
+  const sourceFolders = top.filter((i) => folderSources.has(i.id));
+  const ownTop = top.filter((i) => !folderSources.has(i.id));
   const shown = data.items
     .filter(
       (item) =>
@@ -543,6 +550,7 @@ export function KnowledgeHome({
   return (
     <div {...upload.drop} className={cn("rounded-2xl transition", upload.over && overClass)}>
       <Section
+        page
         title={t("know.title")}
         hint={t("know.homeHint")}
         plain
@@ -638,10 +646,20 @@ export function KnowledgeHome({
         {status}
         {data.items.length ? (
           <>
-            {folders.length && !filtered ? (
+            {sourceFolders.length && !filtered ? (
               <div className="flex flex-col gap-1.5">
-                <ItemsLabel label={t("know.folders")} />
-                <ItemCards items={folders} categories={data.categories} onOpen={onOpen} />
+                <ItemsLabel label={t("know.sources")} />
+                <SourceCards
+                  spaceId={spaceId}
+                  folderIds={sourceFolders.map((f) => f.id)}
+                  onOpen={onOpen}
+                />
+              </div>
+            ) : null}
+            {ownTop.length && !filtered ? (
+              <div className="flex flex-col gap-1.5">
+                <ItemsLabel label={t("know.ownTop")} switcher={!sourceFolders.length} />
+                <ItemCards items={ownTop} categories={data.categories} onOpen={onOpen} />
               </div>
             ) : null}
             <div className="flex flex-col gap-1.5">
@@ -819,6 +837,7 @@ export function KnowledgeFolder({
   return (
     <div {...upload.drop} className={cn("rounded-2xl transition", upload.over && overClass)}>
       <Section
+        page
         title={folder.title}
         hint={
           source

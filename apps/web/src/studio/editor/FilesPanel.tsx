@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { IconButton, Spinner } from "../../ui";
+import { askConfirm, IconButton, Spinner } from "../../ui";
 
 function fileIcon(f: WorkspaceFile) {
   if (f.mime.startsWith("image/")) {
@@ -74,7 +74,7 @@ export function FilesPanel({
   };
 
   const remove = async (path: string) => {
-    if (!window.confirm(t("files.confirmDelete", { path }))) {
+    if (!(await askConfirm(t("files.confirmDelete", { path })))) {
       return;
     }
     setError(null);

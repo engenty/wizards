@@ -12,7 +12,7 @@ import { api } from "../lib/api";
 import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
 import { keys } from "../lib/keys";
-import { Button, Card, Chip, cn, IconButton, Input, Spinner } from "../ui";
+import { askConfirm, Button, Card, Chip, cn, IconButton, Input, Spinner } from "../ui";
 
 /** A connector the product ships with: ready, or waiting for the server's OAuth client. */
 function Builtin({ connector }: { connector: ConnectorView }) {
@@ -128,8 +128,9 @@ function Imported({
             <IconButton
               label={t("connectors.remove")}
               className="hover:text-rose"
-              onClick={() =>
-                confirm(t("connectors.removeConfirm", { name: connector.name })) && remove.mutate()
+              onClick={async () =>
+                (await askConfirm(t("connectors.removeConfirm", { name: connector.name }))) &&
+                remove.mutate()
               }
             >
               <Trash2 className="size-4" />

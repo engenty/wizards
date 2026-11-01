@@ -21,7 +21,7 @@ import {
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
-import { Button, Chip, cn, Dialog, IconButton, Input, Label, Swatch } from "../../ui";
+import { askConfirm, Button, Chip, cn, Dialog, IconButton, Input, Label, Swatch } from "../../ui";
 import { type SpaceFiles, useAutosave, useFileActions } from "./data";
 import { GradientCard, GradientEditor, PatternCard, PatternEditor } from "./Gradients";
 import {
@@ -430,17 +430,17 @@ export function Colors({
                 onChange={(patch) =>
                   setSections((all) => all.map((x) => (x.id === s.id ? { ...x, ...patch } : x)))
                 }
-                onRemove={() => {
+                onRemove={async () => {
                   if (
                     !filled ||
-                    confirm(
+                    (await askConfirm(
                       t(
                         kind === "colors"
                           ? "space.colorSectionRemoveConfirm"
                           : "space.fillSectionRemoveConfirm",
                         { name: s.title || t("space.sectionUntitled") },
                       ),
-                    )
+                    ))
                   ) {
                     setSections((all) => all.filter((x) => x.id !== s.id));
                     setRows((all) =>

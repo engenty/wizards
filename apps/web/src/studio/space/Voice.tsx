@@ -2,7 +2,7 @@ import { type BrandRule, SPACE_LIMITS, type VoiceBlock } from "@engenty/wizards-
 import { ListChecks, Plus, TextQuote, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { type Key, t } from "../../lib/i18n";
-import { Button, IconButton, Textarea } from "../../ui";
+import { askConfirm, Button, IconButton, Textarea } from "../../ui";
 import { useAutosave } from "./data";
 import {
   type AddEntry,
@@ -97,14 +97,14 @@ export function Voice({
           <div className="flex flex-col divide-y divide-border-soft">
             {blocks.map((b) => {
               const hint = hintOf(b.title);
-              const remove = () => {
+              const remove = async () => {
                 if (
                   !b.text.trim() ||
-                  confirm(
+                  (await askConfirm(
                     t("space.voice.removeConfirm", {
                       name: b.title || t("space.sectionUntitled"),
                     }),
-                  )
+                  ))
                 ) {
                   setBlocks((all) => all.filter((x) => x.id !== b.id));
                 }

@@ -2,7 +2,7 @@ import type { SpaceFileView } from "@engenty/wizards-shared/spaces";
 import { Box, Check, Eye, FileText, Film, Music, Plus, Sparkles, Star, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { t } from "../../lib/i18n";
-import { Button, Chip, cn, Dialog, IconButton, Input, Label, Spinner } from "../../ui";
+import { askConfirm, Button, Chip, cn, Dialog, IconButton, Input, Label, Spinner } from "../../ui";
 import { fileUrl, thumbUrl, type useFileActions } from "./data";
 import { DropArea, MoveButton } from "./Section";
 
@@ -61,8 +61,8 @@ export function Description({ file, actions }: { file: SpaceFileView; actions: A
   );
 }
 
-export function remove(file: SpaceFileView, actions: Actions) {
-  if (confirm(t("space.removeConfirm", { name: file.name }))) {
+export async function remove(file: SpaceFileView, actions: Actions) {
+  if (await askConfirm(t("space.removeConfirm", { name: file.name }))) {
     void actions.remove(file.id);
   }
 }

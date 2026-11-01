@@ -24,6 +24,7 @@ import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import {
+  askConfirm,
   Button,
   Card,
   Chip,
@@ -269,7 +270,7 @@ export function ItemCategories({
     return null;
   }
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1">
       {shown.map((c) => {
         const mine = values.find((h) => h.categoryId === c.id) as ItemCategory;
         const Icon = CATEGORY_ICON[c.type];
@@ -280,10 +281,10 @@ export function ItemCategories({
             disabled={readOnly}
             title={`${c.name} · ${t(`know.by.${mine.by}`)}`}
             onClick={() => setOpen(open === c.id ? null : c.id)}
-            className="inline-flex h-7 items-center gap-1.5 rounded-full bg-paper-2 px-2.5 text-[0.75rem] text-ink-2 transition hover:bg-paper-3 hover:text-ink disabled:pointer-events-none"
+            className="inline-flex h-5 items-center gap-1 rounded-[5px] px-1.5 text-[0.6875rem] text-ink-2 ring-1 ring-border-soft ring-inset transition hover:text-ink hover:ring-border disabled:pointer-events-none"
           >
-            <Icon className="size-3.5 text-ink-3" />
-            <span className="text-ink-3">{c.name}</span>
+            <Icon className="size-3 text-ink-4" />
+            <span className="text-ink-4">{c.name}</span>
             <span className="font-medium">
               {mine.values.map((v) => shownValue(c, v)).join(", ")}
             </span>
@@ -316,9 +317,9 @@ export function ItemCategories({
             <button
               type="button"
               onClick={() => setOpen(open === "+" ? null : "+")}
-              className="inline-flex h-7 items-center gap-1 rounded-full px-2 text-[0.75rem] text-ink-3 ring-1 ring-border-soft transition hover:text-ink hover:ring-border"
+              className="inline-flex h-5 items-center gap-1 rounded-[5px] px-1.5 text-[0.6875rem] text-ink-4 ring-1 ring-border-soft ring-inset transition hover:text-ink hover:ring-border"
             >
-              <Plus className="size-3.5" /> {t("know.category")}
+              <Plus className="size-3" /> {t("know.category")}
             </button>
           }
         >
@@ -513,8 +514,8 @@ export function CategoryView({
           <IconButton
             label={t("know.deleteCategory")}
             className="hover:text-rose"
-            onClick={() =>
-              confirm(t("know.confirmCategory", { name: category.name })) &&
+            onClick={async () =>
+              (await askConfirm(t("know.confirmCategory", { name: category.name }))) &&
               call.mutate(async () => {
                 await api.del(`/api/studio/categories/${category.id}`);
                 onGone();

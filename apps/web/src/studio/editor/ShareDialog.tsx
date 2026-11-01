@@ -50,7 +50,17 @@ import {
   type WizardDetail,
 } from "../../lib/session";
 import { PluginFrame, type StudioPlugins, useStudioPlugins } from "../../plugins/host";
-import { Button, cn, Dialog, IconButton, Input, Select, Spinner, Switch } from "../../ui";
+import {
+  askConfirm,
+  Button,
+  cn,
+  Dialog,
+  IconButton,
+  Input,
+  Select,
+  Spinner,
+  Switch,
+} from "../../ui";
 import { LinkStatus, useAccountLink } from "../Account";
 import { openExternal } from "../LocalRuntime";
 import {
@@ -487,7 +497,7 @@ function CloudError({ error }: { error: NonNullable<CloudState["error"]> }) {
           variant="secondary"
           size="sm"
           busy={replace.isPending}
-          onClick={() => window.confirm(t("cloud.replaceConfirm")) && replace.mutate()}
+          onClick={async () => (await askConfirm(t("cloud.replaceConfirm"))) && replace.mutate()}
         >
           {t("cloud.replace")}
         </Button>
