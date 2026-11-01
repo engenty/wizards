@@ -4,6 +4,10 @@ All notable changes to engenty wizards. Generated from [Conventional Commits](ht
 by [git-cliff](https://git-cliff.org) via `pnpm release`. Pre-`1.0`: a **minor**
 bump is a notable or breaking change, **patch** is fixes and small features.
 
+## [0.16.1] - 2026-11-01
+- FIXED **[files]** The move of a space's files of before 0.16 goes on past one that fails, says why, and is tried again at the next start (#488)
+- ADDED **[work]** A file added to a Work chat goes to the model with its text, read on this computer; behind `workMode` (#487)
+
 ## [0.16.0] - 2026-11-01
 - ADDED **[documents]** Scanned PDFs are read by OCR and old Word files (.doc) by their text, on your computer: in Wissen and for the AI (#481, #483)
 - ADDED **[goose]** Goose writes pages of Wissen when you ask it to (#418)

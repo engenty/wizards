@@ -1,7 +1,27 @@
 [
   {
+    "version": "v0.16.1",
+    "timestamp": 1793558922,
+    "commits": [
+      {
+        "id": "2cacfa3",
+        "message": "moving files of before goes on past one that fails, and says why it failed (#488)",
+        "group": "Fixed",
+        "scope": "files",
+        "breaking": false
+      },
+      {
+        "id": "b88b9c5",
+        "message": "a file added to a Work chat goes to the model with its text, read on this computer (#487)",
+        "group": "Added",
+        "scope": "work",
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.16.0",
-    "timestamp": 1793557134,
+    "timestamp": 1793557457,
     "commits": [
       {
         "id": "a4cea77",
