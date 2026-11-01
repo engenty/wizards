@@ -30,6 +30,7 @@ import { Composer, type ComposerHandle, type PickedFile, pastedName } from "../.
 import { FilePreview, FileTile } from "../../ui/file-preview";
 import { useCrumbs } from "../AppFrame";
 import { useAssistantPage } from "../assistant/page";
+import { MODE_ENGENTY } from "../ModeSwitch";
 import {
   type Approval,
   type ChatMember,
@@ -556,7 +557,8 @@ function dayLabel(iso: string) {
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
 
-/** One author's turn. The space's AI shows as the space's name with the engenty figure. */
+/** One author's turn. The space's AI shows as the space's name with Work's engenty, the same
+ *  figure in every turn (a cycling mark would show each turn a different one). */
 function Turn({
   group,
   mine,
@@ -575,7 +577,11 @@ function Turn({
     <Message align={mine ? "end" : "start"}>
       {mine ? null : (
         <MessageAvatar className="min-w-0 self-start bg-transparent">
-          {ai ? <EngentyLogoMark size={28} /> : <Avatar member={author ?? undefined} />}
+          {ai ? (
+            <EngentyLogoMark size={28} kind={MODE_ENGENTY.work} />
+          ) : (
+            <Avatar member={author ?? undefined} />
+          )}
         </MessageAvatar>
       )}
       <MessageContent>
