@@ -1276,7 +1276,8 @@ async function describe(
         open: `m:${u.mount_file_id}`,
         path: file && mount ? `dateien/${mount.slug}/${file.path}` : "",
         title: file?.name ?? "",
-        text: mountTexts.get(unitKey(u)) ?? "",
+        // Its headings are a field of their own, as a page's are.
+        text: (mountTexts.get(unitKey(u)) ?? "").replace(/^## [^\n]*\n\n/, ""),
         categories: categoryLines(categories, cats.get(`m:${u.mount_file_id}`)),
         ...(mount ? { mount: { id: mount.id, name: mount.name } } : {}),
       };

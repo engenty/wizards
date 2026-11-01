@@ -52,6 +52,7 @@ export type StudioSpaceGroup =
   | "brand"
   | "knowledge"
   | "data"
+  | "files"
   | "page"
   | "results"
   | "skills"

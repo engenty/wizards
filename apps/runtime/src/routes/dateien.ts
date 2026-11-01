@@ -11,6 +11,7 @@ import {
   mountFileContent,
   mountFiles,
   mountFileThumb,
+  mountFileView,
   mountView,
   pickFolder,
   previewFolder,
@@ -99,6 +100,10 @@ export const dateienRoutes = new Hono<Vars>()
   .get("/spaces/:id/mounts/:mountId/files", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     return c.json({ files: await mountFiles(space.id, c.req.param("mountId"), whoOf(c)) });
+  })
+  .get("/spaces/:id/mount-files/:fileId", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(await mountFileView(space.id, c.req.param("fileId"), whoOf(c)));
   })
   // A mounted file's bytes, read where it lives.
   .get("/spaces/:id/mount-files/:fileId/content", async (c) => {

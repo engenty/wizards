@@ -5,6 +5,7 @@ import {
   Database,
   FileText,
   Fingerprint,
+  FolderOpen,
   Globe,
   Images,
   LayoutGrid,
@@ -42,6 +43,7 @@ export function spaceGroups(): SpaceGroup[] {
     { id: "brand", label: t("space.brand"), icon: SwatchBook },
     { id: "knowledge", label: t("space.knowledge"), icon: BookOpen },
     { id: "data", label: t("space.data"), icon: Database },
+    { id: "files", label: t("space.dateien"), icon: FolderOpen },
     { id: "page", label: t("space.page"), icon: Globe },
     { id: "clients", label: t("space.clients"), icon: UsersRound },
   ];
@@ -75,6 +77,7 @@ export function isSpaceGroup(id: string | undefined): id is SpaceGroupId {
     id === "brand" ||
     id === "knowledge" ||
     id === "data" ||
+    id === "files" ||
     id === "page" ||
     id === "results" ||
     id === "skills" ||
