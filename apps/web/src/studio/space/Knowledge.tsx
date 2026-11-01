@@ -524,7 +524,10 @@ export function SearchHits({
             key={`${hit.key}:${hit.heading}`}
             type="button"
             disabled={!open}
-            onClick={() => open && onOpen(open)}
+            // A file opens where the hit stands: `f:<id>#<page>`.
+            onClick={() =>
+              open && onOpen(hit.sheet && open.startsWith("f:") ? `${open}#${hit.sheet}` : open)
+            }
             className="flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-accent disabled:pointer-events-none"
           >
             <span className="min-w-0 flex-1">

@@ -254,11 +254,13 @@ export function SpacePage({ place }: { place?: "skills" }) {
   // Data: a table (`?show=t:<id>`) or a page (`p:<id>`), or all of them. Knowledge: also a file
   // (`f:`), a category (`c:`), one of its values (`v:`) or a plugin's section (`s:`), which in
   // Knowledge is a page of its own; a plain `show` is a section's anchor.
+  // A file found by a search opens where the hit stands: `f:<id>#<page>`.
+  const [shown, at] = (show ?? "").split("#");
   const picked =
-    group === "data" && show && show !== "all"
-      ? show
-      : group === "knowledge" && show && /^[ptfcvs]:/.test(show)
-        ? show
+    group === "data" && shown && shown !== "all"
+      ? shown
+      : group === "knowledge" && shown && /^[ptfcvs]:/.test(shown)
+        ? shown
         : null;
   const pickedSection = picked?.startsWith("s:")
     ? plugins.spaceSections.find((x) => x.id === picked.slice(2))
@@ -783,6 +785,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
                         key={item}
                         spaceId={space.id}
                         fileId={item.slice(2)}
+                        page={Number(at) || undefined}
                         readOnly={space.readOnly}
                         onGone={() => pick("all")}
                       />
