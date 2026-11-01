@@ -1,7 +1,482 @@
 [
   {
+    "version": "v0.16.0",
+    "timestamp": 1793557134,
+    "commits": [
+      {
+        "id": "a4cea77",
+        "message": "a space file of before 0.16 moves to the blob store by itself when the runtime starts (#484)",
+        "group": "Fixed",
+        "scope": "files",
+        "breaking": false
+      },
+      {
+        "id": "0000f8c",
+        "message": "old Word files skipped before are read once, now that they can be (#483)",
+        "group": "Fixed",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "3a8e373",
+        "message": "what the AI in Work may do with a mounted folder: nothing, read, drafts (#482)",
+        "group": "Added",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "9255f18",
+        "message": "scans read by OCR and old Word files by their text, on your computer (#481)",
+        "group": "Added",
+        "scope": "documents",
+        "breaking": false
+      },
+      {
+        "id": "cf7ba85",
+        "message": "Wer sieht offers clients always, the admins say Immer, and no folders as a category (#480)",
+        "group": "Fixed",
+        "scope": "web",
+        "breaking": false
+      },
+      {
+        "id": "2bb6121",
+        "message": "Wer sieht for Dateien and Wissen folders: team, clients, guests (#479)",
+        "group": "Added",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "cd71bfc",
+        "message": "documentation updates (#410, #413, #414, #422, #474, #477, #478)",
+        "group": "Docs",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "4762045",
+        "message": "a window lower than 900 px gets the smaller base font size too (#476)",
+        "group": "Fixed",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "0bcfc5f",
+        "message": "the search shows what its check hid, on request (#475)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "f93cbab",
+        "message": "folded Goose is one small button with a help mark, without the voice button for now (#473)",
+        "group": "Fixed",
+        "scope": "assistant",
+        "breaking": false
+      },
+      {
+        "id": "6cc238b",
+        "message": "Ordner einbinden as a dialog with the kinds on the left and the picked one's steps on the right (#471)",
+        "group": "Added",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "8022ee8",
+        "message": "folded Goose sits in the top bar at its buttons' height, with a soft shadow (#472)",
+        "group": "Fixed",
+        "scope": "assistant",
+        "breaking": false
+      },
+      {
+        "id": "3610613",
+        "message": "folded Goose stands at the top right of every page, in the top bar (#470)",
+        "group": "Fixed",
+        "scope": "assistant",
+        "breaking": false
+      },
+      {
+        "id": "f7fc101",
+        "message": "Hinzufügen starts with a prompt for Goose and a drop zone, folders picked by typing, and a full-height resize edge with a grip (#467)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "7612f33",
+        "message": "files in the menu's tree, a file's title beside its name, and a page read in a frame (#469)",
+        "group": "Added",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "a02d63d",
+        "message": "Dateien stands before Daten in a space's menu, and Daten is called Memory (#468)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "34923e4",
+        "message": "Hinzufügen as a dialog with the ways in on the left, a drop zone, and one Hochladen for files and folders (#466)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "37e89b7",
+        "message": "a source's details in a card, short times, a view switch showing the current view, and back going item by item (#465)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "5c3f157",
+        "message": "a source card says when it read in short (vor 2h), and a folder's title written in place is no longer cut off (#464)",
+        "group": "Fixed",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "06b2590",
+        "message": "smaller filter pills with compact popovers, and one spacing between the start page's sections (#462)",
+        "group": "Fixed",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "677095a",
+        "message": "a folder's contents as cards or a list, sizes by weight as in Wissen, and a Markdown file read on the page (#463)",
+        "group": "Fixed",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "167239a",
+        "message": "a folder's title is written in place, its source line opens the source, and renaming a source's folder renames the source (#461)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "e2200b1",
+        "message": "a source's page with its schedule in one line, Protokoll as a tab and its list at full height, and cards without their source's name (#460)",
+        "group": "Fixed",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "1fef1b5",
+        "message": "a page opens to be read with Bearbeiten and Speichern, and Neue Seite asks for its folder or lets Goose write it (#459)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "e12c095",
+        "message": "Wissen's UI pass: a confirm dialog that works, a full row menu, sources apart with their details, and sizes by weight (#458)",
+        "group": "Fixed",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "991e56a",
+        "message": "peer-it's toolbar in the block editor, with Schreiben and Markdown at its end (#457)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "ebc0cd1",
+        "message": "a space's menu resizes from its edge, a Markdown file reads as a page, and a row moved under the pointer shows no hover (#456)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "afb4f38",
+        "message": "a link around a picture or a teaser stays a link in a page read from the web (#454)",
+        "group": "Fixed",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "fa1b2d7",
+        "message": "cards with the start of their text, a list to switch to, and a closed Kategorie stays closed (#453)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "e9a720d",
+        "message": "writing turned on only where a mount's account may write, behind dateien (#452)",
+        "group": "Fixed",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "d89ca4c",
+        "message": "mount kinds a plugin brings, in the runtime and the studio, behind dateien (#447)",
+        "group": "Added",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "38b0612",
+        "message": "wizards move-folder-sources turns the Sources plugin's folders into mounts and „Aus Dateien“ sources (#450)",
+        "group": "Added",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "f4843dc",
+        "message": "„Aus Dateien übernehmen“ in Hinzufügen and Goose's proposal, with a picker of a mount's folders (#449)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "06f299c",
+        "message": "„In Wissen übernehmen“ for one file, a copy read as an upload is, behind dateien (#446)",
+        "group": "Added",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "441ba3a",
+        "message": "edit a mounted file, „Veröffentlichen“ and the comparison in the studio, behind dateien (#448)",
+        "group": "Added",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "1e62d94",
+        "message": "drafts of mounted files and „Veröffentlichen“ to the folder, behind dateien (#444)",
+        "group": "Added",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "c537be1",
+        "message": "the core's source „Aus Dateien übernehmen“ on a mount's reader, behind knowledgeTree and dateien (#445)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "fabae65",
+        "message": "a mounted hit opens at its passage or page (#443)",
+        "group": "Fixed",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "2a49712",
+        "message": "upload a whole folder into Wissen, behind knowledgeTree (#442)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "eb0bfcf",
+        "message": "the Ressource Dateien in the studio, behind dateien (#441)",
+        "group": "Added",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "c288b33",
+        "message": "a page's pictures in Wissen, in its search and into the brand, behind knowledgeMedia (#440)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "c00ca56",
+        "message": "sources in Wissen's studio, behind knowledgeTree (#439)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "324c80d",
+        "message": "Dateien's mounts as groups of the ⌘K palette, behind knowledgeTree (#438)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "3e5a199",
+        "message": "the ⌘K palette over Wissen's search, behind knowledgeTree (#437)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "2528a1b",
+        "message": "a folder of this computer mounted in a space and searched, behind dateien (#436)",
+        "group": "Added",
+        "scope": "dateien",
+        "breaking": false
+      },
+      {
+        "id": "841a0b6",
+        "message": "a plugin's page keeps copies of its pictures, behind knowledgeMedia (#435)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "fe4b05d",
+        "message": "sources in core, each filling a folder of its own (#434)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "916511c",
+        "message": "web.read gives the pictures of a page's content (#433)",
+        "group": "Added",
+        "scope": "plugins",
+        "breaking": false
+      },
+      {
+        "id": "77da43c",
+        "message": "viewers for Wissen's files, behind knowledgeTree (#432)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "56df99f",
+        "message": "pictures and PDF pages in Wissen's index by what they show (#428)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "aa8134b",
+        "message": "Kategorien as a tab of Wissen, behind knowledgeTree (#431)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "e63d23c",
+        "message": "folders in Wissen, behind knowledgeTree (#427)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "a6a26f6",
+        "message": "the block editor for a page of Wissen, behind knowledgeTree (#430)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "23c7fa0",
+        "message": "a 320 px thumbnail of a space's pictures and PDFs, made on upload, in its lists (#429)",
+        "group": "Added",
+        "scope": "spaces",
+        "breaking": false
+      },
+      {
+        "id": "128af2d",
+        "message": "the client portal as the firm's AI (#426)",
+        "group": "Added",
+        "scope": "client-spaces",
+        "breaking": false
+      },
+      {
+        "id": "a0ec441",
+        "message": "an embedder that takes pictures, behind knowledgeMedia (#425)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "dbdb6b8",
+        "message": "a space file's bytes are a blob by their hash, stored once; wizards move-files moves existing ones (#424)",
+        "group": "Added",
+        "scope": "spaces",
+        "breaking": true
+      },
+      {
+        "id": "1febf21",
+        "message": "Wissen's start page explains itself, behind knowledgeTree (#423)",
+        "group": "Added",
+        "scope": "knowledge",
+        "breaking": false
+      },
+      {
+        "id": "207be9f",
+        "message": "the closed help hint stands in the top bar (#421)",
+        "group": "Added",
+        "scope": "studio",
+        "breaking": false
+      },
+      {
+        "id": "cbe2a9e",
+        "message": "web.read gives a page's content without the site's frame (#419)",
+        "group": "Added",
+        "scope": "plugins",
+        "breaking": false
+      },
+      {
+        "id": "b9573f5",
+        "message": "a space section's status line on Wissen's overview (#420)",
+        "group": "Added",
+        "scope": "plugins",
+        "breaking": false
+      },
+      {
+        "id": "0a383fb",
+        "message": "write pages of Wissen (#418)",
+        "group": "Added",
+        "scope": "goose",
+        "breaking": false
+      },
+      {
+        "id": "789156b",
+        "message": "a client in the studio goes to the portal, shared runs only read (#417)",
+        "group": "Fixed",
+        "scope": "client-spaces",
+        "breaking": false
+      },
+      {
+        "id": "1cfd36d",
+        "message": "the client portal, its own app on the client contract (#416)",
+        "group": "Added",
+        "scope": "client-spaces",
+        "breaking": false
+      },
+      {
+        "id": "38e56cf",
+        "message": "the client contract on /api/v1/client, runs in a client space (#415)",
+        "group": "Added",
+        "scope": "client-spaces",
+        "breaking": false
+      },
+      {
+        "id": "5170db4",
+        "message": "invite clients into a client space (#412)",
+        "group": "Added",
+        "scope": null,
+        "breaking": false
+      },
+      {
+        "id": "1f05573",
+        "message": "client spaces under a space, behind clientSpaces (#411)",
+        "group": "Added",
+        "scope": null,
+        "breaking": false
+      }
+    ]
+  },
+  {
     "version": "v0.15.0",
-    "timestamp": 1793480890,
+    "timestamp": 1793481135,
     "commits": [
       {
         "id": "92d8757",
