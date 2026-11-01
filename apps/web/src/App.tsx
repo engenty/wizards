@@ -76,6 +76,10 @@ function Studio({
   if (!me.data) {
     return <SignInPage />;
   }
+  // A client of the organization works in the client portal, never here (docs/plans/client-portal.md).
+  if (me.data.portalUrl) {
+    return <ToPortal url={me.data.portalUrl} />;
+  }
   // A runtime that runs alone is set up once, before anything else.
   if (me.data.mode === "local" && !me.data.setupDone && location.pathname !== "/setup") {
     return <Navigate to="/setup" replace />;
@@ -123,6 +127,14 @@ export function PublicApp() {
       </Routes>
     </Suspense>
   );
+}
+
+/** A client signed in at the studio: on to their client portal. */
+function ToPortal({ url }: { url: string }) {
+  useEffect(() => {
+    window.location.replace(url);
+  }, [url]);
+  return <Splash />;
 }
 
 /** In development every address is the app's; built, the server sends only these here. */

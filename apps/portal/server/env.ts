@@ -37,6 +37,12 @@ export const env = {
   clientSecret: required("PORTAL_CLIENT_SECRET"),
   /** Seals the session cookie and the sign-in's state. */
   secret,
+  /**
+   * Development only: the team's host a request to the portal's own origin stands for, so
+   * `localhost:<port>/portal` opens that team's portal. In production the portal's origin is no
+   * team's.
+   */
+  devTeamHost: process.env.NODE_ENV === "production" ? "" : str("PORTAL_DEV_TEAM_HOST"),
   /** The built SPA. */
   webDir: str("PORTAL_WEB_DIR", new URL("../web", import.meta.url).pathname),
 };

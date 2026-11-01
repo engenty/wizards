@@ -165,6 +165,8 @@ export interface Me {
   credits: number | null;
   /** Where account, members, API keys and credits are managed. */
   manageUrl: string | null;
+  /** Set for a client of the organization only: their client portal, where the studio sends them. */
+  portalUrl?: string | null;
   /** The account a local runtime is linked to. */
   account: {
     name: string;

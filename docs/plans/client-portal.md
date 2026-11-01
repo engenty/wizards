@@ -100,12 +100,18 @@ run started in a client space uses the parent's wizard and belongs to the client
 - A firm member's run in a client space belongs to the client space as well, internal until
   shared.
 
+### A client in the studio
+
+A client who signs in at the studio is sent on to their portal (`CLIENT_PORTAL_URL`, by default
+`https://{host}/portal` with the organization's `pagesHost`): the studio is never theirs.
+
 ### Shared on purpose
 
 A run the firm makes in a client space stays internal. `run.clientSharedAt` marks one shared
 with the client space's clients: set in Studio (Work's results, "Share with the client"), through
 `POST /api/studio/runs/:id/client-share`. The client sees their own runs and the shared ones,
-nothing else. `/s/<token>` links stay as they are.
+nothing else. A shared run is only read: `run_open` gives a ticket that opens its view, stream
+and downloads (`GET`) and no command. `/s/<token>` links stay as they are.
 
 ### The run protocol for the portal
 

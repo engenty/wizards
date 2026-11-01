@@ -125,6 +125,12 @@ export const env = {
    * file carry it. Default: APP_URL, the same origin.
    */
   publicUrl: str("PUBLIC_URL", appUrl).replace(/\/$/, ""),
+  /**
+   * Where a client of an organization works (docs/plans/client-portal.md): the client portal on
+   * the organization's host, `{host}` its `acme.wizards.page`. A client who signs in at the studio
+   * is sent there.
+   */
+  clientPortalUrl: str("CLIENT_PORTAL_URL", "https://{host}/portal"),
   /** More host names this server answers under, besides APP_URL's and the loopback names. */
   allowedHosts: list("ALLOWED_HOSTS"),
   dataDir,
