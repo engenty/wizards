@@ -2864,7 +2864,17 @@ const de: Record<Key, Line> = {
   "dateien.skipped": "Nur nach dem Namen gefunden: zu groß oder ohne eigenen Text.",
   "dateien.fileGone": "Diese Datei gibt es nicht mehr.",
   "dateien.writable": "Ändern erlauben",
-  "dateien.writableNote": "Entwürfe werden mit „Veröffentlichen“ in den Ordner geschrieben.",
+  "dateien.writableNote":
+    "Admins und Team bearbeiten Dateien als Entwurf, „Veröffentlichen“ schreibt sie in den Ordner. Kund:innen, Gäste und Wizards lesen nur.",
+  "dateien.agents": "Was darf die KI in Work",
+  "dateien.agentsNone": "Nichts",
+  "dateien.agentsRead": "Lesen",
+  "dateien.agentsDrafts": "Lesen und Entwürfe schreiben",
+  "dateien.agentsHint":
+    "Die KI in Work-Chats und in verbundenen Apps wie Claude oder Codex, immer mit den Rechten der Person, für die sie arbeitet. Entwürfe schreibt sie nur in Work, veröffentlichen kann sie nicht.",
+  "dateien.agentsHintReadOnly":
+    "Die KI in Work-Chats und in verbundenen Apps wie Claude oder Codex, immer mit den Rechten der Person, für die sie arbeitet. Entwürfe erst, wenn Ändern erlaubt ist.",
+  "dateien.wizardsHint": "Wizards lesen den Ordner nur, sie ändern nichts.",
   "dateien.writableOn": "Ändern erlaubt",
   "dateien.edit": "Bearbeiten",
   "dateien.replace": "Ersetzen",
@@ -6932,7 +6942,17 @@ const en = {
   "dateien.skipped": "Found by its name only: too large, or no text of its own.",
   "dateien.fileGone": "This file is gone.",
   "dateien.writable": "Allow changes",
-  "dateien.writableNote": "Drafts are written to the folder with “Publish”.",
+  "dateien.writableNote":
+    "Admins and the team edit files as drafts; “Publish” writes them to the folder. Clients, guests and wizards only read.",
+  "dateien.agents": "What the AI in Work may do",
+  "dateien.agentsNone": "Nothing",
+  "dateien.agentsRead": "Read",
+  "dateien.agentsDrafts": "Read and write drafts",
+  "dateien.agentsHint":
+    "The AI in Work chats and in connected apps like Claude or Codex, always with the rights of the person it works for. It writes drafts only in Work and can’t publish.",
+  "dateien.agentsHintReadOnly":
+    "The AI in Work chats and in connected apps like Claude or Codex, always with the rights of the person it works for. Drafts only once changes are allowed.",
+  "dateien.wizardsHint": "Wizards only read the folder; they change nothing.",
   "dateien.writableOn": "Changes allowed",
   "dateien.edit": "Edit",
   "dateien.replace": "Replace",

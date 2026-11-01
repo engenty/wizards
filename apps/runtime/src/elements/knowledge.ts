@@ -269,7 +269,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
               });
               return {
                 ok: true,
-                note: "Kept as a draft. A person publishes it with „Veröffentlichen“ in Dateien.",
+                note: "Kept as a draft. A person publishes it in Dateien.",
               };
             },
           ),
