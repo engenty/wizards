@@ -26,7 +26,8 @@ export function safeJson(text: string) {
 
 export interface Api {
   get<T>(path: string): Promise<T>;
-  post<T>(path: string, body?: unknown): Promise<T>;
+  /** `signal`: a call that is no longer wanted ends, and the server stops its work. */
+  post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>;
   put<T>(path: string, body?: unknown): Promise<T>;
   patch<T>(path: string, body?: unknown): Promise<T>;
   del<T>(path: string): Promise<T>;
@@ -43,9 +44,15 @@ export function createApi(
   /** Told of every answer of 500 and above, e.g. to send it to the host's log. */
   onServerError?: (line: string) => void,
 ): Api {
-  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async function request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+  ): Promise<T> {
     const res = await fetch(withBase(path), {
       method,
+      signal,
       credentials: "include",
       headers: {
         // The server answers in the language the person picked, not the browser's.
@@ -72,7 +79,8 @@ export function createApi(
   }
   return {
     get: <T>(path: string) => request<T>("GET", path),
-    post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
+    post: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
+      request<T>("POST", path, body ?? {}, signal),
     put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body),
     patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),
     del: <T>(path: string) => request<T>("DELETE", path),

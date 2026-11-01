@@ -70,6 +70,7 @@ import {
   switchable,
   useManageOrganization,
 } from "./Organizations";
+import { KnowledgePalette } from "./space/KnowledgePalette";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { UpdateBanner } from "./UpdateBanner";
 import { hostOf } from "./where";
@@ -1035,6 +1036,7 @@ export function AppFrame({
                     <HighlightLayer />
                   </>
                 )}
+                <KnowledgePalette />
               </div>
             </div>
           )}
