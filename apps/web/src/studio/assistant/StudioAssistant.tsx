@@ -34,7 +34,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router";
 import { Mascot } from "../../brand";
 import { lang, t } from "../../lib/i18n";
@@ -66,6 +66,7 @@ import {
   useAssistantSlot,
   useDockDrag,
   useDockPrefs,
+  useHintSlot,
   useSidebarMount,
 } from "./dock";
 import { canLive } from "./live";
@@ -1367,58 +1368,47 @@ function useStoredFlag(key: string): [boolean, (on?: boolean) => void] {
   return [on, set];
 }
 
+/** The name the introduction and the help hint share, so one morphs into the other. */
+const INTRO_MORPH = { viewTransitionName: "goose-intro" } as const;
+
 /**
- * The introduction's frame at the top right of its place: as wide as the column while it is open,
- * as small as the help hint once closed. It grows and shrinks between the two (width by
- * `interpolate-size`, height measured), and what it holds fades in.
+ * Opens or closes the introduction: the help hint in the top bar grows into the card at the top
+ * of the page, and shrinks back into it (styles/app.css). At once where the browser has no view
+ * transitions or less motion was asked for.
  */
-function IntroFrame({ closed, children }: { closed: boolean; children: ReactNode }) {
-  const inner = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | null>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the content is swapped when it opens or closes: measured anew.
-  useLayoutEffect(() => {
-    const el = inner.current;
-    if (!el) {
-      return;
-    }
-    const measure = () => setHeight(el.offsetHeight);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [closed]);
+function morphIntro(change: () => void) {
+  if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    change();
+    return;
+  }
+  document.startViewTransition(() => flushSync(change));
+}
+
+/** The introduction's frame at the top of its place, as wide as the column. */
+function IntroFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="flex justify-end">
-      <section
-        className={cn(
-          "overflow-hidden bg-card shadow-soft ring-1 transition-[width,height,border-radius,box-shadow] duration-300 ease-out [interpolate-size:allow-keywords] motion-reduce:transition-none",
-          closed
-            ? "w-fit rounded-[1.25rem] ring-border"
-            : "w-full rounded-xl bg-linear-to-br from-ember-tint via-card to-card ring-ember-veil",
-        )}
-        style={height === null ? undefined : { height }}
-      >
-        <div
-          ref={inner}
-          key={closed ? "hint" : "intro"}
-          className="fade-in-0 animate-in duration-300"
-        >
-          {children}
-        </div>
-      </section>
-    </div>
+    <section
+      style={INTRO_MORPH}
+      className="overflow-hidden rounded-xl bg-card bg-linear-to-br from-ember-tint via-card to-card shadow-soft ring-1 ring-ember-veil"
+    >
+      {children}
+    </section>
   );
 }
 
-/** Where the introduction was closed: Goose, a word and a help icon; it opens it again. */
+/**
+ * Where the introduction was closed, at the right end of the top bar: Goose, a word and a help
+ * icon; it opens the introduction again.
+ */
 function HelpHint({ onOpen }: { onOpen: () => void }) {
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="flex items-center gap-2 whitespace-nowrap py-1 pr-3 pl-1 text-[0.875rem] text-ink-2 transition hover:text-ink"
+      style={INTRO_MORPH}
+      className="flex items-center gap-2 whitespace-nowrap rounded-full py-1 pr-3 pl-1 text-[0.875rem] text-ink-2 transition hover:bg-accent hover:text-ink"
     >
-      <Mascot kind="round" size={28} helmet interactive={false} />
+      <Mascot kind="round" size={26} helmet interactive={false} />
       {t("assistant.help")}
       <CircleHelp className="size-4 text-ink-3" />
     </button>
@@ -1613,13 +1603,16 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   const sidebar = where?.where === "sidebar";
   const ownInput = Boolean(usePageAssistant().ownInput);
   const small = !sidebar && (where?.where === "avatar" || ownInput) && !busy;
-  // The page's introduction at its top, closed per page (a help hint stays in its place). Only
-  // while Goose is the small engenty, closed: docked, floating, in the sidebar or open, Goose
-  // stands in sight already. `top` while it is in view.
+  // The page's introduction at its top, closed per page: then a help hint stands in the top bar,
+  // and the page loses no row to it. Only while Goose is the small engenty, closed: docked,
+  // floating, in the sidebar or open, Goose stands in sight already. `top` while either is in view.
   const slot = useAssistantSlot();
+  const hintSlot = useHintSlot();
   const path = useLocation().pathname;
   const [introClosed, closeIntro] = useStoredFlag(`goose.intro.closed:${path}`);
-  const introAt = slot && visible && small && !open ? slot : null;
+  const wanted = Boolean(slot && visible && small && !open);
+  const introAt = wanted && !introClosed ? slot : null;
+  const hintAt = wanted && introClosed ? hintSlot : null;
   const slotHeight = useRef(0);
   useLayoutEffect(() => {
     if (slot) {
@@ -1627,7 +1620,7 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
     }
   }, [slot, introAt]);
   const away = useSlotAway(introAt, slotHeight);
-  const top = Boolean(introAt) && !away;
+  const top = (Boolean(introAt) && !away) || Boolean(hintAt);
   // The introduction in view, or a page with its own input: the small engenty keeps out of the
   // way. One place to ask on a screen; Goose comes back once it works or is opened.
   const quiet = top || (ownInput && !busy && !open && !sidebar);
@@ -1711,16 +1704,14 @@ export function AssistantDock({ column }: { column: RefObject<HTMLDivElement | n
   }
   const intro = introAt
     ? createPortal(
-        <IntroFrame closed={introClosed}>
-          {introClosed ? (
-            <HelpHint onOpen={() => closeIntro(false)} />
-          ) : (
-            <PageIntro state={state} onClose={() => closeIntro()} />
-          )}
+        <IntroFrame>
+          <PageIntro state={state} onClose={() => morphIntro(() => closeIntro())} />
         </IntroFrame>,
         introAt,
       )
-    : null;
+    : hintAt
+      ? createPortal(<HelpHint onOpen={() => morphIntro(() => closeIntro(false))} />, hintAt)
+      : null;
   // The thread is as high as the handle set it, within what the column leaves.
   const maxThread = Math.max(THREAD.min, Math.min(THREAD.max, size.height - 220));
   const threadHeight = prefs.height === null ? null : Math.min(prefs.height, maxThread);

@@ -257,6 +257,32 @@ export function useAssistantSlot(): HTMLElement | null {
   );
 }
 
+// --- the place in the top bar ------------------------------------------------------------------
+
+let hintSlot: HTMLElement | null = null;
+const hintListeners = new Set<() => void>();
+
+/**
+ * Where the help hint stands once a page's introduction is closed: the right end of the top bar,
+ * so the page loses no row to it. A ref callback of the top bar.
+ */
+export function setHintSlot(el: HTMLElement | null) {
+  hintSlot = el;
+  for (const listener of hintListeners) {
+    listener();
+  }
+}
+
+export function useHintSlot(): HTMLElement | null {
+  return useSyncExternalStore(
+    (listener) => {
+      hintListeners.add(listener);
+      return () => hintListeners.delete(listener);
+    },
+    () => hintSlot,
+  );
+}
+
 // --- the sidebar --------------------------------------------------------------------------------
 
 let sidebarMount: HTMLElement | null = null;
