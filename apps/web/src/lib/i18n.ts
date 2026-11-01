@@ -2791,9 +2791,15 @@ const de: Record<Key, Line> = {
   "space.knowledge": "Wissen",
   "space.dateien": "Dateien",
   "dateien.mount": "Ordner einbinden",
+  "dateien.kindFolder": "Ordner dieses Computers",
+  "dateien.writeNotAllowed":
+    "Das Konto hat das Ändern nicht erlaubt. engenty liest den Ordner nur.",
+  "dateien.kindFolderHint": "Ein Ordner auf der Festplatte oder einem Laufwerk, das hier hängt",
+  "dateien.noKinds":
+    "Hier lässt sich noch nichts einbinden. Die Quellen-Erweiterung bringt Buckets und Laufwerke.",
   "dateien.thisComputer": "dieser Computer",
   "dateien.empty":
-    "Dateien zeigt Ordner, die nicht dem Space gehören: einen Ordner auf diesem Computer. Sie bleiben, wo sie liegen, und deine Wizards finden, was darin liegt.",
+    "Dateien zeigt Ordner, die nicht dem Space gehören: einen Ordner auf diesem Computer, einen Bucket, einen Ordner in Google Drive oder OneDrive. Sie bleiben, wo sie liegen, und deine Wizards finden, was darin liegt.",
   "dateien.chooseText":
     "Wähle einen Ordner auf diesem Computer. Er bleibt, wo er liegt. engenty legt einen Index an und bleibt auf dem Stand, wenn sich etwas ändert.",
   "dateien.chooseNote": "Deine Wizards finden, was im Ordner liegt.",
@@ -6784,9 +6790,14 @@ const en = {
   "space.knowledge": "Knowledge",
   "space.dateien": "Files",
   "dateien.mount": "Mount a folder",
+  "dateien.kindFolder": "A folder of this computer",
+  "dateien.writeNotAllowed": "The account didn’t allow changes. engenty only reads the folder.",
+  "dateien.kindFolderHint": "A folder on its disk or on a drive plugged in here",
+  "dateien.noKinds":
+    "Nothing can be mounted here yet. The sources plugin brings buckets and drives.",
   "dateien.thisComputer": "this computer",
   "dateien.empty":
-    "Files shows folders the space doesn’t own: a folder on this computer. They stay where they are, and your wizards find what is in them.",
+    "Files shows folders the space doesn’t own: a folder on this computer, a bucket, a folder in Google Drive or OneDrive. They stay where they are, and your wizards find what is in them.",
   "dateien.chooseText":
     "Choose a folder on this computer. It stays where it is. engenty indexes it and keeps up when something changes.",
   "dateien.chooseNote": "Your wizards find what is in the folder.",

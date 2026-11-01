@@ -97,6 +97,7 @@ export const dateienRoutes = new Hono<Vars>()
       ...mount,
       ...(await mountAccess(space.id, mount.id)),
       canWrite: await mountCanWrite(row),
+      ...(row.kind === "folder" ? {} : { source: row.source }),
     });
   })
   .patch("/spaces/:id/mounts/:mountId", async (c) => {

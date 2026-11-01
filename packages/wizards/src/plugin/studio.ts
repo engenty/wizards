@@ -209,6 +209,41 @@ export interface StudioKnowledgeSource {
   settings?: ComponentType<StudioKnowledgeSourceSettingsProps>;
 }
 
+/** What a mount kind's form in Dateien's „Einbinden“ is handed. */
+export interface StudioMountFormProps {
+  /** The space the mount goes into. */
+  space: string;
+  /**
+   * What the person chose: the source for the server half's `prepare` (a connection, a folder's
+   * id) and the name proposed. The dialog goes on to who sees it and mounts it. Null: not ready.
+   */
+  onChange(chosen: { source: Record<string, unknown>; name: string } | null): void;
+}
+
+/**
+ * A kind of mount of Dateien, as the studio offers it: a choice in „Einbinden“ with the form
+ * that connects the account and picks the folder, and how its mounts are marked in Dateien's
+ * menu. The server half registers the same `kind` with its reader (`server.registerMountKind`).
+ * Behind the studio's `dateien` switch.
+ */
+export interface StudioMountKind {
+  kind: string;
+  /** „S3-Bucket“: a function, the language can change while the studio is open. */
+  label: () => string;
+  /** What it takes, one line: „Ein Ordner aus Google Drive“. */
+  hint?: () => string;
+  /** Its choice's icon, and the mark of its mounts in the menu. */
+  icon: Icon;
+  /** Where its mounts live, beside their name in the menu: „Google Drive“. */
+  place: () => string;
+  form: ComponentType<StudioMountFormProps>;
+  /**
+   * Writing is turned on for a mount of this kind: connects the account again with the rights to
+   * write, where it lacks them. False where the person did not; writing stays off.
+   */
+  allowWrite?(input: { space: string; source: Record<string, unknown> }): Promise<boolean>;
+}
+
 /** What a card in the assistant's chat is handed. */
 export interface StudioAssistantCardProps<T = unknown> {
   /** What the assistant tool returned. */
@@ -313,6 +348,8 @@ export interface StudioPluginContext {
   registerAssistantCard(card: StudioAssistantCard): void;
   /** A kind of source of Knowledge: its entry in „Hinzufügen“, its form and its settings. */
   registerKnowledgeSource(source: StudioKnowledgeSource): void;
+  /** A kind of mount of Dateien: its choice in „Einbinden“, its form, its mark in the menu. */
+  registerMountKind(kind: StudioMountKind): void;
   /**
    * A hook: the space the studio shows, `null` while it has none. A component that calls it draws
    * again when the person picks another space.

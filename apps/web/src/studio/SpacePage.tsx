@@ -223,9 +223,10 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const clientsOn = useFeature("clientSpaces") && admin;
   // Wissen as a knowledge base waits behind its switch.
   const treeOn = useFeature("knowledgeTree");
-  // Dateien waits behind its switch, and mounts a folder of this computer: a local install's.
+  // Dateien waits behind its switch, and mounts a folder of this computer (a local install's) or
+  // what a plugin's kind brings (a bucket, a drive).
   const local = useMe().data?.mode === "local";
-  const filesOn = useFeature("dateien") && local;
+  const filesOn = useFeature("dateien") && (local || plugins.mountKinds.length > 0);
   const groups = spaceGroups().filter(
     (g) =>
       (pagesOn || g.id !== "page") &&
