@@ -1,6 +1,7 @@
 # Plan: a computer's Dateien seen from its cloud space
 
-Status: planned on 2026-11-01, reworked the same day; nothing built. Step 9 of
+Status: planned on 2026-11-01, reworked the same day, every decision taken the same evening;
+nothing built. Step 9 of
 `docs/plans/media-and-files.md`, the part „a computer's mount seen from a cloud space“. Page: the
 artifact “Dateien aus der Cloud” (claude.ai/artifact/3n2eFataR8ktmPpHzXcgWD; source
 `dateien-from-the-cloud.html`).
@@ -12,6 +13,18 @@ Decided by the user on 2026-11-01:
 | C1 The index goes to the cloud | A mount's metadata and index sync to the cloud: the tree, file rows, units, vectors, the word index, Kategorien. Only the files' bytes stay on the computer |
 | C2 Previews go too | Each file gets a small preview, a thumbnail and an excerpt, kept on the computer and synced: for lists, search hits and what an agent sees before it opens a file |
 | C3 One model on both sides | The cloud embeds with the same EmbeddingGemma 2 as the computer, so the computer's vectors are used as they are and the cloud embeds nothing of the mount again |
+| D1 Which mounts sync | Every mount of a space that syncs, as everything else in it; „Nur auf diesem Computer“ per mount keeps one out |
+| D2 Who sees, who opens | Everybody in the cloud space the mount's setting names sees the tree, the metadata, the previews and finds by the index. Opening a file through the computer (its text, its bytes, a hit's live passage) is the owner's alone, the person whose computer it is, unless the mount allows more |
+| D2a Wizards open too | A wizard the mount allows opens its files through the computer in the cloud, as on the computer: share links and starts included |
+| D2b Passages as opening | A search hit's live passage counts as opening: who may not open sees the excerpt, as while the computer is away |
+| D3 A step and an away computer | The step stops: „MacBook Pro ist nicht erreichbar“ |
+| D4 No writing from the cloud | Read only. Drafts and „Veröffentlichen“ stay on the computer |
+| D5 No excerpt for pictures | A picture has its thumbnail; no model describes it |
+| D6 Plans | Pro and Team |
+| D7 Other computers | They don't pull a computer's mounts, for now; only the cloud shows them |
+| D8 Largest file | 25 MB through the connection |
+| D9 Gone from the cloud at once | When a mount stops syncing („Nur auf diesem Computer“, removed, the account unlinked), its rows, index, thumbnails and excerpts go from the cloud at once |
+| D10 Words without positions | The cloud's word index holds each unit's words without their positions: single words, codes, names and part numbers are found, phrases are not, and the text can't be rebuilt from it |
 
 A person mounts a folder of their computer in Dateien, say a Dropbox folder of 378 MB. Today the
 cloud sees none of it: sync (`sync/records.ts`, `KIND_ORDER`) carries space, files, tables,
@@ -56,25 +69,29 @@ that run in the cloud (share links, starts), and members of the space.
 | Mount rows | `space_mount`, `space_mount_file` (`title`, `hash`, `status`, `thumb`), `space_mount_unit` (`heading`, `sheet`, `start`, `end`, `embedding`, `model`, `kind`) | The record and the index blob are made of these; the cloud writes the same rows |
 | The indexer | `mounts/mounts.ts` (`scanMount`), `mounts/units.ts`, `mounts/cache.ts` | Writes the index blob and the excerpt when it indexes a file |
 | Search with mounts | `services/space-index.ts` `searchKnowledge`, `usableMounts`, `readableMounts` | Works in the cloud as it is, over the synced rows |
-| The embedder | `models.ts` `embeddingBy`, `LOCAL_EMBEDDING_MODEL` | The cloud's `credits` way must reach EmbeddingGemma (step 1) |
+| The embedder | `models.ts` `embeddingBy`, `LOCAL_EMBEDDING_MODEL` | The `credits` way records the bound model's name (`bound.model`), the `local` way `ollama:<name>`: bound to EmbeddingGemma, both say `ollama:embeddinggemma-2:740m` |
 | The sync's live call | `routes/api.ts` `/sync/live`, `sync/client.ts` `followCloud` | The shape of the stream that opens files: token, `x-wizards-install`, ping every 20 s, 30 min, back-off 2 s to 60 s. Its own route, since `followCloud` runs only with the two-way sync and `liveChanges` on |
 | The phone as a model | `engine/device.ts` | The request row, the 250 ms poll, the time-out, the delete in `finally`, the answer written once and only by its owner |
 | Processes in the cloud | `docs/plans/runner-process.md` | `/api/v1` is served by the studio process, steps run on the runner: a row bridges them |
-| Access per mount | `mountRules(id, see, wizards, writable)`, broker kind `mount` | The cloud's row gets rules the same way, never `w` |
-| Plugin mount kinds | `readerOf`, `startMounts` | A computer's mount in the cloud has no reader there: `startMounts` skips it |
+| Access per mount | `mountRules(id, { see, wizards, agents, writable })`, broker kind `mount`; `see` is a list of audiences (team, clients, guests), the owner and admin roles always read | The cloud's row gets rules the same way, never `w`; opening is a `person` rule (D2) |
+| Plugin mount kinds | `readerOf`, `startMounts` | A computer's mount in the cloud has no reader there: `startMounts` already skips a folder where `managed` |
 
 ## 1. One model on both sides
 
-The cloud embeds through the Manage class `wizards/embedding` (the `credits` way); its default is
-`openai/text-embedding-3-small`. Manage's main has no EmbeddingGemma route and no
-`picture-embedding` call yet; #425 built only the runtime's half of step 3 of
-`media-and-files.md`. That cloud half comes first:
+The cloud embeds through the Manage class `wizards/embedding` (the `credits` way). Manage's code
+for it is on main since engenty/engenty-wizards-manage#169 (merged 2026-11-01): the source
+`ollama` over `OLLAMA_URL`, the catalog row `ollama:embeddinggemma-2:740m`, the gateway's
+`/v4/ai/picture-embedding`. The class is unbound and no Ollama runs on the VPS yet, so the cloud
+finds Wissen by words only. What is left is setup (Manage's `docs/content/setup/ai-gateway.md`,
+„Our own Ollama“):
 
-- An Ollama of engenty's own on the VPS (`embeddinggemma-2:740m`, internal), the class
-  `wizards/embedding` bound to it, the gateway's `/v4/ai/picture-embedding`.
+- An Ollama of engenty's own on the VPS (`ollama/ollama:0.40.13`, internal, a volume on
+  `/root/.ollama`, `ollama pull embeddinggemma-2:740m`), `OLLAMA_URL` on the `manage` app, the
+  class `embedding` bound to it, for every model tier that should reach it.
 - One name for the model on every way. Units record the model they were made with and only vectors
-  of one model are compared. The computer records `ollama:embeddinggemma-2:740m`; the cloud must
-  record the same name, so `embeddingBy` names EmbeddingGemma alike whichever way reaches it.
+  of one model are compared. The computer records `ollama:embeddinggemma-2:740m`; the cloud records
+  `bound.model`, the same name once bound. A test holds the two together.
+- Binding embeds every cloud space's Wissen again, once.
 - The cloud embeds the search words with it; they meet the computer's vectors, pictures included.
 - Where the two differ (a computer set to another model, a tier binding another one), the cloud
   ignores the synced vectors and finds by words; it can't embed again without the text.
@@ -85,20 +102,27 @@ Two kinds, after `file` in `KIND_ORDER`: `mount`, then `mountFile`.
 
 | Kind | Record | Blobs |
 |---|---|---|
-| `mount` | name, slug, kind, where it lives (`computer`: the computer's name; a folder's path), file count, size, `see`, `wizards`, `writable`, Kategorie of the first level | — |
+| `mount` | name, slug, kind, where it lives (`computer`: the install's id and the computer's name; a folder's path), file count, size, `see`, `wizards`, `open`, Kategorie of the first level | — |
 | `mountFile` | mount, path, `sourceId`, name, mime, size, modified, hash, status, pages, title, excerpt, Kategorien, `thumb` (a hash), `index` (a hash) | the thumbnail, the index |
 
 - **The index blob:** per file, its units (idx, heading, sheet, start, end, kind), their vectors
   (768 float32 each, with the model's name) and their words. Made by the indexer when it indexes the
   file, stored by its hash. A file whose index didn't change sends nothing again.
-- **Words:** the words of each unit, in their order of first appearance, each once, lower case.
-  The cloud fills `space_mount_unit_fts` and `_tri` from them. Phrase searches across words don't
-  work in the cloud; single words, codes, names and part numbers do.
+- **Words (D10):** the words of each unit, in their order of first appearance, each once, lower
+  case, no positions. The cloud fills `space_mount_unit_fts` and `_tri` from them. Phrase searches
+  across words don't work in the cloud; single words, codes, names and part numbers do.
 - **Thumbnails** move from `derived/m/<mount>/<file>.jpg` into the blobs by hash, so they sync as
   any blob and a picture in two mounts is kept once.
 - **One way, but Kategorien:** the computer owns the mount. The cloud refuses a push of `mount` and
   `mountFile`; Kategorien set on a mounted file in the cloud come back as today's categories do.
-- **Which mounts:** see D1.
+- **Which mounts (D1):** every mount of a space that syncs. „Nur auf diesem Computer“ in the mount's
+  settings (`space_mount.cloud`, on by default) keeps one out.
+- **Gone at once (D9):** a mount turned to „Nur auf diesem Computer“ or removed is sent as a delete;
+  the cloud removes its rows, units, word index, excerpts and the thumbnails and index blobs no other
+  row holds. Before the account is unlinked (`forgetCloud`) the computer sends the delete of each
+  of its mounts; a cloud that removes an install's link removes that computer's mounts itself.
+- **Not to other computers (D7):** the hub sends `mount` and `mountFile` to no install; a computer
+  that pulls the space sees only its own mounts.
 - **Wissen too:** with one model, a Wissen file's vectors can travel the same way (its index blob
   beside `textHash`), and the cloud stops embedding again what the computer already did. Step 7.
 
@@ -108,7 +132,7 @@ Two kinds, after `file` in `KIND_ORDER`: `mount`, then `mountFile`.
 |---|---|---|
 | What | 320 px JPEG, as today | the title (`title`) and the first ~400 characters of the file's text, cut at a sentence |
 | For | grids, search hits | lists, search hits while the computer is away, what an agent sees before it opens a file |
-| Pictures | the picture | none (D5: or a one-line description) |
+| Pictures | the picture | none (D5) |
 | PDF | the first page | the first page's text |
 | Spreadsheets | — | sheet names and the first header row |
 | Kept on the computer | `blobs/`, by hash | `space_mount_file.excerpt` |
@@ -127,7 +151,11 @@ and sends each once.
 |---|---|---|---|---|
 | `units` | units of up to 24 hits | their passages, for snippets and the decision model | 24 × 2 000 characters | 3 s, then the excerpt |
 | `text` | a file | its text, from the computer's cache (`ownText`) | 200 000 characters | 20 s |
-| `bytes` | a file | the original | 25 MB | 60 s |
+| `bytes` | a file | the original | 25 MB (D8) | 60 s |
+
+Every call is opening (D2, D2b): the cloud asks only for who may open the mount, the owner or a
+wizard the mount allows. Everyone else who sees it gets the excerpt in place of a passage and „Nur
+<Name> kann diese Datei öffnen“ in place of the file.
 
 - **The connection:** the computer opens it when an account is linked, a space with mounts syncs
   with the cloud and the switch `dateienCloud` is on. The person behind the token needs build
@@ -151,18 +179,28 @@ The cloud keeps working on what it holds:
 - Dateien shows the tree, thumbnails, excerpts and Kategorien, with „Auf MacBook Pro · nicht
   erreichbar seit 14:02“ in the mount's header.
 - Search finds by words and meaning; a hit shows the excerpt in place of its passage.
-- Opening a file says the computer is away. A step that needs the file: D3.
+- Opening a file says the computer is away.
+- A step that needs the file stops with „MacBook Pro ist nicht erreichbar“ (D3): the run fails at
+  that step, as a step whose connection is gone does. It neither waits nor goes on with the excerpt.
 - A start in the cloud at night (a schedule, a webhook) finds the file but can't read it while a
   laptop sleeps.
 
 ## 6. Access
 
-- **Who sees it in the cloud:** on the computer one person sees the space; in the cloud the whole
-  team may. `MountSee` gains a third value, `owner` (only the person whose computer it is) (D2).
+Two rights per mount in the cloud (D2):
+
+| | Who | Rule |
+|---|---|---|
+| Seeing: the tree, metadata, thumbnails, excerpts, Kategorien; found by the index | the owner and admin roles, and the audiences of the mount's `see` (team, clients, guests), as on the computer | `r`, written by `mountRules` as today |
+| Opening through the computer: a file's text, its bytes, a hit's live passage | the owner (the person the computer is linked as, from `install_link`) and the wizards the mount allows (D2a); „Alle, die ihn sehen“ widens it to who sees it | `x` on the mount: a `person` rule for the owner, the `wizard` rules, the audiences' roles when widened |
+
+- **The setting:** `open` on the mount, „Nur ich“ (default) or „Alle, die ihn sehen“, in the mount's
+  settings on the computer beside „Wer sieht den Ordner“. It syncs with the mount.
 - **Which wizards:** the computer's `wizards` setting, written for the cloud row by `mountRules`.
   A wizard a visitor runs through a share link searches the mount only if that wizard may use it,
-  as with Wissen.
-- **Writing:** no writing from the cloud (D4). Drafts and „Veröffentlichen“ stay on the computer.
+  as with Wissen, and then opens its files through the computer too (D2a).
+- **Writing:** no writing from the cloud (D4). Drafts and „Veröffentlichen“ stay on the computer;
+  the cloud's rules never hold `w` for a computer's mount.
 - **Checked twice:** the cloud's broker before it searches or asks; the computer checks the mount
   and the path before it answers.
 
@@ -192,48 +230,26 @@ The cloud keeps working on what it holds:
   changed files.
 - **Opening:** the computer's upload. A 25 MB file over 10 Mbit/s takes about 20 s.
 - **Per computer:** 4 calls at once, 120 per minute; more wait in the row queue.
-- **Plan:** the switch `dateienCloud` per plan in Manage (everyone → plan → team) (D6).
+- **Plan (D6):** Pro and Team. The switch `dateienCloud` is on in those plans' `features` in Manage
+  (everyone → plan → team).
 - **Measure before the switch flips:** the first sync of the Dropbox folder, a search in the cloud,
   a 25 MB file from the VPS to a home connection.
 
 ## 9. Steps
 
-Behind the switch `dateienCloud` (off), which needs `dateien`, in small PRs. Tables land in one
-tenant migration on both sides in one release, since the sync refuses mismatched schemas
-(`requireSchema`).
+Behind the switch `dateienCloud` (off), which needs `dateien`, in small PRs; each ships on its own
+with the switch off. Paths are under `apps/runtime/src/` unless they say otherwise. A tenant
+migration ships to the computer and the cloud in the same release; until both run it they don't
+sync (`requireSchema`), as for every migration.
 
-1. **EmbeddingGemma in the cloud** (Manage and the VPS): engenty's Ollama, `wizards/embedding`
-   bound to it, the picture call; one model name on every way in `embeddingBy`.
-2. **Previews and the index blob on the computer.** `space_mount_file.excerpt`, `thumb` as a hash
-   in `blobs/`, the index blob written by the indexer; a `wizards` command builds both once for
-   mounts indexed before.
-3. **The sync kinds.** `mount`, `mountFile`; triggers; the cloud writes rows, units and its word
-   index from the blob; pushes of both refused in the cloud but Kategorien; `startMounts` skips a
-   computer's mount there.
-4. **Dateien and search in the cloud's studio.** The computer's mounts with their tree,
-   thumbnails, excerpts; „nicht erreichbar seit …“; search and ⌘K over them.
-5. **Opening through the computer.** `mount_call`, `install_link`, the routes `live` and
-   `calls/:id`, `followDateien`, the calls `units`, `text`, `bytes`, the relay keys and their sweep.
-6. **Wizards in the cloud.** `space_search` with excerpts; `space_document` reads
-   `dateien/<slug>/…` from the computer; the message when it is away.
-7. **Wissen's vectors travel too.** With one model, a Wissen file's index goes with it; the cloud
-   embeds only what it wrote itself.
-8. **Limits and the switch.** Rates, sizes, the switch per plan in Manage, the measurement; a docs
-   page under `docs/content` when the switch flips.
-
-## Decisions (the user)
-
-1. **D1 Which mounts sync:** every mount of a space that syncs, as everything else in it, with
-   „Nur auf diesem Computer“ per mount (recommended), or only the mounts someone turns on.
-2. **D2 Who in the cloud sees a computer's folder:** asked when it first syncs, default „Nur ich“
-   (recommended; new value `owner`), or the computer's setting as it is.
-3. **D3 A step that needs a file of an away computer:** the step stops with „MacBook Pro ist nicht
-   erreichbar“ (recommended), waits up to 15 minutes, or goes on with the excerpt.
-4. **D4 Writing from the cloud:** none, read only (recommended), or drafts in the cloud that the
-   computer publishes when it is back.
-5. **D5 A picture's excerpt:** none, it has its thumbnail (recommended), or a one-line description
-   by a vision model.
-6. **D6 Plans:** Pro and Team (recommended), or every plan.
-7. **D7 Other computers of the space:** they don't pull a computer's mounts (recommended for now),
-   or they show them as the cloud does and open files through the cloud.
-8. **D8 Largest file through the connection:** 25 MB (recommended), or 100 MB.
+| # | Step | Files | Manage, Coolify |
+|---|---|---|---|
+| 1 | **EmbeddingGemma in the cloud.** Setup only; Manage's code is on main (#169). A test that the `local` and `credits` ways name the bound EmbeddingGemma alike | `apps/runtime/test/` (a test beside the embedder's), nothing else | Coolify: the Ollama service, `ollama pull embeddinggemma-2:740m`, `OLLAMA_URL` on `manage`. Measure first with `apps/runtime/scripts/measure-pictures.ts --ollama <url>`. Manage admin: bind the class `embedding` to `ollama:embeddinggemma-2:740m` for the tiers. Binding embeds every cloud space's Wissen again once. The user's call |
+| 2 | **The switch and the schema.** `dateienCloud` (kind `plan`, off). One tenant migration: `space_mount.cloud` (on), `space_mount.open` (`owner`), `space_mount.computer`, `space_mount.computer_name`; `space_mount_file.excerpt`, `thumb` as a hash, `index`; the tables `mount_call` and `install_link`. No behaviour | `packages/shared/src/feature-flags.ts`, `db/schema.ts`, `db/migrations/tenant/00xx_dateien_cloud.sql` | none |
+| 3 | **Previews and the index blob on the computer.** The indexer writes the excerpt, the thumbnail into `blobs/` by hash (in place of `derived/m/…`) and the index blob (units, vectors, words). A one-time command converts the mounts indexed before; no second path for old rows | `mounts/mounts.ts` (indexing, `thumbKey`, `mountFileThumb`, `deleteMount`), `mounts/units.ts`, new `mounts/index-blob.ts`, `files/blobs.ts`, `cli/main.ts`, new `cli/mount-blobs.ts`, `test/dateien.test.ts` | none |
+| 4 | **The sync kinds.** `mount` and `mountFile` after `file`; triggers on `space_mount` and `space_mount_file` (only where `cloud` is on); the cloud writes rows, units, vectors as they are and its word index from the blob; refuses pushes of both but Kategorien; sends neither to an install (D7); the delete when a mount leaves, and before `forgetCloud` (D9); `mountRules` writes `x` for opening (D2). On the computer: „Nur auf diesem Computer“, „Wer darf Dateien öffnen“ and the dialog's sentence on what reaches the cloud | `sync/records.ts`, `sync/hub.ts`, `sync/client.ts`, `sync/log.ts`, `db/migrations/tenant/00xx_dateien_cloud_sync.sql`, `services/space-index.ts`, `services/cloud.ts` (`forgetCloud`), `mounts/mounts.ts` (`mountRules`, `MountAccess`, `updateMount`), `apps/web/src/studio/space/DateienEdit.tsx`, `Dateien.tsx`, `test/dateien.test.ts`, a sync test | none |
+| 5 | **Dateien and search in the cloud's studio.** The computer's mounts listed where `managed`, tree, thumbnails, excerpts, Kategorien; „Auf MacBook Pro · nicht erreichbar seit 14:02“ from `install_link.seen`; search and ⌘K over them with the excerpt as a hit's text | `routes/dateien.ts`, `mounts/mounts.ts` (`listMounts`, `mountView`, `usableMounts`), `services/space-index.ts` (`searchKnowledge`), `apps/web/src/studio/space/Dateien.tsx`, `dateien-data.ts`, `KnowledgePalette.tsx` | none |
+| 6 | **Opening through the computer.** `askComputer` and `answerComputer` over `mount_call` in the shape of `engine/device.ts`; the routes `GET /dateien/live` and `POST /dateien/calls/:id`; `followDateien` started beside `followCloud`; the calls `units`, `text`, `bytes` for who may open; relay keys and their sweep; the studio opens a file and shows live passages | new `mounts/calls.ts`, new `mounts/follow.ts`, `routes/api.ts`, `index.ts`, `files/objects.ts`, `services/space-index.ts`, `apps/web/src/studio/space/Dateien.tsx`, new `test/dateien-cloud.test.ts` | none: the stream runs as `/sync/live` does. Measure a 25 MB file from the VPS to a home connection |
+| 7 | **Wizards in the cloud.** `space_search` gives excerpts where a wizard may not open; `space_document` reads `dateien/<slug>/…` through the computer; the step stops while it is away (D3) | `elements/knowledge.ts`, `services/knowledge.ts`, the prompts of `tool.space_search` and `tool.space_document` | none |
+| 8 | **Wissen's vectors travel too.** A Wissen file's index blob goes beside `textHash`; the cloud embeds only what it wrote itself | `sync/records.ts` (`file`), `services/space-index.ts` (`queueIndex`) | none |
+| 9 | **Limits, docs, the switch.** 4 calls at once and 120 a minute per computer, 25 MB (D8); the measurement of §8; a page under `docs/content` with `version:` | `mounts/calls.ts`, `docs/content/…`, `CHANGELOG.md` through `pnpm release --changelog` | Manage: `dateienCloud` on in the `features` of Pro and Team (D6). Flipping it and the release are the user's call |
