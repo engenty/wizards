@@ -720,6 +720,8 @@ export interface MountView {
   vectorsPending: number;
   scannedAt: string | null;
   folderCategoryId: string | null;
+  /** Whether its files may be changed: drafts, then „Veröffentlichen“. */
+  writable: boolean;
 }
 
 function slugOf(name: string): string {
@@ -773,6 +775,7 @@ async function viewOf(mounts: MountRow[]): Promise<MountView[]> {
       vectorsPending: vectors.find((v) => v.mount_id === m.id)?.n ?? 0,
       scannedAt: m.scannedAt?.toISOString() ?? null,
       folderCategoryId: m.folderCategoryId,
+      writable: m.writable,
     };
   });
 }
@@ -819,25 +822,39 @@ export interface MountInput {
   wizards: MountWizards;
   /** A category of the folders of the first level, by its name; none for none. */
   folderCategory?: string | null;
+  /** Its files may be changed: off unless asked for. */
+  writable?: boolean;
 }
 
-/** The rules a mount is written with: who sees it, which wizards may use it. */
-function mountRules(mountId: string, see: MountSee, wizards: MountWizards): RwxRuleInput[] {
+/**
+ * The rules a mount is written with: who sees it, which wizards may use it. Where its files may
+ * be changed, the people who see it may write them; a wizard never does (it doesn't publish).
+ */
+function mountRules(
+  mountId: string,
+  see: MountSee,
+  wizards: MountWizards,
+  writable: boolean,
+): RwxRuleInput[] {
   const rule = (
     subjectKind: RwxRuleInput["subjectKind"],
     subjectId: string | null,
+    w: RwxRuleInput["w"],
   ): RwxRuleInput => ({
     subjectKind,
     subjectId,
     resourceKind: "mount",
     resourceId: mountId,
     r: "allow",
-    w: null,
+    w,
     x: null,
   });
   const roles = see === "all" ? ["owner", "admin", "member"] : ["owner", "admin"];
   const ids = wizards === "all" ? ["*"] : wizards === "none" ? [] : wizards;
-  return [...roles.map((r) => rule("role", r)), ...ids.map((id) => rule("wizard", id))];
+  return [
+    ...roles.map((r) => rule("role", r, writable ? "allow" : null)),
+    ...ids.map((id) => rule("wizard", id, null)),
+  ];
 }
 
 async function writeRules(spaceId: string, mountId: string, rules: RwxRuleInput[], by: string) {
@@ -900,9 +917,15 @@ export async function createMount(
     kind: "folder",
     source: { path },
     folderCategoryId: category?.id ?? null,
+    writable: Boolean(input.writable),
     createdBy: userId,
   });
-  await writeRules(spaceId, id, mountRules(id, input.see, input.wizards), userId);
+  await writeRules(
+    spaceId,
+    id,
+    mountRules(id, input.see, input.wizards, Boolean(input.writable)),
+    userId,
+  );
   const mount = (await db.query.spaceMount.findFirst({
     where: eq(schema.spaceMount.id, id),
   })) as MountRow;
@@ -938,22 +961,23 @@ export async function updateMount(
   spaceId: string,
   mountId: string,
   who: Subject[],
-  patch: { name?: string; see?: MountSee; wizards?: MountWizards },
+  patch: { name?: string; see?: MountSee; wizards?: MountWizards; writable?: boolean },
 ): Promise<MountView> {
   requireAdmin();
   const mount = await mountRow(spaceId, mountId, who);
-  if (patch.name?.trim()) {
+  const writable = patch.writable ?? mount.writable;
+  if (patch.name?.trim() || writable !== mount.writable) {
     await db
       .update(schema.spaceMount)
-      .set({ name: patch.name.trim(), updatedAt: new Date() })
+      .set({ name: patch.name?.trim() || mount.name, writable, updatedAt: new Date() })
       .where(eq(schema.spaceMount.id, mount.id));
   }
-  if (patch.see || patch.wizards) {
+  if (patch.see || patch.wizards || writable !== mount.writable) {
     const now = await mountAccess(spaceId, mount.id);
     await writeRules(
       spaceId,
       mount.id,
-      mountRules(mount.id, patch.see ?? now.see, patch.wizards ?? now.wizards),
+      mountRules(mount.id, patch.see ?? now.see, patch.wizards ?? now.wizards, writable),
       userId,
     );
   }
@@ -964,6 +988,18 @@ export async function updateMount(
       })) as MountRow,
     ])
   )[0];
+}
+
+/**
+ * A file written to its source from here („Veröffentlichen“): its row takes the entry the source
+ * gave back, and it is read again for the index. The watcher's turn after it finds nothing new.
+ */
+export async function writtenAtSource(fileId: string, entry: PluginMountEntry) {
+  await db
+    .update(schema.spaceMountFile)
+    .set({ size: entry.size, modified: entry.modified, status: "pending", updatedAt: new Date() })
+    .where(eq(schema.spaceMountFile.id, fileId));
+  kick(currentTenant());
 }
 
 /** Lists a mount's tree again now: "Neu einlesen". */
