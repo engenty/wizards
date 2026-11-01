@@ -25,7 +25,7 @@ import { useCurrentSpace } from "../../lib/session";
 import { cn, Dialog, IconButton, Spinner, Switch } from "../../ui";
 import { useDismiss } from "../AppFrame";
 import { useAssistant } from "../assistant/chat";
-import { mountFileUrl, mountThumbUrl, thumbUrl } from "./data";
+import { mountThumbUrl, thumbUrl } from "./data";
 import { FilterChip, itemIcon, passes, useKnowledge } from "./Knowledge";
 import { when } from "./KnowledgeHome";
 import { ancestorsOf, isFolder, treeIcon } from "./KnowledgeTree";
@@ -289,8 +289,8 @@ function Palette({
     open: () => openKey(item.key),
   });
   const hitRow = (hit: KnowledgeHit): Row => (hit.mount ? mountedRow(hit) : wissenRow(hit));
-  // A file of a mount in Dateien: its path in the mount says where it is. Until Dateien has a
-  // page in the studio, it opens as it is, in a tab of its own (a PDF at its page).
+  // A file of a mount in Dateien: its path in the mount says where it is. It opens in Dateien,
+  // a PDF at its page.
   const mountedRow = (hit: KnowledgeHit): Row => {
     const id = hit.open?.slice(2) ?? "";
     const inMount = hit.path.split("/").slice(2, -1).join(" › ");
@@ -313,8 +313,8 @@ function Palette({
       relevance: hit.relevance,
       open: () => {
         onClose();
-        const url = mountFileUrl(spaceId, id);
-        window.open(hit.sheet ? `${url}#page=${hit.sheet}` : url, "_blank", "noopener");
+        const show = hit.sheet ? `m:${id}#${hit.sheet}` : `m:${id}`;
+        navigate(`/space/files?show=${encodeURIComponent(show)}`);
       },
     };
   };

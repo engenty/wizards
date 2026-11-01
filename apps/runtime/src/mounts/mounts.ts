@@ -5,6 +5,7 @@ import { homedir, platform } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import type { PluginMountEntry, PluginMountReader } from "@engenty/wizards/plugin";
 import { featureOn } from "@engenty/wizards-shared/features";
+import type { ItemCategory } from "@engenty/wizards-shared/knowledge";
 import type { RwxRuleInput } from "@engenty/wizards-shared/rwx";
 import { embedMany } from "ai";
 import { and, asc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from "drizzle-orm";
@@ -20,7 +21,7 @@ import { managed } from "../manage.js";
 import { embeddingModel } from "../models.js";
 import { currentRole, isAdminRole, MEMBERS_EDIT_ONLY } from "../services/access.js";
 import { notFound, ServiceError } from "../services/errors.js";
-import { putCategory, setItemCategories } from "../services/space-categories.js";
+import { itemCategoriesOf, putCategory, setItemCategories } from "../services/space-categories.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { cachedText, keptText } from "./cache.js";
 import { FolderReader, leftOut } from "./folder.js";
@@ -369,27 +370,37 @@ async function reconcile(mount: MountRow, listed: PluginMountEntry[], under: str
 /** The folder of the first level a file lies in, or null for a file at the top. */
 const firstFolder = (path: string) => (path.includes("/") ? path.split("/")[0] : null);
 
+/** Files read at once: reading, hashing and drawing a thumbnail wait on the disk and a child. */
+const INDEX_LANES = 3;
+
 async function indexNext(): Promise<boolean> {
-  const file = await db.query.spaceMountFile.findFirst({
+  const files = await db.query.spaceMountFile.findMany({
     where: eq(schema.spaceMountFile.status, "pending"),
+    orderBy: [asc(schema.spaceMountFile.path)],
+    limit: INDEX_LANES,
   });
-  if (!file) {
+  if (!files.length) {
     return false;
   }
-  const mount = await db.query.spaceMount.findFirst({
-    where: eq(schema.spaceMount.id, file.mountId),
+  const mounts = await db.query.spaceMount.findMany({
+    where: inArray(schema.spaceMount.id, [...new Set(files.map((f) => f.mountId))]),
   });
-  if (!mount) {
-    return true;
-  }
-  try {
-    await indexFile(mount, file);
-  } catch (err) {
-    await db
-      .update(schema.spaceMountFile)
-      .set({ status: "failed", error: String((err as Error).message ?? err).slice(0, 300) })
-      .where(eq(schema.spaceMountFile.id, file.id));
-  }
+  await Promise.all(
+    files.map(async (file) => {
+      const mount = mounts.find((m) => m.id === file.mountId);
+      if (!mount) {
+        return;
+      }
+      try {
+        await indexFile(mount, file);
+      } catch (err) {
+        await db
+          .update(schema.spaceMountFile)
+          .set({ status: "failed", error: String((err as Error).message ?? err).slice(0, 300) })
+          .where(eq(schema.spaceMountFile.id, file.id));
+      }
+    }),
+  );
   return true;
 }
 
@@ -966,9 +977,11 @@ export interface MountFileView {
   status: FileRow["status"];
   thumb: boolean;
   pages: number | null;
+  /** The space's categories set on it, by category id. */
+  categories: ItemCategory[];
 }
 
-const fileView = (f: FileRow): MountFileView => ({
+const fileView = (f: FileRow, categories: ItemCategory[] = []): MountFileView => ({
   id: f.id,
   path: f.path,
   name: f.name,
@@ -978,6 +991,7 @@ const fileView = (f: FileRow): MountFileView => ({
   status: f.status,
   thumb: f.thumb,
   pages: f.pages,
+  categories,
 });
 
 /** Every file of a mount, by path: the studio draws the tree from the paths. */
@@ -987,7 +1001,8 @@ export async function mountFiles(spaceId: string, mountId: string, who: Subject[
     where: eq(schema.spaceMountFile.mountId, mount.id),
     orderBy: [asc(schema.spaceMountFile.path)],
   });
-  return files.map(fileView);
+  const categories = await itemCategoriesOf(files.map((f) => ({ mountFileId: f.id })));
+  return files.map((f) => fileView(f, categories.get(`m:${f.id}`)));
 }
 
 /** A file of a mount `who` may see. */
@@ -1001,6 +1016,13 @@ export async function mountFile(spaceId: string, fileId: string, who: Subject[])
   }
   const mount = await mountRow(spaceId, file.mountId, who);
   return { mount, file };
+}
+
+/** One file of a mount, with the mount it lives in: what a search hit (`m:<id>`) opens. */
+export async function mountFileView(spaceId: string, fileId: string, who: Subject[]) {
+  const { mount, file } = await mountFile(spaceId, fileId, who);
+  const categories = await itemCategoriesOf([{ mountFileId: file.id }]);
+  return { ...fileView(file, categories.get(`m:${file.id}`)), mountId: mount.id };
 }
 
 /** The file's bytes, read from where it lives: nothing of them is kept. */

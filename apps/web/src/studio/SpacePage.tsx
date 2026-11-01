@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
-import { useCurrentSpace, useIsAdmin } from "../lib/session";
+import { useCurrentSpace, useIsAdmin, useMe } from "../lib/session";
 import { PluginFrame, SpacePartFrame, useStudioPlugins } from "../plugins/host";
 import { cn, Empty } from "../ui";
 import { scrollRoot, useCrumbs } from "./AppFrame";
@@ -29,6 +29,7 @@ import {
   ValueView,
 } from "./space/Categories";
 import { ClientSpaces, OpenToClients } from "./space/ClientSpaces";
+import { DateienMenu, DateienPage } from "./space/Dateien";
 import { FileView } from "./space/Documents";
 import {
   CategoryItems,
@@ -206,8 +207,14 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const clientsOn = useFeature("clientSpaces") && admin;
   // Wissen as a knowledge base waits behind its switch.
   const treeOn = useFeature("knowledgeTree");
+  // Dateien waits behind its switch, and mounts a folder of this computer: a local install's.
+  const local = useMe().data?.mode === "local";
+  const filesOn = useFeature("dateien") && local;
   const groups = spaceGroups().filter(
-    (g) => (pagesOn || g.id !== "page") && (clientsOn || g.id !== "clients"),
+    (g) =>
+      (pagesOn || g.id !== "page") &&
+      (clientsOn || g.id !== "clients") &&
+      (filesOn || g.id !== "files"),
   );
   const parts = withParts(groups, plugins).map((g) => ({ ...g, to: `/space/${g.id}` }));
   // The overview at `/space` is the head's own link, not a row; a phone opens it a step deeper.
@@ -307,12 +314,15 @@ export function SpacePage({ place }: { place?: "skills" }) {
   // tables and pages, a plugin's sections. A plugin's part says its own menu.
   const listed =
     added.length > 0 ||
+    group === "files" ||
     (group === "knowledge" &&
       Boolean(knowledge.data?.categories.length || (treeOn && knowledge.data?.items.length))) ||
     (group === "data" &&
       Boolean(spaceData.data && dataGroups(spaceData.data).some((g) => g.items.length)));
   const listOnly =
-    Boolean(group) && !own && !((group === "data" || group === "knowledge") && listed);
+    Boolean(group) &&
+    !own &&
+    !((group === "data" || group === "knowledge" || group === "files") && listed);
   const phone =
     group === "results" ? 2 : !open ? (show === "overview" ? 2 : 0) : show || listOnly ? 2 : 1;
   const level = own
@@ -728,6 +738,10 @@ export function SpacePage({ place }: { place?: "skills" }) {
                     onPick={(id) => pick(`s:${id}`)}
                   />
                 </SubMenu>
+              ) : group === "files" && space ? (
+                <SubMenu>
+                  <DateienMenu spaceId={space.id} admin={admin} />
+                </SubMenu>
               ) : group === "skills" ? (
                 <SubMenu>
                   <ul className="flex flex-col gap-0.5">
@@ -1006,6 +1020,9 @@ export function SpacePage({ place }: { place?: "skills" }) {
                     <part.component />
                   </SpacePartFrame>
                 </PluginFrame>
+              ) : null}
+              {space && group === "files" && filesOn ? (
+                <DateienPage key={space.id} spaceId={space.id} admin={admin} />
               ) : null}
               {space && group === "data" ? (
                 <div className="flex flex-col gap-9 pb-20">
