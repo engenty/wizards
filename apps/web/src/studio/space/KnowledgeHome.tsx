@@ -36,7 +36,7 @@ import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { Button, Card, Chip, cn, Dialog, Empty, IconButton, Input, Label, Spinner } from "../../ui";
 import { useDismiss } from "../AppFrame";
-import { CATEGORY_ICON, NewCategoryDialog } from "./Categories";
+import { CATEGORY_ICON } from "./Categories";
 import { useFileActions } from "./data";
 import { FilterChip, NewItemDialog, passes, SearchHits } from "./Knowledge";
 import {
@@ -177,19 +177,17 @@ function AddEntry({
 
 /**
  * „Hinzufügen“: a page, a table, a folder, an upload, and what the plugins bring in. Kategorien
- * keep their entry at the end until they have a tab of their own.
+ * are made in their tab.
  */
 function AddMenu({
   adds = [],
   onMake,
   onUpload,
-  onCategory,
   onPlugin,
 }: {
   adds?: KnowledgeAdd[];
   onMake: (kind: "page" | "table" | "folder") => void;
   onUpload: () => void;
-  onCategory?: () => void;
   onPlugin?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -242,12 +240,6 @@ function AddMenu({
                   onPick={pick(() => onPlugin(a.id))}
                 />
               ))}
-            </>
-          ) : null}
-          {onCategory ? (
-            <>
-              {line}
-              <AddEntry icon={Tag} label={t("know.addCategory")} onPick={pick(onCategory)} />
             </>
           ) : null}
         </div>
@@ -401,7 +393,7 @@ export function KnowledgeHome({
   const [query, setQuery] = useState("");
   const [found, setFound] = useState<KnowledgeSearch | null>(null);
   const [searching, setSearching] = useState(false);
-  const [making, setMaking] = useState<"page" | "table" | "folder" | "category" | null>(null);
+  const [making, setMaking] = useState<"page" | "table" | "folder" | null>(null);
   const taken = data.categories.filter((c) => !c.proposed && c.count > 0);
   const proposed = data.categories.filter((c) => c.proposed);
   const filtered = Object.keys(where).length > 0;
@@ -460,7 +452,6 @@ export function KnowledgeHome({
               adds={adds}
               onMake={setMaking}
               onUpload={upload.pick}
-              onCategory={() => setMaking("category")}
               onPlugin={(id) => onOpen(`s:${id}`)}
             />
           )
@@ -608,15 +599,6 @@ export function KnowledgeHome({
           } else {
             onOpen(key);
           }
-        }}
-      />
-      <NewCategoryDialog
-        spaceId={spaceId}
-        open={making === "category"}
-        onClose={() => setMaking(null)}
-        onMade={(id) => {
-          setMaking(null);
-          onOpen(`c:${id}`);
         }}
       />
     </div>

@@ -21,7 +21,13 @@ import {
   useNarrow,
   useStepDirection,
 } from "./settings-menu";
-import { CATEGORY_ICON, CategoryView, useValue, ValueView } from "./space/Categories";
+import {
+  CATEGORY_ICON,
+  CategoryView,
+  NewCategoryDialog,
+  useValue,
+  ValueView,
+} from "./space/Categories";
 import { ClientSpaces, OpenToClients } from "./space/ClientSpaces";
 import { FileView } from "./space/Documents";
 import {
@@ -31,6 +37,7 @@ import {
   NewItemDialog,
   useKnowledge,
 } from "./space/Knowledge";
+import { CategoryHome, CategoryTree, KnowledgeTabs, ValueHome } from "./space/KnowledgeCategories";
 import { KnowledgeFolder, KnowledgeHome, PageContents } from "./space/KnowledgeHome";
 import {
   ancestorsOf,
@@ -281,6 +288,16 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const pickedCategory = knowledge.data?.categories.find(
     (c) => c.id === (picked?.startsWith("c:") ? picked.slice(2) : pickedValue.data?.category.id),
   );
+  // The tab of Wissen's menu: Ordner, or Kategorien; it follows what is opened.
+  const [knowTab, setKnowTab] = useState<"folders" | "categories">("folders");
+  const [newCategory, setNewCategory] = useState(false);
+  useEffect(() => {
+    if (picked && /^[cv]:/.test(picked)) {
+      setKnowTab("categories");
+    } else if (picked && /^[ptf]:/.test(picked)) {
+      setKnowTab("folders");
+    }
+  }, [picked]);
   // A phone: 0 the parts, 1 the part's menu, 2 the page.
   // Results have no menu: the page at once, the wizard picked above the list.
   // A part whose menu would only jump to its headings keeps the parts beside its page, as
@@ -650,6 +667,18 @@ export function SpacePage({ place }: { place?: "skills" }) {
               ) : group === "knowledge" ? (
                 <SubMenu>
                   {treeOn && knowledge.data ? (
+                    <KnowledgeTabs tab={knowTab} onTab={setKnowTab} />
+                  ) : null}
+                  {treeOn && knowledge.data && knowTab === "categories" ? (
+                    <CategoryTree
+                      categories={knowledge.data.categories}
+                      picked={narrow ? null : picked}
+                      pickedCategory={pickedValue.data?.category.id ?? null}
+                      readOnly={Boolean(space?.readOnly)}
+                      onPick={pick}
+                      onNew={() => setNewCategory(true)}
+                    />
+                  ) : treeOn && knowledge.data ? (
                     <KnowledgeTree
                       items={knowledge.data.items}
                       picked={narrow ? null : item}
@@ -670,7 +699,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
                       />
                     </ul>
                   )}
-                  {knowledge.data?.categories.length ? (
+                  {knowledge.data?.categories.length && !treeOn ? (
                     <MenuGroup label={t("know.categories")}>
                       {knowledge.data.categories.map((c) => (
                         <MenuRow
@@ -798,6 +827,28 @@ export function SpacePage({ place }: { place?: "skills" }) {
                         <pickedSection.component />
                       </PluginFrame>
                     </Section>
+                  ) : treeOn && picked?.startsWith("c:") ? (
+                    pickedCategory ? (
+                      <CategoryHome
+                        key={picked}
+                        spaceId={space.id}
+                        data={knowledge.data}
+                        category={pickedCategory}
+                        readOnly={space.readOnly}
+                        onOpen={pick}
+                        onGone={() => pick("all")}
+                      />
+                    ) : null
+                  ) : treeOn && picked?.startsWith("v:") ? (
+                    pickedValue.data ? (
+                      <ValueHome
+                        key={picked}
+                        data={knowledge.data}
+                        value={pickedValue.data}
+                        readOnly={space.readOnly}
+                        onOpen={pick}
+                      />
+                    ) : null
                   ) : picked?.startsWith("c:") ? (
                     pickedCategory ? (
                       <div key={picked} className="flex flex-col gap-5">
@@ -892,6 +943,15 @@ export function SpacePage({ place }: { place?: "skills" }) {
                     items={knowledge.data.items}
                     onClose={() => setMoving(null)}
                     onMove={moveItem}
+                  />
+                  <NewCategoryDialog
+                    spaceId={space.id}
+                    open={newCategory}
+                    onClose={() => setNewCategory(false)}
+                    onMade={(id) => {
+                      setNewCategory(false);
+                      pick(`c:${id}`);
+                    }}
                   />
                   <NewItemDialog
                     kind={folderIn === undefined ? null : "folder"}
