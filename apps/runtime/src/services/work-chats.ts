@@ -551,7 +551,7 @@ export async function sendMessage(
     return { kind: "kept" };
   }
   // Asking the AI is a signal that isn't stored: the stored message is what it answers.
-  const { turn, streamOptions } = await turnFor(chat, user.id, options.choice);
+  const { turn, streamOptions } = await turnFor(chat, user.id, options.choice, user.role);
   const asked = {
     type: "reactive" as const,
     tagName: "asked",
@@ -593,13 +593,19 @@ export async function sendMessage(
  * A turn for the person, made when it really starts (Mastra resolves the agent's model then):
  * input taken into a running turn builds nothing, and a queued one's 20 minutes start with it.
  */
-async function turnFor(chat: ChatRow, userId: string, choice: TurnChoice = {}) {
+async function turnFor(
+  chat: ChatRow,
+  userId: string,
+  choice: TurnChoice = {},
+  role?: SessionUser["role"],
+) {
   const space = await db.query.space.findFirst({ where: eq(schema.space.id, chat.spaceId) });
   const turn = lazyTurn(
     {
       space: { id: chat.spaceId, name: space?.name ?? "" },
       chatId: chat.id,
       userId,
+      role,
     },
     choice,
   );

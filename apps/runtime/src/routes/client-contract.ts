@@ -67,7 +67,8 @@ export const CLIENT_CALLS = {
   wizards: {
     scope: "elements:read",
     space: true,
-    description: "The firm's wizards you can start in a client space.",
+    description:
+      "The firm's wizards you can start in a client space, each with its engenty (`avatar`) and its number of steps.",
     input: none,
     run: (who, spaceId) => clientWizards(who, spaceId),
   },
@@ -104,7 +105,8 @@ export const CLIENT_CALLS = {
   chat_messages: {
     scope: "data:read",
     space: false,
-    description: "One of your chats, by its id: who wrote what, and its client space.",
+    description:
+      "One of your chats, by its id: who wrote what, its text and the AI's views and runs as parts in order, and its client space.",
     input: z.object({ chatId: z.string().min(1).max(64) }),
     run: (who, _spaceId, input) => clientChatMessages(who, input.chatId),
   },
@@ -112,11 +114,10 @@ export const CLIENT_CALLS = {
     scope: "elements:run",
     space: true,
     description:
-      "Writes in one of your chats, or starts a new one with the firm. With ask, the space's AI answers you as well.",
+      "Writes in one of your chats, or starts a new one. The firm's AI answers every message; the firm's people read the chat too.",
     input: z.object({
       chatId: z.string().min(1).max(64).optional(),
       text: z.string().trim().min(1).max(20_000),
-      ask: z.boolean().optional(),
     }),
     run: (who, spaceId, input) => clientChatPost(who, spaceId, input),
   },

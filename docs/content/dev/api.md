@@ -51,10 +51,10 @@ with `{ "input": { … } }`; it answers `{ "result": … }`, or an error with wh
 |---|---|---|
 | `me`, `spaces` | `data:read` | Who you are, your organization, your client spaces with their address (`slug`) and the firm’s brand |
 | `for_you` | `data:read` | Your runs waiting on a page or an answer, the results the firm shared, the wizards you can start |
-| `wizards`, `wizard_start` | `elements:read`, `elements:run` | The firm’s wizards opened to clients; a start runs it in your client space |
+| `wizards`, `wizard_start` | `elements:read`, `elements:run` | The firm’s wizards opened to clients, each with its engenty (`avatar`) and its number of steps; a start runs it in your client space |
 | `results`, `run_open` | `data:read` | Your finished runs and those the firm shared; a ticket for one run’s own routes (`/api/runs/:id/…?rt=…`) |
-| `chats`, `chat_messages` | `data:read` | Your chats in the client space and their messages, without tool calls |
-| `chat_post` | `elements:run` | Writes in one of your chats, or starts one with the firm. With `ask: true` the space’s AI answers you too |
+| `chats`, `chat_messages` | `data:read` | Your chats in the client space and their messages: each message’s `parts` in the order they were written, its text and the views and runs of the firm’s AI as cards |
+| `chat_post` | `elements:run` | Writes in one of your chats, or starts one. The firm’s AI answers every message as you, with the client space’s Knowledge, the wizards opened to you and views; the firm’s people read the chat too |
 | `files` | `data:read` | The client space’s files. One file’s bytes: `GET /api/v1/client/spaces/:spaceId/files/:fileId` |
 
 Only a person with the role `client` gets an answer (`403 clients_only` otherwise). A space that is

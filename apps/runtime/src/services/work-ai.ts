@@ -8,7 +8,7 @@ import { personCaller } from "../elements/caller.js";
 import { elementTools } from "../elements/catalogue.js";
 import { currentFeatures } from "../features.js";
 import { HarnessModel } from "../harness/index.js";
-import { managed } from "../manage.js";
+import { managed, type Role } from "../manage.js";
 import { attachTools, chatModel, gatewayTools, type ResolvedModel } from "../models.js";
 import { pluginsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
@@ -53,9 +53,11 @@ export interface WorkTurn {
   instructions: string;
 }
 
-const instructionsFor = (space: string, skills: string, knowledge: boolean) =>
+const instructionsFor = (space: string, skills: string, knowledge: boolean, client: boolean) =>
   [
-    `You are the AI of the space "${space}" in engenty wizards. The team of the space talks with you and with each other in this chat.`,
+    client
+      ? `You are the AI of the firm that runs the client space "${space}" in engenty wizards, and you answer one of the firm's clients there. The firm's people read this chat too. Answer from the client space and what the firm opened to its clients; where you can't know, say so and suggest asking the firm. When one of the firm's wizards fits the request, run it with wizard_run. In German, say du, as the client portal does.`
+      : `You are the AI of the space "${space}" in engenty wizards. The team of the space talks with you and with each other in this chat.`,
     'Each message of a person comes as <user name="…">; answer the person who asked you, in their language, and call them by their name only when it helps.',
     knowledge
       ? "Before you answer about the space (its clients, matters, files, data), look it up with space_search; say where you found it. When you can't find it, say so."
@@ -160,9 +162,29 @@ export interface ApprovedRun {
 }
 
 /**
+ * A client's turn (docs/plans/client-portal.md, phase 1): the client space's Knowledge with what
+ * the firm opened to clients, the wizards opened to them (a run lands in the client space) and
+ * views. No skills, sandbox, connections, plugins or web: nothing that reaches past the client
+ * space or spends on the firm's sign-ins.
+ */
+async function clientTools(
+  space: { id: string; name: string },
+  userId: string,
+  signal: AbortSignal,
+  chatId: string | null,
+): Promise<Record<string, unknown>> {
+  const caller = personCaller({ space, userId, role: "client", signal, chatId });
+  return sortedTools({
+    ...(await elementTools(caller, { knowledge: true, wizards: true })),
+    show_view: showView(),
+  });
+}
+
+/**
  * The space's tools for a turn: its knowledge, its skills, the chat's sandbox, the space's
  * connections open to the person (work-connections.ts), the plugins' tools, the web; the plugins
- * and the web the person turned off (`choice`) left out.
+ * and the web the person turned off (`choice`) left out. A client gets `clientTools` alone.
+ * `role`: the person's, where the session knows it; else the organization's list says.
  */
 async function toolsFor(
   resolved: ResolvedModel<unknown> | null,
@@ -172,7 +194,12 @@ async function toolsFor(
   choice: TurnChoice = {},
   chatId: string | null = null,
   approved: ApprovedRun | null = null,
+  known: Role | null = null,
 ): Promise<Record<string, unknown>> {
+  const role = known ?? (await roleOf(userId));
+  if (role === "client") {
+    return clientTools(space, userId, signal, chatId ?? approved?.chatId ?? null);
+  }
   const sandbox = sandboxTools(chatId);
   const connections = await workConnectionTools({
     space,
@@ -185,7 +212,7 @@ async function toolsFor(
   const caller = personCaller({
     space,
     userId,
-    role: await roleOf(userId),
+    role,
     signal,
     chatId: chatId ?? approved?.chatId ?? null,
     sandbox: sandbox.skill,
@@ -258,6 +285,8 @@ export interface TurnFor {
   space: { id: string; name: string };
   chatId: string;
   userId: string;
+  /** The person's role, as their session has it: a client's turn is narrower (`clientTools`). */
+  role?: Role;
 }
 
 /**
@@ -325,20 +354,30 @@ export async function workTurn(
   choice: TurnChoice = {},
 ): Promise<WorkTurn> {
   const resolved = await chatModel(await chatTurnWay(managed), choice.extra ? "high" : "standard");
+  const client = turn.role === "client";
   const made = gated(
-    await toolsFor(resolved, turn.space, turn.userId, signal, choice, turn.chatId),
+    await toolsFor(
+      resolved,
+      turn.space,
+      turn.userId,
+      signal,
+      choice,
+      turn.chatId,
+      null,
+      turn.role ?? null,
+    ),
     turn,
   );
   const tools = resolved.model instanceof HarnessModel ? steps.wrap(made) : made;
   attachTools(resolved, tools);
-  const skills = await spaceSkills(turn.space.id);
+  const skills = client ? null : await spaceSkills(turn.space.id);
   const block = skills
     ? skillsBlock(skills, { tools: true, sandbox: sandboxCapabilities() !== null })
     : "";
   return {
     resolved,
     tools,
-    instructions: instructionsFor(turn.space.name, block, "space_search" in tools),
+    instructions: instructionsFor(turn.space.name, block, "space_search" in tools, client),
   };
 }
 
