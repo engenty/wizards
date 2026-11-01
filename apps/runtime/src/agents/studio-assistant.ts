@@ -48,6 +48,7 @@ import {
   totalUsage,
   usageOf,
 } from "../models.js";
+import { mountsOf } from "../mounts/source.js";
 import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
 import type { ChatRow, TurnHistory } from "../services/assistant-chats.js";
@@ -62,7 +63,13 @@ import {
   updateSpaceFile,
 } from "../services/space-files.js";
 import { documentText } from "../services/space-index.js";
-import { kindsOf, listSources, proposeSource, takeSource } from "../services/space-sources.js";
+import {
+  CORE,
+  kindsOf,
+  listSources,
+  proposeSource,
+  takeSource,
+} from "../services/space-sources.js";
 import { ownedSpace, type SpaceRow, updateSpace } from "../services/spaces.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
@@ -1078,7 +1085,12 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     );
   }
   // Sources of Knowledge, when a plugin brings a kind of them: proposed on a card, taken on it.
-  if (writable && (await kindsOf()).length) {
+  const sourceKinds = writable ? await kindsOf() : [];
+  if (writable && sourceKinds.length) {
+    // „Aus Dateien übernehmen“: the folders Goose may name are the space's mounts.
+    const mounted = sourceKinds.some((k) => k.plugin === CORE && k.source.kind === "dateien")
+      ? await mountsOf(writable.id)
+      : [];
     const card = (data: unknown) => {
       const record = { plugin: "", tool: "sourceProposal", data };
       cards.push(record);
@@ -1088,9 +1100,18 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
     Object.assign(tools, {
       propose_source: createTool({
         id: "propose_source",
-        description: prompt("goose", "tool.propose_source"),
+        description: [
+          prompt("goose", "tool.propose_source"),
+          ...(mounted.length
+            ? [
+                `Mounted in Dateien: ${mounted.map((m) => `dateien/${m.slug} (${m.name})`).join(", ")}.`,
+              ]
+            : []),
+        ].join("\n"),
         inputSchema: z.object({
-          address: z.string().describe("The website's address or the sitemap's"),
+          address: z
+            .string()
+            .describe("The website's address, the sitemap's, or a folder's path in Dateien"),
           label: z.string().optional().describe("What the person calls the source, if they said"),
         }),
         execute: (args) =>

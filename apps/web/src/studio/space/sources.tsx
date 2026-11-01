@@ -41,6 +41,7 @@ import {
   Spinner,
   Textarea,
 } from "../../ui";
+import { CORE_KINDS } from "./FromDateien";
 import { Section } from "./Section";
 
 /**
@@ -187,7 +188,10 @@ export function useSources(spaceId: string | undefined) {
     }
   }, [progress, qc, spaceId]);
   const kinds: SourceKind[] = (list.data?.kinds ?? []).flatMap((k) => {
-    const studio = plugins.knowledgeSources.find((s) => s.kind === k.kind);
+    const studio =
+      k.plugin === "core"
+        ? CORE_KINDS.find((s) => s.kind === k.kind)
+        : plugins.knowledgeSources.find((s) => s.kind === k.kind);
     return studio ? [{ ...studio, manual: k.manual }] : [];
   });
   const sources = list.data?.sources ?? [];
@@ -198,7 +202,8 @@ export function useSources(spaceId: string | undefined) {
     ofFolder: (folderId: string) => sources.find((s) => s.folderId === folderId),
     /** The icon of a source's kind, for its folder's mark. */
     iconOf: (source: Source): ComponentType<{ className?: string }> =>
-      plugins.knowledgeSources.find((s) => s.kind === source.kind)?.icon ?? FolderOpen,
+      [...CORE_KINDS, ...plugins.knowledgeSources].find((s) => s.kind === source.kind)?.icon ??
+      FolderOpen,
   };
 }
 

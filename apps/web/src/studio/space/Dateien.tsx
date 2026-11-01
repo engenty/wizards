@@ -80,7 +80,7 @@ function shownOf(show: string | null): Shown {
 }
 
 /** The folders of a mount, from its files' paths: each with the folders and files in it. */
-interface Node {
+export interface Node {
   path: string;
   name: string;
   folders: Node[];
@@ -89,7 +89,7 @@ interface Node {
   count: number;
 }
 
-function treeOf(files: MountFile[]): Node {
+export function treeOf(files: MountFile[]): Node {
   const root: Node = { path: "", name: "", folders: [], files: [], count: 0 };
   const byPath = new Map<string, Node>([["", root]]);
   const nodeOf = (path: string): Node => {
