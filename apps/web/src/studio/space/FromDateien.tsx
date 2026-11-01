@@ -28,12 +28,13 @@ function FromDateienForm({ propose, busy, error }: StudioKnowledgeSourceFormProp
   const files = useMountFiles(space?.id ?? "", mount);
   const tree = useMemo(() => treeOf(files.data?.files ?? []), [files.data]);
   const [folder, setFolder] = useState("");
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  // The mount's top stands open: its folders are what a person picks.
+  const [open, setOpen] = useState<Set<string>>(new Set([""]));
   const [label, setLabel] = useState("");
   // biome-ignore lint/correctness/useExhaustiveDependencies: another mount starts at its top.
   useEffect(() => {
     setFolder("");
-    setOpen(new Set());
+    setOpen(new Set([""]));
   }, [mount?.id]);
   if (!mounts.data) {
     return (

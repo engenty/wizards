@@ -3568,8 +3568,7 @@ const de: Record<Key, Line> = {
   "src.label": "Name",
   "src.labelHint": "Leer lassen: engenty schlägt einen vor.",
   "src.dateien": "Aus Dateien übernehmen",
-  "src.dateienHint":
-    "Ein Ordner aus Dateien kommt als Kopie ins Wissen. Ändert sich dort etwas, liest engenty es neu.",
+  "src.dateienHint": "Ein Ordner aus Dateien, als Kopie, aktuell gehalten",
   "src.dateienMount": "Eingebunden",
   "src.dateienFolder": "Ordner",
   "src.dateienNone": "In Dateien ist noch kein Ordner eingebunden.",
@@ -7542,8 +7541,7 @@ const en = {
   "src.label": "Name",
   "src.labelHint": "Leave it empty: engenty proposes one.",
   "src.dateien": "Copy from Files",
-  "src.dateienHint":
-    "A folder from Files comes into Knowledge as a copy. When something changes there, engenty reads it again.",
+  "src.dateienHint": "A folder from Files, copied and kept current",
   "src.dateienMount": "Mounted",
   "src.dateienFolder": "Folder",
   "src.dateienNone": "Files has no folder mounted yet.",

@@ -4,14 +4,40 @@
     {
       "name": "manage-features",
       "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "cd /Users/m/code/engenty/engenty-wizards-manage-features && DATA_DIR=/private/tmp/claude-501/-Users-m-code-engenty-engenty-wizards--claude-worktrees-manage-engenty-ai-url-d031c5/5f9d155f-f5e4-4fae-97ec-a2a44fec9837/scratchpad/manage-data MANAGE_URL=http://localhost:18992 MANAGE_PORT=18992 GATEWAY_URL=http://localhost:18993 GATEWAY_PORT=18993 DEV_LOGIN=1 ADMIN_EMAILS=dev@wizards.local SIGNUP=open BETTER_AUTH_SECRET=dev-features-secret-dev-features-secret CMS_STORE=local RUNTIMES='[{\"name\":\"cloud\",\"url\":\"http://localhost:18991\",\"clientSecret\":\"cloud-secret-0123456789\",\"serviceKey\":\"cloud-service-0123456789\"}]' exec pnpm exec tsx apps/server/src/manage.ts"],
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/m/code/engenty/engenty-wizards-manage-features && DATA_DIR=/private/tmp/claude-501/-Users-m-code-engenty-engenty-wizards--claude-worktrees-manage-engenty-ai-url-d031c5/5f9d155f-f5e4-4fae-97ec-a2a44fec9837/scratchpad/manage-data MANAGE_URL=http://localhost:18992 MANAGE_PORT=18992 GATEWAY_URL=http://localhost:18993 GATEWAY_PORT=18993 DEV_LOGIN=1 ADMIN_EMAILS=dev@wizards.local SIGNUP=open BETTER_AUTH_SECRET=dev-features-secret-dev-features-secret CMS_STORE=local RUNTIMES='[{\"name\":\"cloud\",\"url\":\"http://localhost:18991\",\"clientSecret\":\"cloud-secret-0123456789\",\"serviceKey\":\"cloud-service-0123456789\"}]' exec pnpm exec tsx apps/server/src/manage.ts"
+      ],
       "port": 18992
     },
     {
       "name": "cloud-runtime-features",
       "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "cd /Users/m/code/engenty/engenty-wizards/.claude/worktrees/manage-engenty-ai-url-d031c5 && DATA_DIR=/private/tmp/claude-501/-Users-m-code-engenty-engenty-wizards--claude-worktrees-manage-engenty-ai-url-d031c5/5f9d155f-f5e4-4fae-97ec-a2a44fec9837/scratchpad/cloud-data API_PORT=18991 APP_URL=http://localhost:18991 MANAGE_URL=http://localhost:18992 GATEWAY_URL=http://localhost:18993 MANAGE_CLIENT_ID=wizards-runtime-cloud MANAGE_CLIENT_SECRET=cloud-secret-0123456789 MANAGE_SERVICE_KEY=cloud-service-0123456789 APP_SECRET=cloud-app-secret-0123456789abcdef PLUGINS_WATCH=0 MARKETPLACE_URL=off SANDBOX=off exec pnpm exec tsx --conditions=wizards-source apps/runtime/src/index.ts"],
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/m/code/engenty/engenty-wizards/.claude/worktrees/manage-engenty-ai-url-d031c5 && DATA_DIR=/private/tmp/claude-501/-Users-m-code-engenty-engenty-wizards--claude-worktrees-manage-engenty-ai-url-d031c5/5f9d155f-f5e4-4fae-97ec-a2a44fec9837/scratchpad/cloud-data API_PORT=18991 APP_URL=http://localhost:18991 MANAGE_URL=http://localhost:18992 GATEWAY_URL=http://localhost:18993 MANAGE_CLIENT_ID=wizards-runtime-cloud MANAGE_CLIENT_SECRET=cloud-secret-0123456789 MANAGE_SERVICE_KEY=cloud-service-0123456789 APP_SECRET=cloud-app-secret-0123456789abcdef PLUGINS_WATCH=0 MARKETPLACE_URL=off SANDBOX=off exec pnpm exec tsx --conditions=wizards-source apps/runtime/src/index.ts"
+      ],
       "port": 18991
+    },
+    {
+      "name": "wizards-from-dateien",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "PATH=/Users/m/.local/bin:/Users/m/.nvm/versions/node/v24.14.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
+        "MODEL_EMBEDDING=ollama:embeddinggemma-2:740m",
+        "API_PORT=8950",
+        "PORT=5250",
+        "APP_URL=http://localhost:5250",
+        "DATA_DIR=/private/tmp/claude-501/-Users-m-code-engenty-engenty-wizards--claude-worktrees-optimistic-chebyshev-82ebef/7a075142-0940-4a61-9b79-2d885acc0ab5/scratchpad/devdata",
+        "LOCAL_ACCESS_KEY=from-dateien-dev-key",
+        "FEATURES=dateien=on,knowledgeMedia=on,knowledgeTree=on",
+        "DEV_LOGIN=1",
+        "pnpm",
+        "--dir",
+        "/Users/m/code/engenty/engenty-wizards/.claude/worktrees/optimistic-chebyshev-82ebef",
+        "dev"
+      ],
+      "port": 5250
     }
   ]
 }
