@@ -42,8 +42,8 @@ export function spaceGroups(): SpaceGroup[] {
     { id: "info", label: t("space.info"), icon: Fingerprint },
     { id: "brand", label: t("space.brand"), icon: SwatchBook },
     { id: "knowledge", label: t("space.knowledge"), icon: BookOpen },
-    { id: "data", label: t("space.data"), icon: Database },
     { id: "files", label: t("space.dateien"), icon: FolderOpen },
+    { id: "data", label: t("space.data"), icon: Database },
     { id: "page", label: t("space.page"), icon: Globe },
     { id: "clients", label: t("space.clients"), icon: UsersRound },
   ];
@@ -56,7 +56,7 @@ export interface SpacePartEntry {
   icon: ComponentType<{ className?: string }>;
 }
 
-/** The parts with the plugins' among them: each after the part it names, else after Data. */
+/** The parts with the plugins' among them: each after the part it names, else after Memory. */
 export function withParts(own: SpaceGroup[], plugins: StudioPlugins): SpacePartEntry[] {
   const out: SpacePartEntry[] = [...own];
   for (const part of plugins.spaceParts) {
