@@ -178,6 +178,19 @@ describe("Aus Dateien übernehmen", () => {
     expect(after.source.lastRunAt).toBe(source.lastRunAt);
   });
 
+  it("renames the source with its folder, and the folder stays the source's", async () => {
+    await json(send("PATCH", `/api/studio/pages/${folderId}`, { title: "Projekte" }));
+    const { items } = (await knowledge()) as unknown as {
+      items: { key: string; kept: boolean; originLabel: string | null }[];
+    };
+    expect(items.find((i) => i.key === `p:${folderId}`)).toMatchObject({
+      kept: false,
+      originLabel: "Projekte",
+    });
+    const { source } = await json(send("GET", `/api/studio/spaces/${spaceId}/sources/${sourceId}`));
+    expect(source.label).toBe("Projekte");
+  });
+
   it("copies one file into Knowledge, read as an upload is", async () => {
     const { files } = await json(send("GET", `/api/studio/spaces/${spaceId}/mounts/${mountId}/files`));
     const file = files.find((f: { path: string }) => f.path === "Intern/geheim.md");

@@ -819,7 +819,7 @@ export function KnowledgeFolder({
   useEffect(() => setTitle(folder.title), [folder.title]);
   const refresh = () => qc.invalidateQueries({ queryKey: keys.knowledge(spaceId) });
   const rename = useMutation({
-    mutationFn: () => api.patch(`/api/studio/pages/${folder.id}`, { title: title.trim() }),
+    mutationFn: (to: string) => api.patch(`/api/studio/pages/${folder.id}`, { title: to }),
     onSuccess: async () => {
       await refresh();
       setRenaming(false);
@@ -839,12 +839,21 @@ export function KnowledgeFolder({
       <Section
         page
         title={folder.title}
+        onTitle={readOnly ? undefined : (to) => rename.mutate(to)}
         hint={
-          source
-            ? [t("src.source"), source.address].join(" · ")
-            : folder.originLabel
-              ? t("know.from", { label: folder.originLabel })
-              : undefined
+          source ? (
+            // The source's own page: how often it reads, what it took, its log.
+            <button
+              type="button"
+              onClick={() => onOpen(`q:${source.id}`)}
+              title={t("src.menuSource")}
+              className="text-left underline-offset-2 transition hover:text-ink hover:underline"
+            >
+              {[t("src.source"), source.address].join(" · ")}
+            </button>
+          ) : folder.originLabel ? (
+            t("know.from", { label: folder.originLabel })
+          ) : undefined
         }
         plain
         action={
@@ -913,7 +922,7 @@ export function KnowledgeFolder({
           onSubmit={(e) => {
             e.preventDefault();
             if (title.trim()) {
-              rename.mutate();
+              rename.mutate(title.trim());
             }
           }}
         >

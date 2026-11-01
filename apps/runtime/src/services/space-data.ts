@@ -649,7 +649,10 @@ export async function updatePage(
         ? await parentOf(page.spaceId, patch.parentId, page.id)
         : page.parentId;
   const moved = title !== page.title || wizardId !== page.wizardId || parentId !== page.parentId;
-  const edited = moved || (patch.markdown !== undefined && patch.markdown !== page.markdown);
+  const texted = patch.markdown !== undefined && patch.markdown !== page.markdown;
+  // A source's own folder renamed or moved stays the source's: its name is the source's name.
+  const sourceFolder = Boolean(page.origin?.startsWith("source:")) && page.originKey === "root";
+  const edited = (moved && !sourceFolder) || texted;
   const at = new Date();
   await db
     .update(schema.spacePage)
@@ -671,6 +674,15 @@ export async function updatePage(
       updatedAt: at,
     })
     .where(eq(schema.spacePage.id, page.id));
+  if (sourceFolder && title !== page.title && page.origin) {
+    await db
+      .update(schema.spaceSource)
+      .set({ label: title, updatedAt: at })
+      .where(eq(schema.spaceSource.id, page.origin.slice("source:".length)));
+    for (const table of [schema.spacePage, schema.spaceTable]) {
+      await db.update(table).set({ originLabel: title }).where(eq(table.origin, page.origin));
+    }
+  }
   if (moved) {
     queueIndex(`P:${page.id}`);
   } else if (edited) {
