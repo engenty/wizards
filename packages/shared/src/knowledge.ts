@@ -188,6 +188,8 @@ export interface KnowledgeHit {
   /** Where the studio shows a plugin's text. */
   link: string | null;
   plugin: string | null;
+  /** Found by what a picture shows: a picture file (`image`), a PDF's page (`page`, at `sheet`). */
+  picture?: "image" | "page";
 }
 
 export interface KnowledgeSearch {

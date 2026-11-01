@@ -580,6 +580,11 @@ export const spaceChunk = sqliteTable(
     embedding: blob("embedding", { mode: "buffer" }),
     /** The model the vector was made with; only vectors of one model are compared. */
     model: text("model"),
+    /**
+     * Null: the vector is of the text. `image`: of a picture file, `page`: of a picture of a PDF
+     * page (`sheet`); the text is what the words find them by.
+     */
+    kind: text("kind").$type<"image" | "page">(),
   },
   (t) => [
     index("space_chunk_space").on(t.spaceId, t.model),

@@ -1264,6 +1264,7 @@ function gatewayImageEmbedder(access: GatewayAccess) {
       headers: {
         authorization: `Bearer ${access.token}`,
         "content-type": "application/json",
+        "ai-model-id": "wizards/embedding",
         ...DEFINITION_HEADER,
         ...(access.tenant ? { "x-wizards-tenant": access.tenant } : {}),
       },

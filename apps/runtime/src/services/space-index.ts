@@ -1,8 +1,20 @@
 import type { PluginIndexEntry } from "@engenty/wizards/plugin";
 import { formatTableCell } from "@engenty/wizards-shared/engenty/data-tables";
+import { featureOn } from "@engenty/wizards-shared/features";
 import type { KnowledgeHit, KnowledgeSearch, Where } from "@engenty/wizards-shared/knowledge";
 import { embedMany } from "ai";
-import { and, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import {
   brokerOn,
   forbidden,
@@ -14,7 +26,9 @@ import {
 } from "../broker/rwx.js";
 import { db, schema, withTenant } from "../db/client.js";
 import { createSearchChunks } from "../engenty/search-index/chunks.js";
+import { currentFeatures } from "../features.js";
 import { getBlob, putBlob } from "../files/blobs.js";
+import { jpegOf, MAX_PAGE_PICTURES, pdfPages } from "../files/pictures.js";
 import { embeddingModel } from "../models.js";
 import { pluginIdsOf } from "../plugins/registry.js";
 import { currentTenant } from "../tenants/tenant.js";
@@ -39,10 +53,15 @@ import {
  * compounds), its meaning as a vector where an embedding model is set up. A search filters by
  * categories first, merges what the three find by rank, asks a classifier which candidates help
  * answer the question, and gives items, each with its best section.
+ *
+ * Where the embedding model takes pictures (EmbeddingGemma 2, while `knowledgeMedia` is on), a
+ * picture file and the first pages of a PDF are units of their own too, whose vector is of the
+ * picture: a question finds a photo by what it shows. Their vectors come in the background.
  */
 
 type FileRow = typeof schema.spaceFile.$inferSelect;
 type ChunkInsert = typeof schema.spaceChunk.$inferInsert;
+type Unit = Omit<ChunkInsert, "embedding" | "model">;
 
 const CHUNK = { mode: "paragraph" as const, max_chunk_length: 1200, overlap: 120 };
 /** Units of one item; a longer one keeps its start. */
@@ -52,6 +71,11 @@ const SECTION_CHARS = 2400;
 const PART_CHARS = 1800;
 /** What the keywords and the vectors hand on to the classifier. */
 const CANDIDATES = 24;
+/**
+ * How far the nearest unit has to stand out from the median one to count (cosine), as peer-it
+ * has it: the nearest units are near even for a question the space knows nothing of.
+ */
+const MIN_LEAD = 0.08;
 
 const vectorBytes = (v: readonly number[]) => Buffer.from(new Float32Array(v).buffer);
 
@@ -77,26 +101,41 @@ export async function keepText(text: string) {
   return putBlob(Buffer.from(text, "utf8"));
 }
 
+/** A picture unit is the same picture while its kind, page and fingerprint (`ref`) are. */
+const pictureKey = (u: { kind?: string | null; sheet?: number | null; ref?: string | null }) =>
+  `${u.kind}|${u.sheet}|${u.ref}`;
+
 /**
  * Replaces the units `scope` held with `units`. A unit whose text has not changed keeps its
- * vector: editing one row of a long table embeds one row.
+ * vector: editing one row of a long table embeds one row. A picture keeps its vector while it is
+ * the same picture; a new one gets it in the background (`queuePictures`).
  */
-async function writeUnits(scope: SQL, units: Omit<ChunkInsert, "embedding" | "model">[]) {
+async function writeUnits(scope: SQL, units: Unit[]) {
   const before = await db
     .select({
       text: schema.spaceChunk.text,
       embedding: schema.spaceChunk.embedding,
       model: schema.spaceChunk.model,
+      kind: schema.spaceChunk.kind,
+      sheet: schema.spaceChunk.sheet,
+      ref: schema.spaceChunk.ref,
     })
     .from(schema.spaceChunk)
     .where(scope);
   const resolved = await embeddingModel().catch(() => null);
-  const kept = new Map(
-    before
-      .filter((b) => b.embedding && b.model && b.model === resolved?.ref)
-      .map((b) => [b.text, b.embedding as Buffer]),
+  const current = before.filter((b) => b.embedding && b.model && b.model === resolved?.ref);
+  const kept = new Map(current.filter((b) => !b.kind).map((b) => [b.text, b.embedding as Buffer]));
+  const pictures = new Map(
+    current.filter((b) => b.kind).map((b) => [pictureKey(b), b.embedding as Buffer]),
   );
-  const missing = [...new Set(units.map((u) => u.text).filter((t) => !kept.has(t)))];
+  const missing = [
+    ...new Set(
+      units
+        .filter((u) => !u.kind)
+        .map((u) => u.text)
+        .filter((t) => !kept.has(t)),
+    ),
+  ];
   // Without an embedding model, or when it fails, the keywords still find the unit.
   const embedded = await embed(missing).catch((err) => {
     console.error("[space-index] embedding failed", err);
@@ -112,10 +151,17 @@ async function writeUnits(scope: SQL, units: Omit<ChunkInsert, "embedding" | "mo
   for (let i = 0; i < units.length; i += 100) {
     await db.insert(schema.spaceChunk).values(
       units.slice(i, i + 100).map((u) => {
+        if (u.kind) {
+          const vector = pictures.get(pictureKey(u)) ?? null;
+          return { ...u, embedding: vector, model: vector ? (resolved?.ref ?? null) : null };
+        }
         const vector = kept.get(u.text) ?? null;
         return { ...u, embedding: vector, model: vector ? model : null };
       }),
     );
+  }
+  if (units.some((u) => u.kind && !pictures.has(pictureKey(u)))) {
+    queuePictures();
   }
 }
 
@@ -296,6 +342,51 @@ export function indexedFile(file: { kind: string; mime: string }): boolean {
   return file.kind === "document" || (file.kind === "asset" && MEDIA_ASSET.test(file.mime));
 }
 
+/** The pictures the embedding model is shown: what @napi-rs/canvas reads. */
+const PICTURE = /^image\/(png|jpeg|webp|gif)$/;
+
+/** Whether the index embeds a picture of this type as a picture, by what it shows. */
+export async function seenAsPicture(mime: string): Promise<boolean> {
+  return PICTURE.test(mime) && Boolean((await embeddingModel().catch(() => null))?.embedImage);
+}
+
+/**
+ * A file's units embedded as pictures, where the embedding model takes them: a picture file as
+ * one, a PDF's first MAX_PAGE_PICTURES pages one each. Their words are the file's name, the page
+ * and its categories. `ref` is the hash of the file's bytes: other bytes are another picture.
+ */
+async function pictureUnits(file: FileRow, lines: string[], from: number): Promise<Unit[]> {
+  const pdf = file.mime === "application/pdf";
+  if (
+    !(file.hash && (PICTURE.test(file.mime) || pdf)) ||
+    !(await embeddingModel().catch(() => null))?.embedImage
+  ) {
+    return [];
+  }
+  const unit = { spaceId: file.spaceId, fileId: file.id, ref: file.hash };
+  if (!pdf) {
+    return [
+      {
+        ...unit,
+        kind: "image",
+        heading: file.name,
+        idx: from,
+        text: head([file.name], ["picture", ...lines]),
+      },
+    ];
+  }
+  // Pages the PDF does not have go when their pictures are made.
+  const pages = Math.min(file.pages ?? MAX_PAGE_PICTURES, MAX_PAGE_PICTURES);
+  return Array.from({ length: pages }, (_, i) => ({
+    ...unit,
+    kind: "page" as const,
+    heading: null,
+    sheet: i + 1,
+    idx: from + i,
+    text: head([file.name, `S. ${i + 1}`], lines),
+  }));
+}
+
 /** An asset stands in the index as one unit: its name, its kind, its categories, its description. */
 async function indexAsset(file: typeof schema.spaceFile.$inferSelect) {
   const categories = await categoryRows(file.spaceId);
@@ -314,6 +405,7 @@ async function indexAsset(file: typeof schema.spaceFile.$inferSelect) {
         .filter(Boolean)
         .join("\n\n"),
     },
+    ...(await pictureUnits(file, lines, 1)),
   ]);
 }
 
@@ -335,24 +427,25 @@ async function indexFile(fileId: string) {
       columns: { id: true },
     }));
   const scope = eq(schema.spaceChunk.fileId, file.id);
-  if (converted) {
-    // Its text is the page's now; the file stands behind it as the original.
-    await db.delete(schema.spaceChunk).where(scope);
-    return;
-  }
-  const passages = await db
-    .select({ heading: schema.spaceChunk.heading, idx: schema.spaceChunk.idx })
-    .from(schema.spaceChunk)
-    .where(scope);
-  // Passages of a document read before Knowledge had pages stay until it is read again.
-  if (passages.some((p) => p.heading === null)) {
-    return;
-  }
   const categories = await categoryRows(file.spaceId);
   const lines = categoryLines(
     categories,
     (await itemCategoriesOf([{ fileId: file.id }])).get(`f:${file.id}`),
   );
+  if (converted) {
+    // Its text is the page's now; the file stands behind it as the original, found by its
+    // pictures where the embedding model takes them.
+    await writeUnits(scope, await pictureUnits(file, lines, 0));
+    return;
+  }
+  const passages = await db
+    .select({ heading: schema.spaceChunk.heading, kind: schema.spaceChunk.kind })
+    .from(schema.spaceChunk)
+    .where(scope);
+  // Passages of a document read before Knowledge had pages stay until it is read again.
+  if (passages.some((p) => p.heading === null && !p.kind)) {
+    return;
+  }
   await writeUnits(scope, [
     {
       spaceId: file.spaceId,
@@ -361,6 +454,7 @@ async function indexFile(fileId: string) {
       idx: 0,
       text: [head([file.name], lines), file.description].filter(Boolean).join("\n\n"),
     },
+    ...(await pictureUnits(file, lines, 1)),
   ]);
 }
 
@@ -462,7 +556,7 @@ export function queueIndex(key: string) {
   waiting.set(id, { tenant, key, timer });
 }
 
-/** Indexes what waits now, and resolves when the index has caught up. */
+/** Indexes what waits now, and resolves when the index has caught up, pictures included. */
 export async function flushIndex() {
   while (waiting.size) {
     for (const [id, entry] of [...waiting]) {
@@ -473,6 +567,116 @@ export async function flushIndex() {
     await working;
   }
   await working;
+  await picturesRunning;
+}
+
+// --- pictures -----------------------------------------------------------------------------
+// A picture's vector comes after its unit: a picture of a PDF page takes a second or more to
+// make and embed, and the index of a page someone types in must not wait for it. Tenant after
+// tenant, file after file, units without a vector of the embedding model at hand.
+
+const picturesWaiting = new Set<string>();
+let picturesRunning: Promise<void> | null = null;
+
+/** Gives the pictures of the tenant at hand their vectors, soon. */
+export function queuePictures() {
+  picturesWaiting.add(currentTenant());
+  if (picturesRunning) {
+    return;
+  }
+  picturesRunning = (async () => {
+    while (picturesWaiting.size) {
+      const [tenant] = picturesWaiting;
+      picturesWaiting.delete(tenant);
+      await withTenant(tenant, embedPictures).catch((err) =>
+        console.error("[space-index] pictures", err),
+      );
+    }
+  })().finally(() => {
+    picturesRunning = null;
+  });
+}
+
+/** The pictures of the bytes `hash`, by page (0: a picture file itself), made when asked for. */
+async function picturesOf(hash: string | null, pdf: boolean): Promise<Map<number, Buffer>> {
+  const data = hash ? await getBlob(hash).catch(() => null) : null;
+  if (!data) {
+    return new Map();
+  }
+  return pdf
+    ? new Map((await pdfPages(data)).map((p) => [p.page, p.jpeg]))
+    : new Map([[0, await jpegOf(data)]]);
+}
+
+async function embedPictures() {
+  const resolved = await embeddingModel().catch(() => null);
+  const embedImage = resolved?.embedImage;
+  if (!(resolved && embedImage)) {
+    return;
+  }
+  const failed = new Set<string>();
+  let inRow = 0;
+  const started = Date.now();
+  let done = 0;
+  for (;;) {
+    const todo = await db
+      .select({
+        id: schema.spaceChunk.id,
+        fileId: schema.spaceChunk.fileId,
+        kind: schema.spaceChunk.kind,
+        sheet: schema.spaceChunk.sheet,
+        ref: schema.spaceChunk.ref,
+      })
+      .from(schema.spaceChunk)
+      .where(
+        and(
+          isNotNull(schema.spaceChunk.kind),
+          isNotNull(schema.spaceChunk.fileId),
+          or(isNull(schema.spaceChunk.model), ne(schema.spaceChunk.model, resolved.ref)),
+          failed.size ? notInArray(schema.spaceChunk.fileId, [...failed]) : undefined,
+        ),
+      )
+      .limit(MAX_PAGE_PICTURES);
+    const fileId = todo[0]?.fileId;
+    if (!fileId) {
+      break;
+    }
+    const units = todo.filter((u) => u.fileId === fileId);
+    try {
+      const pictures = await picturesOf(units[0].ref, units[0].kind === "page");
+      for (const u of units) {
+        const jpeg = pictures.get(u.kind === "page" ? (u.sheet ?? 0) : 0);
+        const which = and(
+          eq(schema.spaceChunk.id, u.id),
+          u.ref === null ? isNull(schema.spaceChunk.ref) : eq(schema.spaceChunk.ref, u.ref),
+        );
+        if (!jpeg) {
+          // A page the PDF does not have, or a file that is gone.
+          await db.delete(schema.spaceChunk).where(which);
+          continue;
+        }
+        const vector = await embedImage(jpeg);
+        await db
+          .update(schema.spaceChunk)
+          .set({ embedding: vectorBytes(vector), model: resolved.ref })
+          .where(which);
+        done++;
+      }
+      inRow = 0;
+    } catch (err) {
+      console.error("[space-index] picture", fileId, err);
+      failed.add(fileId);
+      // The model is not there or not working: the next start, or the next picture, tries again.
+      if (++inRow >= 3) {
+        break;
+      }
+    }
+  }
+  if (done) {
+    console.log(
+      `[space-index] embedded ${done} pictures with ${resolved.ref} in ${Math.round((Date.now() - started) / 1000)} s`,
+    );
+  }
 }
 
 // --- plugins' texts ---------------------------------------------------------------------
@@ -579,10 +783,11 @@ interface Found {
   link: string | null;
   idx: number;
   text: string;
+  kind: "image" | "page" | null;
 }
 
 const COLUMNS = sql.raw(
-  "c.id, c.file_id, c.page_id, c.row_id, c.table_id, c.value_id, c.heading, c.sheet, c.plugin, c.ref, c.title, c.link, c.idx, c.text",
+  "c.id, c.file_id, c.page_id, c.row_id, c.table_id, c.value_id, c.heading, c.sheet, c.plugin, c.ref, c.title, c.link, c.idx, c.text, c.kind",
 );
 
 /** A unit of the space's own Knowledge, or of a plugin's text while the tenant has that plugin. */
@@ -746,11 +951,14 @@ export async function searchKnowledge(
   }
   const embedded = await embed([query]).catch(() => null);
   if (embedded) {
+    const question = vectorBytes(embedded.vectors[0]);
     lists.push(
-      await db.all<Found>(sql`
-        SELECT ${COLUMNS} FROM space_chunk c
-        WHERE ${where} AND c.model = ${embedded.model}
-        ORDER BY vector_distance_cos(c.embedding, ${vectorBytes(embedded.vectors[0])}) LIMIT ${take}`),
+      featureOn(await currentFeatures(), "knowledgeMedia")
+        ? await byMeaning(where, embedded.model, question, take)
+        : await db.all<Found>(sql`
+            SELECT ${COLUMNS} FROM space_chunk c
+            WHERE ${where} AND c.model = ${embedded.model}
+            ORDER BY vector_distance_cos(c.embedding, ${question}) LIMIT ${take}`),
     );
   }
   const allowed = await readableUnits(spaceId, opts.who ?? [], lists.flat());
@@ -775,12 +983,14 @@ export async function searchKnowledge(
     spaceId,
     candidates.map((c) => c.unit),
   );
-  const judged =
-    opts.check === false
+  // The classifier reads text; a picture, found by what it shows, keeps its place.
+  const read = described.filter((d) => !d.picture);
+  const scores =
+    opts.check === false || !read.length
       ? null
       : await judgeRelevance(
           query,
-          described.map((d) => ({
+          read.map((d) => ({
             title: d.title,
             path: d.path,
             categories: d.categories,
@@ -789,14 +999,22 @@ export async function searchKnowledge(
           })),
           opts.signal,
         );
-  const ranked = described
+  const judged = scores
+    ? described.map((d) => (d.picture ? null : (scores[read.indexOf(d)] ?? null)))
+    : null;
+  const kept = described
     .map((hit, i) => ({ hit: { ...hit, relevance: judged?.[i] ?? null }, rank: i }))
-    .filter(({ hit }) => hit.relevance === null || hit.relevance >= MIN_RELEVANCE)
+    .filter(({ hit }) => hit.relevance === null || hit.relevance >= MIN_RELEVANCE);
+  // The texts in the classifier's order, in the places texts held; pictures stay where they are.
+  const texts = kept
+    .filter(({ hit }) => !hit.picture)
     .sort((a, b) =>
       judged
         ? (b.hit.relevance ?? MIN_RELEVANCE) - (a.hit.relevance ?? MIN_RELEVANCE) || a.rank - b.rank
         : a.rank - b.rank,
     );
+  let next = 0;
+  const ranked = kept.map((k) => (k.hit.picture ? k : texts[next++]));
   // One hit per item: its best section.
   const seen = new Set<string>();
   const hits: KnowledgeHit[] = [];
@@ -816,6 +1034,33 @@ export async function searchKnowledge(
     checked: judged !== null,
     filtered: filter?.size ?? null,
   };
+}
+
+/**
+ * The units nearest the question by meaning, where the nearest stand out: the best has to lead
+ * the median unit by MIN_LEAD, and a unit counts from halfway between them up. Else none.
+ */
+async function byMeaning(where: SQL, model: string, question: Buffer, take: number) {
+  const near = await db.all<{ id: number; d: number }>(sql`
+    SELECT c.id, vector_distance_cos(c.embedding, ${question}) AS d FROM space_chunk c
+    WHERE ${where} AND c.model = ${model} ORDER BY d`);
+  // Distances: 1 - cosine.
+  const top = 1 - (near[0]?.d ?? 1);
+  const median = 1 - (near[Math.floor(near.length / 2)]?.d ?? 1);
+  if (top - median < MIN_LEAD) {
+    return [];
+  }
+  const ids = near
+    .filter((n) => 1 - n.d >= median + (top - median) / 2)
+    .slice(0, take)
+    .map((n) => n.id);
+  const rows = await db.all<Found>(sql`
+    SELECT ${COLUMNS} FROM space_chunk c WHERE c.id IN (${sql.join(
+      ids.map((id) => sql`${id}`),
+      sql`, `,
+    )})`);
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return ids.flatMap((id) => (byId.has(id) ? [byId.get(id) as Found] : []));
 }
 
 /** What a step and the studio see of each unit: the item's path, title and categories. */
@@ -879,6 +1124,7 @@ async function describe(spaceId: string, units: Found[]): Promise<KnowledgeHit[]
       relevance: null,
       link: u.link,
       plugin: u.plugin,
+      ...(u.kind ? { picture: u.kind } : {}),
     };
     if (u.page_id) {
       const node = tree.get(u.page_id);
@@ -985,7 +1231,11 @@ export async function reindexAll() {
   }
 }
 
-/** The image, video and sound assets the index does not hold yet: added at start, once each. */
+/**
+ * What the index lacks, added at start: image, video and sound assets it does not hold yet; where
+ * the embedding model takes pictures, the picture files and PDFs without picture units, and the
+ * pictures without a vector of the model at hand.
+ */
 export async function indexMissingAssets() {
   const rows = await db.all<{ id: string; kind: string; mime: string }>(sql`
     SELECT f.id, f.kind, f.mime FROM space_file f
@@ -994,4 +1244,16 @@ export async function indexMissingAssets() {
   for (const row of rows.filter(indexedFile)) {
     queueIndex(`f:${row.id}`);
   }
+  if (!(await embeddingModel().catch(() => null))?.embedImage) {
+    return;
+  }
+  const unseen = await db.all<{ id: string; kind: string; mime: string }>(sql`
+    SELECT f.id, f.kind, f.mime FROM space_file f
+    WHERE f.kind IN ('asset', 'document') AND f.status = 'ready' AND f.hash IS NOT NULL
+      AND (f.mime IN ('image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'))
+      AND NOT EXISTS (SELECT 1 FROM space_chunk c WHERE c.file_id = f.id AND c.kind IS NOT NULL)`);
+  for (const row of unseen.filter(indexedFile)) {
+    queueIndex(`f:${row.id}`);
+  }
+  queuePictures();
 }
