@@ -225,8 +225,8 @@ PRs.
    SharePoint.
 7. **Editing and „Veröffentlichen“.** Drafts, writing back, the comparison; write scopes on request.
 8. **Wissen from Dateien.** The source „aus Dateien“ and „In Wissen übernehmen“.
-9. **Later.** The libSQL vector index, audio and video, a computer's mount seen from a cloud space,
-   drives' sharing per file.
+9. **Later.** The libSQL vector index, audio and video, a computer's mount seen from a cloud space
+   (planned in `docs/plans/dateien-from-the-cloud.md`), drives' sharing per file.
 
 ## Open points (the user decides)
 
