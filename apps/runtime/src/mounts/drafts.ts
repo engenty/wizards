@@ -108,6 +108,8 @@ export interface DraftView {
   draft: boolean;
   /** The draft's text, or the file's; null for a file replaced by an upload. */
   text: string | null;
+  /** The text the file had when it was read: a draft saved again from it names it. */
+  baseText: string | null;
   /** The file as it was read: what the draft is saved with. */
   base: Base;
   /** What stands at the source now, where it changed since and the merge was not clean. */
@@ -120,6 +122,7 @@ const viewOf = (draft: DraftRow): DraftView => ({
   edit: draft.blob ? "replace" : "text",
   draft: true,
   text: draft.text,
+  baseText: draft.baseText,
   base: draft.base,
   conflict: draft.conflict ? { text: draft.conflict.text ?? null } : null,
   updatedAt: draft.updatedAt.toISOString(),
@@ -145,6 +148,7 @@ export async function openDraft(
       edit: "text",
       draft: false,
       text: words,
+      baseText: words,
       base: now.base,
       conflict: null,
       updatedAt: null,
@@ -156,6 +160,7 @@ export async function openDraft(
     edit: "replace",
     draft: false,
     text: null,
+    baseText: null,
     base: { size: stat?.size ?? 0, modified: stat?.modified ?? 0, version: null, hash: "" },
     conflict: null,
     updatedAt: null,

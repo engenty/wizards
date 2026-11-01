@@ -147,3 +147,31 @@ export function mergeText(base: string, local: string, remote: string): TextMerg
   chunk(o.length, a.length, b.length);
   return { text: out.join("\n"), clean: conflicts === 0, conflicts };
 }
+
+export type DiffLine = { kind: "same" | "add" | "del"; text: string };
+
+/** The lines of `after` against `before`, for showing a change. Null when too far apart. */
+export function diffLines(before: string, after: string): DiffLine[] | null {
+  const a = before === "" ? [] : before.split("\n");
+  const b = after === "" ? [] : after.split("\n");
+  const pairs = commonLines(a, b, MAX_EDITS);
+  if (!pairs) {
+    return null;
+  }
+  const out: DiffLine[] = [];
+  let i = 0;
+  let j = 0;
+  for (const [pi, pj] of [...pairs, [a.length, b.length] as [number, number]]) {
+    while (i < pi) {
+      out.push({ kind: "del", text: a[i++] ?? "" });
+    }
+    while (j < pj) {
+      out.push({ kind: "add", text: b[j++] ?? "" });
+    }
+    if (i < a.length && j < b.length) {
+      out.push({ kind: "same", text: a[i++] ?? "" });
+      j++;
+    }
+  }
+  return out;
+}
