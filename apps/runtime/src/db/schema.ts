@@ -625,6 +625,11 @@ export const spaceMount = sqliteTable(
     error: text("error"),
     /** When the whole tree was last listed against the rows. */
     scannedAt: integer("scanned_at", { mode: "timestamp_ms" }),
+    /**
+     * Whether its files may be changed: drafts written back with „Veröffentlichen“. Off unless
+     * allowed when mounting or in its settings; who may then is the broker's `w` on the mount.
+     */
+    writable: integer("writable", { mode: "boolean" }).notNull().default(false),
     /** A category whose value for a file is the folder of the first level it lies in. */
     folderCategoryId: text("folder_category_id").references(
       (): AnySQLiteColumn => spaceCategory.id,
@@ -714,6 +719,55 @@ export const spaceMountUnit = sqliteTable(
   (t) => [
     index("space_mount_unit_file").on(t.fileId),
     index("space_mount_unit_space").on(t.spaceId, t.model),
+  ],
+);
+
+/**
+ * A draft of a mounted file: an edit kept in engenty until „Veröffentlichen“ writes it to the
+ * source. `base` is the file as it was read when the edit began; the source changed since, the
+ * write is refused and `conflict` holds what stands there now. A text file's draft keeps its
+ * text and the text it was read as (for the merge); a replaced file keeps its bytes by hash.
+ */
+export const spaceMountDraft = sqliteTable(
+  "space_mount_draft",
+  {
+    id: text("id").primaryKey(),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    mountId: text("mount_id")
+      .notNull()
+      .references(() => spaceMount.id, { onDelete: "cascade" }),
+    fileId: text("file_id")
+      .notNull()
+      .references(() => spaceMountFile.id, { onDelete: "cascade" }),
+    /** The file as it was read: its entry at the source and the sha256 of its bytes. */
+    base: text("base", { mode: "json" })
+      .$type<{ size: number; modified: number; version: string | null; hash: string }>()
+      .notNull(),
+    /** The draft's text, for a text file. */
+    text: text("text"),
+    /** The text the file had when it was read, for the merge with a change at the source. */
+    baseText: text("base_text"),
+    /** The draft's bytes by hash (blobs/), for a file replaced by an upload. */
+    blob: text("blob"),
+    mime: text("mime"),
+    /** What stands at the source now, where it changed since `base`; its text for a text file. */
+    conflict: text("conflict", { mode: "json" }).$type<{
+      size: number;
+      modified: number;
+      version: string | null;
+      hash: string;
+      text?: string;
+    } | null>(),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("space_mount_draft_file").on(t.fileId),
+    index("space_mount_draft_mount").on(t.mountId),
   ],
 );
 

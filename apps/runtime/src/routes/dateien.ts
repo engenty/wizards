@@ -3,6 +3,16 @@ import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
 import { subjectsOfPerson } from "../broker/rwx.js";
 import {
+  discardDraft,
+  keepMine,
+  mountDrafts,
+  openDraft,
+  publishDraft,
+  publishMount,
+  replaceDraft,
+  saveDraft,
+} from "../mounts/drafts.js";
+import {
   completeFolder,
   createMount,
   deleteMount,
@@ -23,8 +33,9 @@ import { spaceFileResponse } from "./delivery.js";
 
 /**
  * Dateien for the studio (docs/plans/media-and-files.md, section 3), under `/api/studio`: a
- * space's mounts, their files, opening one, mounting a folder of this computer. Every service
- * answers "not found" while the `dateien` switch is off and on a runtime in the cloud.
+ * space's mounts, their files, opening one, mounting a folder of this computer; a file's draft
+ * and „Veröffentlichen“ (mounts/drafts.ts). Every service answers "not found" while the `dateien`
+ * switch is off and on a runtime in the cloud.
  */
 
 type Vars = { Variables: { user: SessionUser } };
@@ -64,6 +75,7 @@ export const dateienRoutes = new Hono<Vars>()
         path: z.string().min(1).max(1000),
         name: z.string().max(120).optional(),
         folderCategory: z.string().max(60).nullable().optional(),
+        writable: z.boolean().optional(),
         ...access,
       })
       .parse(await c.req.json());
@@ -81,6 +93,7 @@ export const dateienRoutes = new Hono<Vars>()
         name: z.string().max(120).optional(),
         see: access.see.optional(),
         wizards: access.wizards.optional(),
+        writable: z.boolean().optional(),
       })
       .parse(await c.req.json());
     return c.json(
@@ -115,4 +128,66 @@ export const dateienRoutes = new Hono<Vars>()
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const thumb = await mountFileThumb(space.id, c.req.param("fileId"), whoOf(c));
     return thumb ? spaceFileResponse(c, "image/jpeg", thumb) : c.notFound();
+  })
+  .get("/spaces/:id/mounts/:mountId/drafts", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json({ drafts: await mountDrafts(space.id, c.req.param("mountId"), whoOf(c)) });
+  })
+  // „Veröffentlichen“ for every draft of the mount without a conflict.
+  .post("/spaces/:id/mounts/:mountId/publish", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(await publishMount(space.id, c.req.param("mountId"), whoOf(c)));
+  })
+  // The file's draft, else the file as it stands, to edit.
+  .get("/spaces/:id/mount-files/:fileId/draft", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(await openDraft(space.id, c.req.param("fileId"), whoOf(c)));
+  })
+  .put("/spaces/:id/mount-files/:fileId/draft", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const body = z
+      .object({
+        text: z.string().max(4_000_000),
+        base: z
+          .object({
+            size: z.number().int().min(0),
+            modified: z.number(),
+            version: z.string().nullable(),
+            hash: z.string().max(64),
+          })
+          .optional(),
+        baseText: z.string().max(4_000_000).optional(),
+      })
+      .parse(await c.req.json());
+    const draft = await saveDraft(
+      c.get("user").id,
+      space.id,
+      c.req.param("fileId"),
+      whoOf(c),
+      body,
+    );
+    return c.json({ draft });
+  })
+  // A file replaced by an upload, as a draft: the request's body is the new file.
+  .post("/spaces/:id/mount-files/:fileId/draft/replace", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const data = new Uint8Array(await c.req.arrayBuffer());
+    const mime = (c.req.header("content-type") ?? "application/octet-stream").split(";")[0];
+    return c.json(
+      await replaceDraft(c.get("user").id, space.id, c.req.param("fileId"), whoOf(c), data, mime),
+    );
+  })
+  .delete("/spaces/:id/mount-files/:fileId/draft", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    await discardDraft(space.id, c.req.param("fileId"), whoOf(c));
+    return c.json({ ok: true });
+  })
+  .post("/spaces/:id/mount-files/:fileId/publish", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(await publishDraft(space.id, c.req.param("fileId"), whoOf(c)));
+  })
+  // „Meine behalten“: the draft over what stands at the source now.
+  .post("/spaces/:id/mount-files/:fileId/keep-mine", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(await keepMine(space.id, c.req.param("fileId"), whoOf(c)));
   });

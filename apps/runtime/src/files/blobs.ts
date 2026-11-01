@@ -73,7 +73,8 @@ export async function blobThumb(hash: string, mime: string): Promise<Buffer | nu
 
 /**
  * Whether a row of this tenant still names the hash: a space file (its bytes or its text), a
- * workspace or kept file, a published version's or a run's workspace, a skill's file.
+ * workspace or kept file, a published version's or a run's workspace, a skill's file, a
+ * mounted file's draft.
  */
 async function blobInUse(hash: string): Promise<boolean> {
   const like = `%"${hash}"%`;
@@ -84,6 +85,7 @@ async function blobInUse(hash: string): Promise<boolean> {
     UNION ALL SELECT 1 FROM wizard_version WHERE files LIKE ${like}
     UNION ALL SELECT 1 FROM run WHERE files LIKE ${like}
     UNION ALL SELECT 1 FROM space_skill WHERE blob_files LIKE ${like}
+    UNION ALL SELECT 1 FROM space_mount_draft WHERE blob = ${hash}
     LIMIT 1`);
   return found.length > 0;
 }
