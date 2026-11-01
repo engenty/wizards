@@ -24,6 +24,7 @@ import { CATEGORY_ICON, CategoryView, useValue, ValueView } from "./space/Catego
 import { ClientSpaces, OpenToClients } from "./space/ClientSpaces";
 import { FileView } from "./space/Documents";
 import { CategoryItems, ItemRow, KnowledgeOverview, useKnowledge } from "./space/Knowledge";
+import { KnowledgeHome } from "./space/KnowledgeHome";
 import { PageEditor } from "./space/PageEditor";
 import { PublicPage } from "./space/PublicPage";
 import { NO_FILTER, Results, type ResultsFilter, useResults } from "./space/Results";
@@ -133,7 +134,7 @@ function SectionRows({
         {rows}
       </MenuGroup>
     ) : (
-      <ul key="own" className="flex flex-col gap-0.5">
+      <ul key={group.plugin ?? "own"} className="flex flex-col gap-0.5">
         {rows}
       </ul>
     );
@@ -182,6 +183,8 @@ export function SpacePage({ place }: { place?: "skills" }) {
   // Client spaces wait behind theirs, and are the admins'.
   const admin = useIsAdmin();
   const clientsOn = useFeature("clientSpaces") && admin;
+  // Wissen as a knowledge base waits behind its switch.
+  const treeOn = useFeature("knowledgeTree");
   const groups = spaceGroups().filter(
     (g) => (pagesOn || g.id !== "page") && (clientsOn || g.id !== "clients"),
   );
@@ -462,6 +465,18 @@ export function SpacePage({ place }: { place?: "skills" }) {
           </Section>
         </Anchor>
       ));
+  // What the plugins' sections are busy with, each drawn by the section's own `status`.
+  const pluginStatus = (list: SpaceSectionGroup[]) =>
+    list
+      .flatMap((g) => g.sections)
+      .map((s) => plugins.spaceSections.find((x) => x.id === s.id))
+      .map((section) =>
+        section?.status ? (
+          <PluginFrame key={section.serial} of={section}>
+            <section.status />
+          </PluginFrame>
+        ) : null,
+      );
   // On a phone the menu marks nothing: a row opens the page.
   const marked = narrow ? undefined : inView;
 
@@ -770,12 +785,31 @@ export function SpacePage({ place }: { place?: "skills" }) {
                     ) : null
                   ) : (
                     <Anchor id="documents">
-                      <KnowledgeOverview
-                        spaceId={space.id}
-                        data={knowledge.data}
-                        readOnly={space.readOnly}
-                        onOpen={pick}
-                      />
+                      {treeOn ? (
+                        <KnowledgeHome
+                          spaceId={space.id}
+                          data={knowledge.data}
+                          readOnly={space.readOnly}
+                          onOpen={pick}
+                          status={pluginStatus(added)}
+                          adds={plugins.spaceSections
+                            .filter((x) => (x.group ?? "knowledge") === "knowledge" && x.add)
+                            .map((x) => ({
+                              id: x.id,
+                              label: x.add?.label() ?? x.label(),
+                              hint: x.add?.hint?.(),
+                              icon: x.add?.icon ?? x.icon,
+                            }))}
+                        />
+                      ) : (
+                        <KnowledgeOverview
+                          spaceId={space.id}
+                          data={knowledge.data}
+                          readOnly={space.readOnly}
+                          onOpen={pick}
+                          status={pluginStatus(added)}
+                        />
+                      )}
                     </Anchor>
                   )}
                   {group === "info" || group === "brand" ? pluginSections(added) : null}

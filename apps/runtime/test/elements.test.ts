@@ -239,4 +239,51 @@ describe("the space's rules decide", () => {
       expect(wrote).toBe(0);
     });
   });
+
+  it("Goose writes pages of Knowledge: new, under a parent, replaced, and only with w", async () => {
+    const { gooseSpaceTools } = await import("../src/agents/studio-assistant");
+    await local(async () => {
+      const space = await client.db.query.space.findFirst({
+        where: (await import("drizzle-orm")).eq(client.schema.space.id, spaceId),
+      });
+      let wrote = 0;
+      const tools = gooseSpaceTools(
+        {
+          user: { id: "local", role: "owner" },
+          chat: { id: "c1" },
+          lang: "en",
+          signal: new AbortController().signal,
+        } as never,
+        space as never,
+        () => {
+          wrote++;
+        },
+        { brandSections: true, brandRules: true, typography: true },
+      );
+      const write = tools.write_knowledge_page.execute;
+      const cases = await write({ title: "Cases", markdown: "Our cases." });
+      expect(cases).toEqual({ ok: true, path: "pages/cases" });
+      const a1 = await write({ title: "A1 Brand Portal", markdown: "Brand portal.", parent: "pages/cases" });
+      expect(a1).toEqual({ ok: true, path: "pages/cases/a1-brand-portal" });
+      const again = await write({
+        title: "A1 Brand Portal",
+        markdown: "The A1 Group's brand portal.",
+        path: "pages/cases/a1-brand-portal",
+      });
+      expect(again).toEqual({ ok: true, path: "pages/cases/a1-brand-portal" });
+      const page = await client.db.query.spacePage.findFirst({
+        where: (await import("drizzle-orm")).eq(client.schema.spacePage.title, "A1 Brand Portal"),
+      });
+      expect(page?.markdown).toBe("The A1 Group's brand portal.");
+      expect(await write({ title: "X", markdown: "", path: "pages/nowhere" })).toMatchObject({
+        error: expect.stringContaining("no page"),
+      });
+      expect(wrote).toBe(3);
+
+      await deny("goose", "local", "page", "w");
+      const out = await write({ title: "Refused", markdown: "No." });
+      expect(out).toMatchObject({ error: expect.stringContaining("permission"), resource: "page" });
+      expect(wrote).toBe(3);
+    });
+  });
 });

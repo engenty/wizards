@@ -91,7 +91,7 @@ export interface SpaceSection {
 }
 
 export interface SpaceSectionGroup {
-  /** The plugin's id and name; none for the space's own sections. */
+  /** The plugin's id and name; none for the space's own sections, no name for a plugin's `grouped: false`. */
   plugin: string | null;
   label: string | null;
   sections: SpaceSection[];
@@ -138,21 +138,26 @@ export function spaceSections(
     label: t(s.label),
     icon: s.icon,
   }));
+  // A plugin's sections under its name; those that say `grouped: false` without it.
   const byPlugin = new Map<string, SpaceSection[]>();
   for (const section of plugins.spaceSections) {
     if ((section.group ?? "knowledge") !== group) {
       continue;
     }
-    const list = byPlugin.get(section.plugin) ?? [];
-    list.push({ id: section.id, label: section.label() });
-    byPlugin.set(section.plugin, list);
+    const key = `${section.grouped === false ? "-" : "+"}${section.plugin}`;
+    const list = byPlugin.get(key) ?? [];
+    list.push({ id: section.id, label: section.label(), icon: section.icon });
+    byPlugin.set(key, list);
   }
   return [
     ...(own.length ? [{ plugin: null, label: null, sections: own }] : []),
-    ...[...byPlugin].map(([id, sections]) => ({
-      plugin: id,
-      label: plugins.plugins.find((p) => p.id === id)?.name ?? id,
-      sections,
-    })),
+    ...[...byPlugin].map(([key, sections]) => {
+      const id = key.slice(1);
+      return {
+        plugin: id,
+        label: key[0] === "-" ? null : (plugins.plugins.find((p) => p.id === id)?.name ?? id),
+        sections,
+      };
+    }),
   ];
 }

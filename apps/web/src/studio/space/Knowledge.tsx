@@ -21,7 +21,7 @@ import {
   Table2,
   Upload,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
@@ -342,7 +342,7 @@ export function CategoryItems({
 // --- filters ---------------------------------------------------------------------------------
 
 /** Whether an item's value of a category passes a filter on it. */
-function passes(category: SpaceCategory, values: CategoryCell[], w: WhereValue): boolean {
+export function passes(category: SpaceCategory, values: CategoryCell[], w: WhereValue): boolean {
   if (Array.isArray(w)) {
     return values.some((v) => w.map(String).includes(String(v)));
   }
@@ -385,7 +385,7 @@ function filterLabel(category: SpaceCategory, w: WhereValue): string {
 }
 
 /** One category as a filter: a chip that opens what it can be set to. */
-function FilterChip({
+export function FilterChip({
   category,
   value,
   onChange,
@@ -500,7 +500,13 @@ function FilterChip({
 
 // --- the search, as a step gets it ---------------------------------------------------------------
 
-function SearchHits({ found, onOpen }: { found: KnowledgeSearch; onOpen: (key: string) => void }) {
+export function SearchHits({
+  found,
+  onOpen,
+}: {
+  found: KnowledgeSearch;
+  onOpen: (key: string) => void;
+}) {
   if (!found.hits.length) {
     return <p className="px-3 py-4 text-[0.875rem] text-ink-3">{t("know.searchNone")}</p>;
   }
@@ -544,7 +550,7 @@ function SearchHits({ found, onOpen }: { found: KnowledgeSearch; onOpen: (key: s
 
 // --- a new page or table -----------------------------------------------------------------------
 
-function NewItemDialog({
+export function NewItemDialog({
   kind,
   spaceId,
   onClose,
@@ -621,18 +627,22 @@ function NewItemDialog({
 
 /**
  * Knowledge without an item picked: proposals to take, a search to try as a step would get it,
- * filters by category, the items, and the way to add documents, pages, tables and categories.
+ * filters by category, what the plugins are busy with, the items, and the way to add documents,
+ * pages, tables and categories.
  */
 export function KnowledgeOverview({
   spaceId,
   data,
   readOnly,
   onOpen,
+  status,
 }: {
   spaceId: string;
   data: Knowledge;
   readOnly: boolean;
   onOpen: (key: string) => void;
+  /** The plugins' sections' status lines (a source reading, say), above the items. */
+  status?: ReactNode;
 }) {
   const qc = useQueryClient();
   const files = useFileActions(spaceId, readOnly);
@@ -772,6 +782,7 @@ export function KnowledgeOverview({
           ) : null}
         </div>
       ) : null}
+      {status}
       <Card className="flex flex-col p-1.5">
         {found ? (
           <SearchHits found={found} onOpen={onOpen} />

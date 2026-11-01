@@ -8,6 +8,8 @@ import type {
 } from "@engenty/wizards-shared/assistant";
 import { CONFIRM_ACTION_TOOL } from "@engenty/wizards-shared/assistant";
 import { type Lang, textClassOf } from "@engenty/wizards-shared/definition";
+import { RWX_ALL } from "@engenty/wizards-shared/rwx";
+import { SPACE_DATA_LIMITS } from "@engenty/wizards-shared/space-data";
 import {
   cleanAssetSections,
   cleanLogoSections,
@@ -31,7 +33,7 @@ import { subjectsOfGoose } from "../broker/rwx.js";
 import type { AssistantCardRecord, AssistantToolCallRecord } from "../db/schema.js";
 import { gooseCaller } from "../elements/caller.js";
 import { elementTools } from "../elements/catalogue.js";
-import { brokered } from "../elements/gate.js";
+import { brokered, elementCall } from "../elements/gate.js";
 import { currentFeatures } from "../features.js";
 import { managed } from "../manage.js";
 import {
@@ -49,9 +51,10 @@ import {
 import { prompt } from "../prompts.js";
 import { contentPolicy } from "../safety.js";
 import type { ChatRow, TurnHistory } from "../services/assistant-chats.js";
-import { knowledgeCounts } from "../services/knowledge.js";
+import { knowledgeCounts, pageTree, resolvePath } from "../services/knowledge.js";
 import { activeSkills, skillList } from "../services/skills.js";
 import { categoryRows } from "../services/space-categories.js";
+import { createPage, updatePage } from "../services/space-data.js";
 import {
   addSpaceFileFromUrl,
   spaceFileContent,
@@ -165,6 +168,7 @@ const LABELS: Record<string, ServerKey> = {
   set_profile: "doingSetProfile",
   set_facts: "doingSetFacts",
   set_colors: "doingSetColors",
+  write_knowledge_page: "doingWriteKnowledgePage",
   look_at_file: "doingLookAtFile",
   describe_file: "doingDescribeFile",
   web_search: "doingWebSearch",
@@ -316,6 +320,21 @@ export function gooseSpaceTools(
     const next = turn.then(run, run);
     turn = next.catch(() => undefined);
     return next;
+  };
+  const caller = gooseCaller({
+    space: { id: spaceId, name: space.name },
+    userId,
+    role: input.user.role,
+    signal: signal ?? new AbortController().signal,
+    chatId: input.chat?.id,
+  });
+  /** A page of the space's own Knowledge by its path; an error the model can read where there is none. */
+  const pageAt = async (path: string) => {
+    const found = await resolvePath(spaceId, path);
+    if (found?.kind !== "page") {
+      throw new Error(`There is no page "${path}" in Knowledge. space_list gives the paths.`);
+    }
+    return found;
   };
   const tools: Record<string, any> = {
     read_website: createTool({
@@ -740,6 +759,59 @@ export function gooseSpaceTools(
           return { ok: true };
         }),
     }),
+    // Knowledge's own pages, as a person writes them in the studio: `w` on the page, or on every
+    // page for a new one.
+    write_knowledge_page: createTool({
+      id: "write_knowledge_page",
+      description: prompt("goose", "tool.write_knowledge_page"),
+      inputSchema: z.object({
+        title: z.string().min(1).max(200),
+        markdown: z.string().max(SPACE_DATA_LIMITS.pageChars),
+        path: z
+          .string()
+          .max(600)
+          .optional()
+          .describe("An existing page to replace (pages/…); left out, a new page"),
+        parent: z
+          .string()
+          .max(600)
+          .optional()
+          .describe("The page it stands under (pages/…); left out, a page of its own"),
+      }),
+      execute: (args) =>
+        attempt(async () => {
+          doing("write_knowledge_page");
+          const at = args.path ? await pageAt(args.path) : null;
+          const parent = args.parent ? await pageAt(args.parent) : null;
+          const id = await elementCall(
+            caller,
+            {
+              action: "write_knowledge_page",
+              resource: { kind: "page", id: at?.id ?? RWX_ALL },
+              perm: "w",
+              input: args,
+            },
+            async () => {
+              if (at) {
+                await updatePage(userId, at.id, {
+                  title: args.title,
+                  markdown: args.markdown,
+                  ...(parent ? { parentId: parent.id } : {}),
+                });
+                return at.id;
+              }
+              const made = await createPage(userId, spaceId, {
+                title: args.title,
+                markdown: args.markdown,
+                parentId: parent?.id ?? null,
+              });
+              return made.id;
+            },
+          );
+          wrote();
+          return { ok: true, path: (await pageTree(spaceId)).get(id)?.path ?? "" };
+        }),
+    }),
     look_at_file: createTool({
       id: "look_at_file",
       description: prompt("goose", "tool.look_at_file"),
@@ -787,13 +859,6 @@ export function gooseSpaceTools(
   }
   // Every write to the space's setup is the broker's: `w` on it, for Goose for its person
   // (docs/plans/modular.md, B4). An admin's deny for Goose stops it; each write is a log line.
-  const caller = gooseCaller({
-    space: { id: spaceId, name: space.name },
-    userId,
-    role: input.user.role,
-    signal: signal ?? new AbortController().signal,
-    chatId: input.chat?.id,
-  });
   for (const name of SETUP_WRITES) {
     if (tools[name]) {
       tools[name] = brokered(tools[name], caller, (args) => ({

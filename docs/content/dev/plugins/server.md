@@ -1,7 +1,7 @@
 ---
 title: The server half
 description: The function a plugin exports, what it is handed, and the rules it runs under.
-version: 0.9.6
+version: 0.15.0
 ---
 
 The server half is a file whose default export is a function. The runtime calls it once when the
@@ -216,7 +216,7 @@ server.every("refresh", 60 * 60_000, async ({ tenantId, lastRun, signal }) => {
 
 ```ts
 const page = await server.web.read("https://example.com/preise");
-// { url, status, etag, lastModified, title, description, text, links, jsonld }
+// { url, status, etag, lastModified, title, description, text, content, links, jsonld }
 
 const res = await server.web.fetch(`${origin}/sitemap.xml`, {
   headers: { "if-none-match": source.etag ?? "" },
@@ -225,8 +225,9 @@ const res = await server.web.fetch(`${origin}/sitemap.xml`, {
 
 - Both refuse addresses of the computer the runtime runs on and of its local network, after a
   redirect too, as the runtime’s own requests do.
-- `read` gives the page’s text as Markdown and its links, absolute and each once (up to
-  2,000). A page with hardly any text without its scripts is drawn in a browser first. `etag`
+- `read` gives the page’s whole text as Markdown (`text`), its content without the site’s
+  frame (`content`: the main part, without navigation, header and footer, asides, forms, hidden
+  menus, skip links and cookie notices) and its links, absolute and each once (up to 2,000). A page with hardly any text without its scripts is drawn in a browser first. `etag`
   and `lastModified` are what the server sent, for asking later whether the page changed. `jsonld`
   is the page’s structured data (its `application/ld+json` blocks, parsed): a shop’s product
   page says title, price, availability and image there exactly, without a model.

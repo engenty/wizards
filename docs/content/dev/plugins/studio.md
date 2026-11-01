@@ -1,7 +1,7 @@
 ---
 title: The studio half
 description: Pages, icons in the app bar, sections of the settings and of the space page – written in React, built once, drawn inside the studio.
-version: 0.8.0
+version: 0.15.0
 ---
 
 The studio half is `ui/plugin.tsx`. Its default export is a function; the studio calls it after
@@ -87,7 +87,7 @@ export default defineStudioPlugin((studio) => {
 | `studio.registerPage({ path, component, wide? })` | A page of the studio at `/studio<path>`, inside the studio’s frame. `path` takes `:name` parts. `wide`: the page lays out its own columns and takes the screen’s width |
 | `studio.registerNav({ to, label, icon })` | An icon in the app bar that opens a page |
 | `studio.registerSettingsSection({ id, label, icon, component, menu? })` | A section of the settings, one level down in Settings › Plugins, at `/studio/settings/plugins?show=<id>` (`/studio/settings/<id>` leads there). `menu`: the user menu links to it directly |
-| `studio.registerSpaceSection({ id, group?, label, hint?, component })` | A section of a part of the space page at `/studio/space/<group>#<id>`, below the part’s own. See [The space](#the-space) |
+| `studio.registerSpaceSection({ id, group?, label, hint?, component, status?, icon?, grouped?, add? })` | A section of a part of the space page at `/studio/space/<group>#<id>`, below the part’s own. See [The space](#the-space) |
 | `studio.registerSpacePart({ id, label, icon, after?, component })` | A part of the space page of the plugin’s own, at `/studio/space/<id>`. See [A part of the plugin’s own](#a-part-of-the-plugins-own) |
 | `studio.registerShareSection({ runner, component })` | A runner’s own settings for a wizard (a keyword), under the share dialog’s gear once the runner is on and set up. See [Runners](./runners.md#the-runners-part-of-the-share-dialog) |
 | `studio.registerShareSetup({ runner, title, component, notice? })` | What “Set up” in the runner’s row opens: a view inside the share dialog, with its buttons at the dialog’s foot, and a banner of the runner’s news. See [Runners](./runners.md#setting-up-inside-the-dialog) |
@@ -164,6 +164,14 @@ studio.registerSpaceSection({
   `/studio/space/knowledge?show=s:<id>`, where `#<id>` leads too. Ids are unique on the whole
   page; the space’s own are taken: `base`, `facts`, `logos`, `colors`, `typography`, `assets`,
   `documents`.
+- `status` is a component of a Knowledge section that says what it is busy with, above the items
+  of Knowledge’s overview: a source being read, with how far it got. It draws nothing (`null`)
+  while there is nothing to say; the person sees it without opening the section.
+- `icon` is the section’s row in the part’s menu; a puzzle piece without one. `grouped: false`
+  puts the row among the part’s own, without the plugin’s name above it.
+- `add` is an entry of Knowledge’s „Hinzufügen“ that opens the section: `{ label, hint?, icon? }`,
+  what the plugin brings in („Website oder Sitemap“). It shows on the start page that waits
+  behind the `knowledgeTree` switch.
 - `studio.useSpace()` is a hook: `{ id, name, readOnly, brand }`, or `null` while there is none.
   A component that calls it draws again when the person picks another space, or changes its
   brand. `readOnly`: the space is edited in engenty wizards on a computer and only shown here,

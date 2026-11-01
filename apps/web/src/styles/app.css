@@ -625,3 +625,29 @@ dialog.media-sheet::backdrop {
     scale: none;
   }
 }
+
+/*
+ * Goose's introduction and its help hint are one thing in two places: the card at the top of a
+ * page, the hint in the top bar. Opening and closing morph one into the other (a view
+ * transition, `goose-intro`); the page around them changes at once. What they hold keeps its
+ * size and is clipped by the frame as it grows or shrinks.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(goose-intro) {
+  animation-duration: 0.3s;
+  animation-timing-function: ease-out;
+}
+::view-transition-image-pair(goose-intro) {
+  overflow: hidden;
+  border-radius: 1.25rem;
+}
+::view-transition-old(goose-intro),
+::view-transition-new(goose-intro) {
+  width: 100%;
+  height: 100%;
+  object-fit: none;
+  object-position: right top;
+}
