@@ -694,29 +694,38 @@ export function SubSectionHead({
 function TitleField({ value, onSave }: { value: string; onSave: (title: string) => void }) {
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
+  // A hidden copy of the text gives the field its width, in the heading's font once it has loaded.
   return (
-    <input
-      value={text}
-      maxLength={200}
-      aria-label={t("data.title")}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={() => {
-        const next = text.trim();
-        if (next && next !== value) {
-          onSave(next);
-        } else {
-          setText(value);
-        }
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.currentTarget.blur();
-        } else if (e.key === "Escape") {
-          setText(value);
-          requestAnimationFrame(() => (e.target as HTMLInputElement).blur());
-        }
-      }}
-      className="-ml-1 field-sizing-content max-w-full rounded-md bg-transparent px-1 outline-none transition hover:bg-accent focus:bg-paper focus:ring-1 focus:ring-ring"
-    />
+    <span className="-ml-1 inline-grid max-w-full align-top">
+      <span
+        aria-hidden
+        className="invisible col-start-1 row-start-1 truncate whitespace-pre px-1 pr-2"
+      >
+        {text || " "}
+      </span>
+      <input
+        value={text}
+        maxLength={200}
+        aria-label={t("data.title")}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          const next = text.trim();
+          if (next && next !== value) {
+            onSave(next);
+          } else {
+            setText(value);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          } else if (e.key === "Escape") {
+            setText(value);
+            requestAnimationFrame(() => (e.target as HTMLInputElement).blur());
+          }
+        }}
+        className="col-start-1 row-start-1 w-full min-w-0 rounded-md bg-transparent px-1 outline-none transition hover:bg-accent focus:bg-paper focus:ring-1 focus:ring-ring"
+      />
+    </span>
   );
 }
