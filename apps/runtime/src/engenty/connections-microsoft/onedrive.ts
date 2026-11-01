@@ -357,5 +357,8 @@ export const microsoftOneDriveConnector: ConnectorDefinition = defineConnector({
   id: "microsoft-onedrive",
   moduleId: "connections-microsoft",
   name: "Microsoft OneDrive",
+  request: {
+    origins: () => ["https://graph.microsoft.com"],
+  },
   toolPrefix: "onedrive",
 });

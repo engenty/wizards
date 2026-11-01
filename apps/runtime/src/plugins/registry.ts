@@ -6,6 +6,7 @@ import type {
   PluginAssistantTool,
   PluginEvents,
   PluginKnowledgeSource,
+  PluginMountKind,
   PluginPublicRoute,
   PluginRoute,
   PluginRunner,
@@ -73,6 +74,8 @@ export interface LoadedPlugin {
   jobs: Map<string, PluginJob>;
   /** Kinds of sources of Knowledge, by kind: `website`. */
   knowledgeSources: Map<string, PluginKnowledgeSource>;
+  /** Kinds of mounts of Dateien, by kind: `s3`. */
+  mountKinds: Map<string, PluginMountKind>;
   /** Wizards it brings as templates, by their id within the plugin. */
   starters: Map<string, PluginStarter>;
   listeners: { [E in keyof PluginEvents]?: Listener<E>[] };
@@ -105,6 +108,7 @@ export function emptyRecord(source: PluginSource): LoadedPlugin {
     runners: new Map(),
     jobs: new Map(),
     knowledgeSources: new Map(),
+    mountKinds: new Map(),
     starters: new Map(),
     listeners: {},
     migrations: [],

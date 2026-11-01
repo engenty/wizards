@@ -1,10 +1,15 @@
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import type { z } from "zod";
 
+import type { PluginMountKind, PluginMounts } from "./mount.js";
+
 export type {
+  PluginMount,
   PluginMountChanges,
   PluginMountEntry,
+  PluginMountKind,
   PluginMountReader,
+  PluginMounts,
 } from "./mount.js";
 
 /**
@@ -824,6 +829,11 @@ export interface PluginConnections {
     space: string;
     connector: string;
     actions: string[];
+    /**
+     * Rights at the provider beyond what the actions need, for `request`: Drive's `drive` to
+     * write a mounted folder, Microsoft's `Files.Read.All` to read a SharePoint library.
+     */
+    scopes?: string[];
     lang?: "de" | "en";
   }): Promise<{ url: string }>;
   /**
@@ -852,6 +862,27 @@ export interface PluginConnections {
     action: string,
     input: Record<string, unknown>,
   ): Promise<T>;
+  /**
+   * Sends a request of the plugin's own to the connector's service as the connection's account:
+   * signed in (a bearer token, renewed where it ran out) or signed with its keys (a bucket's).
+   * Only to the service's own addresses (a bucket's: the endpoint its keys name), and only for a
+   * connector that takes requests (Google Drive, OneDrive, S3). The local network is reached on a
+   * local install only, as `connect` checks keys there. `kind` says what it does there, for the
+   * connection's rules and its log. The answer comes back as it is, whatever its status.
+   */
+  request(
+    connectionId: string,
+    request: {
+      url: string;
+      method?: string;
+      headers?: Record<string, string>;
+      body?: Uint8Array | string;
+      kind?: "read" | "write" | "destructive";
+      signal?: AbortSignal;
+    },
+  ): Promise<Response>;
+  /** The rights the provider granted the connection: what `start` asked for, as it answered. */
+  scopes(connectionId: string): Promise<string[]>;
   /** Forgets the connection and its tokens. */
   remove(connectionId: string): Promise<void>;
 }
@@ -1232,6 +1263,13 @@ export interface PluginServerApi {
   registerKnowledgeSource(source: PluginKnowledgeSource): void;
   /** The sources of the plugin's kinds. */
   knowledgeSources: PluginKnowledgeSources;
+  /**
+   * A kind of mount of Dateien: a bucket, a drive's folder. Its mounts show in Dateien, are
+   * indexed where they live and found by the space's search. Behind the `dateien` switch.
+   */
+  registerMountKind(kind: PluginMountKind): void;
+  /** The mounts of the plugin's kinds. */
+  mounts: PluginMounts;
   spaces: {
     /** The space's brand, of the current tenant; null for a space it does not have. */
     brand(space: string): Promise<PluginBrand | null>;

@@ -346,6 +346,14 @@ export interface ConnectorStorageCapability {
   ): Promise<ConnectorFileEntry>;
 }
 
+/** Requests of a plugin's own, sent as a connection's account. */
+export interface ConnectorRequestCapability {
+  /** The origins a request may go to (`https://www.googleapis.com`), for this account. */
+  origins(ctx: ConnectorActionContext): string[];
+  /** The request signed as the account. Default: `Authorization: Bearer <access token>`. */
+  sign?(ctx: ConnectorActionContext, request: Request): Promise<Request>;
+}
+
 export interface ConnectorDefinition {
   /** All actions, each projected as module operation `<toolPrefix>_<action.id>`. */
   actions: ConnectorAction[];
@@ -362,6 +370,11 @@ export interface ConnectorDefinition {
   /** Owning module id (e.g. `connections-google`). */
   moduleId: string;
   name: string;
+  /**
+   * Requests a plugin sends through a connection of this connector (`connections.request`):
+   * the addresses they may go to, and how the account signs one. Absent: it takes none.
+   */
+  request?: ConnectorRequestCapability;
   /** Write file access; synthesizes `files_write`/`files_delete`/`files_move`. */
   storage?: ConnectorStorageCapability;
   /** Provider scopes requested for the synthesized storage write actions. */

@@ -180,6 +180,61 @@ describe("plugin connections", () => {
     expect(await inTenant(() => connections.pluginConnections("other").list(space))).toEqual([]);
   });
 
+  it("sends a plugin's own request as the account, to the service's addresses only", async () => {
+    const drive = () => connections.pluginConnections("sources");
+    const { url } = await inTenant(() =>
+      drive().start({
+        space,
+        connector: "google-drive",
+        actions: ["search_files"],
+        scopes: ["https://www.googleapis.com/auth/drive"],
+      }),
+    );
+    expect(new URL(url).searchParams.get("scope")?.split(" ")).toContain(
+      "https://www.googleapis.com/auth/drive",
+    );
+    const seen: { url: string; auth: string | null }[] = [];
+    globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const target = String(input instanceof Request ? input.url : input);
+      if (target.includes("oauth2.googleapis.com/token")) {
+        return Response.json({
+          access_token: "drive-at",
+          refresh_token: "rt",
+          expires_in: 3600,
+          scope: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive",
+        });
+      }
+      if (target.includes("/userinfo")) {
+        return Response.json({ email: "matthias@example.at" });
+      }
+      seen.push({ url: target, auth: new Headers(init?.headers).get("authorization") });
+      return Response.json({ files: [] });
+    }) as typeof fetch;
+    const state = new URL(url).searchParams.get("state") ?? "";
+    await app.fetch(
+      new Request(`http://localhost:5181/api/connect/callback?code=d&state=${encodeURIComponent(state)}`),
+    );
+    const [made] = await inTenant(() => drive().list(space));
+    expect(await inTenant(() => drive().scopes(made.id))).toContain(
+      "https://www.googleapis.com/auth/drive",
+    );
+    const res = await inTenant(() =>
+      drive().request(made.id, { url: "https://www.googleapis.com/drive/v3/files?q=x" }),
+    );
+    expect(await res.json()).toEqual({ files: [] });
+    expect(seen).toEqual([
+      { url: "https://www.googleapis.com/drive/v3/files?q=x", auth: "Bearer drive-at" },
+    ]);
+    await expect(
+      inTenant(() => drive().request(made.id, { url: "https://example.com/steal" })),
+    ).rejects.toThrow(/takes no requests to https:\/\/example.com/);
+    // A connector that takes none.
+    const [calendar] = await inTenant(() => cal().list(space));
+    await expect(
+      inTenant(() => cal().request(calendar.id, { url: "https://www.googleapis.com/x" })),
+    ).rejects.toThrow(/takes no requests of a plugin/);
+  });
+
   it("refuses an action the connection was not made for, and forgets it", async () => {
     const [found] = await inTenant(() => cal().list(space));
     await expect(inTenant(() => cal().call(found.id, "delete_event", { event_id: "x" }))).rejects.toThrow(

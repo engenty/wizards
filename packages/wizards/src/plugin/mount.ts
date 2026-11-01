@@ -30,6 +30,11 @@ export interface PluginMountChanges {
   changed: PluginMountEntry[];
   /** Paths gone; a folder's path stands for everything under it. */
   gone: string[];
+  /**
+   * Files gone by the source's own id (`PluginMountEntry.id`), where the source tells only that:
+   * a file deleted on a drive, or moved out of the mounted folder.
+   */
+  goneIds?: string[];
   /** What to ask from next time. */
   cursor: string;
   /** The source can't say what changed since that cursor: the runtime lists the whole tree. */
@@ -41,10 +46,10 @@ export interface PluginMountReader {
   list(path?: string, opts?: { signal?: AbortSignal }): AsyncIterable<PluginMountEntry>;
   /** What changed since `cursor`. Null asks where to start: no changes, and the cursor. */
   changes(cursor: string | null): Promise<PluginMountChanges>;
-  /** The file's bytes. */
-  read(path: string, opts?: { signal?: AbortSignal }): Promise<Uint8Array>;
+  /** The file's bytes. `id`: the source's id of it, where the runtime knows it from the listing. */
+  read(path: string, opts?: { signal?: AbortSignal; id?: string }): Promise<Uint8Array>;
   /** The file as it is now, or null where there is none. */
-  stat(path: string): Promise<PluginMountEntry | null>;
+  stat(path: string, opts?: { id?: string }): Promise<PluginMountEntry | null>;
   /**
    * Writes the file, where the mount allows writing. `expected` is the entry it was read as:
    * changed at the source since, the write is refused with an error whose `code` is `conflict`.
@@ -62,4 +67,54 @@ export interface PluginMountReader {
   watch?(changed: () => void): () => void;
   /** Lets go of what it holds: a watcher, a connection. */
   close?(): void;
+}
+
+/** A mount of a plugin's kind, as its reader is opened for it. */
+export interface PluginMount {
+  id: string;
+  space: string;
+  name: string;
+  /** What the kind's `prepare` kept: a connection, a bucket, a folder's id. */
+  source: Record<string, unknown>;
+}
+
+/**
+ * A kind of mount a plugin brings (`registerMountKind`): a bucket, a drive's folder. The studio
+ * half registers the same `kind` with its label and the form that connects the account and
+ * picks the folder. Its mounts are listed, indexed, searched and opened as the computer's folders
+ * are; everything they read goes through the kind's reader.
+ */
+export interface PluginMountKind {
+  /** Lower case, digits and `-`, unique on the runtime: `s3`. */
+  kind: string;
+  /**
+   * What the studio's form gave, checked before the mount is made: the source to keep (no
+   * secret in plain text: seal it), the mount's name, and where it lives, in one line for the
+   * studio (`s3://fotos/produkte/`). Throws, with the reason as its message, where it can't be
+   * reached.
+   */
+  prepare(input: {
+    space: string;
+    source: Record<string, unknown>;
+  }): Promise<{ source: Record<string, unknown>; name: string; where: string }>;
+  /** The reader of a mount of this kind. */
+  open(mount: PluginMount): PluginMountReader;
+  /**
+   * How often the runtime asks `changes` where the reader can't `watch`, in hours. Default 1.
+   * A kind whose `changes` lists everything again (a bucket) asks less often.
+   */
+  everyHours?: number;
+  /**
+   * Whether the mount's account may write where it is mounted. False: the studio connects it
+   * again, with the rights to write, before writing is turned on.
+   */
+  canWrite?(mount: PluginMount): Promise<boolean>;
+}
+
+/** The mounts of the plugin's kinds, for its own routes and jobs. */
+export interface PluginMounts {
+  /** The mounts of the plugin's kinds, of one space or of every space. */
+  list(space?: string): Promise<(PluginMount & { kind: string })[]>;
+  /** The source told of a change (a signal address, a webhook): the runtime asks `changes` now. */
+  changed(id: string): Promise<void>;
 }

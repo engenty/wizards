@@ -19,10 +19,12 @@ import {
   deleteMount,
   listMounts,
   mountAccess,
+  mountCanWrite,
   mountFileContent,
   mountFiles,
   mountFileThumb,
   mountFileView,
+  mountRow,
   mountView,
   pickFolder,
   previewFolder,
@@ -36,9 +38,10 @@ import { spaceFileResponse } from "./delivery.js";
 
 /**
  * Dateien for the studio (docs/plans/media-and-files.md, section 3), under `/api/studio`: a
- * space's mounts, their files, opening one, mounting a folder of this computer; a file's draft
- * and „Veröffentlichen“ (mounts/drafts.ts). Every service answers "not found" while the `dateien`
- * switch is off and on a runtime in the cloud.
+ * space's mounts, their files, opening one, mounting a folder of this computer or a plugin's
+ * source; a file's draft and „Veröffentlichen“ (mounts/drafts.ts). Every service answers "not
+ * found" while the `dateien` switch is off; a folder of this computer is not found on a runtime
+ * in the cloud.
  */
 
 type Vars = { Variables: { user: SessionUser } };
@@ -75,7 +78,9 @@ export const dateienRoutes = new Hono<Vars>()
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const body = z
       .object({
-        path: z.string().min(1).max(1000),
+        path: z.string().min(1).max(1000).optional(),
+        kind: z.string().max(24).optional(),
+        source: z.record(z.string(), z.unknown()).optional(),
         name: z.string().max(120).optional(),
         folderCategory: z.string().max(60).nullable().optional(),
         writable: z.boolean().optional(),
@@ -86,8 +91,14 @@ export const dateienRoutes = new Hono<Vars>()
   })
   .get("/spaces/:id/mounts/:mountId", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
-    const mount = await mountView(space.id, c.req.param("mountId"), whoOf(c));
-    return c.json({ ...mount, ...(await mountAccess(space.id, mount.id)) });
+    const row = await mountRow(space.id, c.req.param("mountId"), whoOf(c));
+    const mount = await mountView(space.id, row.id, whoOf(c));
+    return c.json({
+      ...mount,
+      ...(await mountAccess(space.id, mount.id)),
+      canWrite: await mountCanWrite(row),
+      ...(row.kind === "folder" ? {} : { source: row.source }),
+    });
   })
   .patch("/spaces/:id/mounts/:mountId", async (c) => {
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));

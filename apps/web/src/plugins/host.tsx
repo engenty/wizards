@@ -2,6 +2,7 @@ import type {
   StudioAssistantCard,
   StudioAssistantProps,
   StudioKnowledgeSource,
+  StudioMountKind,
   StudioNavEntry,
   StudioPage,
   StudioPlugin,
@@ -112,6 +113,7 @@ export interface StudioPlugins extends Listing {
   shareSetups: Of<StudioShareSetup>[];
   cards: Of<StudioAssistantCard>[];
   knowledgeSources: Of<StudioKnowledgeSource>[];
+  mountKinds: Of<StudioMountKind>[];
 }
 
 let state: StudioPlugins = {
@@ -130,6 +132,7 @@ let state: StudioPlugins = {
   shareSetups: [],
   cards: [],
   knowledgeSources: [],
+  mountKinds: [],
 };
 const listeners = new Set<() => void>();
 
@@ -178,6 +181,7 @@ interface Draft {
   shareSetups: Of<StudioShareSetup>[];
   cards: Of<StudioAssistantCard>[];
   knowledgeSources: Of<StudioKnowledgeSource>[];
+  mountKinds: Of<StudioMountKind>[];
   disposers: (() => void)[];
 }
 
@@ -311,6 +315,15 @@ function contextFor(plugin: PluginInfo, draft: Draft): StudioPluginContext {
       }
       draft.knowledgeSources.push({ ...source, plugin: id, serial: ++serials });
     },
+    registerMountKind(kind) {
+      const taken = [...others(state.mountKinds), ...draft.mountKinds].some(
+        (k) => k.kind === kind.kind,
+      );
+      if (taken || kind.kind === "folder") {
+        throw new Error(`The mount kind "${kind.kind}" is taken.`);
+      }
+      draft.mountKinds.push({ ...kind, plugin: id, serial: ++serials });
+    },
     useSpace,
     useSpaceMenu,
     useCrumbs,
@@ -405,6 +418,7 @@ function unmount(id: string) {
     shareSetups: state.shareSetups.filter((s) => s.plugin !== id),
     cards: state.cards.filter((c) => c.plugin !== id),
     knowledgeSources: state.knowledgeSources.filter((s) => s.plugin !== id),
+    mountKinds: state.mountKinds.filter((k) => k.plugin !== id),
   });
 }
 
@@ -424,6 +438,7 @@ async function mount(plugin: PluginInfo) {
     shareSetups: [],
     cards: [],
     knowledgeSources: [],
+    mountKinds: [],
     disposers: [],
   };
   let link: HTMLLinkElement | null = null;
@@ -468,6 +483,7 @@ async function mount(plugin: PluginInfo) {
       ...state.knowledgeSources.filter((s) => s.plugin !== id),
       ...draft.knowledgeSources,
     ],
+    mountKinds: [...state.mountKinds.filter((k) => k.plugin !== id), ...draft.mountKinds],
   });
   release(id, was?.disposers ?? [], was?.link ?? null);
 }

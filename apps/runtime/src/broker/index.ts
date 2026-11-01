@@ -2,7 +2,7 @@
  * The broker: the one path every connector call takes (docs/plans/broker.md). Tools, share
  * targets, plugins and the run's browser import from here; `account.ts` stays the broker's own.
  */
-export type { Account } from "./account.js";
+export { type Account, grantedScopes } from "./account.js";
 export {
   type ActionKind,
   type BrokerAction,

@@ -382,5 +382,8 @@ export const driveConnector: ConnectorDefinition = defineConnector({
   id: "google-drive",
   moduleId: "connections-google",
   name: "Google Drive",
+  request: {
+    origins: () => ["https://www.googleapis.com"],
+  },
   toolPrefix: "gdrive",
 });

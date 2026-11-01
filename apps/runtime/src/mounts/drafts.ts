@@ -51,14 +51,15 @@ function textOf(data: Uint8Array): string | null {
 }
 
 /** The file as it stands at the source: its entry, bytes and hash, read without a change between. */
-async function current(reader: PluginMountReader, path: string) {
+async function current(reader: PluginMountReader, path: string, id?: string | null) {
+  const opts = id ? { id } : {};
   for (let i = 0; i < 3; i++) {
-    const before = await reader.stat(path);
+    const before = await reader.stat(path, opts);
     if (!before) {
       throw new ServiceError("not_found", `"${path}" is not in the folder any more.`);
     }
-    const data = await reader.read(path);
-    const after = await reader.stat(path);
+    const data = await reader.read(path, opts);
+    const after = await reader.stat(path, opts);
     if (after && after.size === before.size && after.modified === before.modified) {
       const base: Base = {
         size: after.size,
@@ -141,7 +142,7 @@ export async function openDraft(
     return viewOf(draft);
   }
   const text = editsAsText(file);
-  const now = text ? await current(readerOf(mount), file.path) : null;
+  const now = text ? await current(await readerOf(mount), file.path, file.sourceId) : null;
   const words = now ? textOf(now.data) : null;
   if (now && words !== null) {
     return {
@@ -155,7 +156,10 @@ export async function openDraft(
       updatedBy: null,
     };
   }
-  const stat = await readerOf(mount).stat(file.path);
+  const stat = await (await readerOf(mount)).stat(
+    file.path,
+    file.sourceId ? { id: file.sourceId } : {},
+  );
   return {
     edit: "replace",
     draft: false,
@@ -232,7 +236,7 @@ export async function replaceDraft(
 ): Promise<DraftView> {
   const { mount, file } = await writableFile(spaceId, fileId, who);
   const old = await draftOf(file.id);
-  const { base } = old?.blob ? old : await current(readerOf(mount), file.path);
+  const { base } = old?.blob ? old : await current(await readerOf(mount), file.path, file.sourceId);
   const blob = await putBlob(data);
   const d = schema.spaceMountDraft;
   if (old) {
@@ -292,7 +296,8 @@ const isConflict = (err: unknown) => (err as { code?: string })?.code === "confl
  * is merged with it and written when clean; else the draft keeps what stands there now.
  */
 async function publish(mount: MountRow, file: FileRow, draft: DraftRow): Promise<PublishResult> {
-  const reader = readerOf(mount);
+  const reader = await readerOf(mount);
+  const id = file.sourceId ? { id: file.sourceId } : {};
   const d = schema.spaceMountDraft;
   let row = draft;
   let merged = false;
@@ -303,13 +308,14 @@ async function publish(mount: MountRow, file: FileRow, draft: DraftRow): Promise
       size: row.base.size,
       modified: row.base.modified,
       version: row.base.version,
+      ...id,
     };
     let entry: PluginMountEntry | null = null;
     // A source without versions (a folder) is checked by the bytes as well: its time and size
     // can stay the same through a change.
     const stale =
       row.base.version === null &&
-      sha256(await reader.read(file.path).catch(() => new Uint8Array())) !== row.base.hash;
+      sha256(await reader.read(file.path, id).catch(() => new Uint8Array())) !== row.base.hash;
     if (!stale) {
       try {
         entry = await reader.write(file.path, data, expected);
@@ -324,7 +330,7 @@ async function publish(mount: MountRow, file: FileRow, draft: DraftRow): Promise
       await writtenAtSource(file.id, entry);
       return { ok: true, merged };
     }
-    const now = await current(reader, file.path);
+    const now = await current(reader, file.path, file.sourceId);
     const theirs = row.blob ? null : textOf(now.data);
     if (row.text !== null && row.baseText !== null && theirs !== null) {
       const merge = mergeText(row.baseText, row.text, theirs);

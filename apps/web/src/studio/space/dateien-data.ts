@@ -10,7 +10,9 @@ export interface Mount {
   id: string;
   name: string;
   slug: string;
-  kind: "folder";
+  /** `folder` on this computer, else a kind a plugin brings (`s3`). */
+  kind: string;
+  plugin: string | null;
   where: string;
   status: "scanning" | "ready" | "away";
   error: string | null;
@@ -115,9 +117,16 @@ export function useMountAccess(spaceId: string, mountId: string | null) {
   return useQuery({
     queryKey: [...mountsKey(spaceId), mountId, "access"],
     queryFn: () =>
-      api.get<Mount & { see: MountSee; wizards: MountWizards }>(
-        `${base(spaceId)}/mounts/${mountId}`,
-      ),
+      api.get<
+        Mount & {
+          see: MountSee;
+          wizards: MountWizards;
+          /** Whether its account may write there now; a plugin's kind asks for the rights first. */
+          canWrite: boolean;
+          /** What a plugin's kind keeps, for its studio half; none for a folder. */
+          source?: Record<string, unknown>;
+        }
+      >(`${base(spaceId)}/mounts/${mountId}`),
     enabled: Boolean(mountId),
   });
 }
@@ -135,11 +144,14 @@ export function useMountActions(spaceId: string) {
       ),
     preview: (path: string) => api.post<FolderPreview>(`${base(spaceId)}/mounts/preview`, { path }),
     create: async (input: {
-      path: string;
+      path?: string;
+      kind?: string;
+      source?: Record<string, unknown>;
+      name?: string;
       see: MountSee;
       wizards: MountWizards;
-      folderCategory: string | null;
-      writable: boolean;
+      folderCategory?: string | null;
+      writable?: boolean;
     }) => {
       const mount = await api.post<Mount>(`${base(spaceId)}/mounts`, input);
       await refresh();

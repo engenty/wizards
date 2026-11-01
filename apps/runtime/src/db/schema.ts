@@ -603,6 +603,9 @@ export const spaceChunk = sqliteTable(
 // categories and an index without its text; its bytes stay where they are.
 
 /** A mount: a file tree of a source, shown in the space as Dateien › <name>. */
+/** A mount's source: a folder's `path`, or what a plugin's kind keeps (a connection, a bucket). */
+export type MountSource = { path: string } | Record<string, unknown>;
+
 export const spaceMount = sqliteTable(
   "space_mount",
   {
@@ -614,10 +617,16 @@ export const spaceMount = sqliteTable(
     name: text("name").notNull(),
     /** Its name in a wizard's path (`dateien/<slug>/…`), unique in the space. */
     slug: text("slug").notNull(),
-    /** Where it lives: a folder on this computer. */
-    kind: text("kind", { enum: ["folder"] }).notNull(),
-    /** What the kind needs to reach it: the folder's path. */
-    source: text("source", { mode: "json" }).$type<{ path: string }>().notNull(),
+    /** Where it lives: `folder` on this computer, else a kind of the plugin (`s3`). */
+    kind: text("kind").notNull(),
+    /** The plugin that brings the kind; null for a folder of this computer. */
+    plugin: text("plugin"),
+    /** What the kind needs to reach it: a folder's `path`, or what the plugin's kind kept. */
+    source: text("source", { mode: "json" }).$type<MountSource>().notNull(),
+    /** Where it lives, in one line for the studio: a path, `s3://bucket/prefix/`. */
+    location: text("location"),
+    /** Where the source's changes go on from, as its reader said it last. */
+    cursor: text("cursor"),
     /** `scanning` while it is listed and read, `away` while its source can't be reached. */
     status: text("status", { enum: ["scanning", "ready", "away"] })
       .notNull()
@@ -659,6 +668,8 @@ export const spaceMountFile = sqliteTable(
       .references(() => space.id, { onDelete: "cascade" }),
     /** Its path in the mount, with `/`: `Kunden/A1/angebot.pdf`. */
     path: text("path").notNull(),
+    /** The source's own id of it, where it keeps one across a move (a drive's): the row follows it. */
+    sourceId: text("source_id"),
     name: text("name").notNull(),
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
@@ -680,6 +691,7 @@ export const spaceMountFile = sqliteTable(
   (t) => [
     uniqueIndex("space_mount_file_path").on(t.mountId, t.path),
     index("space_mount_file_hash").on(t.mountId, t.hash),
+    index("space_mount_file_source").on(t.mountId, t.sourceId),
     index("space_mount_file_status").on(t.mountId, t.status),
   ],
 );
