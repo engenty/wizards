@@ -17,6 +17,7 @@ import {
   PenLine,
   RefreshCw,
   Settings2,
+  X,
 } from "lucide-react";
 import { Fragment, lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -1158,7 +1159,7 @@ function MountDialog({
   // A folder of this computer on a local install; every kind a plugin brings.
   const choices = [...(local ? ["folder"] : []), ...kinds.map((k) => k.kind)];
   const [kind, setKind] = useState<string | null>(null);
-  const chosenKind = kind ?? (choices.length === 1 ? choices[0] : null);
+  const chosenKind = kind ?? choices[0] ?? null;
   const plugin = kinds.find((k) => k.kind === chosenKind);
   const [chosen, setChosen] = useState<{ source: Record<string, unknown>; name: string } | null>(
     null,
@@ -1234,263 +1235,286 @@ function MountDialog({
       }
     });
   const values = found?.first.map((f) => f.name) ?? [];
-  const back = choices.length > 1 ? () => setKind(null) : onClose;
+  // Another kind picked on the left starts its steps anew.
+  const pickKind = (next: string) => {
+    setKind(next);
+    setChosen(null);
+    setReady(false);
+    setFound(null);
+    setError(null);
+    setNoDialog(false);
+  };
   const mount = (input: Parameters<typeof actions.create>[0]) =>
     run(async () => {
       const made = await actions.create(input);
       onMounted(made.id);
     });
-  if (!chosenKind || plugin) {
-    return (
-      <Dialog open={open} onClose={onClose} title={plugin ? plugin.label() : t("dateien.mount")}>
-        {!chosenKind ? (
-          <div className="flex flex-col gap-1">
-            {choices.map((c) => {
-              const k = kinds.find((x) => x.kind === c);
-              const Mark = k?.icon ?? Laptop;
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setKind(c)}
-                  className="flex items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-accent"
-                >
-                  <Mark className="size-5 shrink-0 text-ink-3" />
-                  <span className="flex min-w-0 flex-col">
-                    <span className="font-medium text-[0.9375rem]">
-                      {k ? k.label() : t("dateien.kindFolder")}
-                    </span>
-                    <span className="truncate text-[0.8125rem] text-ink-3">
-                      {k ? k.hint?.() : t("dateien.kindFolderHint")}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-            {!choices.length ? (
-              <p className="text-[0.875rem] text-ink-3">{t("dateien.noKinds")}</p>
-            ) : null}
-          </div>
-        ) : plugin && !ready ? (
-          <div className="flex flex-col gap-4">
-            <plugin.form
-              space={spaceId}
-              onChange={(c) => {
-                setChosen(c);
-                if (c) {
-                  setName(c.name);
-                }
-              }}
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={back}>
-                {choices.length > 1 ? t("common.back") : t("common.cancel")}
-              </Button>
-              <Button disabled={!chosen} onClick={() => setReady(true)}>
-                {t("dateien.next")}
-              </Button>
-            </div>
-          </div>
-        ) : plugin && chosen ? (
-          <div className="flex flex-col gap-4">
-            <div className="-mt-2 flex flex-col gap-1 text-[0.875rem] text-ink-2">
-              <span>{t("dateien.readsOnce")}</span>
-              <span>{t("dateien.keepsNoText")}</span>
-            </div>
-            <div>
-              <Label>{t("know.name")}</Label>
-              <Input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <AccessFields
-              spaceId={spaceId}
-              see={see}
-              wizards={wizards}
-              onSee={setSee}
-              onWizards={setWizards}
-            />
-            <WritableField checked={writable} onChange={setWritable} />
-            {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setReady(false)}>
-                {t("common.back")}
-              </Button>
-              <Button
-                busy={busy}
-                onClick={() =>
-                  void run(async () => {
-                    // Writing asks the account for the rights to write first.
-                    if (
-                      writable &&
-                      plugin.allowWrite &&
-                      !(await plugin.allowWrite({ space: spaceId, source: chosen.source }))
-                    ) {
-                      throw new Error(t("dateien.writeNotAllowed"));
-                    }
-                    const made = await actions.create({
-                      kind: plugin.kind,
-                      source: chosen.source,
-                      name: name.trim() || chosen.name,
-                      see,
-                      wizards,
-                      writable,
-                    });
-                    onMounted(made.id);
-                  })
-                }
-              >
-                {t("dateien.mountButton")}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </Dialog>
-    );
-  }
+  const kindOf = (c: string) => kinds.find((x) => x.kind === c);
+  const kindLabel = (c: string) => kindOf(c)?.label() ?? t("dateien.kindFolder");
+  const hint = found
+    ? found.complete
+      ? t("dateien.found", {
+          files: found.files.toLocaleString(lang),
+          folders: found.folders.toLocaleString(lang),
+          size: formatBytes(found.bytes),
+        })
+      : t("dateien.foundAtLeast", { files: found.files.toLocaleString(lang) })
+    : plugin
+      ? (plugin.hint?.() ?? "")
+      : t("dateien.chooseText");
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={
-        found
-          ? found.complete
-            ? t("dateien.found", {
-                files: found.files.toLocaleString(lang),
-                folders: found.folders.toLocaleString(lang),
-                size: formatBytes(found.bytes),
-              })
-            : t("dateien.foundAtLeast", { files: found.files.toLocaleString(lang) })
-          : t("dateien.mount")
-      }
-    >
-      {!found ? (
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (path.trim()) {
-              void review(path.trim());
-            }
-          }}
-        >
-          <p className="-mt-2 text-[0.875rem] text-ink-2">{t("dateien.chooseText")}</p>
-          <div className="relative flex gap-2">
-            <Input
-              data-autofocus
-              value={path}
-              placeholder="~/Kunden"
-              aria-label={t("dateien.path")}
-              onChange={(e) => setPath(e.target.value)}
-              className="flex-1"
-            />
-            <Button type="button" variant="ghost" busy={busy} onClick={() => void choose()}>
-              {t("dateien.choose")}
-            </Button>
-            {suggest.length ? (
-              <ul className="absolute top-full right-0 left-0 z-10 mt-1 max-h-48 overflow-y-auto rounded-lg bg-card p-1 shadow-soft ring-1 ring-border-soft">
-                {suggest.map((s) => (
-                  <li key={s}>
-                    <button
-                      type="button"
-                      onClick={() => setPath(`${s}/`)}
-                      className="w-full truncate rounded-md px-2 py-1 text-left text-[0.8125rem] hover:bg-accent"
-                    >
-                      {s}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-          {noDialog ? <p className="text-[0.8125rem] text-ink-3">{t("dateien.noDialog")}</p> : null}
-          <p className="text-[0.8125rem] text-ink-3">{t("dateien.chooseNote")}</p>
-          {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={back}>
-              {choices.length > 1 ? t("common.back") : t("common.cancel")}
-            </Button>
-            <Button type="submit" busy={busy} disabled={!path.trim()}>
-              {t("dateien.next")}
-            </Button>
-          </div>
-        </form>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <div className="-mt-2 flex flex-col gap-1 text-[0.875rem] text-ink-2">
-            <span className="truncate text-ink-3">{found.path}</span>
-            <span>{t("dateien.readsOnce")}</span>
-            <span>{t("dateien.keepsNoText")}</span>
-          </div>
-          {found.first.length ? (
-            <ul className="flex max-h-44 flex-col overflow-y-auto rounded-lg bg-paper-2 p-1.5">
-              {found.first.map((f) => (
-                <li key={f.name} className="flex items-center gap-2 px-1.5 py-1 text-[0.8125rem]">
-                  <Folder className="size-3.5 shrink-0 text-ink-3" />
-                  <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                  <span className="text-ink-3 tabular-nums">{f.files}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {found.leftOut ? (
-            <p className="text-[0.8125rem] text-ink-3">
-              {t("dateien.leftOut", { count: found.leftOut })}
-            </p>
-          ) : null}
-          {values.length ? (
-            <div className="flex flex-col gap-2 rounded-lg p-3 ring-1 ring-border-soft">
-              <label className="flex items-center justify-between gap-3 text-[0.875rem]">
-                <span className="font-medium">{t("dateien.byFolder")}</span>
-                <Switch checked={byFolder} onChange={setByFolder} />
-              </label>
-              {byFolder ? (
-                <>
-                  <Input
-                    value={category}
-                    maxLength={60}
-                    aria-label={t("dateien.categoryName")}
-                    onChange={(e) => setCategory(e.target.value)}
-                  />
-                  <span className="text-[0.8125rem] text-ink-3">
-                    {t("dateien.byFolderHint", {
-                      name: category,
-                      values: values.slice(0, 4).join(", ") + (values.length > 4 ? " …" : ""),
-                    })}
-                  </span>
-                </>
-              ) : null}
+    // As „Hinzufügen“ in Wissen: the kinds on the left, the picked one's steps on the right.
+    <Dialog open={open} onClose={onClose} bare wide="page">
+      <div className="mx-auto flex h-[min(36rem,calc(100dvh-32px))] w-full overflow-hidden rounded-2xl bg-card shadow-overlay max-sm:h-dvh max-sm:flex-col max-sm:rounded-none">
+        <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-border-soft border-r bg-paper-2/60 p-2 max-sm:w-full max-sm:flex-row max-sm:overflow-x-auto max-sm:border-r-0 max-sm:border-b">
+          <p className="px-2 pb-1 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em] max-sm:hidden">
+            {t("dateien.mount")}
+          </p>
+          {choices.map((c) => {
+            const Mark = kindOf(c)?.icon ?? Laptop;
+            return (
+              <button
+                key={c}
+                type="button"
+                aria-current={c === chosenKind ? "true" : undefined}
+                onClick={() => pickKind(c)}
+                className={cn(
+                  "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-[0.8125rem] transition max-sm:w-auto",
+                  c === chosenKind
+                    ? "bg-card font-medium text-ink shadow-soft"
+                    : "text-ink-2 hover:bg-accent",
+                )}
+              >
+                <Mark className="size-4 shrink-0 text-ink-3" />
+                <span className="truncate">{kindLabel(c)}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-start justify-between gap-3 px-6 pt-5">
+            <div className="min-w-0">
+              <h2 className="font-display font-semibold text-lg">
+                {chosenKind ? kindLabel(chosenKind) : t("dateien.mount")}
+              </h2>
+              {hint ? <p className="mt-1 text-[0.8125rem] text-ink-3">{hint}</p> : null}
             </div>
-          ) : null}
-          <AccessFields
-            spaceId={spaceId}
-            see={see}
-            wizards={wizards}
-            onSee={setSee}
-            onWizards={setWizards}
-          />
-          <WritableField checked={writable} onChange={setWritable} />
-          {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setFound(null)}>
-              {t("common.back")}
-            </Button>
-            <Button
-              busy={busy}
-              onClick={() =>
-                void mount({
-                  path: found.path,
-                  see,
-                  wizards,
-                  writable,
-                  folderCategory:
-                    byFolder && values.length && category.trim() ? category.trim() : null,
-                })
-              }
-            >
-              {t("dateien.mountButton")}
-            </Button>
+            <IconButton label={t("common.close")} onClick={onClose} className="-mt-1 -mr-2 size-8">
+              <X className="size-4" />
+            </IconButton>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-4 pb-6">
+            {!chosenKind ? (
+              <p className="text-[0.875rem] text-ink-3">{t("dateien.noKinds")}</p>
+            ) : plugin ? (
+              plugin && !ready ? (
+                <div className="flex flex-col gap-4">
+                  <plugin.form
+                    space={spaceId}
+                    onChange={(c) => {
+                      setChosen(c);
+                      if (c) {
+                        setName(c.name);
+                      }
+                    }}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" onClick={onClose}>
+                      {t("common.cancel")}
+                    </Button>
+                    <Button disabled={!chosen} onClick={() => setReady(true)}>
+                      {t("dateien.next")}
+                    </Button>
+                  </div>
+                </div>
+              ) : plugin && chosen ? (
+                <div className="flex flex-col gap-4">
+                  <div className="-mt-2 flex flex-col gap-1 text-[0.875rem] text-ink-2">
+                    <span>{t("dateien.readsOnce")}</span>
+                    <span>{t("dateien.keepsNoText")}</span>
+                  </div>
+                  <div>
+                    <Label>{t("know.name")}</Label>
+                    <Input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
+                  </div>
+                  <AccessFields
+                    spaceId={spaceId}
+                    see={see}
+                    wizards={wizards}
+                    onSee={setSee}
+                    onWizards={setWizards}
+                  />
+                  <WritableField checked={writable} onChange={setWritable} />
+                  {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" onClick={() => setReady(false)}>
+                      {t("common.back")}
+                    </Button>
+                    <Button
+                      busy={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          // Writing asks the account for the rights to write first.
+                          if (
+                            writable &&
+                            plugin.allowWrite &&
+                            !(await plugin.allowWrite({ space: spaceId, source: chosen.source }))
+                          ) {
+                            throw new Error(t("dateien.writeNotAllowed"));
+                          }
+                          const made = await actions.create({
+                            kind: plugin.kind,
+                            source: chosen.source,
+                            name: name.trim() || chosen.name,
+                            see,
+                            wizards,
+                            writable,
+                          });
+                          onMounted(made.id);
+                        })
+                      }
+                    >
+                      {t("dateien.mountButton")}
+                    </Button>
+                  </div>
+                </div>
+              ) : null
+            ) : !found ? (
+              <form
+                className="flex flex-col gap-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (path.trim()) {
+                    void review(path.trim());
+                  }
+                }}
+              >
+                <div className="relative flex gap-2">
+                  <Input
+                    data-autofocus
+                    value={path}
+                    placeholder="~/Kunden"
+                    aria-label={t("dateien.path")}
+                    onChange={(e) => setPath(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button type="button" variant="ghost" busy={busy} onClick={() => void choose()}>
+                    {t("dateien.choose")}
+                  </Button>
+                  {suggest.length ? (
+                    <ul className="absolute top-full right-0 left-0 z-10 mt-1 max-h-48 overflow-y-auto rounded-lg bg-card p-1 shadow-soft ring-1 ring-border-soft">
+                      {suggest.map((s) => (
+                        <li key={s}>
+                          <button
+                            type="button"
+                            onClick={() => setPath(`${s}/`)}
+                            className="w-full truncate rounded-md px-2 py-1 text-left text-[0.8125rem] hover:bg-accent"
+                          >
+                            {s}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+                {noDialog ? (
+                  <p className="text-[0.8125rem] text-ink-3">{t("dateien.noDialog")}</p>
+                ) : null}
+                <p className="text-[0.8125rem] text-ink-3">{t("dateien.chooseNote")}</p>
+                {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" onClick={onClose}>
+                    {t("common.cancel")}
+                  </Button>
+                  <Button type="submit" busy={busy} disabled={!path.trim()}>
+                    {t("dateien.next")}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <div className="-mt-2 flex flex-col gap-1 text-[0.875rem] text-ink-2">
+                  <span className="truncate text-ink-3">{found.path}</span>
+                  <span>{t("dateien.readsOnce")}</span>
+                  <span>{t("dateien.keepsNoText")}</span>
+                </div>
+                {found.first.length ? (
+                  <ul className="flex max-h-44 flex-col overflow-y-auto rounded-lg bg-paper-2 p-1.5">
+                    {found.first.map((f) => (
+                      <li
+                        key={f.name}
+                        className="flex items-center gap-2 px-1.5 py-1 text-[0.8125rem]"
+                      >
+                        <Folder className="size-3.5 shrink-0 text-ink-3" />
+                        <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                        <span className="text-ink-3 tabular-nums">{f.files}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {found.leftOut ? (
+                  <p className="text-[0.8125rem] text-ink-3">
+                    {t("dateien.leftOut", { count: found.leftOut })}
+                  </p>
+                ) : null}
+                {values.length ? (
+                  <div className="flex flex-col gap-2 rounded-lg p-3 ring-1 ring-border-soft">
+                    <label className="flex items-center justify-between gap-3 text-[0.875rem]">
+                      <span className="font-medium">{t("dateien.byFolder")}</span>
+                      <Switch checked={byFolder} onChange={setByFolder} />
+                    </label>
+                    {byFolder ? (
+                      <>
+                        <Input
+                          value={category}
+                          maxLength={60}
+                          aria-label={t("dateien.categoryName")}
+                          onChange={(e) => setCategory(e.target.value)}
+                        />
+                        <span className="text-[0.8125rem] text-ink-3">
+                          {t("dateien.byFolderHint", {
+                            name: category,
+                            values: values.slice(0, 4).join(", ") + (values.length > 4 ? " …" : ""),
+                          })}
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+                <AccessFields
+                  spaceId={spaceId}
+                  see={see}
+                  wizards={wizards}
+                  onSee={setSee}
+                  onWizards={setWizards}
+                />
+                <WritableField checked={writable} onChange={setWritable} />
+                {error ? <p className="text-[0.875rem] text-rose">{error}</p> : null}
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" onClick={() => setFound(null)}>
+                    {t("common.back")}
+                  </Button>
+                  <Button
+                    busy={busy}
+                    onClick={() =>
+                      void mount({
+                        path: found.path,
+                        see,
+                        wizards,
+                        writable,
+                        folderCategory:
+                          byFolder && values.length && category.trim() ? category.trim() : null,
+                      })
+                    }
+                  >
+                    {t("dateien.mountButton")}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </Dialog>
   );
 }
