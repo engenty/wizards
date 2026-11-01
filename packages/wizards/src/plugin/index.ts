@@ -486,6 +486,11 @@ export type PluginSourceRead =
       images?: { url: string; alt?: string }[];
       /** Without one the page's text is its fingerprint. */
       fingerprint?: string | null;
+      /**
+       * It is the text of a folder, as a README is: with an empty path the source's own folder's.
+       * An entry whose path is a folder of others is that folder's text without it.
+       */
+      folder?: boolean;
     }
   | {
       kind: "document";

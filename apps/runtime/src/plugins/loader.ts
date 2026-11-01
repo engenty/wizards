@@ -39,6 +39,7 @@ import { putIndexEntry, removeIndexEntries } from "../services/space-index.js";
 import { originData } from "../services/space-origin.js";
 import {
   addSourceEntries,
+  isCoreKind,
   runDueSources,
   sourceView,
   startSource,
@@ -295,7 +296,7 @@ function apiFor(record: LoadedPlugin): WizardsPluginApi {
         const taken = loadedPlugins().some(
           (p) => p.source.id !== source.id && p.knowledgeSources.has(kind.kind),
         );
-        if (taken || record.knowledgeSources.has(kind.kind)) {
+        if (taken || isCoreKind(kind.kind) || record.knowledgeSources.has(kind.kind)) {
           throw new Error(`Source "${kind.kind}" is taken.`);
         }
         record.knowledgeSources.set(kind.kind, kind);
