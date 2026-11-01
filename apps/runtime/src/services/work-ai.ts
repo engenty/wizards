@@ -9,7 +9,14 @@ import { elementTools } from "../elements/catalogue.js";
 import { currentFeatures } from "../features.js";
 import { HarnessModel } from "../harness/index.js";
 import { managed, type Role } from "../manage.js";
-import { attachTools, chatModel, gatewayTools, type ResolvedModel } from "../models.js";
+import {
+  attachTools,
+  chatModel,
+  type GatewayAccess,
+  gatewayTools,
+  type ResolvedModel,
+  toolAccess,
+} from "../models.js";
 import { pluginsOf } from "../plugins/registry.js";
 import { prompt } from "../prompts.js";
 import { type ExecResult, sandboxCapabilities, shellToolDescription } from "../sandbox/index.js";
@@ -17,6 +24,7 @@ import { currentTenant } from "../tenants/tenant.js";
 import { assistantToolPlugin, assistantToolRisk, assistantToolsOf } from "../tools/plugin.js";
 import { clip } from "../tools/shared.js";
 import { skillsBlock } from "../tools/skills.js";
+import { gatewayWebSearch } from "../tools/web-search.js";
 import { roleOf } from "./access.js";
 import { ClientSteps } from "./client-steps.js";
 import { activeSkills } from "./skills.js";
@@ -195,6 +203,7 @@ async function toolsFor(
   chatId: string | null = null,
   approved: ApprovedRun | null = null,
   known: Role | null = null,
+  web: GatewayAccess | null = null,
 ): Promise<Record<string, unknown>> {
   const role = known ?? (await roleOf(userId));
   if (role === "client") {
@@ -242,7 +251,11 @@ async function toolsFor(
       delete tools[name];
     }
   }
-  if (choice.web !== false && resolved?.vendor === "anthropic") {
+  // The gateway's search where the gateway is reached, for every model; else the model's own.
+  const access = choice.web !== false ? web : null;
+  if (access) {
+    tools.web_search = gatewayWebSearch(access);
+  } else if (choice.web !== false && resolved?.vendor === "anthropic") {
     tools.web_search = anthropic.tools.webSearch_20250305({ maxUses: 5 });
   } else if (choice.web !== false && resolved?.gateway) {
     tools.web_search = gatewayTools.perplexitySearch({ maxResults: 6 });
@@ -353,7 +366,11 @@ export async function workTurn(
   steps: ClientSteps,
   choice: TurnChoice = {},
 ): Promise<WorkTurn> {
-  const resolved = await chatModel(await chatTurnWay(managed), choice.extra ? "high" : "standard");
+  // The gateway's way for web search, asked beside the model rather than after it.
+  const [resolved, web] = await Promise.all([
+    chatTurnWay(managed).then((way) => chatModel(way, choice.extra ? "high" : "standard")),
+    choice.web !== false ? toolAccess() : null,
+  ]);
   const client = turn.role === "client";
   const made = gated(
     await toolsFor(
@@ -365,6 +382,7 @@ export async function workTurn(
       turn.chatId,
       null,
       turn.role ?? null,
+      web,
     ),
     turn,
   );
