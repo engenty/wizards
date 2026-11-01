@@ -162,8 +162,11 @@ export function LevelList({
   /** The entry that is open already was picked: its menu comes back, nothing else changes. */
   onPick: (entry: LevelEntry) => void;
 }) {
+  // A row picked folds away and the next one moves up under the pointer: it shows no hover
+  // until the pointer moves, so it doesn't read as picked.
+  const [still, setStill] = useState(false);
   return (
-    <ul className="flex flex-col gap-0.5">
+    <ul className="flex flex-col gap-0.5" onPointerMove={() => still && setStill(false)}>
       {entries.map((e, i) => (
         <li
           key={e.id}
@@ -186,6 +189,7 @@ export function LevelList({
             <Link
               to={e.to}
               onClick={(event) => {
+                setStill(true);
                 if (e.id === current?.id) {
                   event.preventDefault();
                   onPick(e);
@@ -196,7 +200,9 @@ export function LevelList({
                 "group flex items-center gap-2 rounded-lg px-2 py-1 text-[0.875rem] transition max-md:py-2",
                 e.id === current?.id
                   ? "bg-paper-2 font-medium text-ink"
-                  : "text-ink-2 hover:bg-accent hover:text-ink",
+                  : still
+                    ? "text-ink-2"
+                    : "text-ink-2 hover:bg-accent hover:text-ink",
               )}
             >
               <span className="grid size-7 shrink-0 place-items-center">

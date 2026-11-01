@@ -8,7 +8,16 @@ import {
   ScrollText,
   Search,
 } from "lucide-react";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  lazy,
+  type RefObject,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useFeature } from "../lib/features";
 import { t } from "../lib/i18n";
@@ -277,6 +286,9 @@ export function SpacePage({ place }: { place?: "skills" }) {
     g.sections.map((s) => s.id),
   );
   const inView = useSectionInView(anchors);
+  // The menu as wide as the person dragged it (`MenuResizer`).
+  const grid = useRef<HTMLDivElement>(null);
+  const [menuWidth, setMenuWidth] = useMenuWidth();
   // Results: of one wizard (`?show=<id>`), or of all.
   const wizardId = group === "results" && show && show !== "all" ? show : null;
   const [filter, setFilter] = useState<ResultsFilter>(NO_FILTER);
@@ -636,29 +648,34 @@ export function SpacePage({ place }: { place?: "skills" }) {
     <SettingsMenuContext.Provider value={menu}>
       <div className="animate-rise">
         <div
+          ref={grid}
           className={cn(
             "grid gap-6",
             group !== "results" &&
-              "md:grid-cols-[10.5rem_minmax(0,1fr)] md:gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10",
+              "md:grid-cols-[var(--menu-w,10.5rem)_minmax(0,1fr)] md:gap-5 lg:grid-cols-[var(--menu-w,15rem)_minmax(0,1fr)] lg:gap-10",
           )}
+          style={menuWidth ? ({ "--menu-w": `${menuWidth}px` } as CSSProperties) : undefined}
         >
           {group === "results" ? null : (
-            <aside
-              className={cn(
-                "menu-scroll min-w-0 md:sticky md:top-6 md:self-start md:overflow-y-auto md:overscroll-contain",
-                narrow && phone === 2 && "hidden",
-                narrow && pageStep === "back" && stepClass("back"),
-              )}
-              // A menu longer than the page's frame scrolls on its own, beside the page. Like the
-              // page it runs under Goose's docked card and keeps the card's room below its last row.
-              style={
-                !narrow && rootHeight
-                  ? { maxHeight: rootHeight - 48, paddingBottom: "var(--assistant-dock, 0px)" }
-                  : undefined
-              }
-            >
-              {menuBody}
-            </aside>
+            <div className="relative min-w-0">
+              <aside
+                className={cn(
+                  "menu-scroll min-w-0 md:sticky md:top-6 md:self-start md:overflow-y-auto md:overscroll-contain",
+                  narrow && phone === 2 && "hidden",
+                  narrow && pageStep === "back" && stepClass("back"),
+                )}
+                // A menu longer than the page's frame scrolls on its own, beside the page. Like the
+                // page it runs under Goose's docked card and keeps the card's room below its last row.
+                style={
+                  !narrow && rootHeight
+                    ? { maxHeight: rootHeight - 48, paddingBottom: "var(--assistant-dock, 0px)" }
+                    : undefined
+                }
+              >
+                {menuBody}
+              </aside>
+              {narrow ? null : <MenuResizer grid={grid} onWidth={setMenuWidth} />}
+            </div>
           )}
           {open ? (
             <div
@@ -1148,5 +1165,95 @@ export function SpacePage({ place }: { place?: "skills" }) {
         </div>
       </div>
     </SettingsMenuContext.Provider>
+  );
+}
+
+// --- the menu's width -----------------------------------------------------------------------------
+
+const MENU_WIDTH_KEY = "space.menuWidth";
+const MENU_MIN = 160;
+const MENU_MAX = 480;
+
+/** The menu's width the person dragged it to, kept in this browser; null: the page's default. */
+function useMenuWidth(): [number | null, (width: number | null) => void] {
+  const [width, setWidth] = useState<number | null>(() => {
+    try {
+      const n = Number(localStorage.getItem(MENU_WIDTH_KEY));
+      return n >= MENU_MIN && n <= MENU_MAX ? n : null;
+    } catch {
+      return null;
+    }
+  });
+  const set = (next: number | null) => {
+    setWidth(next);
+    try {
+      if (next === null) {
+        localStorage.removeItem(MENU_WIDTH_KEY);
+      } else {
+        localStorage.setItem(MENU_WIDTH_KEY, String(next));
+      }
+    } catch {}
+  };
+  return [width, set];
+}
+
+/**
+ * The gap beside the menu, to drag it wider or narrower: nothing shows until the pointer is over
+ * it, then a thin line. A double click goes back to the default width.
+ */
+function MenuResizer({
+  grid,
+  onWidth,
+}: {
+  grid: RefObject<HTMLDivElement | null>;
+  onWidth: (width: number | null) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  return (
+    // A pointer's handle only: the menu's width is no setting a keyboard needs.
+    <div
+      aria-hidden
+      title={t("space.menuWidth")}
+      onDoubleClick={() => {
+        grid.current?.style.removeProperty("--menu-w");
+        onWidth(null);
+      }}
+      onPointerDown={(e) => {
+        const menu = e.currentTarget.parentElement;
+        const el = grid.current;
+        if (!(menu && el) || e.button !== 0) {
+          return;
+        }
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = menu.getBoundingClientRect().width;
+        let width = startWidth;
+        setDragging(true);
+        const move = (ev: PointerEvent) => {
+          width = Math.round(
+            Math.min(MENU_MAX, Math.max(MENU_MIN, startWidth + ev.clientX - startX)),
+          );
+          el.style.setProperty("--menu-w", `${width}px`);
+        };
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          setDragging(false);
+          if (width !== startWidth) {
+            onWidth(width);
+          }
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      }}
+      className="group/resize -right-4 lg:-right-6 absolute inset-y-0 z-10 hidden w-3 cursor-col-resize touch-none md:block"
+    >
+      <span
+        className={cn(
+          "mx-auto block h-full w-0.5 rounded-full bg-border transition-opacity",
+          dragging ? "opacity-100" : "opacity-0 group-hover/resize:opacity-100",
+        )}
+      />
+    </div>
   );
 }
