@@ -356,7 +356,8 @@ function Editor({
         />
       ) : null}
       <Card className="flex flex-col">
-        {readOnly && !original ? null : blocks ? (
+        {/* Writing in blocks, the switch stands at the end of the editor's toolbar. */}
+        {(readOnly && !original) || (blocks && view === "write" && !readOnly) ? null : blocks ? (
           <div className="flex items-center gap-1 border-border-soft border-b px-2 py-1.5">
             {tab("write", readOnly ? t("data.preview") : t("data.write"))}
             {readOnly ? null : tab("markdown", t("blocks.markdown"))}
@@ -418,6 +419,15 @@ function Editor({
               onHeading={(head) => setPlace((was) => (was?.id === head?.id ? was : head))}
               marks={marks}
               ariaLabel={page.title}
+              tools={
+                readOnly ? undefined : (
+                  <>
+                    {tab("write", t("data.write"))}
+                    {tab("markdown", t("blocks.markdown"))}
+                    {original ? tab("original", t("know.original")) : null}
+                  </>
+                )
+              }
             />
           </Suspense>
         ) : (view === "write" || view === "markdown") && !readOnly ? (
