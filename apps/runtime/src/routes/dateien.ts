@@ -1,5 +1,5 @@
 import { note } from "@engenty/wizards-shared/run";
-import { AUDIENCES } from "@engenty/wizards-shared/rwx";
+import { AGENT_ACCESS, AUDIENCES } from "@engenty/wizards-shared/rwx";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import type { SessionUser } from "../auth/index.js";
@@ -52,6 +52,8 @@ const whoOf = (c: Context<Vars>) => subjectsOfPerson(c.get("user").id, c.get("us
 const access = {
   see: z.array(z.enum(AUDIENCES)).max(AUDIENCES.length),
   wizards: z.union([z.enum(["all", "none"]), z.array(z.string().max(60)).max(200)]),
+  // A Work chat reads a folder unless it is told otherwise.
+  agents: z.enum(AGENT_ACCESS).default("read"),
 };
 
 export const dateienRoutes = new Hono<Vars>()
@@ -108,6 +110,7 @@ export const dateienRoutes = new Hono<Vars>()
         name: z.string().max(120).optional(),
         see: access.see.optional(),
         wizards: access.wizards.optional(),
+        agents: access.agents.optional(),
         writable: z.boolean().optional(),
       })
       .parse(await c.req.json());

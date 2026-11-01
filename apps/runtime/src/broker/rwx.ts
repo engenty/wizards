@@ -110,6 +110,9 @@ export const SYSTEM: Subject = Object.freeze({ kind: "system", id: null }) as Su
 
 export const subjectsOfGuest = (): Subject[] => [{ kind: "guest", id: null }];
 
+/** An AI working for a person: a Work chat, a client's chat, Claude or Codex through MCP. */
+export const AGENT: Subject = Object.freeze({ kind: "agent", id: null }) as Subject;
+
 /** A signed-in person: their own rows, and their role's. */
 export const subjectsOfPerson = (userId: string, role: Role): Subject[] => [
   { kind: "person", id: userId },
@@ -462,15 +465,18 @@ export async function readableMounts(
     return new Set(ids);
   }
   const rules = await rulesOf(spaceId);
+  // The person, the run's wizard and an AI working for the person each need the mount's rules.
   const wizards = subjects.filter((s) => s.kind === "wizard");
-  const people = subjects.filter((s) => s.kind !== "wizard");
+  const agents = subjects.filter((s) => s.kind === "agent");
+  const people = subjects.filter((s) => s.kind !== "wizard" && s.kind !== "agent");
   const ok = (who: Subject[], id: string) => decideWith(rules, who, { kind: "mount", id }, "r").ok;
   return new Set(
     ids.filter(
       (id) =>
         subjects.length > 0 &&
         (!people.length || ok(people, id)) &&
-        (!wizards.length || ok(wizards, id)),
+        (!wizards.length || ok(wizards, id)) &&
+        (!agents.length || ok(agents, id)),
     ),
   );
 }

@@ -5,8 +5,19 @@
  * runtime decides in apps/runtime/src/broker/rwx.ts; the studio will draw the rows as sentences.
  */
 
-/** Who a rule is about. A role's id is `member`, `admin` or `owner`; a guest has none. */
-export const RWX_SUBJECT_KINDS = ["guest", "person", "role", "goose", "wizard", "plugin"] as const;
+/**
+ * Who a rule is about. A role's id is `member`, `admin` or `owner`; a guest has none. `agent`: an
+ * AI working for a person (a Work chat, a client's chat, Claude or Codex through MCP), with no id.
+ */
+export const RWX_SUBJECT_KINDS = [
+  "guest",
+  "person",
+  "role",
+  "goose",
+  "wizard",
+  "plugin",
+  "agent",
+] as const;
 export type RwxSubjectKind = (typeof RWX_SUBJECT_KINDS)[number];
 
 /** What a rule is about. The id is the resource's, or `*` for every resource of the kind. */
@@ -41,6 +52,13 @@ export const RWX_ROLES = ["member", "admin", "owner", "client"] as const;
  */
 export const AUDIENCES = ["team", "clients", "guests"] as const;
 export type Audience = (typeof AUDIENCES)[number];
+
+/**
+ * What an AI working for a person may do with a mounted folder: nothing, read it, or also write
+ * drafts of its files, which a person then publishes. Drafts only where the folder may be changed.
+ */
+export const AGENT_ACCESS = ["none", "read", "drafts"] as const;
+export type AgentAccess = (typeof AGENT_ACCESS)[number];
 
 /** Every resource of a kind. */
 export const RWX_ALL = "*";

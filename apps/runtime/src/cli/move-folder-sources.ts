@@ -87,6 +87,7 @@ async function moveTenantSources(): Promise<number> {
           path,
           see: [],
           wizards: "none",
+          agents: "read",
         });
     const folder = holding ? relative(holding.path, path).split(sep).join("/") : "";
     const address = addressOf(mount.slug, folder);

@@ -11,7 +11,12 @@ import type {
 } from "@engenty/wizards/plugin";
 import { featureOn } from "@engenty/wizards-shared/features";
 import type { ItemCategory } from "@engenty/wizards-shared/knowledge";
-import { AUDIENCES, type Audience, type RwxRuleInput } from "@engenty/wizards-shared/rwx";
+import {
+  type AgentAccess,
+  AUDIENCES,
+  type Audience,
+  type RwxRuleInput,
+} from "@engenty/wizards-shared/rwx";
 import { embedMany } from "ai";
 import { and, asc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -1021,6 +1026,8 @@ export async function mountView(spaceId: string, mountId: string, who: Subject[]
 /** Who sees a mount besides its admins (none: the admins alone). Which wizards may use it. */
 export type MountSee = Audience[];
 export type MountWizards = "all" | "none" | string[];
+/** What an AI working for a person may do with it (a Work chat, Claude or Codex through MCP). */
+export type MountAgents = AgentAccess;
 
 export interface MountInput {
   /** A folder of this computer. */
@@ -1031,6 +1038,7 @@ export interface MountInput {
   name?: string;
   see: MountSee;
   wizards: MountWizards;
+  agents: MountAgents;
   /** A category of the folders of the first level, by its name; none for none. */
   folderCategory?: string | null;
   /** Its files may be changed: off unless asked for. */
@@ -1038,14 +1046,13 @@ export interface MountInput {
 }
 
 /**
- * The rules a mount is written with: who sees it, which wizards may use it. Where its files may
- * be changed, the people who see it may write them; a wizard never does (it doesn't publish).
+ * The rules a mount is written with: who sees it, which wizards may use it, what an AI working
+ * for a person may do. Where its files may be changed, the admins and the team write them, and an
+ * AI writes drafts where it may; a wizard never does (it doesn't publish).
  */
 function mountRules(
   mountId: string,
-  see: MountSee,
-  wizards: MountWizards,
-  writable: boolean,
+  { see, wizards, agents, writable }: MountAccess,
 ): RwxRuleInput[] {
   const rule = (
     subjectKind: RwxRuleInput["subjectKind"],
@@ -1068,7 +1075,18 @@ function mountRules(
     ...(see.includes("clients") ? [rule("role", "client", null)] : []),
     ...(see.includes("guests") ? [rule("guest", null, null)] : []),
     ...ids.map((id) => rule("wizard", id, null)),
+    ...(agents === "none"
+      ? []
+      : [rule("agent", null, writable && agents === "drafts" ? "allow" : null)]),
   ];
+}
+
+/** What a mount's rules say: who sees it, which wizards, what an AI may do, and its switch. */
+export interface MountAccess {
+  see: MountSee;
+  wizards: MountWizards;
+  agents: MountAgents;
+  writable: boolean;
 }
 
 async function writeRules(spaceId: string, mountId: string, rules: RwxRuleInput[], by: string) {
@@ -1184,7 +1202,12 @@ export async function addMount(
   await writeRules(
     spaceId,
     id,
-    mountRules(id, input.see, input.wizards, Boolean(input.writable)),
+    mountRules(id, {
+      see: input.see,
+      wizards: input.wizards,
+      agents: input.agents,
+      writable: Boolean(input.writable),
+    }),
     userId,
   );
   const mount = (await db.query.spaceMount.findFirst({
@@ -1250,11 +1273,11 @@ export async function pluginMountChanged(plugin: string, id: string) {
   queue(currentTenant(), mount.id, "changes");
 }
 
-/** Who sees a mount and which wizards may use it, as its rules say. */
+/** Who sees a mount, which wizards may use it and what an AI may do, as its rules say. */
 export async function mountAccess(
   spaceId: string,
   mountId: string,
-): Promise<{ see: MountSee; wizards: MountWizards }> {
+): Promise<Omit<MountAccess, "writable">> {
   const rules = await db.query.rwxRule.findMany({
     where: and(
       eq(schema.rwxRule.spaceId, spaceId),
@@ -1273,6 +1296,10 @@ export async function mountAccess(
       ),
     ),
     wizards: wizards.includes("*") ? "all" : wizards.length ? wizards : "none",
+    agents: (() => {
+      const agent = allowed.find((r) => r.subjectKind === "agent");
+      return !agent ? "none" : agent.w === "allow" ? "drafts" : "read";
+    })(),
   };
 }
 
@@ -1281,7 +1308,13 @@ export async function updateMount(
   spaceId: string,
   mountId: string,
   who: Subject[],
-  patch: { name?: string; see?: MountSee; wizards?: MountWizards; writable?: boolean },
+  patch: {
+    name?: string;
+    see?: MountSee;
+    wizards?: MountWizards;
+    agents?: MountAgents;
+    writable?: boolean;
+  },
 ): Promise<MountView> {
   requireAdmin();
   const mount = await mountRow(spaceId, mountId, who);
@@ -1295,12 +1328,17 @@ export async function updateMount(
       .set({ name: patch.name?.trim() || mount.name, writable, updatedAt: new Date() })
       .where(eq(schema.spaceMount.id, mount.id));
   }
-  if (patch.see || patch.wizards || writable !== mount.writable) {
+  if (patch.see || patch.wizards || patch.agents || writable !== mount.writable) {
     const now = await mountAccess(spaceId, mount.id);
     await writeRules(
       spaceId,
       mount.id,
-      mountRules(mount.id, patch.see ?? now.see, patch.wizards ?? now.wizards, writable),
+      mountRules(mount.id, {
+        see: patch.see ?? now.see,
+        wizards: patch.wizards ?? now.wizards,
+        agents: patch.agents ?? now.agents,
+        writable,
+      }),
       userId,
     );
   }

@@ -219,4 +219,56 @@ describe("Dateien: drafts and „Veröffentlichen“", () => {
     });
     expect(await local(() => drafts.mountDrafts(spaceId, mountId, member))).toEqual([]);
   });
+
+  it("lets an AI for a person read, write drafts, or nothing, as the folder says; never publish", async () => {
+    await send("PATCH", `/api/studio/spaces/${spaceId}/mounts/${mountId}`, { writable: true });
+    const { knowledgeTools } = await import("../src/elements/knowledge");
+    const { personCaller } = await import("../src/elements/caller");
+    const drafts = await import("../src/mounts/drafts");
+    const id = await fileId("Projekte/messe.md");
+    const tools = () =>
+      local(async () =>
+        knowledgeTools(
+          personCaller({
+            space: { id: spaceId, name: "Mein Computer" },
+            userId: "local",
+            role: "owner",
+            signal: new AbortController().signal,
+            chatId: "c1",
+          }),
+        ),
+      );
+    const agent = [
+      { kind: "person" as const, id: "local" },
+      { kind: "role" as const, id: "owner" },
+      { kind: "agent" as const, id: null },
+    ];
+    // Read: it reads, it is offered no draft tool, and it may not write.
+    await send("PATCH", `/api/studio/spaces/${spaceId}/mounts/${mountId}`, { agents: "read" });
+    expect((await json(send("GET", `/api/studio/spaces/${spaceId}/mounts/${mountId}`))).agents).toBe("read");
+    expect(Object.keys(await tools())).not.toContain("dateien_draft");
+    await expect(local(() => drafts.openDraft(spaceId, id, agent))).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    // Drafts: the tool writes a draft; the file stays until a person publishes, which the AI can't.
+    await send("PATCH", `/api/studio/spaces/${spaceId}/mounts/${mountId}`, { agents: "drafts" });
+    const offered = await tools();
+    expect(Object.keys(offered)).toContain("dateien_draft");
+    const before = onDisk("Projekte/messe.md");
+    const done = await local(() =>
+      offered.dateien_draft.execute({ path: "dateien/notizen/Projekte/messe.md", text: "# Messe\n\nNeu.\n" }, {} as any),
+    );
+    expect(done, JSON.stringify(done)).toMatchObject({ ok: true });
+    expect(onDisk("Projekte/messe.md")).toBe(before);
+    expect((await local(() => drafts.openDraft(spaceId, id, agent))).text).toBe("# Messe\n\nNeu.\n");
+    await expect(local(() => drafts.publishDraft(spaceId, id, agent))).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    await local(() => drafts.discardDraft(spaceId, id, agent.slice(0, 2)));
+    // None: the folder is not there for it at all.
+    await send("PATCH", `/api/studio/spaces/${spaceId}/mounts/${mountId}`, { agents: "none" });
+    const { usableMounts } = await import("../src/mounts/mounts");
+    expect(await local(() => usableMounts(spaceId, agent))).toEqual([]);
+    expect((await local(() => usableMounts(spaceId, agent.slice(0, 2)))).length).toBe(1);
+  });
 });
