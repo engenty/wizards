@@ -11,7 +11,7 @@ import type {
 } from "@engenty/wizards/plugin";
 import { featureOn } from "@engenty/wizards-shared/features";
 import type { ItemCategory } from "@engenty/wizards-shared/knowledge";
-import type { RwxRuleInput } from "@engenty/wizards-shared/rwx";
+import { AUDIENCES, type Audience, type RwxRuleInput } from "@engenty/wizards-shared/rwx";
 import { embedMany } from "ai";
 import { and, asc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -1018,8 +1018,8 @@ export async function mountView(spaceId: string, mountId: string, who: Subject[]
   return (await viewOf([await mountRow(spaceId, mountId, who)]))[0];
 }
 
-/** Who sees a mount: everybody in the space, or its admins. Which wizards may use it. */
-export type MountSee = "all" | "admins";
+/** Who sees a mount besides its admins (none: the admins alone). Which wizards may use it. */
+export type MountSee = Audience[];
 export type MountWizards = "all" | "none" | string[];
 
 export interface MountInput {
@@ -1060,10 +1060,13 @@ function mountRules(
     w,
     x: null,
   });
-  const roles = see === "all" ? ["owner", "admin", "member"] : ["owner", "admin"];
+  // Who sees it may change it where it is writable, but clients and guests: they only read.
+  const team = see.includes("team") ? ["member"] : [];
   const ids = wizards === "all" ? ["*"] : wizards === "none" ? [] : wizards;
   return [
-    ...roles.map((r) => rule("role", r, writable ? "allow" : null)),
+    ...["owner", "admin", ...team].map((r) => rule("role", r, writable ? "allow" : null)),
+    ...(see.includes("clients") ? [rule("role", "client", null)] : []),
+    ...(see.includes("guests") ? [rule("guest", null, null)] : []),
     ...ids.map((id) => rule("wizard", id, null)),
   ];
 }
@@ -1262,9 +1265,13 @@ export async function mountAccess(
   const allowed = rules.filter((r) => r.r === "allow");
   const wizards = allowed.filter((r) => r.subjectKind === "wizard").map((r) => r.subjectId ?? "");
   return {
-    see: allowed.some((r) => r.subjectKind === "role" && r.subjectId === "member")
-      ? "all"
-      : "admins",
+    see: AUDIENCES.filter((a) =>
+      allowed.some((r) =>
+        a === "guests"
+          ? r.subjectKind === "guest"
+          : r.subjectKind === "role" && r.subjectId === (a === "team" ? "member" : "client"),
+      ),
+    ),
     wizards: wizards.includes("*") ? "all" : wizards.length ? wizards : "none",
   };
 }

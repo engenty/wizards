@@ -2,6 +2,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { featureOn } from "@engenty/wizards-shared/features";
 import { note, type RunNoteCode } from "@engenty/wizards-shared/run";
 import {
+  AUDIENCES,
+  type Audience,
   RWX_ALL,
   RWX_LIMITS,
   RWX_ROLES,
@@ -11,7 +13,7 @@ import {
   type RwxRuleInput,
   type RwxSubjectKind,
 } from "@engenty/wizards-shared/rwx";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
 import type { RunHolder, RunRow, StepContext } from "../engine/types.js";
@@ -56,6 +58,12 @@ export interface Resource {
    * document's rule counts as well.
    */
   fileId?: string | null;
+  /**
+   * The Knowledge folders a document, page or table lies in, the nearest first (a folder is a
+   * page). A folder's rule holds for what lies in it: its deny closes, its allow opens.
+   * `readable` and `decide` look them up where the space has rules on folders.
+   */
+  folders?: string[];
 }
 
 export interface Decision {
@@ -207,7 +215,8 @@ const matching = (
  */
 function decideSystem(rules: Rule[], others: Subject[], resource: Resource, perm: Perm): Decision {
   const behind: Resource[] = resource.fileId ? [{ kind: "document", id: resource.fileId }] : [];
-  for (const r of [{ kind: resource.kind, id: resource.id }, ...behind]) {
+  const folders: Resource[] = (resource.folders ?? []).map((id) => ({ kind: "page", id }));
+  for (const r of [{ kind: resource.kind, id: resource.id }, ...behind, ...folders]) {
     const deny = matching(rules, others, r, perm, "deny");
     if (deny) {
       return { ok: false, rule: deny.id, reason: `${r.kind} ${r.id}: denied`, of: r };
@@ -256,7 +265,41 @@ export function decideWith(
     const others = subjects.filter((s) => s !== SYSTEM);
     return decideSystem(rules, others, resource, perm);
   }
-  const own = decideOne(rules, subjects, resource, perm);
+  // A folder's rule names it by id: its deny closes what lies in it, its allow opens it.
+  const inFolder = (flag: "allow" | "deny") => {
+    for (const id of resource.folders ?? []) {
+      const r = rules.find(
+        (x) =>
+          about(x, subjects) &&
+          x.resourceKind === "page" &&
+          x.resourceId === id &&
+          x[perm] === flag,
+      );
+      if (r) {
+        return { rule: r, id };
+      }
+    }
+    return null;
+  };
+  const closed = inFolder("deny");
+  if (closed) {
+    return {
+      ok: false,
+      rule: closed.rule.id,
+      reason: `${resource.kind} ${resource.id}: denied in folder ${closed.id}`,
+      of: { kind: resource.kind, id: resource.id },
+    };
+  }
+  let own = decideOne(rules, subjects, resource, perm);
+  const opened = own.ok ? null : inFolder("allow");
+  if (opened && !own.rule) {
+    own = {
+      ok: true,
+      rule: opened.rule.id,
+      reason: `${resource.kind} ${resource.id}: allowed in folder ${opened.id}`,
+      of: own.of,
+    };
+  }
   if (!(own.ok && resource.fileId)) {
     return own;
   }
@@ -284,7 +327,60 @@ export async function decide(
   if (!(await brokerOn())) {
     return { ok: true, reason: "off", of: { kind: resource.kind, id: resource.id } };
   }
-  return decideWith(await rulesOf(spaceId), subjects, resource, perm);
+  const rules = await rulesOf(spaceId);
+  const [item] = await withFolders(spaceId, rules, [resource]);
+  return decideWith(rules, subjects, item, perm);
+}
+
+const KNOWLEDGE_KINDS = new Set<RwxResourceKind>(["document", "page", "table"]);
+
+/**
+ * The items with the folders they lie in, where the space has a rule on a folder: a rule on a
+ * page by its id. Without one, nothing is looked up.
+ */
+async function withFolders(spaceId: string, rules: Rule[], items: Resource[]): Promise<Resource[]> {
+  const onFolders = rules.some((r) => r.resourceKind === "page" && r.resourceId !== RWX_ALL);
+  const asked = items.filter((i) => KNOWLEDGE_KINDS.has(i.kind) && !i.folders);
+  if (!(onFolders && asked.length)) {
+    return items;
+  }
+  const ids = (kind: RwxResourceKind) => asked.filter((i) => i.kind === kind).map((i) => i.id);
+  const [pages, files, tables] = await Promise.all([
+    db.query.spacePage.findMany({
+      where: eq(schema.spacePage.spaceId, spaceId),
+      columns: { id: true, parentId: true },
+    }),
+    ids("document").length
+      ? db.query.spaceFile.findMany({
+          where: inArray(schema.spaceFile.id, ids("document")),
+          columns: { id: true, parentId: true },
+        })
+      : [],
+    ids("table").length
+      ? db.query.spaceTable.findMany({
+          where: inArray(schema.spaceTable.id, ids("table")),
+          columns: { id: true, parentId: true },
+        })
+      : [],
+  ]);
+  const parentOf = new Map(pages.map((p) => [p.id, p.parentId]));
+  const parentOfItem = new Map<string, string | null>([
+    ...files.map((f) => [`document:${f.id}`, f.parentId] as const),
+    ...tables.map((t) => [`table:${t.id}`, t.parentId] as const),
+    ...pages.map((p) => [`page:${p.id}`, p.parentId] as const),
+  ]);
+  const chain = (from: string | null | undefined) => {
+    const out: string[] = [];
+    for (let at = from; at && !out.includes(at); at = parentOf.get(at)) {
+      out.push(at);
+    }
+    return out;
+  };
+  return items.map((i) =>
+    KNOWLEDGE_KINDS.has(i.kind) && !i.folders
+      ? { ...i, folders: chain(parentOfItem.get(`${i.kind}:${i.id}`)) }
+      : i,
+  );
 }
 
 const WHAT: Record<RwxResourceKind, RunNoteCode> = {
@@ -333,7 +429,8 @@ export async function readable(
     return new Set(items.map((i) => i.id));
   }
   const rules = await rulesOf(spaceId);
-  return new Set(items.filter((i) => decideWith(rules, subjects, i, "r").ok).map((i) => i.id));
+  const known = await withFolders(spaceId, rules, items);
+  return new Set(known.filter((i) => decideWith(rules, subjects, i, "r").ok).map((i) => i.id));
 }
 
 /** The ids of `kind` among `ids` the subjects may read, in their order. */
@@ -666,6 +763,111 @@ export async function setOpenToClients(
     connectionId: "rwx",
     summary: { [resource.kind]: resource.id, clients: open },
     reason: `${resource.kind} ${resource.id} ${open ? "opened to" : "closed to"} the space's clients.`,
+  });
+}
+
+/**
+ * The rules a Wissen folder's audience writes, on the folder (a page) by its id: the team and
+ * guests read by the space's seed, so leaving them out closes the folder to them; clients read
+ * nothing of the space by their seed, so taking them in opens it. What lies in the folder follows
+ * (`withFolders`).
+ */
+function folderRules(folderId: string, see: Audience[]): RwxRuleInput[] {
+  const on = (
+    subjectKind: RwxSubjectKind,
+    subjectId: string | null,
+    flags: Partial<RwxRuleInput>,
+  ) => ({
+    subjectKind,
+    subjectId,
+    resourceKind: "page" as const,
+    resourceId: folderId,
+    r: null,
+    w: null,
+    x: null,
+    ...flags,
+  });
+  return [
+    ...(see.includes("team") ? [] : [on("role", "member", { r: "deny", w: "deny" })]),
+    ...(see.includes("guests") ? [] : [on("guest", null, { r: "deny" })]),
+    ...(see.includes("clients") ? [on("role", "client", { r: "allow" })] : []),
+  ];
+}
+
+const AUDIENCE_SUBJECTS = [
+  ["role", "member"],
+  ["role", "client"],
+  ["guest", null],
+] as const;
+
+async function knowledgeFolder(userId: string, spaceId: string, folderId: string) {
+  const space = await ownedSpace(userId, spaceId);
+  const folder = await db.query.spacePage.findFirst({
+    columns: { id: true },
+    where: and(eq(schema.spacePage.spaceId, space.id), eq(schema.spacePage.id, folderId)),
+  });
+  if (!folder) {
+    throw notFound();
+  }
+  return { space, folder };
+}
+
+/** Who besides the admins sees a Wissen folder, as its rules say. */
+export async function folderAudience(
+  userId: string,
+  spaceId: string,
+  folderId: string,
+): Promise<Audience[]> {
+  const { space, folder } = await knowledgeFolder(userId, spaceId, folderId);
+  const rules = (await rulesOf(space.id)).filter(
+    (r) => r.resourceKind === "page" && r.resourceId === folder.id,
+  );
+  const has = (kind: string, id: string | null, flag: "allow" | "deny") =>
+    rules.some((r) => r.subjectKind === kind && (r.subjectId ?? null) === id && r.r === flag);
+  return AUDIENCES.filter((a) =>
+    a === "team"
+      ? !has("role", "member", "deny")
+      : a === "guests"
+        ? !has("guest", null, "deny")
+        : has("role", "client", "allow"),
+  );
+}
+
+/** Sets who besides the admins sees a Wissen folder and everything in it. Admins only. */
+export async function setFolderAudience(
+  userId: string,
+  spaceId: string,
+  folderId: string,
+  see: Audience[],
+): Promise<void> {
+  const { space, folder } = await knowledgeFolder(userId, spaceId, folderId);
+  await requireBroker();
+  requireRuleAdmin();
+  await rulesOf(space.id);
+  const r = schema.rwxRule;
+  for (const [kind, id] of AUDIENCE_SUBJECTS) {
+    await db
+      .delete(r)
+      .where(
+        and(
+          eq(r.spaceId, space.id),
+          eq(r.resourceKind, "page"),
+          eq(r.resourceId, folder.id),
+          eq(r.subjectKind, kind),
+          id === null ? isNull(r.subjectId) : eq(r.subjectId, id),
+        ),
+      );
+  }
+  const rules = folderRules(folder.id, see);
+  if (rules.length) {
+    await db.insert(r).values(rules.map((x) => row(space.id, x, userId)));
+  }
+  await logRuleChange({
+    userId,
+    spaceId: space.id,
+    connectionId: "rwx",
+    summary: { page: folder.id, see: see.join(",") || "admins" },
+    reason: `Folder ${folder.id} seen by ${see.length ? see.join(", ") : "the admins alone"}.`,
   });
 }
 

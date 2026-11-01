@@ -39,6 +39,7 @@ import {
   Switch,
 } from "../../ui";
 import { useDetail, useSettingsMenu } from "../settings-menu";
+import { AudiencePicker } from "./Audience";
 import {
   DraftsBar,
   editsAsText,
@@ -1077,17 +1078,7 @@ function AccessFields({
     <div className="flex flex-col gap-3">
       <div>
         <Label>{t("dateien.see")}</Label>
-        <Select
-          value={see}
-          onChange={(v) => onSee(v as MountSee)}
-          options={[
-            { value: "all", label: t("dateien.seeAll") },
-            { value: "admins", label: t("dateien.seeAdmins") },
-          ]}
-        />
-        <p className="mt-1 text-[0.8125rem] text-ink-3">
-          {see === "all" ? t("dateien.seeAllLine") : t("dateien.seeAdminsLine")}
-        </p>
+        <AudiencePicker value={see} onChange={onSee} />
       </div>
       <div>
         <Label>{t("dateien.wizards")}</Label>
@@ -1172,7 +1163,7 @@ function MountDialog({
   const [found, setFound] = useState<FolderPreview | null>(null);
   const [byFolder, setByFolder] = useState(true);
   const [category, setCategory] = useState("");
-  const [see, setSee] = useState<MountSee>("all");
+  const [see, setSee] = useState<MountSee>(["team"]);
   const [wizards, setWizards] = useState<MountWizards>("all");
   const [writable, setWritable] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1186,7 +1177,7 @@ function MountDialog({
       setPath("");
       setFound(null);
       setError(null);
-      setSee("all");
+      setSee(["team"]);
       setWizards("all");
       setWritable(false);
       setByFolder(true);
@@ -1535,7 +1526,7 @@ function MountSettings({
   const kind = useStudioPlugins().mountKinds.find((k) => k.kind === mount?.kind);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [see, setSee] = useState<MountSee>("all");
+  const [see, setSee] = useState<MountSee>(["team"]);
   const [wizards, setWizards] = useState<MountWizards>("all");
   const [writable, setWritable] = useState(false);
   const [busy, setBusy] = useState(false);

@@ -1,4 +1,5 @@
 import type { ItemCategory } from "@engenty/wizards-shared/knowledge";
+import type { Audience } from "@engenty/wizards-shared/rwx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { keys } from "../../lib/keys";
@@ -26,7 +27,8 @@ export interface Mount {
   writable: boolean;
 }
 
-export type MountSee = "all" | "admins";
+/** Who sees a mount besides its admins; none: the admins alone. */
+export type MountSee = Audience[];
 export type MountWizards = "all" | "none" | string[];
 
 export interface MountFile {

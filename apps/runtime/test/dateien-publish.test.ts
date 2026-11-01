@@ -74,7 +74,7 @@ beforeAll(async () => {
   const spaces = await import("../src/services/spaces");
   spaceId = (await local(() => spaces.defaultSpace("local"))).id;
   const mount = await json(
-    send("POST", `/api/studio/spaces/${spaceId}/mounts`, { path: folder, see: "all", wizards: "all" }),
+    send("POST", `/api/studio/spaces/${spaceId}/mounts`, { path: folder, see: ["team"], wizards: "all" }),
   );
   mountId = mount.id;
   expect(mount.writable).toBe(false);

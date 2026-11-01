@@ -162,7 +162,7 @@ describe("Dateien", () => {
   it("mounts a folder: listed, indexed, found by its words", async () => {
     const res = await send("POST", `/api/studio/spaces/${spaceId}/mounts`, {
       path: folder,
-      see: "all",
+      see: ["team"],
       wizards: "all",
       folderCategory: "Kunde",
     });
@@ -260,10 +260,24 @@ describe("Dateien", () => {
       { kind: "role" as const, id: "member" },
     ];
     expect((await search("Glasfaser", member)).hits.length).toBe(1);
-    await send("PATCH", `/api/studio/spaces/${spaceId}/mounts/${mountId}`, { see: "admins" });
+    await send("PATCH", `/api/studio/spaces/${spaceId}/mounts/${mountId}`, { see: [] });
     expect((await search("Glasfaser", member)).hits).toEqual([]);
     const access = await json(send("GET", `/api/studio/spaces/${spaceId}/mounts/${mountId}`));
-    expect(access).toMatchObject({ see: "admins", wizards: ["w2"] });
+    expect(access).toMatchObject({ see: [], wizards: ["w2"] });
+    // Clients and guests see it, the team doesn't: the guest reads, and a client.
+    await send("PATCH", `/api/studio/spaces/${spaceId}/mounts/${mountId}`, {
+      see: ["clients", "guests"],
+    });
+    const guest = [{ kind: "guest" as const, id: null }];
+    const client = [{ kind: "role" as const, id: "client" }];
+    const readers = (s: { kind: any; id: string | null }[]) =>
+      local(async () => (await import("../src/broker/rwx")).readableMounts(spaceId, s, [mountId]));
+    expect((await readers(guest)).has(mountId)).toBe(true);
+    expect((await readers(client)).has(mountId)).toBe(true);
+    expect((await readers(member)).has(mountId)).toBe(false);
+    expect(await json(send("GET", `/api/studio/spaces/${spaceId}/mounts/${mountId}`))).toMatchObject({
+      see: ["clients", "guests"],
+    });
   });
 
   it("reads a mounted file by its path for a step", async () => {

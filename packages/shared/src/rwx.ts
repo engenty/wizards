@@ -34,6 +34,14 @@ export type RwxFlag = (typeof RWX_FLAGS)[number];
 /** `client`: a client of the organization, who sees only their client spaces (docs/plans/client-spaces.md). */
 export const RWX_ROLES = ["member", "admin", "owner", "client"] as const;
 
+/**
+ * Who besides the space's admins sees a mounted folder of Dateien or a folder of Wissen: its team
+ * (the members, who work in Work), the organization's clients (docs/plans/client-spaces.md), and
+ * guests: people on a shared link or a published page, without an account. Admins always see it.
+ */
+export const AUDIENCES = ["team", "clients", "guests"] as const;
+export type Audience = (typeof AUDIENCES)[number];
+
 /** Every resource of a kind. */
 export const RWX_ALL = "*";
 
