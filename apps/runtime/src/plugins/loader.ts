@@ -22,7 +22,7 @@ import {
   RUNNER_ID,
 } from "@engenty/wizards-shared/runners";
 import { generateText, Output } from "ai";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createJiti } from "jiti";
 import { z } from "zod";
 import { readPage } from "../agents/website.js";
@@ -37,6 +37,12 @@ import { conversationAccess, ModelUnavailableError, textModel } from "../models.
 import { seal, unseal } from "../secrets/crypto.js";
 import { putIndexEntry, removeIndexEntries } from "../services/space-index.js";
 import { originData } from "../services/space-origin.js";
+import {
+  addSourceEntries,
+  runDueSources,
+  sourceView,
+  startSource,
+} from "../services/space-sources.js";
 import { readSetting, writeSetting } from "../settings.js";
 import { safeFetch } from "../tools/net-guard.js";
 import { channelsApi } from "./channels.js";
@@ -130,6 +136,9 @@ async function importFactory(entry: string): Promise<WizardsPluginFactory> {
   return factory as WizardsPluginFactory;
 }
 
+/** The job that reads a plugin's sources of Knowledge again on their schedule. */
+const SOURCES_JOB = "knowledge_sources";
+
 /** A job runs at most this often. */
 const MIN_EVERY_MS = 60_000;
 
@@ -167,6 +176,19 @@ function apiFor(record: LoadedPlugin): WizardsPluginApi {
     if (!PLUGIN_TOOL_NAME.test(name)) {
       throw new Error(`${kind} "${name}": a name is lower case, digits and "_".`);
     }
+  };
+  /** A source of one of the plugin's kinds, of the current tenant. */
+  const ownSource = async (id: string) => {
+    const row = await db.query.spaceSource.findFirst({
+      where: and(eq(schema.spaceSource.id, id), eq(schema.spaceSource.plugin, source.id)),
+    });
+    if (!row) {
+      throw Object.assign(new Error("There is no such source."), {
+        status: 404,
+        code: "not_found",
+      });
+    }
+    return row;
   };
   return {
     plugin: source.manifest,
@@ -266,6 +288,55 @@ function apiFor(record: LoadedPlugin): WizardsPluginApi {
         remove: (space, key) => removeIndexEntries(source.id, space, key),
       },
       spaceData: originData(source.id),
+      registerKnowledgeSource(kind) {
+        if (!/^[a-z0-9-]{1,24}$/.test(kind.kind)) {
+          throw new Error(`Source "${kind.kind}": a kind is lower case, digits and "-".`);
+        }
+        const taken = loadedPlugins().some(
+          (p) => p.source.id !== source.id && p.knowledgeSources.has(kind.kind),
+        );
+        if (taken || record.knowledgeSources.has(kind.kind)) {
+          throw new Error(`Source "${kind.kind}" is taken.`);
+        }
+        record.knowledgeSources.set(kind.kind, kind);
+        // Its sources are read again on their schedule, in every tenant that has the plugin.
+        if (!record.jobs.has(SOURCES_JOB)) {
+          record.jobs.set(SOURCES_JOB, {
+            everyMs: 15 * 60_000,
+            handler: () => runDueSources(source.id),
+          });
+        }
+      },
+      knowledgeSources: {
+        async list(space) {
+          const rows = await db.query.spaceSource.findMany({
+            where: and(
+              eq(schema.spaceSource.plugin, source.id),
+              space ? eq(schema.spaceSource.spaceId, space) : undefined,
+            ),
+          });
+          return Promise.all(rows.map(sourceView));
+        },
+        async byToken(token) {
+          const row = await db.query.spaceSource.findFirst({
+            where: and(
+              eq(schema.spaceSource.plugin, source.id),
+              eq(schema.spaceSource.token, token),
+            ),
+          });
+          return row ? sourceView(row) : null;
+        },
+        async run(id) {
+          const row = await ownSource(id);
+          if (row.state === "taken") {
+            startSource(row.id);
+          }
+        },
+        async addEntries(id, addresses) {
+          const row = await ownSource(id);
+          await addSourceEntries(row.spaceId, row.id, addresses);
+        },
+      },
       spaces: {
         async brand(space) {
           const p = await db.query.space.findFirst({ where: eq(schema.space.id, space) });

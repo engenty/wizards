@@ -62,6 +62,7 @@ import {
   updateSpaceFile,
 } from "../services/space-files.js";
 import { documentText } from "../services/space-index.js";
+import { kindsOf, listSources, proposeSource, takeSource } from "../services/space-sources.js";
 import { ownedSpace, type SpaceRow, updateSpace } from "../services/spaces.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { type ServerKey, serverText } from "../texts.js";
@@ -1075,6 +1076,64 @@ export async function runStudioAssistant(input: AssistantInput): Promise<Assista
         },
       }),
     );
+  }
+  // Sources of Knowledge, when a plugin brings a kind of them: proposed on a card, taken on it.
+  if (writable && (await kindsOf()).length) {
+    const card = (data: unknown) => {
+      const record = { plugin: "", tool: "sourceProposal", data };
+      cards.push(record);
+      input.onCard?.(record);
+    };
+    const sourceSignal = input.signal ?? new AbortController().signal;
+    Object.assign(tools, {
+      propose_source: createTool({
+        id: "propose_source",
+        description: prompt("goose", "tool.propose_source"),
+        inputSchema: z.object({
+          address: z.string().describe("The website's address or the sitemap's"),
+          label: z.string().optional().describe("What the person calls the source, if they said"),
+        }),
+        execute: (args) =>
+          attempt(async () => {
+            const proposal = await proposeSource(writable.id, args, {
+              signal: sourceSignal,
+              emit: (message) => input.onActivity?.(message),
+            });
+            card(proposal);
+            return proposal;
+          }),
+      }),
+      take_source: createTool({
+        id: "take_source",
+        description: prompt("goose", "tool.take_source"),
+        inputSchema: z.object({ id: z.string().describe("The proposal's id") }),
+        execute: ({ id }) =>
+          attempt(async () => {
+            const taken = await takeSource(writable.id, id);
+            wrote();
+            return { ...taken, running: true };
+          }),
+      }),
+      list_sources: createTool({
+        id: "list_sources",
+        description: prompt("goose", "tool.list_sources"),
+        inputSchema: z.object({}),
+        execute: () =>
+          attempt(async () =>
+            (await listSources(writable.id)).sources.map((s) => ({
+              id: s.id,
+              label: s.label,
+              kind: s.kind,
+              address: s.address,
+              state: s.state,
+              entries: s.counts.included,
+              written: s.counts.done,
+              toCheck: s.counts.check,
+              status: s.status,
+            })),
+          ),
+      }),
+    });
   }
   // The person's own sign-ins to the spaces' connections (goose-connections.ts): reads run, a
   // write asks them on a card. Never a connection that signs in as the space.

@@ -255,6 +255,19 @@ import {
 } from "../services/space-files.js";
 import { documentText, queueIndex, reindexAll, searchKnowledge } from "../services/space-index.js";
 import {
+  addSourceEntries,
+  getSource,
+  keepItem,
+  listSources,
+  proposeSource,
+  removeSource,
+  setEntryIncluded,
+  startSource,
+  stopSource,
+  takeSource,
+  updateSourceSettings,
+} from "../services/space-sources.js";
+import {
   createSpace,
   deleteSpace,
   gradientSchema,
@@ -1173,6 +1186,109 @@ export const studio = new Hono<Vars>()
       })
       .parse(await c.req.json());
     await moveKnowledgeItem(c.get("user").id, c.req.param("id"), body);
+    return c.json({ ok: true });
+  })
+  // „Als eigene Seite übernehmen“: what a source wrote becomes the space's own.
+  .post("/spaces/:id/knowledge/keep", async (c) => {
+    await requireAdmin();
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const body = z
+      .object({ key: z.string().regex(/^[pt]:[\w-]{1,40}$/) })
+      .parse(await c.req.json());
+    await keepItem(space.id, body.key);
+    return c.json({ ok: true });
+  })
+  // --- sources of Knowledge: each fills a folder of its own ----------------------
+  .get("/spaces/:id/sources", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(await listSources(space.id));
+  })
+  .post("/spaces/:id/sources", async (c) => {
+    await requireAdmin();
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const body = z
+      .object({
+        address: z.string().trim().min(1).max(1000),
+        kind: z.string().max(24).nullish(),
+        label: z.string().trim().max(120).nullish(),
+      })
+      .parse(await c.req.json());
+    return c.json(await proposeSource(space.id, body, { signal: c.req.raw.signal }));
+  })
+  .get("/spaces/:id/sources/:sourceId", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(await getSource(space.id, c.req.param("sourceId")));
+  })
+  .post("/spaces/:id/sources/:sourceId/take", async (c) => {
+    await requireAdmin();
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const body = z
+      .object({ parentId: z.string().max(40).nullish() })
+      .parse(await c.req.json().catch(() => ({})));
+    return c.json(await takeSource(space.id, c.req.param("sourceId"), body));
+  })
+  .patch("/spaces/:id/sources/:sourceId", async (c) => {
+    await requireAdmin();
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const patch = z
+      .object({
+        label: z.string().trim().min(1).max(120).optional(),
+        everyHours: z
+          .number()
+          .int()
+          .min(1)
+          .max(24 * 30)
+          .nullable()
+          .optional(),
+        rules: z
+          .array(
+            z.object({ pattern: z.string().trim().min(1).max(200), reason: z.string().max(120) }),
+          )
+          .max(100)
+          .optional(),
+      })
+      .parse(await c.req.json());
+    return c.json(await updateSourceSettings(space.id, c.req.param("sourceId"), patch));
+  })
+  .post("/spaces/:id/sources/:sourceId/run", async (c) => {
+    await requireAdmin();
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const { source } = await getSource(space.id, c.req.param("sourceId"));
+    if (source.state !== "taken") {
+      throw new ServiceError("invalid", "The source is not taken yet.");
+    }
+    startSource(source.id);
+    return c.json({ ok: true });
+  })
+  .post("/spaces/:id/sources/:sourceId/stop", async (c) => {
+    await requireAdmin();
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const { source } = await getSource(space.id, c.req.param("sourceId"));
+    stopSource(source.id);
+    return c.json({ ok: true });
+  })
+  .post("/spaces/:id/sources/:sourceId/entries", async (c) => {
+    await requireAdmin();
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const { addresses } = z
+      .object({ addresses: z.array(z.string().trim().url()).min(1).max(200) })
+      .parse(await c.req.json());
+    return c.json({
+      entries: await addSourceEntries(space.id, c.req.param("sourceId"), addresses),
+    });
+  })
+  .patch("/spaces/:id/sources/:sourceId/entries/:entryId", async (c) => {
+    await requireAdmin();
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    const { included } = z.object({ included: z.boolean() }).parse(await c.req.json());
+    return c.json(
+      await setEntryIncluded(space.id, c.req.param("sourceId"), c.req.param("entryId"), included),
+    );
+  })
+  .delete("/spaces/:id/sources/:sourceId", async (c) => {
+    await requireAdmin();
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    await removeSource(space.id, c.req.param("sourceId"));
     return c.json({ ok: true });
   })
   // What a link in a page names (`pages/bgb/p-281`): the studio opens it.

@@ -344,6 +344,13 @@
       "when": 1793530918731,
       "tag": "0048_space_chunk_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1793531418985,
+      "tag": "0049_knowledge_sources",
+      "breakpoints": true
     }
   ]
 }

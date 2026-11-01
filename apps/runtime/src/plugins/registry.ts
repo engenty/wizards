@@ -5,6 +5,7 @@ import type {
   PluginAssistantPage,
   PluginAssistantTool,
   PluginEvents,
+  PluginKnowledgeSource,
   PluginPublicRoute,
   PluginRoute,
   PluginRunner,
@@ -70,6 +71,8 @@ export interface LoadedPlugin {
   /** The runners the plugin adds, by id: what `/w/<token>/<id>` serves, and what it can do. */
   runners: Map<string, RegisteredRunner>;
   jobs: Map<string, PluginJob>;
+  /** Kinds of sources of Knowledge, by kind: `website`. */
+  knowledgeSources: Map<string, PluginKnowledgeSource>;
   /** Wizards it brings as templates, by their id within the plugin. */
   starters: Map<string, PluginStarter>;
   listeners: { [E in keyof PluginEvents]?: Listener<E>[] };
@@ -101,6 +104,7 @@ export function emptyRecord(source: PluginSource): LoadedPlugin {
     sharedRoutes: [],
     runners: new Map(),
     jobs: new Map(),
+    knowledgeSources: new Map(),
     starters: new Map(),
     listeners: {},
     migrations: [],

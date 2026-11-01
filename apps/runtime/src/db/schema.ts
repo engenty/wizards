@@ -722,6 +722,112 @@ export const spacePage = sqliteTable(
   ],
 );
 
+// --- Sources of Knowledge -------------------------------------------------------
+// What fills a folder of Knowledge from outside the space: a website, a sitemap, a list of
+// addresses (docs/plans/knowledge-base.md). A plugin brings each kind and its reader
+// (`registerKnowledgeSource`); the rows, the runs and what they write are the core's. Everything a
+// source writes has the origin `source:<id>`.
+
+/** An entry left out by its address: `pattern` is a part of it, `*` stands for anything. */
+export interface SourceRule {
+  pattern: string;
+  reason: string;
+}
+
+/** A Kategorie a source brings: proposed with it, put into the space when it is taken. */
+export interface SourceCategory {
+  name: string;
+  type: "choice" | "date" | "number" | "text" | "boolean";
+  unit?: string;
+  multiple?: boolean;
+  hint?: string;
+  values?: string[];
+}
+
+/** What an entry became in Knowledge: the studio opens it by its kind and id. */
+export interface SourceEntryResult {
+  kind: "page" | "table" | "file";
+  id: string;
+  path: string;
+  title: string;
+}
+
+export const spaceSource = sqliteTable(
+  "space_source",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    /** The kind a plugin registered: `website`, `sitemap`, `urls`. */
+    kind: text("kind").notNull(),
+    /** The plugin that brings the kind; its reader reads the source. */
+    plugin: text("plugin").notNull(),
+    address: text("address").notNull(),
+    label: text("label").notNull(),
+    state: text("state", { enum: ["proposed", "taken"] }).notNull(),
+    rules: text("rules", { mode: "json" }).$type<SourceRule[]>().notNull(),
+    categories: text("categories", { mode: "json" }).$type<SourceCategory[]>().notNull(),
+    /** Read again every so many hours; null: only when asked. */
+    everyHours: integer("every_hours"),
+    /** What a signal address of the kind names the source by. */
+    token: text("token").notNull(),
+    status: text("status", { enum: ["idle", "running", "failed"] }).notNull(),
+    error: text("error"),
+    lastRunAt: integer("last_run_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("space_source_space").on(t.spaceId), uniqueIndex("space_source_token").on(t.token)],
+);
+
+/** One entry a source holds: an address, whether it is in, and what it became. */
+export const spaceSourceEntry = sqliteTable(
+  "space_source_entry",
+  {
+    id: text("id").primaryKey(),
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => spaceSource.id, { onDelete: "cascade" }),
+    address: text("address").notNull(),
+    title: text("title"),
+    /** Where it stands below the source's folder: the folders' names, outermost first. */
+    path: text("path", { mode: "json" }).$type<string[]>().notNull(),
+    included: integer("included", { mode: "boolean" }).notNull(),
+    reason: text("reason"),
+    decidedBy: text("decided_by", { enum: ["rule", "model", "person"] }),
+    status: text("status", { enum: ["new", "done", "check", "failed", "kept"] }).notNull(),
+    /** The key it was written under: `e:<id>`, or `dir:<path>` for the text of a folder. */
+    itemKey: text("item_key"),
+    result: text("result", { mode: "json" }).$type<SourceEntryResult | null>(),
+    note: text("note"),
+    fingerprint: text("fingerprint"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("space_source_entry_address").on(t.sourceId, t.address)],
+);
+
+/** A run of a source: what it wrote, kept unchanged, failed on and left out, and its log. */
+export const spaceSourceRun = sqliteTable(
+  "space_source_run",
+  {
+    id: text("id").primaryKey(),
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => spaceSource.id, { onDelete: "cascade" }),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    endedAt: integer("ended_at", { mode: "timestamp_ms" }),
+    status: text("status", { enum: ["running", "done", "failed", "stopped"] }).notNull(),
+    written: integer("written").notNull(),
+    unchanged: integer("unchanged").notNull(),
+    failed: integer("failed").notNull(),
+    leftOut: integer("left_out").notNull(),
+    log: text("log", { mode: "json" }).$type<string[]>().notNull(),
+  },
+  (t) => [index("space_source_run_source").on(t.sourceId, t.startedAt)],
+);
+
 // --- Categories -----------------------------------------------------------------
 // Typed properties that run across Knowledge: set on pages, rows, tables and files, any number of
 // each, so a step filters before it searches.

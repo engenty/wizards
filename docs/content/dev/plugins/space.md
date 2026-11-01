@@ -1,7 +1,7 @@
 ---
 title: The space
 description: Knowledge a plugin writes, a block and tools for every AI step of a space, texts in its search index, tools and cards of its assistant.
-version: 0.5.0
+version: 0.15.0
 ---
 
 A space holds what all its wizards share: a name, its brand (logos, colours, fonts), facts, and
@@ -59,6 +59,58 @@ const doc = await server.spaceData.putDocument({ space, key, label, name, mime, 
 - When a person changes an item, it is theirs: the plugin’s next write returns `state: "kept"`
   and changes nothing, and `remove` leaves it.
 - What a step reads of an item is its path: `pages/…`, `tables/…`, `files/…`.
+
+## A source of Knowledge
+
+A source fills a folder of Knowledge from outside the space and keeps it current: a website, a
+sitemap, a list of addresses. The core keeps each source’s row, its entries, its runs and its
+folder; a plugin brings a kind of source and its reader with `server.registerKnowledgeSource`.
+Behind the studio’s `knowledgeTree` switch, its kinds show in Knowledge’s „Hinzufügen“ and in the
+assistant’s proposals.
+
+```ts
+server.registerKnowledgeSource({
+  kind: "sitemap",
+  // What a person names, as this kind; null when it is not one.
+  match: (address) => (/\.xml(\?|$)/i.test(address) ? address : null),
+  rules: [{ pattern: "impressum", reason: "Impressum" }],
+  everyHours: 24,
+  fill: true,
+  reader: {
+    async list(source, { signal }) {
+      const urls = await readSitemap(source.address, signal);
+      // `path`: where it stands below the source's folder. `fingerprint`: the same again is not read.
+      return urls.map((u) => ({
+        address: u.loc,
+        fingerprint: u.lastmod,
+        path: new URL(u.loc).pathname.split("/").filter(Boolean),
+      }));
+    },
+    async read(source, entry, { signal }) {
+      const page = await server.web.read(entry.address, { signal });
+      return { kind: "page", title: page.title, markdown: page.content };
+    },
+  },
+});
+```
+
+- **`list`** says what the source holds now, at most 1000 entries. New addresses come in under the
+  source’s `rules`; a person’s „leave out“ stays. What is no longer listed goes out of Knowledge.
+- **`read`** gives one entry as a `page`, as a `document` (read as an upload is: pages, a table
+  per sheet, or a file), as `unchanged`, or as `failed` with a note. `entry.fingerprint` is what it
+  was last read with, for asking whether it changed.
+- **`propose`** (optional) runs once, before anything is written: a name, Kategorien and entries
+  to leave out, usually from a model that read a sample.
+- **`manual: true`**: entries are added by hand (`knowledgeSources.addEntries`), never listed.
+
+Every source writes into a folder of its own, a page named as the source, and an entry’s `path`
+becomes its sub-folders; an entry whose path is a folder of others is that folder’s text. What a
+source wrote has the origin `source:<id>` and is read-only in the studio until a person takes it
+over („Als eigene Seite übernehmen“). Removing a source removes what it wrote, but what a person
+took over. Taken sources are read again every `everyHours`, in every tenant that has the plugin.
+
+`server.knowledgeSources` reaches the sources of the plugin’s kinds: `list(space?)`,
+`byToken(token)` (the source a signal address names), `run(id)` and `addEntries(id, addresses)`.
 
 ## A block for every AI step
 
