@@ -226,6 +226,21 @@ function due(at: number): string {
       : short.format(Math.round(minutes / 1440), "day");
 }
 
+/** „vor 2h“, „vor 5m“, „vor 3d“: how long ago, as short as a card's line wants it. */
+function shortAgo(at: string): string {
+  const minutes = (Date.now() - Date.parse(at)) / 60_000;
+  if (minutes < 1) {
+    return t("src.justNow");
+  }
+  const span =
+    minutes < 60
+      ? `${Math.round(minutes)}m`
+      : minutes < 48 * 60
+        ? `${Math.round(minutes / 60)}h`
+        : `${Math.round(minutes / 1440)}d`;
+  return t("src.ago", { span });
+}
+
 /** Where a source reads, short: the host and the path, without the scheme. */
 function shortAddress(address: string): string {
   try {
@@ -238,7 +253,7 @@ function shortAddress(address: string): string {
 
 /**
  * The sources as cards, on Wissen's start page: what each reads (its address), how many pages it
- * keeps, how often it reads and when it read last and reads next, and what it is doing — reading,
+ * keeps, how often it reads and when it read last, and what it is doing — reading,
  * or broken. A card opens the source's folder; its gear, the source's settings.
  */
 export function SourceCards({
@@ -262,10 +277,8 @@ export function SourceCards({
         const facts = [
           pages === 1 ? t("src.onePage") : t("src.pages", { n: pages }),
           t(EVERY_WORD[(s.everyHours ?? 0) as keyof typeof EVERY_WORD] ?? "src.every0"),
-          last ? t("src.lastRead", { when: ago(last) }) : t("src.neverRead"),
-          s.everyHours && last && !s.running
-            ? t("src.nextRead", { when: due(Date.parse(last) + s.everyHours * 3_600_000) })
-            : "",
+          // When it read last, short: when it reads next is on the source's page.
+          last ? shortAgo(last) : t("src.neverRead"),
         ].filter(Boolean);
         return (
           <div
@@ -283,14 +296,7 @@ export function SourceCards({
             <span className="truncate text-[0.75rem] text-ink-3" title={s.address}>
               {shortAddress(s.address)}
             </span>
-            <span className="flex flex-wrap gap-x-2 text-[0.75rem] text-ink-4">
-              {facts.map((f, i) => (
-                <span key={f} className="whitespace-nowrap">
-                  {i ? "· " : ""}
-                  {f}
-                </span>
-              ))}
-            </span>
+            <span className="truncate text-[0.75rem] text-ink-4">{facts.join(" · ")}</span>
             {s.running ? (
               <span className="mt-1 inline-flex items-center gap-1.5 self-start rounded-full bg-cobalt-tint px-2 py-0.5 text-[0.75rem] text-cobalt">
                 <Spinner className="size-3" />
