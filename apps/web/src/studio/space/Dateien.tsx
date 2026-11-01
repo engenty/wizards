@@ -183,7 +183,9 @@ export function DateienMenu({ spaceId, admin }: { spaceId: string; admin: boolea
           spaceId={spaceId}
           mount={m}
           current={m.id === mountId}
-          folder={m.id === mountId ? folder : null}
+          folder={m.id === mountId && !(shown && "fileId" in shown) ? folder : null}
+          openFolder={m.id === mountId ? folder : null}
+          fileId={shown && "fileId" in shown ? shown.fileId : null}
           onOpen={open}
         />
       ))}
@@ -217,12 +219,19 @@ function MountRows({
   mount,
   current,
   folder,
+  openFolder,
+  fileId,
   onOpen,
 }: {
   spaceId: string;
   mount: Mount;
   current: boolean;
+  /** The folder shown, marked; null when a file is shown. */
   folder: string | null;
+  /** The folder that stands open: the one shown, or the shown file's. */
+  openFolder: string | null;
+  /** The file shown, marked among its folder's files. */
+  fileId: string | null;
   onOpen: (show: string) => void;
 }) {
   const files = useMountFiles(spaceId, current ? mount : undefined);
@@ -231,16 +240,44 @@ function MountRows({
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   // The folders around the one open stand open.
   useEffect(() => {
-    if (folder) {
-      const parts = folder.split("/");
+    if (openFolder) {
+      const parts = openFolder.split("/");
       const up = parts.map((_, i) => parts.slice(0, i + 1).join("/"));
       setOpen((now) => (up.every((p) => now.has(p)) ? now : new Set([...now, ...up])));
     }
-  }, [folder]);
+  }, [openFolder]);
+  // A folder's files under its folders, as the folder's page lists them.
+  const fileRows = (files: MountFile[], depth: number) =>
+    (filter ? files.filter((f) => f.name.toLowerCase().includes(filter)) : files).map((f) => {
+      const Icon = fileIcon(f);
+      const selected = f.id === fileId;
+      return (
+        <li key={f.id}>
+          <button
+            type="button"
+            onClick={() => onOpen(`m:${f.id}`)}
+            aria-current={selected ? "page" : undefined}
+            style={{ paddingLeft: `${depth * 12 + 24}px` }}
+            className={cn(
+              "flex w-full min-w-0 items-center gap-2 rounded-lg py-1.5 pr-1 text-left text-[0.875rem] transition",
+              selected
+                ? "bg-paper-2 font-medium text-ink"
+                : "text-ink-2 hover:bg-accent hover:text-ink",
+            )}
+          >
+            <Icon
+              className={cn("size-4 shrink-0", selected ? "text-ember-strong" : "text-ink-3")}
+            />
+            <span className="min-w-0 flex-1 truncate">{f.name}</span>
+          </button>
+        </li>
+      );
+    });
   const row = (node: Node, depth: number) => {
     const isOpen = open.has(node.path) || Boolean(filter);
     const selected = folder === node.path;
     const folders = filter ? node.folders.filter((f) => hasMatch(f, filter)) : node.folders;
+    const inside = node.folders.length + node.files.length > 0;
     return (
       <li key={node.path}>
         <div
@@ -252,9 +289,9 @@ function MountRows({
         >
           <button
             type="button"
-            tabIndex={node.folders.length ? 0 : -1}
+            tabIndex={inside ? 0 : -1}
             aria-label={isOpen ? t("know.collapse") : t("know.expand")}
-            aria-expanded={node.folders.length ? isOpen : undefined}
+            aria-expanded={inside ? isOpen : undefined}
             onClick={() =>
               setOpen((now) => {
                 const next = new Set(now);
@@ -266,7 +303,7 @@ function MountRows({
             }
             className={cn(
               "grid size-6 shrink-0 place-items-center rounded-md text-ink-4",
-              node.folders.length ? "hover:text-ink" : "invisible",
+              inside ? "hover:text-ink" : "invisible",
             )}
           >
             <ChevronRight className={cn("size-3.5 transition-transform", isOpen && "rotate-90")} />
@@ -287,8 +324,11 @@ function MountRows({
             <span className="text-[0.75rem] text-ink-4 tabular-nums">{node.count}</span>
           </button>
         </div>
-        {isOpen && folders.length ? (
-          <ul className="flex flex-col gap-0.5 pt-0.5">{folders.map((f) => row(f, depth + 1))}</ul>
+        {isOpen && inside ? (
+          <ul className="flex flex-col gap-0.5 pt-0.5">
+            {folders.map((f) => row(f, depth + 1))}
+            {fileRows(node.files, depth + 1)}
+          </ul>
         ) : null}
       </li>
     );
@@ -319,11 +359,12 @@ function MountRows({
               : (kind?.place() ?? "")}
         </span>
       </button>
-      {current && tree.folders.length ? (
+      {current && (tree.folders.length || tree.files.length) ? (
         <ul className="flex flex-col gap-0.5 pb-1 pl-3">
           {(filter ? tree.folders.filter((f) => hasMatch(f, filter)) : tree.folders).map((f) =>
             row(f, 0),
           )}
+          {fileRows(tree.files, 0)}
         </ul>
       ) : null}
     </>
@@ -331,7 +372,9 @@ function MountRows({
 }
 
 const hasMatch = (node: Node, filter: string): boolean =>
-  node.name.toLowerCase().includes(filter) || node.folders.some((f) => hasMatch(f, filter));
+  node.name.toLowerCase().includes(filter) ||
+  node.files.some((f) => f.name.toLowerCase().includes(filter)) ||
+  node.folders.some((f) => hasMatch(f, filter));
 
 // --- the page ---------------------------------------------------------------------------------
 
@@ -698,6 +741,7 @@ function MountItems({
       show: `d:${mount.id}/${f.path}`,
       Icon: Folder,
       title: f.name,
+      named: null as string | null,
       line: t("dateien.count", { files: f.count.toLocaleString(lang) }),
       size: f.count.toLocaleString(lang),
       thumb: null,
@@ -710,6 +754,11 @@ function MountItems({
       show: `m:${f.id}`,
       Icon: fileIcon(f),
       title: f.name,
+      // What the text calls itself, when it is more than the file's name says.
+      named:
+        f.title && f.title.toLowerCase() !== f.name.replace(/\.[^.]+$/, "").toLowerCase()
+          ? f.title
+          : null,
       line: [typeOf(f), f.pages ? t("space.pages", { n: f.pages }) : null, formatBytes(f.size)]
         .filter(Boolean)
         .join(" · "),
@@ -738,7 +787,12 @@ function MountItems({
             ) : (
               <e.Icon className="size-4 shrink-0 text-ink-3" />
             )}
-            <span className="min-w-0 flex-1 truncate text-[0.875rem]">{e.title}</span>
+            <span className="flex min-w-0 flex-1 items-baseline gap-2.5">
+              <span className="shrink-0 truncate text-[0.875rem]">{e.title}</span>
+              {e.named ? (
+                <span className="min-w-0 truncate text-[0.8125rem] text-ink-4">{e.named}</span>
+              ) : null}
+            </span>
             {e.draft ? <DraftDot conflict={Boolean(e.draft.conflict)} /> : null}
             <span className="flex shrink-0 gap-1 max-sm:hidden">
               {e.chips.map((c) => (
@@ -780,6 +834,9 @@ function MountItems({
               <span className="min-w-0 flex-1 truncate font-medium text-[0.875rem]">{e.title}</span>
               {e.draft ? <DraftDot conflict={Boolean(e.draft.conflict)} /> : null}
             </span>
+            {e.named ? (
+              <span className="-mt-1 truncate text-[0.8125rem] text-ink-3">{e.named}</span>
+            ) : null}
             <span className="truncate text-[0.75rem] text-ink-4">{e.line}</span>
             {e.chips.length ? (
               <span className="flex flex-wrap gap-1">
@@ -959,15 +1016,18 @@ function FileView({
           onOpen={onOpen}
         />
       ) : asPage ? (
-        <Suspense
-          fallback={
-            <div className="flex h-40 items-center justify-center text-ink-3">
-              <Spinner />
-            </div>
-          }
-        >
-          <Viewer kind="text" url={url} name={file.name} plain />
-        </Suspense>
+        // A page read stands in its own frame, as a document on the desk.
+        <Card className="px-5 py-5 sm:px-10 sm:py-8">
+          <Suspense
+            fallback={
+              <div className="flex h-40 items-center justify-center text-ink-3">
+                <Spinner />
+              </div>
+            }
+          >
+            <Viewer kind="text" url={url} name={file.name} plain />
+          </Suspense>
+        </Card>
       ) : (
         <Card className="flex flex-col">
           {kind && reachable ? (

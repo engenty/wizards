@@ -39,6 +39,8 @@ export interface MountFile {
   status: "pending" | "ready" | "skipped" | "failed";
   thumb: boolean;
   pages: number | null;
+  /** What its text calls itself (front matter's `title:`, first heading), when it says. */
+  title: string | null;
   categories: ItemCategory[];
 }
 
