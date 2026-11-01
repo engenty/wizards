@@ -334,7 +334,9 @@ function Palette({
           : hit.kind === "table" || hit.kind === "file"
             ? itemIcon({ kind: hit.kind, children: 0, format: null })
             : TextQuote,
-      thumb: hit.picture && file ? thumbUrl(spaceId, file) : undefined,
+      // A page's picture opens its page; the thumbnail is the picture's own.
+      thumb:
+        hit.picture && hit.key.startsWith("f:") ? thumbUrl(spaceId, hit.key.slice(2)) : undefined,
       title: (
         <>
           {titles[titles.length - 1]}

@@ -164,6 +164,12 @@ describe("pictures of a plugin's pages", () => {
       picture: "image",
       title: "Becken",
     });
+
+    // „In Marke übernehmen“: the same bytes as a brand asset, once.
+    const { pictureToBrand } = await import("../src/services/space-files");
+    const asset = await local(() => pictureToBrand(spaceId, pool?.id ?? ""));
+    expect(asset).toMatchObject({ kind: "asset", hash: pool?.hash, source: pool?.source });
+    expect((await local(() => pictureToBrand(spaceId, pool?.id ?? ""))).id).toBe(asset.id);
   });
 
   it("takes the copy another page has, and lets a picture go once no page shows it", async () => {
@@ -191,5 +197,8 @@ describe("pictures of a plugin's pages", () => {
 
     await local(() => data.remove(spaceId, "web:preise"));
     expect(await pictureRows()).toEqual([]);
+    // The brand's copy keeps the bytes.
+    const { getBlob } = await import("../src/files/blobs");
+    await expect(local(() => getBlob(pool?.hash ?? ""))).resolves.toBeTruthy();
   });
 });

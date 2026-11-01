@@ -447,6 +447,51 @@ export async function updateSpaceFile(
   return updated;
 }
 
+/**
+ * A page's picture made a brand asset („In Marke übernehmen“): the same bytes under a row of the
+ * kind `asset`, at the end of the assets. One the brand has already is given back as it is.
+ */
+export async function pictureToBrand(spaceId: string, fileId: string): Promise<SpaceFileRow> {
+  await requireWritableSpace(spaceId);
+  const row = await spaceFile(spaceId, fileId);
+  if (row.kind !== "picture" || !row.hash) {
+    throw new ServiceError("invalid", note("filesGoHere"));
+  }
+  const scope = and(eq(schema.spaceFile.spaceId, spaceId), eq(schema.spaceFile.kind, "asset"));
+  const had = await db.query.spaceFile.findFirst({
+    where: and(scope, eq(schema.spaceFile.hash, row.hash)),
+  });
+  if (had) {
+    return had;
+  }
+  const [{ n, last }] = await db
+    .select({ n: count(), last: max(schema.spaceFile.position) })
+    .from(schema.spaceFile)
+    .where(scope);
+  if (n >= SPACE_LIMITS.files.asset) {
+    throw new ServiceError("refused", note("roomMostFiles", { count: SPACE_LIMITS.files.asset }));
+  }
+  const [asset] = await db
+    .insert(schema.spaceFile)
+    .values({
+      id: nanoid(16),
+      spaceId,
+      kind: "asset",
+      name: row.name,
+      mime: row.mime,
+      size: row.size,
+      hash: row.hash,
+      description: row.description,
+      source: row.source,
+      position: (last ?? -1) + 1,
+      status: "ready",
+    })
+    .returning();
+  queueIndex(`f:${asset.id}`);
+  spaceFileChanged("space.file.ready", asset);
+  return asset;
+}
+
 /** Puts the files of one kind into the order of `ids`; the first logo is the one end users see. */
 export async function orderSpaceFiles(spaceId: string, kind: SpaceFileKind, ids: string[]) {
   await requireWritableSpace(spaceId);

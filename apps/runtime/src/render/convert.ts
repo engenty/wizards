@@ -123,10 +123,14 @@ export function htmlToContent(html: string): string {
     html.match(/<main\b[^>]*>([\s\S]*)<\/main>/i)?.[1] ??
     html.match(/<[a-z]+\b[^>]*\brole\s*=\s*["']main["'][^>]*>[\s\S]*/i)?.[0];
   const part = main ?? html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] ?? html;
-  return content
-    .turndown(part.replace(/<(script|style|svg)\b[\s\S]*?<\/\1>/gi, ""))
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return (
+    content
+      .turndown(part.replace(/<(script|style|svg)\b[\s\S]*?<\/\1>/gi, ""))
+      // A link that held only an icon, now gone, shows nothing.
+      .replace(/(?<!!)\[\]\([^)\n]*\)/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }
 
 // --- a page's pictures ----------------------------------------------------------------------
@@ -152,8 +156,8 @@ const attrOf = (tag: string, name: string) =>
     ?.slice(2)
     .find((v) => v !== undefined) ?? "";
 
-/** The candidate of a `srcset` to keep, with its width where the set says one. */
-function fromSrcset(srcset: string): { url: string; width: number | null } | null {
+/** The candidate of a `srcset` to keep, with its width or its density where the set says one. */
+function fromSrcset(srcset: string): { url: string; width: number | null; density: number } | null {
   const candidates = srcset
     .split(/,\s+/)
     .map((part) => part.trim().split(/\s+/))
@@ -166,16 +170,16 @@ function fromSrcset(srcset: string): { url: string; width: number | null } | nul
   const wide = candidates.filter((c) => c.w).sort((a, b) => (a.w ?? 0) - (b.w ?? 0));
   if (wide.length) {
     const pick = wide.filter((c) => (c.w ?? 0) <= MAX_PICTURE_WIDTH).pop() ?? wide[0];
-    return { url: pick.url, width: pick.w };
+    return { url: pick.url, width: pick.w, density: 1 };
   }
   const dense = candidates.sort((a, b) => (a.x ?? 1) - (b.x ?? 1)).pop();
-  return dense ? { url: dense.url, width: null } : null;
+  return dense ? { url: dense.url, width: null, density: dense.x ?? 1 } : null;
 }
 
 /**
  * A page's `<img>` tags, each pointed at one absolute address: the largest `srcset` entry up to
  * 2000 px, else `src`, or what a lazy loader keeps in `data-srcset`/`data-src`. Icons, sprites,
- * drawings (SVG) and pictures drawn under 200 px go: what `htmlToMarkdown` and `htmlToContent`
+ * drawings (SVG) and pictures drawn under 200 px on their longer side go: what `htmlToMarkdown` and `htmlToContent`
  * then write as `![alt](url)` is a picture of the page.
  */
 export function absolutePictures(html: string, base: string): string {
@@ -191,9 +195,9 @@ export function absolutePictures(html: string, base: string): string {
       return "";
     }
     const side = (name: string) => Number.parseInt(attrOf(tag, name), 10);
-    const tiny =
-      (side("width") < MIN_PICTURE_SIDE || side("height") < MIN_PICTURE_SIDE) &&
-      !((set?.width ?? 0) >= MIN_PICTURE_SIDE);
+    // The size it is drawn at, by its longer side, times the density `srcset` offers it in.
+    const drawn = Math.max(side("width") || 0, side("height") || 0) * (set?.density ?? 1);
+    const tiny = drawn > 0 && drawn < MIN_PICTURE_SIDE && !((set?.width ?? 0) >= MIN_PICTURE_SIDE);
     if (
       !/^https?:$/.test(url.protocol) ||
       /\.(svg|ico)$/i.test(url.pathname) ||

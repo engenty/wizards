@@ -246,6 +246,7 @@ import {
   addSpaceFileFromUrl,
   fileView,
   orderSpaceFiles,
+  pictureToBrand,
   reindexSpaceFile,
   removeSpaceFile,
   spaceFile,
@@ -1076,6 +1077,11 @@ export const studio = new Hono<Vars>()
     const space = await ownedSpace(c.get("user").id, c.req.param("id"));
     const { row, data } = await spaceFileContent(space.id, c.req.param("fileId"), whoOf(c));
     return spaceFileResponse(c, row.mime, data);
+  })
+  // A page's picture into the brand's assets: the same bytes.
+  .post("/spaces/:id/files/:fileId/brand", async (c) => {
+    const space = await ownedSpace(c.get("user").id, c.req.param("id"));
+    return c.json(fileView(await pictureToBrand(space.id, c.req.param("fileId"))));
   })
   // Its 320 px JPEG for lists and search: pictures and PDFs.
   .get("/spaces/:id/files/:fileId/thumb", async (c) => {

@@ -2,7 +2,7 @@ import { Markdown } from "@engenty/wizards-runner";
 import type { SpacePage } from "@engenty/wizards-shared/space-data";
 import { mergeText } from "@engenty/wizards-shared/text-merge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronRight, FileText, GitMerge, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronRight, FileText, GitMerge, Palette, Plus, Trash2 } from "lucide-react";
 import { lazy, type MouseEvent, Suspense, useEffect, useState } from "react";
 import { ApiError, api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
@@ -22,7 +22,14 @@ import {
 } from "../live/PresenceStack";
 import { useReportPresence } from "../live/presence";
 import type { Target } from "./blocks/targets";
-import { type Autosave, fileUrl, useAutosave, useFileActions, useSpaceFiles } from "./data";
+import {
+  type Autosave,
+  fileUrl,
+  thumbUrl,
+  useAutosave,
+  useFileActions,
+  useSpaceFiles,
+} from "./data";
 import { KnowledgeHeader, useKnowledge } from "./Knowledge";
 import { SourceItemNotice } from "./sources";
 import { TableEmbed } from "./TableEmbed";
@@ -216,6 +223,10 @@ function Editor({
       .map((f) => [`files/${f.name.replace(/[/\\]/g, "-")}`.toLowerCase(), f.id]),
   );
   const resolve = (src: string) => {
+    const copy = ASSET_REF.exec(src);
+    if (copy) {
+      return fileUrl(page.spaceId, copy[1]);
+    }
     const id = byName.get(src.toLowerCase());
     return id ? fileUrl(page.spaceId, id) : src;
   };
@@ -430,7 +441,11 @@ function Editor({
         ) : (
           <div className="min-h-40 p-4 sm:p-5" onClick={follow}>
             {markdown.trim() ? (
-              <Markdown text={markdown} />
+              <Markdown
+                text={markdown.replace(/asset:\/\/([A-Za-z0-9_-]{6,40})/g, (_, id: string) =>
+                  fileUrl(page.spaceId, id),
+                )}
+              />
             ) : (
               <p className="text-[0.875rem] text-ink-3">{t("data.pageEmpty")}</p>
             )}
@@ -440,6 +455,7 @@ function Editor({
       {status.state === "error" && status.error ? (
         <p className="px-1 text-[0.875rem] text-rose">{status.error}</p>
       ) : null}
+      <PagePictures spaceId={page.spaceId} markdown={markdown} />
       {know && onOpen && (know.children.length || !readOnly) ? (
         <div className="mt-3 flex flex-col gap-1.5">
           <div className="flex items-center justify-between px-1">
@@ -470,6 +486,80 @@ function Editor({
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** A copy of a picture in the space, as a page points at it. */
+const ASSET_REF = /^asset:\/\/([A-Za-z0-9_-]{6,40})$/;
+
+/** The pictures a page shows from the space (`![alt](asset://ID)`), each once. */
+function picturesOf(markdown: string): { id: string; alt: string }[] {
+  const out = new Map<string, string>();
+  for (const m of markdown.matchAll(/!\[([^\]\n]*)\]\(asset:\/\/([A-Za-z0-9_-]{6,40})\)/g)) {
+    if (!out.has(m[2])) {
+      out.set(m[2], m[1].trim());
+    }
+  }
+  return [...out].map(([id, alt]) => ({ id, alt }));
+}
+
+/** „Bilder“: the pictures the page shows, each one to take into the brand. */
+function PagePictures({ spaceId, markdown }: { spaceId: string; markdown: string }) {
+  const qc = useQueryClient();
+  const media = useFeature("knowledgeMedia");
+  const [taken, setTaken] = useState<string[]>([]);
+  const take = useMutation({
+    mutationFn: (id: string) => api.post(`/api/studio/spaces/${spaceId}/files/${id}/brand`, {}),
+    onSuccess: async (_, id) => {
+      setTaken((was) => [...was, id]);
+      await qc.invalidateQueries({ queryKey: keys.files(spaceId) });
+    },
+  });
+  const pictures = picturesOf(markdown);
+  if (!media || !pictures.length) {
+    return null;
+  }
+  return (
+    <div className="mt-3 flex flex-col gap-1.5">
+      <p className="px-1 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em]">
+        {t("know.pictures")}
+      </p>
+      <div className="flex gap-3 overflow-x-auto px-1 pb-1">
+        {pictures.map((p) => (
+          <figure key={p.id} className="flex w-40 shrink-0 flex-col gap-1.5">
+            <a href={fileUrl(spaceId, p.id)} target="_blank" rel="noreferrer">
+              <img
+                src={thumbUrl(spaceId, p.id)}
+                alt={p.alt}
+                loading="lazy"
+                className="aspect-[4/3] w-full rounded-lg bg-paper-2 object-cover"
+              />
+            </a>
+            {p.alt ? (
+              <figcaption className="truncate text-[0.75rem] text-ink-3">{p.alt}</figcaption>
+            ) : null}
+            {taken.includes(p.id) ? (
+              <span className="inline-flex items-center gap-1 text-[0.75rem] text-moss">
+                <Check className="size-3.5" /> {t("know.inBrand")}
+              </span>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                busy={take.isPending && take.variables === p.id}
+                onClick={() => take.mutate(p.id)}
+                className="self-start"
+              >
+                <Palette className="size-3.5" /> {t("know.toBrand")}
+              </Button>
+            )}
+          </figure>
+        ))}
+      </div>
+      {take.error ? (
+        <p className="px-1 text-[0.8125rem] text-rose">{(take.error as Error).message}</p>
+      ) : null}
+    </div>
   );
 }
 
