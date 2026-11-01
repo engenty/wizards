@@ -3,7 +3,12 @@ import { createHash } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
 import { homedir, platform } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import type { PluginMountEntry, PluginMountReader } from "@engenty/wizards/plugin";
+import type {
+  PluginMount,
+  PluginMountEntry,
+  PluginMountKind,
+  PluginMountReader,
+} from "@engenty/wizards/plugin";
 import { featureOn } from "@engenty/wizards-shared/features";
 import type { ItemCategory } from "@engenty/wizards-shared/knowledge";
 import type { RwxRuleInput } from "@engenty/wizards-shared/rwx";
@@ -19,6 +24,7 @@ import { jpegOf, MAX_PAGE_PICTURES, pdfPages } from "../files/pictures.js";
 import { hasThumb, makeThumb } from "../files/thumbs.js";
 import { managed } from "../manage.js";
 import { embeddingModel } from "../models.js";
+import { onPluginChange, pluginsOf } from "../plugins/registry.js";
 import { currentRole, isAdminRole, MEMBERS_EDIT_ONLY } from "../services/access.js";
 import { notFound, ServiceError } from "../services/errors.js";
 import { itemCategoriesOf, putCategory, setItemCategories } from "../services/space-categories.js";
@@ -29,9 +35,9 @@ import { pathWords, textUnits, unitText } from "./units.js";
 
 /**
  * Dateien (docs/plans/media-and-files.md, section 3): file trees another party owns, mounted in a
- * space and indexed where they live. A folder on this computer is the first kind; every kind
- * reads through the one `PluginMountReader`. Behind the `dateien` switch, and on a local install
- * only while the folder is the only kind.
+ * space and indexed where they live. A folder on this computer is the core's kind (a local
+ * install's alone); a plugin brings others (`registerMountKind`: a bucket, a drive's folder).
+ * Every kind reads through the one `PluginMountReader`. Behind the `dateien` switch.
  *
  * A mount is listed against its rows at start, hourly and when its watcher tells of a change; a
  * file that moved or was renamed keeps its row (found again by its size and time, else its hash),
@@ -56,6 +62,8 @@ const TEXT =
 const PICTURE = /^image\/(png|jpeg|webp|gif)$/;
 /** A mount's tree is listed again this often, for what a watcher missed. */
 const RESCAN_MS = 3600_000;
+/** A plugin's mount is listed whole again this often; between, its `changes` say. */
+const RELIST_MS = 7 * 24 * 3600_000;
 /** Changes a watcher tells of wait this long, so a copy of many files is one round. */
 const SETTLE_MS = 2000;
 
@@ -63,11 +71,19 @@ export async function dateienOn(): Promise<boolean> {
   return featureOn(await currentFeatures(), "dateien");
 }
 
-/** Mounts exist only behind the switch, and a folder of this computer only on a local install. */
+/** Mounts exist only behind the switch. */
 async function requireDateien(): Promise<void> {
-  if (managed || !(await dateienOn())) {
+  if (!(await dateienOn())) {
     throw notFound();
   }
+}
+
+/** A folder of this computer is mounted only on a local install. */
+async function requireFolders(): Promise<void> {
+  if (managed) {
+    throw notFound();
+  }
+  await requireDateien();
 }
 
 function requireAdmin(): void {
@@ -80,22 +96,73 @@ function requireAdmin(): void {
 
 interface Open {
   reader: PluginMountReader;
+  /** The plugin whose kind it is; null for a folder. */
+  plugin: string | null;
   cursor: string | null;
   stop?: () => void;
   timer?: NodeJS.Timeout;
+  /** When its `changes` were last asked for, where the kind can't watch. */
+  askedAt?: number;
 }
 
 /** The open mounts of this process, by id: their reader, its cursor, its watcher. */
 const opened = new Map<string, Open>();
 
-export function readerOf(mount: MountRow): PluginMountReader {
+const isFolder = (mount: Pick<MountRow, "kind">) => mount.kind === "folder";
+const folderPath = (mount: MountRow) => (mount.source as { path: string }).path;
+
+/** A mount as a plugin's kind is handed it. */
+const pluginMount = (mount: MountRow): PluginMount => ({
+  id: mount.id,
+  space: mount.spaceId,
+  name: mount.name,
+  source: mount.source as Record<string, unknown>,
+});
+
+/** The kind of a plugin's mount, where the tenant has its plugin now; null where not. */
+async function kindOf(mount: Pick<MountRow, "kind" | "plugin">): Promise<PluginMountKind | null> {
+  const plugin = (await pluginsOf(currentTenant())).find((p) => p.source.id === mount.plugin);
+  return plugin?.mountKinds.get(mount.kind) ?? null;
+}
+
+/** The mount kinds of the tenant's plugins, with the plugin that brings each. */
+export async function mountKinds(): Promise<{ plugin: string; kind: PluginMountKind }[]> {
+  return (await pluginsOf(currentTenant())).flatMap((p) =>
+    [...p.mountKinds.values()].map((kind) => ({ plugin: p.source.id, kind })),
+  );
+}
+
+async function openOf(mount: MountRow): Promise<Open> {
   let open = opened.get(mount.id);
   if (!open) {
-    open = { reader: new FolderReader(mount.source.path), cursor: null };
+    let reader: PluginMountReader;
+    if (isFolder(mount)) {
+      reader = new FolderReader(folderPath(mount));
+    } else {
+      const kind = await kindOf(mount);
+      if (!kind) {
+        throw new ServiceError("not_found", `The plugin that reads "${mount.name}" is not there.`);
+      }
+      reader = kind.open(pluginMount(mount));
+    }
+    open = opened.get(mount.id) ?? { reader, plugin: mount.plugin, cursor: mount.cursor };
     opened.set(mount.id, open);
   }
-  return open.reader;
+  return open;
 }
+
+export async function readerOf(mount: MountRow): Promise<PluginMountReader> {
+  return (await openOf(mount)).reader;
+}
+
+// A plugin loaded again or went: its readers are opened again with its new code.
+onPluginChange(({ id }) => {
+  for (const [mountId, open] of opened) {
+    if (open.plugin && (id === null || open.plugin === id)) {
+      closeMount(mountId);
+    }
+  }
+});
 
 /** What is told of the paths of a mount that changed: new, changed, moved or gone. */
 type ChangeListener = (mount: MountRow, paths: string[]) => void;
@@ -107,9 +174,8 @@ export function onMountChanged(listener: ChangeListener) {
 }
 
 /** Starts listening to a mount's source: a change asks for its changes a moment later. */
-function watchMount(mount: MountRow) {
-  readerOf(mount);
-  const open = opened.get(mount.id) as Open;
+async function watchMount(mount: MountRow) {
+  const open = await openOf(mount);
   if (open.stop || !open.reader.watch) {
     return;
   }
@@ -130,6 +196,9 @@ function closeMount(id: string) {
 }
 
 const thumbKey = (mountId: string, fileId: string) => `derived/m/${mountId}/${fileId}.jpg`;
+
+/** The source's id of a file, for its reader: where the row knows it. */
+const idOf = (file: Pick<FileRow, "sourceId">) => (file.sourceId ? { id: file.sourceId } : {});
 
 // --- the work: listing, indexing, vectors -------------------------------------------------
 // One after the other in this process: what a watcher or a scan asks for first, then the next
@@ -205,11 +274,13 @@ export async function flushMounts() {
   }
 }
 
-/** At start: every tenant's mounts watched and listed again (a local install has one tenant). */
+/**
+ * At start, and hourly: every tenant's mounts watched and listed again. A folder is listed whole
+ * each time; a plugin's mount asks its `changes` from the cursor it kept, as often as its kind
+ * says, and is listed whole once a week or when its `changes` can't say.
+ */
 export async function startMounts() {
-  if (managed) {
-    return;
-  }
+  const started = new Set<string>();
   const scanAll = async () => {
     for (const tenant of await knownTenants()) {
       await withTenant(tenant, async () => {
@@ -217,8 +288,36 @@ export async function startMounts() {
           return;
         }
         for (const mount of await db.query.spaceMount.findMany()) {
-          watchMount(mount);
-          queue(tenant, mount.id, "scan");
+          if (isFolder(mount)) {
+            if (managed) {
+              continue;
+            }
+            await watchMount(mount).catch(() => undefined);
+            queue(tenant, mount.id, "scan");
+            continue;
+          }
+          const kind = await kindOf(mount);
+          if (!kind) {
+            continue;
+          }
+          const open = await openOf(mount).catch(() => null);
+          if (!open) {
+            continue;
+          }
+          await watchMount(mount).catch(() => undefined);
+          const stale =
+            !(mount.cursor && mount.scannedAt) ||
+            Date.now() - mount.scannedAt.getTime() > RELIST_MS;
+          const due =
+            !started.has(mount.id) ||
+            (!open.reader.watch &&
+              Date.now() - (open.askedAt ?? 0) >= (kind.everyHours ?? 1) * 3600_000 - 60_000);
+          started.add(mount.id);
+          if (stale) {
+            queue(tenant, mount.id, "scan");
+          } else if (due) {
+            queue(tenant, mount.id, "changes");
+          }
         }
       }).catch((err) => console.error(`[dateien] start ${tenant}`, err));
     }
@@ -230,7 +329,22 @@ export async function startMounts() {
 // --- listing -------------------------------------------------------------------------------
 
 async function sourceThere(mount: MountRow): Promise<boolean> {
-  return Boolean((await stat(mount.source.path).catch(() => null))?.isDirectory());
+  if (!isFolder(mount)) {
+    return Boolean(await kindOf(mount));
+  }
+  return Boolean((await stat(folderPath(mount)).catch(() => null))?.isDirectory());
+}
+
+/** Keeps where the source's changes go on from, in this process and for the next start. */
+async function keepCursor(mountId: string, open: Open, cursor: string) {
+  open.cursor = cursor;
+  open.askedAt = Date.now();
+  await db.update(schema.spaceMount).set({ cursor }).where(eq(schema.spaceMount.id, mountId));
+}
+
+/** What a plugin's reader threw while listing: the account went, the bucket can't be reached. */
+async function away(mountId: string, err: unknown) {
+  await setStatus(mountId, "away", String((err as Error)?.message ?? err).slice(0, 300));
 }
 
 async function setStatus(mountId: string, status: MountRow["status"], error: string | null) {
@@ -253,12 +367,19 @@ export async function scanMount(mountId: string) {
     return;
   }
   await setStatus(mount.id, "scanning", null);
-  const reader = readerOf(mount);
-  const open = opened.get(mount.id) as Open;
-  open.cursor = (await reader.changes(null)).cursor;
   const listed: PluginMountEntry[] = [];
-  for await (const entry of reader.list()) {
-    listed.push(entry);
+  try {
+    const open = await openOf(mount);
+    await keepCursor(mount.id, open, (await open.reader.changes(null)).cursor);
+    for await (const entry of open.reader.list()) {
+      listed.push(entry);
+    }
+  } catch (err) {
+    if (isFolder(mount)) {
+      throw err;
+    }
+    await away(mount.id, err);
+    return;
   }
   await reconcile(mount, listed, null);
   await db
@@ -270,61 +391,139 @@ export async function scanMount(mountId: string) {
 /** What the watcher told of: the changes since the last round, or the whole tree again. */
 async function followChanges(mountId: string) {
   const mount = await db.query.spaceMount.findFirst({ where: eq(schema.spaceMount.id, mountId) });
-  const open = opened.get(mountId);
-  if (!(mount && open)) {
+  if (!mount) {
     return;
   }
-  const changes = await open.reader.changes(open.cursor);
-  open.cursor = changes.cursor;
+  let changes: Awaited<ReturnType<PluginMountReader["changes"]>>;
+  try {
+    const open = await openOf(mount);
+    changes = await open.reader.changes(open.cursor);
+    await keepCursor(mount.id, open, changes.cursor);
+  } catch (err) {
+    if (isFolder(mount)) {
+      throw err;
+    }
+    await away(mount.id, err);
+    return;
+  }
   if (changes.relist) {
     return scanMount(mountId);
   }
-  await reconcile(mount, changes.changed, [...changes.gone, ...changes.changed.map((c) => c.path)]);
+  if (mount.status === "away") {
+    await setStatus(mount.id, "ready", null);
+  }
+  await reconcile(
+    mount,
+    changes.changed,
+    [...changes.gone, ...changes.changed.map((c) => c.path)],
+    changes.goneIds ?? [],
+  );
 }
 
 async function hashOf(reader: PluginMountReader, entry: PluginMountEntry) {
   if (entry.size > MAX_READ_BYTES) {
     return null;
   }
-  const data = await reader.read(entry.path).catch(() => null);
+  const data = await reader.read(entry.path, entry.id ? { id: entry.id } : {}).catch(() => null);
   return data ? createHash("sha256").update(data).digest("hex") : null;
 }
 
 /**
  * Brings the rows in line with what the source listed. `under`: the paths the listing covers
- * (a change's), null for the whole tree. A file listed at a new path that a row no longer
- * listed has (same size and time, else same bytes) is that row, moved: it keeps its id.
+ * (a change's), null for the whole tree; `goneIds`: files gone by the source's id. A file listed
+ * at a new path keeps its row: found by the source's id where it has one, else as a file a row
+ * no longer listed has (same size and time, else same bytes).
  */
-async function reconcile(mount: MountRow, listed: PluginMountEntry[], under: string[] | null) {
+async function reconcile(
+  mount: MountRow,
+  listed: PluginMountEntry[],
+  under: string[] | null,
+  goneIds: string[] = [],
+) {
   const t = schema.spaceMountFile;
+  const removeRows = async (ids: string[]) => {
+    for (let i = 0; i < ids.length; i += 500) {
+      await db.delete(t).where(inArray(t.id, ids.slice(i, i + 500)));
+    }
+    for (const id of ids) {
+      await objects.remove(thumbKey(mount.id, id)).catch(() => undefined);
+    }
+  };
+  const changed: string[] = [];
+  if (goneIds.length) {
+    const rows = await db.query.spaceMountFile.findMany({
+      where: and(eq(t.mountId, mount.id), inArray(t.sourceId, goneIds)),
+      columns: { id: true, path: true },
+    });
+    await removeRows(rows.map((r) => r.id));
+    changed.push(...rows.map((r) => r.path));
+  }
   const rows = await db.query.spaceMountFile.findMany({
     where: eq(t.mountId, mount.id),
-    columns: { id: true, path: true, size: true, modified: true, hash: true },
+    columns: { id: true, path: true, size: true, modified: true, hash: true, sourceId: true },
   });
   const byPath = new Map(rows.map((r) => [r.path, r]));
+  const byId = new Map(rows.filter((r) => r.sourceId).map((r) => [r.sourceId as string, r]));
   const seen = new Set(listed.map((e) => e.path));
   const covered = (path: string) =>
     under === null || under.some((p) => path === p || path.startsWith(`${p}/`));
   const gone = rows.filter((r) => covered(r.path) && !seen.has(r.path));
   const taken = new Set<string>();
   const fresh: (typeof t.$inferInsert)[] = [];
-  const reader = readerOf(mount);
+  const reader = await readerOf(mount);
   const now = new Date();
-  const changed: string[] = [];
   for (const entry of listed) {
     const mime = documentMime(entry.path, entry.mime ?? "");
+    const sourceId = entry.id ?? null;
+    const known = sourceId ? byId.get(sourceId) : undefined;
+    if (known && known.path !== entry.path) {
+      // Moved or renamed at the source: the row follows its id. A file at the new path is replaced.
+      const there = byPath.get(entry.path);
+      if (there && there.id !== known.id) {
+        await removeRows([there.id]);
+        byPath.delete(entry.path);
+      }
+      taken.add(known.id);
+      changed.push(known.path, entry.path);
+      byPath.delete(known.path);
+      byPath.set(entry.path, { ...known, path: entry.path });
+      await db
+        .update(t)
+        .set({
+          path: entry.path,
+          name: basename(entry.path),
+          mime,
+          size: entry.size,
+          modified: entry.modified,
+          status: "pending",
+          updatedAt: now,
+        })
+        .where(eq(t.id, known.id));
+      continue;
+    }
     const row = byPath.get(entry.path);
     if (row) {
-      if (row.size !== entry.size || row.modified !== entry.modified) {
+      const differs = row.size !== entry.size || row.modified !== entry.modified;
+      if (differs) {
         changed.push(entry.path);
+      }
+      if (differs || (sourceId && row.sourceId !== sourceId)) {
         await db
           .update(t)
-          .set({ size: entry.size, modified: entry.modified, status: "pending", updatedAt: now })
+          .set({
+            size: entry.size,
+            modified: entry.modified,
+            sourceId: sourceId ?? row.sourceId,
+            ...(differs ? { status: "pending" as const } : {}),
+            updatedAt: now,
+          })
           .where(eq(t.id, row.id));
       }
       continue;
     }
-    const alike = gone.filter((g) => g.size === entry.size && !taken.has(g.id));
+    const alike = sourceId
+      ? []
+      : gone.filter((g) => g.size === entry.size && !taken.has(g.id) && !g.sourceId);
     let moved = alike.find((g) => g.modified === entry.modified);
     if (!moved && alike.some((g) => g.hash)) {
       const hash = await hashOf(reader, entry);
@@ -352,6 +551,7 @@ async function reconcile(mount: MountRow, listed: PluginMountEntry[], under: str
       mountId: mount.id,
       spaceId: mount.spaceId,
       path: entry.path,
+      sourceId,
       name: basename(entry.path),
       mime,
       size: entry.size,
@@ -359,13 +559,7 @@ async function reconcile(mount: MountRow, listed: PluginMountEntry[], under: str
     });
   }
   const removed = gone.filter((g) => !taken.has(g.id));
-  for (let i = 0; i < removed.length; i += 500) {
-    const ids = removed.slice(i, i + 500).map((r) => r.id);
-    await db.delete(t).where(inArray(t.id, ids));
-  }
-  for (const r of removed) {
-    await objects.remove(thumbKey(mount.id, r.id)).catch(() => undefined);
-  }
+  await removeRows(removed.map((g) => g.id));
   for (let i = 0; i < fresh.length; i += 200) {
     await db
       .insert(t)
@@ -436,9 +630,9 @@ const hasText = (file: Pick<FileRow, "mime" | "size">) =>
 async function indexFile(mount: MountRow, file: FileRow) {
   const t = schema.spaceMountFile;
   const u = schema.spaceMountUnit;
-  const reader = readerOf(mount);
+  const reader = await readerOf(mount);
   const big = file.size > MAX_READ_BYTES;
-  const data = big ? null : await reader.read(file.path);
+  const data = big ? null : await reader.read(file.path, idOf(file));
   const hash = data ? createHash("sha256").update(data).digest("hex") : null;
   const same = hash !== null && hash === file.hash;
   const parsed: ParsedDocument | null =
@@ -559,7 +753,7 @@ async function textForVectors(mount: MountRow, file: FileRow): Promise<string> {
   if (kept !== undefined) {
     return kept?.markdown ?? "";
   }
-  const data = await readerOf(mount).read(file.path);
+  const data = await (await readerOf(mount)).read(file.path, idOf(file));
   if (createHash("sha256").update(data).digest("hex") !== file.hash) {
     // Changed since: the next listing indexes it again.
     return "";
@@ -675,7 +869,7 @@ async function embedPictures(): Promise<boolean> {
     .from(u)
     .where(and(eq(u.fileId, fileId), isNotNull(u.kind), lacking(resolved.ref)));
   try {
-    const data = await readerOf(mount).read(file.path);
+    const data = await (await readerOf(mount)).read(file.path, idOf(file));
     const pictures =
       file.mime === "application/pdf"
         ? new Map((await pdfPages(data)).map((p) => [p.page, p.jpeg]))
@@ -707,8 +901,10 @@ export interface MountView {
   id: string;
   name: string;
   slug: string;
-  kind: MountRow["kind"];
-  /** Where it lives, as its owner calls it: the folder's path. */
+  /** `folder`, or the kind of the plugin that brings it. */
+  kind: string;
+  plugin: string | null;
+  /** Where it lives, as its owner calls it: the folder's path, `s3://bucket/prefix/`. */
   where: string;
   status: MountRow["status"];
   error: string | null;
@@ -766,7 +962,8 @@ async function viewOf(mounts: MountRow[]): Promise<MountView[]> {
       name: m.name,
       slug: m.slug,
       kind: m.kind,
-      where: m.source.path,
+      plugin: m.plugin,
+      where: m.location ?? folderPath(m),
       status: m.status,
       error: m.error,
       files: c?.n ?? 0,
@@ -816,7 +1013,11 @@ export type MountSee = "all" | "admins";
 export type MountWizards = "all" | "none" | string[];
 
 export interface MountInput {
-  path: string;
+  /** A folder of this computer. */
+  path?: string;
+  /** Else a plugin's kind, with what its studio form gave. */
+  kind?: string;
+  source?: Record<string, unknown>;
   name?: string;
   see: MountSee;
   wizards: MountWizards;
@@ -881,7 +1082,43 @@ async function writeRules(spaceId: string, mountId: string, rules: RwxRuleInput[
   }
 }
 
-/** Mounts a folder of this computer in a space; listing and indexing go on in the background. */
+/** Where a mount comes from: a folder of this computer, or what a plugin's kind prepared. */
+async function sourceOf(spaceId: string, input: MountInput) {
+  if (!input.kind || input.kind === "folder") {
+    await requireFolders();
+    const typed = input.path ?? "";
+    const path = resolve(typed.replace(/^~(?=$|\/)/, homedir()));
+    if (!(typed && (await stat(path).catch(() => null))?.isDirectory())) {
+      throw new ServiceError("invalid", `There is no folder "${typed}".`);
+    }
+    return {
+      kind: "folder",
+      plugin: null,
+      source: { path },
+      name: basename(path) || path,
+      location: path,
+    };
+  }
+  const found = (await mountKinds()).find((k) => k.kind.kind === input.kind);
+  if (!found) {
+    throw new ServiceError("invalid", `No plugin brings mounts of the kind "${input.kind}".`);
+  }
+  let prepared: Awaited<ReturnType<PluginMountKind["prepare"]>>;
+  try {
+    prepared = await found.kind.prepare({ space: spaceId, source: input.source ?? {} });
+  } catch (err) {
+    throw new ServiceError("invalid", String((err as Error)?.message ?? err).slice(0, 300));
+  }
+  return {
+    kind: found.kind.kind,
+    plugin: found.plugin,
+    source: prepared.source,
+    name: prepared.name,
+    location: prepared.where,
+  };
+}
+
+/** Mounts a folder or a plugin's source in a space; listing and indexing go on in the background. */
 export async function createMount(
   userId: string,
   spaceId: string,
@@ -892,23 +1129,20 @@ export async function createMount(
   return addMount(userId, spaceId, input);
 }
 
-/** Mounts a folder without asking who: `createMount`, and a command's conversion. */
+/** Mounts without asking who: `createMount`, and a command's conversion of folders. */
 export async function addMount(
   userId: string,
   spaceId: string,
   input: MountInput,
 ): Promise<MountView> {
-  const path = resolve(input.path.replace(/^~(?=$|\/)/, homedir()));
-  if (!(await stat(path).catch(() => null))?.isDirectory()) {
-    throw new ServiceError("invalid", `There is no folder "${input.path}".`);
-  }
+  const from = await sourceOf(spaceId, input);
   const mounts = await db.query.spaceMount.findMany({
     where: eq(schema.spaceMount.spaceId, spaceId),
   });
-  if (mounts.some((m) => m.source.path === path)) {
-    throw new ServiceError("refused", `"${path}" is mounted in this space already.`);
+  if (mounts.some((m) => (m.location ?? folderPath(m)) === from.location)) {
+    throw new ServiceError("refused", `"${from.location}" is mounted in this space already.`);
   }
-  const name = input.name?.trim() || basename(path) || path;
+  const name = input.name?.trim() || from.name;
   let slug = slugOf(name);
   for (let n = 2; mounts.some((m) => m.slug === slug); n++) {
     slug = `${slugOf(name)}-${n}`;
@@ -923,8 +1157,10 @@ export async function addMount(
     spaceId,
     name,
     slug,
-    kind: "folder",
-    source: { path },
+    kind: from.kind,
+    plugin: from.plugin,
+    source: from.source,
+    location: from.location,
     folderCategoryId: category?.id ?? null,
     writable: Boolean(input.writable),
     createdBy: userId,
@@ -938,9 +1174,45 @@ export async function addMount(
   const mount = (await db.query.spaceMount.findFirst({
     where: eq(schema.spaceMount.id, id),
   })) as MountRow;
-  watchMount(mount);
+  await watchMount(mount).catch(() => undefined);
   queue(currentTenant(), id, "scan");
   return (await viewOf([mount]))[0];
+}
+
+/**
+ * Whether a mount's account may write where it lives: a folder of this computer may; a plugin's
+ * kind says (false: its studio half connects the account again with the rights to write).
+ */
+export async function mountCanWrite(mount: MountRow): Promise<boolean> {
+  if (isFolder(mount)) {
+    return true;
+  }
+  const kind = await kindOf(mount);
+  return kind ? ((await kind.canWrite?.(pluginMount(mount)).catch(() => false)) ?? true) : false;
+}
+
+// --- a plugin's mounts, for the plugin ------------------------------------------------------
+
+/** The mounts of a plugin's kinds in the current tenant, of one space or of all. */
+export async function pluginMounts(plugin: string, space?: string) {
+  const rows = await db.query.spaceMount.findMany({
+    where: and(
+      eq(schema.spaceMount.plugin, plugin),
+      space ? eq(schema.spaceMount.spaceId, space) : undefined,
+    ),
+  });
+  return rows.map((m) => ({ ...pluginMount(m), kind: m.kind }));
+}
+
+/** The source told a plugin of a change: its changes are asked for now. */
+export async function pluginMountChanged(plugin: string, id: string) {
+  const mount = await db.query.spaceMount.findFirst({
+    where: and(eq(schema.spaceMount.id, id), eq(schema.spaceMount.plugin, plugin)),
+  });
+  if (!mount) {
+    throw notFound();
+  }
+  queue(currentTenant(), mount.id, "changes");
 }
 
 /** Who sees a mount and which wizards may use it, as its rules say. */
@@ -1014,7 +1286,7 @@ export async function writtenAtSource(fileId: string, entry: PluginMountEntry) {
 /** Lists a mount's tree again now: "Neu einlesen". */
 export async function rescanMount(spaceId: string, mountId: string, who: Subject[]) {
   const mount = await mountRow(spaceId, mountId, who);
-  watchMount(mount);
+  await watchMount(mount).catch(() => undefined);
   queue(currentTenant(), mount.id, "scan");
 }
 
@@ -1097,11 +1369,10 @@ export async function mountFileView(spaceId: string, fileId: string, who: Subjec
 /** The file's bytes, read from where it lives: nothing of them is kept. */
 export async function mountFileContent(spaceId: string, fileId: string, who: Subject[]) {
   const { mount, file } = await mountFile(spaceId, fileId, who);
-  const data = await readerOf(mount)
-    .read(file.path)
-    .catch(() => {
-      throw new ServiceError("not_found", `"${file.path}" is not in the folder any more.`);
-    });
+  const reader = await readerOf(mount);
+  const data = await reader.read(file.path, idOf(file)).catch(() => {
+    throw new ServiceError("not_found", `"${file.path}" is not in the folder any more.`);
+  });
   return { file, data };
 }
 
@@ -1115,7 +1386,7 @@ export async function mountFileText(mount: MountRow, file: FileRow): Promise<str
   if (!hasText(file)) {
     return "";
   }
-  const data = await readerOf(mount).read(file.path);
+  const data = await (await readerOf(mount)).read(file.path, idOf(file));
   const hash = createHash("sha256").update(data).digest("hex");
   return (await textOf(file, hash, data))?.markdown ?? "";
 }
@@ -1159,7 +1430,7 @@ export async function unitTexts(
 
 /** The mounts of a space a caller may use: ids with their name and slug. */
 export async function usableMounts(spaceId: string, who: Subject[]) {
-  if (managed || !(await dateienOn())) {
+  if (!(await dateienOn())) {
     return [];
   }
   const mounts = await db.query.spaceMount.findMany({
@@ -1199,7 +1470,7 @@ export async function fileByPath(spaceId: string, path: string, who: Subject[]) 
  * dialog (the studio asks for a path instead).
  */
 export async function pickFolder(prompt: string): Promise<string | null | false> {
-  await requireDateien();
+  await requireFolders();
   const run = (cmd: string, args: string[]) =>
     new Promise<string | null | false>((done) => {
       execFile(cmd, args, { timeout: 10 * 60_000 }, (err, stdout) => {
@@ -1233,7 +1504,7 @@ export async function pickFolder(prompt: string): Promise<string | null | false>
 
 /** Folders whose path starts with `typed`, for the path field. */
 export async function completeFolder(typed: string): Promise<string[]> {
-  await requireDateien();
+  await requireFolders();
   const full = typed.replace(/^~(?=$|\/)/, homedir()) || homedir();
   const [dir, start] = full.endsWith("/") ? [full, ""] : [dirname(full), basename(full)];
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
@@ -1248,7 +1519,7 @@ export async function completeFolder(typed: string): Promise<string[]> {
 
 /** What a folder holds, before it is mounted: counts, its folders of the first level, what is left out. */
 export async function previewFolder(path: string) {
-  await requireDateien();
+  await requireFolders();
   const root = resolve(path.replace(/^~(?=$|\/)/, homedir()));
   if (!(await stat(root).catch(() => null))?.isDirectory()) {
     throw new ServiceError("invalid", `There is no folder "${path}".`);

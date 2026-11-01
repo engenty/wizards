@@ -34,6 +34,7 @@ import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
 import { managed } from "../manage.js";
 import { conversationAccess, ModelUnavailableError, textModel } from "../models.js";
+import { pluginMountChanged, pluginMounts } from "../mounts/mounts.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { putIndexEntry, removeIndexEntries } from "../services/space-index.js";
 import { originData } from "../services/space-origin.js";
@@ -307,6 +308,22 @@ function apiFor(record: LoadedPlugin): WizardsPluginApi {
             handler: () => runDueSources(source.id),
           });
         }
+      },
+      registerMountKind(kind) {
+        if (!/^[a-z0-9-]{1,24}$/.test(kind.kind) || kind.kind === "folder") {
+          throw new Error(`Mount kind "${kind.kind}": a kind is lower case, digits and "-".`);
+        }
+        const taken = loadedPlugins().some(
+          (p) => p.source.id !== source.id && p.mountKinds.has(kind.kind),
+        );
+        if (taken || record.mountKinds.has(kind.kind)) {
+          throw new Error(`Mount kind "${kind.kind}" is taken.`);
+        }
+        record.mountKinds.set(kind.kind, kind);
+      },
+      mounts: {
+        list: (space) => pluginMounts(source.id, space),
+        changed: (id) => pluginMountChanged(source.id, id),
       },
       knowledgeSources: {
         async list(space) {

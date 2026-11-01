@@ -7,7 +7,13 @@ import { DEFAULT_CONNECTION_RULES } from "@engenty/wizards-shared/connectors";
 import type { Lang } from "@engenty/wizards-shared/definition";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { brokerCall, currentCaller, kindOf, reachesOutside } from "../broker/index.js";
+import {
+  brokerCall,
+  currentCaller,
+  grantedScopes,
+  kindOf,
+  reachesOutside,
+} from "../broker/index.js";
 import { db, schema } from "../db/client.js";
 import {
   buildAuthorizationUrl,
@@ -16,6 +22,7 @@ import {
   type OAuth2Tokens,
 } from "../engenty/connections-sdk/oauth2.js";
 import type { ConnectorDefinition } from "../engenty/connections-sdk/types.js";
+import { managed } from "../manage.js";
 import { seal, unseal } from "../secrets/crypto.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { builtinConnector, connectorFetch, resolveEnv, usable, viaAccount } from "./builtin.js";
@@ -49,6 +56,16 @@ interface PluginOAuthState {
 }
 
 type Row = SpaceConnectionRow;
+
+/** The broker's name for a plugin's own request through a connection (`connections.request`). */
+const REQUEST = "request";
+
+/**
+ * What a plugin's connection reaches: the public internet in the cloud; on a local install the
+ * local network too, where a person's own bucket (a NAS, a MinIO) is. A wizard's connections stay
+ * on the public internet everywhere (`connectorFetch`).
+ */
+const pluginFetch: typeof fetch = managed ? connectorFetch : (input, init) => fetch(input, init);
 
 function oauthConnector(id: string): ConnectorDefinition {
   const connector = builtinConnector(id);
@@ -246,13 +263,13 @@ export function pluginConnections(plugin: string): PluginConnections {
       return out;
     },
 
-    async start({ space, connector: connectorId, actions, lang }) {
+    async start({ space, connector: connectorId, actions, scopes: more, lang }) {
       const connector = oauthConnector(connectorId);
       if (connector.auth.kind !== "oauth2") {
         throw new Error("not an oauth connector");
       }
       await spaceExists(space);
-      const scopes = scopesOf(connector, actions);
+      const scopes = [...new Set([...scopesOf(connector, actions), ...(more ?? [])])];
       const base = {
         plugin,
         tenantId: currentTenant(),
@@ -312,7 +329,7 @@ export function pluginConnections(plugin: string): PluginConnections {
       }
       let account: { label: string };
       try {
-        account = await connector.auth.apiKey.verify(keys, connectorFetch);
+        account = await connector.auth.apiKey.verify(keys, pluginFetch);
       } catch (err) {
         throw Object.assign(new Error(String((err as Error)?.message ?? err).slice(0, 300)), {
           status: 400,
@@ -385,6 +402,69 @@ export function pluginConnections(plugin: string): PluginConnections {
         throw new Error(out.reason);
       }
       return out.result as never;
+    },
+
+    async request(id, request) {
+      const row = await own(id);
+      if (!row) {
+        throw new Error(`There is no connection "${id}".`);
+      }
+      const connector = connectorOf(row.connectorId);
+      const capability = connector.request;
+      if (!capability) {
+        throw new Error(`${connector.name} takes no requests of a plugin.`);
+      }
+      const kind = request.kind ?? "read";
+      const caller = currentCaller() ?? {
+        who: { kind: "plugin" as const, id: plugin },
+        where: { spaceId: row.spaceId },
+      };
+      reachesOutside(`plugin:${plugin}`, { connection: row.connectorId, action: REQUEST, kind });
+      const out = await brokerCall<Response>({
+        who: caller.who,
+        where: { ...caller.where, spaceId: caller.where.spaceId ?? row.spaceId },
+        connection: { kind: "space_connection", row, connector },
+        action: { id: REQUEST, kind },
+        input: { method: request.method ?? "GET", url: request.url.split("?")[0] },
+        handler: async (account) => {
+          const url = new URL(request.url);
+          if (!capability.origins(account.ctx).includes(url.origin)) {
+            throw new Error(`${connector.name} takes no requests to ${url.origin}.`);
+          }
+          const body = request.body as BodyInit | undefined;
+          const unsigned = new Request(url, {
+            method: request.method ?? "GET",
+            headers: request.headers,
+            body,
+          });
+          if (!capability.sign) {
+            unsigned.headers.set("authorization", `Bearer ${account.ctx.accessToken}`);
+          }
+          const signed = capability.sign ? await capability.sign(account.ctx, unsigned) : unsigned;
+          const res = await pluginFetch(signed.url, {
+            method: signed.method,
+            headers: signed.headers,
+            body,
+            signal: request.signal,
+          });
+          // The service turned the sign-in down: the broker hears of it, as of an action's.
+          if (res.status === 401) {
+            throw Object.assign(new Error(`${connector.name} refused the sign-in (401).`), {
+              status: 401,
+            });
+          }
+          return res;
+        },
+      });
+      if (!out.ok) {
+        throw new Error(out.reason);
+      }
+      return out.result;
+    },
+
+    async scopes(id) {
+      const row = await own(id);
+      return row ? grantedScopes(row) : [];
     },
 
     async remove(id) {

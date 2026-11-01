@@ -217,6 +217,12 @@ export async function spaceAccount(
 }
 
 /** „Letzte Nutzung“: the connection was just used. */
+/** The rights the provider granted a connection of the space at its sign-in; none for keys. */
+export function grantedScopes(row: SpaceConnectionRow): string[] {
+  const data = row.secret ? unseal<StoredTokens>(row.secret) : null;
+  return data?.scopes ?? [];
+}
+
 export async function markUsed(row: SpaceConnectionRow): Promise<void> {
   await db
     .update(schema.spaceConnection)

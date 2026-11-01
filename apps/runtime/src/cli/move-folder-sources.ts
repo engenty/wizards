@@ -77,9 +77,10 @@ async function moveTenantSources(): Promise<number> {
     const mounts = await db.query.spaceMount.findMany({
       where: eq(schema.spaceMount.spaceId, source.space_id),
     });
-    const holding = mounts.find(
-      (m) => path === m.source.path || path.startsWith(m.source.path + sep),
+    const folders = mounts.flatMap((m) =>
+      m.kind === "folder" ? [{ ...m, path: (m.source as { path: string }).path }] : [],
     );
+    const holding = folders.find((m) => path === m.path || path.startsWith(m.path + sep));
     const mount = holding
       ? { slug: holding.slug, name: holding.name }
       : await addMount("local", source.space_id, {
@@ -87,7 +88,7 @@ async function moveTenantSources(): Promise<number> {
           see: "admins",
           wizards: "none",
         });
-    const folder = holding ? relative(holding.source.path, path).split(sep).join("/") : "";
+    const folder = holding ? relative(holding.path, path).split(sep).join("/") : "";
     const address = addressOf(mount.slug, folder);
     if (source.state === "taken") {
       await db.insert(schema.spaceSource).values({

@@ -334,6 +334,12 @@ export const s3Connector: ConnectorDefinition = defineConnector({
   id: "s3",
   moduleId: "connections-s3",
   name: "S3 Bucket",
+  request: {
+    origins: (ctx) => [new URL(bucketUrl(parseCredentials(ctx.accessToken))).origin],
+    async sign(ctx, request) {
+      return clientFor(parseCredentials(ctx.accessToken)).sign(request);
+    },
+  },
   storage: {
     async write(ctx, input) {
       const creds = parseCredentials(ctx.accessToken);

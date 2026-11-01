@@ -1,7 +1,7 @@
 ---
 title: Accounts
 description: Accounts a plugin connects for a space, such as a calendar or a mailbox, through the runtime's built-in connectors.
-version: 0.13.0
+version: 0.15.0
 ---
 
 A wizard’s connections belong to the person who runs it. A plugin that works for the whole
@@ -30,10 +30,12 @@ const { events } = await server.connections.call<{ events: unknown[] }>(account.
 | `server.connections.` | Does |
 |---|---|
 | `available(ids)` | Returns the connectors of these ids that a person can connect here now: `{ id, name, auth }`, and for `auth: "api_key"` the `fields` to ask for (`key`, `label`, `placeholder`, `required`, `secret`). An OAuth connector is offered once its client is set up (`GOOGLE_OAUTH_CLIENT_ID` …) or when it registers a client itself. On a local install Google is also offered through the linked engenty account. A connector that takes keys (HubSpot, S3) is always offered |
-| `start({ space, connector, actions, lang? })` | Returns the provider’s sign-in page of an OAuth connector. The provider asks only for the rights that `actions` need. `lang` (`"en"` or `"de"`) is the language of the page the person comes back to; without it, the page follows their browser |
+| `start({ space, connector, actions, scopes?, lang? })` | Returns the provider’s sign-in page of an OAuth connector. The provider asks only for the rights that `actions` need, and for `scopes`, rights at the provider for `request` (Drive’s `https://www.googleapis.com/auth/drive` to write, Microsoft’s `Files.Read.All` for SharePoint). `lang` (`"en"` or `"de"`) is the language of the page the person comes back to; without it, the page follows their browser |
 | `connect({ space, connector, actions, credentials })` | Connects a connector that takes keys. `credentials` holds the keys by field key. The runtime tries them once at the provider and then keeps them sealed. Keys the provider refuses throw an error with the status `400` and the code `credentials`, whose message says what was wrong. Returns the connection |
 | `list(space)`, `get(id)` | Return what is connected: `{ id, space, connector, label, actions, createdAt }`, the newest first. `label` is the account as the provider names it, often an email address |
 | `call(id, action, input)` | Runs one of the connector’s actions with the account, through the runtime’s broker. When the token has run out, the runtime fetches a fresh one first. The call carries the run or chat it is made in, and the connection’s rules decide: who may use it, and per kind of action whether it runs, waits for the space’s admins or never runs. From a guest’s run (a wizard at its link, nobody signed in) only actions that read go through; a write or delete throws, and the refusal is logged. A plugin’s own job (a sync, a timer) runs every action the connection was made for |
+| `request(id, { url, method?, headers?, body?, kind?, signal? })` | Sends a request of the plugin’s own to the connector’s service as the account, for what no action does (a drive’s changes, a file’s bytes). See [Requests of the plugin’s own](#requests-of-the-plugins-own) |
+| `scopes(id)` | The rights the provider granted the connection, as it answered the sign-in |
 | `remove(id)` | Forgets the connection and its tokens |
 
 ## Signing in
@@ -66,6 +68,32 @@ window.addEventListener("message", (event) => {
 - What the provider refuses. `call` throws the provider’s error, with the status and the first
   words of its answer. If the person removed the connection at the provider, the next call
   fails this way.
+
+## Requests of the plugin’s own
+
+A connector’s actions are made for wizards: a search, a file’s text cut at 50 KB. Where a plugin
+needs the service itself, such as a mount of [Dateien](./space.md#a-kind-of-mount) reading a drive’s
+changes and a file’s bytes, `request` sends its own request as the account:
+
+```ts
+const res = await server.connections.request(account.id, {
+  url: `https://www.googleapis.com/drive/v3/files/${id}?alt=media`,
+});
+const bytes = new Uint8Array(await res.arrayBuffer());
+```
+
+- Only connectors that take requests do: Google Drive (`https://www.googleapis.com`), OneDrive
+  and SharePoint (`https://graph.microsoft.com`), S3 (the endpoint its keys name). A request to
+  another address throws.
+- The runtime signs it: a bearer token for a sign-in, renewed where it ran out; a bucket’s keys
+  sign it as S3 does (Signature V4).
+- It goes through the broker as `request`, with `kind` (`read` by default, `write`,
+  `destructive`) for the connection’s rules and its log. A plugin’s own job runs it.
+- The answer comes back as it is, whatever its status. A `401` is heard as a sign-in that ran
+  out.
+- In the cloud it reaches the public internet only. On a local install it reaches the local
+  network too, where a person’s own bucket is (a NAS, a MinIO); `connect` checks keys there as
+  well. A wizard’s connections stay on the public internet everywhere.
 
 ## Where it is kept
 

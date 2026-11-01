@@ -1,6 +1,6 @@
 ---
 title: The space
-description: Knowledge a plugin writes, a block and tools for every AI step of a space, texts in its search index, tools and cards of its assistant.
+description: Knowledge a plugin writes, kinds of mounts of Dateien, a block and tools for every AI step of a space, texts in its search index, tools and cards of its assistant.
 version: 0.15.0
 ---
 
@@ -142,6 +142,47 @@ took over. Taken sources are read again every `everyHours`, in every tenant that
 
 `server.knowledgeSources` reaches the sources of the plugin’s kinds: `list(space?)`,
 `byToken(token)` (the source a signal address names), `run(id)` and `addEntries(id, addresses)`.
+
+## A kind of mount
+
+Dateien holds file trees another party owns: a folder on this computer, a bucket, a drive’s
+folder. They are mounted in a space, listed and indexed where they live (no text is kept), found
+by the space’s search and opened on demand. The core brings the computer’s folder; a plugin brings
+other kinds with `server.registerMountKind`, and its studio half the form that connects the
+account and picks the folder (`studio.registerMountKind`, [Studio](./studio.md)). Behind the
+`dateien` switch. A folder of this computer is mounted on a local install only; a plugin’s kinds
+in the cloud too.
+
+```ts
+server.registerMountKind({
+  kind: "s3",
+  // What the studio's form gave: checked, and what the mount keeps.
+  async prepare({ space, source }) {
+    const bucket = await reachBucket(source);
+    return { source: { connection: source.connection, prefix: bucket.prefix }, name: bucket.name, where: `s3://${bucket.name}/${bucket.prefix}` };
+  },
+  open: (mount) => new BucketReader(mount.source),
+  everyHours: 24,
+});
+```
+
+- **`prepare`** throws, with the reason as its message, where the source can’t be reached; the
+  studio shows it. A secret in `source` is sealed first (`server.secrets`).
+- **`open`** gives the mount’s `PluginMountReader`: `list`, `changes`, `read`, `stat`, `write`,
+  optional `watch`, `close`. `read` and `stat` get `{ id }`, the source’s id of the file, where an
+  entry had one.
+- **Changes.** The runtime asks `changes(cursor)` every `everyHours` (default 1) where the reader
+  can’t `watch`, from the cursor it kept in the database, so a restart goes on where it stopped.
+  `relist: true` lists the whole tree; once a week it is listed whole anyway.
+  `server.mounts.changed(id)` asks now (a signal address, a webhook).
+- **Moves.** An entry with an `id` keeps its row (and its Kategorien) wherever it moves; a file
+  gone where the source tells only its id goes with `goneIds`.
+- **Gone or refused.** What the reader throws while listing marks the mount as away, with the
+  message; what was found stays found, nothing opens.
+- **`canWrite(mount)`** (optional): false where the account may not write there; the studio
+  connects it again with the rights to write before writing is turned on.
+
+`server.mounts` reaches the mounts of the plugin’s kinds: `list(space?)` and `changed(id)`.
 
 ## A block for every AI step
 

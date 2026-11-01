@@ -39,6 +39,7 @@ The default export is a `WizardsPluginFactory`: `(wizards: WizardsPluginApi) => 
 | `index.put({ space, key, title, text, link? })`, `index.remove(space, key?)` | [The space](./space.md#the-search-index) |
 | `spaceData.putCategories`, `.putPage`, `.putTable`, `.putFile`, `.putDocument`, `.list`, `.readPages`, `.files`, `.readFile`, `.remove`, `.summarize` | [The space](./space.md#knowledge-a-plugin-writes). Knowledge of a space: pages, tables and files under keys of the plugin’s own, with their categories, a page’s pictures copied into the space; and the space’s own pages and files to read |
 | `registerKnowledgeSource`, `knowledgeSources.list`, `.byToken`, `.run`, `.addEntries` | [The space](./space.md#a-source-of-knowledge). A kind of source of Knowledge (a website, a sitemap) and its reader; each source fills a folder of its own and is read again on its schedule |
+| `registerMountKind`, `mounts.list`, `.changed` | [The space](./space.md#a-kind-of-mount). A kind of mount of Dateien (a bucket, a drive’s folder) and its reader; its mounts are indexed where they live |
 | `registerHttpRoute(route: PluginRoute)` | [Routes](./routes.md) |
 | `registerPublicRoute(route: PluginPublicRoute)` | [Routes](./routes.md#public-routes) |
 | `publicUrl(path): Promise<string>` | The full address of a public route for the current tenant |
@@ -54,7 +55,7 @@ The default export is a `WizardsPluginFactory`: `(wizards: WizardsPluginApi) => 
 | `documents.parse({ data, name, mime }, { signal? })` | [Documents](./server.md#documents). `{ markdown, pages }` |
 | `getTenantDb(): PluginDb` | The current tenant’s database, a Drizzle libSQL database |
 | `generate(request): Promise<{ text, object }>` | Asks a model of the current tenant: `prompt`, `system?`, `schema?`, `model?`, `maxOutputTokens?`, `signal?`, `files?` (pictures and PDFs: `{ data, mediaType, name? }[]`). See [The server half](./server.md#asking-a-model) |
-| `connections.available(ids)`, `.start({ space, connector, actions, lang? })`, `.connect({ space, connector, actions, credentials })`, `.list(space)`, `.get(id)`, `.call(id, action, input)`, `.remove(id)` | [Accounts](./connections.md). `lang`: the language of the page the person comes back to |
+| `connections.available(ids)`, `.start({ space, connector, actions, scopes?, lang? })`, `.connect({ space, connector, actions, credentials })`, `.list(space)`, `.get(id)`, `.call(id, action, input)`, `.request(id, { url, method?, headers?, body?, kind? })`, `.scopes(id)`, `.remove(id)` | [Accounts](./connections.md). `lang`: the language of the page the person comes back to; `request`: the plugin’s own request to the service as the account |
 | `secrets.seal(value): string`, `secrets.unseal(sealed)` | [Keys of the plugin’s own](./server.md#keys-of-the-plugins-own). `unseal` gives null for a value sealed on another install |
 | `registerAssistantContext({ block })` | [The space](./space.md#the-assistant-on-the-plugins-own-page). `block(space): string \| null` |
 | `registerStarter(starter: PluginStarter)` | [Starters](./starters.md). Known as `<plugin id>.<starter id>` |

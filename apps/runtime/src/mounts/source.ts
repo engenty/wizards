@@ -91,7 +91,7 @@ export const fromDateien: PluginKnowledgeSource = {
     async list(source, ctx) {
       const { mount, folder } = await mountOf(source);
       const found: PluginSourceFound[] = [];
-      for await (const entry of readerOf(mount).list(folder || undefined, {
+      for await (const entry of (await readerOf(mount)).list(folder || undefined, {
         signal: ctx.signal,
       })) {
         const parts = below(folder, entry.path).split("/");
@@ -108,7 +108,7 @@ export const fromDateien: PluginKnowledgeSource = {
     },
     async read(source, entry, ctx) {
       const { mount, folder } = await mountOf(source);
-      const reader = readerOf(mount);
+      const reader = await readerOf(mount);
       const now = await reader.stat(entry.address);
       if (!now) {
         throw new Error(`"${entry.address}" is not in the folder any more.`);
