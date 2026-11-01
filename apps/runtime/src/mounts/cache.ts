@@ -52,19 +52,22 @@ async function trim() {
 
 /**
  * The text of the bytes `hash`: from the cache, else made by `read` and kept. Null when the file
- * has no text of its own (a photo, a scan); that is kept too, so it is not read again.
+ * has no text (a photo, a scan OCR couldn't read); that is kept too, so it is not read again,
+ * unless `again` asks for another try at a kept read without text.
  */
 export async function cachedText(
   hash: string,
   read: () => Promise<ParsedDocument | null>,
+  again = false,
 ): Promise<ParsedDocument | null> {
   await sizeNow();
   const file = fileOf(hash);
   const kept = await readFile(file, "utf8").catch(() => null);
-  if (kept !== null) {
+  const parsed = kept === null ? undefined : (JSON.parse(kept) as ParsedDocument | null);
+  if (parsed !== undefined && !(again && !parsed?.markdown.trim())) {
     const now = new Date();
     await utimes(file, now, now).catch(() => undefined);
-    return JSON.parse(kept) as ParsedDocument | null;
+    return parsed;
   }
   const made = await read();
   const json = JSON.stringify(made);

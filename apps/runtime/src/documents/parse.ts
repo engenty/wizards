@@ -13,7 +13,10 @@ import type {
   ConversionResult,
   DocConverterProvider,
 } from "../engenty/doc-converter/interface.js";
-import { splitMarkdownByPageBreaks } from "../engenty/doc-converter/page-break.js";
+import {
+  joinPagesWithBreaks,
+  splitMarkdownByPageBreaks,
+} from "../engenty/doc-converter/page-break.js";
 import { LocalProvider } from "../engenty/doc-converter/providers/local/index.js";
 import { invoiceSchema, receiptSchema } from "../engenty/document-scanner/schemas/index.js";
 import { env } from "../env.js";
@@ -21,13 +24,14 @@ import { NotedError } from "../model-errors.js";
 import { type CallMeta, costOf, textModel } from "../models.js";
 import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
+import { OcrProvider } from "./ocr.js";
 
 /** A document as text a model can read. */
 export interface ParsedDocument {
   markdown: string;
   pages: number | null;
-  /** How it was read: its own text, a vision model (scan, photo), a table, or a mail. */
-  via: "text" | "vision" | "table" | "mail";
+  /** How it was read: its own text, OCR or a vision model (scan, photo), a table, or a mail. */
+  via: "text" | "ocr" | "vision" | "table" | "mail";
 }
 
 export class UnreadableDocument extends NotedError {}
@@ -140,6 +144,35 @@ class VisionProvider implements DocConverterProvider {
 }
 
 const local = new LocalProvider();
+const ocr = new OcrProvider();
+
+/** A page with fewer letters than this is a scan, and so is a picture. */
+const SCAN_LETTERS = 60;
+const letters = (markdown: string) =>
+  markdown.replace(/<page-break[^>]*><\/page-break>|\s/g, "").length;
+
+/** OCR that doesn't work (no models without the internet, a broken file) reads nothing. */
+async function ocrPages(data: Uint8Array, name: string, pages?: number[]) {
+  return ocr.pages(data, pages).catch((err) => {
+    console.error("[ocr]", name, err);
+    return new Map<number, string>();
+  });
+}
+
+/** Old Word files (Word 97–2003): their body, headers and footnotes. */
+async function readWord97(data: Uint8Array): Promise<string> {
+  const { default: WordExtractor } = await import("word-extractor");
+  const doc = await new WordExtractor().extract(Buffer.from(data));
+  return [
+    doc.getHeaders({ includeFooters: false }),
+    doc.getBody(),
+    doc.getFootnotes(),
+    doc.getFooters(),
+  ]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
 
 function tableMarkdown(columns: string[], rows: string[][], limit = 400): string {
   const cell = (v: string) => v.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
@@ -171,9 +204,9 @@ const CACHE_DIR = join(env.dataDir, "parsed");
 mkdirSync(CACHE_DIR, { recursive: true });
 
 /**
- * Turns a file into Markdown: PDFs and Word files by their own text, scans and photos by a
- * vision model, spreadsheets and CSV as tables, saved mails with their headers. The result is
- * kept by content, so a file is read (and paid for) once.
+ * Turns a file into Markdown: PDFs and Word files by their own text, scans and photos by OCR on
+ * this computer, else by a vision model, spreadsheets and CSV as tables, saved mails with their
+ * headers. The result is kept by content, so a file is read (and paid for) once.
  */
 export async function parseDocument(
   input: { data: Uint8Array; name: string; mime: string },
@@ -184,9 +217,9 @@ export async function parseDocument(
 }
 
 /**
- * A file's own text, read without a model: a scan or a photo has none (null), a PDF with hardly
- * any text gives what it has. What a mounted file is indexed and searched by; not kept here, the
- * mounts keep a bounded cache of their own.
+ * A file's text, read without a model: a scanned PDF by OCR, a photo not at all (null). What a
+ * mounted file is indexed and searched by; not kept here, the mounts keep a bounded cache of
+ * their own.
  */
 export async function ownText(input: {
   data: Uint8Array;
@@ -221,6 +254,12 @@ async function read(
   const { data, name, mime } = input;
   const vision = new VisionProvider(opts.charge, opts.signal, opts.call);
   if (mime.startsWith("image/")) {
+    if (ocr.canConvert(mime)) {
+      const text = [...(await ocrPages(data, name)).values()].join("\n\n");
+      if (letters(text) >= SCAN_LETTERS) {
+        return { markdown: text, pages: 1, via: "ocr" };
+      }
+    }
     if (!vision.canConvert(mime)) {
       throw new UnreadableDocument(note("imageTypeNotReadable", { mime }));
     }
@@ -228,19 +267,52 @@ async function read(
     return { markdown: result.markdown, pages: 1, via: "vision" };
   }
   if (mime === "application/pdf") {
-    const result = await local.convert(data, name, mime);
-    const pages = result.metadata.page_count ?? null;
-    const letters = result.markdown.replace(/<page-break[^>]*><\/page-break>|\s/g, "").length;
-    // Hardly any text per page: the PDF is a scan.
-    if (opts.vision !== false && letters < 60 * Math.max(1, pages ?? 1)) {
-      const seen = await vision.convert(data, name, mime);
+    const own = await local.convert(data, name, mime);
+    const total = own.metadata.page_count ?? 0;
+    const byPage = new Map(
+      splitMarkdownByPageBreaks(own.markdown).map((page) => [page.number, page.markdown]),
+    );
+    // Pages with hardly any text of their own are scans: OCR reads them.
+    const scanned = Array.from({ length: total }, (_, i) => i + 1).filter(
+      (n) => letters(byPage.get(n) ?? "") < SCAN_LETTERS,
+    );
+    let via: ParsedDocument["via"] = "text";
+    for (const [n, text] of scanned.length ? await ocrPages(data, name, scanned) : []) {
+      if (letters(text) > letters(byPage.get(n) ?? "")) {
+        byPage.set(n, text);
+        via = "ocr";
+      }
+    }
+    const markdown =
+      via === "ocr"
+        ? joinPagesWithBreaks(
+            [...byPage]
+              .sort(([a], [b]) => a - b)
+              .map(([number, text]) => ({ number, markdown: text })),
+            total,
+          )
+        : own.markdown;
+    // Still hardly any text per page: a vision model reads it, where one may.
+    if (opts.vision !== false && letters(markdown) < SCAN_LETTERS * Math.max(1, total)) {
+      const seen = await vision.convert(data, name, mime).catch((err) => {
+        if (letters(markdown)) {
+          return null;
+        }
+        throw err;
+      });
+      if (!seen) {
+        return { markdown, pages: total || null, via };
+      }
       return {
         markdown: seen.markdown,
-        pages: pages ?? (splitMarkdownByPageBreaks(seen.markdown).length || null),
+        pages: total || splitMarkdownByPageBreaks(seen.markdown).length || null,
         via: "vision",
       };
     }
-    return { markdown: result.markdown, pages, via: "text" };
+    return { markdown, pages: total || null, via };
+  }
+  if (mime === "application/msword") {
+    return { markdown: await readWord97(data), pages: null, via: "text" };
   }
   if (local.canConvert(mime)) {
     return { markdown: (await local.convert(data, name, mime)).markdown, pages: null, via: "text" };

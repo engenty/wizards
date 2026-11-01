@@ -379,6 +379,13 @@
       "when": 1793547992117,
       "tag": "0053_dateien_file_title",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1793554001311,
+      "tag": "0054_dateien_ocr",
+      "breakpoints": true
     }
   ]
 }
