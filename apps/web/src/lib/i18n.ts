@@ -3517,6 +3517,14 @@ const de: Record<Key, Line> = {
   "know.addCategory": "Kategorie anlegen",
   "know.upload": "Hochladen",
   "know.addOwn": "Hier anlegen",
+  "know.addStart": "Mit Goose",
+  "know.addAskTitle": "Was soll ins Wissen?",
+  "know.addAskPlaceholder":
+    "Beschreib, was ins Wissen soll: eine Seite, eine Tabelle, eine Website zum Einlesen …",
+  "know.addExample1": "Lies diese Website ins Wissen: ",
+  "know.addExample2": "Schreib eine Seite über unsere Leistungen",
+  "know.addExample3": "Leg eine Tabelle mit unseren Preisen an",
+  "know.gooseWhere": "(In Wissen unter „{path}“)",
   "know.addFromComputer": "Von deinem Computer",
   "know.uploadPaneHint":
     "PDF, Word, Excel, Text oder Bilder kommen als Seiten, Tabellen und Bilder in diesen Ordner. Ein Ordner kommt mit seinen Unterordnern.",
@@ -3706,6 +3714,7 @@ const de: Record<Key, Line> = {
   "know.newPage": "Neue Seite",
   "know.ago": "vor {span}",
   "know.inFolder": "Ordner",
+  "know.noFolder": "Kein eigener Ordner heißt so. Ordner einer Quelle füllt nur die Quelle.",
   "know.titlePlaceholder": "z. B. Notizen zum Kundentermin",
   "know.pageHint": "Eine leere Seite, die du selbst schreibst.",
   "know.gooseNames": "Leer lassen: Goose gibt der Seite einen Titel.",
@@ -7549,6 +7558,14 @@ const en = {
   "know.addCategory": "Create a category",
   "know.upload": "Upload",
   "know.addOwn": "Make here",
+  "know.addStart": "With Goose",
+  "know.addAskTitle": "What should go into Knowledge?",
+  "know.addAskPlaceholder":
+    "Describe what should go into Knowledge: a page, a table, a website to read in…",
+  "know.addExample1": "Read this website into Knowledge: ",
+  "know.addExample2": "Write a page about our services",
+  "know.addExample3": "Make a table with our prices",
+  "know.gooseWhere": "(In Knowledge under “{path}”)",
   "know.addFromComputer": "From your computer",
   "know.uploadPaneHint":
     "PDF, Word, Excel, text or pictures come into this folder as pages, tables and pictures. A folder comes with its sub folders.",
@@ -7736,6 +7753,8 @@ const en = {
   "know.newPage": "New page",
   "know.ago": "{span} ago",
   "know.inFolder": "Folder",
+  "know.noFolder":
+    "None of your own folders is called that. A source’s folders are filled by the source only.",
   "know.titlePlaceholder": "e.g. Notes from the client meeting",
   "know.pageHint": "An empty page you write yourself.",
   "know.gooseNames": "Leave it empty: Goose gives the page a title.",

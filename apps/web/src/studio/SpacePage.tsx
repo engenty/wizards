@@ -1228,7 +1228,6 @@ function MenuResizer({
     // A pointer's handle only: the menu's width is no setting a keyboard needs.
     <div
       aria-hidden
-      title={t("space.menuWidth")}
       onDoubleClick={() => {
         grid.current?.style.removeProperty("--menu-w");
         onWidth(null);
@@ -1263,12 +1262,29 @@ function MenuResizer({
       }}
       className="group/resize -right-4 lg:-right-6 absolute inset-y-0 z-10 hidden w-3 cursor-col-resize touch-none md:block"
     >
+      {/* A short grip in the middle of the window, not a line the whole height; it names
+          itself when the pointer is on it. */}
       <span
         className={cn(
-          "mx-auto block h-full w-0.5 rounded-full bg-border transition-opacity",
+          "group/grip sticky top-[calc(50vh-1.5rem)] mx-auto flex h-12 w-3 items-center justify-center transition-opacity",
           dragging ? "opacity-100" : "opacity-0 group-hover/resize:opacity-100",
         )}
-      />
+      >
+        <span
+          className={cn(
+            "block h-10 w-1 rounded-full transition-colors",
+            dragging ? "bg-ink-2" : "bg-ink-4 group-hover/grip:bg-ink-2",
+          )}
+        />
+        <span
+          className={cn(
+            "pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[0.75rem] text-paper opacity-0 shadow-overlay transition-opacity",
+            !dragging && "group-hover/grip:opacity-100 group-hover/grip:delay-300",
+          )}
+        >
+          {t("space.menuWidth")}
+        </span>
+      </span>
     </div>
   );
 }
