@@ -167,6 +167,12 @@ export const FEATURES = {
     label: "Client spaces",
     hint: "A space's clients, each in a client space under it: their own data, results and chats, the firm's setup read from the space (docs/plans/client-spaces.md).",
   },
+  knowledgeTree: {
+    kind: "release",
+    default: false,
+    label: "Knowledge as a knowledge base",
+    hint: "Knowledge's start page with one Add menu, folders in its menu and categories as a tab (docs/plans/knowledge-base.md).",
+  },
   ownKeys: {
     kind: "plan",
     default: true,

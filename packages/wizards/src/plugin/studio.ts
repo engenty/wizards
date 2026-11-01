@@ -76,6 +76,18 @@ export interface StudioSpaceSection {
    * progress, say. It draws nothing while there is nothing to say. Knowledge only.
    */
   status?: ComponentType;
+  /** Its row's icon in the part's menu; a puzzle piece when left out. */
+  icon?: Icon;
+  /**
+   * `false`: its row in the part's menu stands among the part's own, without the plugin's name
+   * above it.
+   */
+  grouped?: false;
+  /**
+   * An entry of Knowledge's „Hinzufügen“ that opens the section: what the plugin brings in
+   * („Website oder Sitemap“). Knowledge only, behind the studio's `knowledgeTree` switch.
+   */
+  add?: { label: () => string; hint?: () => string; icon?: Icon };
 }
 
 /**
