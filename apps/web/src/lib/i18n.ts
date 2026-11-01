@@ -3445,6 +3445,12 @@ const de: Record<Key, Line> = {
   "know.deleteFolderBody":
     "Seine Seiten gehen mit. Tabellen und Dateien darin kommen nach ganz oben.",
   "know.inPage": "In dieser Seite",
+  "know.tabFolders": "Ordner",
+  "know.tabCategories": "Kategorien",
+  "know.categoriesEmpty":
+    "Kategorien ordnen dein Wissen quer zu den Ordnern, z. B. nach Thema oder Jahr. Deine Wizards filtern damit, bevor sie suchen, und engenty schlägt welche vor, sobald etwas da ist.",
+  "know.edit": "Bearbeiten",
+  "know.moreValues": "{n} weitere",
   "know.title": "Wissen",
   "know.hint":
     "Was die Schritte deiner Wizards nachschlagen. Dokumente werden beim Hochladen zu Seiten und Tabellen. Kategorien halten die Einträge auseinander.",
@@ -7211,6 +7217,12 @@ const en = {
   "know.deleteFolderTitle": "Delete “{title}”?",
   "know.deleteFolderBody": "Its pages go with it. Its tables and files move to the top.",
   "know.inPage": "In this page",
+  "know.tabFolders": "Folders",
+  "know.tabCategories": "Categories",
+  "know.categoriesEmpty":
+    "Categories sort your knowledge across folders, by topic or year, say. Your wizards filter by them before they search, and engenty proposes some once there is something here.",
+  "know.edit": "Edit",
+  "know.moreValues": "{n} more",
   "know.title": "Knowledge",
   "know.hint":
     "What your wizards’ steps look things up in. Documents become pages and tables when they arrive; categories keep the items apart.",
