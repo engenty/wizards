@@ -865,7 +865,6 @@ export function SpacePage({ place }: { place?: "skills" }) {
                           pick(pickedItem.parentId ? `p:${pickedItem.parentId}` : "all")
                         }
                         kinds={sources.kinds}
-                        onKind={(kind, parentId) => setAdding({ kind, parentId })}
                         // A folder the source made inside its own names it too.
                         source={
                           sources.ofFolder(pickedItem.id) ??
@@ -1022,7 +1021,6 @@ export function SpacePage({ place }: { place?: "skills" }) {
                             </>
                           }
                           kinds={sources.kinds}
-                          onKind={(kind, parentId) => setAdding({ kind, parentId })}
                           adds={plugins.spaceSections
                             .filter((x) => (x.group ?? "knowledge") === "knowledge" && x.add)
                             .map((x) => ({

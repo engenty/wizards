@@ -733,6 +733,49 @@ export function NewItemDialog({
   onClose: () => void;
   onMade: (key: string) => void;
 }) {
+  return (
+    <Dialog
+      open={kind !== null}
+      onClose={onClose}
+      title={
+        kind === "table"
+          ? t("know.newTable")
+          : kind === "folder"
+            ? t("know.newFolder")
+            : t("know.newPage")
+      }
+    >
+      {kind ? (
+        <NewItemForm
+          key={kind}
+          kind={kind}
+          spaceId={spaceId}
+          parentId={parentId}
+          onClose={onClose}
+          onMade={onMade}
+        />
+      ) : null}
+    </Dialog>
+  );
+}
+
+/** The fields of a new page, table or folder, in their dialog or in „Hinzufügen“'s. */
+export function NewItemForm({
+  kind,
+  spaceId,
+  parentId = null,
+  onClose,
+  onMade,
+  drop = true,
+}: {
+  kind: "page" | "table" | "folder";
+  spaceId: string;
+  parentId?: string | null;
+  onClose: () => void;
+  onMade: (key: string) => void;
+  /** Files dropped on it go into the folder: off where the whole dialog takes them. */
+  drop?: boolean;
+}) {
   const qc = useQueryClient();
   const assistant = useAssistant();
   const knowledge = useKnowledge(spaceId);
@@ -741,15 +784,6 @@ export function NewItemDialog({
   const [faq, setFaq] = useState(false);
   const [into, setInto] = useState(parentId ?? "");
   const [ask, setAsk] = useState("");
-  // Opened again, it starts in the folder it was opened from, empty.
-  useEffect(() => {
-    if (kind) {
-      setInto(parentId ?? "");
-      setTitle("");
-      setAsk("");
-      setFaq(false);
-    }
-  }, [kind, parentId]);
   const items = knowledge.data?.items ?? [];
   const folders = ownFolders(items);
   const folder = items.find((i) => i.id === into) ?? null;
@@ -793,101 +827,89 @@ export function NewItemDialog({
   };
   const error = (make.error ?? upload.error) as Error | null;
   return (
-    <Dialog
-      open={kind !== null}
-      onClose={onClose}
-      title={
-        kind === "table"
-          ? t("know.newTable")
-          : kind === "folder"
-            ? t("know.newFolder")
-            : t("know.newPage")
-      }
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (asking) {
+          askGoose();
+        } else if (title.trim()) {
+          make.mutate();
+        }
+      }}
     >
-      <form
-        className="flex flex-col gap-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (asking) {
-            askGoose();
-          } else if (title.trim()) {
-            make.mutate();
-          }
-        }}
-      >
-        <div className="flex flex-col gap-1.5">
-          <Label>{t("know.inFolder")}</Label>
-          <Select
-            value={into}
-            onChange={setInto}
-            options={[
-              { value: "", label: t("know.title") },
-              ...folders.map((f) => ({ value: f.id, label: `${t("know.title")} › ${f.label}` })),
-            ]}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label>{t("data.title")}</Label>
-          <Input
-            data-autofocus
-            value={title}
-            maxLength={120}
-            placeholder={kind === "page" ? t("know.titlePlaceholder") : undefined}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          {goose ? (
-            <p className="text-[0.75rem] text-ink-3">
-              {asking ? t("know.gooseNames") : t("know.pageHint")}
-            </p>
-          ) : null}
-        </div>
-        {kind === "table" ? (
-          <label className="flex items-center justify-between gap-3 text-[0.875rem]">
-            {t("know.asFaq")}
-            <Switch checked={faq} onChange={setFaq} />
-          </label>
-        ) : null}
+      <div className="flex flex-col gap-1.5">
+        <Label>{t("know.inFolder")}</Label>
+        <Select
+          value={into}
+          onChange={setInto}
+          options={[
+            { value: "", label: t("know.title") },
+            ...folders.map((f) => ({ value: f.id, label: `${t("know.title")} › ${f.label}` })),
+          ]}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label>{t("data.title")}</Label>
+        <Input
+          data-autofocus
+          value={title}
+          maxLength={120}
+          placeholder={kind === "page" ? t("know.titlePlaceholder") : undefined}
+          onChange={(e) => setTitle(e.target.value)}
+        />
         {goose ? (
-          <div className="flex flex-col gap-1.5">
-            <Label>{t("know.gooseWrite")}</Label>
-            <Textarea
-              value={ask}
-              minRows={2}
-              maxRows={6}
-              placeholder={t("know.gooseWritePlaceholder")}
-              onChange={(e) => setAsk(e.target.value)}
-            />
-            <div className="flex flex-wrap gap-1.5">
-              {GOOSE_EXAMPLES.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setAsk(t(key))}
-                  className="h-7 rounded-full bg-paper-2 px-2.5 text-[0.75rem] text-ink-2 transition hover:bg-accent hover:text-ink"
-                >
-                  {t(key)}
-                </button>
-              ))}
-            </div>
+          <p className="text-[0.75rem] text-ink-3">
+            {asking ? t("know.gooseNames") : t("know.pageHint")}
+          </p>
+        ) : null}
+      </div>
+      {kind === "table" ? (
+        <label className="flex items-center justify-between gap-3 text-[0.875rem]">
+          {t("know.asFaq")}
+          <Switch checked={faq} onChange={setFaq} />
+        </label>
+      ) : null}
+      {goose ? (
+        <div className="flex flex-col gap-1.5">
+          <Label>{t("know.gooseWrite")}</Label>
+          <Textarea
+            value={ask}
+            minRows={2}
+            maxRows={6}
+            placeholder={t("know.gooseWritePlaceholder")}
+            onChange={(e) => setAsk(e.target.value)}
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {GOOSE_EXAMPLES.map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setAsk(t(key))}
+                className="h-7 rounded-full bg-paper-2 px-2.5 text-[0.75rem] text-ink-2 transition hover:bg-accent hover:text-ink"
+              >
+                {t(key)}
+              </button>
+            ))}
           </div>
-        ) : null}
-        {kind === "page" ? (
-          <DropArea onFiles={(picked) => upload.mutate(picked)} className="h-14">
-            {upload.isPending ? <Spinner className="size-4" /> : <Upload className="size-4" />}
-            {t("know.dropOrUpload")}
-          </DropArea>
-        ) : null}
-        {error ? <p className="text-[0.875rem] text-rose">{error.message}</p> : null}
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="submit" busy={make.isPending} disabled={!(asking || title.trim())}>
-            {asking ? t("know.askGoose") : t("know.create")}
-          </Button>
         </div>
-      </form>
-    </Dialog>
+      ) : null}
+      {kind === "page" && drop ? (
+        <DropArea onFiles={(picked) => upload.mutate(picked)} className="h-14">
+          {upload.isPending ? <Spinner className="size-4" /> : <Upload className="size-4" />}
+          {t("know.dropOrUpload")}
+        </DropArea>
+      ) : null}
+      {error ? <p className="text-[0.875rem] text-rose">{error.message}</p> : null}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          {t("common.cancel")}
+        </Button>
+        <Button type="submit" busy={make.isPending} disabled={!(asking || title.trim())}>
+          {asking ? t("know.askGoose") : t("know.create")}
+        </Button>
+      </div>
+    </form>
   );
 }
 
