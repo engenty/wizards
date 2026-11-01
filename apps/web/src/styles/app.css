@@ -75,8 +75,9 @@ html {
 }
 
 /* The studio a step smaller on laptops and split screens, as in engenty-pro: type and spacing
-   are in rem and follow. A wizard's own page keeps its size. */
-@media (width > 768px) and (width < 1280px) {
+   are in rem and follow. A low window counts too, so a laptop screen holds the whole page.
+   A wizard's own page keeps its size. */
+@media (width > 768px) and ((width < 1280px) or (height < 900px)) {
   html[data-studio] {
     font-size: 14px;
   }
