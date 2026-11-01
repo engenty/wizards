@@ -27,10 +27,12 @@ export function Anchor({ id, children }: { id: string; children: ReactNode }) {
  * One section of the space page, as engenty lays them out: the heading and what the section is
  * for stand above the card, the card holds the content. The heading says how the last save went.
  * `plain`: the content draws its own cards, as a plugin's section does. `page`: the heading is the
- * page's own (Wissen, a folder), as large as a page's title.
+ * page's own (Wissen, a folder), as large as a page's title. `onTitle`: the title is written in
+ * place, and saved when it loses the focus or with Enter.
  */
 export function Section({
   title,
+  onTitle,
   hint,
   save,
   action,
@@ -41,7 +43,8 @@ export function Section({
   children,
 }: {
   title: string;
-  hint?: string;
+  onTitle?: (title: string) => void;
+  hint?: ReactNode;
   save?: { state: SaveState; error: string | null };
   action?: ReactNode;
   /** Above the card: the section's parts, as tabs. */
@@ -64,11 +67,11 @@ export function Section({
           <div className="flex items-center gap-3">
             <h2
               className={cn(
-                "font-display font-semibold leading-tight",
+                "min-w-0 font-display font-semibold leading-tight",
                 page ? "text-[1.75rem] tracking-tight" : "text-lg",
               )}
             >
-              {title}
+              {onTitle ? <TitleField value={title} onSave={onTitle} /> : title}
             </h2>
             {save?.state === "saving" ? (
               <span className="inline-flex items-center gap-1.5 text-[0.75rem] text-ink-3">
@@ -81,14 +84,14 @@ export function Section({
             ) : null}
           </div>
           {hint ? (
-            <p
+            <div
               className={cn(
                 "mt-1 text-ink-3 leading-snug",
                 page ? "text-[0.8125rem]" : "text-[0.875rem]",
               )}
             >
               {hint}
-            </p>
+            </div>
           ) : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
@@ -684,5 +687,36 @@ export function SubSectionHead({
         </IconButton>
       )}
     </div>
+  );
+}
+
+/** A heading written in place: Enter or leaving it saves, Escape puts the old one back. */
+function TitleField({ value, onSave }: { value: string; onSave: (title: string) => void }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  return (
+    <input
+      value={text}
+      maxLength={200}
+      aria-label={t("data.title")}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => {
+        const next = text.trim();
+        if (next && next !== value) {
+          onSave(next);
+        } else {
+          setText(value);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+        } else if (e.key === "Escape") {
+          setText(value);
+          requestAnimationFrame(() => (e.target as HTMLInputElement).blur());
+        }
+      }}
+      className="-ml-1 field-sizing-content max-w-full rounded-md bg-transparent px-1 outline-none transition hover:bg-accent focus:bg-paper focus:ring-1 focus:ring-ring"
+    />
   );
 }
