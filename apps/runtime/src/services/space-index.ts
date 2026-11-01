@@ -35,6 +35,7 @@ import { pluginIdsOf } from "../plugins/registry.js";
 import { currentTenant } from "../tenants/tenant.js";
 import { ServiceError } from "./errors.js";
 import { filePaths, pageTree, tablePaths } from "./knowledge.js";
+import { queryVector, searchesFirst } from "./query-vectors.js";
 import { judgeRelevance, MIN_RELEVANCE } from "./relevance.js";
 import {
   categoryLines,
@@ -77,6 +78,10 @@ const CANDIDATES = 24;
  * has it: the nearest units are near even for a question the space knows nothing of.
  */
 const MIN_LEAD = 0.08;
+/** The palette's quick ask waits this long for the query's vector, then answers with words. */
+const QUICK_MS = 800;
+/** Any other search waits this long for it: the embedding model may be busy with the index. */
+const VECTOR_MS = 15_000;
 
 const vectorBytes = (v: readonly number[]) => Buffer.from(new Float32Array(v).buffer);
 
@@ -85,6 +90,7 @@ async function embed(texts: string[]): Promise<{ vectors: number[][]; model: str
   if (!resolved || !texts.length) {
     return null;
   }
+  await searchesFirst();
   const result = await embedMany({ model: resolved.model, values: texts, maxParallelCalls: 4 });
   return { vectors: result.embeddings.map((e) => Array.from(e)), model: resolved.ref };
 }
@@ -686,6 +692,7 @@ async function embedPictures() {
           await db.delete(schema.spaceChunk).where(which);
           continue;
         }
+        await searchesFirst();
         const vector = await embedImage(jpeg);
         await db
           .update(schema.spaceChunk)
@@ -944,7 +951,8 @@ async function readableUnits(
  * Searches Knowledge for `who`: items whose categories pass `where` and that they may read, then
  * the units the keywords, the trigrams and the vectors rank best, merged by rank (RRF), then the
  * classifier's judgement of each of the CANDIDATES best. Gives up to `limit` items with their
- * best section. `check: false` leaves the classifier out. While the `broker` switch is on, a call
+ * best section. `check: false` is the palette's quick ask: no classifier, and the query's vector
+ * only if it comes within QUICK_MS (`late` says it did not). While the `broker` switch is on, a call
  * without `who` is refused, and an item they may not read is in no hit, candidate or count.
  */
 export async function searchKnowledge(
@@ -965,7 +973,7 @@ export async function searchKnowledge(
   }
   const filter = await filterItems(spaceId, opts.where);
   if (filter && !filter.size) {
-    return { hits: [], candidates: 0, checked: false, filtered: 0, hidden: [] };
+    return { hits: [], candidates: 0, checked: false, filtered: 0, hidden: [], late: false };
   }
   const plugins = [...(await pluginIdsOf(currentTenant()))];
   const inFilter = filter ? filtered(filter) : null;
@@ -1000,9 +1008,9 @@ export async function searchKnowledge(
         .catch(() => []),
     );
   }
-  const embedded = await embed([query]).catch(() => null);
+  const embedded = await queryVector(query, opts.check === false ? QUICK_MS : VECTOR_MS);
   if (embedded) {
-    const question = vectorBytes(embedded.vectors[0]);
+    const question = vectorBytes(embedded.vector);
     lists.push(
       featureOn(await currentFeatures(), "knowledgeMedia")
         ? await byMeaning(CHUNKS, where, embedded.model, question, take)
@@ -1045,13 +1053,7 @@ export async function searchKnowledge(
     }
     if (embedded) {
       lists.push(
-        await byMeaning(
-          MOUNT_UNITS,
-          inMounts,
-          embedded.model,
-          vectorBytes(embedded.vectors[0]),
-          take,
-        ),
+        await byMeaning(MOUNT_UNITS, inMounts, embedded.model, vectorBytes(embedded.vector), take),
       );
     }
   }
@@ -1071,7 +1073,14 @@ export async function searchKnowledge(
   }
   const candidates = [...scored.values()].sort((a, b) => b.score - a.score).slice(0, CANDIDATES);
   if (!candidates.length) {
-    return { hits: [], candidates: 0, checked: false, filtered: filter?.size ?? null, hidden: [] };
+    return {
+      hits: [],
+      candidates: 0,
+      checked: false,
+      filtered: filter?.size ?? null,
+      hidden: [],
+      late: embedded === undefined,
+    };
   }
   const described = await describe(
     spaceId,
@@ -1146,6 +1155,7 @@ export async function searchKnowledge(
     checked: judged !== null,
     filtered: filter?.size ?? null,
     hidden,
+    late: embedded === undefined,
   };
 }
 

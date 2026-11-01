@@ -329,8 +329,9 @@ export async function listKnowledge(
       embeddingModel()
         .then(Boolean)
         .catch(() => false),
+      // Clef in Ollama on this computer is too slow for a search (checksRelevance).
       systemOneAccess()
-        .then(Boolean)
+        .then((access) => Boolean(access && !access.local))
         .catch(() => false),
     ]);
   const tPaths = await tablePaths(space.id);

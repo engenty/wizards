@@ -349,6 +349,7 @@ async function searchAll(
   return {
     hits,
     checked: each.every((f) => f.checked),
+    late: each.some((f) => f.late),
     candidates: each.reduce((n, f) => n + f.candidates, 0),
     filtered: each.some((f) => f.filtered !== null)
       ? each.reduce((n, f) => n + (f.filtered ?? 0), 0)
