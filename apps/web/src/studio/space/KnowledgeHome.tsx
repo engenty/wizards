@@ -6,7 +6,7 @@ import type {
 } from "@engenty/wizards-shared/knowledge";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ChevronDown,
+  Files,
   FileText,
   FolderInput,
   FolderPlus,
@@ -22,6 +22,7 @@ import {
   Tag,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import {
   type ComponentType,
@@ -40,7 +41,7 @@ import { useDismiss } from "../AppFrame";
 import { CATEGORY_ICON } from "./Categories";
 import { useFileActions } from "./data";
 import { ItemViewSwitch } from "./item-view";
-import { FilterChip, NewItemDialog, passes } from "./Knowledge";
+import { FilterChip, NewItemForm, passes } from "./Knowledge";
 import { PaletteField } from "./KnowledgePalette";
 import {
   ancestorsOf,
@@ -55,7 +56,7 @@ import {
   Tag as ValueTag,
 } from "./KnowledgeTree";
 import { Section } from "./Section";
-import { SourceCards, type SourceKind } from "./sources";
+import { SourceCards, type SourceKind, SourcePane } from "./sources";
 import {
   dropHoldsFolder,
   type TreeFile,
@@ -162,133 +163,212 @@ function KnowledgeRow({
   );
 }
 
-/** One way in, in „Hinzufügen“: an icon, a name and, where it helps, what it takes. */
-function AddEntry({
-  icon: Icon,
-  label,
-  hint,
-  onPick,
+/** What „Hinzufügen“ offers on its left; picked, its details fill the right. */
+type AddWay = "page" | "table" | "folder" | "upload" | `kind:${string}`;
+
+/**
+ * „Hinzufügen“ as a dialog: the ways in on the left (made here, from this computer, sources),
+ * the one picked on the right. Files or folders dropped anywhere on it are uploaded into the
+ * folder it was opened in.
+ */
+function AddDialog({
+  open,
+  initial,
+  spaceId,
+  parentId,
+  upload,
+  kinds = [],
+  adds = [],
+  onClose,
+  onOpen,
+  onWrite,
+  onPlugin,
 }: {
-  icon: ComponentType<{ className?: string }>;
-  label: string;
-  hint?: string;
-  onPick: () => void;
+  open: boolean;
+  initial: AddWay;
+  spaceId: string;
+  parentId: string | null;
+  upload: Uploads;
+  kinds?: SourceKind[];
+  adds?: KnowledgeAdd[];
+  onClose: () => void;
+  onOpen: (key: string) => void;
+  /** A new page opens to be written. */
+  onWrite: (key: string) => void;
+  onPlugin?: (id: string) => void;
 }) {
-  return (
+  const [way, setWay] = useState<AddWay>(initial);
+  useEffect(() => {
+    if (open) {
+      setWay(initial);
+    }
+  }, [open, initial]);
+  // An upload started here closes the dialog once it is done; the page says what came in.
+  const started = useRef(false);
+  useEffect(() => {
+    if (upload.busy) {
+      started.current = true;
+    } else if (started.current) {
+      started.current = false;
+      if (!upload.error) {
+        onClose();
+      }
+    }
+  }, [upload.busy, upload.error, onClose]);
+  const kind = way.startsWith("kind:") ? kinds.find((k) => `kind:${k.kind}` === way) : undefined;
+  const entry = (id: AddWay, Icon: ComponentType<{ className?: string }>, label: string) => (
     <button
+      key={id}
       type="button"
-      role="menuitem"
-      onClick={onPick}
-      className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-accent"
+      aria-current={way === id ? "true" : undefined}
+      onClick={() => setWay(id)}
+      className={cn(
+        "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-[0.8125rem] transition max-sm:w-auto",
+        way === id ? "bg-card font-medium text-ink shadow-soft" : "text-ink-2 hover:bg-accent",
+      )}
     >
-      <Icon className="mt-0.5 size-4 shrink-0 text-ink-3" />
-      <span className="min-w-0">
-        <span className="block font-medium text-[0.8125rem]">{label}</span>
-        {hint ? <span className="block text-[0.75rem] text-ink-3">{hint}</span> : null}
-      </span>
+      <Icon className="size-4 shrink-0 text-ink-3" />
+      <span className="truncate">{label}</span>
     </button>
+  );
+  const group = (label: string) => (
+    <p className="px-2 pt-3 pb-1 font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em] first:pt-0 max-sm:hidden">
+      {label}
+    </p>
+  );
+  const title =
+    way === "page"
+      ? t("know.addPage")
+      : way === "table"
+        ? t("know.addTable")
+        : way === "folder"
+          ? t("know.newFolder")
+          : way === "upload"
+            ? t("know.upload")
+            : (kind?.label() ?? "");
+  // Drops stop here: the page behind takes them too, and would upload them twice.
+  const stop = (run: (e: React.DragEvent) => void) => (e: React.DragEvent) => {
+    e.stopPropagation();
+    run(e);
+  };
+  return (
+    <Dialog open={open} onClose={onClose} bare wide="page">
+      <div
+        onDragOver={stop(upload.drop.onDragOver)}
+        onDragLeave={stop(upload.drop.onDragLeave)}
+        onDrop={stop((e) => {
+          setWay("upload");
+          upload.drop.onDrop(e);
+        })}
+        className="relative mx-auto flex h-[min(36rem,calc(100dvh-32px))] w-full overflow-hidden rounded-2xl bg-card shadow-overlay max-sm:h-dvh max-sm:flex-col max-sm:rounded-none"
+      >
+        <nav className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-border-soft border-r bg-paper-2/60 p-2 max-sm:w-full max-sm:flex-row max-sm:overflow-x-auto max-sm:border-r-0 max-sm:border-b">
+          {group(t("know.addOwn"))}
+          {entry("page", FileText, t("know.addPage"))}
+          {entry("table", Table2, t("know.addTable"))}
+          {entry("folder", FolderPlus, t("know.newFolder"))}
+          {group(t("know.addFromComputer"))}
+          {entry("upload", Upload, t("know.upload"))}
+          {kinds.length || adds.length ? group(t("know.sources")) : null}
+          {kinds.map((k) => entry(`kind:${k.kind}`, k.icon, k.label()))}
+          {onPlugin
+            ? adds.map((a) => {
+                const Icon = a.icon ?? Puzzle;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onPlugin(a.id);
+                    }}
+                    className="flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-[0.8125rem] text-ink-2 transition hover:bg-accent max-sm:w-auto"
+                  >
+                    <Icon className="size-4 shrink-0 text-ink-3" />
+                    <span className="truncate">{a.label}</span>
+                  </button>
+                );
+              })
+            : null}
+        </nav>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-1">
+            <h2 className="min-w-0 font-display font-semibold text-lg">{title}</h2>
+            <IconButton label={t("common.close")} onClick={onClose} className="-mt-1 -mr-2 size-8">
+              <X className="size-4" />
+            </IconButton>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-3 pb-6">
+            {way === "page" || way === "table" || way === "folder" ? (
+              <NewItemForm
+                key={way}
+                kind={way}
+                spaceId={spaceId}
+                parentId={parentId}
+                drop={false}
+                onClose={onClose}
+                onMade={(key) => {
+                  onClose();
+                  way === "page" ? onWrite(key) : onOpen(key);
+                }}
+              />
+            ) : way === "upload" ? (
+              <UploadPane upload={upload} />
+            ) : kind ? (
+              <SourcePane
+                key={kind.kind}
+                spaceId={spaceId}
+                kind={kind}
+                parentId={parentId}
+                onTaken={(taken) => {
+                  onClose();
+                  if (taken.folderId) {
+                    onOpen(`p:${taken.folderId}`);
+                  }
+                }}
+              />
+            ) : null}
+          </div>
+        </div>
+        {upload.over ? (
+          <div className="pointer-events-none absolute inset-2 grid place-items-center rounded-xl bg-paper/80 text-[0.875rem] text-ink ring-2 ring-focus ring-dashed">
+            <span className="inline-flex items-center gap-2">
+              <Upload className="size-4" /> {t("know.dropHere")}
+            </span>
+          </div>
+        ) : null}
+      </div>
+    </Dialog>
   );
 }
 
-/**
- * „Hinzufügen“: a page, a table, a folder, an upload, and what the plugins bring in. Kategorien
- * are made in their tab.
- */
-function AddMenu({
-  adds = [],
-  kinds = [],
-  onMake,
-  onUpload,
-  onUploadFolder,
-  onPlugin,
-  onKind,
-}: {
-  adds?: KnowledgeAdd[];
-  /** The kinds of sources the plugins bring: each opens its dialog. */
-  kinds?: SourceKind[];
-  onMake: (kind: "page" | "table" | "folder") => void;
-  onUpload: () => void;
-  onUploadFolder: () => void;
-  onPlugin?: (id: string) => void;
-  onKind?: (kind: SourceKind) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, open, () => setOpen(false));
-  const pick = (run: () => void) => () => {
-    setOpen(false);
-    run();
-  };
-  const line = <div className="mx-2 my-1.5 h-px bg-border-soft" />;
+/** Uploading: files or a whole folder, picked or dropped. A folder keeps its sub folders. */
+function UploadPane({ upload }: { upload: Uploads }) {
   return (
-    <div className="relative" ref={ref}>
-      <Button
-        size="sm"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <Plus className="size-4" /> {t("know.add")}
-        <ChevronDown className="-mr-1 size-4" />
-      </Button>
-      {open ? (
-        <div
-          role="menu"
-          className="absolute top-10 right-0 z-50 w-72 max-w-[calc(100vw-32px)] animate-rise rounded-xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft"
-        >
-          <AddEntry icon={FileText} label={t("know.addPage")} onPick={pick(() => onMake("page"))} />
-          <AddEntry icon={Table2} label={t("know.addTable")} onPick={pick(() => onMake("table"))} />
-          <AddEntry
-            icon={FolderPlus}
-            label={t("know.newFolder")}
-            onPick={pick(() => onMake("folder"))}
-          />
-          {line}
-          <AddEntry
-            icon={Upload}
-            label={t("know.upload")}
-            hint={t("know.uploadHint")}
-            onPick={pick(onUpload)}
-          />
-          <AddEntry
-            icon={FolderUp}
-            label={t("know.uploadFolder")}
-            hint={t("know.uploadFolderHint")}
-            onPick={pick(onUploadFolder)}
-          />
-          {kinds.length && onKind ? (
-            <>
-              {line}
-              {kinds.map((k) => (
-                <AddEntry
-                  key={k.kind}
-                  icon={k.icon}
-                  label={k.label()}
-                  hint={k.hint?.()}
-                  onPick={pick(() => onKind(k))}
-                />
-              ))}
-            </>
-          ) : null}
-          {adds.length && onPlugin ? (
-            <>
-              {line}
-              {adds.map((a) => (
-                <AddEntry
-                  key={a.id}
-                  icon={a.icon ?? Puzzle}
-                  label={a.label}
-                  hint={a.hint}
-                  onPick={pick(() => onPlugin(a.id))}
-                />
-              ))}
-            </>
-          ) : null}
+    <div className="flex flex-col gap-4">
+      <p className="text-[0.8125rem] text-ink-3">{t("know.uploadPaneHint")}</p>
+      <div className="flex flex-col items-center justify-center gap-3 rounded-xl px-4 py-10 text-center ring-1 ring-border ring-dashed">
+        {upload.busy ? (
+          <Spinner className="size-5 text-ink-3" />
+        ) : (
+          <Upload className="size-5 text-ink-3" />
+        )}
+        <p className="text-[0.875rem] text-ink-2">{upload.note ?? t("know.dropHere")}</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button size="sm" variant="secondary" onClick={upload.pick} disabled={upload.busy}>
+            <Files className="size-4" /> {t("know.pickFiles")}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={upload.pickFolder} disabled={upload.busy}>
+            <FolderUp className="size-4" /> {t("know.pickFolder")}
+          </Button>
         </div>
-      ) : null}
+      </div>
+      {upload.error ? <p className="text-[0.8125rem] text-rose">{upload.error}</p> : null}
     </div>
   );
 }
+
+type Uploads = ReturnType<typeof useUpload>;
 
 /**
  * Uploads into a folder of Knowledge (the top for null): a hidden picker to open, and files
@@ -495,7 +575,6 @@ export function KnowledgeHome({
   status,
   adds,
   kinds,
-  onKind,
 }: {
   spaceId: string;
   data: Knowledge;
@@ -507,15 +586,14 @@ export function KnowledgeHome({
   status?: ReactNode;
   /** What the plugins add to „Hinzufügen“. */
   adds: KnowledgeAdd[];
-  /** The kinds of sources in „Hinzufügen“, and what picking one does. */
+  /** The kinds of sources in „Hinzufügen“. */
   kinds: SourceKind[];
-  onKind: (kind: SourceKind, parentId: string | null) => void;
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const upload = useUpload(spaceId, null, readOnly, onOpen);
   const [where, setWhere] = useState<Where>({});
-  const [making, setMaking] = useState<"page" | "table" | "folder" | null>(null);
+  const [making, setMaking] = useState<AddWay | null>(null);
   const taken = data.categories.filter((c) => !c.proposed && c.count > 0);
   const proposed = data.categories.filter((c) => c.proposed);
   const filtered = Object.keys(where).length > 0;
@@ -555,15 +633,9 @@ export function KnowledgeHome({
         plain
         action={
           readOnly ? null : (
-            <AddMenu
-              adds={adds}
-              kinds={kinds}
-              onMake={setMaking}
-              onUpload={upload.pick}
-              onUploadFolder={upload.pickFolder}
-              onPlugin={(id) => onOpen(`s:${id}`)}
-              onKind={(kind) => onKind(kind, null)}
-            />
+            <Button size="sm" onClick={() => setMaking("page")}>
+              <Plus className="size-4" /> {t("know.add")}
+            </Button>
           )
         }
       >
@@ -692,19 +764,18 @@ export function KnowledgeHome({
         {upload.error ? <p className="text-[0.875rem] text-rose">{upload.error}</p> : null}
       </Section>
       {upload.input}
-      <NewItemDialog
-        kind={making === "page" || making === "table" || making === "folder" ? making : null}
+      <AddDialog
+        open={making !== null}
+        initial={making ?? "page"}
         spaceId={spaceId}
+        parentId={null}
+        upload={upload}
+        kinds={kinds}
+        adds={adds}
         onClose={() => setMaking(null)}
-        onMade={(key) => {
-          const kind = making;
-          setMaking(null);
-          if (kind === "page") {
-            onWrite(key);
-          } else {
-            onOpen(key);
-          }
-        }}
+        onOpen={onOpen}
+        onWrite={onWrite}
+        onPlugin={(id) => onOpen(`s:${id}`)}
       />
     </div>
   );
@@ -787,7 +858,6 @@ export function KnowledgeFolder({
   onWrite,
   onGone,
   kinds,
-  onKind,
   source,
   status,
 }: {
@@ -799,7 +869,6 @@ export function KnowledgeFolder({
   onWrite: (key: string) => void;
   onGone: () => void;
   kinds: SourceKind[];
-  onKind: (kind: SourceKind, parentId: string | null) => void;
   /** The source whose folder this is. */
   source?: { id: string; label: string; address: string };
   /** What the source is busy with, above its contents. */
@@ -810,7 +879,7 @@ export function KnowledgeFolder({
   const sourced = Boolean(folder.origin?.startsWith("source:")) && !folder.kept;
   const upload = useUpload(spaceId, folder.id, readOnly || sourced, onOpen);
   const move = useMoveItem(spaceId);
-  const [making, setMaking] = useState<"page" | "table" | "folder" | null>(null);
+  const [making, setMaking] = useState<AddWay | null>(null);
   const [moving, setMoving] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState(folder.title);
@@ -863,13 +932,9 @@ export function KnowledgeFolder({
                   <Button variant="ghost" size="sm" onClick={() => onWrite(folder.key)}>
                     <PenLine className="size-4" /> {t("know.writeText")}
                   </Button>
-                  <AddMenu
-                    kinds={kinds}
-                    onMake={setMaking}
-                    onUpload={upload.pick}
-                    onUploadFolder={upload.pickFolder}
-                    onKind={(kind) => onKind(kind, folder.id)}
-                  />
+                  <Button size="sm" onClick={() => setMaking("page")}>
+                    <Plus className="size-4" /> {t("know.add")}
+                  </Button>
                 </>
               )}
               <ItemViewSwitch />
@@ -894,20 +959,16 @@ export function KnowledgeFolder({
         {upload.error ? <p className="text-[0.875rem] text-rose">{upload.error}</p> : null}
       </Section>
       {upload.input}
-      <NewItemDialog
-        kind={making}
+      <AddDialog
+        open={making !== null}
+        initial={making ?? "page"}
         spaceId={spaceId}
         parentId={folder.id}
+        upload={upload}
+        kinds={kinds}
         onClose={() => setMaking(null)}
-        onMade={(key) => {
-          const kind = making;
-          setMaking(null);
-          if (kind === "page") {
-            onWrite(key);
-          } else {
-            onOpen(key);
-          }
-        }}
+        onOpen={onOpen}
+        onWrite={onWrite}
       />
       <MoveDialog
         item={moving ? folder : null}

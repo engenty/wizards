@@ -771,45 +771,27 @@ export function SourceDialog({
   onClose: () => void;
   onOpen: (key: string) => void;
 }) {
-  const qc = useQueryClient();
-  const [proposal, setProposal] = useState<SourceProposal | null>(null);
+  const [proposed, setProposed] = useState(false);
   useEffect(() => {
     if (!kind) {
-      setProposal(null);
+      setProposed(false);
     }
   }, [kind]);
-  const propose = useMutation({
-    mutationFn: (input: { address: string; label?: string }) =>
-      api.post<SourceProposal>(`/api/studio/spaces/${spaceId}/sources`, {
-        ...input,
-        kind: kind?.kind,
-      }),
-    onSuccess: async (made) => {
-      setProposal(made);
-      await qc.invalidateQueries({ queryKey: sourcesKey(spaceId) });
-    },
-  });
-  const Form = kind?.form;
-  const formProps: StudioKnowledgeSourceFormProps = {
-    propose: async (input) => {
-      await propose.mutateAsync(input);
-    },
-    busy: propose.isPending,
-    error: propose.error ? errorText(propose.error) : null,
-  };
   return (
     // The form is short; what it proposes needs the room, and the dialog grows to it once.
     <Dialog
       open={Boolean(kind)}
       onClose={onClose}
       title={kind?.label()}
-      height={proposal ? "tall" : "auto"}
+      height={proposed ? "tall" : "auto"}
     >
-      {!kind ? null : proposal ? (
-        <ProposalView
+      {kind ? (
+        <SourcePane
+          key={kind.kind}
           spaceId={spaceId}
-          proposal={proposal}
+          kind={kind}
           parentId={parentId}
+          onProposed={() => setProposed(true)}
           onTaken={(taken) => {
             onClose();
             if (taken.folderId) {
@@ -817,19 +799,60 @@ export function SourceDialog({
             }
           }}
         />
-      ) : (
-        <div className="flex flex-col gap-4">
-          {kind.hint ? <p className="-mt-2 text-[0.875rem] text-ink-3">{kind.hint()}</p> : null}
-          {Form ? (
-            <PluginFrame of={kind}>
-              <Form {...formProps} />
-            </PluginFrame>
-          ) : (
-            <AddressForm {...formProps} placeholder={kind.placeholder?.()} />
-          )}
-        </div>
-      )}
+      ) : null}
     </Dialog>
+  );
+}
+
+/** A kind of source: its form, then what it would take in, to take. */
+export function SourcePane({
+  spaceId,
+  kind,
+  parentId,
+  onProposed,
+  onTaken,
+}: {
+  spaceId: string;
+  kind: SourceKind;
+  parentId: string | null;
+  onProposed?: () => void;
+  onTaken: (taken: SourceProposal) => void;
+}) {
+  const qc = useQueryClient();
+  const [proposal, setProposal] = useState<SourceProposal | null>(null);
+  const propose = useMutation({
+    mutationFn: (input: { address: string; label?: string }) =>
+      api.post<SourceProposal>(`/api/studio/spaces/${spaceId}/sources`, {
+        ...input,
+        kind: kind.kind,
+      }),
+    onSuccess: async (made) => {
+      setProposal(made);
+      onProposed?.();
+      await qc.invalidateQueries({ queryKey: sourcesKey(spaceId) });
+    },
+  });
+  const Form = kind.form;
+  const formProps: StudioKnowledgeSourceFormProps = {
+    propose: async (input) => {
+      await propose.mutateAsync(input);
+    },
+    busy: propose.isPending,
+    error: propose.error ? errorText(propose.error) : null,
+  };
+  return proposal ? (
+    <ProposalView spaceId={spaceId} proposal={proposal} parentId={parentId} onTaken={onTaken} />
+  ) : (
+    <div className="flex flex-col gap-4">
+      {kind.hint ? <p className="-mt-2 text-[0.875rem] text-ink-3">{kind.hint()}</p> : null}
+      {Form ? (
+        <PluginFrame of={kind}>
+          <Form {...formProps} />
+        </PluginFrame>
+      ) : (
+        <AddressForm {...formProps} placeholder={kind.placeholder?.()} />
+      )}
+    </div>
   );
 }
 
