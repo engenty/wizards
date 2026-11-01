@@ -21,7 +21,7 @@ import {
   Table2,
   Upload,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
@@ -621,18 +621,22 @@ function NewItemDialog({
 
 /**
  * Knowledge without an item picked: proposals to take, a search to try as a step would get it,
- * filters by category, the items, and the way to add documents, pages, tables and categories.
+ * filters by category, what the plugins are busy with, the items, and the way to add documents,
+ * pages, tables and categories.
  */
 export function KnowledgeOverview({
   spaceId,
   data,
   readOnly,
   onOpen,
+  status,
 }: {
   spaceId: string;
   data: Knowledge;
   readOnly: boolean;
   onOpen: (key: string) => void;
+  /** The plugins' sections' status lines (a source reading, say), above the items. */
+  status?: ReactNode;
 }) {
   const qc = useQueryClient();
   const files = useFileActions(spaceId, readOnly);
@@ -772,6 +776,7 @@ export function KnowledgeOverview({
           ) : null}
         </div>
       ) : null}
+      {status}
       <Card className="flex flex-col p-1.5">
         {found ? (
           <SearchHits found={found} onOpen={onOpen} />

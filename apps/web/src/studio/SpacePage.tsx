@@ -462,6 +462,18 @@ export function SpacePage({ place }: { place?: "skills" }) {
           </Section>
         </Anchor>
       ));
+  // What the plugins' sections are busy with, each drawn by the section's own `status`.
+  const pluginStatus = (list: SpaceSectionGroup[]) =>
+    list
+      .flatMap((g) => g.sections)
+      .map((s) => plugins.spaceSections.find((x) => x.id === s.id))
+      .map((section) =>
+        section?.status ? (
+          <PluginFrame key={section.serial} of={section}>
+            <section.status />
+          </PluginFrame>
+        ) : null,
+      );
   // On a phone the menu marks nothing: a row opens the page.
   const marked = narrow ? undefined : inView;
 
@@ -775,6 +787,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
                         data={knowledge.data}
                         readOnly={space.readOnly}
                         onOpen={pick}
+                        status={pluginStatus(added)}
                       />
                     </Anchor>
                   )}

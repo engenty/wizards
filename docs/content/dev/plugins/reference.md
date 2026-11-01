@@ -1,7 +1,7 @@
 ---
 title: Reference
 description: Every call, type, address and setting of the plugin framework on one page.
-version: 0.5.0
+version: 0.15.0
 ---
 
 ## Server half
@@ -255,7 +255,7 @@ The default export is a `StudioPlugin`: `(studio: StudioPluginContext) => void`.
 | `studio.registerShareSection({ runner, component })` | [Runners](./runners.md#the-runners-part-of-the-share-dialog). The runner’s own settings for a wizard (a keyword), under the share dialog’s gear once it is switched on and set up. `component` gets `{ wizard: { id, title } }` |
 | `studio.registerShareSetup({ runner, title, component, notice? })` | [Runners](./runners.md#setting-up-inside-the-dialog). What “Set up” in the runner’s row opens inside the share dialog. `component` gets `{ wizard, Actions, done(banner?) }`, `notice` `{ wizard, open }` |
 | `studio.registerAssistantCard({ tool, component })` | Draws a tool’s result in the space assistant’s chat. `component` gets `{ data, send }` |
-| `studio.registerSpaceSection({ id, group?, label, hint?, component })` | A section of a part of the space page at `/studio/space/<group>#<id>`; `group`: `info`, `knowledge` (default), `data` or `results` |
+| `studio.registerSpaceSection({ id, group?, label, hint?, component, status? })` | A section of a part of the space page at `/studio/space/<group>#<id>`; `group`: `info`, `knowledge` (default), `data` or `results`. `status`: a line on Knowledge’s overview above its items, while the section is busy |
 | `studio.registerSpacePart({ id, label, icon, after?, component })` | [A part of the plugin’s own](./studio.md#a-part-of-the-plugins-own) at `/studio/space/<id>`, after `info`, `knowledge` or `data` (default) in the menu |
 | `studio.useSpaceMenu(entries)` | A hook in a plugin’s part: its menu, `{ id, label, icon? }[]`, each jumping to the element with that id |
 | `studio.useCrumbs(items)` | A hook: the trail in the top bar for the page shown, `{ label, to? }[]`, instead of a heading of the page’s own |

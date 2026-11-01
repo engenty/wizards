@@ -71,6 +71,11 @@ export interface StudioSpaceSection {
   /** One line under the heading: what the section is for. */
   hint?: () => string;
   component: ComponentType;
+  /**
+   * What the section is busy with, drawn on Knowledge's overview above its items: a run in
+   * progress, say. It draws nothing while there is nothing to say. Knowledge only.
+   */
+  status?: ComponentType;
 }
 
 /**
