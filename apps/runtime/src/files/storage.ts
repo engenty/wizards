@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import { db, schema } from "../db/client.js";
 import { env } from "../env.js";
 import { currentTenant } from "../tenants/tenant.js";
+import { getBlob } from "./blobs.js";
 import { objects } from "./objects.js";
 
 const assetKey = (file: string) => `assets/${file}`;
@@ -87,6 +88,17 @@ export async function loadAssetText(id: string): Promise<string> {
   return found ? found.data.toString("utf8") : "";
 }
 
+/** A picture `asset://ID` names: an asset of a run, or a file of the space (a logo, a pattern). */
+async function pictureOf(id: string): Promise<{ mime: string; data: Buffer } | null> {
+  const found = await loadAsset(id);
+  if (found) {
+    return { mime: found.row.mime, data: found.data };
+  }
+  const file = await db.query.spaceFile.findFirst({ where: eq(schema.spaceFile.id, id) });
+  const data = file?.hash ? await getBlob(file.hash).catch(() => null) : null;
+  return file && data ? { mime: file.mime, data } : null;
+}
+
 /**
  * Generated HTML points at images as `asset://ID`; previews and downloads get them
  * inlined as data URIs, so every file stands on its own. Only the tenant's assets resolve.
@@ -95,41 +107,13 @@ export async function inlineAssetRefs(html: string): Promise<string> {
   const ids = [...new Set([...html.matchAll(/asset:\/\/([A-Za-z0-9_-]{6,40})/g)].map((m) => m[1]))];
   let out = html;
   for (const id of ids) {
-    const found = await loadAsset(id);
-    const uri = found?.row.mime.startsWith("image/")
-      ? `data:${found.row.mime};base64,${found.data.toString("base64")}`
+    const found = await pictureOf(id);
+    const uri = found?.mime.startsWith("image/")
+      ? `data:${found.mime};base64,${found.data.toString("base64")}`
       : "";
     out = out.split(`asset://${id}`).join(uri);
   }
   return out;
-}
-
-/** Gives an asset new content under the id it has: what points to it keeps pointing to it. */
-export async function replaceAsset(
-  id: string,
-  input: { mime: string; name: string; data: Uint8Array },
-) {
-  const row = await db.query.asset.findFirst({ where: eq(schema.asset.id, id) });
-  if (!row) {
-    return;
-  }
-  const bytes = Buffer.from(input.data);
-  const file = `${id}-${nanoid(6)}.${extFor(input.mime)}`;
-  await objects.put(assetKey(file), bytes);
-  await db
-    .update(schema.asset)
-    .set({ mime: input.mime, name: input.name, path: file, size: bytes.byteLength })
-    .where(eq(schema.asset.id, id));
-  await objects.remove(assetKey(row.path));
-}
-
-/** Deletes one asset: its file and its row. */
-export async function removeAsset(id: string) {
-  const row = await db.query.asset.findFirst({ where: eq(schema.asset.id, id) });
-  if (row) {
-    await objects.remove(assetKey(row.path));
-    await db.delete(schema.asset).where(eq(schema.asset.id, id));
-  }
 }
 
 /** Deletes every file a run made (uploads, results, renders, video folders) and their rows. */

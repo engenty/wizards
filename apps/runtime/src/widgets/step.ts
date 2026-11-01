@@ -15,12 +15,13 @@ import { snapshotDataImages } from "../files/web-images.js";
 import { type AiOrigin, markMedia } from "../media/marking.js";
 import { mainLogoId } from "../services/brand.js";
 import { snapshotFile } from "../services/files.js";
+import { spaceFileContent } from "../services/space-files.js";
 import { bundleWidget, type WidgetBrand } from "./bundle.js";
 import { MOTION_MEDIA_ORIGIN, type MotionMedia, probeWidget, renderMotion } from "./render.js";
 
 export async function widgetBrand(space: SpaceRow): Promise<WidgetBrand> {
   const logoId = await mainLogoId(space.id);
-  const logo = logoId ? await loadAsset(logoId) : null;
+  const logo = logoId ? await spaceFileContent(space.id, logoId).catch(() => null) : null;
   const colors = space.brand.colors ?? [];
   return {
     name: space.brand.name ?? "",

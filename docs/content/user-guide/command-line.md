@@ -28,6 +28,7 @@ version: 0.9.3
 | `wizards disconnect [app …]` | Takes them out again |
 | `wizards mcp` | Runs the MCP server over stdio. AI apps start it; you don’t |
 | `wizards uninstall` | Takes engenty wizards off this computer. It shows what it will remove first and asks about your data on its own; your data is kept unless you choose to delete it. `--dry-run` only shows the plan, `--yes` asks nothing and keeps your data, `--yes --delete-data` deletes it too. See [Remove](./install.md#remove) |
+| `wizards move-files` | Once, after the update to 0.16: moves the files of your spaces (logos, assets, documents) to where they are kept now, by their content, so the same file is stored once. Until then they don’t open. Running it again moves only what is left |
 | `wizards validate <path …>` | Checks wizards without the studio: `.wizard` files, unpacked wizard files, or a wizard’s JSON. `--json` prints the problems as JSON |
 
 | Option | What it does |

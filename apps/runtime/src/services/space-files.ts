@@ -8,10 +8,11 @@ import {
 } from "@engenty/wizards-shared/spaces";
 import { generateText } from "ai";
 import { and, asc, count, eq, max } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import { assertRwx, type Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { documentMime, UnreadableDocument } from "../documents/parse.js";
-import { loadAsset, removeAsset, replaceAsset, saveAsset } from "../files/storage.js";
+import { getBlob, putBlob, releaseBlob } from "../files/blobs.js";
 import { checkUpload } from "../files/upload-check.js";
 import { embeddingModel, textModel } from "../models.js";
 import { spaceFileChanged } from "../plugins/events.js";
@@ -69,6 +70,11 @@ export async function spaceFile(spaceId: string, fileId: string): Promise<SpaceF
   return row;
 }
 
+/** A file's bytes, from the blob store; null when they are not there. */
+export async function spaceFileBytes(row: SpaceFileRow): Promise<Buffer | null> {
+  return row.hash ? getBlob(row.hash).catch(() => null) : null;
+}
+
 /**
  * A file's bytes. A document's go out only to a `who` the broker lets read it (broker/rwx.ts),
  * and to nobody when none is given; a logo, pattern or asset is the brand's, not Knowledge, and
@@ -79,11 +85,11 @@ export async function spaceFileContent(spaceId: string, fileId: string, who: Sub
   if (row.kind === "document") {
     await assertRwx(spaceId, who, { kind: "document", id: row.id }, "r");
   }
-  const found = await loadAsset(row.id);
-  if (!found) {
+  const data = await spaceFileBytes(row);
+  if (!data) {
     throw notFound();
   }
-  return { row, data: found.data };
+  return { row, data };
 }
 
 /**
@@ -151,23 +157,19 @@ export async function addSpaceFile(
       note("roomMostFiles", { count: SPACE_LIMITS.files[input.kind] }),
     );
   }
-  const ref = await saveAsset({
-    kind: input.kind === "logo" ? "logo" : "space",
-    mime,
-    name,
-    data,
-  });
+  const hash = await putBlob(data);
   const description = input.description?.trim().slice(0, 600) ?? "";
   const work = input.kind === "document" || (!description && SEEN_BY_MODEL.includes(mime));
   const [row] = await db
     .insert(schema.spaceFile)
     .values({
-      id: ref.id,
+      id: nanoid(16),
       spaceId,
       kind: input.kind,
       name,
       mime,
       size: data.byteLength,
+      hash,
       description,
       source: input.source ?? null,
       position: (last ?? -1) + 1,
@@ -176,7 +178,7 @@ export async function addSpaceFile(
     .returning();
   if (input.kind === "logo") {
     // Logos are shown on public pages, where only the control database knows the tenant.
-    await putLink(ref.id, "logo", ref.id);
+    await putLink(row.id, "logo", row.id);
   }
   if (work) {
     void prepare(row);
@@ -331,11 +333,11 @@ async function prepare(row: SpaceFileRow) {
         .set({ ...values, updatedAt: new Date() })
         .where(eq(schema.spaceFile.id, row.id));
     try {
-      const found = await loadAsset(row.id);
+      const found = await spaceFileBytes(row);
       if (!found) {
         return;
       }
-      const data = new Uint8Array(found.data);
+      const data = new Uint8Array(found);
       if (row.kind !== "document") {
         const description = await describeImage(row, data).catch(() => "");
         await set({ status: "ready", ...(description ? { description } : {}) });
@@ -429,7 +431,8 @@ async function removeRow(row: SpaceFileRow) {
   const { dropConverted } = await import("./knowledge-model.js");
   await dropConverted(row.id);
   await db.delete(schema.spaceFile).where(eq(schema.spaceFile.id, row.id));
-  await removeAsset(row.id);
+  await releaseBlob(row.hash);
+  await releaseBlob(row.textHash);
   if (row.kind === "logo" || row.mime.startsWith("font/")) {
     await dropLinks([row.id]);
   }
@@ -487,6 +490,7 @@ export async function putOriginFile(
     name,
     mime,
     size: input.data.byteLength,
+    hash: await putBlob(input.data),
     description: input.description?.trim().slice(0, 600) ?? existing?.description ?? "",
     originLabel: input.label?.trim().slice(0, 120) || null,
     status: "ready" as const,
@@ -498,8 +502,9 @@ export async function putOriginFile(
   let id = existing?.id;
   if (existing) {
     // New content under the id it has: pages that name it as their original keep it.
-    await replaceAsset(existing.id, { mime, name, data: input.data });
     await db.update(schema.spaceFile).set(values).where(eq(schema.spaceFile.id, existing.id));
+    await releaseBlob(existing.hash);
+    await releaseBlob(existing.textHash);
   } else {
     const [{ n, last }] = await db
       .select({ n: count(), last: max(schema.spaceFile.position) })
@@ -511,10 +516,9 @@ export async function putOriginFile(
         note("spaceMostDocuments", { count: SPACE_LIMITS.files.document }),
       );
     }
-    const ref = await saveAsset({ kind: "space", mime, name, data: input.data });
-    id = ref.id;
+    id = nanoid(16);
     await db.insert(schema.spaceFile).values({
-      id: ref.id,
+      id,
       spaceId: input.space,
       kind: "document",
       position: (last ?? -1) + 1,
