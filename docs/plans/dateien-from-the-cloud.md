@@ -81,16 +81,21 @@ that run in the cloud (share links, starts), and members of the space.
 The cloud embeds through the Manage class `wizards/embedding` (the `credits` way). Manage's code
 for it is on main since engenty/engenty-wizards-manage#169 (merged 2026-11-01): the source
 `ollama` over `OLLAMA_URL`, the catalog row `ollama:embeddinggemma-2:740m`, the gateway's
-`/v4/ai/picture-embedding`. The class is unbound and no Ollama runs on the VPS yet, so the cloud
-finds Wissen by words only. What is left is setup (Manage's `docs/content/setup/ai-gateway.md`,
-„Our own Ollama“):
+`/v4/ai/picture-embedding`. Set up as Manage's `docs/content/setup/ai-gateway.md` („Our own
+Ollama“) says; checked on 2026-11-01:
 
-- An Ollama of engenty's own on the VPS (`ollama/ollama:0.40.13`, internal, a volume on
-  `/root/.ollama`, `ollama pull embeddinggemma-2:740m`), `OLLAMA_URL` on the `manage` app, the
-  class `embedding` bound to it, for every model tier that should reach it.
+- An Ollama of engenty's own runs on the VPS: the Coolify service `ollama` in the project
+  `engenty-wizards` (`ollama/ollama:0.40.13`, internal), apart from peer-it's, with
+  `embeddinggemma-2:740m` pulled. `OLLAMA_URL` on the `manage` app reaches it.
+- The class `embedding` of the tier General is bound to `ollama:embeddinggemma-2:740m` (route
+  „engenty Ollama“, AT, region EU); a test call answers 768 dimensions in 395 ms. EU Private and
+  EU Sovereign have no models in their lists yet and bind nothing.
+- Measured on the VPS's CPU (`measure-pictures.ts`, one per call): 18.6 pictures and 12.8 PDF pages
+  a minute (an Apple M4: about 30). Enough for the search words and Wissen's own pictures; a
+  mount's pictures are embedded on the computer.
 - One name for the model on every way. Units record the model they were made with and only vectors
   of one model are compared. The computer records `ollama:embeddinggemma-2:740m`; the cloud records
-  `bound.model`, the same name once bound. A test holds the two together.
+  `bound.model`, the same name. `test/embedding-ways.test.ts` holds the two together.
 - Binding embeds every cloud space's Wissen again, once.
 - The cloud embeds the search words with it; they meet the computer's vectors, pictures included.
 - Where the two differ (a computer set to another model, a tier binding another one), the cloud
@@ -244,7 +249,7 @@ sync (`requireSchema`), as for every migration.
 
 | # | Step | Files | Manage, Coolify |
 |---|---|---|---|
-| 1 | **EmbeddingGemma in the cloud.** Setup only; Manage's code is on main (#169). A test that the `local` and `credits` ways name the bound EmbeddingGemma alike | `apps/runtime/test/` (a test beside the embedder's), nothing else | Coolify: the Ollama service, `ollama pull embeddinggemma-2:740m`, `OLLAMA_URL` on `manage`. Measure first with `apps/runtime/scripts/measure-pictures.ts --ollama <url>`. Manage admin: bind the class `embedding` to `ollama:embeddinggemma-2:740m` for the tiers. Binding embeds every cloud space's Wissen again once. The user's call |
+| 1 | **EmbeddingGemma in the cloud.** Done on 2026-11-01: the Ollama service, `OLLAMA_URL`, General's binding, the measurement (§1), and a test that the `local` and `credits` ways name the bound EmbeddingGemma alike | `apps/runtime/test/embedding-ways.test.ts` | Done. Once EU Private and EU Sovereign get models: bind their `embedding` too |
 | 2 | **The switch and the schema.** `dateienCloud` (kind `plan`, off). One tenant migration: `space_mount.cloud` (on), `space_mount.open` (`owner`), `space_mount.computer`, `space_mount.computer_name`; `space_mount_file.excerpt`, `thumb` as a hash, `index`; the tables `mount_call` and `install_link`. No behaviour | `packages/shared/src/feature-flags.ts`, `db/schema.ts`, `db/migrations/tenant/00xx_dateien_cloud.sql` | none |
 | 3 | **Previews and the index blob on the computer.** The indexer writes the excerpt, the thumbnail into `blobs/` by hash (in place of `derived/m/…`) and the index blob (units, vectors, words). A one-time command converts the mounts indexed before; no second path for old rows | `mounts/mounts.ts` (indexing, `thumbKey`, `mountFileThumb`, `deleteMount`), `mounts/units.ts`, new `mounts/index-blob.ts`, `files/blobs.ts`, `cli/main.ts`, new `cli/mount-blobs.ts`, `test/dateien.test.ts` | none |
 | 4 | **The sync kinds.** `mount` and `mountFile` after `file`; triggers on `space_mount` and `space_mount_file` (only where `cloud` is on); the cloud writes rows, units, vectors as they are and its word index from the blob; refuses pushes of both but Kategorien; sends neither to an install (D7); the delete when a mount leaves, and before `forgetCloud` (D9); `mountRules` writes `x` for opening (D2). On the computer: „Nur auf diesem Computer“, „Wer darf Dateien öffnen“ and the dialog's sentence on what reaches the cloud | `sync/records.ts`, `sync/hub.ts`, `sync/client.ts`, `sync/log.ts`, `db/migrations/tenant/00xx_dateien_cloud_sync.sql`, `services/space-index.ts`, `services/cloud.ts` (`forgetCloud`), `mounts/mounts.ts` (`mountRules`, `MountAccess`, `updateMount`), `apps/web/src/studio/space/DateienEdit.tsx`, `Dateien.tsx`, `test/dateien.test.ts`, a sync test | none |
