@@ -60,3 +60,31 @@ parent's Knowledge marked for clients when a client asks.
   space (step 3).
 - The space limit of a plan: client spaces do not count as spaces; their own limit per plan is
   open.
+
+## Option, to decide later: people on an open runtime
+
+Noted on 2026-11-01. Decide once the client portal and the rest of the client spaces are built:
+they only make sense where several people sign in.
+
+Today an open runtime without the Manage-App has one person, its owner. Studio, Work, Client,
+client spaces and the broker are all in the open repo; only the people come from the Manage-App.
+
+The smallest way to give an open runtime (one organization, no plans) team members and clients:
+
+1. **People** in the control database: `id`, `email`, `name`, `role` (owner, admin, member,
+   client). The first is the owner.
+2. **Sign-in by e-mail link** over the runtime's SMTP. Only how a session is made differs: the
+   session table and everything that reads its role stay as they are.
+3. **Members behind one interface** (`invite`, `setRole`, `remove`, `list`): the Manage-App's
+   calls as today (`manage.ts`), or a local implementation.
+4. **The member rules in one shared module** (only an owner makes owners, the last owner stays,
+   a client takes no seat, clients only with client spaces), called by both implementations, so
+   the rules cannot drift. The Manage-App imports it from the release it pins.
+5. **Stays Manage-only:** plans, seats, credits, the model gateway, several organizations, OAuth
+   for apps (API keys stand in).
+
+Parallel code: two small adapters (making a session, storing members), roughly 100 and a few
+hundred lines. Everything after the session is shared.
+
+To decide then: open teams make the team feature free on a self-hosted server. A middle way is
+server mode only (a runtime with `APP_URL`, run as a server), never on a desktop install.
