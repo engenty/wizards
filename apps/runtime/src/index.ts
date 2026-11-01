@@ -50,6 +50,12 @@ if (managed) {
       console.log(
         `tenant databases: ${migrated} current${failed.length ? `, failed: ${failed}` : ""}`,
       );
+      // The files of before 0.16 move to the blob store, once (cli/move-files.ts).
+      if (env.serves.studio) {
+        void import("./cli/move-files.js")
+          .then((m) => m.moveFilesAtStart())
+          .catch((err) => console.error("[move-files]", err));
+      }
       // The admin app's list of every team's wizards starts from what is here now.
       return reportAllWizards();
     })
@@ -121,6 +127,12 @@ async function purge() {
 }
 void purge().catch((err) => console.error("[retention]", err));
 
+// The files of before 0.16 move to the blob store, once (cli/move-files.ts). In the cloud this
+// waits for the tenants' migrations, above.
+if (!managed && env.serves.studio) {
+  const { moveFilesAtStart } = await import("./cli/move-files.js");
+  void moveFilesAtStart().catch((err) => console.error("[move-files]", err));
+}
 // Assets came into the index later than documents: what is not there yet goes in once.
 if (env.serves.studio) {
   const { indexMissingAssets } = await import("./services/space-index.js");
