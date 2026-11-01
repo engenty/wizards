@@ -56,6 +56,7 @@ let wagner = "";
 let berger = "";
 const wizards: Record<string, string> = {};
 const pages: Record<string, string> = {};
+const files_: { id?: string } = {};
 let db: typeof import("../src/db/client");
 
 const local = <T>(fn: () => T | Promise<T>) => db.withTenant("local", fn);
@@ -158,12 +159,13 @@ describe("the client contract", () => {
     expect((await call(key, "spaces")).status).toBe(403);
   });
 
-  it("gives a client their own client spaces, with an address and the firm's brand", async () => {
+  it("gives a client their own client spaces with the firm's brand, and no address made of a name", async () => {
     const { result } = await call("tok-wagner", "spaces");
     expect(result).toEqual([
-      expect.objectContaining({ id: wagner, name: "Wagner GmbH", slug: "wagner-gmbh", firm: expect.objectContaining({ brand: expect.any(Object) }) }),
+      expect.objectContaining({ id: wagner, name: "Wagner GmbH", firm: expect.objectContaining({ brand: expect.any(Object) }) }),
     ]);
-    expect((await call("tok-berger", "spaces")).result.map((s: any) => s.slug)).toEqual(["berger-soehne"]);
+    expect(result[0].slug).toBeUndefined();
+    expect((await call("tok-berger", "spaces")).result.map((s: any) => s.id)).toEqual([berger]);
     expect((await call("tok-wagner", "me")).result.person).toMatchObject({ id: "wagner" });
   });
 
@@ -177,7 +179,6 @@ describe("the client contract", () => {
   it("offers only the wizards opened to clients", async () => {
     const { result } = await call("tok-wagner", "wizards", wagner);
     expect(result.map((w: any) => w.title)).toEqual(["Angebotsanfrage"]);
-    expect(result[0].slug).toBe("angebotsanfrage");
     expect((await call("tok-wagner", "wizard_start", wagner, { wizardId: wizards.internal })).status).toBe(403);
   });
 
@@ -200,7 +201,8 @@ describe("the client contract", () => {
     const view = await app.fetch(new Request(`http://localhost:5181/api/runs/${runId}?rt=${ticket}`));
     expect(view.status).toBe(200);
     // Another client neither sees it nor opens it.
-    expect((await call("tok-berger", "run_open", wagner, { runId })).status).toBe(404);
+    expect((await call("tok-wagner", "run_open", undefined, { runId })).result).toMatchObject({ runId, spaceId: wagner });
+    expect((await call("tok-berger", "run_open", undefined, { runId })).status).toBe(404);
     expect((await call("tok-berger", "for_you", berger)).result.waiting).toEqual([]);
   });
 
@@ -210,7 +212,7 @@ describe("the client contract", () => {
     const { eq } = await import("drizzle-orm");
     await local(() => db.db.update(db.schema.run).set({ status: "done" }).where(eq(db.schema.run.id, runId)));
     expect((await call("tok-wagner", "results", wagner)).result).toEqual([]);
-    expect((await call("tok-wagner", "run_open", wagner, { runId })).status).toBe(404);
+    expect((await call("tok-wagner", "run_open", undefined, { runId })).status).toBe(404);
     // The firm's results of the client space show it, the parent's do not.
     const inClient = await studio("GET", `/api/studio/spaces/${wagner}/results`);
     expect(inClient.runs).toEqual([expect.objectContaining({ id: runId, clientShared: false })]);
@@ -219,7 +221,7 @@ describe("the client contract", () => {
     const { result } = await call("tok-wagner", "results", wagner);
     expect(result).toEqual([expect.objectContaining({ runId, mine: false, title: "Interne Kalkulation" })]);
     expect((await call("tok-wagner", "for_you", wagner)).result.shared.map((r: any) => r.runId)).toEqual([runId]);
-    expect((await call("tok-wagner", "run_open", wagner, { runId })).status).toBe(200);
+    expect((await call("tok-wagner", "run_open", undefined, { runId })).status).toBe(200);
     expect((await call("tok-berger", "results", berger)).result).toEqual([]);
   });
 
@@ -256,9 +258,10 @@ describe("the client contract", () => {
     await local(() => work.createChat(owner, { spaceId: wagner, title: "Intern: Honorar" }));
     const chats = (await call("tok-wagner", "chats", wagner)).result;
     expect(chats.map((c: any) => c.id)).toEqual([chatId]);
-    const read = (await call("tok-wagner", "chat_messages", wagner, { chatId })).result;
+    const read = (await call("tok-wagner", "chat_messages", undefined, { chatId })).result;
+    expect(read.spaceId).toBe(wagner);
     expect(read.messages).toEqual([expect.objectContaining({ text: "Wann ist der nächste Termin?", author: expect.objectContaining({ me: true }) })]);
-    expect((await call("tok-berger", "chat_messages", berger, { chatId })).status).toBe(404);
+    expect((await call("tok-berger", "chat_messages", undefined, { chatId })).status).toBe(404);
     expect((await call("tok-berger", "chats", berger)).result).toEqual([]);
   });
 
@@ -268,10 +271,46 @@ describe("the client contract", () => {
     const row = await local(() => files.addSpaceFile(wagner, { kind: "asset", name: "plan.png", mime: "image/png", data: png }));
     const listed = (await call("tok-wagner", "files", wagner)).result;
     expect(listed.map((f: any) => f.name)).toContain("plan.png");
-    const got = await api("tok-wagner", "GET", `/api/v1/client/spaces/${wagner}/files/${row.id}`);
+    const got = await api("tok-wagner", "GET", `/api/v1/client/files/${row.id}`);
     expect(got.status).toBe(200);
     expect(got.headers.get("content-type")).toBe("image/png");
-    expect((await api("tok-berger", "GET", `/api/v1/client/spaces/${wagner}/files/${row.id}`)).status).toBe(404);
+    expect((await api("tok-berger", "GET", `/api/v1/client/files/${row.id}`)).status).toBe(404);
+    expect((await call("tok-wagner", "file", undefined, { fileId: row.id })).result).toMatchObject({ spaceId: wagner, file: { name: "plan.png" } });
+    files_.id = row.id;
     expect((await call("tok-berger", "files", berger)).result).toEqual([]);
+  });
+
+  it("answers a foreign item exactly as a missing one: the same status and body", async () => {
+    const { eq } = await import("drizzle-orm");
+    const runs = await local(() => db.db.query.run.findMany({ where: eq(db.schema.run.clientSpaceId, wagner) }));
+    const chats = await local(() => db.db.query.chat.findMany({ where: eq(db.schema.chat.spaceId, wagner) }));
+    const pairs: [string, string | undefined, Record<string, string>, Record<string, string>][] = [
+      ["for_you", wagner, {}, {}],
+      ["files", wagner, {}, {}],
+      ["run_open", undefined, { runId: runs[0].id }, { runId: "nothing-here-1" }],
+      ["chat_messages", undefined, { chatId: chats[0].id }, { chatId: "nothing-here-2" }],
+      ["file", undefined, { fileId: files_.id ?? "" }, { fileId: "nothing-here-3" }],
+    ];
+    for (const [name, space, foreign, missing] of pairs) {
+      const a = await call("tok-berger", name, space, foreign);
+      const b = await call("tok-berger", name, space ? "nothing-here-0" : undefined, missing);
+      expect([name, a.status]).toEqual([name, 404]);
+      expect(a.body).toEqual(b.body);
+    }
+    const a = await api("tok-berger", "GET", `/api/v1/client/files/${files_.id}`);
+    const b = await api("tok-berger", "GET", "/api/v1/client/files/nothing-here-4");
+    expect([a.status, await a.text()]).toEqual([b.status, await b.text()]);
+  });
+
+  it("keeps `portal` out of a public space's addresses", async () => {
+    const res = await app.fetch(
+      new Request(`http://localhost:5181/api/studio/spaces/${spaceId}`, {
+        method: "PATCH",
+        headers: { cookie, "content-type": "application/json", origin: "http://localhost:5181" },
+        body: JSON.stringify({ page: { on: false, slug: "portal", title: "Kanzlei", lang: "de", wizards: [], examples: {} } }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("client portal");
   });
 });

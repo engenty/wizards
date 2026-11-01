@@ -146,20 +146,10 @@ export const space = sqliteTable(
     parentId: text("parent_id").references((): AnySQLiteColumn => space.id, {
       onDelete: "cascade",
     }),
-    /**
-     * A client space's address in the client portal, `<team>.wizards.page/portal/<slug>`
-     * (docs/plans/client-portal.md): made from its name, unique in the organization, changed in
-     * Studio. Null for a space.
-     */
-    slug: text("slug"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [
-    index("space_tenant").on(t.tenantId),
-    index("space_parent").on(t.parentId),
-    uniqueIndex("space_slug").on(t.tenantId, t.slug),
-  ],
+  (t) => [index("space_tenant").on(t.tenantId), index("space_parent").on(t.parentId)],
 );
 
 /**

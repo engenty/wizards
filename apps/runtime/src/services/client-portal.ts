@@ -1,6 +1,5 @@
 import { featureOn } from "@engenty/wizards-shared/features";
-import { pageSlugOf } from "@engenty/wizards-shared/spaces";
-import { and, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import type { SessionUser } from "../auth/index.js";
 import { decide, readableIds, subjectsOfPerson } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
@@ -10,12 +9,13 @@ import { env } from "../env.js";
 import { currentFeatures } from "../features.js";
 import { tenantInfo } from "../manage.js";
 import { runTicket } from "../secrets/signing.js";
+import { currentTenant } from "../tenants/tenant.js";
 import { brandView } from "./brand.js";
 import { claimClientInvites } from "./client-spaces.js";
 import { notFound, ServiceError } from "./errors.js";
 import { startRun } from "./runs.js";
 import { spaceFileContent, spaceFiles } from "./space-files.js";
-import { listSpaces, ownedSpace } from "./spaces.js";
+import { listSpaces } from "./spaces.js";
 import { listWizards } from "./wizards.js";
 import { createChat, readChat, sendMessage } from "./work-chats.js";
 
@@ -47,21 +47,38 @@ async function requirePortal(who: ClientWho): Promise<void> {
   }
 }
 
+/**
+ * Where the person is one of the clients: a join with `space_member` (role `client`), so the
+ * same one query answers whether an item is missing or is someone else's (docs/plans/
+ * client-portal.md, "Addresses"): both are not found, alike in answer and in time.
+ */
+const asClient = (who: { id: string }) =>
+  and(
+    eq(schema.spaceMember.userId, who.id),
+    eq(schema.spaceMember.role, "client"),
+    eq(schema.space.kind, "client"),
+    eq(schema.space.tenantId, currentTenant()),
+  );
+
 /** One of the client's client spaces, with its parent. */
 async function clientSpace(
   who: ClientWho,
   spaceId: string,
 ): Promise<{ space: SpaceRow; parent: SpaceRow }> {
   await requirePortal(who);
-  const space = await ownedSpace(who.id, spaceId);
-  if (space.kind !== "client" || !space.parentId) {
+  const [row] = await db
+    .select({ space: schema.space })
+    .from(schema.space)
+    .innerJoin(schema.spaceMember, eq(schema.spaceMember.spaceId, schema.space.id))
+    .where(and(eq(schema.space.id, spaceId), asClient(who)))
+    .limit(1);
+  const parent = row?.space.parentId
+    ? await db.query.space.findFirst({ where: eq(schema.space.id, row.space.parentId) })
+    : undefined;
+  if (!(row && parent)) {
     throw notFound();
   }
-  const parent = await db.query.space.findFirst({ where: eq(schema.space.id, space.parentId) });
-  if (!parent) {
-    throw notFound();
-  }
-  return { space, parent };
+  return { space: row.space, parent };
 }
 
 /** Whether the person is one of the client space's clients. */
@@ -137,7 +154,6 @@ export async function clientSpaces(who: ClientWho) {
     spaces.map(async (s) => ({
       id: s.id,
       name: s.name,
-      slug: s.slug ?? s.id,
       firm: {
         name: parents.find((p) => p.id === s.parentId)?.name ?? "",
         brand: await firmBrand(s.parentId as string),
@@ -147,20 +163,6 @@ export async function clientSpaces(who: ClientWho) {
 }
 
 // --- wizards ---------------------------------------------------------------------------------
-
-/** A wizard's address in the portal: from its title, unique among the ones listed. */
-function withSlugs<T extends { id: string; title: string }>(wizards: T[]) {
-  const taken = new Set<string>();
-  return wizards.map((w) => {
-    const base = pageSlugOf(w.title) || w.id.toLowerCase();
-    let slug = base;
-    for (let n = 2; taken.has(slug); n++) {
-      slug = `${base}-${n}`;
-    }
-    taken.add(slug);
-    return { ...w, slug };
-  });
-}
 
 /** The parent's published wizards the firm opened to its clients: read and run. */
 async function openWizards(who: ClientWho, parent: SpaceRow) {
@@ -176,9 +178,7 @@ async function openWizards(who: ClientWho, parent: SpaceRow) {
       open.push(w);
     }
   }
-  return withSlugs(
-    open.map((w) => ({ id: w.id, title: w.title, description: w.description ?? "" })),
-  );
+  return open.map((w) => ({ id: w.id, title: w.title, description: w.description ?? "" }));
 }
 
 export async function clientWizards(who: ClientWho, spaceId: string) {
@@ -259,16 +259,29 @@ export async function clientResults(who: ClientWho, spaceId: string) {
   return rows.map(resultOf(who, titles));
 }
 
-/** A ticket for one run the client sees: the run's own routes open with it (`?rt=`). */
-export async function clientOpenRun(who: ClientWho, spaceId: string, runId: string) {
-  const { space } = await clientSpace(who, spaceId);
-  const run = await db.query.run.findFirst({
-    where: and(eq(schema.run.id, runId), seenRuns(who, space.id)),
-  });
-  if (!run) {
+/**
+ * A ticket for one run the client sees, by the run alone (a deep link, `/portal/r/<run>`): the
+ * run's own routes open with it (`?rt=`); its client space comes along.
+ */
+export async function clientOpenRun(who: ClientWho, runId: string) {
+  await requirePortal(who);
+  const [row] = await db
+    .select({ id: schema.run.id, spaceId: schema.space.id })
+    .from(schema.run)
+    .innerJoin(schema.space, eq(schema.space.id, schema.run.clientSpaceId))
+    .innerJoin(schema.spaceMember, eq(schema.spaceMember.spaceId, schema.space.id))
+    .where(
+      and(
+        eq(schema.run.id, runId),
+        asClient(who),
+        or(eq(schema.run.userId, who.id), isNotNull(schema.run.clientSharedAt)),
+      ),
+    )
+    .limit(1);
+  if (!row) {
     throw notFound();
   }
-  return { runId: run.id, ticket: runTicket(run.id) };
+  return { runId: row.id, spaceId: row.spaceId, ticket: runTicket(row.id) };
 }
 
 /**
@@ -343,20 +356,36 @@ export async function clientChats(who: ClientWho, spaceId: string) {
   }));
 }
 
-async function memberChat(who: ClientWho, spaceId: string, chatId: string) {
-  const { space } = await clientSpace(who, spaceId);
-  const chat = (await memberChats(who, space.id)).find((c) => c.id === chatId);
-  if (!chat) {
+/** One chat the client is a member of, in one of their client spaces, by the chat alone. */
+async function memberChat(who: ClientWho, chatId: string) {
+  await requirePortal(who);
+  const [row] = await db
+    .select({ chat: schema.chat })
+    .from(schema.chat)
+    .innerJoin(schema.space, eq(schema.space.id, schema.chat.spaceId))
+    .innerJoin(schema.spaceMember, eq(schema.spaceMember.spaceId, schema.space.id))
+    .innerJoin(
+      schema.chatMember,
+      and(
+        eq(schema.chatMember.chatId, schema.chat.id),
+        eq(schema.chatMember.kind, "person"),
+        eq(schema.chatMember.memberId, who.id),
+      ),
+    )
+    .where(and(eq(schema.chat.id, chatId), asClient(who)))
+    .limit(1);
+  if (!row) {
     throw notFound();
   }
-  return chat;
+  return row.chat;
 }
 
 /** A chat's messages as the client reads them: who wrote and the text, no tool calls. */
-export async function clientChatMessages(who: ClientWho, spaceId: string, chatId: string) {
-  const chat = await memberChat(who, spaceId, chatId);
+export async function clientChatMessages(who: ClientWho, chatId: string) {
+  const chat = await memberChat(who, chatId);
   const read = await readChat(who, chat.id);
   return {
+    spaceId: chat.spaceId,
     chat: { id: chat.id, title: chat.title, answering: Boolean(read.chat.answeringSince) },
     messages: read.messages
       .map((m) => ({
@@ -384,7 +413,7 @@ export async function clientChatPost(
 ) {
   const { space } = await clientSpace(who, spaceId);
   const chatId = input.chatId
-    ? (await memberChat(who, space.id, input.chatId)).id
+    ? (await memberChat(who, input.chatId)).id
     : (await createChat(who, { spaceId: space.id })).id;
   const sent = await sendMessage(who, chatId, input.text, { ask: input.ask === true });
   if (sent.kind === "turn") {
@@ -421,12 +450,52 @@ export async function clientFiles(who: ClientWho, spaceId: string) {
     }));
 }
 
-/** One file's bytes, as the client may read it. */
-export async function clientFile(who: ClientWho, spaceId: string, fileId: string) {
-  const { space } = await clientSpace(who, spaceId);
-  const { row, data } = await spaceFileContent(space.id, fileId, clientSubjects(who));
-  if (row.kind !== "document" && row.kind !== "asset") {
+/** One file of the client's client spaces, by the file alone (a deep link, `/portal/f/<file>`). */
+async function clientFileRow(who: ClientWho, fileId: string) {
+  await requirePortal(who);
+  const [row] = await db
+    .select({ file: schema.spaceFile })
+    .from(schema.spaceFile)
+    .innerJoin(schema.space, eq(schema.space.id, schema.spaceFile.spaceId))
+    .innerJoin(schema.spaceMember, eq(schema.spaceMember.spaceId, schema.space.id))
+    .where(
+      and(
+        eq(schema.spaceFile.id, fileId),
+        inArray(schema.spaceFile.kind, ["document", "asset"]),
+        ne(schema.spaceFile.status, "failed"),
+        asClient(who),
+      ),
+    )
+    .limit(1);
+  const file = row?.file;
+  const readable =
+    file &&
+    (file.kind !== "document" ||
+      (await readableIds(file.spaceId, clientSubjects(who), "document", [file.id])).length > 0);
+  if (!(file && readable)) {
     throw notFound();
   }
+  return file;
+}
+
+/** What a file is, and its client space. */
+export async function clientFileInfo(who: ClientWho, fileId: string) {
+  const f = await clientFileRow(who, fileId);
+  return {
+    spaceId: f.spaceId,
+    file: {
+      id: f.id,
+      name: f.name,
+      mime: f.mime,
+      size: f.size,
+      createdAt: f.createdAt.toISOString(),
+    },
+  };
+}
+
+/** One file's bytes, as the client may read it. */
+export async function clientFile(who: ClientWho, fileId: string) {
+  const f = await clientFileRow(who, fileId);
+  const { row, data } = await spaceFileContent(f.spaceId, f.id, clientSubjects(who));
   return { name: row.name, mime: row.mime, data };
 }

@@ -166,6 +166,31 @@ services:
       retries: 3
       start_period: 60s
 
+  # The client portal (docs/plans/client-portal.md): a firm's clients at
+  # `<team>.wizards.page/portal`. Its own app on its own image: it signs clients in through the
+  # Manage-App and reaches the runtime only over HTTP, the client contract at the `api` service and
+  # a run's own routes at the doors. The proxy sends it `/portal` on every `*.wizards.page` host
+  # (ahead of the Manage-App's router for those hosts) and on PORTAL_URL's host. The Manage-App's
+  # RUNTIMES entry names `portalUrl` and `portalSecret` (= PORTAL_CLIENT_SECRET).
+  portal:
+    image: ghcr.io/engenty/engenty-wizards-portal:${IMAGE_TAG:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      PORTAL_URL: ${PORTAL_URL:?the portal's own https origin, where the sign-in comes back}
+      MANAGE_URL: ${MANAGE_URL:?the Manage-App}
+      RUNTIME_URL: ${APP_URL:?the public https origin}
+      RUNTIME_API_URL: http://api:8891
+      RUNTIME_DOORS_URL: http://doors:8891
+      PORTAL_CLIENT_ID: ${PORTAL_CLIENT_ID:-wizards-portal-cloud}
+      PORTAL_CLIENT_SECRET: ${PORTAL_CLIENT_SECRET:?the portal's client secret at the Manage-App}
+      PORTAL_SECRET: ${PORTAL_SECRET:?32 characters or more, seals the session cookie}
+    depends_on:
+      - api
+      - doors
+    labels:
+      - traefik.docker.network=coolify
+
   browser:
     image: ghcr.io/engenty/engenty-wizards-browser:${IMAGE_TAG:-latest}
     pull_policy: always

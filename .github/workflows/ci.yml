@@ -133,6 +133,9 @@ jobs:
             file: apps/runtime/Dockerfile
           - image: browser
             file: deploy/Dockerfile.browser
+          # The client portal: its own app (docs/plans/client-portal.md).
+          - image: portal
+            file: apps/portal/Dockerfile
           # The address the site is published at, for canonical links and link previews.
           - image: docs
             file: apps/docs/Dockerfile
@@ -190,7 +193,7 @@ jobs:
       - name: The release's images become latest
         run: |
           set -euo pipefail
-          for image in runtime browser docs; do
+          for image in runtime browser docs portal; do
             ref="ghcr.io/engenty/engenty-wizards-$image"
             docker buildx imagetools create --tag "$ref:latest" "$ref:$GITHUB_REF_NAME"
           done

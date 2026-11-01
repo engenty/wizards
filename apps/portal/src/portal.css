@@ -1,0 +1,453 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap");
+
+/*
+ * The portal's look: the firm's brand where it has one (`--brand-*`, set by look.ts), else the
+ * engenty look of wizards.page: a band in the accent colour on paper, Space Grotesk and Geist.
+ * Phone first: one column and the parts as a bar at the bottom; a side bar from 760px.
+ */
+:root {
+  --accent: var(--brand-accent, #2f5bff);
+  --paper: var(--brand-ground, #f6f7fb);
+  --ink: var(--brand-text, #141826);
+  --ink-2: color-mix(in oklab, var(--ink) 68%, var(--paper));
+  --line: color-mix(in oklab, var(--ink) 12%, var(--paper));
+  --card: color-mix(in oklab, var(--paper) 70%, white);
+  --on-accent: #ffffff;
+  --display: var(--brand-display, "Space Grotesk", ui-sans-serif, system-ui, sans-serif);
+  --body: var(--brand-body, "Geist", ui-sans-serif, system-ui, sans-serif);
+  --radius: 14px;
+  color-scheme: light;
+}
+:root[data-dark="1"] {
+  --card: color-mix(in oklab, var(--paper) 88%, white);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px / 1.55 var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+h1,
+h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0;
+  text-wrap: balance;
+}
+h1 {
+  font-size: clamp(1.6rem, 5vw, 2.3rem);
+}
+h2 {
+  font-size: 1.15rem;
+}
+p {
+  margin: 0;
+}
+a {
+  color: inherit;
+}
+img {
+  max-width: 100%;
+}
+
+.wrap {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.stack {
+  display: grid;
+  gap: 32px;
+  padding-block: 24px 48px;
+}
+.stack-sm {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.quiet {
+  color: var(--ink-2);
+  font-size: 0.92rem;
+}
+.lead {
+  font-size: 1.08rem;
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+.warn {
+  color: #b42318;
+}
+.clip {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.split {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* The band: the firm's mark and the person. */
+.band {
+  background: var(--accent);
+  color: var(--on-accent);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.band-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+}
+.who,
+.me {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.logo {
+  max-height: 34px;
+  max-width: 140px;
+  object-fit: contain;
+}
+.wordmark {
+  font: 600 1.1rem var(--display);
+  white-space: nowrap;
+}
+.space-name {
+  display: none;
+  font-weight: 500;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.band .quiet {
+  color: inherit;
+  opacity: 0.85;
+}
+.person {
+  display: none;
+}
+
+/* Buttons and links. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 600 0.95rem var(--body);
+  padding: 11px 20px;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.button.ghost {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+.button.small {
+  padding: 7px 14px;
+  font-size: 0.88rem;
+}
+.link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 0.92rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.back {
+  justify-self: start;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.band :focus-visible {
+  outline-color: var(--on-accent);
+}
+
+/* Lists. */
+.rows,
+.tiles,
+.messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.rows {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  overflow: hidden;
+}
+.rows > li + li {
+  border-top: 1px solid var(--line);
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  text-decoration: none;
+}
+a.row:hover,
+.row.on {
+  background: color-mix(in oklab, var(--accent) 7%, var(--card));
+}
+.row-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.chip {
+  font-size: 0.78rem;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 9px;
+  white-space: nowrap;
+}
+.tiles {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+}
+.tile {
+  display: grid;
+  gap: 6px;
+  height: 100%;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  text-decoration: none;
+}
+.tile:hover {
+  border-color: var(--accent);
+}
+.card {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.signin {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+/* Signed in: the parts at the bottom on a phone, at the side on a wide screen. */
+.body {
+  padding-block: 20px calc(96px + env(safe-area-inset-bottom, 0px));
+}
+.parts {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  padding: 6px max(8px, env(safe-area-inset-right, 0px))
+    calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
+}
+.part {
+  text-align: center;
+  padding: 10px 4px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--ink-2);
+}
+.part.on {
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 10%, var(--card));
+}
+.content {
+  min-width: 0;
+}
+.switch select {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  max-width: 100%;
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.plain {
+  text-decoration: none;
+}
+/* The client space this tab is on, and the switch where the client has several. */
+.space-line {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-bottom: 16px;
+}
+
+/* Chats: the list or one chat on a phone, both side by side on a wide screen. */
+.chats {
+  display: grid;
+  gap: 24px;
+}
+.chats.has-open .chat-list {
+  display: none;
+}
+.conversation {
+  display: grid;
+  gap: 14px;
+}
+.messages {
+  display: grid;
+  gap: 10px;
+}
+.message {
+  max-width: 82%;
+  justify-self: start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px 14px 14px 4px;
+  padding: 9px 13px;
+}
+.message.mine {
+  justify-self: end;
+  background: color-mix(in oklab, var(--accent) 12%, var(--card));
+  border-radius: 14px 14px 4px 14px;
+}
+.message p {
+  white-space: pre-wrap;
+}
+.author {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.composer {
+  display: grid;
+  gap: 8px;
+}
+.composer textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  color: inherit;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
+/* A run, drawn by the runner in the firm's theme. */
+.run {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 16px 20px;
+  background: var(--card);
+}
+.mark {
+  display: inline-block;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+@media (min-width: 760px) {
+  .person {
+    display: inline;
+  }
+  .body {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 32px;
+    padding-block: 32px 64px;
+  }
+  .parts {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    background: none;
+    border: 0;
+    padding: 0;
+  }
+  .part {
+    text-align: left;
+    padding: 9px 12px;
+  }
+  .chats.has-open {
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  }
+  .chats.has-open .chat-list {
+    display: grid;
+  }
+  .chats .chat-open .back {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto;
+  }
+}

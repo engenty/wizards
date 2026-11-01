@@ -21,6 +21,7 @@ import {
   PAGE_LANGS,
   PAGE_LIMITS,
   PAGE_SLUG,
+  RESERVED_PAGE_SLUGS,
   RULE_MARKS,
   SPACE_LIMITS,
   type SpaceFact,
@@ -445,6 +446,9 @@ export async function updateSpace(
 async function checkedPage(p: SpaceRow, page: SpacePage): Promise<SpacePage> {
   if (!PAGE_SLUG.test(page.slug)) {
     throw new ServiceError("invalid", note("pageSlugInvalid"));
+  }
+  if (RESERVED_PAGE_SLUGS.includes(page.slug)) {
+    throw new ServiceError("invalid", note("pageSlugReserved"));
   }
   const others = await db.query.space.findMany({
     where: and(eq(schema.space.tenantId, currentTenant()), ne(schema.space.id, p.id)),
