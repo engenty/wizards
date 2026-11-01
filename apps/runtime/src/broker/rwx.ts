@@ -179,8 +179,14 @@ export async function runHolder(
 
 // --- deciding --------------------------------------------------------------------------------
 
+/** A rule is about a subject of its kind with its id; a wizard rule on `*` about every wizard. */
 const about = (rule: Rule, subjects: Subject[]) =>
-  subjects.some((s) => s.kind === rule.subjectKind && (s.id ?? null) === (rule.subjectId ?? null));
+  subjects.some(
+    (s) =>
+      s.kind === rule.subjectKind &&
+      ((s.id ?? null) === (rule.subjectId ?? null) ||
+        (rule.subjectKind === "wizard" && rule.subjectId === RWX_ALL)),
+  );
 
 const names = (rule: Rule, resource: Resource) =>
   rule.resourceKind === resource.kind &&
@@ -292,6 +298,7 @@ const WHAT: Record<RwxResourceKind, RunNoteCode> = {
   wizard: "rwxWizard",
   skill: "rwxSkill",
   setup: "rwxSetup",
+  mount: "rwxMount",
 };
 const VERB: Record<Perm, RunNoteCode> = { r: "rwxRead", w: "rwxWrite", x: "rwxRun" };
 
@@ -342,6 +349,33 @@ export async function readableIds(
     ids.map((id) => ({ kind, id })),
   );
   return ids.filter((id) => ok.has(id));
+}
+
+/**
+ * The mounts of Dateien among `ids` the subjects may read: the people (a person, Goose, a guest)
+ * by their rules, and a run's wizard by its own as well. A mount's rules are written with it
+ * (mounts/mounts.ts): who in the space sees it, which wizards may use it.
+ */
+export async function readableMounts(
+  spaceId: string,
+  subjects: Subject[],
+  ids: string[],
+): Promise<Set<string>> {
+  if (!(await brokerOn())) {
+    return new Set(ids);
+  }
+  const rules = await rulesOf(spaceId);
+  const wizards = subjects.filter((s) => s.kind === "wizard");
+  const people = subjects.filter((s) => s.kind !== "wizard");
+  const ok = (who: Subject[], id: string) => decideWith(rules, who, { kind: "mount", id }, "r").ok;
+  return new Set(
+    ids.filter(
+      (id) =>
+        subjects.length > 0 &&
+        (!people.length || ok(people, id)) &&
+        (!wizards.length || ok(wizards, id)),
+    ),
+  );
 }
 
 /** Pages by id with the document behind each, for `readable`. */

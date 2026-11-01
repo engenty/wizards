@@ -29,6 +29,7 @@ import { brokerRoutes } from "./routes/broker.js";
 import { clientContractRoutes } from "./routes/client-contract.js";
 import { clientSpaceRoutes } from "./routes/client-spaces.js";
 import { connectionRoutes } from "./routes/connections.js";
+import { dateienRoutes } from "./routes/dateien.js";
 import { browserReport, localDebugRoutes } from "./routes/debug.js";
 import { discoverRoutes } from "./routes/discover.js";
 import { elementRoutes } from "./routes/elements.js";
@@ -385,6 +386,7 @@ if (serves.studio) {
   app.route("/api/studio", clientSpaceRoutes);
   app.route("/api/studio", connectionRoutes);
   app.route("/api/studio", brokerRoutes);
+  app.route("/api/studio", dateienRoutes);
   app.route("/api/studio/runtime", runtimeSettingsRoutes);
   app.route("/api/studio/work", workRoutes);
   app.route("/api/studio", studio);

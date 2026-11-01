@@ -597,6 +597,126 @@ export const spaceChunk = sqliteTable(
   ],
 );
 
+// --- Dateien ------------------------------------------------------------------
+// File trees another party owns, mounted in a space (docs/plans/media-and-files.md, section 3):
+// a folder on this computer for now. A mounted file keeps a pointer, a fingerprint, its
+// categories and an index without its text; its bytes stay where they are.
+
+/** A mount: a file tree of a source, shown in the space as Dateien › <name>. */
+export const spaceMount = sqliteTable(
+  "space_mount",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Its name in a wizard's path (`dateien/<slug>/…`), unique in the space. */
+    slug: text("slug").notNull(),
+    /** Where it lives: a folder on this computer. */
+    kind: text("kind", { enum: ["folder"] }).notNull(),
+    /** What the kind needs to reach it: the folder's path. */
+    source: text("source", { mode: "json" }).$type<{ path: string }>().notNull(),
+    /** `scanning` while it is listed and read, `away` while its source can't be reached. */
+    status: text("status", { enum: ["scanning", "ready", "away"] })
+      .notNull()
+      .default("scanning"),
+    error: text("error"),
+    /** When the whole tree was last listed against the rows. */
+    scannedAt: integer("scanned_at", { mode: "timestamp_ms" }),
+    /** A category whose value for a file is the folder of the first level it lies in. */
+    folderCategoryId: text("folder_category_id").references(
+      (): AnySQLiteColumn => spaceCategory.id,
+      { onDelete: "set null" },
+    ),
+    createdBy: text("created_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("space_mount_slug").on(t.spaceId, t.slug)],
+);
+
+/**
+ * A file of a mount: where it is, its fingerprint (size and time, its hash), how far it is
+ * indexed. Its row stays when it moves or is renamed (found again by its hash), so its
+ * categories do.
+ */
+export const spaceMountFile = sqliteTable(
+  "space_mount_file",
+  {
+    id: text("id").primaryKey(),
+    mountId: text("mount_id")
+      .notNull()
+      .references(() => spaceMount.id, { onDelete: "cascade" }),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    /** Its path in the mount, with `/`: `Kunden/A1/angebot.pdf`. */
+    path: text("path").notNull(),
+    name: text("name").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    /** The source's time of its last change, in milliseconds. */
+    modified: integer("modified").notNull(),
+    /** sha256 of its bytes, once read. */
+    hash: text("hash"),
+    /** `pending` until read; `ready` indexed; `skipped` kept out of the index (too large, no text). */
+    status: text("status", { enum: ["pending", "ready", "skipped", "failed"] })
+      .notNull()
+      .default("pending"),
+    error: text("error"),
+    pages: integer("pages"),
+    /** Whether a thumbnail stands at `derived/m/<mount>/<id>.jpg`. */
+    thumb: integer("thumb", { mode: "boolean" }).notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("space_mount_file_path").on(t.mountId, t.path),
+    index("space_mount_file_hash").on(t.mountId, t.hash),
+    index("space_mount_file_status").on(t.mountId, t.status),
+  ],
+);
+
+/**
+ * A unit of a mounted file's index, without its text: where it stands in the file's text
+ * (`start`, `end`) or which page it shows, and its vector. Its words are in two contentless FTS5
+ * tables (`space_mount_unit_fts`, `space_mount_unit_tri`, rowid = id), written when the file is
+ * read; a snippet reads the original again.
+ */
+export const spaceMountUnit = sqliteTable(
+  "space_mount_unit",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => space.id, { onDelete: "cascade" }),
+    mountId: text("mount_id")
+      .notNull()
+      .references(() => spaceMount.id, { onDelete: "cascade" }),
+    fileId: text("file_id")
+      .notNull()
+      .references(() => spaceMountFile.id, { onDelete: "cascade" }),
+    idx: integer("idx").notNull(),
+    /** The section's headings, joined by " › ". */
+    heading: text("heading"),
+    /** The page of the original it starts on, or the page a `page` unit shows. */
+    sheet: integer("sheet"),
+    /** Where its passage stands in the file's text, in characters; null for a picture. */
+    start: integer("start"),
+    end: integer("end"),
+    embedding: blob("embedding", { mode: "buffer" }),
+    model: text("model"),
+    /** Null: the vector is of the text. `image`: of the picture file, `page`: of a PDF page. */
+    kind: text("kind").$type<"image" | "page">(),
+  },
+  (t) => [
+    index("space_mount_unit_file").on(t.fileId),
+    index("space_mount_unit_space").on(t.spaceId, t.model),
+  ],
+);
+
 // --- The space's data -------------------------------------------------------
 // Tables and pages a space keeps, its own or one of its wizards'. Shared by everyone who works
 // in the space, unlike the wizard's store below, which belongs to one person.
@@ -884,7 +1004,7 @@ export const spaceCategoryValue = sqliteTable(
 );
 
 /**
- * A category set on an item: exactly one of page, row, table and file. A choice points to its
+ * A category set on an item: exactly one of page, row, table, file and mounted file. A choice points to its
  * value; the other types keep theirs typed: a date as milliseconds, a number, a short text, yes
  * or no. A choice with several values has a row per value.
  */
@@ -902,6 +1022,10 @@ export const spaceItemCategory = sqliteTable(
     rowId: text("row_id").references(() => spaceTableRow.id, { onDelete: "cascade" }),
     tableId: text("table_id").references(() => spaceTable.id, { onDelete: "cascade" }),
     fileId: text("file_id").references(() => spaceFile.id, { onDelete: "cascade" }),
+    /** A file of a mount in Dateien: the space's categories hold for those too. */
+    mountFileId: text("mount_file_id").references((): AnySQLiteColumn => spaceMountFile.id, {
+      onDelete: "cascade",
+    }),
     valueId: text("value_id").references(() => spaceCategoryValue.id, { onDelete: "cascade" }),
     text: text("text"),
     num: real("num"),
@@ -918,6 +1042,7 @@ export const spaceItemCategory = sqliteTable(
     index("space_item_category_row").on(t.rowId),
     index("space_item_category_table").on(t.tableId),
     index("space_item_category_file").on(t.fileId),
+    index("space_item_category_mount_file").on(t.mountFileId),
   ],
 );
 

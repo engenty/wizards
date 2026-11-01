@@ -183,6 +183,23 @@ export async function parseDocument(
   return kept(input.data, mime, () => read({ ...input, mime }, opts));
 }
 
+/**
+ * A file's own text, read without a model: a scan or a photo has none (null), a PDF with hardly
+ * any text gives what it has. What a mounted file is indexed and searched by; not kept here, the
+ * mounts keep a bounded cache of their own.
+ */
+export async function ownText(input: {
+  data: Uint8Array;
+  name: string;
+  mime: string;
+}): Promise<ParsedDocument | null> {
+  const mime = documentMime(input.name, input.mime);
+  if (mime.startsWith("image/")) {
+    return null;
+  }
+  return read({ ...input, mime }, { vision: false });
+}
+
 /** What was made of a file, kept by its content: the same bytes are never worked through twice. */
 async function kept<T>(data: Uint8Array, variant: string, make: () => Promise<T>): Promise<T> {
   const file = join(
@@ -199,7 +216,7 @@ async function kept<T>(data: Uint8Array, variant: string, make: () => Promise<T>
 
 async function read(
   input: { data: Uint8Array; name: string; mime: string },
-  opts: { charge?: Charge; signal?: AbortSignal; call?: CallMeta },
+  opts: { charge?: Charge; signal?: AbortSignal; call?: CallMeta; vision?: false },
 ): Promise<ParsedDocument> {
   const { data, name, mime } = input;
   const vision = new VisionProvider(opts.charge, opts.signal, opts.call);
@@ -215,7 +232,7 @@ async function read(
     const pages = result.metadata.page_count ?? null;
     const letters = result.markdown.replace(/<page-break[^>]*><\/page-break>|\s/g, "").length;
     // Hardly any text per page: the PDF is a scan.
-    if (letters < 60 * Math.max(1, pages ?? 1)) {
+    if (opts.vision !== false && letters < 60 * Math.max(1, pages ?? 1)) {
       const seen = await vision.convert(data, name, mime);
       return {
         markdown: seen.markdown,

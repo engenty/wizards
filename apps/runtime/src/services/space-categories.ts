@@ -34,7 +34,9 @@ export type ItemRef =
   | { pageId: string }
   | { rowId: string }
   | { tableId: string }
-  | { fileId: string };
+  | { fileId: string }
+  /** A file of a mount in Dateien. */
+  | { mountFileId: string };
 
 export function itemKey(ref: ItemRef): string {
   if ("pageId" in ref) {
@@ -46,17 +48,24 @@ export function itemKey(ref: ItemRef): string {
   if ("tableId" in ref) {
     return `t:${ref.tableId}`;
   }
+  if ("mountFileId" in ref) {
+    return `m:${ref.mountFileId}`;
+  }
   return `f:${ref.fileId}`;
 }
 
-function keyOfRow(r: Pick<AssignRow, "pageId" | "rowId" | "tableId" | "fileId">): string {
+function keyOfRow(
+  r: Pick<AssignRow, "pageId" | "rowId" | "tableId" | "fileId" | "mountFileId">,
+): string {
   return r.pageId
     ? `p:${r.pageId}`
     : r.rowId
       ? `r:${r.rowId}`
       : r.tableId
         ? `t:${r.tableId}`
-        : `f:${r.fileId}`;
+        : r.mountFileId
+          ? `m:${r.mountFileId}`
+          : `f:${r.fileId}`;
 }
 
 function refWhere(ref: ItemRef): SQL {
@@ -69,6 +78,9 @@ function refWhere(ref: ItemRef): SQL {
   }
   if ("tableId" in ref) {
     return eq(t.tableId, ref.tableId);
+  }
+  if ("mountFileId" in ref) {
+    return eq(t.mountFileId, ref.mountFileId);
   }
   return eq(t.fileId, ref.fileId);
 }
@@ -249,7 +261,7 @@ export async function listCategories(spaceId: string): Promise<SpaceCategory[]> 
     db
       .select({
         categoryId: t.categoryId,
-        n: sql<number>`count(DISTINCT coalesce(${t.pageId}, ${t.rowId}, ${t.tableId}, ${t.fileId}))`,
+        n: sql<number>`count(DISTINCT coalesce(${t.pageId}, ${t.rowId}, ${t.tableId}, ${t.fileId}, ${t.mountFileId}))`,
       })
       .from(t)
       .where(inArray(t.categoryId, ids))
@@ -448,11 +460,16 @@ async function reindexHolders(categoryId: string) {
       rowId: schema.spaceItemCategory.rowId,
       tableId: schema.spaceItemCategory.tableId,
       fileId: schema.spaceItemCategory.fileId,
+      mountFileId: schema.spaceItemCategory.mountFileId,
     })
     .from(schema.spaceItemCategory)
     .where(eq(schema.spaceItemCategory.categoryId, categoryId));
   const tables = new Set<string>();
   for (const r of rows) {
+    // A mounted file's words don't hold its categories: nothing to index again.
+    if (r.mountFileId) {
+      continue;
+    }
     if (r.rowId) {
       const row = await db.query.spaceTableRow.findFirst({
         where: eq(schema.spaceTableRow.id, r.rowId),
@@ -706,6 +723,7 @@ export async function setItemCategories(
           ...("rowId" in ref ? { rowId: ref.rowId } : {}),
           ...("tableId" in ref ? { tableId: ref.tableId } : {}),
           ...("fileId" in ref ? { fileId: ref.fileId } : {}),
+          ...("mountFileId" in ref ? { mountFileId: ref.mountFileId } : {}),
           ...n,
           by,
         })),
@@ -727,6 +745,13 @@ async function itemInSpace(spaceId: string, ref: ItemRef): Promise<boolean> {
   if ("fileId" in ref) {
     const file = await db.query.spaceFile.findFirst({
       where: eq(schema.spaceFile.id, ref.fileId),
+      columns: { spaceId: true },
+    });
+    return file?.spaceId === spaceId;
+  }
+  if ("mountFileId" in ref) {
+    const file = await db.query.spaceMountFile.findFirst({
+      where: eq(schema.spaceMountFile.id, ref.mountFileId),
       columns: { spaceId: true },
     });
     return file?.spaceId === spaceId;
@@ -776,7 +801,7 @@ export async function itemCategoriesOf(refs: ItemRef[]): Promise<Map<string, Ite
     return out;
   }
   const t = schema.spaceItemCategory;
-  const ids = (k: "pageId" | "rowId" | "tableId" | "fileId") =>
+  const ids = (k: "pageId" | "rowId" | "tableId" | "fileId" | "mountFileId") =>
     refs
       .filter((r): r is Extract<ItemRef, Record<typeof k, string>> => k in r)
       .map((r) => (r as any)[k] as string);
@@ -786,6 +811,7 @@ export async function itemCategoriesOf(refs: ItemRef[]): Promise<Map<string, Ite
     ["rowId", t.rowId],
     ["tableId", t.tableId],
     ["fileId", t.fileId],
+    ["mountFileId", t.mountFileId],
   ] as const) {
     const list = ids(k);
     for (let i = 0; i < list.length; i += 500) {
@@ -893,6 +919,8 @@ export interface Filtered {
   rows: Set<string>;
   tables: Set<string>;
   files: Set<string>;
+  /** Files of mounts in Dateien. */
+  mounted: Set<string>;
   /** How many items that is. */
   size: number;
 }
@@ -1034,7 +1062,13 @@ export async function filterItems(
     );
     const t = schema.spaceItemCategory;
     const matched = await db
-      .select({ pageId: t.pageId, rowId: t.rowId, tableId: t.tableId, fileId: t.fileId })
+      .select({
+        pageId: t.pageId,
+        rowId: t.rowId,
+        tableId: t.tableId,
+        fileId: t.fileId,
+        mountFileId: t.mountFileId,
+      })
       .from(t)
       .where(and(eq(t.categoryId, category.id), condition(category, w, valueIds)));
     const keys = new Set<string>();
@@ -1061,6 +1095,9 @@ export async function filterItems(
       if (m.fileId) {
         keys.add(`f:${m.fileId}`);
       }
+      if (m.mountFileId) {
+        keys.add(`m:${m.mountFileId}`);
+      }
     }
     result = result ? new Set([...result].filter((k) => keys.has(k))) : keys;
   }
@@ -1069,16 +1106,21 @@ export async function filterItems(
     rows: new Set(),
     tables: new Set(),
     files: new Set(),
+    mounted: new Set(),
     size: 0,
   };
   for (const key of result ?? []) {
     const id = key.slice(2);
-    ({ p: out.pages, r: out.rows, t: out.tables, f: out.files })[
-      key[0] as "p" | "r" | "t" | "f"
+    ({ p: out.pages, r: out.rows, t: out.tables, f: out.files, m: out.mounted })[
+      key[0] as "p" | "r" | "t" | "f" | "m"
     ].add(id);
   }
   // A table counts once, however many of its rows are left.
   out.size =
-    out.pages.size + out.files.size + out.tables.size + (out.tables.size ? 0 : out.rows.size);
+    out.pages.size +
+    out.files.size +
+    out.mounted.size +
+    out.tables.size +
+    (out.tables.size ? 0 : out.rows.size);
   return out;
 }

@@ -115,7 +115,7 @@ Write a page of this wizard in Markdown, kept for every later run and shown to t
 <!-- Knowledge (tools/space.ts) -->
 
 <!-- section: tool.space_search -->
-Search the space's Knowledge: its pages, tables and files, its images, videos and sounds by their description, and what its plugins keep (wiki pages, questions and answers). Gives items with their path, categories and best section, each checked for relevance. Ask in their language, with the words they would use; filter with `where` when the task names a category's value. Then read the items you need whole with page_read or table_read.
+Search the space's Knowledge: its pages, tables and files, its images, videos and sounds by their description, and what its plugins keep (wiki pages, questions and answers); also the folders mounted in Dateien you may use (paths dateien/…, a hit says the folder in `in`). Gives items with their path, categories and best section, each checked for relevance. Ask in their language, with the words they would use; filter with `where` when the task names a category's value. Then read the items you need whole with page_read or table_read.
 
 <!-- The `where` input of space_search and space_list. -->
 <!-- section: tool.space.where -->
@@ -132,7 +132,7 @@ Read a page of Knowledge whole by its path: front matter (title, categories, its
 Read a table of Knowledge by its path: its rows as CSV, filtered by its columns (by their names, like `where` of space_search). A few hundred rows at a time: pass `offset` to continue.
 
 <!-- section: tool.space_document -->
-Read a file of Knowledge as text by its path (files/…): a file that is not a page, or the original a page was read from. Long files come in parts: pass `from` to continue.
+Read a file of Knowledge as text by its path (files/…): a file that is not a page, or the original a page was read from. Also a file of a folder mounted in Dateien (dateien/…), read from where it lives. Long files come in parts: pass `from` to continue.
 
 <!-- Skills of the space (tools/skills.ts); Goose gets the same tools. `names` joined with ", ". -->
 

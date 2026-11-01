@@ -2,6 +2,7 @@ import { createTool } from "@mastra/core/tools";
 import { and, eq } from "drizzle-orm";
 import { assertRwx } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
+import { fileByPath, mountFileText, usableMounts } from "../mounts/mounts.js";
 import { prompt } from "../prompts.js";
 import {
   filePaths,
@@ -100,7 +101,9 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
     counts.files += of.files;
     entries ||= await hasIndexEntries(space.id);
   }
-  if (!(counts.pages || counts.tables || counts.files || entries)) {
+  // The folders of Dateien the caller may use: searched, and read by their path.
+  const mounted = (await usableMounts(spaceId, who)).length > 0;
+  if (!(counts.pages || counts.tables || counts.files || entries || mounted)) {
     return {};
   }
   const call = <T>(action: string, input: unknown, run: () => Promise<T>) =>
@@ -129,6 +132,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
           return {
             hits: found.hits.map((h) => ({
               ...(h.path ? { path: h.path } : {}),
+              ...(h.mount ? { in: `Dateien › ${h.mount.name}` } : {}),
               ...(h.open ? { open: h.open } : {}),
               title: h.title,
               ...(h.categories.length ? { categories: h.categories } : {}),
@@ -183,7 +187,7 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
         }),
     });
   }
-  if (counts.files) {
+  if (counts.files || mounted) {
     tools.space_document = createTool({
       id: "space_document",
       description: prompt("tools", "tool.space_document"),
@@ -191,6 +195,9 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
       execute: (input) =>
         call("space_document", input, async () => {
           const { path, from } = input;
+          if (path.startsWith("dateien/")) {
+            return readMounted(path, from);
+          }
           const wanted = path.startsWith("files/") ? path : `files/${path}`;
           const inSpace = await firstFound(spaces, async (id) => {
             const hit = await resolvePath(id, wanted);
@@ -225,6 +232,29 @@ export async function knowledgeTools(caller: ElementCaller): Promise<Record<stri
     });
   }
   return tools;
+
+  /** A file of a mount, read from where it lives: the mount's rules decided before. */
+  async function readMounted(path: string, from: number | undefined) {
+    const found = await fileByPath(spaceId, path, who);
+    if (!found) {
+      throw new Error(`No file "${path}" in the folders you may use.`);
+    }
+    await caller.note?.({ code: "reads", params: { name: found.file.name } });
+    const text = await mountFileText(found.mount, found.file).catch(() => {
+      throw new Error(`"${path}" can't be read now: its folder is not there.`);
+    });
+    if (!text) {
+      return { path, text: "", note: `${found.file.mime}: no text of its own.`, length: 0 };
+    }
+    const start = Math.min(from ?? 0, text.length);
+    const part = text.slice(start, start + 12_000);
+    return {
+      path,
+      text: clip(part, 12_000),
+      next: start + part.length < text.length ? start + part.length : null,
+      length: text.length,
+    };
+  }
 }
 
 /** A search over the client space and its parent, the best of both by relevance. */
