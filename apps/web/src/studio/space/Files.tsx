@@ -3,7 +3,7 @@ import { Box, Check, Eye, FileText, Film, Music, Plus, Sparkles, Star, Trash2 } 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { t } from "../../lib/i18n";
 import { Button, Chip, cn, Dialog, IconButton, Input, Label, Spinner } from "../../ui";
-import { fileUrl, type useFileActions } from "./data";
+import { fileUrl, thumbUrl, type useFileActions } from "./data";
 import { DropArea, MoveButton } from "./Section";
 
 export type Actions = ReturnType<typeof useFileActions>;
@@ -78,6 +78,17 @@ export function Preview({
   small?: boolean;
 }) {
   const src = fileUrl(spaceId, file.id);
+  // Logos and patterns keep their own file: drawn, or see-through on the checker.
+  if (file.thumb && (file.kind === "asset" || file.kind === "document")) {
+    return (
+      <img
+        src={thumbUrl(spaceId, file.id)}
+        alt=""
+        loading="lazy"
+        className="size-full object-cover object-top"
+      />
+    );
+  }
   if (file.mime.startsWith("image/")) {
     return (
       <img

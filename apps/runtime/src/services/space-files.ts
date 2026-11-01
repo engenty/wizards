@@ -12,7 +12,8 @@ import { nanoid } from "nanoid";
 import { assertRwx, type Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
 import { documentMime, UnreadableDocument } from "../documents/parse.js";
-import { getBlob, putBlob, releaseBlob } from "../files/blobs.js";
+import { blobThumb, getBlob, putBlob, releaseBlob } from "../files/blobs.js";
+import { hasThumb } from "../files/thumbs.js";
 import { checkUpload } from "../files/upload-check.js";
 import { embeddingModel, textModel } from "../models.js";
 import { spaceFileChanged } from "../plugins/events.js";
@@ -47,6 +48,7 @@ export function fileView(row: SpaceFileRow): SpaceFileView {
     indexed: row.indexed,
     pages: row.pages,
     chars: row.chars,
+    thumb: Boolean(row.hash) && hasThumb(row.mime),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -90,6 +92,15 @@ export async function spaceFileContent(spaceId: string, fileId: string, who: Sub
     throw notFound();
   }
   return { row, data };
+}
+
+/** A file's thumbnail (files/thumbs.ts), to the same people as its bytes; null when it has none. */
+export async function spaceFileThumb(spaceId: string, fileId: string, who: Subject[] = []) {
+  const row = await spaceFile(spaceId, fileId);
+  if (row.kind === "document") {
+    await assertRwx(spaceId, who, { kind: "document", id: row.id }, "r");
+  }
+  return row.hash ? blobThumb(row.hash, row.mime) : null;
 }
 
 /**
@@ -180,6 +191,8 @@ export async function addSpaceFile(
     // Logos are shown on public pages, where only the control database knows the tenant.
     await putLink(row.id, "logo", row.id);
   }
+  // Made now, so lists show it at once.
+  void blobThumb(hash, mime).catch(() => null);
   if (work) {
     void prepare(row);
   } else if (indexedFile(row)) {
@@ -527,6 +540,7 @@ export async function putOriginFile(
       ...values,
     });
   }
+  void blobThumb(values.hash, mime).catch(() => null);
   if (input.categories) {
     await setItemCategories(input.space, { fileId: id as string }, input.categories, "origin");
   }

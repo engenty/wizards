@@ -12,7 +12,7 @@ import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db, schema } from "../db/client.js";
-import { hasBlob, releaseBlob } from "../files/blobs.js";
+import { blobThumb, hasBlob, releaseBlob } from "../files/blobs.js";
 import { spaceChanged } from "../plugins/events.js";
 import { asSync } from "../services/access.js";
 import { emitDraftChanged } from "../services/draft-events.js";
@@ -906,6 +906,7 @@ const file: KindDef = {
     return async () => {
       if (before?.hash !== hash) {
         await releaseBlob(before?.hash);
+        void blobThumb(hash, mime).catch(() => null);
       }
       if (kind === "logo") {
         await putLink(id, "logo", id);

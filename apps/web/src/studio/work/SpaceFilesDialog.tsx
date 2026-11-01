@@ -4,7 +4,7 @@ import { useState } from "react";
 import { t } from "../../lib/i18n";
 import { Button, cn, Dialog, Input } from "../../ui";
 import type { PickedFile } from "../../ui/composer";
-import { fileUrl, useSpaceFiles } from "../space/data";
+import { fileUrl, thumbUrl, useSpaceFiles } from "../space/data";
 
 /**
  * The space's files to choose from for a message: its documents and assets, newest first, found
@@ -104,9 +104,9 @@ export function SpaceFilesDialog({
 }
 
 function FileIcon({ spaceId, file }: { spaceId: string; file: SpaceFileView }) {
-  return file.mime.startsWith("image/") ? (
+  return file.thumb || file.mime.startsWith("image/") ? (
     <img
-      src={fileUrl(spaceId, file.id)}
+      src={file.thumb ? thumbUrl(spaceId, file.id) : fileUrl(spaceId, file.id)}
       alt=""
       className="size-9 shrink-0 rounded-md bg-paper-2 object-cover ring-1 ring-border"
     />
