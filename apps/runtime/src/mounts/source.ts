@@ -63,6 +63,14 @@ async function mountOf(source: PluginSourceInfo) {
   return { mount, folder: at.folder };
 }
 
+/** The mounts of a space a source can name, by name and slug. */
+export function mountsOf(spaceId: string) {
+  return db.query.spaceMount.findMany({
+    where: eq(schema.spaceMount.spaceId, spaceId),
+    columns: { name: true, slug: true },
+  });
+}
+
 /** A file's path below the source's folder. */
 const below = (folder: string, path: string) => (folder ? path.slice(folder.length + 1) : path);
 
