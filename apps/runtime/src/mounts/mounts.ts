@@ -1136,6 +1136,9 @@ export async function addMount(
   input: MountInput,
 ): Promise<MountView> {
   const from = await sourceOf(spaceId, input);
+  if (input.writable && !(await mayWrite({ ...from, spaceId, name: from.name }))) {
+    throw new ServiceError("refused", NO_WRITE_RIGHTS);
+  }
   const mounts = await db.query.spaceMount.findMany({
     where: eq(schema.spaceMount.spaceId, spaceId),
   });
@@ -1183,12 +1186,31 @@ export async function addMount(
  * Whether a mount's account may write where it lives: a folder of this computer may; a plugin's
  * kind says (false: its studio half connects the account again with the rights to write).
  */
-export async function mountCanWrite(mount: MountRow): Promise<boolean> {
+export function mountCanWrite(mount: MountRow): Promise<boolean> {
+  return mayWrite(mount);
+}
+
+/** Writing turned on where the mount's account may not write: the studio connects it again first. */
+const NO_WRITE_RIGHTS =
+  "The account may not write there yet. Connect it again with the rights to write.";
+
+async function mayWrite(
+  mount: Pick<MountRow, "kind" | "plugin" | "spaceId" | "name" | "source"> & { id?: string },
+): Promise<boolean> {
   if (isFolder(mount)) {
     return true;
   }
   const kind = await kindOf(mount);
-  return kind ? ((await kind.canWrite?.(pluginMount(mount)).catch(() => false)) ?? true) : false;
+  if (!kind) {
+    return false;
+  }
+  const asked = kind.canWrite?.({
+    id: mount.id ?? "",
+    space: mount.spaceId,
+    name: mount.name,
+    source: mount.source as Record<string, unknown>,
+  });
+  return asked ? asked.catch(() => false) : true;
 }
 
 // --- a plugin's mounts, for the plugin ------------------------------------------------------
@@ -1247,6 +1269,9 @@ export async function updateMount(
   requireAdmin();
   const mount = await mountRow(spaceId, mountId, who);
   const writable = patch.writable ?? mount.writable;
+  if (writable && !mount.writable && !(await mountCanWrite(mount))) {
+    throw new ServiceError("refused", NO_WRITE_RIGHTS);
+  }
   if (patch.name?.trim() || writable !== mount.writable) {
     await db
       .update(schema.spaceMount)
