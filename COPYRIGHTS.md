@@ -175,9 +175,11 @@ Declared by two or more of the workspaces below:
 | [class-variance-authority](https://github.com/joe-bell/cva#readme) | 0.7.1 | Apache-2.0 |
 | [cn](https://github.com/shadcn-ui/cn#readme) | 0.5.0 | MIT |
 | [modern-screenshot](https://github.com/qq15725/modern-screenshot) | 4.7.0 | MIT |
+| [pdfjs-dist](https://mozilla.github.io/pdf.js/) | 6.4.299 | Apache-2.0 |
 | [react-router](https://github.com/remix-run/react-router#readme) | 8.5.1 | MIT |
 | [tw-animate-css](https://github.com/Wombosvideo/tw-animate-css#readme) | 1.4.0 | MIT |
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT |
+| [xlsx](https://sheetjs.com/) | 0.20.3 | Apache-2.0 |
 
 ### Development only
 

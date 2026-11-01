@@ -3,14 +3,19 @@ import { formatBytes } from "@engenty/wizards-shared/numbers";
 import type { SpaceFileView } from "@engenty/wizards-shared/spaces";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, RefreshCw, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { api } from "../../lib/api";
+import { useFeature } from "../../lib/features";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { Card, cn, IconButton, Spinner } from "../../ui";
 import { fileUrl, useFileActions, useSpaceFiles } from "./data";
 import { Description } from "./Files";
 import { KnowledgeHeader, useKnowledge } from "./Knowledge";
+import { viewerKind } from "./viewers-kind";
+
+// pdf.js and SheetJS are large: they load with the first file opened in a viewer.
+const Viewer = lazy(() => import("./viewers").then((m) => ({ default: m.Viewer })));
 
 /** A document as the models read it: its text as Markdown, or the start of it. */
 function useDocumentText(spaceId: string, file: SpaceFileView, limit: number) {
@@ -40,25 +45,35 @@ const TEXT_LIMIT = 200_000;
 
 /**
  * A file of Knowledge that is no page and no table, opened: its categories, its description, the
- * file itself where the browser can show it (a PDF, a picture), and the text the models read.
+ * file itself where the browser can show it (a PDF, a picture; with `knowledgeTree` also a
+ * workbook, HTML and text), and the text the models read.
  */
 export function FileView({
   spaceId,
   fileId,
   readOnly,
   onGone,
+  page,
 }: {
   spaceId: string;
   fileId: string;
   readOnly: boolean;
   onGone: () => void;
+  /** Where a search found it: a PDF's page, a workbook's sheet (from 1). */
+  page?: number;
 }) {
   const qc = useQueryClient();
   const files = useSpaceFiles(spaceId);
   const knowledge = useKnowledge(spaceId);
   const actions = useFileActions(spaceId, readOnly);
   const file = files.data?.files.find((f) => f.id === fileId);
-  const shown = file ? file.mime === "application/pdf" || file.mime.startsWith("image/") : false;
+  const viewers = useFeature("knowledgeTree");
+  const kind = file ? viewerKind(file.mime, file.name) : null;
+  const shown = file
+    ? viewers
+      ? kind !== null
+      : file.mime === "application/pdf" || file.mime.startsWith("image/")
+    : false;
   const [view, setView] = useState<"original" | "text" | null>(null);
   if (!file) {
     return files.isLoading ? <Spinner className="mx-auto text-ink-3" /> : null;
@@ -143,7 +158,17 @@ export function FileView({
           {shown ? tab("original", t("space.original")) : null}
           {tab("text", t("space.readText"))}
         </div>
-        {now === "original" ? (
+        {now === "original" && viewers && kind ? (
+          <Suspense
+            fallback={
+              <div className="flex h-40 items-center justify-center text-ink-3">
+                <Spinner />
+              </div>
+            }
+          >
+            <Viewer kind={kind} url={src} name={file.name} page={page} />
+          </Suspense>
+        ) : now === "original" ? (
           file.mime === "application/pdf" ? (
             <iframe
               src={src}
