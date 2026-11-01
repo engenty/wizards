@@ -233,6 +233,20 @@ export async function ownText(input: {
   return read({ ...input, mime }, { vision: false });
 }
 
+/**
+ * A file's text, read on this computer and without a model: a PDF's own text, scanned pages and
+ * pictures by OCR, Word and old Word files, tables. What a Work chat hands a model beside the file
+ * (services/work-files.ts), so a model that can't read files gets what they say. Kept by content.
+ */
+export async function localText(input: {
+  data: Uint8Array;
+  name: string;
+  mime: string;
+}): Promise<ParsedDocument> {
+  const mime = documentMime(input.name, input.mime);
+  return kept(input.data, `${mime}:local`, () => read({ ...input, mime }, { vision: false }));
+}
+
 /** What was made of a file, kept by its content: the same bytes are never worked through twice. */
 async function kept<T>(data: Uint8Array, variant: string, make: () => Promise<T>): Promise<T> {
   const file = join(

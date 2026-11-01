@@ -2,6 +2,7 @@ import type { SpaceFileKind } from "@engenty/wizards-shared/spaces";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Subject } from "../broker/rwx.js";
 import { db, schema } from "../db/client.js";
+import { localText } from "../documents/parse.js";
 import { ServiceError } from "./errors.js";
 import { spaceFileContent } from "./space-files.js";
 
@@ -38,6 +39,26 @@ export const fileKind = (mime: string): SpaceFileKind =>
 
 type TextPart = { type: "text"; text: string };
 type FilePart = { type: "file"; data: string; mediaType: string; filename: string };
+
+/** How much of a file's text a message hands the model; the rest it reads in the space's files. */
+const TEXT_CHARS = 20_000;
+
+/** Begins the text of a file the model gets beside it; the chat doesn't show it. */
+const TEXT_MARK = "(Text of ";
+
+/** A file's text for the model, read on this computer (OCR for scans and pictures); none if empty. */
+async function textOf(name: string, mime: string, data: Uint8Array): Promise<string | null> {
+  const parsed = await localText({ data, name, mime }).catch((err) => {
+    console.error("[work-files]", name, err);
+    return null;
+  });
+  const text = parsed?.markdown.trim();
+  if (!text) {
+    return null;
+  }
+  const cut = text.length > TEXT_CHARS;
+  return `${TEXT_MARK}"${name}", read on this computer${parsed?.via === "ocr" ? " by OCR" : ""}${cut ? ", its start" : ""}:)\n${text.slice(0, TEXT_CHARS)}`;
+}
 
 /** The line the model gets for files it does not read itself; the chat doesn't show it. */
 const elsewhere = (names: string[]) =>
@@ -87,6 +108,11 @@ export async function messageContents(
         filename: row.name,
       });
     }
+    // Its text as well: a model that takes no files, or a scan, still gets what it says.
+    const said = await textOf(row.name, row.mime, data);
+    if (said) {
+      parts.push({ type: "text", text: said });
+    }
     kept.push({ ...file, read });
   }
   const told = kept.filter((f) => !f.read).map((f) => f.name);
@@ -110,7 +136,11 @@ export function viewParts(
   }
   const line = elsewhere(files.filter((f) => !f.read).map((f) => f.name));
   return [
-    ...parts.filter((p) => p.type !== "file" && !(p.type === "text" && p.text === line)),
+    ...parts.filter(
+      (p) =>
+        p.type !== "file" &&
+        !(p.type === "text" && (p.text === line || String(p.text).startsWith(TEXT_MARK))),
+    ),
     ...files.map((f) => ({
       type: "file",
       fileId: f.id,

@@ -159,6 +159,15 @@ describe("files in a chat", () => {
       ]),
     );
     expect(lastAsked().some((p: any) => p.type === "file")).toBe(false);
+    // What it says goes along, read on this computer: a model that takes no files gets it too.
+    expect(lastAsked()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "text",
+          text: expect.stringMatching(/\(Text of "notiz\.txt"[\s\S]*Lieferung am Montag\./),
+        }),
+      ]),
+    );
 
     const read = await json(send("GET", `/chats/${id}`));
     expect(read.chat.title).toBe("notiz.txt");
