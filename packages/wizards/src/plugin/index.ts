@@ -413,6 +413,161 @@ export interface PluginSpaceData {
   summarize(space: string, category?: string, value?: string): Promise<number>;
 }
 
+// --- sources of Knowledge -----------------------------------------------------------------
+
+/** An entry left out by its address: `pattern` is a part of it, `*` stands for anything. */
+export interface PluginSourceRule {
+  pattern: string;
+  reason: string;
+}
+
+/** A source of Knowledge, as its reader is handed it. */
+export interface PluginSourceInfo {
+  id: string;
+  space: string;
+  kind: string;
+  /** What the source was named by: the website's address, the sitemap's. */
+  address: string;
+  label: string;
+  rules: PluginSourceRule[];
+}
+
+/** One entry a source holds, before anything is read of it. */
+export interface PluginSourceFound {
+  address: string;
+  title?: string | null;
+  /** What says whether it changed (a sitemap's lastmod, an ETag): the same again is not read. */
+  fingerprint?: string | null;
+  /**
+   * Where it stands below the source's folder, the folders' names outermost first: a website's
+   * paths. Left out: in the source's folder. An entry whose path is another's folder is that
+   * folder's text.
+   */
+  path?: string[];
+}
+
+/** An entry of a source, as `read` is handed it. */
+export interface PluginSourceEntry {
+  id: string;
+  address: string;
+  title: string | null;
+  /** What the entry was last read with: for asking whether it changed (`if-none-match`). */
+  fingerprint: string | null;
+  /** What `list` said this time; null for a source of addresses added by hand. */
+  found: PluginSourceFound | null;
+}
+
+/** What an entry is now: a page, a document read as an upload is, or nothing new. */
+export type PluginSourceRead =
+  | { kind: "unchanged" }
+  | {
+      kind: "page";
+      title: string;
+      markdown: string;
+      /** Without one the page's text is its fingerprint. */
+      fingerprint?: string | null;
+    }
+  | {
+      kind: "document";
+      name: string;
+      mime: string;
+      data: Uint8Array;
+      fingerprint?: string | null;
+    }
+  /** Read, but nothing for Knowledge in it: "Die Seite hat kaum Text." */
+  | { kind: "failed"; note: string; fingerprint?: string | null };
+
+/** What a model proposes for a new source, from its list and a sample. */
+export interface PluginSourceProposal {
+  /** What a person would call it: "Förderprogramme SFG". */
+  label?: string;
+  /** Kategorien that keep its entries apart; put into the space when it is taken. */
+  categories?: PluginCategory[];
+  /** Entries that do not belong, by address, each with why. */
+  leaveOut?: { address: string; reason: string }[];
+}
+
+/** What a reader's calls are handed besides the source. */
+export interface PluginSourceContext {
+  signal: AbortSignal;
+  /** Tells the person what it is doing right now: "Liest die Sitemap …". */
+  emit(message: string): void;
+}
+
+/**
+ * How a kind of source is read: the core keeps its rows, its runs and its folder, and asks the
+ * reader what the source holds and what each entry is now.
+ */
+export interface PluginKnowledgeReader {
+  /** What the source holds now; at most 1000 entries are kept. */
+  list(source: PluginSourceInfo, ctx: PluginSourceContext): Promise<PluginSourceFound[]>;
+  /** One entry, unless it did not change since `entry.fingerprint`. */
+  read(
+    source: PluginSourceInfo,
+    entry: PluginSourceEntry,
+    ctx: PluginSourceContext,
+  ): Promise<PluginSourceRead>;
+  /**
+   * After the first list, before anything is written: a name, Kategorien and entries to leave
+   * out, usually by a model that reads a sample. Throwing leaves the proposal as it is.
+   */
+  propose?(
+    source: PluginSourceInfo,
+    entries: { address: string; title: string | null; included: boolean; reason: string | null }[],
+    ctx: PluginSourceContext,
+  ): Promise<PluginSourceProposal>;
+}
+
+/**
+ * A kind of source of Knowledge (`registerKnowledgeSource`): a website, a sitemap, a list of
+ * addresses. Each source of it fills a folder of its own, owns what it wrote there and keeps it
+ * current; the studio half registers the same kind with its label, icon and form.
+ */
+export interface PluginKnowledgeSource {
+  /** Lower case, digits and `-`, unique on the runtime: `website`. */
+  kind: string;
+  /**
+   * Whether what a person names is a source of this kind, and its address as kept (with
+   * `https://` in front, say); null when it is not. A kind without one is picked only by name.
+   */
+  match?(address: string): string | null;
+  /** The entries left out by their address before anyone looked: Impressum, Datenschutz. */
+  rules?: PluginSourceRule[];
+  /** How often it is read again, in hours; null or left out: only when asked. */
+  everyHours?: number | null;
+  /** Its entries are added by hand (`addEntries`), never listed. */
+  manual?: boolean;
+  /** A model fills the space's Kategorien on what each entry becomes. */
+  fill?: boolean;
+  reader: PluginKnowledgeReader;
+}
+
+/** A source of the space's Knowledge, as the core keeps it. */
+export interface PluginSourceView extends PluginSourceInfo {
+  plugin: string;
+  state: "proposed" | "taken";
+  everyHours: number | null;
+  /** What a signal address names the source by. */
+  token: string;
+  status: "idle" | "running" | "failed";
+  error: string | null;
+  lastRunAt: string | null;
+  /** The page that is its folder in Knowledge; null before it is taken. */
+  folderId: string | null;
+}
+
+/** The sources of the tenant's Knowledge, for a kind's own routes and jobs. */
+export interface PluginKnowledgeSources {
+  /** The sources of the plugin's kinds, of one space or of every space. */
+  list(space?: string): Promise<PluginSourceView[]>;
+  /** The source a signal address names; null when there is none. */
+  byToken(token: string): Promise<PluginSourceView | null>;
+  /** Reads it now, in the background; nothing when it runs already or is not taken. */
+  run(id: string): Promise<void>;
+  /** Adds addresses to a source of a `manual` kind and reads them. */
+  addEntries(id: string, addresses: string[]): Promise<void>;
+}
+
 /** What a tool of the space assistant knows about the turn that calls it. */
 export interface PluginAssistantContext {
   tenantId: string;
@@ -1038,6 +1193,13 @@ export interface PluginServerApi {
   index: PluginIndex;
   /** Knowledge of a space: pages, tables and files the plugin writes, with their categories. */
   spaceData: PluginSpaceData;
+  /**
+   * A kind of source of Knowledge: its sources show in Knowledge's „Hinzufügen“ and in the space
+   * assistant's proposals, each fills a folder of its own and is read again on its schedule.
+   */
+  registerKnowledgeSource(source: PluginKnowledgeSource): void;
+  /** The sources of the plugin's kinds. */
+  knowledgeSources: PluginKnowledgeSources;
   spaces: {
     /** The space's brand, of the current tenant; null for a space it does not have. */
     brand(space: string): Promise<PluginBrand | null>;

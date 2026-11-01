@@ -698,10 +698,21 @@ export async function moveKnowledgeItem(
 ) {
   const space = await ownedSpace(userId, spaceId);
   await requireWritableSpace(space.id);
-  const kind = input.key[0];
-  const id = input.key.slice(2);
+  await placeItem(space.id, input.key, input.parentId);
+  if (input.index !== undefined) {
+    await orderFolder(space.id, input.parentId ?? null, input.key, input.index);
+  }
+}
+
+/**
+ * Puts an item of Knowledge into a folder of the space, at the end of its contents, unless it is
+ * there. Moved, not edited: what a plugin or a source wrote stays theirs.
+ */
+export async function placeItem(spaceId: string, key: string, parentId: string | null) {
+  const kind = key[0];
+  const id = key.slice(2);
   const own = <T extends { spaceId: string }>(row: T | undefined) => {
-    if (!row || row.spaceId !== space.id) {
+    if (!row || row.spaceId !== spaceId) {
       throw notFound();
     }
     return row;
@@ -711,15 +722,14 @@ export async function moveKnowledgeItem(
     if (page.wizardId) {
       throw notFound();
     }
-    // Moved, not edited: what a plugin wrote stays the plugin's.
-    const parentId = await parentOf(space.id, input.parentId, page.id);
-    if (parentId !== page.parentId) {
+    const parent = await parentOf(spaceId, parentId, page.id);
+    if (parent !== page.parentId) {
       await db
         .update(schema.spacePage)
         .set({
-          parentId,
-          slug: await freeSlug(space.id, page.title, { parentId }, page.id),
-          position: await nextPosition(space.id, parentId),
+          parentId: parent,
+          slug: await freeSlug(spaceId, page.title, { parentId: parent }, page.id),
+          position: await nextPosition(spaceId, parent),
           updatedAt: new Date(),
         })
         .where(eq(schema.spacePage.id, page.id));
@@ -730,27 +740,44 @@ export async function moveKnowledgeItem(
     if (table.wizardId) {
       throw notFound();
     }
-    const parentId = await parentOf(space.id, input.parentId);
-    await db
-      .update(schema.spaceTable)
-      .set({ parentId, position: await nextPosition(space.id, parentId) })
-      .where(eq(schema.spaceTable.id, table.id));
+    const parent = await parentOf(spaceId, parentId);
+    if (parent !== table.parentId) {
+      await db
+        .update(schema.spaceTable)
+        .set({ parentId: parent, position: await nextPosition(spaceId, parent) })
+        .where(eq(schema.spaceTable.id, table.id));
+    }
   } else if (kind === "f") {
     const file = own(
       await db.query.spaceFile.findFirst({
         where: and(eq(schema.spaceFile.id, id), eq(schema.spaceFile.kind, "document")),
       }),
     );
-    const parentId = await parentOf(space.id, input.parentId);
-    await db
-      .update(schema.spaceFile)
-      .set({ parentId, position: await nextPosition(space.id, parentId) })
-      .where(eq(schema.spaceFile.id, file.id));
+    const parent = await parentOf(spaceId, parentId);
+    if (parent !== file.parentId) {
+      const position = await nextPosition(spaceId, parent);
+      await db
+        .update(schema.spaceFile)
+        .set({ parentId: parent, position })
+        .where(eq(schema.spaceFile.id, file.id));
+      // What it was read into goes with it: its first page (its parts stay under that) and its
+      // tables.
+      const was = file.parentId
+        ? eq(schema.spacePage.parentId, file.parentId)
+        : isNull(schema.spacePage.parentId);
+      for (const page of await db.query.spacePage.findMany({
+        where: and(eq(schema.spacePage.fileId, file.id), was),
+        columns: { id: true },
+      })) {
+        await placeItem(spaceId, `p:${page.id}`, parent);
+      }
+      await db
+        .update(schema.spaceTable)
+        .set({ parentId: parent, position })
+        .where(eq(schema.spaceTable.fileId, file.id));
+    }
   } else {
     throw notFound();
-  }
-  if (input.index !== undefined) {
-    await orderFolder(space.id, input.parentId ?? null, input.key, input.index);
   }
 }
 

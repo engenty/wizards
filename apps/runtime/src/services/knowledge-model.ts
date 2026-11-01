@@ -342,7 +342,13 @@ export interface Converted {
  * nothing can read stays a file; UnreadableDocument says why. So does a picture the index embeds
  * as a picture.
  */
-export async function convertDocument(file: FileRow, data: Uint8Array): Promise<Converted> {
+export async function convertDocument(row: FileRow, data: Uint8Array): Promise<Converted> {
+  // Where the file stands now: an upload into a folder is moved there while it is read.
+  const place = await db.query.spaceFile.findFirst({
+    where: eq(schema.spaceFile.id, row.id),
+    columns: { parentId: true, position: true },
+  });
+  const file = { ...row, ...place };
   const mime = documentMime(file.name, file.mime);
   await dropConverted(file.id);
   const items: string[] = [];
@@ -371,6 +377,9 @@ export async function convertDocument(file: FileRow, data: Uint8Array): Promise<
         title,
         slug: await freeSlug(file.spaceId, title, "table"),
         columns,
+        // Where the file stands: what it was read into stands there in its place.
+        parentId: file.parentId,
+        position: file.position,
         fileId: file.id,
         origin: file.origin,
         originLabel: file.originLabel,
@@ -411,8 +420,8 @@ export async function convertDocument(file: FileRow, data: Uint8Array): Promise<
     const id = await insertPage(file, {
       title,
       markdown,
-      parentId: null,
-      position: 0,
+      parentId: file.parentId,
+      position: file.position,
       review,
     });
     queueIndex(`p:${id}`);
@@ -427,8 +436,8 @@ export async function convertDocument(file: FileRow, data: Uint8Array): Promise<
   const parentId = await insertPage(file, {
     title,
     markdown: split.intro,
-    parentId: null,
-    position: 0,
+    parentId: file.parentId,
+    position: file.position,
     review,
   });
   const ids: string[] = [];
