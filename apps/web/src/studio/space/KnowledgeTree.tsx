@@ -14,10 +14,11 @@ import { type DragEvent, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { Chip, cn, Dialog } from "../../ui";
+import { cn, Dialog } from "../../ui";
 import { useDismiss } from "../AppFrame";
 import { useSettingsMenu } from "../settings-menu";
 import { shownValue } from "./Categories";
+import { useItemView } from "./item-view";
 import { itemIcon } from "./Knowledge";
 
 /**
@@ -92,7 +93,10 @@ export function chipsOf(item: KnowledgeItem, categories: SpaceCategory[]): strin
     .slice(0, 2);
 }
 
-/** What a card says under its title: how much a folder holds, a table's rows, where it came from. */
+/**
+ * What a card says under its title: how much a folder holds, a table's rows, where it stands or
+ * else where it came from.
+ */
 function cardLine(item: KnowledgeItem): string {
   return [
     item.kind === "page" && item.children
@@ -101,13 +105,25 @@ function cardLine(item: KnowledgeItem): string {
         : t("know.items", { n: item.children })
       : "",
     item.rows !== null ? (item.rows === 1 ? t("know.row") : t("know.rows", { n: item.rows })) : "",
-    item.originLabel ?? "",
+    item.place || item.originLabel || "",
   ]
     .filter(Boolean)
     .join(" · ");
 }
 
-/** Items as cards: what each is, its title, how much it holds, two category chips. */
+/** A category value on a card or a row: small, so the text stays first. */
+function Tag({ children }: { children: string }) {
+  return (
+    <span className="inline-flex h-5 max-w-full items-center truncate rounded-full bg-paper-2 px-1.5 text-[0.6875rem] text-ink-3">
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Items as cards (the start of their text, how much they hold, two category values) or as a
+ * list, as the person switched it (`ItemViewSwitch`).
+ */
 export function ItemCards({
   items,
   categories,
@@ -117,8 +133,36 @@ export function ItemCards({
   categories: SpaceCategory[];
   onOpen: (key: string) => void;
 }) {
+  const view = useItemView();
+  if (view === "list") {
+    return (
+      <div className="flex flex-col rounded-xl bg-card p-1.5 shadow-soft ring-1 ring-border-soft">
+        {items.map((item) => {
+          const Icon = treeIcon(item);
+          const chips = chipsOf(item, categories);
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onOpen(item.key)}
+              disabled={item.status === "pending"}
+              className="flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-accent disabled:opacity-60"
+            >
+              <Icon className="size-4 shrink-0 text-ink-3" />
+              <span className="min-w-0 flex-1 truncate text-[0.875rem]">{item.title}</span>
+              <span className="flex shrink-0 gap-1 max-sm:hidden">
+                {chips.map((c) => (
+                  <Tag key={c}>{c}</Tag>
+                ))}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3">
       {items.map((item) => {
         const Icon = treeIcon(item);
         const line = cardLine(item);
@@ -129,17 +173,22 @@ export function ItemCards({
             type="button"
             onClick={() => onOpen(item.key)}
             disabled={item.status === "pending"}
-            className="flex min-w-0 flex-col gap-1.5 rounded-xl bg-card px-4 py-3.5 text-left shadow-soft ring-1 ring-border-soft transition hover:ring-border disabled:opacity-60"
+            className="flex min-w-0 flex-col gap-1.5 rounded-xl bg-card px-3.5 py-3 text-left shadow-soft ring-1 ring-border-soft transition hover:ring-border disabled:opacity-60"
           >
-            <span className="flex min-w-0 items-center gap-2.5">
+            <span className="flex min-w-0 items-center gap-2">
               <Icon className="size-4 shrink-0 text-ink-3" />
               <span className="truncate font-medium text-[0.875rem]">{item.title}</span>
             </span>
-            {line ? <span className="truncate text-[0.75rem] text-ink-3">{line}</span> : null}
+            {item.excerpt ? (
+              <span className="line-clamp-4 text-[0.8125rem] text-ink-2 leading-5">
+                {item.excerpt}
+              </span>
+            ) : null}
+            {line ? <span className="truncate text-[0.75rem] text-ink-4">{line}</span> : null}
             {chips.length ? (
               <span className="flex flex-wrap gap-1">
                 {chips.map((c) => (
-                  <Chip key={c}>{c}</Chip>
+                  <Tag key={c}>{c}</Tag>
                 ))}
               </span>
             ) : null}

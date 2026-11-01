@@ -261,6 +261,40 @@ async function readableItems<T extends KnowledgeItem>(
   return items.filter((i) => ok.has(i.id));
 }
 
+/** About four lines of a card. */
+const EXCERPT_CHARS = 320;
+
+/**
+ * The start of a text as plain words, for a card: without Markdown's marks, pictures, links'
+ * addresses and a first heading that only repeats the title; null when nothing is left.
+ */
+export function excerptOf(markdown: string | null | undefined, title: string): string | null {
+  const lines = (markdown ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/, "")
+        .replace(/[*_`~|]/g, "")
+        .trim(),
+    )
+    .filter((line) => line && !/^[-:=\s]+$/.test(line));
+  if (lines[0]?.toLowerCase() === title.trim().toLowerCase()) {
+    lines.shift();
+  }
+  const text = lines.join(" ").replace(/\s+/g, " ").trim();
+  if (!text) {
+    return null;
+  }
+  if (text.length <= EXCERPT_CHARS) {
+    return text;
+  }
+  const cut = text.slice(0, EXCERPT_CHARS);
+  return `${cut.slice(0, cut.lastIndexOf(" ") > 200 ? cut.lastIndexOf(" ") : EXCERPT_CHARS)} …`;
+}
+
 /**
  * Everything Knowledge holds that `who` may read, as a tree: pages with their sub-pages, tables
  * and files, each with the page it sits in (`parentId`) and its place there; and categories.
@@ -302,6 +336,7 @@ export async function listKnowledge(
     columns: { markdown: false },
     extras: {
       blank: sql<number>`length(trim(${schema.spacePage.markdown})) = 0`.as("blank"),
+      head: sql<string>`substr(${schema.spacePage.markdown}, 1, 2000)`.as("head"),
     },
   });
   const loose = files.filter((f) => !converted.has(f.id));
@@ -334,6 +369,7 @@ export async function listKnowledge(
         parentId: tree.get(p.id)?.parentId ?? null,
         position: p.position,
         blank: Boolean(p.blank),
+        excerpt: excerptOf(p.head, p.title),
         rows: null,
         format: null,
         origin: p.origin,
@@ -357,6 +393,7 @@ export async function listKnowledge(
         parentId: t.parentId && inside(t.parentId),
         position: t.position,
         blank: false,
+        excerpt: null,
         rows: rowCounts.find((r) => r.tableId === t.id)?.n ?? 0,
         format: t.format,
         origin: t.origin,
@@ -380,6 +417,7 @@ export async function listKnowledge(
         parentId: f.parentId && inside(f.parentId),
         position: f.position,
         blank: false,
+        excerpt: excerptOf(f.description, f.name),
         rows: null,
         format: null,
         origin: f.origin,
@@ -485,7 +523,7 @@ async function itemsHaving(
     }
   }
   return {
-    // A sub-page says where it stands: „Handbuch › Montage“.
+    // A sub-page says where it stands, beside its title: „Handbuch › Montage“.
     items: all.items
       .filter(
         (i) =>
@@ -495,7 +533,7 @@ async function itemsHaving(
       )
       .map((i) =>
         i.kind === "page" && i.parentId
-          ? { ...i, title: tree.get(i.id)?.titles.join(" › ") ?? i.title }
+          ? { ...i, place: tree.get(i.id)?.titles.slice(0, -1).join(" › ") }
           : i,
       ),
     rows: [...rowTables].map(([tableId, n]) => ({
