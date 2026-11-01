@@ -8,7 +8,7 @@ import { api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { Card, cn, IconButton, Spinner } from "../../ui";
+import { askConfirm, Card, cn, IconButton, Spinner } from "../../ui";
 import { fileUrl, useFileActions, useSpaceFiles } from "./data";
 import { Description } from "./Files";
 import { KnowledgeHeader, useKnowledge } from "./Knowledge";
@@ -124,7 +124,7 @@ export function FileView({
               label={t("know.deleteFile")}
               className="hover:text-rose"
               onClick={async () => {
-                if (confirm(t("data.confirmDelete", { title: file.name }))) {
+                if (await askConfirm(t("data.confirmDelete", { title: file.name }))) {
                   await actions.remove(file.id);
                   await qc.invalidateQueries({ queryKey: keys.knowledge(spaceId) });
                   onGone();

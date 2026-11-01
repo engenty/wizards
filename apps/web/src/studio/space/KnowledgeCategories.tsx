@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { Button, Chip, cn, Dialog, IconButton } from "../../ui";
+import { askConfirm, Button, Chip, cn, Dialog, IconButton } from "../../ui";
 import { useDismiss } from "../AppFrame";
 import { useSettingsMenu } from "../settings-menu";
 import { CATEGORY_ICON, CategoryView, itemCount, ValueView } from "./Categories";
@@ -328,8 +328,8 @@ export function CategoryHome({
           readOnly ? null : (
             <CategoryMenu
               onEdit={() => setEditing(true)}
-              onDelete={() =>
-                confirm(t("know.confirmCategory", { name: category.name })) &&
+              onDelete={async () =>
+                (await askConfirm(t("know.confirmCategory", { name: category.name }))) &&
                 call.mutate(async () => {
                   await api.del(`/api/studio/categories/${category.id}`);
                   onGone();

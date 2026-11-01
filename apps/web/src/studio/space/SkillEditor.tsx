@@ -28,7 +28,18 @@ import { api } from "../../lib/api";
 import { withBase } from "../../lib/base";
 import { lang, t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
-import { Button, Card, cn, Dialog, IconButton, Input, Label, Spinner, Switch } from "../../ui";
+import {
+  askConfirm,
+  Button,
+  Card,
+  cn,
+  Dialog,
+  IconButton,
+  Input,
+  Label,
+  Spinner,
+  Switch,
+} from "../../ui";
 import { CodeEditor } from "../../ui/code-editor";
 import { frontmatterLines } from "../../ui/code-editor/frontmatter";
 import { useAutosave } from "./data";
@@ -509,9 +520,9 @@ function SkillForm({
   const opened = draft.files.find((f) => f.path === file) ?? null;
   const text = md ?? skillMd(draft);
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
-  const askDelete = () => {
+  const askDelete = async () => {
     const key = fromRegistry ? "skills.removeConfirm" : "skills.deleteConfirm";
-    if (window.confirm(t(key, { name: skill.name }))) {
+    if (await askConfirm(t(key, { name: skill.name }))) {
       remove.mutate();
     }
   };

@@ -14,7 +14,9 @@ import {
   Hash,
   type LucideIcon,
   Pause,
+  PenLine,
   RefreshCw,
+  Settings2,
   Tags,
   ToggleLeft,
   Trash2,
@@ -28,6 +30,7 @@ import { keys } from "../../lib/keys";
 import { useCurrentSpace } from "../../lib/session";
 import { PluginFrame, useStudioPlugins } from "../../plugins/host";
 import {
+  askConfirm,
   Button,
   Card,
   Chip,
@@ -42,6 +45,7 @@ import {
   Textarea,
 } from "../../ui";
 import { CORE_KINDS } from "./FromDateien";
+import { when as ago } from "./KnowledgeHome";
 import { Section } from "./Section";
 
 /**
@@ -205,6 +209,117 @@ export function useSources(spaceId: string | undefined) {
       [...CORE_KINDS, ...plugins.knowledgeSources].find((s) => s.kind === source.kind)?.icon ??
       FolderOpen,
   };
+}
+
+// --- the sources on Wissen's start page -------------------------------------------------------
+
+/** „in 3 Std.“, „morgen“: when something is due, short; „jetzt fällig“ once it is past. */
+function due(at: number): string {
+  const minutes = (at - Date.now()) / 60_000;
+  if (minutes <= 1) {
+    return t("src.dueNow");
+  }
+  const short = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "short" });
+  return minutes < 60
+    ? short.format(Math.round(minutes), "minute")
+    : minutes < 48 * 60
+      ? short.format(Math.round(minutes / 60), "hour")
+      : short.format(Math.round(minutes / 1440), "day");
+}
+
+/** Where a source reads, short: the host and the path, without the scheme. */
+function shortAddress(address: string): string {
+  try {
+    const url = new URL(address);
+    return `${url.host.replace(/^www\./, "")}${url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "")}`;
+  } catch {
+    return address;
+  }
+}
+
+/**
+ * The sources as cards, on Wissen's start page: what each reads (its address), how many pages it
+ * keeps, how often it reads and when it read last and reads next, and what it is doing — reading,
+ * or broken. A card opens the source's folder; its gear, the source's settings.
+ */
+export function SourceCards({
+  spaceId,
+  folderIds,
+  onOpen,
+}: {
+  spaceId: string;
+  /** The folders to show, in their order. */
+  folderIds: string[];
+  onOpen: (key: string) => void;
+}) {
+  const { sources, iconOf } = useSources(spaceId);
+  const shown = folderIds.flatMap((id) => sources.filter((s) => s.folderId === id));
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-3">
+      {shown.map((s) => {
+        const Icon = iconOf(s);
+        const pages = s.counts.included;
+        const last = s.lastRun?.endedAt ?? s.lastRunAt;
+        const facts = [
+          pages === 1 ? t("src.onePage") : t("src.pages", { n: pages }),
+          t(EVERY_WORD[(s.everyHours ?? 0) as keyof typeof EVERY_WORD] ?? "src.every0"),
+          last ? t("src.lastRead", { when: ago(last) }) : t("src.neverRead"),
+          s.everyHours && last && !s.running
+            ? t("src.nextRead", { when: due(Date.parse(last) + s.everyHours * 3_600_000) })
+            : "",
+        ].filter(Boolean);
+        return (
+          <div
+            key={s.id}
+            className="group/card relative flex min-w-0 flex-col gap-1 rounded-xl bg-card px-3.5 py-3 shadow-soft ring-1 ring-border-soft transition hover:ring-border"
+          >
+            <button
+              type="button"
+              onClick={() => s.folderId && onOpen(`p:${s.folderId}`)}
+              className="flex min-w-0 items-center gap-2 pr-7 text-left"
+            >
+              <Icon className="size-4 shrink-0 text-ink-3" />
+              <span className="truncate font-medium text-[0.875rem]">{s.label}</span>
+            </button>
+            <span className="truncate text-[0.75rem] text-ink-3" title={s.address}>
+              {shortAddress(s.address)}
+            </span>
+            <span className="flex flex-wrap gap-x-2 text-[0.75rem] text-ink-4">
+              {facts.map((f, i) => (
+                <span key={f} className="whitespace-nowrap">
+                  {i ? "· " : ""}
+                  {f}
+                </span>
+              ))}
+            </span>
+            {s.running ? (
+              <span className="mt-1 inline-flex items-center gap-1.5 self-start rounded-full bg-cobalt-tint px-2 py-0.5 text-[0.75rem] text-cobalt">
+                <Spinner className="size-3" />
+                {s.now?.of
+                  ? t("src.readingOf", { done: s.now.done, n: s.now.of })
+                  : t("src.readingNow")}
+              </span>
+            ) : s.status === "failed" ? (
+              <span
+                className="mt-1 inline-flex items-center gap-1.5 self-start rounded-full bg-rose-tint px-2 py-0.5 text-[0.75rem] text-rose"
+                title={s.error ?? ""}
+              >
+                <CircleAlert className="size-3" />
+                {t("src.failedShort")}
+              </span>
+            ) : null}
+            <IconButton
+              label={t("src.menuSource")}
+              className="absolute top-2 right-2 size-7 text-ink-4 opacity-0 transition group-hover/card:opacity-100 focus-visible:opacity-100"
+              onClick={() => onOpen(`q:${s.id}`)}
+            >
+              <Settings2 className="size-4" />
+            </IconButton>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // --- the line above Wissen -------------------------------------------------------------------
@@ -1004,8 +1119,9 @@ export function SourceView({
 // --- an item a source wrote ---------------------------------------------------------------------
 
 /**
- * Above a page a source wrote: whose it is, and „Als eigene Seite übernehmen“. Taken over, the
- * page is the space's own and can be written.
+ * Above a page a source wrote: which source writes it and that it does so on every read, and
+ * „Selbst bearbeiten“, which asks first. Taken over, the page is the space's own and can be
+ * written; the source leaves it alone.
  */
 export function SourceItemNotice({
   spaceId,
@@ -1028,13 +1144,31 @@ export function SourceItemNotice({
     },
   });
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-paper-2 px-4 py-2.5 text-[0.8125rem] text-ink-2">
-      <p className="min-w-0 flex-1">{t("src.readOnly", { label })}</p>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-cobalt-tint px-3.5 py-2.5">
+      <RefreshCw className="size-4 shrink-0 text-cobalt" />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-[0.8125rem] text-ink">{t("src.fromTitle", { label })}</p>
+        <p className="text-[0.75rem] text-ink-3">{t("src.fromHint")}</p>
+      </div>
       {readOnly ? null : (
-        <Button size="sm" variant="secondary" busy={keep.isPending} onClick={() => keep.mutate()}>
-          {t("src.keep")}
+        <Button
+          size="sm"
+          variant="secondary"
+          busy={keep.isPending}
+          onClick={async () =>
+            (await askConfirm(t("src.takeOverTitle"), {
+              detail: t("src.takeOverDetail", { label }),
+              action: t("src.takeOver"),
+              danger: false,
+            })) && keep.mutate()
+          }
+        >
+          <PenLine className="size-3.5" /> {t("src.takeOver")}
         </Button>
       )}
+      {keep.error ? (
+        <p className="w-full text-[0.75rem] text-rose">{(keep.error as Error).message}</p>
+      ) : null}
     </div>
   );
 }

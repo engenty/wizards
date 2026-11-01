@@ -19,6 +19,7 @@ import { lang, t } from "../../lib/i18n";
 import { useMe } from "../../lib/session";
 import { useStudioPlugins } from "../../plugins/host";
 import {
+  askConfirm,
   Button,
   Card,
   Chip,
@@ -1252,7 +1253,7 @@ function MountSettings({
               variant="ghost"
               className="text-rose"
               onClick={async () => {
-                if (confirm(t("dateien.removeConfirm", { name: mount.name }))) {
+                if (await askConfirm(t("dateien.removeConfirm", { name: mount.name }))) {
                   await actions.remove(mount.id);
                   onClose();
                   onGone();

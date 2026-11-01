@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Check, GitMerge, Upload } from "lucide-react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { t } from "../../lib/i18n";
-import { Button, Card, Chip, cn, IconButton, Spinner } from "../../ui";
+import { askConfirm, Button, Card, Chip, cn, IconButton, Spinner } from "../../ui";
 import { CodeEditor } from "../../ui/code-editor";
 import { mountFileUrl } from "./data";
 import {
@@ -268,8 +268,8 @@ function TextDraftEditor({
             size="sm"
             variant="ghost"
             busy={busy === "discard"}
-            onClick={() => {
-              if (confirm(t("dateien.discardConfirm"))) {
+            onClick={async () => {
+              if (await askConfirm(t("dateien.discardConfirm"))) {
                 clearTimeout(timer.current);
                 timer.current = undefined;
                 void run("discard", async () => {

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { t } from "../../lib/i18n";
-import { Button, Dialog, IconButton, Input, Label, Spinner, Tabs } from "../../ui";
+import { askConfirm, Button, Dialog, IconButton, Input, Label, Spinner, Tabs } from "../../ui";
 import { fileUrl, type SpaceFiles, useAutosave, useFileActions, useLayout } from "./data";
 import { type Actions, CHECKER, Description, FromUrl, type MoveTo, Preview, Tiles } from "./Files";
 import {
@@ -266,8 +266,8 @@ export function Assets({
       place(file.id, to);
     }
   };
-  const drop = (file: SpaceFileView) => {
-    if (confirm(t("space.removeConfirm", { name: file.name }))) {
+  const drop = async (file: SpaceFileView) => {
+    if (await askConfirm(t("space.removeConfirm", { name: file.name }))) {
       void actions.remove(file.id);
       place(file.id, null);
     }
@@ -440,10 +440,12 @@ export function Assets({
           }}
           onRemove={
             naming === "current" && current
-              ? () => {
+              ? async () => {
                   if (
                     !current.assets.length ||
-                    confirm(t("space.assetSectionRemoveConfirm", { name: current.title }))
+                    (await askConfirm(
+                      t("space.assetSectionRemoveConfirm", { name: current.title }),
+                    ))
                   ) {
                     setSections((list) => list.filter((s) => s.id !== current.id));
                     setTab("");

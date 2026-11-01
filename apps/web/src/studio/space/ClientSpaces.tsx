@@ -4,7 +4,7 @@ import { type FormEvent, useState } from "react";
 import { api } from "../../lib/api";
 import { lang, t } from "../../lib/i18n";
 import type { Space, WizardSummary } from "../../lib/session";
-import { Button, cn, IconButton, Input, Switch } from "../../ui";
+import { askConfirm, Button, cn, IconButton, Input, Switch } from "../../ui";
 import { Section } from "./Section";
 
 /**
@@ -162,8 +162,8 @@ function ClientRow({ spaceId, client }: { spaceId: string; client: ClientSpaceRo
         </button>
         <IconButton
           label={t("clients.close", { name: client.name })}
-          onClick={() => {
-            if (window.confirm(t("clients.closeConfirm", { name: client.name }))) {
+          onClick={async () => {
+            if (await askConfirm(t("clients.closeConfirm", { name: client.name }))) {
               close.mutate();
             }
           }}

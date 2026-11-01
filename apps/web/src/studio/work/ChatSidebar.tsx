@@ -58,7 +58,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { t } from "../../lib/i18n";
 import { useCurrentSpace } from "../../lib/session";
-import { cn } from "../../ui";
+import { askConfirm, cn } from "../../ui";
 import {
   type Section,
   type SidebarChat,
@@ -429,8 +429,8 @@ function SectionGroup({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
-                onClick={() => {
-                  if (confirm(t("work.deleteSectionConfirm", { name: section.name }))) {
+                onClick={async () => {
+                  if (await askConfirm(t("work.deleteSectionConfirm", { name: section.name }))) {
                     remove.mutate(section.id);
                   }
                 }}
@@ -675,8 +675,8 @@ function ChatRow({
     pin: () => state.mutate({ id: chat.id, pinned: !chat.pinned }),
     read: () => state.mutate({ id: chat.id, read: chat.unread }),
     archive: () => state.mutate({ id: chat.id, archived: !chat.archived }),
-    remove: () => {
-      if (confirm(t("work.deleteConfirm", { title }))) {
+    remove: async () => {
+      if (await askConfirm(t("work.deleteConfirm", { title }))) {
         remove.mutate(chat.id, {
           onSuccess: () => {
             if (active) {

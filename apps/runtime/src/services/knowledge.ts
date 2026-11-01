@@ -266,7 +266,8 @@ const EXCERPT_CHARS = 320;
 
 /**
  * The start of a text as plain words, for a card: without Markdown's marks, pictures, links'
- * addresses and a first heading that only repeats the title; null when nothing is left.
+ * addresses, tables, task boxes and a first heading that only repeats the title; null when
+ * nothing is left.
  */
 export function excerptOf(markdown: string | null | undefined, title: string): string | null {
   const lines = (markdown ?? "")
@@ -274,9 +275,12 @@ export function excerptOf(markdown: string | null | undefined, title: string): s
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
     .split("\n")
+    // A table's rows say little out of their table.
+    .filter((line) => !line.trimStart().startsWith("|"))
     .map((line) =>
       line
         .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/, "")
+        .replace(/^\[[ xX]\]\s+/, "")
         .replace(/[*_`~|]/g, "")
         .trim(),
     )

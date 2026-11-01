@@ -26,7 +26,8 @@ export function Anchor({ id, children }: { id: string; children: ReactNode }) {
 /**
  * One section of the space page, as engenty lays them out: the heading and what the section is
  * for stand above the card, the card holds the content. The heading says how the last save went.
- * `plain`: the content draws its own cards, as a plugin's section does.
+ * `plain`: the content draws its own cards, as a plugin's section does. `page`: the heading is the
+ * page's own (Wissen, a folder), as large as a page's title.
  */
 export function Section({
   title,
@@ -36,6 +37,7 @@ export function Section({
   tabs,
   locked,
   plain,
+  page,
   children,
 }: {
   title: string;
@@ -47,6 +49,7 @@ export function Section({
   /** The space is not changed here: every field and button of the section shows and takes nothing. */
   locked?: boolean;
   plain?: boolean;
+  page?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -59,7 +62,14 @@ export function Section({
       <div className="group/head flex items-start justify-between gap-4 px-1">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <h2 className="font-display font-semibold text-lg leading-tight">{title}</h2>
+            <h2
+              className={cn(
+                "font-display font-semibold leading-tight",
+                page ? "text-[1.75rem] tracking-tight" : "text-lg",
+              )}
+            >
+              {title}
+            </h2>
             {save?.state === "saving" ? (
               <span className="inline-flex items-center gap-1.5 text-[0.75rem] text-ink-3">
                 <Spinner className="size-3" /> {t("space.saving")}
@@ -70,7 +80,16 @@ export function Section({
               </span>
             ) : null}
           </div>
-          {hint ? <p className="mt-1 text-[0.875rem] text-ink-3 leading-snug">{hint}</p> : null}
+          {hint ? (
+            <p
+              className={cn(
+                "mt-1 text-ink-3 leading-snug",
+                page ? "text-[0.8125rem]" : "text-[0.875rem]",
+              )}
+            >
+              {hint}
+            </p>
+          ) : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>

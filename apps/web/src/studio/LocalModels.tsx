@@ -3,7 +3,7 @@ import { Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { lang, t } from "../lib/i18n";
-import { Button, cn, Input } from "../ui";
+import { askConfirm, Button, cn, Input } from "../ui";
 
 /** What a model does in the studio: a text class, the search of a space's knowledge, decisions. */
 const LOCAL_JOBS = ["text", "search", "decision"] as const;
@@ -274,10 +274,10 @@ export function LocalModels({
                       title={t("models.local.remove")}
                       aria-label={t("models.local.remove")}
                       disabled={disabled || used || remove.isPending}
-                      onClick={() =>
-                        confirm(
+                      onClick={async () =>
+                        (await askConfirm(
                           t("models.local.removeConfirm", { name: m.name, size: gb(m.size) }),
-                        ) && remove.mutate(m.name)
+                        )) && remove.mutate(m.name)
                       }
                     >
                       <Trash2 className="size-4" />

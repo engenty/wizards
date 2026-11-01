@@ -3,13 +3,13 @@ import type { SpacePage } from "@engenty/wizards-shared/space-data";
 import { mergeText } from "@engenty/wizards-shared/text-merge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronRight, FileText, GitMerge, Palette, Plus, Trash2 } from "lucide-react";
-import { lazy, type MouseEvent, Suspense, useEffect, useState } from "react";
+import { lazy, type MouseEvent, Suspense, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
 import { keys } from "../../lib/keys";
 import { useMe } from "../../lib/session";
-import { Button, Card, Chip, cn, IconButton, Spinner } from "../../ui";
+import { askConfirm, Button, Card, Chip, cn, IconButton, Spinner } from "../../ui";
 import { CodeEditor } from "../../ui/code-editor";
 import { SyncNotice } from "../CloudSync";
 import { LiveConflict, type LiveEditor, useLiveEditor } from "../live/editor";
@@ -95,10 +95,23 @@ function Editor({
     await qc.invalidateQueries({ queryKey: keys.knowledge(page.spaceId) });
   };
   type Text = { title: string; markdown: string };
+  // ⌘S / Ctrl+S saves at once: the page saves as it goes, and the keys say "now".
+  const save = useRef(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        save.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const status: Autosave<Text> = useAutosave<Text>(
     { title: title.trim() || page.title, markdown },
     (text) => live.save(text),
   );
+  save.current = status.saveNow;
   // Changes from elsewhere: shown at once, or merged into the next save (studio/live/editor.ts).
   const live: LiveEditor<Text> = useLiveEditor<Text>({
     kind: "page",
@@ -266,13 +279,13 @@ function Editor({
   return (
     <section className="flex flex-col gap-3">
       {know?.parents.length && onOpen ? (
-        <nav className="-mb-1.5 flex flex-wrap items-center gap-1 px-1 text-[0.8125rem] text-ink-3">
+        <nav className="-mb-2 flex flex-wrap items-center gap-1 px-1 text-[0.75rem] text-ink-4">
           {know.parents.map((p) => (
             <span key={p.id} className="inline-flex items-center gap-1">
               <button type="button" onClick={() => onOpen(`p:${p.id}`)} className="hover:text-ink">
                 {p.title}
               </button>
-              <ChevronRight className="size-3.5" />
+              <ChevronRight className="size-3" />
             </span>
           ))}
         </nav>
@@ -287,7 +300,7 @@ function Editor({
             setTyping(true);
           }}
           aria-label={t("data.title")}
-          className="-ml-1 min-w-0 flex-1 rounded-md bg-transparent px-1 font-display font-semibold text-lg outline-none hover:bg-accent focus:bg-paper focus:ring-1 focus:ring-ring disabled:hover:bg-transparent"
+          className="-ml-1 min-w-0 flex-1 rounded-md bg-transparent px-1 font-display font-semibold text-[1.75rem] leading-tight tracking-tight outline-none hover:bg-accent focus:bg-paper focus:ring-1 focus:ring-ring disabled:hover:bg-transparent"
         />
         {live.notice === "merged" ? (
           <Chip icon={<GitMerge className="size-3" />}>
@@ -297,16 +310,14 @@ function Editor({
           </Chip>
         ) : null}
         <PresenceStack kind="page" item={page.id} me={me} />
-        {live.notice === "conflict" ? null : status.state === "saving" ? (
-          <Spinner className="size-3.5 text-ink-3" />
-        ) : status.state === "saved" ? (
-          <Check className="size-4 text-moss" aria-label={t("settings.saved")} />
-        ) : null}
+        {live.notice === "conflict" || readOnly ? null : (
+          <SaveState state={status.state} error={status.error} onRetry={status.saveNow} />
+        )}
         {readOnly ? null : (
           <IconButton
             label={t("data.deletePage")}
-            onClick={() =>
-              confirm(t("data.confirmDelete", { title: page.title })) && remove.mutate()
+            onClick={async () =>
+              (await askConfirm(t("data.confirmDelete", { title: page.title }))) && remove.mutate()
             }
             className="hover:text-rose"
           >
@@ -347,7 +358,8 @@ function Editor({
           spaceId={page.spaceId}
           itemKey={`p:${page.id}`}
           has={know.categories}
-          originLabel={know.originLabel}
+          // The notice above names the source already.
+          originLabel={fromSource ? null : know.originLabel}
           kept={know.kept}
           review={know.review}
           file={original ? null : know.file}
@@ -634,4 +646,48 @@ async function knowledgeKeyOf(spaceId: string, href: string): Promise<string | n
     )
     .catch(() => null);
   return found ? `${found.kind[0]}:${found.id}` : null;
+}
+
+/**
+ * Whether the page's last change is saved, in words beside the title: the page saves a moment
+ * after typing stops, ⌘S at once. A failed save says why and can be tried again.
+ */
+function SaveState({
+  state,
+  error,
+  onRetry,
+}: {
+  state: "idle" | "saving" | "saved" | "error";
+  error: string | null;
+  onRetry: () => void;
+}) {
+  if (state === "error") {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-[0.75rem] text-rose"
+        title={error ?? ""}
+      >
+        {t("editor.notSaved")}
+        <button type="button" onClick={onRetry} className="underline hover:no-underline">
+          {t("editor.retrySave")}
+        </button>
+      </span>
+    );
+  }
+  if (state === "idle") {
+    return null;
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[0.75rem] text-ink-3"
+      title={t("editor.saveHint")}
+    >
+      {state === "saving" ? (
+        <Spinner className="size-3" />
+      ) : (
+        <Check className="size-3.5 text-moss" />
+      )}
+      {state === "saving" ? t("editor.saving") : t("settings.saved")}
+    </span>
+  );
 }

@@ -27,6 +27,8 @@ export {
   Thumb,
   workspaceFile,
 } from "./composer";
+// Asking before something can't be undone, in place of the browser's `confirm`.
+export { askConfirm, ConfirmHost } from "./confirm";
 export { DatePicker, DateRangePicker, dateText } from "./date-picker";
 export { MenuPage, PageMenu, type PageMenuEntry } from "./page-menu";
 export { TimePicker } from "./time-picker";
