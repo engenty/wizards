@@ -280,6 +280,7 @@ export async function listSources(spaceId: string) {
       return {
         ...(await sourceView(r)),
         available: Boolean(kindOfRow(r)),
+        manual: Boolean(kindOfRow(r)?.source.manual),
         counts: {
           entries: entries.filter((e) => e.sourceId === r.id).length,
           included: own.length,
@@ -304,10 +305,12 @@ export async function listSources(spaceId: string) {
 /** One source with its entries and its last runs, as its settings show it. */
 export async function getSource(spaceId: string, sourceId: string) {
   const row = await sourceRow(spaceId, sourceId);
+  const kind = kindOfRow(row);
   return {
     source: {
       ...(await sourceView(row)),
-      available: Boolean(kindOfRow(row)),
+      available: Boolean(kind),
+      manual: Boolean(kind?.source.manual),
       running: running.has(row.id),
       now: running.get(row.id)?.now ?? null,
     },
@@ -435,7 +438,8 @@ export async function proposeSource(
     createdAt: new Date(),
     updatedAt: new Date(),
   };
-  let found: PluginSourceFound[] = [];
+  // A source whose entries come by hand starts with the address it was named by.
+  let found: PluginSourceFound[] = kind.manual ? [{ address: picked.address }] : [];
   if (!kind.manual) {
     try {
       found = await kind.reader.list(infoOf(row), { signal, emit });

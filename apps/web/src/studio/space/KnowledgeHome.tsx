@@ -16,6 +16,7 @@ import {
   PenLine,
   Plus,
   Puzzle,
+  Settings2,
   Table2,
   Tag,
   Trash2,
@@ -50,6 +51,7 @@ import {
   useMoveItem,
 } from "./KnowledgeTree";
 import { Section } from "./Section";
+import type { SourceKind } from "./sources";
 
 /** What uploads take: documents that become pages and tables, and pictures. */
 const DOCUMENTS = ".pdf,.docx,.doc,.xlsx,.csv,.tsv,.txt,.md,.json,.html,.eml,image/*";
@@ -181,14 +183,19 @@ function AddEntry({
  */
 function AddMenu({
   adds = [],
+  kinds = [],
   onMake,
   onUpload,
   onPlugin,
+  onKind,
 }: {
   adds?: KnowledgeAdd[];
+  /** The kinds of sources the plugins bring: each opens its dialog. */
+  kinds?: SourceKind[];
   onMake: (kind: "page" | "table" | "folder") => void;
   onUpload: () => void;
   onPlugin?: (id: string) => void;
+  onKind?: (kind: SourceKind) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -228,6 +235,20 @@ function AddMenu({
             hint={t("know.uploadHint")}
             onPick={pick(onUpload)}
           />
+          {kinds.length && onKind ? (
+            <>
+              {line}
+              {kinds.map((k) => (
+                <AddEntry
+                  key={k.kind}
+                  icon={k.icon}
+                  label={k.label()}
+                  hint={k.hint?.()}
+                  onPick={pick(() => onKind(k))}
+                />
+              ))}
+            </>
+          ) : null}
           {adds.length && onPlugin ? (
             <>
               {line}
@@ -374,6 +395,8 @@ export function KnowledgeHome({
   onWrite,
   status,
   adds,
+  kinds,
+  onKind,
 }: {
   spaceId: string;
   data: Knowledge;
@@ -381,10 +404,13 @@ export function KnowledgeHome({
   onOpen: (key: string) => void;
   /** A new page, opened to write: blank, it would show as a folder. */
   onWrite: (key: string) => void;
-  /** The plugins' sections' status lines (a source reading, say), above the items. */
+  /** What the sources and the plugins' sections are busy with, above the items. */
   status?: ReactNode;
   /** What the plugins add to „Hinzufügen“. */
   adds: KnowledgeAdd[];
+  /** The kinds of sources in „Hinzufügen“, and what picking one does. */
+  kinds: SourceKind[];
+  onKind: (kind: SourceKind, parentId: string | null) => void;
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -428,9 +454,11 @@ export function KnowledgeHome({
           readOnly ? null : (
             <AddMenu
               adds={adds}
+              kinds={kinds}
               onMake={setMaking}
               onUpload={upload.pick}
               onPlugin={(id) => onOpen(`s:${id}`)}
+              onKind={(kind) => onKind(kind, null)}
             />
           )
         }
@@ -572,10 +600,13 @@ function FolderMenu({
   onRename,
   onMove,
   onDelete,
+  onSource,
 }: {
   onRename: () => void;
   onMove: () => void;
   onDelete: () => void;
+  /** A source's folder: its settings. */
+  onSource?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -602,6 +633,11 @@ function FolderMenu({
           role="menu"
           className="absolute top-full right-0 z-50 mt-1 w-56 animate-rise rounded-xl bg-card p-1.5 shadow-overlay ring-1 ring-border-soft"
         >
+          {onSource ? (
+            <button type="button" role="menuitem" className={entry} onClick={pick(onSource)}>
+              <Settings2 className="size-4 shrink-0" /> {t("src.menuSource")}
+            </button>
+          ) : null}
           <button type="button" role="menuitem" className={entry} onClick={pick(onRename)}>
             <Pencil className="size-4 shrink-0" /> {t("know.rename")}
           </button>
@@ -635,6 +671,10 @@ export function KnowledgeFolder({
   onOpen,
   onWrite,
   onGone,
+  kinds,
+  onKind,
+  source,
+  status,
 }: {
   spaceId: string;
   data: Knowledge;
@@ -643,9 +683,17 @@ export function KnowledgeFolder({
   onOpen: (key: string) => void;
   onWrite: (key: string) => void;
   onGone: () => void;
+  kinds: SourceKind[];
+  onKind: (kind: SourceKind, parentId: string | null) => void;
+  /** The source whose folder this is. */
+  source?: { id: string; label: string; address: string };
+  /** What the source is busy with, above its contents. */
+  status?: ReactNode;
 }) {
   const qc = useQueryClient();
-  const upload = useUpload(spaceId, folder.id, readOnly);
+  // A folder a source fills is the source's: nothing is added to it or written into it by hand.
+  const sourced = Boolean(folder.origin?.startsWith("source:")) && !folder.kept;
+  const upload = useUpload(spaceId, folder.id, readOnly || sourced);
   const move = useMoveItem(spaceId);
   const [making, setMaking] = useState<"page" | "table" | "folder" | null>(null);
   const [moving, setMoving] = useState(false);
@@ -674,24 +722,41 @@ export function KnowledgeFolder({
     <div {...upload.drop} className={cn("rounded-2xl transition", upload.over && overClass)}>
       <Section
         title={folder.title}
-        hint={folder.originLabel ? t("know.from", { label: folder.originLabel }) : undefined}
+        hint={
+          source
+            ? [t("src.source"), source.address].join(" · ")
+            : folder.originLabel
+              ? t("know.from", { label: folder.originLabel })
+              : undefined
+        }
         plain
         action={
           readOnly ? null : (
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => onWrite(folder.key)}>
-                <PenLine className="size-4" /> {t("know.writeText")}
-              </Button>
-              <AddMenu onMake={setMaking} onUpload={upload.pick} />
+              {sourced ? null : (
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => onWrite(folder.key)}>
+                    <PenLine className="size-4" /> {t("know.writeText")}
+                  </Button>
+                  <AddMenu
+                    kinds={kinds}
+                    onMake={setMaking}
+                    onUpload={upload.pick}
+                    onKind={(kind) => onKind(kind, folder.id)}
+                  />
+                </>
+              )}
               <FolderMenu
                 onRename={() => setRenaming(true)}
                 onMove={() => setMoving(true)}
                 onDelete={() => setDeleting(true)}
+                onSource={source ? () => onOpen(`q:${source.id}`) : undefined}
               />
             </div>
           )
         }
       >
+        {status}
         {contents.length ? (
           <ItemCards items={contents} categories={data.categories} onOpen={onOpen} />
         ) : (

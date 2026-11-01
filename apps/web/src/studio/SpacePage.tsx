@@ -1,5 +1,13 @@
 import type { KnowledgeItem } from "@engenty/wizards-shared/knowledge";
-import { Inbox, Layers, LayoutGrid, Puzzle, ScrollText, Search } from "lucide-react";
+import {
+  Inbox,
+  Layers,
+  LayoutGrid,
+  type LucideIcon,
+  Puzzle,
+  ScrollText,
+  Search,
+} from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useFeature } from "../lib/features";
@@ -41,6 +49,7 @@ import { CategoryHome, CategoryTree, KnowledgeTabs, ValueHome } from "./space/Kn
 import { KnowledgeFolder, KnowledgeHome, PageContents } from "./space/KnowledgeHome";
 import {
   ancestorsOf,
+  folderMarks,
   isFolder,
   KnowledgeTree,
   MoveDialog,
@@ -54,6 +63,13 @@ import { MODE_ICON, SkillsOverview, useSkills } from "./space/Skills";
 import { DATA_ICON, DataOverview, dataGroups, useSpaceData } from "./space/SpaceData";
 import { SpaceOverview } from "./space/SpaceOverview";
 import { SpaceSettings } from "./space/SpaceSettings";
+import {
+  SourceDialog,
+  type SourceKind,
+  SourcesStatus,
+  SourceView,
+  useSources,
+} from "./space/sources";
 import { TableEditor } from "./space/TableEditor";
 import {
   groupOfSection,
@@ -266,7 +282,7 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const picked =
     group === "data" && shown && shown !== "all"
       ? shown
-      : group === "knowledge" && shown && /^[ptfcvs]:/.test(shown)
+      : group === "knowledge" && shown && /^[ptfcvsq]:/.test(shown)
         ? shown
         : null;
   const pickedSection = picked?.startsWith("s:")
@@ -279,6 +295,16 @@ export function SpacePage({ place }: { place?: "skills" }) {
   const skills = useSkills(group === "skills" && skillsOn ? space?.id : undefined);
   const spaceData = useSpaceData(group === "data" ? space?.id : undefined);
   const knowledge = useKnowledge(group === "knowledge" ? space?.id : undefined);
+  // Its sources, behind the same switch: each fills a folder of its own.
+  const sources = useSources(group === "knowledge" && treeOn ? space?.id : undefined);
+  const [adding, setAdding] = useState<{ kind: SourceKind; parentId: string | null } | null>(null);
+  folderMarks.clear();
+  for (const s of sources.sources) {
+    if (s.folderId) {
+      // A plugin's icon draws as lucide's do: it takes `className`.
+      folderMarks.set(s.folderId, sources.iconOf(s) as LucideIcon);
+    }
+  }
   const pickedValue = useValue(picked?.startsWith("v:") ? picked.slice(2) : "");
   // Knowledge as a tree: the item open, the page opened to write (blank, it would be a folder),
   // what is being moved and where a new folder goes.
@@ -795,6 +821,18 @@ export function SpacePage({ place }: { place?: "skills" }) {
                         onGone={() =>
                           pick(pickedItem.parentId ? `p:${pickedItem.parentId}` : "all")
                         }
+                        kinds={sources.kinds}
+                        onKind={(kind, parentId) => setAdding({ kind, parentId })}
+                        source={sources.ofFolder(pickedItem.id)}
+                        status={
+                          sources.ofFolder(pickedItem.id) ? (
+                            <SourcesStatus
+                              spaceId={space.id}
+                              sources={sources.sources}
+                              only={sources.ofFolder(pickedItem.id)?.id}
+                            />
+                          ) : null
+                        }
                       />
                     ) : item.startsWith("p:") ? (
                       <div key={item} className="flex flex-col gap-9">
@@ -819,6 +857,15 @@ export function SpacePage({ place }: { place?: "skills" }) {
                         onGone={() => pick("all")}
                       />
                     )
+                  ) : treeOn && picked?.startsWith("q:") ? (
+                    <SourceView
+                      key={picked}
+                      spaceId={space.id}
+                      sourceId={picked.slice(2)}
+                      readOnly={space.readOnly}
+                      onOpen={pick}
+                      onGone={() => pick("all")}
+                    />
                   ) : !knowledge.data ? null : pickedSection ? (
                     <Section
                       key={picked}
@@ -915,7 +962,18 @@ export function SpacePage({ place }: { place?: "skills" }) {
                             setWriting(key);
                             pick(key);
                           }}
-                          status={pluginStatus(added)}
+                          status={
+                            <>
+                              <SourcesStatus
+                                spaceId={space.id}
+                                sources={sources.sources}
+                                onOpen={pick}
+                              />
+                              {pluginStatus(added)}
+                            </>
+                          }
+                          kinds={sources.kinds}
+                          onKind={(kind, parentId) => setAdding({ kind, parentId })}
                           adds={plugins.spaceSections
                             .filter((x) => (x.group ?? "knowledge") === "knowledge" && x.add)
                             .map((x) => ({
@@ -941,6 +999,13 @@ export function SpacePage({ place }: { place?: "skills" }) {
               ) : null}
               {space && group === "knowledge" && treeOn && knowledge.data ? (
                 <>
+                  <SourceDialog
+                    spaceId={space.id}
+                    kind={adding?.kind ?? null}
+                    parentId={adding?.parentId ?? null}
+                    onClose={() => setAdding(null)}
+                    onOpen={pick}
+                  />
                   <MoveDialog
                     item={moving}
                     items={knowledge.data.items}

@@ -24,6 +24,7 @@ import { useReportPresence } from "../live/presence";
 import type { Target } from "./blocks/targets";
 import { type Autosave, fileUrl, useAutosave, useFileActions, useSpaceFiles } from "./data";
 import { KnowledgeHeader, useKnowledge } from "./Knowledge";
+import { SourceItemNotice } from "./sources";
 import { TableEmbed } from "./TableEmbed";
 
 // TipTap is large: it loads with the first page written in blocks.
@@ -198,7 +199,9 @@ function Editor({
   const links = (knowledgeItems ?? [])
     .filter((i) => i.id !== page.id)
     .map((i) => ({ title: i.title, path: i.path, kind: t(KIND_WORD[i.kind]) }));
-  const readOnly = page.readOnly;
+  // What a source wrote is the source's until a person takes it over.
+  const fromSource = blocks && Boolean(know?.origin?.startsWith("source:")) && !know?.kept;
+  const readOnly = page.readOnly || fromSource;
   // What a page can link to and show, by the paths steps name them by.
   const targets: Target[] = (knowledgeItems ?? []).map((i) => ({
     path: i.path,
@@ -319,6 +322,14 @@ function Editor({
             {t("data.keepMine")}
           </Button>
         </div>
+      ) : null}
+      {fromSource ? (
+        <SourceItemNotice
+          spaceId={page.spaceId}
+          itemKey={`p:${page.id}`}
+          label={know?.originLabel ?? ""}
+          readOnly={page.readOnly}
+        />
       ) : null}
       {know ? (
         <KnowledgeHeader

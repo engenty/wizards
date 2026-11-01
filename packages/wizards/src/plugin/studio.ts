@@ -169,6 +169,45 @@ export interface StudioShareSetup {
   notice?: ComponentType<StudioShareNoticeProps>;
 }
 
+/** What a kind's form in Knowledge's „Hinzufügen“ is handed. */
+export interface StudioKnowledgeSourceFormProps {
+  /**
+   * Proposes the source: the core lists what it holds and shows the proposal to take. Rejects
+   * with the reason when it cannot be read.
+   */
+  propose(input: { address: string; label?: string }): Promise<void>;
+  busy: boolean;
+  /** Why the last proposal failed, in the person's language; null when it did not. */
+  error: string | null;
+}
+
+/** What a kind's own settings in a source's „Quelle“ are handed. */
+export interface StudioKnowledgeSourceSettingsProps {
+  source: { id: string; kind: string; address: string; label: string; token: string };
+}
+
+/**
+ * A kind of source of Knowledge, as the studio offers it: an entry in Knowledge's „Hinzufügen“
+ * that opens a dialog, and the same kind in the assistant's proposals. The server half registers
+ * the same `kind` with its reader (`server.registerKnowledgeSource`). Behind the studio's
+ * `knowledgeTree` switch.
+ */
+export interface StudioKnowledgeSource {
+  kind: string;
+  /** „Website“: a function, the language can change while the studio is open. */
+  label: () => string;
+  /** What it takes, one line: „Eine Seite und alles darunter“. */
+  hint?: () => string;
+  /** Its entry's icon, and the mark of its sources' folders. */
+  icon: Icon;
+  /** What the dialog asks before it proposes; one field for the address when left out. */
+  form?: ComponentType<StudioKnowledgeSourceFormProps>;
+  /** The field's placeholder where there is no `form`: „sfg.at/foerderungen/“. */
+  placeholder?: () => string;
+  /** The kind's own part of a source's settings (⋯ › Quelle): a signal address, say. */
+  settings?: ComponentType<StudioKnowledgeSourceSettingsProps>;
+}
+
 /** What a card in the assistant's chat is handed. */
 export interface StudioAssistantCardProps<T = unknown> {
   /** What the assistant tool returned. */
@@ -271,6 +310,8 @@ export interface StudioPluginContext {
   registerShareSection(section: StudioShareSection): void;
   registerShareSetup(setup: StudioShareSetup): void;
   registerAssistantCard(card: StudioAssistantCard): void;
+  /** A kind of source of Knowledge: its entry in „Hinzufügen“, its form and its settings. */
+  registerKnowledgeSource(source: StudioKnowledgeSource): void;
   /**
    * A hook: the space the studio shows, `null` while it has none. A component that calls it draws
    * again when the person picks another space.

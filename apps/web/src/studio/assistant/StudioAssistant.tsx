@@ -51,6 +51,7 @@ import {
 } from "../../ui";
 import { scrollRoot, useDismiss, useTrail } from "../AppFrame";
 import { type ChatCard, type ChatToolCall, Messages, Working } from "../editor/ChatPanel";
+import { type SourceProposal, SourceProposalCard } from "../space/sources";
 import { purposeChoice, useModelTiers } from "../tiers";
 import { type AssistantState, useAssistant, useEarlierChats, useStoredChat } from "./chat";
 import { CopyThread, StepLines, ToolDetails, TurnsDialog, UsageMeter } from "./dev";
@@ -208,6 +209,9 @@ function Calls({ calls }: { calls?: ChatToolCall[] }) {
 function AnswerCard({ card, send }: { card: ChatCard; send: (message: string) => void }) {
   if (!card.plugin && card.tool === "extraEffort") {
     return <ExtraEffortCard reason={String((card.data as { reason?: string }).reason ?? "")} />;
+  }
+  if (!card.plugin && card.tool === "sourceProposal") {
+    return <SourceProposalCard data={card.data as SourceProposal} />;
   }
   if (!card.plugin && card.tool === "templates") {
     const { entries } = card.data as { entries: MarketplaceEntry[] };
