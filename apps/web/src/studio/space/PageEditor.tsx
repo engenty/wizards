@@ -2,8 +2,25 @@ import { Markdown } from "@engenty/wizards-runner";
 import type { SpacePage } from "@engenty/wizards-shared/space-data";
 import { mergeText } from "@engenty/wizards-shared/text-merge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronRight, FileText, GitMerge, Palette, Plus, Trash2 } from "lucide-react";
-import { lazy, type MouseEvent, Suspense, useEffect, useRef, useState } from "react";
+import {
+  Check,
+  ChevronRight,
+  FileText,
+  GitMerge,
+  Palette,
+  PenLine,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import {
+  type ElementType,
+  lazy,
+  type MouseEvent,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ApiError, api } from "../../lib/api";
 import { useFeature } from "../../lib/features";
 import { t } from "../../lib/i18n";
@@ -58,6 +75,8 @@ function Editor({
   const [view, setView] = useState<"write" | "markdown" | "read" | "original">(
     blocks || !page.markdown ? "write" : "read",
   );
+  // In blocks a written page opens to be read; „Bearbeiten“ writes in it, „Speichern“ reads again.
+  const [editing, setEditing] = useState(!page.markdown.trim());
   const know = page.knowledge;
   const me = useMe().data?.user.id;
   // Who else is here, and where this tab writes: the heading above the caret.
@@ -222,6 +241,13 @@ function Editor({
   // What a source wrote is the source's until a person takes it over.
   const fromSource = blocks && Boolean(know?.origin?.startsWith("source:")) && !know?.kept;
   const readOnly = page.readOnly || fromSource;
+  // What can be changed now: in blocks only while editing.
+  const writing = !readOnly && (!blocks || editing);
+  const done = () => {
+    status.saveNow();
+    setView("write");
+    setEditing(false);
+  };
   // What a page can link to and show, by the paths steps name them by.
   const targets: Target[] = (knowledgeItems ?? []).map((i) => ({
     path: i.path,
@@ -263,6 +289,8 @@ function Editor({
     know?.file && (know.file.mime === "application/pdf" || know.file.mime.startsWith("image/"))
       ? know.file
       : null;
+  // Read, a page in blocks stands on the page as its text, without the editor's frame.
+  const Frame: ElementType = blocks && !writing && view === "write" ? "div" : Card;
   const tab = (id: typeof view, label: string) => (
     <button
       type="button"
@@ -293,7 +321,7 @@ function Editor({
       <div className="flex items-center gap-2 px-1">
         <input
           value={title}
-          disabled={readOnly}
+          disabled={!writing}
           maxLength={200}
           onChange={(e) => {
             setTitle(e.target.value);
@@ -313,7 +341,7 @@ function Editor({
         {live.notice === "conflict" || readOnly ? null : (
           <SaveState state={status.state} error={status.error} onRetry={status.saveNow} />
         )}
-        {readOnly ? null : (
+        {writing ? (
           <IconButton
             label={t("data.deletePage")}
             onClick={async () =>
@@ -323,7 +351,18 @@ function Editor({
           >
             <Trash2 className="size-4" />
           </IconButton>
-        )}
+        ) : null}
+        {blocks && !readOnly ? (
+          writing ? (
+            <Button size="sm" onClick={done} title={t("editor.saveHint")}>
+              {t("settings.save")}
+            </Button>
+          ) : (
+            <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
+              <PenLine className="size-4" /> {t("editor.edit")}
+            </Button>
+          )
+        ) : null}
       </div>
       {alsoHere && live.notice !== "conflict" ? (
         <p className="-mt-1 px-1 text-[0.8125rem] text-ink-3">
@@ -363,25 +402,25 @@ function Editor({
           kept={know.kept}
           review={know.review}
           file={original ? null : know.file}
-          readOnly={readOnly}
+          readOnly={!writing}
           onReviewed={() => reviewed.mutate()}
         />
       ) : null}
-      <Card className="flex flex-col">
+      <Frame className="flex flex-col">
         {/* Writing in blocks, the switch stands at the end of the editor's toolbar. */}
-        {(readOnly && !original) || (blocks && view === "write" && !readOnly) ? null : blocks ? (
+        {(!writing && !original) || (blocks && view === "write" && writing) ? null : blocks ? (
           <div className="flex items-center gap-1 border-border-soft border-b px-2 py-1.5">
-            {tab("write", readOnly ? t("data.preview") : t("data.write"))}
-            {readOnly ? null : tab("markdown", t("blocks.markdown"))}
+            {tab("write", writing ? t("data.write") : t("data.preview"))}
+            {writing ? tab("markdown", t("blocks.markdown")) : null}
             {original ? tab("original", t("know.original")) : null}
             <span className="ml-auto truncate px-2 text-[0.75rem] text-ink-4 max-sm:hidden">
               {view === "original" && original
                 ? original.name
                 : view === "markdown"
                   ? t("data.markdownHint")
-                  : readOnly
-                    ? null
-                    : t("blocks.hint")}
+                  : writing
+                    ? t("blocks.hint")
+                    : null}
             </span>
           </div>
         ) : (
@@ -418,10 +457,10 @@ function Editor({
                 setMarkdown(next);
                 setTyping(true);
               }}
-              readOnly={readOnly}
+              readOnly={!writing}
               targets={targets}
               self={know?.path}
-              onFiles={readOnly ? undefined : onFiles}
+              onFiles={writing ? onFiles : undefined}
               resolve={resolve}
               onOpen={(href) => void open(href)}
               embed={{
@@ -432,17 +471,17 @@ function Editor({
               marks={marks}
               ariaLabel={page.title}
               tools={
-                readOnly ? undefined : (
+                writing ? (
                   <>
                     {tab("write", t("data.write"))}
                     {tab("markdown", t("blocks.markdown"))}
                     {original ? tab("original", t("know.original")) : null}
                   </>
-                )
+                ) : undefined
               }
             />
           </Suspense>
-        ) : (view === "write" || view === "markdown") && !readOnly ? (
+        ) : (view === "write" || view === "markdown") && writing ? (
           // A change from elsewhere arrives as `markdown` and is applied as the smallest
           // change: the caret stays, and undo leaves it alone (ui/code-editor).
           <CodeEditor
@@ -473,22 +512,22 @@ function Editor({
             )}
           </div>
         )}
-      </Card>
+      </Frame>
       {status.state === "error" && status.error ? (
         <p className="px-1 text-[0.875rem] text-rose">{status.error}</p>
       ) : null}
       <PagePictures spaceId={page.spaceId} markdown={markdown} />
-      {know && onOpen && (know.children.length || !readOnly) ? (
+      {know && onOpen && (know.children.length || writing) ? (
         <div className="mt-3 flex flex-col gap-1.5">
           <div className="flex items-center justify-between px-1">
             <p className="font-medium text-[0.6875rem] text-ink-4 uppercase tracking-[0.12em]">
               {know.children.length ? t("know.subPages") : null}
             </p>
-            {readOnly ? null : (
+            {writing ? (
               <Button variant="ghost" size="sm" busy={sub.isPending} onClick={() => sub.mutate()}>
                 <Plus className="size-4" /> {t("know.addSub")}
               </Button>
-            )}
+            ) : null}
           </div>
           {know.children.length ? (
             <Card className="flex flex-col p-1.5">

@@ -55,7 +55,7 @@
   padding: 18px 20px 48px 56px;
 }
 .block-editor.read-only .block-page {
-  padding-left: 20px;
+  padding: 4px 4px 48px;
 }
 @media (max-width: 639px) {
   .block-page {
