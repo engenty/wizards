@@ -11,7 +11,13 @@ import { elementTools } from "../elements/catalogue.js";
 import type { StepContext } from "../engine/types.js";
 import { generateImageMedia } from "../media/generate.js";
 import { markMedia } from "../media/marking.js";
-import { gatewayTools, isHarnessVendor, type ResolvedModel, searchAllowed } from "../models.js";
+import {
+  gatewayTools,
+  isHarnessVendor,
+  type ResolvedModel,
+  searchAllowed,
+  toolAccess,
+} from "../models.js";
 import { prompt } from "../prompts.js";
 import { htmlToMarkdown } from "../render/convert.js";
 import { type ExecResult, shellToolDescription } from "../sandbox/index.js";
@@ -27,6 +33,7 @@ import { pluginTools, spaceContextOf } from "./plugin.js";
 import { clip, FileKeeper } from "./shared.js";
 import { skillsOf } from "./skills.js";
 import { storeTools, type UploadRef } from "./store.js";
+import { gatewayWebSearch } from "./web-search.js";
 
 // A request to a host is a send to that host; the broker holds a guest's run to the hosts in its grant.
 reachesOutside("http_request", { connection: "host", action: "http_request", kind: "send" });
@@ -92,17 +99,21 @@ export async function buildStepTools(
 
   // A tier without web search leaves the tool out; the builder says so before a run.
   if (allowed.has("web_search") && (await searchAllowed())) {
-    // Anthropic models search natively; other models search through the AI Gateway's tool.
-    if (resolved.vendor === "anthropic") {
-      tools.web_search = anthropic.tools.webSearch_20250305({ maxUses: 8 });
-    } else if (isHarnessVendor(resolved.vendor)) {
-      // An installed client searches with its own tool; naming it here switches it on.
+    // An installed client searches with its own tool; naming it here switches it on. Else the
+    // gateway's search where it is reached, for every model alike; else Anthropic models search
+    // natively, other models through the AI Gateway's tool.
+    const access = isHarnessVendor(resolved.vendor) ? null : await toolAccess();
+    if (isHarnessVendor(resolved.vendor)) {
       tools.web_search = createTool({
         id: "web_search",
         description: prompt("tools", "tool.web_search"),
         inputSchema: z.object({ query: z.string() }),
         execute: async () => ({ error: "The client searches itself." }),
       });
+    } else if (access) {
+      tools.web_search = gatewayWebSearch(access, { runId: ctx.runId });
+    } else if (resolved.vendor === "anthropic") {
+      tools.web_search = anthropic.tools.webSearch_20250305({ maxUses: 8 });
     } else if (resolved.gateway) {
       tools.web_search = gatewayTools.perplexitySearch({ maxResults: 8 });
     }

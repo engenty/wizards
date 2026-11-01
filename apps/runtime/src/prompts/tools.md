@@ -11,7 +11,7 @@ returns and when to use it.
 <!-- Web: search, fetch, HTTP (tools/index.ts) -->
 
 <!-- section: tool.web_search -->
-Search the web.
+Search the web. Each result has its address, title and the sentences that fit the query; read a page in full with web_fetch. Name the pages you used.
 
 <!-- section: tool.web_fetch -->
 Fetch a public web page or file and return its readable text (Markdown).
