@@ -45,7 +45,7 @@
     "fflate": "0.8.3",
     "lucide-react": "^1.49.0",
     "marked": "^18.0.14",
-    "pdfmake": "0.3.11",
+    "pdfmake": "0.3.13",
     "qr-scanner": "1.4.2"
   },
   "peerDependencies": {
