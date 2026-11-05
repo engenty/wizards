@@ -24,6 +24,7 @@ import {
   type PageStep,
   pageNeeds,
   type Step,
+  type WaitStep,
   textLang,
   type WizardDefinition,
   whenHolds,
@@ -95,6 +96,8 @@ import {
   indexRun,
   markLine,
   restRun,
+  setWake,
+  wakeDue,
   waitingRuns,
   wakeRun,
 } from "../tenants/control.js";
@@ -115,8 +118,9 @@ import {
   tierRefusalSaid,
 } from "./requirements.js";
 import { releaseResources, resourcesFor } from "./resources.js";
+import { dropWait, durationMs, registerWait, takeSignal } from "./signals.js";
 import { outputSchema, runAutomaticStep } from "./steps.js";
-import { answersAsText, resolveRef } from "./template.js";
+import { answersAsText, renderTemplate, resolveRef } from "./template.js";
 import type { RunHolder, RunRow, SpaceRow, StepContext } from "./types.js";
 import { StepError } from "./types.js";
 
@@ -597,6 +601,13 @@ export function startRunner() {
   }, POLL_MS);
   timer.unref();
   void lookAtLine();
+  // The clock: one statement over every tenant. Several runners running it is harmless.
+  const clock = setInterval(() => {
+    void wakeDue()
+      .then((woken) => (woken ? lookAtLine() : undefined))
+      .catch((err) => console.warn("[clock]", (err as Error).message));
+  }, env.runner.tickMs);
+  clock.unref();
 }
 
 /** Stops the runs this process holds and hands them back to the line. */
@@ -897,6 +908,83 @@ async function decidePageFields(
     .map((f) => f.id);
 }
 
+/** Where a run that waits for a time is kept past its start: the wait and a week to come back. */
+function keptUntil(run: RunRow, wakeAt: Date | null): Date | null {
+  if (!run.expiresAt || !wakeAt) {
+    return run.expiresAt;
+  }
+  return new Date(
+    Math.max(run.expiresAt.getTime(), wakeAt.getTime() + env.limits.resultTtlDays * 86_400_000),
+  );
+}
+
+/**
+ * A `wait` is reached: the run leaves every process and stays as a row. The wake time goes to the
+ * control database first: a crash in between gives an extra wake, which finds the run as it is,
+ * never a lost one.
+ */
+async function enterWait(run: RunRow, step: WaitStep) {
+  const scope = { def: run.definition, state: run.state, brand: {} };
+  if (step.signal) {
+    const key = renderTemplate(step.signal.key, scope);
+    // Registered before looking: a signal that comes now sees the wait and wakes the run.
+    await registerWait(run.id, step.id, await spaceIdOf(run), step.signal.name, key);
+    const wakeAt = step.signal.timeout ? new Date(Date.now() + durationMs(step.signal.timeout)) : null;
+    await setWake(run.id, wakeAt);
+    await updateRun(run.id, { status: "waiting_signal", wakeAt, expiresAt: keptUntil(run, wakeAt) });
+    return;
+  }
+  const until = step.until ? new Date(renderTemplate(step.until, scope)) : null;
+  const wakeAt =
+    until && !Number.isNaN(until.getTime())
+      ? until
+      : new Date(Date.now() + durationMs(step.for ?? "1m"));
+  await setWake(run.id, wakeAt);
+  await updateRun(run.id, { status: "sleeping", wakeAt, expiresAt: keptUntil(run, wakeAt) });
+}
+
+/** A run that waits is woken: on with the next step, or false when what it waits for is not there. */
+async function wakeFromWait(run: RunRow): Promise<boolean> {
+  const step = stepOf(run.definition, run.cursor);
+  if (step?.type !== "wait") {
+    await updateRun(run.id, { status: "running", wakeAt: null });
+    return true;
+  }
+  const signal = step.signal ? await takeSignal(run, step.signal.name) : null;
+  const due = Boolean(run.wakeAt && run.wakeAt.getTime() <= Date.now());
+  if (!signal && !due) {
+    // An early or a stale wake: the row decides, and puts the time back.
+    await setWake(run.id, run.wakeAt);
+    return false;
+  }
+  const state = structuredClone(run.state);
+  const json = step.signal
+    ? { came: Boolean(signal), timedOut: !signal, ...(signal?.data ?? {}) }
+    : { waited: true };
+  state.outputs[step.id] = { json, at: new Date().toISOString() };
+  if (signal) {
+    state.signals = [...(state.signals ?? []), signal.id];
+  }
+  await dropWait(run.id);
+  // A hold lasts a day at the Manage-App: whoever waited longer holds again before spending.
+  const estimate = await estimateRun(
+    run.wizardId,
+    run.version,
+    run.definition,
+    await stepsWithoutModel(run.definition),
+  );
+  await reserveForRun(run.id, estimate.reserve, guestRun(run));
+  const cursor = await advance(run, step.id, state);
+  await updateRun(run.id, {
+    state,
+    cursor,
+    status: cursor ? "running" : "done",
+    wakeAt: null,
+    error: null,
+  });
+  return true;
+}
+
 async function drive(runId: string, signal: AbortSignal) {
   // The step starts afresh here: a question or a device call another process left has no one
   // waiting.
@@ -904,6 +992,13 @@ async function drive(runId: string, signal: AbortSignal) {
   await clearDeviceCalls(runId);
   while (!signal.aborted) {
     const run = await loadRun(runId);
+    if (run && (run.status === "sleeping" || run.status === "waiting_signal")) {
+      // Woken by the clock or by what it waits for; otherwise it goes on waiting.
+      if (!(await wakeFromWait(run))) {
+        return;
+      }
+      continue;
+    }
     if (run?.status !== "running") {
       return;
     }
@@ -964,6 +1059,10 @@ async function drive(runId: string, signal: AbortSignal) {
     if (step.type === "result") {
       await updateRun(runId, { status: "done" });
       return;
+    }
+    if (step.type === "wait") {
+      await enterWait(run, step);
+      continue;
     }
     if (step.type === "page" || step.type === "review") {
       await updateRun(runId, { status: "waiting_input" });
@@ -1243,7 +1342,9 @@ export async function retry(runId: string) {
 
 export async function cancel(runId: string) {
   active.get(runId)?.abort();
-  await updateRun(runId, { status: "cancelled" });
+  await setWake(runId, null);
+  await dropWait(runId);
+  await updateRun(runId, { status: "cancelled", wakeAt: null });
 }
 
 // --- view --------------------------------------------------------------------

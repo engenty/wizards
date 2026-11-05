@@ -976,7 +976,31 @@ export const resultStepSchema = z.object({
   share: z.array(shareOptionSchema).max(12).optional(),
 });
 
+/** "2d", "6h", "90m": how long a `wait` lasts. */
+export const durationSchema = z.string().regex(/^\d+(m|h|d)$/, 'A duration like "90m", "6h" or "2d".');
+
+/**
+ * A step that waits and needs no process meanwhile: for a time, until a date (a template such
+ * as "{{deadline}}"), or for something from outside. A wait for something outside has a key, so
+ * it hears the event of its own person, and may give up after a time.
+ */
+export const waitStepSchema = z.object({
+  ...stepBase,
+  type: z.literal("wait"),
+  for: durationSchema.optional(),
+  until: z.string().optional(),
+  signal: z
+    .object({
+      name: z.string().min(1),
+      key: z.string().min(1),
+      timeout: durationSchema.optional(),
+    })
+    .optional(),
+});
+export type WaitStep = z.infer<typeof waitStepSchema>;
+
 export const stepSchema = z.discriminatedUnion("type", [
+  waitStepSchema,
   pageStepSchema,
   agentStepSchema,
   generateStepSchema,

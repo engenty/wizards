@@ -63,6 +63,8 @@ export const runIndex = sqliteTable(
     seen: integer("seen", { mode: "timestamp_ms" }),
     /** Counts the claims on this run: a newer claim has a higher number. */
     generation: integer("generation").notNull().default(0),
+    /** A copy of the run's `wake_at`, so one statement finds what is due in every tenant. */
+    wakeAt: integer("wake_at", { mode: "timestamp_ms" }),
     /**
      * The mobile app's device for push, set by the app for this run (`POST /api/runs/:id/notify`):
      * `{ token, platform: "ios" | "android", lang }`. Told through the Manage-App when the run is
@@ -79,6 +81,7 @@ export const runIndex = sqliteTable(
     index("run_index_visitor").on(t.visitorId, t.createdAt),
     index("run_index_ip").on(t.ipHash, t.createdAt),
     index("run_index_active").on(t.active, t.tenantId),
+    index("run_index_wake").on(t.wakeAt),
   ],
 );
 

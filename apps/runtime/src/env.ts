@@ -114,6 +114,8 @@ export const env = {
     heartbeatUrl: str("HEARTBEAT_URL"),
     /** Runs one runner process drives at once; the rest stay in line for another. */
     maxRuns: num("RUNNER_MAX_RUNS", 16),
+    /** How often the clock looks for runs whose wait is over. */
+    tickMs: num("WAKE_TICK_MS", 60_000),
   },
   appUrl,
   /**

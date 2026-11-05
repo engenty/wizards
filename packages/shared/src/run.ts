@@ -15,7 +15,7 @@ import type { Surface } from "./surface.js";
 import { type Gap, type Line, lineText, type Texts, type TextTable, textOf } from "./texts.js";
 import type { ThemeColours, ThemeEffect, ThemeShape } from "./theme.js";
 
-export type RunStatus = "waiting_input" | "running" | "done" | "failed" | "cancelled";
+export type RunStatus = "waiting_input" | "sleeping" | "waiting_signal" | "running" | "done" | "failed" | "cancelled";
 
 export interface AssetRef {
   id: string;
@@ -71,6 +71,8 @@ export interface RunState {
   decisions?: Record<string, BranchDecision>;
   /** Pages whose fields a decision chose: the field ids kept, by page. */
   pages?: Record<string, { shown: string[] }>;
+  /** Signals this run took, by id: each only once. */
+  signals?: string[];
   /** How often each branch was taken, by "<step>→<goto>": loops stop at the rule's max. */
   loops?: Record<string, number>;
   /** File fields with `listen`: what is said in the recording, piece by piece with its times. */

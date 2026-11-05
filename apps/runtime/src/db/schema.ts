@@ -321,8 +321,10 @@ export const run = sqliteTable(
     /** The client that started it over the public API (`x-wizards-client`): web, app, cli, or a registered id. */
     client: text("client"),
     status: text("status", {
-      enum: ["waiting_input", "running", "done", "failed", "cancelled"],
+      enum: ["waiting_input", "sleeping", "waiting_signal", "running", "done", "failed", "cancelled"],
     }).notNull(),
+    /** When the run wakes: the end of a `wait`, a timeout, a retry's next try. Null: nothing due. */
+    wakeAt: integer("wake_at", { mode: "timestamp_ms" }),
     cursor: text("cursor"),
     state: text("state", { mode: "json" }).$type<RunState>().notNull(),
     /** The claim of the runner that drives the run (`run_index.generation`); its writes need it. */
@@ -1708,4 +1710,36 @@ export const syncMerge = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index("sync_merge_item").on(t.kind, t.item, t.createdAt)],
+);
+
+/**
+ * What arrived from outside (docs/plans/durable-agents.md): written first, then matched to the
+ * runs that wait for it. One that no run waits for stays, so a run that gets there later takes it.
+ */
+export const runSignal = sqliteTable(
+  "run_signal",
+  {
+    id: text("id").primaryKey(),
+    spaceId: text("space_id").notNull(),
+    name: text("name").notNull(),
+    key: text("key").notNull(),
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>(),
+    source: text("source").notNull(),
+    at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("run_signal_match").on(t.spaceId, t.name, t.key, t.at)],
+);
+
+/** One row per run that waits for a signal. */
+export const runWait = sqliteTable(
+  "run_wait",
+  {
+    runId: text("run_id").primaryKey(),
+    stepId: text("step_id").notNull(),
+    spaceId: text("space_id").notNull(),
+    name: text("name").notNull(),
+    key: text("key").notNull(),
+    since: integer("since", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("run_wait_match").on(t.spaceId, t.name, t.key)],
 );

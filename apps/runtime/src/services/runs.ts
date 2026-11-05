@@ -612,6 +612,7 @@ export async function draftStepView(
     }),
     definition: def,
     status,
+    wakeAt: null,
     claim: 0,
     rev: 0,
     cursor: step.id,

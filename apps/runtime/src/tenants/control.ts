@@ -1,4 +1,4 @@
-import { and, count, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, count, eq, lte, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { control, controlDb } from "../db/client.js";
 import { env } from "../env.js";
 import { currentTenant } from "./tenant.js";
@@ -177,6 +177,26 @@ export async function claimRun(
              AND run_id != ${runId}) < ${limit}
     RETURNING generation`);
   return result.rows.length ? Number(result.rows[0].generation) : null;
+}
+
+/** When the run wakes, in the copy the clock reads; null: nothing due. */
+export async function setWake(runId: string, wakeAt: Date | null) {
+  await controlDb
+    .update(control.runIndex)
+    .set({ wakeAt })
+    .where(eq(control.runIndex.runId, runId));
+}
+
+/**
+ * The clock: what came due goes in line, in one statement over every tenant. The wake time is
+ * cleared here; a run that turns out not to be due puts it back from its own row.
+ */
+export async function wakeDue(now = new Date()): Promise<number> {
+  const result = await controlDb
+    .update(control.runIndex)
+    .set({ active: true, owner: null, seen: null, wakeAt: null })
+    .where(and(eq(control.runIndex.active, false), lte(control.runIndex.wakeAt, now)));
+  return result.rowsAffected;
 }
 
 /** This runner still works on these runs. */
