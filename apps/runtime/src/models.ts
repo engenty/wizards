@@ -558,10 +558,13 @@ async function creditAccess(cfg: ModelConfig, chosen: boolean): Promise<GatewayA
 }
 
 /**
- * Where the gateway's own tools (web search) are reached: a Manage-App's runtime always; alone,
- * through the linked account. None: the model's own search, where it has one.
+ * Where the gateway's own tools (web search) are reached, behind `gatewaySearch`: a Manage-App's
+ * runtime always; alone, through the linked account. None: the model's own search, where it has one.
  */
 export async function toolAccess(): Promise<GatewayAccess | null> {
+  if (!feature("gatewaySearch", await remoteFeatures().catch(() => null))) {
+    return null;
+  }
   if (managed) {
     return {
       baseUrl: env.manage.gatewayUrl,
