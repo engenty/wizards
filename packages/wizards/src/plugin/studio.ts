@@ -29,6 +29,8 @@ export interface StudioNavEntry {
   /** A function: the language can change while the studio is open. */
   label: () => string;
   icon: Icon;
+  /** The bar it stands in: Studio's (the default) or Work's. Where Work is off, it stands in Studio's. */
+  mode?: "studio" | "work";
 }
 
 export interface StudioSettingsSection {

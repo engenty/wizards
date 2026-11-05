@@ -47,10 +47,11 @@ import {
 } from "../lib/appbar";
 import { useFeature } from "../lib/features";
 import { type Key, t } from "../lib/i18n";
-import { useMode } from "../lib/mode";
+import { allowedModes, useMode } from "../lib/mode";
 import { type Me, useCurrentSpace, useMayCreate } from "../lib/session";
 import { setTheme, type ThemeMode, useThemePick } from "../lib/theme";
 import { PluginFrame, useStudioPlugins } from "../plugins/host";
+import { navIn } from "../plugins/nav";
 import { cn } from "../ui";
 import { SpaceFace, SpaceMenu, UserMenu, useDismiss, useOneSpace } from "./AppFrame";
 import { EngentyMenu } from "./EngentyMenu";
@@ -346,7 +347,15 @@ const WORK_ICON: Record<WorkPlace, LucideIcon | typeof EngentyGlyph> = {
  * for the person (the calls held for their approval, and for an admin the broker's critical lines
  * they have not seen; its count shows from one on).
  */
-function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean }) {
+function WorkRail({
+  labels,
+  horizontal,
+  nav,
+}: {
+  labels: boolean;
+  horizontal: boolean;
+  nav: ReturnType<typeof useStudioPlugins>["nav"];
+}) {
   const bell = useWaiting().data;
   const waiting = (bell?.approvals.length ?? 0) + (bell?.unseen ?? 0);
   // The places past the chats aren't built yet: behind `workWip`.
@@ -380,6 +389,19 @@ function WorkRail({ labels, horizontal }: { labels: boolean; horizontal: boolean
           </NavLink>
         );
       })}
+      {/* The pages plugins added to Work, each behind its icon. */}
+      {nav.map((entry) => (
+        <PluginFrame key={entry.serial} of={entry}>
+          <NavLink
+            to={entry.to}
+            aria-label={entry.label()}
+            className={({ isActive }) => glyph(isActive, labels)}
+          >
+            <entry.icon className="size-5 shrink-0" />
+            {labels ? <Label>{entry.label()}</Label> : null}
+          </NavLink>
+        </PluginFrame>
+      ))}
     </nav>
   );
 }
@@ -397,6 +419,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
   const hint = useBarHint(!labels, position);
   const place = usePlace();
   const mode = useMode(me);
+  const nav = navIn(plugins.nav, mode, allowedModes(me));
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
@@ -489,7 +512,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
         className={horizontal ? "ml-1" : "mt-2"}
       />
       {mode === "work" ? (
-        <WorkRail labels={labels} horizontal={horizontal} />
+        <WorkRail labels={labels} horizontal={horizontal} nav={nav} />
       ) : mode === "client" ? (
         <div className="min-h-0 min-w-0 flex-1" />
       ) : (
@@ -553,7 +576,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
             {labels ? <Label>{t("space.results")}</Label> : null}
           </Link>
           {/* The pages plugins added, each behind its icon, after a divider. */}
-          {plugins.nav.length ? (
+          {nav.length ? (
             <div
               className={cn(
                 "shrink-0 bg-border",
@@ -568,7 +591,7 @@ export function AppRail({ me, labels, room }: { me: Me; labels: boolean; room: b
               horizontal ? "flex-row overflow-x-auto" : "flex-col overflow-y-auto",
             )}
           >
-            {plugins.nav.map((entry) => (
+            {nav.map((entry) => (
               <PluginFrame key={entry.serial} of={entry}>
                 <NavLink
                   to={entry.to}
@@ -678,6 +701,7 @@ function Capsule({ index }: { index: number | null }) {
  */
 export function PhoneBar({ me }: { me: Me }) {
   const plugins = useStudioPlugins();
+  const nav = navIn(plugins.nav, useMode(me), allowedModes(me));
   const skillsOn = useFeature("skills");
   const capabilitiesOn = useFeature("capabilities");
   const place = usePlace();
@@ -810,7 +834,7 @@ export function PhoneBar({ me }: { me: Me }) {
               <Settings className="size-[1.125rem] shrink-0 text-ink-3" />
               <span className="min-w-0 flex-1 truncate">{t("nav.settings")}</span>
             </button>
-            {plugins.nav.map((entry) => (
+            {nav.map((entry) => (
               <PluginFrame key={entry.serial} of={entry}>
                 <button
                   type="button"

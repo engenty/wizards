@@ -85,7 +85,7 @@ export default defineStudioPlugin((studio) => {
 | Call | Adds |
 |---|---|
 | `studio.registerPage({ path, component, wide? })` | A page of the studio at `/studio<path>`, inside the studio’s frame. `path` takes `:name` parts. `wide`: the page lays out its own columns and takes the screen’s width |
-| `studio.registerNav({ to, label, icon })` | An icon in the app bar that opens a page |
+| `studio.registerNav({ to, label, icon, mode? })` | An icon in the app bar that opens a page. `mode`: the bar it stands in, `"studio"` (default) or `"work"`. Where Work is off, an icon for Work stands in Studio’s bar |
 | `studio.registerSettingsSection({ id, label, icon, component, menu? })` | A section of the settings, one level down in Settings › Plugins, at `/studio/settings/plugins?show=<id>` (`/studio/settings/<id>` leads there). `menu`: the user menu links to it directly |
 | `studio.registerSpaceSection({ id, group?, label, hint?, component, status?, icon?, grouped?, add? })` | A section of a part of the space page at `/studio/space/<group>#<id>`, below the part’s own. See [The space](#the-space) |
 | `studio.registerSpacePart({ id, label, icon, after?, component })` | A part of the space page of the plugin’s own, at `/studio/space/<id>`. See [A part of the plugin’s own](#a-part-of-the-plugins-own) |

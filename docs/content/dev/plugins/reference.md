@@ -252,7 +252,7 @@ The default export is a `StudioPlugin`: `(studio: StudioPluginContext) => void`.
 |---|---|
 | `studio.plugin` | `{ id, name, version }` |
 | `studio.registerPage({ path, component, wide? })` | A page at `/studio<path>` |
-| `studio.registerNav({ to, label, icon })` | An icon in the app bar. `label: () => string` |
+| `studio.registerNav({ to, label, icon, mode? })` | An icon in the app bar. `label: () => string`. `mode`: `"studio"` (default) or `"work"`, the bar it stands in. Where Work is off, an icon for Work stands in Studio’s bar |
 | `studio.registerSettingsSection({ id, label, icon, component, menu? })` | A section one level down in Settings › Plugins, at `/studio/settings/plugins?show=<id>` |
 | `studio.registerShareSection({ runner, component })` | [Runners](./runners.md#the-runners-part-of-the-share-dialog). The runner’s own settings for a wizard (a keyword), under the share dialog’s gear once it is switched on and set up. `component` gets `{ wizard: { id, title } }` |
 | `studio.registerShareSetup({ runner, title, component, notice? })` | [Runners](./runners.md#setting-up-inside-the-dialog). What “Set up” in the runner’s row opens inside the share dialog. `component` gets `{ wizard, Actions, done(banner?) }`, `notice` `{ wizard, open }` |
