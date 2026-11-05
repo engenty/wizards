@@ -336,6 +336,12 @@ describe("a pasted MCP address that describes its sign-in", () => {
       ),
     );
     expect(row.audience).toBe("admins");
+    // The lists of connections mark it: its view says where the connector came from.
+    const views = await asAdmin(() => connections.spaceConnectionViews(space, "user-a"));
+    expect(views.find((v) => v.id === row.id)?.connector).toMatchObject({
+      id: "crm-example",
+      fromAddress: true,
+    });
     // One from the product keeps the members.
     const builtin = await asAdmin(() =>
       connections.createSpaceConnection(

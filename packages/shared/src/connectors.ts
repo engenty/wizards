@@ -317,6 +317,8 @@ export interface SpaceConnectionView {
     description?: string;
     /** An `api_key` connector: what is typed to sign in (as the space, or each person). */
     fields?: ConnectorKeyField[];
+    /** Imported from a pasted address, not from the registry: the lists mark it „nicht geprüft“. */
+    fromAddress?: boolean;
   } | null;
   name: string;
   signIn: ConnectionSignIn;

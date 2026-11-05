@@ -188,7 +188,8 @@ export async function spaceConnectionViews(
     : [];
   return Promise.all(
     rows.map(async (row) => {
-      const connector = (await resolveConnector(spaceId, row.connectorId))?.connector ?? null;
+      const found = await resolveConnector(spaceId, row.connectorId);
+      const connector = found?.connector ?? null;
       const theirs =
         row.signIn === "person" ? signIns.filter((s) => s.connectionId === row.id) : [];
       const mine = theirs.find((s) => s.userId === userId);
@@ -205,6 +206,7 @@ export async function spaceConnectionViews(
               ...(connector.auth.kind === "api_key"
                 ? { fields: connector.auth.apiKey.fields }
                 : {}),
+              ...(found?.fromAddress ? { fromAddress: true } : {}),
             }
           : null,
         name: row.name,
